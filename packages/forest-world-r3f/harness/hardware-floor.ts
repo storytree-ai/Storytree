@@ -37,7 +37,7 @@ import { growPlant } from './plant-geometry.js';
 
 /** The same authored token the comparison page draws its plants and ground with. A
  *  benchmark wearing a different palette would measure a different shader. */
-const HEALTHY = STATUS_TOKENS['healthy']!.top[0]!;
+const HEALTHY = STATUS_TOKENS.get('healthy')!.top[0]!;
 
 /** The arc's signed land camera elevation. ADR-0380 D6 fence 4: the projection does not move. */
 const ELEVATION_DEG = 50;

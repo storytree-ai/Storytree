@@ -34,7 +34,7 @@ import { shadowRamp } from './shadow-ladder.js';
  *  fixtures are built from the REAL palette rather than from invented hexes, so a retuned token
  *  changes the fixture with the renderer instead of leaving a test agreeing with a colour that no
  *  longer exists. */
-const GROUND = toHex(shadowRamp(STATUS_TOKENS['healthy']!.top[0]!)[3]!);
+const GROUND = toHex(shadowRamp(STATUS_TOKENS.get('healthy')!.top[0]!)[3]!);
 
 /** How many pixels each prop contributes in the honest fixture. Any number does; it is here so
  *  the arithmetic below reads. */

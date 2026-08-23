@@ -45,16 +45,16 @@ export const SOURCE_GROUP_ORDER = [
 export type SourceGroupName = (typeof SOURCE_GROUP_ORDER)[number];
 
 /** Artifact category (the `kind` / `category` discriminator) → its Source group label. */
-const CATEGORY_TO_GROUP: Readonly<Record<string, SourceGroupName>> = {
-  definition: "Definitions",
-  principle: "Principles",
-  pattern: "Patterns",
-  guardrail: "Guardrails",
-  techstack: "Tech stack",
-  template: "Templates",
-  "open-question": "Open questions",
-  adr: "Decisions (ADRs)",
-};
+const CATEGORY_TO_GROUP: ReadonlyMap<string, SourceGroupName> = new Map([
+  ["definition", "Definitions"],
+  ["principle", "Principles"],
+  ["pattern", "Patterns"],
+  ["guardrail", "Guardrails"],
+  ["techstack", "Tech stack"],
+  ["template", "Templates"],
+  ["open-question", "Open questions"],
+  ["adr", "Decisions (ADRs)"],
+]);
 
 /** One resolved citation, ready to render. `ref` is the original pointer (for the link href). */
 export interface ResolvedSource {
@@ -97,7 +97,7 @@ export function groupSources(
     if (ref.startsWith("asset:")) {
       const id = ref.slice("asset:".length);
       const hit = resolveAsset(id);
-      if (hit) add(CATEGORY_TO_GROUP[hit.kind] ?? "Other", { ref, label: hit.title });
+      if (hit) add(CATEGORY_TO_GROUP.get(hit.kind) ?? "Other", { ref, label: hit.title });
       else add("Other", { ref, label: `${ref} (unknown asset)` });
     } else if (ref.startsWith("doc:")) {
       const rel = ref.slice("doc:".length);

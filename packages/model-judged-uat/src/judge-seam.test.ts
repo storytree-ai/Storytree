@@ -33,10 +33,10 @@ test("judge-seam-returns-structured-result-only: ScriptedJudge returns parsed PA
 test("judge-seam-has-no-write-surface: JudgePort / ScriptedJudge expose no write methods", () => {
   const judge = new ScriptedJudge({});
   assertReadOnlyJudgePort(judge);
-  assert.equal(typeof (judge as unknown as { write?: unknown }).write, "undefined");
-  assert.equal(typeof (judge as unknown as { edit?: unknown }).edit, "undefined");
-  assert.equal(typeof (judge as unknown as { delete?: unknown }).delete, "undefined");
-  assert.equal(typeof (judge as unknown as { runTool?: unknown }).runTool, "undefined");
+  assert.ok(!("write" in judge), "no write method");
+  assert.ok(!("edit" in judge), "no edit method");
+  assert.ok(!("delete" in judge), "no delete method");
+  assert.ok(!("runTool" in judge), "no runTool method");
 });
 
 test("judge-seam-fresh-context-per-call: sequential calls do not leak prior scratch", () => {

@@ -259,9 +259,7 @@ export interface DecisionReadCoverage {
 }
 
 function emptyCounts<K extends string>(keys: readonly K[]): Record<K, number> {
-  const out = {} as Record<K, number>;
-  for (const key of keys) out[key] = 0;
-  return out;
+  return Object.fromEntries(keys.map((key) => [key, 0])) as Record<K, number>;
 }
 
 const SPELLINGS: readonly DecisionIdSpelling[] = ["row", "asset", "decisions", "docs/decisions"];

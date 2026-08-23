@@ -75,7 +75,9 @@ function variantDir(root: string, label: string, codeSha: string | null): string
   const dir = path.join(root, label);
   mkdirSync(dir, { recursive: true });
   copyFileSync(FRAME, path.join(dir, "frame-18.png"));
-  const registration: Record<string, unknown> = { track: label, frameCount: 1 };
+  const registration: Record<string, unknown> = {};
+  registration["track"] = label;
+  registration["frameCount"] = 1;
   if (codeSha !== null) {
     registration["codeState"] = { generator: "blender_tree.py", sha256: codeSha };
   }

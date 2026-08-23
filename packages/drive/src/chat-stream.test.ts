@@ -58,7 +58,7 @@ function queryYielding(messages: unknown[]): SdkQueryFn {
 
 /** Build an SDK partial-assistant streaming message carrying one text-delta fragment — the shape
  *  live `query()` emits when `includePartialMessages` is on, so the scripted double matches reality. */
-function textDeltaMessage(text: string): unknown {
+function textDeltaMessage(text: string) {
   return {
     type: "stream_event",
     event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },

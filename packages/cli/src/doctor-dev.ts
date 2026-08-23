@@ -560,10 +560,16 @@ export function classifyWorktreeIdentity(
  * even set. Separated from the round trip so the `not-attempted` short-circuit — the one branch that
  * decides a missing credential is not a database outage — is provable without a database.
  */
+/** The DB verdict plus how long the probe took — `null` when no probe was attempted. */
+export interface DbReachabilityVerdict {
+  readonly state: DbReachability;
+  readonly elapsedMs: number | null;
+}
+
 export function classifyDbReachability(
   dbUserPresent: boolean,
   result: { reachable: boolean; elapsedMs: number } | null,
-): { state: DbReachability; elapsedMs: number | null } {
+): DbReachabilityVerdict {
   if (!dbUserPresent || result === null) return { state: "not-attempted", elapsedMs: null };
   return { state: result.reachable ? "reachable" : "unreachable", elapsedMs: result.elapsedMs };
 }
@@ -596,8 +602,16 @@ function ghAuthState(): GhAuthState {
   }
 }
 
+/** Git's two dir readings for the cwd — equal means the primary checkout, differing means a worktree. */
+interface GitDirs {
+  /** `git rev-parse --git-dir`, absolute; `null` when git could not answer. */
+  readonly gitDir: string | null;
+  /** `git rev-parse --git-common-dir`, absolute; `null` when git could not answer. */
+  readonly commonDir: string | null;
+}
+
 /** Git's two dir readings for the cwd, or nulls when git cannot answer (not a repo / no git). */
-function gitDirs(): { gitDir: string | null; commonDir: string | null } {
+function gitDirs(): GitDirs {
   const read = (arg: string): string | null => {
     try {
       return execFileSync("git", ["rev-parse", "--path-format=absolute", arg], {

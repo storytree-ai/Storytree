@@ -80,7 +80,7 @@ test("uat-2: The judge seam is independent, fresh, and read-only", () => {
     judgeId: "claude-opus-4-8",
   });
   assert.equal(result.outcome, "PASS");
-  assert.equal(typeof (judge as unknown as { write?: unknown }).write, "undefined");
+  assert.ok(!("write" in judge), "no write method");
 });
 
 test("uat-3: The spine admits only eligible, hash-fresh, well-shaped results", () => {

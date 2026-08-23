@@ -142,10 +142,10 @@ test("prices the 5m and 1h cache-write TTLs at their different rates", () => {
   const report = collect();
   close(
     report.cost.cacheWrite5m,
-    (20_000 * MODEL_PRICES["opus"]!.cacheWrite5m + 30_000 * MODEL_PRICES["sonnet"]!.cacheWrite5m) / 1e6,
+    (20_000 * MODEL_PRICES.get("opus")!.cacheWrite5m + 30_000 * MODEL_PRICES.get("sonnet")!.cacheWrite5m) / 1e6,
     "population 5m cost",
   );
-  close(report.cost.cacheWrite1h, (40_000 * MODEL_PRICES["opus"]!.cacheWrite1h) / 1e6, "population 1h cost");
+  close(report.cost.cacheWrite1h, (40_000 * MODEL_PRICES.get("opus")!.cacheWrite1h) / 1e6, "population 1h cost");
 });
 
 test("a cache_creation total with no TTL breakdown falls back to the 5m rate, losing no tokens", () => {
@@ -272,7 +272,7 @@ test("readTranscript on a missing file is an empty read, not an error", () => {
 test("every price row holds the published cache multipliers", () => {
   // Guards a future rate edit: cache write is 1.25x/2x input and cache read is 0.1x input, so a
   // row that updates `input` without its cache columns is caught here rather than in a report.
-  for (const [tier, price] of Object.entries(MODEL_PRICES)) {
+  for (const [tier, price] of MODEL_PRICES) {
     close(price.cacheWrite5m, price.input * 1.25, `${tier} 5m write`);
     close(price.cacheWrite1h, price.input * 2, `${tier} 1h write`);
     close(price.cacheRead, price.input * 0.1, `${tier} cache read`);

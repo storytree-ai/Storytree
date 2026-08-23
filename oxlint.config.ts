@@ -388,98 +388,54 @@ export default defineConfig({
     // ruled for the `Record<string, any>` ban.
     "anti-slop/no-unknown-returns": "off",
 
-    // ---------------------------------------------------------------------------------------
-    // NOT YET ADJUDICATED — off, not "warn", deliberately. A wall of warnings nobody must clear
-    // trains sessions to ignore the linter, which is the precise habit this adoption exists to
-    // avoid. Each rule leaves "off" via its own increment on the arc, carrying either a zero
-    // count or a panel-backed reason. Counts below are from this increment's inventory.
-    // ---------------------------------------------------------------------------------------
-    // ADJUDICATED AND ADOPTED (inc-08) — but still `off`, because it reaches `error` only at ZERO
-    // and 109 firings remain (65 source / 44 test across 61 files, re-measured 2026-08-23 at the
-    // tree this landed on — a count is a READING, never a property: inherit none of the numbers in
-    // this comment, re-run the inventory). This is a MIGRATION IN PROGRESS, not an open question:
-    // the rule is agreed correct, and what is left is work rather than doubt. Record:
-    // `tools/oxlint/panels/no-known-value-widening.md`; remaining lane: inc-10.
-    //
-    // 518 measured; 409 driven out. `anonymous object :: binding` is at zero, and so is EVERY site
-    // in the website-mirrored packages — the fence those 24 sat behind is deleted, not narrowed.
-    // No rule panel was needed — a panel justifies a REJECTION, and
-    // the owner's narrowed bar admits only functionality loss or a genuine exceptional set, neither
+    // ADOPTED AND AT ZERO (inc-08 measured and migrated; inc-10 closed the lane, 2026-08-23).
+    // 518 firings at the start, 0 now, so the rule is at `error` like any other terminal adopt.
+    // Record: `tools/oxlint/panels/no-known-value-widening.md`. No RULE panel was ever convened,
+    // and that is the procedure rather than a shortcut: a panel justifies a REJECTION, and the
+    // owner's narrowed bar admits only functionality loss or a genuine exceptional set — neither
     // of which describes "we prefer inline object return types". A REFACTOR panel settled the one
-    // live fork (delete the annotation vs name the type) 3-0: NAME it, because with no build step
-    // and raw TypeScript exported the declaration site is the only API-surface document there is,
-    // and a `return { xs: [] }` branch infers `never[]` once the annotation is gone.
+    // live fork 3-0: NAME the type, do not delete the annotation, because with no build step and
+    // raw TypeScript exported the declaration site is the only API-surface document there is.
     //
-    // WHAT REMAINS, and it is a shape rather than a backlog. 68 `open dictionary :: binding` split
-    // almost evenly by the compiler's own verdict:
-    //   - LOOKUP (32) — a table read with a computed key. `ReadonlyMap` is the answer and is proved:
-    //     the rule classifies neither `ReadonlyMap` nor an interface reference as a widening target,
-    //     so the immutability fence the refactor panel thought this shape lost is in fact kept. Two
-    //     MIME tables already moved this way.
-    //   - ACCUMULATOR (33) — a binding that GAINS or LOSES keys after construction (`doc["x"] = y`,
-    //     `delete doc["rules"]`). This is the increment's ground-2 candidate and the one place no
-    //     compliant shape was found: `satisfies` pins the key set so the later write stops
-    //     compiling, naming the type re-states the same widening, and resolving the conditionals
-    //     into one literal requires exactly the idiom `no-conditional-empty-object-spread` bans.
-    //     A NARROWING here needs its own rule panel per the procedure — it is not this lane's to
-    //     take unilaterally, and it must never be taken by quietly exploiting the classifier's
-    //     interface/alias asymmetry.
-    // Plus 34 in the small tail (assertions, `unknown` targets, one property).
+    // ★ THE REMEDIES, IN THE ORDER TO TRY THEM. Reach for the first that fits; the rule's own
+    // stated first remedy ("keep inference") is measured-WRONG at scale here — applied
+    // mechanically to 32 binding sites it produced 525 typecheck errors across 12 packages.
+    //   1. `as const satisfies Record<Union, V>` for a TOTAL closed-union table — free, and it
+    //      adds an exhaustiveness check the annotation never had. ⚠ `as const` also narrows each
+    //      ENTRY to its literal shape, so a table whose entries omit different optional fields
+    //      loses them from the read type (measured on `KIND_SPECS`, 6 errors); there, `satisfies`
+    //      alone plus a one-line identity helper pinning the element type is the shape.
+    //   2. `ReadonlyMap` for a PARTIAL table, or one read by an open key — the one shape
+    //      `as const satisfies` cannot express. ⚠ `Object.keys/values/entries` over a Map return
+    //      EMPTY at runtime while typechecking clean, so convert the iteration WITH the reads or
+    //      a test loop silently runs zero times.
+    //   3. A NAMED INTERFACE for an accumulator whose key set IS known. An interface carries no
+    //      implicit index signature, so an open sink (`patchDoc`'s `Readonly<Record<string,
+    //      unknown>>`) needs a `{ ...fields }` spread at the call — pay it there, never widen the
+    //      local back. `interface` rather than a type alias is forced by the classifier's known
+    //      interface/alias asymmetry; recorded, not leaned on, since the shape is narrow either way.
+    //   4. The rule's OWN sanctioned accumulator idiom — `const out: Record<string, unknown> = {}`
+    //      then fill — for a bag whose key set is genuinely dynamic (a migration output over a
+    //      legacy row, a doc built from `KIND_SPECS`, an env bag with computed keys). The empty
+    //      literal is an explicit exemption in the rule (`isEmptyObjectExpression`), so this is the
+    //      shape it asks for, not a way around it.
+    //   5. A bare drop, right for exactly one case: a spread of an ALREADY-open record. ⚠ TypeScript
+    //      does NOT carry a string index signature through an object spread, so `{ ...rest, k }`
+    //      narrows to `{ k: … }` the moment the annotation goes; remedy 4 is what that case wants.
+    //   And for an ASSERTION that discards key knowledge: `satisfies` where the value is a literal,
+    //   or an `x is Union` guard over `Object.hasOwn` where a stored string reads a closed table.
     //
-    // ★ THE ACCUMULATOR CLASS IS NOT GROUND-2 AFTER ALL — it has a compliant shape, and the
-    // "no compliant shape was found" reading above is CORRECTED here rather than carried forward.
-    // The shape is a NAMED NARROW INTERFACE listing the keys the accumulator may gain. `arc edit`'s
-    // patch bag was the canonical example (`const fields: Record<string, unknown> = { updatedAt }`
-    // then two guarded writes); it may carry exactly three keys, all known at authoring time, so
-    // `interface ArcNarrativePatch { updatedAt: string; intent?: string; endState?: string }` is
-    // STRICTLY NARROWER than the dictionary rather than a re-statement of it — and it turns a
-    // typo'd key from a silently-dropped field into a compile error. `satisfies` fails there for the
-    // reason recorded above (it pins the key set and the later write stops compiling); naming the
-    // keys does not. NO RULE PANEL IS NEEDED for this class. One boundary cost, paid explicitly: a
-    // named interface has no implicit index signature, so handing it to a genuinely open sink
-    // (`patchFields(… fields: Readonly<Record<string, unknown>>)`) needs a `{ ...fields }` spread at
-    // the call. `interface` rather than a type alias is forced by the classifier's known
-    // interface/alias asymmetry — recorded, not leaned on, since the shape is narrow either way.
+    // ★ THE COMPILER IS THE ADJUDICATOR HERE, not a re-read. Transform, then
+    // `pnpm -r --no-bail typecheck`, and let the errors choose the shape — it corrected the panel
+    // three times and this lane three more, none of them at the declaration site.
     //
-    // ★ THE RULE'S OWN FIRST REMEDY — "keep inference" — IS MEASURED-WRONG AT SCALE HERE. DO NOT
-    // re-run the sweep. Applied mechanically to all 32 remaining BINDING sites (delete the
-    // annotation, keep the literal) it produced **525 typecheck errors** across 12 packages, because
-    // the annotation is load-bearing in three distinct ways: it supplies the index signature a later
-    // computed write needs (`props['data-cap-id'] = …` in `SceneView.tsx`), it keeps a spread of an
-    // already-open record OPEN (a destructured `…rest` narrows to its known keys the moment the
-    // annotation goes), and it is what lets a closed-union table be READ by a wider key. The
-    // remedies that DO work, in the order to try them: `as const satisfies Record<Union, V>` for a
-    // TOTAL closed-union table (free, and adds exhaustiveness); `ReadonlyMap` for a PARTIAL table or
-    // one read by an open key (the one shape `as const satisfies` cannot express — it narrows the
-    // readable keys to those present); a NAMED INTERFACE for an accumulator; and only then a bare
-    // drop, which is right just for a spread of an already-open record.
-    //
-    // ★ A GENUINE RESIDUE EXISTS, and it is the same ground the `no-unsafe-dictionary-type` panel
-    // found. `packages/library/src/migrations.ts` builds a MIGRATION output over a legacy row whose
-    // keys are whatever that row carried: there is no narrower type to name, and dropping the
-    // annotation does not keep inference either — measured, the compiler narrows the spread and the
-    // conditional backfills stop compiling. Those two sites stay annotated with the reason written
-    // at each. Whether that class is large enough to need a NARROWING is inc-10's call, and it is
-    // the only part of this rule that might still want a panel.
-    //
-    // ✓ THE WEBSITE-MIRROR FENCE IS GONE, AND SO IS EVERY FIRING BEHIND IT. What blocked those
-    // sites was never the code: editing the three files the website vendors wholesale (ADR-0093)
-    // welded a one-line lint fix to a live site publish, and publishing was read as the owner's
-    // call. ADR-0412 settled that — the site is in STEALTH MODE and publishing is NOT owner-gated
-    // (D2), with only reach/access, live data and third-party scripts still gated (D3). So
-    // `land-the-33-fenced-sites-and-republish` did the cross-repo ceremony as ordinary work and
-    // cleared BOTH rules in ONE republish rather than each lane doing half of one.
-    //
-    // It went WIDER than the three fenced files on purpose: `pnpm sync:web-engine` mirrors ALL of
-    // `forest-world/src` and `forest-world-r3f/src`, so `coast.ts` and `ForestWorldCanvas.tsx` were
-    // migrated in the same pass. Leaving them would have made the NEXT touch of either file a second
-    // republish for no extra benefit. Both mirrored package sources are now at zero for both rules.
-    //
-    // ⚠ THE LOCAL-GATE BLIND SPOT IS UNCHANGED and still bites: `check:web-engine` declares SKIP
-    // without the `web/` submodule, so a laptop reads GREEN, NARROWED and CI is the first honest
-    // verdict. Run `git submodule update --init web` before touching these packages — that is what
-    // makes the drift check answer, and inc-08's revert is what it costs not to.
-    "anti-slop/no-known-value-widening": "off",
+    // ✓ NO RESIDUE. inc-08 recorded `packages/library/src/migrations.ts` as genuine ground-2
+    // residue — a migration output over a legacy row with no narrower type to name. That was true
+    // of remedies 1-3 and 5 and false of remedy 4: the two sites now DECLARE the open dictionary as
+    // the accumulator they are and fill it, which is honest about the parse boundary and fires
+    // nothing. The `no-unsafe-dictionary-type` panel's ground still stands for that rule; it just
+    // does not reach this one.
+    "anti-slop/no-known-value-widening": "error",
   },
   overrides: [
     {

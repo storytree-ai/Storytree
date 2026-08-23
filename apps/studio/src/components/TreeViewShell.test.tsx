@@ -1789,7 +1789,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
         lab.querySelector<HTMLButtonElement>('[data-r3-lab-candidate="exp-18"]')!.click(),
       );
 
-      const sample = (): unknown => ({
+      const sample = () => ({
         cue: section.getAttribute('data-semantic-growth-frame'),
         motion: section.getAttribute('data-motion'),
         progress: section.getAttribute('data-organic-pose-progress'),

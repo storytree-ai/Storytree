@@ -241,7 +241,7 @@ async function main(): Promise<void> {
   }
   console.log("");
 
-  const arms: Record<SessionGrain, { before: AmendsReachReading; after: AmendsReachReading }> = {
+  const arms = {
     window: {
       before: computeAmendsReach({ reads: gathered.reads, support, from: args.from, to: justBefore(args.split), grain: "window" }),
       after: computeAmendsReach({ reads: gathered.reads, support, from: args.split, to: args.to, grain: "window" }),
@@ -250,7 +250,10 @@ async function main(): Promise<void> {
       before: computeAmendsReach({ reads: gathered.reads, support, from: args.from, to: justBefore(args.split), grain: "slot" }),
       after: computeAmendsReach({ reads: gathered.reads, support, from: args.split, to: args.to, grain: "slot" }),
     },
-  };
+    // `satisfies`, not an annotation: this is a TOTAL table over a closed union, so the check that
+    // both grains are present is kept while the literal keys stay readable (anti-slop
+    // `no-known-value-widening`).
+  } satisfies Record<SessionGrain, { before: AmendsReachReading; after: AmendsReachReading }>;
 
   console.log(`${TAG} — the two arms, split at the drain's completion (${args.split})`);
   console.log("");

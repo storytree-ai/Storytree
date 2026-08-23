@@ -476,6 +476,48 @@ function composeClass(node: SceneNode, ctx: SceneCtx): string {
   }
 }
 
+/**
+ * The attribute bag a scene element accumulates before `React.createElement` stamps it onto an SVG
+ * node — the presentation attributes React already names, plus every `data-*` stamp this renderer
+ * writes.
+ *
+ * Named rather than `Record<string, unknown>` (anti-slop `no-known-value-widening`). The `data-*`
+ * stamps are not decoration: `apps/desktop/e2e/node-click.e2e.mjs` selects through
+ * `[data-story-id]`, the accretion and vegetation frames are read back by the scene tests, and the
+ * lane stamps drive the trail CSS. Under an open dictionary a typo'd key was a silently missing
+ * attribute that only an e2e run could catch; here it is a compile error at the assignment.
+ */
+interface SceneElementProps extends React.SVGProps<SVGElement> {
+  'data-cap-id'?: string;
+  'data-depth-slot'?: string | number;
+  'data-edges'?: string | number;
+  'data-from'?: string;
+  'data-id'?: string;
+  'data-island'?: string;
+  'data-island-accretion-cell'?: string | number;
+  'data-island-accretion-coast'?: string | number;
+  'data-island-accretion-coast-cell'?: string | number;
+  'data-island-accretion-order'?: string | number;
+  'data-island-accretion-progress'?: string | number;
+  'data-island-accretion-scale'?: string | number;
+  'data-island-accretion-wave'?: string | number;
+  'data-lane'?: string;
+  'data-native-island-progress'?: string | number;
+  'data-native-island-story'?: string;
+  'data-organic-frame'?: string | number;
+  'data-organic-track'?: string;
+  'data-segments'?: string | number;
+  'data-spur'?: string | number | boolean;
+  'data-story-id'?: string;
+  'data-to'?: string;
+  'data-usage'?: string | number;
+  'data-veg-frame'?: string | number;
+  'data-veg-grown'?: string | number;
+  'data-veg-track'?: string;
+  'data-world-anchor-x'?: string | number;
+  'data-world-anchor-y'?: string | number;
+}
+
 /** The studio's per-node handlers (it binds React handlers directly — no delegation):
  *  an island group hovers + selects its story; a plant selects its capability. */
 function handlersFor(
@@ -605,7 +647,7 @@ function vegetationTrackImage(
   key: React.Key,
 ): React.JSX.Element {
   const place = render.placement;
-  const props: Record<string, unknown> = {
+  const props: SceneElementProps = {
     key,
     href: place.src,
     x: fmt(place.x),
@@ -650,7 +692,7 @@ function vegetationTrackNode(
   ctx: SceneCtx,
   render: Extract<VegetationRender, { kind: 'track' }>,
 ): React.JSX.Element {
-  const props: Record<string, unknown> = { key, ...handlersFor(node, ctx, storyId) };
+  const props: SceneElementProps = { key, ...handlersFor(node, ctx, storyId) };
   const cls = composeClass(node, ctx);
   if (cls) props.className = cls;
   if (node.transform) props.transform = node.transform;
@@ -939,7 +981,7 @@ function trySprite(
   // hero, per-island veg scale) instead of stamping at the manifest's native box. `artScale` is the
   // world-settings taste dial; an unmeasurable body falls back to the native box.
   const place = fitSpritePlacement(def, wrapperContentBounds(node, ctx.defBounds), ctx.artScale ?? 1);
-  const props: Record<string, unknown> = {
+  const props: SceneElementProps = {
     key,
     href: def.href,
     x: fmt(place.x),
@@ -1026,7 +1068,7 @@ function litLaneNodes(children: readonly SceneNode[], ctx: SceneCtx): React.JSX.
   const lanes: React.JSX.Element[] = [];
   for (const child of children) {
     if (child.el !== 'path' || !child.id || !plan.litSegments.has(child.id)) continue;
-    const props: Record<string, unknown> = {
+    const props: SceneElementProps = {
       key: `lit-${child.id}`,
       className: 'trail-lit',
       d: child.d,
@@ -1082,7 +1124,7 @@ function litRouteLanes(ctx: SceneCtx): React.JSX.Element[] {
     );
   }
   for (const lane of layout.lanes) {
-    const props: Record<string, unknown> = {
+    const props: SceneElementProps = {
       key: `lane-${lane.key}`,
       className: `trail-lane dir-${lane.dir}${ctx.laneMotion === 'march' ? ' is-marching' : ''}${
         ctx.laneMotion === 'draw' ? ' is-drawing' : ''
@@ -1127,14 +1169,14 @@ function renderNode(
     return React.createElement('g', { key, id: node.defId }, ...node.nodes.map((n, i) => bakedEl(n, i)));
   }
   if (node.el === 'baked-use') {
-    const useProps: Record<string, unknown> = { key, href: `#${node.defId}` };
+    const useProps: SceneElementProps = { key, href: `#${node.defId}` };
     if (node.transform) useProps.transform = node.transform;
     const useCls = composeClass(node, ctx);
     if (useCls) useProps.className = useCls;
     return React.createElement('use', useProps);
   }
 
-  const props: Record<string, unknown> = { key, ...handlersFor(node, ctx, storyId) };
+  const props: SceneElementProps = { key, ...handlersFor(node, ctx, storyId) };
   const cls = composeClass(node, ctx);
   if (cls) props.className = cls;
   if (node.transform) props.transform = node.transform;

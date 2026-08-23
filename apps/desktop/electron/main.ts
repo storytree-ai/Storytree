@@ -252,6 +252,22 @@ async function ensureHostedIdentity(): Promise<string> {
   return brokerLoginInFlight;
 }
 
+/**
+ * A hosted-studio response body: the parsed JSON, or `{ error }` carrying the raw text when the
+ * response was not JSON at all (an IAP interstitial, an HTML error page).
+ *
+ * No return annotation, deliberately (anti-slop `no-known-value-widening`): inference reproduces
+ * `unknown` here exactly, so an explicit one would only be somewhere for a known shape to be
+ * widened. The `as unknown` keeps `any` from leaking out of `JSON.parse`.
+ */
+function parseBrokerBody(text: string) {
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return { error: text };
+  }
+}
+
 async function handleSidecarBrokerRequest(child: ChildProcess, message: unknown): Promise<void> {
   if (!isSidecarBrokerRequest(message) || !child.connected) return;
   try {
@@ -270,12 +286,7 @@ async function handleSidecarBrokerRequest(child: ChildProcess, message: unknown)
       body: JSON.stringify(message.body),
     });
     const text = await response.text();
-    let body: unknown = null;
-    try {
-      body = text === "" ? null : JSON.parse(text);
-    } catch {
-      body = { error: text };
-    }
+    const body: unknown = text === "" ? null : parseBrokerBody(text);
     child.send?.({
       type: "broker:response",
       requestId: message.requestId,

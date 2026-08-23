@@ -79,7 +79,7 @@ test('NON-VACUITY CONTROL: an UNBANDED material fails the same closure check', (
   // The pre-change world: shade continuously and ship it. If this passed, the closure test
   // above would be proving nothing about the banding.
   const palette = new Set(landPalette());
-  const token = STATUS_TOKENS['healthy']!.top[0]!;
+  const token = STATUS_TOKENS.get('healthy')!.top[0]!;
   const t = parseHex(token);
   let escapes = 0;
   for (let x = 0.78; x <= 1.0; x += 0.001) {
@@ -115,7 +115,7 @@ test('the palette is the exact (token x level) closure — size is derived, not 
 test('FOREIGN STATUS: a healthy instance can never deliver a non-healthy family colour', () => {
   // The failure ADR-0367 D5 forbids: art asserting a proof state the work does not hold.
   // Under construction-not-snap this is unrepresentable, and this is the check that says so.
-  const fam = STATUS_TOKENS['healthy']!;
+  const fam = STATUS_TOKENS.get('healthy')!;
   for (const token of [...fam.top, fam.side]) {
     for (let x = -0.25; x <= 1.25; x += 0.002) {
       const c = bandedColour(token, x);
@@ -192,7 +192,7 @@ test('the flower and tree families are inside the closed palette, not exceptions
       assert.ok(palette.has(toHex(c)), `${token} can deliver ${toHex(c)}, which is off-palette`);
     }
   }
-  for (const fam of Object.values(TREE_TOKENS)) {
+  for (const fam of [...TREE_TOKENS.values()]) {
     assert.ok(tokens.has(fam.crown), `the crown token ${fam.crown} is not declared`);
   }
   for (const token of Object.values(SHARED_TOKENS)) {
@@ -204,7 +204,7 @@ test('a CROWN colour attributes to its own status — the tree says what the gro
   // The crown is status-bearing art: `--crown-healthy-lo` claims healthy exactly as the ground
   // does. If it ever attributed to another family, a tree would be contradicting the island it
   // stands on, which is the foreign-status read this whole module exists to make unrepresentable.
-  for (const [status, fam] of Object.entries(TREE_TOKENS)) {
+  for (const [status, fam] of [...TREE_TOKENS]) {
     for (const c of paletteImageOfToken(fam.crown)) {
       const read = statusFamilyOf(c);
       // `building` and `unknown` share the app's unset default, so a colour from that pair may
@@ -237,12 +237,12 @@ test('the FAMILY-LESS set is exactly the tokens that discriminate no status', ()
   assert.ok(familyless.has(SHARED_TOKENS.wheat), 'wheat is one shared override every status wears');
   assert.ok(familyless.has(SHARED_TOKENS.storyTrunk), 'so is the story tree’s bole');
   for (const token of Object.values(MARKER_TOKENS)) assert.ok(familyless.has(token));
-  for (const fam of Object.values(STATUS_TOKENS)) {
+  for (const fam of [...STATUS_TOKENS.values()]) {
     for (const token of [...fam.top, fam.side]) {
       assert.ok(!familyless.has(token), `${token} is status-bearing and must NOT be excused`);
     }
   }
-  for (const fam of Object.values(TREE_TOKENS)) {
+  for (const fam of [...TREE_TOKENS.values()]) {
     assert.ok(!familyless.has(fam.crown), 'a crown is status-bearing and must NOT be excused');
   }
   // And its delivered image is a subset of the palette, so subtracting it can never hide an
@@ -256,13 +256,13 @@ test('NON-VACUITY: the flower tokens really are OUTSIDE the pre-2026-08-20 land 
   // ground token — the palette would close and nothing would attribute wrongly, because nothing
   // new would have been added at all.
   const landOnly = new Set<string>();
-  for (const fam of Object.values(STATUS_TOKENS)) {
+  for (const fam of [...STATUS_TOKENS.values()]) {
     for (const t of [...fam.top, fam.wheat, fam.side]) landOnly.add(t);
   }
   for (const token of Object.values(MARKER_TOKENS)) {
     assert.ok(!landOnly.has(token), `${token} is a ground token wearing a flower’s name`);
   }
-  for (const fam of Object.values(TREE_TOKENS)) {
+  for (const fam of [...TREE_TOKENS.values()]) {
     assert.ok(!landOnly.has(fam.crown), `${fam.crown} is a ground token wearing a crown’s name`);
   }
 });

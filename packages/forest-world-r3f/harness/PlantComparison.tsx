@@ -49,7 +49,7 @@ const DELIVERED_PX_PER_UNIT = 2;
  *  because the subject is a single plant rather than an island window. */
 const MAGNIFY = 20;
 
-const HEALTHY = STATUS_TOKENS['healthy']!.top[0]!;
+const HEALTHY = STATUS_TOKENS.get('healthy')!.top[0]!;
 
 interface PanelSpec {
   /** Rasterise at this many device pixels per world unit. */
@@ -370,17 +370,17 @@ export function PlantComparison() {
           proposing a vocabulary.
         </p>
         <div className="row ladder">
-          {Object.keys(STATUS_TOKENS).map((status) => (
+          {[...STATUS_TOKENS.keys()].map((status) => (
             <Panel
               key={status}
               label={status}
-              note={STATUS_TOKENS[status]!.top[0]!}
+              note={STATUS_TOKENS.get(status)!.top[0]!}
               spec={{
                 pxPerUnit: MAGNIFY,
                 displayPxPerUnit: MAGNIFY,
                 seeds: [SEEDS[1]!],
                 detail: 2,
-                token: STATUS_TOKENS[status]!.top[0]!,
+                token: STATUS_TOKENS.get(status)!.top[0]!,
               }}
             />
           ))}

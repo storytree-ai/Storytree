@@ -103,7 +103,7 @@ test('four bands only ever deepen — the deep token replaces the DARK band, nev
 test('every band maps to a token the closed palette already holds', () => {
   // The palette claim, asserted rather than described: this lever selects among authored
   // entries and does not widen the fence.
-  const fam = STATUS_TOKENS['healthy']!;
+  const fam = STATUS_TOKENS.get('healthy')!;
   const byIndex = [fam.top[0]!, fam.top[1]!, fam.top[2]!, fam.side];
   for (const t of byIndex) assert.match(t, /^#[0-9a-f]{6}$/);
   assert.equal(new Set(byIndex).size, 4, 'the four ground tokens must be distinct to be a variation');

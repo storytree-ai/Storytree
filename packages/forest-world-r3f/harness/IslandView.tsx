@@ -380,7 +380,7 @@ function groundMeshes(
   const meshes: THREE.Mesh[] = [];
   for (const [key, group] of byStatus) {
     const [status, wheat, variant] = key.split('::');
-    const fam = STATUS_TOKENS[status!] ?? STATUS_TOKENS['unknown']!;
+    const fam = STATUS_TOKENS.get(status!) ?? STATUS_TOKENS.get('unknown')!;
     const positions: number[] = [];
     const normals: number[] = [];
     // The RIM's own buffer. It stays empty under `edge: 'flush'`, in which case the wall
@@ -753,7 +753,7 @@ function plantMesh(
   const upright = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
   const meshes: THREE.Mesh[] = [];
   for (const [status, group] of byStatus) {
-    const fam = STATUS_TOKENS[status] ?? STATUS_TOKENS['unknown']!;
+    const fam = STATUS_TOKENS.get(status) ?? STATUS_TOKENS.get('unknown')!;
     const positions: number[] = [];
     const normals: number[] = [];
 

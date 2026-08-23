@@ -106,7 +106,9 @@ test("appendSliceUsage is advisory: a store failure warns and never throws", asy
   const warnings: string[] = [];
   const failing = new InMemoryStore();
   const boom = () => Promise.reject(new Error("store down"));
-  (failing as unknown as { appendEvent: typeof boom }).appendEvent = boom;
+  // `Object.assign` shadows the prototype method with an own property — the same effect the
+  // assertion had, without claiming the store is a shape it is not.
+  Object.assign(failing, { appendEvent: boom });
   const appended = await appendSliceUsage(
     failing,
     { unitId: "u1", runId: "r" },

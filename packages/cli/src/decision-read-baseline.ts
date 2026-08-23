@@ -374,11 +374,25 @@ export class SupportGraphCycleError extends Error {
  * Three-colour marking, and a cycle THROWS naming the loop rather than truncating — `probe:adr-graph`'s
  * discipline, reused. A truncated walk returns a plausible smaller number and nothing says so.
  */
+/** The longest chain of READ decisions a session actually walked, and the chain itself. */
+export interface ReadChain {
+  /**
+   * The chain length in NODES — a lone read is 1, a read of two decisions one edge apart is 2, and
+   * `0` only when nothing was read. NOT edges crossed: `depth` is `path.length`, this function's own
+   * header says "in NODES", and the frozen baseline's headline reading is `depth >= 2 walked a
+   * chain`, which is one edge. (Corrected in place on 2026-08-23 while merging: the comment had said
+   * "edges crossed", which would halve every published figure for a reader who believed it.)
+   */
+  readonly depth: number;
+  /** The decision numbers along that chain, in walk order. */
+  readonly path: readonly number[];
+}
+
 export function longestReadChain(
   readSet: ReadonlySet<number>,
   adjacency: ReadonlyMap<number, readonly number[]>,
   root?: number,
-): { readonly depth: number; readonly path: readonly number[] } {
+): ReadChain {
   if (readSet.size === 0) return { depth: 0, path: [] };
   // ROOTED, when a caller asks for one: the longest chain that STARTS at `root`, rather than the
   // longest anywhere in the read set. ADR-0428's trial needs this — a frontier's walk is anchored at
