@@ -124,6 +124,23 @@ export type DbReachability = "reachable" | "unreachable" | "not-attempted";
 export type GhAuthState = "authenticated" | "unauthenticated" | "absent";
 
 /**
+ * Whether Bun is INVOKABLE — which is a different question from whether it is installed, and the
+ * difference is the whole reason this probe exists (ADR-0433 D3).
+ *
+ * `bun-runtime-migration-arc` made Bun the test RUNTIME for 21 packages while deliberately ruling
+ * the package-manager axis out of scope: pnpm still installs everything and still owns
+ * `pnpm-lock.yaml`. So Bun is a MACHINE dependency in the same class as `git`, `gh` and `gcloud` —
+ * `pnpm install` cannot supply it, and nothing in the workspace can.
+ *
+ * ⚠ `absent` here means "not resolvable on PATH", NOT "not on disk". Measured on the owner's box
+ * 2026-08-24: the binary had been installed for four days and was simply not on PATH, and the gate
+ * reported seven packages as `test: Failed` — a message naming neither Bun nor PATH. An installed
+ * binary nothing can invoke is indistinguishable from an absent one, which is why the observation
+ * is an invocation rather than a file stat.
+ */
+export type BunState = "present" | "absent";
+
+/**
  * The generated `permissions.deny` block for THIS checkout (ADR-0255/0257/0284).
  *
  * `stale` is a first-class state because the block is DERIVED from `repo-manifest.json`: a new
@@ -173,6 +190,20 @@ export interface DevObservations {
   readonly dbElapsedMs: number | null;
   readonly secretsFile: SecretsFileState;
   readonly ghAuth: GhAuthState;
+  /** Whether `bun` answered when invoked — see {@link BunState} for why this is not a file stat. */
+  readonly bun: BunState;
+  /**
+   * The version `bun --version` reported, or null when it did not answer. Carried as its own field
+   * on the `dbReachable`/`dbElapsedMs` precedent: the STATE decides the level, the datum makes the
+   * detail line say something a reader can act on.
+   *
+   * Deliberately NOT compared against CI's pinned `bun-version` (1.4.0 in `ci.yml`). No version skew
+   * has cost anything yet, and a floor invented ahead of its evidence is a second source of truth
+   * that must be updated in lockstep with the workflow — the hand-maintained-list failure ADR-0433
+   * D5 declines on its own account. If skew ever bites, the honest fix reads the pin from `ci.yml`
+   * rather than restating it here.
+   */
+  readonly bunVersion: string | null;
   readonly writeAuthority: WriteAuthorityState;
   readonly worktreeIdentity: WorktreeIdentityState;
 }
@@ -324,6 +355,34 @@ export function devProbes(obs: DevObservations): Probe[] {
         `${guideStep("signIns")}.`,
     });
   }
+
+  // --- bun ---------------------------------------------------------------------------------------
+  // A FAIL on this file's own stated rule: an invariant whose absence stops the machine doing work
+  // and whose remedy is unambiguous. 21 packages' `test` scripts ARE `bun test`, so without Bun the
+  // gate cannot be trusted — and it does not merely fail, it fails DISHONESTLY, naming packages
+  // rather than the missing runtime. This probe exists to turn that into one line.
+  //
+  // Local fact, no network, so doctor's offline invariant (see the levels note above) does not apply
+  // the way it does to `db-reachable`.
+  probes.push(
+    obs.bun === "present"
+      ? {
+          name: "bun",
+          level: "PASS",
+          detail: `bun ${obs.bunVersion ?? "(version unreported)"} is on PATH`,
+        }
+      : {
+          name: "bun",
+          level: "FAIL",
+          detail: "bun is not resolvable on PATH — 21 packages run their tests through it",
+          fixHint:
+            "install Bun (https://bun.sh) and put its bin directory on PATH — on Windows that is " +
+            "typically `%USERPROFILE%\\.bun\\bin`. CHECK PATH BEFORE RE-INSTALLING: an installed " +
+            "Bun that is not on PATH reads exactly like an absent one here, and that is the case " +
+            "actually observed. Never run `bun install` — pnpm owns the lockfile " +
+            `(bun is a test RUNTIME only). See ${guideStep("bootstrap")}.`,
+        },
+  );
 
   // --- write-authority -------------------------------------------------------------------------
   // THE PLATFORM-SENSITIVE ONE. The wall has only ever been exercised on Windows, so `unknown` is a
@@ -602,6 +661,33 @@ function ghAuthState(): GhAuthState {
   }
 }
 
+/**
+ * `bun --version`, read by INVOKING it — the observation ADR-0433 D3 needs.
+ *
+ * Not a file stat and not a lookup in a known install directory: both would report "installed" for
+ * the exact machine state that breaks the gate, where the binary exists and nothing can reach it.
+ * Any failure at all — ENOENT, a non-zero exit, a hang past the budget — is `absent`, because from
+ * a test script's point of view they are the same thing.
+ */
+interface BunReading {
+  readonly state: BunState;
+  /** The version string bun reported, or null when it did not answer. */
+  readonly version: string | null;
+}
+
+function bunState(): BunReading {
+  try {
+    const out = execFileSync("bun", ["--version"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 10_000,
+    }).trim();
+    return { state: "present", version: out === "" ? null : out };
+  } catch {
+    return { state: "absent", version: null };
+  }
+}
+
 /** Git's two dir readings for the cwd — equal means the primary checkout, differing means a worktree. */
 interface GitDirs {
   /** `git rev-parse --git-dir`, absolute; `null` when git could not answer. */
@@ -647,7 +733,7 @@ function writeAuthorityState(): WriteAuthorityState {
  * credential is absent (which is both faster and more honest).
  *
  * READ-ONLY throughout, like the rest of doctor: file stats, file reads, `gh auth status`,
- * `git rev-parse`, and one `SELECT 1`. Nothing here writes, installs, or repairs.
+ * `bun --version`, `git rev-parse`, and one `SELECT 1`. Nothing here writes, installs, or repairs.
  */
 export async function gatherDevObservations(): Promise<DevObservations> {
   const home = os.homedir();
@@ -661,6 +747,7 @@ export async function gatherDevObservations(): Promise<DevObservations> {
   const db = classifyDbReachability(dbUserPresent, dbResult);
 
   const { gitDir, commonDir } = gitDirs();
+  const bun = bunState();
 
   return {
     gcloudAdc: existsSync(adcPath) ? "present" : "absent",
@@ -668,6 +755,8 @@ export async function gatherDevObservations(): Promise<DevObservations> {
     dbElapsedMs: db.elapsedMs,
     secretsFile,
     ghAuth: ghAuthState(),
+    bun: bun.state,
+    bunVersion: bun.version,
     writeAuthority: writeAuthorityState(),
     worktreeIdentity: classifyWorktreeIdentity(deriveIdentity() !== null, gitDir, commonDir),
   };
