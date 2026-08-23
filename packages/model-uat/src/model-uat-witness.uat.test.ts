@@ -221,23 +221,26 @@ test("end-to-end: a story with no UAT section resolves to no witnesses (backward
 // re-exports the composed facade.
 
 test("UAT leg 7: the package root exports resolveStoryWitnesses as a callable function", () => {
-  const facade: Record<string, unknown> = { ...ModelUatPackageRoot };
+  const facade: Record<string, unknown> = {};
+  Object.assign(facade, ModelUatPackageRoot);
   assert.equal(
-    typeof facade.resolveStoryWitnesses,
+    typeof facade["resolveStoryWitnesses"],
     "function",
     "the package root (@storytree/model-uat) must export resolveStoryWitnesses — the story's public composed facade — not leave it reachable only via the internal model-uat-witness.js file",
   );
 });
 
 test("UAT leg 7: resolveStoryWitnesses from the package root resolves a full journey identically to the internal facade", () => {
-  const facade: {
-    resolveStoryWitnesses?: (storyId: string, body: string, registry: ModelRegistry) => WitnessResolution[];
-    SEED_MODEL_REGISTRY?: ModelRegistry;
-  } = { ...ModelUatPackageRoot };
-  assert.equal(typeof facade.resolveStoryWitnesses, "function", "resolveStoryWitnesses must be exported from the package root");
-  assert.equal(typeof facade.SEED_MODEL_REGISTRY, "object", "SEED_MODEL_REGISTRY must be exported from the package root");
+  const facade: Record<string, unknown> = {};
+  Object.assign(facade, ModelUatPackageRoot);
+  const resolveFromRoot = facade["resolveStoryWitnesses"] as
+    | ((storyId: string, body: string, registry: ModelRegistry) => WitnessResolution[])
+    | undefined;
+  const registryFromRoot = facade["SEED_MODEL_REGISTRY"] as ModelRegistry | undefined;
+  assert.equal(typeof resolveFromRoot, "function", "resolveStoryWitnesses must be exported from the package root");
+  assert.equal(typeof registryFromRoot, "object", "SEED_MODEL_REGISTRY must be exported from the package root");
 
-  const viaPackageRoot = facade.resolveStoryWitnesses!(STORY, JOURNEY_BODY, facade.SEED_MODEL_REGISTRY!);
+  const viaPackageRoot = resolveFromRoot!(STORY, JOURNEY_BODY, registryFromRoot!);
   const viaInternalFile = resolveStoryWitnesses(STORY, JOURNEY_BODY, SEED_MODEL_REGISTRY);
   assert.deepEqual(
     viaPackageRoot,

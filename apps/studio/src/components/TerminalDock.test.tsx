@@ -90,8 +90,8 @@ const xtermMock = vi.hoisted(() => {
     titleHandler: ((title: string) => void) | null = null;
     private dataHandler: ((data: string) => void) | null = null;
     private resizeHandler: ((dims: { cols: number; rows: number }) => void) | null = null;
-    constructor(options?: Record<string, unknown>) {
-      this.options = options ?? {};
+    constructor(options?: ConstructorParameters<TerminalToolkit['Terminal']>[0]) {
+      this.options = { ...options };
       FakeTerminal.instances.push(this);
     }
     open(el: HTMLElement): void {
@@ -170,11 +170,11 @@ const fitMock = vi.hoisted(() => {
     nextDims: TerminalDims = { cols: 80, rows: 24 };
     fitCalls = 0;
     disposed = false;
-    private terminal: InstanceType<typeof xtermMock.FakeTerminal> | null = null;
+    private terminal: TerminalLike | null = null;
     constructor() {
       FakeFitAddon.instances.push(this);
     }
-    activate(terminal: InstanceType<typeof xtermMock.FakeTerminal>): void {
+    activate(terminal: TerminalLike): void {
       this.terminal = terminal;
     }
     fit(): void {
@@ -325,10 +325,10 @@ const clipboardMock = vi.hoisted(() => {
 // under it. A real terminal still cannot run here — jsdom has no layout engine and no GPU — which
 // is exactly why the seam, rather than the doubles, was the thing to fix.
 //
-// One assertion, because these fakes implement the SUBSET of xterm the dock uses rather than
-// xterm's declared classes. That is the partial-fake-of-a-real-contract shape
-// `anti-slop-adoption-arc-inc-09` owns; it is confined to this one line.
-const fakeToolkit = {
+// NO assertion: `TerminalToolkit` now declares the SURFACE the dock uses rather than xterm's
+// classes (inc-09 narrowed the seam), so these fakes are ordinary values of the seam's type and
+// every member is checked against it.
+const fakeToolkit: TerminalToolkit = {
   Terminal: xtermMock.FakeTerminal,
   FitAddon: fitMock.FakeFitAddon,
   WebglAddon: webglMock.FakeWebglAddon,
@@ -336,7 +336,7 @@ const fakeToolkit = {
   WebLinksAddon: webLinksMock.FakeWebLinksAddon,
   SearchAddon: searchMock.FakeSearchAddon,
   ClipboardAddon: clipboardMock.FakeClipboardAddon,
-} as unknown as TerminalToolkit;
+};
 
 /** Wrap a dock element so it is built from the fake engine above. */
 const withToolkit = (ui: React.JSX.Element): React.JSX.Element => (
@@ -415,6 +415,7 @@ class FakeResizeObserver implements ResizeObserver {
 
 import { TerminalDock } from './TerminalDock';
 import { TerminalToolkitContext, type TerminalToolkit } from '../lib/terminalToolkit';
+import type { TerminalLike } from '../lib/terminalToolkit';
 
 /** Flush the microtask queue the bridge's `spawn()` promise resolves on. */
 const flush = (): Promise<void> => act(async () => {});

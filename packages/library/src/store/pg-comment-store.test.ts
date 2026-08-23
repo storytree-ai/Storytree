@@ -72,7 +72,8 @@ test("mergeCommentPatch ignores undefined but applies explicit null (resolve tog
   // `exactOptionalPropertyTypes` forbids writing an explicit `undefined` on an optional field,
   // and ignoring one at runtime is exactly what this asserts — so the value is widened at the
   // binding and narrowed once (anti-slop `no-chained-type-assertions`, inc-09).
-  const explicitUndefined: Record<string, unknown> = { body: undefined };
+  const explicitUndefined: Record<string, unknown> = {};
+  explicitUndefined["body"] = undefined;
   const noop = mergeCommentPatch(resolved, explicitUndefined as CommentPatch);
   assert.equal(noop.body, resolved.body);
 });

@@ -33,7 +33,8 @@ type CriterionPointerModule = typeof import("./criterion-pointer.js");
 type DetailHashModule = typeof import("./detail-hash.js");
 type StoryAuthorScopeModule = typeof import("./story-author-scope.js");
 
-const barrel: Record<string, unknown> = { ...(await import("./index.js")) };
+const barrel: Record<string, unknown> = {};
+Object.assign(barrel, await import("./index.js"));
 
 /** Fetch `name` off the public root barrel, asserting it is actually exported before casting it. */
 function need<T>(name: string): T {

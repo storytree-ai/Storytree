@@ -121,11 +121,10 @@ afterEach(() => {
 
 /** A frame the `ChatEvent` union does NOT carry — widened here so the ONE narrowing below is a
  *  legal downcast, and the guard's RUNTIME rejection is still what is being proved. */
-const UNKNOWN_FRAME: Record<string, unknown> = {
-  type: 'gibberish',
-  role: 'story-author',
-  unitId: 'rejected-unit',
-};
+const UNKNOWN_FRAME: Record<string, unknown> = {};
+UNKNOWN_FRAME['type'] = 'gibberish';
+UNKNOWN_FRAME['role'] = 'story-author';
+UNKNOWN_FRAME['unitId'] = 'rejected-unit';
 
 describe('ChatPanel — spawn line (chat-panel-spawn-render)', () => {
   // ── cps-wire-union-accepts-the-spawn-frame ──────────────────────────────────

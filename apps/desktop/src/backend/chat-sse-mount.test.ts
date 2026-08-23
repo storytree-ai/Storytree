@@ -110,12 +110,15 @@ class FixtureStore implements CorpusStoreSeam {
     const merged: Record<string, unknown> = {};
     Object.assign(merged, existing.doc, input.fields);
     input.validate?.(merged);
-    return this.upsertDoc({
+    // Built in statements rather than with a conditional spread (`no-conditional-empty-object-spread`
+    // is at error): `actor` is optional on the seam and must be ABSENT, never present-and-undefined.
+    const write: Parameters<CorpusStoreSeam["upsertDoc"]>[0] = {
       id: input.id,
       kind: input.kind ?? existing.kind,
       doc: merged,
-      ...(input.actor === undefined ? {} : { actor: input.actor }),
-    });
+    };
+    if (input.actor !== undefined) write.actor = input.actor;
+    return this.upsertDoc(write);
   }
   async readEvents(): Promise<never[]> {
     return [];

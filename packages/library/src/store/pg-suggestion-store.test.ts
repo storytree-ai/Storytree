@@ -179,7 +179,8 @@ test("mergeSuggestionPatch ignores undefined but applies explicit null", () => {
   // Undefined is ignored (no-op patch keeps the existing value).
   // See `pg-comment-store.test.ts` — an explicit `undefined` the type system forbids and the
   // merge is specified to ignore.
-  const explicitUndefined: Record<string, unknown> = { proposed: undefined };
+  const explicitUndefined: Record<string, unknown> = {};
+  explicitUndefined["proposed"] = undefined;
   const noop = mergeSuggestionPatch(accepted, explicitUndefined as SuggestionPatch);
   assert.equal(noop.proposed, accepted.proposed, "undefined field is ignored");
 });
