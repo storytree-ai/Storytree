@@ -9,12 +9,14 @@ uat_witness: machine
 arc: linked-session-context-arc
 depends_on: [context-traversal-telemetry, context-traversal-capture, library]
 consumed_by: [cli]
-decisions: [235, 241, 248, 192]
+decisions: [235, 241, 248, 192, 403]
 capabilities:
   [
     transcript-occupancy-extraction,
     transcript-session-correlation,
     transcript-occupancy-ingest,
+    transcript-decision-read-extraction,
+    transcript-decision-read-ingest,
   ]
 ---
 
@@ -91,9 +93,24 @@ would double every observation.
 | 1 | [`transcript-occupancy-extraction`](transcript-occupancy-extraction.md) | One host transcript yields one window-occupancy observation per model request, and a quantity that can fall. | — |
 | 2 | [`transcript-session-correlation`](transcript-session-correlation.md) | A storytree session id resolves to the host transcript windows written inside its worktree, each named separately. | — |
 | 3 | [`transcript-occupancy-ingest`](transcript-occupancy-ingest.md) | A session's correlated windows become validated occupancy events on disk, idempotently. | `transcript-occupancy-extraction`, `transcript-session-correlation` |
+| 4 | [`transcript-decision-read-extraction`](transcript-decision-read-extraction.md) | Every decision-record read a host transcript recorded is recovered by argv shape, with each near-miss declined and counted rather than dropped. | — |
+| 5 | [`transcript-decision-read-ingest`](transcript-decision-read-ingest.md) | The decision reads recovered from every host transcript become validated traversal events in each session's own trace, idempotently, and a zero is reported as blindness rather than as silence. | `transcript-decision-read-extraction`, `transcript-session-correlation`, `transcript-occupancy-ingest` |
 
-The graph is acyclic: extraction and correlation each read transcript bytes and consume nothing from
-each other; the ingest composes both and increment 2's sink.
+The graph is acyclic, and it is two chains sharing one root. Capabilities 1, 2 and 4 each read
+transcript bytes and consume nothing from each other. Capability 3 composes 1 and 2 with increment
+2's sink; capability 5 composes 4 and 2 with the same sink, and additionally depends on 3 because its
+own coverage contract asserts that its `adapterId` DIFFERS from the occupancy adapter's — a trace
+refuses a duplicate, so that sibling's delivered outcome is a genuine precondition for this one's
+proof to pass. No edge runs backwards: nothing capability 3 delivers is consumed by 1, 2 or 4, and
+nothing capability 5 delivers is consumed by anything here at all.
+
+**Capabilities 4 and 5 are BROWNFIELD (`status: mapped`), unlike 1–3.** Their code was landed by
+ordinary hand-authored commits under `adrs-into-the-dag-arc-inc-07` and ADR-0403 rather than driven
+red→green by the spine, so no signed verdict backs them and neither carries a `real:` arm (ADR-0094;
+a forced net-new red against files that already exist is the theater ADR-0085 bans). Each was MINTED
+by `linked-session-context-arc-inc-28` so the subtree it owns is claimable at `work` grade again —
+ADR-0346 D2 retired story-grain work claims, and until these existed a session writing those files had
+nothing legal to claim. Their specs describe shipped behaviour and invent no new obligation.
 
 ## Declared boundaries
 
