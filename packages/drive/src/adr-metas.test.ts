@@ -281,11 +281,13 @@ test("a row carrying no string description is reported rather than skipped", asy
 test("an UNREADABLE store reports no description mismatches, and says so as unreadable", async () => {
   // The fail-soft that must not read as clean. Zero mismatches from a store nobody could read is
   // the same confident-wrong answer `unreadable` exists to separate from an honest zero.
-  const store = new InMemoryStore();
-  const broken = {
-    ...store,
+  // `Object.assign` over a real instance rather than a spread + double assertion: the spread
+  // dropped every prototype method (which is why it needed `as unknown as`), so the assertion was
+  // covering for an object that was not a store at all. This one IS one, with a single method
+  // replaced — narrower, and it keeps the type evidence.
+  const broken = Object.assign(new InMemoryStore(), {
     queryDocs: () => Promise.reject(new Error("connection refused")),
-  } as unknown as InMemoryStore;
+  });
 
   const res = await loadTitledAdrMetasFromStore(broken);
   assert.equal(res.unreadable, true);

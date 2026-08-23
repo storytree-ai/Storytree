@@ -80,6 +80,7 @@ import {
   type MirrorInputSet,
   type Probe,
 } from "./mirror-conformance.js";
+import { nodeExecutable } from "./node-executable.js";
 
 const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -595,7 +596,10 @@ function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]) {
   const file = join(repoRoot, probe.file);
   if (!existsSync(file)) throw new ProbeError(`probe module not found: ${probe.file}`);
 
-  const result = spawnSync(process.execPath, ["--import", "tsx", file, ...args], {
+  // `--import tsx` is NODE's loader flag and this probe is a tsx-transpiled TS module, so the
+  // binary is named rather than inferred: under a bun-run CLI `process.execPath` would be bun,
+  // which reads `--import` as something else entirely (`bun-runtime-migration-arc` inc-11).
+  const result = spawnSync(nodeExecutable(), ["--import", "tsx", file, ...args], {
     cwd: join(repoRoot, probe.appDir),
     encoding: "utf8",
     maxBuffer: 64 * 1024 * 1024,

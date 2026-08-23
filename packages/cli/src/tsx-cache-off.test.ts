@@ -32,6 +32,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { nodeExecutable } from "./node-executable.js";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const SHIM_REL = "../../scripts/tsx-cache-off.mjs";
@@ -113,7 +114,7 @@ test("the relative shim path every script uses really resolves from a package di
 
 test("the shim sets TSX_DISABLE_CACHE, observed in a real preloaded process", () => {
   const res = spawnSync(
-    process.execPath,
+    nodeExecutable(),
     ["--import", SHIM_URL, "-e", "process.stdout.write(process.env.TSX_DISABLE_CACHE ?? '<unset>')"],
     // The child's env is built explicitly, with the flag REMOVED: the claim is what the shim does
     // when nothing has set it, and inheriting an ambient value would make this test agree with
@@ -128,7 +129,7 @@ test("the shim leaves an explicit TSX_DISABLE_CACHE alone — the escape hatch",
   // tsx tests the variable for TRUTHINESS, so `=0` would still disable the cache; the EMPTY string
   // is the only way back to the on-disk cache, and `??=` is what preserves it.
   const res = spawnSync(
-    process.execPath,
+    nodeExecutable(),
     ["--import", SHIM_URL, "-e", "process.stdout.write(JSON.stringify(process.env.TSX_DISABLE_CACHE))"],
     { encoding: "utf8", env: { ...process.env, TSX_DISABLE_CACHE: "" } },
   );
@@ -154,7 +155,7 @@ test("a real spawned CLI writes NO tsx transform-cache files", () => {
   // transformed module.
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), "tsx-cache-off-"));
   try {
-    const res = spawnSync(process.execPath, [LAUNCHER, "not-a-real-storytree-command"], {
+    const res = spawnSync(nodeExecutable(), [LAUNCHER, "not-a-real-storytree-command"], {
       encoding: "utf8",
       // Ambient flag stripped for the same reason as above — what is on trial is the LAUNCHER's own
       // line, not whatever the shell that started the gate happened to export.

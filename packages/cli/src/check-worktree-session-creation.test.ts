@@ -33,6 +33,7 @@ import type {
   SessionStartReport,
   StartAttempt,
 } from "../../../scripts/check-worktree-session-creation.mjs";
+import { nodeExecutable } from "./node-executable.js";
 
 const script = fileURLToPath(
   new URL("../../../scripts/check-worktree-session-creation.mjs", import.meta.url),
@@ -443,7 +444,7 @@ test("the HEALTHY report flags any attempt that could not be judged", () => {
 // ---------- the CLI surface ----------
 
 function runScript(args: string[]) {
-  const res = spawnSync(process.execPath, [script, ...args], { encoding: "utf8" });
+  const res = spawnSync(nodeExecutable(), [script, ...args], { encoding: "utf8" });
   assert.equal(res.error, undefined, `spawning node failed: ${String(res.error)}`);
   return { status: res.status ?? -1, stdout: res.stdout, stderr: res.stderr };
 }

@@ -358,8 +358,8 @@ lines pass `-e`?), so read it as a map rather than a ledger:
 
 | package | means node | runtime-agnostic | status |
 |---|---|---|---|
-| `packages/cli` | 21 | 3 | Class 2 blocked — latent |
-| `packages/orchestrator` | 8 | 28 | Class 2 blocked — latent |
+| `packages/cli` | 0 (23 sites now NAME node) | 1 | **fixed, inc-11** |
+| `packages/orchestrator` | 8 | 28 | stays on Node by decision — latent, and that is accepted |
 | `packages/context-traversal-capture` | 0 (4 sites now NAME node) | 0 | **fixed, inc-10** |
 | `packages/agent` | 0 | 3 + 1 stand-in | **fixed, inc-06** |
 | `packages/context-traversal-transcript` | 0 (1 site now NAMES node) | 0 | **fixed, inc-06** |
@@ -370,6 +370,19 @@ Two rows need reading precisely. `packages/agent`'s remaining site (`codex-autho
 and that is what was fixed. One of `orchestrator`'s eight (`shell-test-executor.test.ts:425`) is
 agnostic in substance — it re-splits a `-e` command string the classifier cannot see through — so
 treat 8 as an upper bound.
+
+**`packages/cli`'s row was also an undercount, corrected by inc-11 (2026-08-24) from the hand sweep
+that fixed it: 23 means-node sites, not 21, across seven test files** — the mechanical classifier
+("does the call's first four lines pass `-e`?") missed `gate-bg-launcher.test.ts:187`, where the
+executable is interpolated into a bash `-c` string. All 23 now call `nodeExecutable()`. A
+**twenty-fourth** site sits outside `*.test.ts` and therefore outside this table entirely:
+`check-mirror-conformance.ts:570`, a `check:*` rung passing node's `--import tsx`, which `bun test`
+could never have red-flagged. **The one site deliberately left as `process.execPath`** is
+`worktree-io-default.test.ts:260`, an `-e` eval — genuinely runtime-agnostic.
+
+⚠ **`process.execPath` is not the only silent node dependency.** inc-11 found a test asserting
+node's `fetch` ERROR WORDING (see its section below). Error text, stack formats and `inspect` output
+are the same class, and unlike `process.execPath` there is no expression to grep for.
 
 ~~**`packages/context-traversal-capture` is the one to look at first when Class 2 lifts**: its four
 sites are the same `LAUNCHER` / spawned-door shape as `transcript`'s, so it will go SILENT rather
@@ -524,6 +537,122 @@ drives — `require()` succeeding proves only that a JS wrapper resolved, which 
 arc's own working assumption — is **too coarse to act on**. It was true of one of our two addons and
 false of the other, and the one it was true of has a working Bun-native replacement. Measure the
 specific addon through its real API; never infer from the class.
+
+## ★★★★ INC-11 IS LANDED (2026-08-24) — `packages/cli` CONVERTED; **22 packages, the convertible set is now CLOSED**
+
+`packages/cli` was the last convertible package on the arc. Its `test` script is now the two-parter
+`node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/validate-corpus.ts && bun test
+--preload ../../scripts/tsx-cache-off.mjs --timeout 300000 src/` — only the second half converted,
+because the corpus guard is not a `bun test` suite. **`tsx` STAYS in cli's devDependencies** (the
+`storytree`/`db` scripts run tsx with cli as cwd, and `launch.mjs` + `fixture-door.mjs` import
+`tsx/esm/api` from cli's own `node_modules`), the same disposition as `drive`,
+`procedural-architecture`, `apps/desktop` and `forest-world-r3f`. What the conversion buys is the
+arc's actual goal: **the repo's largest TEST path off `tsx`.**
+
+`packages/orchestrator` is NOT future work. It stays on Node on two recorded reasons, and its one
+residual failure (`ENV HONESTY: the spawned observer never inherits NODE_TEST*`) has a precondition
+asserting the suite runs under `node --test` — under Bun that is unestablishable, so greening it
+would make it vacuous.
+
+### Parity, measured on the merged tree, every column exact
+
+| | node | bun | executed assertions |
+|---|---|---|---|
+| `packages/cli` | 2393 tests / 2393 pass / 0 fail / 0 skip, 152 files | 2393 / 152 / 0 fail — identical on **five** runs (3 uninstrumented + junit + instrumented) | **8344 = 8344** |
+
+Proved four ways, all exact: identical file set (152, cross-checked against
+`find packages/cli/src -name '*.test.ts'`), identical per-file test counts, **identical test-name
+multisets keyed by file**, and 8344 executed assertions under each runtime. All 152 test files are
+flat in `src/`, and no `*.spec.ts` / `*_test.ts` sibling exists, so `bun test src/` selects exactly
+what node's `"src/**/*.test.ts"` glob does — the `forest-world-r3f` two-roots trap does not apply.
+
+⚠ **THOSE FIGURES ARE STAMPED TO THE COMMIT THEY WERE TAKEN AT, and this package moved twice inside
+one session.** `main` then deleted `packages/cli/src/install-sh-script.test.ts` and changed
+`uat.test.ts`, so at the LANDING commit the package is **2389 tests / 151 files**. Both arms were
+re-run there and still agree exactly — node 2389 / 2389 pass / 0 fail, bun 2389 / 151 / 0 fail, exit
+0 under each. The heavy instruments (junit attribution, executed-assertion parity, the negative
+control) were established at the earlier commit and NOT re-run at the landing commit; the count
+parity was. **Quote a parity number with the commit it was taken at, or not at all** — an
+increment-sized measurement outlives its tree by hours at most.
+
+- ★★★★ **THE `--preload` PERTURBATION WARNING IS DISCHARGED FOR `cli`, THE ONE PACKAGE IT WAS
+  MEASURED ON.** The probe recorded the assertion counter CHANGING Bun's registration here (2042
+  with it, 2050 without) and inc-11's brief said to report the tally as UNTRUSTWORTHY if the
+  instrumented run disagreed. It did not disagree: the instrumented run reported the same
+  2393 / 152 as the three uninstrumented ones. The tally above is therefore quotable. Keep the
+  discipline that established it — **uninstrumented three times FIRST, for the ground truth.**
+- ★★★ **RE-MEASURE THE NODE ARM — this is the FIFTH increment where it caught drift.** `cli` was
+  **2325** at inc-09 and is **2393** today. Diffing against inc-09's written table would have
+  manufactured a 68-test false mismatch.
+
+### ★★★ A NEW BREAK CLASS: the runtimes word their `fetch` failures differently
+
+Not a `LAUNCHER` site, and not on the brief's list of 12 — `src/gate-test-environment.test.ts`
+arrived with the package's growth since inc-09. It asserted the rejection MESSAGE of an implicit
+live Library read against the credential-free sentinel door:
+
+    /fetch failed|ECONNREFUSED|bad port/i
+
+which is undici's phrasing. Bun's fetch says **"Was there a typo in the url or port?"** instead, so
+the leg went red under `bun test` for a reason that had nothing to do with the claim. The fix asserts
+the MECHANISM rather than the wording — an `HttpStoreError` with `status === 0` (a transport failure,
+so there is no HTTP status) whose `url` starts with `CREDENTIAL_FREE_STORE_DOOR_URL` — which is
+**stricter than the regex was**, because it pins WHICH door was dialed and no message regex ever did.
+Mutation-tested before being trusted: changing the expected status to 404 reds BOTH arms.
+
+**The generalisable rule:** a test that asserts a runtime's error TEXT is asserting the runtime.
+`process.execPath` is not the only way a suite silently depends on node — error wording, stack
+formats and `inspect` output are the same class, and none of them announce themselves.
+
+### The `LAUNCHER` fix, and the control that proves it is not decorative
+
+All **23** means-node sites across seven test files now call a shared `nodeExecutable()`
+(`packages/cli/src/node-executable.ts`) that short-circuits to `process.execPath` under node, else
+`npm_node_execpath`, else `where`/`which node`, else **THROWS** — it never falls back to the runner.
+It is a plain source module rather than a `.test-helpers.ts` because a non-test caller needs it too
+(below).
+
+Control, run live: with a bogus `npm_node_execpath`, the bun arm of `launch.test.ts` goes **3 fail**
+while the node arm short-circuits and stays **5/5** — so the committed gate path is byte-identical
+and the bun path provably spawns the named binary. That is the same shape inc-10 used, and it is the
+only thing separating this fix from a quiet false green: `bun packages/cli/launch.mjs` RUNS.
+
+**The thirteenth site the failure list never showed** is now named too:
+`check-mirror-conformance.ts:570` spawns `spawnSync(process.execPath, ["--import", "tsx", file, …])`
+in each app's own dir. It is a `check:*` rung rather than a test, so `bun test` could never red on
+it, but `--import` is node's loader flag and bun reads it as something else entirely.
+
+**One site is deliberately LEFT as `process.execPath`**: `worktree-io-default.test.ts:260` spawns an
+`-e` eval, where the ambient runtime is the correct choice. The rule is not "never use
+`process.execPath`".
+
+### Two consequences of converting `cli` specifically, both expected
+
+- **The `tsx-cache-off` totality guard is UNAFFECTED, and that is luck of the two-parter.** 37
+  scripts guarded, 0 offenders — unchanged, because the surviving `validate-corpus` half still
+  carries `--import tsx` preceded by the shim. But the second half is invisible to it: there are now
+  **22 `bun test` scripts in the workspace and only 2 carry `--preload …/tsx-cache-off.mjs`**
+  (`drive` and `cli` — the two whose tests spawn tsx children). The guard cannot see `bun test`
+  scripts at all, so the other 20 are unpoliced. That is the filed friction
+  `converting-a-package-to-bun-test-hides-it-from-the-tsx-cache-off-guard`, now with its exact
+  population; it is deliberately NOT fixed here, because extending the rule to `bun test` scripts
+  would red 20 packages at once and is an adjudication, not an increment.
+- **`cli`'s proof-route accounting downgrades, as `agent` and `transcript` did.**
+  `classifyInnerScript` returns `node-test` only when the target's `scripts.test` tokens include both
+  a node executable and `--test`; `bun test` has neither, so the **22 story proof-command references
+  naming `@storytree/cli`** fall through from `package-script-node-test-suite` to the conservative
+  `suite-scoped`, exit-code-only disclosure. That is the HONEST posture — the ADR-0211 assert-oracle
+  instruments `node:assert` through `--import` — and it is long-established precedent
+  (`@storytree/library` 47 references, `desktop` 23, `agent` 15, `transcript` 11).
+
+### ★★★★ MORE EVIDENCE THAT PER-PACKAGE WALL CLOCK ON THIS BOX IS UNMEASURABLE
+
+Five Bun runs of the **same unchanged package**, back to back, same flags:
+**353 s, 275 s, 431 s, 199 s, 245 s** — a **2.16x spread within one runtime**, with no runtime
+comparison involved at all. Any two of these could be cherry-picked to "prove" a 2x win or a 2x loss.
+This is the sixth figure-class the arc has had to withdraw or refuse; **do not argue this migration
+on wall clock.** The owner's standing direction (2026-08-23) is the ground it proceeds on: a
+tsx-free test path that scales as the system grows.
 
 ## Method, so this is reproducible
 

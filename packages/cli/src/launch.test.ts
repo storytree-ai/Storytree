@@ -16,12 +16,13 @@ import { test } from "node:test";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { handleStoreRequest } from "@storytree/storage-protocol/http-server";
 import { loadFixtureCorpus } from "@storytree/library/fixture";
+import { nodeExecutable } from "./node-executable.js";
 
 const LAUNCHER = fileURLToPath(new URL("../launch.mjs", import.meta.url));
 const ROOT_PKG = fileURLToPath(new URL("../../../package.json", import.meta.url));
 
 function runLauncher(args: string[]) {
-  const res = spawnSync(process.execPath, [LAUNCHER, ...args], { encoding: "utf8" });
+  const res = spawnSync(nodeExecutable(), [LAUNCHER, ...args], { encoding: "utf8" });
   // No cwd override — the launcher must work from the default cwd and resolve its own paths from
   // import.meta.url (repoRoot is file-relative, not cwd-relative).
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
@@ -41,7 +42,7 @@ function runLauncherAsync(
   env: NodeJS.ProcessEnv,
 ): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [LAUNCHER, ...args], {
+    const child = spawn(nodeExecutable(), [LAUNCHER, ...args], {
       env: { ...process.env, ...env },
     });
     let stdout = "";

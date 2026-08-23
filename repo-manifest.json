@@ -92,6 +92,7 @@
       "packages/cli/src/*ownership*.ts": "organism-boundary-tooling",
       "packages/cli/src/main.ts": "unified-command-dispatch",
       "packages/cli/src/index.ts": "cli",
+      "packages/cli/src/node-executable.ts": "cli",
       "packages/cli/src/commands.ts": "unified-command-dispatch",
       "packages/cli/src/envelope.ts": "unified-command-dispatch",
       "packages/cli/src/cli-actor.ts": "unified-command-dispatch",

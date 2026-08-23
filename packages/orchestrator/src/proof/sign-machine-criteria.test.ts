@@ -34,7 +34,7 @@ function recordingStore(): AdoptedVerdictStore & { appended: unknown[] } {
 }
 
 /** A recording observe runner: every command it is handed, in order. */
-function recordingObserve(code = 0): { seen: string[]; observe: (c: string) => Promise<{ code: number }> } {
+function recordingObserve(code = 0) {
   const seen: string[] = [];
   return {
     seen,
