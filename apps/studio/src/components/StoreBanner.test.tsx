@@ -62,7 +62,7 @@ afterEach(() => {
   cleanup();
   http.uninstall();
   vi.useRealTimers();
-  delete (window as unknown as { desktopApply?: unknown }).desktopApply; // never leak the desktop bridge
+  delete window.desktopApply; // never leak the desktop bridge
 });
 
 const renderBanner = () => render(<StoreBanner onRecovered={onRecovered} />);
@@ -240,9 +240,7 @@ describe('StoreBanner', () => {
   const installDesktopBridge = (
     fn: ReturnType<typeof vi.fn<() => Promise<RebuildResult>>>,
   ): void => {
-    (window as unknown as { desktopApply: { rebuildAndRelaunch: unknown } }).desktopApply = {
-      rebuildAndRelaunch: fn,
-    };
+    window.desktopApply = { rebuildAndRelaunch: fn };
   };
 
   it('desktop: a moved checkout shows "Rebuild & relaunch" instead of the manual pnpm instructions', async () => {

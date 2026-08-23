@@ -1,3 +1,4 @@
+import { EventEmitter } from "node:events";
 // The canonical DB-reachability probe (`pnpm db:probe`) — the verb CLAUDE.md's probe-don't-assume
 // rule described in prose and never shipped, so every session hand-rolled it.
 //
@@ -20,10 +21,22 @@ import {
   type ProbeDeps,
 } from "./db-control.js";
 
-/** A stand-in for the `PoolHandle` the real probe opens — `probeDb` only ever passes it through. */
-const FAKE_HANDLE = { pool: "fake-pool", connector: "fake-connector" } as unknown as Awaited<
-  ReturnType<ProbeDeps["open"]>
->;
+/**
+ * A stand-in for the `PoolHandle` the real probe opens — `probeDb` only ever passes it through.
+ *
+ * Both halves are real enough to be legal DOWNCASTS rather than an `as unknown as` chain (anti-slop
+ * `no-chained-type-assertions`, inc-09): the pool is a genuine `EventEmitter` (which `pg.Pool`
+ * extends) with `end` stubbed, and the connector declares the one member a teardown touches,
+ * checked against the real contract by `satisfies Partial<Connector>`.
+ */
+type ProbeHandle = Awaited<ReturnType<ProbeDeps["open"]>>;
+
+const FAKE_HANDLE: ProbeHandle = {
+  pool: Object.assign(new EventEmitter(), {
+    async end(): Promise<void> {},
+  }) as ProbeHandle["pool"],
+  connector: { close(): void {} } satisfies Partial<ProbeHandle["connector"]> as ProbeHandle["connector"],
+};
 
 /** A budget that never expires unless `fire()` is called; records whether it was cancelled. */
 function manualBudget() {

@@ -582,9 +582,15 @@ test("local-backend: /api/claims refuses a non-GET method with 405 (the only err
  * A minimal in-memory document store, defined HERE rather than imported: `@storytree/storage-protocol`
  * is drive's declared dep and not desktop's, so pnpm's strict isolation will not resolve `InMemoryStore`
  * from apps/desktop (the same reason chat-sse-mount.test.ts carries its own `FixtureStore`). Only
- * `getDoc`/`queryDocs` are exercised by the rollup; the rest satisfy the seam's shape.
+ * `getDoc`/`queryDocs` are exercised by the rollup; the rest satisfy the seam's shape — and the
+ * class now `implements` that seam rather than being asserted into it at each call site
+ * (anti-slop `no-chained-type-assertions`, inc-09), so a method the rollup starts calling is a
+ * compile error here instead of a runtime `undefined is not a function`.
  */
-class ArcFixtureStore {
+/** The `Store` seam the arc rollup reads through — reached without importing it directly. */
+type ArcRollupStoreSeam = Parameters<typeof import("@storytree/arc").loadArcRollup>[0]["store"];
+
+class ArcFixtureStore implements ArcRollupStoreSeam {
   readonly #docs = new Map<string, { id: string; kind: string; doc: unknown; createdAt: string; updatedAt: string }>();
   #seq = 0;
 
@@ -785,7 +791,7 @@ test("local-backend: GET /api/arcs serves the SUMMARY projection, not the whole 
       const { loadArcRollup, summariseArcRollup } = await import("@storytree/arc");
       const rollup = await loadArcRollup(
         {
-          store: store as unknown as Parameters<typeof loadArcRollup>[0]["store"],
+          store,
           storiesDir,
         },
         "surface-arc",
@@ -832,7 +838,7 @@ test("local-backend: GET /api/arcs/<id> serves the SAME rollup drive's join prod
       const { loadArcRollup } = await import("@storytree/arc");
       const expected = await loadArcRollup(
         {
-          store: store as unknown as Parameters<typeof loadArcRollup>[0]["store"],
+          store,
           storiesDir,
         },
         "surface-arc",

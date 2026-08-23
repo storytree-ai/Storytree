@@ -124,7 +124,7 @@ function findFoliageBands(value: unknown): readonly Rgb[] | undefined {
         band.every((channel) => typeof channel === 'number'),
     )
   ) {
-    return bands as unknown as readonly Rgb[];
+    return bands;
   }
   for (const child of Object.values(record)) {
     const nested = findFoliageBands(child);

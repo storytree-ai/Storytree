@@ -50,11 +50,14 @@ test("a missing artifact is fail-soft: a bare pointer line, never blank, never a
 });
 
 test("a store that throws is fail-soft: the bare pointer, not a crash", async () => {
-  const throwingStore = {
-    async getDoc(): Promise<StoredDoc | null> {
+  // A REAL `Store` with one method made to throw, rather than a one-method object asserted into
+  // the seam: everything else behaves, so the failure under test is the only difference.
+  class ThrowingStore extends InMemoryStore {
+    override async getDoc(): Promise<StoredDoc | null> {
       throw new Error("store is down");
-    },
-  } as unknown as Store;
+    }
+  }
+  const throwingStore = new ThrowingStore();
   const line = await renderDoctrine(throwingStore, "edit-first-curation");
   assert.equal(line, "edit-first-curation  (storytree library artifact edit-first-curation)");
 });

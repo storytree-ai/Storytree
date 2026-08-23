@@ -338,12 +338,12 @@ describe('the forest regrow render layer', () => {
 
 describe('deriveForestRegrowAccretionPlans', () => {
   it('reports an island whose geometry cannot carry an accretion instead of throwing', () => {
-    const plans = deriveForestRegrowAccretionPlans(forestScene(), {
-      ...ANCHORS,
-      // A story with no land at all in this scene.
-      get: (key: string) => ANCHORS.get(key),
-      keys: () => ['not-on-the-map'][Symbol.iterator](),
-    } as unknown as ReadonlyMap<string, { x: number; y: number }>);
+    // A REAL Map holding one anchor for a story that has no land in this scene — the object
+    // claiming to be a Map could not have been iterated by a caller that used anything else.
+    const plans = deriveForestRegrowAccretionPlans(
+      forestScene(),
+      new Map([['not-on-the-map', { x: 0, y: 0 }]]),
+    );
     expect(plans.byStory.size).toBe(0);
     expect(plans.ungrown).toHaveLength(1);
     expect(plans.ungrown[0]!.storyId).toBe('not-on-the-map');

@@ -270,10 +270,13 @@ function idf(df: number, total: number): number {
  * Windowing on the rarest term instead puts it where the distinguishing evidence is, generically,
  * without a hand-kept list of words this corpus happens to over-use.
  */
-function scoreDoc(index: SearchIndex, entry: IndexedDoc, terms: readonly string[]): {
+/** One document's BM25 score, and the matched terms RAREST-FIRST (the excerpt windows on `[0]`). */
+interface DocScore {
   score: number;
   matched: string[];
-} {
+}
+
+function scoreDoc(index: SearchIndex, entry: IndexedDoc, terms: readonly string[]): DocScore {
   const total = index.docs.length;
   let score = 0;
   const hits: Array<{ term: string; df: number }> = [];

@@ -154,7 +154,15 @@ describe('GET /api/traversal?session=<id>', () => {
     expect(body['partial']).toBe(false);
 
     // Chronological, every event kind present, nothing dropped — the panel plots this list directly.
-    const events = body['events'] as { kind: string; at: string }[];
+    // The element type names the spawn fields increment 1 added, so the row below needs no second
+    // narrowing (anti-slop `no-chained-type-assertions`, inc-09).
+    const events = body['events'] as {
+      kind: string;
+      at: string;
+      agentType?: string;
+      model?: string;
+      runtime?: string;
+    }[];
     expect(events.map((e) => e.kind)).toEqual([
       'front_matter_read',
       'full_payload_read',
@@ -170,7 +178,7 @@ describe('GET /api/traversal?session=<id>', () => {
     ]);
 
     // Increment 1's lane attribution survives the wire: a lane can name the model it ran on.
-    const spawn = events[2] as unknown as { agentType: string; model?: string; runtime?: string };
+    const spawn = events[2]!;
     expect(spawn.agentType).toBe('explorer');
     expect(spawn.model).toBe('claude-opus-5');
     expect(spawn.runtime).toBe('sdk-leaf');

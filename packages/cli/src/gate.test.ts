@@ -15,7 +15,14 @@ function memStore(): GateVerdictStoreLike & { events: StoreEvent[] } {
   return {
     events,
     async appendEvent(e) {
-      const ev = { ...e, seq: seq++, at: "2026-06-21T00:00:00.000Z" } as unknown as StoreEvent;
+      // `actor` is what the chain was papering over: `StoreEvent` requires it and the input's is
+      // optional, so the store's own default is applied here rather than asserted away.
+      const ev: StoreEvent = {
+        ...e,
+        actor: e.actor ?? "system",
+        seq: seq++,
+        at: "2026-06-21T00:00:00.000Z",
+      };
       events.push(ev);
       return ev;
     },
@@ -108,7 +115,9 @@ test("gate run observes an observe gate green at a clean HEAD and signs an adopt
   assert.match(env.body, /proof mode: adopted/);
   // The verdict PERSISTED — one signed `adopted` verdict for the gate id.
   assert.equal(store.events.length, 1);
-  const doc = (store.events[0] as unknown as { doc: { proofMode: string; unitId: string } }).doc;
+  // `StoreEvent.doc` is `unknown`, so ONE assertion narrows it — the chain was asserting over the
+  // whole event to reach a field that was already reachable.
+  const doc = store.events[0]?.doc as { proofMode: string; unitId: string };
   assert.equal(doc.proofMode, "adopted");
   assert.equal(doc.unitId, "proof-protocol#gate-1");
   // The reliability-gate roll-up now reads GREEN.

@@ -157,8 +157,10 @@ function framesWithRevealOn(
   });
 }
 
-function masks(container: HTMLElement): HTMLElement[] {
-  return [...container.querySelectorAll('mask')] as unknown as HTMLElement[];
+/** `<mask>` is an SVG element, so the return type says so — the old `HTMLElement[]` was a claim the
+ *  assertion chain made and the DOM never supported (anti-slop `no-chained-type-assertions`). */
+function masks(container: HTMLElement): SVGMaskElement[] {
+  return [...container.querySelectorAll('mask')];
 }
 
 /** Every `mask="url(#…)"` reference in the rendered DOM, paired with whether it RESOLVES. */

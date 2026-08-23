@@ -298,11 +298,11 @@ describe('ChatPanel — multi-turn transcript', () => {
       await flush();
     } finally {
       // Restore the prototype descriptors so no other test observes the spy.
-      delete (proto as unknown as Record<string, unknown>).scrollHeight;
+      Reflect.deleteProperty(proto, 'scrollHeight');
       if (originalScrollTop) {
         Object.defineProperty(proto, 'scrollTop', originalScrollTop);
       } else {
-        delete (proto as unknown as Record<string, unknown>).scrollTop;
+        Reflect.deleteProperty(proto, 'scrollTop');
       }
     }
   });
@@ -474,7 +474,7 @@ describe('ChatPanel — auto-grow input', () => {
     Object.defineProperty(proto, 'scrollHeight', { configurable: true, get: () => value });
     return () => {
       if (original) Object.defineProperty(proto, 'scrollHeight', original);
-      else delete (proto as unknown as Record<string, unknown>).scrollHeight;
+      else Reflect.deleteProperty(proto, 'scrollHeight');
     };
   }
 

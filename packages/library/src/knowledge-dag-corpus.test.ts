@@ -161,7 +161,7 @@ test("library-dag-corpus-projects-pointers-to-node-ids: 'nothing to check' never
   // tripped here that would mean the threshold shape is wrong, not that the fixture needs changing.
   const fixtureRows: DependsOnSource[] = FIXTURE_CORPUS_UNITS.map((unit) => ({
     id: (unit as { id: string }).id,
-    doc: unit as unknown as Record<string, unknown>,
+    doc: unit,
   }));
   const fixtureVerdict = evaluateDependsOnAcyclicity(fixtureRows);
   assert.ok(fixtureVerdict.docsScanned > 0, "the fixture is not empty");

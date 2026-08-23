@@ -752,7 +752,7 @@ test("an increment renders on the STRUCTURED branch: fields, arcRef, status and 
   const stored: StoredDoc = {
     id: "some-increment",
     kind: "increment",
-    doc: increment as unknown as Record<string, unknown>,
+    doc: increment,
     createdAt: "2026-08-01T00:00:00Z",
     updatedAt: "2026-08-01T00:00:00Z",
   };
@@ -812,7 +812,7 @@ test("cites is absent (never []) on a structured doc that cites nothing", () => 
   const rendered = renderStoredDoc({
     id: "uncited-increment",
     kind: "increment",
-    doc: increment as unknown as Record<string, unknown>,
+    doc: increment,
     createdAt: "2026-08-01T00:00:00Z",
     updatedAt: "2026-08-01T00:00:00Z",
   });
@@ -946,7 +946,7 @@ test("an adr renders on the STRUCTURED branch: its raw body, its status, and a t
   const stored: StoredDoc = {
     id: "adr-0403",
     kind: "adr",
-    doc: adr as unknown as Record<string, unknown>,
+    doc: adr,
     createdAt: "2026-08-22T00:00:00Z",
     updatedAt: "2026-08-22T00:00:00Z",
   };
@@ -991,7 +991,7 @@ test("an adr's loadBearing is ABSENT (never false) when the tag is off", () => {
   const rendered = renderStoredDoc({
     id: "adr-0404",
     kind: "adr",
-    doc: adr as unknown as Record<string, unknown>,
+    doc: adr,
     createdAt: "2026-08-22T00:00:00Z",
     updatedAt: "2026-08-22T00:00:00Z",
   });

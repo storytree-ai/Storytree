@@ -191,10 +191,17 @@ test("GREEN (ADR-0408): a machine UAT leg signs with NO approvedBy — and never
       return "hua.mick@gmail.com";
     },
   };
-  const res = await observeAndSign({
+  // `approverInputs?: never` is the machine-leg spec's STRUCTURAL fence, so handing it one IS the
+  // tripwire. The binding names exactly what is being built — the leg spec with that fence lifted —
+  // and the remaining single `as` is a legal narrowing to the union rather than the `as unknown as`
+  // chain, which asserted over the whole spec (anti-slop `no-chained-type-assertions`, inc-09).
+  const specWithApprover: Omit<ObserveMachineLegSpec, "approverInputs"> & {
+    approverInputs: SignerInputs;
+  } = {
     ...legSpec({ store }),
     approverInputs: tripwire,
-  } as unknown as ObserveAndSignSpec);
+  };
+  const res = await observeAndSign(specWithApprover as ObserveAndSignSpec);
 
   assert.equal(res.ok, true);
   if (!res.ok) return;

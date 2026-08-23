@@ -517,8 +517,8 @@ describe('LibraryFocusGraph — SVG DAG canvas', () => {
   // ── ldag-no-fetch-beyond-loaded ───────────────────────────────────────────────────
   it('ldag-no-fetch-beyond-loaded: rendering and interacting never calls fetch — only the already-loaded corpus is read', () => {
     const originalFetch = globalThis.fetch;
-    const fetchSpy = vi.fn();
-    globalThis.fetch = fetchSpy as unknown as typeof fetch;
+    const fetchSpy = vi.fn<typeof fetch>();
+    globalThis.fetch = fetchSpy;
 
     try {
       const centre = asset({ id: 'nofetch-centre', category: 'definition', title: 'Nofetch Centre' });

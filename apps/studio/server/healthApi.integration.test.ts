@@ -109,7 +109,12 @@ describe('/api/health', () => {
     // its own would otherwise silently redefine identity to whatever the STORE reported.
     deps = {
       store: 'pg',
-      health: async () => ({ db: 'ok', pid: 999_999 } as unknown as Awaited<ReturnType<HealthDeps['health']>>),
+      // An intersection annotation, not an assertion chain: it says exactly what this case is
+      // about — a probe that GREW a `pid` of its own — and still checks the rest of the shape.
+      health: async (): Promise<Awaited<ReturnType<HealthDeps['health']>> & { pid: number }> => ({
+        db: 'ok',
+        pid: 999_999,
+      }),
       codeStamp: async () => null,
     };
     const res = await fetch(`${base}/api/health`);

@@ -17,7 +17,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { Readable } from 'node:stream';
-import type { IncomingMessage, ServerResponse } from 'node:http';
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { Socket } from 'node:net';
 import { handleSuggestionDecision } from './suggestionApi.js';
 import type { SuggestionDecisionBackend } from './suggestionApi.js';
 import { HttpError } from './httpUtil.js';
@@ -62,11 +63,18 @@ function makeSuggestion(overrides: Partial<SuggestionLike> = {}): SuggestionLike
 // HTTP mock helpers — no node:http server
 // ---------------------------------------------------------------------------
 
+// REAL `IncomingMessage` / `ServerResponse` objects, not literals asserted into them (anti-slop
+// `no-chained-type-assertions`, inc-09). `IncomingMessage` takes a socket and is a `Readable`, so
+// the handler's own `req.on('data'/'end')` body read runs against the real class; the response is a
+// real `ServerResponse` with `end`/`write` shadowed to capture, so `statusCode` and `setHeader`
+// behave exactly as they do in production instead of being re-implemented here.
+
 function makeRequest(method: string, body: unknown): IncomingMessage {
-  // Readable.from emits the buffer when consumed — compatible with the handler's
-  // own readBody (req.on('data'/'end')) because IncomingMessage extends Readable.
-  const r = Readable.from([Buffer.from(JSON.stringify(body))]);
-  return Object.assign(r, { method }) as unknown as IncomingMessage;
+  const req = new IncomingMessage(new Socket());
+  req.method = method;
+  req.push(Buffer.from(JSON.stringify(body)));
+  req.push(null);
+  return req;
 }
 
 interface MockResponse {
@@ -76,13 +84,17 @@ interface MockResponse {
 
 function makeResponse(): MockResponse {
   const captured = { status: 200, body: '' };
-  const res = {
-    get statusCode(): number { return captured.status; },
-    set statusCode(v: number) { captured.status = v; },
-    setHeader(_n: string, _v: string): void {},
-    end(data: string): void { captured.body = data; },
-    write(_data: unknown): boolean { return true; },
-  } as unknown as ServerResponse;
+  const res = new ServerResponse(new IncomingMessage(new Socket()));
+  Object.assign(res, {
+    end(data?: unknown): ServerResponse {
+      captured.status = res.statusCode;
+      captured.body = typeof data === 'string' ? data : String(data ?? '');
+      return res;
+    },
+    write(): boolean {
+      return true;
+    },
+  });
   return { res, captured };
 }
 

@@ -100,12 +100,14 @@ test("ADR-0106 instance: adopting `agent` observe-signs gate-1 + every machine l
   };
   const appended: { doc: { unitId: string } }[] = [];
   const deps: AdoptDeps = {
+    // `AdoptedVerdictStore` asks for `appendEvent` and nothing else, so the double satisfies the
+    // seam directly (anti-slop `no-chained-type-assertions`, inc-09).
     store: {
       async appendEvent(e: { doc: unknown }) {
         appended.push(e as { doc: { unitId: string } });
         return e;
       },
-    } as unknown as AdoptDeps["store"],
+    },
     loadStory: () => story,
     gitState: () => ({ commitSha: "abc1234", clean: true }),
     // Every observe gate is green at HEAD — including the UAT-drive witness, whose real command needs

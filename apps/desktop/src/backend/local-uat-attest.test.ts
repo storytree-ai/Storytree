@@ -33,6 +33,10 @@ import type { AttestLocalUatInput, LocalUatDeclaredTest } from "./local-uat-atte
 import type { ForestWriter } from "./local-backend.js";
 import type { ForestWrite, ForestWriteResult } from "./forest-readiness.js";
 
+/** A value the `outcome` union does not name — `string` so the narrowing below is one step. */
+const INVALID_OUTCOME: string = "maybe";
+
+
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
@@ -236,7 +240,9 @@ test("luat-refuses-untrustworthy-proof-before-writing: malformed declared test c
 test("luat-refuses-untrustworthy-proof-before-writing: an invalid outcome refuses", async () => {
   const { writer, calls } = makeWriter({ persisted: true, status: 201, body: {} });
   const result = await attestLocalUat(
-    baseInput(writer, { outcome: "maybe" as unknown as "pass" | "fail" }),
+    // A deliberately-invalid outcome: widened to `string` at the binding, then narrowed in ONE
+    // assertion, so the refusal under test stays a RUNTIME one rather than a compile error.
+    baseInput(writer, { outcome: INVALID_OUTCOME as "pass" | "fail" }),
   );
 
   assert.equal(result.ok, false);

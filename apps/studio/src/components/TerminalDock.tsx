@@ -40,9 +40,8 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 // (anti-slop-adoption-arc inc-06, `no-module-mocking`). The TYPES still come straight from the
 // packages — a type import binds nothing at runtime and there is nothing to substitute.
 import { useTerminalToolkit } from '../lib/terminalToolkit';
-import type { ITerminalOptions, Terminal } from '@xterm/xterm';
-import type { FitAddon } from '@xterm/addon-fit';
-import type { SearchAddon } from '@xterm/addon-search';
+import type { FitAddonLike, SearchAddonLike, TerminalLike } from '../lib/terminalToolkit';
+import type { ITerminalOptions } from '@xterm/xterm';
 import type { IClipboardProvider } from '@xterm/addon-clipboard';
 
 /** Drag bounds for the expanded dock height (px) — mirrors ChatDock's MIN/DEFAULT/margin. */
@@ -233,8 +232,8 @@ export interface TerminalDockHost {
  *  read and mutate directly, and `sessionId` is set once the (per-tab) `bridge.spawn()` resolves. */
 interface TabRecord {
   sessionId: string | null;
-  term: Terminal | null;
-  fit: FitAddon | null;
+  term: TerminalLike | null;
+  fit: FitAddonLike | null;
   bodyEl: HTMLDivElement | null;
   /** A seed command held until THIS tab's spawn resolves (written once, then cleared). */
   pendingSeed: string | null;
@@ -259,7 +258,7 @@ interface TabRecord {
   syncResizeForward: boolean;
   /** Find-in-scrollback (increment D) — this tab's own search addon, stored like `fit` and driven
    *  for the ACTIVE tab by the panel's search chrome. */
-  search: SearchAddon | null;
+  search: SearchAddonLike | null;
   /** Tab titles (increment D) — the trailing-debounce state for THIS tab's OSC 0/2 title updates:
    *  the pending timer and the latest (coalesced) title it will land. Cleared on tab close and
    *  dock unmount, the same timer discipline as `resizeTimer`. */
