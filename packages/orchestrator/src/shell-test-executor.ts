@@ -51,6 +51,34 @@ export interface ShellCommand {
    * reaches both the spine's CONFIRM observation and the leaf's `run_proof`.
    */
   timeoutMs?: number;
+  /**
+   * Run {@link ShellCommand.file} THROUGH the platform shell (`cmd.exe` / `sh`) instead of spawning it
+   * as a file with an argument vector. When set, `file` carries the WHOLE command line and `args` is
+   * empty, so quoting and shell operators (`&&`, a pipe, a redirect) behave as the author wrote them.
+   *
+   * SPINE-INTERNAL, and deliberately narrow (ADR-0421). It exists for ONE caller: the OBSERVE path,
+   * where the command is committed story prose in `stories/<id>/story.md`, reviewed on a PR, and
+   * already able to run arbitrary code — see {@link shellObserveCommand}. It is NOT part of
+   * `ShellCommandSchema` (the parser for a spec-borne `proof:` command, which accepts file/args/cwd
+   * only), exactly as `env` and `timeoutMs` are not, so the LEAF proof path keeps its no-shell rule:
+   * a model can never reach a shell and nothing in a node spec can turn one on.
+   */
+  shell?: boolean;
+}
+
+/**
+ * The OBSERVE path's command builder (ADR-0421 D1): run a story's declared `proofCommand` STRING
+ * through the platform shell, AS WRITTEN.
+ *
+ * The old shape whitespace-split the string into an `execFile` vector, which silently shredded any
+ * command a shell would parse: `node -e "…"` reached node as `-e` `"import` plus seven stray argv
+ * entries, and a `&&` was passed to the first command as a literal argument. Neither can ever exit 0,
+ * and the spine reported the result as an ordinary red with the command echoed back — indistinguishable
+ * from a genuine failure. Six `ci-cd` gates sat unobservable that way from the day they were authored,
+ * stranding the six machine UAT legs bound to them.
+ */
+export function shellObserveCommand(command: string, cwd: string): ShellCommand {
+  return { file: command, args: [], cwd, shell: true };
 }
 
 /**
@@ -305,6 +333,8 @@ interface ShellExecOptions {
   env: NodeJS.ProcessEnv;
   timeout: number;
   killSignal: "SIGKILL";
+  /** Set only for {@link ShellCommand.shell} — the OBSERVE path (ADR-0421 D2), never the leaf's proof. */
+  shell?: boolean;
 }
 
 export function runShellCommand(cmd: ShellCommand): Promise<ShellRunResult> {
@@ -323,6 +353,11 @@ export function runShellCommand(cmd: ShellCommand): Promise<ShellRunResult> {
     };
     if (cmd.cwd !== undefined) {
       options.cwd = cmd.cwd;
+    }
+    // ADR-0421: the OBSERVE path carries its whole command line in `file` and asks for a shell, so
+    // quoting and `&&` survive. Every other caller leaves `shell` absent and keeps the execFile vector.
+    if (cmd.shell === true) {
+      options.shell = true;
     }
     execFile(cmd.file, cmd.args, options, (error, stdout, stderr) => {
       if (error === null) {

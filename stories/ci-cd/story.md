@@ -50,9 +50,9 @@ repos) and ADR-0046 (merge→deploy CD).
 
 > **This story is the first WORK-TRACKED home for two things that currently live only in CLAUDE.md
 > prose + session memory:** (1) the **gate↔CI parity** invariant — that `pnpm gate` locally and the
-> CI `verify` job share a content floor of eight checks, while CI adds `pnpm -r build`, the two
-> PR-only guards, the web-submodule checkout, affected-scope selection and the *merge-with-main* ref,
-> and the local plan adds `check:verification-decay` (the recurring "local-green / CI-red" surprise
+> CI `verify` job share a content floor of eight checks, while CI adds `pnpm -r build`, the PR-only
+> merged-branch guard, the web-submodule checkout, affected-scope selection and the *merge-with-main*
+> ref, and the local plan adds `check:verification-decay` (the recurring "local-green / CI-red" surprise
 > lives in that two-way delta); and (2) the **merge-ceremony
 > discipline** (green unit → non-draft PR → CI auto-merges; never a manual `gh pr merge`). The
 > `gate-ci-parity` capability below pins (1) into a checkable relationship; the ceremony (2) is the
@@ -71,8 +71,8 @@ repos) and ADR-0046 (merge→deploy CD).
 - **The gate and CI share a content floor; each keeps steps the other does not.** They overlap on
   EIGHT checks — `check:boundaries`, `check:mirror-conformance`, `check:web-grounding`,
   `check:web-engine`, typecheck, test, `check:guidance`, `check:agents`. CI additionally runs
-  `pnpm -r build`, the two PR-only guards (ADR-number collision, merged-branch), the pinned web
-  submodule checkout, affected-scope selection, and the merge-ref; the local plan additionally runs
+  `pnpm -r build`, the PR-only merged-branch guard, the pinned web submodule checkout, affected-scope
+  selection, and the merge-ref; the local plan additionally runs
   `check:verification-decay`. So it is a two-way delta, **not** "gate = CI − build" — that older
   equality was true once and is not now. The relationship is DECLARED and checkable
   (`gate-ci-parity`), not tribal knowledge, and the two lists are read from their own sources: CI's
@@ -211,9 +211,9 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
    retains the collision/merged-branch guards, manifest/boundary/generated-view/web checks, conservative
    affected-or-full typecheck and test selection, and the unconditional Studio build; `automerge`
    still declares `needs: verify`.
-3. **The local/CI delta is explicit.** _(witness: machine)_ _(proof-gate: ci-cd#gate-3)_ Compare the _(criterion-id: uatc_0f5aacd3f9ee77943bbae299)_ _(revision-id: uatr1:374cc8729191baa0)_
+3. **The local/CI delta is explicit.** _(witness: machine)_ _(proof-gate: ci-cd#gate-3)_ Compare the _(criterion-id: uatc_0f5aacd3f9ee77943bbae299)_ _(revision-id: uatr1:c4fdfe0078bbbad1)_ _(previous-revision-id: uatr1:374cc8729191baa0)_
    root `gate` script with the real `verify` definition. **Success —** their shared blocking floor is
-   present in both, while the current deliberate differences remain visible: CI adds PR-only guards,
+   present in both, while the current deliberate differences remain visible: CI adds its PR-only guard,
    merge-ref execution, affected selection, web checkout, and build; local gate adds its live/advisory
    health tails. This is the honest current relationship, not the obsolete claim that build is the
    only difference.
@@ -260,14 +260,20 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
    gate here** (ADR-0097 §2): if the repository ever grows a new repository-owned landing seam, that
    seam earns proof at its own capability first.
 2. **The verify workflow keeps its hard merge-candidate floor** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','run: pnpm check:boundaries','run: pnpm check:mirror-conformance','run: pnpm check:web-grounding','run: pnpm check:web-engine','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','run: pnpm check:guidance','run: pnpm check:agents','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
+   `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','Merged-branch guard (a branch dies on merge)','run: pnpm check:boundaries','run: pnpm check:mirror-conformance','run: pnpm check:web-grounding','run: pnpm check:web-engine','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','run: pnpm check:guidance','run: pnpm check:agents','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
    The command reads the landed workflow itself and fails on removal of any named standing seam. The
    named checks are a FLOOR, not the complete list the job runs today (ADR-0336 added a tenth,
    `check:web-experience-closure`, not named here); `check:manifest` and `check:web-experience` were
    removed from this list when ADR-0311 D2 retired them, because a seam-presence gate that names a
    retired rung reds on the retirement itself rather than on drift.
+   *(Corrected in place 2026-08-23, same rule: `'ADR number collision (open PRs)'` left this list —
+   and gate 3's CI-only delta list — because **ADR-0403 dec 1 deleted the step**. Decisions are
+   Postgres rows now, so there is no `docs/decisions/**` for two open PRs to collide on; `ci.yml`'s
+   own comment records the deletion at the spot the step stood. Both gates were RED on this string
+   and NOBODY SAW IT: until ADR-0421 the spine could not execute a `node -e "…"` command at all, so
+   the gate had never once been observed either way.)*
 3. **The current local/CI relationship is declared** _(gate: observe)_
-   `node --input-type=module -e "import fs from 'node:fs';const src=fs.readFileSync('packages/cli/src/gate-order.ts','utf8');const i=src.indexOf('export const GATE_PLAN');if(i<0)throw new Error('GATE_PLAN literal not found');const end=src.indexOf('];',i);if(end<0)throw new Error('GATE_PLAN literal unterminated');const plan=src.slice(i,end);const planN=plan.replace(/\s+--[a-z][a-z-]*/g,'');const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:boundaries','check:mirror-conformance','check:web-grounding','check:web-engine','check:guidance','check:agents'])if(!plan.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['pnpm -r typecheck','pnpm -r test'])if(!planN.includes(s))throw new Error('shared expensive leg missing from GATE_PLAN: '+s);for(const s of ['- name: Typecheck','- name: Test'])if(!c.includes(s))throw new Error('shared expensive leg missing from verify: '+s);for(const s of ['pnpm -r build','ADR number collision (open PRs)','Merged-branch guard (a branch dies on merge)','Affected scope (PRs only)'])if(!c.includes(s)||plan.includes(s))throw new Error('CI-only delta drifted: '+s);if(!plan.includes('check:verification-decay')||c.includes('check:verification-decay'))throw new Error('local-only delta drifted: check:verification-decay')"`.
+   `node --input-type=module -e "import fs from 'node:fs';const src=fs.readFileSync('packages/cli/src/gate-order.ts','utf8');const i=src.indexOf('export const GATE_PLAN');if(i<0)throw new Error('GATE_PLAN literal not found');const end=src.indexOf('];',i);if(end<0)throw new Error('GATE_PLAN literal unterminated');const plan=src.slice(i,end);const planN=plan.replace(/\s+--[a-z][a-z-]*/g,'');const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['check:boundaries','check:mirror-conformance','check:web-grounding','check:web-engine','check:guidance','check:agents'])if(!plan.includes(s)||!c.includes(s))throw new Error('shared gate seam drifted: '+s);for(const s of ['pnpm -r typecheck','pnpm -r test'])if(!planN.includes(s))throw new Error('shared expensive leg missing from GATE_PLAN: '+s);for(const s of ['- name: Typecheck','- name: Test'])if(!c.includes(s))throw new Error('shared expensive leg missing from verify: '+s);for(const s of ['pnpm -r build','Merged-branch guard (a branch dies on merge)','Affected scope (PRs only)'])if(!c.includes(s)||plan.includes(s))throw new Error('CI-only delta drifted: '+s);if(!plan.includes('check:verification-decay')||c.includes('check:verification-decay'))throw new Error('local-only delta drifted: check:verification-decay')"`.
    It reads the local gate's real step list from the `GATE_PLAN` literal in
    `packages/cli/src/gate-order.ts` — **never** from `package.json`'s `gate` script, which since
    2026-08-04 is just the runner invocation (`… src/gate-run.ts`) and names zero steps, so every
@@ -275,7 +281,7 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
    `plan.includes(…)` negatives honest: the same file also declares `RETIRED_CHECKS`, so a whole-file
    search would find `check:manifest` and report a retired rung as live. The assertions are the
    two-way relationship, not the obsolete "gate = CI − build" equality: the eight shared checks are
-   present in both, `pnpm -r build` + the two PR-only guards + affected selection are present in CI
+   present in both, `pnpm -r build` + the PR-only merged-branch guard + affected selection are present in CI
    and absent from the plan, and `check:verification-decay` is present in the plan and absent from
    CI — each direction asserted BOTH ways, so a step migrating between them fails here.
    *(Corrected in place 2026-08-21, ADR-0139. This gate was RED on `main` and had been since
@@ -378,7 +384,7 @@ Surfaced rather than guessed — plain files, cheap to revise.
    `declared-content-delta-is-exactly-build` — asserted that the local gate's content-check set
    equals the CI `verify` set minus `pnpm -r build`, "the single declared constant `{pnpm -r build}`
    — nothing else." Verified false: the delta is **two-way**. CI-only are `pnpm -r build`, the two
-   PR-only guards (ADR-number collision, merged-branch), the pinned web-submodule checkout and
+   PR-only merged-branch guard, the pinned web-submodule checkout and
    affected-scope selection; local-only is `check:verification-decay`. Established in PR #1204 (main
    `fc4c0246`) and re-verified against the `GATE_PLAN` literal in
    [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts) and the `verify` job in

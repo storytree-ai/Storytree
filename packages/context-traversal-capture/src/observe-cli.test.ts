@@ -231,6 +231,37 @@ test("unlisted and write invocations observe nothing — the default is zero eve
   }
 });
 
+test("the whole `adr` AREA observes nothing — including `adr pull`, which is a genuine READ", () => {
+  // MEASURED LIVE 2026-08-23 (`decision-read-measurement-arc-inc-01`) and pinned here, because this
+  // is a blind spot rather than an omission: `adr pull <n> --out <path>` puts a whole decision
+  // document in front of the caller and records not one event, since `observeCliInvocation` has no
+  // `adr` branch at all and falls through to the closing `return []`.
+  //
+  // It is NOT a hole to plug by widening the allowlist. `adr list` is a SEARCH over the log that
+  // names no single decision, and `adr push` / `adr new` are writes — minting a read for any of them
+  // would manufacture history, which is the failure the allowlist's zero-by-default exists to
+  // prevent. `adr pull` is the one shape that would be legitimate to observe, and the transcript
+  // sweep already recovers it (`scrapeCliDecisionReads`), so the read survives by another route.
+  // What this test fixes is that the LIVE record's silence about it is deliberate and known.
+  const { deps } = harness();
+  const adrArea: readonly (readonly string[])[] = [
+    ["adr", "pull", "419"],
+    ["adr", "pull", "419", "--out", "adr-0419.md"],
+    ["adr", "list"],
+    ["adr", "list", "--load-bearing"],
+    ["adr", "push", "419", "--file", "adr-0419.md", "--pg"],
+    ["adr", "next", "--pg"],
+    ["adr", "health"],
+  ];
+  for (const argv of adrArea) {
+    assert.deepEqual(
+      observeCliInvocation(argv, deps),
+      [],
+      `expected zero events for ${JSON.stringify(argv)}`,
+    );
+  }
+});
+
 test("ok: false observes nothing, even for an otherwise-matching read shape", () => {
   const { deps } = harness({ ok: false });
   const events = observeCliInvocation(["tree", "story-a"], deps);
