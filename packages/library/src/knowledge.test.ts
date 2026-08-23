@@ -23,15 +23,16 @@ const KINDS = Object.keys(KIND_SPECS) as KnowledgeKind[];
 
 /** A minimal valid doc for a kind: common fields + every REQUIRED spec field. */
 function minimalDoc(kind: KnowledgeKind) {
-  const doc: Record<string, unknown> = {
-    kind,
-    id: `parity-${kind}`,
-    title: `parity ${kind}`,
-    description: "parity-suite fixture",
-    references: [],
-    createdAt: "2026-06-11T00:00:00.000Z",
-    updatedAt: "2026-06-11T00:00:00.000Z",
-  };
+  // Declared as the accumulator it is — the per-kind key set below comes from `KIND_SPECS`,
+  // so there is no statically known shape for the annotation to be discarding.
+  const doc: Record<string, unknown> = {};
+  doc["kind"] = kind;
+  doc["id"] = `parity-${kind}`;
+  doc["title"] = `parity ${kind}`;
+  doc["description"] = "parity-suite fixture";
+  doc["references"] = [];
+  doc["createdAt"] = "2026-06-11T00:00:00.000Z";
+  doc["updatedAt"] = "2026-06-11T00:00:00.000Z";
   for (const spec of KIND_SPECS[kind]) {
     if (spec.required) {
       doc[spec.field] = spec.refList === true ? [`asset:parity-${spec.field}`] : `content for ${spec.field}`;
@@ -463,7 +464,7 @@ test("increment kind (ADR-0305 D2/D5/D6): the two CONDITIONAL invariants fail cl
 
   // 1. A `proposal` MUST carry `parked`. Without it the ADR-0298 D3 ceiling has nothing to compare a
   //    reinforcement against, so the entry can never red and the queue silently stops draining.
-  const unparked: Record<string, unknown> = { ...minimalDoc("increment") };
+  const unparked = { ...minimalDoc("increment") };
   delete unparked["parked"];
   assert.throws(() => validateLibraryDoc(unparked), /carries no `parked` timestamp/);
   // A non-proposal status does not need one — a landing was never parked.
@@ -498,8 +499,8 @@ test("increment kind (ADR-0322): `parked` is what decides whether a closure owes
   // The rule used to be unconditional, and that is what forced `arc increment add` to COPY its
   // `--outcome` text into `outcome.note` as well as `body` — the duplication that made an ADR-0139
   // correction half-apply, since `library artifact edit --set` can reach only the `body` half.
-  const parked: Record<string, unknown> = { ...minimalDoc("increment") };
-  const bornClosed: Record<string, unknown> = { ...minimalDoc("increment") };
+  const parked = { ...minimalDoc("increment") };
+  const bornClosed = { ...minimalDoc("increment") };
   delete bornClosed["parked"];
 
   // A PARKED entry's `body` is the INTENTION, so its closure still owes a ref or a reason.
@@ -555,7 +556,7 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
   assert.equal(parsed.arcRef, "asset:parity-arc");
 
   // A plan WITHOUT its arc is refused — a plan is born citing its arc (D3: the edge lives on the child).
-  const orphan: Record<string, unknown> = { ...minimalDoc("increment") };
+  const orphan = { ...minimalDoc("increment") };
   delete orphan["arcRef"];
   assert.throws(() => validateLibraryDoc(orphan), "an arc-less plan must be rejected");
 
@@ -567,7 +568,7 @@ test("plan kind (ADR-0183 D2/D3): born citing its arc, git-anchored, status enum
   // (ADR-0305 D1) made an increment exist from `proposal` onward, and a parked intention has nothing
   // to be anchored to yet — it is anchored when it is planned. Nothing is silently blessed by that:
   // `increment check` refuses to freshness-check an unanchored row rather than reporting it fresh.
-  const unanchored: Record<string, unknown> = { ...minimalDoc("increment") };
+  const unanchored = { ...minimalDoc("increment") };
   delete unanchored["anchor"];
   assert.doesNotThrow(() => validateLibraryDoc(unanchored), "a parked increment has no anchor yet");
 
@@ -726,7 +727,7 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
   assert.equal(upcasted.arcRef, "asset:arc-orientation-surface-arc", "no migration may strip the edge");
 
   // And a LAGGING (pre-pin) stamped question is forward-migrated rather than rejected.
-  const lagging: Record<string, unknown> = { ...stamped, schemaVersion: 0 };
+  const lagging = { ...stamped, schemaVersion: 0 };
   const migrated = upcast(lagging) as { arcRef?: string; schemaVersion?: number };
   assert.equal(migrated.schemaVersion, CURRENT_SCHEMA_VERSION);
   assert.equal(migrated.arcRef, "asset:arc-orientation-surface-arc");

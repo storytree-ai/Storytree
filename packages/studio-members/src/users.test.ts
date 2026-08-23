@@ -12,6 +12,7 @@ import {
   resolveAccess,
   parseSeedAdmins,
   type UserDoc,
+  type UserPatch,
   type UserRole,
 } from "./users.js";
 
@@ -80,13 +81,17 @@ test("emailField rejects CR/LF (SMTP header/envelope injection guard)", () => {
 
 test("mergeUser ignores undefined, never mutates, anchors email + createdAt", () => {
   const existing = user({ role: "member", createdAt: "orig", status: "invited" });
-  const merged = mergeUser(existing, {
+  // A patch that CARRIES the anchors — declared as what it is, not asserted into `object`.
+  // A variable (unlike a fresh literal) skips the excess-property check, which is exactly the
+  // smuggling route `mergeUser` has to refuse.
+  const smuggled: UserPatch & { email: string; createdAt: string } = {
     role: "admin",
     status: "active",
     lastSeenAt: "later",
-    // a cast-in attempt to move the anchors must not win
-    ...({ email: "evil@example.com", createdAt: "moved" } as object),
-  });
+    email: "evil@example.com",
+    createdAt: "moved",
+  };
+  const merged = mergeUser(existing, smuggled);
   assert.equal(merged.role, "admin");
   assert.equal(merged.status, "active");
   assert.equal(merged.lastSeenAt, "later");

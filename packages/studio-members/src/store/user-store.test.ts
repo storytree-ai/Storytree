@@ -112,8 +112,10 @@ function countMatching(calls: QueryCall[], fragment: string): number {
 test("PgUserStore: imports and constructs from a pool-like object", () => {
   const store = new PgUserStore(new FakePool(new FakeClient()) as never);
   assert.ok(store instanceof PgUserStore, "is a PgUserStore");
-  for (const m of ["upsert", "remove", "list", "get", "history"]) {
-    assert.equal(typeof (store as unknown as Record<string, unknown>)[m], "function", `${m} present`);
+  // Indexed with the literal method names rather than asserted into an open dictionary: this way
+  // the probe itself stops compiling if one of the five is renamed off the store.
+  for (const m of ["upsert", "remove", "list", "get", "history"] as const) {
+    assert.equal(typeof store[m], "function", `${m} present`);
   }
 });
 

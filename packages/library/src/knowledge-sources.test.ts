@@ -7,12 +7,12 @@ import { groupSources, SOURCE_GROUP_ORDER } from "./knowledge-sources.js";
  * dropping empty groups and keeping reference order within a group.
  */
 
-const corpus: Record<string, { kind: string; title: string }> = {
-  "red-green": { kind: "principle", title: "Red-green" },
-  "approval-gated-trunk": { kind: "guardrail", title: "Approval-gated trunk" },
-  "owned-loop": { kind: "definition", title: "Owned loop" },
-};
-const resolve = (id: string) => corpus[id] ?? null;
+const corpus: ReadonlyMap<string, { kind: string; title: string }> = new Map([
+  ["red-green", { kind: "principle", title: "Red-green" }],
+  ["approval-gated-trunk", { kind: "guardrail", title: "Approval-gated trunk" }],
+  ["owned-loop", { kind: "definition", title: "Owned loop" }],
+]);
+const resolve = (id: string) => corpus.get(id) ?? null;
 
 test("groups asset: refs by their category and doc: refs by decisions/ vs other", () => {
   const groups = groupSources(

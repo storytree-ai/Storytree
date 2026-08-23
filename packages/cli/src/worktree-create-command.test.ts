@@ -487,8 +487,9 @@ test("create: a THROWING baselineCursor never fails the ceremony (courtesy only)
 
 test("create: a ledger WITHOUT baselineCursor (the optional seam absent) still completes the ceremony", async () => {
   const bare = fakeLedger();
-  const ledger = { ...bare, takes: bare.takes, releases: bare.releases } as Record<string, unknown>;
-  delete ledger["baselineCursor"];
+  // Omitted by destructuring rather than asserted into an open dictionary and deleted through:
+  // the ABSENCE is then a fact about the value's type, which is what the test is about.
+  const { baselineCursor: _baselineCursor, ...ledger } = bare;
   const io = fakeIo();
   const env = await createWorktree(
     { nodes: ["story-a"], intent: "reading" },

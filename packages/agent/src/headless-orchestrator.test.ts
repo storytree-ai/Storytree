@@ -319,7 +319,7 @@ test("runHeadlessOrchestrator: refuses a second concurrent run while one is in f
 
 /** Build an SDK partial-assistant streaming message carrying one text-delta fragment.
  *  Mirrors the live `SDKPartialAssistantMessage` shape so the scripted double matches `query()`. */
-function textDeltaMessage(text: string): unknown {
+function textDeltaMessage(text: string) {
   return {
     type: "stream_event",
     event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },
