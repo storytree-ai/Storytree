@@ -2,7 +2,7 @@
 //
 // This subpath is the hermetic replacement for the departed `loadCorpus` (ADR-0302 D1). Where
 // `loadCorpus` read a 1.25 MB committed mirror of a database that was already canonical, this reads
-// a frozen 9-artifact literal that mirrors nothing. See `./corpus.ts` for why small / frozen /
+// a frozen 22-artifact literal that mirrors nothing. See `./corpus.ts` for why small / frozen /
 // closed are each deliberate.
 //
 // It lives behind its OWN export subpath (`@storytree/library/fixture`) rather than in the root
