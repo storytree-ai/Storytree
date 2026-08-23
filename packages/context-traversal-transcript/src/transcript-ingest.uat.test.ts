@@ -49,8 +49,42 @@ interface CliResult {
   readonly stderr: string;
 }
 
+/**
+ * The node binary, NAMED rather than inferred from whatever runtime happens to run this suite.
+ *
+ * Production is node — `pnpm storytree …` resolves to `node packages/cli/launch.mjs` — so a UAT
+ * whose whole point is spawning the REAL CLI entry has to spawn it under node. `process.execPath`
+ * means "the current runtime", which is node only while this package's own test script is
+ * `node --test`. Under bun it silently becomes bun, and `bun packages/cli/launch.mjs` RUNS
+ * (measured, `bun-runtime-migration-arc` inc-06) — so this suite would keep passing while
+ * observing a program production never executes, with tsx's ESM loader and node's compile cache
+ * bypassed. A green that exercised the wrong binary is worse than a red, so the binary is named
+ * here rather than left to whoever chose the runner.
+ */
+let cachedNodeExecutable: string | undefined;
+function nodeExecutable(): string {
+  if (cachedNodeExecutable !== undefined) return cachedNodeExecutable;
+  if (process.versions["bun"] === undefined) return (cachedNodeExecutable = process.execPath);
+  const fromPackageManager = process.env["npm_node_execpath"];
+  if (fromPackageManager !== undefined && fromPackageManager !== "") {
+    return (cachedNodeExecutable = fromPackageManager);
+  }
+  const lookup = spawnSync(process.platform === "win32" ? "where" : "which", ["node"], {
+    encoding: "utf8",
+  });
+  const first = (lookup.stdout ?? "").split(/\r?\n/).find((line) => line.trim() !== "");
+  if (lookup.status !== 0 || first === undefined) {
+    throw new Error(
+      "this UAT spawns the production CLI under node, but no node binary was found on PATH " +
+        `(runtime is bun ${String(process.versions["bun"])}) — it must not silently fall back ` +
+        "to the runner, which would observe a program production never executes",
+    );
+  }
+  return (cachedNodeExecutable = first.trim());
+}
+
 function runCli(args: readonly string[], env: NodeJS.ProcessEnv): CliResult {
-  const res = spawnSync(process.execPath, [LAUNCHER, ...args], { encoding: "utf8", env });
+  const res = spawnSync(nodeExecutable(), [LAUNCHER, ...args], { encoding: "utf8", env });
   return { status: res.status, stdout: res.stdout ?? "", stderr: res.stderr ?? "" };
 }
 

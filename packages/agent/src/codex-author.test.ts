@@ -125,7 +125,18 @@ test("the production runner can select one absolute administrator-managed execut
     env: { ...process.env, [CODEX_EXECUTABLE_ENV]: process.execPath },
   });
   assert.equal(result.code, 0, result.stderr);
-  assert.match(result.stdout, /^v\d+\./);
+  // `process.execPath` stands in for "some absolute executable an administrator pinned", so the
+  // assertion's job is to prove THAT executable ran rather than the repo-pinned codex binary the
+  // test above reaches. It used to assert node's own `/^v\d+\./` output shape, which quietly
+  // assumed the runtime executing this suite is node (`bun-runtime-migration-arc` inc-06): under
+  // any other runner `process.execPath` is that runner, and the assertion failed for a reason that
+  // was never about codex. Pin the version of whichever runtime we actually named — a stricter
+  // claim than the shape was, and one that does not care which runtime it is.
+  const runtimeVersion = process.versions["bun"] ?? process.versions.node;
+  assert.ok(
+    result.stdout.includes(runtimeVersion),
+    `expected the named executable's own --version (${runtimeVersion}), got: ${result.stdout}`,
+  );
   await assert.rejects(
     runPinnedCodexCli({
       args: ["--version"],
