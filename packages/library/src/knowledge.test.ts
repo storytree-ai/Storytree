@@ -798,3 +798,40 @@ test("knownFieldsForKind: exact schema fields per kind (KIND_SPECS body + schema
   assert.equal(knownFieldsForKind("template"), null);
   assert.equal(knownFieldsForKind("from-the-future"), null);
 });
+
+test("open-question kind (ADR-0434 D1): an OPTIONAL lifecycle, so a question can END by recording its answer", () => {
+  // Zero-migration, the same shape `arcRef` and the ADR-0358 park-lease fields use: absent means
+  // `open`, so every question authored before ADR-0434 still validates and there is no
+  // CURRENT_SCHEMA_VERSION bump. Before this field a question's only ending was DELETION, which made
+  // every answered one choose between reporting a false wait forever and destroying its own answer.
+  const unstamped = validateLibraryDoc(minimalDoc("open-question")) as { lifecycle?: string };
+  assert.equal(unstamped.lifecycle, undefined, "a pre-ADR-0434 question carries no lifecycle");
+
+  const settled = validateLibraryDoc({
+    ...minimalDoc("open-question"),
+    lifecycle: "settled",
+    settledAt: "2026-08-24T00:00:00.000Z",
+    answer: "Option A — retire the edge outright, recorded by ADR-0431.",
+  }) as { lifecycle?: string; settledAt?: string; answer?: string };
+  assert.equal(settled.lifecycle, "settled");
+  assert.equal(settled.settledAt, "2026-08-24T00:00:00.000Z");
+  assert.equal(settled.answer, "Option A — retire the edge outright, recorded by ADR-0431.");
+
+  assert.equal((validateLibraryDoc({ ...minimalDoc("open-question"), lifecycle: "open" }) as { lifecycle?: string }).lifecycle, "open");
+
+  // TWO VALUES, ENUM-FENCED. ADR-0196 D1 leaves this kind's `active` column empty — a question is
+  // not work in flight — and a third state invented here is the wide-enum over-engineering D2
+  // refused. The arc's OWN vocabulary is refused too, which is the point of fencing rather than
+  // sharing one loose string: the two kinds' states never mean the same thing.
+  for (const bad of ["active", "closed", "parked", "resolved", "answered", ""]) {
+    assert.throws(
+      () => validateLibraryDoc({ ...minimalDoc("open-question"), lifecycle: bad }),
+      `lifecycle "${bad}" must be rejected — the enum is open | settled`,
+    );
+  }
+
+  // `answer` is an ordinary optional BODY field (KIND_SPECS), so it round-trips like the other
+  // optional halves rather than being metadata the render has to know about specially.
+  const open = validateLibraryDoc(minimalDoc("open-question")) as { answer?: string };
+  assert.equal(open.answer, undefined, "an open question carries no answer");
+});

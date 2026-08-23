@@ -415,8 +415,25 @@ export function defaultLaneId(lanes: readonly ArcLane[]): string | null {
 export interface ArcBriefing {
   /** The WHOLE rollup — the panel's own per-id read, not the lane's summary row. */
   arc: ArcRollup;
-  /** Open questions on this arc — empty when nothing waits on the owner. */
+  /**
+   * Open questions on this arc — empty when nothing waits on the owner.
+   *
+   * FILTERED BY LIFECYCLE since ADR-0434 D3, not the whole `rollup.questions` array. A settled
+   * question is not waiting on anybody, and leaving it here would reproduce in this panel the exact
+   * defect that decision removed from the arc rollup: a question whose answer was already recorded
+   * still rendering as something the owner owes an answer to.
+   */
   waiting: ArcRollupQuestion[];
+  /**
+   * Questions this arc has SETTLED, each carrying the answer it recorded (ADR-0434 D3).
+   *
+   * A sibling field rather than a flag on {@link waiting}, for the reason the `proposals` field
+   * below gives about itself: every existing reader of `waiting` keeps looking at exactly what it
+   * was looking at. Settled questions stay on the arc rather than being deleted — that is the half
+   * of ADR-0434 that closes `retiring-an-answered-question-orphans-the-prose-that-raised-it`, where
+   * clearing the wait by retirement left the arc showing no trace of the question OR its answer.
+   */
+  settled: ArcRollupQuestion[];
   /**
    * Parked PROPOSALS — the second thing waiting on the owner (ADR-0359 D2), rendered beside
    * `waiting` rather than merged into it.
@@ -510,7 +527,8 @@ export function arcBriefing(rollup: ArcRollup): ArcBriefing {
   const landed = rollup.increments.filter((i) => i.status === LANDED_STATUS).slice().reverse();
   return {
     arc: rollup,
-    waiting: rollup.questions,
+    waiting: rollup.questions.filter((q) => q.lifecycle === 'open'),
+    settled: rollup.questions.filter((q) => q.lifecycle === 'settled'),
     proposals: rollup.increments.filter((i) => i.status === PROPOSAL_STATUS),
     next: rollup.increments.filter(
       (i) => i.status !== LANDED_STATUS && i.status !== PROPOSAL_STATUS,

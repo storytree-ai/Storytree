@@ -75,6 +75,11 @@ export const PROSE_FLAGS: ReadonlySet<string> = new Set([
   "analogy",
   "diagram",
   "recommendation",
+  // `question settle --answer` (ADR-0434 D2) — durable prose on the authored artifact, and the whole
+  // point of the verb: it is what a settled question renders under on its arc. Long by nature (the
+  // owner's reasoning, not a verdict token), so it belongs here for the same reason the briefing
+  // fields above do.
+  "answer",
   // The recorded-verdict prose: `library artifact retire`, `library graduate park`, `friction`.
   // These two are the measured defect this boundary exists to close.
   "reason",
@@ -146,6 +151,9 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "amends",
   // `adr new --depends-on 42,43` — a decision-number list, never prose from a file.
   "depends-on",
+  // `question settle <id> --adr 434` (ADR-0434 D2) — ONE decision number, resolved to an
+  // `asset:adr-NNNN` reference. A number, like `--depends-on` above; nothing a file read supplies.
+  "adr",
   "arc",
   "date",
   "pr",

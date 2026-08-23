@@ -950,3 +950,69 @@ test("arcLifecycleOf: reads the three values and FAILS OPEN on anything else", (
 test("arcIsClosed: a PARKED arc is NOT closed — parking asserts no end state (ADR-0374 D1)", () => {
   assert.equal(arcIsClosed({ doc: { lifecycle: "parked" } } as never), false);
 });
+
+test("ADR-0434 D3: `waiting` reads each question's STATE, and a settled one stays on the arc", () => {
+  // The defect this replaces was `waiting: questions.length > 0` — a presence count, which by
+  // construction could not tell an answered question from an unanswered one. Measured 2026-08-24:
+  // `oq-retire-the-amends-edge` had been answered and executed for a day, said so in the first line
+  // of its own stakes, and still lit its arc as waiting on the owner.
+  const arcDoc = {
+    id: "a1",
+    kind: "arc",
+    doc: { kind: "arc", id: "a1", title: "A", description: "d" },
+    createdAt: "",
+    updatedAt: "",
+  };
+  const q = (id: string, extra: Record<string, unknown> = {}) => ({
+    id,
+    kind: "open-question",
+    doc: { kind: "open-question", id, title: id, description: "d", stakes: "s", arcRef: "asset:a1", ...extra },
+    createdAt: "",
+    updatedAt: "",
+  });
+  const derive = (questionDocs: unknown[]) =>
+    deriveArcRollup({
+      arc: arcDoc as never,
+      incrementDocs: [],
+      questionDocs: questionDocs as never,
+      adrs: [],
+      storyStamps: [],
+    });
+
+  // A question with NO stored lifecycle is open — every question authored before ADR-0434 is one,
+  // and reading absence as settled would silently empty the owner's worklist.
+  const legacy = derive([q("q-legacy")]);
+  assert.equal(legacy.questions[0]?.lifecycle, "open", "absent normalises to open at this boundary");
+  assert.equal(legacy.waiting, true);
+
+  // MIXED: one settled, one still open. The arc is still waiting — on the open one only.
+  const mixed = derive([
+    q("q-open"),
+    q("q-settled", { lifecycle: "settled", answer: "Option A.", settledAt: "2026-08-24T00:00:00.000Z" }),
+  ]);
+  assert.equal(mixed.waiting, true);
+  assert.deepEqual(mixed.questions.map((x) => x.lifecycle), ["q-open", "q-settled"].map((id) => (id === "q-open" ? "open" : "settled")));
+  assert.equal(summariseArcRollup(mixed).openQuestions, 1, "the lane counts OPEN questions, not rows");
+
+  // ALL SETTLED: the arc stops waiting — and the questions are STILL THERE, carrying their answers.
+  // Both halves are the decision: clearing the wait by deleting the question is what ADR-0434
+  // replaced, and it left the arc showing no trace of the question OR what it decided.
+  const done = derive([
+    q("q-a", { lifecycle: "settled", answer: "Option A.", settledAt: "2026-08-24T00:00:00.000Z" }),
+    q("q-b", { lifecycle: "settled", answer: "Option B." }),
+  ]);
+  assert.equal(done.waiting, false, "nothing is waiting on the owner once every question is settled");
+  assert.equal(summariseArcRollup(done).openQuestions, 0);
+  assert.equal(done.questions.length, 2, "settled questions stay on the arc — settling records, it does not erase");
+  assert.equal(done.questions[0]?.answer, "Option A.");
+  assert.equal(done.questions[0]?.settledAt, "2026-08-24T00:00:00.000Z");
+  // A settled question that predates `settledAt` (or was hand-edited) still reads as settled — the
+  // lifecycle is the state, the timestamp is only when it happened.
+  assert.equal(done.questions[1]?.settledAt, undefined);
+
+  // The lane row and the boolean can never disagree: both are computed from the same predicate, so
+  // a `waiting: false, openQuestions: 3` row is unreachable rather than merely unlikely.
+  for (const rollup of [legacy, mixed, done]) {
+    assert.equal(rollup.waiting, summariseArcRollup(rollup).openQuestions > 0);
+  }
+});

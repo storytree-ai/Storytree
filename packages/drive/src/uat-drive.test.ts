@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { DEFAULT_CODEX_MODEL } from "@storytree/agent";
 import type { UatTestCriterionSource } from "@storytree/library";
 
 import {
@@ -24,6 +25,7 @@ import {
   uatDriveIsolationClause,
   uatDriveTaskPrompt,
   UAT_DRIVE_AUTONOMY_CLAUSE,
+  UAT_DRIVE_CODEX_MODEL,
   UAT_DRIVE_BACKGROUND_RESULT_RECONCILIATION_CLAUSE,
   UAT_DRIVE_HONESTY_CLAUSE,
   UAT_DRIVE_NATIVE_SHELL_TOOLING_CLAUSE,
@@ -151,11 +153,30 @@ test("Codex subscription boundary: only the non-interactive Codex exec path is i
     "--ask-for-approval",
     "never",
     "exec",
+    "--model",
+    "gpt-5.6-terra",
     "--output-last-message",
     "C:/tmp/report.md",
     "-",
   ]);
   assert.equal(CODEX_CHATGPT_SUBSCRIPTION_DRIVER, "codex-chatgpt-subscription");
+});
+
+test("Codex subscription boundary: the model is named, never inherited from ~/.codex/config.toml", () => {
+  // The regression this pins is not "some model is chosen" but that the drive says WHICH. With no
+  // --model, Codex reads the machine's global `model = …`; on 2026-08-24 that was `gpt-5.6-sol`,
+  // which a ChatGPT-account session cannot run, so the drive died at 0.4m on an HTTP 400 having
+  // observed nothing. Asserting the FLAG's presence is the claim; the value is checked separately.
+  const args = codexExecArguments("C:/tmp/report.md");
+  assert.ok(args.includes("--model"), "a drive must not inherit the machine's global model");
+  assert.equal(args[args.indexOf("--model") + 1], UAT_DRIVE_CODEX_MODEL);
+});
+
+test("Codex subscription boundary: the drive and the leaf rotate on ONE Codex model", () => {
+  // Kept equal by test rather than by import: this module sits on the witness check's load path and
+  // importing @storytree/agent would drag the Anthropic SDK onto a cheap standing gate command. A
+  // divergence would mean one of the two runs a model nobody has proven against the subscription.
+  assert.equal(UAT_DRIVE_CODEX_MODEL, DEFAULT_CODEX_MODEL);
 });
 
 test("Codex subscription boundary: API and Anthropic credentials cannot reach a drive", () => {

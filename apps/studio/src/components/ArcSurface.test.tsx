@@ -84,7 +84,16 @@ function parked(id: string, at: string, status = 'proposal'): ArcRollupIncrement
   return increment({ id, status, parked: at });
 }
 function question(id: string): ArcRollupQuestion {
-  return { id, title: `Question ${id}`, description: `description ${id}`, stakes: `stakes of ${id}` };
+  return {
+    id,
+    title: `Question ${id}`,
+    description: `description ${id}`,
+    stakes: `stakes of ${id}`,
+    // ADR-0434 D1 — the helper mints an OPEN question, which is what every test using it means.
+    // A settled one is spelled out at its own call site, so a fixture can never read as "waiting"
+    // by omission.
+    lifecycle: 'open',
+  };
 }
 /**
  * One arc fixture — declared as a WHOLE rollup, handed back as the LANE ROW the list wire carries.
@@ -421,6 +430,7 @@ describe('ArcSurface — a question BRIEFS, it does not flood (ADR-0359)', () =>
         title: 'Which door?',
         stakes: '**`studio-build` sits permanently red** at the story rung.\n\n- **The map lies** in the direction `ADR-0294` set out to stop.',
         description: 'A `one-liner` with **markers** too.',
+        lifecycle: 'open',
       },
     ],
     increments: [landed('c', '2026-08-05')],
