@@ -179,31 +179,33 @@ test("renderAdrList shows the derived amended-by back-edge, even when the amende
 
 // ---- --load-bearing calibration reach (the-load-bearing-view-follows-amends-edges) ------------
 //
-// The curated ★ tag alone made `--load-bearing` CONFIDENTLY INCOMPLETE: an accepted ADR that
-// amends a load-bearing one overtakes part of it, yet was absent from the exact surface CLAUDE.md
-// sends every session to calibrate on — and absence is undetectable from that surface. Reach is
-// now DERIVED from the `amends` edge that already exists in the frontmatter (ADR-0037), so it
-// cannot drift from the files and survives ADR-0139 retiring the `load_bearing` tag.
+// THE HISTORY MATTERS HERE, because this fixture is now testing the OPPOSITE of what it was built
+// to test, over the same rows. The curated ★ tag alone once made `--load-bearing` CONFIDENTLY
+// INCOMPLETE: an accepted ADR that amended a load-bearing one overtook part of it, yet was absent
+// from the exact surface CLAUDE.md sends every session to calibrate on — and absence is
+// undetectable from that surface. So reach was DERIVED from the `amends` edge (ADR-0037).
+//
+// ADR-0431 retires that edge, and ADR-0431 D4 restores the tag as the ONLY input — having first
+// frozen the derived reach INTO the tag on the live corpus, so the change could not move the real
+// set (221 before, 221 after, byte-identical). The rows below therefore keep their legacy `amends`
+// edges deliberately: they are the detector for a closure quietly restored over EITHER edge type.
 const REACH: AdrListing[] = [
-  listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated seed
-  listing(271, "accepted", "Sessions end at merge", { amends: [142] }), // ☆ one hop
-  listing(275, "accepted", "Sessions may continue past merge", { amends: [271] }), // ☆ two hops
-  listing(265, "proposed", "An undecided amendment", { amends: [142] }), // undecided → not reached
-  listing(177, "superseded", "A dead amendment", { amends: [142] }), // dead → not reached
-  listing(500, "accepted", "Unrelated to the set", {}), // no edge → not reached
+  listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated tag
+  listing(271, "accepted", "Sessions end at merge", { amends: [142] }), // legacy edge, untagged → out
+  listing(275, "accepted", "Sessions may continue past merge", { amends: [271] }), // transitive → out
+  listing(265, "proposed", "An undecided amendment", { amends: [142] }), // undecided → out
+  listing(177, "superseded", "A dead amendment", { amends: [142] }), // dead → out
+  listing(500, "accepted", "Unrelated to the set", {}), // no edge → out
 ];
 
-test("--load-bearing reaches an accepted ADR that amends the curated set", () => {
+test("--load-bearing is the TAG, and a legacy amends edge no longer promotes its source", () => {
+  // The exact inversion of what this fixture used to assert, and the reason both rows stay in it.
+  // 0271 amends ★0142 and 0275 amends 0271; under the old closure both were ☆ in the set. With the
+  // closure gone they are out, and a widening quietly restored over `amends` would put them back.
   const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
-  assert.match(lines, /0142 {2}accepted/); // the curated seed
-  assert.match(lines, /0271 {2}accepted/); // reached: it amends ★0142
-});
-
-test("--load-bearing reach is TRANSITIVE — an amender of a reached ADR is reached too", () => {
-  // One hop would re-create the reported gap one level out: 0275 overtakes part of 0271, which
-  // itself overtakes part of ★0142. A reader calibrating on this surface needs the whole chain.
-  const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
-  assert.match(lines, /0275 {2}accepted/);
+  assert.match(lines, /★ 0142 {2}accepted/, "the curated tag is the whole input");
+  assert.doesNotMatch(lines, /^.0271 {2}accepted/m, "one hop no longer promotes");
+  assert.doesNotMatch(lines, /^.0275 {2}accepted/m, "and neither does the transitive hop");
 });
 
 test("--load-bearing reach never promotes an UNDECIDED or DEAD amendment", () => {
@@ -216,134 +218,154 @@ test("--load-bearing reach never promotes an UNDECIDED or DEAD amendment", () =>
   assert.doesNotMatch(lines, /0500 {2}accepted/);
 });
 
-test("renderAdrList marks curated ★ and edge-reached ☆ so growth in the set is attributable", () => {
+test("☆ is unreachable now, so every row in the view is attributable to a deliberate tag", () => {
+  // The ★ / ☆ split existed because DERIVING reach GREW the set (96 curated → 137 on the 2026-08-03
+  // corpus) and a view that lists too much is its own calibration failure — the marks kept that growth
+  // attributable at a glance. Nothing is derived any more, so ☆ can no longer be emitted at all, and
+  // that is the property worth pinning: a row in this view is there because somebody tagged it.
   const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
-  assert.match(lines, /★ 0142 {2}accepted/); // hand-curated
-  assert.match(lines, /☆ 0271 {2}accepted/); // derived from the edge
-  assert.match(lines, /☆ 0275 {2}accepted/);
+  assert.match(lines, /★ 0142 {2}accepted/);
+  assert.doesNotMatch(lines, /☆/, "no row may be derived into the calibrate set");
 });
 
 // ---- support edges must NOT widen that reach (the-load-bearing-view-follows-amends-edges) --------
 //
 // ADR-0419 dec 1 makes a decision's `dependsOn` a SUPPORT edge that the DEPTH WALK traverses, and
 // explicitly leaves this closure alone. The asymmetry IS the decision, so it is worth stating why:
-// an `amends` edge carries the ADR-0139 claim that its target stays current but is no longer wholly
-// self-describing — which is exactly why the amender has to be read ALONGSIDE it, and therefore why
-// it belongs in the calibrate set. A support edge carries no such claim; it says only "this decision
-// rests on that one", which is true of most of the log. Closing over it would inflate the exact
-// surface CLAUDE.md sends every new session to calibrate on (215 of 409 rows, 2026-08-22), and a
-// consumer of that view cannot detect the inflation FROM the view — the same undetectable-from-the-
-// surface failure the closure was built to fix in the first place.
+// THE CALIBRATE SET IS THE CURATED TAG AND NOTHING ELSE (ADR-0431 D4), AND THIS IS ITS ONLY GUARD.
 //
-// TWO guards used to hold, at different levels. ONE DOES NOW, and that is deliberate:
+// `storytree adr list --load-bearing` is the exact surface CLAUDE.md sends every new session to
+// calibrate on. It used to be the tag CLOSED over accepted `amends` edges; ADR-0431 retires that edge,
+// and the derived reach was frozen into the tag BEFORE the closure was removed (221 members before,
+// 221 after, byte-identical), so the removal could not move the live set.
 //
-//   1. `loadBearingReach` follows `amends` only. THE DECIDED GUARD, and now the only one. The
-//      numeric fixture below models a widening that resolves `dependsOn` as decision NUMBERS —
-//      the shape its `amends`/`supersedes` siblings use, and the only shape `reach.has()` can test
-//      directly — so a closure widened that way reds these.
-//   2. ⚠ RETIRED 2026-08-23, ON PURPOSE. `AdrMeta` had no `dependsOn` field, so
-//      `loadTitledAdrMetasFromStore` dropped the row's pointers before the closure could see them.
-//      That also left ADR-0419 dec 1's depth traversal fully unit-tested and INERT over real data,
-//      so the projection was widened to carry the field and this incidental second guard went with
-//      it. It was never the decided fence — dec 1 fences the closure, not the reader.
+// What is fenced here is the INVERSE error, and it is the one that survives. ADR-0419 D1 — restated by
+// ADR-0431 D6 precisely so it does not die with its own decision — forbids a plain support edge
+// promoting its target into the set. `dependsOn` says only "this decision rests on that one", which is
+// true of most of the log, so closing over it would reproduce today's set almost exactly and then grow
+// without bound as new support edges accumulate. A consumer of the view cannot detect that inflation
+// FROM the view; it is the same undetectable-from-the-surface failure the closure was built to fix,
+// with the sign flipped.
 //
-// The store-backed test at the end of this section is what that retirement CHANGES rather than
-// breaks, and the distinction is worth stating because it is the reason the test is worth keeping.
-// It drives the real `asset:` / `doc:` pointer forms a decision row carries (`amends` and
-// `supersedes` are numbers; `dependsOn` is pointers — see `knowledge.ts`'s `Adr`) through
-// `loadAdrListings` to `renderAdrList`. While guard 2 stood it could only ever pass, because the
-// pointers never arrived; it pinned the projection, not the closure. Now the pointers DO arrive, so
-// it pins guard 1 over the real reader path — and a widening that learned to resolve pointers reds
-// it, which is a mutation nothing in this file could previously catch.
+// So the assertion below is the WHOLE SET, not a bound: any widening reds it, whether it came through
+// `dependsOn`, through a resurrected `amends`, or through some later edge nobody has thought of yet.
+// The fixture deliberately hangs support edges — and a legacy `amends` edge — on rows that are NOT
+// tagged, so a closure over either would be visible immediately.
 //
-// Mutation-verified 2026-08-23, all three stacked against each other: a NUMERIC widening reds the
-// two fixture tests below and leaves the store-backed one green; a POINTER-RESOLVING widening reds
-// all four; and that same pointer widening with the projection ALSO reverted to blind lets the
-// store-backed one pass again — which is the measurement that shows which guard was carrying it.
+// The fixture carries the REAL pointer form, and the store-backed test at the end of this section
+// additionally drives both `doc:` spellings through `loadAdrListings` into `renderAdrList`, so a
+// widening that learned to resolve only one spelling still reds.
 
 /**
- * A {@link listing} whose meta ALSO carries `dependsOn` — the support edge ADR-0419 dec 1 adds.
+ * A {@link listing} whose meta ALSO carries `dependsOn`, in the POINTER form a stored decision
+ * actually holds.
  *
- * NUMBERS, where the real field is POINTERS, and the divergence is the point rather than a slip:
- * this fixture exists to red a closure widened to call `reach.has()` on the edge directly, which is
- * only expressible numerically. `Object.assign` rather than a declared property because of that
- * deliberate type mismatch — `AdrMeta.dependsOn` is `readonly string[]` since the projection was
- * widened, so a literal would not typecheck. The pointer-shaped mutation is covered instead by the
- * store-backed test at the end of this section, over the real reader path.
+ * It used to model the edge as NUMBERS, to red a closure widened to call `reach.has()` on it
+ * directly — which is only expressible numerically. That is no longer the realistic mutation, and it
+ * is no longer even runnable: since ADR-0431 the renderer RESOLVES these pointers to print the
+ * support edges, so a numeric fixture throws inside `parseDecisionPointer` rather than asserting
+ * anything. The mutation that matters now is a closure widened over `decisionDependsOn`, and pointers
+ * are exactly what catches it.
  */
 function withDependsOn(l: AdrListing, dependsOn: readonly number[]): AdrListing {
-  return { ...l, meta: Object.assign({ ...l.meta }, { dependsOn: [...dependsOn] }) };
+  const pointers = dependsOn.map((n) => `asset:adr-${String(n).padStart(4, "0")}`);
+  return { ...l, meta: Object.assign({ ...l.meta }, { dependsOn: pointers }) };
 }
 
 const SUPPORT: AdrListing[] = [
-  listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated seed
-  // Rests on ★0142 and amends nothing. Support only — so it stays OUT.
-  withDependsOn(listing(419, "accepted", "A decision that merely rests on the seed"), [142]),
-  // The transitive amends chain, with support edges hung on every link: reach must be unmoved by them.
+  listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated tag
+  // Rests on ★0142 and nothing else. Support only — so it stays OUT.
+  withDependsOn(listing(419, "accepted", "A decision that merely rests on the tag"), [142]),
+  // A LEGACY `amends` chain, untagged, with support edges on every link. Before ADR-0431 these two
+  // were ☆ in the set; after it they are out, and a closure quietly restored over either edge type
+  // would put them back — which is what makes them the mutation detector rather than dead weight.
   withDependsOn(listing(271, "accepted", "Sessions end at merge", { amends: [142] }), [419, 500]),
   withDependsOn(listing(275, "accepted", "Sessions may continue past merge", { amends: [271] }), [142]),
-  // Non-accepted amenders that ALSO rest on the seed — excluded by status, on both edges.
-  withDependsOn(listing(265, "proposed", "An undecided amendment", { amends: [142] }), [142]),
-  withDependsOn(listing(177, "superseded", "A dead amendment", { amends: [142] }), [142]),
+  // A tagged row that is NOT accepted: the tag is the only input, and it does not filter by status.
+  listing(265, "proposed", "An undecided but tagged decision", { loadBearing: true }),
+  withDependsOn(listing(177, "superseded", "A dead decision resting on the tag"), [142]),
   listing(500, "accepted", "Unrelated to the set"),
 ];
 
 test("--load-bearing does NOT reach a decision that only DEPENDS ON the curated set", () => {
   const reach = loadBearingReach(SUPPORT);
-  assert.equal(reach.has(419), false, "a support edge is not an amendment — 0419 must stay out");
+  assert.equal(reach.has(419), false, "a support edge never promotes — ADR-0419 D1 via ADR-0431 D6");
   const lines = renderAdrList(SUPPORT, { loadBearing: true }).join("\n");
-  assert.doesNotMatch(lines, /0419/, "and it must not render in the view either");
+  assert.doesNotMatch(lines, /^.0419 {2}accepted/m, "and it must not render as a ROW in the view");
 });
 
-test("--load-bearing reach is EXACTLY the amends closure, unmoved by support edges on the same rows", () => {
-  // The whole-set assertion is the point: any widening that pulls one more row in reds this, whether
-  // the extra row came through `dependsOn` or through some later edge nobody has thought of yet.
-  // ★0142 seeds it; 0271 amends 0142; 0275 amends 0271. Nothing else, even though five of the seven
-  // rows carry a `dependsOn` pointer at something already in the set.
+test("--load-bearing reach is EXACTLY the tagged set — no edge of any kind widens it", () => {
+  // The whole-set assertion is the point: any widening pulls one more row in and reds this, whether
+  // it came through `dependsOn`, through the retired `amends`, or through an edge added later.
+  // ★0142 and ★0265 carry the tag. 0271 and 0275 carry a legacy `amends` chain INTO 0142 and are out.
   const reach = loadBearingReach(SUPPORT);
-  assert.deepEqual([...reach].sort((a, b) => a - b), [142, 271, 275]);
+  assert.deepEqual([...reach].sort((a, b) => a - b), [142, 265]);
   const lines = renderAdrList(SUPPORT, { loadBearing: true }).join("\n");
   assert.match(lines, /★ 0142 {2}accepted/);
-  assert.match(lines, /☆ 0271 {2}accepted/, "the one-hop amender still reaches");
-  assert.match(lines, /☆ 0275 {2}accepted/, "and the transitive one still does too");
+  assert.doesNotMatch(lines, /^.0271 {2}accepted/m, "a legacy amends edge no longer promotes its source");
+  assert.doesNotMatch(lines, /^.0275 {2}accepted/m, "and neither does a transitive one");
 });
 
-test("a support edge never rescues an UNDECIDED or DEAD amender into the set", () => {
-  // The status rule is orthogonal to the edge rule, so it has to hold when both are in play: a
-  // `proposed` amender promoted by its support edge would OVERSTATE the current set, and a
-  // `superseded` one would resurrect a dead decision — the two inverse errors, reachable a second way.
-  const reach = loadBearingReach(SUPPORT);
-  assert.equal(reach.has(265), false, "proposed: undecided, and resting on the seed does not decide it");
-  assert.equal(reach.has(177), false, "superseded: dead, and resting on the seed does not revive it");
-  assert.equal(reach.has(500), false, "no edge of either kind into the set");
-  // …and both are still SHOWN as status-labelled back-edges on ★0142 — excluded from the set,
-  // never hidden from the reader.
+test("the view still SHOWS a support edge it refuses to promote on", () => {
+  // Excluded from the SET, never hidden from the READER — the distinction the closure's removal must
+  // not blur. After ADR-0431 moved 517 edges onto `dependsOn`, a view that printed no support edge at
+  // all would be the retirement's signature failure.
   const lines = renderAdrList(SUPPORT, {}).join("\n");
-  assert.match(lines, /amended by 0177 \(superseded\), 0265 \(proposed\), 0271$/m);
+  assert.match(lines, /depends on 0142/, "0419's own support edge renders");
+  assert.match(lines, /depended on by .*0419/, "and 0142 carries the back-edge");
 });
 
-test("a decision ROW's dependsOn pointers never reach the --load-bearing view", async () => {
-  // Guard 1, over the real reader path — `loadAdrListings` -> `renderAdrList` — and with the pointer
-  // form a stored decision actually carries, not the numeric form the fixtures above model. Both
-  // live `doc:` spellings and the `asset:adr-NNNN` row spelling are present, so a widening that
-  // learned to resolve only one of them still reds this.
+test("the tag does NOT filter by status, and nothing else rescues a dead or undecided decision", () => {
+  // A real behaviour change worth pinning, because it MOVED rather than vanished. The old computation
+  // had two halves with different status rules: the curated tag never filtered by status, while the
+  // closure propagated only through ACCEPTED edges. With the closure gone, the tag's rule is the only
+  // rule — so a `proposed` row that carries the tag IS in the set, and that is now visible rather than
+  // masked by a closure that would have refused to propagate through it.
+  const reach = loadBearingReach(SUPPORT);
+  assert.equal(reach.has(265), true, "tagged and proposed: the tag is the only input, and it does not read status");
+  assert.equal(reach.has(177), false, "superseded and untagged: resting on the tag does not revive it");
+  assert.equal(reach.has(500), false, "no tag and no edge of any kind");
+  // …and every one of them is still SHOWN in the unfiltered view, with its status labelled on the
+  // back-edge — excluded from the SET, never hidden from the READER.
+  const lines = renderAdrList(SUPPORT, {}).join("\n");
+  // 0177, 0275 and 0419 each name ★0142 in `dependsOn`; ascending, with the dead one labelled.
+  assert.match(lines, /depended on by 0177 \(superseded\), 0275, 0419/, "0142's support back-edges, status-labelled");
+  assert.match(lines, /amended by 0271/, "and its legacy amends back-edge still renders");
+});
+
+test("over the REAL reader path: a dependsOn pointer renders as an edge and promotes nothing", async () => {
+  // Both guards at once, over `loadAdrListings` -> `renderAdrList` with the pointer forms a stored
+  // decision actually carries — the `asset:adr-NNNN` row spelling AND both `doc:` file spellings, so
+  // a reader that learned to resolve only one of them still reds this.
   //
-  // These pointers now REACH the closure (the projection carries `dependsOn` since 2026-08-23), so
-  // 0419's absence below is the closure declining to follow a support edge — not, as it was when
-  // this test was written, the reader having dropped the edge before the closure ran.
+  // The two halves pull in opposite directions and that is deliberate. After ADR-0431 moved 517 edges
+  // onto `dependsOn`, a view that PRINTED no support edge would be the retirement's signature failure;
+  // a view that PROMOTED on one would be ADR-0419 D1's. Only asserting both catches both.
   const store = new InMemoryStore();
   await seedDecision(store, 142, "Branch dies on merge", { loadBearing: true });
   await seedDecision(store, 271, "Sessions end at merge", { amends: [142] });
-  await seedDecision(store, 419, "A decision that merely rests on the seed", {
-    dependsOn: ["asset:adr-0142", "doc:decisions/0142-branch-dies-on-merge.md"],
+  await seedDecision(store, 500, "A second support target", {});
+  // ONE SPELLING PER TARGET, and that is the whole point of the fixture rather than tidiness. Aimed
+  // at the SAME target, a reader that resolved only `asset:` would still print `depends on 0142` and
+  // this test would pass while two thirds of the corpus's pointers went unread — measured: that
+  // mutation survived the first draft, which aimed all three at 0142.
+  await seedDecision(store, 419, "A decision that merely rests on the tag", {
+    dependsOn: [
+      "asset:adr-0142",
+      "doc:decisions/0271-sessions-end-at-merge.md",
+      "doc:docs/decisions/0500-a-second-support-target.md",
+    ],
   });
 
   const { listings } = await loadAdrListings(store);
-  const lines = renderAdrList(listings, { loadBearing: true }).join("\n");
+  const calibrate = renderAdrList(listings, { loadBearing: true }).join("\n");
+  assert.match(calibrate, /★ 0142 {2}accepted/, "the curated tag");
+  assert.doesNotMatch(calibrate, /^.0271 {2}accepted/m, "amending the tag no longer promotes (ADR-0431 D4)");
+  assert.doesNotMatch(calibrate, /^.0419 {2}accepted/m, "and resting on it never did (ADR-0419 D1)");
 
-  assert.match(lines, /★ 0142 {2}accepted/, "the curated seed");
-  assert.match(lines, /☆ 0271 {2}accepted/, "reached, because it AMENDS the seed");
-  assert.doesNotMatch(lines, /0419/, "0419 only RESTS ON the seed — that is not a claim on the reader");
+  const full = renderAdrList(listings, {}).join("\n");
+  assert.match(full, /depends on 0142, 0271, 0500/, "all THREE live spellings resolve, each to its own target");
+  assert.match(full, /depended on by 0419/, "and 0142 carries the back-edge");
 });
 
 test("back-edges label a non-accepted amender with its status (never as a live amendment)", () => {

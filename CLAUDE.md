@@ -24,8 +24,9 @@ artifact <term>`).
 world — and an `accepted` ADR can have a body that is partly overtaken while it stays green (the
 canonical trap: ADR-0011 §5 "DBOS/Postgres durable execution stands" is dead, overtaken by ADR-0019;
 **do not** revert wording toward "DBOS stands"). Don't hand-track this — **query the live decision
-log:** `storytree adr list --load-bearing` (the calibrate-to-these set, ADR-0139: the curated ★ seed
-PLUS every accepted ADR that ☆ reaches it through an `amends` edge, transitively) and
+log:** `storytree adr list --load-bearing` (the calibrate-to-these set, ADR-0139: the curated ★ set,
+which since ADR-0431 D4 is its ONLY input — the derived reach was frozen into the tag before the
+`amends` closure was removed, so the set did not move) and
 `storytree adr list --current` (every accepted, non-superseded ADR, with its reversal edges printed
 inline). The list is derived from the LIVE STORE — decisions are ordinary Library artifacts since
 ADR-0403 — so it can never drift; it is **no longer hand-maintained here**. ⚠ That means `adr list`
@@ -594,12 +595,11 @@ The decision log is the append-only decision HISTORY, and it lives in the **live
 `adr` artifacts (ADR-0403 dec 1) — read one with `storytree library artifact adr-NNNN`, or pull the
 whole document out to a file with `storytree adr pull <n> --out <path>`, edit it with ordinary tools,
 and `storytree adr push <n> --file <path> --pg` it back. Every decision carries the same **structured
-state** the markdown frontmatter used to (`status` proposed/accepted/superseded · `decided` · outgoing
-`supersedes`/`amends` edges · the `load_bearing` current-state tag; ADR-0037, and ADR-0086 as
-superseded history — **the live decision is ADR-0139** (`storytree library artifact adr-0139`);
-`supersedes_in_part` was RETIRED by ADR-0139 — a partial redefinition/reversal is an `amends`
-edge, and the `adr` schema has no such field at all now, so the state is unreachable rather than
-merely refused) — the gate validates it as **`pnpm check:adr-health`**, a declared rung that reads
+state** the markdown frontmatter used to (`status` proposed/accepted/superseded · `decided` · the
+outgoing `supersedes` and `dependsOn` edges · the `load_bearing` current-state tag; ADR-0037, and
+ADR-0086 as superseded history — **the live decision is ADR-0139** (`storytree library artifact
+adr-0139`); `supersedes_in_part` was RETIRED by ADR-0139 and **`amends` by ADR-0431**, and the `adr`
+schema carries no such field for either, so both states are unreachable rather than merely refused) — the gate validates it as **`pnpm check:adr-health`**, a declared rung that reads
 the rows. It used to be a case inside `pnpm -r test`; that suite is credential-free by ADR-0302 D3,
 so a check whose subject is a database could not stay there (ADR-0307 D4). Its PURE core and every
 unit test over it are unmoved. ADR-0139 also retires the `load_bearing` tag itself at the end of the
@@ -612,16 +612,20 @@ ADR-0086 §A):** `storytree adr list --load-bearing` (the calibrate-to-these set
 so it can never drift — and it needs the DB up. When you land or overtake a decision, **spawn the
 `librarian-curator`** to keep status / edges / the `load_bearing` set honest.
 
-**`--load-bearing` follows `amends` edges — the tag alone under-reported it.** The set is the curated
-`load_bearing: true` ★ seed CLOSED over accepted `amends` edges: an accepted ADR that amends anything
-in the set is ☆ **in** it, transitively. Under ADR-0139 an `amends` edge means the target stays
-current but is *no longer wholly self-describing*, so the amendment belongs beside it — ADR-0271
-landed accepted+`amends: [142]` but untagged and was invisible here for a day, while ★0142 rendered
-green. Reach is derived from the ADR-0037 edge, never a second hand-kept tag, so it cannot drift and
-it survives ADR-0139 retiring `load_bearing`. A `proposed` or `superseded` amender is **never** pulled
-in (that would overstate the current set) — it still shows as a status-labelled back-edge on its
-target, e.g. `amended by 0080, 0265 (proposed)`. If the set ever grows too large to calibrate on, the
-remedy is ADR-0139's consolidation, **not** a filter that hides edges.
+**`--load-bearing` is the curated ★ tag and NOTHING ELSE (ADR-0431 D4, retiring ADR-0139's
+closure).** It used to be the ★ seed CLOSED over accepted `amends` edges, so an accepted ADR
+amending anything in the set was ☆ pulled in transitively. `amends` is retired — and rather than let
+that silently drop 96 decisions out of the set, the derived reach was **FROZEN INTO THE TAG first**:
+221 members before, 221 after, byte-identical membership, now 221 ★ and 0 ☆. The closure was removed
+against a set it could no longer change, so the removal is a measured no-op rather than a promise.
+⚠ **A plain support edge must NEVER promote its target into this set.** That is ADR-0419 D1's rule
+and it survives its own decision's supersession (ADR-0431 D6): closing over `dependsOn` would
+reproduce today's set almost exactly and then grow without bound as new support edges accumulate,
+which a consumer of the view cannot detect FROM the view. The cost accepted knowingly: a new decision
+resting on a load-bearing one no longer joins the set automatically and must be tagged. If the set
+grows too large to calibrate on, the remedy is ADR-0139's consolidation, **not** a filter that hides
+edges — and to find a decision nothing in the set points at, the verb is `storytree library related
+<id> --unlinked`, not a wider closure.
 
 **Status is a projection of the `## Status` prose, never an invented flip.** An agent MAY flip an ADR
 `proposed → accepted` (the green flip) once the decision is made and the prose supports it (ADR-0084);
@@ -653,28 +657,29 @@ structurally unanswerable and a check asking it would be a permanent vacuous gre
 `check:adr-health` asks the reachable one instead (**`adr-number-identity`**: a row's stored `number`
 must agree with its id, which is what the allocator reserved).
 
-**Pointing your new decision at an existing one? `--depends-on` is the default; `--amends` is the
-exception (ADR-0419 D1/D2, since 2026-08-23).** `adr new --depends-on 42,43` records PLAIN SUPPORT —
-this decision rests on those and changes nothing in them — and it is what the scaffold, the template
-and the round-trip document now steer you to (`depends_on: ["asset:adr-NNNN"]` in the frontmatter).
-`--amends 42` is RESERVED for the narrower claim that something in the target is narrowed, retired or
-extended, so that **reading the target alone is now insufficient** — which is why it, and only it,
-pulls its target into `adr list --load-bearing`. Writing `amends` OWES each target an in-place
-annotation naming the clause that moved, in the SAME landing (ADR-0139 D4); the CLI prints the
-obligation and the `adr pull` command for each target when you write the edge. ⚠ That obligation is
-**discipline, not a gate — and now permanently so (ADR-0427, 2026-08-23).** A mechanical presence
-check existed briefly, unwired; it asked only whether a target's body mentioned its amender's number
-anywhere, which is the one string `adr list` already derives and prints, so it would have certified
-the cheapest compliance. It is DELETED, along with its `probe:amends-drain` burndown — don't look for
-either, and don't rebuild a presence check (an instrument measuring THINNESS would be a different
-thing). Nothing was abandoned: the backlog was drained to zero first (453/453 edges annotated). The
-obligation itself is untouched and still binds, held by the librarian's judgment on review and by the
-note the CLI prints at authoring time. Equally, this is
-deprecation and **not a flag day** — the `amends` field is not deleted (deleting it blinds
-`loadBearingReach`, the depth walk's only decision-edge door, and ADR-0402 D2's deliberate
-asymmetry, all at once), no existing edge is rewritten for consistency's sake, and every reader has
-read BOTH edges since #1563. Retiring the deprecated usage is a later, evidence-gated call
-(ADR-0419 D5).
+**Pointing your new decision at an existing one? There is ONE edge: `--depends-on` (ADR-0431 D1,
+superseding ADR-0419, since 2026-08-23).** `adr new --depends-on 42,43` records support —
+`depends_on: ["asset:adr-NNNN"]` in the frontmatter — and there is no second edge type to choose
+between. **`--amends` is RETIRED**: 517 edges were rewritten in place against a frozen snapshot
+(`docs/research/amends-edge-snapshot-2026-08-23.md`, now the only machine-readable record of which
+decision narrowed which before the field went), and the field is gone from the schema. Don't look for
+it, don't reintroduce it, and don't read an older ADR body's talk of an "amends edge" as describing a
+field that still exists.
+
+⚠ **The OBLIGATION did not go with the edge — it binds HARDER now.** ADR-0139 D4 still requires that
+a decision narrowing another leave an in-place annotation in the target naming the clause that moved,
+in the SAME landing. After ADR-0431 that annotation is the ONLY thing recording the amendment, so a
+missing one is no longer a thin record — it is no record. It is held by the librarian's judgment on
+review; the mechanical presence check was DELETED by ADR-0427 and must **not** be rebuilt (it asked
+only whether a target's body mentioned its amender's number anywhere, which is the one string
+`adr list` already derives and prints).
+
+**And the discovery route the retirement is conditional on (ADR-0431 D5).** Every traversal here
+follows an authored edge — `library tree focus`, the depth walk, `adr list`'s back-edges, the
+calibrate set — so all of them are blind to the same thing: the decision that bears on your subject
+and that nobody linked. `storytree library search "<terms>"` ranks every artifact's title,
+description and body; `storytree library related <id> --unlinked` ranks the corpus by similarity to
+one artifact and shows only the neighbours no edge reaches. Both are reads and need no `--pg`.
 
 **AUTHOR A DECISION AS A WHOLE DOCUMENT, not field by field.** `storytree adr pull <n> --out <path>`
 writes it out as ordinary markdown, you edit it with ordinary tools, and `storytree adr push <n>
@@ -704,7 +709,7 @@ The interactive session agent: the outer loop that turns an owner's intent into 
 
 **Workflow.** **session_start:** read the harness-native root guidance and the notice board; declare presence (`storytree noticeboard declare --node <unit> --pg` — claim every CAPABILITY you will write, and **several when you write several**; a STORY id is now REFUSED at work grade (ADR-0346 D2 retired the story-grain fallback), and work with no capability to name claims the INCREMENT it is driving instead, ADR-0308 D5); search the corpus just-in-time, never preload it. While orienting you MAY surface qualifying merged-idle sibling sessions as an owner-confirmed archive offer (ADR-0271 D4: `prState` MERGED — affirmative only — plus not running and idle past the generous ~12–24 h threshold, each candidate named by title; never a session holding an unanswered owner question; every archive lands through the confirmation-gated verb, so the owner's click is the final check). **Stamp every agent-memory file you write with your branch** — `metadata.branch: <your branch>`, NESTED under `metadata` (a flat top-level `branch:` is never read). The memory queue is per-MACHINE (ADR-0202) and shared by every concurrent session, so without the stamp a drain cannot tell your memories from a sibling's STILL IN FLIGHT — in #1124 a queue verified clear at 0 was back to 7 within fifteen minutes, none of them the drainer's. The stamp is optional and never backfilled (ADR-0371 D7), but omitting it buys you nothing: an unstamped memory is CHARGED to whoever drains next.
 
-1. Decide & decompose the unit — **aim at the whole ARC (ADR-0411 D1); the unit is how you get there in provable steps, never a ceiling on the ambition** — one coherent green unit (slow growth: the minimum to green), split into **provable units** by the routing filter 'does this piece have an isolatable red→green test?' (not package boundaries; `asset:orchestrate-route-supplement`). For a design fork, reserve an ADR (`storytree adr new --pg`) and record it — born `accepted` when the owner DIRECTED the decision in this conversation (`adr new --decided`, ADR-0110: design-time alignment IS ratification, no second end-of-flow ask), `proposed` only while the owner is still exploring. **Recording an edge onto another decision is TWO different claims, and the default is the weaker one (ADR-0419 D1/D2):** `--depends-on 42,43` says this decision RESTS ON those and changes nothing in them, and is what plain support is authored as; `--amends 42` is RESERVED for the case where something in the target is narrowed, retired or extended, so that reading the target ALONE is now insufficient — and writing it owes each target an in-place annotation naming the clause that moved, in the SAME landing (ADR-0139 D4). If nothing in the target moves, `--amends` overstates it. That obligation is DISCIPLINE at this phase and permanently so (ADR-0427): the mechanical presence check is DELETED — don't look for it and don't rebuild one, since an instrument that asks only whether a target's body mentions its amender's number certifies the cheapest compliance — and the pre-existing backlog was drained to zero (453/453) before it went. Working an **arc increment** (ADR-0183)? Pull the arc first (`storytree arc show <id> --pg`) and read its increment log; if the increment has a `ready` plan, don't re-decompose — CONSUME it: run the mechanical freshness check FIRST (`storytree increment check <id> --pg`) — drift past threshold means route back to the `planner` agent for a superseding plan (re-plan, never repair, ADR-0183 D2); fresh means adopt the plan's decomposition and take lanes through the existing claim machinery (`noticeboard declare --node <capability> --pg`, ADR-0121/0142/0270/0346), honouring the plan's lane fences and contention warnings — and note the fence BINDS now (ADR-0346 D1), so a lane whose capability is already held is not yours to start. Plans are never mandatory (D6) — planless work decomposes here as before.
+1. Decide & decompose the unit — **aim at the whole ARC (ADR-0411 D1); the unit is how you get there in provable steps, never a ceiling on the ambition** — one coherent green unit (slow growth: the minimum to green), split into **provable units** by the routing filter 'does this piece have an isolatable red→green test?' (not package boundaries; `asset:orchestrate-route-supplement`). For a design fork, reserve an ADR (`storytree adr new --pg`) and record it — born `accepted` when the owner DIRECTED the decision in this conversation (`adr new --decided`, ADR-0110: design-time alignment IS ratification, no second end-of-flow ask), `proposed` only while the owner is still exploring. **Recording an edge onto another decision is ONE claim now, and there is no type to choose (ADR-0431 D1, superseding ADR-0419):** `--depends-on 42,43` says this decision rests on those. `--amends` is RETIRED — 517 edges were rewritten in place against a frozen snapshot and the field is gone from the schema, so do not reach for it and do not read an older ADR body's talk of an "amends edge" as naming a field that still exists. ⚠ The OBLIGATION did not go with the edge and binds HARDER: ADR-0139 D4 still requires that a decision narrowing another leave an in-place annotation in the target naming the clause that moved, in the SAME landing, and after ADR-0431 that annotation is the ONLY thing recording the amendment — a missing one is no longer a thin record, it is no record. It is DISCIPLINE and permanently so (ADR-0427): the mechanical presence check is DELETED, and rebuilding one is refused, since an instrument that asks only whether a target's body mentions its amender's number certifies the cheapest compliance. And because every traversal here follows an authored edge — the depth walk, `adr list`'s back-edges, the calibrate set — all of them are blind to the decision that bears on your subject and that nobody linked: reach for `storytree library search "<terms>"` and `storytree library related <id> --unlinked`, which is the set no edge can surface (ADR-0431 D5). Working an **arc increment** (ADR-0183)? Pull the arc first (`storytree arc show <id> --pg`) and read its increment log; if the increment has a `ready` plan, don't re-decompose — CONSUME it: run the mechanical freshness check FIRST (`storytree increment check <id> --pg`) — drift past threshold means route back to the `planner` agent for a superseding plan (re-plan, never repair, ADR-0183 D2); fresh means adopt the plan's decomposition and take lanes through the existing claim machinery (`noticeboard declare --node <capability> --pg`, ADR-0121/0142/0270/0346), honouring the plan's lane fences and contention warnings — and note the fence BINDS now (ADR-0346 D1), so a lane whose capability is already held is not yours to start. Plans are never mandatory (D6) — planless work decomposes here as before.
 2. Build to green — whether to fan out at all — drive it here, cut a fresh session, or dispatch several parallel lanes — is a judgement you make BEFORE you would know to pull `asset:orchestrate-route-supplement` or `asset:parallel-build-lane-fan-out`, the standing hole the pull-based model deliberately leaves for a session's own call rather than the curator's (ADR-0023 — you cannot pull an artifact to decide whether you need it), and it is exercised TWICE on the same arc: once by the `planner` agent choreographing the arc's lanes into a plan, and again right here, where the plan's lane shape is advisory, not binding, on the driving session's own call. **route** the provable units to the inner loop chained in dependency order (`story build --real`, or sequenced `node build --real` across merges; cross-package work sequenced via `depends_on`, never atomic), and **supplement** the non-leaf glue (DB/SQL, deps, visual/UI, config/wiring) with your own subagents — yourself only as a last resort; when the inner loop genuinely can't prove a piece, raise it as a capability gap rather than force-fitting or skipping it. Keep the working tree clean; iterate edit → gate.
 3. Gate — `pnpm gate` must pass with nothing red or WIP in the diff.
 4. Session retro (ADR-0168 D1) — review the session for friction — *what fought you, at what cost, with what evidence* — and file **at most 3** distilled `friction` items via `storytree friction new` (distilled, not raw — the ReasoningBank cap-3 finding; the evidence must SUPPORT the claim, `asset:friction-justification-bar`, at capture too). **'Nothing to report' is a first-class, FREE outcome** — no marker, no penalty. This CAPTURES, it does not adjudicate — routing is the librarian pass / the graduation-synthesist. Capture is DISCIPLINE (this generated workflow region), never a per-session gate: a compliance gate would price the ceremony toward retro theater, and the standing bounded librarian drain is the backstop, not this step.
