@@ -377,8 +377,19 @@ export class SupportGraphCycleError extends Error {
 export function longestReadChain(
   readSet: ReadonlySet<number>,
   adjacency: ReadonlyMap<number, readonly number[]>,
+  root?: number,
 ): { readonly depth: number; readonly path: readonly number[] } {
   if (readSet.size === 0) return { depth: 0, path: [] };
+  // ROOTED, when a caller asks for one: the longest chain that STARTS at `root`, rather than the
+  // longest anywhere in the read set. ADR-0428's trial needs this — a frontier's walk is anchored at
+  // the frontier by definition (that is what `-inc-04` counted as a frontier walk), and the global
+  // longest chain inside the same read set may start at an inner node the reader reached some other
+  // way. The recursion below already computes exactly this for every node it visits, so the rooted
+  // question is answered by ASKING it rather than by a second walk that could drift from this one.
+  //
+  // OPTIONAL, and no existing caller passes it, so the frozen baseline is untouched by construction
+  // — pinned by `decision-read-baseline.test.ts` rather than left to be trusted.
+  if (root !== undefined && !readSet.has(root)) return { depth: 0, path: [] };
 
   const WHITE = 0;
   const GREY = 1;
@@ -409,6 +420,11 @@ export function longestReadChain(
     best.set(node, longest);
     return longest;
   };
+
+  if (root !== undefined) {
+    const path = visit(root);
+    return { depth: path.length, path };
+  }
 
   let winner: readonly number[] = [];
   // Sorted so the reported deepest chain is deterministic when several tie — a frozen baseline that

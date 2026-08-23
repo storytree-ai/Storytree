@@ -4,6 +4,7 @@ import type { Store } from "@storytree/storage-protocol";
 import { defaultCliActor } from "./cli-actor.js";
 
 import { amendsObligationNote } from "./adr-amends-obligation.js";
+import { adrCompose, type AdrComposeOpts } from "./adr-composed.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
 import type { Envelope } from "./envelope.js";
 
@@ -49,6 +50,14 @@ export interface AdrCommandDeps {
    * refuse to reserve a number they could not then write.
    */
   roundTrip?: AdrRoundTripDeps | undefined;
+  /**
+   * The frozen CONTROL arm of ADR-0428's composition trial, read from the committed write-up at the
+   * composition root. `adr compose` refuses to write on a member of it without an explicit escape.
+   *
+   * ABSENT is a real state, not a default: a checkout that could not read the write-up still
+   * composes, and the write SAYS the fence did not run rather than implying it passed.
+   */
+  controlArm?: ReadonlySet<number> | undefined;
 }
 
 export interface AdrCommandOpts {
@@ -82,6 +91,19 @@ export interface AdrCommandOpts {
    * never authority. The arc's ADR view is derived from these child stamps (`storytree arc show`).
    */
   arc?: string | undefined;
+  /**
+   * `adr compose <n> --statement <text|@file>` (ADR-0428 D1): the maintained position at a chain
+   * frontier. A prose flag, so `@path` carries a statement too long for a shell argument.
+   */
+  statement?: string | undefined;
+  /**
+   * `adr compose <n> --clause <id>` (ADR-0428 D3): the clause a statement composes over. Absent
+   * composes over the WHOLE record, which is every statement written under D1 — the flag exists so
+   * the shape does not have to change on the day clause identity is minted.
+   */
+  clause?: string | undefined;
+  /** `adr compose --allow-control-arm`: the explicit escape from the frozen-trial fence (D6). */
+  allowControlArm?: boolean | undefined;
   /** `adr list` filters (ADR-0086). */
   current?: boolean | undefined;
   loadBearing?: boolean | undefined;
@@ -838,6 +860,24 @@ export function adrHelp(): Envelope {
       "  storytree adr pull <n> --out <path>                the decision as an ordinary markdown document",
       "  storytree adr push <n> --file <path> --pg          the edited document, written back",
       "",
+      "  storytree adr compose                              every composed statement + what has moved beneath",
+      "  storytree adr compose <n>                          one record's statement + its staleness marker",
+      "  storytree adr compose <n> --statement <text|@file> [--clause <id>] --pg     compose / re-affirm",
+      "",
+      "`compose` (ADR-0428) carries the maintained POSITION at a chain frontier — a decision nothing",
+      "rests on, which itself rests on something. It answers rather than redirects, and it states the",
+      "system the records beneath add up to rather than listing them.",
+      "  It ships WITH an outstanding-effects marker and cannot be written without one. The basis — which",
+      "  records it was composed over, and what each carried — is stamped from the live chain, and the",
+      "  marker is DERIVED by comparing that basis to the chain now. So a statement whose ground has",
+      "  moved SAYS SO, which a stored `stale` flag nobody sets could not.",
+      "  Re-running with the statement re-affirms it and clears the marker. There is deliberately no flag",
+      "  that clears the marker without re-composing — discharging without re-reading is the move the",
+      "  marker exists to prevent.",
+      "  ADDITIVE: the record's own text and every edge stay exactly as they were (ADR-0428 D4).",
+      "  A member of the frozen CONTROL arm is REFUSED (--allow-control-arm to override, if the trial is",
+      "  genuinely over): composing one destroys the comparison and cannot be undone afterwards.",
+      "",
       "`pull` / `push` are the round trip for the tier with the longest prose (ADR-0403 dec 9). Edit the",
       "whole document with ordinary tools: the `## Status` prose and the `status` field are one text, so",
       "they cannot drift apart inside a single edit. A no-op round trip is byte-identical.",
@@ -922,6 +962,29 @@ export async function adrCommand(
     return sub === "pull"
       ? adrPull(opts.number, opts.out, deps.roundTrip)
       : adrPush(opts.number, opts.file, deps.roundTrip);
+  }
+  // ADR-0428's composed statement. Store-backed like the round trip, and refused with the reason
+  // rather than crashing when the composition root did not wire it.
+  if (sub === "compose") {
+    if (deps.roundTrip === undefined) {
+      return {
+        ok: false,
+        body: "adr compose needs the live store, which this invocation was not given.",
+        next: ["pnpm db:up", "storytree adr list --current"],
+      };
+    }
+    const composeOpts: AdrComposeOpts = {
+      ...(opts.statement === undefined ? {} : { statement: opts.statement }),
+      ...(opts.clause === undefined ? {} : { clause: opts.clause }),
+      ...(opts.allowControlArm === true ? { allowControlArm: true } : {}),
+    };
+    return await adrCompose(opts.number, composeOpts, {
+      store: deps.roundTrip.store,
+      writable: deps.roundTrip.writable,
+      actor: deps.roundTrip.actor,
+      today: deps.today,
+      ...(deps.controlArm === undefined ? {} : { controlArm: deps.controlArm }),
+    });
   }
   return {
     ok: false,
