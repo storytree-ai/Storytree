@@ -43,6 +43,9 @@ import {
   checkUatProof,
   rollupCriterionStatus,
   rollupStoryUat,
+  signMachineCriteria,
+  SPINE_PRINCIPAL,
+  type SignMachineCriteriaArgs,
   type SignerResult,
   type UatProofCheck,
 } from "@storytree/orchestrator";
@@ -86,6 +89,12 @@ export interface UatDeps {
   loadReliabilityGates: (storyId: string) => ReliabilityGate[];
   /** The session repo's HEAD + clean-tree state; null when git can't answer (attest then refuses). */
   gitState: () => GitState | null;
+  /**
+   * The spine's OUT-OF-BAND observation of a declared command (exit code as data) — the seam
+   * `uat run` signs over (ADR-0417 D2). It is the same runner `adopt` and `gate run` use, so a
+   * criterion proved here and the same criterion proved through adopt watch the identical process.
+   */
+  observe: (command: string) => Promise<{ code: number | null }>;
   /** The session/agent identity, fed to {@link checkUatProof} as the no-self-attest guard. */
   identity: SessionIdentity | null;
   /** Injectable signer resolver (flag → STORYTREE_SIGNER → git email); fail-closed. */
@@ -108,11 +117,16 @@ export interface UatOpts {
 }
 
 export interface UatInvocation {
-  mode: "attest" | "list" | "rerevision" | "census";
-  /** The opaque criterion id for `attest`, the story id for `list`/`rerevision`, unused for `census`. */
+  mode: "attest" | "list" | "rerevision" | "census" | "run";
+  /** The opaque criterion id for `attest`, the story id for `list`/`rerevision`/`run`, unused for `census`. */
   target: string | undefined;
   /** Required for attest: opaque criterion ids intentionally do not encode their story. */
   storyId?: string | undefined;
+  /**
+   * `run` only: prove just these criterion ids rather than the story's whole eligible set (ADR-0417
+   * D2 — "one criterion or the story's eligible machine criteria"). Empty/absent means all of them.
+   */
+  criterionIds?: readonly string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -140,14 +154,20 @@ function provenGlyph(
  *
  * The surface used to end every `uat list` with `uat attest <first criterion>` whatever its witness,
  * and to answer a machine refusal with `node build --real`. Both are wrong for the commonest leg in
- * the corpus: an observe-bound machine leg is signed by the ADOPT run (`runAdopt`'s machine-leg
- * loop is the only code that mints a criterion verdict), and `uat attest` refuses it by construction
- * (ADR-0082 d.2). A leg with no usable binding gets NO signing command at all — naming one would
- * send the reader at a command that cannot succeed until the story is re-authored.
+ * the corpus: an observe-bound machine leg is signed by observe-and-sign, and `uat attest` refuses it
+ * by construction (ADR-0082 d.2). A leg with no usable binding gets NO signing command at all —
+ * naming one would send the reader at a command that cannot succeed until the story is re-authored.
+ *
+ * An observe-bound machine leg now routes to **`storytree uat run`** rather than `storytree adopt`
+ * (ADR-0417 D2). Both commands sign through the same primitive, so the change is not which code runs
+ * but which QUESTION the reader is sent to ask: proving a declared acceptance check is not a decision
+ * to adopt inherited code, and a greenfield story should never have been pointed at `adopt` to prove
+ * one. Pointing at `adopt` would also stop working for a fresh story once ADR-0417 D4 narrows its
+ * status guard to `mapped`.
  */
 export type UatProvingRoute =
   | { kind: "human"; command: string }
-  | { kind: "adopt"; command: string }
+  | { kind: "uat-run"; command: string }
   | { kind: "build-gate"; command: string }
   | { kind: "unprovable"; reason: string };
 
@@ -164,9 +184,9 @@ export function resolveProvingRoute(
     };
   }
   if (resolved.coverage === "observe") {
-    // The adopt RUN is the only path that signs a machine leg's criterion verdict, and it accepts
-    // any `mapped`/`proposed` story — no separate verb, and no brownfield precondition beyond that.
-    return { kind: "adopt", command: `storytree adopt ${storyId} --pg` };
+    // ADR-0417 D2: the UAT surface owns this. `adopt` still signs the same criteria through the same
+    // primitive while entering an adoption, but proving a declared check is not an adoption decision.
+    return { kind: "uat-run", command: `storytree uat run ${storyId} --pg` };
   }
   // A `build-tests` binding is earned by a genuine red→green through the gate, never observe-and-sign.
   const bound = leg.proofGateId === undefined ? undefined : gates.find((g) => g.id === leg.proofGateId);
@@ -192,9 +212,19 @@ export function uatHelp(): Envelope {
       "REAL signed verdict by its declared witness, and the story's own UAT greens as the AND-roll-up.",
       "",
       "  storytree uat list <story-id> [--pg]              a story's UAT test criteria, witness + PROVEN state",
+      "  storytree uat run <story-id> [uatc_id…] --pg     PROVE machine acceptance criteria — sign their verdicts",
       "  storytree uat attest <story-id> <uatc_id> [flags] --pg sign an operator attestation for one criterion",
       "  storytree uat rerevision <story-id> [--write]     recompute content-bound revision ids (ADR-0253)",
       "  storytree uat census                             the corpus witness distribution, via the real parser",
+      "",
+      "run: observes each machine criterion's own (proof-gate:) command out-of-band and signs a verdict",
+      "over the exit code the SPINE watched (ADR-0417 D2). Provenance-neutral — it answers \"did this",
+      "declared acceptance check pass?\", never \"do we adopt this inherited code?\" — so it carries no",
+      "status transition and NO approvedBy, and it is valid for a greenfield story. Name criterion ids",
+      "to prove a subset; naming them narrows what is signed and relaxes nothing. Fail-closed: a dirty",
+      "tree, no live store, a red check, or ONE unbound machine leg (which withholds the WHOLE story's",
+      "set — no partial verdict) all sign nothing. `storytree adopt` composes the same primitive while",
+      "entering a brownfield adoption; this is the surface that owns the question.",
       "",
       "rerevision: the (witness:)/(proof-gate:) tags are INSIDE the hashed canonical content, so any",
       "flip or prose edit invalidates a criterion's (revision-id:) and the story stops parsing for every",
@@ -236,7 +266,124 @@ export async function uatCommand(
   if (inv.mode === "list") return uatList(inv.target, deps);
   if (inv.mode === "rerevision") return uatRerevision(inv.target, opts, deps);
   if (inv.mode === "census") return uatCensus(deps);
+  if (inv.mode === "run") return uatRun(inv.target, inv.criterionIds, deps);
   return uatAttest(inv.storyId, inv.target, opts, deps);
+}
+
+// ── run ──────────────────────────────────────────────────────────────────────
+
+/**
+ * `storytree uat run <story-id> [criterion-id…] --pg` — PROVE a story's machine acceptance criteria
+ * (ADR-0417 D2).
+ *
+ * This is the surface that owns the question. Observing a declared machine UAT criterion and signing
+ * its verdict answers *"did this declared acceptance check pass?"*; it does not answer *"do we choose
+ * to adopt this inherited code?"*, so it is provenance-neutral — valid for a greenfield story, a
+ * brownfield one and an already-proven one alike, carrying no status transition and no human approver
+ * (ADR-0417 D1, ADR-0408). Until this verb existed the only way to prove such a criterion was to
+ * invoke `storytree adopt`, a command whose name says the opposite.
+ *
+ * It signs through the SAME primitive `adopt` does ({@link signMachineCriteria}), so every fence is
+ * asserted once: the exact `(proof-gate:)` binding with no fallback, the no-partial-verdict rule
+ * across the story's WHOLE leg set, out-of-band observation at a clean committed HEAD, and the spine
+ * as signer. Naming criterion ids narrows WHICH legs are signed and never relaxes any of that — a
+ * story with an unbound leg still signs nothing, however few legs were asked for.
+ */
+async function uatRun(
+  storyId: string | undefined,
+  criterionIds: readonly string[] | undefined,
+  deps: UatDeps,
+): Promise<Envelope> {
+  if (storyId === undefined || storyId.trim().length === 0) {
+    return {
+      ok: false,
+      body: "uat run needs a story id: storytree uat run <story-id> [criterion-id…] --pg",
+      next: ["storytree tree"],
+    };
+  }
+  const id = storyId.trim();
+  const legs = deps.loadUatTestCriteria(id);
+  if (legs.length === 0) {
+    return {
+      ok: false,
+      body: `Story "${id}" declares no UAT test criteria (no \`## UAT Test Criteria\` items) — nothing to prove.`,
+      next: [`storytree tree ${id}`],
+    };
+  }
+  // A verdict that evaporates greens nothing (ADR-0060/0081) — refuse rather than pretend.
+  if (deps.store === null) {
+    return {
+      ok: false,
+      body: "uat run signs criterion verdicts to the live store (events.verdict) — run with the DB up (pnpm db:up) and --pg.",
+      next: ["pnpm db:up", `storytree uat run ${id} --pg`],
+    };
+  }
+  // The verdict pins a commit, so the tree must be readable AND clean — the same honesty wall the
+  // adopt path holds, checked here BEFORE any spend so the refusal is cheap.
+  const git = deps.gitState();
+  if (git === null) {
+    return {
+      ok: false,
+      body: "uat run could not read git state (HEAD / clean tree) — a signed verdict must pin a real commit. Run inside the repo.",
+      next: [],
+    };
+  }
+  if (!git.clean) {
+    return {
+      ok: false,
+      body: `uat run needs a clean committed HEAD — the tree at ${git.commitSha.slice(0, 7)} has uncommitted edits, and a signed verdict pins the commit it observed.`,
+      next: ["git status", `storytree uat run ${id} --pg`],
+    };
+  }
+
+  const wanted = criterionIds === undefined || criterionIds.length === 0 ? undefined : criterionIds;
+  const store = deps.store;
+  const runId = `uat-run:${deps.now().toISOString()}`;
+  const args: SignMachineCriteriaArgs = {
+    legs,
+    gates: deps.loadReliabilityGates(id),
+    store,
+    gitState: async () => ({ commitSha: git.commitSha, clean: git.clean }),
+    observe: deps.observe,
+    runId,
+    now: () => deps.now().toISOString(),
+  };
+  if (wanted !== undefined) args.onlyCriterionIds = wanted;
+  const res = await signMachineCriteria(args);
+
+  const lines = [
+    `uat run "${id}": ${res.signed}/${wanted === undefined ? res.machineLegs : wanted.length} machine criterion verdict(s) signed.`,
+    `  signer:  ${SPINE_PRINCIPAL} (the spine principal — the machine that watched the exit code)`,
+    `  commit:  ${git.commitSha.slice(0, 7)}`,
+    "  (a machine acceptance leg carries NO approvedBy — the check was already declared and already",
+    "   bound to this journey, so there is no human decision left to record, ADR-0408.)",
+    "",
+  ];
+  for (const r of res.reports) {
+    if (r.state === "signed") lines.push(`  ✓ ${r.criterionId} signed — observed via ${r.observedBy} (\`${r.proofCommand}\`)`);
+    else if (r.state === "human") lines.push(`  ◻ ${r.criterionId} (human) — ${r.reason}`);
+    else if (r.state === "skipped") lines.push(`  · ${r.criterionId} — ${r.reason}`);
+    else lines.push(`  ✗ ${r.criterionId} — ${r.reason}`);
+  }
+  if (res.unknownCriterionIds.length > 0) {
+    lines.push(
+      "",
+      `${res.unknownCriterionIds.length} named criterion id(s) match no real leg on this story (a typo, or a \`wouldBe\` leg, which is not an obligation):`,
+      ...res.unknownCriterionIds.map((c) => `  ? ${c}`),
+    );
+  }
+  if (res.anyRefused) {
+    lines.push(
+      "",
+      "NOTHING was signed: a real machine leg could not be resolved, and one unbound or invalid leg",
+      "withholds the whole story's set (no partial verdict). Bind or retire it — never route around it.",
+    );
+  }
+  return {
+    ok: res.signed > 0 && !res.anyRefused && res.unknownCriterionIds.length === 0,
+    body: lines.join("\n"),
+    next: [`storytree uat list ${id} --pg`, `storytree tree ${id} --pg`],
+  };
 }
 
 // ── rerevision ───────────────────────────────────────────────────────────────
@@ -459,7 +606,7 @@ async function uatList(storyId: string | undefined, deps: UatDeps): Promise<Enve
   // Offer one next step per distinct route the story actually has — never a command its own guard
   // would refuse, and nothing at all for a leg that cannot be proven until it is re-authored.
   const next: string[] = [];
-  for (const kind of ["adopt", "build-gate", "human"] as const) {
+  for (const kind of ["uat-run", "build-gate", "human"] as const) {
     const hit = routes.find((r) => r.route.kind === kind);
     if (hit !== undefined && "command" in hit.route) next.push(hit.route.command);
   }
@@ -542,8 +689,8 @@ async function uatAttest(
     const machineNext =
       route === null
         ? []
-        : route.kind === "adopt"
-          ? [`${route.command}   (its bound observe gate is signed by the adopt run — the only path that mints a criterion verdict)`]
+        : route.kind === "uat-run"
+          ? [`${route.command}   (the UAT surface signs an observe-bound machine leg; adopt composes the same primitive, ADR-0417 D2)`]
           : route.kind === "build-gate"
             ? [`${route.command}   (a build-tests gate is earned by a genuine red→green, never observe-and-sign)`]
             : route.kind === "human"

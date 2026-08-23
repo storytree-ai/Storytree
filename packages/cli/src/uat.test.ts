@@ -128,6 +128,9 @@ function baseDeps(over: Partial<UatDeps> = {}): UatDeps {
     loadUatTestCriteria: (storyId) => (storyId === "demo" ? DEMO_TESTS : []),
     loadReliabilityGates: (storyId) => (storyId === "demo" ? DEMO_GATES : []),
     gitState: (): GitState | null => ({ commitSha: "cafebabe0123", clean: true }),
+    // Default GREEN. Every `uat run` case that cares overrides it, and a case that does not care
+    // must still not spawn anything — the observe seam is the whole point of the injection.
+    observe: async () => ({ code: 0 }),
     identity: { sessionId: "goofy-aryabhata", branch: "claude/x" },
     resolveSigner: (flag) => ({ ok: true, signer: flag ?? "owner@example.com" }),
     now: () => new Date("2026-06-20T12:00:00.000Z"),
@@ -190,7 +193,7 @@ test("list: with the store shows per-test PROVEN glyphs and the story roll-up", 
 
 // ── the proving route: never point at a command this leg's own guard refuses (ADR-0405 D5) ──────
 
-test("list: offers ADOPT for an observe-bound machine leg, never `uat attest`", async () => {
+test("list: offers UAT RUN for an observe-bound machine leg, never `uat attest`", async () => {
   const r = await uatCommand(
     { mode: "list", target: "demo" },
     {},
@@ -198,8 +201,8 @@ test("list: offers ADOPT for an observe-bound machine leg, never `uat attest`", 
   );
   assert.equal(r.ok, true);
   assert.ok(
-    nextOf(r).includes("storytree adopt demo --pg"),
-    `the adopt run is the only path that signs a machine leg's criterion verdict; got ${JSON.stringify(nextOf(r))}`,
+    nextOf(r).includes("storytree uat run demo --pg"),
+    `ADR-0417 D2: the UAT surface owns machine-acceptance signing, not adopt; got ${JSON.stringify(nextOf(r))}`,
   );
   // The bug this replaces: `uat attest <machine leg>` was offered unconditionally and is REFUSED
   // by the witness guard (ADR-0082 d.2). No offered command may name a machine criterion id.
@@ -231,7 +234,7 @@ test("list: an UNBOUND machine leg is named as unprovable and gets no signing co
   }
 });
 
-test("list: a build-tests-bound machine leg routes to the build gate, not adopt", async () => {
+test("list: a build-tests-bound machine leg routes to the build gate, not uat run", async () => {
   const buildBound: UatTestCriterion[] = [
     { criterionId: C2, revisionId: R2, title: "Regression", witness: "machine", wouldBe: false, proofGateId: "demo#gate-2" },
   ];
@@ -244,7 +247,7 @@ test("list: a build-tests-bound machine leg routes to the build gate, not adopt"
     nextOf(r).includes("storytree build gate demo#gate-2 --real --pg"),
     `a build-tests gate is earned by a red→green, never observe-and-sign; got ${JSON.stringify(nextOf(r))}`,
   );
-  assert.ok(!nextOf(r).some((c) => c.startsWith("storytree adopt")), "must not offer the adopt run");
+  assert.ok(!nextOf(r).some((c) => c.startsWith("storytree uat run")), "must not offer the observe-signing verb");
 });
 
 test("list: NON-VACUITY — the route genuinely varies with the binding", async () => {
@@ -261,12 +264,12 @@ test("list: NON-VACUITY — the route genuinely varies with the binding", async 
   assert.deepEqual(unbound, [], "an unbound leg offers no signing command at all");
 });
 
-test("attest: a refused observe-bound machine leg points at ADOPT, not at a build", async () => {
+test("attest: a refused observe-bound machine leg points at UAT RUN, not at a build", async () => {
   const r = await uatCommand({ mode: "attest", storyId: "demo", target: C2 }, {}, baseDeps());
   assert.equal(r.ok, false);
   assert.match(r.body, /refused/);
   assert.ok(
-    nextOf(r).some((c) => c.startsWith("storytree adopt demo --pg")),
+    nextOf(r).some((c) => c.startsWith("storytree uat run demo --pg")),
     `got ${JSON.stringify(nextOf(r))}`,
   );
   assert.ok(
@@ -286,7 +289,7 @@ test("attest: a refused UNBOUND machine leg names the missing binding and offers
     nextOf(r).some((c) => c.includes("no usable proof-gate binding")),
     `got ${JSON.stringify(nextOf(r))}`,
   );
-  assert.ok(!nextOf(r).some((c) => c.startsWith("storytree adopt")), "nothing can sign an unbound leg");
+  assert.ok(!nextOf(r).some((c) => c.startsWith("storytree uat run")), "nothing can sign an unbound leg");
 });
 
 // ── uat attest: refusals (the honesty walls) ─────────────────────────────────────
@@ -606,4 +609,147 @@ test("census: an unreadable story REFUSES the whole count rather than under-repo
   assert.equal(r.ok, false);
   assert.match(r.body, /stories\/broken\/story\.md/);
   assert.match(r.body, /under-report exactly like a grep/);
+});
+
+// ── uat run: the UAT surface signs machine acceptance criteria (ADR-0417 D2) ────────────────────
+
+test("run: refuses with no story id", async () => {
+  const r = await uatCommand({ mode: "run", target: undefined }, {}, baseDeps());
+  assert.equal(r.ok, false);
+  assert.match(r.body, /needs a story id/);
+});
+
+test("run: refuses offline — a verdict that does not persist greens nothing", async () => {
+  const r = await uatCommand({ mode: "run", target: "demo" }, {}, baseDeps({ store: null }));
+  assert.equal(r.ok, false);
+  assert.match(r.body, /live store/);
+});
+
+test("run: refuses a DIRTY tree — the verdict pins the commit it observed", async () => {
+  const r = await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({ gitState: () => ({ commitSha: "cafebabe0123", clean: false }) }),
+  );
+  assert.equal(r.ok, false);
+  assert.match(r.body, /clean committed HEAD/);
+});
+
+test("run: signs the observe-bound machine leg and NOTHING for the human/either legs", async () => {
+  const f = fakeStore();
+  const r = await uatCommand({ mode: "run", target: "demo" }, {}, baseDeps({ store: f.store }));
+  assert.equal(r.ok, true);
+  assert.equal(f.verdicts.length, 1, "exactly one criterion verdict");
+  const v = f.verdicts[0]!;
+  assert.equal(v.criterionId, C2);
+  // ADR-0405 D2: a criterion verdict is representable ONLY at unitId === criterionId. A row that
+  // fails this refinement is skipped by the roll-up, so the command would report a green nobody sees.
+  assert.equal(v.unitId, C2);
+  assert.equal(v.revisionId, R2);
+  assert.equal(v.outcome, "pass");
+});
+
+test("run: ADR-0408 — a machine acceptance leg carries NO approvedBy, and the signer is the spine", async () => {
+  const f = fakeStore();
+  await uatCommand({ mode: "run", target: "demo" }, {}, baseDeps({ store: f.store }));
+  const v = f.verdicts[0]!;
+  assert.equal(v.approvedBy, undefined, "no human approves a machine-checked acceptance result");
+  assert.equal(v.signer, "spine@storytree", "the spine watched the exit code; no model, no human");
+});
+
+test("run: a RED check signs nothing and says so — a red is left red (ADR-0405 D4)", async () => {
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({ store: f.store, observe: async () => ({ code: 1 }) }),
+  );
+  assert.equal(r.ok, false);
+  assert.equal(f.verdicts.length, 0);
+  assert.match(r.body, new RegExp(`✗ ${C2}`));
+});
+
+test("run: ONE unbound sibling withholds the WHOLE set — no partial verdict, even for a leg that resolves", async () => {
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({ store: f.store, loadUatTestCriteria: () => WITH_UNBOUND }),
+  );
+  assert.equal(r.ok, false);
+  assert.equal(f.verdicts.length, 0, "C2 resolves fine on its own and is still withheld");
+  assert.match(r.body, /no partial verdict/);
+});
+
+test("run: NARROWING to one criterion does NOT route around the no-partial rule", async () => {
+  // The hazard this pins: if `onlyCriterionIds` were applied BEFORE the refusal check, naming the
+  // one good leg would be the way to get a partial set out of a story with an unbound leg.
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo", criterionIds: [C2] },
+    {},
+    baseDeps({ store: f.store, loadUatTestCriteria: () => WITH_UNBOUND }),
+  );
+  assert.equal(r.ok, false);
+  assert.equal(f.verdicts.length, 0);
+});
+
+test("run: naming a criterion id signs THAT leg and skips its siblings", async () => {
+  const second = "uatc_000000000000000000000007";
+  const legs: UatTestCriterion[] = [
+    { criterionId: C2, revisionId: R2, title: "Machine run", witness: "machine", wouldBe: false, proofGateId: "demo#gate-1" },
+    { criterionId: second, revisionId: "uatr1:0000000000000007", title: "Second", witness: "machine", wouldBe: false, proofGateId: "demo#gate-1" },
+  ];
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo", criterionIds: [second] },
+    {},
+    baseDeps({ store: f.store, loadUatTestCriteria: () => legs }),
+  );
+  assert.equal(r.ok, true);
+  assert.deepEqual(f.verdicts.map((v) => v.criterionId), [second]);
+  assert.match(r.body, new RegExp(`· ${C2} — not named in this run`));
+});
+
+test("run: a criterion id matching no leg is REPORTED, never silently dropped", async () => {
+  const ghost = "uatc_000000000000000000000099";
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo", criterionIds: [ghost] },
+    {},
+    baseDeps({ store: f.store }),
+  );
+  assert.equal(r.ok, false);
+  assert.ok(r.body.includes(`? ${ghost}`), `the ghost id must be named back; got ${r.body}`);
+});
+
+test("run: an aspirational (wouldBe) leg is not an obligation and is never signed", async () => {
+  const legs: UatTestCriterion[] = [
+    { criterionId: C2, revisionId: R2, title: "Aspirational", witness: "machine", wouldBe: true, proofGateId: "demo#gate-1" },
+  ];
+  const f = fakeStore();
+  const r = await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({ store: f.store, loadUatTestCriteria: () => legs }),
+  );
+  assert.equal(f.verdicts.length, 0);
+  assert.equal(r.ok, false, "nothing signable is not a success");
+});
+
+test("run: observes ONLY the leg's own bound command — never a re-derived one", async () => {
+  const seen: string[] = [];
+  const f = fakeStore();
+  await uatCommand(
+    { mode: "run", target: "demo" },
+    {},
+    baseDeps({
+      store: f.store,
+      observe: async (cmd) => {
+        seen.push(cmd);
+        return { code: 0 };
+      },
+    }),
+  );
+  assert.deepEqual(seen, ["pnpm --filter demo test"], "the bound gate's declared command, verbatim");
 });
