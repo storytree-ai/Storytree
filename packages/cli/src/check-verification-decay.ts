@@ -5,12 +5,21 @@
  * prints. Every RULE lives in the judge; nothing here decides anything.
  *
  * Wired into `pnpm gate` alongside `check:coverage` / `check:friction-drain` / `check:corpus-sync`,
- * and deliberately NOT into CI. It is OFFLINE and READ-ONLY — pure file reads, no store, no network —
- * so unlike `check:friction-drain` it never SKIPs for want of a DB and COULD run in CI. It does not,
- * for the reason ADR-0252 D3 turns on: these are heuristics, and a CI step is a merge barrier. The
- * ceiling is a DRAIN OBLIGATION on the session, the `check:friction-drain` shape (ADR-0168 D4), not a
- * gate on the trunk. THE ACCEPTED COST, stated rather than glossed: a landing that never runs the
- * local gate can grow the backlog unseen.
+ * and deliberately NOT into CI — for the reason ADR-0252 D3 turns on: these are heuristics, and a CI
+ * step is a merge barrier. The ceiling is a DRAIN OBLIGATION on the session, the
+ * `check:friction-drain` shape (ADR-0168 D4), not a gate on the trunk. THE ACCEPTED COST, stated
+ * rather than glossed: a landing that never runs the local gate can grow the backlog unseen.
+ *
+ * IT IS READ-ONLY BUT NO LONGER OFFLINE, since 2026-08-24 (ADR-0424, `grounded-decisions-arc`
+ * inc-02). This header said "pure file reads, no store, no network" and that is now false: the sixth
+ * instrument's subject is the DECISION LOG, which has been a database since ADR-0403 dec 1, so
+ * `decision-source-drift` dials the store the way `check:adr-health` and `check:web-grounding`
+ * already do. Two consequences worth stating rather than discovering. This rung now needs the store
+ * up locally, like the rest of a full `pnpm gate` (ADR-0302 D2 — offline is not a supported mode);
+ * and an unreadable store ESCALATES rather than reporting a clean sweep, fenced to that one
+ * instrument so the five file-reading ones still sweep. It could still run in CI on the ADR-0302 D3
+ * keyless credential — the reason it does not is unchanged and is the merge-barrier argument above,
+ * never a claim about what it can reach.
  *
  * NOT DONE HERE, so nobody reads this as complete:
  *
@@ -81,9 +90,20 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import type { ChangeEvent } from "@storytree/proof-protocol";
+import { closePool, createPool, PgLibraryStore } from "@storytree/library/store";
 import { extractVouchingTestNames, loadNodeSpec } from "@storytree/orchestrator";
 
 import { attributeDecayFindings, type DecayAttributionEvidence } from "./decay-attribution.js";
+import {
+  DECISION_SOURCE_DRIFT,
+  findDeclaredUnfrozenSources,
+  findDecisionSourceDrift,
+  formatDecisionSourceSweep,
+  measureDecisionSweep,
+  projectDecisionFacts,
+  type DecisionFacts,
+} from "./decision-source-decay.js";
 import { GATE_PLAN } from "./gate-order.js";
 import { registeredMirrorRoutes } from "./mirror-conformance.js";
 import {
@@ -328,6 +348,37 @@ const CEILINGS = {
    * name-keyed probe the same day reported BOTH as uncovered and was wrong about both.
    */
   [UNPROVEN_SEAM_DEFAULT]: 24,
+  /**
+   * Baselined 2026-08-24 (ADR-0424) at the ZERO this instrument's FIRST REAL SWEEP located against
+   * the live store — an honest baseline, and honest for a reason worth stating rather than a lucky
+   * one: `sources` landed one day earlier (`grounded-decisions-arc` inc-01) and NO decision row
+   * carries an anchor yet, so there was nothing that could have moved. The number is what the sweep
+   * found, not a target.
+   *
+   * A ZERO CEILING MEANS THE FIRST DRIFT REDS THE GATE, which is the point — ADR-0424 D5 puts
+   * enforcement on backlog GROWTH, and with no backlog every finding is growth. It is also the
+   * number most likely to need a documented raise once inc-04 anchors a real seed set: an author who
+   * anchors twenty claims against code that has since moved has located twenty real regions, and
+   * that is legitimate population growth for a DRAIN, not a red to be silenced.
+   *
+   * ⚠ IF YOU RAISE IT, ADR-0269 4(f) WANTS THE DECOMPOSITION AT THIS NUMBER, and ADR-0424's own
+   * Consequences name the failure this instrument is most likely to produce: raising the ceiling
+   * until the list stops mattering, when the false-positive rate is high. The remedy for noise is a
+   * better LOCATOR — an author anchoring at `symbol` or full-context `quote` grain rather than at
+   * whole-FILE grain, which drifts on any edit anywhere in the file — never a bigger number. The
+   * grain that produced each finding is printed with it precisely so this call can be made on
+   * evidence.
+   *
+   * THE ZERO IS MEASURED, NOT ASSUMED, and — as with `contract-binding-drift` — a subtractive probe
+   * that had silently failed would ALSO report zero. Three things stop that reading here. The
+   * enumeration guard: {@link loadDecisionFacts} calls `requireObserved` on the DECISION COUNT, so a
+   * store that answered with an empty tier escalates rather than reporting a clean sweep. The
+   * aperture line, printed every run: `compared 0 bound anchor(s) across 0 accepted decision(s) that
+   * carry them` is a different sentence from an instrument that never ran. And the CONTROL run
+   * recorded at `main`'s decision loader below, which proved the blind path reaches the report
+   * rather than passing quietly.
+   */
+  [DECISION_SOURCE_DRIFT]: 0,
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -726,6 +777,74 @@ function loadTestedSymbols(root: string): Set<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Decision facts (the decision-source-drift facts) — the ONE loader that dials the store
+// ---------------------------------------------------------------------------
+
+/**
+ * Every `adr` row, with its anchors read defensively and every anchor's span RE-LOCATED on disk.
+ *
+ * ## WHY THIS ONE LOADER IS NOT A FILE READ
+ *
+ * The decision log has been a database since ADR-0403 dec 1 — `docs/decisions/` does not exist, and
+ * `adr list --current` refuses without the store. So an instrument scoped on `--current`
+ * (ADR-0424 D1) cannot be offline, and no committed mirror exists to read instead (ADR-0302 D1
+ * deleted the last one). This is the same move `check:adr-health` and `check:web-grounding` already
+ * made: ADR-0307 D4 puts assertions about the REAL corpus on a `check:*` rung, which may hold a
+ * connection, and keeps them out of the credential-free `pnpm -r test` suite.
+ *
+ * ## AN UNREADABLE STORE IS A FAILURE, NEVER A CLEAN SWEEP
+ *
+ * The whole tier is passed to the judge UNFILTERED — the `accepted`-only scope and the `superseded`
+ * exclusion are the judge's (ADR-0424 D3), so they are provable by a test rather than asserted by
+ * this loader's shape. What this owes instead is the enumeration guard: a store that answers with
+ * ZERO decisions has not certified a clean corpus, it has told us the sweep is looking at the wrong
+ * place, so {@link requireObserved} throws and {@link runDecaySweep} turns it into an ESCALATION.
+ * Same for a pool that will not open — see the instrument's `run` below.
+ *
+ * EVERYTHING THAT CAN BE WRONG LIVES IN {@link projectDecisionFacts}, which is pure and takes an
+ * injected file reader. What is left here is the irreducible shell — open, query, close — and the
+ * one guard only the shell can make.
+ */
+async function loadDecisionFacts(root: string): Promise<DecisionFacts[]> {
+  const handle = await createPool();
+  try {
+    const store = new PgLibraryStore(handle.pool);
+    const rows = await store.queryDocs({ kind: "adr" });
+    // ZERO IS NEVER A CLEAN BILL OF HEALTH — `check:adr-health` says the same about the same tier.
+    // Silence from an instrument that read no decisions is not evidence about any decision.
+    requireObserved(rows.length, "the store answered with NO decisions");
+
+    // Memoised per FILE, not per anchor: several decisions routinely anchor into the same module, and
+    // the whole-file grain would re-read it for each one otherwise.
+    const text = new Map<string, string | undefined>();
+    const readOnce = (rel: string): string | undefined => {
+      if (!text.has(rel)) {
+        const abs = path.join(root, rel);
+        text.set(rel, existsSync(abs) ? readFileSync(abs, "utf8") : undefined);
+      }
+      return text.get(rel);
+    };
+
+    return projectDecisionFacts(
+      rows.map((row) => ({ id: String(row.id), doc: row.doc })),
+      readOnce,
+    );
+  } finally {
+    await closePool(handle.pool, handle.connector);
+  }
+}
+
+/**
+ * The change-event log explaining why a bound span moved — EMPTY, deliberately and visibly.
+ *
+ * Nothing records a change event against a decision's anchor today, so every moved span classifies
+ * `drifted-undescribed` and the described-change gate reports honestly that nothing described any of
+ * it. `decision-source-decay.ts` carries the reason this must NOT be filled from git commit messages
+ * — read it before you are tempted, because that would make the gate vacuous in the other direction.
+ */
+const NO_DESCRIBED_CHANGES: readonly ChangeEvent[] = [];
+
+// ---------------------------------------------------------------------------
 // Gate-check facts (the warn-list-hygiene facts)
 // ---------------------------------------------------------------------------
 
@@ -1050,8 +1169,36 @@ function baselineTestedSymbols(root: string, ev: GitEvidence): Set<string> | nul
 // The sweep
 // ---------------------------------------------------------------------------
 
-function main(): void {
+async function main(): Promise<void> {
   const storiesDir = path.join(repoRoot, "stories");
+
+  // THE ONE ASYNC FACT, loaded BEFORE the instruments so every `run` stays synchronous and the sweep
+  // machinery is untouched. A failure to reach the store is CAPTURED rather than thrown here: five
+  // instruments read only files and must still sweep, so the failure is re-thrown from the sixth's
+  // own `run`, where `runDecaySweep` fences it to that instrument and turns it into an ESCALATION —
+  // "this instrument observed nothing, so its silence is not evidence". That is the honest reading of
+  // an unreadable decision log; the remedy is in the message, not in a drain.
+  //
+  // PROVED, not assumed (2026-08-24, re-runnable): with
+  // `STORYTREE_INSTANCE_CONNECTION_NAME=…:no-such-instance` the check exits 1 having ESCALATED
+  // exactly one signal — `instrument failed to run (… The Cloud SQL instance does not exist …)` —
+  // while the other five still swept and reported all 39 of their located signals. The aperture line
+  // is correctly suppressed. THE ONE IMPERFECTION, weighed and accepted rather than missed:
+  // `formatDecaySweep`'s escalation banner is generic, so it also prints "cut the deep adversarial
+  // pass", which is not the remedy for a stopped database. The precise remedy prints on the line
+  // directly above it, and a DB-less `pnpm gate` is already red at `check:guidance` /
+  // `check:agents` / `check:adr-health` long before reaching here — so specialising a shared banner
+  // for one instrument would buy nothing and would perturb the other five's contract.
+  let decisions: DecisionFacts[] = [];
+  let decisionsUnreadable: string | undefined;
+  try {
+    decisions = await loadDecisionFacts(repoRoot);
+  } catch (err) {
+    decisionsUnreadable =
+      "the decision log has been in the store since ADR-0403 and it could not be read: " +
+      `${err instanceof Error ? err.message : String(err)}. Bring the store up (\`pnpm db:up\`) and ` +
+      "re-run — the decisions were never read, so nothing about them was verified";
+  }
 
   // Memoised because BOTH the instrument and the attributor need the same facts, and re-walking the
   // whole source tree to ask the second question would double the check's most expensive read. The
@@ -1151,6 +1298,32 @@ function main(): void {
         "object does not exercise.",
       run: () => findUnprovenSeamDefault(seamFacts(), loadTestedSymbols(repoRoot)),
     },
+    {
+      name: DECISION_SOURCE_DRIFT,
+      ceiling: CEILINGS[DECISION_SOURCE_DRIFT],
+      locates:
+        "an ACCEPTED decision (`adr list --current`) whose per-claim code anchor points at a span " +
+        "that has MOVED since the anchor was frozen, or that can no longer be located at all — the " +
+        "case ADR-0324's curation trigger structurally cannot see, because code can falsify a " +
+        "decision's prose without touching any curated path (ADR-0424). FALSE POSITIVE: the binding " +
+        "is only as good as the span its author chose, so a claim anchored at whole-FILE grain " +
+        "drifts on any edit anywhere in that file, and a rename-heavy refactor moves spans under " +
+        "decisions that are still perfectly true — the grain and the drift state are printed with " +
+        "every finding so that call is made on evidence, and the remedy for noise is a NARROWER " +
+        "anchor, never a raised ceiling. BLIND TO: whether the decision is actually now false — this " +
+        "LOCATES a region and certifies nothing; a claim anchored to the WRONG span fails to drift " +
+        "when it should, which no sweep can see; `superseded` decisions are excluded by design " +
+        "(ADR-0424 D3 — their prose is deliberately false about the current world), and a decision " +
+        "carrying no anchor is silent, never a finding (ADR-0424 D4). ATTRIBUTION: a finding rests " +
+        "on the anchored FILE, so main's drift reads as inherited and this branch's own edit as " +
+        "yours — but an anchor ADDED by a live-store write in this session that drifts immediately " +
+        "reads as inherited too, because git cannot see a store row; it is printed in full under NOT " +
+        "YOURS either way.",
+      run: () => {
+        if (decisionsUnreadable !== undefined) throw new Error(decisionsUnreadable);
+        return findDecisionSourceDrift(decisions, NO_DESCRIBED_CHANGES);
+      },
+    },
   ];
 
   // ---- attribution (ADR-0301) ----------------------------------------------------------------
@@ -1209,6 +1382,22 @@ function main(): void {
   const verdict = runDecaySweep(instruments, attribute);
   const { failed, lines } = formatDecaySweep(verdict, instruments);
   for (const line of lines) (failed ? console.error : verdict.count > 0 ? console.warn : console.log)(line);
+
+  // THE DECISION-SOURCE READER (ADR-0424, `grounded-decisions-arc` inc-02 unit 3) — printed BESIDE
+  // the finding report, never inside it. Neither line is a finding: the aperture says what was
+  // compared, and DECLARED BUT NEVER FROZEN names anchors that cannot be swept at all. Folding
+  // either into `formatDecaySweep` would count them as backlog against a ceiling, which is exactly
+  // the reading the second category exists to prevent. Suppressed when the store could not be read,
+  // because an aperture line derived from no decisions would report `compared 0` beside an
+  // escalation that already says the sweep went blind — two sentences, one of them misleading.
+  if (decisionsUnreadable === undefined) {
+    for (const line of formatDecisionSourceSweep(
+      measureDecisionSweep(decisions),
+      findDeclaredUnfrozenSources(decisions),
+    )) {
+      (failed ? console.error : console.log)(line);
+    }
+  }
   // Advisory PER FINDING. Two independent fail-closed conditions: the COUNT past the ceiling with
   // something of it AUTHORED HERE (ADR-0252 D3, apertured by ADR-0301), and any ESCALATION (D1) —
   // which no ceiling change can clear. A ceiling breached entirely on inherited signals is a loud
@@ -1216,4 +1405,4 @@ function main(): void {
   if (failed) process.exitCode = 1;
 }
 
-main();
+await main();

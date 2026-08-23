@@ -204,8 +204,12 @@ export interface GatePlanStep extends GateStep {
  * the trunk, because these instruments are heuristics with a measured ~75% false-positive rate and a
  * CI step is a merge barrier. The rung's own module header states this at the source
  * (`check-verification-decay.ts`), together with the cost accepted knowingly: a landing that never
- * runs the local gate can grow the backlog unseen. Note the rung is OFFLINE and read-only, so
- * "it could not run in CI" is NOT the reason and never was — it could; it is not asked to.
+ * runs the local gate can grow the backlog unseen. Note "it could not run in CI" is NOT the reason
+ * and never was — it could; it is not asked to. (This sentence read "the rung is OFFLINE and
+ * read-only" until 2026-08-24: it is read-only still, but ADR-0424 gave it a sixth instrument whose
+ * subject is the DECISION LOG, a database since ADR-0403 dec 1, so it now dials the store like its
+ * `check:adr-health` and `check:web-grounding` neighbours. CI holds the ADR-0302 D3 keyless
+ * credential, so the conclusion is untouched and only its premise moved.)
  * Recorded here because this plan is where a reader compares the two lists, and a `why` line
  * indistinguishable from its three CI-bound `shared-environment` neighbours is what made this look
  * like a missing rung to a reviewer (`decision-log-readers-arc` inc-06 item 7). If the trade-off is
