@@ -61,7 +61,7 @@ export function onboardingHelp(): Envelope {
 /** Render the budget table as an envelope. */
 function budgetsCommand(): Envelope {
   const lines: string[] = ["onboarding budgets (SLA, ms — provisional, ADR-0162 §Consequences):"];
-  const entries = Object.entries(AGENT_BUDGETS).sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
+  const entries = [...AGENT_BUDGETS].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0]));
   for (const [type, ms] of entries) {
     lines.push(`  ${type.padEnd(22)} ${(ms / 1000).toFixed(0)}s`);
   }

@@ -102,6 +102,10 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `storytree adr compose <n> --clause D4` (ADR-0428 D3): a clause LOCATOR, not prose. It names a
+  // position inside a decision the way `--raw <field>` names a field, and it is stored as an opaque
+  // key rather than as a durable record, so a literal `@` in it could corrupt nothing.
+  "clause",
   // `--raw <field> --out <path>` / `library artifact history --field <f>` (ADR-0361): a path and a
   // field NAME. Both are already the kind of value `@` would be part of, and neither is ever stored
   // into an artifact, so neither can corrupt a durable record.
@@ -228,7 +232,10 @@ export async function expandAtPathFlags<V extends Record<string, unknown>>(
   values: V,
   readTextFile: (p: string) => Promise<string> = (p) => readFile(p, "utf8"),
 ): Promise<{ ok: true; values: V } | { ok: false; refusal: AtPathRefusal }> {
-  const out: Record<string, unknown> = { ...values };
+  // The open dictionary declared as the accumulator it is: `out[flag]` is written below, and `V`
+  // is generic, so TypeScript can only index it for reading (TS2862).
+  const out: Record<string, unknown> = {};
+  Object.assign(out, values);
   for (const flag of Object.keys(out)) {
     if (!PROSE_FLAGS.has(flag)) continue;
     const raw = out[flag];

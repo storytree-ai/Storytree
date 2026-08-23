@@ -89,7 +89,7 @@ test('every colour the tree can emit is an AUTHORED palette token', () => {
   const parts = growTree(theTree(), UPRIGHT);
   for (const token of parts.keys()) assert.ok(authored.has(token), `${token} is not authored`);
   assert.ok(parts.has(SHARED_TOKENS.storyTrunk), 'the bole wears the shared trunk token');
-  assert.ok(parts.has(TREE_TOKENS['healthy']!.crown), 'a healthy crown wears healthy’s crown token');
+  assert.ok(parts.has(TREE_TOKENS.get('healthy')!.crown), 'a healthy crown wears healthy’s crown token');
 });
 
 test('the crown is ONE token — the highlight is said once, by the light', () => {
@@ -109,7 +109,7 @@ test('the CROWN IS A VOLUME — because the authored lobes are SPHERES, not disc
   // whole bole (see CROWN DEPTH in tree-geometry.ts). This asserts the property that was actually
   // true all along, so nobody re-derives the wrong premise from an untested picture.
   const tree = theTree();
-  const crown = bounds(growTree(tree, UPRIGHT).get(TREE_TOKENS['healthy']!.crown)!.positions);
+  const crown = bounds(growTree(tree, UPRIGHT).get(TREE_TOKENS.get('healthy')!.crown)!.positions);
   const w = crown.maxX - crown.minX;
   const d = crown.maxZ - crown.minZ;
   assert.ok(d > w * 0.6, `the crown is only ${d.toFixed(1)} deep against ${w.toFixed(1)} wide`);
@@ -161,7 +161,7 @@ test('HEIGHTS recover through the UPRIGHT foreshortening, not the GROUND one', (
   assert.ok(right > -tree.trunk!.topY, 'recovering an upright travel LENGTHENS it');
 
   const parts = growTree(tree, UPRIGHT);
-  const crown = bounds(parts.get(TREE_TOKENS['healthy']!.crown)!.positions);
+  const crown = bounds(parts.get(TREE_TOKENS.get('healthy')!.crown)!.positions);
   // 1e-4 rather than exact because the mesh is stored in Float32Array and 90 world units carries
   // about 1e-6 of representation error there. The claim is an identity, not an approximation:
   // the helper and the geometry must agree to storage precision, which is what makes the helper
@@ -201,8 +201,8 @@ test('DETERMINISM: the same tree grows the same solid, byte for byte', () => {
   // assuming it still is.
   const renamed = growTree({ ...tree, storyId: 'some-other-story' }, UPRIGHT);
   assert.deepEqual(
-    Array.from(a.get(TREE_TOKENS['healthy']!.crown)!.positions),
-    Array.from(renamed.get(TREE_TOKENS['healthy']!.crown)!.positions),
+    Array.from(a.get(TREE_TOKENS.get('healthy')!.crown)!.positions),
+    Array.from(renamed.get(TREE_TOKENS.get('healthy')!.crown)!.positions),
   );
 });
 
@@ -217,13 +217,13 @@ test('normals are unit length — the banded material’s rungs depend on it', (
 
 test('an island’s status picks the crown’s family, and an unknown status never throws', () => {
   const tree = theTree();
-  for (const status of Object.keys(TREE_TOKENS)) {
+  for (const status of [...TREE_TOKENS.keys()]) {
     const parts = growTree({ ...tree, status }, UPRIGHT);
-    assert.ok(parts.has(TREE_TOKENS[status]!.crown));
+    assert.ok(parts.has(TREE_TOKENS.get(status)!.crown));
   }
   const odd = growTree({ ...tree, status: 'not-a-status' }, UPRIGHT);
   assert.ok(
-    odd.has(TREE_TOKENS['unknown']!.crown),
+    odd.has(TREE_TOKENS.get('unknown')!.crown),
     'an unrecognised status falls back to unknown rather than emitting an unauthored colour',
   );
 });

@@ -169,7 +169,7 @@ function inspectDepsDouble(): InspectDeps {
 
 /** An SDK partial-assistant streaming message carrying one text-delta fragment — the live
  *  `query()` shape, so the scripted double drives the same delta path the real session does. */
-function textDeltaMessage(text: string): unknown {
+function textDeltaMessage(text: string) {
   return {
     type: "stream_event",
     event: { type: "content_block_delta", index: 0, delta: { type: "text_delta", text } },

@@ -40,32 +40,32 @@ const downMember: MeInfo = {
 };
 
 /** The named states the owner can force via `?devLoadState=<name>`. */
-const PRESETS: Record<string, DevOverride> = {
-  checking: { meStatus: 'loading', me: null, phase: 'unknown', elapsedMs: 0 },
-  'asleep-admin': { meStatus: 'ready', me: downAdmin, phase: 'unreachable', elapsedMs: 0 },
-  'asleep-member': { meStatus: 'ready', me: downMember, phase: 'unreachable', elapsedMs: 0 },
+const PRESETS: ReadonlyMap<string, DevOverride> = new Map([
+  ["checking", { meStatus: 'loading', me: null, phase: 'unknown', elapsedMs: 0 }],
+  ["asleep-admin", { meStatus: 'ready', me: downAdmin, phase: 'unreachable', elapsedMs: 0 }],
+  ["asleep-member", { meStatus: 'ready', me: downMember, phase: 'unreachable', elapsedMs: 0 }],
   // storeUnreachable yet /api/health says the DB is reachable → a fault, not a sleep.
-  'store-fault': { meStatus: 'ready', me: downAdmin, phase: 'healthy', elapsedMs: 0 },
-  starting: { meStatus: 'ready', me: downAdmin, phase: 'starting', elapsedMs: 30_000 },
-  'taking-longer': {
+  ["store-fault", { meStatus: 'ready', me: downAdmin, phase: 'healthy', elapsedMs: 0 }],
+  ["starting", { meStatus: 'ready', me: downAdmin, phase: 'starting', elapsedMs: 30_000 }],
+  ["taking-longer", {
     meStatus: 'ready',
     me: downAdmin,
     phase: 'starting',
     elapsedMs: TAKING_LONGER_MS + 30_000,
-  },
-  'server-lost': { meStatus: 'error', me: null, phase: 'server-lost', elapsedMs: 0 },
-  error: { meStatus: 'error', me: null, phase: 'unknown', elapsedMs: 0 },
-};
+  }],
+  ["server-lost", { meStatus: 'error', me: null, phase: 'server-lost', elapsedMs: 0 }],
+  ["error", { meStatus: 'error', me: null, phase: 'unknown', elapsedMs: 0 }],
+]);
 
 /** The preset names, for the dev hint strip. */
-export const DEV_OVERRIDE_NAMES = Object.keys(PRESETS);
+export const DEV_OVERRIDE_NAMES = [...PRESETS.keys()];
 
 function readOverride(): DevOverride | null {
   if (!import.meta.env.DEV) return null;
   if (typeof window === 'undefined') return null;
   const name = new URLSearchParams(window.location.search).get('devLoadState');
   if (name === null || name === '') return null;
-  return PRESETS[name] ?? null;
+  return PRESETS.get(name) ?? null;
 }
 
 /**

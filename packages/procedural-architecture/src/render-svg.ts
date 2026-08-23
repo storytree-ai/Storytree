@@ -79,5 +79,10 @@ export const render = (model: BuildingModel, opts: RenderOptions = {}): string =
 
 const f = (n: number): number => Number(n.toFixed(3));
 
-const ENTITIES: Record<string, string> = { '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' };
-const esc = (s: string): string => String(s).replace(/[<>&"]/g, (c) => ENTITIES[c] ?? c);
+const ENTITIES: ReadonlyMap<string, string> = new Map([
+  ['<', '&lt;'],
+  ['>', '&gt;'],
+  ['&', '&amp;'],
+  ['"', '&quot;'],
+]);
+const esc = (s: string): string => String(s).replace(/[<>&"]/g, (c) => ENTITIES.get(c) ?? c);

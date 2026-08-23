@@ -126,7 +126,10 @@ export function mergeUser(existing: UserDoc, patch: UserPatch): UserDoc {
   const merged = { ...existing };
   for (const [key, value] of Object.entries(patch as Record<string, unknown>)) {
     if (value === undefined) continue;
-    (merged as Record<string, unknown>)[key] = value;
+    // `Object.assign` rather than an assertion widening `merged` back to an open dictionary: the
+    // key comes from `UserPatch` either way, and the assertion was only silencing TypeScript's
+    // correlated-union limitation while discarding everything `UserDoc` knows.
+    Object.assign(merged, { [key]: value });
   }
   merged.email = existing.email;
   merged.createdAt = existing.createdAt;

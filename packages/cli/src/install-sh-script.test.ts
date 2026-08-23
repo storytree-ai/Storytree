@@ -314,7 +314,13 @@ function findSh(): string | null {
   return null;
 }
 
-function runInstaller(sh: string, args: string[]): { status: number | null; out: string } {
+/** One installer run: its exit status, and stdout+stderr joined as the script emitted them. */
+interface InstallerRun {
+  readonly status: number | null;
+  readonly out: string;
+}
+
+function runInstaller(sh: string, args: string[]): InstallerRun {
   const r = spawnSync(sh, [shPath, ...args], { encoding: "utf8" });
   assert.equal(r.error, undefined, `spawning ${sh} must not fail`);
   return { status: r.status, out: `${r.stdout ?? ""}${r.stderr ?? ""}` };

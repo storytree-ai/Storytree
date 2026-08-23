@@ -140,11 +140,11 @@ function parseRotate(t: string | undefined): number {
   return m ? parseFloat(m[1]!) : 0;
 }
 
-const STATE_OF_KIND: Record<string, FlowerState> = {
-  'tall-flower-proven': 'proven',
-  'tall-flower-pending': 'pending',
-  'tall-flower-failing': 'failing',
-};
+const STATE_OF_KIND: ReadonlyMap<string, FlowerState> = new Map([
+  ["tall-flower-proven", 'proven'],
+  ["tall-flower-pending", 'pending'],
+  ["tall-flower-failing", 'failing'],
+]);
 
 interface Box {
   minX: number;
@@ -175,7 +175,7 @@ function grow(box: Box, x: number, y: number): Box {
  *  question, not this one's. Both still count toward `marks`, because that number is the SVG
  *  surface's own budget and under-reporting it would flatter the live path. */
 function flowerOf(node: SceneG, at: Pt2): FlowerInstance | null {
-  const state = STATE_OF_KIND[node.kind ?? ''];
+  const state = STATE_OF_KIND.get(node.kind ?? '');
   if (!state) return null;
 
   const t = parseTranslate(node.transform);
@@ -307,7 +307,7 @@ function collect(node: SceneNode, at: Pt2, out: FlowerInstance[]): void {
   const t = parseTranslate(node.transform);
   const here = { x: at.x + t.x, y: at.y + t.y };
 
-  if (node.kind && node.kind in STATE_OF_KIND) {
+  if (node.kind && STATE_OF_KIND.has(node.kind)) {
     // The wrapper's own translate is re-read inside `flowerOf`, so pass the PARENT
     // accumulation to avoid counting it twice — the same shape `plant-descriptors.ts` uses.
     const flower = flowerOf(node, at);

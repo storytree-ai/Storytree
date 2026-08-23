@@ -31,7 +31,8 @@ interface LineOpts {
   readonly id: string;
   readonly isSidechain?: boolean;
   readonly model?: string;
-  readonly usage?: Record<string, unknown>;
+  /** `unknown`, deliberately: the malformed-usage legs feed this a string on purpose. */
+  readonly usage?: unknown;
   readonly type?: string;
   readonly messageExtra?: Record<string, unknown>;
   readonly rootExtra?: Record<string, unknown>;
@@ -44,7 +45,8 @@ interface LineOpts {
 interface FixtureMessage {
   id: string;
   model?: string;
-  usage?: Record<string, unknown>;
+  /** `unknown`: the malformed-usage legs put a non-object here on purpose. */
+  usage?: unknown;
 }
 
 /** The record's own fields, before `rootExtra` is layered over them and `message` after it. */
@@ -320,7 +322,7 @@ test("an-unusable-transcript-reads-partially-and-never-throws: a missing file, a
     sessionId: "session-partial",
     timestamp: "2026-07-17T23:30:07.000Z",
     id: "msg_bad4",
-    usage: "not-an-object" as unknown as Record<string, unknown>,
+    usage: "not-an-object",
   });
   // The classic crash-mid-write shape: recognizably an assistant line, but truncated at EOF.
   const truncatedFinalLine =

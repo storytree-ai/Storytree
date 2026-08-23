@@ -242,14 +242,14 @@ test("each-chained-node-reports-its-own-slices: a two-node --real chain reports 
     { id: "cap-b", dependsOn: ["cap-a"] },
   ]);
   const repo = await fixtureRepo(false);
-  const perNodeRuns: Record<string, SdkRunInfo[]> = {
-    "cap-a": [cannedRun({ costUsd: 0.11 })],
-    "cap-b": [cannedRun({ costUsd: 0.22 })],
-  };
+  const perNodeRuns: ReadonlyMap<string, SdkRunInfo[]> = new Map([
+    ["cap-a", [cannedRun({ costUsd: 0.11 })]],
+    ["cap-b", [cannedRun({ costUsd: 0.22 })]],
+  ]);
   const factoryCalls: string[] = [];
   const liveAuthorOverride = (spec: NodeSpec): LiveAuthor | undefined => {
     factoryCalls.push(spec.id);
-    const runs = perNodeRuns[spec.id];
+    const runs = perNodeRuns.get(spec.id);
     return runs === undefined ? undefined : cannedLiveAuthor(runs);
   };
   const calls: ObservedSlices[] = [];
@@ -272,10 +272,10 @@ test("each-chained-node-reports-its-own-slices: a two-node --real chain reports 
     assert.equal(env.ok, true, env.body);
     assert.equal(calls.length, 2, "the observer must fire exactly once per chained node");
     const byId = new Map(calls.map((c) => [c.unitId, c.runs]));
-    assert.deepEqual(byId.get("cap-a"), perNodeRuns["cap-a"], "cap-a must report ONLY its own canned run");
+    assert.deepEqual(byId.get("cap-a"), perNodeRuns.get("cap-a"), "cap-a must report ONLY its own canned run");
     assert.deepEqual(
       byId.get("cap-b"),
-      perNodeRuns["cap-b"],
+      perNodeRuns.get("cap-b"),
       "cap-b must report ITS OWN canned run, never cap-a's",
     );
     assert.deepEqual(

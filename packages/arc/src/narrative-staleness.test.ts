@@ -308,7 +308,7 @@ const ARC_DOC = {
   updatedAt: "2026-08-06",
 };
 
-function incDoc(overrides: Record<string, unknown>): Record<string, unknown> {
+function incDoc(overrides: Record<string, unknown>) {
   return {
     kind: "increment",
     title: "Custom crown-proxy normals",

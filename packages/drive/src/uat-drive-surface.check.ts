@@ -73,11 +73,13 @@ async function main(): Promise<number> {
     // A surface that does not answer is NOT proven foreign — but it is not proven yours either, and
     // fail-closed means "cannot tell" lands with "not mine". The attestation is still written, so the
     // runner sees a refusal rather than an absence and can say which of the two happened.
-    health = null;
     console.error(`uat-drive-surface: /api/health on ${url} did not answer: ${(e as Error).message}`);
   }
 
-  const judged = judgeDriveSurface(health, { commitSha, requireLiveStore: true });
+  // `health` is left UNSET by the catch rather than assigned `null`, and normalised here: the
+  // judge's contract is "null means it did not answer", and `?? null` says that once instead of
+  // widening a known literal into `unknown` at the assignment.
+  const judged = judgeDriveSurface(health ?? null, { commitSha, requireLiveStore: true });
   const attestation: DriveSurfaceAttestation = {
     url,
     ok: judged.ok,

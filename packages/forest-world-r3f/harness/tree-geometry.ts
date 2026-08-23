@@ -88,7 +88,7 @@ function raw(parts: Map<string, Raw>, token: string): Raw {
  */
 export function growTree(tree: TreeInstance, uprightForeshortening: number): TreeParts {
   const parts = new Map<string, Raw>();
-  const crownToken = (TREE_TOKENS[tree.status] ?? TREE_TOKENS['unknown']!).crown;
+  const crownToken = (TREE_TOKENS.get(tree.status) ?? TREE_TOKENS.get('unknown')!).crown;
 
   // SVG y runs DOWN and is an upright travel; x is a horizontal span and takes no correction.
   const wy = (y: number): number => -y / uprightForeshortening;

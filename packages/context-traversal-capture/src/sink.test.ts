@@ -92,7 +92,7 @@ test("appended-events-replay-in-a-fresh-reader: events land and replay chronolog
  * A minimal valid event, so the identity cases below vary only the thing they are about.
  * `linked-session-context-arc-inc-30`.
  */
-function visit(sessionId: string, n: number): Record<string, unknown> {
+function visit(sessionId: string, n: number) {
   return {
     kind: "full_payload_read",
     eventId: `event:${sessionId}-${n}`,

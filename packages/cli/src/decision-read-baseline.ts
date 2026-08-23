@@ -374,11 +374,36 @@ export class SupportGraphCycleError extends Error {
  * Three-colour marking, and a cycle THROWS naming the loop rather than truncating — `probe:adr-graph`'s
  * discipline, reused. A truncated walk returns a plausible smaller number and nothing says so.
  */
+/** The longest chain of READ decisions a session actually walked, and the chain itself. */
+export interface ReadChain {
+  /**
+   * The chain length in NODES — a lone read is 1, a read of two decisions one edge apart is 2, and
+   * `0` only when nothing was read. NOT edges crossed: `depth` is `path.length`, this function's own
+   * header says "in NODES", and the frozen baseline's headline reading is `depth >= 2 walked a
+   * chain`, which is one edge. (Corrected in place on 2026-08-23 while merging: the comment had said
+   * "edges crossed", which would halve every published figure for a reader who believed it.)
+   */
+  readonly depth: number;
+  /** The decision numbers along that chain, in walk order. */
+  readonly path: readonly number[];
+}
+
 export function longestReadChain(
   readSet: ReadonlySet<number>,
   adjacency: ReadonlyMap<number, readonly number[]>,
-): { readonly depth: number; readonly path: readonly number[] } {
+  root?: number,
+): ReadChain {
   if (readSet.size === 0) return { depth: 0, path: [] };
+  // ROOTED, when a caller asks for one: the longest chain that STARTS at `root`, rather than the
+  // longest anywhere in the read set. ADR-0428's trial needs this — a frontier's walk is anchored at
+  // the frontier by definition (that is what `-inc-04` counted as a frontier walk), and the global
+  // longest chain inside the same read set may start at an inner node the reader reached some other
+  // way. The recursion below already computes exactly this for every node it visits, so the rooted
+  // question is answered by ASKING it rather than by a second walk that could drift from this one.
+  //
+  // OPTIONAL, and no existing caller passes it, so the frozen baseline is untouched by construction
+  // — pinned by `decision-read-baseline.test.ts` rather than left to be trusted.
+  if (root !== undefined && !readSet.has(root)) return { depth: 0, path: [] };
 
   const WHITE = 0;
   const GREY = 1;
@@ -410,6 +435,11 @@ export function longestReadChain(
     return longest;
   };
 
+  if (root !== undefined) {
+    const path = visit(root);
+    return { depth: path.length, path };
+  }
+
   let winner: readonly number[] = [];
   // Sorted so the reported deepest chain is deterministic when several tie — a frozen baseline that
   // named a different equally-deep chain on each run would read as drift.
@@ -427,7 +457,16 @@ export function longestReadChain(
 /** How many DISTINCT sessions must be missing before an empty reading is called vacuous. */
 const VACUOUS_FLOOR = 1;
 
-function withinWindow(at: string, from: string | undefined, to: string | undefined): boolean {
+/**
+ * PURE: is this instant inside the declared window, both bounds INCLUSIVE.
+ *
+ * Exported so `amends-reach.ts` filters its BEFORE and AFTER arms by the same rule this baseline
+ * filtered by, rather than growing a second copy. That is the same reason `probe-decision-gather.ts`
+ * exists one file over: these instruments are COMPARED AGAINST EACH OTHER across sessions, and an
+ * arm that windowed even slightly differently from the frozen baseline would be compared to a number
+ * nobody ever measured.
+ */
+export function withinWindow(at: string, from: string | undefined, to: string | undefined): boolean {
   if (from !== undefined && at < from) return false;
   if (to !== undefined && at > to) return false;
   return true;

@@ -348,17 +348,17 @@ function bagOf(stored: StoredDoc): Record<string, unknown> {
  * code does not understand stays VISIBLE at the top instead of sinking into a long history where the
  * original defect hid it.
  */
-const INCREMENT_STATUS_RANK: Readonly<Record<string, number>> = {
-  proposal: 0,
-  ready: 1,
-  active: 2,
-  closed: 4,
-};
+const INCREMENT_STATUS_RANK: ReadonlyMap<string, number> = new Map([
+  ["proposal", 0],
+  ["ready", 1],
+  ["active", 2],
+  ["closed", 4],
+]);
 const UNKNOWN_STATUS_RANK = 3;
 
 /** True when this status is one of the not-yet-landed ones — the split every arc surface must show. */
 export function isForwardLooking(status: string): boolean {
-  return (INCREMENT_STATUS_RANK[status] ?? UNKNOWN_STATUS_RANK) < INCREMENT_STATUS_RANK["closed"]!;
+  return (INCREMENT_STATUS_RANK.get(status) ?? UNKNOWN_STATUS_RANK) < INCREMENT_STATUS_RANK.get("closed")!;
 }
 
 /**
@@ -539,8 +539,8 @@ export function reconcileArcLifecycles(
  * between runs.
  */
 function compareIncrements(a: ArcRollupIncrement, b: ArcRollupIncrement): number {
-  const ra = INCREMENT_STATUS_RANK[a.status] ?? UNKNOWN_STATUS_RANK;
-  const rb = INCREMENT_STATUS_RANK[b.status] ?? UNKNOWN_STATUS_RANK;
+  const ra = INCREMENT_STATUS_RANK.get(a.status) ?? UNKNOWN_STATUS_RANK;
+  const rb = INCREMENT_STATUS_RANK.get(b.status) ?? UNKNOWN_STATUS_RANK;
   if (ra !== rb) return ra - rb;
   const ka = a.outcome?.date ?? a.parked ?? "";
   const kb = b.outcome?.date ?? b.parked ?? "";

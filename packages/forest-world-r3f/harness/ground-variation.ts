@@ -5,7 +5,7 @@
 // FIRST THING IN THE FILE RATHER THAN A FOOTNOTE.
 //
 // On 2026-08-16 the owner removed the ground's three hash-picked colour variants, and the
-// mesh seams with them: the land had been picking one of `STATUS_TOKENS[st].top[0..2]` PER
+// mesh seams with them: the land had been picking one of `STATUS_TOKENS.get(st).top[0..2]` PER
 // CELL from a hash of the cell's id, which put a colour jump on roughly two thirds of the
 // cell boundaries and read as noise. The reference board (lever 7) names the shape of the
 // thing the references actually have and flags the collision in as many words: *"The

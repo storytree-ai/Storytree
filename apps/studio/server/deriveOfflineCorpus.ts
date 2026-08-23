@@ -72,6 +72,15 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
     // nothing", which is a different fact from "carries no authored edge" (ADR-0223's optional rule).
     if (hasDependsOnKey(doc)) asset.dependsOn = readDependsOnPointers(doc);
     if (doc.provenance !== undefined) asset.provenance = doc.provenance;
+    // The lifecycle-projection inputs, crossed onto the wire exactly as the LIVE backend crosses
+    // them (`toGuidanceAsset` in ./libraryBackend). They are schema metadata, so `renderBody` never
+    // sees them and they would otherwise be dropped here — which is not a cosmetic loss: without
+    // `status`, `lifecycleOf('adr', …)` reads `undefined` and files an ACCEPTED decision under
+    // `open`, so the offline shelf would state the opposite of what the row says. Absent-by-default
+    // (the `provenance` idiom above) so every fixture unit that carries neither is unaffected.
+    if (typeof doc.status === 'string') asset.status = doc.status;
+    if (typeof doc.lifecycle === 'string') asset.lifecycle = doc.lifecycle;
+    if (doc.loadBearing === true) asset.loadBearing = true;
     return asset;
   };
 

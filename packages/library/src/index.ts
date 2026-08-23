@@ -85,6 +85,11 @@ export * from "./knowledge-depth.js";
 // are still files — and it must not learn that. One verb, `amendsOf`; no `supersedesOf` and no
 // edge-type parameter, so ADR-0403 dec 6's never-sum rule is held by the shape of the interface.
 export * from "./decision-amends-seam.js";
+// ADR-0428: the COMPOSED STATEMENT at a chain frontier, and the outstanding-effects marker that
+// keeps it honest — one artifact, because a composed statement without a staleness signal silently
+// lies (the legislation.gov.uk "Changes to Legislation" precedent). What is STORED is the basis; the
+// marker is DERIVED from it, so it cannot go stale the way a stored flag would. Pure, browser-safe.
+export * from "./composed-statement.js";
 // ADR-0427 (2026-08-23) RETIRED the two `amends` annotation modules that were exported here — the
 // presence judge (`amends-annotation.js`, ADR-0419 D4) and the drain worklist that consumed it
 // (`amends-drain.js`, ADR-0419 D3). The judge asked only whether a target's body mentioned its
