@@ -37,7 +37,6 @@ import type { Attestation, EvidenceRef, StoredAttestation, Verdict } from '@stor
 // shapes, so `buildUatVerdict` can take the real `checkUatProof` as a precisely-typed injection.
 import type { UatProofCheck, UatProofResult } from '@storytree/orchestrator';
 import type { ResolvedAccess, UserRole } from '@storytree/studio-members';
-import { USER_ROLES } from '@storytree/studio-members';
 import type {
   AssetCategory,
   Comment,
@@ -607,8 +606,8 @@ function normalizeEmailInput(raw: string): string {
 // journey needs ("the owner's in-app `builder` grant opens the brokered write path"). Nothing caught
 // it because there was no second surface to disagree: `storytree members` is that surface now, and
 // deriving the check from the enum is what stops the two drifting apart again.
-function asRole(v: unknown): UserRole | null {
-  return typeof v === 'string' && (USER_ROLES as readonly string[]).includes(v) ? (v as UserRole) : null;
+function asRole(v: unknown, roles: readonly string[]): UserRole | null {
+  return typeof v === 'string' && roles.includes(v) ? (v as UserRole) : null;
 }
 
 export async function handleUsers(
@@ -625,6 +624,10 @@ export async function handleUsers(
     return sendJson(res, 200, await backend.listUsers());
   }
 
+  // One lazy load for both write arms (see loadStudioMembers): the role set is the SCHEMA's, never a
+  // literal union restated here — restating it is what silently made `builder` ungrantable.
+  const { USER_ROLES } = await loadStudioMembers();
+
   if (method === 'POST') {
     // Invite: write an `invited` row, then email the invitee the studio link (best-effort — the row
     // is already authoritative; a mail failure is reported, not a 500). Activation still happens on
@@ -632,7 +635,7 @@ export async function handleUsers(
     // overwrite. The `notify` field tells the admin whether the email actually went out.
     const input = await readJsonBody<Record<string, unknown>>(req);
     const email = normalizeEmailInput(asString(input.email));
-    const role = asRole(input.role);
+    const role = asRole(input.role, USER_ROLES);
     if (!email || !email.includes('@')) throw new HttpError(400, 'a valid email is required');
     if (!role) throw new HttpError(400, `role must be one of: ${USER_ROLES.join(', ')}`);
     if (await backend.getUser(email)) throw new HttpError(409, `${email} is already in the directory`);
@@ -652,7 +655,7 @@ export async function handleUsers(
     // downgrade of the last admin (→ 409).
     const input = await readJsonBody<Record<string, unknown>>(req);
     const email = normalizeEmailInput(asString(input.email));
-    const role = asRole(input.role);
+    const role = asRole(input.role, USER_ROLES);
     if (!email) throw new HttpError(400, 'a valid email is required');
     if (!role) throw new HttpError(400, `role must be one of: ${USER_ROLES.join(', ')}`);
     const existing = await backend.getUser(email);
@@ -1088,6 +1091,18 @@ function loadOrchestrator(): Promise<OrchestratorModule> {
 // don't resolve under vite's config-load, so it is loaded lazily on first use too (the OQ-gate layer's
 // `openQuestionsGatingNode` attachment predicate, ADR-0107). Loaded at request time, past config-load.
 type LibraryModule = typeof import('@storytree/library');
+// @storytree/studio-members is pure zod and browser-safe, but raw-TS like the others: its barrel
+// re-exports `./users.js`, which Node's ESM resolver cannot resolve during vite's CONFIG-LOAD (no
+// tsx there). `asRole` needs USER_ROLES as a VALUE — deriving the role check from the schema instead
+// of restating it is ADR-0439 D3 — so it is loaded lazily, at request time, past config-load. A
+// top-level value import here reds `pnpm -r build` and `e2e-desktop` while typecheck and test both
+// stay GREEN, which is exactly how this trap keeps getting re-hit.
+type StudioMembersModule = typeof import('@storytree/studio-members');
+let studioMembersModulePromise: Promise<StudioMembersModule> | null = null;
+function loadStudioMembers(): Promise<StudioMembersModule> {
+  return (studioMembersModulePromise ??= import('@storytree/studio-members'));
+}
+
 let libraryModulePromise: Promise<LibraryModule> | null = null;
 function loadLibrary(): Promise<LibraryModule> {
   return (libraryModulePromise ??= import('@storytree/library'));
