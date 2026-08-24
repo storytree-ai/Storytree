@@ -33,6 +33,7 @@ function gate(kind: ReliabilityGate["kind"], n = 1, proofCommand?: string): Reli
     title: `gate ${n}`,
     kind,
     covers: [],
+    retired: false,
   };
   if (proofCommand !== undefined) row.proofCommand = proofCommand;
   return row;

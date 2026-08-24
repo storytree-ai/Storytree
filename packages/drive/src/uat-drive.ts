@@ -190,6 +190,43 @@ export function isModelDrivenGate(gate: DriveGate): boolean {
   return gate.kind === "observe" && (gate.proofCommand ?? "").includes(UAT_DRIVE_WITNESS_ENTRY);
 }
 
+/**
+ * PURE: the refusal text for driving a RETIRED story, or null when the story may be driven.
+ *
+ * A retired story makes no claim about the current product — that is what retirement means — and
+ * ADR-0429 D3/D4 KEEPS its UAT criteria as unclaimed history rather than deleting them, because
+ * criterion and gate ordinals are positional and deleting one silently re-points the survivors'
+ * bindings. Both halves together mean a walk here cannot produce a product finding: a `pass`
+ * certifies a criterion that asserts nothing, and a `fail` reports the absence of a surface that was
+ * deleted on purpose.
+ *
+ * This is a REFUSAL rather than a warning because the walk is the expensive part — a fresh
+ * subscription-funded session per criterion — and the whole point is to decline before spending it.
+ *
+ * **Why it is needed at all, measured 2026-08-24.** A worklist of undriven model-driven legs is
+ * derived by joining bound legs against passing `events.uat_drive` rows; that join does not filter on
+ * story `status`, and a retired story keeps its bound legs forever. So retired stories accumulate at
+ * the TOP of any such count and read as the largest undriven blocks in the corpus. `studio-build`
+ * (retired by ADR-0429 on 2026-08-23) headed exactly such a worklist with 9 undriven legs the day
+ * after it was retired.
+ *
+ * It taxes the honest case not at all: a live story never reaches this branch.
+ */
+export function retiredStoryDriveRefusal(storyId: string, status: string): string | null {
+  if (status !== "retired") return null;
+  return [
+    `[uat-drive] REFUSED: story "${storyId}" is retired — a walk here spends subscription time to witness nothing.`,
+    "  A retired story makes no claim about the current product (ADR-0429 D3/D4), and its criteria are",
+    "  KEPT only as unclaimed history — ordinals are positional, so deleting them would silently re-point",
+    "  the survivors' bindings. So a `pass` here certifies a criterion that asserts nothing, and a `fail`",
+    "  reports the absence of a surface that was deleted on purpose. Neither is a product finding.",
+    "  This refusal exists because a count of undriven model-driven legs does NOT filter on story status:",
+    "  a retired story keeps its bound legs forever, so it heads any such worklist and reads as the",
+    "  largest undriven block in the corpus. Read each leg's own story before driving it.",
+    "  Disposing of these criteria is a story-author call (ADR-0396 D1), never a drive.",
+  ].join("\n");
+}
+
 /** The two platform contracts the prompt can carry. The authored criterion prose is the source. */
 export type UatDrivePlatform = "web-or-cli" | "electron-native-shell";
 

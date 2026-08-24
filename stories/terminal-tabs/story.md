@@ -607,13 +607,17 @@ unchanged. It goes red — honestly — when no `pass` record exists for the cri
 `revision-id`, when the driven commit is not in HEAD's ancestry, or when the newest record is older than
 90 days (the ADR-0016 ageing floor).
 
-1. **UAT leg 4 — "a Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_79f9db93ca0e89aaaec2d522`.
-   **UNCLAIMED as of 2026-08-23 — the criterion this gate was minted for was DELETED, and the gate is
-   RETAINED anyway.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so removing this
-   item would renumber gates 2–4 down one and silently re-point every already-signed verdict and every
-   surviving `(proof-gate:)` binding — including legs 6 and 8's — onto gates they were never about.
-   Nothing would error. So it stays exactly where it is, claimed by nothing, and no leg may ever be bound
-   to it again. It originally witnessed that a model held a REAL interactive Claude Code session in tab 1,
+1. **UAT leg 4 — "a Build lands in a fresh tab while REAL Claude Code runs in another, and Enter fires the real build" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_79f9db93ca0e89aaaec2d522`.
+   **RETIRED IN PLACE (ADR-0436) — the criterion this gate was minted for was DELETED, and the gate is
+   RETAINED for its ordinal alone.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so
+   removing this item would renumber gates 2–4 down one and silently re-point every already-signed
+   verdict and every surviving `(proof-gate:)` binding — including legs 6 and 8's — onto gates they were
+   never about. Nothing would error. So it stays exactly where it is, claimed by nothing, and no leg may
+   ever be bound to it again. *(This entry read "UNCLAIMED as of 2026-08-23"; corrected in place per
+   ADR-0139. Retaining it was right; leaving it in the ADR-0085 own-proof union was not. This gate
+   happens to hold a signed pass, so it was not what capped the crown — gate 3 was — but its green can
+   never be RE-EARNED, because its command now refuses with `declares no criterion`. The `(retired)`
+   tag makes the withdrawal machine-readable instead of prose-only.)* It originally witnessed that a model held a REAL interactive Claude Code session in tab 1,
    clicked Build, saw a fresh pre-filled tab open with tab 1's screen untouched (no injected text, no
    interrupted input, nothing sent as a message to Claude), and pressed Enter to run a real
    `--real --store pg` build. That drive DID happen — 2026-08-13 at `d9a6e59`, 8/8 steps `pass` — and the
@@ -634,10 +638,14 @@ gate and could otherwise be signed. Binding them exits that trap without weakeni
 witness cannot pass a leg nobody walked.
 
 **Read that paragraph as the 2026-08-22 record it is. As of 2026-08-23 only gates 2 and 4 CLAIM a leg**
-(6 and 8 respectively), and both are still honestly RED — no drive has been run for either. Gates 1 and
-3 are retained-but-unclaimed after legs 4 and 7 were deleted; the reason each is kept rather than removed
-is stated on the gate itself. All four ordinals are therefore frozen at 1, 2, 3, 4 forever, and a gate
-added later APPENDS as gate 5.
+(6 and 8 respectively). Gates 1 and 3 are RETIRED IN PLACE (ADR-0436) after legs 4 and 7 were deleted —
+they hold their ordinals and stand as NO obligation; the reason each is kept rather than removed is
+stated on the gate itself. All four ordinals are therefore frozen at 1, 2, 3, 4 forever, and a gate
+added later APPENDS as gate 5. *(This paragraph said gates 2 and 4 were "still honestly RED — no drive
+has been run for either"; corrected in place per ADR-0139 — both were driven and signed by 2026-08-24.
+It also called gates 1 and 3 "retained-but-unclaimed", which described the intent but named no state any
+reader could act on: both still counted as own-proof obligations, which is what held this crown at
+`unproven`.)*
 
 2. **UAT leg 6 — "the session panel creates, switches and closes REAL sessions in the native shell" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_d79072069efa32c40f89ee29`.
    Witnesses that a model expanded the dock in the REAL packaged app and observed `desktopTerminal.list()`
@@ -646,13 +654,18 @@ added later APPENDS as gate 5.
    that pty — with the surviving id row 1's (never a re-spawn) and the toggle + `headerRight` rendering
    exactly once throughout. The mocked-bridge jsdom half is [`multi-session-tabs`](multi-session-tabs.md)'s
    own verdict and is not re-witnessed here.
-3. **UAT leg 7 — "a Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_abc366dff450e75d3ab91e60`.
-   **UNCLAIMED as of 2026-08-23 — the criterion this gate was minted for was DELETED, and the gate is
-   RETAINED anyway**, for the same positional reason as gate 1 above: deleting it would renumber gate 4
-   to 3 and silently re-point leg 8's `(proof-gate: terminal-tabs#gate-4)` binding onto a different
-   claim, with nothing erroring. It stays where it is, claimed by nothing, and no leg may be bound to it
-   again. Unlike gate 1 it was never satisfied: no drive record for `uatc_abc366dff450e75d3ab91e60` has
-   ever existed, so it was honestly RED throughout its life. It originally witnessed that a model held a
+3. **UAT leg 7 — "a Build click opens a FRESH tab pre-filled and leaves the running session's screen untouched" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts terminal-tabs uatc_abc366dff450e75d3ab91e60`.
+   **RETIRED IN PLACE (ADR-0436) — the criterion this gate was minted for was DELETED, and the gate is
+   RETAINED for its ordinal alone**, for the same positional reason as gate 1 above: deleting it would
+   renumber gate 4 to 3 and silently re-point leg 8's `(proof-gate: terminal-tabs#gate-4)` binding onto a
+   different claim, with nothing erroring. It stays where it is, claimed by nothing, and no leg may be
+   bound to it again. Unlike gate 1 it was never satisfied: no drive record for
+   `uatc_abc366dff450e75d3ab91e60` has ever existed, so it was honestly RED throughout its life.
+   **THIS GATE IS WHAT CAPPED THIS STORY'S CROWN.** Measured 2026-08-24 against the live store: both
+   capabilities `✓`, both surviving UAT legs signed, gates 1, 2 and 4 `✓` — and this one unprovable, so
+   `story green` read `unproven` and could never have read anything else. Retaining it was right;
+   leaving it in the ADR-0085 own-proof union was the defect, and the `(retired)` tag above is the fix.
+   *(This entry read "UNCLAIMED as of 2026-08-23"; corrected in place per ADR-0139.)* It originally witnessed that a model held a
    real pty in tab 1 carrying typed, UN-SUBMITTED input, clicked Build on a `proposed` story, and observed
    the dock SEED instead of POSTing `/api/build`. ADR-0404 removed both halves of that walk — the Build
    control and the `/api/build` route — leaving no way to originate a seed at all, which is why the leg

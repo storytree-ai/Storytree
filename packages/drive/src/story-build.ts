@@ -4,7 +4,7 @@ import type { PhaseAuthor } from "@storytree/agent";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { AdrMeta } from "./adr-frontmatter.js";
 import type { Store } from "@storytree/storage-protocol";
-import { effectiveUatWitness } from "@storytree/library";
+import { activeReliabilityGates, effectiveUatWitness } from "@storytree/library";
 import {
   createBuildWorktree,
   findNodeSpecFile,
@@ -955,7 +955,10 @@ export async function storyBuild(
       ...((): string[] => {
         const hardUat = story.uatTestCriteria.filter((t) => !t.wouldBe);
         const wouldBeCount = story.uatTestCriteria.length - hardUat.length;
-        const obligations = [...hardUat, ...story.reliabilityGates];
+        // ADR-0436: a gate retired in place keeps its ordinal but is no longer an obligation, and
+        // must not supply `(covers:)` coverage either — hence the same filtered list on both.
+        const liveGates = activeReliabilityGates(story.reliabilityGates);
+        const obligations = [...hardUat, ...liveGates];
         if (obligations.length === 0) return [];
         const uatLine =
           hardUat.length > 0
@@ -963,7 +966,7 @@ export async function storyBuild(
             : `uat proof:   would-be — ${wouldBeCount} aspirational leg(s), no scripted test yet (ADR-0097)`;
         return [
           uatLine,
-          `story green: ${storyGreenLine(story.capabilities, obligations, events, story.reliabilityGates)}`,
+          `story green: ${storyGreenLine(story.capabilities, obligations, events, liveGates)}`,
         ];
       })(),
       runtime === "codex" && (real || live)

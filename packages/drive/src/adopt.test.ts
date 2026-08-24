@@ -60,6 +60,7 @@ function gate(n: number, over: Partial<ReliabilityGate> = {}): ReliabilityGate {
     title: `gate ${n}`,
     kind: "observe",
     covers: [],
+    retired: false,
     proofCommand: `pnpm --filter pkg-${n} test`,
     ...over,
   };

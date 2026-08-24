@@ -12,6 +12,7 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
+import { activeReliabilityGates } from "@storytree/library";
 import {
   loadNodeSpec,
   rollupCapStatus,
@@ -221,20 +222,24 @@ export async function treeCommand(
   // not wedge the story until a real test backs it. The hard own-proof set is the witnessable UAT legs
   // (would-be filtered out) UNION the reliability gates.
   const hardUatTestCriteria = uatTestCriteria.filter((t) => !t.wouldBe);
-  const ownObligations = [...hardUatTestCriteria, ...reliabilityGates];
+  // ADR-0436: a gate RETIRED IN PLACE keeps its ordinal but is no longer an obligation, so it is
+  // filtered out of the union, the gates sub-signal AND the `(covers:)` coverage argument. The
+  // DISPLAY list below stays the full parse — a burned ordinal must remain visible.
+  const activeGates = activeReliabilityGates(reliabilityGates);
+  const ownObligations = [...hardUatTestCriteria, ...activeGates];
   const storyUatRollup =
     hardUatTestCriteria.length > 0 && verdictEvents !== null
       ? rollupStoryUat(hardUatTestCriteria, verdictEvents)
       : undefined;
   const storyGatesRollup =
-    reliabilityGates.length > 0 && verdictEvents !== null
-      ? rollupStoryUat(reliabilityGates, verdictEvents)
+    activeGates.length > 0 && verdictEvents !== null
+      ? rollupStoryUat(activeGates, verdictEvents)
       : undefined;
   const storyGreen =
     ownObligations.length > 0 && verdictEvents !== null
       ? // ADR-0097: the reliability gates double as per-cap COVERAGE — a brownfield cap with no driven
         // verdict greens via an adopted gate that `(covers:)` it.
-        rollupStoryGreen(capIds, ownObligations, verdictEvents, reliabilityGates)
+        rollupStoryGreen(capIds, ownObligations, verdictEvents, activeGates)
       : undefined;
   const crownMark = (): string => {
     if (ownObligations.length === 0) return mark(storyId); // legacy: the story's own UAT-node verdict
@@ -250,7 +255,7 @@ export async function treeCommand(
   // fail (rollupCapStatus → unhealthy → ✗). Mirrors `mark`'s contract: leading space, "" offline.
   const capMark = (capId: string): string => {
     if (verdictEvents === null) return "";
-    const s = rollupCapStatus(capId, verdictEvents, reliabilityGates);
+    const s = rollupCapStatus(capId, verdictEvents, activeGates);
     const g = s === "healthy" ? "✓" : s === "unhealthy" ? "✗" : "–";
     return ` ${g}`;
   };
@@ -274,9 +279,11 @@ export async function treeCommand(
     // green-blocking. Surface it honestly rather than as "unproven".
     lines.push(`  UAT proof: would-be — ${uatTestCriteria.length} aspirational leg(s), no scripted test yet (ADR-0097)`);
   }
-  if (reliabilityGates.length > 0 && verdictEvents !== null) {
+  if (activeGates.length > 0 && verdictEvents !== null) {
     // The brownfield reliability-gate sub-signal (ADR-0085): the author-declared obligation set that
     // flips a brownfield/foundational story green, distinct from UAT (an `observe` gate is adopted).
+    // Guarded on the ACTIVE gates (ADR-0436), so a story whose only gates are retired prints no gate
+    // line at all rather than a permanent "unproven" over an empty obligation set.
     const word =
       storyGatesRollup === "healthy"
         ? "GREEN — every reliability gate has a signed pass (the brownfield obligations are met, ADR-0085)"
@@ -355,6 +362,14 @@ export async function treeCommand(
     lines.push("", "Reliability gates:");
     const idWidth = Math.max(...reliabilityGates.map((g) => g.id.length));
     for (const g of reliabilityGates) {
+      // ADR-0436: a RETIRED gate renders with its ordinal and WITHOUT a proof verdict — it is no
+      // longer an obligation, so a `proven=–` beside it would read as "not yet earned" when the
+      // honest reading is "nothing left to earn". The row itself stays so the burned ordinal is
+      // visible to the next author, who must APPEND rather than reuse it.
+      if (g.retired) {
+        lines.push(`  ${g.id.padEnd(idWidth)}  kind=${g.kind.padEnd(11)}  RETIRED   ${g.title}`);
+        continue;
+      }
       const proven = provenMark(g.id);
       const provenCol = proven === "" ? "" : `  proven=${proven}`;
       lines.push(`  ${g.id.padEnd(idWidth)}  kind=${g.kind.padEnd(11)}${provenCol}  ${g.title}`);

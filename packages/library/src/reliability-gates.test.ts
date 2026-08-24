@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  activeReliabilityGates,
   parseReliabilityGates,
   reliabilityGateId,
   ReliabilityGate,
@@ -47,6 +48,7 @@ test("parses each numbered gate: positional id, title, kind, and the backticked 
     title: "The port's own suite is green",
     kind: "observe",
     covers: [],
+    retired: false,
     proofCommand: "pnpm --filter @storytree/proof-protocol test",
   });
   assert.equal(gates[1]!.id, "proof-protocol#gate-2");
@@ -115,7 +117,7 @@ test("an explicit but invalid gate kind throws (refuse, do not default)", () => 
 test("ReliabilityGate rejects an unknown field and an unknown kind (strict)", () => {
   const valid = { id: "s#gate-1", title: "t", kind: "observe" as const };
   // `covers` defaults to [] (ADR-0097 additive) — a doc that omits it round-trips, gaining the default.
-  assert.deepEqual(ReliabilityGate.parse(valid), { ...valid, covers: [] });
+  assert.deepEqual(ReliabilityGate.parse(valid), { ...valid, covers: [], retired: false });
   assert.equal(ReliabilityGate.safeParse({ ...valid, rogue: 1 }).success, false);
   assert.equal(ReliabilityGate.safeParse({ ...valid, kind: "nope" }).success, false);
 });
@@ -179,7 +181,84 @@ test("ReliabilityGate round-trips an explicit buildNode and rejects a blank one 
     kind: "build-tests" as const,
     buildNode: "seed-runner",
   };
-  assert.deepEqual(ReliabilityGate.parse(valid), { ...valid, covers: [] });
+  assert.deepEqual(ReliabilityGate.parse(valid), { ...valid, covers: [], retired: false });
   // min(1): an empty buildNode is refused (a build reference that names nothing).
   assert.equal(ReliabilityGate.safeParse({ ...valid, buildNode: "" }).success, false);
+});
+
+
+// ---------------------------------------------------------------------------
+// (retired) — retire in place: the ordinal survives, the obligation does not (ADR-0436)
+// ---------------------------------------------------------------------------
+
+const RETIRE_BODY = [
+  "## Reliability Gates",
+  "",
+  "1. **Live one** _(gate: observe)_ `pnpm --filter a test`.",
+  "2. **~~Dead one~~ — its criterion was deleted** _(gate: observe)_ _(retired)_ `pnpm --filter b test`.",
+  "3. **Live two** _(gate: observe)_ `pnpm --filter c test`.",
+  "",
+].join("\n");
+
+test("a `(retired)` gate is flagged, and every other gate is not", () => {
+  assert.deepEqual(
+    parseReliabilityGates("s", RETIRE_BODY).map((g) => [g.id, g.retired]),
+    [
+      ["s#gate-1", false],
+      ["s#gate-2", true],
+      ["s#gate-3", false],
+    ],
+  );
+});
+
+test("retiring the MIDDLE gate does not renumber the one after it — the whole point of the marker", () => {
+  const live = RETIRE_BODY.replace(" _(retired)_", "");
+  const before = parseReliabilityGates("s", live).map((g) => g.id);
+  const after = parseReliabilityGates("s", RETIRE_BODY).map((g) => g.id);
+  // Identical id sequences: retiring gate 2 leaves gate 3 addressed as `s#gate-3`, so no already-signed
+  // verdict and no surviving `(proof-gate:)` binding is silently re-pointed.
+  assert.deepEqual(after, before);
+  assert.deepEqual(after, ["s#gate-1", "s#gate-2", "s#gate-3"]);
+});
+
+test("a gate with no `(retired)` tag defaults to retired=false (backward compatible)", () => {
+  const gates = parseReliabilityGates("s", "## Reliability Gates\n\n1. **Plain** `pnpm test`.\n");
+  assert.equal(gates.length, 1);
+  assert.equal(gates[0]!.retired, false);
+});
+
+test("the `(retired)` tag does not swallow the gate's command or its other annotations", () => {
+  const dead = parseReliabilityGates("s", RETIRE_BODY)[1]!;
+  assert.equal(dead.kind, "observe");
+  assert.equal(dead.proofCommand, "pnpm --filter b test");
+});
+
+test("prose merely SAYING retired is not the marker — only the literal `(retired)` tag is", () => {
+  const body = "## Reliability Gates\n\n1. **A RETIRED COMMAND, kept for its ordinal** `pnpm test`.\n";
+  assert.equal(parseReliabilityGates("s", body)[0]!.retired, false);
+});
+
+test("activeReliabilityGates drops the retired gates and keeps the rest in order", () => {
+  const gates = parseReliabilityGates("s", RETIRE_BODY);
+  assert.equal(gates.length, 3); // non-vacuity: the filter had something to remove
+  assert.deepEqual(
+    activeReliabilityGates(gates).map((g) => g.id),
+    ["s#gate-1", "s#gate-3"],
+  );
+});
+
+test("activeReliabilityGates is identity over a corpus with no retired gate", () => {
+  const gates = parseReliabilityGates("s", RETIRE_BODY.replace(" _(retired)_", ""));
+  assert.deepEqual(activeReliabilityGates(gates), gates);
+});
+
+test("ReliabilityGate rejects a non-boolean `retired` (strict schema, no silent coercion)", () => {
+  const parsed = ReliabilityGate.safeParse({
+    id: "s#gate-1",
+    title: "g",
+    kind: "observe",
+    covers: [],
+    retired: "yes",
+  });
+  assert.equal(parsed.success, false);
 });

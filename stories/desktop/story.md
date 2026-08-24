@@ -828,7 +828,8 @@ carries a `(covers:)`: each proves a JOURNEY, not a capability, and adding one t
 let an observe-and-sign `adopt` pass green a capability that never went red (ADR-0085 / ADR-0097). They
 are the same neither-drives-nor-spends witnesses gate 2 is, on the same honesty terms. Gates 3–5 and 7
 remain bound to current journeys. Gate 6 stays only to preserve every later positional identity; ADR-0404
-retired its criterion and the application path it named, so its entry below is explicitly unclaimed.
+retired its criterion and the application path it named, so its entry below is explicitly RETIRED
+(ADR-0436) — present for its ordinal, and no longer one of this story's own-proof obligations.
 
 **Why they exist, since each leg's own prose had ruled a minted gate out.** That ruling was against
 binding a leg to a SUITE that reaches only part of it, and it still stands — none of these gates does
@@ -854,14 +855,21 @@ cannot pass a leg nobody walked.
    returning the composed organism drivers' envelope rather than `static-server.ts`'s 503 fallback.
    **Live-gated:** the sidecar's fail-closed boot needs a git checkout and a reachable store, so a drive
    without them reports a fail naming that, never a pass.
-6. **~~UAT leg 5 — the credential reaches the in-process backend~~ — RETIRED COMMAND, kept only so gate 7 is not renumbered** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_eb82eaac877cccb9a9beea4f`.
-   **This gate is UNCLAIMED and its command is expected to remain red.** ADR-0404 deleted the desktop's
-   in-app Build route and production credentialed-runner composition; seq 37 then proved the live app
-   answers `404 build is not enabled`. The criterion was deleted rather than re-pointed to the CLI,
-   because a CLI build proves neither a desktop keychain hand-off nor a brokered desktop build. The gate
-   remains at ordinal 6 solely because `reliabilityGateId` is positional: deleting it would silently
-   re-point current leg 10's `desktop#gate-7` binding. Do not treat its retained command as a live
-   obligation or mint a replacement behaviour here.
+6. **~~UAT leg 5 — the credential reaches the in-process backend~~ — RETIRED IN PLACE, kept only so gate 7 is not renumbered** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_eb82eaac877cccb9a9beea4f`.
+   **This gate is RETIRED (ADR-0436) — it holds its ordinal and stands as NO obligation.** ADR-0404
+   deleted the desktop's in-app Build route and production credentialed-runner composition; seq 37 then
+   proved the live app answers `404 build is not enabled`. The criterion was deleted rather than
+   re-pointed to the CLI, because a CLI build proves neither a desktop keychain hand-off nor a brokered
+   desktop build. The gate remains at ordinal 6 solely because `reliabilityGateId` is positional:
+   deleting it would silently re-point current leg 10's `desktop#gate-7` binding. Do not treat its
+   retained command as a live obligation or mint a replacement behaviour here.
+   *(This clause read "**This gate is UNCLAIMED and its command is expected to remain red**"; corrected
+   in place per ADR-0139 when ADR-0436 landed the `(retired)` marker. The retention reasoning is
+   unchanged and still correct — what was WRONG was the consequence. A retained gate sat in the
+   ADR-0085 own-proof union, so "expected to remain red" meant this story's crown could never reach
+   green no matter what else was proven: a permanent false negative, not the honest "not yet earned"
+   ADR-0085 d.2 intended. The `(retired)` tag above is what takes it out of that union while the
+   ordinal stays burned.)*
 7. **UAT leg 10 — "launch refuses cleanly when a precondition is unmet — no half-wired shell (ADR-0176)" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts desktop uatc_ed15427cfebc9e03b298775e`.
    Witnesses that the REAL Electron launch honours the three branches its capability proves over injected
    doubles: no git checkout refuses IMMEDIATELY naming the unmet precondition and NEVER wakes the DB; with

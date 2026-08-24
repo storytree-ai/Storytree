@@ -240,25 +240,32 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
 
 ## Reliability Gates
 
-1. **~~The ready-PR landing seam is green~~ — DEAD COMMAND, kept only so no later gate is renumbered**
-   _(gate: observe)_
+1. **~~The ready-PR landing seam is green~~ — RETIRED IN PLACE, kept only so no later gate is renumbered**
+   _(gate: observe)_ _(retired)_
    `pnpm --filter @storytree/drive exec node --import tsx --test src/landing-deps.test.ts`.
-   **This command CANNOT RUN and must not be believed.** Measured 2026-08-21: it exits non-zero with
-   `Could not find 'src/landing-deps.test.ts'`, because
+   **This gate is RETIRED (ADR-0436) — it holds its ordinal and stands as NO obligation.** Measured
+   2026-08-21: the command exits non-zero with `Could not find 'src/landing-deps.test.ts'`, because
    ADR-0175
    retired the contributor-side landing surface with the interactive in-app orchestrator (ADR-0174) and
    `apps/desktop/src/backend/landing-surface-retired.test.ts` (`lsr-modules-deleted`) now ASSERTS that
    `packages/drive/src/landing-deps.ts` and `landing-deps.test.ts` stay deleted. Its criterion (story
-   UAT leg 1) was deleted on 2026-08-21 under ADR-0294 D2 as a withdrawn claim, and this gate is now
-   UNCLAIMED. It is left in place — and left un-repaired — for one reason only: `reliabilityGateId`
-   mints `<story>#gate-<n>` from POSITION, so removing it would renumber gates 2–7 and silently
-   re-point every already-signed verdict and every surviving `(proof-gate:)` binding onto a different
-   gate, with nothing reporting the change. *(It previously read "This dedicated integration file
-   proves the independent surfaces: real gate exit-code mapping; the PR-opening call's internal
-   commit → push → non-draft PR sequence and fail-closed step exits; PR URL parsing; and non-blocking
-   `verify` rollup classification." Every one of those surfaces is gone.)* **Do not mint a replacement
-   gate here** (ADR-0097 §2): if the repository ever grows a new repository-owned landing seam, that
-   seam earns proof at its own capability first.
+   UAT leg 1) was deleted on 2026-08-21 under ADR-0294 D2 as a withdrawn claim. The gate is left in
+   place — and its dead command left un-repaired — for one reason only: `reliabilityGateId` mints
+   `<story>#gate-<n>` from POSITION, so removing it would renumber gates 2–7 and silently re-point
+   every already-signed verdict and every surviving `(proof-gate:)` binding onto a different gate,
+   with nothing reporting the change. *(It previously read "DEAD COMMAND" and carried no `(retired)`
+   tag — that predated the marker; corrected in place per ADR-0139 when
+   `auditGateCommandFileRefs` (ADR-0436 Consequences) landed and reported it as an unrunnable LIVE
+   gate. The retention reasoning is unchanged; what was wrong was leaving it counted as a live
+   own-proof obligation this story's crown could never satisfy — the same permanent-false-negative
+   shape ADR-0436 named and fixed for `desktop#gate-6` and `terminal-tabs#gate-1`/`#gate-3`. The
+   `(retired)` tag above is what takes it out of that union while the ordinal stays burned.)*
+   *(It previously read "This dedicated integration file proves the independent surfaces: real gate
+   exit-code mapping; the PR-opening call's internal commit → push → non-draft PR sequence and
+   fail-closed step exits; PR URL parsing; and non-blocking `verify` rollup classification." Every
+   one of those surfaces is gone.)* **Do not mint a replacement gate here** (ADR-0097 §2): if the
+   repository ever grows a new repository-owned landing seam, that seam earns proof at its own
+   capability first.
 2. **The verify workflow keeps its hard merge-candidate floor** _(gate: observe)_
    `node --input-type=module -e "import fs from 'node:fs';const c=fs.readFileSync('.github/workflows/ci.yml','utf8');for(const s of ['pull_request:','branches: [main]','uses: actions/checkout@v6','Merged-branch guard (a branch dies on merge)','run: pnpm check:boundaries','run: pnpm check:mirror-conformance','run: pnpm check:web-grounding','run: pnpm check:web-engine','Affected scope (PRs only)','- name: Typecheck','- name: Test','run: pnpm -r build','run: pnpm check:guidance','run: pnpm check:agents','needs: verify'])if(!c.includes(s))throw new Error('missing verify seam: '+s)"`.
    The command reads the landed workflow itself and fails on removal of any named standing seam. The

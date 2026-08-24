@@ -1,4 +1,4 @@
-import { effectiveUatWitness } from "@storytree/library";
+import { activeReliabilityGates, effectiveUatWitness } from "@storytree/library";
 import type { ProveResult } from "./prove-it-gate.js";
 import type { NodeSpec } from "./node-spec.js";
 import { resolveBuildConfig } from "./resolve-prove-spec.js";
@@ -299,7 +299,9 @@ export function storyGoGreen(
     case "proposed":
       return isStoryBuildable(story, capabilities, "real") ? "build" : "none";
     case "mapped":
-      return story.reliabilityGates.length > 0 ? "adopt" : "none";
+      // ADR-0436: gates retired in place are not obligations, so a story whose ONLY gates are retired
+      // has no adoption to run — "none", not an adopt route that would refuse downstream.
+      return activeReliabilityGates(story.reliabilityGates).length > 0 ? "adopt" : "none";
     default:
       return "none";
   }

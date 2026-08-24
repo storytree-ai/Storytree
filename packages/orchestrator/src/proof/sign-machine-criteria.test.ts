@@ -53,6 +53,7 @@ const SHARED_GATE: ReliabilityGate = {
   kind: "observe",
   proofCommand: "pnpm --filter demo test",
   covers: [],
+  retired: false,
 };
 
 const OTHER_GATE: ReliabilityGate = {
@@ -61,6 +62,7 @@ const OTHER_GATE: ReliabilityGate = {
   kind: "observe",
   proofCommand: "pnpm --filter other test",
   covers: [],
+  retired: false,
 };
 
 /** N machine legs, all bound to `gateId` — the shape a well-covered story's UAT section really has. */

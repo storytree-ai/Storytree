@@ -1185,6 +1185,9 @@ export async function readTree(
   if (!existsSync(storiesDir))
     return { payload: { stories }, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
+  // ADR-0436: loaded lazily, past vite's config-load (`loadLibrary` above) — a top-level VALUE import
+  // of `@storytree/library` breaks `vite build`'s config load (studio-vite-config-load-trap).
+  const { activeReliabilityGates } = await loadLibrary();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
@@ -1224,7 +1227,10 @@ export async function readTree(
       // filtered out — aspirational, not green-blocking) + reliability gates (a pure port greens from
       // its reliability gates alone). Both are addressable `{ id }` obligation units.
       const witnessableUat = spec.uatTestCriteria.filter((t) => !t.wouldBe);
-      const ownObligations = [...witnessableUat, ...spec.reliabilityGates];
+      // ADR-0436: a gate RETIRED IN PLACE keeps its ordinal but leaves the obligation union — and
+      // leaves the coverage set below with it, or a withdrawn gate would still green a capability.
+      const liveGates = activeReliabilityGates(spec.reliabilityGates);
+      const ownObligations = [...witnessableUat, ...liveGates];
       if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
       // forest-parcels inc-2: the story's UAT test criteria ALONE (never the reliability gates) — the
       // marker walk summary membership. Set even when empty-of-gates, mirroring `ownObligations` above.
@@ -1238,10 +1244,10 @@ export async function readTree(
         );
       }
       // The reliability gates double as per-cap coverage (ADR-0097): id + the caps each `(covers:)`.
-      if (spec.reliabilityGates.length > 0) {
+      if (liveGates.length > 0) {
         coverageByStory.set(
           ent.name,
-          spec.reliabilityGates.map((g) => ({ id: g.id, covers: g.covers })),
+          liveGates.map((g) => ({ id: g.id, covers: g.covers })),
         );
       }
     } catch (err) {
