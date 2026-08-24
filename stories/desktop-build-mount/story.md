@@ -25,19 +25,19 @@ proof_mode: UAT
 # entry in the same landing — with no proof-bound source left in a foreign building, the register
 # entry would otherwise be a `packages-forward stale-register` violation (ADR-0192 D3).
 #
-# The UAT legs and gates below are KEPT and left unclaimed rather than renumbered: gate and criterion
-# ordinals are positional, so removing one silently re-points the surviving legs' (proof-gate:)
-# bindings and any signed verdict that named them. Body kept as history.
-# Per-leg witness (ADR-0106): the offline mechanics legs (the worker exports from its new drive home with
-# the studio importers still green; the desktop build route over a scripted runner; the desktop accept→
-# dispatch over a scripted runner) are machine-witnessed by the package + desktop suites. The LIVE driven
-# desktop walk (a real chat proposal accepted by a click that drives a real `story build --real` to a
-# spine-signed verdict + an opened PR) and its APPEARANCE are NOT this story's UAT legs — they are
-# chat-drive-bridge's operator-attested Story UAT legs 5–6 (ADR-0070), which this story UNBLOCKS by
-# delivering the mechanism. This story's own UAT proves the MECHANISM is mounted and reachable end-to-end
-# OFFLINE (scripted build runner, ADR-0010 §5 — never a live SDK build on a gate pass). The story-level
-# uat_witness is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT
-# node stays withheld; the crown derives from the per-leg roll-up.
+# The three reliability GATES below are KEPT and left unclaimed rather than renumbered: gate ordinals are
+# positional, so removing one silently re-points any signed verdict that named them. Body kept as history.
+# The UAT CRITERIA are all GONE — leg 3 retired by ADR-0155, leg 2 deleted 2026-08-21 (ADR-0294 D2), leg 1
+# deleted 2026-08-24 (ADR-0396 D1 on the ADR-0437 D1 fence, once ADR-0422 deleted the module its success
+# clause named). Every ordinal is BURNED and none was ever renumbered; this story declares ZERO criteria,
+# which ADR-0294 D5 allows, and greens on the ADR-0085 own-proof union via its capabilities alone.
+# (This block read "The UAT legs and gates below are KEPT and left unclaimed rather than renumbered" and
+# then described a per-leg witness posture for legs that no longer exist; corrected in place per ADR-0139.)
+# The LIVE driven desktop walk (a real chat proposal accepted by a click that drives a real
+# `story build --real` to a spine-signed verdict + an opened PR) and its APPEARANCE were never this story's
+# UAT legs — they are chat-drive-bridge's operator-attested Story UAT legs 5–6 (ADR-0070), which this story
+# UNBLOCKED by delivering the mechanism. The story-level uat_witness is absent → human (the ADR-0040
+# fail-closed signpost), so the machine-driven whole-story UAT node stays withheld.
 # desktop-build-route RETIRED by ADR-0404 (2026-08-22) — dispatching a build is a CLI verb, so the
 # desktop's POST/GET /api/build mount was removed: createBuildRouteMount + build-route.ts +
 # build-route.test.ts DELETED, with the wiring in electron/backend-entry.ts. Its `real:` arm bound those
@@ -431,26 +431,31 @@ desktop route drives the REAL relocated worker over a REAL node:http server. Onl
 live `story build --real` is subscription-billed AND lands real work, ADR-0010 §5) — and the live driven
 walk is exercised in chat-drive-bridge's operator-attested legs, NOT here.
 
-> **HONEST status — `proposed`, mechanism-mounted-offline; the live walk belongs to chat-drive-bridge.**
-> The ONE leg below (leg 2 deleted 2026-08-21 under ADR-0294 D2; leg 3 retired by ADR-0155) is
-> automatable by the package + desktop suites
-> (`@storytree/drive` + the desktop
-> `node:test` suite) over a scripted build runner + the in-memory seed. There is NO live leg in this
-> story's UAT — the live driven desktop build (a real `story build --real` to a spine-signed verdict + an
-> opened PR, with progress streamed back) and its appearance are **chat-drive-bridge's** operator-attested
-> Story UAT legs 5–6 (ADR-0070), which this story UNBLOCKS. This story's UAT therefore proves the MECHANISM
-> is mounted and reachable end-to-end offline; it deliberately does NOT re-prove or re-attest the live
-> walk that lives in chat-drive-bridge.
+> **HONEST status — RETIRED (ADR-0422), and this story now declares NO UAT criteria.** All three legs
+> are gone: leg 3 retired by ADR-0155, leg 2 deleted 2026-08-21 under ADR-0294 D2, and leg 1 deleted
+> 2026-08-24 under ADR-0396 D1 on the ADR-0437 D1 fence (see the note above the empty list). Every
+> ordinal is burned. The live driven desktop build (a real `story build --real` to a spine-signed
+> verdict + an opened PR, with progress streamed back) and its appearance were never this story's legs
+> — they are **chat-drive-bridge's** operator-attested Story UAT legs 5–6 (ADR-0070), and that is
+> unchanged by anything here. *(This paragraph read "`proposed`, mechanism-mounted-offline … The ONE
+> leg below … is automatable by the package + desktop suites (`@storytree/drive` + the desktop
+> `node:test` suite) over a scripted build runner + the in-memory seed" and described what "this
+> story's UAT therefore proves". There is no such leg and no such walkthrough any more; corrected in
+> place per ADR-0139.)*
 >
-> **Per-leg witness (ADR-0106).** The one remaining leg (`uat-1`) is `witness: machine` — the
-> suites demonstrably cover it and it names its exact proof gate, so the adopt pass
-> observe-and-signs it. *(This paragraph read "The two remaining legs (`uat-1`, `uat-2`) are
-> `witness: machine`" until 2026-08-21.)* **Leg 3 (the accept→dispatch
-> walk) was RETIRED by ADR-0155** with the `desktop-accept-dispatch` cap — the `/api/chat/accept` route +
-> `accept-dispatch.test.ts` were removed in PR #587, so there is nothing left to witness there. No leg is
-> `human` here (the human-witness legs are chat-drive-bridge's, not this story's). No leg rests `either`.
-> The story-level `uat_witness` is absent → human (the ADR-0040 fail-closed signpost), so the machine-driven
-> whole-story UAT node stays withheld; the crown derives from the per-leg roll-up.
+> **Per-leg witness (ADR-0106) — nothing left to witness.** With zero criteria there is no leg to tag,
+> and the story greens on the ADR-0085 own-proof union alone (ADR-0294 D5 allows zero criteria).
+> *(This paragraph read "The one remaining leg (`uat-1`) is `witness: machine` — the suites demonstrably
+> cover it and it names its exact proof gate, so the adopt pass observe-and-signs it", and before
+> 2026-08-21 "The two remaining legs (`uat-1`, `uat-2`) are `witness: machine`". Corrected in place per
+> ADR-0139 — and note the middle claim did not survive scrutiny: gate 3's suites stopped covering
+> `uat-1` when ADR-0422 deleted the module it named, which is why the leg went.)* **Leg 3 (the
+> accept→dispatch walk) was RETIRED by ADR-0155** with the `desktop-accept-dispatch` cap — the
+> `/api/chat/accept` route + `accept-dispatch.test.ts` were removed in PR #587, so there was nothing
+> left to witness there either. No leg was ever `human` here (the human-witness legs are
+> chat-drive-bridge's, not this story's), and none rested `either`. The story-level `uat_witness` is
+> absent → human (the ADR-0040 fail-closed signpost), so the machine-driven whole-story UAT node stays
+> withheld; the crown derives from the capabilities alone.
 
 > **ADR-0294 D2 pass — 2026-08-21.** **Leg 2** ("the desktop mounts a build route over the relocated
 > worker") was DELETED, not re-pointed. Its proof already lives one rung down at this story's own
@@ -472,8 +477,10 @@ walk is exercised in chat-drive-bridge's operator-attested legs, NOT here.
 > positional) now covering no capability, exactly as it already stood for `desktop-accept-dispatch`.
 >
 > Its ordinal `desktop-build-mount#uat-2` is BURNED and recorded `superseded` in
-> [`stories/uat-legacy-dispositions.json`](../uat-legacy-dispositions.json); leg 1 KEEPS ordinal 1
-> and no survivor may ever be renumbered onto 2. The leg carried `proven=–` (no signed verdict) at
+> [`stories/uat-legacy-dispositions.json`](../uat-legacy-dispositions.json); no criterion may ever be
+> renumbered onto 2. *(This read "leg 1 KEEPS ordinal 1 and no survivor may ever be renumbered onto 2";
+> leg 1 was itself deleted on 2026-08-24 and there is no survivor. Corrected in place per ADR-0139.)*
+> The leg carried `proven=–` (no signed verdict) at
 > deletion, so no proof credit was destroyed, and it held no `(detail:)` pointer, so no
 > `uat-criterion` artifact was orphaned. Reliability gate 2 is LEFT IN PLACE and is now unclaimed by
 > any criterion — gate ids are positional, so deleting one would silently re-point signed verdicts
@@ -496,7 +503,8 @@ desktop surface — every wall held (no app imports another app's server; the ro
 spine signs, not the route; CI is the second proof before the trunk). *(This paragraph and the retired-leg-3
 note below sat BELOW the numbered list until 2026-08-21. The parser appends every non-numbered line to the
 item currently open, so they were part of the last criterion's bound content; moving them above the list is
-what keeps leg 1's `(revision-id:)` binding intact now that it is the last item.)*
+what kept leg 1's `(revision-id:)` binding intact while it was the last item. Moot since 2026-08-24 — the
+list is empty, so no span is hashed — but kept as the reason the layout is the way it is.)*
 
 > **~~Leg 3. An accepted id POSTed to the desktop reaches the dispatch and streams progress back.~~
 > RETIRED by ADR-0155 (2026-07-04).** This leg proved the `desktop-accept-dispatch` cap — the desktop
@@ -513,23 +521,55 @@ what keeps leg 1's `(revision-id:)` binding intact now that it is the last item.
 
 > **ADR-0404 d.5 pass — 2026-08-21, leg 1 re-worded.** Leg 1's walkthrough named
 > `dispatchAcceptedBuild` as one of the four symbols to import from `@storytree/drive/build-worker`. That
-> export no longer exists, so the leg as written could not be executed as described. It now names
-> `routedBuildRunner` — which `build-worker-relocation.test.ts` imports and asserts — leaving the leg's
-> claim (the subpath resolves, the worker imports nothing from `apps/*`, the studio importers stay green)
-> intact. The criterion is NOT deleted and its `uatc_` id is unchanged; only the prose moved, so its
-> `(revision-id:)` was recomputed with `storytree uat rerevision` and the superseded value recorded as
-> `(previous-revision-id:)`. No ordinal was renumbered and no reliability gate was touched.
+> export no longer exists, so the leg as written could not be executed as described. It was re-pointed at
+> `routedBuildRunner` — which `build-worker-relocation.test.ts` then imported and asserted — leaving the
+> leg's claim (the subpath resolves, the worker imports nothing from `apps/*`, the studio importers stay
+> green) intact at the time. Only the prose moved, so its `(revision-id:)` was recomputed with
+> `storytree uat rerevision` and the superseded value recorded as `(previous-revision-id:)`. No ordinal
+> was renumbered and no reliability gate was touched.
+>
+> **OVERTAKEN 2026-08-24.** This note ended "The criterion is NOT deleted and its `uatc_` id is
+> unchanged", which is no longer true: the leg was deleted under ADR-0396 D1 / ADR-0437 D1. The
+> re-pointing above bought two days — ADR-0422 then deleted `routedBuildRunner`, the module and
+> `build-worker-relocation.test.ts` outright (`5aeb995a`, 2026-08-23), so the last surviving symbol in
+> the success clause went the way `dispatchAcceptedBuild` had. Read this note as the record of a
+> re-point that was correct when made, not as a live description. Corrected in place per ADR-0139.
 
 
-1. **The worker lives in a shared package, importing nothing from `apps/*`, and the studio still builds.** _(criterion-id: uatc_4840168f18bf2c73f3a547b8)_ _(revision-id: uatr1:50ed86368b85d445)_ _(previous-revision-id: uatr1:244dfa46ad675ff3)_
-   _(witness: machine)_ _(proof-gate: desktop-build-mount#gate-3)_ Import the worker trio (`BuildRegistry`, `runBuildJob`, `routedBuildRunner`,
-   the `BuildContext` type) from `@storytree/drive/build-worker`, and run the relocated worker's own suite +
-   the re-pointed studio server suite. **Success —** the subpath resolves and the trio is exported (it does
-   NOT resolve at HEAD — the right-kind module-not-found red); the relocated worker imports nothing from
-   `apps/*` (the ADR-0100 wall the relocation exists to satisfy, asserted structurally); the studio
-   importers (`apiRouter.ts`, `devApi.ts`) re-point at the package and the existing server suites
-   (`buildWorker.test.ts`, `buildRegistry.test.ts`, the two integration
-   suites) stay green from the new home (parity — no behaviour changed, only the home).
+> **~~Leg 1. The worker lives in a shared package, importing nothing from `apps/*`, and the studio
+> still builds.~~ DELETED 2026-08-24 under ADR-0396 D1, on the ADR-0437 D1 fence.** This story is
+> `status: retired` (ADR-0422), so its outcome is withdrawn and its acceptance steps carry no standing
+> obligation. **This leg is the corpus's first criterion ever deleted while holding proof credit, and
+> the reasoning is worth keeping.** It held a signed `pass` in `events.verdict`
+> (`uatc_4840168f18bf2c73f3a547b8`, `spine@storytree`, `adopted`, 2026-08-22 at `089ab013`), which is
+> exactly the state ADR-0396 D8's fence was written to protect — *"None of the 29 is in this state"*.
+> The fence does not hold here because **the proof is no longer real**: the leg's success clause names
+> `BuildRegistry` / `runBuildJob` / `routedBuildRunner` / `BuildContext` imported from
+> `@storytree/drive/build-worker`, and ADR-0422 deleted the module, its suite
+> `build-worker-relocation.test.ts` and the `./build-worker` subpath from `packages/drive/package.json`
+> (commit `5aeb995a`, 2026-08-23). Every noun in the clause is absent. Its gate — `#gate-3`,
+> `pnpm --filter @storytree/drive --filter studio test` — still exits 0, because it observes two whole
+> package suites whose *other* tests are green, so the green could neither fail nor expire (the ADR-0016
+> 90-day floor governs drive-witness gates, not suite `observe` gates).
+>
+> **The verdict was HONEST when it was signed** — `build-worker-relocation.test.ts` was present at
+> `089ab013` and went the following day — so nothing here says the relocation was never proven. It
+> says the criterion stopped being the anchor of a live proof. Keeping it would have left this
+> RETIRED story reading `story UAT: GREEN — every declared UAT test has a signed pass` permanently and
+> unfalsifiably; ADR-0437 D4 rules that a hollow green is worse than an honest absence.
+>
+> **What is NOT lost.** The relocation's proof proper lives one rung down: the capability
+> `worker-relocation` carries its own `adopted` verdict through gate 1's `(covers:)`. The signed
+> verdict row itself is untouched and stays in `events.verdict` as the durable record that this ran
+> (ADR-0437 D3 — the rollup walks corpus→verdict, so an orphaned row stops being looked up and no rung
+> reds). Ordinal **1** is BURNED; with leg 2 burned in 2026-08-21 and leg 3 retired by ADR-0155, no
+> `desktop-build-mount#uat-n` key can ever denote a second criterion. `desktop-build-mount#uat-1` is
+> recorded `superseded` in [`stories/uat-legacy-dispositions.json`](../uat-legacy-dispositions.json),
+> and this story now declares ZERO criteria — honest under ADR-0294 D5, greening on the ADR-0085
+> own-proof union rather than on a withdrawn walkthrough.
+
+**This story declares NO UAT test criteria.** All three legs are gone: leg 1 above, leg 2 by ADR-0294
+D2 (2026-08-21) and leg 3 retired by ADR-0155. Every ordinal is burned and none was ever renumbered.
 
 ## Reliability Gates
 
@@ -555,9 +595,18 @@ the existing suite.
 
 The capabilities span two owning package suites, so two observe gates name the capability each suite
 behaviourally covers (the coverage is real, not declared-only: each test is the cap's own integration
-test over its real collaborators, ADR-0097 §2). A third observe gate runs the drive and studio suites
-together solely for Story UAT leg 1: the leg promises both the relocated worker contract and the
-re-pointed studio importer parity, and neither owning-suite gate proves that full conjunction alone.
+test over its real collaborators, ADR-0097 §2). A third observe gate ran the drive and studio suites
+together solely for Story UAT leg 1: that leg promised both the relocated worker contract and the
+re-pointed studio importer parity, and neither owning-suite gate proved that full conjunction alone.
+
+> ⚠ **ALL THREE GATES ARE NOW UNCLAIMED BY ANY CRITERION (2026-08-24, ADR-0396 D6 / ADR-0437 D6), and
+> none may be deleted or renumbered.** Gate ids are minted from 1-based POSITION, so removing one
+> silently re-points already-signed verdicts and surviving `(proof-gate:)` bindings — `terminal-tabs`
+> gates 1 and 3 are the standing precedent for retained-but-unclaimed gates. Gate 2 has been unclaimed
+> since 2026-08-21 (leg 2 deleted) and covers no capability since ADR-0404. **Gate 3 became unclaimed
+> on 2026-08-24** when leg 1 was deleted; it carries no `(covers:)` and existed only to bind that leg,
+> so it now observes two real suites and claims nothing at all. Gate 1 still covers `worker-relocation`
+> through its `(covers:)` and is the only one of the three still doing work.
 
 1. **The relocated worker's `@storytree/drive` suite is green** _(gate: observe)_ _(covers: worker-relocation)_ `pnpm --filter @storytree/drive test`. The
    spine runs it at a clean committed HEAD and OBSERVES it green — the worker-relocation package-boundary
@@ -594,9 +643,15 @@ re-pointed studio importer parity, and neither owning-suite gate proves that ful
    The spine OBSERVES both suites through one executable pnpm command at a clean HEAD. The drive suite
    proves the relocated worker's exports, real registry/worker behaviour, and no-`apps/*` boundary;
    the studio suite proves the re-pointed server importers and integration surface remain green from
-   the new package home. Together they prove all of Story UAT leg 1, which binds to
-   `desktop-build-mount#gate-3`. This gate carries no `(covers:)`: gate 1 already covers
-   `worker-relocation`; this combined command exists only to bind the wider UAT leg honestly.
+   the new package home. **UNCLAIMED since 2026-08-24** — this gate existed solely to bind Story UAT
+   leg 1, and that leg was deleted under ADR-0396 D1 / ADR-0437 D1. It carries no `(covers:)`: gate 1
+   already covers `worker-relocation`. So it observes two real suites and greens nothing, which is
+   honest rather than broken. It is LEFT IN PLACE because gate ids are positional. *(This read
+   "Together they prove all of Story UAT leg 1, which binds to `desktop-build-mount#gate-3` … this
+   combined command exists only to bind the wider UAT leg honestly"; corrected in place per ADR-0139.
+   Worth knowing WHY the leg went: `build-worker-relocation.test.ts` — half of what this command used
+   to run — was deleted by ADR-0422, so this gate kept exiting 0 while no longer asserting the leg's
+   claim at all. A suite gate cannot tell you it has lost its subject.)*
 
 Adopting these three gates flips the story off `mapped`. `healthy` stays non-authorable
 (ADR-0020) — the authored `status:`
@@ -604,25 +659,27 @@ is never `healthy`; the world's crown DERIVES green from the signed verdicts
 (ADR-0040) and only when
 every capability is `healthy` (`worker-relocation` via gate 1; `routed-node-real-dispatch` via its own
 `--real` verdict — `desktop-build-route`, which greened via gate 2, was retired by ADR-0404 and no
-longer rolls into the crown) AND every own-proof obligation (the ONE
-machine-witnessed Story UAT leg above)
-is signed
+longer rolls into the crown) AND every own-proof obligation is signed
 (ADR-0082 /
-ADR-0083 Fork A + ADR-0085). No single gate greens the story; there are no `human` UAT legs here
-(`uat-1` is `witness: machine`; `uat-2` was deleted 2026-08-21 under ADR-0294 D2 and its ordinal is
-burned; the former leg 3 is retired and non-numbered), so it
-greens fully by machine observation once the gates + the leg are signed. *(This paragraph read "the two
-machine-witnessed Story UAT legs above" and "`uat-1` and `uat-2` are both `witness: machine`" until that
-deletion.)*
+ADR-0083 Fork A + ADR-0085). **There are NO own-proof obligations left: this story declares zero UAT
+criteria** — `uat-1` deleted 2026-08-24 under ADR-0396 D1 / ADR-0437 D1, `uat-2` deleted 2026-08-21
+under ADR-0294 D2, the former leg 3 retired and non-numbered, every ordinal burned — so the union
+reduces to the capabilities alone, which ADR-0294 D5 allows explicitly. No single gate greens the
+story. *(This paragraph read "every own-proof obligation (the ONE machine-witnessed Story UAT leg
+above) is signed … there are no `human` UAT legs here (`uat-1` is `witness: machine` …) so it greens
+fully by machine observation once the gates + the leg are signed", and before 2026-08-21 "the two
+machine-witnessed Story UAT legs above". Corrected in place per ADR-0139.)*
 
 ## Proof
 
-The story carries the UAT (above); it is proven when that walkthrough passes — the one remaining leg green under
-the combined drive + studio suite — with the capabilities' integration tests and
-contracts green underneath. *(This read "the two remaining legs green under the package + desktop
-suites" until 2026-08-21, when leg 2 was deleted under ADR-0294 D2 as a restatement of the
-`desktop-build-route` contracts the desktop suite already proved — and that capability was itself
-retired by ADR-0404 the next day.)* The capability/contract obligations are minimal-to-green (slow growth): the
+The story carries NO UAT criteria (above): it is RETIRED (ADR-0422) and its acceptance walkthrough was
+dissolved leg by leg, so its proof reduces to the capabilities' integration tests and contracts
+underneath. *(This read "it is proven when that walkthrough passes — the one remaining leg green under
+the combined drive + studio suite", and before 2026-08-21 "the two remaining legs green under the
+package + desktop suites". Leg 2 went under ADR-0294 D2 as a restatement of the `desktop-build-route`
+contracts the desktop suite already proved — and that capability was itself retired by ADR-0404 the
+next day; leg 1 went on 2026-08-24 under ADR-0396 D1 / ADR-0437 D1 once ADR-0422 deleted the module
+its success clause named. Corrected in place per ADR-0139.)* The capability/contract obligations are minimal-to-green (slow growth): the
 relocation's net-new assertion is the package-boundary contract (the worker exports from its new home,
 imports nothing from `apps/*`, the studio importers re-pointed + green); the desktop route WAS an
 integration test against the real relocated registry + a scripted runner on a real `node:http` server —

@@ -525,9 +525,9 @@
     },
     {
       "legacyTestId": "desktop-build-mount#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24) on the ADR-0437 D1 fence: the story retired (ADR-0422, 2026-08-23). This leg held a signed pass verdict in events.verdict (2026-08-22, honest when signed), but ADR-0422 deleted the module (BuildRegistry/runBuildJob/routedBuildRunner/BuildContext, the ./build-worker subpath) and its suite build-worker-relocation.test.ts the next day (commit 5aeb995a, 2026-08-23), so the proof is no longer real. ADR-0437 D1 narrows ADR-0396 D8's proof-credit fence to test whether the proof is still real, not merely whether a verdict row exists; this criterion fails that test and the claim is withdrawn with its story. The relocation's own proof survives one rung down on the worker-relocation capability.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "desktop-build-mount#uat-2",
@@ -831,9 +831,9 @@
     },
     {
       "legacyTestId": "map-terminal-build#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0404, 2026-08-21), withdrawing its outcome, so this leg's obligation is against a journey nobody will run and no instrument will ever discharge. The leg carried proven=- (no signed verdict, no attestation), so ADR-0437's proof-credit fence never engages. This claim is withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "map-terminal-build#uat-5",
@@ -843,15 +843,15 @@
     },
     {
       "legacyTestId": "map-terminal-build#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0404, 2026-08-21). This was the story's last human leg (the owner's acceptance of the seeded command's invocation form); its no-compiler basis dissolved because compose-build-command was retired with this story and buildCommand.ts was deleted (ADR-0404 D4), so there is no composer emitting a prefix to accept. The claim is withdrawn with its story.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "map-terminal-build#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0404, 2026-08-21). proven=- (no signed verdict; the one pass drive record is bound to a superseded revision and ten later fail records at the current revision are the honest history of a journey that stopped working before retirement). Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "model-judged-uat#uat-1",
@@ -1191,63 +1191,63 @@
     },
     {
       "legacyTestId": "studio-build#uat-1",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23), withdrawing its outcome. This leg's own journey (live-store reachability) still walks and acquired a pass drive record on 2026-08-24, but a drive record is not proof credit (ADR-0437 D2 -- no model signs its own verdict, ADR-0295 D2) and a precondition that still holds for a journey nobody can complete asserts nothing about a withdrawn story's product. Claim withdrawn with its story.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-2",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=-. Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-3",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=-. Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-4",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=-. Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-5",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24) on the ADR-0437 D1 fence: the story retired (ADR-0429, 2026-08-23). This leg held two signed pass verdicts in events.verdict (2026-08-21, 2026-08-22), but the proof was not real at either signing -- its gate observed apps/studio/server/buildApi.integration.test.ts, which ADR-0404 had already deleted (commit 902fd9a5, an ancestor of both signing commits). ADR-0437 D1 narrows ADR-0396 D8's proof-credit fence to test whether the proof is still real, not merely whether a verdict row exists; both verdicts were hollow when signed, so the fence does not hold and the claim is withdrawn with its story.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-6",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=-. Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-7",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=-. Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-8",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=-. Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-9",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=- (two fail drive records, 2026-08-12 and 2026-08-20; the first proved the old --live wording structurally unreachable from the UI, already re-homed in prose under 'Where the --live claim went' and on agent UAT leg 1 / agent#gate-2, so no finding is lost). Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-10",
-      "reviewedAt": "2026-08-02",
-      "rationale": "Unresolved at cutover: the positional key alone cannot establish continuity across pre-ADR-0253 revisions. History is retained for review and earns no current proof credit.",
-      "disposition": "unresolved"
+      "reviewedAt": "2026-08-24",
+      "rationale": "Deleted by ADR-0396 D1 (2026-08-24): the story retired (ADR-0429, 2026-08-23). proven=-. Claim withdrawn with its story, not relocated.",
+      "disposition": "superseded"
     },
     {
       "legacyTestId": "studio-build#uat-11",
