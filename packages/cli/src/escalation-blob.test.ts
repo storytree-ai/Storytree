@@ -24,6 +24,7 @@ const HEALTHY: DoctorObservations = {
   remoteReachable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
+  claudeTokenPresent: false,
   checkoutBehind: 0,
   hostedRead: "ok",
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
@@ -58,8 +59,8 @@ test("offline-but-otherwise-healthy yields NO escalation (undetermined remote is
 test("RED: no logged-in Claude CLI (subscription/identity) escalates to the owner", () => {
   const blob = buildEscalationBlob(runDoctor({ ...HEALTHY, claudeLoggedIn: false }));
   assert.equal(blob.needed, true);
-  const login = blob.unmet.find((u) => u.probe === "claude-login");
-  assert.ok(login, "the claude-login block must be named");
+  const login = blob.unmet.find((u) => u.probe === "claude-credential");
+  assert.ok(login, "the claude-credential block must be named");
   assert.equal(login.category, "identity");
   assert.ok(login.ownerAction.length > 0);
 });
@@ -90,20 +91,24 @@ test("triedRepairs carries the installer @steps the dev already re-ran (from the
     provisioned: false,
     dependencyCurrency: "unknown",
     claudeLoggedIn: false,
+    claudeTokenPresent: false,
   };
   const report = runDoctor(obs);
   const blob = buildEscalationBlob(report, { plan: planRepairs(report) });
   assert.equal(blob.needed, true);
   assert.ok(blob.triedRepairs.includes("git"), "git is a self-repair the dev tried before escalating");
   assert.ok(blob.triedRepairs.includes("provision"), "provision likewise");
-  assert.ok(!blob.triedRepairs.includes("claude-login"), "the login is the escalation, not a self-repair try");
+  assert.ok(
+    !blob.triedRepairs.includes("claude-credential"),
+    "the credential is the escalation, not a self-repair try",
+  );
 });
 
 test("formatEscalationBlob renders a paste-able, structured escalation", () => {
   const text = formatEscalationBlob(buildEscalationBlob(runDoctor({ ...HEALTHY, claudeLoggedIn: false })));
   assert.match(text, /escalation to owner/i);
   assert.match(text, /Blocked on/);
-  assert.match(text, /claude-login/);
+  assert.match(text, /claude-credential/);
   assert.match(text, /Full setup status/, "the redacted environment is included for context");
 });
 
@@ -120,11 +125,11 @@ test("D3: redact() strips a credentials path, an sk-ant token, and a long opaque
 });
 
 test("D3: even if a probe detail LEAKED the credentials path/token, the blob and its text carry neither", () => {
-  // Craft a doctor report whose claude-login detail maliciously embeds the credential file + a token.
+  // Craft a doctor report whose claude-credential detail maliciously embeds the credential file + a token.
   const poisoned: DoctorReport = {
     probes: [
       {
-        name: "claude-login",
+        name: "claude-credential",
         level: "FAIL",
         detail: "token sk-ant-oat01-SECRETSECRETSECRETSECRETSECRETSECRET at ~/.claude/.credentials.json",
         fixHint: "sign in",

@@ -22,11 +22,12 @@
  *   • D6 REPAIR-VOCABULARY: a confirmed installer repair emits a {@link RunInstallerStep} directive naming
  *     the exact `infra/install.ps1` `# @step:<name>` (carried from the plan, from the probe's fixStep) —
  *     the loop never invents a repair; it re-runs an idempotent installer step.
- *   • D3 NEVER-HANDLE-CREDENTIALS: the `claude-login` failure is an INSTRUCTION, never an installer step.
- *     The loop proposes it, and on confirm emits an {@link InstructInstruction} directive (the dev signs in
- *     out of band) — it NEVER emits a RunInstallerStep for login, so storytree still never executes or
- *     captures the credential. If login is still absent after the dev's own attempt, THAT is when it
- *     escalates (a lapsed subscription is the owner's to hear about).
+ *   • NEVER-MINT-OR-DISCLOSE (ADR-0430 D6): the `claude-credential` failure is an INSTRUCTION, never an
+ *     installer step. The loop proposes it, and on confirm emits an {@link InstructInstruction} directive
+ *     (the dev takes one of ADR-0430's two routes out of band) — it NEVER emits a RunInstallerStep for a
+ *     credential, so storytree still never mints, executes or captures one. If no credential has arrived
+ *     by either route after the dev's own attempt, THAT is when it escalates (a lapsed subscription, or a
+ *     vault the box cannot read, is the owner's to hear about).
  *
  * Termination is guaranteed: every proposed probe (confirmed-and-enacted, or declined) is recorded in
  * `attempted`, and a probe is never proposed twice. So an installer step that does NOT clear its probe is

@@ -503,12 +503,16 @@ Three things cost real time and none of them had a row:
    two `DROP TABLE IF EXISTS` lines are a completed ADR-0200 D7 retirement that no-ops on every later
    run — but that was the schema file's good manners, not a guard. Filed as friction
    (`db-schema-applies-ddl-while-reading-as-an-inspection-verb`).
-3. **`doctor --dev`'s `claude-login` FAILS a correctly-provisioned box.** Under ADR-0430 the token
-   comes from Secret Manager and `~/.claude/.credentials.json` is legitimately absent — but the probe
-   looks only for a browser-logged-in CLI, and its fix hint still prescribes the retired ADR-0207 D3
-   invariant, i.e. running `claude setup-token`, which §2.2 forbids in bold. Filed as friction
-   (`doctor-claude-login-fails-a-correctly-provisioned-vault-box`). **Until it is re-pointed, treat a
-   lone `claude-login` failure on a vault-provisioned box as expected.**
+3. **`doctor`'s Claude probe FAILED a correctly-provisioned box** — FIXED, and it is now called
+   `claude-credential`. Under ADR-0430 the token comes from Secret Manager and
+   `~/.claude/.credentials.json` is legitimately absent, but the probe looked only for a
+   browser-logged-in CLI and its fix hint prescribed the very `claude setup-token` §2.2 forbids in
+   bold. Filed as friction (`doctor-claude-login-fails-a-correctly-provisioned-vault-box`). It now
+   PASSes on EITHER route — a logged-in CLI, or a non-blank `CLAUDE_CODE_OAUTH_TOKEN` this machine can
+   hydrate — and names in its detail which one it found. The RENAME landed with it rather than after
+   it: `claude-login` is a keyed discriminant on the escalation path, so a widened probe still called
+   `claude-login` would both read `[ok]` on a box with no login and route a vault-side failure down
+   the identity branch. A FAIL now means neither route produced a credential, and says so.
 
 **Also not yet true: ADR-0430 D5.** There is no GitHub credential in the vault and no code path reads
 Secret Manager, so "one sign-in provisions a machine" is the target, not the present. This run needed

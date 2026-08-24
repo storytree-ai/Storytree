@@ -16,10 +16,12 @@
  *     `infra/install.ps1` `# @step:<name>` marker (carried forward from the probe's `fixStep`); the
  *     guide re-runs THAT step. The step names never drift from the installer (asserted in the test,
  *     against the same install.ps1 the doctor test reads).
- *   • D3 NEVER-HANDLE-CREDENTIALS: the `claude-login` failure is NOT executable by storytree. It
- *     becomes an {@link InstructionAction} carrying NO installer step and `executable: false` — the
- *     guide INSTRUCTS the dev to sign in with their own subscription and storytree never runs or
- *     captures the credential. The detect-and-instruct boundary is a structural property of the plan.
+ *   • NEVER-MINT-OR-DISCLOSE (ADR-0430 D6): the `claude-credential` failure is NOT executable by
+ *     storytree. It becomes an {@link InstructionAction} carrying NO installer step and
+ *     `executable: false` — the guide INSTRUCTS the dev to take one of ADR-0430's two routes (sign in
+ *     with their own subscription, or bring the vault token into the secrets file) and storytree never
+ *     mints, runs or captures the credential. The detect-and-instruct boundary is a structural property
+ *     of the plan.
  *
  * Scope (slow-growth, minimum-to-green): the plan targets FAILing probes — the genuinely-unmet
  * invariants the guide must repair before onboarding proceeds. WARNs (offline-undetermined remote,
@@ -45,8 +47,8 @@ export interface InstallerStepAction {
 }
 
 /**
- * A repair storytree can only INSTRUCT, never enact — the dev must act themselves. Covers the D3
- * `claude-login` case (sign in with your own subscription; storytree never handles the credential).
+ * A repair storytree can only INSTRUCT, never enact — the dev must act themselves. Covers the
+ * `claude-credential` case (either ADR-0430 route; storytree never mints or discloses the credential).
  */
 export interface InstructionAction {
   readonly kind: "instruction";
@@ -71,7 +73,7 @@ export interface RepairPlan {
 function actionFor(probe: Probe): RepairAction {
   const instruction = probe.fixHint ?? `resolve: ${probe.detail}`;
   // A fixStep => an idempotent installer step the guide re-runs (D6). No fixStep => a dev instruction
-  // storytree only narrates, never executes (the D3 claude-login boundary, and any future dev action).
+  // storytree only narrates, never executes (the claude-credential boundary, and any future dev action).
   if (probe.fixStep !== undefined) {
     return { kind: "installer-step", probe: probe.name, step: probe.fixStep, instruction, executable: true };
   }

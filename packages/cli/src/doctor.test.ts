@@ -14,6 +14,7 @@ import {
   classifyHostedReadStatus,
   HOSTED_READ_REFUSED_DETAIL,
   NODE_MAJOR_FLOOR,
+  claudeTokenHydratable,
   type DoctorObservations,
 } from "./doctor.js";
 import { GUIDANCE_BUDGET_BYTES, measureGuidanceSurface } from "./session-cost.js";
@@ -26,8 +27,9 @@ import { needsRelink } from "../provision-worktree.mjs";
  * load-bearing ADR-0207 invariants encoded as structural assertions:
  *   • D6 repair-vocabulary: every installer-repairable probe's `fixStep` names a REAL `# @step:`
  *     marker in `infra/install.ps1` (the single source of the repair steps — no drift).
- *   • D3 never-handle-credentials: the `claude-login` probe carries NO `fixStep` (its fix is a dev
- *     action storytree instructs, never an installer step it executes).
+ *   • NEVER-MINT-OR-DISCLOSE (ADR-0430 D6): the `claude-credential` probe carries NO `fixStep` (its
+ *     fix is a dev action storytree instructs, never an installer step it executes), it PASSES on
+ *     EITHER of ADR-0430's two routes, and its detail names WHICH route was found.
  *
  * And one invariant of doctor's own: a probe claims EXACTLY what it observed. The presence/currency
  * split (`checkout-provisioned` vs `dependencies-current`) is where that is proven — see the
@@ -43,7 +45,10 @@ const HEALTHY: DoctorObservations = {
   dependencyCurrency: "current",
   remoteReachable: true,
   claudeCliPresent: true,
+  // ONE of ADR-0430's two routes to a Claude credential, deliberately: a fixture that set both would
+  // pass the probe for two reasons and prove neither. The route split is exercised head-on below.
   claudeLoggedIn: true,
+  claudeTokenPresent: false,
   checkoutBehind: 0,
   hostedRead: "ok",
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
@@ -60,7 +65,9 @@ const BROKEN: DoctorObservations = {
   dependencyCurrency: "unknown",
   remoteReachable: false,
   claudeCliPresent: false,
+  // NEITHER route — which is what it takes to fail the credential probe since ADR-0430.
   claudeLoggedIn: false,
+  claudeTokenPresent: false,
   checkoutBehind: null,
   hostedRead: "unconfigured",
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
@@ -321,13 +328,112 @@ test("dependencyCurrency: an unprovisioned checkout is UNKNOWN — never 'curren
   }
 });
 
-// --- ADR-0207 D3: never handle credentials ------------------------------------------------------
-test("D3: the claude-login probe detects-and-instructs — it carries NO installer fixStep", () => {
+// --- ADR-0430 D6: never mint, never disclose ----------------------------------------------------
+test("the claude-credential probe detects-and-instructs — it carries NO installer fixStep", () => {
   const report = runDoctor(BROKEN);
-  const login = report.probes.find((p) => p.name === "claude-login");
-  assert.equal(login?.level, "FAIL");
-  assert.equal(login?.fixStep, undefined, "login is a dev action, never an installer step (D3)");
-  assert.match(login?.fixHint ?? "", /claude/i);
+  const credential = report.probes.find((p) => p.name === "claude-credential");
+  assert.equal(credential?.level, "FAIL");
+  assert.equal(
+    credential?.fixStep,
+    undefined,
+    "storytree still never MINTS a credential — both remedies are dev actions (ADR-0430 D6)",
+  );
+  assert.match(credential?.fixHint ?? "", /claude/i);
+});
+
+// --- ADR-0430: TWO disjoint routes to one credential --------------------------------------------
+// The probe used to observe the browser login alone, which made it FAIL on the machine
+// `docs/machine-onboarding.md` PRESCRIBES — vault-provisioned, no login, and correct. Widening it
+// without renaming it would have swapped one lie for another: `[ok] claude-login` on a machine with
+// no login. These four cases are the widening, and the second is the one the rename exists for.
+
+const credentialProbe = (obs: DoctorObservations) =>
+  runDoctor(obs).probes.find((p) => p.name === "claude-credential")!;
+
+test("route 1 — a browser-logged-in CLI PASSes, and the detail says so", () => {
+  const probe = credentialProbe({ ...HEALTHY, claudeLoggedIn: true, claudeTokenPresent: false });
+  assert.equal(probe.level, "PASS");
+  assert.match(probe.detail, /logged-in Claude CLI/, "the login route must be named as the one found");
+});
+
+test("route 2 — a TOKEN alone PASSes, and its detail does NOT read as a login", () => {
+  // The case the whole rename exists for: on an ADR-0430 fleet box `~/.claude/.credentials.json` is
+  // legitimately absent. A PASS is correct; a PASS that says "logged in" would be false.
+  const probe = credentialProbe({ ...HEALTHY, claudeLoggedIn: false, claudeTokenPresent: true });
+  assert.equal(probe.level, "PASS");
+  assert.match(probe.detail, /CLAUDE_CODE_OAUTH_TOKEN/, "the token route must be named as the one found");
+  assert.ok(
+    !/logged[- ]in/i.test(probe.detail),
+    "a token is not a login — the detail must not claim one (a probe asserts exactly what it observed)",
+  );
+  assert.equal(probe.fixHint, undefined, "a PASS carries no fix hint");
+});
+
+test("neither route — FAILs with a hint offering BOTH routes and never `setup-token`", () => {
+  const probe = credentialProbe({ ...HEALTHY, claudeLoggedIn: false, claudeTokenPresent: false });
+  assert.equal(probe.level, "FAIL");
+  const hint = probe.fixHint ?? "";
+  assert.match(hint, /claude/i, "the hint must offer the browser-login route");
+  assert.match(hint, /CLAUDE_CODE_OAUTH_TOKEN/, "the hint must offer the token route");
+  assert.ok(
+    !hint.includes("setup-token") && !probe.detail.includes("setup-token"),
+    "machine-onboarding.md §2.2 forbids minting a second token — it can take another machine down",
+  );
+});
+
+test("the credential probe never carries a VALUE — presence is reported by name only (ADR-0430 D6)", () => {
+  for (const obs of [
+    { ...HEALTHY, claudeLoggedIn: true, claudeTokenPresent: false },
+    { ...HEALTHY, claudeLoggedIn: false, claudeTokenPresent: true },
+    { ...HEALTHY, claudeLoggedIn: false, claudeTokenPresent: false },
+  ]) {
+    const probe = credentialProbe(obs);
+    const text = `${probe.detail} ${probe.fixHint ?? ""}`;
+    assert.ok(!/sk-ant-/.test(text), "no credential shape may appear in the probe's text");
+    assert.ok(
+      !text.includes(".credentials.json"),
+      "not even the credential file's path — the probe observes existence, it never names the file",
+    );
+  }
+});
+
+// --- the token OBSERVATION: blank is a gap, and the secrets file is a real route ------------------
+test("a BLANK CLAUDE_CODE_OAUTH_TOKEN is a GAP, not a credential — it reaches the same FAIL as an absent one", () => {
+  const noFile = join(tmpdir(), "storytree-doctor-no-such-secrets.json");
+  const blank = claudeTokenHydratable({
+    STORYTREE_SECRETS_FILE: noFile,
+    CLAUDE_CODE_OAUTH_TOKEN: "   ",
+  });
+  const absent = claudeTokenHydratable({ STORYTREE_SECRETS_FILE: noFile });
+  assert.equal(blank, false, "`VAR=` is how a shell says NOT CONFIGURED (presentEnv's rule)");
+  assert.equal(absent, false);
+  // …and the two are indistinguishable downstream, which is the point: a mangled export must not
+  // buy a PASS the machine cannot cash.
+  assert.equal(
+    credentialProbe({ ...HEALTHY, claudeLoggedIn: false, claudeTokenPresent: blank }).level,
+    credentialProbe({ ...HEALTHY, claudeLoggedIn: false, claudeTokenPresent: absent }).level,
+  );
+});
+
+test("the token route is HYDRATABLE, not merely already-exported — the secrets file counts", () => {
+  const dir = mkdtempSync(join(tmpdir(), "storytree-doctor-secrets-"));
+  const file = join(dir, "secrets.json");
+  try {
+    writeFileSync(file, JSON.stringify({ CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-EXAMPLE" }), "utf8");
+    assert.equal(
+      claudeTokenHydratable({ STORYTREE_SECRETS_FILE: file }),
+      true,
+      "`~/.storytree/secrets.json` is the durable half of the token route — the CLI hydrates from it",
+    );
+    writeFileSync(file, JSON.stringify({ CLAUDE_CODE_OAUTH_TOKEN: "" }), "utf8");
+    assert.equal(
+      claudeTokenHydratable({ STORYTREE_SECRETS_FILE: file }),
+      false,
+      "blankness is applied on BOTH sides — the hydrator itself skips a blank file value",
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // --- ADR-0207 D6: the fix vocabulary IS the installer's idempotent steps ------------------------
@@ -373,7 +479,7 @@ test("formatDoctorReport renders one greppable line per probe plus a fix line un
     "checkout-provisioned",
     "dependencies-current",
     "claude-cli",
-    "claude-login",
+    "claude-credential",
   ]) {
     assert.ok(text.includes(name), `report should name the ${name} probe`);
   }

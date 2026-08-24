@@ -33,6 +33,7 @@ const BOTH_ACCESS_REFUSED: DoctorObservations = {
   remoteReachable: false, // GitHub Read refused
   claudeCliPresent: true,
   claudeLoggedIn: true,
+  claudeTokenPresent: false,
   checkoutBehind: 0,
   hostedRead: "refused", // IAP access refused
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
