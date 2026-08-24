@@ -11,7 +11,7 @@ import {
   type ComposedBasisEntry,
   type ComposedStatementFields,
 } from "./composed-statement.js";
-import { decisionAmendsResolver } from "./decision-amends-seam.js";
+import { decisionSupportResolver } from "./decision-support-seam.js";
 import { Adr } from "./knowledge.js";
 
 // ---------------------------------------------------------------------------
@@ -51,34 +51,34 @@ test("composed-statement: the two FNV seeds do not produce the same half", () =>
 // decisionsBeneath
 // ---------------------------------------------------------------------------
 
-test("composed-statement: the closure walks BOTH support edges and excludes the root", () => {
-  const resolver = decisionAmendsResolver([
-    { number: 400, amends: [300], dependsOn: ["asset:adr-0200"] },
-    { number: 300, amends: [100], dependsOn: [] },
-    { number: 200, amends: [], dependsOn: [] },
-    { number: 100, amends: [], dependsOn: [] },
+test("composed-statement: the closure walks the support edge and excludes the root", () => {
+  const resolver = decisionSupportResolver([
+    { number: 400, dependsOn: ["asset:adr-0300", "asset:adr-0200"] },
+    { number: 300, dependsOn: ["asset:adr-0100"] },
+    { number: 200, dependsOn: [] },
+    { number: 100, dependsOn: [] },
   ]);
   assert.deepEqual(decisionsBeneath(400, resolver), [100, 200, 300]);
 });
 
 test("composed-statement: a `dependsOn` pointer naming a non-decision is skipped, not rounded", () => {
-  const resolver = decisionAmendsResolver([
-    { number: 400, amends: [], dependsOn: ["asset:merge-ceremony", "doc:README.md", "asset:adr-0100"] },
-    { number: 100, amends: [], dependsOn: [] },
+  const resolver = decisionSupportResolver([
+    { number: 400, dependsOn: ["asset:merge-ceremony", "doc:README.md", "asset:adr-0100"] },
+    { number: 100, dependsOn: [] },
   ]);
   assert.deepEqual(decisionsBeneath(400, resolver), [100]);
 });
 
 test("composed-statement: a target the log does not hold is not walked into", () => {
-  const resolver = decisionAmendsResolver([{ number: 400, amends: [999], dependsOn: [] }]);
+  const resolver = decisionSupportResolver([{ number: 400, dependsOn: ["asset:adr-0999"] }]);
   assert.deepEqual(decisionsBeneath(400, resolver), []);
 });
 
 test("composed-statement: the closure terminates on a cycle rather than looping", () => {
   // A cyclic support graph is a defect `probe:adr-graph` owns; this walk must not HANG on one.
-  const resolver = decisionAmendsResolver([
-    { number: 2, amends: [1], dependsOn: [] },
-    { number: 1, amends: [2], dependsOn: [] },
+  const resolver = decisionSupportResolver([
+    { number: 2, dependsOn: ["asset:adr-0001"] },
+    { number: 1, dependsOn: ["asset:adr-0002"] },
   ]);
   assert.deepEqual(decisionsBeneath(2, resolver), [1]);
 });

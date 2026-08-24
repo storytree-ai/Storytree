@@ -54,6 +54,7 @@ import { resolveDecisionId } from "@storytree/context-traversal-transcript";
 import { adrDocumentFieldsOf } from "@storytree/library/adr-doc";
 import { closePool, createPool, PgLibraryStore } from "@storytree/library/store";
 
+import { frozenAmendsEdges } from "./probe-decision-gather.js";
 import {
   agreementBetween,
   ALTITUDE_CLASSES,
@@ -98,6 +99,12 @@ interface DecisionRow {
 }
 
 async function loadDecisionRows(store: PgLibraryStore): Promise<DecisionRow[]> {
+  const frozenBySource = new Map<number, number[]>();
+  for (const edge of frozenAmendsEdges()) {
+    const existing = frozenBySource.get(edge.from);
+    if (existing === undefined) frozenBySource.set(edge.from, [edge.to]);
+    else existing.push(edge.to);
+  }
   const rows: DecisionRow[] = [];
   for (const stored of await store.queryDocs({ kind: "adr" })) {
     const fields = adrDocumentFieldsOf(stored.doc as Record<string, unknown>);
@@ -111,7 +118,13 @@ async function loadDecisionRows(store: PgLibraryStore): Promise<DecisionRow[]> {
       number,
       title: fields.title,
       section: decisionSection(fields.body),
-      amends: fields.amends,
+      // THE FROZEN EDGE SET, NOT THE LIVE ROWS. ADR-0431 D1 retired `amends` and `-inc-19` removed
+      // the field, so the document can no longer carry it — but this probe's altitude reading is
+      // compared against figures frozen BEFORE the migration
+      // (`docs/research/decision-altitude-2026-08-23.md`), and an arm that silently read 0 would
+      // report a collapse where a join key was retired. Both arms therefore read the ADR-0431 D2
+      // snapshot, which is the same thing `probe:amends-reach` does for the same reason.
+      amends: frozenBySource.get(number) ?? [],
       dependsOn: fields.dependsOn ?? [],
     });
   }

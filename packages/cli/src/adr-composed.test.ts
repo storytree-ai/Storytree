@@ -35,7 +35,6 @@ async function seed(
       body: `# ADR-${String(number).padStart(4, "0")}: ${title}\n\n## Decision\n\nSomething.\n`,
       number,
       status: "accepted",
-      amends: [],
       supersedes: [],
       loadBearing: false,
       references: [],
@@ -46,12 +45,12 @@ async function seed(
   });
 }
 
-/** A three-record chain, frontier first: 0278 amends 0200, which amends 0100. 0278 is TREATED. */
+/** A three-record chain, frontier first: 0278 rests on 0200, which rests on 0100. 0278 is TREATED. */
 async function chain(): Promise<InMemoryStore> {
   const store = new InMemoryStore();
   await seed(store, 100, "The bottom");
-  await seed(store, 200, "The middle", { amends: [100] });
-  await seed(store, 278, "The frontier", { amends: [200] });
+  await seed(store, 200, "The middle", { dependsOn: ["asset:adr-0100"] });
+  await seed(store, 278, "The frontier", { dependsOn: ["asset:adr-0200"] });
   return store;
 }
 
@@ -136,7 +135,7 @@ test("adr compose: a record beneath that MOVES raises an outstanding effect", as
   let env = await run(["adr", "compose", "278"], { store, now: () => NOW });
   assert.match(env.body, /nothing beneath has moved since/);
 
-  await seed(store, 200, "The middle, rewritten", { amends: [100] });
+  await seed(store, 200, "The middle, rewritten", { dependsOn: ["asset:adr-0100"] });
   env = await run(["adr", "compose", "278"], { store, now: () => NOW });
   assert.match(env.body, /EFFECTS NOT YET APPLIED — 1 record beneath moved/);
   assert.match(env.body, /ADR-0200 {2}changed since this was composed/);
@@ -148,7 +147,7 @@ test("adr compose: a record ADDED beneath raises an outstanding effect, not sile
   const store = await chain();
   await run(["adr", "compose", "278", "--statement", "X"], { store, writable: true, now: () => NOW });
   await seed(store, 150, "A new record");
-  await seed(store, 200, "The middle", { amends: [100, 150] });
+  await seed(store, 200, "The middle", { dependsOn: ["asset:adr-0100", "asset:adr-0150"] });
   const env = await run(["adr", "compose", "278"], { store, now: () => NOW });
   assert.match(env.body, /ADR-0150 {2}is beneath this record now and was not composed over/);
 });
@@ -156,7 +155,7 @@ test("adr compose: a record ADDED beneath raises an outstanding effect, not sile
 test("adr compose: re-affirming re-stamps the basis and discharges the marker", async () => {
   const store = await chain();
   await run(["adr", "compose", "278", "--statement", "X"], { store, writable: true, now: () => NOW });
-  await seed(store, 200, "The middle, rewritten", { amends: [100] });
+  await seed(store, 200, "The middle, rewritten", { dependsOn: ["asset:adr-0100"] });
 
   const env = await run(["adr", "compose", "278", "--statement", "X, re-checked"], {
     store,
@@ -174,7 +173,7 @@ test("adr compose: the whole-log index names which statements carry outstanding 
   let env = await run(["adr", "compose"], { store });
   assert.match(env.body, /1 composed statement, 0 carrying outstanding effects/);
 
-  await seed(store, 200, "The middle, rewritten", { amends: [100] });
+  await seed(store, 200, "The middle, rewritten", { dependsOn: ["asset:adr-0100"] });
   env = await run(["adr", "compose"], { store });
   assert.match(env.body, /1 composed statement, 1 carrying outstanding effects/);
   assert.match(env.body, /ADR-0278 {2}2026-08-23 {2}\(whole record\) {2}⚠ 1 effect not yet applied/);
@@ -230,7 +229,7 @@ test("adr compose: a CONTROL-arm frontier is refused, and the refusal names the 
   // parsing — which is the point: the fence is worth nothing if it silently stops running.
   const store = new InMemoryStore();
   await seed(store, 142, "Branch dies on merge");
-  await seed(store, 419, "Deprecate amends for plain support", { amends: [142] });
+  await seed(store, 419, "Deprecate amends for plain support", { dependsOn: ["asset:adr-0142"] });
   const env = await run(["adr", "compose", "419", "--statement", "X"], {
     store,
     writable: true,
@@ -245,7 +244,7 @@ test("adr compose: a CONTROL-arm frontier is refused, and the refusal names the 
 test("adr compose --allow-control-arm: the escape is explicit and it works", async () => {
   const store = new InMemoryStore();
   await seed(store, 142, "Branch dies on merge");
-  await seed(store, 419, "Deprecate amends for plain support", { amends: [142] });
+  await seed(store, 419, "Deprecate amends for plain support", { dependsOn: ["asset:adr-0142"] });
   const env = await run(
     ["adr", "compose", "419", "--statement", "X", "--allow-control-arm"],
     { store, writable: true, now: () => NOW },
@@ -283,7 +282,7 @@ test("adr push does NOT clear a composed statement — a corrected document is n
   const before = (await rowOf(store, "adr-0278"))["composed"];
 
   const document =
-    "---\nstatus: accepted\namends: [200]\n---\n# ADR-0278: The frontier\n\n## Decision\n\nSomething else.\n";
+    '---\nstatus: accepted\ndepends_on: ["asset:adr-0200"]\n---\n# ADR-0278: The frontier\n\n## Decision\n\nSomething else.\n';
   const path = `${process.env["TEMP"] ?? "."}/adr-0278-round-trip.md`;
   const { writeFile, rm } = await import("node:fs/promises");
   await writeFile(path, document, "utf8");

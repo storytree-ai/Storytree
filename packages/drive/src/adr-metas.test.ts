@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  decisionAmendsResolver,
+  decisionSupportResolver,
   depthFromWorkNodes,
   evaluateDepthFromWork,
 } from "@storytree/library";
@@ -14,7 +14,7 @@ import { loadTitledAdrMetasFromStore } from "./adr-metas.js";
 /**
  * THE PROJECTION IS WHERE ADR-0419 D1's SUPPORT EDGE LIVES OR DIES.
  *
- * `decision-amends-seam.ts` and `knowledge-depth.ts` are exhaustively unit-tested over literal rows,
+ * `decision-support-seam.ts` and `knowledge-depth.ts` are exhaustively unit-tested over literal rows,
  * and every one of those tests passed on 2026-08-23 while the traversal was completely INERT over
  * real data: `AdrMeta` had no `dependsOn` field, so `loadTitledAdrMetasFromStore` dropped it before
  * any resolver could be built from it. A green suite one layer in cannot see that — the walk was
@@ -46,7 +46,6 @@ async function seedDecision(
       body: `# ADR-${String(number).padStart(4, "0")}: Decision ${String(number)}\n`,
       number,
       status: "accepted",
-      amends: [],
       supersedes: [],
       loadBearing: false,
       references: [],
@@ -115,7 +114,7 @@ test("dependsOn PRESENCE survives the projection — an empty array is not the s
   assert.equal(byNumber.get(101)?.dependsOn, undefined, "absent — never defaulted to []");
 
   // …and the seam reads that difference the way it is meant to.
-  const resolver = decisionAmendsResolver(adrs);
+  const resolver = decisionSupportResolver(adrs);
   assert.equal(resolver.decisionsCarryingDependsOn, 1, "one of the two rows was READ");
 });
 
@@ -145,59 +144,58 @@ test("the FRONTMATTER twin stays blind, deliberately — parseAdrFrontmatter set
   // the meaningful "this reader cannot see the edge", not an oversight — so it is pinned.
   const meta = parseAdrFrontmatter(
     "0042-example-decision.md",
-    "---\nstatus: accepted\namends: [30]\n---\n\n# ADR-0042: Example\n",
+    "---\nstatus: accepted\nsupersedes: [30]\n---\n\n# ADR-0042: Example\n",
   );
   assert.equal(meta.dependsOn, undefined);
-  assert.deepEqual(meta.amends, [30], "and the edge it CAN see is unchanged");
+  assert.deepEqual(meta.supersedes, [30], "and the field it CAN see is unchanged");
 
   // A resolver built from the fs reader therefore reports itself blind rather than reporting a
-  // decision log with no support edges — the two states ADR-0419 D3 needs kept apart.
-  assert.equal(decisionAmendsResolver([meta]).decisionsCarryingDependsOn, 0);
+  // decision log with no support edges — two states that must stay apart.
+  assert.equal(decisionSupportResolver([meta]).decisionsCarryingDependsOn, 0);
 });
 
 // ---- end to end: a stored pointer must actually move a depth ------------------------------------
 
 test("END TO END: a stored dependsOn pointer moves the depth, from store row to walked verdict", async () => {
   // THE CASE THAT WOULD HAVE CAUGHT THE REAL DEFECT. Every hop is the production one — store row,
-  // `loadTitledAdrMetasFromStore`, `decisionAmendsResolver`, `evaluateDepthFromWork` — so the edge
+  // `loadTitledAdrMetasFromStore`, `decisionSupportResolver`, `evaluateDepthFromWork` — so the edge
   // has to survive the projection, the seam and the walk to move the number. Unit tests on any one
   // of those passed while the whole path was inert.
   //
   // The chain, and the spelling each hop uses (all three, so a half-resolving regression reds):
   //
   //   anchor --cites--> guidance --doc:decisions--> 0419 --asset--> 0403
-  //          --doc:docs/decisions--> 0139 --amends--> 0086
+  //          --doc:docs/decisions--> 0139 --asset--> 0086
   //
-  // 0139 also carries `dependsOn: []` — authored, resting on nothing — so the run exercises a
+  // 0086 carries `dependsOn: []` — authored, resting on nothing — so the run exercises a
   // present-but-empty field on the same path as the populated ones.
   const store = new InMemoryStore();
   await seedArtifact(store, "anchor", { cites: ["story:library", "asset:guidance"] });
   await seedArtifact(store, "guidance", { dependsOn: ["doc:decisions/0419-a-title.md"] });
   await seedDecision(store, 419, { dependsOn: ["asset:adr-0403"] });
   await seedDecision(store, 403, { dependsOn: ["doc:docs/decisions/0139-a-title.md"] });
-  await seedDecision(store, 139, { dependsOn: [], amends: [86] });
-  await seedDecision(store, 86);
+  await seedDecision(store, 139, { dependsOn: ["asset:adr-0086"] });
+  await seedDecision(store, 86, { dependsOn: [] });
 
   const { adrs, parseErrors } = await loadTitledAdrMetasFromStore(store);
   assert.deepEqual(parseErrors, []);
   const artifacts = await store.queryDocs({ kind: "principle" });
   const nodes = depthFromWorkNodes(artifacts);
 
-  const sighted = evaluateDepthFromWork(nodes, decisionAmendsResolver(adrs));
+  const sighted = evaluateDepthFromWork(nodes, decisionSupportResolver(adrs));
 
   // The denominator FIRST: it is what says the reader could see the field at all, and it is the one
   // number that separates "walked and shallow" from "never read". Three of the four rows carry it.
-  assert.equal(sighted.decisionsCarryingDependsOn, 3, "the projection is no longer blind");
+  assert.equal(sighted.decisionsCarryingDependsOn, 4, "the projection is no longer blind");
 
   assert.equal(sighted.depthById.get("guidance"), 1);
   assert.equal(sighted.depthById.get("decision:0419"), 2, "reached across the artifact join");
   assert.equal(sighted.depthById.get("decision:0403"), 3, "…and PAST it, on `dependsOn` alone");
   assert.equal(sighted.depthById.get("decision:0139"), 4, "the other doc: spelling, also on dependsOn");
-  assert.equal(sighted.depthById.get("decision:0086"), 5, "and `amends` still composes with it");
+  assert.equal(sighted.depthById.get("decision:0086"), 5, "and the chain still composes past it");
   assert.equal(sighted.maxDepth, 5);
   assert.equal(sighted.deepestId, "decision:0086");
-  assert.equal(sighted.decisionDependsOnEdges, 2, "0419 -> 0403 and 0403 -> 0139");
-  assert.equal(sighted.amendsEdges, 1, "0139 -> 0086, unchanged and never summed with the above");
+  assert.equal(sighted.decisionDependsOnEdges, 3, "0419 -> 0403, 0403 -> 0139 and 0139 -> 0086");
   assert.equal(sighted.maxArtifactDepth, 1, "the artifact-only reading is kept apart, as ever");
 
   // ---- THE CONTROL: the exact pre-fix reader, over the exact same rows ------------------------
@@ -206,8 +204,8 @@ test("END TO END: a stored dependsOn pointer moves the depth, from store row to 
   // `loadTitledAdrMetasFromStore` used to hand over. If the projection ever stops carrying
   // `dependsOn`, `sighted` collapses onto `blind` and every assertion above reds. That is what
   // makes this test resistant to the fault it exists for, rather than merely evidence of it.
-  const blindRows = adrs.map((m) => ({ number: m.number, amends: m.amends }));
-  const blind = evaluateDepthFromWork(nodes, decisionAmendsResolver(blindRows));
+  const blindRows = adrs.map((m) => ({ number: m.number }));
+  const blind = evaluateDepthFromWork(nodes, decisionSupportResolver(blindRows));
 
   assert.equal(blind.decisionsCarryingDependsOn, 0, "the pre-fix reader, reporting itself blind");
   assert.equal(blind.depthById.get("decision:0419"), 2, "the artifact join was never the problem");
@@ -232,7 +230,7 @@ test("END TO END: a decision pointer at a NON-decision is a declared floor, not 
 
   const { adrs } = await loadTitledAdrMetasFromStore(store);
   const artifacts = await store.queryDocs({ kind: "principle" });
-  const verdict = evaluateDepthFromWork(depthFromWorkNodes(artifacts), decisionAmendsResolver(adrs));
+  const verdict = evaluateDepthFromWork(depthFromWorkNodes(artifacts), decisionSupportResolver(adrs));
 
   assert.equal(verdict.decisionsCarryingDependsOn, 1, "read, and carrying three pointers");
   assert.equal(verdict.decisionDependsOnUnwalkedTargets, 2, "the artifact and the research note");

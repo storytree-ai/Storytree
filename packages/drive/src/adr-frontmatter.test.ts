@@ -12,14 +12,24 @@ function doc(frontmatter: string): string {
 test("parses status, decided, and outgoing edges", () => {
   const meta = parseAdrFrontmatter(
     FILE,
-    doc("status: accepted\ndecided: 2026-06-12\nsupersedes: [14]\namends: [30]"),
+    doc("status: accepted\ndecided: 2026-06-12\nsupersedes: [14]"),
   );
   assert.equal(meta.number, 42);
   assert.equal(meta.file, FILE);
   assert.equal(meta.status, "accepted");
   assert.equal(meta.decided, "2026-06-12");
   assert.deepEqual(meta.supersedes, [14]);
-  assert.deepEqual(meta.amends, [30]);
+});
+
+test("rejects the retired amends edge (ADR-0431 D1: one support edge, spelled depends_on)", () => {
+  // The `supersedes_in_part` precedent below, applied to the edge ADR-0431 retired. The schema is
+  // `.strict()`, so a stale file still carrying the key fails LOUDLY rather than having its edge
+  // silently dropped on the next `adr push` — which would lose the only copy of it.
+  assert.throws(
+    () => parseAdrFrontmatter(FILE, doc("status: accepted\namends: [30]")),
+    /amends/,
+    "a retired edge must fail to parse, never be ignored",
+  );
 });
 
 test("edges default to empty; decided is optional", () => {
@@ -27,10 +37,9 @@ test("edges default to empty; decided is optional", () => {
   assert.equal(meta.status, "proposed");
   assert.equal(meta.decided, undefined);
   assert.deepEqual(meta.supersedes, []);
-  assert.deepEqual(meta.amends, []);
 });
 
-test("rejects the retired supersedes_in_part edge (ADR-0139: edges are binary — amends or supersedes)", () => {
+test("rejects the retired supersedes_in_part edge (ADR-0139: the target either survives or it does not)", () => {
   // ADR-0139 retired `supersedes_in_part`; the strict schema no longer accepts the key, so a file
   // still carrying it fails to parse loudly (the `adr-frontmatter` health-check floor) rather than
   // silently sitting "live in part".

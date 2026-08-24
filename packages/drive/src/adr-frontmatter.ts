@@ -12,16 +12,21 @@ import { z } from "zod";
  * SUPERSEDED by ADR-0139, which restates and keeps that supersede authority in force, so cite 0139 as
  * the live rule and 0086 only as its origin. Edges are OUTGOING only and BINARY on the axis of the
  * TARGET'S SURVIVAL in the current set, not of its text (ADR-0139 D4): `supersedes` = the target
- * LEAVES the set (flips to `superseded`); `amends` = the target STAYS in the set as a live accepted
- * ADR. `amends` is NOT a claim that the target is unchanged — an amender routinely retires or narrows
- * one of its target's clauses, and the target is then corrected in place to stay true in full (D1/D2).
- * Incoming edges stay derived, never double-entered: `renderAdrList` computes the `amended by NNNN` /
- * `superseded by NNNN` back-edges from these outgoing lists, so a note in the target's body carries
- * only the clause-level detail the derived edge cannot.
+ * LEAVES the set (flips to `superseded`). Incoming edges stay derived, never double-entered:
+ * `renderAdrList` computes the `superseded by NNNN` back-edge from these outgoing lists, so a note in
+ * the target's body carries only the clause-level detail the derived edge cannot.
  *
- * `supersedes_in_part` was RETIRED by ADR-0139 ("live in part" is no longer a state), so the strict
- * schema no longer accepts it: a file still carrying that key fails to parse loudly, caught by the
- * `adr-frontmatter` health check (the deep floor) and named by the `supersedes-in-part-retired` gate.
+ * TWO KEYS HAVE BEEN RETIRED, and both fail the same way rather than being ignored. The schema is
+ * `.strict()`, so a file still carrying either fails to parse LOUDLY — which is the point: a
+ * retired edge silently dropped on the next `adr push` would lose the only copy of it.
+ *   - `supersedes_in_part`, RETIRED by ADR-0139 ("live in part" is no longer a state). Caught by the
+ *     `adr-frontmatter` health check (the deep floor) and named by the `supersedes-in-part-retired`
+ *     gate.
+ *   - `amends`, RETIRED by ADR-0431 D1. There is now ONE support edge, `depends_on`, and all 517
+ *     `amends` edges were migrated onto it in place against a frozen snapshot. The amendment itself
+ *     survives as PROSE — the `**Amends** ADR-NNNN` block in the amender's `## Status` and the
+ *     in-place annotation ADR-0139 D4 requires in the target — and after the field's removal that
+ *     prose is the ONLY record, so nothing may tidy it away (ADR-0431 D3).
  *
  * `load_bearing` (ADR-0086) is the editorial CURRENT-STATE tag: the small curated set of ADRs a new
  * session must calibrate to. It replaces the hand-maintained `CLAUDE.md` list — surfaced by
@@ -44,7 +49,6 @@ const AdrFrontmatter = z
       .transform((d) => (d instanceof Date ? d.toISOString().slice(0, 10) : d))
       .optional(),
     supersedes: z.array(AdrNumber).default([]),
-    amends: z.array(AdrNumber).default([]),
     load_bearing: z.boolean().default(false),
     // The `arc:` provenance stamp (ADR-0183 D3): the Library `arc` artifact that produced this
     // decision, stamped at creation (`storytree adr new --arc <id>`) and immutable thereafter —
@@ -59,9 +63,9 @@ const AdrFrontmatter = z
  *
  * ## `dependsOn` IS ON THE INTERFACE BUT NOT IN THE FRONTMATTER SCHEMA, DELIBERATELY
  *
- * ADR-0419 D1 makes a decision's own `dependsOn` a SUPPORT edge the depth walk traverses, alongside
- * `amends`. The seam the walk reads it through — `AmendsOnlyDecision` in `@storytree/library`'s
- * `decision-amends-seam.ts` — is satisfied STRUCTURALLY by this interface, with no adapter and no
+ * ADR-0419 D1 made a decision's own `dependsOn` a SUPPORT edge the depth walk traverses; ADR-0431 D1
+ * then retired `amends` and it is now the ONLY one. The seam the walk reads it through — `SupportOnlyDecision` in `@storytree/library`'s
+ * `decision-support-seam.ts` — is satisfied STRUCTURALLY by this interface, with no adapter and no
  * import in either direction. So a field this type does not carry is a field the walk cannot see,
  * however completely the walk itself is tested: {@link AdrMeta} is the last place the edge can be
  * dropped, and until 2026-08-23 it was dropped here, one layer out from where anyone looking at the
@@ -82,7 +86,6 @@ export interface AdrMeta {
   status: AdrStatus;
   decided?: string;
   supersedes: number[];
-  amends: number[];
   /** The ADR-0086 current-state tag: a curated load-bearing ADR a new session must calibrate to. */
   loadBearing: boolean;
   /** The ADR-0183 D3 provenance stamp: the `arc` artifact that produced this decision, if any. */
@@ -90,8 +93,8 @@ export interface AdrMeta {
   /**
    * The decision's own `dependsOn` POINTERS, EXACTLY AS STORED — ADR-0419 D1's plain support edge.
    *
-   * POINTERS, not numbers, and the asymmetry with `amends` / `supersedes` is the storage's rather
-   * than a choice made here: those two are decision-number arrays on the `adr` schema, while
+   * POINTERS, not numbers, and the asymmetry with `supersedes` is the storage's rather
+   * than a choice made here: that one is a decision-number array on the `adr` schema, while
    * `dependsOn` is the ordinary Library edge and may name an artifact, a repository file or a
    * decision. Resolving which is which belongs to the WALK, through the single parser in
    * `decision-pointer.ts` — never a hand split on `:` here, which would drop one of the three live
@@ -99,7 +102,7 @@ export interface AdrMeta {
    *
    * OPTIONAL, and absence is MEANINGFUL. {@link parseAdrFrontmatter} never sets it (see above), so
    * an fs-parsed meta is a BLIND reader and a store-loaded one is a SIGHTED reader, and
-   * `DecisionAmendsResolver.decisionsCarryingDependsOn` counts field PRESENCE precisely so the two
+   * `DecisionSupportResolver.decisionsCarryingDependsOn` counts field PRESENCE precisely so the two
    * can be told apart. Defaulting it to `[]` here would erase that distinction and make a blind
    * reader indistinguishable from a decision log that genuinely carries no support edges — which is
    * the state the whole ADR-0419 D3 drain is measured against.
@@ -130,7 +133,6 @@ export function parseAdrFrontmatter(file: string, content: string): AdrMeta {
     file,
     status: fm.status,
     supersedes: fm.supersedes,
-    amends: fm.amends,
     loadBearing: fm.load_bearing,
   };
   if (fm.decided !== undefined) meta.decided = fm.decided;

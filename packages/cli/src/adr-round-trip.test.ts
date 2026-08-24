@@ -21,7 +21,7 @@ const DOC = `---
 status: proposed
 decided: 2026-08-21
 arc: decision-log-home-arc
-amends: [139]
+supersedes: [139]
 ---
 # ADR-0403: A decision under test
 
@@ -45,8 +45,7 @@ async function seeded(): Promise<{ store: InMemoryStore; deps: AdrRoundTripDeps 
       status: "proposed",
       decided: "2026-08-21",
       arcRef: "asset:decision-log-home-arc",
-      amends: [139],
-      supersedes: [],
+      supersedes: [139],
       loadBearing: false,
       references: [],
       schemaVersion: 7,
@@ -93,7 +92,7 @@ test("adr-round-trip-push-applies-an-edit-and-names-what-moved: the whole docume
   await writeFile(
     out,
     DOC.replace("status: proposed", "status: accepted")
-      .replace("amends: [139]", "amends: [139, 223]\nload_bearing: true")
+      .replace("supersedes: [139]", "supersedes: [139, 223]\nload_bearing: true")
       .replace("proposed\n", "accepted (2026-08-21) — the owner directed it.\n"),
     "utf8",
   );
@@ -101,13 +100,13 @@ test("adr-round-trip-push-applies-an-edit-and-names-what-moved: the whole docume
   const env = await adrPush("403", out, deps);
   assert.equal(env.ok, true);
   assert.match(env.body, /status: proposed -> accepted/);
-  assert.match(env.body, /amends: 139 -> 139, 223/);
+  assert.match(env.body, /supersedes: 139 -> 139, 223/);
   assert.match(env.body, /load_bearing: false -> true/);
   assert.match(env.body, /body: .* characters/);
 
   const row = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
   assert.equal(row["status"], "accepted");
-  assert.deepEqual(row["amends"], [139, 223]);
+  assert.deepEqual(row["supersedes"], [139, 223]);
   assert.equal(row["loadBearing"], true);
   // The `## Status` prose and the `status` field moved TOGETHER, in one edit — which is the property
   // ADR-0139 needs, since the field is a projection of that prose and never an independent write.
@@ -209,8 +208,7 @@ test("adr-round-trip-push-refuses-a-document-for-a-different-decision: the one-c
       body: "# ADR-0402: The neighbour\n\n## Status\n\naccepted\n",
       number: 402,
       status: "accepted",
-      amends: [7],
-      supersedes: [],
+      supersedes: [7],
       loadBearing: true,
       references: [],
       schemaVersion: 7,
@@ -228,7 +226,7 @@ test("adr-round-trip-push-refuses-a-document-for-a-different-decision: the one-c
   const row = (await store.getDoc("adr-0402"))?.doc as Record<string, unknown>;
   assert.equal(row["title"], "The neighbour", "the target keeps its own title");
   assert.equal(row["status"], "accepted", "and its own status");
-  assert.deepEqual(row["amends"], [7], "and its own edges — the drop was the silent half");
+  assert.deepEqual(row["supersedes"], [7], "and its own edges — the drop was the silent half");
   assert.equal(row["loadBearing"], true);
 });
 
@@ -346,13 +344,21 @@ test("push writes a depends_on line onto the row, and deletes one the author rem
   await adrPull("403", out, deps);
 
   const pulled = await readFile(out, "utf8");
-  await writeFile(out, pulled.replace("amends: [139]", 'depends_on: ["asset:adr-0223"]\namends: [139]'), "utf8");
+  await writeFile(
+    out,
+    pulled.replace("supersedes: [139]", 'depends_on: ["asset:adr-0223"]\nsupersedes: [139]'),
+    "utf8",
+  );
   const added = await adrPush("403", out, deps);
   assert.equal(added.ok, true, added.body);
   assert.match(added.body, /depends_on: \(no key\) -> asset:adr-0223/);
   const withEdge = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
   assert.deepEqual(withEdge["dependsOn"], ["asset:adr-0223"]);
-  assert.deepEqual(withEdge["amends"], [139], "the two support edges stay apart on the row");
+  assert.deepEqual(
+    withEdge["supersedes"],
+    [139],
+    "and support is never summed with archaeology (ADR-0403 dec 6)",
+  );
 
   // Absent keys are DELETED, on the same rule as `decided:` and `arc:` — the document is the whole
   // truth of the row, so a line the author removed must come off it.
@@ -391,30 +397,27 @@ test("a no-op push over a decision carrying depends_on stays byte-identical and 
   assert.deepEqual(after["dependsOn"], ["asset:adr-0223", "asset:adr-0139"]);
 });
 
-test("push states the annotation obligation for amends targets it ADDED, and stays silent otherwise", async () => {
-  // ADR-0139 D4's floor is not holding — 174 of 446 accepted `amends` edges have a target whose body
-  // does not so much as mention the amender — and the remedy at this phase is to state the rule where
-  // the edge is written, not in a decision body nobody retrieves.
+test("push REFUSES a document still carrying the retired amends key, rather than dropping it", async () => {
+  // ADR-0431 D1 retired the edge and `-inc-19` removed the field. A stale document — pulled before
+  // the retirement, or hand-written from an old example — must not have its edge silently discarded
+  // on the way back in: the frontmatter schema is `.strict()` precisely so this fails LOUDLY, the
+  // same posture ADR-0139's retired `supersedes_in_part` gets. Losing the edge quietly would destroy
+  // the one thing the retirement was careful to preserve, since the pre-migration edge set survives
+  // only in `docs/research/amends-edge-snapshot-2026-08-23.md`.
   const { store, deps } = await seeded();
-  const out = await tmpFile("adr-0403-amends.md");
+  const out = await tmpFile("adr-0403-stale.md");
   await adrPull("403", out, deps);
 
-  // A push that changes only prose must NOT nag: the pre-existing `amends: [139]` was discharged (or
-  // not) long ago, and a note that fires on every push is one the next author learns to skip.
   const pulled = await readFile(out, "utf8");
-  await writeFile(out, `${pulled}\nsome new prose\n`, "utf8");
-  const prose = await adrPush("403", out, deps);
-  assert.equal(prose.ok, true, prose.body);
-  assert.doesNotMatch(prose.body, /ANNOTATE EACH TARGET/, "an untouched edge owes nothing new");
+  assert.doesNotMatch(pulled, /amends:/, "a fresh pull never emits the retired key");
 
-  // Adding one DOES fire, naming the new target only.
-  await adrPull("403", out, deps);
-  const again = await readFile(out, "utf8");
-  await writeFile(out, again.replace("amends: [139]", "amends: [139, 223]"), "utf8");
-  const grown = await adrPush("403", out, deps);
-  assert.equal(grown.ok, true, grown.body);
-  assert.match(grown.body, /ANNOTATE EACH TARGET IN PLACE, in THIS landing/);
-  assert.match(grown.body, /storytree adr pull 223 --out adr-0223\.md/);
-  assert.doesNotMatch(grown.body, /adr pull 139/, "only the target this push added is owed a pass");
-  assert.equal(((await store.getDoc("adr-0403"))?.doc as Record<string, unknown>)["amends"]?.toString(), "139,223");
+  await writeFile(out, pulled.replace("supersedes: [139]", 'supersedes: [139]\namends: [223]'), "utf8");
+  const stale = await adrPush("403", out, deps);
+  assert.equal(stale.ok, false, "a retired edge must be refused, never ignored");
+  assert.match(stale.body, /amends/, "and the refusal must name the key it choked on");
+
+  // The row is untouched: a refused push writes nothing at all.
+  const after = (await store.getDoc("adr-0403"))?.doc as Record<string, unknown>;
+  assert.equal("amends" in after, false);
+  assert.deepEqual(after["supersedes"], [139]);
 });

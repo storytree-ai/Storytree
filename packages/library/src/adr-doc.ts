@@ -81,25 +81,23 @@ export interface AdrDocumentFields {
   readonly body: string;
   readonly status: AdrDocStatus;
   readonly decided?: string;
-  readonly amends: readonly number[];
   readonly supersedes: readonly number[];
   readonly loadBearing: boolean;
   /** The owning arc's BARE id (as `arc:` carries it in frontmatter), not an `asset:` pointer. */
   readonly arc?: string;
   /**
-   * The decision's own `dependsOn` POINTERS — PLAIN SUPPORT (ADR-0419 D1), the edge new authoring
-   * records instead of overstating with `amends`.
+   * The decision's own `dependsOn` POINTERS — THE support edge, and since ADR-0431 D1 the only one.
    *
    * Pointers (`asset:adr-0139`, `asset:<artifact>`, `doc:<relpath>`) rather than decision numbers,
    * because that is what the ROW carries: `dependsOn` arrives from `buildKindSchema` like every
-   * other kind's and may name any Library artifact or repository file, where `amends` is a list of
-   * decision numbers on the `adr` schema alone. The asymmetry is the storage's; this converter
-   * reports it rather than flattening it.
+   * other kind's and may name any Library artifact or repository file, where the retired `amends`
+   * was a list of decision numbers on the `adr` schema alone. The asymmetry was the storage's; this
+   * converter reported it rather than flattening it, and after the retirement only one side is left.
    *
-   * ABSENT AND EMPTY ARE DIFFERENT, and unlike `amends` this one is NOT collapsed. `undefined` means
+   * ABSENT AND EMPTY ARE DIFFERENT, and this one is NOT collapsed. `undefined` means
    * the document carries no `depends_on:` key at all; `[]` means it carries one and the decision
    * rests on nothing. That is ADR-0223's optional-not-defaulted rule, and it is load-bearing for the
-   * migration ADR-0419 D3 fixes as long: `DecisionAmendsResolver.decisionsCarryingDependsOn` counts
+   * migration ADR-0419 D3 fixes as long: `DecisionSupportResolver.decisionsCarryingDependsOn` counts
    * KEY PRESENCE, so a round trip that folded `[]` into absent would silently decrement the very
    * denominator that separates "this reader is blind to the edge" from "this decision has none".
    */
@@ -126,20 +124,22 @@ interface AdrOptionalFields {
  * `render(parse(render(x)))` could differ from `render(x)` depending on which order the input
  * happened to use. The committed files carry several orders; the load normalises to this one.
  *
- * The three edge keys sit in one run, plain support first: `depends_on` (rests on), then `amends`
- * (rests on AND the target can no longer be read alone), then `supersedes` (replaced it, and never
- * summed with either — ADR-0403 dec 6). Reading down the block is reading ADR-0419 D1's distinction
- * in order of how much it obliges of the author.
+ * The two edge keys sit in one run: `depends_on` (rests on — the one support edge) then
+ * `supersedes` (replaced it, and never summed with support — ADR-0403 dec 6). There used to be a
+ * third between them, `amends`; ADR-0431 D1 retired it and `-inc-19` removed it from this list.
  *
  * IT IS ALSO THE KNOWN-KEY SET: {@link parseAdrDocument} refuses any key outside this list and names
- * the list in the refusal, so adding a key here is what makes it authorable at all.
+ * the list in the refusal, so adding a key here is what makes it authorable at all — and REMOVING
+ * one is what makes a stale document carrying it fail loudly instead of having its edge silently
+ * dropped on the way back into the row. That is the whole reason the retired key is not merely
+ * ignored: after the migration, the pre-migration edge set survives only in
+ * `docs/research/amends-edge-snapshot-2026-08-23.md`, so a quiet drop would destroy the last copy.
  */
 const FRONTMATTER_ORDER = [
   "status",
   "decided",
   "arc",
   "depends_on",
-  "amends",
   "supersedes",
   "load_bearing",
 ] as const;
@@ -273,7 +273,6 @@ export function parseAdrDocument(decisionNumber: number, content: string): AdrDo
     title: extractAdrTitle(body),
     body,
     status,
-    amends: parseNumberList(bag["amends"], "amends"),
     supersedes: parseNumberList(bag["supersedes"], "supersedes"),
     loadBearing: loadBearingRaw === true,
     ...optional,
@@ -314,9 +313,6 @@ export function renderAdrDocument(fields: AdrDocumentFields): string {
         if (fields.dependsOn !== undefined) {
           lines.push(`depends_on: [${fields.dependsOn.map((p) => JSON.stringify(p)).join(", ")}]`);
         }
-        break;
-      case "amends":
-        if (fields.amends.length > 0) lines.push(`amends: [${fields.amends.join(", ")}]`);
         break;
       case "supersedes":
         if (fields.supersedes.length > 0) lines.push(`supersedes: [${fields.supersedes.join(", ")}]`);
@@ -400,7 +396,6 @@ export function adrDocumentFieldsOf(row: Record<string, unknown>): AdrDocumentFi
     status: AdrDocStatus.safeParse(row["status"]).success
       ? (row["status"] as AdrDocumentFields["status"])
       : "proposed",
-    amends: numbers(row["amends"]),
     supersedes: numbers(row["supersedes"]),
     loadBearing: row["loadBearing"] === true,
     ...optional,

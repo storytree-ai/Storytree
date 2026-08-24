@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { parseDecisionPointer } from "./decision-pointer.js";
-import type { DecisionAmendsResolver } from "./decision-amends-seam.js";
+import type { DecisionSupportResolver } from "./decision-support-seam.js";
 
 /**
  * THE COMPOSED STATEMENT AT A CHAIN FRONTIER, AND ITS OUTSTANDING-EFFECTS MARKER (ADR-0428).
@@ -176,23 +176,29 @@ function fnv1a(input: string, basis: number): string {
 /**
  * PURE: the decisions BENEATH `root` — its descendant closure over both support edges, root excluded.
  *
- * Both edges, unioned as ONE adjacency and never summed as two counts: `amends` and a decision's own
- * `dependsOn` are both SUPPORT (ADR-0419 D1), and a reader crosses either without knowing which it
- * was. `supersedes` is structurally unreachable — the seam's parameter type does not carry it
+ * ONE support edge, and this walk did not change when the second one went. It used to union `amends`
+ * with a decision's own `dependsOn` as a single adjacency, never summed as two counts, because a
+ * reader crosses either without knowing which it was (ADR-0419 D1). ADR-0431 D1 retired `amends` and
+ * migrated all 517 edges onto `dependsOn`, so the union has one member — which is exactly why the
+ * migration marked NO composed statement stale (ADR-0431 D6a): an edge moving between the two
+ * accessors could never change this chain. A future reader that branches on which accessor an edge
+ * arrived through would destroy that property; there is now only one accessor, so it cannot.
+ *
+ * `supersedes` is structurally unreachable — the seam's parameter type does not carry it
  * (ADR-0403 dec 6), so this function cannot walk archaeology even by mistake.
  *
  * A `dependsOn` pointer that names something other than a decision (a Library artifact, a repository
  * file) is SKIPPED, through the one parser in `decision-pointer.ts` — never split on `:` here, and
  * never rounded to the nearest decision.
  */
-export function decisionsBeneath(root: number, resolver: DecisionAmendsResolver): number[] {
+export function decisionsBeneath(root: number, resolver: DecisionSupportResolver): number[] {
   const known = new Set(resolver.decisions);
   const seen = new Set<number>([root]);
   const stack: number[] = [root];
   while (stack.length > 0) {
     const node = stack.pop();
     if (node === undefined) continue;
-    const targets: number[] = [...resolver.amendsOf(node)];
+    const targets: number[] = [];
     for (const pointer of resolver.dependsOnOf(node)) {
       const parsed = parseDecisionPointer(pointer);
       if (parsed !== null) targets.push(parsed.number);

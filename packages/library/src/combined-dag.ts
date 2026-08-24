@@ -97,8 +97,6 @@ const DOC_PREFIX = "doc:";
  */
 export interface DecisionEdgeSource {
   readonly number: number;
-  /** Decisions this one still rests on. */
-  readonly amends: readonly number[];
   /** Decisions this one replaced. */
   readonly supersedes: readonly number[];
   /**
@@ -161,8 +159,15 @@ export interface CombinedDagVerdict {
   /** `doc:` pointers at some other repository file. A sink, and a legitimate thing to author. */
   readonly nonDecisionDocPointers: number;
 
-  /** `amends` edges between decisions we hold. NEVER added to the next field. */
-  readonly decisionAmendsEdges: number;
+  /**
+   * SUPPORT edges between decisions we hold — a decision's own `dependsOn` naming another decision.
+   * NEVER added to the next field.
+   *
+   * This used to count `amends`, a list of decision NUMBERS on the row. ADR-0431 D1 retired that
+   * field and migrated its 517 edges onto `dependsOn`, so the same edges now arrive as `asset:`
+   * POINTERS and are resolved through the one parser rather than read as numbers.
+   */
+  readonly decisionSupportEdges: number;
   /** `supersedes` edges between decisions we hold. NEVER added to the previous field. */
   readonly decisionSupersedesEdges: number;
   /** Decision edges of either type naming a decision we do not hold. */
@@ -302,7 +307,7 @@ export function evaluateCombinedAcyclicity(
     nodes.push({ id: row.id, dependsOn: targets });
   }
 
-  let decisionAmendsEdges = 0;
+  let decisionSupportEdges = 0;
   let decisionSupersedesEdges = 0;
   let decisionDanglingEdges = 0;
   let decisionToLibraryEdges = 0;
@@ -313,14 +318,6 @@ export function evaluateCombinedAcyclicity(
     seenDecisions.add(decision.number);
 
     const targets: string[] = [];
-    for (const target of decision.amends) {
-      if (!decisionNumbers.has(target)) {
-        decisionDanglingEdges += 1;
-        continue;
-      }
-      decisionAmendsEdges += 1;
-      targets.push(decisionNodeId(target));
-    }
     for (const target of decision.supersedes) {
       if (!decisionNumbers.has(target)) {
         decisionDanglingEdges += 1;
@@ -330,6 +327,23 @@ export function evaluateCombinedAcyclicity(
       targets.push(decisionNodeId(target));
     }
     for (const pointer of decision.dependsOn ?? []) {
+      // DECISION FIRST, and the order is load-bearing since ADR-0431 D1. A decision's `dependsOn`
+      // now carries the support edges `amends` used to, spelled `asset:adr-NNNN` — and because
+      // decisions are ordinary artifacts (ADR-0403 dec 1), those ids are ALSO in `artifactIds`.
+      // Testing the artifact branch first would therefore book every decision-to-decision support
+      // edge as a decision-to-LIBRARY edge, and `decisionToLibraryEdges` being 0 is the structural
+      // fact this judge reports the union cannot loop on. That would not fail — it would report a
+      // different graph, confidently.
+      const asDecision = parseDecisionPointer(pointer);
+      if (asDecision !== null) {
+        if (!decisionNumbers.has(asDecision.number)) {
+          decisionDanglingEdges += 1;
+          continue;
+        }
+        decisionSupportEdges += 1;
+        targets.push(decisionNodeId(asDecision.number));
+        continue;
+      }
       if (!pointer.startsWith(ASSET_PREFIX)) continue;
       const target = pointer.slice(ASSET_PREFIX.length);
       if (target === "" || !artifactIds.has(target)) {
@@ -360,7 +374,7 @@ export function evaluateCombinedAcyclicity(
     crossingDanglingEdges,
     crossingBySpelling,
     nonDecisionDocPointers,
-    decisionAmendsEdges,
+    decisionSupportEdges,
     decisionSupersedesEdges,
     decisionDanglingEdges,
     decisionToLibraryEdges,

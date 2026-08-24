@@ -2761,10 +2761,9 @@ export const CLI_OPTIONS = {
   // from the intent.
   description: { type: "string" },
   supersedes: { type: "string" },
-  amends: { type: "string" },
-  // `storytree adr new --depends-on 42,43` (ADR-0419 D2): the PLAIN support edge, the default for
-  // "this decision rests on that one". Its sibling `--amends` is reserved for the narrower claim
-  // that something in the target moved.
+  // `storytree adr new --depends-on 42,43`: THE support edge, and since ADR-0431 D1 the only one.
+  // Its former sibling `--amends` is RETIRED — the flag is gone, the field is gone, and an
+  // amendment is recorded as prose in the target instead (ADR-0139 D4).
   "depends-on": { type: "string" },
   // `storytree adr compose <n> --clause D4` (ADR-0428 D3): the clause a composed statement covers.
   // Absent composes over the WHOLE record, which is D1's build — the flag exists so the shape does
@@ -3575,7 +3574,6 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.title !== undefined) adrOpts.title = values.title;
     if (values.arc !== undefined) adrOpts.arc = values.arc;
     if (values.supersedes !== undefined) adrOpts.supersedes = values.supersedes;
-    if (values.amends !== undefined) adrOpts.amends = values.amends;
     if (values["depends-on"] !== undefined) adrOpts.dependsOn = values["depends-on"];
     if (values.decided === true) adrOpts.decided = true;
     if (values.current === true) adrOpts.current = true;

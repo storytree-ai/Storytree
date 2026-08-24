@@ -1,6 +1,6 @@
 import {
   ComposedStatements,
-  decisionAmendsResolver,
+  decisionSupportResolver,
   decisionsBeneath,
   explainDocValidationError,
   fingerprintDecision,
@@ -46,7 +46,6 @@ export interface DecisionRow {
   readonly number: number;
   readonly status: string;
   readonly body: string;
-  readonly amends: readonly number[];
   readonly dependsOn?: readonly string[];
 }
 
@@ -82,9 +81,6 @@ export function decisionRowsOf(docs: readonly StoredDoc[]): DecisionRow[] {
       number,
       status: typeof doc["status"] === "string" ? doc["status"] : "proposed",
       body: typeof doc["body"] === "string" ? doc["body"] : "",
-      amends: Array.isArray(doc["amends"])
-        ? doc["amends"].filter((entry): entry is number => typeof entry === "number")
-        : [],
       ...optional,
     });
   }
@@ -99,7 +95,7 @@ export function decisionRowsOf(docs: readonly StoredDoc[]): DecisionRow[] {
  * rather than merely look equal.
  */
 export function chainFingerprints(root: number, rows: readonly DecisionRow[]): Map<number, string> {
-  const resolver = decisionAmendsResolver(rows);
+  const resolver = decisionSupportResolver(rows);
   const byNumber = new Map(rows.map((row) => [row.number, row] as const));
   const fingerprints = new Map<number, string>();
   for (const decision of decisionsBeneath(root, resolver)) {

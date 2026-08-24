@@ -25,7 +25,7 @@ const CANONICAL = `---
 status: accepted
 decided: 2026-08-21
 arc: decision-log-home-arc
-amends: [139, 223]
+supersedes: [139, 223]
 ---
 # ADR-0403: The decision log becomes ordinary artifacts in Postgres
 
@@ -57,8 +57,7 @@ test("adr-doc-parses-the-canonical-record: frontmatter becomes typed fields and 
   assert.equal(fields.status, "accepted");
   assert.equal(fields.decided, "2026-08-21");
   assert.equal(fields.arc, "decision-log-home-arc");
-  assert.deepEqual(fields.amends, [139, 223]);
-  assert.deepEqual(fields.supersedes, []);
+  assert.deepEqual(fields.supersedes, [139, 223]);
   assert.equal(fields.loadBearing, false);
   assert.equal(fields.title, "The decision log becomes ordinary artifacts in Postgres");
   // The body is EVERYTHING after the closing fence, including the H1 — a decision record is one
@@ -107,7 +106,7 @@ Nothing else.
 });
 
 test("adr-doc-omits-defaulted-frontmatter-keys: an absent edge list is not written back as empty", () => {
-  // 107 of 403 records carry no `amends` key at all. Emitting `amends: []` for them would make every
+  // 107 of 403 records carried no edge key at all. Emitting `supersedes: []` for them would make every
   // one differ from its own source for no information gained — and would then differ AGAIN from a
   // hand-edited round trip that dropped it, which is how a "byte-identical" claim quietly stops
   // being true.
@@ -135,7 +134,6 @@ load_bearing: true
   const fields = parseAdrDocument(139, tagged);
   assert.equal(fields.loadBearing, true);
   assert.deepEqual(fields.supersedes, [86]);
-  assert.deepEqual(fields.amends, []);
   assert.equal(renderAdrDocument(fields), tagged);
 });
 
@@ -160,12 +158,19 @@ test("adr-doc-refuses-a-missing-or-unterminated-frontmatter-block: no silent def
 test("adr-doc-refuses-a-bad-status-or-edge-list: a mistyped value never becomes a default", () => {
   assert.throws(() => parseAdrDocument(1, "---\nstatus: acepted\n---\nbody\n"));
   assert.throws(
-    () => parseAdrDocument(1, "---\nstatus: accepted\namends: 139\n---\nbody\n"),
+    () => parseAdrDocument(1, "---\nstatus: accepted\nsupersedes: 139\n---\nbody\n"),
     /must be a list of numbers/,
   );
   assert.throws(
-    () => parseAdrDocument(1, '---\nstatus: accepted\namends: ["139"]\n---\nbody\n'),
+    () => parseAdrDocument(1, '---\nstatus: accepted\nsupersedes: ["139"]\n---\nbody\n'),
     /must contain positive integers/,
+  );
+  // And the RETIRED key is refused as unknown rather than parsed — `FRONTMATTER_ORDER` is the
+  // known-key set, so removing `amends` from it is what makes a stale document fail loudly instead
+  // of having its edge silently dropped on the way into the row (ADR-0431 D1, `-inc-19`).
+  assert.throws(
+    () => parseAdrDocument(1, "---\nstatus: accepted\namends: [139]\n---\nbody\n"),
+    /unknown frontmatter key `amends`/,
   );
 });
 
@@ -285,26 +290,26 @@ test("adr-doc-ignores-a-heading-quoted-in-fenced-code: a cited decision does not
 // ---- `depends_on`: the plain support edge at the document surface (ADR-0419 D1/D2) -----------
 
 test("adr-doc-round-trips-depends-on: the plain support edge survives parse -> render byte-for-byte", () => {
-  // ADR-0419 D2 deprecates `amends` for plain support, so `depends_on` has to be AUTHORABLE in the
-  // document — the whole-document round trip is how a decision's prose is edited (ADR-0403 dec 9),
-  // and an edge the document cannot carry is an edge the deprecation cannot move anyone to.
-  const text = CANONICAL.replace("amends: [139, 223]", 'depends_on: ["asset:adr-0403"]\namends: [139]');
+  // The whole-document round trip is how a decision's prose is edited (ADR-0403 dec 9), so an edge
+  // the document cannot carry is an edge nobody can author. `depends_on` is the one support edge
+  // since ADR-0431 D1, and it must survive a no-op round trip byte-for-byte.
+  const text = CANONICAL.replace("supersedes: [139, 223]", 'depends_on: ["asset:adr-0403"]\nsupersedes: [139]');
   const fields = parseAdrDocument(419, text);
   assert.deepEqual(fields.dependsOn, ["asset:adr-0403"]);
-  assert.deepEqual(fields.amends, [139], "the two support edges are read apart, never summed");
+  assert.deepEqual(fields.supersedes, [139], "support and archaeology are read apart, never summed");
   assert.equal(renderAdrDocument(fields), text, "a no-op round trip is byte-identical (ADR-0403 dec 9)");
 });
 
 test("adr-doc-keeps-depends-on-absence-distinct-from-empty: presence is what the migration counts", () => {
-  // NOT the same collapse `amends` gets. `dependsOn` is optional-not-defaulted (ADR-0223), and
-  // `DecisionAmendsResolver.decisionsCarryingDependsOn` counts KEY PRESENCE precisely because zero
+  // NOT the same collapse a defaulted list gets. `dependsOn` is optional-not-defaulted (ADR-0223), and
+  // `DecisionSupportResolver.decisionsCarryingDependsOn` counts KEY PRESENCE precisely because zero
   // resolvable edges has two causes — a reader blind to the field, and a log that genuinely carries
   // none. A round trip that folded `[]` into absent would silently decrement that denominator.
   const absent = parseAdrDocument(419, CANONICAL);
   assert.equal(absent.dependsOn, undefined, "no key means this document does not carry the edge");
   assert.doesNotMatch(renderAdrDocument(absent), /depends_on/);
 
-  const emptyText = CANONICAL.replace("amends: [139, 223]", "depends_on: []\namends: [139, 223]");
+  const emptyText = CANONICAL.replace("supersedes: [139, 223]", "depends_on: []\nsupersedes: [139, 223]");
   const empty = parseAdrDocument(419, emptyText);
   assert.deepEqual(empty.dependsOn, [], "an authored empty list is a different fact from no key");
   assert.equal(renderAdrDocument(empty), emptyText, "and it is emitted, not omitted as a default");
@@ -314,17 +319,17 @@ test("adr-doc-refuses-a-malformed-depends-on: a bad entry fails loudly, never de
   // The parser's stated posture: a mistyped value never becomes a default. Degrading here would make
   // the push DELETE the row's edge while reporting success.
   assert.throws(
-    () => parseAdrDocument(419, CANONICAL.replace("amends: [139, 223]", "depends_on: 403")),
+    () => parseAdrDocument(419, CANONICAL.replace("supersedes: [139, 223]", "depends_on: 403")),
     /`depends_on` must be a list of strings/,
   );
   assert.throws(
-    () => parseAdrDocument(419, CANONICAL.replace("amends: [139, 223]", "depends_on: [403]")),
+    () => parseAdrDocument(419, CANONICAL.replace("supersedes: [139, 223]", "depends_on: [403]")),
     /`depends_on` must contain non-empty strings/,
   );
   // An explicit null is a malformed list, NOT an absent key — `Object.hasOwn` is what keeps the two
   // apart, so this must throw rather than read as "carries no edge".
   assert.throws(
-    () => parseAdrDocument(419, CANONICAL.replace("amends: [139, 223]", "depends_on:")),
+    () => parseAdrDocument(419, CANONICAL.replace("supersedes: [139, 223]", "depends_on:")),
     /`depends_on` must be a list of strings/,
   );
 });
@@ -339,7 +344,7 @@ test("adr-doc-refuses-sources-in-frontmatter: a content hash is not hand-editabl
   // row — the same posture that retired `supersedes_in_part` gets, and for the same reason: a key
   // quietly discarded erases the very fact somebody was trying to record.
   assert.throws(
-    () => parseAdrDocument(424, CANONICAL.replace("amends: [139, 223]", 'sources: ["packages/cli/src/adr.ts"]')),
+    () => parseAdrDocument(424, CANONICAL.replace("supersedes: [139, 223]", 'sources: ["packages/cli/src/adr.ts"]')),
     /unknown frontmatter key `sources`/,
   );
 });

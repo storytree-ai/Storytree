@@ -238,7 +238,7 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
   // 2 adr-edge-integrity
   const dangling: string[] = [];
   for (const a of adrs) {
-    for (const target of [...a.supersedes, ...a.amends]) {
+    for (const target of a.supersedes) {
       if (!byNumber.has(target)) {
         dangling.push(`ADR-${pad(a.number)} names ADR-${pad(target)}, which does not exist`);
       }

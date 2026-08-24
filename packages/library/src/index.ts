@@ -84,7 +84,7 @@ export * from "./knowledge-depth.js";
 // decisions into the graph BEFORE the storage migration, so the depth walk is built while decisions
 // are still files — and it must not learn that. One verb, `amendsOf`; no `supersedesOf` and no
 // edge-type parameter, so ADR-0403 dec 6's never-sum rule is held by the shape of the interface.
-export * from "./decision-amends-seam.js";
+export * from "./decision-support-seam.js";
 // ADR-0428: the COMPOSED STATEMENT at a chain frontier, and the outstanding-effects marker that
 // keeps it honest — one artifact, because a composed statement without a staleness signal silently
 // lies (the legislation.gov.uk "Changes to Legislation" precedent). What is STORED is the basis; the

@@ -641,8 +641,8 @@ test("deriveArcRollup is PURE — the same inputs join identically with no store
     incrementDocs: [],
     questionDocs: [question as never, unleased as never],
     adrs: [
-      { number: 1, file: "0001-x.md", status: "accepted", supersedes: [], amends: [], loadBearing: false, arc: "a1", title: "T" },
-      { number: 2, file: "0002-y.md", status: "proposed", supersedes: [], amends: [], loadBearing: false, title: "U" },
+      { number: 1, file: "0001-x.md", status: "accepted", supersedes: [], loadBearing: false, arc: "a1", title: "T" },
+      { number: 2, file: "0002-y.md", status: "proposed", supersedes: [], loadBearing: false, title: "U" },
     ],
     storyStamps: [{ story: "s1", arc: "a1" }, { story: "s2", arc: "elsewhere" }],
   });

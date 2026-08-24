@@ -90,8 +90,9 @@ async function main(): Promise<void> {
         `(${verdict.libraryDanglingEdges} dangling)`,
     );
     console.log(
-      `    decisions: ${verdict.decisionAmendsEdges} \`amends\` + ${verdict.decisionSupersedesEdges} ` +
-        `\`supersedes\` edges resolving (${verdict.decisionDanglingEdges} dangling) — ` +
+      `    decisions: ${verdict.decisionSupportEdges} support (\`dependsOn\`) + ` +
+        `${verdict.decisionSupersedesEdges} \`supersedes\` edges resolving ` +
+        `(${verdict.decisionDanglingEdges} dangling) — ` +
         `two numbers with two names, walked together ONLY for the cycle question`,
     );
     console.log("");

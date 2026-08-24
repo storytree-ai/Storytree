@@ -340,7 +340,7 @@ test("serializeCurationContext surfaces the OQ ids and the deciding-ADR statuses
     openQuestions: [
       { id: "oq-x", kind: "open-question", doc: oqDoc("oq-x", { stakes: "S-MARKER" }), createdAt: ISO, updatedAt: ISO },
     ],
-    adrs: [{ number: 23, file: "0023-x.md", status: "proposed", supersedes: [], amends: [], loadBearing: false }],
+    adrs: [{ number: 23, file: "0023-x.md", status: "proposed", supersedes: [], loadBearing: false }],
   };
   void store;
   const prompt = serializeCurationContext(ctx);

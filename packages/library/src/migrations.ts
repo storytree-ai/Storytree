@@ -15,7 +15,7 @@ import { KIND_SPECS } from "./knowledge.js";
  */
 
 /** The schema version every freshly-written structured Knowledge doc conforms to. */
-export const CURRENT_SCHEMA_VERSION = 7;
+export const CURRENT_SCHEMA_VERSION = 8;
 
 /** One forward, version-numbered transform on a JSONB document. */
 export interface Migration {
@@ -330,6 +330,41 @@ export const MIGRATIONS: readonly Migration[] = [
       // migration #1's `seeAlso` posture, rather than letting the old key overwrite the new one.
       if (Object.hasOwn(rest, "dependsOn")) return rest;
       return { ...rest, dependsOn: standsOn };
+    },
+  },
+  {
+    version: 8,
+    name: "drop-adr-amends",
+    up(doc) {
+      // ADR-0431 D1 — `amends` is retired as an edge type. The decision graph carries ONE support
+      // edge, and `decision-read-measurement-arc-inc-18` already moved all 517 edges onto
+      // `dependsOn` IN PLACE against a frozen snapshot, with the union adjacency byte-identical
+      // either side. What this removes is the dead husk the rewrite left: the key itself.
+      //
+      // MIGRATION 7'S CLASS, NOT 3'S — a WRITABILITY fix rather than a shape change. Every kind
+      // schema is `.strict()`, so the instant `Adr` stops declaring `amends`, all 424 stored rows
+      // still carrying `amends: []` are REFUSED at their next write. That is not theoretical: a
+      // stray `composed` key on 54 rows blew up a field-scoped `patchDoc` mid-session on 2026-08-23.
+      // `upcast` folds this in at the write boundary, so an old-shape row is forward-migrated rather
+      // than bricked — which is what makes the retirement need no bulk update of the live rows, and
+      // therefore no quiescence window and no coordination with concurrent sessions.
+      //
+      // KIND-SCOPED, unlike migration 7. `amends` was only ever declared on `adr`, so widening the
+      // sweep would let a stray key on some other kind be dropped here instead of being refused by
+      // the SAME validator that refuses it today — silently discarding data this transform has no
+      // business judging.
+      //
+      // THE VALUE IS DISCARDED, AND THAT IS SAFE ONLY BECAUSE inc-18 ALREADY RAN. Every edge the key
+      // held is on `dependsOn`; what the amendment CLAIMED survives as prose on both ends (the
+      // `**Amends** ADR-NNNN` block in the amender, the ADR-0139 D4 annotation in the target), and
+      // the pre-migration edge list is frozen at `docs/research/amends-edge-snapshot-2026-08-23.md`.
+      // Nothing here is the last copy of anything.
+      //
+      // Pure and idempotent: a second pass finds no `amends` to drop.
+      if (doc["kind"] !== "adr") return doc;
+      if (!Object.hasOwn(doc, "amends")) return doc;
+      const { amends: _amends, ...rest } = doc;
+      return rest;
     },
   },
 ];

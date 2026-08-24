@@ -309,7 +309,7 @@
       "packages/library/src/knowledge-depth.ts": "library",
       "packages/library/src/decision-pointer.ts": "library",
       "packages/library/src/adr-doc.ts": "library",
-      "packages/library/src/decision-amends-seam.ts": "library",
+      "packages/library/src/decision-support-seam.ts": "library",
       "packages/library/src/composed-statement.ts": "library",
       "packages/library/src/decision-sources.ts": "library",
       "packages/library/src/search.ts": "library",

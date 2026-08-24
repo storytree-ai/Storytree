@@ -42,7 +42,6 @@ function decisionRow(number: number, title: string, arcRef: string | undefined) 
     body: `# ADR-${String(number).padStart(4, "0")}: ${title}\n`,
     number,
     status: "accepted",
-    amends: [],
     supersedes: [],
     loadBearing: false,
     references: [],

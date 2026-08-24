@@ -52,7 +52,7 @@ const STRING_REF_FIELDS = ["dependsOn", "cites", "references"] as const;
  * uses so one resolver handles both.
  *
  * `supersedes` is included HERE and nowhere else in this arc, and the distinction is worth stating:
- * the depth walk excludes it because it is archaeology rather than support (`decision-amends-seam.ts`
+ * the depth walk excludes it because it is archaeology rather than support (`decision-support-seam.ts`
  * has no `supersedesOf` by construction). This is not the depth walk. The question here is only "does
  * the corpus already connect these two artifacts?", and a supersession connects them as firmly as
  * anything can. Nothing is summed; the fields are reported by name.

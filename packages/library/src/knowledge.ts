@@ -1360,7 +1360,7 @@ export const UatCriterion = buildKindSchema("uat-criterion");
 export const AdrDocStatus = z.enum(["proposed", "accepted", "superseded"]);
 export type AdrDocStatus = z.infer<typeof AdrDocStatus>;
 
-/** A decision number, as it appears in `amends` / `supersedes` and in the `adr-NNNN` id. */
+/** A decision number, as it appears in `supersedes` and in the `adr-NNNN` id. */
 const AdrDocNumber = z.number().int().positive();
 
 /**
@@ -1372,24 +1372,33 @@ const AdrDocNumber = z.number().int().positive();
  * `--current` / `--status` are all reads of these six, and the arc surface derives its ADR leg from
  * `arcRef`.
  *
- * ## `amends` AND `supersedes` ARE NUMBERS, AND THEY STAY SEPARATE FIELDS
+ * ## THERE IS ONE SUPPORT EDGE, AND `supersedes` IS NOT IT
  *
- * Numbers rather than `asset:` pointers, so a store row satisfies `AmendsOnlyDecision` — the
- * edge-resolution seam ADR-0403 dec 3 required the depth walk to be built against
- * (`decision-amends-seam.ts`) — with no adapter at all. That seam performs the never-sum rule
- * (ADR-0403 dec 6) by the SHAPE of its parameter type: it cannot see `supersedes`. Keeping the two
- * as distinct fields with distinct element types is what lets that keep working after the migration;
- * folding them into one edge list with a type tag would put the summing mistake back within reach.
+ * `amends` is GONE (ADR-0431 D1, field removed by `decision-read-measurement-arc-inc-19`). The
+ * decision graph carries ONE support edge — `dependsOn`, arriving from `buildKindSchema` like any
+ * non-edge-free kind's — and there is no second edge type to choose between at authoring time. The
+ * 517 edges the field held were migrated onto `dependsOn` in place against a frozen snapshot
+ * (`docs/research/amends-edge-snapshot-2026-08-23.md`), and the amendment itself survives as PROSE:
+ * the `**Amends** ADR-NNNN` block in each amender's `## Status` and the in-place annotation
+ * ADR-0139 D4 requires in each target. Those are now the ONLY record, so nothing may "tidy" them.
  *
- * `dependsOn` arrives from `buildKindSchema` like any non-edge-free kind, and that is ADR-0403 dec 4
- * landing: ADR-0223 D4 made decisions tier-0 SINKS so the knowledge tree could not contain a loop,
- * and one graph of ordinary artifacts has no boundary for that rule to guard. The loop question is
- * answered by a proof over the combined graph instead (`combined-dag.ts`, ADR-0403 dec 5).
+ * `supersedes` stays a distinct field of decision NUMBERS, and its separateness is load-bearing:
+ * it is archaeology, never depth, and is NEVER summed with support (ADR-0403 dec 6). The seam
+ * (`decision-support-seam.ts`) performs that rule by the SHAPE of its parameter type — it cannot see
+ * `supersedes` — and a store row satisfies that type with no adapter. Folding the two into one edge
+ * list with a type tag would put the summing mistake back within reach.
+ *
+ * `dependsOn`'s arrival is ADR-0403 dec 4 landing: ADR-0223 D4 made decisions tier-0 SINKS so the
+ * knowledge tree could not contain a loop, and one graph of ordinary artifacts has no boundary for
+ * that rule to guard. The loop question is answered by a proof over the combined graph instead
+ * (`combined-dag.ts`, ADR-0403 dec 5).
  *
  * Every field is `.default()`ed or `.optional()` except `number` and `status`, which no decision has
- * ever lacked. A NEW kind touches no existing doc, so it needs NO `CURRENT_SCHEMA_VERSION` bump and
- * no migration at all (the `uat-criterion` precedent, re-verified: every registered transform is a
- * per-doc function that no-ops on a kind it does not name).
+ * ever lacked. The kind's ARRIVAL needed no `CURRENT_SCHEMA_VERSION` bump (a new kind touches no
+ * existing doc — the `uat-criterion` precedent); dropping `amends` from it DID, because every kind
+ * schema is `.strict()` and 424 stored rows still carry the key. That is migration 8,
+ * `drop-adr-amends`, in migration 7's class rather than 3's: a WRITABILITY fix folded in at the
+ * write boundary by `upcast`, so an old-shape row is forward-migrated rather than bricked.
  */
 export const Adr = buildKindSchema("adr").extend({
   /** The decision's number — its identity, and the `NNNN` in its `adr-NNNN` id. */
@@ -1397,9 +1406,7 @@ export const Adr = buildKindSchema("adr").extend({
   status: AdrDocStatus,
   /** The ISO date the decision was made (`decided:` in the old frontmatter). */
   decided: z.string().optional(),
-  /** The decisions this one still rests on — THE DEPTH EDGE (ADR-0403 dec 6). Never summed below. */
-  amends: z.array(AdrDocNumber).default([]),
-  /** The decisions this one replaced — archaeology, never depth. Never summed with `amends`. */
+  /** The decisions this one replaced — archaeology, never depth. Never summed with support. */
   supersedes: z.array(AdrDocNumber).default([]),
   /**
    * The ADR-0086 current-state tag: the curated set a new session calibrates to. TRANSITIONAL —

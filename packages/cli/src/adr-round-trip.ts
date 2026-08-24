@@ -10,7 +10,6 @@ import {
 import { explainDocValidationError, upcastAndValidate } from "@storytree/library";
 import type { Store } from "@storytree/storage-protocol";
 
-import { amendsObligationNote } from "./adr-amends-obligation.js";
 import { defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 
@@ -202,9 +201,6 @@ function changedFields(
   if (before.loadBearing !== after.loadBearing) {
     lines.push(`  load_bearing: ${String(before.loadBearing)} -> ${String(after.loadBearing)}`);
   }
-  if (list(before.amends) !== list(after.amends)) {
-    lines.push(`  amends: ${list(before.amends)} -> ${list(after.amends)}`);
-  }
   // ABSENT and EMPTY are reported differently, because on this field they ARE different (ADR-0223's
   // optional-not-defaulted rule): `(no key)` is "this decision carries no authored support edge" and
   // `(none)` is "it carries one, and rests on nothing". Folding them into a single "(none)" would
@@ -365,7 +361,6 @@ export async function adrPush(
     body: fields.body,
     number: fields.number,
     status: fields.status,
-    amends: [...fields.amends],
     supersedes: [...fields.supersedes],
     loadBearing: fields.loadBearing,
     updatedAt: new Date().toISOString(),
@@ -404,14 +399,17 @@ export async function adrPush(
 
   await deps.store.upsertDoc({ id, kind: "adr", doc: cleaned, actor: deps.actor ?? defaultCliActor() });
 
-  // The SECOND moment an `amends` edge gets written (`adr new --amends` is the first), and the more
-  // common one — most amendments are added to a decision that already exists. It fires only on
-  // targets THIS push added, so re-pushing an unchanged decision does not nag about an obligation
-  // that was discharged long ago.
-  const addedAmends = fields.amends.filter((n) => !before.amends.includes(n));
+  // NO OBLIGATION NOTE HERE ANY MORE, and its absence is a decision rather than an omission.
+  // This used to be the second moment an `amends` edge got written and the more common one, so it
+  // reminded the author what ADR-0139 D4 owed the target. ADR-0431 D1 retired the edge: there is one
+  // support edge now and no signal at this surface distinguishing a narrowing from plain support, so
+  // a note fired on every `depends_on` would be noise on the common case and would train the eye
+  // past it. The obligation is UNCHANGED and binds harder (ADR-0431 D6d) — it is stated where the
+  // author is choosing the edge, in `adr new`'s scaffold placeholder and `adrHelp`, and held by the
+  // librarian's judgment on review. Do NOT rebuild a mechanical presence check (ADR-0427).
   return {
     ok: true,
-    body: [`updated ${id} from ${file}:`, ...changes, ...amendsObligationNote(addedAmends)].join("\n"),
+    body: [`updated ${id} from ${file}:`, ...changes].join("\n"),
     next: [`storytree library artifact ${id}`, `storytree library artifact history ${id} --pg`],
   };
 }

@@ -696,10 +696,12 @@ test("open-question template (ADR-0359 D5): an OPTIONAL analogy sits beside the 
   // still validates and renders unchanged (the `arcRef` precedent, re-verified rather than assumed).
   const without = validateLibraryDoc(minimalDoc("open-question")) as { analogy?: string };
   assert.equal(without.analogy, undefined, "an existing question needs no analogy");
-  // The pin has since moved for an unrelated reason (ADR-0402's `standsOn` -> `dependsOn` rename,
-  // migration #7 — a field RENAME, which cannot be a zero-migration change). What this still guards
-  // is that ADR-0359's own optional field did not move it.
-  assert.equal(CURRENT_SCHEMA_VERSION, 7, "an optional body field bumps nothing");
+  // The pin has since moved twice, both for unrelated reasons and neither of them an added optional
+  // field: ADR-0402's `standsOn` -> `dependsOn` RENAME (migration #7) and ADR-0431 D1's removal of
+  // the `amends` field from the `adr` schema (migration #8). A rename and a removal both change the
+  // shape a `.strict()` schema will accept, so neither can be a zero-migration change. What this
+  // still guards is that ADR-0359's own optional field did not move it.
+  assert.equal(CURRENT_SCHEMA_VERSION, 8, "an optional body field bumps nothing");
 
   // And it round-trips through the body renderer + parser, like every other KIND_SPECS field.
   const withAnalogy = validateLibraryDoc({
@@ -717,7 +719,7 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
   // for unrelated reasons (ADR-0305 D2/D4's increment reshape, then ADR-0322's outcome-note
   // de-duplication — both REMOVE fields and so cannot be zero-migration changes, then ADR-0402's
   // `standsOn` -> `dependsOn` RENAME) — what this guards is that no migration strips the edge.
-  assert.equal(CURRENT_SCHEMA_VERSION, 7, "the pin tracks migrations.ts, not this ADR's change");
+  assert.equal(CURRENT_SCHEMA_VERSION, 8, "the pin tracks migrations.ts, not this ADR's change");
   const stamped = {
     ...minimalDoc("open-question"),
     schemaVersion: CURRENT_SCHEMA_VERSION,
