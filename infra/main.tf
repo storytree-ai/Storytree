@@ -40,9 +40,53 @@ variable "region" {
   default = "australia-southeast1"
 }
 
+# The set of Google accounts allowed to be `operator_email`. An allowlist rather than free text,
+# because a WRONG-BUT-VALID address here is silently destructive in two directions at once
+# (see the validation block below). Adding a second operator — a second machine, a second person —
+# is a DELIBERATE edit to this list, which is exactly the property that makes the typo impossible.
+variable "operator_allowlist" {
+  type        = list(string)
+  default     = ["hua.mick@gmail.com"]
+  description = "Google accounts permitted as operator_email. Add an entry deliberately; never widen this to bypass a validation failure."
+}
+
 variable "operator_email" {
   type        = string
+  default     = "hua.mick@gmail.com"
   description = "Your Google account — becomes the IAM database user (auth via IAM tokens, no password)."
+
+  # ── WHY THIS IS GUARDED, measured 2026-08-24/25 ──────────────────────────────────────────────
+  #
+  # `infra/terraform.tfvars` is gitignored, so a fresh checkout has none and Terraform falls back to
+  # an INTERACTIVE PROMPT for this value. It was answered `mick.hua@gmail.com` — the halves of
+  # `hua.mick@gmail.com` transposed — on two applies a day apart, and BOTH reported success:
+  #
+  #   1. It granted `roles/iam.serviceAccountTokenCreator` on `storytree-claude-harness` and
+  #      `storytree-codex-harness` (infra/harness-identities.tf, `user:${var.operator_email}`) to
+  #      `mickhua@gmail.com` — an account the operator does not own. It stood for a day. Those two
+  #      identities hold IAP access to the hosted studio, so the exposure was latent rather than
+  #      live only because IAP already admits `allAuthenticatedUsers`.
+  #   2. It planned to DESTROY AND RECREATE `google_sql_user.operator` below, renaming the
+  #      operator's own Cloud SQL user. That failed both times only because Postgres refused
+  #      (`role cannot be dropped because some objects depend on it` — 33 + 29 objects). Nothing in
+  #      Terraform stopped it; the database did.
+  #
+  # The `default` removes the prompt (the hazard's origin) and the `validation` removes the class
+  # (a valid-but-wrong address can no longer be typed in). Neither substitutes for reading the
+  # plan: ALWAYS check the `N to destroy` count before confirming an apply in this directory.
+  validation {
+    condition     = contains(var.operator_allowlist, var.operator_email)
+    error_message = <<-EOT
+      operator_email must be one of var.operator_allowlist (default: hua.mick@gmail.com).
+
+      If you typed this at a prompt, you probably transposed it — `mick.hua@` and `hua.mick@` are
+      DIFFERENT Google accounts, and a wrong one here grants a stranger impersonation rights AND
+      plans a destroy-and-recreate of the operator's Cloud SQL user. Both report success.
+
+      To stop being prompted at all:  cp terraform.tfvars.example terraform.tfvars
+      To add a genuinely new operator: add the address to var.operator_allowlist, deliberately.
+    EOT
+  }
 }
 
 resource "google_sql_database_instance" "storytree" {
