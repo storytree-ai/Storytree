@@ -25,7 +25,6 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { ReliabilityGate, ResolvedWitnessKind, UatTestCriterion } from '@storytree/library';
-import { activeReliabilityGates } from '@storytree/library';
 // A RUNTIME import, so it must survive the vite config-load trap: vite.config.ts loads devApi.ts →
 // this file through Node's plain ESM loader, where the root barrel's `./schema.js`-style specifiers
 // do not resolve (only the .ts files exist). Hence the dedicated `/repo-root` LEAF subpath — that
@@ -1186,6 +1185,9 @@ export async function readTree(
   if (!existsSync(storiesDir))
     return { payload: { stories }, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
+  // ADR-0436: loaded lazily, past vite's config-load (`loadLibrary` above) — a top-level VALUE import
+  // of `@storytree/library` breaks `vite build`'s config load (studio-vite-config-load-trap).
+  const { activeReliabilityGates } = await loadLibrary();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
