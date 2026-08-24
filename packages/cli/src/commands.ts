@@ -195,6 +195,7 @@ import {
   type ParkItem,
 } from "./graduate.js";
 import { emitNodeEnvelope, type Envelope, type NodeEdge } from "./envelope.js";
+import { membersCommand, type MembersInvocation, type MemberStoreLike } from "./members.js";
 import {
   libraryHealth,
   worstLevel,
@@ -1692,6 +1693,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "  friction         file what fought you → the Library (ADR-0168) — new | migrate | reinforce | route | list",
       "  factory health   is the factory getting better? recurrence-since-route · distinct bottlenecks · coupling churn (ADR-0316, report-only)",
       "  noticeboard      the claim ledger (ADR-0200/0033) — view | declare | done | claim | upgrade | downgrade | release | claims",
+      "  members          the studio member directory (ADR-0043) — list | add | role | remove | history  (--pg)",
       "  branch next      a branch dies on merge (ADR-0142) — succeed a dead branch: fresh cut + re-declare",
       "  worktree         create (the claim-gated workspace ceremony, ADR-0200 D3) | prune (reap dead worktrees, ADR-0142/0033)",
       "  coverage         does every declared contract have an observed test? the coverage-honesty check (ADR-0020); --totals for the whole corpus, --contractless for the inverse (which node claims this test?)",
@@ -1999,6 +2001,8 @@ export interface RunDeps {
    * null/absent offline — `storytree attest` then refuses (writes/reads both need it).
    */
   readonly attestations?: AttestationStoreLike | null;
+  /** The studio member directory (ADR-0043) — `storytree members`; null/absent off --pg. */
+  readonly members?: MemberStoreLike | null;
   /**
    * The verdict event log as a WRITE surface (ADR-0082 `uat attest`): the live work store when --pg
    * (the same PgWorkStore as `verdicts`, here typed to expose `appendEvent`); null/absent offline —
@@ -2837,6 +2841,10 @@ export const CLI_OPTIONS = {
   // `migration`/`readiness`/`risks` are gone from the schema, so the flags that fed them are gone
   // too rather than left inert. `--objective` is the one-sentence lead; everything those headings
   // prompted for goes in `--body`.
+  // `storytree members add|role --role <admin|builder|member>` — the directory role. Validated
+  // against USER_ROLES in members.ts, never against a literal union here (the studio route's
+  // hardcoded union is exactly the bug this verb was written alongside).
+  role: { type: "string" },
   objective: { type: "string" },
   body: { type: "string" },
   // `storytree question new` — the open-question briefing fields (ADR-0314 D5). The four required
@@ -3143,6 +3151,33 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     return kind === "story"
       ? storyBuild(target, nodeStoryBuildOpts(values))
       : nodeBuild(target, nodeStoryBuildOpts(values));
+  }
+
+  // `storytree members` — the studio member directory (ADR-0043) as a CLI verb (2026-08-24). Added
+  // on the owner's rule that no workflow may be UI-only: `/api/users` was the last studio write
+  // route with no CLI equivalent. The store seam is null off --pg and every verb refuses there,
+  // because the directory is a live projection with no door (ADR-0259 D5 is read-only) and no
+  // offline form to fall back on.
+  if (area === "members") {
+    const positionals = rest.filter((a) => !a.startsWith("-"));
+    // `members role <email> <role>` takes the role POSITIONALLY as well as via --role, because
+    // "set this person to that" reads as two arguments and typing `--role` for it is friction the
+    // verb does not need. --role wins when both are given.
+    const sub = positionals[0];
+    const known = sub === "list" || sub === "add" || sub === "role" || sub === "remove" || sub === "history";
+    const inv: MembersInvocation = {
+      sub: known ? sub : sub === undefined ? "list" : sub,
+      email: known ? positionals[1] : positionals[0],
+      role: values.role ?? (sub === "role" ? positionals[2] : undefined),
+      help,
+    };
+    return membersCommand(inv, {
+      store: deps.members ?? null,
+      // The audit actor is the SESSION identity, never typed — the same rule the studio applies by
+      // stamping it from the verified IAP caller rather than from the request body.
+      actor: deriveIdentity()?.sessionId ?? "cli",
+      now: () => new Date(),
+    });
   }
 
   if (area === "noticeboard") {

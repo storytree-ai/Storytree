@@ -513,6 +513,41 @@ describe('invite-ui: admin-only user management (ADR-0043)', () => {
     expect(await after.json()).toMatchObject({ member: false });
   });
 
+  // REGRESSION (2026-08-24): `asRole` restated the role set as a literal `'admin' | 'member'` union
+  // while `USER_ROLES` had carried `builder` since the `builder-role` capability landed its compute.
+  // So the Members panel could not grant `builder` AT ALL — the one role `stories/desktop` leg 8's
+  // journey ("the owner's in-app `builder` grant opens the brokered write path") is entirely about.
+  // Nothing caught it because there was no second surface to disagree with the route. Both halves are
+  // asserted: the grant SUCCEEDS, and an off-schema role is still refused, so a fix that simply
+  // stopped validating would fail here.
+  it('an admin can grant the builder role, and a role outside USER_ROLES is still refused', async () => {
+    const BUILDER_INVITEE = 'builder-invitee@example.com';
+    const granted = await fetch(`${base}/api/users`, {
+      method: 'POST',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: BUILDER_INVITEE, role: 'builder' }),
+    });
+    expect(granted.status).toBe(201);
+    expect(await granted.json()).toMatchObject({ email: BUILDER_INVITEE, role: 'builder' });
+
+    // re-role an existing member UP to builder through PATCH, the other arm that used asRole
+    const rerole = await fetch(`${base}/api/users`, {
+      method: 'PATCH',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: MEMBER, role: 'builder' }),
+    });
+    expect(rerole.status).toBe(200);
+    expect(await rerole.json()).toMatchObject({ email: MEMBER, role: 'builder' });
+
+    // the control: validation is NARROWED to the schema, not removed
+    const bogus = await fetch(`${base}/api/users`, {
+      method: 'POST',
+      headers: iap(ADMIN),
+      body: JSON.stringify({ email: 'nope@example.com', role: 'owner' }),
+    });
+    expect(bogus.status).toBe(400);
+  });
+
   it('the last admin cannot be removed or down-roled (409)', async () => {
     // ADMIN is now the sole admin in the directory
     const remove = await fetch(`${base}/api/users?email=${ADMIN}`, { method: 'DELETE', headers: iap(ADMIN) });
