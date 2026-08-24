@@ -25,6 +25,16 @@ rate is high, and the reason it is high is not the reason a reader expects.
 The sweep is `decision-source-drift`, the sixth `check:verification-decay` instrument
 (`packages/cli/src/decision-source-decay.ts`), landed by increment 02.
 
+> ⚠ **The first two rows are the aperture of THIS EXERCISE, and 15-of-379 is NOT a coverage
+> metric.** ADR-0424 D4 forbids one, and forbids it permanently: most accepted decisions have no
+> code span to point at — decisions about escalation, register, ownership, who decides — so the
+> grounded share is low and correctly so. **A low grounded share is not a finding and is not
+> something to fix.** If it ever became a target, authors would attach spans to satisfy the number
+> and we would have built a green check that verified nothing, on purpose. The instrument itself
+> emits no denominator (`measureDecisionSweep` deliberately carries no total), and neither this
+> document nor anything derived from it may supply one. The number that matters below is the
+> false-positive RATE, whose denominator is findings — never decisions.
+
 ## How the anchors were bound
 
 Every `boundHash` is `hashSpan(locateSpanIn(...).span)` — the repo's own compute
