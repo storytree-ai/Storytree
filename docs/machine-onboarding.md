@@ -248,12 +248,28 @@ the value, and you can confirm a credential is present without ever reading it.
 ### 2.3 GitHub
 
 ```bash
-gh auth login        # device code
-gh pr list           # the proof
+gh auth login          # device code
+gh auth setup-git      # REQUIRED — see below; not optional on a fresh box
+gh pr list             # the proof
 ```
 
 Without this the machine can run the gate but cannot land anything, which makes it a very expensive
 read-only checkout.
+
+⚠ **`gh pr list` passing does NOT mean you can push, and the gap only surfaces at the moment you
+land.** Measured 2026-08-24: with `gh` fully authenticated *and* SSH to GitHub working, the first
+`git push` still died with `fatal: could not read Username for 'https://github.com': No such device
+or address`. The cause is that `origin` is an **HTTPS** remote while `gh auth login` recorded
+`Git operations protocol: ssh` — so neither credential was wired to the transport git actually used.
+`gh auth setup-git` installs `gh` as git's credential helper for HTTPS and fixes it in one command.
+Run it during setup rather than discovering it after a green gate, at the end of a unit, with a
+commit you cannot push.
+
+**A second GitHub credential you will need, which the three-sign-in table does not cover:** an **SSH
+key** on the account. `.gitmodules` points `web` and `legacy/Agentic` at `git@github.com:` URLs, so
+`git submodule update --init web` needs SSH regardless of how `origin` is configured — and without
+the `web` submodule three gate rungs SKIP, which is *unverified*, not passed. `gh auth login` offers
+to generate and upload a key; accept it, or add one yourself at github.com/settings/keys.
 
 ---
 
