@@ -58,7 +58,18 @@ export const CODEX_CHATGPT_SUBSCRIPTION_DRIVER = "codex-chatgpt-subscription";
 /** An explicit local executable is useful where the Desktop app keeps its CLI outside PATH. */
 export const STORYTREE_CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_EXECUTABLE";
 
-/** UAT drives default to Codex, while a member may explicitly select their Claude subscription. */
+/**
+ * UAT drives default to the CLAUDE subscription; Codex is the explicit selection (ADR-0435,
+ * owner-directed 2026-08-24). This reverses the 2026-08-20 default, and the reversal is a funding
+ * decision rather than a technical one: the owner's Codex/ChatGPT quota was exhausted with a reset a
+ * month out, which halted every model-driven walk in the system at once. Claude was the original
+ * route and is unchanged in capability — `uat-drive-witness.check.ts` accepts a `claude-code` record
+ * exactly as it accepts a `codex-chatgpt-subscription` one, and `embedded-terminal` leg 5 still
+ * witnesses off a Claude drive from 2026-08-13.
+ *
+ * Both routes stay subscription-only: whichever is selected, API-key and cross-provider credentials
+ * are stripped before the child runs and are never a fallback (ADR-0232's rule, untouched).
+ */
 export const STORYTREE_UAT_DRIVE_PROVIDER_ENV = "STORYTREE_UAT_DRIVE_PROVIDER";
 export const UAT_DRIVE_PROVIDERS = ["codex", "claude"] as const;
 export type UatDriveProvider = (typeof UAT_DRIVE_PROVIDERS)[number];
@@ -68,7 +79,7 @@ export function resolveUatDriveProvider(raw: string | undefined):
   | { ok: true; provider: UatDriveProvider }
   | { ok: false; reason: string } {
   const normalized = raw?.trim().toLowerCase();
-  if (normalized === undefined || normalized === "") return { ok: true, provider: "codex" };
+  if (normalized === undefined || normalized === "") return { ok: true, provider: "claude" };
   if (normalized === "codex" || normalized === "claude") return { ok: true, provider: normalized };
   return {
     ok: false,
@@ -177,6 +188,43 @@ export type DriveGate = Pick<ReliabilityGate, "id" | "kind" | "proofCommand">;
 /** PURE: is this a command-bearing observe gate whose command is the UAT-drive witness? */
 export function isModelDrivenGate(gate: DriveGate): boolean {
   return gate.kind === "observe" && (gate.proofCommand ?? "").includes(UAT_DRIVE_WITNESS_ENTRY);
+}
+
+/**
+ * PURE: the refusal text for driving a RETIRED story, or null when the story may be driven.
+ *
+ * A retired story makes no claim about the current product — that is what retirement means — and
+ * ADR-0429 D3/D4 KEEPS its UAT criteria as unclaimed history rather than deleting them, because
+ * criterion and gate ordinals are positional and deleting one silently re-points the survivors'
+ * bindings. Both halves together mean a walk here cannot produce a product finding: a `pass`
+ * certifies a criterion that asserts nothing, and a `fail` reports the absence of a surface that was
+ * deleted on purpose.
+ *
+ * This is a REFUSAL rather than a warning because the walk is the expensive part — a fresh
+ * subscription-funded session per criterion — and the whole point is to decline before spending it.
+ *
+ * **Why it is needed at all, measured 2026-08-24.** A worklist of undriven model-driven legs is
+ * derived by joining bound legs against passing `events.uat_drive` rows; that join does not filter on
+ * story `status`, and a retired story keeps its bound legs forever. So retired stories accumulate at
+ * the TOP of any such count and read as the largest undriven blocks in the corpus. `studio-build`
+ * (retired by ADR-0429 on 2026-08-23) headed exactly such a worklist with 9 undriven legs the day
+ * after it was retired.
+ *
+ * It taxes the honest case not at all: a live story never reaches this branch.
+ */
+export function retiredStoryDriveRefusal(storyId: string, status: string): string | null {
+  if (status !== "retired") return null;
+  return [
+    `[uat-drive] REFUSED: story "${storyId}" is retired — a walk here spends subscription time to witness nothing.`,
+    "  A retired story makes no claim about the current product (ADR-0429 D3/D4), and its criteria are",
+    "  KEPT only as unclaimed history — ordinals are positional, so deleting them would silently re-point",
+    "  the survivors' bindings. So a `pass` here certifies a criterion that asserts nothing, and a `fail`",
+    "  reports the absence of a surface that was deleted on purpose. Neither is a product finding.",
+    "  This refusal exists because a count of undriven model-driven legs does NOT filter on story status:",
+    "  a retired story keeps its bound legs forever, so it heads any such worklist and reads as the",
+    "  largest undriven block in the corpus. Read each leg's own story before driving it.",
+    "  Disposing of these criteria is a story-author call (ADR-0396 D1), never a drive.",
+  ].join("\n");
 }
 
 /** The two platform contracts the prompt can carry. The authored criterion prose is the source. */

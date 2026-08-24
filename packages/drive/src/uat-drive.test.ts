@@ -20,6 +20,7 @@ import {
   parseDriveReport,
   projectTerminalVisibleText,
   resolveUatDriveProvider,
+  retiredStoryDriveRefusal,
   selectDriveTargets,
   selectWitnessableDrive,
   uatDriveIsolationClause,
@@ -203,11 +204,39 @@ test("Codex subscription boundary: only ChatGPT login status is accepted", () =>
   assert.equal(verifyCodexSubscriptionAuth("Logged in using ChatGPT\n", { OPENAI_API_KEY: "present" }).ok, false);
 });
 
-test("UAT provider setting: Codex is the default and Claude is explicit", () => {
-  assert.deepEqual(resolveUatDriveProvider(undefined), { ok: true, provider: "codex" });
-  assert.deepEqual(resolveUatDriveProvider("  "), { ok: true, provider: "codex" });
+test("UAT provider setting: Claude is the default and Codex is explicit", () => {
+  // ADR-0435 (owner-directed 2026-08-24) reversed the 2026-08-20 default after the Codex quota was
+  // exhausted with a month-long reset, which halted every model-driven walk at once. An UNSET
+  // variable must select Claude — that is the whole point, since a fleet of dispatched sessions
+  // inherits the default rather than setting anything.
+  assert.deepEqual(resolveUatDriveProvider(undefined), { ok: true, provider: "claude" });
+  assert.deepEqual(resolveUatDriveProvider("  "), { ok: true, provider: "claude" });
+  assert.deepEqual(resolveUatDriveProvider("codex"), { ok: true, provider: "codex" });
   assert.deepEqual(resolveUatDriveProvider("claude"), { ok: true, provider: "claude" });
+  // The refusal is what keeps a typo from silently falling back to a metered route.
   assert.equal(resolveUatDriveProvider("api").ok, false);
+  assert.equal(resolveUatDriveProvider("anthropic").ok, false);
+});
+
+test("retired stories refuse a drive before any spend", () => {
+  // Measured 2026-08-24: `studio-build` was retired by ADR-0429 on 2026-08-23 and, the very next day,
+  // headed a worklist of undriven model-driven legs with 9 — the largest block in the corpus. The join
+  // that produces such a worklist (bound legs vs passing `events.uat_drive` rows) does not filter on
+  // story status, and a retired story keeps its bound legs forever, so retired stories necessarily
+  // accumulate at the top of it. A session reading that worklist spends a subscription walk per leg
+  // before discovering the surfaces were deleted on purpose.
+  const refusal = retiredStoryDriveRefusal("studio-build", "retired");
+  assert.ok(refusal !== null, "a retired story must refuse");
+  // The refusal has to carry WHY, not just that it refused: the next reader arrives holding a worklist
+  // that says this is the biggest block of outstanding work in the repo.
+  assert.match(refusal, /ADR-0429/);
+  assert.match(refusal, /does NOT filter on story status/);
+  assert.match(refusal, /story-author call \(ADR-0396 D1\)/);
+
+  // It must not tax the honest case — every non-retired status drives exactly as before.
+  for (const status of ["proposed", "accepted", "in_progress", "done"]) {
+    assert.equal(retiredStoryDriveRefusal("embedded-terminal", status), null, status);
+  }
 });
 
 test("Claude subscription boundary: its explicit route never inherits metered API credentials", () => {
