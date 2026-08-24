@@ -7,8 +7,10 @@ import test from "node:test";
 import {
   computeCompositionTrial,
   parseFrozenArms,
+  readingsToDetect,
   FROZEN_ARMS_PATH,
   FROZEN_PAIR_COUNT,
+  MINIMUM_READINGS_FLOOR,
   type FrozenArms,
 } from "./decision-composition-trial.js";
 import type { DecisionReadObservation, DecisionSupportGraph } from "./decision-read-baseline.js";
@@ -125,7 +127,39 @@ test("composition-trial: a window walking the treated chain is measured at its r
   assert.equal(treated?.maxDepth, 3);
 });
 
+/** Eight windows per arm — enough to clear {@link MINIMUM_READINGS_FLOOR} so a direction is computed. */
+function armedReads(): DecisionReadObservation[] {
+  const reads: DecisionReadObservation[] = [];
+  for (let i = 0; i < 8; i += 1) {
+    // treated frontier read alone → rooted depth 1, no walk.
+    reads.push(read(`t${i}`, 400));
+    // control frontier walked one record deeper → rooted depth 2, a walk.
+    reads.push(read(`c${i}`, 500), read(`c${i}`, 100));
+  }
+  return reads;
+}
+
 test("composition-trial: the contrast states treated MINUS control, per altitude class", () => {
+  const reading = computeCompositionTrial({
+    arms,
+    support,
+    altitude,
+    reads: armedReads(),
+    // A 2-record effect is coarse enough that the floor, not the arithmetic, sets the bar — which is
+    // what keeps this test about the SUBTRACTION rather than about the sizing.
+    detectableDifference: 2,
+  });
+  const contrast = reading.contrasts.find((c) => c.altitude === "executive");
+  assert.equal(contrast?.sufficient, true);
+  assert.equal(contrast?.depthDifference, -1);
+  assert.equal(contrast?.walkShareDifference, -1);
+});
+
+test("composition-trial: a contrast whose arms cannot carry the difference reports NO direction", () => {
+  // The regression this exists for: run against the real corpus on 2026-08-25, the trial's after arm
+  // held a `property` treated cell with ZERO readings, and the probe printed `depth -1.00` for it —
+  // a full-record "fall" manufactured out of nobody having read the treated arm at all. Power is
+  // decided BEFORE direction, so the difference is absent rather than wrong.
   const reading = computeCompositionTrial({
     arms,
     support,
@@ -133,8 +167,46 @@ test("composition-trial: the contrast states treated MINUS control, per altitude
     reads: [read("w1", 400), read("w1", 500), read("w1", 100)],
   });
   const contrast = reading.contrasts.find((c) => c.altitude === "executive");
-  assert.equal(contrast?.depthDifference, -1);
-  assert.equal(contrast?.walkShareDifference, -1);
+  assert.equal(contrast?.sufficient, false);
+  assert.equal(contrast?.depthDifference, null);
+  assert.equal(contrast?.walkShareDifference, null);
+  // The cells themselves still report what they saw — the arm is stated, never hidden.
+  assert.equal(contrast?.treated.readings, 1);
+  assert.equal(contrast?.control.readings, 1);
+  assert.ok((contrast?.minimumReadings ?? 0) >= MINIMUM_READINGS_FLOOR);
+});
+
+test("composition-trial: an EMPTY treated cell never differences into a fall", () => {
+  // Nobody reads the treated frontier; the control arm is read eight times. The empty cell's mean is
+  // 0 by convention, so an unguarded subtraction reports the control's whole depth as a treated
+  // "fall". The arm that was never read cannot be the arm that fell.
+  const reads: DecisionReadObservation[] = [];
+  for (let i = 0; i < 8; i += 1) reads.push(read(`c${i}`, 500), read(`c${i}`, 100));
+  const reading = computeCompositionTrial({ arms, support, altitude, reads, detectableDifference: 2 });
+  const contrast = reading.contrasts.find((c) => c.altitude === "executive");
+  assert.equal(contrast?.treated.readings, 0);
+  assert.equal(contrast?.control.readings, 8);
+  assert.equal(contrast?.sufficient, false);
+  assert.equal(contrast?.depthDifference, null);
+});
+
+test("composition-trial: the sizing floor is uniform across classes, so no thin cell can out-report a fat one", () => {
+  // `-inc-14`'s least-sensitive-comparison rule, arriving here by construction: the pooled spread is
+  // taken over BOTH arms and EVERY class, so one bar applies to the whole report and a high-variance
+  // class cannot quietly size itself cheaper than its siblings.
+  const reading = computeCompositionTrial({ arms, support, altitude, reads: armedReads() });
+  const bars = new Set(reading.contrasts.map((c) => c.minimumReadings));
+  assert.equal(bars.size, 1, "every contrast is sized against the same bar");
+});
+
+test("composition-trial: a declared effect of zero or a degenerate spread falls back to the floor, never to zero", () => {
+  // A σ of 0 cannot size anything. Falling back to 0 would read as "any arm will do" at exactly the
+  // moment there is least to go on, so the floor is what catches it.
+  assert.equal(readingsToDetect(0), MINIMUM_READINGS_FLOOR);
+  assert.equal(readingsToDetect(1, 0), MINIMUM_READINGS_FLOOR);
+  assert.equal(readingsToDetect(Number.NaN), MINIMUM_READINGS_FLOOR);
+  // And a real spread against the declared half-record effect sizes well above the floor.
+  assert.ok(readingsToDetect(1) > MINIMUM_READINGS_FLOOR);
 });
 
 test("composition-trial: depth over READERS and depth over WALKERS answer different questions", () => {

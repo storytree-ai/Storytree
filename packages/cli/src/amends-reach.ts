@@ -164,6 +164,30 @@ export interface AmendsReachComparison {
   readonly detectableFall: number;
 }
 
+/**
+ * Does the after arm's observed reading extend into a period where a SECOND intervention was in
+ * force?
+ *
+ * ## WHY A SEPARATE QUESTION FROM POWER
+ *
+ * `verdict` answers *could this arm have detected the fall?* This answers *if it did, whose fall was
+ * it?* — and the two are independent: an arm can be large enough to resolve a direction and still be
+ * unable to attribute it. D5 asks whether the ANNOTATION discharged the reading. If the reader's
+ * pointer also changed inside the same arm, a real fall has two candidate causes and this measurement
+ * cannot choose between them. Reporting `FALL` alone would be read as the annotation working.
+ *
+ * It is deliberately a PREDICATE over the arm's OBSERVED end rather than its declared one: a declared
+ * open-ended arm (`--to` omitted) says nothing about whether anybody actually read after the second
+ * intervention, and an arm whose reads all predate it is clean however far its declared window runs.
+ */
+export function afterArmIsConfounded(
+  observedTo: string | null | undefined,
+  secondIntervention: string,
+): boolean {
+  if (observedTo === null || observedTo === undefined) return false;
+  return observedTo >= secondIntervention;
+}
+
 // ---------------------------------------------------------------------------
 // Statistics — kept here so the render invents none
 // ---------------------------------------------------------------------------
