@@ -63,7 +63,9 @@ import {
 } from "./decision-composition-trial.js";
 import { resolveLabelSet, type AltitudeLabel } from "./decision-altitude.js";
 import { decisionNumberOfObservedId, SupportGraphCycleError } from "./decision-read-baseline.js";
-import { buildSupportGraph, gatherReads } from "./probe-decision-gather.js";
+import { buildSupportGraph, gatherReads,
+  frozenAmendsEdges,
+} from "./probe-decision-gather.js";
 import { loadProbeDecisions } from "./probe-decisions.js";
 
 const TAG = "probe:decision-composition-trial";
@@ -214,7 +216,7 @@ async function main(): Promise<void> {
     process.exitCode = EXIT_UNREADABLE;
     return;
   }
-  const support = buildSupportGraph(adrs);
+  const support = buildSupportGraph(adrs, frozenAmendsEdges());
 
   const transcriptDir = resolveTranscriptDir();
   const gathered = gatherReads(transcriptDir);

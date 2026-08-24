@@ -338,7 +338,7 @@ export interface SurfaceCount {
  * the moment the drain moved its first edge.
  *
  * `supersedes` reaches this function by no path at all: {@link DecisionSupportGraph} has no field for
- * it, which is `decision-amends-seam.ts`'s type fence reused rather than restated in a comment.
+ * it, which is `decision-support-seam.ts`'s type fence reused rather than restated in a comment.
  */
 export function supportAdjacency(support: DecisionSupportGraph): ReadonlyMap<number, readonly number[]> {
   const adjacency = new Map<number, number[]>();

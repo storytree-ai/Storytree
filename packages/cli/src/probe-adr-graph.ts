@@ -16,9 +16,9 @@
  * has already failed; the 495-edge / 17-deep figures measured 2026-08-20 spanned both types together
  * and are therefore not numbers this arc can claim.
  *
- * **The exclusion is enforced by the SHAPE of the code, not by a comment.** {@link AmendsRow} and
+ * **The exclusion is enforced by the SHAPE of the code, not by a comment.** {@link SupportRow} and
  * {@link SupersedesRow} each expose ONE edge field, so a ladder builder literally cannot see the
- * other; {@link AmendsLadder} and {@link SupersedesLadder} are branded on `edge`, so TypeScript
+ * other; {@link SupportLadder} and {@link SupersedesLadder} are branded on `edge`, so TypeScript
  * refuses to hand one to the other's walk. There is no edge-type parameter anywhere — a walk that
  * took a flag would eventually be called with the wrong one. The single place both lists appear
  * together is {@link unionCycles}, whose return type is cycles and ONLY cycles: it is structurally
@@ -83,18 +83,27 @@ function label(adr: number): string {
 // ---------------------------------------------------------------------------------------------
 
 /**
- * The ONLY view of an ADR an `amends` question is allowed to see.
+ * The ONLY view of an ADR a SUPPORT question is allowed to see.
  *
- * `supersedes` is absent from the type, so {@link buildAmendsLadder} cannot read it even by mistake.
- * `AdrMeta` is assignable here (it has the field), which is the point: the caller passes the whole
- * record and the callee's parameter type is what performs the exclusion.
+ * `supersedes` is absent from the type, so {@link buildSupportLadder} cannot read it even by mistake.
+ * `AdrMeta` is assignable here, which is the point: the caller passes the whole record and the
+ * callee's parameter type is what performs the exclusion.
+ *
+ * POINTERS, not numbers, and that changed with ADR-0431 D1. The support edge used to be `amends`, a
+ * list of decision numbers on the `adr` schema; the field is retired and its 517 edges were migrated
+ * onto `dependsOn`, which is the ordinary Library edge and may name an artifact or a repository file
+ * as readily as a decision. Resolving which is which happens in the builder, through the one parser
+ * in `decision-pointer.ts` — never a hand split on `:`.
+ *
+ * OPTIONAL, and absence is MEANINGFUL: a reader that cannot see the field is a different fact from a
+ * decision that carries no support edge.
  */
-export interface AmendsRow {
+export interface SupportRow {
   readonly number: number;
-  readonly amends: readonly number[];
+  readonly dependsOn?: readonly string[];
 }
 
-/** The ONLY view of an ADR a `supersedes` question is allowed to see. `amends` is out of scope. */
+/** The ONLY view of an ADR a `supersedes` question is allowed to see. Support is out of scope. */
 export interface SupersedesRow {
   readonly number: number;
   readonly supersedes: readonly number[];
@@ -104,10 +113,10 @@ export interface SupersedesRow {
  * A ladder over ONE edge type, branded on `edge` so the two cannot be interchanged.
  *
  * Every count is per-EDGE except {@link Ladder.filesCarrying}, which is per-FILE. Reporting only one
- * of those two is how "283 ADRs carry `amends`" gets quietly read as "283 amends edges".
+ * of those two is how "283 ADRs carry support" gets quietly read as "283 support edges".
  */
-interface Ladder<E extends "amends" | "supersedes"> {
-  /** The brand. Its literal type is what makes {@link AmendsLadder} unassignable to a supersedes walk. */
+interface Ladder<E extends "support" | "supersedes"> {
+  /** The brand. Its literal type is what makes {@link SupportLadder} unassignable to a supersedes walk. */
   readonly edge: E;
   /** Adjacency over RESOLVABLE targets only (a target the log does not hold cannot be walked into). */
   readonly out: ReadonlyMap<number, readonly number[]>;
@@ -125,19 +134,25 @@ interface Ladder<E extends "amends" | "supersedes"> {
   readonly duplicateNumbers: readonly number[];
 }
 
-export type AmendsLadder = Ladder<"amends">;
+export type SupportLadder = Ladder<"support">;
 export type SupersedesLadder = Ladder<"supersedes">;
 
 /**
- * Build the `amends` ladder. This function NEVER SEES `supersedes` — its parameter type does not
+ * Build the SUPPORT ladder. This function NEVER SEES `supersedes` — its parameter type does not
  * carry the field, so the exclusion survives a later edit that forgets why it mattered.
  *
  * Deliberately duplicated rather than shared with {@link buildSupersedesLadder} through a
  * field-selecting parameter: a selector IS the edge-type flag this file exists to avoid, and the
  * duplication is fifteen lines against a class of error that has already cost this project a
- * confident, meaningless number.
+ * confident, meaningless number. ADR-0431 D1 removed the second support edge WITHOUT reaching for
+ * such a selector, which is why the guarantee is unchanged.
+ *
+ * A `dependsOn` pointer naming something that is not a decision (a Library artifact, a repository
+ * file) is NOT a dangling target — it is a well-formed edge pointing off this tier, and counting it
+ * as dangling would report a broken decision log where there is none. Only a pointer that names a
+ * decision NUMBER the log does not hold is dangling.
  */
-export function buildAmendsLadder(rows: readonly AmendsRow[]): AmendsLadder {
+export function buildSupportLadder(rows: readonly SupportRow[]): SupportLadder {
   const known = new Set(rows.map((row) => row.number));
   const out = new Map<number, readonly number[]>();
   const danglingTargets: { from: number; to: number }[] = [];
@@ -151,10 +166,15 @@ export function buildAmendsLadder(rows: readonly AmendsRow[]): AmendsLadder {
       duplicateNumbers.push(row.number);
       continue; // First row wins, matching `findDependsOnCycles`' duplicate rule.
     }
-    if (row.amends.length > 0) filesCarrying += 1;
-    edgesTotal += row.amends.length;
+    const decisionTargets: number[] = [];
+    for (const pointer of row.dependsOn ?? []) {
+      const parsed = parseDecisionPointer(pointer);
+      if (parsed !== null) decisionTargets.push(parsed.number);
+    }
+    if (decisionTargets.length > 0) filesCarrying += 1;
+    edgesTotal += decisionTargets.length;
     const targets: number[] = [];
-    for (const target of row.amends) {
+    for (const target of decisionTargets) {
       if (known.has(target)) targets.push(target);
       else danglingTargets.push({ from: row.number, to: target });
     }
@@ -163,7 +183,7 @@ export function buildAmendsLadder(rows: readonly AmendsRow[]): AmendsLadder {
   }
 
   return {
-    edge: "amends",
+    edge: "support",
     out,
     nodes: out.size,
     filesCarrying,
@@ -174,7 +194,7 @@ export function buildAmendsLadder(rows: readonly AmendsRow[]): AmendsLadder {
   };
 }
 
-/** Build the `supersedes` ladder. This function NEVER SEES `amends` — see {@link buildAmendsLadder}. */
+/** Build the `supersedes` ladder. This function NEVER SEES support — see {@link buildSupportLadder}. */
 export function buildSupersedesLadder(rows: readonly SupersedesRow[]): SupersedesLadder {
   const known = new Set(rows.map((row) => row.number));
   const out = new Map<number, readonly number[]>();
@@ -226,7 +246,7 @@ export type CyclePath = readonly string[];
  * already answers exactly this question with the three-colour walk and the rotation-canonical dedupe;
  * ADR numbers are simply rendered as ids so its output reads as ADR labels.
  */
-function cyclesOver(ladder: AmendsLadder | SupersedesLadder): CyclePath[] {
+function cyclesOver(ladder: SupportLadder | SupersedesLadder): CyclePath[] {
   const nodes = [...ladder.out.entries()].map(([adr, targets]) => ({
     id: label(adr),
     dependsOn: targets.map(label),
@@ -234,12 +254,12 @@ function cyclesOver(ladder: AmendsLadder | SupersedesLadder): CyclePath[] {
   return findDependsOnCycles(nodes);
 }
 
-/** Is the `amends` graph ALONE acyclic? Typed so a supersedes ladder cannot be asked this. */
-export function amendsCycles(ladder: AmendsLadder): CyclePath[] {
+/** Is the SUPPORT graph ALONE acyclic? Typed so a supersedes ladder cannot be asked this. */
+export function supportCycles(ladder: SupportLadder): CyclePath[] {
   return cyclesOver(ladder);
 }
 
-/** Is the `supersedes` graph ALONE acyclic? Typed so an amends ladder cannot be asked this. */
+/** Is the `supersedes` graph ALONE acyclic? Typed so a support ladder cannot be asked this. */
 export function supersedesCycles(ladder: SupersedesLadder): CyclePath[] {
   return cyclesOver(ladder);
 }
@@ -247,12 +267,22 @@ export function supersedesCycles(ladder: SupersedesLadder): CyclePath[] {
 /**
  * THE ONE PLACE BOTH EDGE LISTS APPEAR TOGETHER — and it answers ONLY "is the union acyclic?".
  *
- * The union is a legitimate and DIFFERENT question from the amends-only one: the two answers can
+ * The union is a legitimate and DIFFERENT question from the support-only one: the two answers can
  * disagree, and a loop that exists only across the two types is still a loop anything walking both
  * would meet. What is never legitimate is a combined COUNT or a combined DEPTH, so this returns
  * cycles and nothing else — the return type makes a summed figure unrepresentable rather than merely
  * discouraged, and no ladder is ever built over the union.
  */
+/** The decision numbers a row's `dependsOn` pointers name — the support half, resolved once. */
+function decisionTargetsOf(row: AdrMeta): number[] {
+  const out: number[] = [];
+  for (const pointer of row.dependsOn ?? []) {
+    const parsed = parseDecisionPointer(pointer);
+    if (parsed !== null) out.push(parsed.number);
+  }
+  return out;
+}
+
 export function unionCycles(rows: readonly AdrMeta[]): CyclePath[] {
   const known = new Set(rows.map((row) => row.number));
   const seen = new Set<number>();
@@ -262,7 +292,7 @@ export function unionCycles(rows: readonly AdrMeta[]): CyclePath[] {
     seen.add(row.number);
     nodes.push({
       id: label(row.number),
-      dependsOn: [...row.amends, ...row.supersedes].filter((t) => known.has(t)).map(label),
+      dependsOn: [...decisionTargetsOf(row), ...row.supersedes].filter((t) => known.has(t)).map(label),
     });
   }
   return findDependsOnCycles(nodes);
@@ -297,11 +327,11 @@ export interface LadderDepth {
  * into a `visiting` node THROWS, naming the loop — it never returns the truncated number, because a
  * silently truncated depth is worse than the flat figure it replaced.
  *
- * Private, and reached only through {@link longestAmendsChain} / {@link longestSupersedesChain}: it
+ * Private, and reached only through {@link longestSupportChain} / {@link longestSupersedesChain}: it
  * takes a whole branded ladder rather than a bare adjacency plus an edge-type flag, so there is no
  * parameter here that a caller could get wrong.
  */
-function longestPathOver(ladder: AmendsLadder | SupersedesLadder): LadderDepth {
+function longestPathOver(ladder: SupportLadder | SupersedesLadder): LadderDepth {
   const { out } = ladder;
   const depth = new Map<number, number>();
   const deepestChild = new Map<number, number>();
@@ -370,8 +400,8 @@ function longestPathOver(ladder: AmendsLadder | SupersedesLadder): LadderDepth {
   };
 }
 
-/** The `amends`-only ladder depth — THE number this arc can honestly claim. */
-export function longestAmendsChain(ladder: AmendsLadder): LadderDepth {
+/** The SUPPORT-only ladder depth — THE number this arc can honestly claim. */
+export function longestSupportChain(ladder: SupportLadder): LadderDepth {
   return longestPathOver(ladder);
 }
 
@@ -391,7 +421,7 @@ export function longestSupersedesChain(ladder: SupersedesLadder): LadderDepth {
  * The chain is the one output a human is asked to spot-check by hand, so the probe checks its own
  * arithmetic before printing it. A mismatch throws rather than printing a plausible fiction.
  */
-function assertChainIsReal(ladder: AmendsLadder | SupersedesLadder, walk: LadderDepth): void {
+function assertChainIsReal(ladder: SupportLadder | SupersedesLadder, walk: LadderDepth): void {
   const { deepestChain, maxDepth } = walk;
   if (maxDepth === 0) {
     if (deepestChain.length !== 0) {
@@ -534,7 +564,7 @@ function censusPointers(
 
 function reportLadder(
   title: string,
-  ladder: AmendsLadder | SupersedesLadder,
+  ladder: SupportLadder | SupersedesLadder,
   cycles: readonly CyclePath[],
 ): void {
   console.log("");
@@ -573,7 +603,7 @@ function reportWalk(what: string, walk: LadderDepth): void {
 }
 
 async function censusCorpus(
-  amendsWalk: LadderDepth,
+  supportWalk: LadderDepth,
   adrsOnDisk: ReadonlySet<number>,
 ): Promise<void> {
   const corpus = await openCorpusStore(TAG);
@@ -618,7 +648,7 @@ async function censusCorpus(
     // How deep the LANDED-ON ADRs sit in the amends ladder — the population that matters, which is
     // not the same as the ladder's overall shape.
     const landedDepths = new Map<number, number>();
-    for (const adr of census.landedOn.keys()) landedDepths.set(adr, amendsWalk.depthByNode.get(adr) ?? 0);
+    for (const adr of census.landedOn.keys()) landedDepths.set(adr, supportWalk.depthByNode.get(adr) ?? 0);
     const landedHistogram = new Map<number, number>();
     for (const depth of landedDepths.values()) {
       landedHistogram.set(depth, (landedHistogram.get(depth) ?? 0) + 1);
@@ -633,7 +663,7 @@ async function censusCorpus(
       }
     }
     console.log(
-      `    their amends depth: ${[...landedHistogram.entries()]
+      `    their support depth: ${[...landedHistogram.entries()]
         .sort((left, right) => left[0] - right[0])
         .map(([depth, count]) => `${count}@${depth}`)
         .join("  ")}` +
@@ -649,12 +679,12 @@ async function censusCorpus(
     for (const edge of census.edges) {
       if (edge.libraryDepth === null) continue;
       reachedPointers += 1;
-      const total = edge.libraryDepth + 1 + (amendsWalk.depthByNode.get(edge.adr) ?? 0);
+      const total = edge.libraryDepth + 1 + (supportWalk.depthByNode.get(edge.adr) ?? 0);
       if (total > candidateA) {
         candidateA = total;
         witness =
           `${edge.artifact} (depth ${edge.libraryDepth}) → ${label(edge.adr)} ` +
-          `+ ${amendsWalk.depthByNode.get(edge.adr) ?? 0} amends hop(s)`;
+          `+ ${supportWalk.depthByNode.get(edge.adr) ?? 0} support hop(s)`;
       }
     }
 
@@ -684,7 +714,7 @@ async function censusCorpus(
     console.log(
       `      worst case regardless of reachability: ${
         deepestLandedAdr === undefined ? "n/a" : label(deepestLandedAdr)
-      } sits ${deepestLanded} amends hops down, so any artifact reaching it would read at its own ` +
+      } sits ${deepestLanded} support hops down, so any artifact reaching it would read at its own ` +
         `depth + ${deepestLanded + 1}.`,
     );
     console.log(
@@ -728,22 +758,22 @@ async function main(): Promise<void> {
   console.log("");
   console.log(
     `  ⚠ The two edge types are NEVER summed. \`supersedes\` points a new decision at the dead one it` +
-      ` replaced (archaeology); \`amends\` means "still standing, and rests on this" (depth).`,
+      ` replaced (archaeology); \`dependsOn\` means "still standing, and rests on this" (depth).`,
   );
 
   // 1 + 2 — the census and the acyclicity verdicts, per type, BEFORE anything walks.
-  const amends = buildAmendsLadder(adrs);
+  const support = buildSupportLadder(adrs);
   const supersedes = buildSupersedesLadder(adrs);
-  const amendsLoops = amendsCycles(amends);
+  const supportLoops = supportCycles(support);
   const supersedesLoops = supersedesCycles(supersedes);
   const unionLoops = unionCycles(adrs);
 
   console.log("");
   console.log(`  1 + 2. EDGE CENSUS AND ACYCLICITY, BY TYPE`);
-  reportLadder("`amends` — the edge that means DEPTH", amends, amendsLoops);
+  reportLadder("`dependsOn` — the SUPPORT edge, and the one that means DEPTH", support, supportLoops);
   reportLadder("`supersedes` — the edge that means ARCHAEOLOGY", supersedes, supersedesLoops);
   console.log("");
-  console.log(`  the UNION (amends + supersedes), for the acyclicity question ONLY`);
+  console.log(`  the UNION (support + supersedes), for the acyclicity question ONLY`);
   console.log(
     `    acyclic: ${unionLoops.length === 0 ? "YES" : `NO — ${unionLoops.length} cycle(s)`}` +
       ` — a different question from the two above, and it can answer NO while they answer YES`,
@@ -751,7 +781,7 @@ async function main(): Promise<void> {
   for (const cycle of unionLoops) console.log(`      cycle: ${cycle.join(" → ")}`);
   console.log(`    (no count and no depth is ever taken over the union — see the file header)`);
 
-  if (amendsLoops.length > 0 || supersedesLoops.length > 0) {
+  if (supportLoops.length > 0 || supersedesLoops.length > 0) {
     console.error("");
     console.error(
       `${TAG} FAIL — a per-type graph is CYCLIC, so no depth is reported. The cycle above IS the ` +
@@ -762,14 +792,14 @@ async function main(): Promise<void> {
   }
 
   // 3 + 4 — the ladders, only now that both are proved acyclic.
-  const amendsWalk = longestAmendsChain(amends);
-  assertChainIsReal(amends, amendsWalk);
+  const supportWalk = longestSupportChain(support);
+  assertChainIsReal(support, supportWalk);
   const supersedesWalk = longestSupersedesChain(supersedes);
   assertChainIsReal(supersedes, supersedesWalk);
 
   console.log("");
-  console.log(`  3. THE \`amends\`-ONLY LADDER — the honest depth this arc can claim`);
-  reportWalk("amends alone; NOT comparable to the 17 measured 2026-08-20 over both types", amendsWalk);
+  console.log(`  3. THE SUPPORT-ONLY LADDER — the honest depth this arc can claim`);
+  reportWalk("support alone; NOT comparable to the 17 measured 2026-08-20 over both types", supportWalk);
 
   console.log("");
   console.log(`  4. THE \`supersedes\`-ONLY LADDER — ARCHAEOLOGY, not depth`);
@@ -783,7 +813,7 @@ async function main(): Promise<void> {
   }
 
   const known = new Set(adrs.map((adr) => adr.number));
-  await censusCorpus(amendsWalk, known);
+  await censusCorpus(supportWalk, known);
 
   console.log("");
   console.log(`${TAG} — census complete. Nothing was written; no gate reads this.`);

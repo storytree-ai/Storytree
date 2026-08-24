@@ -273,7 +273,6 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
       file: row.id,
       status: parsed.data,
       supersedes: numbers(bag["supersedes"]),
-      amends: numbers(bag["amends"]),
       loadBearing: bag["loadBearing"] === true,
       title,
     };

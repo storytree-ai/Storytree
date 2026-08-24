@@ -38,7 +38,6 @@ function adr(number: number, status: AdrMeta["status"], edges?: Partial<AdrMeta>
     file: `${String(number).padStart(4, "0")}-x.md`,
     status,
     supersedes: [],
-    amends: [],
     loadBearing: false,
     ...edges,
   };
@@ -76,9 +75,9 @@ test("adr-frontmatter: parse errors FAIL, a clean load PASSes", () => {
 });
 
 test("adr-edge-integrity: a dangling edge target FAILs", () => {
-  const ok = adrHealth(inputs({ adrs: [adr(1, "accepted"), adr(2, "accepted", { amends: [1] })] }));
+  const ok = adrHealth(inputs({ adrs: [adr(1, "accepted"), adr(2, "accepted", { supersedes: [1] })] }));
   assert.equal(levelOf(ok, "adr-edge-integrity"), "PASS");
-  const bad = adrHealth(inputs({ adrs: [adr(2, "accepted", { amends: [99] })] }));
+  const bad = adrHealth(inputs({ adrs: [adr(2, "accepted", { supersedes: [99] })] }));
   assert.equal(levelOf(bad, "adr-edge-integrity"), "FAIL");
 });
 

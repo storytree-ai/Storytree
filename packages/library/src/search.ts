@@ -48,7 +48,7 @@
  *    corpus that has none.
  * 2. **Every result carries its denominator** ({@link SearchResult.scanned}). "No unlinked
  *    neighbours" and "the corpus was never read" are different facts, and without the count they
- *    render identically — the same distinction `DecisionAmendsResolver.decisions` exists to make.
+ *    render identically — the same distinction `DecisionSupportResolver.decisions` exists to make.
  * 3. **{@link relatedArtifacts} reports LINKED and UNLINKED over the SAME ranking.** It does not run
  *    one query for the linked set and another for the rest. The unlinked set is defined by
  *    subtraction from a single ranked list, so a hit cannot appear in neither, and the linked count

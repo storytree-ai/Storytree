@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { decisionAmendsResolver, type AmendsOnlyDecision } from "./decision-amends-seam.js";
+import { decisionSupportResolver, type SupportOnlyDecision } from "./decision-support-seam.js";
 import {
   decisionWalkVacuity,
   depthFromWorkNodes,
@@ -30,36 +30,46 @@ function row(
 /**
  * A decision row as the seam reads it. `supersedes` is carried in order to prove it is IGNORED.
  *
- * It deliberately omits `dependsOn` ENTIRELY rather than defaulting it to `[]`: that is the shape a
- * frontmatter-backed reader hands over, and it is what makes `decisionsCarryingDependsOn` read 0 in
- * every test that does not opt in — the blind-reader state ADR-0419 D3 expects throughout the drain.
+ * With NO support argument it omits `dependsOn` ENTIRELY rather than defaulting it to `[]`: that is
+ * the shape a frontmatter-backed reader hands over, and it is what makes `decisionsCarryingDependsOn`
+ * read 0 in every test that does not opt in — the blind-reader state the seam's second denominator
+ * exists to tell apart from a genuinely unwired log.
+ *
+ * `supports` takes decision NUMBERS for the fixtures' ergonomics and stores `asset:adr-NNNN`, which
+ * is what the corpus actually holds since ADR-0431 D1 migrated the retired `amends` field's 517
+ * edges onto `dependsOn`. Passing any makes the row a SIGHTED reader, because there is no longer a
+ * support edge that a blind reader could carry.
  */
 function adr(
   decisionNumber: number,
-  amends: readonly number[] = [],
+  supports: readonly number[] = [],
   supersedes: readonly number[] = [],
 ) {
-  return { number: decisionNumber, amends, supersedes };
+  if (supports.length === 0) return { number: decisionNumber, supersedes };
+  return {
+    number: decisionNumber,
+    supersedes,
+    dependsOn: supports.map((n) => `asset:adr-${String(n).padStart(4, "0")}`),
+  };
 }
 
-/** A decision row from a reader that CAN see ADR-0419 D1's support edge. Pointers, not numbers. */
+/** A decision row whose support edges are written as RAW POINTERS — all three live spellings. */
 function adrSupporting(
   decisionNumber: number,
   dependsOn: readonly string[],
-  amends: readonly number[] = [],
   supersedes: readonly number[] = [],
 ) {
-  return { number: decisionNumber, amends, supersedes, dependsOn };
+  return { number: decisionNumber, supersedes, dependsOn };
 }
 
 function withDecisions(
   rows: readonly DepthFromWorkSource[],
-  decisions: readonly AmendsOnlyDecision[],
+  decisions: readonly SupportOnlyDecision[],
 ): ReturnType<typeof evaluateDepthFromWork> {
-  return evaluateDepthFromWork(depthFromWorkNodes(rows), decisionAmendsResolver(decisions));
+  return evaluateDepthFromWork(depthFromWorkNodes(rows), decisionSupportResolver(decisions));
 }
 
-test("depth-from-work-walks-past-a-decision-on-amends: a decision pointer is a hop, not a sink", () => {
+test("depth-from-work-walks-past-a-decision-on-support: a decision pointer is a hop, not a sink", () => {
   const verdict = withDecisions(
     [
       row("anchor", { cites: ["story:library", "asset:guidance"] }),
@@ -76,7 +86,7 @@ test("depth-from-work-walks-past-a-decision-on-amends: a decision pointer is a h
   assert.equal(verdict.maxArtifactDepth, 1, "and the artifact-only reading is kept apart");
   assert.equal(verdict.deepestId, "decision:0086");
   assert.equal(verdict.decisionEdges, 1, "the join");
-  assert.equal(verdict.amendsEdges, 2);
+  assert.equal(verdict.decisionDependsOnEdges, 2);
   assert.equal(verdict.bedrockTargets, 0, "the decision pointer was WALKED, so it is not bedrock");
 });
 
@@ -100,8 +110,7 @@ test("depth-from-work-without-a-resolver-is-the-pre-ADR-0403-sink-reading, uncha
   assert.deepEqual(sink.decisionHistogram, []);
   assert.equal(sink.depthById.has("decision:0223"), false);
   assert.equal(sink.knownIds.has("decision:0223"), false);
-  // ADR-0419 D1's half is fenced by the same switch, and reads zero for the same reason.
-  assert.equal(sink.amendsEdges, 0);
+  // The support half is fenced by the same switch, and reads zero for the same reason.
   assert.equal(sink.decisionDependsOnEdges, 0);
   assert.equal(sink.decisionDependsOnUnwalkedTargets, 0);
   assert.equal(sink.decisionsCarryingDependsOn, 0);
@@ -126,7 +135,7 @@ test("depth-from-work-walks-both-pointer-spellings-past-a-decision: neither form
 
 test("depth-from-work-never-walks-supersedes: the seam offers no door for it", () => {
   // `supersedes` means "this replaced that" — archaeology, never a distance from the work. The
-  // exclusion is structural (`DecisionAmendsResolver` has no `supersedesOf` and no edge-type
+  // exclusion is structural (`DecisionSupportResolver` has no `supersedesOf` and no edge-type
   // parameter), so what is asserted here is the CONSEQUENCE: a supersedes-only chain adds no depth.
   const verdict = withDecisions(
     [
@@ -138,7 +147,7 @@ test("depth-from-work-never-walks-supersedes: the seam offers no door for it", (
 
   assert.equal(verdict.depthById.get("decision:0223"), 2);
   assert.equal(verdict.depthById.has("decision:0139"), false, "a superseded decision is not deeper");
-  assert.equal(verdict.amendsEdges, 0);
+  assert.equal(verdict.decisionDependsOnEdges, 0);
   assert.equal(verdict.maxDepth, 2);
 });
 
@@ -199,7 +208,7 @@ test("depth-from-work-counts-a-dangling-decision-pointer: named, never silently 
     [adr(223, [404])],
   );
 
-  assert.equal(verdict.decisionDanglingTargets, 2, "the missing pointer AND the missing amends target");
+  assert.equal(verdict.decisionDanglingTargets, 2, "the missing artifact pointer AND the missing decision target");
   assert.equal(verdict.bedrockTargets, 1, "the research pointer is still an honest sink");
   assert.equal(verdict.decisionEdges, 0);
 });
@@ -239,7 +248,7 @@ test("depth-from-work-declares-a-vacuous-decision-walk: a resolver that resolved
 // ADR-0419 D1 — A DECISION'S OWN `dependsOn` IS A SUPPORT EDGE, AND THE WALK TRAVERSES IT
 // ---------------------------------------------------------------------------------------------
 // `decision-read-measurement-arc` increment 05. Settled by EXERCISE before it was built: with the
-// seam answering `amendsOf` alone, ADR-0419's own `dependsOn` at ADR-0403 left `decision:0403`
+// seam answering the retired `amends` edge alone, ADR-0419's own `dependsOn` at ADR-0403 left `decision:0403`
 // UNREACHED while `decision:0419` sat at depth 2 — and it stayed unreached even when both decisions
 // were ALSO present as ordinary `adr-NNNN` artifact rows, because the artifact node and the decision
 // node are two disconnected representations of one decision. The edge fell between the two halves of
@@ -264,7 +273,6 @@ test("depth-from-work-walks-a-decisions-own-dependsOn: plain support is a hop, n
   assert.equal(verdict.maxDepth, 4);
   assert.equal(verdict.maxArtifactDepth, 1, "and the artifact half is untouched");
   assert.equal(verdict.decisionDependsOnEdges, 2);
-  assert.equal(verdict.amendsEdges, 0, "no `amends` edge was authored, and none is invented");
 });
 
 test("depth-from-work-walks-every-spelling-of-a-decisions-own-dependsOn: none is dropped", () => {
@@ -295,32 +303,33 @@ test("depth-from-work-walks-every-spelling-of-a-decisions-own-dependsOn: none is
   assert.equal(verdict.decisionDependsOnUnwalkedTargets, 0);
 });
 
-test("depth-from-work-reports-the-two-support-edge-kinds-apart: never one summed figure", () => {
-  // They are the same AXIS and different CLAIMS — `amends` adds a read obligation on its target,
-  // plain support does not — and ADR-0419 D5 defers retiring the deprecated usage until the reach
-  // into amended decisions can be measured. That question is unanswerable to anyone who can no
-  // longer tell which edge kind produced the depth, so the verdict must never fold them into one.
+test("depth-from-work-reports-ONE-support-edge-count-and-no-dead-second-one", () => {
+  // This test used to assert that TWO support counters were reported apart and never summed, because
+  // `amends` added a read obligation its plain sibling did not and ADR-0419 D5's question was
+  // unanswerable to anyone who could not tell which edge produced the depth. ADR-0431 D1 retired
+  // `amends`, so what has to hold now is the opposite and is worth pinning just as hard: there is
+  // ONE counter, and the retired one is GONE rather than left reporting a permanent 0. A counter
+  // that cannot move is read as a collapse the moment anyone compares it to a frozen figure — which
+  // is exactly how `probe:amends-reach` came to report 203 chain-walkers as 0 on 2026-08-24.
   const verdict = withDecisions(
     [
       row("anchor", { cites: ["story:library", "asset:guidance"] }),
       row("guidance", { dependsOn: ["doc:decisions/0419-a-title.md"] }),
     ],
     [
-      adrSupporting(419, ["doc:decisions/0403-a-title.md"], [139]),
+      adrSupporting(419, ["doc:decisions/0403-a-title.md", "asset:adr-0139"]),
       adr(403),
       adr(139),
     ],
   );
 
-  assert.equal(verdict.amendsEdges, 1, "the read-obligation edge");
-  assert.equal(verdict.decisionDependsOnEdges, 1, "the plain support edge");
+  assert.equal(verdict.decisionDependsOnEdges, 2, "both support edges, on the one counter");
   assert.equal(verdict.depthById.get("decision:0403"), 3);
   assert.equal(verdict.depthById.get("decision:0139"), 3);
-  // The two counters exist SEPARATELY on the verdict — there is no combined field to read instead.
   assert.equal(
-    Object.keys(verdict).some((key) => /^supportEdges$|^decisionSupportEdges$/.test(key)),
+    Object.keys(verdict).some((key) => /amends/i.test(key)),
     false,
-    "no pre-summed field for a reader to quote in place of the two",
+    "no retired counter survives to be quoted as a zero",
   );
 });
 
@@ -362,27 +371,27 @@ test("depth-from-work-counts-a-dangling-dependsOn-target-on-a-decision: named, n
       row("anchor", { cites: ["story:library", "asset:guidance"] }),
       row("guidance", { dependsOn: ["doc:decisions/0419-a-title.md"] }),
     ],
-    [adrSupporting(419, ["doc:decisions/9999-no-such-decision.md"], [404])],
+    [adrSupporting(419, ["doc:decisions/9999-no-such-decision.md", "asset:adr-0404"])],
   );
 
-  assert.equal(verdict.decisionDanglingTargets, 2, "the missing dependsOn AND the missing amends");
+  assert.equal(verdict.decisionDanglingTargets, 2, "BOTH missing targets, in both spellings");
   assert.equal(verdict.decisionDependsOnEdges, 0);
-  assert.equal(verdict.amendsEdges, 0);
   assert.equal(verdict.maxDepth, 2, "reached the decision, and could go no further");
 });
 
 test("depth-from-work-never-walks-supersedes-even-with-two-support-edges-in-play", () => {
-  // The fence has to survive ADR-0419 D1. `supersedes` is unreachable through the seam — no
-  // `supersedesOf`, and no edge-type parameter that `dependsOnOf` could have been folded into — so
-  // what is asserted is the consequence: a superseded decision gains no depth from either edge.
+  // The fence had to survive ADR-0419 D1 adding a second support edge, and it had to survive
+  // ADR-0431 D1 taking one away. `supersedes` is unreachable through the seam — no `supersedesOf`,
+  // and no edge-type parameter that `dependsOnOf` could have been folded into on the way past
+  // either change — so what is asserted is the consequence: a superseded decision gains no depth.
   const verdict = withDecisions(
     [
       row("anchor", { cites: ["story:library", "asset:guidance"] }),
       row("guidance", { dependsOn: ["doc:decisions/0419-a-title.md"] }),
     ],
     [
-      adrSupporting(419, ["doc:decisions/0403-a-title.md"], [], [86]),
-      adrSupporting(403, [], [], [139]),
+      adrSupporting(419, ["doc:decisions/0403-a-title.md"], [86]),
+      adrSupporting(403, [], [139]),
       adr(139),
       adr(86),
     ],
@@ -414,11 +423,13 @@ test("depth-from-work-separates-a-blind-reader-from-an-unwired-decision-log (ADR
 });
 
 test("decision-walk-vacuity-does-not-fire-once-dependsOn-carries-the-support-graph", () => {
-  // THE MUTATION THAT WOULD HAVE MADE THIS RED, AND THE FALSE RED IT PREVENTS. ADR-0419 D2
-  // deprecates `amends` for plain support, so a corpus part-way through the drain has FEWER `amends`
-  // edges BY DESIGN and a fully-drained one could have none. A vacuity test on `amends` alone would
-  // then declare a healthy, well-wired decision log vacuous — arriving precisely as the work
-  // succeeded, which is the mirror of the failure the check exists to catch.
+  // THE MUTATION THAT WOULD HAVE MADE THIS RED, AND THE FALSE RED IT PREVENTS. ADR-0419 D2 first
+  // deprecated the old `amends` edge for plain support, so a corpus part-way through the drain had
+  // FEWER of them BY DESIGN and a fully-drained one could have none; a vacuity test on that edge
+  // alone would have declared a healthy, well-wired decision log vacuous, arriving precisely as the
+  // work succeeded. ADR-0431 D1 then retired the edge outright and migrated all 517 onto
+  // `dependsOn`, so the surviving half is the one that carries the graph — and the trap is the same
+  // one inverted: a term that can only read 0 must never re-enter this predicate.
   const many = Array.from({ length: VACUOUS_DECISION_WALK_FLOOR }, (_unused, index) =>
     row(`pad-${index}`),
   );
@@ -436,13 +447,12 @@ test("decision-walk-vacuity-does-not-fire-once-dependsOn-carries-the-support-gra
     adr(403),
     ...padDecisions,
   ]);
-  assert.equal(drained.amendsEdges, 0, "the drain moved every support edge off `amends` …");
-  assert.equal(drained.decisionDependsOnEdges, 1);
+  assert.equal(drained.decisionDependsOnEdges, 1, "the migration put every support edge here …");
   assert.deepEqual(decisionWalkVacuity(drained), [], "… and the walk is NOT vacuous");
 
-  // And the reason still fires when NEITHER support edge resolves, which is the real blindness.
+  // And the reason still fires when the support edge resolves NOWHERE, which is the real blindness.
   const stuck = withDecisions(reached, [adr(419), adr(403), ...padDecisions]);
-  assert.match(decisionWalkVacuity(stuck).join(" "), /0 resolvable `amends` edges and 0 resolvable/);
+  assert.match(decisionWalkVacuity(stuck).join(" "), /0 resolvable `dependsOn` edges/);
 });
 
 // ---------------------------------------------------------------------------------------------

@@ -17,13 +17,24 @@ function artifact(id: string, dependsOn: readonly string[]) {
 /** A decision with no edges of any kind — the shape most of the log has. */
 function decision(
   decisionNumber: number,
-  edges: Partial<Omit<DecisionEdgeSource, "number">> = {},
+  edges: {
+    /** Decision-to-decision SUPPORT, written as numbers here and stored as `asset:adr-NNNN`. */
+    readonly supports?: readonly number[];
+    readonly supersedes?: readonly number[];
+    readonly dependsOn?: readonly string[];
+  } = {},
 ): DecisionEdgeSource {
-  const amends = edges.amends ?? [];
   const supersedes = edges.supersedes ?? [];
-  return edges.dependsOn === undefined
-    ? { number: decisionNumber, amends, supersedes }
-    : { number: decisionNumber, amends, supersedes, dependsOn: edges.dependsOn };
+  // ADR-0431 D1: support is ONE edge and it is spelled as a pointer. The helper keeps the
+  // number-shaped ergonomics the fixtures were written with and does the spelling itself, so a
+  // decision-to-decision edge in a test is authored exactly as the corpus stores one.
+  const pointers = [
+    ...(edges.supports ?? []).map((n) => `asset:adr-${String(n).padStart(4, "0")}`),
+    ...(edges.dependsOn ?? []),
+  ];
+  return edges.supports === undefined && edges.dependsOn === undefined
+    ? { number: decisionNumber, supersedes }
+    : { number: decisionNumber, supersedes, dependsOn: pointers };
 }
 
 /** Enough artifacts to clear the vacuity floor, so a read can be judged as a real one. */
@@ -72,7 +83,7 @@ test("combined-dag-finds-a-cycle-that-crosses-the-join: an outbound decision edg
       artifact("guidance", ["asset:pattern"]),
       artifact("pattern", ["doc:decisions/0223-a-title.md"]),
     ],
-    [decision(223, { amends: [139] }), decision(139, { dependsOn: ["asset:guidance"] })],
+    [decision(223, { supports: [139] }), decision(139, { dependsOn: ["asset:guidance"] })],
   );
 
   assert.equal(verdict.acyclic, false);
@@ -99,15 +110,15 @@ test("combined-dag-finds-a-library-only-cycle: and says it does NOT cross the jo
   );
 });
 
-test("combined-dag-finds-a-decision-only-cycle-on-amends-alone", () => {
+test("combined-dag-finds-a-decision-only-cycle-on-support-alone", () => {
   const verdict = evaluateCombinedAcyclicity(
     [],
-    [decision(1, { amends: [2] }), decision(2, { amends: [1] })],
+    [decision(1, { supports: [2] }), decision(2, { supports: [1] })],
   );
 
   assert.equal(verdict.acyclic, false);
   assert.equal(verdict.cycles[0]?.crossesTheJoin, false);
-  assert.equal(verdict.decisionAmendsEdges, 2);
+  assert.equal(verdict.decisionSupportEdges, 2);
 });
 
 test("combined-dag-finds-a-ring-closed-ACROSS-the-two-edge-types: the union is the cycle reading", () => {
@@ -116,11 +127,11 @@ test("combined-dag-finds-a-ring-closed-ACROSS-the-two-edge-types: the union is t
   // dec 6). A judge that checked only `amends` would report this acyclic.
   const verdict = evaluateCombinedAcyclicity(
     [],
-    [decision(1, { amends: [2] }), decision(2, { supersedes: [1] })],
+    [decision(1, { supports: [2] }), decision(2, { supersedes: [1] })],
   );
 
   assert.equal(verdict.acyclic, false);
-  assert.equal(verdict.decisionAmendsEdges, 1);
+  assert.equal(verdict.decisionSupportEdges, 1);
   assert.equal(verdict.decisionSupersedesEdges, 1);
 });
 
@@ -130,10 +141,10 @@ test("combined-dag-never-sums-the-two-edge-types: no field carries a combined to
   // is the point: a summed figure must be unrepresentable, not merely discouraged.
   const verdict = evaluateCombinedAcyclicity(
     [],
-    [decision(1, { amends: [2], supersedes: [3] }), decision(2), decision(3)],
+    [decision(1, { supports: [2], supersedes: [3] }), decision(2), decision(3)],
   );
 
-  assert.equal(verdict.decisionAmendsEdges, 1);
+  assert.equal(verdict.decisionSupportEdges, 1);
   assert.equal(verdict.decisionSupersedesEdges, 1);
   const forbidden = Object.keys(verdict).filter((key) => /depth|edgesScanned|totalEdges|edgeTotal/i.test(key));
   assert.deepEqual(forbidden, [], "no field a later reader could quote as a combined count or a depth");
@@ -145,7 +156,7 @@ test("combined-dag-reports-todays-one-way-join-as-a-measurement: 0 outbound deci
   // stopped being true after the migration.
   const verdict = evaluateCombinedAcyclicity(
     [artifact("pattern", ["doc:decisions/0223-a-title.md"]), artifact("guidance", ["asset:pattern"])],
-    [decision(223, { amends: [139] }), decision(139)],
+    [decision(223, { supports: [139] }), decision(139)],
   );
 
   assert.equal(verdict.acyclic, true);
@@ -162,7 +173,7 @@ test("combined-dag-counts-dangling-pointers-never-drops-them", () => {
         "doc:research/a-survey.md",
       ]),
     ],
-    [decision(223, { amends: [404] })],
+    [decision(223, { supports: [404] })],
   );
 
   assert.equal(verdict.libraryDanglingEdges, 1);
@@ -231,7 +242,7 @@ test("combined-dag-projects-defensively: a row shaped by another branch's schema
 test("combined-dag-first-row-wins-on-a-duplicate: and the duplicate is named, not swallowed", () => {
   const verdict = evaluateCombinedAcyclicity(
     [artifact("twin", []), artifact("twin", ["asset:other"]), artifact("other", [])],
-    [decision(1, { amends: [2] }), decision(1, { amends: [3] }), decision(2), decision(3)],
+    [decision(1, { supports: [2] }), decision(1, { supports: [3] }), decision(2), decision(3)],
   );
 
   assert.deepEqual(verdict.duplicateArtifactIds, ["twin"]);
@@ -239,7 +250,7 @@ test("combined-dag-first-row-wins-on-a-duplicate: and the duplicate is named, no
   assert.equal(verdict.artifactsScanned, 2);
   assert.equal(verdict.decisionsScanned, 3);
   assert.equal(verdict.libraryEdges, 0, "the SECOND `twin` row's edge is not adopted");
-  assert.equal(verdict.decisionAmendsEdges, 1, "the second ADR-0001 row's edge is not adopted");
+  assert.equal(verdict.decisionSupportEdges, 1, "the second ADR-0001 row's edge is not adopted");
 });
 
 test("combined-dag-reports-an-id-collision-rather-than-merging-two-nodes", () => {

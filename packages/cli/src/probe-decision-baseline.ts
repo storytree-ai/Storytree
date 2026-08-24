@@ -21,7 +21,7 @@
  *   - OFFERS — from the traversal TRACE STORE's `candidate_set` events, which is where an offer is
  *     recorded and the only place it exists.
  *   - THE SUPPORT GRAPH — from the LIVE decision log, through `loadProbeDecisions` and the
- *     `decisionAmendsResolver` seam, so `supersedes` is excluded by the shape of the code rather than
+ *     `decisionSupportResolver` seam, so `supersedes` is excluded by the shape of the code rather than
  *     by a filter here (ADR-0403 dec 6 / ADR-0419 D1).
  *
  * ## WHY READS COME FROM ONE SOURCE AND NOT BOTH
@@ -60,7 +60,9 @@ import {
   type DecisionOfferObservation,
   type DecisionReadBaseline,
 } from "./decision-read-baseline.js";
-import { buildSupportGraph, gatherReads } from "./probe-decision-gather.js";
+import { buildSupportGraph, gatherReads,
+  frozenAmendsEdges,
+} from "./probe-decision-gather.js";
 import { loadProbeDecisions } from "./probe-decisions.js";
 import { renderDecisionReadBaseline } from "./render-decision-baseline.js";
 
@@ -157,7 +159,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const support = buildSupportGraph(adrs);
+  const support = buildSupportGraph(adrs, frozenAmendsEdges());
   const gatheredReads = gatherReads(transcriptDir);
   const gatheredOffers = gatherOffers(traceDir);
 

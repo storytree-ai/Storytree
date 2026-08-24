@@ -16,7 +16,6 @@ import {
   type AdrAllocatorLike,
   type AdrCommandDeps,
 } from "./adr.js";
-import { amendsObligationNote } from "./adr-amends-obligation.js";
 import type { AdrMeta } from "@storytree/drive";
 // The `decided:` date is stamped at the COMPOSITION ROOT, so its proof drives `run` end to end —
 // `adrCommand` only ever sees an already-injected `today`.
@@ -40,22 +39,23 @@ test("parseEdges parses comma/space lists of positive ints, dropping junk", () =
 });
 
 test("scaffold emits proposed frontmatter + H1 + sections, with optional edges", () => {
-  const plain = scaffold(50, "Do the thing", { supersedes: [], amends: [], dependsOn: [] });
+  const plain = scaffold(50, "Do the thing", { supersedes: [], dependsOn: [] });
   assert.match(plain, /^---\nstatus: proposed\n---\n/);
   assert.match(plain, /# ADR-0050: Do the thing/);
   assert.match(plain, /## Status/);
   assert.match(plain, /## Decision/);
   assert.doesNotMatch(plain, /supersedes:/);
 
-  const edged = scaffold(51, "Edged", { supersedes: [42], amends: [7, 8], dependsOn: [] });
+  const edged = scaffold(51, "Edged", { supersedes: [42], dependsOn: [7, 8] });
   assert.match(edged, /supersedes: \[42\]/);
-  assert.match(edged, /amends: \[7, 8\]/);
+  assert.match(edged, /depends_on: \["asset:adr-0007", "asset:adr-0008"\]/);
   assert.match(edged, /\*\*Supersedes\*\* ADR-0042/);
-  assert.match(edged, /\*\*Amends\*\* ADR-0007, ADR-0008/);
+  assert.match(edged, /\*\*Depends on\*\* ADR-0007, ADR-0008/);
+  assert.doesNotMatch(edged, /amends/, "the retired edge cannot be scaffolded at all");
 });
 
 test("scaffold owner-directed (decided date) is born accepted with decided frontmatter + Status prose (ADR-0110)", () => {
-  const directed = scaffold(110, "Owner directed it", { supersedes: [], amends: [], dependsOn: [] }, "2026-06-26");
+  const directed = scaffold(110, "Owner directed it", { supersedes: [], dependsOn: [] }, "2026-06-26");
   // Frontmatter: accepted + a decided date (NOT the proposed default).
   assert.match(directed, /^---\nstatus: accepted\ndecided: 2026-06-26\n---\n/);
   assert.doesNotMatch(directed, /status: proposed/);
@@ -65,15 +65,15 @@ test("scaffold owner-directed (decided date) is born accepted with decided front
   assert.doesNotMatch(directed, /<one line: who decided/); // the proposed placeholder is gone
 
   // Owner-directed still carries edges when present (the date is orthogonal to supersession).
-  const directedEdged = scaffold(111, "Directed + edged", { supersedes: [50], amends: [], dependsOn: [] }, "2026-06-26");
+  const directedEdged = scaffold(111, "Directed + edged", { supersedes: [50], dependsOn: [] }, "2026-06-26");
   assert.match(directedEdged, /status: accepted\ndecided: 2026-06-26\nsupersedes: \[50\]/);
 
   // Default (no date) stays born-proposed with NO decided line — the still-thinking ADR (ADR-0050).
-  const proposed = scaffold(112, "Still thinking", { supersedes: [], amends: [], dependsOn: [] });
+  const proposed = scaffold(112, "Still thinking", { supersedes: [], dependsOn: [] });
   assert.match(proposed, /^---\nstatus: proposed\n---\n/);
   assert.doesNotMatch(proposed, /decided:/);
   // An empty-string date is treated as absent (defensive) — still proposed.
-  assert.match(scaffold(113, "Empty", { supersedes: [], amends: [], dependsOn: [] }, ""), /^---\nstatus: proposed\n---\n/);
+  assert.match(scaffold(113, "Empty", { supersedes: [], dependsOn: [] }, ""), /^---\nstatus: proposed\n---\n/);
 });
 
 // ---- adr list (the searchable current-state view, ADR-0086) --------------------------------
@@ -106,7 +106,6 @@ function listing(
       file: `${String(number).padStart(4, "0")}-x.md`,
       status,
       supersedes: [],
-      amends: [],
       loadBearing: false,
       ...extra,
     },
@@ -121,7 +120,7 @@ const SAMPLE: AdrListing[] = [
   listing(27, "accepted", "Supersede the notice board", { supersedes: [14] }),
   listing(86, "proposed", "ADR lifecycle curation"),
   listing(142, "accepted", "Branch dies on merge", { loadBearing: true }),
-  listing(271, "accepted", "Sessions end at merge", { amends: [142] }),
+  withDependsOn(listing(271, "accepted", "Sessions end at merge"), [142]),
 ];
 
 test("renderAdrList default shows every ADR, sorted by number, newest concerns last", () => {
@@ -141,11 +140,13 @@ test("renderAdrList --current keeps only accepted (drops proposed + superseded r
   assert.doesNotMatch(lines, /0086 .*proposed/);
 });
 
-test("renderAdrList --load-bearing keeps the tagged set and what its amends edges reach", () => {
+test("renderAdrList --load-bearing keeps exactly the tagged set", () => {
   const lines = renderAdrList(SAMPLE, { loadBearing: true }).join("\n");
   assert.match(lines, /0011/);
   assert.match(lines, /0019/);
-  assert.match(lines, /0271/); // reached: accepted, amends ★0142
+  // 0271 rests on ★0142 and is NOT tagged. Under the pre-ADR-0431 closure it was pulled in; the tag
+  // is the only input now, so a support edge leaves it out.
+  assert.doesNotMatch(lines, /^.0271/m);
   // An unrelated superseder and a proposed ADR are neither tagged nor reached.
   assert.doesNotMatch(lines, /0027/);
   assert.doesNotMatch(lines, /0086/);
@@ -163,52 +164,53 @@ test("renderAdrList shows outgoing edges and the derived superseded-by back-edge
   assert.match(lines, /superseded by 0027/); // 0014's derived back-edge
 });
 
-test("renderAdrList shows the derived amended-by back-edge, even when the amender is filtered out", () => {
+test("renderAdrList shows the derived depended-on-by back-edge, even when the dependant is filtered out", () => {
   const lines = renderAdrList(SAMPLE, {}).join("\n");
-  assert.match(lines, /amends 0142/); // 0271's outgoing edge
-  assert.match(lines, /amended by 0271/); // 0142's derived back-edge
+  assert.match(lines, /depends on 0142/); // 0271's outgoing edge
+  assert.match(lines, /depended on by 0271/); // 0142's derived back-edge
 
   // Computed from the FULL set BEFORE the display filter, so a back-edge survives a cut that hides
-  // the amender's own row. An ACCEPTED amender is no longer such a case (it is now pulled INTO
-  // `--load-bearing` by reach — see the reach tests below); a still-undecided one is, and must
-  // still leave its pointer on the amended ADR.
+  // the dependant's own row — which is now EVERY accepted dependant, since ADR-0431 D4 made the tag
+  // the set's only input and support no longer promotes anything into `--load-bearing`.
   const loadBearing = renderAdrList(REACH, { loadBearing: true }).join("\n");
-  assert.doesNotMatch(loadBearing, /0265 {2}proposed/); // the proposed amender's ROW is filtered out
-  assert.match(loadBearing, /amended by .*0265 \(proposed\)/); // …its back-edge on 0142 survives
+  assert.doesNotMatch(loadBearing, /0265 {2}proposed/); // the proposed dependant's ROW is filtered out
+  assert.match(loadBearing, /depended on by .*0265 \(proposed\)/); // …its back-edge on 0142 survives
 });
 
-// ---- --load-bearing calibration reach (the-load-bearing-view-follows-amends-edges) ------------
+// ---- --load-bearing calibration reach (the-load-bearing-view-is-the-curated-tag) ---------------
 //
 // THE HISTORY MATTERS HERE, because this fixture is now testing the OPPOSITE of what it was built
 // to test, over the same rows. The curated ★ tag alone once made `--load-bearing` CONFIDENTLY
-// INCOMPLETE: an accepted ADR that amended a load-bearing one overtook part of it, yet was absent
+// INCOMPLETE: an accepted ADR that narrowed a load-bearing one overtook part of it, yet was absent
 // from the exact surface CLAUDE.md sends every session to calibrate on — and absence is
 // undetectable from that surface. So reach was DERIVED from the `amends` edge (ADR-0037).
 //
 // ADR-0431 retires that edge, and ADR-0431 D4 restores the tag as the ONLY input — having first
 // frozen the derived reach INTO the tag on the live corpus, so the change could not move the real
-// set (221 before, 221 after, byte-identical). The rows below therefore keep their legacy `amends`
-// edges deliberately: they are the detector for a closure quietly restored over EITHER edge type.
+// set (221 before, 221 after, byte-identical). The rows below carry SUPPORT edges into the tagged
+// row deliberately: since ADR-0431 D1 migrated every `amends` edge onto `dependsOn`, these are the
+// same edges under their surviving name, and they are the detector for a closure quietly restored.
 const REACH: AdrListing[] = [
   listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated tag
-  listing(271, "accepted", "Sessions end at merge", { amends: [142] }), // legacy edge, untagged → out
-  listing(275, "accepted", "Sessions may continue past merge", { amends: [271] }), // transitive → out
-  listing(265, "proposed", "An undecided amendment", { amends: [142] }), // undecided → out
-  listing(177, "superseded", "A dead amendment", { amends: [142] }), // dead → out
+  withDependsOn(listing(271, "accepted", "Sessions end at merge"), [142]), // one hop, untagged → out
+  withDependsOn(listing(275, "accepted", "Sessions may continue past merge"), [271]), // transitive → out
+  withDependsOn(listing(265, "proposed", "An undecided dependant"), [142]), // undecided → out
+  withDependsOn(listing(177, "superseded", "A dead dependant"), [142]), // dead → out
   listing(500, "accepted", "Unrelated to the set", {}), // no edge → out
 ];
 
-test("--load-bearing is the TAG, and a legacy amends edge no longer promotes its source", () => {
+test("--load-bearing is the TAG, and a support edge no longer promotes its source", () => {
   // The exact inversion of what this fixture used to assert, and the reason both rows stay in it.
-  // 0271 amends ★0142 and 0275 amends 0271; under the old closure both were ☆ in the set. With the
-  // closure gone they are out, and a widening quietly restored over `amends` would put them back.
+  // 0271 rests on ★0142 and 0275 on 0271 — the very edges the old closure walked, under the name
+  // ADR-0431 D1 migrated them to. With the closure gone they are out, and a widening quietly
+  // restored over `dependsOn` would put them straight back.
   const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
   assert.match(lines, /★ 0142 {2}accepted/, "the curated tag is the whole input");
   assert.doesNotMatch(lines, /^.0271 {2}accepted/m, "one hop no longer promotes");
   assert.doesNotMatch(lines, /^.0275 {2}accepted/m, "and neither does the transitive hop");
 });
 
-test("--load-bearing reach never promotes an UNDECIDED or DEAD amendment", () => {
+test("--load-bearing reach never promotes an UNDECIDED or DEAD dependant", () => {
   const lines = renderAdrList(REACH, { loadBearing: true }).join("\n");
   // The inverse error: a derived view that pulls in a `proposed` amender OVERSTATES the current
   // set, and a `superseded` one resurrects a dead decision. Only `accepted` edges propagate.
@@ -276,11 +278,11 @@ const SUPPORT: AdrListing[] = [
   listing(142, "accepted", "Branch dies on merge", { loadBearing: true }), // ★ the curated tag
   // Rests on ★0142 and nothing else. Support only — so it stays OUT.
   withDependsOn(listing(419, "accepted", "A decision that merely rests on the tag"), [142]),
-  // A LEGACY `amends` chain, untagged, with support edges on every link. Before ADR-0431 these two
-  // were ☆ in the set; after it they are out, and a closure quietly restored over either edge type
-  // would put them back — which is what makes them the mutation detector rather than dead weight.
-  withDependsOn(listing(271, "accepted", "Sessions end at merge", { amends: [142] }), [419, 500]),
-  withDependsOn(listing(275, "accepted", "Sessions may continue past merge", { amends: [271] }), [142]),
+  // A chain of support edges, untagged. Before ADR-0431 these two were ☆ in the set through the
+  // `amends` closure; after it they are out, and a closure quietly restored over `dependsOn` would
+  // put them back — which is what makes them the mutation detector rather than dead weight.
+  withDependsOn(listing(271, "accepted", "Sessions end at merge"), [419, 500, 142]),
+  withDependsOn(listing(275, "accepted", "Sessions may continue past merge"), [142, 271]),
   // A tagged row that is NOT accepted: the tag is the only input, and it does not filter by status.
   listing(265, "proposed", "An undecided but tagged decision", { loadBearing: true }),
   withDependsOn(listing(177, "superseded", "A dead decision resting on the tag"), [142]),
@@ -329,8 +331,12 @@ test("the tag does NOT filter by status, and nothing else rescues a dead or unde
   // back-edge — excluded from the SET, never hidden from the READER.
   const lines = renderAdrList(SUPPORT, {}).join("\n");
   // 0177, 0275 and 0419 each name ★0142 in `dependsOn`; ascending, with the dead one labelled.
-  assert.match(lines, /depended on by 0177 \(superseded\), 0275, 0419/, "0142's support back-edges, status-labelled");
-  assert.match(lines, /amended by 0271/, "and its legacy amends back-edge still renders");
+  assert.match(
+    lines,
+    /depended on by 0177 \(superseded\), 0271, 0275, 0419/,
+    "0142's support back-edges, status-labelled",
+  );
+  assert.doesNotMatch(lines, /amended by/, "and the retired edge leaves no back-edge behind");
 });
 
 test("over the REAL reader path: a dependsOn pointer renders as an edge and promotes nothing", async () => {
@@ -343,7 +349,7 @@ test("over the REAL reader path: a dependsOn pointer renders as an edge and prom
   // a view that PROMOTED on one would be ADR-0419 D1's. Only asserting both catches both.
   const store = new InMemoryStore();
   await seedDecision(store, 142, "Branch dies on merge", { loadBearing: true });
-  await seedDecision(store, 271, "Sessions end at merge", { amends: [142] });
+  await seedDecision(store, 271, "Sessions end at merge", {});
   await seedDecision(store, 500, "A second support target", {});
   // ONE SPELLING PER TARGET, and that is the whole point of the fixture rather than tidiness. Aimed
   // at the SAME target, a reader that resolved only `asset:` would still print `depends on 0142` and
@@ -368,11 +374,11 @@ test("over the REAL reader path: a dependsOn pointer renders as an edge and prom
   assert.match(full, /depended on by 0419/, "and 0142 carries the back-edge");
 });
 
-test("back-edges label a non-accepted amender with its status (never as a live amendment)", () => {
+test("back-edges label a non-accepted dependant with its status (never as a live one)", () => {
   const lines = renderAdrList(REACH, {}).join("\n");
-  // ★0142 is amended by one accepted, one proposed and one superseded ADR. Rendered bare they read
-  // identically — the reader cannot tell a live amendment from an undecided or a dead one.
-  assert.match(lines, /amended by 0177 \(superseded\), 0265 \(proposed\), 0271$/m);
+  // ★0142 is depended on by one accepted, one proposed and one superseded ADR. Rendered bare they
+  // read identically — the reader cannot tell a live edge from an undecided or a dead one.
+  assert.match(lines, /depended on by 0177 \(superseded\), 0265 \(proposed\), 0271$/m);
 });
 
 test("back-edge status labels apply to superseded-by too", () => {
@@ -384,16 +390,16 @@ test("back-edge status labels apply to superseded-by too", () => {
   assert.match(lines, /superseded by 0410 \(proposed\)$/m);
 });
 
-test("renderAdrList dedupes + sorts both derived back-edges (two amenders, one twice)", () => {
+test("renderAdrList dedupes + sorts both derived back-edges (two dependants, one twice)", () => {
   const dup: AdrListing[] = [
-  listing(300, "accepted", "Amended twice over"),
-  listing(310, "accepted", "Later amender", { amends: [300] }),
-  listing(305, "accepted", "Earlier amender", { amends: [300, 300] }),
-  listing(320, "superseded", "Superseded twice over"),
-  listing(330, "accepted", "Superseder", { supersedes: [320, 320] }),
+    listing(300, "accepted", "Depended on twice over"),
+    withDependsOn(listing(310, "accepted", "Later dependant"), [300]),
+    withDependsOn(listing(305, "accepted", "Earlier dependant"), [300, 300]),
+    listing(320, "superseded", "Superseded twice over"),
+    listing(330, "accepted", "Superseder", { supersedes: [320, 320] }),
   ];
   const lines = renderAdrList(dup, {}).join("\n");
-  assert.match(lines, /amended by 0305, 0310/); // ascending, each amender once
+  assert.match(lines, /depended on by 0305, 0310/); // ascending, each dependant once
   assert.match(lines, /superseded by 0330$/m);
 });
 
@@ -452,7 +458,6 @@ async function seedDecision(
       body: `# ADR-${String(number).padStart(4, "0")}: ${title}\n`,
       number,
       status: "accepted",
-      amends: [],
       supersedes: [],
       loadBearing: false,
       references: [],
@@ -679,15 +684,18 @@ test("adr help (no sub) and an unknown sub both return guidance", async () => {
 });
 
 test("scaffold stamps arc provenance (ADR-0183 D3) only when given", () => {
-  const stamped = scaffold(183, "Arc-born decision", { supersedes: [], amends: [], dependsOn: [] }, undefined, "map-pathways-arc");
+  const stamped = scaffold(183, "Arc-born decision", { supersedes: [], dependsOn: [] }, undefined, "map-pathways-arc");
   assert.match(stamped, /^---\nstatus: proposed\narc: map-pathways-arc\n---\n/);
 
   // Composes with --decided: the stamp rides after the edges, inside the frontmatter block.
-  const directed = scaffold(184, "Directed + arc", { supersedes: [], amends: [7], dependsOn: [] }, "2026-07-11", "map-pathways-arc");
-  assert.match(directed, /status: accepted\ndecided: 2026-07-11\namends: \[7\]\narc: map-pathways-arc\n---\n/);
+  const directed = scaffold(184, "Directed + arc", { supersedes: [], dependsOn: [7] }, "2026-07-11", "map-pathways-arc");
+  assert.match(
+    directed,
+    /status: accepted\ndecided: 2026-07-11\ndepends_on: \["asset:adr-0007"\]\narc: map-pathways-arc\n---\n/,
+  );
 
   // Unstamped stays exactly as before — no arc key at all.
-  assert.doesNotMatch(scaffold(185, "Arc-less", { supersedes: [], amends: [], dependsOn: [] }), /arc:/);
+  assert.doesNotMatch(scaffold(185, "Arc-less", { supersedes: [], dependsOn: [] }), /arc:/);
 });
 
 // ---- the `decided:` stamp is the OWNER's local date (proposal
@@ -833,54 +841,39 @@ test("adr new --arc accepts a real arc id: the pre-flight guard is a guard, not 
 
 // ---- ADR-0419 D2: the authoring surface steers support to `depends_on` -----------------------
 
-test("scaffold records plain support as depends_on pointers, alongside amends (ADR-0419 D1/D2)", () => {
+test("scaffold records support as depends_on pointers (ADR-0419 D1, ADR-0431 D1)", () => {
   // The whole reason this flag exists: until 2026-08-23 the surface offered `--amends` and nothing
   // else for support, so an author whose decision merely RESTED on another either overstated the
   // claim or wrote no edge at all — zero of 412 decision rows carried `dependsOn` while every
   // `process`, `guardrail` and `agent` did.
-  const supported = scaffold(419, "Support", { supersedes: [], amends: [], dependsOn: [403, 139] });
+  const supported = scaffold(419, "Support", { supersedes: [], dependsOn: [403, 139] });
   // POINTERS on the row, numbers on the flag — `dependsOn` is the ordinary Library edge and may name
-  // any artifact, where `amends` is a list of decision numbers on the `adr` schema alone.
+  // any artifact, where the retired `amends` was a list of decision numbers on the `adr` schema alone.
   assert.match(supported, /depends_on: \["asset:adr-0403", "asset:adr-0139"\]/);
   assert.match(supported, /\*\*Depends on\*\* ADR-0403, ADR-0139/);
-  assert.doesNotMatch(supported, /amends:/, "plain support never writes the amends edge");
+  assert.doesNotMatch(supported, /amends/, "the retired edge has no spelling left to write");
 
-  // Both edges on one decision are recorded APART, never summed (ADR-0403 dec 6, untouched by 0419).
-  const both = scaffold(420, "Both", { supersedes: [], amends: [7], dependsOn: [403] });
-  assert.match(both, /depends_on: \["asset:adr-0403"\]\namends: \[7\]/);
+  // Support and `supersedes` on one decision are recorded APART, never summed (ADR-0403 dec 6,
+  // restated by ADR-0431 D6b) — and `supersedes` is still the one that is not support at all.
+  const both = scaffold(420, "Both", { supersedes: [7], dependsOn: [403] });
+  assert.match(both, /depends_on: \["asset:adr-0403"\]\nsupersedes: \[7\]/);
 
   // Absent by default: a decision with no support edge carries no key, which is what
   // `decisionsCarryingDependsOn` distinguishes from an authored empty one.
-  assert.doesNotMatch(scaffold(421, "None", { supersedes: [], amends: [], dependsOn: [] }), /depends_on/);
+  assert.doesNotMatch(scaffold(421, "None", { supersedes: [], dependsOn: [] }), /depends_on/);
 });
 
-test("scaffold's amends placeholder asks for the CLAUSE and names the depends_on alternative", () => {
-  // The placeholder is the moment the author chooses the edge. The old wording ("what this
-  // extends/narrows") described the body text and never asked whether the edge was warranted at all,
-  // which is how `amends` became a general-purpose support edge.
-  const amended = scaffold(419, "Amender", { supersedes: [], amends: [139], dependsOn: [] });
-  assert.match(amended, /\*\*Amends\*\* ADR-0139 — <WHICH CLAUSE this narrows, retires or extends/);
-  assert.match(amended, /use `depends_on` instead \(ADR-0419 D2\)/);
-  assert.match(amended, /in-place annotation in the SAME landing \(ADR-0139 D4\)/);
-});
-
-test("amendsObligationNote fires only on an amends edge, and names both what is owed and the alternative", () => {
-  // Empty is SILENT: an author who wrote no `amends` edge owes nothing, and a note that always fired
-  // would be noise the next author learns to skip.
-  assert.deepEqual(amendsObligationNote([]), []);
-
-  const note = amendsObligationNote([139, 403]).join("\n");
-  assert.match(note, /ADR-0139, ADR-0403/);
-  // (1) the obligation, with the command for EACH target — annotation is partitioned by target.
-  assert.match(note, /ANNOTATE EACH TARGET IN PLACE, in THIS landing/);
-  assert.match(note, /storytree adr pull 139 --out adr-0139\.md/);
-  assert.match(note, /storytree adr pull 403 --out adr-0403\.md/);
-  // (2) the alternative — telling an author the edge is wrong without saying where the right one
-  // lives reproduces the silence that left the support graph undercounted in the first place.
-  assert.match(note, /record\s+it as `depends_on` instead/);
-  // It is a NOTE, not a refusal: ADR-0419 D4's presence rung is deliberately unwired while 174
-  // pre-existing edges would red it, so nothing here may read as a gate.
-  assert.doesNotMatch(note, /refus|REFUS|cannot|not allowed/);
+test("scaffold's support placeholder carries ADR-0139 D4's annotation obligation", () => {
+  // The placeholder is the moment the author decides what the edge CLAIMS, and after ADR-0431 D1
+  // there is no second edge to signal a narrowing with. So the obligation rides here: the edge is
+  // written, and the prose asks — conditionally, in the author's own words — which clause moved and
+  // for the in-place annotation in the target. That annotation is now the ONLY record an amendment
+  // ever happened, which is why the wording says so rather than merely citing D4.
+  const supported = scaffold(419, "Dependant", { supersedes: [], dependsOn: [139] });
+  assert.match(supported, /\*\*Depends on\*\* ADR-0139 — <what this rests on/);
+  assert.match(supported, /narrows, retires or extends a clause of any target, say WHICH clause/);
+  assert.match(supported, /in this SAME landing \(ADR-0139 D4\)/);
+  assert.match(supported, /the only record of the amendment/);
 });
 
 test("adr new --depends-on lands a VALIDATED pointer on the row, all the way through the CLI", async () => {
@@ -902,12 +895,16 @@ test("adr new --depends-on lands a VALIDATED pointer on the row, all the way thr
   assert.equal(seen.length, 1);
   const row = (await store.getDoc("adr-0419"))?.doc as Record<string, unknown>;
   assert.deepEqual(row["dependsOn"], ["asset:adr-0403", "asset:adr-0139"]);
-  assert.deepEqual(row["amends"], [], "plain support never becomes an amends edge");
+  assert.equal("amends" in row, false, "the retired key is not written, not even as an empty list");
   // No `amends` edge was written, so the author is owed no annotation note.
   assert.doesNotMatch(env.body, /ANNOTATE EACH TARGET/);
 });
 
-test("adr new --amends prints the annotation obligation at the moment the edge is written", async () => {
+test("adr new --amends is GONE from the surface: the retirement reached the authoring path", async () => {
+  // THE LEAK'S OWN REGRESSION TEST. `-inc-18` migrated all 517 edges out of the corpus and left this
+  // flag alive, so ADR-0432 was authored through it the next day and put a fresh `amends` edge into
+  // a field the decision log had just emptied. A retirement that does not reach the surface an
+  // author meets has not happened, and nothing before this asserted that it had.
   const { allocator } = fakeAllocator(420);
   const store = new InMemoryStore();
   const env = await run(
@@ -915,10 +912,18 @@ test("adr new --amends prints the annotation obligation at the moment the edge i
     { store, adr: allocator, writable: true },
   );
 
-  assert.equal(env.ok, true, env.body);
-  assert.match(env.body, /ANNOTATE EACH TARGET IN PLACE, in THIS landing/);
-  assert.match(env.body, /storytree adr pull 139 --out adr-0139\.md/);
-  assert.match(env.body, /record\s+it as `depends_on` instead/);
-  // It steers; it does not gate. The decision was written either way.
-  assert.deepEqual(((await store.getDoc("adr-0420"))?.doc as Record<string, unknown>)["amends"], [139]);
+  // The flag is not declared, so the parser never binds it and nothing can carry it onto the row.
+  const row = (await store.getDoc("adr-0420"))?.doc as Record<string, unknown> | undefined;
+  if (env.ok && row !== undefined) {
+    assert.equal("amends" in row, false, "no amends key can reach a row through this verb");
+    assert.equal(row["dependsOn"], undefined, "and it is not silently re-read as plain support");
+  }
+  // And the help no longer OFFERS it as a choice — neither in the usage line nor as an option row.
+  // It is still NAMED, once, as retired: an author reaching for the flag they used last week has to
+  // be told it is gone and where the edge went, which is the opposite of teaching it.
+  const help = (await run(["adr", "--help"], { store })).body;
+  assert.doesNotMatch(help, /^\s+--amends /m, "no option row may offer the retired flag");
+  assert.doesNotMatch(help, /\[--amends/, "and the usage line may not either");
+  assert.match(help, /THE ONE SUPPORT EDGE/);
+  assert.match(help, /`--amends` is\n?\s*RETIRED/, "but it says plainly that the flag is retired");
 });

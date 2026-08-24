@@ -148,7 +148,6 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "relayed-by",
   "title",
   "supersedes",
-  "amends",
   // `adr new --depends-on 42,43` — a decision-number list, never prose from a file.
   "depends-on",
   // `question settle <id> --adr 434` (ADR-0434 D2) — ONE decision number, resolved to an

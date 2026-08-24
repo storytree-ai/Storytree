@@ -33,7 +33,7 @@ import { openCorpusStore } from "@storytree/drive";
 
 import { loadProbeDecisions } from "./probe-decisions.js";
 import {
-  decisionAmendsResolver,
+  decisionSupportResolver,
   decisionWalkVacuity,
   depthFromWorkNodes,
   evaluateDepthFromWork,
@@ -48,7 +48,7 @@ const TAG = "probe:depth-from-work";
 
 /**
  * Where the decision half comes from TODAY. It is read here rather than inside the walk precisely
- * because ADR-0403 dec 3 made edge resolution a seam: the walk takes a `DecisionAmendsResolver` and
+ * because ADR-0403 dec 3 made edge resolution a seam: the walk takes a `DecisionSupportResolver` and
  * never learns that this one was built from files, so `decision-log-home-arc`'s migration replaces
  * these two lines and nothing else.
  */
@@ -162,25 +162,27 @@ async function main(): Promise<void> {
       process.exitCode = 1;
       return;
     }
-    // `adrs` carries `supersedes` too; `decisionAmendsResolver`'s PARAMETER TYPE is what drops it,
+    // `adrs` carries `supersedes` too; `decisionSupportResolver`'s PARAMETER TYPE is what drops it,
     // so there is no filtering to forget here (ADR-0403 dec 6).
     const withDecisions = evaluateDepthFromWork(
       depthFromWorkNodes(renderedRows),
-      decisionAmendsResolver(adrs),
+      decisionSupportResolver(adrs),
     );
 
     console.log("");
-    // BOTH support edges, since ADR-0419 D1 — and they are printed APART, never as a total. The
-    // label said "on `amends` only" while the walk had already been widened to traverse the
-    // decision's own `dependsOn`, which is the same confidently-mislabelled reading this probe
+    // THE support edge, since ADR-0431 D1 retired `amends` and migrated its 517 edges here. This
+    // line used to print the two apart and never as a total; the second term is GONE rather than
+    // left reading 0, because a figure that cannot move is read as a collapse when compared to a
+    // frozen constant. The label history is worth keeping: it once said "on `amends` only" while the
+    // walk had already been widened, which is the same confidently-mislabelled reading this probe
     // exists to catch, one layer further out.
-    console.log(`  and the same walk continued PAST a decision, on BOTH support edges:`);
+    console.log(`  and the same walk continued PAST a decision, on the support edge:`);
     console.log(
-      `    decisions: ${withDecisions.decisionsScanned} read, ${withDecisions.amendsEdges} ` +
-        `\`amends\` + ${withDecisions.decisionDependsOnEdges} \`dependsOn\` edges resolving ` +
+      `    decisions: ${withDecisions.decisionsScanned} read, ` +
+        `${withDecisions.decisionDependsOnEdges} \`dependsOn\` edges resolving ` +
         `(${withDecisions.decisionDanglingTargets} dangling, ` +
         `${withDecisions.decisionDependsOnUnwalkedTargets} pointing off the decision tier) — ` +
-        `counted APART and never summed; \`supersedes\` is NOT walked at all (ADR-0403 dec 6)`,
+        `\`supersedes\` is NOT walked at all and never summed with this (ADR-0403 dec 6)`,
     );
     // THE ADR-0419 D3 DENOMINATOR, and the reason it is printed beside the edge count rather than
     // left implicit: 0 resolvable `dependsOn` edges has two utterly different causes — a reader that

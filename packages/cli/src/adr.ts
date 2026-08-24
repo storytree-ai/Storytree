@@ -3,7 +3,6 @@ import type { Store } from "@storytree/storage-protocol";
 
 import { defaultCliActor } from "./cli-actor.js";
 
-import { amendsObligationNote } from "./adr-amends-obligation.js";
 import { adrCompose, type AdrComposeOpts } from "./adr-composed.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
 import type { Envelope } from "./envelope.js";
@@ -14,7 +13,7 @@ import type { Envelope } from "./envelope.js";
  * the same number (the recurring collision). The DB allocator is the proactive prevention;
  * `check:adr-health` is the backstop that makes any slip un-mergeable.
  *
- *   storytree adr new --title "..." [--supersedes 42] [--amends 42,43] --pg
+ *   storytree adr new --title "..." [--supersedes 42] [--depends-on 42,43] --pg
  *   storytree adr next --pg                          reserve a number only (author the decision later)
  *
  * BOTH VERBS REQUIRE --pg, and there is no offline path left. The old `max-on-disk + 1` fallback read
@@ -72,11 +71,9 @@ export interface AdrCommandOpts {
   file?: string | undefined;
   title?: string | undefined;
   supersedes?: string | undefined;
-  amends?: string | undefined;
   /**
-   * `--depends-on 42,43` (ADR-0419 D2): the decisions this one RESTS ON and changes nothing in —
-   * plain support, the edge that replaces an overstated `--amends`. Scaffolded as `depends_on:`
-   * pointers; see {@link AdrScaffoldEdges}.
+   * `--depends-on 42,43`: the decisions this one RESTS ON — THE support edge, and since ADR-0431 D1
+   * the only one there is. Scaffolded as `depends_on:` pointers; see {@link AdrScaffoldEdges}.
    */
   dependsOn?: string | undefined;
   /**
@@ -139,7 +136,7 @@ export { kebabSlug };
  */
 
 
-/** PURE: parse a `--supersedes 42,43` / `--amends 7` value into a positive-int list (drops junk). */
+/** PURE: parse a `--supersedes 42,43` / `--depends-on 7` value into a positive-int list (drops junk). */
 export function parseEdges(raw: string | undefined): number[] {
   if (!raw) return [];
   return raw
@@ -244,7 +241,6 @@ export function parallelAllocationNote(missing: readonly number[]): ParallelAllo
  */
 export interface AdrScaffoldEdges {
   supersedes: number[];
-  amends: number[];
   dependsOn: number[];
 }
 
@@ -260,19 +256,18 @@ export interface AdrScaffoldEdges {
  *
  * ## THE TWO SUPPORT EDGES, AND WHY THE SCAFFOLD IS WHERE THE DISTINCTION HAS TO LAND
  *
- * ADR-0419 D2 deprecates `amends` for PLAIN SUPPORT: a decision that rests on another records
- * `depends_on`, and `amends` is reserved for the narrower claim that something in the target is
- * narrowed, retired or extended — i.e. that reading the target ALONE is now insufficient. Until
- * 2026-08-23 the authoring surface offered `--amends` and nothing else, so an author with a plain
- * support edge either overstated it or wrote nothing; zero of 412 decision rows carried `dependsOn`
- * while every `process`, `guardrail` and `agent` did. Deprecation is enforced HERE, at the surface
- * an author actually meets, rather than in a decision body — a rule that lives only in a decision is
- * subject to the same retrieval failure `decision-read-measurement-arc` exists to measure.
+ * ONE SUPPORT EDGE, AND THE SURFACE IS WHERE THAT BECAME TRUE (ADR-0431 D1). ADR-0419 D2 first
+ * deprecated `amends` for plain support here rather than in a decision body, because a rule that
+ * lives only in a decision is subject to the same retrieval failure `decision-read-measurement-arc`
+ * exists to measure: until 2026-08-23 the surface offered `--amends` and nothing else, so an author
+ * with a plain support edge either overstated it or wrote nothing, and zero of 412 decision rows
+ * carried `dependsOn` while every `process`, `guardrail` and `agent` did.
  *
- * The migration is by deprecation and never a flag day (ADR-0419 D3): this steers NEW authoring and
- * touches no existing edge. `--amends` is not removed, not refused, and not gated — ADR-0419 D4's
- * presence rung stays disabled while 174 pre-existing edges would red it, so the obligation the
- * placeholder states is DISCIPLINE at this phase.
+ * Deprecation then became retirement, and the CORPUS moved before the SURFACE did — which is the
+ * lesson worth keeping. All 517 edges were migrated onto `dependsOn` in place on 2026-08-24, and for
+ * a day `--amends` stayed here unrefused: ADR-0432 was authored through it and put a new `amends`
+ * edge into a field the decision log had just emptied. A retirement that does not reach the
+ * authoring surface has not happened.
  */
 export function scaffold(
   n: number,
@@ -296,7 +291,6 @@ export function scaffold(
     fm.push(`depends_on: [${pointers.join(", ")}]`);
   }
   if (edges.supersedes.length > 0) fm.push(`supersedes: [${edges.supersedes.join(", ")}]`);
-  if (edges.amends.length > 0) fm.push(`amends: [${edges.amends.join(", ")}]`);
   // The ADR-0183 D3 provenance stamp: "arc X produced me" — set at creation, never edited.
   if (arc !== undefined && arc !== "") fm.push(`arc: ${arc}`);
   fm.push("---", "");
@@ -304,21 +298,22 @@ export function scaffold(
     edges.supersedes.length > 0
       ? `**Supersedes** ${edges.supersedes.map((e) => `ADR-${pad(e)}`).join(", ")} — <why; flip their status to superseded>.`
       : "",
-    // The `amends` placeholder ASKS FOR THE CLAUSE and states the obligation, because this is the
-    // moment the author is deciding which edge to write. ADR-0419 D2 reserves `amends` for the case
-    // where something in the target is narrowed, retired or extended — the case where reading the
-    // target alone becomes insufficient — and ADR-0139 D4 makes writing it owe the target an
-    // in-place annotation. A placeholder that said only "what this extends/narrows" is what let the
-    // edge become a general-purpose support edge in the first place.
-    edges.amends.length > 0
-      ? `**Amends** ${edges.amends.map((e) => `ADR-${pad(e)}`).join(", ")} — <WHICH CLAUSE this ` +
-        `narrows, retires or extends. If nothing in the target moves, this is plain support: use ` +
-        `\`depends_on\` instead (ADR-0419 D2). Writing this edge owes each target an in-place ` +
-        `annotation in the SAME landing (ADR-0139 D4).>`
-      : "",
+    // THE PLACEHOLDER CARRIES ADR-0139 D4'S OBLIGATION, because this is the moment the author is
+    // deciding what the edge claims and there is no longer a second edge to signal it with. Until
+    // ADR-0431 D1 the obligation rode on `--amends`: writing that edge said "something in the target
+    // moved" and owed the target an in-place annotation naming the clause. The edge is retired and
+    // the obligation is NOT (ADR-0431 D6d) — it binds harder, since that annotation is now the only
+    // record an amendment ever existed. So it is asked for HERE, conditionally and in the author's
+    // own words, rather than fired as a warning on every support edge, which would be noise on the
+    // common case and would train the eye straight past it. Do NOT rebuild a mechanical presence
+    // check for it (ADR-0427): an instrument that asks only whether the target mentions this number
+    // certifies the cheapest possible compliance.
     edges.dependsOn.length > 0
       ? `**Depends on** ${edges.dependsOn.map((e) => `ADR-${pad(e)}`).join(", ")} — <what this rests ` +
-        `on; the target is unchanged and stays readable on its own>.`
+        `on; the target is unchanged and stays readable on its own. IF this decision instead ` +
+        `narrows, retires or extends a clause of any target, say WHICH clause here AND leave an ` +
+        `in-place annotation in that target naming it, in this SAME landing (ADR-0139 D4) — after ` +
+        `ADR-0431 that annotation is the only record of the amendment.>`
       : "",
   ].filter((s) => s !== "");
   const statusLine = ownerDirected
@@ -423,7 +418,6 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   if (localMax === null) return unreadableLog("new");
   const edges: AdrScaffoldEdges = {
     supersedes: parseEdges(opts.supersedes),
-    amends: parseEdges(opts.amends),
     dependsOn: parseEdges(opts.dependsOn),
   };
 
@@ -477,7 +471,6 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
     "Author it as a whole document — pull it to a file, edit it with ordinary tools, push it back:",
     `  storytree adr pull ${String(n)} --out ${id}.md`,
     `  storytree adr push ${String(n)} --file ${id}.md --pg`,
-    ...amendsObligationNote(edges.amends),
   ];
   const parallel = parallelAllocationNote(parallelAllocations(localMax, n));
   lines.push(...parallel.lines);
@@ -536,14 +529,13 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
 // Replaces the hand-maintained `CLAUDE.md` "Load-bearing ADRs" + "reversals" sections with a query
 // derived from the live decision ROWS, so the list can never drift from the log. Two cuts:
 //   --current        every accepted, non-superseded ADR (the derived backbone — honest by construction)
-//   --load-bearing   the calibrate-to-these set: the curated `load_bearing: true` seed, CLOSED over
-//                    accepted `amends` edges (see `loadBearingReach`)
-// Outgoing edges (supersedes / amends — binary since ADR-0139 retired supersedes-in-part) and BOTH
-// derived back-edges (`superseded by` / `amended by`) are shown inline so the reversal story reads off
-// the graph, not off rows. Both directions matter on `--load-bearing`: ADR-0139 frames `amends` as
-// strictly additive, but in practice an amending ADR can retire a clause of its target (ADR-0271 does,
-// to ADR-0142 §3) — without the back-edge a session calibrating on this view reads the retired leg
-// unqualified. Read-only, but NOT offline: it reads the decision rows from the store (ADR-0403
+//   --load-bearing   the calibrate-to-these set: the curated `load_bearing: true` tag, and since
+//                    ADR-0431 D4 nothing else (see `loadBearingReach`)
+// Outgoing edges (supersedes / depends on) and the derived back-edges (`superseded by` /
+// `depended on by`) are shown inline so the reversal story reads off the graph, not off rows.
+// Both directions matter on `--load-bearing`: an amending decision can retire a clause of its target
+// (ADR-0271 does, to ADR-0142 §3) — without the back-edge a session calibrating on this view reads
+// the retired leg unqualified. Read-only, but NOT offline: it reads the decision rows from the store (ADR-0403
 // dec 1), so it needs the DB up. See {@link loadAdrListings} for why that cost was accepted.
 //
 // A back-edge to a non-accepted ADR is LABELLED with that status. Rendered bare, an undecided or a
@@ -653,16 +645,16 @@ export function loadBearingReach(listings: readonly AdrListing[]): Set<number> {
  * even when the superseding / amending ADR is filtered out of view — e.g. a still-`proposed` amender,
  * whose row `--load-bearing` drops but whose pointer the amended ADR must still carry.
  *
- * `★` marks a hand-curated `load_bearing` ADR, `☆` one reached through the amends graph
- * ({@link loadBearingReach}). Two marks, not one, because deriving reach GROWS the set (96 curated →
- * 137 on the 2026-08-03 corpus) and a view that lists too much is its own calibration failure — the
- * split keeps that growth attributable at a glance, and each ☆ row prints the `amends` edge that put
- * it there. The right response to a set that grows too large is ADR-0139's consolidation pass, never a
- * filter that hides edges.
+ * `★` marks a `load_bearing` ADR — ONE mark now, because ADR-0431 D4 made the curated tag the set's
+ * only input. There used to be a second, `☆`, for a decision reached through the `amends` graph, and
+ * the split existed because deriving reach GREW the set (96 curated → 137 on the 2026-08-03 corpus)
+ * and a view that lists too much is its own calibration failure. The reach was frozen INTO the tag
+ * before the closure was removed, so the set did not move (221 either side) and the second mark can
+ * no longer differ from the first. The right response to a set that grows too large is ADR-0139's
+ * consolidation pass, never a filter that hides edges.
  */
 export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFilter): string[] {
   const supersededBy = backEdges(listings, (m) => m.supersedes);
-  const amendedBy = backEdges(listings, (m) => m.amends);
   // ADR-0431: support edges live on `dependsOn` now, so the view must read them or show nothing.
   const dependedOnBy = backEdges(listings, decisionDependsOn);
   const reach = loadBearingReach(listings);
@@ -679,18 +671,15 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     if (filter.current === true && m.status !== "accepted") continue;
     if (filter.loadBearing === true && !reach.has(m.number)) continue;
     if (filter.status !== undefined && m.status !== filter.status) continue;
-    const mark = m.loadBearing ? "★" : reach.has(m.number) ? "☆" : " ";
+    const mark = reach.has(m.number) ? "★" : " ";
     rows.push(`${mark} ${pad(m.number)}  ${m.status.padEnd(10)} ${l.title}`);
     const edges: string[] = [];
     if (m.supersedes.length > 0) edges.push(`supersedes ${m.supersedes.map(pad).join(", ")}`);
-    if (m.amends.length > 0) edges.push(`amends ${m.amends.map(pad).join(", ")}`);
     const dependsOn = decisionDependsOn(m);
     if (dependsOn.length > 0) edges.push(`depends on ${dependsOn.map(pad).join(", ")}`);
     if (m.arc !== undefined) edges.push(`arc ${m.arc}`);
     const back = supersededBy.get(m.number);
     if (back !== undefined && back.length > 0) edges.push(`superseded by ${back.map(label).join(", ")}`);
-    const amended = amendedBy.get(m.number);
-    if (amended !== undefined && amended.length > 0) edges.push(`amended by ${amended.map(label).join(", ")}`);
     const dependedOn = dependedOnBy.get(m.number);
     if (dependedOn !== undefined && dependedOn.length > 0) {
       edges.push(`depended on by ${dependedOn.map(label).join(", ")}`);
@@ -742,7 +731,6 @@ async function scaffoldRow(
       body: fields.body,
       number: n,
       status: fields.status,
-      amends: [...fields.amends],
       supersedes: [...fields.supersedes],
       loadBearing: fields.loadBearing,
       references: [],
@@ -860,15 +848,16 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
         : "all";
   const lines = [
     `storytree adr — ${rows.filter((r) => !r.startsWith(" ".repeat(12))).length} ADRs [${cut}]` +
-      `   ★ = curated load-bearing · ☆ = reached via an amends edge`,
+      `   ★ = load-bearing (the curated calibrate-to-these set)`,
   ];
   if (opts.loadBearing === true) {
-    // Name the split, so the growth deriving reach causes is visible on the surface itself rather
-    // than being something a reader has to know about.
+    // ONE INPUT NOW (ADR-0431 D4). This used to name a curated/derived split, because the set was the
+    // curated seed closed over accepted `amends` edges. The closure was removed only AFTER today's
+    // derived reach was frozen into the tag, so membership did not move — 221 before, 221 after — and
+    // the count is stated here rather than in a comment so a later shrink is visible on the surface.
     const reach = loadBearingReach(listings);
-    const curated = listings.filter((l) => l.meta.loadBearing).length;
     lines.push(
-      `  ${curated} curated ★ + ${reach.size - curated} reached ☆ — an accepted ADR amending the set is IN it (ADR-0037 edges, ADR-0139 semantics).`,
+      `  ${reach.size} curated ★ — the tag alone; a plain support edge never promotes its target (ADR-0419 D1, kept by ADR-0431 D6).`,
     );
   }
   lines.push("", ...(rows.length > 0 ? rows : ["  (none match)"]));
@@ -892,7 +881,7 @@ export function adrHelp(): Envelope {
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
       "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
-      '  storytree adr new --title "..." [--decided] [--depends-on 42,43] [--amends 42] [--supersedes 42] [--arc <id>] --pg',
+      '  storytree adr new --title "..." [--decided] [--depends-on 42,43] [--supersedes 42] [--arc <id>] --pg',
       "                                                                          reserve + scaffold",
       "  storytree adr next --pg                                                  reserve a number only",
       "",
@@ -927,18 +916,18 @@ export function adrHelp(): Envelope {
       "  `storytree library artifact adr-NNNN --set <field>=<value> --pg` (ADR-0352); reach for the round",
       "  trip when you are genuinely rewriting the prose.",
       "",
-      "THE TWO SUPPORT EDGES (ADR-0419 D1/D2) — pick by asking whether anything in the TARGET moves:",
-      "  --depends-on <n,…>  this decision RESTS ON those and changes nothing in them. The DEFAULT for",
-      "                      support. Scaffolded as `depends_on: [\"asset:adr-NNNN\"]`; the depth walk",
-      "                      traverses it alongside `amends`, and it never promotes a target into the",
-      "                      `--load-bearing` set.",
-      "  --amends <n,…>      RESERVED for the narrower claim: something in the target is narrowed,",
-      "                      retired or extended, so reading the target ALONE is now insufficient.",
-      "                      Writing it owes each target an in-place annotation naming the clause that",
-      "                      moved, in the SAME landing (ADR-0139 D4). If nothing in the target moves,",
-      "                      this overstates the edge — use --depends-on.",
+      "THE ONE SUPPORT EDGE (ADR-0431 D1) — there is no second edge to choose between:",
+      "  --depends-on <n,…>  this decision RESTS ON those. Scaffolded as `depends_on:",
+      "                      [\"asset:adr-NNNN\"]`; the depth walk traverses it, and it never promotes",
+      "                      a target into the `--load-bearing` set (ADR-0419 D1, kept by ADR-0431 D6).",
+      "                      IF your decision also narrows, retires or extends a clause of a target,",
+      "                      say WHICH clause in the `**Depends on**` prose AND leave an in-place",
+      "                      annotation in that target naming it, in the SAME landing (ADR-0139 D4).",
+      "                      That annotation is now the ONLY record of an amendment — `--amends` is",
+      "                      RETIRED and its 517 edges were migrated here in place against a frozen",
+      "                      snapshot (docs/research/amends-edge-snapshot-2026-08-23.md).",
       "  --supersedes <n,…>  this REPLACED them; flip their status to superseded. Not support at all,",
-      "                      and never summed with either edge above (ADR-0403 dec 6).",
+      "                      and never summed with the edge above (ADR-0403 dec 6).",
       "",
       "  A `dependsOn` naming something other than a decision (a Library artifact, a repository file)",
       "  is the ordinary Library edge — author it with",
@@ -955,13 +944,13 @@ export function adrHelp(): Envelope {
       "offline read this used to advertise is the named accepted cost, so bring the DB up):",
       "  --current        every accepted, non-superseded ADR (the derived backbone)",
       "  --load-bearing   the calibrate-to-these set (the CLAUDE.md list, now live): the curated ★",
-      "                   `load_bearing: true` seed CLOSED over accepted `amends` edges — an accepted",
-      "                   ADR that amends the set is ☆ IN it, transitively. Under ADR-0139 an amends",
-      "                   edge means the target stays current but is no longer wholly self-describing,",
-      "                   so the amendment belongs on the calibration surface. Derived from the edge,",
-      "                   not a second hand-kept tag, so it survives ADR-0139 retiring `load_bearing`.",
-      "                   A proposed or superseded amender is NEVER pulled in (that would overstate the",
-      "                   current set) — it still shows as a status-labelled back-edge on its target.",
+      "                   `load_bearing: true` tag, and since ADR-0431 D4 NOTHING ELSE. It used to be",
+      "                   that seed closed over accepted `amends` edges; the derived reach was frozen",
+      "                   into the tag before the closure was removed, so membership did not move —",
+      "                   221 before, 221 after, byte-identical. A plain support edge must NEVER",
+      "                   promote its target: closing over `dependsOn` would reproduce today's set",
+      "                   almost exactly and then grow without bound, which a reader cannot detect",
+      "                   FROM the view. A new decision resting on a load-bearing one must be TAGGED.",
       "  --status <s>     filter to proposed | accepted | superseded",
       "",
       "new/next BOTH need --pg (bring the DB up first: pnpm db:up). There is no offline path: the",

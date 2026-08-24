@@ -37,7 +37,9 @@ import {
   type MatchedPair,
 } from "./decision-control-set.js";
 import { decisionNumberOfObservedId, SupportGraphCycleError } from "./decision-read-baseline.js";
-import { buildSupportGraph, gatherReads } from "./probe-decision-gather.js";
+import { buildSupportGraph, gatherReads,
+  frozenAmendsEdges,
+} from "./probe-decision-gather.js";
 import { loadProbeDecisions } from "./probe-decisions.js";
 
 const TAG = "probe:decision-control-set";
@@ -223,7 +225,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const support = buildSupportGraph(adrs);
+  const support = buildSupportGraph(adrs, frozenAmendsEdges());
   const gathered = gatherReads(transcriptDir);
 
   if (gathered.scannedFiles === 0) {

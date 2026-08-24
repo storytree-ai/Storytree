@@ -17,7 +17,7 @@ import { parseAdrFrontmatter } from "@storytree/drive";
 export function adrCompleteness(
   file: string,
   content: string,
-  required?: { supersedes?: number[]; amends?: number[] },
+  required?: { supersedes?: number[] },
 ): string[] {
   const failures: string[] = [];
 
@@ -60,11 +60,6 @@ export function adrCompleteness(
   for (const n of required?.supersedes ?? []) {
     if (!meta.supersedes.includes(n)) {
       failures.push(`declared supersedes ADR-${pad4(n)} is not in the frontmatter`);
-    }
-  }
-  for (const n of required?.amends ?? []) {
-    if (!meta.amends.includes(n)) {
-      failures.push(`declared amends ADR-${pad4(n)} is not in the frontmatter`);
     }
   }
 

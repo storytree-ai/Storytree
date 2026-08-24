@@ -11,12 +11,17 @@
 // module scope, so importing it would RUN the probe. The extraction is what makes one reader possible
 // rather than a preference between two copies.
 
+import fs from "node:fs";
+import { fileURLToPath } from "node:url";
+
 import {
   collectTranscriptFiles,
   scanTranscriptDecisionReads,
   DECISION_READ_SURFACES,
 } from "@storytree/context-traversal-transcript";
-import { decisionAmendsResolver, parseDecisionPointer } from "@storytree/library";
+import { decisionSupportResolver, parseDecisionPointer } from "@storytree/library";
+
+import { frozenEdgesWithinCorpus, parseAmendsSnapshot } from "./amends-snapshot.js";
 
 import type {
   DecisionEdge,
@@ -25,29 +30,71 @@ import type {
 } from "./decision-read-baseline.js";
 
 /**
+ * The frozen `amends` edge set's home. ADR-0431 D2: never regenerated, never edited.
+ *
+ * Module-relative rather than cwd-relative, because a probe is run from the repo root, from
+ * `packages/cli`, and from a worktree, and the file it must read is the same one every time.
+ */
+const SNAPSHOT_PATH = fileURLToPath(
+  new URL("../../../docs/research/amends-edge-snapshot-2026-08-23.md", import.meta.url),
+);
+
+/**
+ * WORLD: the 517 pre-migration `amends` edges, read back out of the committed snapshot.
+ *
+ * ## WHY AN INSTRUMENT READS A FILE INSTEAD OF THE CORPUS
+ *
+ * `-inc-18` migrated every `amends` edge onto `dependsOn` in place and `-inc-19` deleted the field,
+ * so the live rows cannot supply this population at all. That is not a corpus that stopped being
+ * amended — it is a JOIN KEY that was retired underneath a set of comparisons frozen before it went,
+ * and in a probe's output the two are indistinguishable: both read 0.
+ *
+ * Measured 2026-08-24, before the fix: a live-sourced `probe:amends-reach` read ONE edge and
+ * reported the frozen window's 203 chain-walkers as 0, while its read population reconciled 401/401.
+ * Every probe here carries frozen constants of that kind, so all of them join against this file.
+ *
+ * REFUSES rather than degrades. A snapshot that no longer matches its own declared count is evidence
+ * of an edit ADR-0431 D2 forbids, and measuring a different experiment under this name is worse than
+ * not measuring.
+ */
+export function frozenAmendsEdges(): readonly DecisionEdge[] {
+  const parsed = parseAmendsSnapshot(fs.readFileSync(SNAPSHOT_PATH, "utf8"));
+  if (parsed.problems.length > 0) {
+    throw new Error(
+      `the frozen amends snapshot could not be read as authoritative (${SNAPSHOT_PATH}): ` +
+        parsed.problems.join("; "),
+    );
+  }
+  return parsed.edges;
+}
+
+/**
  * The SUPPORT graph as the pure halves need it: both edge populations, kept apart.
  *
- * `dependsOn` arrives as POINTERS, because a decision's own `dependsOn` may name a Library artifact
- * or a repository file as readily as another decision — the seam reports where edges came from and
- * never learns what they mean. Resolving which is which is this caller's job and it goes through the
- * ONE parser (`parseDecisionPointer`); a pointer that names something else is COUNTED, never dropped
- * silently and never rounded to the nearest decision.
+ * ## `amends` IS A PARAMETER, AND ITS BEING REQUIRED IS THE POINT
+ *
+ * There is no live source for it any more (ADR-0431 D1 retired the field), so this function cannot
+ * derive it — and a defaulted empty list would let every caller silently report 0 against a frozen
+ * constant, which reads as a collapse rather than as a missing input. Callers pass
+ * {@link frozenAmendsEdges}; a caller that genuinely wants no `amends` arm passes `[]` and has said
+ * so out loud.
+ *
+ * `dependsOn` stays LIVE and arrives as POINTERS, because a decision's own `dependsOn` may name a
+ * Library artifact or a repository file as readily as another decision — the seam reports where
+ * edges came from and never learns what they mean. Resolving which is which is this caller's job and
+ * it goes through the ONE parser (`parseDecisionPointer`); a pointer that names something else is
+ * COUNTED, never dropped silently and never rounded to the nearest decision.
  */
 export function buildSupportGraph(
-  rows: readonly { number: number; amends: readonly number[]; dependsOn?: readonly string[] }[],
+  rows: readonly { number: number; dependsOn?: readonly string[] }[],
+  amendsEdges: readonly DecisionEdge[],
 ): DecisionSupportGraph {
-  const resolver = decisionAmendsResolver(rows);
+  const resolver = decisionSupportResolver(rows);
   const known = new Set(resolver.decisions);
-  const amends: DecisionEdge[] = [];
   const dependsOn: DecisionEdge[] = [];
   let dependsOnNonDecisionTargets = 0;
 
   for (const from of resolver.decisions) {
-    for (const to of resolver.amendsOf(from)) {
-      // A target the log does not hold is not walkable — counted nowhere as an edge rather than
-      // creating a phantom node the chain walk could descend into.
-      if (known.has(to)) amends.push({ from, to });
-    }
     for (const pointer of resolver.dependsOnOf(from)) {
       const target = parseDecisionPointer(pointer);
       if (target === null) {
@@ -57,6 +104,10 @@ export function buildSupportGraph(
       if (known.has(target.number)) dependsOn.push({ from, to: target.number });
     }
   }
+
+  // A target the log does not hold is not walkable — dropped rather than allowed to create a phantom
+  // node the chain walk could descend into, the same discipline the `dependsOn` loop applies above.
+  const amends = frozenEdgesWithinCorpus(amendsEdges, resolver.decisions).edges;
 
   return {
     decisions: resolver.decisions,

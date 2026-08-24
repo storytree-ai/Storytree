@@ -24,7 +24,7 @@ import test from "node:test";
 
 import { loadTitledAdrMetasFromStore } from "@storytree/drive";
 import {
-  decisionAmendsResolver,
+  decisionSupportResolver,
   depthFromWorkNodes,
   evaluateDepthFromWork,
 } from "@storytree/library";
@@ -44,7 +44,6 @@ function decisionRow(number: number, extra: Record<string, unknown> = {}) {
     description: "a decision",
     number,
     status: "accepted",
-    amends: [],
     supersedes: [],
     loadBearing: false,
     references: [],
@@ -117,7 +116,7 @@ test("a decision's dependsOn is AUTHORABLE through `library artifact edit --set`
 
 test("END TO END: an edge authored by the CLI is walked as depth — write, store, project, resolve, walk", async () => {
   // The whole chain, in one test, with no literal standing in for any of its links:
-  //   editArtifact  →  InMemoryStore row  →  loadTitledAdrMetasFromStore  →  decisionAmendsResolver
+  //   editArtifact  →  InMemoryStore row  →  loadTitledAdrMetasFromStore  →  decisionSupportResolver
   //   →  evaluateDepthFromWork
   // Any one of them dropping the field puts the depth back to the unwired reading, which is what
   // this asserts against rather than asserting a bare number.
@@ -134,7 +133,7 @@ test("END TO END: an edge authored by the CLI is walked as depth — write, stor
   );
 
   const { adrs: before } = await loadTitledAdrMetasFromStore(store);
-  const unwired = evaluateDepthFromWork(nodes, decisionAmendsResolver(before));
+  const unwired = evaluateDepthFromWork(nodes, decisionSupportResolver(before));
   assert.equal(
     unwired.decisionDependsOnEdges,
     0,
@@ -149,14 +148,13 @@ test("END TO END: an edge authored by the CLI is walked as depth — write, stor
   assert.equal(env.ok, true, env.body);
 
   const { adrs: after } = await loadTitledAdrMetasFromStore(store);
-  const walked = evaluateDepthFromWork(nodes, decisionAmendsResolver(after));
+  const walked = evaluateDepthFromWork(nodes, decisionSupportResolver(after));
 
   assert.equal(
     walked.decisionDependsOnEdges,
     1,
     "the CLI-authored edge must reach the walk — if this is 0 the drain lands invisible edges",
   );
-  assert.equal(walked.amendsEdges, 0, "and it must NOT be counted as an amends edge — never summed");
   assert.ok(
     walked.decisionsReached > unwired.decisionsReached,
     "the authored edge must actually MOVE the reach, not merely be counted",
@@ -190,7 +188,7 @@ test("the three pointer spellings all survive the CLI write and are all walked",
     artifacts.map((entry) => ({ id: entry.id, kind: entry.kind, doc: entry.doc })),
   );
   const { adrs } = await loadTitledAdrMetasFromStore(store);
-  const walked = evaluateDepthFromWork(nodes, decisionAmendsResolver(adrs));
+  const walked = evaluateDepthFromWork(nodes, decisionSupportResolver(adrs));
 
   assert.equal(walked.decisionDependsOnEdges, 3, "every spelling must resolve, or the drain loses edges");
   assert.equal(walked.decisionDependsOnUnwalkedTargets, 0);

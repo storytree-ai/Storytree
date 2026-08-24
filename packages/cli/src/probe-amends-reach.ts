@@ -46,22 +46,12 @@ import {
   type AmendsReachComparison,
   type AmendsReachReading,
 } from "./amends-reach.js";
-import { frozenEdgesWithinCorpus, parseAmendsSnapshot } from "./amends-snapshot.js";
 import type { DecisionSupportGraph, SessionGrain } from "./decision-read-baseline.js";
-import { buildSupportGraph, gatherReads } from "./probe-decision-gather.js";
+import { buildSupportGraph, frozenAmendsEdges, gatherReads } from "./probe-decision-gather.js";
 import { loadProbeDecisions } from "./probe-decisions.js";
 
 const TAG = "probe:amends-reach";
 
-/**
- * The frozen edge set's home. ADR-0431 D2: never regenerated, never edited.
- *
- * Module-relative rather than cwd-relative, because a probe is run from the repo root, from
- * `packages/cli`, and from a worktree, and the file it must read is the same one every time.
- */
-const SNAPSHOT_PATH = fileURLToPath(
-  new URL("../../../docs/research/amends-edge-snapshot-2026-08-23.md", import.meta.url),
-);
 
 /**
  * The frozen baseline's declared window — `docs/research/decision-read-baseline-2026-08-23.md` §1.
@@ -213,19 +203,18 @@ async function main(): Promise<void> {
   // along — an edge set that moves between the arms is a confound, not a measurement. `dependsOn`
   // stays LIVE: it is a live reading, is no part of the frozen comparison, and is counted apart and
   // never summed (ADR-0419 D1).
-  const live = buildSupportGraph(adrs);
-  const snapshot = parseAmendsSnapshot(fs.readFileSync(SNAPSHOT_PATH, "utf8"));
-  if (snapshot.problems.length > 0) {
-    // A frozen record that no longer matches its own declaration is evidence of an edit ADR-0431 D2
-    // forbids. Refusing beats measuring a different experiment and calling it this one.
-    console.error(`${TAG} FAIL — the frozen snapshot could not be read as authoritative:`);
-    for (const problem of snapshot.problems) console.error(`  - ${problem}`);
-    console.error(`  ${SNAPSHOT_PATH}`);
+  // ONE LOADER, shared with every other decision-measurement probe (`probe-decision-gather.ts`).
+  // A second copy here would be a second experiment the moment either drifted, which is the failure
+  // `probe-decisions.ts` was extracted to prevent one file above. It THROWS rather than degrading if
+  // the snapshot no longer matches its own declared count.
+  let support: DecisionSupportGraph;
+  try {
+    support = buildSupportGraph(adrs, frozenAmendsEdges());
+  } catch (error) {
+    console.error(`${TAG} FAIL — ${error instanceof Error ? error.message : String(error)}`);
     process.exitCode = 1;
     return;
   }
-  const frozenAmends = frozenEdgesWithinCorpus(snapshot.edges, live.decisions);
-  const support: DecisionSupportGraph = { ...live, amends: frozenAmends.edges };
   const shape = amendsCorpusShape(support);
   const gathered = gatherReads(transcriptDir);
 
@@ -244,13 +233,11 @@ async function main(): Promise<void> {
     `  ${shape.amendsEdges} \`amends\` edge(s) over ${shape.amendedDecisions} amended decision(s) from ${shape.amenderDecisions} amender(s)`,
   );
   console.log(
-    `  — the \`amends\` edges are the FROZEN set (${snapshot.declaredEdgeCount ?? "?"} declared), read from` +
-      `\n    docs/research/amends-edge-snapshot-2026-08-23.md, NOT from the live rows. The live rows carry` +
-      `\n    none: \`-inc-18\` migrated them onto \`dependsOn\` in place, and this comparison needs both arms` +
-      `\n    joined against the same edge set (ADR-0431 D2 froze the file for exactly this).` +
-      (frozenAmends.dropped > 0
-        ? `\n    ⚠ ${frozenAmends.dropped} frozen edge(s) name a decision the log no longer holds and were dropped.`
-        : ""),
+    "  — the `amends` edges are the FROZEN set, read from" +
+      "\n    docs/research/amends-edge-snapshot-2026-08-23.md, NOT from the live rows. The live rows" +
+      "\n    carry none and no longer can: `-inc-18` migrated them onto `dependsOn` in place and" +
+      "\n    `-inc-19` deleted the field, and this comparison needs both arms joined against the same" +
+      "\n    edge set (ADR-0431 D2 froze the file for exactly this).",
   );
   console.log(
     `  ${shape.dependsOnEdges} \`dependsOn\` edge(s) on ${shape.decisionsCarryingDependsOn} decision row(s) carrying the field`,
