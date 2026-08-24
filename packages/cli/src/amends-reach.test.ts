@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  afterArmIsConfounded,
   amendsCorpusShape,
   compareAmendsReach,
   computeAmendsReach,
@@ -362,4 +363,48 @@ test("a smaller detectable fall demands a bigger after arm, so the sizing cannot
     detectableFall: 0.2,
   });
   assert.ok(fifth.sessionsNeeded > halving.sessionsNeeded);
+});
+
+// ---------------------------------------------------------------------------
+// afterArmIsConfounded — power and attribution are different questions
+// ---------------------------------------------------------------------------
+
+const SECOND = "2026-08-23T13:13:58.000Z";
+
+test("attribution: an arm whose reads all predate the second intervention is CLEAN", () => {
+  assert.equal(afterArmIsConfounded("2026-08-23T13:13:57.999Z", SECOND), false);
+});
+
+test("attribution: an arm reaching the second intervention is CONFOUNDED, boundary included", () => {
+  // Inclusive at the instant itself: a read AT the boundary already saw the changed corpus.
+  assert.equal(afterArmIsConfounded(SECOND, SECOND), true);
+  assert.equal(afterArmIsConfounded("2026-08-24T13:20:30.996Z", SECOND), true);
+});
+
+test("attribution: an arm nobody read is not confounded — absence of reads is not evidence of a second cause", () => {
+  assert.equal(afterArmIsConfounded(null, SECOND), false);
+  assert.equal(afterArmIsConfounded(undefined, SECOND), false);
+});
+
+test("attribution: it reads the OBSERVED end, so an open declared window with only early reads stays clean", () => {
+  // The regression this guards: deciding from the DECLARED window would stamp every open-ended run
+  // confounded forever, including one whose reads all sit before the intervention — which is exactly
+  // the arm that CAN still answer D5, and the one a reader most needs to see reported as clean.
+  const reading = computeAmendsReach({
+    reads: [
+      { slotId: "s", windowId: "w1", nodeId: "adr-0400", at: "2026-08-23T06:00:00.000Z", surface: "library-artifact" },
+    ],
+    support: {
+      decisions: [400],
+      amends: [],
+      dependsOn: [],
+      decisionsCarryingDependsOn: 0,
+      dependsOnNonDecisionTargets: 0,
+    },
+    from: "2026-08-23T05:39:57.000Z",
+    to: undefined,
+    grain: "window",
+  });
+  assert.equal(reading.declaredTo ?? null, null, "the declared window is open-ended");
+  assert.equal(afterArmIsConfounded(reading.observedTo, SECOND), false);
 });

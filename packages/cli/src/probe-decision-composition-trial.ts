@@ -58,6 +58,7 @@ import { resolveDecisionId, resolveTranscriptDir } from "@storytree/context-trav
 import {
   computeCompositionTrial,
   parseFrozenArms,
+  DETECTABLE_DEPTH_DIFFERENCE,
   type CompositionTrialReading,
   type TrialContrast,
 } from "./decision-composition-trial.js";
@@ -104,6 +105,16 @@ interface Args {
   readonly from: string | undefined;
   readonly to: string | undefined;
   readonly labels: string;
+  /**
+   * `--effect <records>` — the smallest depth difference declared worth detecting.
+   *
+   * It is a FLAG rather than a buried constant because the verdict is genuinely sensitive to it and
+   * a reader is entitled to see that for themselves: at the declared 0.5 the frozen BEFORE arm
+   * resolves one altitude class of three, and at a coarser 0.75 it resolves all three. Neither
+   * reading is wrong — they answer different questions — so the figure sized against is printed
+   * beside every INSUFFICIENT row rather than left for the reader to assume.
+   */
+  readonly effect: number | undefined;
 }
 
 function parseArgs(argv: readonly string[]): Args {
@@ -113,10 +124,19 @@ function parseArgs(argv: readonly string[]): Args {
     const next = argv[index + 1];
     return next !== undefined && !next.startsWith("--") ? next : undefined;
   };
-  return { from: value("--from"), to: value("--to"), labels: value("--labels") ?? DEFAULT_LABELS };
+  const raw = value("--effect");
+  const effect = raw === undefined ? undefined : Number(raw);
+  return {
+    from: value("--from"),
+    to: value("--to"),
+    labels: value("--labels") ?? DEFAULT_LABELS,
+    // A non-numeric `--effect` becomes undefined rather than NaN, so the declared default applies
+    // instead of silently sizing every contrast against nonsense.
+    effect: effect !== undefined && Number.isFinite(effect) && effect > 0 ? effect : undefined,
+  };
 }
 
-function renderContrast(contrast: TrialContrast): string[] {
+function renderContrast(contrast: TrialContrast, effect: number): string[] {
   const { treated: t, control: c } = contrast;
   const share = (cell: TrialContrast["treated"]): string =>
     cell.readings === 0 ? "   —  " : pct(cell.walks / cell.readings).padStart(6);
@@ -127,12 +147,16 @@ function renderContrast(contrast: TrialContrast): string[] {
     `  ${" ".repeat(14)}` +
       `  control ${String(c.frontiers).padStart(3)} frontiers ${String(c.readings).padStart(4)} readings` +
       `  depth ${num(c.meanDepthOverReaders)}  walked ${share(c)}`,
-    `  ${" ".repeat(14)}  treated − control:  depth ${signed(contrast.depthDifference)}` +
-      `   walk share ${signed(contrast.walkShareDifference * 100, 1)} pts`,
+    contrast.depthDifference === null || contrast.walkShareDifference === null
+      ? `  ${" ".repeat(14)}  treated − control:  INSUFFICIENT — needs ${contrast.minimumReadings} readings per arm ` +
+        `to carry a ${effect}-record difference; holds ${t.readings} treated / ${c.readings} control`
+      : `  ${" ".repeat(14)}  treated − control:  depth ${signed(contrast.depthDifference)}` +
+        `   walk share ${signed(contrast.walkShareDifference * 100, 1)} pts`,
   ];
 }
 
 function render(reading: CompositionTrialReading, args: Args): string {
+  const effect = args.effect ?? DETECTABLE_DEPTH_DIFFERENCE;
   const lines: string[] = [];
   lines.push("THE OBSERVATION PERIOD");
   lines.push(
@@ -150,7 +174,36 @@ function render(reading: CompositionTrialReading, args: Args): string {
   lines.push("");
   for (const contrast of reading.contrasts) {
     if (contrast.treated.readings === 0 && contrast.control.readings === 0) continue;
-    lines.push(...renderContrast(contrast));
+    lines.push(...renderContrast(contrast, effect));
+    lines.push("");
+  }
+  const reported = reading.contrasts.filter((c) => c.sufficient);
+  const short = reading.contrasts.filter(
+    (c) => !c.sufficient && (c.treated.readings > 0 || c.control.readings > 0),
+  );
+  if (short.length > 0) {
+    lines.push("ARM POWER — READ THIS BEFORE ANY NUMBER ABOVE");
+    lines.push(
+      `  ${short.length} of ${short.length + reported.length} contrast(s) report INSUFFICIENT rather than a direction.` +
+        ` That is a reading of the`,
+    );
+    lines.push(
+      "  DENOMINATOR, not a failure to take one — the arm accrues at the rate sessions actually read",
+    );
+    lines.push(
+      "  decisions, and nothing about the corpus needs to change for the answer to arrive. A contrast",
+    );
+    lines.push(
+      `  reports a direction only once BOTH arms hold the readings a ${effect}-record difference needs.`,
+    );
+    if (reported.length === 0) {
+      lines.push(
+        "  NO contrast cleared the bar, so this run states NO direction at all. A table of INSUFFICIENT",
+      );
+      lines.push(
+        "  rows must not be read as 'composition changed nothing' — it says nobody has read enough yet.",
+      );
+    }
     lines.push("");
   }
   lines.push("HOW TO READ IT");
@@ -239,8 +292,9 @@ async function main(): Promise<void> {
       resolve: decisionNumberOfObservedId,
     };
     const withFrom = args.from === undefined ? trialBase : { ...trialBase, from: args.from };
+    const withTo = args.to === undefined ? withFrom : { ...withFrom, to: args.to };
     reading = computeCompositionTrial(
-      args.to === undefined ? withFrom : { ...withFrom, to: args.to },
+      args.effect === undefined ? withTo : { ...withTo, detectableDifference: args.effect },
     );
   } catch (e) {
     if (e instanceof SupportGraphCycleError) {

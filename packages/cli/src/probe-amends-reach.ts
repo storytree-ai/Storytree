@@ -26,9 +26,18 @@
  * sessions a day. `UNDERPOWERED` is the expected answer for some weeks, and it is a RESULT — the
  * measurement reporting its own denominator rather than a percentage over four sessions.
  *
- * It decides NOTHING about whether `amends` is retired. That is `oq-retire-the-amends-edge`, whose
- * named blocker (a replacement for `loadBearingReach`, which closes over `amends` alone) this
- * measurement does not touch.
+ * ## AND IT REFUSES TO ATTRIBUTE A FALL IT CANNOT ATTRIBUTE
+ *
+ * Power and attribution are different questions, and an arm can pass the first while failing the
+ * second. A SECOND intervention entered the after arm on 2026-08-23 — see {@link SECOND_INTERVENTION}
+ * — so a direction measured across it has two candidate causes and this design separates neither.
+ * Any non-`UNDERPOWERED` verdict is therefore stamped NOT ATTRIBUTABLE, with the clean sub-arm's size
+ * printed beside it. That sub-arm is FROZEN: waiting buys power only on the confounded side.
+ *
+ * It decides NOTHING about whether `amends` is retired — that was settled on 2026-08-23 by ADR-0431
+ * (option A, retire it outright) and executed end to end, so this probe no longer feeds an open
+ * question. What survives is the narrower one it can still speak to: did the annotation discharge the
+ * reading, or did readers go on reaching while the corpus stopped telling them where?
  *
  * Exit 0 when a reading was taken — including an underpowered one, which measured a real denominator.
  * Exit 1 when it could not be taken at all: no decision log, no transcripts, or a vacuous arm.
@@ -40,6 +49,7 @@ import { fileURLToPath } from "node:url";
 import { resolveTranscriptDir } from "@storytree/context-traversal-transcript";
 
 import {
+  afterArmIsConfounded,
   amendsCorpusShape,
   compareAmendsReach,
   computeAmendsReach,
@@ -85,6 +95,36 @@ const DRAIN_COMPLETED = "2026-08-23T05:39:57.000Z";
 
 /** The relative fall the after arm is sized to catch, unless the caller asks for a smaller one. */
 const DEFAULT_DETECTABLE_FALL = 0.5;
+
+/**
+ * When a SECOND intervention entered the after arm — the instant this comparison stops being able to
+ * ATTRIBUTE a fall to the annotation, however large the arm grows.
+ *
+ * ## THE TWO EVENTS, NINE MINUTES APART, AND WHY THE EARLIER ONE IS THE BOUND
+ *
+ *   - `2026-08-23T13:13:58Z` — PR #1596 landed ADR-0428's composed statements on the treated
+ *     frontiers, which changes what a reader finds when they arrive at a decision.
+ *   - `2026-08-23T13:23Z .. 14:22Z` — `-inc-18` rewrote all 517 `amends` edges onto `dependsOn` in
+ *     place (measured from the write log: the `claude/retire-amends` writes on `-inc-18`'s own row
+ *     and on the decision rows themselves). `-inc-19` then deleted the field and, with it, `adr
+ *     list`'s `☆` mark and its `amended by NNNN` back-edge.
+ *
+ * The edges SURVIVED — `adr list` still derives a `depended on by NNNN` back-edge, so both directions
+ * remain walkable. What did not survive is the LABEL: a pointer that said this decision was NARROWED
+ * by that one now says only that something supports it, mixed in with every other support edge. That
+ * is a plausible cause of a fall in crossings all by itself, and it is not the annotation.
+ *
+ * The bound is the EARLIER instant because either event is enough to break attribution, so the clean
+ * window ends at the first of them.
+ *
+ * ## THIS IS PERMANENT, NOT A WAIT
+ *
+ * Time only moves forward, so the clean sub-arm — annotation complete AND the edge still labelled —
+ * is FROZEN at whatever it held on 2026-08-23. Further accrual grows only the confounded side. A
+ * session re-running this probe for a bigger arm is buying power it can no longer spend on D5's
+ * actual question.
+ */
+const SECOND_INTERVENTION = "2026-08-23T13:13:58.000Z";
 
 interface Args {
   readonly from: string;
@@ -157,7 +197,7 @@ function renderArm(label: string, reading: AmendsReachReading): string {
   return lines.join("\n");
 }
 
-function renderComparison(comparison: AmendsReachComparison): string {
+function renderComparison(comparison: AmendsReachComparison, confounded: boolean): string {
   const lines: string[] = [];
   lines.push(`  ${comparison.measure}`);
   lines.push(`    BEFORE  ${comparison.beforeCount}/${comparison.beforeTotal}  ${interval(comparison.before)}`);
@@ -172,6 +212,13 @@ function renderComparison(comparison: AmendsReachComparison): string {
       `    VERDICT: UNDERPOWERED — the after arm holds ${comparison.afterTotal} session(s) and would need ` +
         `${required} (${why}) to detect a ${pct(comparison.detectableFall)} fall at 80% power. ` +
         "No direction is computed, because none could be trusted.",
+    );
+  } else if (confounded) {
+    // The direction still stands as a DESCRIPTION of the two arms; what it cannot do is name a
+    // cause. Printing it bare would be read as the annotation working, which is the one reading
+    // this arm cannot support.
+    lines.push(
+      `    VERDICT: ${comparison.verdict} — NOT ATTRIBUTABLE (a second intervention is inside this arm; see ATTRIBUTION)`,
     );
   } else {
     lines.push(`    VERDICT: ${comparison.verdict}`);
@@ -346,6 +393,18 @@ async function main(): Promise<void> {
   const comparisons: AmendsReachComparison[] = specs.map((spec) =>
     compareAmendsReach({ ...spec, detectableFall: args.fall, minimumArm }),
   );
+  // ATTRIBUTION, decided from the arm's OBSERVED end and at BOTH grains. Either grain reaching past
+  // the second intervention confounds the report, because the report is read as one thing.
+  const confounded =
+    afterArmIsConfounded(arms.window.after.observedTo, SECOND_INTERVENTION) ||
+    afterArmIsConfounded(arms.slot.after.observedTo, SECOND_INTERVENTION);
+  // The sub-arm that saw the annotation and NOT the relabelling — the only window that could answer
+  // D5 as asked. Computed from reads already gathered, so it costs a pass over memory, not a re-scan.
+  const clean = {
+    window: computeAmendsReach({ reads: gathered.reads, support, from: args.split, to: justBefore(SECOND_INTERVENTION), grain: "window" }),
+    slot: computeAmendsReach({ reads: gathered.reads, support, from: args.split, to: justBefore(SECOND_INTERVENTION), grain: "slot" }),
+  } satisfies Record<SessionGrain, AmendsReachReading>;
+
   console.log(`${TAG} — ADR-0419 D5: have reaches into amended decisions FALLEN?`);
   console.log(
     `  the arm must clear ${minimumArm} session(s) before ANY measure returns a direction — the largest sizing\n` +
@@ -353,7 +412,7 @@ async function main(): Promise<void> {
   );
   console.log("");
   for (const comparison of comparisons) {
-    console.log(renderComparison(comparison));
+    console.log(renderComparison(comparison, confounded));
     console.log("");
   }
 
@@ -368,10 +427,36 @@ async function main(): Promise<void> {
     console.log("");
   }
 
+  if (confounded) {
+    console.log(
+      `${TAG} — ATTRIBUTION: A DIRECTION ABOVE IS NOT THE ANNOTATION'S. Read this before quoting any FALL.\n` +
+        `  A SECOND intervention lands inside the after arm at ${SECOND_INTERVENTION}: ADR-0428's composed\n` +
+        "  statements (PR #1596), then within ten minutes `-inc-18`'s rewrite of all 517 `amends` edges onto\n" +
+        "  `dependsOn`, which took the `☆` mark and the `amended by NNNN` back-edge with it. The edges survived\n" +
+        "  as `depended on by`, so both directions are still walkable — but the pointer stopped saying that the\n" +
+        "  target had been NARROWED, and that alone is a candidate cause of a fall in crossings.\n" +
+        "\n" +
+        "  So D5's question — did the ANNOTATION discharge the reading? — has two candidate causes in this arm\n" +
+        "  and this design cannot separate them. The arm that CAN answer it ends at the instant above:\n" +
+        `      window grain  ${clean.window.sessionsReadingADecision} session(s) that read a decision · ` +
+        `${clean.window.sessionsCrossingAnAmendsEdge} crossed an \`amends\` edge\n` +
+        `      slot grain    ${clean.slot.sessionsReadingADecision} session(s) that read a decision · ` +
+        `${clean.slot.sessionsCrossingAnAmendsEdge} crossed an \`amends\` edge\n` +
+        `  Re-run bounded to it with:  pnpm probe:amends-reach --to ${SECOND_INTERVENTION}\n` +
+        "\n" +
+        "  ⚠ THAT SUB-ARM IS FROZEN AND WILL NEVER GROW. Time only moves forward, so waiting buys power only on\n" +
+        "  the confounded side. This is a PERMANENT limit on D5's read test, not a denominator to wait out.",
+    );
+    console.log("");
+  }
+
   console.log(
-    `${TAG} — THIS DECIDES NOTHING. \`oq-retire-the-amends-edge\` stays open, and its named blocker is untouched:\n` +
-      "  `loadBearingReach` closes over `amends` ALONE, ADR-0419 D1 forbids a plain support edge promoting its\n" +
-      "  target into the calibrate set, and no replacement computation has been designed.",
+    `${TAG} — THIS DECIDES NOTHING, and it no longer has a question to feed.\n` +
+      "  `oq-retire-the-amends-edge` was SETTLED on 2026-08-23 (option A, recorded by ADR-0431), and the edge is\n" +
+      "  retired end to end: the field is gone from the schema and `loadBearingReach` reads the curated tag alone\n" +
+      "  (ADR-0431 D4 froze the derived reach into it first — 221 members before, 221 after). So this probe answers\n" +
+      "  the narrower question that survived: whether the annotation actually discharged the reading, or whether\n" +
+      "  readers went on reaching and the corpus stopped telling them where.",
   );
 
   if (args.json !== undefined) {

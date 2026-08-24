@@ -143,11 +143,68 @@ export interface TrialContrast {
   readonly altitude: AltitudeClass | null;
   readonly treated: TrialCell;
   readonly control: TrialCell;
-  /** treated − control on {@link TrialCell.meanDepthOverReaders}. Negative = treated reads shallower. */
-  readonly depthDifference: number;
-  /** treated − control on the share of readings that walked. */
-  readonly walkShareDifference: number;
+  /**
+   * treated − control on {@link TrialCell.meanDepthOverReaders}. Negative = treated reads shallower.
+   *
+   * **`null` when {@link sufficient} is false**, and that is the whole point of the field being
+   * nullable: an arm too small to carry the difference has no difference to report, and a number
+   * printed anyway is arithmetic wearing a measurement's clothes. See {@link minimumReadings}.
+   */
+  readonly depthDifference: number | null;
+  /** treated − control on the share of readings that walked. `null` on an insufficient arm. */
+  readonly walkShareDifference: number | null;
+  /**
+   * Readings EACH arm needs before this contrast reports a direction, at
+   * {@link DETECTABLE_DEPTH_DIFFERENCE} and 80% power against the pooled spread of the depths this
+   * run actually observed. Reported whether or not the arm clears it, so a reader can see how far
+   * short it fell rather than only that it did.
+   */
+  readonly minimumReadings: number;
+  /** Both arms hold at least {@link minimumReadings}. False ⇒ both differences above are `null`. */
+  readonly sufficient: boolean;
 }
+
+/**
+ * The smallest depth difference, in records, this trial declares worth detecting.
+ *
+ * HALF A RECORD, and the number is a floor on the DESIGN rather than a hope about the effect. The
+ * arms are matched comparably-in-expectation and not equated (`-inc-12`), and the median frontier is
+ * read by three windows, so matching on small counts is partly matching on counting noise — this
+ * design can separate a LARGE movement from zero and nothing finer. Declaring a smaller effect would
+ * not make the trial more sensitive; it would only raise the arm size at which it admits it cannot
+ * see, which is the honest half of the same statement.
+ */
+export const DETECTABLE_DEPTH_DIFFERENCE = 0.5;
+
+/**
+ * Readings needed PER ARM to detect {@link DETECTABLE_DEPTH_DIFFERENCE} at 80% power and α = 0.05,
+ * given the pooled standard deviation of the depths observed.
+ *
+ * The textbook two-sample sizing, n ≥ 2σ²(z_{α/2} + z_β)² / Δ². It is deliberately the SAME shape of
+ * guard `probe:amends-reach` carries for proportions (`sessionsToDetect` + `minimumArm`, `-inc-14`)
+ * — that probe called a genuine-looking FALL off six sessions before the guard existed, and this one
+ * reported `depth -1.00` off a treated cell holding ZERO readings, which is the same fault at a
+ * different grain: a direction computed before anyone asked whether the arm could carry one.
+ *
+ * A σ of 0 (every depth identical, or fewer than two readings in total) cannot size anything, so the
+ * floor falls back to {@link MINIMUM_READINGS_FLOOR} rather than to 0 — which would read as "any arm
+ * will do" precisely when there is least to go on.
+ */
+export function readingsToDetect(pooledSd: number, effect = DETECTABLE_DEPTH_DIFFERENCE): number {
+  if (!Number.isFinite(pooledSd) || pooledSd <= 0) return MINIMUM_READINGS_FLOOR;
+  if (!Number.isFinite(effect) || effect <= 0) return MINIMUM_READINGS_FLOOR;
+  const z = 1.959964 + 0.841621;
+  return Math.max(MINIMUM_READINGS_FLOOR, Math.ceil((2 * pooledSd * pooledSd * z * z) / (effect * effect)));
+}
+
+/**
+ * The floor no contrast reports a direction below, whatever the sizing arithmetic says.
+ *
+ * Two readings cannot carry a mean difference no matter how tight their spread happens to look, and
+ * a σ computed from one or two samples is itself noise. This is the same "a small sample is never a
+ * direction" rule the sibling probe states as `INSUFFICIENT DATA is a first-class verdict`.
+ */
+export const MINIMUM_READINGS_FLOOR = 8;
 
 export interface CompositionTrialInput {
   readonly arms: FrozenArms;
@@ -157,6 +214,13 @@ export interface CompositionTrialInput {
   readonly altitude: ReadonlyMap<number, AltitudeClass>;
   readonly from?: string | undefined;
   readonly to?: string | undefined;
+  /**
+   * The smallest depth difference worth detecting, in records. Defaults to
+   * {@link DETECTABLE_DEPTH_DIFFERENCE}. Declaring a LARGER effect lowers the arm each contrast
+   * needs — which is the honest trade and not a loophole, because the report prints the figure it
+   * sized against beside every INSUFFICIENT row.
+   */
+  readonly detectableDifference?: number | undefined;
   /**
    * How an observed id becomes a decision number. Defaults to {@link decisionNumberOfObservedId},
    * which delegates to the corpus's ONE resolver — never a raw-string join, which `-inc-01` measured
@@ -187,6 +251,14 @@ function withinWindow(at: string, from: string | undefined, to: string | undefin
 function mean(values: readonly number[]): number {
   if (values.length === 0) return 0;
   return values.reduce((sum, v) => sum + v, 0) / values.length;
+}
+
+/** Sample standard deviation (n−1). Zero for fewer than two values — {@link readingsToDetect} reads that as "cannot size". */
+function standardDeviation(values: readonly number[]): number {
+  if (values.length < 2) return 0;
+  const m = mean(values);
+  const variance = values.reduce((sum, v) => sum + (v - m) * (v - m), 0) / (values.length - 1);
+  return Math.sqrt(variance);
 }
 
 /**
@@ -256,6 +328,15 @@ export function computeCompositionTrial(input: CompositionTrialInput): Compositi
     }
   }
 
+  // Sized against the spread this run actually saw, pooled over BOTH arms and EVERY altitude class,
+  // so one thin cell is sized by the same yardstick as a fat one and the report's floor is uniform.
+  // That uniformity is the "least sensitive comparison" rule (`-inc-14`) arriving for free here: no
+  // cell can clear a bar its siblings could not, so no cell can become the whole finding on its own.
+  const minimumReadings = readingsToDetect(
+    standardDeviation(samples.map((s) => s.depth)),
+    input.detectableDifference ?? DETECTABLE_DEPTH_DIFFERENCE,
+  );
+
   const contrasts: TrialContrast[] = axis.map((altitude) => {
     const treated = cells.find((c) => c.altitude === altitude && c.arm === "treated");
     const control = cells.find((c) => c.altitude === altitude && c.arm === "control");
@@ -264,12 +345,19 @@ export function computeCompositionTrial(input: CompositionTrialInput): Compositi
     const t = treated ?? emptyCell("treated", altitude);
     const c = control ?? emptyCell("control", altitude);
     const share = (cell: TrialCell): number => (cell.readings === 0 ? 0 : cell.walks / cell.readings);
+    // Power BEFORE direction, in that order and never the other way. An empty treated cell has a
+    // mean of 0 by convention, so differencing it against a control that WAS read manufactures a
+    // full-record "fall" out of nobody having read the treated arm at all — which is how this probe
+    // reported `depth -1.00` on a cell holding zero readings.
+    const sufficient = t.readings >= minimumReadings && c.readings >= minimumReadings;
     return {
       altitude,
       treated: t,
       control: c,
-      depthDifference: t.meanDepthOverReaders - c.meanDepthOverReaders,
-      walkShareDifference: share(t) - share(c),
+      depthDifference: sufficient ? t.meanDepthOverReaders - c.meanDepthOverReaders : null,
+      walkShareDifference: sufficient ? share(t) - share(c) : null,
+      minimumReadings,
+      sufficient,
     };
   });
 
