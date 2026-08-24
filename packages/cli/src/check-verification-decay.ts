@@ -97,8 +97,9 @@ import { extractVouchingTestNames, loadNodeSpec } from "@storytree/orchestrator"
 import { attributeDecayFindings, type DecayAttributionEvidence } from "./decay-attribution.js";
 import {
   DECISION_SOURCE_DRIFT,
-  findDeclaredUnfrozenSources,
   findDecisionSourceDrift,
+  findDeclaredUnfrozenSources,
+  findRefutedSources,
   formatDecisionSourceSweep,
   measureDecisionSweep,
   projectDecisionFacts,
@@ -1393,17 +1394,20 @@ async function main(): Promise<void> {
   const { failed, lines } = formatDecaySweep(verdict, instruments);
   for (const line of lines) (failed ? console.error : verdict.count > 0 ? console.warn : console.log)(line);
 
-  // THE DECISION-SOURCE READER (ADR-0424, `grounded-decisions-arc` inc-02 unit 3) — printed BESIDE
-  // the finding report, never inside it. Neither line is a finding: the aperture says what was
-  // compared, and DECLARED BUT NEVER FROZEN names anchors that cannot be swept at all. Folding
-  // either into `formatDecaySweep` would count them as backlog against a ceiling, which is exactly
-  // the reading the second category exists to prevent. Suppressed when the store could not be read,
-  // because an aperture line derived from no decisions would report `compared 0` beside an
-  // escalation that already says the sweep went blind — two sentences, one of them misleading.
+  // THE DECISION-SOURCE READER (ADR-0424, `grounded-decisions-arc` inc-02 unit 3, widened by
+  // inc-03) — printed BESIDE the finding report, never inside it. NONE of these three lines is a
+  // finding: the aperture says what was compared, DECLARED BUT NEVER FROZEN names anchors that
+  // cannot be swept at all, and REFUTED names anchors somebody closed with a recorded reason.
+  // Folding any of them into `formatDecaySweep` would count them as backlog against a ceiling,
+  // which is exactly the reading the last two categories exist to prevent — one is work nobody has
+  // started, the other is work somebody finished, and neither is drift. Suppressed when the store
+  // could not be read, because an aperture line derived from no decisions would report `compared 0`
+  // beside an escalation that already says the sweep went blind — two sentences, one misleading.
   if (decisionsUnreadable === undefined) {
     for (const line of formatDecisionSourceSweep(
       measureDecisionSweep(decisions),
       findDeclaredUnfrozenSources(decisions),
+      findRefutedSources(decisions),
     )) {
       (failed ? console.error : console.log)(line);
     }

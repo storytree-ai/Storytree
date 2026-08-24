@@ -25,18 +25,33 @@ import { z } from "zod";
  *
  * The extension is deliberately small: one added field, one relaxed.
  *
- * ## `boundHash` IS OPTIONAL HERE, AND THAT IS ADR-0424 D2 LANDING
+ * ## `boundHash` IS OPTIONAL HERE, AND UNDER ADR-0438 D1 IT IS THE NORMAL BIRTH STATE
  *
  * `Anchor` requires it, correctly — a binding with no content hash cannot detect drift. A DECISION's
- * anchor has a state that a proof's does not: ADR-0424 D2 binds at the GREEN FLIP, so a decision
- * that is still `proposed` carries anchor IDENTITIES with nothing bound to them yet. That is not a
- * degraded anchor; it is the only honest representation of "an author has said which code this claim
- * rests on, and the truth obligation has not attached yet". Folding the two states together would
- * mean either refusing to record an identity before acceptance, or minting a hash at a moment the
- * decision was not yet claiming anything.
+ * anchor has a state that a proof's does not: it can be DECLARED before anything is frozen onto it.
+ * That is not a degraded anchor; it is the only honest representation of "an author has said which
+ * code this claim rests on, and nobody has read that code yet".
+ *
+ * ADR-0424 D2 originally said the freeze rode the `proposed → accepted` transition. **That is
+ * WITHDRAWN by ADR-0438 D1** and this docstring is corrected in place rather than left to be
+ * discovered (ADR-0139): building it measured FOUR routes to `accepted` sharing no hookable choke
+ * point, and the first real drain then showed the transition is the WRONG MOMENT anyway — a decision
+ * is normally accepted BEFORE the code it directs exists, so a hash taken then records the
+ * pre-decision code and reports "moved" about exactly the change the decision asked for. Freezing is
+ * now an EXPLICIT ACT (`storytree adr rebind <n> --pg`), so a `boundHash` means "somebody looked",
+ * and nothing else.
  *
  * Read it as a THREE-state field and never as a boolean: absent `sources` = never bound; an entry
  * without `boundHash` = declared, unbound; an entry with one = bound and comparable.
+ *
+ * ## `refuted` IS A FOURTH VALUE ON A DIFFERENT AXIS, NOT A FOURTH STATE ON THAT ONE
+ *
+ * The three states above describe a LIVE anchor: how far its author has got. {@link isRefutedSource}
+ * describes a CLOSED one — somebody swept it, read the code, and concluded the anchor itself was the
+ * error rather than the decision's prose. A refuted anchor is retained WITH its reason and is
+ * excluded from both the drift sweep and the declared-but-never-frozen category, because it is
+ * neither outstanding work nor a moved span. Ask the two questions separately and they do not
+ * interfere; collapse them into one enum and the sweep starts reporting closed matters as backlog.
  *
  * ## `claim` IS A LABEL, NOT A MINTED IDENTITY
  *
@@ -62,8 +77,9 @@ import { z } from "zod";
  * speaks about claims that carry an anchor and stays silent about the rest.
  *
  * NO SWEEP AND NO BINDING VERB. This module makes the binding REPRESENTABLE; reading it is
- * `grounded-decisions-arc-inc-02` and writing it is inc-03. What lives here is the shape and the
- * defensive readers a live-corpus caller needs.
+ * `packages/cli/src/decision-source-decay.ts` (inc-02) and writing it is
+ * `packages/cli/src/adr-rebind.ts` (inc-03). What lives here is the shape and the defensive readers
+ * a live-corpus caller needs.
  *
  * Pure and browser-safe: no `node:` import, no filesystem, no store, no clock. Hashing a span needs
  * a repository checkout and therefore cannot happen here — which is also why the module can say
@@ -84,10 +100,24 @@ export const DecisionSource = Anchor.extend({
    */
   claim: z.string().min(1).optional(),
   /**
-   * The span's content hash, frozen at the green flip. ABSENT means declared-but-unbound — see the
-   * header for why that state has to be representable.
+   * The span's content hash, frozen by the EXPLICIT act of `storytree adr rebind <n> --pg`
+   * (ADR-0438 D1). ABSENT means declared-but-unbound — see the header for why that state has to be
+   * representable, and why it is now the normal state an anchor is born in.
    */
   boundHash: z.string().min(1).optional(),
+  /**
+   * WHY this anchor was refuted — present means the anchor was the authoring error, not the prose.
+   *
+   * The third of the drain's three honest discharges (`grounded-decisions-arc-inc-03`): a located
+   * region is REPAIRED (the prose is corrected, then the span is re-frozen), SUPERSEDED (a genuine
+   * re-decision, per ADR-0139), or REFUTED — this. Refuting is the one that empties the backlog
+   * without anyone having repaired anything, so it is the one that must not be free: the reason is
+   * REQUIRED by the verb, stored here rather than in a commit message, and printed by the sweep in
+   * its own visible category. A refuted anchor is retained rather than deleted for exactly that
+   * reason — deleting it would discharge the finding and take the record of who decided, and why,
+   * with it.
+   */
+  refuted: z.string().min(1).optional(),
 });
 export type DecisionSource = z.infer<typeof DecisionSource>;
 
@@ -103,6 +133,18 @@ export type DecisionSources = z.infer<typeof DecisionSources>;
  */
 export function isBoundSource(source: DecisionSource): boolean {
   return source.boundHash !== undefined;
+}
+
+/**
+ * True when this anchor was REFUTED — closed with a recorded reason, not outstanding work.
+ *
+ * A predicate for the same reason its neighbour is one: every caller that sweeps anchors owes BOTH
+ * questions, and the second one is the easy omission. A refuted anchor answers `false` to
+ * {@link isBoundSource}, so a sweep that asks only that question files a closed matter under
+ * "declared but never frozen" and reports somebody's finished work as a backlog item forever.
+ */
+export function isRefutedSource(source: DecisionSource): boolean {
+  return source.refuted !== undefined;
 }
 
 /**

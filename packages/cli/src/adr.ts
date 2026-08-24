@@ -4,6 +4,7 @@ import type { Store } from "@storytree/storage-protocol";
 import { defaultCliActor } from "./cli-actor.js";
 
 import { adrCompose, type AdrComposeOpts } from "./adr-composed.js";
+import { adrRebind, type AdrRebindDeps, type AdrRebindOpts } from "./adr-rebind.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
 import type { Envelope } from "./envelope.js";
 
@@ -57,6 +58,17 @@ export interface AdrCommandDeps {
    * composes, and the write SAYS the fence did not run rather than implying it passed.
    */
   controlArm?: ReadonlySet<number> | undefined;
+  /**
+   * What `adr rebind` needs: the store, the write gate, and a reader for the CURRENT source tree
+   * (ADR-0438 D1, `grounded-decisions-arc` inc-03). OPTIONAL as a TYPE for the same reason
+   * {@link roundTrip} is — absent, the verb REFUSES with the reason rather than crashing on a dep a
+   * partially-wired composition root never supplied.
+   *
+   * It is a SEPARATE dep from `roundTrip` and not a widening of it, because the two verbs must stay
+   * separable: `roundTrip` writes the decision's prose and `rebind` writes what the code looked
+   * like, and ADR-0424 D7 is the rule that they never become one act.
+   */
+  rebind?: AdrRebindDeps | undefined;
 }
 
 export interface AdrCommandOpts {
@@ -101,6 +113,13 @@ export interface AdrCommandOpts {
   clause?: string | undefined;
   /** `adr compose --allow-control-arm`: the explicit escape from the frozen-trial fence (D6). */
   allowControlArm?: boolean | undefined;
+  /**
+   * `adr rebind <n> --refute <key>`: the anchor to close as REFUTED, keyed by its identity exactly as
+   * a drift finding prints it. Requires {@link reason} — that pairing is the unit's whole point.
+   */
+  refute?: string | undefined;
+  /** `adr rebind <n> --refute <key> --reason <text|@file>`: WHY. Never optional beside `--refute`. */
+  reason?: string | undefined;
   /** `adr list` filters (ADR-0086). */
   current?: boolean | undefined;
   loadBearing?: boolean | undefined;
@@ -888,6 +907,29 @@ export function adrHelp(): Envelope {
       "  storytree adr pull <n> --out <path>                the decision as an ordinary markdown document",
       "  storytree adr push <n> --file <path> --pg          the edited document, written back",
       "",
+      "  storytree adr rebind <n>                           what has moved beneath this decision (a DRY read)",
+      "  storytree adr rebind <n> --pg                      freeze every locatable anchor against this checkout",
+      "  storytree adr rebind <n> --refute <key> --reason <text|@file> --pg",
+      "                                                     close one anchor as the ANCHOR's error, on the record",
+      "",
+      "`rebind` (ADR-0438) is the EXPLICIT FREEZE. Nothing freezes an anchor automatically — not the",
+      "green flip, not a push, not any lifecycle transition in any layer — so a stored fingerprint means",
+      "SOMEBODY LOOKED and nothing else. It is ADR-0139's missing second half: correcting a decision's",
+      "prose in place is not evidence anyone re-read the code, so re-freezing is its own act.",
+      "  It is deliberately NOT a flag on `push` (ADR-0424 D7): if it were, the cheapest way to clear a",
+      "  drift finding would be to re-push the document that drifted.",
+      "  ONE verb for the first freeze and every later one (D3) — first-time freezing is one more case of",
+      "  re-reading the code, not new machinery. Without --pg it is a DRY READ that writes nothing.",
+      "  An anchor whose span cannot be located in THIS checkout is never frozen — a hash over a span",
+      "  nobody found would assert a look that never happened. Its siblings are still frozen.",
+      "  A drift finding has three honest ends: REPAIRED (correct the prose with pull/push, then rebind),",
+      "  SUPERSEDED (`adr new --supersedes <n>` — it leaves --current and takes its findings with it), or",
+      "  REFUTED (the ANCHOR was wrong and the prose was always true). --refute REQUIRES --reason: it is",
+      "  the only route that empties the backlog without repairing anything, the reason is stored on the",
+      "  anchor rather than in a commit message, and every later sweep prints it.",
+      "  Anchors themselves are authored by hand against the decision's prose —",
+      "  `library artifact adr-NNNN --set sources=@anchors.json --pg`. NEVER auto-anchor.",
+      "",
       "  storytree adr compose                              every composed statement + what has moved beneath",
       "  storytree adr compose <n>                          one record's statement + its staleness marker",
       "  storytree adr compose <n> --statement <text|@file> [--clause <id>] --pg     compose / re-affirm",
@@ -990,6 +1032,25 @@ export async function adrCommand(
     return sub === "pull"
       ? adrPull(opts.number, opts.out, deps.roundTrip)
       : adrPush(opts.number, opts.file, deps.roundTrip);
+  }
+  // The EXPLICIT FREEZE (ADR-0438 D1). Store-backed and tree-reading, so it is refused with the
+  // reason rather than crashing when the composition root did not wire it — the same posture the
+  // round trip takes one branch up.
+  if (sub === "rebind") {
+    if (deps.rebind === undefined) {
+      return {
+        ok: false,
+        body: "adr rebind needs the live store and a source tree, which this invocation was not given.",
+        next: ["pnpm db:up", "storytree adr list --current"],
+      };
+    }
+    // Built in statements rather than with conditional spreads, for the reason `compose` records
+    // below: under `exactOptionalPropertyTypes` an optional field must be ABSENT, never
+    // present-and-undefined (anti-slop `no-conditional-empty-object-spread`).
+    const rebindOpts: Mutable<AdrRebindOpts> = {};
+    if (opts.refute !== undefined) rebindOpts.refute = opts.refute;
+    if (opts.reason !== undefined) rebindOpts.reason = opts.reason;
+    return await adrRebind(opts.number, rebindOpts, deps.rebind);
   }
   // ADR-0428's composed statement. Store-backed like the round trip, and refused with the reason
   // rather than crashing when the composition root did not wire it.
