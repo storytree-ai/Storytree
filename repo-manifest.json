@@ -317,6 +317,7 @@
       "packages/library/src/lifecycle.ts": "library-lifecycle-wire",
       "packages/library/src/templates.ts": "author-library-artifact",
       "packages/library/src/reliability-gates.ts": "library-health-gate",
+      "packages/library/src/gate-criterion-audit.ts": "library-health-gate",
       "packages/library/src/oq-gating.ts": "library-health-gate",
       "packages/library/src/witness-resolution.ts": "uat-machine-gate-resolution",
       "packages/library/src/uat-test-criteria.ts": "uat-machine-proof-binding",

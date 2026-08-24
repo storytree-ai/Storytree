@@ -21,7 +21,7 @@ function leg(n: number, witness: UatTestCriterion['witness'], wouldBe = false): 
   };
 }
 function gate(kind: ReliabilityGate['kind'], n = 1): ReliabilityGate {
-  return { id: `s#gate-${n}`, title: `g${n}`, kind, covers: [] };
+  return { id: `s#gate-${n}`, title: `g${n}`, kind, covers: [], retired: false };
 }
 
 describe('resolveUatRowWitnesses (ADR-0106)', () => {

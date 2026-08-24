@@ -52,6 +52,7 @@ const observeGate = (id: string): NodeSpec["reliabilityGates"][number] => ({
   id,
   title: `gate ${id}`,
   kind: "observe",
+  retired: false,
   covers: [],
   proofCommand: "pnpm test",
 });

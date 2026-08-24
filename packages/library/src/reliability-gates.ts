@@ -65,6 +65,25 @@ export const ReliabilityGate = z
      * build to drive (so `--real` refuses; the gate is still a parseable obligation).
      */
     buildNode: z.string().min(1).optional(),
+    /**
+     * ADR-0436: this gate is RETIRED IN PLACE — it keeps its ordinal slot (so no later gate is
+     * renumbered and no already-signed verdict or surviving `(proof-gate:)` binding is silently
+     * re-pointed) but it is NO LONGER an own-proof obligation. Parsed from a bare `(retired)` tag,
+     * like the `(gate: …)` / `(covers: …)` / `(build: …)` annotations.
+     *
+     * The shape it exists for: a gate whose criterion was DELETED. Its command can never pass again
+     * — `uat-drive-witness.check.ts` refuses with `declares no criterion <id>` — so leaving it in the
+     * ADR-0085 own-proof union holds the story's crown at `unproven` FOREVER, which is a permanent
+     * false negative rather than the honest "not yet earned" ADR-0085 d.2 intended. Retiring it is
+     * the third answer to the delete-or-re-point fork: deleting renumbers, re-pointing has no live
+     * criterion to name.
+     *
+     * Mirrors {@link UatTestCriterion.wouldBe} — declared and rendered, but not a hard crown
+     * obligation. Read it through {@link activeReliabilityGates} at every obligation, coverage,
+     * drive-selection and signing site; DISPLAY sites keep the full list so the burned ordinal
+     * stays visible.
+     */
+    retired: z.boolean().default(false),
   })
   .strict();
 
@@ -112,6 +131,15 @@ const COVERS_TAG = /\(covers:\s*([^)]+)\)/i;
  * tags; the single id is captured and trimmed.
  */
 const BUILD_TAG = /\(build:\s*([^)]+)\)/i;
+/**
+ * Optional inline retirement annotation (ADR-0436): a bare `(retired)` marks a gate RETIRED IN PLACE
+ * — its ordinal slot is kept so nothing after it renumbers, but it leaves the own-proof union.
+ * Deliberately bare (no value): the WHY belongs in the gate's own prose, where a reader already
+ * looks, and a parsed reason would invite a second, drift-prone home for it. Distinct from
+ * {@link BUILD_TAG} et al. by construction — it matches the literal `(retired)`, which no other tag
+ * contains.
+ */
+const RETIRED_TAG = /\(retired\)/i;
 /** The first backticked command span in an item — the `observe` gate's declared proof command. */
 const COMMAND = /`([^`]+)`/;
 
@@ -233,6 +261,34 @@ export function parseReliabilityGates(storyId: string, body: string): Reliabilit
     };
     if (proofCommand !== undefined) draft.proofCommand = proofCommand;
     if (buildNode !== undefined) draft.buildNode = buildNode;
+    // ADR-0436: retirement is read AFTER the positional id is assigned above, so retiring a gate can
+    // never shift another gate's ordinal — which is the whole reason the marker exists.
+    draft.retired = RETIRED_TAG.test(item);
     return ReliabilityGate.parse(draft);
   });
+}
+
+// ---------------------------------------------------------------------------
+// Obligation selection
+// ---------------------------------------------------------------------------
+
+/**
+ * PURE (ADR-0436): the gates that are still LIVE OBLIGATIONS — the full parse minus the ones
+ * retired in place. The single home of that filter, so the crown, the per-cap coverage fold, the
+ * drive-target selection and the signing pass can never disagree about which gates still count.
+ *
+ * Call this at every site that ASKS SOMETHING OF a gate:
+ *  - the ADR-0085 own-proof union (`[...hardUatTestCriteria, ...activeReliabilityGates(gates)]`);
+ *  - the ADR-0097 `(covers:)` coverage argument — a retired gate must not green a capability, or a
+ *    withdrawn obligation would silently keep supplying proof;
+ *  - drive-target selection and the observe-and-sign pass — a retired gate has nothing to earn.
+ *
+ * Do NOT call it at a DISPLAY site. The tree, the studio panel and the UAT list render the FULL
+ * list, retired rows included, because a burned ordinal that disappears from view is exactly how a
+ * later author renumbers over it — the hazard the marker exists to prevent.
+ */
+export function activeReliabilityGates<T extends { readonly retired?: boolean }>(
+  gates: readonly T[],
+): T[] {
+  return gates.filter((gate) => gate.retired !== true);
 }
