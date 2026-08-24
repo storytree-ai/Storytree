@@ -3,10 +3,12 @@
  * live-only run that PRODUCES the artifact `uat-drive-witness.check.ts` witnesses.
  *
  * It is NOT a `*.test.ts` and never runs on a gate pass: each criterion spawns a fresh,
- * subscription-funded Codex session in the repo root, so ADR-0010 §5 keeps it out-of-band —
- * exactly as `dogfood-probe.run.ts` is. The driving session inherits whatever tools the local Codex
- * install actually has (shell and the storytree CLI always; browser / headless control only
- * where that MCP is configured), which is a property of the machine, not of this harness — a journey
+ * subscription-funded session in the repo root, so ADR-0010 §5 keeps it out-of-band — exactly as
+ * `dogfood-probe.run.ts` is. The runtime is CLAUDE by default and Codex by explicit selection
+ * (ADR-0435 D1/D2); this paragraph said "Codex session" flatly until 2026-08-24, which was true only
+ * of the 2026-08-20 default it outlived. The driving session inherits whatever tools the local
+ * install actually has (shell and the storytree CLI always; browser / headless control only where
+ * that MCP is configured), which is a property of the machine, not of this harness — a journey
  * through a surface the local session cannot reach is a `fail` with that named as the reason, not a
  * silent pass.
  *
@@ -26,8 +28,9 @@
  *
  * Fail-closed before any spend: a dirty tree refuses (the record pins the commit the journey was
  * driven against), an unreachable store refuses (a record that does not persist witnesses nothing),
- * and a prompt that has lost the authored journey, the honesty clause, or the report contract refuses
- * (`auditDrivePrompt`).
+ * a RETIRED story refuses (`retiredStoryDriveRefusal` — its criteria are kept as unclaimed history
+ * and witness nothing, so neither outcome is a product finding), and a prompt that has lost the
+ * authored journey, the honesty clause, or the report contract refuses (`auditDrivePrompt`).
  *
  * Usage:
  *   pnpm --filter @storytree/drive exec node --import tsx src/uat-drive.run.ts <story-id> [criterion-id…]
@@ -74,6 +77,7 @@ import {
   parsePorcelain,
   parseSurfaceAttestations,
   requireOwnSurface,
+  retiredStoryDriveRefusal,
   selectDriveTargets,
   uatDriveTaskPrompt,
   UatDriveRecord,
@@ -220,14 +224,28 @@ function verifyCodexRuntime(): DriverRuntime | null {
   }
 }
 
-/** Claude remains an explicit subscription choice; API-key credentials never satisfy this check. */
-function verifyClaudeRuntime(): DriverRuntime | null {
+/** How the provider was chosen: named on the command line, or inherited from the ADR-0435 D1 default. */
+type ProviderSelection = "explicit" | "default";
+
+/**
+ * Claude is the DEFAULT subscription route since ADR-0435 D1; API-key credentials never satisfy this
+ * check. The banner says which of the two ways the provider was chosen, because a log that reports an
+ * unset default as an explicit selection destroys the one piece of provenance a later reader needs —
+ * exactly the gap ADR-0435's own Context complains about, where the Codex default was recorded with no
+ * reason a later reader could weigh.
+ */
+function verifyClaudeRuntime(selection: ProviderSelection): DriverRuntime | null {
   const token = process.env["CLAUDE_CODE_OAUTH_TOKEN"]?.trim();
   if (token === undefined || token.length === 0) {
     console.error("[uat-drive] REFUSED: Claude was selected but no Claude subscription token is available.");
     return null;
   }
-  log(`provider: ${CLAUDE_DRIVER} — explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=claude selection`);
+  log(
+    `provider: ${CLAUDE_DRIVER} — ` +
+      (selection === "explicit"
+        ? `explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=claude selection`
+        : `default route (${STORYTREE_UAT_DRIVE_PROVIDER_ENV} unset; ADR-0435 D1)`),
+  );
   return { provider: "claude", driver: CLAUDE_DRIVER, executable: "claude", executableArgs: [] };
 }
 
@@ -259,6 +277,13 @@ async function main(): Promise<number> {
   }
 
   const spec = loadNodeSpec(storyFile);
+  // Before ANY spend: a retired story's criteria witness nothing (ADR-0429 D3/D4). The reasoning is
+  // in `retiredStoryDriveRefusal`, kept pure so a test pins it.
+  const retired = retiredStoryDriveRefusal(storyId, spec.status);
+  if (retired !== null) {
+    console.error(retired);
+    return 1;
+  }
   const body = readFileSync(storyFile, "utf8").replace(/\r\n/g, "\n");
   const sources = parseUatTestCriterionSources(storyId, body);
   const selection = selectDriveTargets(sources, spec.reliabilityGates, only);
@@ -299,7 +324,10 @@ async function main(): Promise<number> {
     return 1;
   }
   if (preference.provider === "claude") loadLocalSecrets(process.env, ["CLAUDE_CODE_OAUTH_TOKEN"]);
-  const runtime = preference.provider === "codex" ? verifyCodexRuntime() : verifyClaudeRuntime();
+  const providerSelection: ProviderSelection =
+    (process.env[STORYTREE_UAT_DRIVE_PROVIDER_ENV] ?? "").trim() === "" ? "default" : "explicit";
+  const runtime =
+    preference.provider === "codex" ? verifyCodexRuntime() : verifyClaudeRuntime(providerSelection);
   if (runtime === null) return 1;
 
   const runId = `uat-drive:${storyId}:${commitSha.slice(0, 10)}:${process.pid}`;
