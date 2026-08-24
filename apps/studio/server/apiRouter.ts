@@ -36,7 +36,8 @@ import type { Attestation, EvidenceRef, StoredAttestation, Verdict } from '@stor
 // vite config-load trap the lazy `loadOrchestrator()` below avoids): the sign-time trust guard's
 // shapes, so `buildUatVerdict` can take the real `checkUatProof` as a precisely-typed injection.
 import type { UatProofCheck, UatProofResult } from '@storytree/orchestrator';
-import type { ResolvedAccess } from '@storytree/studio-members';
+import type { ResolvedAccess, UserRole } from '@storytree/studio-members';
+import { USER_ROLES } from '@storytree/studio-members';
 import type {
   AssetCategory,
   Comment,
@@ -600,8 +601,14 @@ function normalizeEmailInput(raw: string): string {
   return raw.trim().toLowerCase();
 }
 
-function asRole(v: unknown): 'admin' | 'member' | null {
-  return v === 'admin' || v === 'member' ? v : null;
+// Reads USER_ROLES rather than restating it. The literal union here was `'admin' | 'member'`, which
+// silently made the Members panel unable to grant `builder` — a role the schema has had since the
+// `builder-role` capability landed its compute half, and the exact role `stories/desktop` leg 8's
+// journey needs ("the owner's in-app `builder` grant opens the brokered write path"). Nothing caught
+// it because there was no second surface to disagree: `storytree members` is that surface now, and
+// deriving the check from the enum is what stops the two drifting apart again.
+function asRole(v: unknown): UserRole | null {
+  return typeof v === 'string' && (USER_ROLES as readonly string[]).includes(v) ? (v as UserRole) : null;
 }
 
 export async function handleUsers(
@@ -627,7 +634,7 @@ export async function handleUsers(
     const email = normalizeEmailInput(asString(input.email));
     const role = asRole(input.role);
     if (!email || !email.includes('@')) throw new HttpError(400, 'a valid email is required');
-    if (!role) throw new HttpError(400, 'role must be "admin" or "member"');
+    if (!role) throw new HttpError(400, `role must be one of: ${USER_ROLES.join(', ')}`);
     if (await backend.getUser(email)) throw new HttpError(409, `${email} is already in the directory`);
     const now = new Date().toISOString();
     const created = await backend.upsertUser(
@@ -647,7 +654,7 @@ export async function handleUsers(
     const email = normalizeEmailInput(asString(input.email));
     const role = asRole(input.role);
     if (!email) throw new HttpError(400, 'a valid email is required');
-    if (!role) throw new HttpError(400, 'role must be "admin" or "member"');
+    if (!role) throw new HttpError(400, `role must be one of: ${USER_ROLES.join(', ')}`);
     const existing = await backend.getUser(email);
     if (!existing) throw new HttpError(404, 'user not found');
     const updated = await backend.upsertUser({ ...existing, role }, caller ?? 'admin');

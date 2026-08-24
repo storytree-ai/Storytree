@@ -26,6 +26,7 @@
     "@storytree/context-traversal-transcript": "workspace:*",
     "@storytree/drive": "workspace:*",
     "@storytree/storage-protocol": "workspace:*",
+    "@storytree/studio-members": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",
     "@storytree/orchestrator": "workspace:*",

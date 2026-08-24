@@ -111,6 +111,10 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // position inside a decision the way `--raw <field>` names a field, and it is stored as an opaque
   // key rather than as a durable record, so a literal `@` in it could corrupt nothing.
   "clause",
+  // `storytree members add|role --role <admin|builder|member>`: an ENUM member, validated against
+  // USER_ROLES. It is one short word by construction and could never sensibly come from a file, so
+  // `@` in it is a typo rather than a path — literal, and the role check refuses it either way.
+  "role",
   // `--raw <field> --out <path>` / `library artifact history --field <f>` (ADR-0361): a path and a
   // field NAME. Both are already the kind of value `@` would be part of, and neither is ever stored
   // into an artifact, so neither can corrupt a durable record.
