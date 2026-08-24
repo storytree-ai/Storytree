@@ -220,14 +220,28 @@ function verifyCodexRuntime(): DriverRuntime | null {
   }
 }
 
-/** Claude remains an explicit subscription choice; API-key credentials never satisfy this check. */
-function verifyClaudeRuntime(): DriverRuntime | null {
+/** How the provider was chosen: named on the command line, or inherited from the ADR-0435 D1 default. */
+type ProviderSelection = "explicit" | "default";
+
+/**
+ * Claude is the DEFAULT subscription route since ADR-0435 D1; API-key credentials never satisfy this
+ * check. The banner says which of the two ways the provider was chosen, because a log that reports an
+ * unset default as an explicit selection destroys the one piece of provenance a later reader needs —
+ * exactly the gap ADR-0435's own Context complains about, where the Codex default was recorded with no
+ * reason a later reader could weigh.
+ */
+function verifyClaudeRuntime(selection: ProviderSelection): DriverRuntime | null {
   const token = process.env["CLAUDE_CODE_OAUTH_TOKEN"]?.trim();
   if (token === undefined || token.length === 0) {
     console.error("[uat-drive] REFUSED: Claude was selected but no Claude subscription token is available.");
     return null;
   }
-  log(`provider: ${CLAUDE_DRIVER} — explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=claude selection`);
+  log(
+    `provider: ${CLAUDE_DRIVER} — ` +
+      (selection === "explicit"
+        ? `explicit ${STORYTREE_UAT_DRIVE_PROVIDER_ENV}=claude selection`
+        : `default route (${STORYTREE_UAT_DRIVE_PROVIDER_ENV} unset; ADR-0435 D1)`),
+  );
   return { provider: "claude", driver: CLAUDE_DRIVER, executable: "claude", executableArgs: [] };
 }
 
@@ -299,7 +313,10 @@ async function main(): Promise<number> {
     return 1;
   }
   if (preference.provider === "claude") loadLocalSecrets(process.env, ["CLAUDE_CODE_OAUTH_TOKEN"]);
-  const runtime = preference.provider === "codex" ? verifyCodexRuntime() : verifyClaudeRuntime();
+  const providerSelection: ProviderSelection =
+    (process.env[STORYTREE_UAT_DRIVE_PROVIDER_ENV] ?? "").trim() === "" ? "default" : "explicit";
+  const runtime =
+    preference.provider === "codex" ? verifyCodexRuntime() : verifyClaudeRuntime(providerSelection);
   if (runtime === null) return 1;
 
   const runId = `uat-drive:${storyId}:${commitSha.slice(0, 10)}:${process.pid}`;
