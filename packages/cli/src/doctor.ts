@@ -3,7 +3,7 @@
  *
  * A deterministic, READ-ONLY, OFFLINE-CAPABLE CLI that probes each setup invariant a fresh explorer
  * environment must satisfy — git/Node present, the checkout provisioned, its dependencies current, the
- * repo fetchable, the Claude CLI present + logged in, the checkout current, the D4
+ * repo fetchable, the Claude CLI present + a Claude credential available, the checkout current, the D4
  * hosted live read reachable — plus one probe that is NOT a setup invariant and is here on purpose:
  * `preamble-budget`, which weighs the eagerly-loaded guidance surface against ADR-0330 D1's ceiling.
  * ADR-0330 D2 declined to make that a gate rung and needed a surface where WARN is a first-class
@@ -33,10 +33,21 @@
  *   • D6 REPAIR-VOCABULARY: a fixable probe's fix is NOT new machinery — it is an idempotent D1
  *     installer step re-invoked. So each installer-repairable probe carries a {@link Probe.fixStep}
  *     naming the exact `# @step:<name>` marker in `infra/install.ps1`; the guide re-runs THAT step.
- *   • D3 NEVER-HANDLE-CREDENTIALS: the Claude-login probe DETECTS a logged-in CLI by the EXISTENCE of
- *     `~/.claude/.credentials.json` and NEVER reads its contents; its fix is an INSTRUCTION to the dev
- *     (run `claude` and sign in), never an installer step storytree executes — so `claude-login`
- *     deliberately carries NO `fixStep` (the detect-and-instruct boundary, asserted in the test).
+ *   • NEVER-DISCLOSE-CREDENTIALS (ADR-0430 D6, the surviving half of ADR-0207 D3): `claude-credential`
+ *     observes PRESENCE by NAME only — a logged-in CLI by the EXISTENCE of `~/.claude/.credentials.json`,
+ *     or a non-blank hydratable `CLAUDE_CODE_OAUTH_TOKEN` — and NEVER reads, prints, logs or hashes a
+ *     value. Its fix is an INSTRUCTION to the dev (sign in, or fetch the token into the secrets file),
+ *     never an installer step storytree executes — so it deliberately carries NO `fixStep` (the
+ *     detect-and-instruct boundary, asserted in the test).
+ *
+ *     ADR-0430 retired ADR-0207 D3's "storytree never HANDLES a Claude credential" invariant: the
+ *     credential now lives in Google Secret Manager and a correctly-provisioned box legitimately has
+ *     NO browser login. The probe is named for the SUBJECT it asserts (a credential) rather than for
+ *     one of the two disjoint routes to it, because the name is a keyed discriminant on the escalation
+ *     path ({@link ./escalation-blob.ts}), not a label: a row reading `[ok] claude-login` on a machine
+ *     where no login exists — the shape `docs/machine-onboarding.md` PRESCRIBES — is not a narrower
+ *     claim about logins but a false one, and a FAIL keyed as a login cannot name the vault the way
+ *     ADR-0430's Consequences require.
  *
  * Shape (the health.ts pattern — one pure module surfaced multiple ways): {@link runDoctor} is a PURE
  * function over injected {@link DoctorObservations}, so the whole level/fix-hint policy is
@@ -67,6 +78,8 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { loadLocalSecrets, presentEnv } from "@storytree/drive/secrets";
+
 import { lockfileAdvanced, lockfilePair, needsRelink } from "../provision-worktree.mjs";
 import { devProbes, gatherDevObservations, type DevObservations } from "./doctor-dev.js";
 import type { Envelope } from "./envelope.js";
@@ -91,7 +104,7 @@ export interface Probe {
   /**
    * The `infra/install.ps1` `# @step:<name>` this probe's fix re-invokes (D6 repair vocabulary), when
    * the fix IS an idempotent installer step. ABSENT when the fix is not an installer re-run — a dev
-   * action (the D3 Claude login) or a freshness pull. Only set on WARN/FAIL probes.
+   * action (the Claude credential, ADR-0430) or a freshness pull. Only set on WARN/FAIL probes.
    */
   readonly fixStep?: string;
   /** The fix hint shown to the dev / guide when this probe is not PASS. Absent on PASS. */
@@ -145,8 +158,15 @@ export interface DoctorObservations {
   readonly remoteReachable: boolean | null;
   /** The `claude` CLI resolves (`claude --version`). */
   readonly claudeCliPresent: boolean;
-  /** A logged-in CLI is DETECTED by `~/.claude/.credentials.json` EXISTENCE (never read — D3). */
+  /** A logged-in CLI is DETECTED by `~/.claude/.credentials.json` EXISTENCE (never read — ADR-0430 D6). */
   readonly claudeLoggedIn: boolean;
+  /**
+   * The OTHER route to the same credential (ADR-0430): a non-blank `CLAUDE_CODE_OAUTH_TOKEN` is
+   * HYDRATABLE — already in the environment, or fillable from `~/.storytree/secrets.json`. A BOOLEAN,
+   * never the value: presence by name only (ADR-0430 D6 keeps disclosure absolute). Blank is a GAP,
+   * not a credential — `presentEnv`'s rule, the same one `secrets-file` applies.
+   */
+  readonly claudeTokenPresent: boolean;
   /** Commits the checkout HEAD is behind `origin/main`, or null if undetermined offline. */
   readonly checkoutBehind: number | null;
   /**
@@ -305,7 +325,7 @@ export function runDoctor(obs: DoctorObservations, dev?: DevObservations): Docto
   // precedent), so this can never fail a fresh clone or a healthy explorer. And NO fixStep — re-running
   // @step:provision would NOT repair it, because install.ps1's own `Test-Provisioned` is presence-based
   // and would report "already satisfied" without installing. Naming it as the fix would be a false entry
-  // in the D6 repair vocabulary, so the fix is a direct instruction (the claude-login precedent).
+  // in the D6 repair vocabulary, so the fix is a direct instruction (the claude-credential precedent).
   if (obs.dependencyCurrency === "current") {
     probes.push({
       name: "dependencies-current",
@@ -372,17 +392,41 @@ export function runDoctor(obs: DoctorObservations, dev?: DevObservations): Docto
         },
   );
 
-  // 8. claude-login — a logged-in CLI is DETECTED (existence only, D3). The fix is a DEV ACTION, never
-  // an installer step storytree runs: no fixStep (storytree instructs; it never executes-and-captures).
+  // 8. claude-credential — is a Claude credential AVAILABLE on this machine? TWO disjoint routes since
+  // ADR-0430, and the probe passes on either: a browser-logged-in CLI (`~/.claude/.credentials.json`
+  // EXISTS), or a non-blank hydratable `CLAUDE_CODE_OAUTH_TOKEN`. Presence by NAME only — no value is
+  // read, printed, logged or hashed (ADR-0430 D6, the surviving half of ADR-0207 D3). The detail NAMES
+  // WHICH ROUTE was found, because the two are not interchangeable to a reader debugging a machine.
+  //
+  // NO fixStep, unchanged: ADR-0430 retired only the never-HANDLE half. storytree still never MINTS a
+  // credential, so both remedies are dev actions the guide narrates and never executes.
+  //
+  // WHY THIS STAYED ONE PROBE, AND WHY THE CREDENTIAL TIER IS NOT ITS BUSINESS. `secrets-file`
+  // (doctor-dev) already owns DURABILITY and WARNs when a key resolves from the environment only, so a
+  // second probe claiming it would leave a reader working out which one owns the finding. That the two
+  // sit in different persona groups — this one explorer, `secrets-file` dev — does not reopen it: the
+  // tier distinction is a DEV-PERSONA question by construction. An ADR-0207 explorer holds no vault
+  // access and no `~/.storytree/secrets.json`, so their only route is the browser login and there is no
+  // tier to distinguish; a dev, who has both, gets the durability verdict from `secrets-file`. Revisit
+  // only with an argument that reaches that asymmetry.
   probes.push(
-    obs.claudeLoggedIn
-      ? { name: "claude-login", level: "PASS", detail: "a logged-in Claude CLI is detected" }
+    obs.claudeLoggedIn || obs.claudeTokenPresent
+      ? {
+          name: "claude-credential",
+          level: "PASS",
+          detail: obs.claudeLoggedIn
+            ? "a Claude credential is available: a logged-in Claude CLI is detected"
+            : "a Claude credential is available: CLAUDE_CODE_OAUTH_TOKEN is set (name only — the value is never read)",
+        }
       : {
-          name: "claude-login",
+          name: "claude-credential",
           level: "FAIL",
-          detail: "no logged-in Claude CLI detected",
+          detail: "no Claude credential found: no logged-in Claude CLI, and no non-blank CLAUDE_CODE_OAUTH_TOKEN",
           fixHint:
-            "run `claude` and complete sign-in in your browser with your own subscription — storytree never handles your credential (ADR-0207 D3).",
+            "either route works. Sign in with your own subscription (`claude`, browser); OR put a non-blank " +
+            "CLAUDE_CODE_OAUTH_TOKEN in `~/.storytree/secrets.json` — on a fleet box that value is already in " +
+            "Google Secret Manager, so fetch it rather than minting one (docs/machine-onboarding.md §2.2). " +
+            "A BLANK value is a gap, not a credential. storytree never mints or discloses one (ADR-0430 D6).",
         },
   );
 
@@ -535,6 +579,25 @@ function commandPresent(cmd: string): boolean {
   }
 }
 
+/**
+ * PURE: is a non-blank `CLAUDE_CODE_OAUTH_TOKEN` HYDRATABLE from `env` — ADR-0430's second route to the
+ * same credential? True when the variable is already set non-blank, or when `~/.storytree/secrets.json`
+ * (or `STORYTREE_SECRETS_FILE`) would fill it.
+ *
+ * It hydrates into a COPY of `env`, so the observation costs nothing and doctor stays read-only in the
+ * strong sense: a probe never changes the process it runs in. Only that one key is hydrated, and only a
+ * BOOLEAN leaves this function — no value is returned, printed, logged or hashed (ADR-0430 D6).
+ *
+ * `presentEnv` is what decides presence, so a blank `CLAUDE_CODE_OAUTH_TOKEN=` is a GAP rather than a
+ * credential — the same rule `loadLocalSecrets` and `secrets-file` apply, and the one that stops a
+ * shell-mangled export reading as configured. Exported so that rule is provable without a process.
+ */
+export function claudeTokenHydratable(env: NodeJS.ProcessEnv = process.env): boolean {
+  const scratch: NodeJS.ProcessEnv = { ...env };
+  loadLocalSecrets(scratch, ["CLAUDE_CODE_OAUTH_TOKEN"]);
+  return presentEnv("CLAUDE_CODE_OAUTH_TOKEN", scratch) !== undefined;
+}
+
 /** Node major from process.version (doctor runs under node), or null if unparseable. */
 function nodeMajor(): number | null {
   const m = /^v?(\d+)\./.exec(process.version);
@@ -658,8 +721,9 @@ function gatherLocalObservations(checkoutDir: string): Omit<DoctorObservations, 
     dependencyCurrency: dependencyCurrency(checkoutDir, provisioned),
     remoteReachable: remoteReachable(checkoutDir),
     claudeCliPresent: commandPresent("claude"),
-    // D3: DETECT a logged-in CLI by the credentials file's EXISTENCE only — never read its contents.
+    // DETECT a logged-in CLI by the credentials file's EXISTENCE only — never read its contents.
     claudeLoggedIn: existsSync(path.join(os.homedir(), ".claude", ".credentials.json")),
+    claudeTokenPresent: claudeTokenHydratable(process.env),
     checkoutBehind: checkoutBehind(checkoutDir),
     guidanceSurface: measureGuidanceSurface(guidanceSurfacePaths(checkoutDir, os.homedir())),
   };
@@ -673,9 +737,9 @@ export function doctorHelp(): Envelope {
       "",
       "  storytree doctor",
       "      the EXPLORER group: probe each setup invariant (git/Node, checkout provisioned,",
-      "      dependencies current, repo fetchable, Claude CLI present + logged in, checkout current,",
-      "      the eagerly-loaded guidance surface against its byte budget, hosted read) and print a fix",
-      "      hint per failure. Exits non-zero on any failure.",
+      "      dependencies current, repo fetchable, Claude CLI present, a Claude credential available,",
+      "      checkout current, the eagerly-loaded guidance surface against its byte budget, hosted",
+      "      read) and print a fix hint per failure. Exits non-zero on any failure.",
       "",
       "  storytree doctor --dev",
       "      …plus the DEV group — can this machine do the WORK? gcloud ADC, the live store, the",

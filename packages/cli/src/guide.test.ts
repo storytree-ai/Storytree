@@ -29,6 +29,7 @@ const HEALTHY: DoctorObservations = {
   remoteReachable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
+  claudeTokenPresent: false,
   checkoutBehind: 0,
   hostedRead: "ok",
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the

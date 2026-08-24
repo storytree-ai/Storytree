@@ -224,14 +224,14 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
      (REAL, passing)
 3. **`the-claude-credential-is-instructed-and-never-enacted`** — ADR-0207 D3's fence, held at all
    three layers rather than trusted at one
-   - **asserts —** the `claude-login` probe detects and instructs while carrying NO installer
+   - **asserts —** the `claude-credential` probe detects and instructs while carrying NO installer
      `fixStep`; the planner turns it into an INSTRUCTION action with no executable step; the reducer
      moves `confirm` to `instruct-dev` and NEVER to `run-installer-step`; and the same holds in
      `--fix` mode as in preview. Storytree never handles the credential, so the one repair it must
      not automate is fenced in the probe, the plan and the loop independently.
-   - **covers —** `packages/cli/src/repair-planner.ts:71-84`, `packages/cli/src/guide-loop.ts:212-254`
-   - **proven by —** `packages/cli/src/doctor.test.ts:226`, `packages/cli/src/repair-planner.test.ts:81`,
-     `packages/cli/src/guide-loop.test.ts:109`, `packages/cli/src/guide.test.ts:97` (REAL, passing)
+   - **covers —** `packages/cli/src/repair-planner.ts:72-81`, `packages/cli/src/guide-loop.ts:213-254`
+   - **proven by —** `packages/cli/src/doctor.test.ts:332`, `packages/cli/src/repair-planner.test.ts:92`,
+     `packages/cli/src/guide-loop.test.ts:115`, `packages/cli/src/guide.test.ts:103` (REAL, passing)
 4. **`the-plan-is-one-ordered-action-per-failing-probe`** — the plan is a function of the report, not
    a menu
    - **asserts —** a healthy report yields an EMPTY plan and a WARN-only report yields an empty plan

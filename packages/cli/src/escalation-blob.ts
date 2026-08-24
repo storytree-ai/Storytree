@@ -17,8 +17,8 @@
  *
  * Two boundaries make this "structured escalation, not a debugging session":
  *   • WHEN to escalate is NARROW. Only OWNER-side / non-self-repairable invariants trigger a blob:
- *     `repo-fetchable` refused (D6's "access revoked" — an owner grant) and `claude-login` absent
- *     (the dev's own subscription/identity, D3). A report whose only failures are installer-repairable
+ *     `repo-fetchable` refused (D6's "access revoked" — an owner grant) and `claude-credential` absent
+ *     (NEITHER route to a Claude credential produced one). A report whose only failures are installer-repairable
  *     (git/node/provision/…) is the repair loop's job, NOT the owner's — it yields NO blob. A healthy
  *     report, likewise, yields no blob. Freshness/offline WARNs are advisory, never escalation.
  *   • D3 REDACTION is a STRUCTURAL property, not an accident of clean inputs. Every free-text field
@@ -38,7 +38,7 @@ export type EscalationCategory = "access" | "identity";
 
 /** One unmet invariant the dev cannot self-repair — the reason this escalation exists. */
 export interface UnmetInvariant {
-  /** The doctor probe (e.g. "claude-login"). */
+  /** The doctor probe (e.g. "claude-credential"). */
   readonly probe: string;
   /** Whether the owner grants it (access) or the dev resolves it with their own identity (identity). */
   readonly category: EscalationCategory;
@@ -109,8 +109,10 @@ export function redact(text: string): string {
  *     D6's "access revoked". The offline-UNDETERMINED case (repo-fetchable=null, no fixStep) is NOT
  *     escalation — doctor cannot conclude access is gone, so the dev reconnects and re-runs, they don't
  *     bother the owner.
- *   • `claude-login` ABSENT (FAIL) — the dev's own subscription/identity; a lapsed subscription is the
- *     owner's to hear about, and storytree never touches the credential (D3).
+ *   • `claude-credential` ABSENT (FAIL) — NEITHER of ADR-0430's two routes produced a credential: no
+ *     browser login AND no hydratable `CLAUDE_CODE_OAUTH_TOKEN`. Either half is beyond the repair loop —
+ *     a lapsed subscription is the dev's own to renew, and a vault the box cannot read is the owner's to
+ *     hear about — so the owner action must name BOTH rather than assuming the identity half.
  * Everything else — installer-repairable local-tooling failures (git/node/provision/seed/cli) and
  * freshness/offline WARNs — is the repair loop's or advisory, never an owner escalation.
  */
@@ -128,8 +130,13 @@ export function escalationCategoryOf(probe: Probe): EscalationCategory | null {
   if (probe.name === "hosted-read" && probe.level === "WARN" && probe.detail === HOSTED_READ_REFUSED_DETAIL) {
     return "access";
   }
-  // Identity/subscription: no logged-in Claude CLI. D3 — the dev signs in with their own subscription.
-  if (probe.name === "claude-login" && probe.level === "FAIL") return "identity";
+  // Identity/credential: NEITHER route produced a Claude credential (ADR-0430). This stays `identity`
+  // because the fix is out-of-band to the repair loop either way, but the KEY is the credential, not one
+  // route to it: after the re-point a FAIL can just as easily be a vault the box cannot read, and
+  // ADR-0430's Consequences require the failure to name the vault rather than send the reader down the
+  // login branch. That is why this discriminant is keyed on `claude-credential` — the name is on the
+  // routing path, not merely on the row.
+  if (probe.name === "claude-credential" && probe.level === "FAIL") return "identity";
   return null;
 }
 
@@ -146,7 +153,7 @@ function ownerActionFor(probe: Probe, category: EscalationCategory): string {
   if (category === "access") {
     return "Confirm the dev still has GitHub Read access to storytree-ai/Storytree (it may be offline, or the grant may have been revoked); re-invite if it was pulled.";
   }
-  return "The dev signs in to their OWN Claude subscription (`claude`); if it has lapsed that is theirs to renew — storytree never handles the credential (ADR-0207 D3).";
+  return "No Claude credential reached this machine by EITHER route (ADR-0430), so name which one was expected. On a fleet box the token comes from Google Secret Manager (`claude-code-oauth-token`) — check the dev's access to the vault, or that the value reached `~/.storytree/secrets.json`; do NOT have them mint a fresh one, which can take another machine down (docs/machine-onboarding.md §2.2). Otherwise the dev signs in to their OWN Claude subscription (`claude`), and a lapsed subscription is theirs to renew. Either way storytree never mints or discloses the credential (ADR-0430 D6).";
 }
 
 // ---------------------------------------------------------------------------

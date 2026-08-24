@@ -14,7 +14,7 @@ import { planRepairs, formatRepairPlan } from "./repair-planner.js";
  * the two load-bearing ADR-0207 invariants encoded structurally:
  *   • D6 repair-vocabulary: every installer-step action names a REAL `# @step:` in `infra/install.ps1`
  *     (the single source of the repair steps — no drift), and the plan preserves dependency order.
- *   • D3 never-handle-credentials: the `claude-login` failure becomes an INSTRUCTION action with no
+ *   • NEVER-MINT (ADR-0430 D6): the `claude-credential` failure becomes an INSTRUCTION action with no
  *     installer step and `executable: false` — storytree instructs, it never executes-and-captures.
  */
 
@@ -28,6 +28,7 @@ const HEALTHY: DoctorObservations = {
   remoteReachable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
+  claudeTokenPresent: false,
   checkoutBehind: 0,
   hostedRead: "ok",
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
@@ -45,6 +46,7 @@ const BROKEN: DoctorObservations = {
   remoteReachable: false,
   claudeCliPresent: false,
   claudeLoggedIn: false,
+  claudeTokenPresent: false,
   checkoutBehind: null,
   hostedRead: "unconfigured",
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
@@ -87,9 +89,9 @@ test("dependency order is preserved: git before node before checkout-provisioned
 });
 
 // --- ADR-0207 D3: never handle credentials ------------------------------------------------------
-test("D3: the claude-login repair is an INSTRUCTION carrying no executable installer step", () => {
-  const login = planRepairs(runDoctor(BROKEN)).actions.find((a) => a.probe === "claude-login");
-  assert.ok(login, "a fresh env must surface the claude-login repair");
+test("the claude-credential repair is an INSTRUCTION carrying no executable installer step", () => {
+  const login = planRepairs(runDoctor(BROKEN)).actions.find((a) => a.probe === "claude-credential");
+  assert.ok(login, "a fresh env must surface the claude-credential repair");
   assert.equal(login.kind, "instruction", "login is a dev action, never an installer step (D3)");
   assert.equal(login.executable, false, "storytree instructs; it never executes-and-captures (D3)");
   assert.ok(!("step" in login), "an instruction action carries no installer @step");

@@ -21,7 +21,7 @@ import {
  * the two load-bearing ADR-0207 invariants asserted at the loop level:
  *   • D6 repair-vocabulary: a confirmed installer repair emits a RunInstallerStep naming the SAME
  *     `install.ps1` @step the probe's fixStep names (no drift, carried through the real planner).
- *   • D3 never-handle-credentials: `claude-login` is proposed as an instruction and, on confirm, emits
+ *   • NEVER-MINT (ADR-0430 D6): `claude-credential` is proposed as an instruction and, on confirm, emits
  *     an instruct-dev directive — NEVER a run-installer-step. storytree never executes/captures the login.
  * Reports are built from real {@link runDoctor} over crafted observations, so the loop is proven against
  * the actual probe/plan/escalation policy, not hand-forged reports.
@@ -37,6 +37,7 @@ const HEALTHY: DoctorObservations = {
   remoteReachable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
+  claudeTokenPresent: false,
   checkoutBehind: 0,
   hostedRead: "ok",
   // The eagerly-loaded guidance surface is empty in this fixture — a determined zero, so the
@@ -111,7 +112,7 @@ test("gl-repair-vocabulary-no-drift: the run-installer-step names the SAME @step
   assert.equal(dir.kind === "run-installer-step" && dir.step, nodeProbe.fixStep);
 });
 
-test("gl-D3-login-is-instructed-never-executed: claude-login proposes an instruction; confirm -> instruct-dev, NEVER run-installer-step", () => {
+test("gl-D3-login-is-instructed-never-executed: claude-credential proposes an instruction; confirm -> instruct-dev, NEVER run-installer-step", () => {
   const loginAbsent = report({ claudeLoggedIn: false });
   const turns = drive([{ type: "doctored", report: loginAbsent }, { type: "confirm" }]);
 
@@ -140,7 +141,7 @@ test("gl-login-still-absent-after-devs-attempt-escalates-identity: instruct -> a
   assert.equal(directive.kind, "escalate");
   assert.ok(directive.kind === "escalate" && directive.blob.needed);
   assert.ok(
-    directive.kind === "escalate" && directive.blob.unmet.some((u) => u.probe === "claude-login" && u.category === "identity"),
+    directive.kind === "escalate" && directive.blob.unmet.some((u) => u.probe === "claude-credential" && u.category === "identity"),
   );
 });
 

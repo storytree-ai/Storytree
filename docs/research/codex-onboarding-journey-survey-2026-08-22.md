@@ -80,7 +80,7 @@ session running commands), **product** (Codex does it for you).
 | A2 | `gh` CLI, GitHub device sign-in, clone | operator (types the one device code) | the checkout on disk | ✅ `doctor` → `repo-fetchable`. `@step:gh-cli` / `@step:github-auth` / `@step:clone` |
 | A3 | `pnpm install` at the repo root | agent or operator | `node_modules/.modules.yaml` | ✅ `doctor` → `checkout-provisioned`, `workspace-linked`, `dependencies-current`. `@step:provision` |
 | A4 | **Install the Codex product** (Desktop or CLI) | operator | `codex --version` | ❌ **nothing.** `doctor` probes `claude-cli`; there is no `codex-cli`. `install.ps1` has no Codex step |
-| A5 | **Log in to Codex with a ChatGPT account** | operator (interactive, browser) | `~/.codex/auth.json`; `codex login status` → `Logged in using ChatGPT` | ❌ **nothing.** `doctor` probes `claude-login`; there is no `codex-login` |
+| A5 | **Log in to Codex with a ChatGPT account** | operator (interactive, browser) | `~/.codex/auth.json`; `codex login status` → `Logged in using ChatGPT` | ❌ **nothing.** `doctor` probes `claude-credential`; there is no `codex-login` |
 | A6 | **Trust this directory in Codex, and choose the approval policy** | operator, editing `~/.codex/config.toml` | `[projects.'<path>'] trust_level = "trusted"`, and `approval_policy = "never"` if wanted | ❌ nothing. Documented once, in `docs/model-onboarding.md` §4 step 4 |
 | A7 | **Generate the guidance projections** — `pnpm build:guidance && pnpm build:agents` | agent (needs the live DB up) | root `AGENTS.md` (ADR-0291) and the 10 files in `.codex/agents/*.toml` | ✅ **`check:guidance` + `check:agents`, both in `pnpm gate`.** The only mechanically checked step in either journey |
 | A8 | **Get a worktree** | product, or operator by hand | `git worktree list` shows it | ⚠️ partial. `storytree worktree create --runtime codex` deliberately REFUSES (`packages/cli/src/worktree-create.ts:476`) — Codex Desktop owns `~/.codex/worktrees/*` |
@@ -218,7 +218,7 @@ and then re-prints the dead verb in the `next:` offers underneath the refusal. T
 still cites ADR-0355, superseded. A person following the printed offer is sent in a circle.
 
 **S-3 — `storytree doctor` says "setup is healthy" on a host with no Codex.** Eleven probes; two of
-them (`claude-cli`, `claude-login`) are runtime-specific and neither has a Codex counterpart. Run
+them (`claude-cli`, `claude-credential`) are runtime-specific and neither has a Codex counterpart. Run
 today on this host it reports `0 failing, 2 warning, 9 passing — setup is healthy`. It would report
 the same on a host where Codex had never been installed. This is precisely the surface the arc's end
 state asks for, and it exists — it just does not know Codex exists.
@@ -279,9 +279,19 @@ changes the shape of the remaining work substantially.
    follow, with the A4/A5/A6 hand-off to the operator made explicit and the B2 coupling stated. The
    material is §2 and §3 above; what is missing is the reader-facing form.
 2. **Teach `doctor` about Codex** — `codex-cli` and `codex-login` probes beside `claude-cli` /
-   `claude-login`, following the ADR-0207 D3 precedent exactly (detect and instruct; the login fix
-   is a dev action, never an installer step). Plus an `@step:codex-cli` in `infra/install.ps1`. This
-   is the arc's end-state clause about a doctor-style surface, and it is small.
+   `claude-credential`, following the detect-and-instruct precedent exactly (the login fix is a dev
+   action, never an installer step). Plus an `@step:codex-cli` in `infra/install.ps1`. This is the
+   arc's end-state clause about a doctor-style surface, and it is small.
+
+   **The Codex probe stays `codex-login`, and the asymmetry with `claude-credential` is the rule
+   being applied rather than broken** (decided in `second-box-absorbs-the-expensive-work-arc-inc-09`,
+   which renamed `claude-login` when it widened the probe onto ADR-0430's two routes). ADR-0232 gives
+   the Codex leaf saved ChatGPT-managed auth ONLY — the API-key fallback is forbidden, and
+   `OPENAI_API_KEY` / `CODEX_API_KEY` / `CODEX_ACCESS_TOKEN` are stripped before every run. Codex
+   therefore has exactly ONE route to a credential and it IS a login, while Claude has two and
+   neither is the subject. `claude-credential` beside `codex-login` is two probes each asserting
+   exactly what it observes; making them match would put one of them back into a lie. If Codex ever
+   gains a vault route, it renames then, on the same rule — **do not "fix" the inconsistency.**
 3. **Clear the dead surfaces** — S-2 (`write-authority codex`), S-8 and S-9 (stale comments in
    `codex-author.ts`), S-11 (`model-onboarding.md`).
 

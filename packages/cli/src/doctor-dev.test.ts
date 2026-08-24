@@ -74,6 +74,7 @@ const EXPLORER_HEALTHY: DoctorObservations = {
   remoteReachable: true,
   claudeCliPresent: true,
   claudeLoggedIn: true,
+  claudeTokenPresent: false,
   checkoutBehind: 0,
   hostedRead: "ok",
   guidanceSurface: measureGuidanceSurface([]),
