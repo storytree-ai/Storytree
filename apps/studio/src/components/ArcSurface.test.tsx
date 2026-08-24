@@ -96,6 +96,13 @@ function question(id: string): ArcRollupQuestion {
   };
 }
 /**
+ * A question that ENDED by recording its answer (ADR-0434 D2) — every field spelled out here rather
+ * than defaulted in {@link question}, so a fixture can never become settled by accident either.
+ */
+function settledQuestion(id: string, answer = `answer of ${id}`): ArcRollupQuestion {
+  return { ...question(id), lifecycle: 'settled', answer, settledAt: '2026-08-24T09:30:00Z' };
+}
+/**
  * One arc fixture — declared as a WHOLE rollup, handed back as the LANE ROW the list wire carries.
  *
  * The surface reads its arcs at two widths now: `arcs` is `ArcRollupSummary[]` off `GET /api/arcs`,
@@ -123,12 +130,17 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
   ROLLUPS.set(rollup.id, rollup);
   // The SAME narrowing the server's `summariseArcRollup` performs (packages/arc/src/arc-rollup.ts):
   // identity, lifecycle, the question COUNT, and one lane-shaped row per increment.
+  //
+  // The count is OPEN questions, which is what the server counts since ADR-0434 D3 — counting the
+  // whole array here would let a fixture carrying a settled question light a lane the server would
+  // have left quiet, i.e. measure a state the wire cannot produce.
+  const openQuestions = rollup.questions.filter((q) => q.lifecycle === 'open');
   return {
     id: rollup.id,
     title: rollup.title,
     lifecycle: rollup.lifecycle,
-    waiting: rollup.questions.length > 0,
-    openQuestions: rollup.questions.length,
+    waiting: openQuestions.length > 0,
+    openQuestions: openQuestions.length,
     increments: rollup.increments.map((inc) => {
       const row: ArcRollupSummary['increments'][number] = {
         id: inc.id,
@@ -295,6 +307,95 @@ describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3
     fireEvent.click(screen.getByTestId('arc-lane:other-arc'));
     await settle();
     expect(within(screen.getByTestId('arc-briefing')).getByText('The other-arc')).not.toBeNull();
+  });
+});
+
+// An answered question used to VANISH off this panel, because the only way to end one was to delete
+// it — taking the answer with it (ADR-0434). The lifecycle and the CLI's `## Settled questions`
+// landed first; `arcBriefing.settled` was computed here and read by nothing, so the owner's own
+// surface was the last place still showing the disappearance.
+describe('ArcSurface — an answered question MOVES to Settled, it does not vanish (ADR-0434 D3)', () => {
+  const SETTLED_ARC = arc({
+    id: 'settled-arc',
+    questions: [question('oq-still-open'), settledQuestion('oq-answered')],
+    increments: [landed('done-1', '2026-08-01')],
+  });
+
+  it('briefs the settled question under its answer, and keeps it out of "waiting on you"', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[SETTLED_ARC]} now={NOW} />);
+    await settle();
+    const waiting = screen.getByTestId('arc-briefing-questions');
+    const settledBlock = screen.getByTestId('arc-briefing-settled');
+    // The open one waits and the answered one does not — the whole point of the split.
+    expect(within(waiting).queryByTestId('arc-question:oq-still-open')).not.toBeNull();
+    expect(within(waiting).queryByTestId('arc-question:oq-answered')).toBeNull();
+    // …and the answer is ON the panel, which is what makes this a move rather than a deletion.
+    const row = within(settledBlock).getByTestId('arc-settled-question:oq-answered');
+    expect(row.textContent).toContain('answer of oq-answered');
+    expect(row.textContent).toContain('settled 2026-08-24');
+  });
+
+  it('links the settled question through to its artifact, like a waiting one does', async () => {
+    // The answer on the panel is a clamped LEAD; the artifact carries the whole settlement, the
+    // deciding ADR reference included. Losing the click-through here would make the fold a loss.
+    render(<ArcSurface readArc={readArc} arcs={[SETTLED_ARC]} now={NOW} />);
+    await settle();
+    const row = screen.getByTestId('arc-settled-question:oq-answered');
+    expect(within(row).getByRole('link', { name: 'Question oq-answered' }).getAttribute('href')).toBe(
+      '#/asset/oq-answered',
+    );
+  });
+
+  it('strips and clamps the answer, the same treatment the stakes and the intent get', async () => {
+    // An answer is authored markdown in the store (`question settle --answer @file` takes prose),
+    // and this panel renders TEXT — unstripped, the markers show through as literal characters,
+    // and unclamped one long answer would push the blocks below it off the panel.
+    const answered = settledQuestion('oq-markers', '**Retire it.** Run `storytree question settle`.');
+    render(
+      <ArcSurface readArc={readArc} arcs={[arc({ id: 'markers-arc', questions: [answered] })]} now={NOW} />,
+    );
+    await settle();
+    const row = screen.getByTestId('arc-settled-question:oq-markers');
+    const answer = row.querySelector('.arc-question-answer');
+    expect(answer?.textContent).toBe('Retire it. Run storytree question settle.');
+    expect(answer?.className).toContain('arc-briefing-clamp-hard');
+  });
+
+  it('renders NO Settled section at all on an arc that has settled nothing', async () => {
+    // Empty is ABSENT, not an empty heading — what `storytree arc show` does, and the two surfaces
+    // must not disagree about it. Most arcs have settled nothing; a standing empty band would cost
+    // every one of them a row of the panel to say so.
+    render(<ArcSurface readArc={readArc} arcs={[arc({ id: 'no-settlements', questions: [question('oq-1')] })]} now={NOW} />);
+    await settle();
+    expect(screen.queryByTestId('arc-briefing-settled')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Settled' })).toBeNull();
+  });
+
+  it('does not make the panel claim something is waiting when the ONLY question is settled', async () => {
+    // The false wait this arc exists to end, on the surface the owner actually looks at: an arc
+    // whose one question has been answered owes him nothing, and must say so while still showing
+    // the answer.
+    render(<ArcSurface readArc={readArc} arcs={[arc({ id: 'quiet-arc', questions: [settledQuestion('oq-answered')] })]} now={NOW} />);
+    await settle();
+    expect(screen.getByTestId('arc-briefing-nothing-waiting')).not.toBeNull();
+    expect(screen.queryByTestId('arc-briefing-questions')).toBeNull();
+    expect(screen.getByTestId('arc-settled-question:oq-answered')).not.toBeNull();
+    // The LANE stays quiet too (the fence in lib/arcSurface.test.ts, seen from the rendered strip).
+    expect(screen.getByTestId('arc-lane:quiet-arc').getAttribute('data-arc-state')).toBe('quiet');
+  });
+
+  it('sits BELOW the waiting block — the move is legible as a move', async () => {
+    // Adjacency is the argument for the position: a question the owner just answered reads as
+    // having moved one section down. The same rows in an archive at the foot of the panel would
+    // read as gone, which is the outcome this increment exists to remove.
+    render(<ArcSurface readArc={readArc} arcs={[SETTLED_ARC]} now={NOW} />);
+    await settle();
+    const waiting = screen.getByLabelText('waiting on you');
+    const settledBlock = screen.getByLabelText('settled questions');
+    expect(waiting.compareDocumentPosition(settledBlock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // …and ABOVE "what it is about", so it is not pushed under the orientation prose.
+    const about = screen.getByLabelText('what this arc is about');
+    expect(settledBlock.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 

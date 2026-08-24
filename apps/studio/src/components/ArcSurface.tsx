@@ -316,6 +316,11 @@ function openOnClick(
  * looking for. Read-only: there is no reply box here by decision (ADR-0267 D6 / ADR-0314 D9), and
  * answering happens by the owner prompting an agent harness.
  *
+ * A QUESTION LEAVES THE WAITING BLOCK BY BEING ANSWERED, NOT BY DISAPPEARING (ADR-0434 D3). Once it
+ * is settled it moves one section down, under the answer that ended it — so this panel is where the
+ * settlement becomes visible, on the same surface the question was asked from. Both blocks live in
+ * `arcBriefing`; neither is derived here.
+ *
  * IT READS ITS OWN ARC. The lane list carries only what a lane DRAWS, so everything below this
  * panel's header — the questions and their `stakes`, the arc's `intent`, every increment's outcome —
  * arrives on a per-selection `GET /api/arcs/<id>` (`useArcRollup`). That gives the panel three
@@ -474,6 +479,56 @@ function ArcBriefingPanel({
       <p className="arc-briefing-blocked-note muted small" data-testid="arc-blocked-note">
         {BLOCKED_UNAVAILABLE_NOTE}
       </p>
+
+      {/* SETTLED — an answered question MOVES here, it does not vanish (ADR-0434 D3).
+          Before the lifecycle existed, clearing a question off this panel meant DELETING it, which
+          took the answer with it: the arc then showed no trace of the question OR its settlement,
+          and the owner's own surface was where that loss was least visible. `arcBriefing.settled`
+          has carried the rows since inc-01 and nothing read it, so the panel still showed an
+          answered question DISAPPEARING — the same invisibility the CLI half had already removed.
+          IT SITS DIRECTLY UNDER THE WAITING BLOCK because the point is the MOVE: a question the
+          owner just answered is legible as having moved one section down, where the same rows in an
+          archive at the foot of the panel would read as gone. Quieter and clamped harder than an
+          open question (see the CSS) — this is archaeology, not something to act on.
+          ABSENT WHEN EMPTY, never an empty heading: an arc that has settled nothing owes the reader
+          no section, which is what `storytree arc show` does, and the two surfaces must not
+          disagree about it. */}
+      {briefing.settled.length > 0 && (
+        <section className="arc-briefing-settled" aria-label="settled questions">
+          <h5>Settled</h5>
+          <ul className="arc-question-list" data-testid="arc-briefing-settled">
+            {briefing.settled.map((q) => (
+              <li
+                key={q.id}
+                className="arc-question arc-question-settled"
+                data-testid={`arc-settled-question:${q.id}`}
+              >
+                <a
+                  className="arc-question-title"
+                  href={assetHref(q.id)}
+                  onClick={openOnClick(onOpen, { id: q.id, title: q.title || q.id, category: 'open-question', source: 'asset' })}
+                >
+                  {q.title || q.id}
+                </a>
+                {q.settledAt && (
+                  <span className="muted small arc-question-settled-when">
+                    settled {q.settledAt.slice(0, 10)}
+                  </span>
+                )}
+                {/* The ANSWER, through the same strip-and-clamp the stakes above gets: it is
+                    authored markdown in the store and the panel renders text, so the markers would
+                    show through as literal characters. Clamped harder than an open question's
+                    stakes — the full answer is one click away on the title. */}
+                {q.answer && (
+                  <p className="arc-question-answer arc-briefing-clamp-hard">
+                    {briefingLead(q.answer)}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <section className="arc-briefing-about" aria-label="what this arc is about">
         <h5>What it is about</h5>
