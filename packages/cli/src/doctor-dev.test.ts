@@ -5,6 +5,9 @@ import { lobbyDenyRules, type ManifestRootSlice } from "@storytree/drive";
 
 import {
   GUIDE_ANCHORS,
+  TOOLCHAIN_COMMANDS,
+  TOOLCHAIN_PROBE_SCRIPT,
+  classifyToolchainShell,
   MACHINE_GUIDE,
   adcCredentialsPath,
   classifyDbReachability,
@@ -58,6 +61,11 @@ const DEV_HEALTHY: DevObservations = {
     keysMissing: [],
   },
   ghAuth: "authenticated",
+  // Both shell shapes answer — the state a correctly-configured POSIX box reaches, and the only one
+  // that may PASS. `login-only` is the honest steady state for a box whose dotfiles are as good as
+  // dotfiles get, which is why it is a WARN below rather than part of this fixture.
+  toolchainShell: "resolvable",
+  toolchainShellReadings: { login: ["node", "pnpm", "bun"], plain: ["node", "pnpm", "bun"], unavailable: null },
   bun: "present",
   bunVersion: "1.4.0",
   writeAuthority: "installed",
@@ -89,18 +97,21 @@ const probeNamed = (obs: DevObservations, name: string) =>
 
 test("GREEN: a fully provisioned dev machine passes every dev probe, with no fix hints", () => {
   const probes = devProbes(DEV_HEALTHY);
-  assert.ok(probes.length >= 7, "the group is seven probes");
+  assert.ok(probes.length >= 8, "the group is eight probes");
   for (const p of probes) {
     assert.equal(p.level, "PASS", `${p.name} should pass on a healthy dev machine`);
     assert.equal(p.fixHint, undefined, `${p.name} must carry no fix hint while it passes`);
   }
 });
 
-test("the group covers exactly the seven invariants the explorer set says nothing about", () => {
+test("the group covers exactly the eight invariants the explorer set says nothing about", () => {
   // ORDER IS ASSERTED, not just membership, because these read as a report and a reader scans them
-  // top to bottom. `bun` sits after `gh-auth` and before the two advisory probes: it is the last of
-  // the four hard invariants — the things whose absence stops the machine doing work — and the two
-  // below it are WARNs about isolation and about where you are standing.
+  // top to bottom. `bun` and `toolchain-shell` sit after `gh-auth` and before the two advisory
+  // probes: they are the last of the hard invariants — the things whose absence stops the machine
+  // doing work — and the two below them are WARNs about isolation and about where you are standing.
+  // `toolchain-shell` follows `bun` deliberately: `bun` answers "is this tool reachable from HERE?"
+  // and `toolchain-shell` answers "is anything reachable from a shell that is not ours?", so reading
+  // them in that order is reading outward from doctor's own process.
   assert.deepEqual(
     devProbes(DEV_HEALTHY).map((p) => p.name),
     [
@@ -109,6 +120,7 @@ test("the group covers exactly the seven invariants the explorer set says nothin
       "secrets-file",
       "gh-auth",
       "bun",
+      "toolchain-shell",
       "write-authority",
       "worktree-identity",
     ],
@@ -188,6 +200,53 @@ const MUTATIONS: ReadonlyArray<{
     broken: { worktreeIdentity: "primary-checkout" },
     expected: "WARN",
     detail: /PRIMARY CHECKOUT/,
+  },
+  {
+    // THE MEASURED BREAKAGE. `~/.bashrc` puts the toolchain BELOW bash's own non-interactive early
+    // return, so nothing but an interactive shell ever reaches it — and this group reported the
+    // machine healthy throughout, because every other probe runs inside doctor's own shell.
+    probe: "toolchain-shell",
+    why: "no shell but doctor's own resolves the toolchain, so ssh- and hook-driven work all dies",
+    broken: {
+      toolchainShell: "unresolvable",
+      toolchainShellReadings: { login: [], plain: [], unavailable: null },
+    },
+    expected: "FAIL",
+    detail: /no shell but doctor's own/,
+  },
+  {
+    // The residue state, and deliberately NOT a FAIL: a plain non-login shell never sources
+    // `~/.bashrc`, so this is where a correctly-configured box lands and a red here would be permanent.
+    probe: "toolchain-shell",
+    why: "only a login shell resolves the toolchain, which no ~/.bashrc edit can ever change",
+    broken: {
+      toolchainShell: "login-only",
+      toolchainShellReadings: { login: ["node", "pnpm", "bun"], plain: [], unavailable: null },
+    },
+    expected: "WARN",
+    detail: /only a LOGIN shell/,
+  },
+  {
+    // The second-order trap, asserted rather than trusted: on Windows this must read UNKNOWN, never a
+    // silent PASS for a mechanism only ever exercised on Linux.
+    probe: "toolchain-shell",
+    why: "the shell-shape split is a POSIX mechanism and cannot be asserted on Windows",
+    broken: {
+      toolchainShell: "no-shell",
+      toolchainShellReadings: { login: null, plain: null, unavailable: "not-posix" },
+    },
+    expected: "WARN",
+    detail: /POSIX mechanism/,
+  },
+  {
+    probe: "toolchain-shell",
+    why: "bash could not be invoked, so neither shell shape could be asked",
+    broken: {
+      toolchainShell: "no-shell",
+      toolchainShellReadings: { login: null, plain: null, unavailable: "no-bash" },
+    },
+    expected: "WARN",
+    detail: /bash could not be invoked/,
   },
 ];
 
@@ -359,6 +418,8 @@ test("every non-PASS dev probe points at a REAL guide anchor (no drift, no dead 
     ghAuth: "absent",
     bun: "absent",
     bunVersion: null,
+    toolchainShell: "unresolvable",
+    toolchainShellReadings: { login: [], plain: [], unavailable: null },
     writeAuthority: "absent",
     worktreeIdentity: "no-identity",
   };
@@ -383,6 +444,8 @@ test("only the two probes an installer step genuinely repairs carry a fixStep", 
     ghAuth: "absent",
     bun: "absent",
     bunVersion: null,
+    toolchainShell: "unresolvable",
+    toolchainShellReadings: { login: [], plain: [], unavailable: null },
     writeAuthority: "absent",
     worktreeIdentity: "primary-checkout",
   });
@@ -552,7 +615,7 @@ test("classifyDbReachability: no credential short-circuits to not-attempted, wit
 test("scope: a bare sweep is byte-for-byte the explorer set — the dev group is opt-in", () => {
   const bare = runDoctor(EXPLORER_HEALTHY);
   assert.equal(bare.scope, "explorer");
-  for (const name of ["gcloud-adc", "db-reachable", "secrets-file", "gh-auth", "write-authority", "worktree-identity"]) {
+  for (const name of ["gcloud-adc", "db-reachable", "secrets-file", "gh-auth", "write-authority", "worktree-identity", "toolchain-shell"]) {
     assert.equal(bare.probes.find((p) => p.name === name), undefined, `${name} must not run unasked`);
   }
 });
@@ -560,7 +623,7 @@ test("scope: a bare sweep is byte-for-byte the explorer set — the dev group is
 test("scope: supplying dev observations IS asking for the group — no second flag to drift", () => {
   const dev = runDoctor(EXPLORER_HEALTHY, DEV_HEALTHY);
   assert.equal(dev.scope, "dev");
-  assert.equal(dev.probes.length, runDoctor(EXPLORER_HEALTHY).probes.length + 7);
+  assert.equal(dev.probes.length, runDoctor(EXPLORER_HEALTHY).probes.length + 8);
   assert.equal(dev.ok, true);
 });
 
@@ -603,15 +666,147 @@ test("a fully-broken dev machine with a green explorer half is REPORTED broken, 
     ghAuth: "absent",
     bun: "absent",
     bunVersion: null,
+    toolchainShell: "unresolvable",
+    toolchainShellReadings: { login: [], plain: [], unavailable: null },
     writeAuthority: "absent",
     worktreeIdentity: "primary-checkout",
   });
   assert.equal(report.ok, false);
   assert.equal(
     report.failing,
-    4,
-    "ADC, the secrets file, gh auth and bun are genuinely unmet invariants — bun joined them when " +
-      "21 packages moved their tests onto it, and a machine that cannot run the suite cannot work",
+    5,
+    "ADC, the secrets file, gh auth, bun and the toolchain shell are genuinely unmet invariants — " +
+      "bun joined them when 21 packages moved their tests onto it, and toolchain-shell joined them " +
+      "because a machine no OTHER shell can drive runs no hook and answers no ssh-driven command",
   );
   assert.doesNotMatch(formatDoctorReport(report), /setup is healthy/);
+});
+
+// ---------------------------------------------------------------------------
+// classifyToolchainShell — the shell-shape verdict, PURE over an injected platform + two readings.
+// ---------------------------------------------------------------------------
+//
+// Every state is reachable here without spawning anything, which is the point: the producer runs two
+// real shells, and a suite that could only exercise the states THIS box happens to be in would prove
+// the probe on Windows and nowhere else — the second-order trap this module is built against.
+
+const ALL: readonly string[] = [...TOOLCHAIN_COMMANDS];
+
+test("classifyToolchainShell: both shapes resolving is the only PASSable state", () => {
+  assert.equal(
+    classifyToolchainShell("linux", { login: ALL, plain: ALL, unavailable: null }),
+    "resolvable",
+  );
+});
+
+test("classifyToolchainShell: the PLAIN shape decides — it is the shell sshd and the hook actually get", () => {
+  // Order is the argument. A machine where the strictest shape answers needs no further question, so
+  // `plain` is checked first and `login-only` is literally "the strict shape failed, the loose one did not".
+  assert.equal(
+    classifyToolchainShell("linux", { login: ALL, plain: [], unavailable: null }),
+    "login-only",
+  );
+  assert.equal(
+    classifyToolchainShell("linux", { login: [], plain: ALL, unavailable: null }),
+    "resolvable",
+    "if the strict shape answers, the machine works for automation whatever the login shape does",
+  );
+});
+
+test("classifyToolchainShell: a PARTIAL answer is not a working shell", () => {
+  // The measured shape of the breakage is total, but a shell that finds node and not pnpm still
+  // returns `pnpm: command not found` to every gate invocation. Every command or none.
+  assert.equal(
+    classifyToolchainShell("linux", { login: ["node", "pnpm"], plain: ["node"], unavailable: null }),
+    "unresolvable",
+  );
+});
+
+test("classifyToolchainShell: neither shape resolving is the FAIL state (the measured breakage)", () => {
+  assert.equal(
+    classifyToolchainShell("linux", { login: [], plain: [], unavailable: null }),
+    "unresolvable",
+  );
+});
+
+test("classifyToolchainShell: WINDOWS is no-shell — never a PASS for a mechanism only Linux exercises", () => {
+  // THE SECOND-ORDER TRAP, asserted from the machine that would otherwise be silently green. Note the
+  // readings are DELIBERATELY the healthy ones: even handed a perfect answer, win32 must not pass,
+  // because on Windows there is no login/non-login dotfile split for that answer to be about.
+  assert.equal(
+    classifyToolchainShell("win32", { login: ALL, plain: ALL, unavailable: null }),
+    "no-shell",
+  );
+});
+
+test("classifyToolchainShell: an unaskable shell is no-shell, never a silent pass", () => {
+  assert.equal(
+    classifyToolchainShell("linux", { login: null, plain: null, unavailable: "no-bash" }),
+    "no-shell",
+  );
+  assert.equal(
+    classifyToolchainShell("darwin", { login: null, plain: ALL, unavailable: null }),
+    "no-shell",
+    "one unaskable shape is enough — a comparison needs both halves",
+  );
+});
+
+test("the two no-shell producers are told APART in the report, not merged into one verdict", () => {
+  // One state, two genuinely different causes with different remedies (run it on Linux vs install
+  // bash). classifyWriteAuthority's precedent: the state may be shared, the DETAIL may not be.
+  const detailFor = (unavailable: "not-posix" | "no-bash"): string =>
+    devProbes({
+      ...DEV_HEALTHY,
+      toolchainShell: "no-shell",
+      toolchainShellReadings: { login: null, plain: null, unavailable },
+    }).find((p) => p.name === "toolchain-shell")!.detail;
+  assert.notEqual(detailFor("not-posix"), detailFor("no-bash"));
+  assert.match(detailFor("not-posix"), /POSIX/);
+  assert.match(detailFor("no-bash"), /bash could not be invoked/);
+});
+
+test("the toolchain-shell detail NAMES what each shape found, so the reader can act on it", () => {
+  const probe = devProbes({
+    ...DEV_HEALTHY,
+    toolchainShell: "login-only",
+    toolchainShellReadings: { login: ["node", "pnpm", "bun"], plain: [], unavailable: null },
+  }).find((p) => p.name === "toolchain-shell")!;
+  assert.match(probe.detail, /a login shell finds node, pnpm, bun/);
+  assert.match(probe.detail, /a plain non-interactive shell finds nothing/);
+});
+
+test("the login-only hint does NOT send the reader back to ~/.bashrc — the one edit that cannot work", () => {
+  // The whole reason this state is called out separately. A plain non-login shell never sources
+  // ~/.bashrc, so the obvious remedy fails silently and repeatedly; the hint has to say so and name
+  // the only two things that DO reach that shape.
+  const hint = devProbes({
+    ...DEV_HEALTHY,
+    toolchainShell: "login-only",
+    toolchainShellReadings: { login: [...ALL], plain: [], unavailable: null },
+  }).find((p) => p.name === "toolchain-shell")!.fixHint!;
+  assert.match(hint, /never sources it/);
+  assert.match(hint, /BASH_ENV/);
+});
+
+// ---------------------------------------------------------------------------
+// The probe SCRIPT — the one part of the producer a test on this machine can still fence.
+// ---------------------------------------------------------------------------
+//
+// HONEST LIMIT, stated rather than papered over: the producer spawns two real shells, and
+// `process.platform` here is win32, so the SPAWNING half is exercised only on the Linux box. What
+// this machine can still prove is the script's contract, and the bug below is the one a reader
+// could not otherwise catch by inspection.
+
+test("the probe script asks for exactly the toolchain — no second list to drift", () => {
+  for (const command of TOOLCHAIN_COMMANDS) {
+    assert.ok(TOOLCHAIN_PROBE_SCRIPT.includes(command), `the script must ask for ${command}`);
+  }
+});
+
+test("the probe script ends with `exit 0` — found-nothing must not be misreported as no-bash", () => {
+  // THE BUG THIS FENCES. Without it the loop's status is the LAST `command -v`, so a shell that
+  // resolved NOTHING — precisely the state being hunted — exits non-zero, throws in the producer, and
+  // comes back as "bash could not be invoked". Two different verdicts with two different remedies,
+  // and the wrong one sends the reader off to install a shell they already have.
+  assert.match(TOOLCHAIN_PROBE_SCRIPT, /;\s*exit 0$/);
 });

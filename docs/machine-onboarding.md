@@ -71,6 +71,36 @@ bun --version                      # the TEST RUNTIME for 21 packages — see th
 `packageManager` in the root `package.json` pins **pnpm@9.15.0**; corepack activates exactly that,
 so do not install pnpm globally and do not pick a version yourself.
 
+> ### ⚠ On Linux, put the toolchain lines ABOVE `~/.bashrc`'s early return
+>
+> **`[CONFIRMED 2026-08-24]`** Installing the toolchain is not the same as making it reachable, and
+> the gap is invisible from an interactive shell. A stock `~/.bashrc` opens with bash's own
+> non-interactive early return:
+>
+> ```bash
+> case $- in *i*) ;; *) return;; esac
+> ```
+>
+> Every installer that "appends to your shell profile" — nvm, gcloud, Bun — appends BELOW that line.
+> So the toolchain resolves when you type, and does not exist to anything that does not:
+>
+> ```bash
+> env -i HOME=$HOME bash -lc 'node --version'   # v24.19.0          (login shell: reads .bashrc)
+> env -i HOME=$HOME bash -c  'node --version'   # command not found (reads NEITHER dotfile)
+> ```
+>
+> **What breaks, measured on Mint:** `ssh box 'pnpm gate'` answers `pnpm: command not found`, and the
+> `SessionStart` provision hook cannot resolve `node`, so it silently leaves a worktree with no
+> `node_modules` — the hook whose job is to ANNOUNCE a broken worktree, defeated by the same gap it
+> would have reported. Meanwhile `doctor --dev` reported the toolchain healthy, because it ran in
+> your shell.
+>
+> **The fix is placement, not re-installation.** Move the toolchain lines ABOVE the early return, or
+> into `~/.profile`. `pnpm storytree doctor --dev` has a `toolchain-shell` probe (ADR-0441) — ask it
+> rather than guessing, and note that a plain non-login shell never sources `~/.bashrc` **at all**, so
+> if the probe says `login-only`, no further edit to that file can change it: only a wrapper that sets
+> the environment itself, or `BASH_ENV`, reaches that shape.
+
 > ### ⚠ Bun is a test RUNTIME here. **Never run `bun install`.**
 >
 > pnpm installs everything and owns `pnpm-lock.yaml`; Bun's only job is running tests — 21 packages'
@@ -390,12 +420,21 @@ pnpm storytree doctor --dev      # the machine-level verdict
 ```
 
 **Pass `--dev`; a bare `doctor` is not the dev verdict.** The dev-persona probes — application-default
-credentials, database reachability, the secrets file, GitHub auth, **Bun**, write-authority, worktree
-identity — are an **opt-in group**, because an explorer legitimately has none of them. Bare, `doctor`
-runs the eleven explorer probes and prints `DEV_SCOPE_NOT_RUN`: a green that names what it did not
-check, not a stopping condition. Three of the seven can only ever WARN by decision (`db-reachable`,
-`write-authority`, `worktree-identity`), so green-with-those-warning is the expected shape rather than
-a defect.
+credentials, database reachability, the secrets file, GitHub auth, **Bun**, **the toolchain shell**,
+write-authority, worktree identity — are an **opt-in group**, because an explorer legitimately has
+none of them. Bare, `doctor` runs the eleven explorer probes and prints `DEV_SCOPE_NOT_RUN`: a green
+that names what it did not check, not a stopping condition. Three of the eight can only ever WARN by
+decision (`db-reachable`, `write-authority`, `worktree-identity`), so green-with-those-warning is the
+expected shape rather than a defect.
+
+**`toolchain-shell` is the one that reads differently on each platform, and both readings are
+correct** (ADR-0441). It asks a shell that is NOT doctor's own whether `node`, `pnpm` and `bun`
+resolve — the one question no other probe here can answer, since every other probe runs in the shell
+that launched doctor, and that shell is by construction one where the toolchain already worked. On
+**Windows** it reads **WARN / not determined**, deliberately: PATH there comes from the persistent
+user environment and there is no login/non-login split to compare, so a PASS would be a green for a
+mechanism only ever exercised on Linux. On **Linux** it can reach `login-only` (a WARN — see
+[§1](#1-bootstrap-the-machine)) or `unresolvable` (a FAIL).
 
 A green doctor is still one signal and not a provisioned box. Run the rest of this list regardless.
 
