@@ -350,16 +350,22 @@ const CEILINGS = {
   [UNPROVEN_SEAM_DEFAULT]: 24,
   /**
    * Baselined 2026-08-24 (ADR-0424) at the ZERO this instrument's FIRST REAL SWEEP located against
-   * the live store — an honest baseline, and honest for a reason worth stating rather than a lucky
-   * one: `sources` landed one day earlier (`grounded-decisions-arc` inc-01) and NO decision row
-   * carries an anchor yet, so there was nothing that could have moved. The number is what the sweep
-   * found, not a target.
+   * the live store, and HELD AT ZERO through the first real drain the same day. The original
+   * baseline was honest for a reason worth stating rather than a lucky one: `sources` had landed one
+   * day earlier (`grounded-decisions-arc` inc-01) and no decision row carried an anchor, so there was
+   * nothing that could have moved. The number is what the sweep found, not a target.
    *
    * A ZERO CEILING MEANS THE FIRST DRIFT REDS THE GATE, which is the point — ADR-0424 D5 puts
-   * enforcement on backlog GROWTH, and with no backlog every finding is growth. It is also the
-   * number most likely to need a documented raise once inc-04 anchors a real seed set: an author who
-   * anchors twenty claims against code that has since moved has located twenty real regions, and
-   * that is legitimate population growth for a DRAIN, not a red to be silenced.
+   * enforcement on backlog GROWTH, and with no backlog every finding is growth.
+   *
+   * ⚠ IT WAS PREDICTED HERE THAT inc-04 WOULD FORCE A DOCUMENTED RAISE. IT DID NOT, AND THE REASON
+   * MATTERS MORE THAN THE PREDICTION. `grounded-decisions-arc-inc-04` seeded 28 bound anchors across
+   * 15 accepted decisions, the first sweep located 16 findings, and every one was DRAINED — one
+   * decision corrected in place (ADR-0206), one anchor refuted and removed (ADR-0103), the rest
+   * rebound after a curator read the code. The population returned to zero, so the ceiling never
+   * needed to move. **A drain is what discharges this instrument; a raise is what silences it.** Full
+   * record, including the 93.75% false-positive rate and its decomposition:
+   * `docs/research/decision-source-first-drain-2026-08-24.md`.
    *
    * ⚠ IF YOU RAISE IT, ADR-0269 4(f) WANTS THE DECOMPOSITION AT THIS NUMBER, and ADR-0424's own
    * Consequences name the failure this instrument is most likely to produce: raising the ceiling
@@ -367,7 +373,11 @@ const CEILINGS = {
    * better LOCATOR — an author anchoring at `symbol` or full-context `quote` grain rather than at
    * whole-FILE grain, which drifts on any edit anywhere in the file — never a bigger number. The
    * grain that produced each finding is printed with it precisely so this call can be made on
-   * evidence.
+   * evidence. THAT REMEDY IS NOW MEASURED RATHER THAN ASSERTED: across the 15 drifted spans a mean
+   * 69% of the anchored symbol's lines survived byte-identically, three survived 100%, and ADR-0104's
+   * finding was re-anchored at `quote` grain onto its one claim-bearing line and read FRESH. The
+   * false positives are dominated by claim/span GRANULARITY MISMATCH — a symbol carries far more code
+   * than any one claim rests on — not by the locator failing.
    *
    * THE ZERO IS MEASURED, NOT ASSUMED, and — as with `contract-binding-drift` — a subtractive probe
    * that had silently failed would ALSO report zero. Three things stop that reading here. The
