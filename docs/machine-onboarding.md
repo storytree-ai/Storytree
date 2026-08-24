@@ -20,16 +20,23 @@ can run.
 
 ## ⚠ Read this before you trust a single Linux instruction below
 
-**This guide was authored on the Windows dev box and most of its Linux specifics have never been
-executed.** Every such claim is tagged **`[UNVERIFIED]`** at the point you meet it, and they are
-indexed in [§8](#8-the-unverified-index). That is deliberate, not sloppiness: the first agent to
-follow this guide on a real Linux machine is running an experiment, and each `[UNVERIFIED]` marker is
-a prediction that run will confirm or falsify. Two obligations follow:
+**This guide was authored on the Windows dev box, and its Linux specifics were guesses until
+2026-08-24, when the first real Linux run scored every one of them** (Linux Mint 22.3 — the
+`second-box-absorbs-the-expensive-work-arc` inc-02 blind run). Each claim now carries
+**`[CONFIRMED]`** or **`[FALSIFIED]`** with the date and what was actually observed, and the full
+scoring sheet — including three findings the sheet never predicted — is [§8](#8-the-unverified-index).
 
-- **Treat a tagged claim as a hypothesis.** If it is wrong, that is a finding worth recording, not a
-  failure on your part.
-- **Do not silently fix the tag.** When you verify or falsify one, say which, and what actually
-  happened. A guide that quietly absorbs corrections loses the only record of what it got wrong.
+**Read §8 first if you are provisioning a Linux box.** One row was outright wrong in the direction
+that stalls you hardest: the guide used to route every install through `apt`, and **none of the
+toolchain needs root.**
+
+Two obligations survive, and they now point forward rather than back:
+
+- **A verdict is one box, not all boxes.** Everything below was measured on Mint 22.3 with no
+  passwordless `sudo`. A different distro, or a box where you hold root, may legitimately differ —
+  that is a correction worth making, not a failure on your part.
+- **Do not silently change a verdict.** If you falsify something marked `[CONFIRMED]`, say so and say
+  what you saw. A guide that quietly absorbs corrections loses the only record of what it got wrong.
 
 Untagged claims were read from this repository's own source and are as reliable as anything here.
 
@@ -86,15 +93,53 @@ so do not install pnpm globally and do not pick a version yourself.
 > `.github/workflows/ci.yml`). `pnpm storytree doctor --dev` has a `bun` probe — ask it rather than
 > guessing.
 
-**`[UNVERIFIED]`** On Linux, Bun's own installer (`curl -fsSL https://bun.sh/install | bash`) drops
-the binary at `~/.bun/bin` and appends that directory to your shell profile — which means it is on
-`PATH` in *new* shells and not in the one you are standing in. Expect to re-source the profile or
-open a new shell before `bun --version` answers. This whole paragraph was written from a Windows box
-and is a prediction; report what actually happened.
+**`[CONFIRMED 2026-08-24]`** On Linux, Bun's own installer (`curl -fsSL https://bun.sh/install | bash`)
+drops the binary at `~/.bun/bin` and appends that directory to your shell profile — so it is on `PATH`
+in *new* shells and not in the one you are standing in. Measured on Mint: the installer reported
+success, `~/.bun/bin/bun --version` answered `1.4.0`, and bare `bun` was still not found in the same
+shell. Re-source the profile or open a new shell. Do **not** re-install, and do not add a second PATH
+entry — this is the identical trap the Windows box hit, arriving through a different installer.
 
-**`[UNVERIFIED]`** On Debian/Ubuntu/Mint, `git` comes from apt, but the distro `nodejs` package is
-usually far below the Node 24 floor — expect to need NodeSource or `nvm`. The GitHub CLI likewise
-needs GitHub's own apt repository rather than the distro package, which lags.
+### ⚠ You almost certainly do NOT need `sudo` — and assuming you do will stall you at step one
+
+**`[FALSIFIED 2026-08-24]`** This section used to say `git` comes from apt, that Node 24 needs
+NodeSource, and that the GitHub CLI needs GitHub's own apt repository. **Every one of those routes
+needs root, and none of them is necessary.** On the first real Linux run the box had no passwordless
+`sudo` (`sudo -n true` → `sudo: a password is required`) and an agent cannot answer an interactive
+password prompt — so read as written, the guide reads as a hard block before any storytree work
+begins. It is not. **The entire toolchain installs into the home directory with no root at all**, and
+that is now the primary route:
+
+| Tool | No-root route | Verified on Mint 22.3 |
+|---|---|---|
+| Node 24 | `nvm` (`curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh \| bash`, then `nvm install 24`) | 24.19.0 → `~/.nvm` |
+| pnpm | `corepack enable pnpm` (ships with Node) | 9.15.0, the pinned version |
+| GitHub CLI | release tarball → `~/.local/bin` | 2.75.0 — **no apt repo needed** |
+| gcloud | the tarball installer → `~/google-cloud-sdk` | 581.0.0 (+ `cloud-sql-proxy` component) |
+| Bun | `curl -fsSL https://bun.sh/install \| bash` | 1.4.0 → `~/.bun/bin` |
+| Claude CLI | `curl -fsSL https://claude.ai/install.sh \| bash` | 2.1.241 → `~/.local/bin` |
+
+Only `git` came from the system, and it was already present (2.43.0). Each installer appends its
+directory to `~/.bashrc`, so **every one of them carries the new-shell caveat above**, not just Bun.
+If you already hold root, apt is fine — but reach for it as the exception, and never escalate to your
+human for a password before trying the user-local route.
+
+**Set a git identity before you try to commit, or your first commit fails and nothing earlier warns
+you.** A fresh box has none, and git's refusal (`Author identity unknown … unable to auto-detect
+email address`) arrives at the *end* of a green unit, which is the worst moment to discover a setup
+step. Match the identity the repo's own history uses (`git log -1 --format='%an <%ae>' origin/main`):
+
+```bash
+git config user.name "<the name on your GitHub account>"
+git config user.email "<the email your commits should carry>"
+```
+
+Repo-scoped (no `--global`) is enough and is the conservative choice — worktrees share the primary
+checkout's config, so setting it once covers every worktree you cut. Use `--global` only if you want
+it for your other projects too.
+
+The box provisioned this way reached `GATE GREEN — 14 passed, 0 failed, 0 skipped` and
+`doctor --dev` 15-passing, so the no-root path is not a degraded mode.
 
 ### Clone and install
 
@@ -163,9 +208,19 @@ start while already reporting status RUNNABLE. Wait and re-probe rather than con
 And a **saturated machine makes the probe lie** — if the box is loaded, check `storytree own --all`
 before believing a red result.
 
-**`[UNVERIFIED]`** Installing the Google Cloud SDK on Mint is its own step (apt repo or the tarball
-installer) and is not covered by anything in this repo. You may also need
-`gcloud auth application-default set-quota-project storytree-498613`.
+**`[CONFIRMED IN PART 2026-08-24]`** Installing the Google Cloud SDK on Mint IS its own step and is
+not covered by anything in this repo — use the **tarball installer**, which needs no root
+(`~/google-cloud-sdk`, 581.0.0 verified). Add the `cloud-sql-proxy` component
+(`gcloud components install cloud-sql-proxy`), which the store connector wants. The quota-project
+half was **NOT** needed: `pnpm db:probe` and every Secret Manager read worked on plain ADC, and where
+a raw REST call needed a billing project the `x-goog-user-project: storytree-498613` header sufficed.
+Reach for `set-quota-project` only if something actually complains.
+
+⚠ **`gcloud auth login` and `gcloud auth application-default login` are two different credentials and
+the difference bites here.** ADC alone is enough for the database *and* for reading secrets over the
+Secret Manager REST API — but the `gcloud secrets …` **CLI** needs the first one, and without it fails
+with `You do not currently have an active account selected`, which reads like a permissions problem
+rather than a missing login. Run both.
 
 ### 2.2 Claude — the OAuth token
 
@@ -292,11 +347,21 @@ more: it binds the three file-editing tools, **not Bash** — a shell write into
 still succeeds and is still a violation. It is claim-blind, so it permits writes into a *sibling*
 worktree. And it does not bind Codex at all.
 
-**`[UNVERIFIED]` — this is the step most likely to behave differently here.** The wall has only ever
-existed on Windows; on a fresh Linux box the primary checkout is writable by file tools until you run
-the command above. The installer *looks* portable — it resolves the home directory with
-`os.homedir()` and derives the primary root rather than hard-coding a path — but it has never been
-run on Linux. Report what actually happens, including the exact paths it writes into the deny block.
+**`[CONFIRMED 2026-08-24]` — and it was the claim most likely to fail, so the result is worth stating
+precisely.** The wall works on Linux, and it genuinely BINDS rather than merely installing. Measured
+on a fresh Mint box: `install --write` created `~/.claude/settings.json` (it did not exist) with **144
+deny rules** over `Write`/`Edit`/`NotebookEdit`, and **zero** rules touching `.claude/worktrees`. A
+file-tool write into `<primary>/scripts/` was then refused with the documented *"File is in a
+directory that is denied by your permission settings"*, while the same write into a linked worktree
+succeeded.
+
+⚠ **The generated paths carry a DOUBLE leading slash on Linux too — `//home/you/code/storytree/**` —
+and that is correct, not a porting bug.** It is the deliberate absolute-path form
+(`write-authority-rules.test.ts`: *"a single slash anchors at the settings file"*), and the
+Windows-shaped `//c/code/storytree` rules come from the same line. Do not "fix" it.
+
+ADR-0284's named gap is also confirmed here: a **Bash** write into the primary checkout still
+succeeds. The wall binds three file tools and nothing else.
 
 ---
 
@@ -370,34 +435,65 @@ and that is an honest green, not a defect. Never `timeout`-wrap the gate and nev
 - **Long prose into an artifact field goes through a file, never a `>` redirect.** Under
   `pnpm storytree …` a redirect captures pnpm's two-line run banner as the field's first bytes. Use
   `--out` to capture and `--set field=@path` to write.
-- **`[UNVERIFIED]` Line endings.** This repository has been developed exclusively on Windows. Nothing
-  is known about whether a fresh Linux clone produces CRLF churn in the working tree, and no
-  `.gitattributes` policy has been checked against that case.
-- **`[UNVERIFIED]` The gate has never run on Linux.** `pnpm -r typecheck` and `pnpm -r test` are
-  hermetic and *should* be portable, but the shell hooks, `worktree-health.mjs`,
-  `provision-worktree.mjs` and the `check:*` rungs have only ever been exercised on Windows. Report
-  every failure with its actual error rather than working around it — a workaround here hides exactly
-  the finding this run exists to produce.
+- **`[CONFIRMED 2026-08-24]` Line endings.** A fresh Linux clone produces **no CRLF churn**.
+  `git status` stayed empty through clone, `pnpm install`, `git submodule update --init web`, and a
+  full gate. `.gitattributes` carries `* text=auto eol=lf`, which is what holds it.
+- **`[CONFIRMED 2026-08-24]` The gate runs on Linux — `GATE GREEN, 14 passed, 0 failed, 0 skipped.`**
+  Every rung executed, including the three `web/` submodule checks (`check:web-grounding`,
+  `check:web-experience-closure`, `check:web-engine`) that had never run on any Linux box before. The
+  hooks fired, both `-r` legs ran, Bun-backed suites passed. Test leg 1m54s; whole gate ≈3½ min. **No
+  Linux-specific defect surfaced anywhere.**
+  - Two things worth carrying forward from that run. **Initialise the `web` submodule** or those three
+    rungs SKIP and you have verified nothing (`git submodule update --init web`; it needs the SSH
+    remote, so `gh auth login` first). And an earlier run of the same gate went **RED on
+    `check:guidance` / `check:agents`** — which was NOT a Linux problem: the live store had moved ahead
+    of the committed projections, so `main` was red for every branch on every machine at that moment.
+    The check says so itself. Read its "WHICH SIDE MOVED" line before suspecting your box.
 
 ---
 
 ## 8. The `[UNVERIFIED]` index
 
-The scoring sheet. Each line is a prediction; the first real Linux run turns it into confirmed or
-falsified. Report which, with what you actually saw.
+**SCORED 2026-08-24 — the first real Linux run happened** (Linux Mint 22.3, `second-box-...-arc-inc-02`).
+Every row below now carries a verdict and what was actually observed. Re-running the experiment is no
+longer the point; **correcting a row that turns out wrong on a DIFFERENT Linux box is.**
 
-| # | Claim | Section |
+| # | Claim | Verdict |
 |---|---|---|
-| ~~1~~ | ~~`infra/install.sh` provisions a bare machine idempotently~~ — **RETIRED**, not answered: the script was deleted (ADR-0432). Never executed, and now never will be. | — |
-| 2 | Node 24 needs NodeSource or nvm; distro `nodejs` is too old | [§1](#1-bootstrap-the-machine) |
-| 3 | The GitHub CLI needs GitHub's apt repo, not the distro package | [§1](#1-bootstrap-the-machine) |
-| 4 | Installing the Google Cloud SDK is an extra step, possibly needing a quota project | [§2.1](#2-the-three-sign-ins) |
-| 5 | `write-authority install --write` works on Linux and writes sane paths | [§5](#5-install-the-write-authority-wall) |
-| ~~6~~ | ~~`storytree doctor` still reports healthy on an unprovisioned machine~~ — **ANSWERED**: the dev probes landed, and a bare sweep now says `DEV_SCOPE_NOT_RUN` instead of an unqualified green. | [§6](#6-prove-it) |
-| 7 | A fresh Linux clone produces no CRLF churn | [§7](#7-gotchas) |
-| 8 | `pnpm gate` passes on Linux, hooks and `check:*` rungs included | [§7](#7-gotchas) |
-| 9 | Bun's Linux installer puts it on `PATH` only for NEW shells, so `bun --version` fails in the one you are in | [§1](#1-bootstrap-the-machine) |
+| ~~1~~ | ~~`infra/install.sh` provisions a bare machine idempotently~~ | **RETIRED**, not answered — the script was deleted (ADR-0432). Never executed, and now never will be. |
+| 2 | Node 24 needs NodeSource or nvm; distro `nodejs` is too old | ✅ **CONFIRMED** — the box had no system Node at all. `nvm` → 24.19.0, no root. |
+| 3 | The GitHub CLI needs GitHub's apt repo, not the distro package | ❌ **FALSIFIED** — it needs **neither**. The release tarball into `~/.local/bin` gave 2.75.0 with no root and no apt repo. See §1's no-sudo table. |
+| 4 | Installing the Google Cloud SDK is an extra step, possibly needing a quota project | ⚠️ **HALF** — extra step confirmed (tarball, no root, 581.0.0). Quota project **not** needed; `x-goog-user-project` sufficed. §2.1 also gained the two-different-logins trap this exposed. |
+| 5 | `write-authority install --write` works on Linux and writes sane paths | ✅ **CONFIRMED**, and it BINDS — 144 rules, a real file-tool write refused, worktrees still writable, `//`-prefix correct by design. §5. |
+| ~~6~~ | ~~`storytree doctor` still reports healthy on an unprovisioned machine~~ | **ANSWERED** before this run — the dev probes landed; a bare sweep says `DEV_SCOPE_NOT_RUN`. |
+| 7 | A fresh Linux clone produces no CRLF churn | ✅ **CONFIRMED** — clean through clone, install, submodule init and a full gate. |
+| 8 | `pnpm gate` passes on Linux, hooks and `check:*` rungs included | ✅ **CONFIRMED** — `GATE GREEN, 14 passed, 0 failed, 0 skipped`, the three `web/` rungs included. No Linux-specific defect anywhere. |
+| 9 | Bun's Linux installer puts it on `PATH` only for NEW shells | ✅ **CONFIRMED** — `~/.bun/bin/bun` answered 1.4.0 while bare `bun` was not found in the same shell. |
 
-**One claim that is NOT tagged, because it was measured rather than guessed:** the database grant is
-per-identity ([§3](#3-the-secrets-file)). Signing in as the same Google account is sufficient. If
-that turns out to be false, it is the most important finding of the run.
+**The untagged claim HOLDS, and it was the one that mattered most:** the database grant is
+per-identity ([§3](#3-the-secrets-file)). The same Google account on a brand-new machine inherited
+full access — `pnpm db:probe` green, live `--pg` reads and a live `--pg` write all worked. **No
+per-host grant, no service account, no Terraform.**
+
+### What this run found that the sheet did not predict
+
+Three things cost real time and none of them had a row:
+
+1. **The sudo assumption is the single biggest stall risk** (row 3's deeper cause). Read literally,
+   §1 sent an agent that cannot `sudo` to its human for a password before any storytree work began.
+   The whole toolchain is user-local. This is now stated up front in §1.
+2. **`pnpm db:schema` is not a read.** It reads like an inspection verb and **applies DDL to the
+   shared live store**. This run invoked it while answering a read-only question. Harm was zero — the
+   two `DROP TABLE IF EXISTS` lines are a completed ADR-0200 D7 retirement that no-ops on every later
+   run — but that was the schema file's good manners, not a guard. Filed as friction
+   (`db-schema-applies-ddl-while-reading-as-an-inspection-verb`).
+3. **`doctor --dev`'s `claude-login` FAILS a correctly-provisioned box.** Under ADR-0430 the token
+   comes from Secret Manager and `~/.claude/.credentials.json` is legitimately absent — but the probe
+   looks only for a browser-logged-in CLI, and its fix hint still prescribes the retired ADR-0207 D3
+   invariant, i.e. running `claude setup-token`, which §2.2 forbids in bold. Filed as friction
+   (`doctor-claude-login-fails-a-correctly-provisioned-vault-box`). **Until it is re-pointed, treat a
+   lone `claude-login` failure on a vault-provisioned box as expected.**
+
+**Also not yet true: ADR-0430 D5.** There is no GitHub credential in the vault and no code path reads
+Secret Manager, so "one sign-in provisions a machine" is the target, not the present. This run needed
+three sign-ins plus an SSH key for the submodules.
