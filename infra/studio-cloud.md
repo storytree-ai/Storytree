@@ -214,11 +214,13 @@ no extra infra, and it inherits the IAP + membership wall the rest of `/api/*` a
 - **Statuses that carry meaning**: a missing document is `200 {doc:null}`, never 404 — so a client can
   read 404 as *the door is not mounted at this baseUrl*. `503` means the server has no live store.
 
-### The reachability gap this does NOT close — measured 2026-08-04, owner-gated
+### The reachability gap this does NOT close — REMOTE sessions only (corrected 2026-08-24)
 
-The door exists and works; what is unsettled is **what credential a remote session presents**. Direct
-IAP has no programmatic path today, and this was measured against the live service rather than
-assumed:
+The door exists and works; what is unsettled is **what credential a REMOTE session presents**. Read
+that scope precisely — an earlier version of this section said *"Direct IAP has no programmatic path
+today"*, and **that sentence was wrong**: there is one, it is documented below, and it works from any
+local session. What has no path is a remote container, for a reason that is about the CREDENTIAL and
+not about IAP. The original 2026-08-04 measurement stands as far as it went:
 
 ```
 curl https://storytree-studio-…run.app/api/health                    -> 302 (IAP → Google sign-in)
@@ -229,8 +231,44 @@ Both carry `x-goog-iap-generated-response: true` — **IAP refuses at the edge; 
 reached**, so this is not the app's own fail-closed 401 and no app-side change can affect it. IAP
 wants an OIDC token whose audience is the IAP OAuth client id (§4b), which a caller can only mint
 from a Google identity — and ADR-0254 D4 retired `storytree-remote-dev`, so a remote container holds
-no GCP identity at all. Until that fork is decided the door is reachable by a **browser** session and
-by any local process that can present an IAP-audience token; a remote agent session cannot use it.
+no GCP identity at all. The door is reachable by a **browser** session and by any local process that
+can present an IAP-audience token; a remote agent session cannot use it.
+
+**How a LOCAL session mints that token — proved end to end 2026-08-24.** The two purpose-made
+identities are `infra/harness-identities.tf` (`storytree-claude-harness` / `storytree-codex-harness`,
+one per supported harness so the studio's IAP-stamped author says WHICH runtime acted):
+
+```bash
+URL="https://storytree-studio-iuknr3zuya-ts.a.run.app"
+CID=$(curl -s -D - -o /dev/null "$URL/api/health"       | grep -i '^location:' | grep -oE 'client_id=[^&]+' | cut -d= -f2)
+TOK=$(gcloud auth print-identity-token       --impersonate-service-account=storytree-claude-harness@storytree-498613.iam.gserviceaccount.com       --audiences="$CID" --include-email)
+curl -H "Authorization: Bearer $TOK" "$URL/api/health"
+```
+
+Three things must line up, and **each omission produces a different, misleading error** — which is
+why this read as a structural wall for months rather than as three missing flags:
+
+1. **Impersonation is mandatory.** A user credential is refused by gcloud itself: *"Invalid account
+   type for `--audiences`. Requires valid service account."*
+2. **`--include-email` is mandatory** — without it IAP answers `401 … JWT 'email' claim isn't a
+   string`, because gcloud omits `email`/`email_verified` unless asked.
+3. **The audience is the OAuth CLIENT ID, not the Cloud Run URL.** ⚠ **IAP validates the email claim
+   BEFORE the audience**, so a token missing both reports only the email fault; fix that and the
+   audience fault appears. One path wearing two costumes.
+
+⚠ **`gcloud iap oauth-brands list` cannot supply the client id here** — `INVALID_ARGUMENT: Project
+must belong to an organization`, and the IAP OAuth Admin APIs were permanently shut down in March
+2026. §4b's console route still works; the unauthenticated 302's `Location` header (above) is the
+scriptable substitute.
+
+**What a passing token gets you, and what it does not.** IAP admits it, then the studio's OWN
+membership check answers `403 {"error":"not a member"}` — with **no `x-goog-iap-generated-response`
+header**, and that header's ABSENCE is the reliable tell that IAP passed and the app replied. Add the
+identity through the Members panel (§5) to go further. Note also that
+`roles/iap.httpsResourceAccessor` on this service is currently granted to **`allAuthenticatedUsers`**,
+so IAP admits any authenticated Google identity and the membership check is the only real
+authorization boundary; `harness-identities.tf` binds the two identities explicitly anyway, so
+tightening that grant will not silently break them.
 
 Parked as `remote-session-door-credential` on **`remote-session-access-arc`** — its own initiative
 since 2026-08-04, when the owner descoped remote sessions from `session-decoupling-arc` ("not a
