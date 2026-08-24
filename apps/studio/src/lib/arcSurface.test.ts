@@ -99,12 +99,16 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollup {
  */
 function lane(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
   const rollup = arc(over);
+  // OPEN questions only — the narrowing `summariseArcRollup` performs since ADR-0434 D3. Counting
+  // the whole array here would let a settled question light a lane the server leaves quiet, which
+  // is a state the wire cannot produce and would make the fence below vacuous.
+  const openQuestions = rollup.questions.filter((q) => q.lifecycle === 'open');
   return {
     id: rollup.id,
     title: rollup.title,
     lifecycle: rollup.lifecycle,
-    waiting: rollup.questions.length > 0,
-    openQuestions: rollup.questions.length,
+    waiting: openQuestions.length > 0,
+    openQuestions: openQuestions.length,
     increments: rollup.increments.map((inc) => {
       const row: ArcRollupSummary['increments'][number] = {
         id: inc.id,
@@ -122,6 +126,10 @@ function lane(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
 function question(id: string): ArcRollupQuestion {
   // ADR-0434 D1 — OPEN by default; a settled fixture states it, so nothing waits by omission.
   return { id, title: `Q ${id}`, description: `description ${id}`, stakes: `stakes ${id}`, lifecycle: 'open' };
+}
+/** A question that ENDED by recording its answer (ADR-0434 D2) — spelled out, never defaulted. */
+function settledQuestion(id: string, answer = `answer ${id}`): ArcRollupQuestion {
+  return { ...question(id), lifecycle: 'settled', answer, settledAt: '2026-08-24T09:00:00Z' };
 }
 
 describe('laneBars — bars are UNITS, green landed / grey queued (ADR-0314 D2)', () => {
@@ -586,6 +594,45 @@ describe('arcBriefing — parked PROPOSALS are something waiting on the owner (A
     expect(arcBriefing(arc(fixture)).proposals).toHaveLength(1);
     expect(arcState(lane(fixture), NOW)).toBe('quiet');
     expect(arcState(lane(fixture), new Date('2026-09-30T00:00:00Z'))).toBe('quiet');
+  });
+});
+
+describe('arcBriefing — a settled question MOVES, it is never deleted (ADR-0434 D3)', () => {
+  it('splits the questions by lifecycle: open ones wait, settled ones carry their answers', () => {
+    // The defect ADR-0434 removed: `waiting` was every question this arc had, so one that had been
+    // ANSWERED still read as something the owner owed an answer to, and the only way to clear it
+    // was to delete the question along with the answer.
+    const rollup = arc({ id: 'a', questions: [question('q-open'), settledQuestion('q-done')] });
+    const briefing = arcBriefing(rollup);
+    expect(briefing.waiting.map((q) => q.id)).toEqual(['q-open']);
+    expect(briefing.settled.map((q) => q.id)).toEqual(['q-done']);
+    // The ANSWER rides along — a settled question with no answer on the panel would be the same
+    // loss as deleting it, one layer up.
+    expect(briefing.settled[0]?.answer).toBe('answer q-done');
+    expect(briefing.settled[0]?.settledAt).toBe('2026-08-24T09:00:00Z');
+    // DISJOINT: no question is ever briefed in both blocks.
+    expect(briefing.waiting.some((q) => briefing.settled.includes(q))).toBe(false);
+  });
+
+  it('an arc whose ONLY question is settled is waiting on nobody, and keeps the answer visible', () => {
+    const briefing = arcBriefing(arc({ id: 'a', questions: [settledQuestion('q-done')] }));
+    expect(briefing.waiting).toEqual([]);
+    expect(briefing.settled.map((q) => q.id)).toEqual(['q-done']);
+  });
+
+  it('THE FENCE: a settled question never lights the LANE state, at either width', () => {
+    // The same shape as ADR-0359 D4's proposal fence, and asserted across ONE fixture at BOTH
+    // widths for the same reason: the panel reads the whole rollup off `/api/arcs/<id>` and the
+    // lane reads the summary row off `/api/arcs`, so a divergence only shows when both are read
+    // from the same declaration. `decision-read-measurement-arc` reported a false wait for a day
+    // because a settled question still counted; a lane that lit on one would restore that report
+    // in the strip.
+    const fixture = { id: 'a', questions: [settledQuestion('q-done')] };
+    expect(arcBriefing(arc(fixture)).settled).toHaveLength(1);
+    expect(arcState(lane(fixture), NOW)).toBe('quiet');
+    // …and an OPEN question on the same arc still does light it, so the fence is not just an
+    // assertion that this lane never lights.
+    expect(arcState(lane({ id: 'b', questions: [question('q-open')] }), NOW)).toBe('waiting');
   });
 });
 

@@ -6217,6 +6217,17 @@ button.legend-tile:hover {
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+/* ADR-0434 D3's settled answer. Harder than the stakes fold above, deliberately: a settled question
+   is archaeology — it is on the panel so the answer is not LOST, not so it competes with the two
+   blocks the owner came to act on. Two lines is enough to recognise which answer it was; the whole
+   of it is one click away on the title. */
+.arc-briefing-clamp-hard {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .arc-question-list,
 .arc-increment-list {
   list-style: none;
@@ -6240,6 +6251,23 @@ button.legend-tile:hover {
 .arc-question-stakes {
   margin-top: 3px;
   color: var(--lp-ink);
+}
+/* ── ADR-0434 D3: an answered question MOVES here rather than being deleted ─────────────────────
+   Same row shape as a waiting question so the move is legible as a move, and a QUIETER rule down
+   the left so it never reads as something still owed. The clay edge above means "this is yours to
+   answer"; nothing here is. */
+.arc-question-settled {
+  border-left-color: var(--lp-ink-soft);
+}
+/* The title above is `display: block`, so this falls onto its own quiet line under it — the same
+   shape an increment row uses for its date, rather than a badge fighting the title for the baseline. */
+.arc-question-settled-when {
+  display: block;
+  margin-top: 2px;
+}
+.arc-question-answer {
+  margin-top: 3px;
+  color: var(--lp-ink-soft);
 }
 .arc-increment {
   font-size: 0.85em;
