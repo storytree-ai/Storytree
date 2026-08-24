@@ -29,6 +29,11 @@ export * from "./witness-resolution.js";
 export * from "./proof-binding-outcome.js";
 // Proof-binding-integrity: a complete read-only projection of parsed machine legs into audit rows.
 export * from "./machine-leg-binding-audit.js";
+// ADR-0436: the REVERSE direction of the same question. `machine-leg-binding-audit` asks whether a
+// leg's binding resolves to a declared gate; this asks whether a gate's declared command still names
+// a criterion that EXISTS, and whether a live leg is bound to a gate that has been retired. Nothing
+// asked either question before, which is how three unsatisfiable gates capped two crowns for weeks.
+export * from "./gate-criterion-audit.js";
 export * from "./burned-ordinal-collision.js";
 export * from "./uat-witness-census.js";
 // ADR-0107 (generalising ADR-0106 d4): the proving-process OQ-attachment predicate — an open question

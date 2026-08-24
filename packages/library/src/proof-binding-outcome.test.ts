@@ -32,6 +32,7 @@ function gate(
     title: "gate",
     kind,
     covers: [],
+    retired: false,
   };
   if (proofCommand !== undefined) row.proofCommand = proofCommand;
   return row;

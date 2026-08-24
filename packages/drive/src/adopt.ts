@@ -31,6 +31,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import type { ReliabilityGate, UatTestCriterion } from "@storytree/library";
+import { activeReliabilityGates } from "@storytree/library";
 
 import {
   findNodeSpecFile,
@@ -189,9 +190,13 @@ export async function runAdopt(
       next: [`storytree tree ${id}`],
     };
   }
-  const observeGates = story.reliabilityGates.filter((g) => g.kind === "observe");
+  // ADR-0436: a gate RETIRED IN PLACE has nothing left to earn — observe-and-signing it would mint an
+  // `adopted` verdict for a journey that was withdrawn, which is exactly the forged healthy ADR-0085
+  // d.3 exists to prevent. It keeps its ordinal and drops out of the adoption pass.
+  const liveGates = activeReliabilityGates(story.reliabilityGates);
+  const observeGates = liveGates.filter((g) => g.kind === "observe");
   if (observeGates.length === 0) {
-    const gateCount = story.reliabilityGates.length;
+    const gateCount = liveGates.length;
     return {
       ok: false,
       body:
@@ -281,7 +286,7 @@ export async function runAdopt(
   // fallback, no partial verdict set, and no `approvedBy` on a machine leg.
   const legPass = await signMachineCriteria({
     legs: story.uatTestCriteria,
-    gates: story.reliabilityGates,
+    gates: liveGates,
     store,
     gitState,
     observe,

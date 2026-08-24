@@ -113,12 +113,14 @@ const DEMO_GATES = [
     kind: "observe" as const,
     proofCommand: "pnpm --filter demo test",
     covers: [],
+    retired: false,
   },
   {
     id: "demo#gate-2",
     title: "A regression leg",
     kind: "build-tests" as const,
     covers: [],
+    retired: false,
   },
 ];
 
@@ -777,8 +779,8 @@ test("run: legs bound to DIFFERENT gates each observe their own command exactly 
   // The memoization must not collapse distinct commands — one observation per DISTINCT command, and
   // a leg is only ever signed over the command its own `(proof-gate:)` names.
   const gates = [
-    { id: "demo#gate-1", title: "Suite A", kind: "observe" as const, proofCommand: "pnpm --filter a test", covers: [] },
-    { id: "demo#gate-3", title: "Suite B", kind: "observe" as const, proofCommand: "pnpm --filter b test", covers: [] },
+    { id: "demo#gate-1", title: "Suite A", kind: "observe" as const, proofCommand: "pnpm --filter a test", covers: [], retired: false },
+    { id: "demo#gate-3", title: "Suite B", kind: "observe" as const, proofCommand: "pnpm --filter b test", covers: [], retired: false },
   ];
   const legs: UatTestCriterion[] = [
     { criterionId: C1, revisionId: R1, title: "A1", witness: "machine", wouldBe: false, proofGateId: "demo#gate-1" },

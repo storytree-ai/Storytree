@@ -30,7 +30,14 @@ function recordingStore(): RecordingStoreResult {
 }
 
 const OBSERVE_GATES: ReliabilityGate[] = [
-  { id: "lib#gate-1", title: "the suite is green", kind: "observe", covers: ["cap-a"], proofCommand: "pnpm test" },
+  {
+    id: "lib#gate-1",
+    title: "the suite is green",
+    kind: "observe",
+    covers: ["cap-a"],
+    proofCommand: "pnpm test",
+    retired: false,
+  },
 ];
 
 // caps [cap-a, cap-b], one gate covering cap-a → 1 covered, 1 uncovered.

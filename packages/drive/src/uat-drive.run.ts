@@ -50,7 +50,7 @@ import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { parseUatTestCriterionSources } from "@storytree/library";
+import { activeReliabilityGates, parseUatTestCriterionSources } from "@storytree/library";
 import { applySchema, closePool, createPool } from "@storytree/library/store";
 import { loadNodeSpec } from "@storytree/orchestrator";
 
@@ -286,7 +286,9 @@ async function main(): Promise<number> {
   }
   const body = readFileSync(storyFile, "utf8").replace(/\r\n/g, "\n");
   const sources = parseUatTestCriterionSources(storyId, body);
-  const selection = selectDriveTargets(sources, spec.reliabilityGates, only);
+  // ADR-0436: a gate retired in place is not a drive target — its criterion is gone, so a walk could
+  // never satisfy it and the spend would be wasted before it started.
+  const selection = selectDriveTargets(sources, activeReliabilityGates(spec.reliabilityGates), only);
   if (selection.unknown.length > 0) {
     console.error(
       `[uat-drive] story "${storyId}" declares no criterion ${selection.unknown.join(", ")}.\n` +

@@ -199,6 +199,9 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
     return { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
 
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
+  // ADR-0436: the retired-gate filter. Pulled through the same lazy library seam this file already
+  // uses for `openQuestionsGatingNode`, so the pg-free / electron-free boundary in the header holds.
+  const { activeReliabilityGates } = await loadLibrary();
 
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
@@ -235,7 +238,10 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       // out, ADR-0097) UNION the `## Reliability Gates` — both addressable `{ id }` units the crown
       // rolls up (ADR-0085 / ADR-0082). Mirrors the studio's readTree collection verbatim.
       const witnessableUat = spec.uatTestCriteria.filter((t) => !t.wouldBe);
-      const ownObligations = [...witnessableUat, ...spec.reliabilityGates];
+      // ADR-0436: a gate RETIRED IN PLACE keeps its ordinal but leaves the obligation union — and the
+      // coverage set with it. Mirrors the studio's readTree collection verbatim.
+      const liveGates = activeReliabilityGates(spec.reliabilityGates);
+      const ownObligations = [...witnessableUat, ...liveGates];
       if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
       // forest-parcels inc-2: the UAT test criteria ALONE (never the reliability gates) — the
       // lantern-walk summary membership. Mirrors the studio's readTree collection verbatim.
@@ -248,10 +254,10 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
           })),
         );
       }
-      if (spec.reliabilityGates.length > 0) {
+      if (liveGates.length > 0) {
         coverageByStory.set(
           ent.name,
-          spec.reliabilityGates.map((g) =>
+          liveGates.map((g) =>
             g.covers !== undefined ? { id: g.id, covers: g.covers } : { id: g.id },
           ),
         );

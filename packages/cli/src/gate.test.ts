@@ -38,6 +38,7 @@ const GATES: ReliabilityGate[] = [
     title: "The port's own suite is green",
     kind: "observe",
     covers: [],
+    retired: false,
     proofCommand: "pnpm --filter @storytree/proof-protocol test",
   },
 ];
@@ -77,6 +78,7 @@ test("gate list surfaces a build-tests gate's (build:) node, not a stray title b
           title: "Build tests for the Postgres transactional path",
           kind: "build-tests",
           covers: [],
+          retired: false,
           // a stray first title backtick gets captured as proofCommand, but the operative ref is buildNode
           proofCommand: "PgLibraryStore",
           buildNode: "event-sourced-store-seam",
@@ -140,7 +142,7 @@ test("gate run on a build-tests gate WITHOUT --real refuses, pointing at the bui
     deps({
       store,
       loadReliabilityGates: () => [
-        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], buildNode: "brown-seam" },
+        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], retired: false, buildNode: "brown-seam" },
       ],
     }),
   );
@@ -158,7 +160,7 @@ test("gate run on a build-tests gate WITH --real but no (build:) reference refus
     { mode: "run", target: "brown#gate-1" },
     { real: true },
     deps({
-      loadReliabilityGates: () => [{ id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [] }],
+      loadReliabilityGates: () => [{ id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], retired: false }],
       driveBuildTestsGate: async () => {
         driverCalls++;
         return { ok: true, body: "should not run" };
@@ -180,7 +182,7 @@ test("gate run on a build-tests gate WITH --real + a (build:) ref routes to the 
     { real: true, signer: "builder@example.com" },
     deps({
       loadReliabilityGates: () => [
-        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: ["brown-cap"], buildNode: "brown-seam" },
+        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: ["brown-cap"], retired: false, buildNode: "brown-seam" },
       ],
       driveBuildTestsGate: async (gate, signer) => {
         seen.gate = gate;
@@ -203,7 +205,7 @@ test("gate run --real on a build-tests gate refuses when the build driver is not
     { real: true },
     deps({
       loadReliabilityGates: () => [
-        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], buildNode: "brown-seam" },
+        { id: "brown#gate-1", title: "Add tests", kind: "build-tests", covers: [], retired: false, buildNode: "brown-seam" },
       ],
     }),
   );

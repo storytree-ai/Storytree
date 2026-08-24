@@ -156,6 +156,7 @@ function buildTestsGate(over: Partial<ReliabilityGate> = {}): ReliabilityGate {
     kind: "build-tests",
     covers: [CAP_ID],
     buildNode: "seed-runner",
+    retired: false,
     ...over,
   };
 }
