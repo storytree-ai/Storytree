@@ -636,23 +636,32 @@ acceptance obligation (ADR-0348 D6); that intent is recorded above and answered 
 
 ## Reliability Gates
 
-> ⚠ **ALL TEN GATES ARE NOW UNCLAIMED BY ANY CRITERION (2026-08-24, ADR-0396 D6 / ADR-0437 D6), and
-> none may be deleted or renumbered.** Every one of gates 1–10 bound one of the ten legs deleted under
-> ADR-0396 D1. Gate ids are minted from 1-based POSITION, so removing one silently re-points
-> already-signed verdicts and surviving `(proof-gate:)` bindings — `terminal-tabs` gates 1 and 3 are
-> the standing precedent for retained-but-unclaimed gates. **The two shapes now fail differently, and
-> the difference matters:**
+> ⚠ **ALL TEN GATES LOST THEIR CRITERION (2026-08-24, ADR-0396 D6 / ADR-0437 D6), and none may be
+> deleted or renumbered.** Every one of gates 1–10 bound one of the ten legs deleted under ADR-0396 D1.
+> Gate ids are minted from 1-based POSITION, so removing one silently re-points already-signed verdicts
+> and surviving `(proof-gate:)` bindings. **The two shapes fail differently, and the difference
+> matters:**
 >
-> - **Gates 2–10 are drive-witness gates** (`uat-drive-witness.check.ts <story> <criterion-id>`). Each
->   resolves its criterion id in the story FIRST, so each now exits 1 on the DECLARATION — *"story
->   declares no criterion `uatc_…`"* — rather than on the product. That is honest, it is not a defect to
->   chase, and it means no drive can ever produce a record for any of them again.
+> - **Gates 2–10 are drive-witness gates** (`uat-drive-witness.check.ts <story> <criterion-id>`), each
+>   naming a now-deleted criterion. Each is tagged `(retired)` below (ADR-0436, corpus check
+>   `auditGateCriterionBindings`) — a machine-readable withdrawal, not just prose: it leaves the
+>   ADR-0085 own-proof union so a permanently unsatisfiable gate stops holding this story's crown, while
+>   the gate ITSELF and its command stay exactly where they are (retire-in-place, never delete).
+>   *(This blockquote originally said "ALL TEN GATES ARE NOW UNCLAIMED BY ANY CRITERION" and called
+>   this "the standing precedent for retained-but-unclaimed gates" — corrected in place per ADR-0139:
+>   "unclaimed" was ADR-0396 D6's prose-only convention, which the `terminal-tabs` gates this cited
+>   were the very ones that later PERMANENTLY capped that story's crown, forcing ADR-0436. Once a
+>   machine-readable marker existed, applying the OLD convention to a fresh instance reproduced the
+>   defect the marker exists to fix — see ADR-0436's Consequences for the corpus-wide sweep this
+>   triggered.)*
 > - **Gate 1 is a broad suite gate** (`pnpm --filter studio test`) and is the cautionary one. It kept
 >   exiting 0 — and the spine kept signing `studio-build#gate-1` — after ADR-0404 deleted
 >   `buildApi.integration.test.ts`, the file holding the only `409` assertion it existed to observe. A
->   suite gate binds a COMMAND, not a claim, so it cannot tell you it has lost its subject. That is what
->   made leg 5's two `proven=✓` greens hollow, and it is the finding ADR-0437's Consequences records as
->   general to suite gates rather than local to this story.
+>   suite gate binds a COMMAND, not a claim, so it cannot tell you it has lost its subject — and ADR-0436
+>   does NOT close this shape: its check only catches a gate naming a criterion id directly, never a
+>   suite gate that silently lost the one test carrying its claim. That gap stays open (chip filed).
+>   That is what made leg 5's two `proven=✓` greens hollow, and it is the finding ADR-0437's
+>   Consequences records as general to suite gates rather than local to this story.
 
 1. **The studio build mechanics suite is green** _(gate: observe)_ `pnpm --filter studio test`.
    The command deterministically exercises the real build API route and registry with scripted
@@ -689,7 +698,7 @@ A gate here goes red — honestly, not spuriously — when no `pass` record exis
 CURRENT `revision-id`, when the drive's commit is not in HEAD's ancestry, or when the newest record is
 older than 90 days (the ADR-0016 ageing floor).
 
-2. **UAT leg 9 — "a real subscription-billed `--real` node run reaches a genuinely signed, persisted verdict" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_4e688a6e4149741b5dd0a736`.
+2. **UAT leg 9 — "a real subscription-billed `--real` node run reaches a genuinely signed, persisted verdict" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_4e688a6e4149741b5dd0a736`.
    Witnesses that a model brought the studio up, triggered ONE real build from the UI, and observed the
    click route to `nodeBuild(..., { real: true, verdictStore: 'pg' })`, the real leaf author the NODE'S
    OWN test and implementation in a fresh worktree, the prove-it-gate observe a genuine RED then GREEN
@@ -699,7 +708,7 @@ older than 90 days (the ADR-0016 ageing floor).
    id, its ordinal and its command are UNCHANGED — only the sentence describing what it witnesses moved,
    so no signed verdict or `(proof-gate:)` binding is re-pointed. The `--live` smoke's own witness is
    `agent#gate-2`.)*
-3. **UAT leg 10 — "the STORY route's approve-to-land opens a non-draft auto-merging PR" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_891f34bd18df9ce452617b82`.
+3. **UAT leg 10 — "the STORY route's approve-to-land opens a non-draft auto-merging PR" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_891f34bd18df9ce452617b82`.
    Witnesses that a model selected a real-buildable STORY, clicked Build, and observed the worker route
    to `story build <id> --real` and open a NON-DRAFT PR for CI to auto-merge to trunk.
 
@@ -713,38 +722,38 @@ record is older than 90 days. **All seven are RED today** and none has been driv
 BOUND" above for why that is the point rather than a defect, and gate 10 for the one that is expected to
 stay red until a code gap closes.
 
-4. **UAT leg 1 — "the studio is running against the live store, so the worker can persist a verdict" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_84e580bdf4115de90e35b68e`.
+4. **UAT leg 1 — "the studio is running against the live store, so the worker can persist a verdict" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_84e580bdf4115de90e35b68e`.
    Witnesses that a model brought the studio up against the live store and observed the data-api line log
    `library/comments → Cloud SQL Postgres` and `GET /api/health` report `store: 'pg'`, `db: 'ok'` from a REAL
    connection — the reachability `healthApi.integration.test.ts` structurally cannot witness, because its
    `db: 'ok'` is a literal the test supplied.
-5. **UAT leg 2 — "the island panel composes the node's surface and gates the Build control on buildability" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_4cc7aac36abad3cdf3033b46`.
+5. **UAT leg 2 — "the island panel composes the node's surface and gates the Build control on buildability" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_4cc7aac36abad3cdf3033b46`.
    Witnesses that a model opened `#/tree`, clicked a buildable node, and observed the composite
    `aside.tree-detail` panel render the node's status badge, UAT verdict line AND capability sub-DAG with a
    Build control present — present ONLY for a buildable node, absent or disabled WITH the reason otherwise.
    The composite render is the half no existing test performs.
-6. **UAT leg 3 — "the Build click dispatches an accepted intent and the world marks the node in flight" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_6ee9d656d0101a623bab3e57`.
+6. **UAT leg 3 — "the Build click dispatches an accepted intent and the world marks the node in flight" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_6ee9d656d0101a623bab3e57`.
    Witnesses the COUPLING both existing suites stub out: that an accepted intent (`202` + `runId`, panel
    flipped to "building…") surfaces as an in-flight `building` work-event through the real `/api/activity`
    pipeline and lights the teal wisp on that node in the world (ADR-0048), with the frontend importing no
    build code.
-7. **UAT leg 4 — "the panel polls, and the coarse transcript accumulates the phase trail in order" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_b668fc727a5fc8bf95b9b474`.
+7. **UAT leg 4 — "the panel polls, and the coarse transcript accumulates the phase trail in order" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_b668fc727a5fc8bf95b9b474`.
    Witnesses accumulation ACROSS successive REAL polls of `GET /api/build?runId=…` — the coarse transcript
    growing line by line with the phase trail in order, then the loop stopping at the terminal poll and never
    polling again. A single GET cannot witness this, and a mocked client is not a real double-poll. It needs
    a run of the right SHAPE, not a billed one; the real billed leaf is leg 9.
-8. **UAT leg 6 — "the run reaches a terminal envelope and the world repaints in place, with no manual reload" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_db68af6799a98ffdcfa7e9d5`.
+8. **UAT leg 6 — "the run reaches a terminal envelope and the world repaints in place, with no manual reload" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_db68af6799a98ffdcfa7e9d5`.
    Witnesses the repaint that is undischarged end to end: a TERMINAL `GET /api/build?runId=…` carrying the
    final envelope (verdict line, signer, cost, phase trail), the panel showing that verdict, and the node's
    hue in the world updating from the freshly signed `events.verdict` through `/api/tree`'s `latestVerdicts`
    — WITHOUT a manual reload, i.e. the terminal poll itself triggering the re-pull.
-9. **UAT leg 7 — "the verdict's provenance is the spine's, and the frontend never touched it" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_82ff49ccf66f8dacce8affee`.
+9. **UAT leg 7 — "the verdict's provenance is the spine's, and the frontend never touched it" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_82ff49ccf66f8dacce8affee`.
    Witnesses that the verdict in `events.verdict` came from a STUDIO-DISPATCHED run and carries a SPINE
    signer — the half a row-reading check cannot supply — and that no `apps/studio/src` path can write a
    verdict at all. **It settles nothing about open modeling call item 3:** whether such a row should exist
    on the node route remains the owner's call, and if it resolves against persistence the leg's claim
    changes and its prose is re-authored, invalidating any drive record by design.
-10. **UAT leg 8 — "the NODE route's no-land walls hold" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_b4173ad8a474d2938b6022b5`.
+10. **UAT leg 8 — "the NODE route's no-land walls hold" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-build uatc_b4173ad8a474d2938b6022b5`.
     Witnesses that the node build opened NO git worktree, pushed NO branch and landed nothing, and that the
     remaining walls hold — no hosted run, no `--real` toggle on a single node, no manual `gh pr merge`.
     **This gate is EXPECTED RED** against the "Known implementation gap": `routedBuildRunner` sends a node

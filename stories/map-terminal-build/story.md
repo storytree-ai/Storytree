@@ -407,15 +407,20 @@ operator-attested. All three legs are gone; corrected in place per ADR-0139.)*
 
 ## Reliability Gates
 
-> ⚠ **BOTH GATES ARE NOW UNCLAIMED BY ANY CRITERION (2026-08-24, ADR-0396 D6 / ADR-0437 D6), and
-> neither may be deleted or renumbered.** Gate 1 bound leg 7 and gate 2 bound leg 4; both legs were
-> deleted under ADR-0396 D1. Gate ids are minted from 1-based POSITION, so removing one silently
-> re-points already-signed verdicts and surviving `(proof-gate:)` bindings — `terminal-tabs` gates 1
-> and 3 are the standing precedent for retained-but-unclaimed gates. **Expect both commands to exit 1
-> on the DECLARATION now, not on the product**: `uat-drive-witness.check.ts` resolves the criterion id
-> in the story first, so it reports *"story declares no criterion `uatc_…`"*. That is the honest
-> consequence of an unclaimed drive-witness gate and is not a defect to chase — it is also why no drive
-> can ever produce a record for either again.
+> ⚠ **BOTH GATES LOST THEIR CRITERION (2026-08-24, ADR-0396 D6 / ADR-0437 D6), and neither may be
+> deleted or renumbered.** Gate 1 bound leg 7 and gate 2 bound leg 4; both legs were deleted under
+> ADR-0396 D1. Gate ids are minted from 1-based POSITION, so removing one silently re-points
+> already-signed verdicts and surviving `(proof-gate:)` bindings. **Expect both commands to exit 1 on
+> the DECLARATION now, not on the product**: `uat-drive-witness.check.ts` resolves the criterion id in
+> the story first, so it reports *"story declares no criterion `uatc_…`"*. That is the honest
+> consequence and not a defect to chase — it is also why no drive can ever produce a record for either
+> again. Both gates below are tagged `(retired)` (ADR-0436, corpus check `auditGateCriterionBindings`)
+> — a machine-readable withdrawal, not just prose, so a permanently unsatisfiable gate stops holding
+> this story's crown while staying exactly where it is. *(This blockquote originally said "BOTH GATES
+> ARE NOW UNCLAIMED BY ANY CRITERION" and cited `terminal-tabs` gates 1 and 3 as "the standing
+> precedent for retained-but-unclaimed gates" — corrected in place per ADR-0139: those two gates were
+> the ones that later PERMANENTLY capped `terminal-tabs`'s crown, which is what forced ADR-0436 in the
+> first place. See ADR-0436's Consequences for the corpus-wide sweep this triggered.)*
 
 **Gate 1 is the story's FIRST gate (2026-08-13, ADR-0348 D2/D3 / ADR-0357).** Gate ids are positional
 (`asset:edit-story-uat-criteria` step 2), so anything added later APPENDS as gate 2 — never inserted,
@@ -434,7 +439,7 @@ unchanged. It goes red — honestly — when no `pass` record exists for the cri
 `revision-id`, when the driven commit is not in HEAD's ancestry, or when the newest record is older than
 90 days (the ADR-0016 ageing floor).
 
-1. **UAT leg 7 — "pressing Enter runs a real, billed build from the seeded command" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts map-terminal-build uatc_00996f29a26216200b5a5c92`.
+1. **UAT leg 7 — "pressing Enter runs a real, billed build from the seeded command" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts map-terminal-build uatc_00996f29a26216200b5a5c92`.
    Witnesses that a model pressed Enter on the pre-filled command UNMODIFIED in the native shell and
    observed the real build it names run to its own end state — for a story-scope seed, through the
    auto-merging PR (ADR-0136). It does NOT witness leg 6: whether this is the invocation FORM the owner
@@ -451,7 +456,7 @@ defect. It exists because leg 4's unbound state was never local to leg 4: `runAd
 machine leg before signing any, so one unbound leg refused this story's whole UAT-signing pass, bound leg 7
 included.
 
-2. **UAT leg 4 — "clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts map-terminal-build uatc_865913dcc84077215e5b7175`.
+2. **UAT leg 4 — "clicking Build drops a runnable command into the REAL terminal, pre-filled and NOT run" was driven end to end** _(gate: observe)_ _(retired)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts map-terminal-build uatc_865913dcc84077215e5b7175`.
    Witnesses that a model clicked Build on a node or story in the REAL desktop app and observed the
    composed command travel the TreeView `seed` glue to the real `window.desktopTerminal` bridge, land in a
    fresh tab, and sit there UN-EXECUTED — the integrated walk over the real seam that the three capability
