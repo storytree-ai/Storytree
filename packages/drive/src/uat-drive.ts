@@ -58,7 +58,18 @@ export const CODEX_CHATGPT_SUBSCRIPTION_DRIVER = "codex-chatgpt-subscription";
 /** An explicit local executable is useful where the Desktop app keeps its CLI outside PATH. */
 export const STORYTREE_CODEX_EXECUTABLE_ENV = "STORYTREE_CODEX_EXECUTABLE";
 
-/** UAT drives default to Codex, while a member may explicitly select their Claude subscription. */
+/**
+ * UAT drives default to the CLAUDE subscription; Codex is the explicit selection (ADR-0435,
+ * owner-directed 2026-08-24). This reverses the 2026-08-20 default, and the reversal is a funding
+ * decision rather than a technical one: the owner's Codex/ChatGPT quota was exhausted with a reset a
+ * month out, which halted every model-driven walk in the system at once. Claude was the original
+ * route and is unchanged in capability — `uat-drive-witness.check.ts` accepts a `claude-code` record
+ * exactly as it accepts a `codex-chatgpt-subscription` one, and `embedded-terminal` leg 5 still
+ * witnesses off a Claude drive from 2026-08-13.
+ *
+ * Both routes stay subscription-only: whichever is selected, API-key and cross-provider credentials
+ * are stripped before the child runs and are never a fallback (ADR-0232's rule, untouched).
+ */
 export const STORYTREE_UAT_DRIVE_PROVIDER_ENV = "STORYTREE_UAT_DRIVE_PROVIDER";
 export const UAT_DRIVE_PROVIDERS = ["codex", "claude"] as const;
 export type UatDriveProvider = (typeof UAT_DRIVE_PROVIDERS)[number];
@@ -68,7 +79,7 @@ export function resolveUatDriveProvider(raw: string | undefined):
   | { ok: true; provider: UatDriveProvider }
   | { ok: false; reason: string } {
   const normalized = raw?.trim().toLowerCase();
-  if (normalized === undefined || normalized === "") return { ok: true, provider: "codex" };
+  if (normalized === undefined || normalized === "") return { ok: true, provider: "claude" };
   if (normalized === "codex" || normalized === "claude") return { ok: true, provider: normalized };
   return {
     ok: false,
