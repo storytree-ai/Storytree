@@ -503,9 +503,9 @@ the real tool, the observability layer watching it through the existing seams wi
    `revision-id` annotation a drive record binds, so a status sentence here can only ever be corrected by
    un-witnessing the drive that falsified it. This leg is rewritten BEFORE its first drive so that
    drive is never invalidated by a later correction.
-8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:0ae1976ca6a09cef)_ _(previous-revision-id: uatr1:5da09670b1ee88c2)_
+8. **The existing observability seams watch a session started in the terminal — a wisp lights.** _(criterion-id: uatc_bdc148e9f00088bac6269e04)_ _(revision-id: uatr1:cc9033ea3d855940)_ _(previous-revision-id: uatr1:0ae1976ca6a09cef)_
    _(witness: machine)(detail: embedded-terminal#uat-8)_ _(proof-gate: embedded-terminal#gate-5)_ A session started in the embedded terminal takes its claim through the EXISTING
-   CLI seam — `storytree noticeboard declare --node embedded-terminal --pg`, run in the terminal's real
+   CLI seam — `pnpm storytree noticeboard declare --working-on "<what>" --node pty-session-manager --pg`, run in the terminal's real
    pty (ADR-0142) — and the map paints a wisp for it with NO new observer code, proving the ADR-0174
    premise end-to-end. **Success —** the declare writes a `work`-grade row to `events.node_claim` for that
    session; the desktop's own `/api/activity` read reports it (`claimsToActivity`); and the rendered scene
@@ -604,7 +604,7 @@ stamp ADR-0097 §2 bans.
    collapse/expand keeping the SAME session live. A mock cannot exhibit reflow or scrollback retention,
    which is why this is not a restatement of the capability's suite.
 5. **UAT leg 8 — "the existing observability seams watch a session started in the terminal — a wisp lights" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts embedded-terminal uatc_bdc148e9f00088bac6269e04`.
-   Witnesses that a model ran `storytree noticeboard declare --node embedded-terminal --pg` in the
+   Witnesses that a model ran `pnpm storytree noticeboard declare --working-on "<what>" --node pty-session-manager --pg` in the
    terminal's real pty and observed a `work`-grade row written to `events.node_claim` for that session, the
    desktop's own `/api/activity` read report it (`claimsToActivity`), and the rendered scene carry exactly
    ONE claim-wisp keyed to that session (ADR-0212). **Live-gated:** the walk needs the REAL backend sidecar
