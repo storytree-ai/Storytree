@@ -1944,6 +1944,17 @@ export interface RunDeps {
    * the session's claims; null/absent offline. (The key keeps its historical `presence` name
    * through wave 1 — every seam behind it is the claim ledger.)
    */
+  /**
+   * The SOURCE TREE `adr rebind` hashes spans in (ADR-0438 D1, `grounded-decisions-arc` inc-03) —
+   * repo-relative, `undefined` for a path that does not exist.
+   *
+   * A seam rather than a straight `readFileSync`, for the reason `projectDecisionFacts` takes the
+   * same one on the read side: the rules that can be WRONG here are which grain located a span, what
+   * `unlocatable` means when a file is gone, and which outcome each anchor lands in — and against
+   * the real checkout none of them is reachable by a test that is not deriving its expectation from
+   * its own subject. Defaulted to the fs-backed reader under {@link repoRoot}, so only tests pass it.
+   */
+  readonly adrSpans?: (repoRelPath: string) => string | undefined;
   readonly presence?: {
     readonly identity?: SessionIdentity | null;
     readonly claims?: SessionClaimStoreLike | null;
@@ -2916,6 +2927,11 @@ export const CLI_OPTIONS = {
   // for a verdict string that also appears inside test names.
   wait: { type: "boolean", default: false },
   timeout: { type: "string" },
+  // `storytree adr rebind <n> --refute <key> --reason <why>` (ADR-0438, `grounded-decisions-arc`
+  // inc-03) — the anchor a drain closes as the ANCHOR's error rather than the decision's. LITERAL:
+  // the value is an identity key (`<file>#<symbol>`), never prose. Its mandatory companion
+  // `--reason` is declared above and is already a PROSE flag, so `@path` carries a long one.
+  refute: { type: "string" },
 } as const;
 
 /**
@@ -3620,6 +3636,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.current === true) adrOpts.current = true;
     if (values["load-bearing"] === true) adrOpts.loadBearing = true;
     if (values.status !== undefined) adrOpts.status = values.status;
+    // `adr rebind --refute <key> --reason <why>` (ADR-0438). Threaded as a PAIR because the verb
+    // refuses each without the other — dropping one here would turn a loud refusal into a silent
+    // ignore, which for `--reason` means the durable record is written and lost in one command.
+    if (values.refute !== undefined) adrOpts.refute = values.refute;
+    if (values.reason !== undefined) adrOpts.reason = values.reason;
     // ADR-0428's `adr compose`. `--statement` is already a declared PROSE flag (`question new`), so
     // `@path` carries a statement too long for a shell argument with no new classification.
     if (values.statement !== undefined) adrOpts.statement = values.statement;
@@ -3648,6 +3669,27 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         store: deps.store,
         writable: deps.writable === true,
         actor: deps.actor ?? defaultCliActor(),
+      },
+      // The EXPLICIT FREEZE (ADR-0438 D1). A SEPARATE dep from `roundTrip` above rather than a
+      // widening of it, because the two verbs must stay separable: one writes the decision's prose,
+      // the other writes what the code looked like when somebody read it, and ADR-0424 D7 is the
+      // rule that they never become one act.
+      //
+      // `readFile` is repo-relative and injectable — the fs-backed reader here, a fake tree under
+      // test — which is what lets the outcome rules (which grain located a span, what `unlocatable`
+      // means when the file is gone) be exercised hermetically instead of only against this
+      // checkout. It reads the WORKING TREE rather than a git revision on purpose: the freeze
+      // asserts that somebody looked, and what they looked at is the tree in front of them.
+      rebind: {
+        store: deps.store,
+        writable: deps.writable === true,
+        actor: deps.actor ?? defaultCliActor(),
+        readFile:
+          deps.adrSpans ??
+          ((rel: string): string | undefined => {
+            const abs = path.join(repoRoot(), rel);
+            return existsSync(abs) ? readFileSync(abs, "utf8") : undefined;
+          }),
       },
     };
     return adrCommand(

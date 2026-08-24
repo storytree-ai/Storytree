@@ -1,4 +1,9 @@
-import { isBoundSource, readDecisionSources, type DecisionSource } from "@storytree/library";
+import {
+  isBoundSource,
+  isRefutedSource,
+  readDecisionSources,
+  type DecisionSource,
+} from "@storytree/library";
 import { classifySourceDrift, hashSpan, type SourceRef } from "@storytree/orchestrator";
 import type { ChangeEvent, TextQuote } from "@storytree/proof-protocol";
 
@@ -494,6 +499,12 @@ export function findDecisionSourceDrift(
  * narrowing is a real test rather than a claim.
  */
 function boundRef(source: DecisionSource): SourceRef | undefined {
+  // A REFUTED anchor is never swept, even if it still carries a hash (ADR-0438's drain route,
+  // `grounded-decisions-arc-inc-03`). `adr rebind --refute` strips the hash as it records the
+  // reason, so this guard is unreachable through the verb — it is here because the field is
+  // hand-writable through `--set sources=@file.json`, and the fail-open reading of a
+  // hand-written `{refuted, boundHash}` pair would re-mint a finding somebody has already closed.
+  if (isRefutedSource(source)) return undefined;
   if (!isBoundSource(source)) return undefined;
   const { boundHash } = source;
   if (boundHash === undefined) return undefined;
@@ -521,7 +532,8 @@ export interface UnfrozenAnchor {
  * the remedy is different in kind (freeze it, or remove it) from draining a real drift.
  *
  * SCOPED TO `accepted` ON PURPOSE. A `proposed` decision carrying unfrozen anchors is the NORMAL and
- * correct state — ADR-0424 D2 binds at the green flip, and the truth obligation has not attached yet
+ * correct state: nothing binds automatically at all (ADR-0438 D1 withdrew ADR-0424 D2's
+ * freeze-at-the-green-flip), and the truth obligation has not attached to a proposed decision
  * (`decision-sources.ts`). Reporting those would fire on healthy work.
  *
  * NOT A COVERAGE METRIC EITHER (ADR-0424 D4). This counts anchors that EXIST and are unfrozen; it
@@ -532,11 +544,51 @@ export function findDeclaredUnfrozenSources(decisions: readonly DecisionFacts[])
   for (const decision of decisions) {
     if (decision.status !== ACCEPTED) continue;
     for (const source of decision.sources) {
+      // A REFUTED anchor is unbound and must NOT be counted here. Both questions are asked because
+      // they are different facts: unfrozen is outstanding work, refuted is finished work. Asking
+      // only `isBoundSource` would file every closed matter under "freeze it, or remove it" forever
+      // — a worklist that grows as the drain succeeds is a worklist nobody reads.
+      if (isRefutedSource(source)) continue;
       if (isBoundSource(source)) continue;
       unfrozen.push({ decisionId: decision.id, label: sourceLabel(source) });
     }
   }
   return unfrozen;
+}
+
+/** One anchor a sweep closed as REFUTED — the anchor was the error, not the decision's prose. */
+export interface RefutedAnchor {
+  /** The decision carrying it. */
+  readonly decisionId: string;
+  /** How the report names the anchor — claim label plus identity. */
+  readonly label: string;
+  /** The recorded WHY, verbatim — required by the verb that writes it, so it is never blank. */
+  readonly reason: string;
+}
+
+/**
+ * PURE: every REFUTED anchor on an ACCEPTED decision — the drain's third discharge, made visible.
+ *
+ * NOT A FINDING and NOT A WORKLIST. It is printed for the reason `--reason` is mandatory in the
+ * first place: refuting is the discharge that empties the backlog without repairing anything, so it
+ * is the one that must leave a trace somebody can read back. A refutation that vanished into a
+ * deleted array entry would be indistinguishable from an anchor nobody ever wrote — and the whole
+ * instrument rests on that distinction (`hasSourcesKey`'s absent-vs-empty rule, one module over).
+ *
+ * Scoped to `accepted` for the same reason its two neighbours are: `superseded` prose is
+ * deliberately false about the current world (ADR-0424 D3).
+ */
+export function findRefutedSources(decisions: readonly DecisionFacts[]): RefutedAnchor[] {
+  const refuted: RefutedAnchor[] = [];
+  for (const decision of decisions) {
+    if (decision.status !== ACCEPTED) continue;
+    for (const source of decision.sources) {
+      const { refuted: reason } = source;
+      if (reason === undefined) continue;
+      refuted.push({ decisionId: decision.id, label: sourceLabel(source), reason });
+    }
+  }
+  return refuted;
 }
 
 /**
@@ -559,9 +611,13 @@ export function measureDecisionSweep(decisions: readonly DecisionFacts[]): Decis
   let groundedDecisions = 0;
   for (const decision of decisions) {
     if (decision.status !== ACCEPTED) continue;
-    if (decision.sources.length === 0) continue;
+    // REFUTED anchors are not part of the aperture: nothing about them was compared, and a decision
+    // whose only anchors are refuted is not one this sweep is watching. Counting them would inflate
+    // "what I looked at" with what I deliberately stopped looking at.
+    const live = decision.sources.filter((source) => !isRefutedSource(source));
+    if (live.length === 0) continue;
     groundedDecisions += 1;
-    for (const source of decision.sources) if (isBoundSource(source)) comparedAnchors += 1;
+    for (const source of live) if (isBoundSource(source)) comparedAnchors += 1;
   }
   return { comparedAnchors, groundedDecisions };
 }
@@ -583,12 +639,13 @@ const TAG = "[check:verification-decay]";
 export function formatDecisionSourceSweep(
   aperture: DecisionSweepAperture,
   unfrozen: readonly UnfrozenAnchor[],
+  refuted: readonly RefutedAnchor[] = [],
 ): string[] {
   const lines = [
     `${TAG}   ${DECISION_SOURCE_DRIFT} — compared ${String(aperture.comparedAnchors)} bound anchor(s) ` +
       `across ${String(aperture.groundedDecisions)} accepted decision(s) that carry them.`,
   ];
-  if (unfrozen.length === 0) return lines;
+  if (unfrozen.length === 0) return [...lines, ...formatRefutedAnchors(refuted)];
   lines.push(
     `${TAG}   DECLARED BUT NEVER FROZEN — ${String(unfrozen.length)} anchor(s) on accepted decisions ` +
       "carry no bound hash, so nothing can compare them. This is NOT a finding and NOT a coverage " +
@@ -597,5 +654,27 @@ export function formatDecisionSourceSweep(
       "exactly like coverage. Freeze each one, or remove it:",
   );
   for (const anchor of unfrozen) lines.push(`${TAG}     ~ ${anchor.decisionId} — ${anchor.label}`);
+  return [...lines, ...formatRefutedAnchors(refuted)];
+}
+
+/**
+ * PURE: the REFUTED block — the drain's third discharge, reported rather than silently absent.
+ *
+ * Split from {@link formatDecisionSourceSweep}'s body so the early return above cannot swallow it,
+ * which is exactly the shape that would have made this category invisible whenever nothing was
+ * unfrozen — the common case, and the one where a reader most needs to know a refutation happened.
+ */
+function formatRefutedAnchors(refuted: readonly RefutedAnchor[]): string[] {
+  if (refuted.length === 0) return [];
+  const lines = [
+    `${TAG}   REFUTED — ${String(refuted.length)} anchor(s) on accepted decisions were closed as the ` +
+      "ANCHOR's error rather than the decision's, each with a recorded reason. NOT a finding and NOT " +
+      "a worklist: this is finished work, printed because refuting is the discharge that empties the " +
+      "backlog without repairing anything, so it is the one that has to leave a trace. Read a reason " +
+      "that does not convince you as a finding of its own:",
+  ];
+  for (const anchor of refuted) {
+    lines.push(`${TAG}     × ${anchor.decisionId} — ${anchor.label}: ${anchor.reason}`);
+  }
   return lines;
 }

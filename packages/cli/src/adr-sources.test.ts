@@ -26,7 +26,7 @@ import { run } from "./commands.js";
 
 const NOW = new Date("2026-08-24T02:00:00.000Z");
 
-/** A BOUND anchor: an identity plus the hash frozen at the green flip. */
+/** A BOUND anchor: an identity plus the hash `adr rebind --pg` froze onto it (ADR-0438 D1). */
 const BOUND = {
   claim: "D7",
   file: "packages/cli/src/adr-round-trip.ts",

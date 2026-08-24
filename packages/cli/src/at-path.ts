@@ -107,6 +107,13 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `storytree adr rebind <n> --refute <key>` (ADR-0438, `grounded-decisions-arc` inc-03): an
+  // anchor's IDENTITY key — `<file>#<symbol>` or `<file>@<exact>` — copied from a drift finding.
+  // A LOCATOR, never a record: it selects which anchor to close and is stored nowhere. Note the
+  // key's own quote form CONTAINS an `@`, so classifying it prose would try to read a file named
+  // after the anchored source text. Its mandatory companion `--reason` is PROSE and is declared
+  // above, which is the pairing worth noticing here: one selects, the other is the durable record.
+  "refute",
   // `storytree adr compose <n> --clause D4` (ADR-0428 D3): a clause LOCATOR, not prose. It names a
   // position inside a decision the way `--raw <field>` names a field, and it is stored as an opaque
   // key rather than as a durable record, so a literal `@` in it could corrupt nothing.

@@ -8,6 +8,7 @@ import {
   ACCEPTED,
   DECISION_SOURCE_DRIFT,
   findDeclaredUnfrozenSources,
+  findRefutedSources,
   findDecisionSourceDrift,
   formatDecisionSourceSweep,
   locateQuoteSpan,
@@ -242,11 +243,72 @@ test("an anchor DECLARED but never frozen is not a finding — it is its own vis
 });
 
 test("an unfrozen anchor on a PROPOSED decision is the normal state and is reported by nothing", () => {
-  // ADR-0424 D2 binds at the green flip, so a proposed decision carrying identities with nothing
-  // bound to them is correct. Reporting those would fire on healthy work.
+  // Nothing binds automatically (ADR-0438 D1, withdrawing ADR-0424 D2's freeze-at-the-green-flip), so
+  // ANY decision can carry identities with nothing bound to them and a `proposed` one almost always
+  // does. Reporting those would fire on healthy work, and the truth obligation this instrument holds
+  // has not attached to a proposed decision at all.
   const facts = factsFor(row("adr-0007", "proposed", { sources: [declaredAnchor] }), MOVED);
   assert.deepEqual(findDeclaredUnfrozenSources(facts), []);
   assert.deepEqual(measureDecisionSweep(facts), { comparedAnchors: 0, groundedDecisions: 0 });
+});
+
+/** An anchor closed as REFUTED — the drain's third discharge, with its reason on the record. */
+const refutedAnchor = { claim: "D3", file: FILE, symbol: "classify", refuted: "the prose never rested here" };
+
+test("a REFUTED anchor is neither a finding nor outstanding work — it is its own category", () => {
+  // The three questions are distinct and a sweep owes all three. Over a MOVED tree a refuted anchor
+  // must produce NO drift finding (it is not a binding any more) and must NOT appear under DECLARED
+  // BUT NEVER FROZEN either — that category is work nobody has started, and this is work somebody
+  // finished. Filing a closed matter there would grow the worklist every time the drain succeeded,
+  // which is a worklist nobody reads.
+  const facts = factsFor(row("adr-0030", ACCEPTED, { sources: [refutedAnchor] }), MOVED);
+
+  assert.deepEqual(findDecisionSourceDrift(facts, []), [], "not drift");
+  assert.deepEqual(findDeclaredUnfrozenSources(facts), [], "and not a worklist item");
+  assert.deepEqual(findRefutedSources(facts), [
+    { decisionId: "adr-0030", label: `[D3] ${FILE}#classify`, reason: "the prose never rested here" },
+  ]);
+  assert.deepEqual(
+    measureDecisionSweep(facts),
+    { comparedAnchors: 0, groundedDecisions: 0 },
+    "and it is not part of the aperture — nothing about it was compared",
+  );
+});
+
+test("a REFUTED anchor carrying a stale hash is STILL never swept — the read side fails closed", () => {
+  // `adr rebind --refute` strips the hash as it records the reason, so this pair is unreachable
+  // through the verb. It is reachable by hand: `sources` is writable through
+  // `--set sources=@file.json`, and a hand-written entry is exactly where the two edits come apart.
+  // Reading it fail-OPEN would re-mint a finding somebody has already closed, and the reason sitting
+  // right there on the anchor would make that finding read as a bug in the drain.
+  const facts = factsFor(
+    row("adr-0031", ACCEPTED, { sources: [{ ...refutedAnchor, boundHash: hashSpan(FROZEN) }] }),
+    MOVED,
+  );
+  assert.deepEqual(findDecisionSourceDrift(facts, []), []);
+});
+
+test("the REFUTED block prints when NOTHING is unfrozen — the early return does not swallow it", () => {
+  // The shape this category would most plausibly have been lost in. `formatDecisionSourceSweep`
+  // returns early when the unfrozen list is empty, which is the COMMON case — so a refuted block
+  // appended after that return would be invisible in exactly the situation a reader most needs it:
+  // a clean sweep whose cleanliness is partly explained by a refutation.
+  const rendered = formatDecisionSourceSweep(
+    { comparedAnchors: 0, groundedDecisions: 0 },
+    [],
+    [{ decisionId: "adr-0032", label: `[D3] ${FILE}#classify`, reason: "wrong span" }],
+  ).join("\n");
+  assert.match(rendered, /REFUTED/);
+  assert.match(rendered, /adr-0032/);
+  assert.match(rendered, /wrong span/, "the reason is printed, so a reader can disagree with it");
+  assert.match(rendered, /NOT a finding and NOT a worklist/);
+});
+
+test("a REFUTED anchor on a SUPERSEDED decision is reported by nothing (ADR-0424 D3)", () => {
+  // The same scope every neighbour here keeps: superseded prose is deliberately false about the
+  // current world, so nothing about its anchors is a signal.
+  const facts = factsFor(row("adr-0033", "superseded", { sources: [refutedAnchor] }), MOVED);
+  assert.deepEqual(findRefutedSources(facts), []);
 });
 
 test("the aperture line prints even at zero, so a silent sweep is not an absent one", () => {
