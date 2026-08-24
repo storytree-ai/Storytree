@@ -91,6 +91,7 @@
       "packages/cli/src/*boundaries*.ts": "organism-boundary-tooling",
       "packages/cli/src/*ownership*.ts": "organism-boundary-tooling",
       "packages/cli/src/main.ts": "unified-command-dispatch",
+      "packages/cli/src/members*.ts": "user-directory",
       "packages/cli/src/index.ts": "cli",
       "packages/cli/src/node-executable.ts": "cli",
       "packages/cli/src/commands.ts": "unified-command-dispatch",

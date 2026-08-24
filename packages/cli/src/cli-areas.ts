@@ -42,6 +42,10 @@ export const CLI_AREAS = [
   // no store. Administrator-facing rather than day-to-day, which is how it stayed dispatched but
   // unenumerated: nothing that reads this tuple is reached by the people who run it.
   "write-authority",
+  // `storytree members` — the studio member directory (ADR-0043) as a CLI verb. Added 2026-08-24
+  // on the owner's rule that nothing may be UI-only; `/api/users` was the last studio write route
+  // with no CLI equivalent.
+  "members",
   "witness",
   "attest",
   "uat",

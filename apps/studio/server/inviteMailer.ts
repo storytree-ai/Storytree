@@ -16,6 +16,7 @@
 //   STORYTREE_STUDIO_SMTP_PORT       optional, default 465 (implicit TLS)
 //   STORYTREE_STUDIO_SMTP_FROM_NAME  optional display name, default "storytree studio"
 
+import type { UserRole } from '@storytree/studio-members';
 import { connect as tlsConnect, type ConnectionOptions } from 'node:tls';
 import { randomUUID } from 'node:crypto';
 import type { Duplex } from 'node:stream';
@@ -31,7 +32,7 @@ export interface InviteNotice {
 
 export interface InviteMailer {
   /** Best-effort: NEVER throws — the invite row is already authoritative. Returns what happened. */
-  send(to: string, role: 'admin' | 'member', invitedBy: string | null): Promise<InviteNotice>;
+  send(to: string, role: UserRole, invitedBy: string | null): Promise<InviteNotice>;
 }
 
 const DISABLED_DETAIL =
@@ -96,7 +97,7 @@ export interface InviteContentResult { subject: string; body: string }
 /** The invite email's subject + plain-text body. Pure — exported for the unit test. */
 export function inviteContent(
   to: string,
-  role: 'admin' | 'member',
+  role: UserRole,
   invitedBy: string | null,
   studioUrl: string,
 ): InviteContentResult {

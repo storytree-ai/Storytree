@@ -27,6 +27,7 @@ import type {
 import { digestOverlapDeltas, type OverlapDelta } from "@storytree/notice-board";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import { PgWorkStore, PgAttestationStore } from "@storytree/orchestrator/store";
+import { PgUserStore } from "@storytree/studio-members/store";
 
 import type { AdrAllocatorLike } from "./adr.js";
 import type { AttestationStoreLike } from "./attest.js";
@@ -46,6 +47,7 @@ import type { OpenCorpusStore } from "@storytree/drive";
 import type { ClaimLedgerStoreLike, SessionClaimStoreLike } from "@storytree/drive";
 import { loadLocalSecrets } from "./secrets.js";
 import type { VerdictReaderLike } from "./tree-verdicts.js";
+import type { MemberStoreLike } from "./members.js";
 import type { WorkLogReaderLike } from "./work-log.js";
 import type { UatVerdictStoreLike } from "./uat.js";
 
@@ -78,6 +80,8 @@ async function buildStore(usePg: boolean): Promise<{
   workLog: WorkLogReaderLike | null;
   uatStore: UatVerdictStoreLike | null;
   attestations: AttestationStoreLike | null;
+  /** The studio member directory (ADR-0043) — `storytree members`; null off --pg (no door, no offline form). */
+  members: MemberStoreLike | null;
   adr: AdrAllocatorLike | null;
   /** The cursor-once overlap-delta pull (ADR-0200 D4); null offline — no footer surface. */
   pullDeltas: ((sessionId: string) => Promise<OverlapDelta[]>) | null;
@@ -112,6 +116,10 @@ async function buildStore(usePg: boolean): Promise<{
       // The attestation log (ADR-0044): `storytree attest` records/reads events.attestation
       // through the same pool; offline `attest` refuses (writes/reads both need --pg).
       attestations: new PgAttestationStore(pool),
+      // The studio member DIRECTORY (ADR-0043): `storytree members` writes through the SAME
+      // PgUserStore the studio's /api/users handler uses, so the last-admin guard and the audit
+      // append apply identically rather than being re-implemented beside them.
+      members: new PgUserStore(pool),
       // The ADR-number allocator (ADR-0050): `storytree adr new` reserves the next number through
       // events.adr_number on the same pool; offline it falls back to max+1 with a loud warning.
       adr: new PgAdrStore(pool),
@@ -136,6 +144,7 @@ async function buildStore(usePg: boolean): Promise<{
       workLog: null,
       uatStore: null,
       attestations: null,
+      members: null,
       adr: null,
       pullDeltas: null,
       close: async () => {},
@@ -175,6 +184,7 @@ async function buildStore(usePg: boolean): Promise<{
     workLog: null,
     uatStore: null,
     attestations: null,
+    members: null,
     adr: null,
     pullDeltas: null,
     close: async () => {
@@ -411,7 +421,7 @@ export async function main(): Promise<void> {
   // hangs on the connector handshake is precisely the one a session needs to be able to find.
   const deregister = registerThisInvocation(argv, identity);
   const usePg = argv.includes("--pg");
-  const { store, claims, ledger, verdicts, workLog, uatStore, attestations, adr, pullDeltas, close } =
+  const { store, claims, ledger, verdicts, workLog, uatStore, attestations, members, adr, pullDeltas, close } =
     await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
@@ -426,6 +436,7 @@ export async function main(): Promise<void> {
       workLog,
       uatStore,
       attestations,
+      members,
       adr,
     };
     // The claim NAMESPACE (ADR-0310 D2) — supplied HERE and only here, because this is the one

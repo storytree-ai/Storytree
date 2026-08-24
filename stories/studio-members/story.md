@@ -17,6 +17,12 @@ capabilities: [user-directory, app-authorization, invite-ui, invite-notify, buil
 # studio→studio-members code edge closed a studio-cloud→studio→studio-members→studio-cloud cycle; this
 # is the honest break (studio-members' code deps were @storytree/library only all along).
 depends_on: [library]
+# `storytree members` (2026-08-24) dispatches the member-directory verbs into this organism's
+# PgUserStore, so `packages/cli` now carries `@storytree/studio-members` as a workspace dep. The edge
+# is declared PROVIDER-SIDE here rather than in `stories/cli`, which keeps `depends_on: []` on the
+# wiring hub (ADR-0074 §4, the convention every other cli spoke follows). check:boundaries reads
+# "code-backed" from the package.json dep, so this line and that dep must move together.
+consumed_by: [cli]
 decisions: [43, 100, 117]
 ---
 
