@@ -141,6 +141,63 @@ export type GhAuthState = "authenticated" | "unauthenticated" | "absent";
 export type BunState = "present" | "absent";
 
 /**
+ * The commands automation on this machine must be able to resolve. One list, shared by the probe
+ * script and the classifier, so the thing asked for and the thing checked can never diverge.
+ */
+export const TOOLCHAIN_COMMANDS = ["node", "pnpm", "bun"] as const;
+
+/**
+ * Whether a shell that is NOT DOCTOR'S OWN can resolve the toolchain — the one question no other
+ * probe in this group can answer, because every one of them is either an in-process observation or a
+ * subprocess INHERITING doctor's environment, and that environment is by construction one where the
+ * toolchain resolved well enough to launch doctor.
+ *
+ * The states are the two shell SHAPES compared, not two tools:
+ *   • `resolvable`   — a plain non-login, non-interactive `bash -c` resolves all of
+ *     {@link TOOLCHAIN_COMMANDS}. That is the strictest shape, the one sshd and the SessionStart hook
+ *     actually get, so if it answers, every looser shape does too.
+ *   • `login-only`   — `bash -lc` resolves them and plain `bash -c` does not. A REAL steady state, not
+ *     a transient: a plain non-login shell never sources `~/.bashrc` at all, so no edit to that file
+ *     can reach it.
+ *   • `unresolvable` — neither shape resolves them. This is the measured breakage: `~/.bashrc` puts
+ *     the toolchain lines BELOW bash's own non-interactive early return, so `ssh box 'pnpm gate'`
+ *     answers `pnpm: command not found` and the provision hook cannot find `node` — the hook that
+ *     exists to announce a broken worktree, defeated by the gap it would have reported.
+ *   • `no-shell`     — no reading could be taken. UNKNOWN, and never a PASS: see
+ *     {@link ToolchainShellUnavailable} for the two producers and why they must not read alike.
+ */
+export type ToolchainShellState = "resolvable" | "login-only" | "unresolvable" | "no-shell";
+
+/**
+ * Why {@link ToolchainShellState} reached `no-shell`. Two genuinely different producers reaching one
+ * state, on {@link classifyWriteAuthority}'s precedent — so the DETAIL has to tell them apart:
+ *   • `not-posix` — Windows. The login/non-login dotfile split is a POSIX mechanism; here PATH comes
+ *     from the persistent user environment and every new process inherits it, so there are not two
+ *     shapes to compare. This is THIS MODULE'S SECOND-ORDER TRAP handled in the direction it actually
+ *     points: the probe is authored for Linux, so a silent PASS on Windows would hand the box a green
+ *     for a mechanism only ever exercised elsewhere — the defect reintroduced by its own fix.
+ *   • `no-bash`   — bash itself could not be invoked, so neither shape could be asked. A shape that
+ *     could not be asked has not been verified.
+ */
+export type ToolchainShellUnavailable = "not-posix" | "no-bash";
+
+/**
+ * What each shell shape resolved — carried beside the state on the `dbReachable`/`dbElapsedMs` and
+ * `bun`/`bunVersion` precedent: the STATE picks the level, the datum makes the detail line say
+ * something a reader can act on ("a login shell finds node, pnpm — a plain one finds nothing").
+ *
+ * Names only, never a PATH and never an environment: this module emits no value it was handed.
+ */
+export interface ToolchainShellReadings {
+  /** Commands `bash -lc` resolved (a LOGIN shell: sources `~/.profile`, hence `~/.bashrc`). */
+  readonly login: readonly string[] | null;
+  /** Commands plain `bash -c` resolved (neither login nor interactive: sources NEITHER file). */
+  readonly plain: readonly string[] | null;
+  /** Set only when no reading could be taken at all; null whenever both shapes answered. */
+  readonly unavailable: ToolchainShellUnavailable | null;
+}
+
+/**
  * The generated `permissions.deny` block for THIS checkout (ADR-0255/0257/0284).
  *
  * `stale` is a first-class state because the block is DERIVED from `repo-manifest.json`: a new
@@ -206,6 +263,10 @@ export interface DevObservations {
   readonly bunVersion: string | null;
   readonly writeAuthority: WriteAuthorityState;
   readonly worktreeIdentity: WorktreeIdentityState;
+  /** Whether a shell OTHER than doctor's own resolves the toolchain — see {@link ToolchainShellState}. */
+  readonly toolchainShell: ToolchainShellState;
+  /** What each shell shape found; the datum behind the state. See {@link ToolchainShellReadings}. */
+  readonly toolchainShellReadings: ToolchainShellReadings;
 }
 
 // ---------------------------------------------------------------------------
@@ -383,6 +444,88 @@ export function devProbes(obs: DevObservations): Probe[] {
             `(bun is a test RUNTIME only). See ${guideStep("bootstrap")}.`,
         },
   );
+
+  // --- toolchain-shell -------------------------------------------------------------------------
+  // THE PROBE THAT ASKS A SHELL THAT IS NOT DOCTOR'S OWN. Every other probe in this group is an
+  // in-process observation or a subprocess INHERITING doctor's environment, and doctor's environment
+  // is by construction one where the toolchain resolved well enough to launch doctor. So the group is
+  // blind IN PRINCIPLE to the machine where `ssh box 'pnpm gate'` answers `pnpm: command not found`
+  // and the SessionStart provision hook cannot resolve `node` — the state that left a worktree
+  // unprovisioned while this very group reported the toolchain healthy. That is the module header's
+  // own fault class arriving from a direction the header did not anticipate: the instrument cannot
+  // observe the state that would have stopped the instrument running.
+  //
+  // The nearest precedent is one step in. ADR-0433 D3's `bun` probe INVOKES rather than stats, because
+  // an installed binary nothing can invoke is indistinguishable from an absent one. This is that same
+  // argument one step further out: a toolchain no OTHER shell can invoke is, to every automation
+  // caller, absent.
+  //
+  // WHY THE LEVELS ARE NOT UNIFORM, which is the part most easily got wrong. `login-only` is a WARN
+  // and not a FAIL because it is a legitimate steady state — a plain non-login shell never sources
+  // `~/.bashrc`, so a box whose dotfiles are as good as dotfiles can be still reads `login-only`, and
+  // a FAIL would red it permanently. A permanent red teaches readers to ignore doctor, which is the
+  // vacuous-green failure wearing the other mask. `unresolvable` IS a FAIL on this file's own stated
+  // bar: it stops all ssh-driven and hook-driven work, and its remedy is unambiguous.
+  {
+    const { login, plain, unavailable } = obs.toolchainShellReadings;
+    const found = (names: readonly string[] | null): string =>
+      names === null || names.length === 0 ? "nothing" : names.join(", ");
+    const shapes = `a login shell finds ${found(login)}, a plain non-interactive shell finds ${found(plain)}`;
+
+    if (obs.toolchainShell === "resolvable") {
+      probes.push({
+        name: "toolchain-shell",
+        level: "PASS",
+        detail: `a plain non-interactive shell resolves ${TOOLCHAIN_COMMANDS.join(", ")} — ssh- and hook-driven work can run`,
+      });
+    } else if (obs.toolchainShell === "login-only") {
+      probes.push({
+        name: "toolchain-shell",
+        level: "WARN",
+        detail: `only a LOGIN shell resolves the toolchain — ${shapes}`,
+        fixHint:
+          "do NOT reach for ~/.bashrc: a plain non-login, non-interactive bash never sources it, so " +
+          "that edit cannot reach this shape however many times it is tried. Only something read " +
+          "unconditionally gets there — a wrapper that sets the environment itself (this fleet uses " +
+          "`~/.storytree/fleet-ssh/stfleet`), or BASH_ENV. A WARN because ssh- and hook-driven work " +
+          `still runs through the login shape; this is the residue, not a break. See ${guideStep("bootstrap")}.`,
+      });
+    } else if (obs.toolchainShell === "unresolvable") {
+      probes.push({
+        name: "toolchain-shell",
+        level: "FAIL",
+        detail: `no shell but doctor's own resolves the toolchain — ${shapes}`,
+        fixHint:
+          "the toolchain lines are almost certainly BELOW ~/.bashrc's non-interactive early return " +
+          "(the `case $- in *i*) ;; *) return;; esac` near the top), so no non-interactive shell ever " +
+          "reaches them. Move them ABOVE that return, or into ~/.profile. Until then every ssh-driven " +
+          "command and every SessionStart hook gets `command not found` — including the hook whose job " +
+          `is to announce a broken worktree. See ${guideStep("bootstrap")}.`,
+      });
+    } else if (unavailable === "not-posix") {
+      probes.push({
+        name: "toolchain-shell",
+        level: "WARN",
+        detail: "not determined here — the login/non-login shell split is a POSIX mechanism, and this is not a POSIX machine",
+        fixHint:
+          "an UNKNOWN here is deliberate and is NOT a no-op. On Windows, PATH comes from the " +
+          "persistent user environment and every new process inherits it, so there are not two shell " +
+          "shapes to compare and nothing this probe could honestly assert. A silent PASS would hand " +
+          "this machine a green for a mechanism only ever exercised on Linux — which is the exact " +
+          `defect this probe exists to remove. Run it on the Linux box. See ${guideStep("bootstrap")}.`,
+      });
+    } else {
+      probes.push({
+        name: "toolchain-shell",
+        level: "WARN",
+        detail: "not determined — bash could not be invoked, so the two shell shapes could not be compared",
+        fixHint:
+          "make `bash` resolvable and re-run. This is UNKNOWN rather than a pass on the same rule the " +
+          "rest of this group follows: a shape that could not be asked has not been verified, and a " +
+          `probe that cannot go red turns an unchecked machine into an authoritative green. See ${guideStep("bootstrap")}.`,
+      });
+    }
+  }
 
   // --- write-authority -------------------------------------------------------------------------
   // THE PLATFORM-SENSITIVE ONE. The wall has only ever been exercised on Windows, so `unknown` is a
@@ -688,6 +831,79 @@ function bunState(): BunReading {
   }
 }
 
+/**
+ * PURE: the shell-shape verdict from two readings and the platform. Injectable so every state —
+ * including the two `no-shell` producers — is reachable in a test without spawning anything.
+ *
+ * ORDER IS THE ARGUMENT. `plain` is checked FIRST because it is the strictest shape: sshd and the
+ * SessionStart hook get exactly that shell, so a machine where it resolves needs no further question.
+ * `login-only` is therefore literally "the strict shape failed and the loose one did not", which is
+ * what makes the WARN honest rather than a hedge.
+ */
+export function classifyToolchainShell(
+  platform: NodeJS.Platform,
+  readings: ToolchainShellReadings,
+): ToolchainShellState {
+  if (platform === "win32") return "no-shell";
+  if (readings.unavailable !== null || readings.login === null || readings.plain === null) {
+    return "no-shell";
+  }
+  if (resolvesToolchain(readings.plain)) return "resolvable";
+  if (resolvesToolchain(readings.login)) return "login-only";
+  return "unresolvable";
+}
+
+/** Every command in {@link TOOLCHAIN_COMMANDS} was found — a partial answer is not a working shell. */
+function resolvesToolchain(found: readonly string[]): boolean {
+  return TOOLCHAIN_COMMANDS.every((command) => found.includes(command));
+}
+
+/**
+ * The script each shape runs: print the name of every toolchain command it can resolve.
+ *
+ * `exit 0` is load-bearing. Without it the loop's status is the LAST `command -v`, so a shell that
+ * resolved nothing — the very state being hunted — would exit non-zero, throw, and be misreported as
+ * "bash could not be invoked". Found-nothing and no-bash are different verdicts with different hints.
+ */
+export const TOOLCHAIN_PROBE_SCRIPT =
+  `for c in ${TOOLCHAIN_COMMANDS.join(" ")}; do command -v "$c" >/dev/null 2>&1 && echo "$c"; done; exit 0`;
+
+/**
+ * Ask both shell shapes, with a DELIBERATELY SCRUBBED environment.
+ *
+ * The scrub is the whole probe. Inheriting doctor's PATH would reintroduce exactly the blindness this
+ * exists to remove — doctor was launched from a shell where the toolchain already resolved. What the
+ * child gets instead is the system default PATH, which is what sshd and a hook actually hand a shell:
+ * enough to find `bash` itself, and deliberately not enough to find node/pnpm/bun, all three of which
+ * are user-local here (nvm, corepack, `~/.bun`). So anything they DO resolve came from a dotfile,
+ * which is the thing being measured.
+ *
+ * HOME is passed because without it bash reads no dotfiles at all and both shapes would answer the
+ * same empty answer — a probe that could never distinguish its own two states.
+ */
+function toolchainShellReadings(platform: NodeJS.Platform, home: string): ToolchainShellReadings {
+  if (platform === "win32") return { login: null, plain: null, unavailable: "not-posix" };
+  const login = askShell("-lc", home);
+  const plain = askShell("-c", home);
+  if (login === null || plain === null) return { login: null, plain: null, unavailable: "no-bash" };
+  return { login, plain, unavailable: null };
+}
+
+/** One shell shape's answer, or null when bash could not be invoked at all. Budgeted like `bunState`. */
+function askShell(shapeFlag: string, home: string): string[] | null {
+  try {
+    const out = execFileSync("bash", [shapeFlag, TOOLCHAIN_PROBE_SCRIPT], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 10_000,
+      env: { HOME: home, PATH: "/usr/bin:/bin" },
+    });
+    return out.split("\n").map((line) => line.trim()).filter((line) => line.length > 0);
+  } catch {
+    return null;
+  }
+}
+
 /** Git's two dir readings for the cwd — equal means the primary checkout, differing means a worktree. */
 interface GitDirs {
   /** `git rev-parse --git-dir`, absolute; `null` when git could not answer. */
@@ -748,6 +964,7 @@ export async function gatherDevObservations(): Promise<DevObservations> {
 
   const { gitDir, commonDir } = gitDirs();
   const bun = bunState();
+  const shellReadings = toolchainShellReadings(process.platform, home);
 
   return {
     gcloudAdc: existsSync(adcPath) ? "present" : "absent",
@@ -757,6 +974,8 @@ export async function gatherDevObservations(): Promise<DevObservations> {
     ghAuth: ghAuthState(),
     bun: bun.state,
     bunVersion: bun.version,
+    toolchainShell: classifyToolchainShell(process.platform, shellReadings),
+    toolchainShellReadings: shellReadings,
     writeAuthority: writeAuthorityState(),
     worktreeIdentity: classifyWorktreeIdentity(deriveIdentity() !== null, gitDir, commonDir),
   };
