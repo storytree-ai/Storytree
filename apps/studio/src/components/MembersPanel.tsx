@@ -4,6 +4,11 @@
 // and refuses to render its controls for a non-admin caller.
 
 import { useCallback, useEffect, useState } from 'react';
+// The role set as a VALUE, read from the schema rather than restated as `<option>`s. Restating it is
+// exactly what made `builder` (ADR-0117) ungrantable here while every layer beneath this panel
+// already accepted it. Safe as a top-level value import: this is a CLIENT component, outside the
+// vite config-load chain that `apps/studio/server/apiRouter.ts` sits in (see `../types`).
+import { USER_ROLES } from '@storytree/studio-members';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import type { InviteResult, Member, UserRole } from '../types';
@@ -72,9 +77,12 @@ export function MembersPanel(): React.JSX.Element {
     });
   }
 
-  const toggleRole = (u: Member): Promise<void> =>
+  // Re-role to ANY role in the directory's set. This was a binary `admin ⇄ member` toggle, which
+  // meant a third role could not be granted in the app at all however well the route understood it.
+  const changeRole = (u: Member, next: UserRole): Promise<void> =>
     withBusy(async () => {
-      await api.setUserRole(u.email, u.role === 'admin' ? 'member' : 'admin');
+      if (next === u.role) return;
+      await api.setUserRole(u.email, next);
       await refresh();
     });
 
@@ -104,8 +112,11 @@ export function MembersPanel(): React.JSX.Element {
           required
         />
         <select value={role} onChange={(e) => setRole(e.target.value as UserRole)} aria-label="role">
-          <option value="member">member</option>
-          <option value="admin">admin</option>
+          {USER_ROLES.map((r) => (
+            <option key={r} value={r}>
+              {r}
+            </option>
+          ))}
         </select>
         <button type="submit" className="btn primary" disabled={busy || !email.trim()}>
           Invite
@@ -143,9 +154,18 @@ export function MembersPanel(): React.JSX.Element {
                 </td>
                 <td className="muted small">{u.invitedBy ?? '—'}</td>
                 <td className="members-actions">
-                  <button type="button" className="btn small" disabled={busy} onClick={() => void toggleRole(u)}>
-                    {u.role === 'admin' ? 'Make member' : 'Make admin'}
-                  </button>
+                  <select
+                    value={u.role}
+                    disabled={busy}
+                    aria-label={`role for ${u.email}`}
+                    onChange={(e) => void changeRole(u, e.target.value as UserRole)}
+                  >
+                    {USER_ROLES.map((r) => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </select>
                   <button type="button" className="btn small ghost" disabled={busy} onClick={() => void remove(u)}>
                     Remove
                   </button>
