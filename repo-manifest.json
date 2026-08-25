@@ -286,6 +286,7 @@
       "packages/agent/src/phase-author.ts": "phase-author-seam",
       "packages/agent/src/sdk-author.ts": "live-sdk-leaf",
       "packages/agent/src/codex-*.ts": "live-sdk-leaf",
+      "packages/agent/src/pi-*.ts": "live-sdk-leaf",
       "packages/agent/src/spawn-claim.ts": "take-claim-at-spawn",
       "packages/agent/src/spawn-write-scoped.ts": "glue-worker-spawn",
       "packages/agent/src/headless-orchestrator.ts": "headless-session-runner",
