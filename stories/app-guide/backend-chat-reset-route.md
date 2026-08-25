@@ -196,9 +196,12 @@ against the no-export / 404 code at HEAD), then add the drive export + the sidec
   `node:assert/strict`, a real `node:http` server + loopback `fetch`, driving the real drive guard — the
   `chat-sse-mount.test.ts` convention). Name each test for its `bcr-…` contract id so `storytree coverage
   backend-chat-reset-route` reports 2/2 (ADR-0122).
-- **The RED the spine observes —** the import resolves nothing (`chat-reset-route.ts` does not exist at
-  HEAD) and there is no exported drive guard-reset — the test fails module-not-found / unresolved symbol
-  (the net-new + brownfield red).
+- **The RED the spine observed —** on run `real-mt8n6ern` (2026-08-25) the import resolved nothing and
+  there was no exported drive guard-reset, so the test failed module-not-found / unresolved symbol (the
+  net-new + brownfield red). **Stated in the PAST tense deliberately: this capability is now BUILT, and
+  a present-tense absence claim anchored on the file's basename would be a stale existence claim —
+  ADR-0378's `staleExistenceClaimRefusal` would refuse a future `--real` on this spec, and
+  `packages/drive/src/stale-existence-claim.test.ts` reads this prose live.**
 - **The GREEN —** export a narrow `resetCompositionGuard()` from `packages/drive/src/orchestrate.ts`
   (sets `compositionInFlight = false`); write `apps/desktop/src/backend/chat-reset-route.ts` exporting
   `createChatResetRoute()` returning the `(req, res, pathname) => Promise<boolean>` dispatcher that, on
