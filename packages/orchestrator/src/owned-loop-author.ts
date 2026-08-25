@@ -8,7 +8,7 @@
 import { runStep } from "@storytree/agent";
 import type { Model, PhaseAuthor, AuthoringPhase, AuthorResult, ToolExecutor } from "@storytree/agent";
 
-import type { WriteScope } from "./phase-machine.js";
+import type { Phase, WriteScope } from "./phase-machine.js";
 import {
   WriteScopedToolExecutor,
   type WriteToolSpec,
@@ -44,12 +44,32 @@ export class OwnedLoopAuthor implements PhaseAuthor {
     });
   }
 
-  /** Every fail-closed refusal the write wall made (so the gate/tests can assert it held). */
+  /**
+   * Every authoring slice this leaf ARMED the wall for, in order — the DENOMINATOR half of the
+   * ADR-0446 reading. `violations` alone cannot answer "how often does the wall fire?": an empty
+   * list means "armed and never fired" or "never ran", and those are different facts. Recorded at
+   * the top of {@link author}, so a slice whose model then dies still counts as armed.
+   */
+  readonly slices: { phase: AuthoringPhase }[] = [];
+
+  /** Every fail-closed refusal the write wall made (so the tests/the scope sink can assert it held). */
   get violations(): readonly WriteViolation[] {
     return this.#scoped.violations;
   }
 
+  /**
+   * Write-shaped calls this wall let through because their path could not be read (ADR-0446).
+   *
+   * Surfaced separately from {@link violations} and never merged into it: the SDK hook FAILS CLOSED
+   * on the same input where this executor passes through, so one of the two is wrong — and folding
+   * the counts together would hide exactly the disagreement counting them was meant to settle.
+   */
+  get noPathCalls(): readonly { phase: Phase; tool: string }[] {
+    return this.#scoped.noPathCalls;
+  }
+
   async author(phase: AuthoringPhase, prompt: string): Promise<AuthorResult> {
+    this.slices.push({ phase });
     this.#scoped.setPhase(phase);
     const step = await runStep({
       model: this.#model,

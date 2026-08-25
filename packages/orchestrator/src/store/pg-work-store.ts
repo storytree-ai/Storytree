@@ -1,5 +1,7 @@
 import type { CausedBy, Store, StoredDoc, StoreEvent } from "@storytree/storage-protocol";
 import {
+  SCOPE_EVENT_KIND,
+  ScopeEventDoc,
   SIGNING_EVENT_KIND,
   USAGE_EVENT_KIND,
   UsageEventDoc,
@@ -14,8 +16,10 @@ import {
  * build runs with `--store pg`. It routes the work-hierarchy event kinds to their dedicated
  * homes — `kind:"work"` → `events.work_event`, `kind:"signing"` → `events.verdict`,
  * `kind:"usage"` → `events.usage_event` (per-slice token accounting — the runtime-cost sibling
- * stream; the signed Verdict deliberately carries no cost) — so signed verdicts STOP co-mingling
- * with `events.library_event` (the plan §1 mis-landing).
+ * stream; the signed Verdict deliberately carries no cost), `kind:"scope"` → `events.scope_event`
+ * (per-slice write-fence record, ADR-0446 — the observability sibling; a row per ARMED authoring
+ * slice, so a wall that held silently is a zero rather than an absence) — so signed verdicts STOP
+ * co-mingling with `events.library_event` (the plan §1 mis-landing).
  *
  * EVENT-ONLY and fail-closed by design:
  *  - the doc surface (`upsertDoc`/`getDoc`/`queryDocs`/`deleteDoc`) throws — library artifacts
@@ -24,10 +28,11 @@ import {
  *    lands in `events.verdict`); an unknown kind throws rather than landing somewhere silent.
  *
  * `readEvents` merges the tables into one stream ordered by `at` (work before signing before
- * usage on a tie — a `building` mark precedes the pass it leads to) and REASSIGNS `seq`
+ * usage then scope on a tie — a `building` mark precedes the pass it leads to) and REASSIGNS `seq`
  * monotonically over the merged view: the tables have independent BIGSERIALs, so the raw values
  * cannot order the union. The Store contract only needs `seq` monotonic per store; `rollupStatus`
- * sorts by it (and ignores the usage kind entirely — accounting never moves a derived status).
+ * sorts by it (and ignores the usage and scope kinds entirely — neither accounting nor a fence
+ * record ever moves a derived status).
  */
 
 /** The slice of `pg.Pool` this store needs (structural, so offline tests can inject a fake). */
@@ -93,6 +98,17 @@ interface VerdictRow {
 }
 
 interface UsageRow {
+  seq: string | number;
+  unit_id: string;
+  run_id: string;
+  phase: string;
+  doc: unknown;
+  actor: string;
+  at: Date | string;
+}
+
+/** A row of `events.scope_event` — the same per-slice key shape as {@link UsageRow}. */
+interface ScopeRow {
   seq: string | number;
   unit_id: string;
   run_id: string;
@@ -235,10 +251,51 @@ export class PgWorkStore implements Store {
       };
     }
 
+    if (e.kind === SCOPE_EVENT_KIND) {
+      // Fail-closed like the verdict and usage arms: only a valid ScopeEventDoc lands (ADR-0446).
+      // `refusal_count` is a SCALAR spine so the reading is a SUM, not a jsonb walk — and it is
+      // written from the array's own length rather than a caller-supplied number, so the count and
+      // the detail can never disagree. `no_path_calls` gets its own column for the same reason it
+      // gets its own doc field: it is the case the two mechanisms disagree about, and a query that
+      // had to add them together would be one keystroke from hiding that.
+      const doc = ScopeEventDoc.parse(e.doc);
+      const actor = e.actor ?? "system";
+      const res = await this.#client.query(
+        `INSERT INTO events.scope_event
+           (unit_id, run_id, phase, source, model, refusal_count, no_path_calls, no_path_disposition,
+            doc, actor)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+         RETURNING seq, at`,
+        [
+          doc.unitId,
+          doc.runId,
+          doc.phase,
+          doc.source,
+          doc.model ?? null,
+          doc.refusals.length,
+          doc.noPathCalls,
+          doc.noPathDisposition,
+          JSON.stringify(doc),
+          actor,
+        ],
+      );
+      const row = res.rows[0] as { seq: string | number; at: Date | string } | undefined;
+      if (row === undefined) throw new Error("PgWorkStore.appendEvent: no scope_event row returned");
+      return {
+        seq: Number(row.seq),
+        id: e.id,
+        kind: e.kind,
+        type: e.type,
+        doc,
+        actor,
+        at: toIso(row.at),
+      };
+    }
+
     throw new Error(
       `PgWorkStore is the work-hierarchy event store: kind "${e.kind}" has no home here ` +
-        `(only "${WORK_EVENT_KIND}", "${SIGNING_EVENT_KIND}" and "${USAGE_EVENT_KIND}"); ` +
-        `library docs belong in PgLibraryStore`,
+        `(only "${WORK_EVENT_KIND}", "${SIGNING_EVENT_KIND}", "${USAGE_EVENT_KIND}" and ` +
+        `"${SCOPE_EVENT_KIND}"); library docs belong in PgLibraryStore`,
     );
   }
 
@@ -251,6 +308,9 @@ export class PgWorkStore implements Store {
     );
     const usage = await this.#client.query(
       `SELECT seq, unit_id, run_id, phase, doc, actor, at FROM events.usage_event ORDER BY seq`,
+    );
+    const scope = await this.#client.query(
+      `SELECT seq, unit_id, run_id, phase, doc, actor, at FROM events.scope_event ORDER BY seq`,
     );
 
     // kindRank orders a same-timestamp tie: the building mark precedes the pass it led to.
@@ -305,6 +365,26 @@ export class PgWorkStore implements Store {
         event: {
           id: `${row.run_id}:${row.unit_id}:${row.phase}`,
           kind: USAGE_EVENT_KIND,
+          type: "created",
+          doc: row.doc,
+          actor: row.actor,
+          at: toIso(row.at),
+        },
+      });
+    }
+
+    for (const raw of scope.rows) {
+      const row = raw as ScopeRow;
+      // Scope rows are OBSERVABILITY: like usage, rollupStatus ignores the kind entirely, so
+      // surfacing them here can never move a derived status — which is the property that lets the
+      // fence be counted without the count becoming a second gate.
+      merged.push({
+        at: toIso(row.at),
+        kindRank: 3,
+        tableSeq: Number(row.seq),
+        event: {
+          id: `scope:${row.run_id}:${row.unit_id}:${row.phase}`,
+          kind: SCOPE_EVENT_KIND,
           type: "created",
           doc: row.doc,
           actor: row.actor,

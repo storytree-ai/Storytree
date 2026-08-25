@@ -34,6 +34,7 @@ function fakeClient(rowsByTable?: {
   work?: unknown[];
   verdict?: unknown[];
   usage?: unknown[];
+  scope?: unknown[];
 }) {
   const queries: Array<{ text: string; values: unknown[] }> = [];
   let seq = 0;
@@ -48,6 +49,7 @@ function fakeClient(rowsByTable?: {
       if (text.includes("FROM events.work_event")) return { rows: rowsByTable?.work ?? [] };
       if (text.includes("FROM events.verdict")) return { rows: rowsByTable?.verdict ?? [] };
       if (text.includes("FROM events.usage_event")) return { rows: rowsByTable?.usage ?? [] };
+      if (text.includes("FROM events.scope_event")) return { rows: rowsByTable?.scope ?? [] };
       return { rows: [] };
     },
   };
@@ -62,6 +64,86 @@ const USAGE_DOC = {
   usage: { inputTokens: 10, cacheCreationInputTokens: 20, cacheReadInputTokens: 30, outputTokens: 40 },
   costUsd: 0.05,
 } as const;
+
+/** An ARMED-AND-SILENT slice: the wall was in place and nothing hit it. A zero, not an absence. */
+const SCOPE_SILENT_DOC = {
+  unitId: "u1",
+  runId: "run-1",
+  phase: "IMPLEMENT",
+  source: "owned-loop",
+  armed: true,
+  refusals: [],
+  noPathCalls: 2,
+  noPathDisposition: "passed-through",
+} as const;
+
+test("a scope event routes to events.scope_event with the counts as the scalar spine", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  const doc = {
+    ...SCOPE_SILENT_DOC,
+    refusals: [{ kind: "scope", tool: "Write", path: "src/x.test.ts" }],
+  };
+  const event = await store.appendEvent({
+    id: "scope:run-1:u1:IMPLEMENT",
+    kind: "scope",
+    type: "created",
+    doc,
+    actor: "tester@example.com",
+  });
+
+  assert.equal(queries.length, 1);
+  const q = queries[0]!;
+  assert.match(q.text, /INSERT INTO events\.scope_event/);
+  // unit_id, run_id, phase, source, model, refusal_count, no_path_calls, no_path_disposition.
+  assert.deepEqual(q.values.slice(0, 8), [
+    "u1",
+    "run-1",
+    "IMPLEMENT",
+    "owned-loop",
+    null,
+    1,
+    2,
+    "passed-through",
+  ]);
+  // The scalar count is derived from the array's own length, so detail and count cannot disagree.
+  assert.deepEqual(JSON.parse(q.values[8] as string), doc);
+  assert.equal(event.kind, "scope");
+});
+
+test("a scope event for an ARMED-AND-SILENT slice lands with refusal_count 0 — a measured zero", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  await store.appendEvent({
+    id: "scope:run-1:u1:IMPLEMENT",
+    kind: "scope",
+    type: "created",
+    doc: SCOPE_SILENT_DOC,
+    actor: "tester@example.com",
+  });
+  // The row EXISTS. That is the whole point: "armed and never fired" must not look like "nobody
+  // recorded anything", and only a persisted row can carry that difference.
+  assert.equal(queries.length, 1);
+  assert.equal(queries[0]!.values[5], 0);
+  // …and the disputed no-path count is NOT folded into it.
+  assert.equal(queries[0]!.values[6], 2);
+});
+
+test("a scope event whose doc is malformed fails closed (no fence garbage lands)", async () => {
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  await assert.rejects(
+    store.appendEvent({
+      id: "x",
+      kind: "scope",
+      type: "created",
+      // `armed: false` is not a shape the stream admits — no measurement describes an absent wall.
+      doc: { ...SCOPE_SILENT_DOC, armed: false },
+      actor: "tester",
+    }),
+  );
+  assert.equal(queries.length, 0, "no INSERT may run for an unparseable scope doc");
+});
 
 test("a signing event routes to events.verdict with the Verdict's scalar spine", async () => {
   const { client, queries } = fakeClient();
@@ -234,6 +316,31 @@ test("readEvents surfaces usage rows after work/signing on a tie, and the rollup
   assert.deepEqual(events.map((e) => e.kind), ["work", "signing", "usage"]);
   assert.equal(events[2]!.id, "run-1:u1:AUTHOR_TEST");
   // Accounting never moves a derived status: the pass still projects healthy.
+  assert.equal(rollupStatus("u1", events), "healthy");
+});
+
+test("readEvents surfaces scope rows last on a tie, and the rollup ignores them too", async () => {
+  const { client } = fakeClient({
+    work: [
+      { seq: 1, type: "building", doc: { unitId: "u1", event: "building", runId: "run-1" }, actor: "t", at: "2026-06-10T00:00:00.000Z" },
+    ],
+    verdict: [
+      { seq: 1, unit_id: "u1", run_id: "run-1", signer: "tester@example.com", doc: PASS_VERDICT, at: "2026-06-10T00:00:00.000Z" },
+    ],
+    usage: [
+      { seq: 1, unit_id: "u1", run_id: "run-1", phase: "AUTHOR_TEST", doc: USAGE_DOC, actor: "t", at: "2026-06-10T00:00:00.000Z" },
+    ],
+    scope: [
+      { seq: 1, unit_id: "u1", run_id: "run-1", phase: "IMPLEMENT", doc: SCOPE_SILENT_DOC, actor: "t", at: "2026-06-10T00:00:00.000Z" },
+    ],
+  });
+  const store = new PgWorkStore(client);
+  const events = await store.readEvents();
+
+  assert.deepEqual(events.map((e) => e.kind), ["work", "signing", "usage", "scope"]);
+  assert.equal(events[3]!.id, "scope:run-1:u1:IMPLEMENT");
+  // Observability never moves a derived status: the pass still projects healthy with a fence row
+  // in the stream. That is what lets the wall be counted without the count becoming a second gate.
   assert.equal(rollupStatus("u1", events), "healthy");
 });
 
