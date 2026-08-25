@@ -220,3 +220,54 @@ before/after for increment 2 is already on the record.
 **Not measured, deliberately:** `apps/studio` and `packages/app-surface`, the two `vitest` workspaces.
 Their UI mutation profile does not represent spine-authored proof code, and including them would blur
 the question this baseline exists to answer.
+
+---
+
+## 9. Follow-up — what increment 2 moved
+
+Added 2026-08-25, same day, after the property leg landed (arc increment
+`pbt-as-an-additive-proof-leg`, ADR-0447 D3). Same instrument, same config, same subject — so this is
+a like-for-like before/after rather than a re-measurement.
+
+| File | Before | After | Change |
+|---|---:|---:|---|
+| `criterion-binding.ts` | 31.25% | **87.50%** | anchors, length, character class, and the content hash |
+| `enums.ts` | 65.22% | **100.00%** | every member set pinned to a hand-written literal |
+| `work-event.ts` | 94.12% | **100.00%** | the `"retired"` member, and its two siblings |
+| `attestations.ts` | 57.14% | 57.14% | untouched — not in this increment's scope |
+| `proof.ts` | 71.43% | 71.43% | untouched — not in this increment's scope |
+| **package total** | **70.14%** | **82.64%** | 101 → 119 killed, 43 → 25 survived |
+
+**Both measured holes are closed**, and each was verified by hand rather than inferred from the
+score: stripping `^` from `CriterionId`'s pattern now fails the suite (it did not before), stripping
+`$` now fails, and deleting `"retired"` from `WorkEventDoc` now fails.
+
+### Three things worth carrying forward
+
+**A property is not always the right instrument, even on a mutation-found hole.** The enum survivors
+are NOT closed by a property. The obvious property — *every member of `X.options` parses* — derives
+its expectation from its own subject, so mutating the enum mutates the expectation and it stays
+green. That is `an-expectation-derived-from-its-subject-cannot-fail` wearing a property-test costume.
+What actually kills those mutants is an example-based assertion against a **hand-written literal set**;
+the property only covers the complementary half (nothing outside the set parses). ADR-0447 D3's
+"additive, never sole proof" turned out to be load-bearing on the very first use.
+
+**The measurement found a third hole nobody had named.** `criterionRevisionId` — the FNV-1a/64
+content binding behind `uatr1:` ids (ADR-0253) — was completely unexercised: emptying its mixing loop
+and flipping its multiply to a divide both survived. A content binding whose loop does nothing
+returns the same id for every input, so every criterion revision would collide. This was not in
+increment 1's write-up because a 31.25% file's survivor list was read for its headline (the anchors)
+and the rest deferred. **Read the whole survivor list, not the top of it.**
+
+**A hash is close to the ideal property subject.** Its contract is stated over all inputs and there
+is no interesting single example, so the example-based leg has nothing much to say. Determinism and
+shape are the floor; DISTINCTNESS is what kills the mutants, because a broken mixer collides
+immediately. Collision risk is negligible at 64 bits (birthday bound ~1.4e-14 over 1,000 pairs) and
+the seed is pinned anyway.
+
+### What is deliberately still surviving
+
+`criterion-binding.ts`'s two remaining survivors are both blanked zod error-message strings, which
+§4d already classified as cosmetic — asserting on human-readable message text buys no fault detection
+and makes the suite brittle. `attestations.ts` (57.14%) and `proof.ts` (71.43%) were out of scope and
+are untouched; they are the obvious next targets if this arc continues past increment 3.
