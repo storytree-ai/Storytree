@@ -1,15 +1,24 @@
 /**
  * WHAT THE TRAVERSAL RECORD CAN AND CANNOT SEE OF A DECISION READ — story
- * `context-traversal-transcript`, declared at STORY GRAIN
- * (ADR-0419 / `decision-read-measurement-arc-inc-01`).
+ * `context-traversal-transcript`, capability `transcript-decision-read-coverage`.
  *
- * This header named `transcript-decision-read-ingest` until that capability was actually minted
- * (`linked-session-context-arc-inc-28`). Minting it made the claim checkable, and it turned out to be
- * wrong: this module WRITES NOTHING, so filing a measurement instrument under a write organ would make
- * that capability's stated outcome untrue. The owner of record is `repo-manifest.json` →
- * `sourceOwnership.subtrees`; its `$comment_decision_read_coverage` note carries the full reasoning and
- * names what is still owed — a third capability over the read-back/observability report, which needs
- * its own increment rather than being smuggled into that one.
+ * THE OWNERSHIP HISTORY, because both earlier answers are wrong and a reader will meet them in git.
+ * This header first named `transcript-decision-read-ingest`. Minting that capability
+ * (`linked-session-context-arc-inc-28`) made the claim checkable and falsified it: this module WRITES
+ * NOTHING, so filing a measurement instrument under a write organ would have made that capability's
+ * stated outcome untrue. It was left at STORY GRAIN instead — which ADR-0346 D2 makes unclaimable at
+ * `work` grade, so nobody could legally claim this file while editing it. That hole is closed:
+ * `linked-session-context-arc-inc-34` minted the capability above, over the read-back / observability
+ * report, and `repo-manifest.json` → `sourceOwnership.subtrees` now points this file at it. The
+ * reasoning that used to live in that manifest's `$comment_decision_read_coverage` note is in the
+ * capability spec's frontmatter, which is where it is checkable.
+ *
+ * ⚠ THE PROVENANCE BELOW IS NOT A CITATION. This module was built under
+ * `decision-read-measurement-arc-inc-01` to measure something ADR-0419 wanted known — and ADR-0419 is
+ * `superseded` (by ADR-0431, 2026-08-23), which changed nothing here, because it decided what a
+ * DECISION'S SUPPORT EDGE is and this module reads no edges at all. The capability spec deliberately
+ * does not cite it; see the note there before "restoring" it. A superseded decision can be argued
+ * from, never leaned on.
  *
  * An EXTENSION to `probe:decision-reads`, never a second instrument. The sibling modules here
  * RECOVER reads out of host transcripts and append them; this one reads the traversal record BACK

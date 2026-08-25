@@ -17,6 +17,7 @@ capabilities:
     transcript-occupancy-ingest,
     transcript-decision-read-extraction,
     transcript-decision-read-ingest,
+    transcript-decision-read-coverage,
   ]
 ---
 
@@ -95,6 +96,7 @@ would double every observation.
 | 3 | [`transcript-occupancy-ingest`](transcript-occupancy-ingest.md) | A session's correlated windows become validated occupancy events on disk, idempotently. | `transcript-occupancy-extraction`, `transcript-session-correlation` |
 | 4 | [`transcript-decision-read-extraction`](transcript-decision-read-extraction.md) | Every decision-record read a host transcript recorded is recovered by argv shape, with each near-miss declined and counted rather than dropped. | — |
 | 5 | [`transcript-decision-read-ingest`](transcript-decision-read-ingest.md) | The decision reads recovered from every host transcript become validated traversal events in each session's own trace, idempotently, and a zero is reported as blindness rather than as silence. | `transcript-decision-read-extraction`, `transcript-session-correlation`, `transcript-occupancy-ingest` |
+| 6 | [`transcript-decision-read-coverage`](transcript-decision-read-coverage.md) | The traversal record's own account of decision reads is reported back — the two recorders counted apart, the unrecordable offers sized as a denominator, and the raw-id join printed beside the resolved one. | `transcript-decision-read-extraction` |
 
 The graph is acyclic, and it is two chains sharing one root. Capabilities 1, 2 and 4 each read
 transcript bytes and consume nothing from each other. Capability 3 composes 1 and 2 with increment
@@ -104,13 +106,28 @@ refuses a duplicate, so that sibling's delivered outcome is a genuine preconditi
 proof to pass. No edge runs backwards: nothing capability 3 delivers is consumed by 1, 2 or 4, and
 nothing capability 5 delivers is consumed by anything here at all.
 
-**Capabilities 4 and 5 are BROWNFIELD (`status: mapped`), unlike 1–3.** Their code was landed by
-ordinary hand-authored commits under `adrs-into-the-dag-arc-inc-07` and ADR-0403 rather than driven
-red→green by the spine, so no signed verdict backs them and neither carries a `real:` arm (ADR-0094;
-a forced net-new red against files that already exist is the theater ADR-0085 bans). Each was MINTED
-by `linked-session-context-arc-inc-28` so the subtree it owns is claimable at `work` grade again —
-ADR-0346 D2 retired story-grain work claims, and until these existed a session writing those files had
-nothing legal to claim. Their specs describe shipped behaviour and invent no new obligation.
+**Capability 6 runs the OTHER WAY, and that is why it is its own unit rather than a corner of 5.**
+Everything above moves reads in one direction — 4 recovers them out of transcript bytes, 5 writes
+them to disk. Capability 6 writes nothing at all: it reads the durable record BACK and reports what
+is and is not observable in it, reconciling the two decision-id spellings at READ time. Filing a
+measurement instrument under a write organ would make capability 5's stated outcome untrue, and
+widening that outcome to cover both would need a conjunction — the splitting rule's own trigger. Its
+one edge is on 4, and it is a runtime import rather than a proof-surface precondition: it builds its
+host-transcript route set out of that sibling's `DECISION_READ_SURFACES`, so a surface added or
+renamed there reds capability 6's route contract. It depends on neither occupancy capability, because
+nothing in it or its suite touches them. Nothing consumes what it delivers, so it adds no cycle risk.
+
+**Capabilities 4, 5 and 6 are BROWNFIELD (`status: mapped`), unlike 1–3.** Their code was landed by
+ordinary hand-authored commits — 4 and 5 under `adrs-into-the-dag-arc-inc-07` and ADR-0403, 6 under
+`decision-read-measurement-arc-inc-01` — rather than driven red→green by the spine, so no signed
+verdict backs them and none carries a `real:` arm (ADR-0094; a forced net-new red against files that
+already exist is the theater ADR-0085 bans). Each was MINTED so the subtree it owns is claimable at
+`work` grade again — ADR-0346 D2 retired story-grain work claims, and until these existed a session
+writing those files had nothing legal to claim. 4 and 5 were minted by
+`linked-session-context-arc-inc-28`; 6 was left behind by it and minted separately by
+`linked-session-context-arc-inc-34`, because its module landed AFTER that increment was parked and so
+the two-capability decision never considered it. Their specs describe shipped behaviour and invent no
+new obligation.
 
 ## Declared boundaries
 
