@@ -96,7 +96,10 @@ test("hierarchy-drift-reds-when-the-mirror-lags-the-base-tree: a store stamped w
   assert.equal(verdict.freshness, "behind");
   assert.match(report(verdict), /does NOT mirror origin\/main/);
   assert.match(report(verdict), /pnpm hierarchy:load/, "the failure names its own remedy");
-  assert.match(report(verdict), /never silently answered from disk/i);
+  assert.match(report(verdict), /NEVER silently answered/);
+  // The one race is named as the FIRST thing to check, so the commonest benign cause of this red
+  // does not send a reader looking for a broken loader.
+  assert.match(report(verdict), /CHECK THE RACE FIRST/);
 });
 
 test("hierarchy-drift-warns-rather-than-reds-when-this-checkout-is-the-stale-one", () => {

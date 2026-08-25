@@ -55,6 +55,17 @@ import {
  * automatic writer (the post-merge regeneration) and one manual one (a hand re-run after that
  * failed); this judge assumes the loader was pointed at a real checkout, and asserts nothing about a
  * deliberately misused one.
+ *
+ * ## THE ONE RACE, NAMED RATHER THAN DENIED
+ *
+ * The regeneration runs in the automerge job, moments AFTER the merge it follows. A CI run that
+ * fetches `main` inside that window sees the new tree while the mirror still holds the old one, and
+ * reads BEHIND. It is the same class as `check:guidance` / `check:agents` racing a sibling's live
+ * write — a known, accepted shape here whose remedy is a re-run — and the window is roughly a
+ * minute, entered only by a `stories/**` merge. The BEHIND message names it as the first thing to
+ * check. A grace period keyed on the base commit's age would close it; it is deliberately NOT built,
+ * because it trades a real, rare re-run for a window in which a genuinely failed regeneration reads
+ * as fine, and nothing has yet measured the first cost as worth the second.
  */
 
 /** What the caller managed to gather. Every field may be absent, and absence is judged, not ignored. */
@@ -234,10 +245,14 @@ export function judgeHierarchyDrift(input: HierarchyDriftInputs): HierarchyDrift
         `    stored  ${stored.storiesTreeSha}  (generated ${stored.generatedAt} by ${stored.generator})`,
         `    ${input.baseRef.padEnd(7)} ${input.baseStoriesTreeSha ?? "?"}`,
         "",
-        "  The regeneration that runs on merge to `main` did not take, so every reader of this",
-        "  mirror is being served an older tree. It is reported rather than repaired here, and it is",
-        "  NEVER silently answered from disk instead: a fallback would report health while serving",
-        "  the stale thing, which is the failure this projection exists to remove.",
+        "  CHECK THE RACE FIRST: the regeneration runs in the automerge job, moments AFTER the merge",
+        "  it follows. If a `stories/**` PR landed in the last minute or two, this reading is simply",
+        "  earlier than that job — re-run this step before doing anything else.",
+        "",
+        "  Otherwise the regeneration did not take, and every reader of this mirror is being served",
+        "  an older tree. It is reported rather than repaired here, and it is NEVER silently answered",
+        "  from disk instead: a fallback would report health while serving the stale thing, which is",
+        "  the failure this projection exists to remove.",
         "",
         `    ${RELOAD}   # from a checkout at ${input.baseRef}`,
       ],
