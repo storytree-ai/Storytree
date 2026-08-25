@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, map-currency-signal]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -149,7 +149,7 @@ Listed roots-first (a capability appears after everything it depends on).
 | 19 | [`act2-regrow-camera-frame-delivery`](act2-regrow-camera-frame-delivery.md) | The approved Act 2 bottom-anchored zoom-out preserves its exact choreography while its stable-picture frames reach the display within one refresh interval of the growth-only control. | `act2-regrow-camera-zoom-out`, `camera-rasterisation-probe` |
 | 20 | [`arc-orientation-lens`](arc-orientation-lens.md) | An owner arriving cold is oriented by the map's arc lens alone, without asking an agent to reconstruct the context. | — |
 | 21 | [`act2-intro-cursor`](act2-intro-cursor.md) | The Act 2 forest regrow is driven end to end by one app-owned cursor the operator can move. | — |
-| 22 | [`map-currency-signal`](map-currency-signal.md) | A developer reading the forest map is told, in three states, whether the view is current — and when it is not, which cause and which remedy. | `map-payload-cache` |
+| 22 | [`store-connection-signal`](store-connection-signal.md) | An operator reading the forest map can see at a glance whether the live store is connected, without opening anything. | — |
 
 Rows 20–21 are **greenfield `proposed` units registered retrospectively** by
 `capability-layer-coverage-arc` increment 4 (2026-08-07). Their implementation and tests were built

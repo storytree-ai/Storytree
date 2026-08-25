@@ -164,7 +164,7 @@ export { resolveSignerFromEnv } from "./proof/signer-env.js";
 export { isProvenStatus } from "./proof/proof-status.js";
 export { verdictLine } from "./proof/verdict-line.js";
 export { normalizeSpan, hashSpan, isDescribed, classifyDrift } from "./proof/anchor-compute.js";
-export { workEvent, rollupStatus } from "./proof/rollup.js";
+export { workEvent, hasSignedVerdict, rollupStatus } from "./proof/rollup.js";
 export type { RollupEvent } from "./proof/rollup.js";
 // The per-slice token-usage event builder (accounting, never proof — the sibling stream to
 // events.verdict; the signed Verdict deliberately carries no runtime cost).
@@ -176,15 +176,31 @@ export { deriveAttestations } from "./proof/attestations.js";
 // The per-test UAT proof compute (ADR-0082): the sign-time trust guard + the read-time AND-roll-up
 // that greens a story's own UAT when all its per-test verdicts pass. DATA shapes are the contract's;
 // the per-test DATA + parser live in the library organism (`uat-test-criteria.ts`, ADR-0044).
-export type { UatProofCheck, UatProofResult } from "./proof/uat-proof.js";
+export type {
+  UatProofCheck,
+  UatProofResult,
+  OwnProofObligation,
+  StoryCapabilityRef,
+} from "./proof/uat-proof.js";
 export {
   checkUatProof,
   rollupCriterionStatus,
+  rollupObligationStatus,
   rollupStoryUat,
   rollupStoryGreen,
   rollupCapStatus,
+  isUndertakenCapability,
   gateStoryGreenOnOpenQuestions,
 } from "./proof/uat-proof.js";
+// ADR-0416 D6: the story-BASELINE fold — what a proven whole-story pass covered, and what has been
+// declared beyond it since (the EXPANSION signal D2 requires a surface to show beside the green).
+export type { StoryDeclaration, StoryExpansion } from "./proof/story-baseline.js";
+export {
+  storyBaselineOf,
+  expansionBeyondBaseline,
+  matchesStoryBaseline,
+  obligationId,
+} from "./proof/story-baseline.js";
 // ADR-0085 (resolving ADR-0083 Fork B): the OBSERVE-AND-SIGN compute — an `observe` obligation earns
 // an `adopted` machine verdict when the spine observes its declared command green at a clean
 // committed HEAD (no prior red; job 2 supplied by author review). ADR-0408 splits the spec into its

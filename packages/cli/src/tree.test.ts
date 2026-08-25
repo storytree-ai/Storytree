@@ -150,7 +150,11 @@ before(() => {
       "tier: capability",
       "title: Capability C",
       "outcome: cap-c is done",
-      "status: proposed",
+      // `building`, not `proposed`: ADR-0443 D1 drops an UNBEGUN `proposed` capability from the crown
+      // clause entirely, so a `proposed` cap here would silently stop holding the crown and the
+      // ADR-0083 Fork A invariant these tests exist to pin would go untested. `building` is an
+      // UNDERTAKEN-but-unproven capability, which is the state that invariant is actually about.
+      "status: building",
       "proof_mode: integration-test",
       "---",
       "",

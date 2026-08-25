@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { Outcome, ProofMode } from "./enums.js";
 import { CriterionId, CriterionRevisionId } from "./criterion-binding.js";
+import { StoryBaselineScope } from "./story-baseline.js";
 
 /**
  * The verdict DATA shapes (ADR-0068 §3) — the published SHAPE readers validate
@@ -138,6 +139,22 @@ const VerdictData = z
      * absence (a missing axis means "not recorded", never "fully covered").
      */
     contractCoverage: ContractCoverageAxis.optional(),
+    /**
+     * ADR-0416 D6 (the durable proven baseline): the capability and own-proof obligation sets this
+     * verdict was signed OVER, with their content fingerprint. Present only on a STORY-baseline
+     * verdict — the whole-story pass that establishes the baseline ADR-0416 D1 makes durable.
+     *
+     * It is what makes "declared later" computable. Without it a reader can see that a story was
+     * once green and that it declares more work now, but cannot say WHICH work is outside the proven
+     * baseline — so the two facts collapse into one colour, which is the modelling error ADR-0416
+     * exists to correct. With it, expansion is nameable (`expansionBeyondBaseline`) and can be shown
+     * beside the green rather than instead of it (D2: *"silence is not acceptable"*).
+     *
+     * OPTIONAL/additive: every prior verdict, and every capability / criterion / gate verdict,
+     * round-trips unchanged without it. A reader keys behaviour off its PRESENCE, never its absence
+     * — a missing scope means "this verdict did not establish a baseline", never "nothing expanded".
+     */
+    storyBaseline: StoryBaselineScope.optional(),
     evidence: z.array(EvidenceRef).default([]),
     at: z.string(),
   })

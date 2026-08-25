@@ -123,9 +123,9 @@ import { ArcSurface } from './ArcSurface.js';
 import { useArcRollups } from '../lib/arcRollups.js';
 import { floorHealthBand, useFloorHealth } from '../lib/floorHealth.js';
 import { FloorHealthLamp } from './FloorHealthLamp.js';
-import { mapCurrency, type CodeCurrency } from '../lib/mapCurrency.js';
-import { MapCurrencyLamp } from './MapCurrencyLamp.js';
-import { useDevCurrencyOverride } from '../lib/devStoreOverride.js';
+import { storeConnection, type StoreConnectionReading } from '../lib/storeConnection.js';
+import { StoreConnectionChip } from './StoreConnectionChip.js';
+import type { StorePhase } from './StoreBanner.js';
 import { readDrawerLens, DEFAULT_DRAWER_LENS, type DrawerLens } from '../lib/drawerLens.js';
 import { LibraryFinder } from './LibraryFinder.js';
 import { LibraryFocusGraph } from './LibraryFocusGraph.js';
@@ -1805,7 +1805,7 @@ export function TreeView({
   active = true,
   codeHeadRef: codeHeadRefFromApp,
   cacheWriteSuppressedRef: cacheWriteSuppressedRefFromApp,
-  codeCurrency = null,
+  storePhase = 'unknown',
 }: {
   focus: string | null;
   /** False while App retains this instance off-route. A parked forest settles; it never plays hidden. */
@@ -1832,14 +1832,13 @@ export function TreeView({
    */
   cacheWriteSuppressedRef?: { current: boolean };
   /**
-   * ADR-0445 D3 (`map-currency-signal`): how current this app's own CODE is — the pair App lifted
-   * from StoreBanner's single `/api/health` poller. A reactive prop rather than a ref, because this
-   * one is meant to reach the screen. `null` means the health probe has not answered, which is NOT
-   * the same as "current": the signal withholds a reading rather than claiming a green it never
-   * looked for. Optional — a caller that doesn't wire it (tests, the Semantic Growth demo) simply
-   * gets no currency lamp.
+   * `store-connection-signal`: the live store's health phase, as `StoreBanner`'s single
+   * `/api/health` poller resolved it and `App` already lifts for the load screens. The map's
+   * database-connection light is a SECOND READER of that one phase, never a second poller.
+   * Defaults to `'unknown'`, which renders no chip — so a caller that doesn't wire it (tests, the
+   * Semantic Growth demo composition) simply gets no light rather than a false one.
    */
-  codeCurrency?: CodeCurrency | null;
+  storePhase?: StorePhase;
 }): React.JSX.Element {
   // The renderer + heavy overlays, real unless a caller substituted one (see StudioSurfacesContext).
   const surfaces = useStudioSurfaces();
@@ -2055,20 +2054,9 @@ export function TreeView({
   // to 30 min with the move: the read scans the whole friction tier and event log for a figure that
   // moves on a daily grain, so the wider window is paid for by a longer one (lib/floorHealth.ts).
   const floorHealth = useFloorHealth(active);
-  // ADR-0445 D3 (`map-currency-signal`): "is what I am seeing CURRENT?" — every input is a fact this
-  // component already holds. `cacheProvisional` is the serving-cache half (ADR-0240 D3's provisional
-  // mark); `codeCurrency` is the code half App lifted from the health poll. Note what is NOT here:
-  // no store-reachability input, because a connectivity reading would have shown green through the
-  // whole incident this signal exists to catch.
-  const devCurrency = useDevCurrencyOverride();
-  const currencyReading =
-    devCurrency ??
-    mapCurrency({
-      painted: stories !== null,
-      provisional: cacheProvisional,
-      loadFailed: loadError !== '',
-      code: codeCurrency,
-    });
+  // `store-connection-signal`: the map's database-connection light. A pure read of the phase the
+  // health poller already resolved — no probe of its own, and nothing to decide here.
+  const connectionReading = storeConnection(storePhase);
 
   // The island ground is always the Townscaper mesh (ADR-0233 — the `?substrate=` gear control is
   // retired). Live tuning (`jitter`/`iters`/`relax`/`wheatScatter`) is still read from the URL so the
@@ -3368,10 +3356,6 @@ export function TreeView({
       <div className="pad">
         <h2>Story forest</h2>
         <p className="muted">Couldn’t load the tree: {loadError}</p>
-        {/* The currency signal's RED state, and the only surface it can appear on: "no data at all"
-            means there is no map to pin a lamp over (ADR-0445 D3). Rendered in ordinary flow here —
-            the component carries no dock of its own precisely because it has these two mounts. */}
-        <MapCurrencyLamp reading={currencyReading} />
       </div>
     );
   }
@@ -3474,6 +3458,7 @@ export function TreeView({
     <div className="tree-wrap" data-cache-provisional={cacheProvisional ? 'true' : undefined}>
       <div className="tree-layout">
         <SharedIslandsPanel
+          connection={connectionReading}
           islands={sharedIslands}
           stories={stories}
           builds={rawBuilds}
@@ -3743,15 +3728,7 @@ export function TreeView({
               the owner "without the owner going looking" was itself behind a drawer. Out here it is
               visible whenever the map is, and the map is the floor it reports on. Bottom-right,
               immediately left of the gear, so the two read as one instrument cluster. */}
-          {/* ONE bottom-right instrument cluster, and now genuinely one element rather than two that
-              merely sit near each other. The stack is bottom-anchored, so the floor lamp's rendered
-              position is unchanged and the currency signal takes the slot above it. They answer
-              DIFFERENT questions — "is the floor healthy?" vs "is what I am seeing current?" — which
-              is why they are two instruments and must stay visually distinct. */}
-          <div className="map-instrument-stack">
-            <MapCurrencyLamp reading={currencyReading} />
-            <FloorHealthLamp signal={floorHealthBand(floorHealth)} />
-          </div>
+          <FloorHealthLamp signal={floorHealthBand(floorHealth)} />
           {/* The world-tuning gear (bottom-right): sliders/toggles/selects bound to
               the URL dials. Closed by default ⇒ no params written ⇒ today's world is
               byte-identical. */}
@@ -4668,6 +4645,7 @@ function SharedIslandCard({
  * never reflows the panel's vertical content. Escape / click-outside dismiss the flyout.
  */
 function SharedIslandsPanel({
+  connection,
   islands,
   stories,
   builds,
@@ -4683,6 +4661,14 @@ function SharedIslandsPanel({
   onResetHidden,
   onSelectIsland,
 }: {
+  /**
+   * `store-connection-signal`: the live store's connection reading, or null when there is none to
+   * give. Rendered at the TOP of this panel, above the Legend drawer — the owner's placement, and
+   * the reason it lives here rather than in its own dock: this column is already where the map puts
+   * the things you read rather than click, and hosting it costs no second positioned overlay.
+   * Sits OUTSIDE the scrolling body, so a long island list can never scroll the light out of view.
+   */
+  connection: StoreConnectionReading | null;
   islands: TreeStory[];
   stories: TreeStory[];
   builds: BuildActivity[];
@@ -4760,6 +4746,7 @@ function SharedIslandsPanel({
 
   return (
     <div className="shared-islands-panel" ref={panelRef}>
+      <StoreConnectionChip reading={connection} />
       <div className="shared-islands-panel-body">
         {/* Two independent drawers, each a clickable bar collapsed by default (owner UX) — mirror the
             right panel's "Architectural Decision Records" <details>. First the Legend chip-bar, then the

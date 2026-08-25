@@ -25,7 +25,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { getDesktopApply } from '../lib/desktopApply';
-import type { CodeCurrency } from '../lib/mapCurrency';
 
 const SLOW_POLL_MS = 30_000;
 const FAST_POLL_MS = 5_000;
@@ -55,7 +54,6 @@ export function StoreBanner({
   canWake = false,
   onPhase,
   onCodeHead,
-  onCodeCurrency,
 }: {
   onRecovered: () => void;
   /**
@@ -80,19 +78,6 @@ export function StoreBanner({
    * the local dev banner that doesn't lift it keeps working unchanged.
    */
   onCodeHead?: (head: string) => void;
-  /**
-   * Lift the CODE-CURRENCY pair this banner already derives (ADR-0445 D3, `map-currency-signal`):
-   * whether the checkout moved under the running server (`code.stale`) and how many commits a
-   * pinned runtime is behind `origin/main` (`runtime.behind`). The forest's currency signal reads
-   * them to answer "is what I am seeing current?" — the question a connectivity light cannot see,
-   * because through the whole 2026-08-25 incident the database answered perfectly.
-   *
-   * SERVED BY THIS BANNER'S SINGLE POLLER, never a second one — the same rule `onCodeHead` already
-   * follows, and for the same reason. Fires on every resolved health response (including the ones
-   * that report everything current, so the signal can leave amber again). Optional: a caller that
-   * doesn't wire the signal keeps working unchanged.
-   */
-  onCodeCurrency?: (currency: CodeCurrency) => void;
 }): React.JSX.Element | null {
   const [phase, setPhase] = useState<StorePhase>('unknown');
   const [startError, setStartError] = useState('');
@@ -138,10 +123,6 @@ export function StoreBanner({
       // Update-available signal for the installed desktop app: pinned runtime worktree behind main.
       const behindCount = health.runtime?.pinned ? (health.runtime.behind ?? 0) : 0;
       setBehind(behindCount > 0 ? { count: behindCount } : null);
-      // ADR-0445 D3: the same two facts, lifted for the forest's currency signal. Reported on EVERY
-      // resolved probe rather than only when something is wrong — the signal has to be able to
-      // return to green, and it must be able to tell "current" from "not asked yet".
-      onCodeCurrency?.({ serverCodeMoved: health.code?.stale === true, behindMain: behindCount });
       if (health.store === 'json') {
         setPhase('json');
         return;
@@ -184,7 +165,7 @@ export function StoreBanner({
     } finally {
       inFlight.current = false;
     }
-  }, [onRecovered, onCodeHead, onCodeCurrency]);
+  }, [onRecovered, onCodeHead]);
 
   // Lift the phase up so App's load-state machine can react to it (STARTING / TAKING-LONGER /
   // SERVER-LOST) without a second poller. Runs after each phase change.

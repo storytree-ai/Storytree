@@ -12,14 +12,23 @@ import { existsSync, readdirSync } from "node:fs";
 import path from "node:path";
 
 import type { UatTestCriterion, ReliabilityGate } from "@storytree/library";
-import { activeReliabilityGates } from "@storytree/library";
 import {
+  activeReliabilityGates,
+  crownObligations,
+  crownUatCriteria,
+  unsignableUatCriteria,
+} from "@storytree/library";
+import type { StoryCapabilityRef } from "@storytree/orchestrator";
+import {
+  expansionBeyondBaseline,
+  isUndertakenCapability,
   loadNodeSpec,
   rollupCapStatus,
   rollupCriterionStatus,
   rollupStatus,
   rollupStoryGreen,
   rollupStoryUat,
+  storyBaselineOf,
 } from "@storytree/orchestrator";
 
 import type { Envelope } from "./envelope.js";
@@ -182,6 +191,13 @@ export async function treeCommand(
     id: string;
     title: string;
     status: string;
+    /**
+     * The AUTHORED status as a parsed `Status`, or `undefined` when the spec could not be read —
+     * distinct from the `status` DISPLAY string above, which carries the "(spec missing)" placeholder.
+     * ADR-0443 D1's undertaken test reads this, and an unreadable spec must reach it as `undefined`
+     * (⇒ counted, crown held) rather than as a string that is not a status at all.
+     */
+    authoredStatus: StoryCapabilityRef["status"];
     dependsOn: string[];
     mark: string;
   }
@@ -191,12 +207,14 @@ export async function treeCommand(
     const capFile = path.join(storyEntry.dir, `${capId}.md`);
     let title = "(spec missing)";
     let status = "(spec missing)";
+    let authoredStatus: StoryCapabilityRef["status"];
     let dependsOn: string[] = [];
     if (existsSync(capFile)) {
       try {
         const spec = loadNodeSpec(capFile);
         title = spec.title;
         status = spec.status;
+        authoredStatus = spec.status;
         dependsOn = spec.dependsOn;
       } catch {
         // tolerate
@@ -206,6 +224,7 @@ export async function treeCommand(
       id: capId,
       title,
       status,
+      authoredStatus,
       dependsOn,
       mark: buildMark(capId, deps.lookupConfig),
     });
@@ -218,15 +237,22 @@ export async function treeCommand(
   // brownfield obligation set). Capabilities-green is necessary (the dependency rule), refining
   // ADR-0082's UAT-only crown. The UAT and gate clauses are each surfaced below as sub-signals. A
   // legacy story with NEITHER keeps the own-unit glyph. Offline (no verdict events) there is no column.
-  // ADR-0097: a WOULD-BE (aspirational, unscripted) UAT leg is NOT a hard crown obligation — it must
-  // not wedge the story until a real test backs it. The hard own-proof set is the witnessable UAT legs
-  // (would-be filtered out) UNION the reliability gates.
-  const hardUatTestCriteria = uatTestCriteria.filter((t) => !t.wouldBe);
   // ADR-0436: a gate RETIRED IN PLACE keeps its ordinal but is no longer an obligation, so it is
   // filtered out of the union, the gates sub-signal AND the `(covers:)` coverage argument. The
   // DISPLAY list below stays the full parse — a burned ordinal must remain visible.
   const activeGates = activeReliabilityGates(reliabilityGates);
-  const ownObligations = [...hardUatTestCriteria, ...activeGates];
+  // The crown's own-proof obligation set (ADR-0085), with all three drops applied in ONE place
+  // (`crownObligations`): would-be legs (ADR-0097), gates retired in place (ADR-0436), and legs that
+  // can never be signed as authored (ADR-0443 D2 — a `machine` leg naming no proof gate).
+  const hardUatTestCriteria = crownUatCriteria(uatTestCriteria, reliabilityGates);
+  const unsignable = unsignableUatCriteria(uatTestCriteria, reliabilityGates);
+  const ownObligations = crownObligations(uatTestCriteria, reliabilityGates);
+  // ADR-0443 D1: the crown's capability clause reads each cap's AUTHORED status alongside its id, so
+  // a `proposed` capability nobody has begun is declared intent rather than a withheld green.
+  const capRefs: StoryCapabilityRef[] = capRows.map((row) => ({
+    id: row.id,
+    status: row.authoredStatus,
+  }));
   const storyUatRollup =
     hardUatTestCriteria.length > 0 && verdictEvents !== null
       ? rollupStoryUat(hardUatTestCriteria, verdictEvents)
@@ -235,15 +261,33 @@ export async function treeCommand(
     activeGates.length > 0 && verdictEvents !== null
       ? rollupStoryUat(activeGates, verdictEvents)
       : undefined;
+  // ADR-0443 D2/D3: the crown is computed whenever the proof layer is readable, NOT only when the
+  // story declares an obligation. A story whose every obligation is unsignable — or which declares
+  // none — now greens on its proven capabilities, and D3's vacuity floor inside `rollupStoryGreen` is
+  // what stops that being a free green. Gating on `ownObligations.length > 0` here would have
+  // silently re-imposed the very abstain ADR-0443 D2 removes.
   const storyGreen =
-    ownObligations.length > 0 && verdictEvents !== null
+    verdictEvents !== null
       ? // ADR-0097: the reliability gates double as per-cap COVERAGE — a brownfield cap with no driven
         // verdict greens via an adopted gate that `(covers:)` it.
-        rollupStoryGreen(capIds, ownObligations, verdictEvents, activeGates)
+        rollupStoryGreen(capRefs, ownObligations, verdictEvents, activeGates)
       : undefined;
+  // ADR-0416 D2/D6: the second fact a durable green must carry — what has been declared since the
+  // proven baseline and is not proven yet. Absent until a story-baseline verdict has been signed.
+  const expansion =
+    verdictEvents === null
+      ? undefined
+      : expansionBeyondBaseline(storyBaselineOf(storyId, verdictEvents), {
+          capabilities: capRefs,
+          obligations: ownObligations,
+        });
   const crownMark = (): string => {
-    if (ownObligations.length === 0) return mark(storyId); // legacy: the story's own UAT-node verdict
     if (verdictEvents === null) return ""; // offline: no proof column
+    // A LEGACY story that declares no own-proof obligations AND no capabilities has nothing for the
+    // crown roll-up to read; its own UAT-node verdict is the only signal it ever had.
+    if (ownObligations.length === 0 && capRefs.length === 0 && storyGreen === null) {
+      return mark(storyId);
+    }
     const g = storyGreen === "healthy" ? "✓" : storyGreen === "unhealthy" ? "✗" : "–";
     return ` ${g}`;
   };
@@ -274,10 +318,13 @@ export async function treeCommand(
           ? "WITHERED — a proven UAT test regressed to a signed fail"
           : "unproven — not every UAT test has a signed pass yet (under-claims)";
     lines.push(`  UAT proof: ${word}`);
-  } else if (uatTestCriteria.length > 0 && verdictEvents !== null) {
+  } else if (uatTestCriteria.length > unsignable.length && verdictEvents !== null) {
     // ADR-0097: a `## UAT Test Criteria (would-be)` section is the aspirational journey — recorded, not
-    // green-blocking. Surface it honestly rather than as "unproven".
-    lines.push(`  UAT proof: would-be — ${uatTestCriteria.length} aspirational leg(s), no scripted test yet (ADR-0097)`);
+    // green-blocking. Surface it honestly rather than as "unproven". Guarded so a story whose hard set
+    // is empty because its legs are UNSIGNABLE (ADR-0443 D2) is not mislabelled "aspirational": those
+    // legs are real journey steps nothing can witness, and the `unsignable:` line below names them.
+    const aspirational = uatTestCriteria.length - unsignable.length;
+    lines.push(`  UAT proof: would-be — ${aspirational} aspirational leg(s), no scripted test yet (ADR-0097)`);
   }
   if (activeGates.length > 0 && verdictEvents !== null) {
     // The brownfield reliability-gate sub-signal (ADR-0085): the author-declared obligation set that
@@ -292,18 +339,50 @@ export async function treeCommand(
           : "unproven — not every reliability gate has a signed pass yet (under-claims)";
     lines.push(`  reliability gates: ${word}`);
   }
-  if (ownObligations.length > 0 && verdictEvents !== null) {
-    // The CROWN (ADR-0083 Fork A + ADR-0085): green = (all capabilities proven healthy) AND (the
-    // story's own-proof obligations — its UAT test criteria AND its reliability gates — all proven). A story
-    // with zero capabilities (a foundational port) satisfies the capability clause vacuously.
-    const capNote = capIds.length === 0 ? " (no capabilities — vacuous; green is the own-proof alone)" : "";
+  if (verdictEvents !== null && storyGreen !== undefined) {
+    // The CROWN (ADR-0083 Fork A + ADR-0085, narrowed by ADR-0443): green = (every UNDERTAKEN
+    // capability proven healthy) AND (the story's signable own-proof obligations all proven) AND
+    // (at least one of those was actually discharged — D3's vacuity floor). A story with zero
+    // undertaken capabilities satisfies the capability clause vacuously.
+    // Counted through the REAL predicate, not the authored word: a `proposed` capability carrying a
+    // signed verdict IS undertaken, and reporting it as "declared intent" beside its own ✓ plant
+    // would contradict the glyph on the very next line.
+    const notCounted =
+      verdictEvents === null
+        ? 0
+        : capRefs.filter((c) => !isUndertakenCapability(c, verdictEvents, activeGates)).length;
+    const capNote =
+      capRefs.length === 0
+        ? " (no capabilities — vacuous; green is the own-proof alone)"
+        : notCounted > 0
+          ? ` (${notCounted} of ${capRefs.length} capabilities are declared intent, not yet begun — not counted, ADR-0443 D1)`
+          : "";
     const greenWord =
       storyGreen === "healthy"
-        ? "GREEN — all capabilities proven healthy AND the story's own-proof obligations are proven"
+        ? "GREEN — every undertaken capability is proven AND every signable own-proof obligation is signed"
         : storyGreen === "unhealthy"
-          ? "WITHERED — a capability or a proven obligation is a signed fail"
-          : "unproven — a capability is not yet proven healthy, or an obligation is not yet proven (under-claims)";
-    lines.push(`  story green: ${greenWord}${capNote} (ADR-0083 Fork A + ADR-0085)`);
+          ? "WITHERED — an undertaken capability or a proven obligation is a signed fail"
+          : "unproven — an undertaken capability is not yet proven, or a signable obligation is not yet signed (under-claims)";
+    lines.push(`  story green: ${greenWord}${capNote} (ADR-0083 Fork A + ADR-0085 + ADR-0443)`);
+  }
+  // ADR-0443 D2 — a dropped obligation is announced, never silently subtracted. The crown no longer
+  // waits on these, and saying so is what keeps a shrinking checklist visible rather than a quiet
+  // green (the abuse ADR-0443's Consequences leave to author judgment rather than to a gate).
+  if (unsignable.length > 0 && verdictEvents !== null) {
+    lines.push(
+      `  unsignable: ${unsignable.length} acceptance step(s) name no proof and can never be signed as ` +
+        `authored — recorded, NOT crown obligations (ADR-0443 D2): ${unsignable.map((t) => t.criterionId).join(", ")}`,
+    );
+  }
+  // ADR-0416 D2 — "silence is not acceptable": a durable green must show what it does NOT yet cover.
+  if (expansion?.expanded === true) {
+    const parts: string[] = [];
+    if (expansion.capabilityIds.length > 0) parts.push(`${expansion.capabilityIds.length} capability(ies)`);
+    if (expansion.obligationIds.length > 0) parts.push(`${expansion.obligationIds.length} obligation(s)`);
+    lines.push(
+      `  expanding: ${parts.join(" + ")} declared beyond the proven baseline, not proven yet ` +
+        `(the baseline stands — ADR-0416 D2): ${[...expansion.capabilityIds, ...expansion.obligationIds].join(", ")}`,
+    );
   }
   lines.push("", "Capabilities:");
   for (const row of capRows) {
