@@ -18,11 +18,13 @@
 //   fall through to proposed amber when proof is missing or failing. A signed
 //   failure stays legible on the node panel's verdict line.
 // - Offline (DB down, verdicts absent) everything falls back to the authored
-//   ladder, so a proven world UNDER-claims. Two signals say so, and they answer
-//   different questions: the StoreBanner reports the STORE's own state, while
-//   the currency lamp (`lib/mapCurrency.ts`, ADR-0445 D3) reports whether this
-//   VIEW is current at all — which is the wider one, because an app at an older
-//   commit under-claims exactly like this with the database perfectly reachable.
+//   ladder, so a proven world UNDER-claims — the StoreBanner is the global
+//   "proof layer absent" signal, and the map's database-connection light
+//   (`lib/storeConnection.ts`) is the at-a-glance version of the same fact.
+//   Note what neither covers: an app at an OLDER COMMIT under-claims exactly
+//   like this with the database perfectly reachable, because verdicts bind to
+//   criteria by revision id. The banner's "a newer version has landed … the
+//   forest may be under-claiming" message is the only disclosure of that.
 
 import type { DriftState, TreeCapability, TreeStory, TreeVerdict, WorkStatus } from '../types';
 

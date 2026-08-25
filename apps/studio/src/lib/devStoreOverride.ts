@@ -88,92 +88,50 @@ export function useDevStoreOverride(): DevOverride | null {
   return override;
 }
 
-// ── THE FOREST CURRENCY SIGNAL'S OWN DEV OVERRIDE (ADR-0445 D3, `map-currency-signal`) ──────────
+// ── THE DATABASE-CONNECTION LIGHT'S OWN DEV OVERRIDE (`store-connection-signal`) ────────────────
 //
-// Same shim, same file, same reason: the signal's APPEARANCE is operator-attested (ADR-0070 stage
-// 2), and on a local dev studio only GREEN occurs naturally — `code.stale` is false on a
-// freshly-started server and the dev studio sends no `runtime.behind` at all, so amber needs a
-// pinned installed app that is genuinely behind `main` and red needs the tree read to fail cold.
-// Staging those for real would mean breaking the operator's machine to show him a colour.
+// Same shim, same file, same reason: the light's APPEARANCE is operator-attested (ADR-0070 stage 2)
+// and on a working machine only GREEN occurs naturally. The honest alternatives are stopping the
+// shared Cloud SQL instance — which every other session on the box is using — or waiting for an
+// outage, so the override exists to let the owner look without breaking anything.
+//
+// It substitutes the INPUT, not the reading: the preset resolves to a `StorePhase`, which is what
+// `storeConnection()` maps. So what the owner is looking at is the real instrument on a synthetic
+// phase, never a hand-drawn picture of one.
 //
 // INERT IN A PRODUCTION BUILD (`import.meta.env.DEV` is false there), exactly like the load-screen
-// override above, so it can never reach the hosted studio. It is a VIEW shim only: it substitutes
-// the READING, never the facts it is derived from, so nothing about the health poll, the payload
-// cache, or the map's own data path changes while it is in effect.
+// override above, so it can never reach the hosted studio. Note the presets deliberately do NOT
+// reuse `?devLoadState`: those swap the whole load screen, so the map — and therefore this chip —
+// is not on screen for any of them.
 
-import type { MapCurrencyReading } from './mapCurrency';
-
-/** The named readings the owner can force via `?devCurrency=<name>`. */
-const CURRENCY_PRESETS: ReadonlyMap<string, MapCurrencyReading> = new Map([
-  ['green', { state: 'green', causes: [] }],
-  [
-    'amber-cache',
-    {
-      state: 'amber',
-      causes: [
-        {
-          id: 'serving-cache',
-          what: 'painted from the last visit’s cached payload — not confirmed against the store',
-          remedy: 'Reconnect, or wait for the next read to land.',
-        },
-      ],
-    },
-  ],
-  [
-    'amber-behind',
-    {
-      state: 'amber',
-      causes: [
-        {
-          id: 'app-behind-main',
-          what: 'this app is 7 commits behind main, so it is asking about criteria that have since moved',
-          remedy: 'Rebuild and relaunch to update.',
-        },
-      ],
-    },
-  ],
-  [
-    'amber-both',
-    {
-      state: 'amber',
-      causes: [
-        {
-          id: 'serving-cache',
-          what: 'painted from the last visit’s cached payload — not confirmed against the store',
-          remedy: 'Reconnect, or wait for the next read to land.',
-        },
-        {
-          id: 'app-behind-main',
-          what: 'this app is 7 commits behind main, so it is asking about criteria that have since moved',
-          remedy: 'Rebuild and relaunch to update.',
-        },
-      ],
-    },
-  ],
-  ['red', { state: 'red', causes: [] }],
+/** The phases the owner can force via `?devConnection=<name>`, one per rendered state. */
+const CONNECTION_PRESETS: ReadonlyMap<string, StorePhase> = new Map([
+  ['connected', 'healthy'],
+  ['connecting', 'starting'],
+  ['not-connected', 'unreachable'],
 ]);
 
 /** The preset names, for the dev hint strip. */
-export const DEV_CURRENCY_NAMES = [...CURRENCY_PRESETS.keys()];
+export const DEV_CONNECTION_NAMES = [...CONNECTION_PRESETS.keys()];
 
-function readCurrencyOverride(): MapCurrencyReading | null {
+function readConnectionOverride(): StorePhase | null {
   if (!import.meta.env.DEV) return null;
   if (typeof window === 'undefined') return null;
-  const name = new URLSearchParams(window.location.search).get('devCurrency');
+  const name = new URLSearchParams(window.location.search).get('devConnection');
   if (name === null || name === '') return null;
-  return CURRENCY_PRESETS.get(name) ?? null;
+  return CONNECTION_PRESETS.get(name) ?? null;
 }
 
 /**
- * In a Vite dev build, returns the synthetic currency reading named by `?devCurrency=<name>` (or
- * null when absent/unknown/prod), re-read on hashchange/popstate so flipping the query in the
- * address bar takes effect without reloading the SPA shell.
+ * In a Vite dev build, returns the synthetic store phase named by `?devConnection=<name>` (or null
+ * when absent/unknown/prod), re-read on hashchange/popstate so flipping the query in the address bar
+ * takes effect without reloading the SPA shell.
  */
-export function useDevCurrencyOverride(): MapCurrencyReading | null {
-  const [override, setOverride] = useState<MapCurrencyReading | null>(readCurrencyOverride);
+export function useDevConnectionPhase(): StorePhase | null {
+  const [override, setOverride] = useState<StorePhase | null>(readConnectionOverride);
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    const reread = (): void => setOverride(readCurrencyOverride());
+    const reread = (): void => setOverride(readConnectionOverride());
     window.addEventListener('popstate', reread);
     window.addEventListener('hashchange', reread);
     return () => {

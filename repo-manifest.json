@@ -412,7 +412,7 @@
       "apps/studio/src/components/DetailDisclosure.tsx": "studio",
       "apps/studio/src/components/Sidebar.tsx": "studio",
       "apps/studio/src/components/StoreBanner.tsx": "studio",
-      "apps/studio/src/components/MapCurrencyLamp.tsx": "map-currency-signal",
+      "apps/studio/src/components/StoreConnectionChip.tsx": "store-connection-signal",
       "apps/studio/src/components/World*.tsx": "studio",
 
       "$section_studio_lib": "apps/studio/src/lib — the renderer's pure computes.",
@@ -434,7 +434,7 @@
       "apps/studio/src/lib/claimColour.ts": "colour-by-subagent",
       "apps/studio/src/lib/sessionClaims.ts": "render-claim-as-wisp",
       "apps/studio/src/lib/payloadCache.ts": "map-payload-cache",
-      "apps/studio/src/lib/mapCurrency.ts": "map-currency-signal",
+      "apps/studio/src/lib/storeConnection.ts": "store-connection-signal",
       "apps/studio/src/lib/devStoreOverride.ts": "dev-server-persistence-backbone",
       "apps/studio/src/lib/desktopApply.ts": "pinned-runtime-apply",
       "apps/studio/src/lib/desktopAuth.ts": "credential-broker",

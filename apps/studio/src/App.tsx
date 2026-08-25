@@ -3,11 +3,10 @@ import { api } from './api';
 import { AppDataContext, type AppData } from './lib/appData';
 import type { DocsStatus } from './lib/docsIndex';
 import { deriveLoadState, type LoadState } from './lib/loadState';
-import { useDevStoreOverride, type DevOverride } from './lib/devStoreOverride';
+import { useDevConnectionPhase, useDevStoreOverride, type DevOverride } from './lib/devStoreOverride';
 import { getDesktopAuth } from './lib/desktopAuth';
 import { notifyStoreRecovered } from './lib/poll';
 import { evictIfCodeHeadMismatch, readPayloadCache, writeDocsCache } from './lib/payloadCache';
-import type { CodeCurrency } from './lib/mapCurrency';
 import { useRoute } from './lib/route';
 import type { DocMeta, GuidanceAsset, MeInfo } from './types';
 import { Sidebar } from './components/Sidebar';
@@ -92,21 +91,6 @@ export function App({ surfaces }: AppProps = {}): React.JSX.Element {
   const onCodeHead = useCallback((head: string): void => {
     codeHeadRef.current = head;
     if (evictIfCodeHeadMismatch(head)) cacheEvictedThisBootRef.current = true;
-  }, []);
-  // ADR-0445 D3 (`map-currency-signal`): the code-currency pair StoreBanner's single /api/health
-  // poller already derives, held as STATE rather than a ref — unlike the cache stamps above, this
-  // one has to REACH THE SCREEN, so a render is exactly what it is for. `null` until the first
-  // health response, and `null` is not "current": it means the question has not been asked, and the
-  // signal withholds green rather than claiming one it did not look for.
-  const [codeCurrency, setCodeCurrency] = useState<CodeCurrency | null>(null);
-  const onCodeCurrency = useCallback((next: CodeCurrency): void => {
-    // Every probe reports, but only a CHANGE re-renders — the health poll ticks on its own cadence
-    // and the forest beneath is expensive to re-render for a value that is the same as last time.
-    setCodeCurrency((prev) =>
-      prev !== null && prev.serverCodeMoved === next.serverCodeMoved && prev.behindMain === next.behindMain
-        ? prev
-        : next,
-    );
   }, []);
   // map-payload-cache: seed docs from the last visit's persisted /api/docs payload — validated
   // synchronously (guards 1 + 3) — so it's not left empty during the window before /api/docs
@@ -228,6 +212,10 @@ export function App({ surfaces }: AppProps = {}): React.JSX.Element {
   // can flip through every state; otherwise we feed the live ones. `elapsedMs` ages the boot for
   // the STARTING → TAKING-LONGER threshold.
   const dev: DevOverride | null = useDevStoreOverride();
+  // `store-connection-signal`: a dev-only synthetic phase for the map's connection light, so the
+  // owner can see amber/red without stopping the shared Cloud SQL instance every other session on
+  // this box is using. Null (and therefore inert) in a production build and without the flag.
+  const devConnectionPhase = useDevConnectionPhase();
   const elapsedMs = startingSince === null ? 0 : Math.max(0, nowMs - startingSince);
   const loadState = dev
     ? deriveLoadState(dev.meStatus, dev.me, dev.phase, dev.elapsedMs)
@@ -289,7 +277,6 @@ export function App({ surfaces }: AppProps = {}): React.JSX.Element {
               canWake={(dev?.me ?? me)?.canWakeDb === true}
               onPhase={onStorePhase}
               onCodeHead={onCodeHead}
-              onCodeCurrency={onCodeCurrency}
             />
           }
           onRetry={() => void loadMe()}
@@ -317,7 +304,7 @@ export function App({ surfaces }: AppProps = {}): React.JSX.Element {
                       active={route.name === 'tree'}
                       codeHeadRef={codeHeadRef}
                       cacheWriteSuppressedRef={cacheEvictedThisBootRef}
-                      codeCurrency={codeCurrency}
+                      storePhase={devConnectionPhase ?? storePhase}
                     />
                   </div>
                 )}
