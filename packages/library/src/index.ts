@@ -19,6 +19,12 @@ export * from "./legacy-uat-disposition.js";
 // author-declared gates that flip a brownfield/foundational story green, distinct from UAT.
 export * from "./reliability-gates.js";
 export * from "./crown-obligations.js";
+// ADR-0445 D1 (`map-freshness-arc` inc-02): the SHAPE of the work hierarchy as it is mirrored into
+// the live store, and the pure diff that says when the mirror has drifted from the tree. Pure zod,
+// browser-safe — the rendering readers inc-03 switches over consume these types directly. The
+// PROJECTOR that fills it lives in `@storytree/drive` (it needs `loadNodeSpec`, which is the
+// orchestrator's and which this package sits below).
+export * from "./work-hierarchy-projection.js";
 // ADR-0020 coverage-honesty follow-on: the `## Contracts` parser — a capability's declared leaf
 // contracts, so a coverage check can map each to an observed test (a signed `--real` green attests
 // ONE authored test, not every enumerated contract).

@@ -463,3 +463,115 @@ DROP TABLE IF EXISTS events.session;
 -- every pre-existing emitter is one of the three mechanisms that has no tool-surface wall to fire.
 ALTER TABLE events.scope_event
   ADD COLUMN IF NOT EXISTS tool_surface_refusals BIGINT NOT NULL DEFAULT 0;
+
+-- ===========================================================================
+-- THE WORK-HIERARCHY PROJECTION (ADR-0445 D1, `map-freshness-arc` inc-02)
+-- ===========================================================================
+--
+-- The forest map JOINS signed verdicts (live, from events.verdict) against the story shape read by
+-- `readTree(storiesDir)` from `stories/**` on the APP'S OWN DISK, frozen at the commit the app was
+-- built from. Verdicts bind to criteria by (criterionId, revisionId) (ADR-0253), so a stale app
+-- reads the database perfectly, matches no verdict for a criterion re-worded since, and correctly
+-- paints yellow. Criteria declared on `main` went 261 (2026-08-05) -> 113 (2026-08-24): the staler
+-- the client, the yellower the map. These five tables put the QUESTION half of that join in the same
+-- place the PROOF half already lives, so the two can eventually come from one clock.
+--
+-- A PROJECTION, ONE-DIRECTIONAL. Disk stays canonical for AUTHORING (`story-author` writes markdown
+-- under stories/**, ADR-0309 D3) and for PROVING (the corpus guard, check:boundaries, the build
+-- drivers and CI read the commit under test — a story pulled live while CI tests a branch would
+-- validate the wrong thing). Nothing writes back to disk and nothing authors into these rows.
+--
+-- NO `*_event` HISTORY SIBLING, DELIBERATELY. Every other stream here pairs a projection with an
+-- append-only log because those rows are AUTHORED here and the store is the only place their history
+-- could live. These rows are authored in git: `git log -p -- stories/` is the history, complete and
+-- signed, and a second copy of it in Postgres could only ever drift from the first.
+--
+-- ABSENT FROM THE ADR-0350 CAUSAL-EDGE ENUMERATION ABOVE, CORRECTLY: that list is the append-only
+-- streams carrying a BIGSERIAL primary key, and it is an explicit enumeration precisely so a new
+-- table cannot silently acquire columns it has no emitter for. These are keyed projections with no
+-- event identity and nothing stamps a cause on them. Do not add them there.
+--
+-- WRITTEN AS A WHOLE-SNAPSHOT REPLACE INSIDE ONE TRANSACTION (PgWorkHierarchyStore.writeSnapshot):
+-- the projection is TOTAL over the tree, so a story deleted from `stories/**` must vanish from here,
+-- which an upsert-only loader could never achieve. Postgres MVCC means a concurrent reader sees the
+-- previous complete snapshot until COMMIT — never a half-loaded tree.
+
+-- The STAMP: one singleton row saying which tree these rows are a projection OF.
+-- `stories_tree_sha` is the git TREE object id of `stories/` (`git rev-parse <ref>:stories`) and is
+-- the field freshness is judged on. A tree id is a CONTENT hash, so two commits whose stories/ are
+-- byte-identical share it — which is what lets a projection generated from a PR merge ref be
+-- recognised as current for the `main` commit that merge produces. `commit_sha` is PROVENANCE only:
+-- a squash merge discards the commit it names, so nothing may be judged on it.
+CREATE TABLE IF NOT EXISTS events.work_hierarchy_snapshot (
+  id               TEXT PRIMARY KEY,   -- the singleton key, 'current'
+  schema_version   INT NOT NULL,
+  commit_sha       TEXT NOT NULL,      -- provenance only, never judged
+  stories_tree_sha TEXT NOT NULL,      -- the freshness key
+  generated_at     TIMESTAMPTZ NOT NULL,
+  generator        TEXT NOT NULL,      -- hierarchy:load | a CI job | a test
+  actor            TEXT NOT NULL,
+  story_count      INT NOT NULL,       -- the denominators, so agreement and emptiness differ
+  capability_count INT NOT NULL,
+  criterion_count  INT NOT NULL,
+  gate_count       INT NOT NULL,
+  at               TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per story. `doc` is the ProjectedStory WITHOUT its criteria/gates arrays — those are the
+-- two tables below, so there is exactly one copy of each obligation and no way for the nested and
+-- the normalised copies to disagree. The scalar columns are the queryable spine (ADR-0017).
+CREATE TABLE IF NOT EXISTS events.work_story (
+  id          TEXT PRIMARY KEY,
+  title       TEXT NOT NULL,
+  status      TEXT,                    -- NULL only for an unreadable spec (doc.error is set)
+  proof_mode  TEXT NOT NULL,
+  uat_witness TEXT,                    -- the DECLARED value; NULL = undeclared, never defaulted here
+  doc         JSONB NOT NULL,
+  at          TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per capability, keyed by an id unique across the whole tree (the corpus guard enforces it).
+CREATE TABLE IF NOT EXISTS events.work_capability (
+  id             TEXT PRIMARY KEY,
+  story_id       TEXT NOT NULL,
+  title          TEXT NOT NULL,
+  status         TEXT,
+  proof_mode     TEXT NOT NULL,
+  contract_count INT NOT NULL,
+  doc            JSONB NOT NULL,
+  at             TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- One row per authored UAT criterion, INCLUDING would-be ones — the would-be filter is a RULE and
+-- rules stay with the reader (ADR-0445's rule half is open by design). `revision_id` is its own
+-- column because it is THE join key against events.verdict / events.attestation / events.uat_drive:
+-- "which criteria have no verdict at their CURRENT revision" is the question this whole arc exists
+-- to make answerable, and burying the revision in JSONB would make it a JSON path expression.
+-- `ordinal` preserves the authored order the story prose walks in.
+CREATE TABLE IF NOT EXISTS events.work_criterion (
+  criterion_id TEXT PRIMARY KEY,
+  story_id     TEXT NOT NULL,
+  revision_id  TEXT NOT NULL,
+  ordinal      INT NOT NULL,
+  witness      TEXT NOT NULL,
+  would_be     BOOLEAN NOT NULL,
+  doc          JSONB NOT NULL
+);
+
+-- One row per authored reliability gate (ADR-0085), INCLUDING retired ones — `activeReliabilityGates`
+-- is likewise the reader's rule. `covers` is its own column because ADR-0097's per-capability
+-- coverage fold reads it.
+CREATE TABLE IF NOT EXISTS events.work_gate (
+  id       TEXT PRIMARY KEY,
+  story_id TEXT NOT NULL,
+  ordinal  INT NOT NULL,
+  kind     TEXT NOT NULL,
+  covers   TEXT[] NOT NULL DEFAULT '{}',
+  retired  BOOLEAN NOT NULL,
+  doc      JSONB NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS work_capability_story_idx ON events.work_capability (story_id);
+CREATE INDEX IF NOT EXISTS work_criterion_story_idx ON events.work_criterion (story_id);
+CREATE INDEX IF NOT EXISTS work_criterion_revision_idx ON events.work_criterion (criterion_id, revision_id);
+CREATE INDEX IF NOT EXISTS work_gate_story_idx ON events.work_gate (story_id);

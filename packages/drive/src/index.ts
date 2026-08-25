@@ -26,6 +26,11 @@ export * from "./cli-actor.js";
 // The work-hierarchy ref resolver (ADR-0306 D1): `story:`/`capability:` pointers turned into the
 // units they name, against ONE checkout — reported when they dangle, never refused on write.
 export * from "./work-hierarchy.js";
+// The work-hierarchy PROJECTOR (ADR-0445 D1, `map-freshness-arc` inc-02): the same tree read into
+// the shape the live store mirrors, so the forest map's question half can eventually come off the
+// same clock as its proof half. It CHANGES NO READER — `readTree` is untouched, and inc-03 owns the
+// switch. Its sibling above resolves POINTERS at a checkout; this one projects the whole tree.
+export * from "./hierarchy-projection.js";
 // The build's LIVENESS channel (`diagnosis-honesty-arc`): a long run names the leg holding its
 // clock, so a redirected log tells "slow but progressing" apart from "wedged on a precondition".
 export * from "./build-progress.js";

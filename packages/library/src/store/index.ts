@@ -94,6 +94,12 @@ export {
   SuggestionSchema,
 } from "./pg-suggestion-store.js";
 export type { Suggestion, SuggestionPatch, SuggestionFilter } from "./pg-suggestion-store.js";
+// ADR-0445 D1 (`map-freshness-arc` inc-02): the one-directional mirror of `stories/**`. Written by
+// `hierarchy:load` and read by `check:hierarchy-drift`; NO other writer, and no reader has been
+// switched onto it yet (inc-03 owns the switch). The SHAPE and the pure diff live in the pure root
+// barrel, so a browser bundle can consume them without reaching this subpath.
+export { PgWorkHierarchyStore, WORK_HIERARCHY_SNAPSHOT_ID } from "./pg-work-hierarchy-store.js";
+export type { WorkHierarchyClient } from "./pg-work-hierarchy-store.js";
 export { PgAdrStore } from "./adr-store.js";
 export type { AdrAllocatorClient, AdrAllocation } from "./adr-store.js";
 // Cloud SQL Admin REST client (ADR-0063): db-control over REST instead of the gcloud subprocess.
