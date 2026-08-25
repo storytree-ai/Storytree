@@ -1209,7 +1209,7 @@ export async function readTree(
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
   // ADR-0436: loaded lazily, past vite's config-load (`loadLibrary` above) — a top-level VALUE import
   // of `@storytree/library` breaks `vite build`'s config load (studio-vite-config-load-trap).
-  const { activeReliabilityGates } = await loadLibrary();
+  const { activeReliabilityGates, crownObligations } = await loadLibrary();
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
     const dir = path.join(storiesDir, ent.name);
@@ -1245,15 +1245,21 @@ export async function readTree(
       story.capabilities = spec.capabilities.map((capId) => {
         return loadTreeCapability(loadNodeSpec, dir, capId);
       });
-      // ADR-0085 + ADR-0097: the crown rolls up the UNION of the WITNESSABLE UAT test criteria (would-be legs
-      // filtered out — aspirational, not green-blocking) + reliability gates (a pure port greens from
-      // its reliability gates alone). Both are addressable `{ id }` obligation units.
+      // ADR-0085 + ADR-0097 + ADR-0436 + ADR-0443 D2: the CROWN rolls up the SIGNABLE, witnessable UAT
+      // criteria + the still-active reliability gates — all three obligation drops in `crownObligations`
+      // (the library's one definition), so this server, the CLI tree and the desktop backend cannot
+      // apply different sets. `witnessableUat` below is a DISPLAY list and keeps the would-be filter
+      // ALONE: an unsignable leg stops being a crown obligation but stays a visible journey step, which
+      // is the whole basis of ADR-0443's honesty ("the gap stays visible in each step's own text").
       const witnessableUat = spec.uatTestCriteria.filter((t) => !t.wouldBe);
       // ADR-0436: a gate RETIRED IN PLACE keeps its ordinal but leaves the obligation union — and
       // leaves the coverage set below with it, or a withdrawn gate would still green a capability.
       const liveGates = activeReliabilityGates(spec.reliabilityGates);
-      const ownObligations = [...witnessableUat, ...liveGates];
-      if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
+      const ownObligations = crownObligations(spec.uatTestCriteria, spec.reliabilityGates);
+      // ADR-0443 D2/D3: ALWAYS recorded, even when empty. Gating on a non-empty set here would skip
+      // the crown for exactly the stories D2 unblocks — the ones whose every obligation is unsignable
+      // — and leave them grey forever, which is the defect rather than the fix.
+      uatTestCriteriaByStory.set(ent.name, ownObligations);
       // forest-parcels inc-2: the story's UAT test criteria ALONE (never the reliability gates) — the
       // marker walk summary membership. Set even when empty-of-gates, mirroring `ownObligations` above.
       if (witnessableUat.length > 0) {
@@ -1281,16 +1287,24 @@ export async function readTree(
 }
 
 /**
- * Apply the story-green crown roll-up (ADR-0083 Fork A, refining ADR-0082) to the tree payload. A
- * story that declares per-test UAT test criteria has its crown set from `rollupStoryGreen` — the AND of TWO
- * necessary clauses: (a) EVERY declared capability is proven `healthy`, and (b) the per-test UAT
- * AND-roll-up is green. Capabilities-green is now a NECESSARY condition (the capabilities-green dependency rule),
- * so the crown is NEVER its own unit-id verdict and NEVER a green while any capability is red/unproven:
- * healthy ⇒ a pass crown, unhealthy ⇒ a fail crown (a red plant or a UAT regression), unproven ⇒ NO
- * verdict (the crown under-claims to `mapped`, never a stale green). A story with zero capabilities
- * (the foundational ports) satisfies the capability clause vacuously — its crown is its UAT alone. A
- * story with no per-test tests is left untouched (its own-unit verdict stands). `rollup` is injected so
- * this stays unit-testable without the lazy orchestrator. Mutates `stories` in place.
+ * Apply the story-green crown roll-up (ADR-0083 Fork A, refining ADR-0082, narrowed by ADR-0443) to
+ * the tree payload. A story's crown is set from `rollupStoryGreen` — both necessary clauses over the
+ * non-vacuity floor: (a) every UNDERTAKEN capability is proven `healthy`, (b) every signable
+ * own-proof obligation is signed, and (c) at least one of them was actually discharged.
+ * Capabilities-green is a NECESSARY condition (the capabilities-green dependency rule), so the crown
+ * is NEVER its own unit-id verdict and NEVER a green while any undertaken capability is red/unproven:
+ * healthy ⇒ a pass crown, unhealthy ⇒ a fail crown (a red plant or an obligation regression),
+ * unproven ⇒ NO verdict (the crown under-claims to `mapped`, never a stale green). A story with zero
+ * undertaken capabilities satisfies the capability clause vacuously.
+ *
+ * ADR-0443 D2 changed WHICH stories are reached: a story with no obligations left is no longer
+ * skipped, because "every obligation this story declares is unsignable" is precisely the state D2
+ * unblocks — skipping it would leave the 9 stories the decision names grey forever. Only a story with
+ * NOTHING to read (no obligations and no capabilities) is passed over, so a legacy story's own-unit
+ * verdict is left standing rather than deleted.
+ *
+ * `rollup` is injected so this stays unit-testable without the lazy orchestrator. Mutates `stories`
+ * in place.
  */
 export function applyUatCrowns(
   stories: TreeStory[],
@@ -1301,7 +1315,7 @@ export function applyUatCrowns(
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
   rollup: (
-    capabilityIds: readonly string[],
+    capabilities: readonly { id: string; status?: WorkStatus | undefined }[],
     tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
     events: ReadonlyArray<{ kind: string; seq: number; doc: unknown }>,
     coverage?: readonly { id: string; covers?: readonly string[] }[],
@@ -1309,11 +1323,23 @@ export function applyUatCrowns(
 ): void {
   for (const story of stories) {
     const tests = uatTestCriteriaByStory.get(story.id);
-    if (!tests || tests.length === 0) continue;
+    // ADR-0443 D2/D3: a story with NO obligations is still crowned — its green rests on its
+    // undertaken capabilities, and D3's vacuity floor inside `rollupStoryGreen` is what keeps that
+    // honest. Only a story with nothing at all to read (no obligations AND no capabilities) is
+    // skipped, so a legacy story's own-unit verdict is left standing rather than deleted below.
+    if (tests === undefined) continue;
+    if (tests.length === 0 && story.capabilities.length === 0) continue;
     const capabilityIds = story.capabilities.map((c) => c.id);
+    // ADR-0443 D1: the clause reads each capability's AUTHORED status beside its id. `status` is
+    // still the authored value at this point in the pipeline — proof is folded into the hue
+    // client-side by `provenStatus`, and `applyCapCoverage` only ever sets `verdict`, never `status`.
+    const capabilities = story.capabilities.map((c) => ({
+      id: c.id,
+      status: c.status ?? undefined,
+    }));
     // ADR-0097: a brownfield cap with no driven verdict greens via an adopted gate that `(covers:)` it.
     const coverage = coverageByStory.get(story.id) ?? [];
-    const rolled = rollup(capabilityIds, tests, events, coverage);
+    const rolled = rollup(capabilities, tests, events, coverage);
     if (rolled === 'healthy' || rolled === 'unhealthy') {
       // The crown's timestamp spans BOTH clauses — a cap-driven wither shows the capability's verdict
       // time, not just the UAT's (the union of the per-test ids and the capability ids).

@@ -50,7 +50,7 @@ import {
 } from "@storytree/library/store";
 import { PgClaimStore } from "@storytree/notice-board/store";
 import type { ClaimDocT, ClaimRequest, ClaimResult } from "@storytree/notice-board";
-import type { BuildPhase } from "@storytree/proof-protocol";
+import type { BuildPhase, StoryBaselineScope } from "@storytree/proof-protocol";
 import { PgWorkStore } from "@storytree/orchestrator/store";
 
 import { REPO_ROOT_ENV, resolveRepoRoot } from "@storytree/library";
@@ -1002,6 +1002,13 @@ export interface RealBuildArgs {
    */
   liveAuthorOverride?: LiveAuthor;
   /**
+   * ADR-0416 D6 (optional): the story-BASELINE scope a whole-story pass covers — the capability and
+   * own-proof obligation sets declared at sign time — stamped onto the signed verdict so a later
+   * reader can tell the proven baseline from work declared after it. Supplied by `story build` when
+   * it drives the STORY node, and by nothing else: a capability build establishes no baseline.
+   */
+  storyBaseline?: () => StoryBaselineScope | undefined;
+  /**
    * Promote a signed pass (default true). The story chain passes `false`: it drives + signs +
    * commits each node into the shared worktree, then promotes ONCE at the stacked HEAD (so a halt
    * never leaves a pushed partial story). It governs PROMOTION only — since `sign-after-typecheck`
@@ -1062,6 +1069,7 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
   if (args.model !== undefined) resolveOptions.model = args.model;
   if (args.budgetUsd !== undefined) resolveOptions.maxBudgetUsd = args.budgetUsd;
   if (args.maxTurns !== undefined) resolveOptions.maxTurns = args.maxTurns;
+  if (args.storyBaseline !== undefined) resolveOptions.storyBaseline = args.storyBaseline;
   const resolved = resolveProveSpec(spec, resolveOptions);
   if (!resolved.ok) {
     // The caller prechecked real-buildability, so this is belt-and-braces; surface it as a

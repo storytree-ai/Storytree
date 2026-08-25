@@ -19,7 +19,7 @@ import type {
 } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import type { ContractDecl } from "@storytree/library";
-import type { ContractCoverageAxis } from "@storytree/proof-protocol";
+import type { ContractCoverageAxis, StoryBaselineScope } from "@storytree/proof-protocol";
 
 import { resolveSigner } from "./proof/signer.js";
 import type { SignerInputs } from "./proof/signer.js";
@@ -310,6 +310,14 @@ export interface RealResolveOptions extends BaseResolveOptions {
    * store's `createTestPool` guard is the first). Ignored when the node does not declare `db`.
    */
   dbProofEnv?: Record<string, string>;
+  /**
+   * ADR-0416 D6 (optional): the story-BASELINE scope this pass covers — the capability and own-proof
+   * obligation sets declared at sign time — forwarded verbatim onto the {@link ProveSpec} so the gate
+   * stamps it on the signed verdict. Supplied ONLY when driving a STORY node (`story build` knows
+   * both sets; a capability build has no baseline to establish and omits it), which is what keeps a
+   * capability verdict from ever claiming to be a story baseline.
+   */
+  storyBaseline?: () => StoryBaselineScope | undefined;
 }
 
 export type ResolveOptions =
@@ -740,6 +748,9 @@ function resolveReal(
     // the coverage axis is: the synthetic arms have no declared shape to be judged against.
     expectedRed: declaredExpectedRed(real),
   };
+  // ADR-0416 D6: forwarded only when the caller supplied it (a story node). The gate then consults
+  // the thunk at GATE, so an aborted walk establishes no baseline.
+  if (opts.storyBaseline !== undefined) proveSpec.storyBaseline = opts.storyBaseline;
   return liveAuthor !== undefined
     ? { ok: true, spec: proveSpec, liveAuthor }
     : { ok: true, spec: proveSpec };

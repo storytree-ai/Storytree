@@ -202,9 +202,11 @@ test("drives a build-tests gate's R2 red→green and signs a DRIVEN verdict FOR 
     // ADR-0097: the gate's `(covers:)` greens the brownfield capability. The gate is BOTH an own-proof
     // obligation (the second arg) AND the coverage source (the fourth) — exactly how `story build`
     // rolls the crown (`[...uat, ...gates]` as obligations, `reliabilityGates` as coverage).
-    assert.equal(rollupStoryGreen([CAP_ID], [gate], events, [gate]), "healthy");
+    // ADR-0443 D1: the capability clause reads each cap's authored status beside its id; this fixture
+    // cap has no spec status, which counts as UNDERTAKEN (the conservative default).
+    assert.equal(rollupStoryGreen([{ id: CAP_ID }], [gate], events, [gate]), "healthy");
     // Without the gate's coverage the brownfield cap is unproven — the gate is what greens it.
-    assert.equal(rollupStoryGreen([CAP_ID], [], events, []), null);
+    assert.equal(rollupStoryGreen([{ id: CAP_ID }], [], events, []), null);
   } finally {
     await rm(stories, { recursive: true, force: true });
     await rm(repo, { recursive: true, force: true });

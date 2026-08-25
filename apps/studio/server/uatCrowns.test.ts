@@ -241,3 +241,78 @@ describe('applyOpenQuestionGate', () => {
     expect(stories[0]!.verdict).toBeUndefined();
   });
 });
+
+// ── ADR-0443: the crown reaches stories it used to skip, and the map agrees with the CLI ─────────
+
+describe('applyUatCrowns — ADR-0443', () => {
+  it('crowns a story whose obligation set is EMPTY, on its proven capabilities alone (D2/D3)', () => {
+    // The state D2 unblocks: every acceptance step is unsignable, so `crownObligations` returns [].
+    // Before ADR-0443 this story was SKIPPED here (`if (!tests || tests.length === 0) continue`) and
+    // stayed grey forever — the defect, not the fix. It is also `binding-staleness`'s exact shape.
+    const stories = [story('binding-staleness-ish', { capabilities: [cap('s.cap-a')] })];
+    const map = new Map([['binding-staleness-ish', [] as never[]]]);
+    const events = [verdictEvent(1, 's.cap-a', 'pass', '2026-08-25T00:00:00.000Z')];
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-08-25T00:00:00.000Z' });
+  });
+
+  it('does NOT green a story that declares nothing and proves nothing (D3 vacuity floor)', () => {
+    // `website`: no capabilities, no obligations. Both clauses pass vacuously; only D3 holds it grey.
+    const stories = [story('website-ish', { capabilities: [cap('s.cap-a')] })];
+    const map = new Map([['website-ish', [] as never[]]]);
+    applyUatCrowns(stories, map, noCoverage(), [], rollupStoryGreen);
+    expect(stories[0]!.verdict).toBeUndefined();
+  });
+
+  it('leaves a legacy story with NOTHING to read untouched — its own-unit verdict stands', () => {
+    const stories = [story('legacy', { capabilities: [], verdict: { outcome: 'pass', at: 'own' } })];
+    const map = new Map([['legacy', [] as never[]]]);
+    applyUatCrowns(stories, map, noCoverage(), [], rollupStoryGreen);
+    expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: 'own' });
+  });
+
+  it('a `proposed` capability nobody began does not withhold a proven story crown (D1)', () => {
+    // ADR-0416's `drive-machinery` defect: naming already-implemented behaviour at capability grain
+    // used to remove the crown. Declaring intent must never take away an earned green.
+    const stories = [
+      story('demo', {
+        capabilities: [
+          { ...cap('demo.cap-a'), status: 'healthy' },
+          { ...cap('demo.cap-new'), status: 'proposed' },
+        ],
+      }),
+    ];
+    const map = new Map([['demo', [C1]]]);
+    const events = [
+      verdictEvent(1, 'demo.cap-a', 'pass', '2026-08-25T00:00:00.000Z'),
+      criterionVerdictEvent(2, C1, 'pass', '2026-08-25T01:00:00.000Z'),
+    ];
+    applyUatCrowns(stories, map, noCoverage(), events, rollupStoryGreen);
+    expect(stories[0]!.verdict).toEqual({ outcome: 'pass', at: '2026-08-25T01:00:00.000Z' });
+  });
+
+  it('the map and the CLI agree on a capability proven then rebuilt (the measured divergence)', () => {
+    // The studio reads `events.verdict` ALONE; the CLI reads a merged stream with lifecycle work
+    // events in it. `rollupStatus` was last-event-wins, so a `building` mark after a signed pass
+    // un-proved the capability for the CLI while the map still read it green — 12 islands green on
+    // the map against 10 in `storytree tree`. Both readers must now land on the same crown.
+    const verdictsOnly = [
+      verdictEvent(1, 'demo.cap-a', 'pass', '2026-08-25T00:00:00.000Z'),
+      criterionVerdictEvent(2, C1, 'pass', '2026-08-25T01:00:00.000Z'),
+    ];
+    const merged = [
+      ...verdictsOnly,
+      { kind: 'work', seq: 3, doc: { unitId: 'demo.cap-a', event: 'building', runId: 'r2' } },
+    ];
+    const crowns = [verdictsOnly, merged].map((events) => {
+      const stories = [story('demo', { capabilities: [cap('demo.cap-a')] })];
+      applyUatCrowns(stories, new Map([['demo', [C1]]]), noCoverage(), events, rollupStoryGreen);
+      return stories[0]!.verdict;
+    });
+    expect(crowns[0]).toEqual({ outcome: 'pass', at: '2026-08-25T01:00:00.000Z' });
+    expect(crowns[1]).toEqual(crowns[0]);
+    // …and the per-capability plant agrees with the crown, from either stream.
+    expect(rollupCapStatus('demo.cap-a', verdictsOnly)).toBe('healthy');
+    expect(rollupCapStatus('demo.cap-a', merged)).toBe('healthy');
+  });
+});
