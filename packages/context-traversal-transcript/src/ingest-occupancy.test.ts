@@ -157,17 +157,36 @@ test("ingest-writes-validated-model-context-events-to-disk: a session's correlat
   assert.equal(result.skippedLines, 1);
   assert.equal(result.sidechainRequests, 1);
 
-  // A brand-new reader call — no state carried over from the ingest above.
-  const { replay, skipped } = readTraversalSession({ dir: traceDir, sessionId });
-  assert.equal(skipped, 0);
-  assert.equal(replay.events.length, 3);
+  // Brand-new reader calls, one PER WINDOW — no state carried over from the ingest above. Each
+  // window's occupancy lands in that WINDOW's own trace, which is the identity the terminal-CLI
+  // read trace already uses, so a window's replay carries its reads and its occupancy together.
+  const w1 = readTraversalSession({ dir: traceDir, sessionId: "host-w1" });
+  const w2 = readTraversalSession({ dir: traceDir, sessionId: "host-w2" });
+  assert.equal(w1.skipped, 0);
+  assert.equal(w2.skipped, 0);
+  assert.equal(w1.replay.events.length, 2);
+  assert.equal(w2.replay.events.length, 1);
 
-  const [first, second, third] = replay.events;
+  // THE MOVE ITSELF, asserted as file EXISTENCE rather than as an empty replay: a reader over a
+  // MISSING file also returns zero events, so the two are indistinguishable from the replay alone
+  // and only one of them is this contract. Nothing is written under the storytree session id.
+  assert.equal(fs.existsSync(traceFilePath(traceDir, sessionId)), false);
+
+  // Each trace states what its id NAMES, and says so from the lines' own grade rather than from the
+  // id's shape: one context window, with the storytree session recorded beside it as the grouping
+  // slot. Before this these lines carried no grade at all and read as the legacy slot era.
+  assert.equal(w1.identity, "window");
+  assert.equal(w2.identity, "window");
+  assert.deepEqual(w1.slots, [sessionId]);
+  assert.deepEqual(w2.slots, [sessionId]);
+
+  const [first, second] = w1.replay.events;
+  const [third] = w2.replay.events;
 
   assert.ok(first?.kind === "model_context");
   if (first?.kind === "model_context") {
     assert.equal(first.eventId, "host-transcript:host-w1:msg_1");
-    assert.equal(first.sessionId, sessionId);
+    assert.equal(first.sessionId, "host-w1");
     assert.equal(first.at, "2026-07-20T00:00:00.000Z");
     assert.equal(first.windowId, "host-w1");
     assert.equal(first.modelId, "model-a");
@@ -180,7 +199,7 @@ test("ingest-writes-validated-model-context-events-to-disk: a session's correlat
   assert.ok(second?.kind === "model_context");
   if (second?.kind === "model_context") {
     assert.equal(second.eventId, "host-transcript:host-w1:msg_2");
-    assert.equal(second.sessionId, sessionId);
+    assert.equal(second.sessionId, "host-w1");
     assert.equal(second.windowId, "host-w1");
     assert.equal(Object.prototype.hasOwnProperty.call(second, "modelId"), false);
     assert.equal(second.residentInputTokens, 50);
@@ -192,7 +211,7 @@ test("ingest-writes-validated-model-context-events-to-disk: a session's correlat
   assert.ok(third?.kind === "model_context");
   if (third?.kind === "model_context") {
     assert.equal(third.eventId, "host-transcript:host-w2:msg_3");
-    assert.equal(third.sessionId, sessionId);
+    assert.equal(third.sessionId, "host-w2");
     assert.equal(third.windowId, "host-w2");
     assert.equal(third.modelId, "model-b");
     assert.equal(third.residentInputTokens, 30);
@@ -204,7 +223,7 @@ test("ingest-writes-validated-model-context-events-to-disk: a session's correlat
 
   // Real-collaborator validation: every event that reached disk independently satisfies the
   // published ADR-0235 vocabulary (strict — an extra/leaked field would fail this parse).
-  for (const event of replay.events) ContextTraversalEvent.parse(event);
+  for (const event of [...w1.replay.events, ...w2.replay.events]) ContextTraversalEvent.parse(event);
 });
 
 test("cumulative-is-the-running-billing-total-per-window: cumulativeInputTokens is the running sum of residentInputTokens up to and including each request, resetting fresh at the first request of every new window — never continuing the prior window's total, and never equal to a naive per-request delta", () => {
@@ -258,17 +277,26 @@ test("cumulative-is-the-running-billing-total-per-window: cumulativeInputTokens 
   const result = ingestTranscriptOccupancy({ sessionId, traceDir, transcriptDir });
   assert.equal(result.appended, 5);
 
-  const { replay } = readTraversalSession({ dir: traceDir, sessionId });
-  assert.equal(replay.events.length, 5);
-
-  const windowAEvents = replay.events.filter(
-    (event): event is Extract<typeof event, { kind: "model_context" }> =>
-      event.kind === "model_context" && event.windowId === "host-cum-a",
+  // The two windows are separated BY FILE now, not merely by a field within one file — so each
+  // window's running total is read out of its own trace rather than filtered out of a shared one.
+  // That is a stronger reading of the same contract: a summariser that leaked one window's total
+  // into the other could previously still be caught by the filter, but a summariser that wrote
+  // both windows into ONE trace could not, and now it is.
+  const windowAEvents = readTraversalSession({
+    dir: traceDir,
+    sessionId: "host-cum-a",
+  }).replay.events.filter(
+    (event): event is Extract<typeof event, { kind: "model_context" }> => event.kind === "model_context",
   );
-  const windowBEvents = replay.events.filter(
-    (event): event is Extract<typeof event, { kind: "model_context" }> =>
-      event.kind === "model_context" && event.windowId === "host-cum-b",
+  const windowBEvents = readTraversalSession({
+    dir: traceDir,
+    sessionId: "host-cum-b",
+  }).replay.events.filter(
+    (event): event is Extract<typeof event, { kind: "model_context" }> => event.kind === "model_context",
   );
+  assert.equal(windowAEvents.length + windowBEvents.length, 5);
+  assert.ok(windowAEvents.every((event) => event.windowId === "host-cum-a"));
+  assert.ok(windowBEvents.every((event) => event.windowId === "host-cum-b"));
 
   assert.deepEqual(
     windowAEvents.map((event) => event.residentInputTokens),
@@ -344,7 +372,7 @@ test("capacity-is-absent-because-a-transcript-declares-none: contextWindowCapaci
   const result = ingestTranscriptOccupancy({ sessionId, traceDir, transcriptDir });
   assert.equal(result.appended, 2);
 
-  const { replay } = readTraversalSession({ dir: traceDir, sessionId });
+  const { replay } = readTraversalSession({ dir: traceDir, sessionId: "host-nc" });
   assert.equal(replay.events.length, 2);
   for (const event of replay.events) {
     assert.equal(event.kind, "model_context");
@@ -352,8 +380,9 @@ test("capacity-is-absent-because-a-transcript-declares-none: contextWindowCapaci
   }
 
   // The strongest form of this check: the substring never reaches the bytes on disk at all, not
-  // merely "the parsed object happens to read as undefined".
-  const raw = fs.readFileSync(traceFilePath(traceDir, sessionId), "utf8");
+  // merely "the parsed object happens to read as undefined". Read from the WINDOW's trace, which
+  // is the only file this ingest now writes.
+  const raw = fs.readFileSync(traceFilePath(traceDir, "host-nc"), "utf8");
   assert.equal(raw.includes("contextWindowCapacity"), false);
 });
 
@@ -384,7 +413,12 @@ test("re-ingesting-appends-no-bytes: a second ingest over unchanged transcripts 
   assert.equal(first.appended, 2);
   assert.deepEqual(first.windows, [{ windowId: "host-re", observed: 2, appended: 2 }]);
 
-  const rawAfterFirst = fs.readFileSync(traceFilePath(traceDir, sessionId), "utf8");
+  // Idempotence is now read and asserted on the WINDOW's trace — the file this ingest writes — and
+  // the guard that produces it is a per-window read taken inside the loop rather than one read
+  // taken before it. The BYTE assertion is what carries the contract either way: an implementation
+  // that appended duplicates and leaned on the sink's tolerant reader to skip them would report the
+  // same event count while the file silently doubled.
+  const rawAfterFirst = fs.readFileSync(traceFilePath(traceDir, "host-re"), "utf8");
 
   const second = ingestTranscriptOccupancy({ sessionId, traceDir, transcriptDir });
   assert.equal(second.sessionId, sessionId);
@@ -393,11 +427,43 @@ test("re-ingesting-appends-no-bytes: a second ingest over unchanged transcripts 
   // "appended" collapses to zero on a re-ingest.
   assert.deepEqual(second.windows, [{ windowId: "host-re", observed: 2, appended: 0 }]);
 
-  const rawAfterSecond = fs.readFileSync(traceFilePath(traceDir, sessionId), "utf8");
+  const rawAfterSecond = fs.readFileSync(traceFilePath(traceDir, "host-re"), "utf8");
   assert.equal(rawAfterSecond, rawAfterFirst);
 
-  const { replay } = readTraversalSession({ dir: traceDir, sessionId });
+  const { replay } = readTraversalSession({ dir: traceDir, sessionId: "host-re" });
   assert.equal(replay.events.length, 2);
+});
+
+test("one-window-named-by-two-files-is-written-once: a window appearing in two transcript files is written once inside a SINGLE run, because the re-ingest guard is read per window rather than once per ingest", () => {
+  // The strengthening the per-window guard buys, and the reason it is worth its extra reads. The
+  // OLD shape took one trace read before the window loop, so two files naming the same window in
+  // ONE run both missed the guard and the request landed twice — invisible to a replayed count,
+  // since the tolerant reader skips the duplicate id. This is the shape a resumed or forked
+  // session produces, so it is not hypothetical.
+  const sessionId = "session-reingest-two-files";
+  const cwd = worktreeCwd(sessionId);
+  const transcriptDir = freshDir("reingest-twofile-transcripts");
+  const traceDir = freshDir("reingest-twofile-trace");
+
+  const line = assistantLine({
+    cwd,
+    sessionId: "host-dup",
+    timestamp: "2026-08-11T00:00:00.000Z",
+    id: "dup_1",
+    usage: { input_tokens: 25 },
+  });
+  // The SAME request, verbatim, in two transcript files under the same worktree cwd.
+  writeFile(path.join(transcriptDir, "window-first.jsonl"), [line]);
+  writeFile(path.join(transcriptDir, "window-second.jsonl"), [line]);
+
+  const result = ingestTranscriptOccupancy({ sessionId, traceDir, transcriptDir });
+  assert.equal(result.scannedFiles, 2, "both files are genuinely walked — this is not a skip");
+  assert.equal(result.appended, 1, "…and the request is written exactly once");
+
+  // Asserted on BYTES: exactly one line reached disk. A replayed event count cannot carry this,
+  // because the reader would collapse the duplicate id and report 1 either way.
+  const raw = fs.readFileSync(traceFilePath(traceDir, "host-dup"), "utf8");
+  assert.equal(raw.trimEnd().split("\n").length, 1);
 });
 
 test("the-adapter-declares-its-own-exhaustive-coverage: HOST_TRANSCRIPT_COVERAGE names exactly the five features this adapter supports and derives every omission from the closed vocabulary, so a future feature can never go silently unnamed", () => {
