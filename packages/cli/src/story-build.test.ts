@@ -95,21 +95,35 @@ test("story build library --dry-run drives the capabilities topo-ordered and SIG
   assert.equal(order[2], "library-dag-acyclic-core", "the dep-less DAG root follows");
   assert.equal(order[3], "library-schema-and-write-validation", "the schema dependency root follows");
   assert.equal(order[order.length - 1], "library", "the story's UAT node is last in the order");
-  assert.equal(order[order.length - 2], "library-cli", "the most-dependent capability runs just before the story");
-  assert.equal(order.length, 11, "10 capabilities + the story");
+  // The DEEPEST chain's tail runs just before the story. That is `work-hierarchy-drift-gate`
+  // (→ work-hierarchy-store-projection → event-sourced-store-seam), which overtook `library-cli`
+  // when the work-hierarchy projection landed on this story (ADR-0445 D1). `library-cli`'s own
+  // ordering fact is asserted below, where it is a statement about edges rather than about which
+  // capability happens to be deepest.
+  assert.equal(
+    order[order.length - 2],
+    "work-hierarchy-drift-gate",
+    "the deepest capability chain's tail runs just before the story",
+  );
+  assert.equal(order.length, 13, "12 capabilities + the story");
   assert.ok(
     order.indexOf("migrate-on-write-upcaster") < order.indexOf("event-sourced-store-seam"),
     "depends_on edges are honoured",
+  );
+  assert.ok(
+    order.indexOf("event-sourced-store-seam") < order.indexOf("work-hierarchy-store-projection") &&
+      order.indexOf("work-hierarchy-store-projection") < order.indexOf("work-hierarchy-drift-gate"),
+    "the projection chain is honoured end to end",
   );
 
   // ADR-0044/0040: library now declares uat_witness: machine (every Story UAT leg is an agent
   // exercise) → the gate drives AND signs the story's own UAT node, not just its capabilities.
   assert.match(env.body, /uat witness: machine \(declared\)/);
-  assert.match(env.body, /nodes:\s+11\/11 signed passes/);
+  assert.match(env.body, /nodes:\s+13\/13 signed passes/);
   assert.match(env.body, /library +PASS {3}rollup: healthy/);
   assert.doesNotMatch(env.body, /WITHHELD/);
   assert.match(env.body, /outcome: {5}PASSED — every node signed/);
-  assert.equal((env.body.match(/PASS {3}rollup: healthy/g) ?? []).length, 11);
+  assert.equal((env.body.match(/PASS {3}rollup: healthy/g) ?? []).length, 13);
 
   // The honest framing is part of the output.
   assert.match(env.body, /proves the CHAINING/);

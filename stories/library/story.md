@@ -18,7 +18,7 @@ proof_mode: UAT
 # the wrong rung (`human-witness-is-a-judgment-gap-not-cost`). Independently, `uat_witness: machine`
 # drives the story-level structural gate-as-proof node; it does not claim every leg is gate-bound.
 uat_witness: machine
-capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, hydrated-store-dialing-root, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli, graduation-park-lease, library-dag-acyclic-core]
+capabilities: [library-schema-and-write-validation, migrate-on-write-upcaster, event-sourced-store-seam, hydrated-store-dialing-root, eager-batch-migrate, seed-corpus-scripts, library-health-gate, library-cli, graduation-park-lease, library-dag-acyclic-core, work-hierarchy-store-projection, work-hierarchy-drift-gate]
 # Consumer-side outbound edge (ADR-0075): the library validates/upcasts every doc against the verdict
 # vocabulary's Tier/Status, so it imports the proof-protocol ROOT port — now a declared edge (was an
 # exempt substrate dependency before ADR-0075 collapsed that class). library is no longer the graph
