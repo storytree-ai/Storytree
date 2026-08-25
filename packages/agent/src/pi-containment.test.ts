@@ -13,14 +13,27 @@ import * as path from "node:path";
  *
  * This file is the mechanical half of that. It asserts, over the repo's own source:
  *
- *  1. exactly ONE non-test file names a pi package at all — `packages/agent/src/pi-fence.ts`;
- *  2. that file imports pi TYPES ONLY, so nothing in the shipped graph can construct a pi client,
- *     read a credential store, or reach a provider;
- *  3. no pi package is a runtime `dependency` of any workspace package — all three are
+ *  1. exactly TWO non-test files name a pi package at all — the FENCE (`pi-fence.ts`) and the LEAF
+ *     (`pi-author.ts`);
+ *  2. the FENCE imports pi TYPES ONLY, so nothing it puts in the shipped graph can construct a pi
+ *     client, read a credential store, or reach a provider;
+ *  3. the LEAF reaches pi's runtime ONLY through a DYNAMIC import — never a static value import —
+ *     so importing `@storytree/agent` (or this leaf's own module) loads no pi module graph at all;
+ *  4. no pi package is a runtime `dependency` of any workspace package — all three are
  *     devDependencies, so a consumer installing `@storytree/agent` never pulls pi at all.
  *
- * Together those make "deletable in an afternoon" a checked property rather than an intention:
- * delete `pi-fence.ts`, its two test files, and three devDependency lines, and pi is gone.
+ * WHY THE SET WIDENED FROM ONE FILE TO TWO, AND WHY NO CLAUSE WAS DROPPED TO ALLOW IT. Increment 2
+ * built `PiPhaseAuthor`, and a leaf that runs pi cannot import pi types alone. The guard was
+ * therefore widened at clause 1 and clause 2 was NARROWED TO THE FENCE — but the property clause 2
+ * bought (nothing in the shipped graph can authenticate) is not surrendered, it is re-bought by
+ * clause 3 in the form the leaf can actually satisfy: pi's runtime is pulled inside the slice with
+ * `await import(...)`, so the module graph of every consumer of `@storytree/agent` stays pi-free
+ * and clause 4 survives unchanged. A static value import in the leaf would make pi a real runtime
+ * dependency of this package in everything but the manifest.
+ *
+ * Together these keep "deletable in an afternoon" a checked property rather than an intention:
+ * delete `pi-fence.ts`, `pi-author.ts`, their test files, and three devDependency lines, and pi is
+ * gone.
  *
  * TEST files may import pi at RUNTIME — `pi-fence.test.ts` proves the fence against pi's own
  * loader, runner and agent loop, which is the entire point and is impossible with types alone.
@@ -31,8 +44,14 @@ import * as path from "node:path";
 
 const PI_PACKAGE_PREFIX = "@earendil-works/";
 
-/** The ONE file allowed to name pi, relative to the repo root, in forward-slash form. */
-const PI_IMPORT_SITE = "packages/agent/src/pi-fence.ts";
+/** The FENCE: pi types only, no runtime coupling. Repo-root-relative, forward slashes. */
+const PI_FENCE_SITE = "packages/agent/src/pi-fence.ts";
+
+/** The LEAF: the one file allowed to reach pi's RUNTIME, and only by dynamic import. */
+const PI_LEAF_SITE = "packages/agent/src/pi-author.ts";
+
+/** The only non-test files in the repo allowed to name a pi package at all. */
+const PI_IMPORT_SITES: readonly string[] = [PI_FENCE_SITE, PI_LEAF_SITE];
 
 /** Walk up to the workspace root (the directory holding `pnpm-workspace.yaml`). */
 function repoRoot(): string {
@@ -109,14 +128,16 @@ async function filesNamingPi(root: string, candidates: string[]): Promise<string
   return hits;
 }
 
-test("exactly one non-test source file in the repo names pi", async () => {
+test("exactly two non-test source files in the repo name pi — the fence and the leaf", async () => {
   const root = repoRoot();
   const files = sourceFiles(root);
   assert.ok(files.length > 100, `the source scan found only ${files.length} files — it is not walking the repo`);
-  assert.ok(
-    files.includes(PI_IMPORT_SITE),
-    `the source scan never reached ${PI_IMPORT_SITE} — it cannot be finding anything`,
-  );
+  for (const site of PI_IMPORT_SITES) {
+    assert.ok(
+      files.includes(site),
+      `the source scan never reached ${site} — it cannot be finding anything`,
+    );
+  }
 
   const naming = await filesNamingPi(
     root,
@@ -124,14 +145,14 @@ test("exactly one non-test source file in the repo names pi", async () => {
   );
   assert.deepEqual(
     naming.sort(),
-    [PI_IMPORT_SITE],
-    "pi must be reachable through the fence alone (ADR-0198: nothing dormant that can authenticate)",
+    [...PI_IMPORT_SITES].sort(),
+    "pi must be reachable through the fence and the leaf alone (ADR-0198: nothing dormant that can authenticate)",
   );
 });
 
-test("the single pi import site imports pi TYPES ONLY — no runtime coupling", () => {
+test("the pi FENCE imports pi TYPES ONLY — no runtime coupling", () => {
   const root = repoRoot();
-  const source = fs.readFileSync(path.join(root, PI_IMPORT_SITE), "utf8");
+  const source = fs.readFileSync(path.join(root, PI_FENCE_SITE), "utf8");
 
   // Every statement that mentions a pi package must be a type-only import or export. A value
   // import (`import { createAgentSession } from "@earendil-works/..."`) would put pi's module
@@ -155,13 +176,40 @@ test("the single pi import site imports pi TYPES ONLY — no runtime coupling", 
     }
     inTypeBlock = false;
   }
-  assert.deepEqual(offenders, [], `${PI_IMPORT_SITE} must import pi with 'import type' only`);
+  assert.deepEqual(offenders, [], `${PI_FENCE_SITE} must import pi with 'import type' only`);
 
   // And the direct form, belt and braces: no bare value import of a pi package.
   assert.equal(
     /^\s*import\s+(?!type\s)[^;]*from\s*["']@earendil-works\//m.test(source),
     false,
     "a value import of a pi package would make the fence able to authenticate",
+  );
+});
+
+test("the pi LEAF reaches pi's runtime by DYNAMIC import only — the barrel stays pi-free", () => {
+  const root = repoRoot();
+  const source = fs.readFileSync(path.join(root, PI_LEAF_SITE), "utf8");
+
+  // A static VALUE import would put pi's module graph — its credential store, its provider clients
+  // — into the graph of everything that imports `@storytree/agent`, where pi is a devDependency on
+  // purpose. `import type` is fine: it is erased, and the leaf pins pi's contract through it.
+  assert.equal(
+    /^\s*import\s+(?!type\s)[^;]*from\s*["']@earendil-works\//m.test(source),
+    false,
+    `${PI_LEAF_SITE} must not statically import a pi package — pi is a devDependency (ADR-0198)`,
+  );
+  assert.equal(
+    /^\s*export\s+(?!type\s)[^;]*from\s*["']@earendil-works\//m.test(source),
+    false,
+    `${PI_LEAF_SITE} must not re-export a pi package's runtime`,
+  );
+
+  // And the positive half: the leaf must ACTUALLY reach pi somewhere, or this file is asserting
+  // containment over a leaf that runs no pi and the whole guard is vacuous.
+  assert.equal(
+    /\bimport\(\s*["']@earendil-works\/[^"']+["']\s*\)/.test(source),
+    true,
+    `${PI_LEAF_SITE} must load pi with a dynamic import — without one it runs no pi at all`,
   );
 });
 

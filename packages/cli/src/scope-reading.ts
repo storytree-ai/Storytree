@@ -31,9 +31,16 @@
  * ## `noPathCalls` IS NEVER ADDED IN
  *
  * A write-shaped call whose target path could not be read is PASSED THROUGH by the owned loop and
- * REFUSED fail-closed by the SDK hook. One of the two is wrong. It is reported on its own line, with
- * each runtime's disposition named, because the disagreement is one of the things counting was meant
- * to settle.
+ * REFUSED fail-closed by the SDK hook and the pi fence. The owned loop and the other two cannot both
+ * be right. It is reported on its own line, with each runtime's disposition named, because the
+ * disagreement is one of the things counting was meant to settle.
+ *
+ * ## NOR ARE TOOL-SURFACE REFUSALS
+ *
+ * The pi leaf refuses a call for the TOOL it is — its shell wall — before any path is resolved. That
+ * is a different wall from the write fence, so it gets its own line and its own list. Adding it in
+ * would inflate the single number this whole reading exists to report, and the armed-but-silent
+ * branch would stop being true: the write fence can hold perfectly while the surface wall fires.
  *
  * ## OBSERVABILITY ONLY
  *
@@ -78,6 +85,7 @@ export interface ScopeTotals {
   slices: number;
   refusals: number;
   noPathCalls: number;
+  toolSurfaceRefusals: number;
   /** Every disposition seen under this key — more than one means the group mixes mechanisms. */
   dispositions: Set<string>;
 }
@@ -85,12 +93,19 @@ export interface ScopeTotals {
 function accumulate(into: Map<string, ScopeTotals>, key: string, entry: ScopeSliceEntry): void {
   let totals = into.get(key);
   if (totals === undefined) {
-    totals = { slices: 0, refusals: 0, noPathCalls: 0, dispositions: new Set<string>() };
+    totals = {
+      slices: 0,
+      refusals: 0,
+      noPathCalls: 0,
+      toolSurfaceRefusals: 0,
+      dispositions: new Set<string>(),
+    };
     into.set(key, totals);
   }
   totals.slices += 1;
   totals.refusals += entry.doc.refusals.length;
   totals.noPathCalls += entry.doc.noPathCalls;
+  totals.toolSurfaceRefusals += entry.doc.toolSurfaceRefusals.length;
   totals.dispositions.add(entry.doc.noPathDisposition);
 }
 
@@ -100,6 +115,8 @@ export interface ScopeReading {
   readonly slices: number;
   readonly refusals: number;
   readonly noPathCalls: number;
+  /** Calls refused for the TOOL they are — the pi leaf shell wall. Counted apart from refusals. */
+  readonly toolSurfaceRefusals: number;
   /** ISO bounds of the period measured; absent when nothing was recorded. */
   readonly from?: string;
   readonly to?: string;
@@ -116,6 +133,7 @@ interface ScopeReadingDraft {
   slices: number;
   refusals: number;
   noPathCalls: number;
+  toolSurfaceRefusals: number;
   from?: string;
   to?: string;
   byRuntime: Map<string, ScopeTotals>;
@@ -128,10 +146,12 @@ export function scopeReading(entries: readonly ScopeSliceEntry[]): ScopeReading 
   const byPhase = new Map<string, ScopeTotals>();
   let refusals = 0;
   let noPathCalls = 0;
+  let toolSurfaceRefusals = 0;
   const times: string[] = [];
   for (const entry of entries) {
     refusals += entry.doc.refusals.length;
     noPathCalls += entry.doc.noPathCalls;
+    toolSurfaceRefusals += entry.doc.toolSurfaceRefusals.length;
     if (entry.at !== "") times.push(entry.at);
     accumulate(byRuntime, entry.doc.source, entry);
     accumulate(byPhase, entry.doc.phase, entry);
@@ -141,6 +161,7 @@ export function scopeReading(entries: readonly ScopeSliceEntry[]): ScopeReading 
     slices: entries.length,
     refusals,
     noPathCalls,
+    toolSurfaceRefusals,
     byRuntime,
     byPhase,
   };
@@ -167,7 +188,8 @@ function groupLines(label: string, groups: ReadonlyMap<string, ScopeTotals>): st
     const dispositions = [...totals.dispositions].sort().join("/");
     lines.push(
       `  ${pad(key, width)}  ${totals.slices} armed slice(s) · ${totals.refusals} refusal(s) · ` +
-        `${totals.noPathCalls} no-path (${dispositions})`,
+        `${totals.noPathCalls} no-path (${dispositions}) · ` +
+        `${totals.toolSurfaceRefusals} tool-surface`,
     );
   }
   return lines;
@@ -205,12 +227,27 @@ export function renderScopeReading(input: {
     `  armed slices:   ${reading.slices}   ← the denominator: authoring slices a fence was in place for`,
     `  refusals:       ${reading.refusals}   ← scoped-path writes the wall refused`,
     `  no-path calls:  ${reading.noPathCalls}   ← counted APART; the mechanisms disagree about these`,
+    `  tool-surface:   ${reading.toolSurfaceRefusals}   ← counted APART; refused for the TOOL, no path involved`,
   ];
   if (reading.from !== undefined && reading.to !== undefined) {
     lines.push(`  period:         ${shortTime(reading.from)} → ${shortTime(reading.to)}`);
   }
   lines.push(...groupLines("by runtime", reading.byRuntime));
   lines.push(...groupLines("by phase", reading.byPhase));
+
+  const surfaceFired = entries.filter((e) => e.doc.toolSurfaceRefusals.length > 0);
+  if (surfaceFired.length > 0) {
+    lines.push("", "tool-surface refusals, oldest first:");
+    for (const entry of surfaceFired) {
+      for (const refusal of entry.doc.toolSurfaceRefusals) {
+        lines.push(
+          `  ${shortTime(entry.at)}  ${entry.doc.unitId}  ${entry.doc.phase}  ` +
+            `${entry.doc.source}  [tool-surface]  ${refusal.tool}`,
+        );
+        if (refusal.reason !== undefined) lines.push(`      ${refusal.reason}`);
+      }
+    }
+  }
 
   const fired = entries.filter((e) => e.doc.refusals.length > 0);
   if (fired.length > 0) {
@@ -224,7 +261,7 @@ export function renderScopeReading(input: {
         if (refusal.reason !== undefined) lines.push(`      ${refusal.reason}`);
       }
     }
-  } else {
+  } else if (surfaceFired.length === 0) {
     lines.push(
       "",
       `THE WALL WAS ARMED ${reading.slices} TIME(S) AND NEVER FIRED.`,
@@ -233,14 +270,28 @@ export function renderScopeReading(input: {
       "place and that no write hit it. It is also NOT a verdict on whether the fence should stay:",
       "this reading is evidence for that decision (ADR-0446), never the decision itself.",
     );
+  } else {
+    // The write fence held while the TOOL-SURFACE wall fired. Saying "never fired" here would be
+    // false, and saying "fired" would credit the write fence with refusals it never made.
+    lines.push(
+      "",
+      `THE WRITE FENCE WAS ARMED ${reading.slices} TIME(S) AND NEVER FIRED — but the tool-surface`,
+      `wall did, ${reading.toolSurfaceRefusals} time(s), listed above. Those are different walls:`,
+      "one refuses a write for the path it targets, the other refuses a call for the tool it is.",
+    );
   }
 
   lines.push(
     "",
     "no-path calls are NEVER added into the refusal count: a write-shaped call whose target path",
-    "cannot be read is passed through by the owned loop and refused fail-closed by the SDK hook, so",
-    "one of the two is wrong. Each runtime's disposition is named above; that disagreement is one of",
-    "the things counting these was meant to settle.",
+    "cannot be read is passed through by the owned loop and refused fail-closed by the SDK hook and",
+    "the pi fence, so the owned loop and the other two cannot both be right. Each runtime's",
+    "disposition is named above; that disagreement is one of the things counting these was meant to",
+    "settle.",
+    "",
+    "tool-surface refusals are NEVER added in either: a call refused for the TOOL it is (pi's shell",
+    "wall) resolved no path and compared nothing against the phase predicate, so counting it as a",
+    "write-fence firing would inflate the one number this reading exists to report.",
   );
   return lines.join("\n");
 }

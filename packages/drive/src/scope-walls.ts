@@ -6,6 +6,7 @@ import type {
   ScopeRefusal,
   ScopeRefusalKind,
   ScopeSource,
+  ScopeToolSurfaceRefusal,
 } from "@storytree/proof-protocol";
 import type { Store } from "@storytree/storage-protocol";
 
@@ -31,14 +32,24 @@ import type { Store } from "@storytree/storage-protocol";
  * anything". Those rows are also the DENOMINATOR: a reading is *N refusals across M armed slices on
  * runtime R over period P*, and a bare N cannot answer the question that motivated any of this.
  *
- * ## THE THREE MECHANISMS DISAGREE, AND THAT IS PRESERVED
+ * ## THE MECHANISMS DISAGREE, AND THAT IS PRESERVED
  *
  * A write-shaped call whose target path cannot be read is PASSED THROUGH by the owned loop, REFUSED
- * fail-closed by the SDK hook, and NOT A STATE Codex can be in (it observes a replica diff, never a
- * tool input). One of the first two is wrong. So the no-path count rides its own field, never folded
- * into `refusals`, and each row STATES its mechanism's disposition rather than leaving a reader to
- * infer it from `source` — an inference that goes silently wrong the day a mechanism changes its
- * mind.
+ * fail-closed by the SDK hook and by the pi fence, and NOT A STATE Codex can be in (it observes a
+ * replica diff, never a tool input). The owned loop and the other two cannot both be right. So the
+ * no-path count rides its own field, never folded into `refusals`, and each row STATES its
+ * mechanism's disposition rather than leaving a reader to infer it from `source` — an inference that
+ * goes silently wrong the day a mechanism changes its mind.
+ *
+ * ## A FOURTH MECHANISM HAS A WALL THE OTHERS DO NOT
+ *
+ * The pi leaf (`pi-harness-admission-arc`) refuses a call for THE TOOL IT IS, before any path is
+ * looked at: `decidePiToolCall` is an allowlist over `PI_AUTHORING_TOOLS`, so the shell — and any
+ * write-capable tool a pi release or a loaded extension adds — is refused by default. That refusal
+ * carries NO PATH, so it takes the same separate carriage `noPathCalls` already takes, for the same
+ * reason: folding it into `refusals` would inflate the very count "does the write fence fire?" is
+ * asking about with events that are not write-fence firings. The other three emit an empty list,
+ * which is a measured zero of a wall they do not have.
  *
  * ## OBSERVABILITY, NEVER PROOF
  *
@@ -72,10 +83,17 @@ export interface ScopeWallRefusal {
   reason?: string;
 }
 
+/** One tool-surface refusal (the pi leaf's shell wall), already normalised onto the wire. */
+export interface ScopeWallToolSurfaceRefusal {
+  phase: AuthoringPhase;
+  tool: string;
+  reason?: string;
+}
+
 /**
- * One mechanism's whole record for one build: the armed slices, every refusal, and the disputed
- * no-path calls kept apart. The single shape all three fences are folded onto — the "one sink, one
- * shape" half of ADR-0446.
+ * One mechanism's whole record for one build: the armed slices, every refusal, the disputed no-path
+ * calls kept apart, and the tool-surface refusals kept apart again. The single shape all four
+ * fences are folded onto — the "one sink, one shape" half of ADR-0446.
  */
 export interface ScopeWallReport {
   source: ScopeSource;
@@ -85,6 +103,12 @@ export interface ScopeWallReport {
   /** The phases in which a write-shaped call carried no readable path. NEVER merged into refusals. */
   noPathCalls: readonly AuthoringPhase[];
   noPathDisposition: NoPathDisposition;
+  /**
+   * Calls refused for the TOOL they are rather than the path they targeted. NEVER merged into
+   * refusals — they carry no path and are not write-fence firings. Empty for every mechanism that
+   * has no tool-surface wall, which is a measured zero rather than a missing value.
+   */
+  toolSurfaceRefusals: readonly ScopeWallToolSurfaceRefusal[];
 }
 
 /** The `ClaudeAgentAuthor` surface this fold reads (structural, so a test needs no SDK). */
@@ -113,6 +137,24 @@ export interface CodexScopeSource {
   }[];
 }
 
+/**
+ * The `PiPhaseAuthor` surface this fold reads (structural, so a test needs no pi installed).
+ *
+ * Its `kind` union is the only one of the four carrying `tool-surface`, because it is the only
+ * mechanism with a handler-level tool allowlist to refuse at.
+ */
+export interface PiScopeSource {
+  readonly runtime: "pi";
+  readonly runs: readonly { phase: AuthoringPhase }[];
+  readonly violations: readonly {
+    phase: AuthoringPhase;
+    tool: string;
+    path: string;
+    reason: string;
+    kind: "scope" | "outside-workspace" | "no-path" | "tool-surface";
+  }[];
+}
+
 /** The `OwnedLoopAuthor` surface this fold reads (structural). */
 export interface OwnedLoopScopeSource {
   readonly slices: readonly { phase: AuthoringPhase }[];
@@ -128,15 +170,20 @@ function asAuthoringPhase(phase: string): AuthoringPhase | undefined {
 }
 
 /**
- * Fold a live subscription leaf's record into the common shape.
+ * Fold a live leaf's record into the common shape.
  *
- * Claude's hook records the disputed no-path case AS a refusal (it fails closed), so this SPLITS
- * those back out by their stamped kind: they are counted, they are just never counted as scoped
- * refusals. Codex reports no such case at all and says so — `not-applicable` is a measurement about
- * the mechanism, not a missing value.
+ * Claude's hook and pi's fence both record the disputed no-path case AS a refusal (both fail
+ * closed), so this SPLITS those back out by their stamped kind: they are counted, they are just
+ * never counted as scoped refusals. pi's `tool-surface` refusals are split out AGAIN, onto their
+ * own field, because they carry no path at all. Codex reports neither case and says so —
+ * `not-applicable` is a measurement about the mechanism, not a missing value.
+ *
+ * The three leaves are dispatched on their own `runtime` discriminator rather than on the shape of
+ * their violations: the kind unions overlap, so a structural guess would silently mis-file a
+ * refusal the day two mechanisms converge.
  */
 export function liveAuthorScopeWalls(
-  author: ClaudeScopeSource | CodexScopeSource,
+  author: ClaudeScopeSource | CodexScopeSource | PiScopeSource,
 ): ScopeWallReport {
   const slices = author.runs.map((run) => run.phase);
   if (author.runtime === "codex") {
@@ -152,23 +199,30 @@ export function liveAuthorScopeWalls(
       })),
       noPathCalls: [],
       noPathDisposition: "not-applicable",
+      toolSurfaceRefusals: [],
     };
   }
   const refusals: ScopeWallRefusal[] = [];
   const noPathCalls: AuthoringPhase[] = [];
+  const toolSurfaceRefusals: ScopeWallToolSurfaceRefusal[] = [];
   for (const v of author.violations) {
     if (v.kind === "no-path") {
       noPathCalls.push(v.phase);
       continue;
     }
+    if (v.kind === "tool-surface") {
+      toolSurfaceRefusals.push({ phase: v.phase, tool: v.tool, reason: v.reason });
+      continue;
+    }
     refusals.push({ phase: v.phase, kind: v.kind, tool: v.tool, path: v.path, reason: v.reason });
   }
   return {
-    source: "sdk-leaf",
+    source: author.runtime === "pi" ? "pi-leaf" : "sdk-leaf",
     slices,
     refusals,
     noPathCalls,
     noPathDisposition: "refused",
+    toolSurfaceRefusals,
   };
 }
 
@@ -200,6 +254,9 @@ export function ownedLoopScopeWalls(author: OwnedLoopScopeSource): ScopeWallRepo
     refusals,
     noPathCalls,
     noPathDisposition: "passed-through",
+    // The owned loop executes only the tools the spine registered on its executor, so it has no
+    // tool-surface wall to fire. Empty is the measurement, not a gap.
+    toolSurfaceRefusals: [],
   };
 }
 
@@ -225,6 +282,7 @@ export function sliceScopeDocs(
     ...report.slices,
     ...report.refusals.map((r) => r.phase),
     ...report.noPathCalls,
+    ...report.toolSurfaceRefusals.map((r) => r.phase),
   ]) {
     if (seen.has(phase)) continue;
     seen.add(phase);
@@ -238,6 +296,13 @@ export function sliceScopeDocs(
         if (r.reason !== undefined) refusal.reason = r.reason;
         return refusal;
       });
+    const toolSurfaceRefusals: ScopeToolSurfaceRefusal[] = report.toolSurfaceRefusals
+      .filter((r) => r.phase === phase)
+      .map((r) => {
+        const refusal: ScopeToolSurfaceRefusal = { tool: r.tool };
+        if (r.reason !== undefined) refusal.reason = r.reason;
+        return refusal;
+      });
     const doc: ScopeEventDoc = {
       unitId: ids.unitId,
       runId: ids.runId,
@@ -247,6 +312,7 @@ export function sliceScopeDocs(
       refusals,
       noPathCalls: report.noPathCalls.filter((p) => p === phase).length,
       noPathDisposition: report.noPathDisposition,
+      toolSurfaceRefusals,
     };
     if (ids.model !== undefined) doc.model = ids.model;
     return doc;

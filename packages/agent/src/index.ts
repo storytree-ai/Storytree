@@ -131,9 +131,7 @@ export { buildInspectTools, INSPECT_SERVER } from "./inspect-tool-surface.js";
 
 // The pi write-scope FENCE (`pi-harness-admission-arc` increment 1): the `tool_call` extension
 // that enforces phase write scope inside pi, plus the authoring tool surface that keeps pi's shell
-// off it. This is the FENCE only — there is no pi leaf, no `--runtime pi`, and no pi credential
-// hydrated anywhere (the ADR-0198 rule: nothing that can authenticate or bill exists before the
-// fence is proven). `pi-fence.ts` is the single pi import site and imports pi TYPES ONLY.
+// off it. `pi-fence.ts` imports pi TYPES ONLY, so nothing exported here can reach a provider.
 export type {
   PiFenceViolation,
   PiRefusalKind,
@@ -150,3 +148,30 @@ export {
   createPiScopeFence,
   decidePiToolCall,
 } from "./pi-fence.js";
+
+// The pi LEAF (`pi-harness-admission-arc` increment 2): the third PhaseAuthor, alongside the
+// Claude and Codex leaves. Still nothing that can bill by surprise — the leaf carries no
+// credential field, refuses unless exactly one endpoint is configured, refuses outright if any
+// OTHER provider is authenticated in the process, and reaches pi's runtime through a DYNAMIC
+// import so importing this barrel loads no pi at all (pi stays a devDependency, ADR-0198).
+// `--runtime pi` is still refused by `resolveLiveRuntime`: wiring it is increment 3.
+export type {
+  PiEndpoint,
+  PiEndpointDecision,
+  PiPreflightDecision,
+  PiPhaseAuthorArgs,
+  PiRunInfo,
+  PiSliceTermination,
+  PiTurnCeiling,
+} from "./pi-author.js";
+export {
+  PiPhaseAuthor,
+  PI_LOCAL_PLACEHOLDER_KEY,
+  PI_METERED_AUTH_ENV,
+  classifyPiSliceOutcome,
+  createPiTurnCeiling,
+  decidePiPreflight,
+  scrubMeteredPiAuth,
+  scrubMeteredPiAuthEnv,
+  validatePiEndpoint,
+} from "./pi-author.js";

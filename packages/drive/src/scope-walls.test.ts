@@ -11,6 +11,7 @@ import {
   type ClaudeScopeSource,
   type CodexScopeSource,
   type OwnedLoopScopeSource,
+  type PiScopeSource,
   type ScopeEventSink,
   type ScopeWallReport,
 } from "./scope-walls.js";
@@ -18,10 +19,12 @@ import {
 /**
  * The fold from each fence mechanism's own violation shape onto the one wire shape (ADR-0446).
  *
- * Three properties are asserted over and over here because each is one this arc could quietly lose:
+ * Four properties are asserted over and over here because each is one this arc could quietly lose:
  * a silent slice still BANKS a row (a zero is a measurement); a no-path call is NEVER counted as a
- * refusal (the mechanisms disagree about it, and merging them would erase the disagreement); and
- * every row STATES its mechanism's disposition rather than leaving a reader to derive it.
+ * refusal (the mechanisms disagree about it, and merging them would erase the disagreement); a
+ * tool-surface refusal is never counted as one either (it resolved no path, so it is not a
+ * write-fence firing at all); and every row STATES its mechanism's disposition rather than leaving
+ * a reader to derive it.
  */
 
 const IDS = { unitId: "cap-x", runId: "run-1" };
@@ -31,6 +34,13 @@ function claude(
   runs: readonly { phase: "AUTHOR_TEST" | "IMPLEMENT" }[] = [{ phase: "AUTHOR_TEST" }],
 ): ClaudeScopeSource {
   return { runtime: "claude", runs, violations };
+}
+
+function pi(
+  violations: PiScopeSource["violations"],
+  runs: readonly { phase: "AUTHOR_TEST" | "IMPLEMENT" }[] = [{ phase: "AUTHOR_TEST" }],
+): PiScopeSource {
+  return { runtime: "pi", runs, violations };
 }
 
 test("fold-claude-silent: an armed slice with no refusal still yields ONE doc, refusals empty", () => {
@@ -175,6 +185,7 @@ test("append-slice-scope: a failing store is ADVISORY — it warns and never thr
     refusals: [],
     noPathCalls: [],
     noPathDisposition: "refused",
+    toolSurfaceRefusals: [],
   };
   // A build that already proved (or honestly failed) its unit must not go red because an
   // observability row would not persist. The cost is fail-SILENT capture, which is why the wire
@@ -183,4 +194,151 @@ test("append-slice-scope: a failing store is ADVISORY — it warns and never thr
   assert.equal(appended, 0);
   assert.equal(warnings.length, 1);
   assert.match(warnings[0] ?? "", /did not persist/);
+});
+
+// ── the pi leaf: a fourth mechanism, with a wall the other three do not have ──
+
+test("fold-pi-silent: an armed pi slice banks a row with BOTH lists empty", () => {
+  const docs = sliceScopeDocs(IDS, liveAuthorScopeWalls(pi([])));
+  assert.equal(docs.length, 1);
+  assert.equal(docs[0]?.source, "pi-leaf");
+  assert.deepEqual(docs[0]?.refusals, []);
+  assert.deepEqual(docs[0]?.toolSurfaceRefusals, []);
+  // pi's fence fails closed on an unreadable path, exactly as the SDK hook does — so it declares
+  // the SAME disposition, and the two are directly comparable against the owned loop's.
+  assert.equal(docs[0]?.noPathDisposition, "refused");
+});
+
+test("fold-pi-tool-surface: a shell call is counted APART, never as a write-fence refusal", () => {
+  // THE property this fold exists for. A `tool-surface` refusal resolved no path and compared
+  // nothing against the phase predicate; folding it into `refusals` would inflate the one number
+  // ADR-0446 exists to report with events that are not write-fence firings.
+  const docs = sliceScopeDocs(
+    IDS,
+    liveAuthorScopeWalls(
+      pi([
+        {
+          phase: "AUTHOR_TEST",
+          tool: "bash",
+          path: "(no path)",
+          reason: "refused: 'bash' is not on the authoring tool surface",
+          kind: "tool-surface",
+        },
+        {
+          phase: "AUTHOR_TEST",
+          tool: "write",
+          path: "impl.ts",
+          reason: "phase scope",
+          kind: "scope",
+        },
+      ]),
+    ),
+  );
+  assert.equal(docs.length, 1);
+  assert.equal(docs[0]?.refusals.length, 1, "only the scoped-path refusal counts as a refusal");
+  assert.equal(docs[0]?.refusals[0]?.kind, "scope");
+  assert.equal(docs[0]?.toolSurfaceRefusals.length, 1);
+  assert.equal(docs[0]?.toolSurfaceRefusals[0]?.tool, "bash");
+  // And it carries no path: there was never one to carry.
+  assert.equal(Object.hasOwn(docs[0]?.toolSurfaceRefusals[0] ?? {}, "path"), false);
+});
+
+test("fold-pi-no-path: pi's disputed case rides the no-path count, like the SDK hook's", () => {
+  const docs = sliceScopeDocs(
+    IDS,
+    liveAuthorScopeWalls(
+      pi([
+        {
+          phase: "AUTHOR_TEST",
+          tool: "write",
+          path: "(no path)",
+          reason: "no readable path",
+          kind: "no-path",
+        },
+      ]),
+    ),
+  );
+  assert.equal(docs.length, 1);
+  assert.deepEqual(docs[0]?.refusals, []);
+  assert.deepEqual(docs[0]?.toolSurfaceRefusals, []);
+  assert.equal(docs[0]?.noPathCalls, 1);
+});
+
+test("fold-pi-union: a tool-surface refusal in a phase with NO recorded run still lands a row", () => {
+  // The same union rule the other mechanisms get: a slice whose model then died records no run,
+  // and dropping its refusals would lose exactly the evidence the refusal might have explained.
+  const docs = sliceScopeDocs(
+    IDS,
+    liveAuthorScopeWalls(
+      pi(
+        [
+          {
+            phase: "IMPLEMENT",
+            tool: "powershell",
+            path: "(no path)",
+            reason: "not on the authoring tool surface",
+            kind: "tool-surface",
+          },
+        ],
+        [],
+      ),
+    ),
+  );
+  assert.equal(docs.length, 1);
+  assert.equal(docs[0]?.phase, "IMPLEMENT");
+  assert.equal(docs[0]?.toolSurfaceRefusals.length, 1);
+});
+
+test("fold-tool-surface: the three mechanisms WITHOUT that wall report an empty list, not a gap", () => {
+  // A measured zero of a wall they do not have. The Claude leaf keeps Bash off `LEAF_TOOLS` but
+  // has no handler-level allowlist to refuse at, the owned loop runs only spine-registered tools,
+  // and Codex inspects no tool call at all.
+  const claudeDocs = sliceScopeDocs(IDS, liveAuthorScopeWalls(claude([])));
+  const codexDocs = sliceScopeDocs(
+    IDS,
+    liveAuthorScopeWalls({
+      runtime: "codex",
+      runs: [{ phase: "AUTHOR_TEST" }],
+      violations: [],
+    } satisfies CodexScopeSource),
+  );
+  const ownedDocs = sliceScopeDocs(
+    IDS,
+    ownedLoopScopeWalls({
+      slices: [{ phase: "AUTHOR_TEST" }],
+      violations: [],
+      noPathCalls: [],
+    } satisfies OwnedLoopScopeSource),
+  );
+  for (const docs of [claudeDocs, codexDocs, ownedDocs]) {
+    assert.equal(docs.length, 1);
+    assert.deepEqual(docs[0]?.toolSurfaceRefusals, []);
+  }
+});
+
+test("append-slice-scope: a pi slice's row reaches the store and parses on the way out", async () => {
+  // The wire shape is `.strict()` and capture is fail-SILENT, so a field emitted but not admitted
+  // stops the whole stream persisting with nothing going red (the ModelTokenUsage scar). This
+  // asserts the pi row actually lands rather than being warned about.
+  const store = new InMemoryStore();
+  const warnings: string[] = [];
+  const appended = await appendSliceScope(
+    store,
+    IDS,
+    liveAuthorScopeWalls(
+      pi([
+        {
+          phase: "AUTHOR_TEST",
+          tool: "bash",
+          path: "(no path)",
+          reason: "not on the authoring tool surface",
+          kind: "tool-surface",
+        },
+      ]),
+    ),
+    "tester",
+    (m) => warnings.push(m),
+  );
+  assert.equal(appended, 1);
+  assert.deepEqual(warnings, [], "a pi row must persist, not be swallowed by a validation warning");
 });

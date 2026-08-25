@@ -75,6 +75,7 @@ const SCOPE_SILENT_DOC = {
   refusals: [],
   noPathCalls: 2,
   noPathDisposition: "passed-through",
+  toolSurfaceRefusals: [],
 } as const;
 
 test("a scope event routes to events.scope_event with the counts as the scalar spine", async () => {
@@ -95,8 +96,9 @@ test("a scope event routes to events.scope_event with the counts as the scalar s
   assert.equal(queries.length, 1);
   const q = queries[0]!;
   assert.match(q.text, /INSERT INTO events\.scope_event/);
-  // unit_id, run_id, phase, source, model, refusal_count, no_path_calls, no_path_disposition.
-  assert.deepEqual(q.values.slice(0, 8), [
+  // unit_id, run_id, phase, source, model, refusal_count, no_path_calls, no_path_disposition,
+  // tool_surface_refusals.
+  assert.deepEqual(q.values.slice(0, 9), [
     "u1",
     "run-1",
     "IMPLEMENT",
@@ -105,9 +107,10 @@ test("a scope event routes to events.scope_event with the counts as the scalar s
     1,
     2,
     "passed-through",
+    0,
   ]);
-  // The scalar count is derived from the array's own length, so detail and count cannot disagree.
-  assert.deepEqual(JSON.parse(q.values[8] as string), doc);
+  // Every scalar count is derived from its array's own length, so detail and count cannot disagree.
+  assert.deepEqual(JSON.parse(q.values[9] as string), doc);
   assert.equal(event.kind, "scope");
 });
 
@@ -127,6 +130,39 @@ test("a scope event for an ARMED-AND-SILENT slice lands with refusal_count 0 —
   assert.equal(queries[0]!.values[5], 0);
   // …and the disputed no-path count is NOT folded into it.
   assert.equal(queries[0]!.values[6], 2);
+  // …nor is the tool-surface count, which for an owned-loop row is a measured zero of a wall that
+  // mechanism does not have.
+  assert.equal(queries[0]!.values[8], 0);
+});
+
+test("a pi scope event carries its tool-surface count in its OWN scalar column", async () => {
+  // The pi leaf's shell wall (`pi-harness-admission-arc` inc 2). It resolved no path and compared
+  // nothing against the phase predicate, so summing it into refusal_count would inflate the one
+  // number this stream exists to report — and would make a SQL reading of "did the write fence
+  // fire?" answer yes for a slice in which it never did.
+  const { client, queries } = fakeClient();
+  const store = new PgWorkStore(client);
+  await store.appendEvent({
+    id: "scope:run-1:u1:AUTHOR_TEST",
+    kind: "scope",
+    type: "created",
+    doc: {
+      ...SCOPE_SILENT_DOC,
+      phase: "AUTHOR_TEST",
+      source: "pi-leaf",
+      noPathCalls: 0,
+      noPathDisposition: "refused",
+      toolSurfaceRefusals: [
+        { tool: "bash", reason: "refused: 'bash' is not on the authoring tool surface" },
+        { tool: "powershell" },
+      ],
+    },
+    actor: "tester@example.com",
+  });
+  assert.equal(queries.length, 1);
+  assert.equal(queries[0]!.values[3], "pi-leaf");
+  assert.equal(queries[0]!.values[5], 0, "the write fence did not fire and must read as zero");
+  assert.equal(queries[0]!.values[8], 2, "the surface wall fired twice, in its own column");
 });
 
 test("a scope event whose doc is malformed fails closed (no fence garbage lands)", async () => {

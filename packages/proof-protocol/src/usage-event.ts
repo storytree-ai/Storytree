@@ -63,8 +63,19 @@ export type ModelTokenUsage = z.infer<typeof ModelTokenUsage>;
  * than declaring a parallel copy: a reading that wants "refusals per slice per runtime" joins
  * `events.scope_event` to `events.usage_event` on exactly this vocabulary, and two enums that must
  * agree are two enums that will eventually disagree.
+ *
+ * `pi-leaf` is the pi harness (`PiPhaseAuthor`, `pi-harness-admission-arc` increment 2). It is
+ * admitted to the VOCABULARY before it is admitted to `--live`/`--real`, deliberately: the pi
+ * leaf's fence records refusals into `events.scope_event` from the moment it exists, and a source
+ * the wire cannot name is a slice the sink cannot count. `resolveLiveRuntime` still refuses
+ * `--runtime pi`, so nothing in production can emit one yet.
+ *
+ * ⚠ Two DELIBERATE DUPLICATES of this enum exist and must be widened in the SAME change, because
+ * both exist to be JOINED against these rows and nothing mechanically links them: `AgentRuntime`
+ * (`@storytree/context-traversal-telemetry`, a root that takes no dependency to borrow four string
+ * literals) and the studio's `TraversalSpawnHandoffEvent.runtime`.
  */
-export const UsageSource = z.enum(["sdk-leaf", "codex-leaf", "owned-loop"]);
+export const UsageSource = z.enum(["sdk-leaf", "codex-leaf", "owned-loop", "pi-leaf"]);
 export type UsageSource = z.infer<typeof UsageSource>;
 
 /**

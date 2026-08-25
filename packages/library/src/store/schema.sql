@@ -164,6 +164,15 @@ CREATE TABLE IF NOT EXISTS events.usage_event (
 -- exactly that. no_path_disposition records which side this row's mechanism took (refused |
 -- passed-through | not-applicable) -- stated by the emitter, never inferred by a reader from source.
 --
+-- tool_surface_refusals IS ITS OWN COLUMN FOR THE SAME REASON (pi-harness-admission-arc inc 2). The
+-- pi leaf refuses a call for the TOOL IT IS -- its shell wall -- before any path is resolved, so
+-- such a refusal compared nothing against the phase predicate and is not a write-fence firing at
+-- all. Summing it into refusal_count would inflate the one number this table exists to report, and
+-- would make "armed and never fired" false for a slice whose surface wall plainly fired. It carries
+-- no path, so the detail in doc.toolSurfaceRefusals[] is {tool, reason} -- never {path}.
+-- DEFAULT 0 because the three older mechanisms have no such wall: an empty list from them is a
+-- measured zero of a wall they do not have, not a missing value.
+--
 -- OBSERVABILITY ONLY: rollupStatus ignores this kind entirely, so a row here can never move a
 -- unit's derived status, and no fence behaviour is conditioned on it.
 --
@@ -180,6 +189,7 @@ CREATE TABLE IF NOT EXISTS events.scope_event (
   refusal_count         BIGINT NOT NULL,    -- scoped-path refusals; 0 = ARMED AND SILENT, a measurement
   no_path_calls         BIGINT NOT NULL,    -- never folded into refusal_count (see above)
   no_path_disposition   TEXT NOT NULL,      -- refused|passed-through|not-applicable
+  tool_surface_refusals BIGINT NOT NULL DEFAULT 0,  -- never folded into refusal_count either (see above)
   doc                   JSONB NOT NULL,     -- the full ScopeEventDoc (each refusal's tool/path/kind inside)
   actor                 TEXT NOT NULL,
   at                    TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -442,3 +452,14 @@ ALTER TABLE events.claim_event      ADD COLUMN IF NOT EXISTS caused_by_stream TE
 -- events.claim_event. Ordered history-then-projection for symmetry with creation order.
 DROP TABLE IF EXISTS events.session_event;
 DROP TABLE IF EXISTS events.session;
+
+-- MIGRATION (pi-harness-admission-arc inc 2): give an EXISTING events.scope_event the pi leaf's
+-- tool-surface count. Guarded no-op on re-run and on a fresh install, which reaches the identical
+-- shape from the CREATE above -- the same converging pattern as the ADR-0350 causal columns.
+--
+-- The backfill to 0 is CORRECT rather than merely convenient, and it was checked rather than
+-- assumed: the table held ZERO rows when this landed (verified 2026-08-25 via `storytree node
+-- walls --pg`, which reported NOTHING RECORDED). Even on a populated table it would be right --
+-- every pre-existing emitter is one of the three mechanisms that has no tool-surface wall to fire.
+ALTER TABLE events.scope_event
+  ADD COLUMN IF NOT EXISTS tool_surface_refusals BIGINT NOT NULL DEFAULT 0;

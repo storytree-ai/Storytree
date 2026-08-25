@@ -87,6 +87,40 @@ export type NoPathDisposition = z.infer<typeof NoPathDisposition>;
 export const ScopeRefusalKind = z.enum(["scope", "outside-workspace"]);
 export type ScopeRefusalKind = z.infer<typeof ScopeRefusalKind>;
 
+/**
+ * A call refused for THE TOOL IT IS, before any path was looked at — the pi leaf's SHELL WALL
+ * (`pi-harness-admission-arc` increment 2). `decidePiToolCall` is an allowlist over
+ * `PI_AUTHORING_TOOLS`, so `bash`, `powershell`, and any write-capable tool a future pi release or
+ * a loaded extension adds are refused by default rather than silently admitted.
+ *
+ * IT IS NOT A `ScopeRefusalKind`, AND THAT IS THE WHOLE POINT. A tool-surface refusal CARRIES NO
+ * PATH: nothing was resolved, nothing was compared against the phase predicate, and there is no
+ * workspace-relative target to record. Admitting it as a fourth {@link ScopeRefusalKind} member
+ * would force a fabricated `path` onto {@link ScopeRefusal} (whose `path` is required) and would
+ * silently inflate every "how often did the write fence fire?" reading with events that are not
+ * write-fence firings at all.
+ *
+ * So it takes the shape `noPathCalls` already took for the same reason (ADR-0446): separate
+ * carriage, never folded into `refusals`. It rides as a LIST rather than a bare count because,
+ * unlike a no-path call, the interesting datum is WHICH tool was reached for — "the leaf tried the
+ * shell four times this slice" and "the leaf called one unknown tool" are different findings, and
+ * a count cannot tell them apart.
+ *
+ * The other three mechanisms have no analogous hole and therefore emit an empty list: the Claude
+ * leaf keeps Bash off `LEAF_TOOLS` but has no handler-level allowlist to refuse at, the owned loop
+ * executes only the tools the spine registered, and Codex inspects no tool call at all. An empty
+ * list from those is a measured zero of a wall they do not have, not a missing value.
+ */
+export const ScopeToolSurfaceRefusal = z
+  .object({
+    /** The tool whose call was refused for being off the authoring surface (`bash`, …). */
+    tool: z.string(),
+    /** The refusal text the mechanism produced, when it produced one. */
+    reason: z.string().optional(),
+  })
+  .strict();
+export type ScopeToolSurfaceRefusal = z.infer<typeof ScopeToolSurfaceRefusal>;
+
 /** One fail-closed write refusal: the wall a write hit, and the write that hit it. */
 export const ScopeRefusal = z
   .object({
@@ -136,6 +170,19 @@ export const ScopeEventDoc = z
     noPathCalls: z.number().int().nonnegative(),
     /** What this mechanism DID with those calls — stated by the emitter, never inferred. */
     noPathDisposition: NoPathDisposition,
+    /**
+     * Calls refused for the TOOL they are rather than the path they targeted — the pi leaf's shell
+     * wall. NEVER folded into `refusals`: these carry no path and are not write-fence firings, so
+     * summing them into the refusal count would inflate exactly the number ADR-0446 exists to
+     * measure. See {@link ScopeToolSurfaceRefusal}.
+     *
+     * REQUIRED, like `refusals`, and for the identical reason: an empty list is the measurement
+     * "this slice's surface wall was in place and nothing hit it". An optional field would make
+     * absent mean both that and "this emitter predates the field", which is the collapse the
+     * per-armed-slice row shape exists to prevent. It could be made required without a migration
+     * because `events.scope_event` held zero rows when it landed (verified 2026-08-25).
+     */
+    toolSurfaceRefusals: z.array(ScopeToolSurfaceRefusal),
     /** The configured leaf model, when the caller knows one (the coarse label, as usage carries it). */
     model: z.string().optional(),
   })
