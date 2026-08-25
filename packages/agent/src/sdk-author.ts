@@ -62,12 +62,29 @@ export type SdkQueryFn = (args: {
   options: Options;
 }) => AsyncIterable<unknown>;
 
+/**
+ * Why one write refusal fired — a LABEL on a decision this file already makes, never a new branch.
+ *
+ * `scope` is the wall proper (a path was read and the phase predicate denied it), `outside-workspace`
+ * a path resolving outside the authoring workspace, and `no-path` a write-shaped call carrying no
+ * readable `file_path`. That third one is the case the owned loop's `WriteScopedToolExecutor` PASSES
+ * THROUGH while this hook fails closed — one of the two is wrong, and it is only findable if the two
+ * are counted apart (ADR-0446), which is why the kind is stamped AT the refusal rather than sniffed
+ * downstream out of the refusal text.
+ *
+ * A LOCAL union, deliberately: `@storytree/agent` depends on no other storytree package, so it does
+ * not reach for proof-protocol's `ScopeRefusalKind`. The drive maps one onto the other at the sink.
+ */
+export type SdkRefusalKind = "scope" | "outside-workspace" | "no-path";
+
 /** A fail-closed write refusal the hook recorded (mirrors the owned loop's WriteViolation). */
 export interface SdkWriteViolation {
   phase: AuthoringPhase;
   tool: string;
   path: string;
   reason: string;
+  /** Which wall it hit. Stamped at the refusal; see {@link SdkRefusalKind}. */
+  kind: SdkRefusalKind;
 }
 
 /** Per-slice run accounting read off the SDK result message. */
@@ -311,12 +328,15 @@ export function decideWrite(args: {
   toolName: string;
   toolInput: unknown;
   isWriteAllowed: (phase: AuthoringPhase, relPath: string) => boolean;
-}): { allow: true; relPath: string } | { allow: false; relPath: string; reason: string } {
+}):
+  | { allow: true; relPath: string }
+  | { allow: false; relPath: string; reason: string; kind: SdkRefusalKind } {
   const filePath = extractFilePath(args.toolInput);
   if (filePath === null) {
     return {
       allow: false,
       relPath: "(no path)",
+      kind: "no-path",
       reason: `write refused: '${args.toolName}' call carries no readable file_path (fail-closed)`,
     };
   }
@@ -325,6 +345,7 @@ export function decideWrite(args: {
     return {
       allow: false,
       relPath: rel,
+      kind: "outside-workspace",
       reason: `write refused: '${filePath}' resolves outside the workspace`,
     };
   }
@@ -332,6 +353,7 @@ export function decideWrite(args: {
     return {
       allow: false,
       relPath: rel,
+      kind: "scope",
       reason: `write refused by phase scope: '${args.toolName}' may not write ${rel} in phase ${args.phase}`,
     };
   }
@@ -548,6 +570,7 @@ export class ClaudeAgentAuthor implements PhaseAuthor {
                   tool: input.tool_name,
                   path: decision.relPath,
                   reason: decision.reason,
+                  kind: decision.kind,
                 });
                 return {
                   hookSpecificOutput: {

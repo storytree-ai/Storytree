@@ -87,3 +87,99 @@ export function useDevStoreOverride(): DevOverride | null {
   }, []);
   return override;
 }
+
+// ── THE FOREST CURRENCY SIGNAL'S OWN DEV OVERRIDE (ADR-0445 D3, `map-currency-signal`) ──────────
+//
+// Same shim, same file, same reason: the signal's APPEARANCE is operator-attested (ADR-0070 stage
+// 2), and on a local dev studio only GREEN occurs naturally — `code.stale` is false on a
+// freshly-started server and the dev studio sends no `runtime.behind` at all, so amber needs a
+// pinned installed app that is genuinely behind `main` and red needs the tree read to fail cold.
+// Staging those for real would mean breaking the operator's machine to show him a colour.
+//
+// INERT IN A PRODUCTION BUILD (`import.meta.env.DEV` is false there), exactly like the load-screen
+// override above, so it can never reach the hosted studio. It is a VIEW shim only: it substitutes
+// the READING, never the facts it is derived from, so nothing about the health poll, the payload
+// cache, or the map's own data path changes while it is in effect.
+
+import type { MapCurrencyReading } from './mapCurrency';
+
+/** The named readings the owner can force via `?devCurrency=<name>`. */
+const CURRENCY_PRESETS: ReadonlyMap<string, MapCurrencyReading> = new Map([
+  ['green', { state: 'green', causes: [] }],
+  [
+    'amber-cache',
+    {
+      state: 'amber',
+      causes: [
+        {
+          id: 'serving-cache',
+          what: 'painted from the last visit’s cached payload — not confirmed against the store',
+          remedy: 'Reconnect, or wait for the next read to land.',
+        },
+      ],
+    },
+  ],
+  [
+    'amber-behind',
+    {
+      state: 'amber',
+      causes: [
+        {
+          id: 'app-behind-main',
+          what: 'this app is 7 commits behind main, so it is asking about criteria that have since moved',
+          remedy: 'Rebuild and relaunch to update.',
+        },
+      ],
+    },
+  ],
+  [
+    'amber-both',
+    {
+      state: 'amber',
+      causes: [
+        {
+          id: 'serving-cache',
+          what: 'painted from the last visit’s cached payload — not confirmed against the store',
+          remedy: 'Reconnect, or wait for the next read to land.',
+        },
+        {
+          id: 'app-behind-main',
+          what: 'this app is 7 commits behind main, so it is asking about criteria that have since moved',
+          remedy: 'Rebuild and relaunch to update.',
+        },
+      ],
+    },
+  ],
+  ['red', { state: 'red', causes: [] }],
+]);
+
+/** The preset names, for the dev hint strip. */
+export const DEV_CURRENCY_NAMES = [...CURRENCY_PRESETS.keys()];
+
+function readCurrencyOverride(): MapCurrencyReading | null {
+  if (!import.meta.env.DEV) return null;
+  if (typeof window === 'undefined') return null;
+  const name = new URLSearchParams(window.location.search).get('devCurrency');
+  if (name === null || name === '') return null;
+  return CURRENCY_PRESETS.get(name) ?? null;
+}
+
+/**
+ * In a Vite dev build, returns the synthetic currency reading named by `?devCurrency=<name>` (or
+ * null when absent/unknown/prod), re-read on hashchange/popstate so flipping the query in the
+ * address bar takes effect without reloading the SPA shell.
+ */
+export function useDevCurrencyOverride(): MapCurrencyReading | null {
+  const [override, setOverride] = useState<MapCurrencyReading | null>(readCurrencyOverride);
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const reread = (): void => setOverride(readCurrencyOverride());
+    window.addEventListener('popstate', reread);
+    window.addEventListener('hashchange', reread);
+    return () => {
+      window.removeEventListener('popstate', reread);
+      window.removeEventListener('hashchange', reread);
+    };
+  }, []);
+  return override;
+}

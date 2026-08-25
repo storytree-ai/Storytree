@@ -25,6 +25,7 @@ export type { AuthoringPhase, AuthorResult, LiveRuntime, PhaseAuthor } from "./p
 export type {
   SdkQueryFn,
   SdkWriteViolation,
+  SdkRefusalKind,
   SdkRunInfo,
   SdkFeedbackRun,
   FeedbackCommand,
@@ -46,6 +47,7 @@ export type {
   CodexCommandResult,
   CodexRunner,
   CodexWriteViolation,
+  CodexRefusalKind,
   CodexRunInfo,
   CodexPromotionManifest,
   CodexPromotionFaults,
@@ -126,3 +128,25 @@ export { runSpawnWriteScoped } from "./spawn-write-scoped.js";
 // and each tool refuses a mutating argument fail-closed (ADR-0137 d.1 widened for reads, ADR-0173).
 export type { InspectSurfaceDeps, InspectResult } from "./inspect-tool-surface.js";
 export { buildInspectTools, INSPECT_SERVER } from "./inspect-tool-surface.js";
+
+// The pi write-scope FENCE (`pi-harness-admission-arc` increment 1): the `tool_call` extension
+// that enforces phase write scope inside pi, plus the authoring tool surface that keeps pi's shell
+// off it. This is the FENCE only — there is no pi leaf, no `--runtime pi`, and no pi credential
+// hydrated anywhere (the ADR-0198 rule: nothing that can authenticate or bill exists before the
+// fence is proven). `pi-fence.ts` is the single pi import site and imports pi TYPES ONLY.
+export type {
+  PiFenceViolation,
+  PiRefusalKind,
+  PiToolCallDecision,
+  ExtensionAPI as PiExtensionAPI,
+  ExtensionFactory as PiExtensionFactory,
+  ToolCallEvent as PiToolCallEvent,
+  ToolCallEventResult as PiToolCallEventResult,
+} from "./pi-fence.js";
+export {
+  PI_AUTHORING_TOOLS,
+  PI_SHELL_TOOLS,
+  PI_WRITE_TOOLS,
+  createPiScopeFence,
+  decidePiToolCall,
+} from "./pi-fence.js";

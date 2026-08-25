@@ -359,6 +359,14 @@ code {
   background: var(--accent);
   color: #fff;
 }
+/* `builder` (ADR-0117) sits between the two — a member who also holds the brokered-write scope — so
+   it reads as an accent OUTLINE: neither the solid admin fill nor the muted member pill, which would
+   have made it indistinguishable from a plain member at a glance. */
+.badge.role-builder {
+  background: var(--surface-2);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 .badge.role-member,
 .badge.status-invited {
   background: var(--surface-2);
@@ -6346,6 +6354,12 @@ button.legend-tile:hover {
    ⚠ TOKENS: this lives OUTSIDE `.library-drawer`, so the `--lp-*` paper palette the old band used is
    out of scope here. Everything below is on the global `:root` set (--surface/--border/--text/
    --muted/--warn/--warn-weak/--shadow), which is why this is a rewrite rather than a rename. */
+/* ⚠ THESE COORDINATES ARE NEUTRALISED ON THE MAP MOUNT. Since ADR-0445's currency signal the lamp
+   renders inside `.map-instrument-stack` (below), which carries these exact values and sets this
+   dock `position: static` — so the rendered position is unchanged and the two lamps stack. They are
+   kept here rather than deleted because they still apply to any mount outside that stack, and
+   because the `--chat-dock-h` reasoning below is the reason the stack inherited them. Change them
+   in BOTH places or the lamp moves without the stack following. */
 .floor-lamp-dock {
   position: absolute;
   right: 58px; /* clears the 38px gear + its 12px inset */
@@ -6527,6 +6541,157 @@ button.legend-tile:hover {
   color: var(--muted);
   font-size: 11px;
   line-height: 1.45;
+}
+
+/* ── THE MAP INSTRUMENT STACK + THE FOREST CURRENCY SIGNAL (ADR-0445 D3/D4/D5) ────────────
+   The bottom-right cluster is now ONE element rather than two that merely sat near each other. The
+   stack is BOTTOM-ANCHORED at the floor lamp's own former coordinates, so the floor lamp does not
+   move a pixel and the currency signal takes the slot above it — which matters, because a
+   headless-Chrome click on that lamp already had to be rescued once from the bottom dock (see
+   `.floor-lamp-dock`'s note above).
+
+   THE TWO INSTRUMENTS ANSWER DIFFERENT QUESTIONS and must stay visually distinct: the andon lamp
+   asks "is the factory floor healthy?", the disc asks "is what I am seeing current?". Same pill
+   housing so they read as one cluster; different glyph so they are never mistaken for each other.
+   TOKENS are the global `:root` set (--good/--warn/--danger and their surfaces), not the drawer's
+   `--lp-*` paper palette, which is out of scope out here. */
+.map-instrument-stack {
+  position: absolute;
+  right: 58px; /* clears the 38px gear + its 12px inset — inherited from the floor lamp's dock */
+  bottom: calc(12px + var(--chat-dock-h, 0px));
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: none; /* the map beneath is pan/drag heavy — only the instruments take events */
+}
+/* The stack owns the positioning; its members sit in ordinary flow inside it. */
+.map-instrument-stack > .floor-lamp-dock,
+.map-instrument-stack > .map-currency-dock {
+  position: static;
+  right: auto;
+  bottom: auto;
+}
+/* `inline-flex` so the SAME element also flows correctly on its other mount — the map's
+   "couldn't load the tree" screen, which is the only surface the RED state is reachable on. */
+.map-currency-dock {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.map-currency,
+.map-currency-detail {
+  pointer-events: auto;
+}
+.map-currency-face {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 11px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  color: var(--muted);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.map-currency-text {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+}
+.map-currency-label {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 10px;
+  color: var(--muted);
+}
+.map-currency-state {
+  color: var(--text);
+}
+/* the glyph: one signal disc in three conditions — the ring is constant, the core carries the state */
+.map-currency-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+  opacity: 0.55;
+}
+.map-currency-core {
+  fill: currentColor;
+}
+/* GREEN — quiet on purpose. An always-loud instrument is furniture, and "current" is the ordinary
+   case; it states the reading without competing with the forest it sits over. */
+.map-currency-green .map-currency-face {
+  color: var(--good);
+}
+.map-currency-green .map-currency-state {
+  color: var(--muted);
+}
+/* AMBER — the state that has to be noticed, because the map beneath it may be under-claiming and
+   nothing else on screen would say so. Warm fill, matching the andon lamp's own loud treatment. */
+.map-currency-amber .map-currency-face {
+  color: var(--warn);
+  background: var(--warn-weak);
+  border-color: var(--warn);
+}
+.map-currency-amber .map-currency-state {
+  color: var(--warn);
+  font-weight: 600;
+}
+/* RED — no data at all. Not a louder amber: a hollow core, because there is nothing behind it. */
+.map-currency-red .map-currency-face {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+  border-color: var(--danger);
+}
+.map-currency-red .map-currency-state {
+  color: var(--danger);
+  font-weight: 600;
+}
+.map-currency-red .map-currency-core {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+/* the detail panel — opens UPWARD off the face, as the floor lamp's does, so it never pushes the
+   instrument cluster off the bottom of the frame. */
+.map-currency-detail {
+  order: -1;
+  width: min(340px, 60vw);
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 12px;
+  color: var(--text);
+}
+.map-currency-sentence {
+  margin: 0 0 6px;
+}
+.map-currency-causes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.map-currency-cause {
+  display: block;
+  font-weight: 600;
+}
+/* the REMEDY — the half that differs between causes (D4), so it is set apart from the diagnosis
+   rather than run on from it. */
+.map-currency-remedy {
+  display: block;
+  color: var(--muted);
 }
 
 /* ── the Open document overlay (ADR-0187 dec 2, inc 8): a separate full-detail artifact view

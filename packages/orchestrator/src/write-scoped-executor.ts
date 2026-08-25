@@ -7,7 +7,15 @@
  * the author of the test is not, at that moment, the author of the code — is re-established here as a
  * single agent's WRITE tool being gated by the current {@link Phase} and a {@link WriteScope},
  * FAIL-CLOSED: a denied write never reaches the inner executor, the model is told which wall it hit,
- * and the violation is recorded so the gate (ADR-0020 §4) can assert the wall held.
+ * and the violation is recorded on THIS INSTANCE so a test — and, since ADR-0446, the drive's
+ * per-slice scope-event sink — can assert the wall held.
+ *
+ * That last clause used to read "so the gate (ADR-0020 §4) can assert the wall held", and it was
+ * never true: nothing in `prove-it-gate.ts` or the verdict shape ever read a violation, so the
+ * record died with the object and "does this wall ever fire?" could be argued but not measured. The
+ * READER now exists (`@storytree/drive`'s `scope-walls.ts` → `events.scope_event`), and it is
+ * deliberately not the gate: nothing branches on a refusal, because recording that the wall fired is
+ * a different act from judging what that means.
  */
 
 import type { ToolExecutor } from "@storytree/agent";
