@@ -473,6 +473,7 @@
       "apps/desktop/src/apply": "pinned-runtime-apply",
       "apps/desktop/src/backend/boot-read-routes.ts": "boot-read-routes",
       "apps/desktop/src/backend/chat-sse-mount.ts": "chat-sse-mount",
+      "apps/desktop/src/backend/chat-reset-route.ts": "backend-chat-reset-route",
       "apps/desktop/src/backend/credential*.ts": "local-credential-wiring",
       "apps/desktop/src/backend/forest-readiness.ts": "shared-forest-connection",
       "apps/desktop/src/backend/launch-preconditions.ts": "desktop-launch-preconditions",

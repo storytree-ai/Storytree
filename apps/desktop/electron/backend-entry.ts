@@ -61,6 +61,7 @@ import {
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { guardHttpRequest } from "../src/backend/loopback-guard.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
+import { createChatResetMount } from "../src/backend/chat-reset-route.js";
 import type { ChatSseMountDeps } from "../src/backend/chat-sse-mount.js";
 import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
 import { CredentialBroker } from "../src/credential/broker.js";
@@ -842,6 +843,12 @@ async function main(): Promise<void> {
   if (inspect !== undefined) chatMountDeps.inspect = inspect;
   if (orchestratorMaxTurns !== undefined) chatMountDeps.maxTurns = orchestratorMaxTurns;
   const chatMount = createChatSseMount(chatMountDeps);
+  // GLUE (ADR-0158): mount the reset dispatcher beside its sibling. The capability
+  // `backend-chat-reset-route` is proven as a dispatcher FACTORY (verdict @ 5445a18, coverage 2/2);
+  // neither of its contracts covers the wiring, so this line is un-asserted connective code — but
+  // without it the route 404s and the outcome's "recoverable without restarting the app" is not
+  // actually delivered. It takes no deps and must sit BEFORE localHandler's 404 fall-through.
+  const chatResetMount = createChatResetMount();
 
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
 
@@ -868,6 +875,7 @@ async function main(): Promise<void> {
         }
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
+        if (await chatResetMount(req, res, pathname)) return;
         if (await uatAttestMount(req, res, pathname)) return;
         if (await attestationsMount(req, res, pathname)) return;
         await localHandler(req, res);

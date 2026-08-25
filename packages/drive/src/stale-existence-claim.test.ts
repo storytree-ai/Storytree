@@ -239,9 +239,16 @@ test("real corpus: boot-read-routes — sourceFile exists AND the spec's own pro
   assert.match(refusal?.body ?? "", /boot-read-routes\.ts/);
 });
 
-test("real corpus: backend-chat-reset-route — the declared path is genuinely still missing → does not refuse", () => {
-  const spec = loadRealSpec("backend-chat-reset-route");
-  assert.equal(spec.buildConfig?.real?.sourceFile, "apps/desktop/src/backend/chat-reset-route.ts");
+// REPOINTED 2026-08-25. This case used to read `backend-chat-reset-route`, whose declared path was
+// genuinely missing until that capability was BUILT and signed (run `real-mt8n6ern`, verdict @ 5445a18)
+// — at which point its sourceFile existed and its prose still claimed otherwise, so the fixture began
+// asserting the opposite of the truth. That is the mirror of the maintenance the comment above already
+// anticipated for the "(a) refuses" case, and it is the cost of validating against the LIVE corpus:
+// this case needs an id whose declared path is still absent, so proving one out repoints it.
+// `pixellab-organic-growth-tracks` → `packages/app-surface/src/organic-growth-track.ts` is absent today.
+test("real corpus: pixellab-organic-growth-tracks — the declared path is genuinely still missing → does not refuse", () => {
+  const spec = loadRealSpec("pixellab-organic-growth-tracks");
+  assert.equal(spec.buildConfig?.real?.sourceFile, "packages/app-surface/src/organic-growth-track.ts");
   assert.equal(staleExistenceClaimRefusal(spec, root), null);
 });
 
