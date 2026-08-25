@@ -43,7 +43,16 @@ proof:
     sourceFile: "apps/desktop/src/backend/chat-reset-route.ts"
     scope:
       testGlobs: ["apps/desktop/src/backend/chat-reset-route.test.ts"]
-      sourceGlobs: ["apps/desktop/src/backend/chat-reset-route.ts"]
+      # WIDENED 2026-08-25 after run `real-mt8mq9gy` failed closed at CONFIRM_GREEN. The outcome above
+      # requires "an exported guard-reset the mount calls", and the guard it resets
+      # (`compositionInFlight`) is a module-level `let` in `packages/drive/src/orchestrate.ts` with no
+      # exported reset. The old single-file scope made the capability's own stated outcome
+      # unreachable: the leaf observed the red, then hit the write wall
+      # (`scope walls: IMPLEMENT:packages/drive/src/orchestrate.ts`) and the proof stayed red. The wall
+      # was right and the SCOPE was wrong — this capability genuinely spans the two files.
+      sourceGlobs:
+        - "apps/desktop/src/backend/chat-reset-route.ts"
+        - "packages/drive/src/orchestrate.ts"
     install: true
     typecheck:
       file: pnpm
