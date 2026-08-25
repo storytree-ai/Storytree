@@ -147,7 +147,9 @@ export async function coverageCommand(
       : "scanned NO test files — the unit declares no real-build test surface to observe (so every contract reads uncovered).",
     "COVERED = a SUBSTANTIVE test NAMES the contract (the naming convention). Static AST (ADR-0126): a",
     "hollow `assert(true)` or a skipped test does NOT count, so it catches both a DROPPED contract and a",
-    "hollow one. A substantive-but-irrelevant assertion still reads covered — the semantic-reviewer follow-on.",
+    "hollow one. A substantive-but-irrelevant assertion still reads covered — that residue is MUTATION",
+    "TESTING's, not a semantic reviewer's (ADR-0447 D2): a killed mutant is an observation, an LLM judge",
+    "is an opinion sharing the failure mode it judges. Baseline measured 2026-08-25 at 78.67%.",
   );
 
   return {

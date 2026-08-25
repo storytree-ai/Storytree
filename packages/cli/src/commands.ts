@@ -1830,7 +1830,7 @@ function coverageHelp(): Envelope {
       "Exits non-zero when a contract is uncovered (a green would over-claim); a fully-covered unit passes.",
       "A test must RUN and ASSERT to count (ADR-0126): a hollow `assert(true)` (or a skipped test) under",
       "the right name does NOT cover its contract. A substantive-but-irrelevant assertion still reads",
-      "covered — judging that is the deeper semantic-reviewer follow-on.",
+      "covered — that residue belongs to MUTATION TESTING rather than a semantic reviewer (ADR-0447 D2).",
       "",
       "--totals answers a DIFFERENT question: where does the backlog stand right now? It prints both",
       "axes separately against their ceilings, with the aperture they were measured over, and always",

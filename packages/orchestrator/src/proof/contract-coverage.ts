@@ -47,8 +47,11 @@ import type { ContractDecl } from "@storytree/library";
  *    clearly-hollow test (no assertion, a constant-only assertion, or a skip), never a real test. The
  *    bias exists to avoid FALSE-HOLLOWS — telling an honest author their real test does not count. A
  *    test that asserts something SUBSTANTIVE but semantically IRRELEVANT to its contract
- *    (`assert.ok(unrelated)` under the right name) still reads covered; judging that is the deeper
- *    follow-on (a semantic reviewer-agent, ADR-0122 / ADR-0020 §4), not a structural check.
+ *    (`assert.ok(unrelated)` under the right name) still reads covered; that residue is MUTATION
+ *    TESTING's follow-on, NOT a semantic reviewer-agent's (ADR-0447 D2, reversing what ADR-0122
+ *    anticipated here): a killed mutant is an observation, where a model judging a model's test is
+ *    an opinion sharing the failure mode it judges. A semantic reviewer keeps only what mutation
+ *    provably cannot reach. Either way it is not a structural check.
  *  - **READABILITY — folds toward "UNCOVERED".** A title this checker cannot read statically vouches
  *    for nothing, because a name it never saw cannot be shown to carry a contract id. That fold is
  *    only legitimate for what is GENUINELY unreadable: whenever the title is statically readable it
