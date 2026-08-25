@@ -148,6 +148,43 @@ CREATE TABLE IF NOT EXISTS events.usage_event (
   at                    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Per-slice WRITE-SCOPE records (ADR-0446): what the spine's phase fence did during one authoring
+-- slice. The observability sibling of events.usage_event, and the sink both fence mechanisms
+-- lacked: the owned loop kept its refusals on the executor instance and ClaudeAgentAuthor returned
+-- its refusal to the model, so "does the wall ever actually fire?" could be argued but not measured.
+--
+-- ONE ROW PER ARMED SLICE, NOT ONE PER REFUSAL. That is the load-bearing shape: a slice that armed
+-- the wall and never fired lands a row with refusal_count = 0, so a ZERO is distinguishable from an
+-- ABSENCE and the row count is the reading's DENOMINATOR (N refusals across M armed slices on
+-- runtime R over period P). Keyed one-per-(run, unit, phase), like usage.
+--
+-- no_path_calls IS ITS OWN COLUMN, DELIBERATELY. A write-shaped call whose target path cannot be
+-- read is a PASS-THROUGH in the owned loop and a fail-closed REFUSAL in the SDK hook; one of the two
+-- is wrong, and counting is how anyone finds out which. Summing it into refusal_count would erase
+-- exactly that. no_path_disposition records which side this row's mechanism took (refused |
+-- passed-through | not-applicable) -- stated by the emitter, never inferred by a reader from source.
+--
+-- OBSERVABILITY ONLY: rollupStatus ignores this kind entirely, so a row here can never move a
+-- unit's derived status, and no fence behaviour is conditioned on it.
+--
+-- Deliberately ABSENT from the ADR-0350 causal-edge enumeration below: nothing stamps a cause on a
+-- scope row, and that list exists so a new stream cannot silently acquire columns it has no emitter
+-- for. Add it there in the change that starts stamping one, not before.
+CREATE TABLE IF NOT EXISTS events.scope_event (
+  seq                   BIGSERIAL PRIMARY KEY,
+  unit_id               TEXT NOT NULL,
+  run_id                TEXT NOT NULL,
+  phase                 TEXT NOT NULL,      -- AUTHOR_TEST|IMPLEMENT (the two authoring slices)
+  source                TEXT NOT NULL,      -- sdk-leaf|codex-leaf|owned-loop (the armed mechanism)
+  model                 TEXT,
+  refusal_count         BIGINT NOT NULL,    -- scoped-path refusals; 0 = ARMED AND SILENT, a measurement
+  no_path_calls         BIGINT NOT NULL,    -- never folded into refusal_count (see above)
+  no_path_disposition   TEXT NOT NULL,      -- refused|passed-through|not-applicable
+  doc                   JSONB NOT NULL,     -- the full ScopeEventDoc (each refusal's tool/path/kind inside)
+  actor                 TEXT NOT NULL,
+  at                    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- Per-UAT-criterion attestations: append-only signed signals. Current rows bind an exact
 -- (criterionId, revisionId); legacy positional test ids remain readable and are migration-classified.
 -- A vouch is NOT a proof — this is a DELIBERATELY SEPARATE log from events.verdict (the conflation
@@ -339,6 +376,8 @@ CREATE INDEX IF NOT EXISTS library_event_id_idx ON events.library_event (id);
 CREATE INDEX IF NOT EXISTS work_event_unit_idx ON events.work_event (unit_id);
 CREATE INDEX IF NOT EXISTS verdict_unit_idx ON events.verdict (unit_id);
 CREATE INDEX IF NOT EXISTS usage_event_unit_idx ON events.usage_event (unit_id);
+CREATE INDEX IF NOT EXISTS scope_event_unit_idx ON events.scope_event (unit_id);
+CREATE INDEX IF NOT EXISTS scope_event_at_idx ON events.scope_event (at);
 CREATE INDEX IF NOT EXISTS user_event_id_idx ON events.user_event (id);
 CREATE INDEX IF NOT EXISTS attestation_test_idx ON events.attestation (test_id);
 CREATE INDEX IF NOT EXISTS uat_drive_criterion_idx ON events.uat_drive (criterion_id);

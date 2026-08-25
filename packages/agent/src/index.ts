@@ -25,6 +25,7 @@ export type { AuthoringPhase, AuthorResult, LiveRuntime, PhaseAuthor } from "./p
 export type {
   SdkQueryFn,
   SdkWriteViolation,
+  SdkRefusalKind,
   SdkRunInfo,
   SdkFeedbackRun,
   FeedbackCommand,
@@ -46,6 +47,7 @@ export type {
   CodexCommandResult,
   CodexRunner,
   CodexWriteViolation,
+  CodexRefusalKind,
   CodexRunInfo,
   CodexPromotionManifest,
   CodexPromotionFaults,

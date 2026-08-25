@@ -578,6 +578,24 @@ test("WIRED hook: an in-scope write is ALLOWED (empty output) and records NO vio
   assert.equal(author.violations.length, 0);
 });
 
+test("WIRED hook: each refusal is stamped with WHICH wall it hit (ADR-0446)", async () => {
+  // A label on a decision this hook already makes — the allow/deny outcome is untouched. It exists
+  // so the sink can count the three cases apart, and above all so the `no-path` case (which the
+  // owned loop PASSES THROUGH while this hook fails closed) is never folded in with the others.
+  const { author, options } = await captureOptions("AUTHOR_TEST");
+  const hook = wiredScopeHook(options);
+
+  await hook(preToolUse("Write", { file_path: "impl.cjs" }), "tu-1", SIGNAL);
+  await hook(preToolUse("Edit", { file_path: "../../etc/evil" }), "tu-2", SIGNAL);
+  await hook(preToolUse("Write", { oops: true }), "tu-3", SIGNAL);
+
+  assert.deepEqual(
+    author.violations.map((v) => v.kind),
+    ["scope", "outside-workspace", "no-path"],
+    "the kind is stamped AT the refusal, never sniffed downstream out of the refusal text",
+  );
+});
+
 test("WIRED hook: a workspace-escaping write is DENIED through the real closure (path traversal)", async () => {
   const { author, options } = await captureOptions("IMPLEMENT");
   const hook = wiredScopeHook(options);
