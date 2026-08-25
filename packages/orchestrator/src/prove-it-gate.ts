@@ -22,6 +22,7 @@ import type {
   ContractCoverageAxis,
   EvidenceRef,
   ProofMode,
+  StoryBaselineScope,
   Verdict,
 } from "@storytree/proof-protocol";
 import { resolveSigner } from "./proof/signer.js";
@@ -101,6 +102,19 @@ export interface ProveSpec {
    * behaviour is unchanged.
    */
   contractCoverage?: () => ContractCoverageAxis | undefined;
+  /**
+   * ADR-0416 D6 (optional): the story-BASELINE scope — the capability and own-proof obligation sets
+   * this whole-story pass covers — stamped onto the signed verdict so a later reader can tell the
+   * PROVEN BASELINE from work declared after it (`expansionBeyondBaseline`). Without it ADR-0416 D1's
+   * durable green is only half-expressible: a reader can see that a story was once proven and that it
+   * declares more work now, but not WHICH work sits outside the baseline.
+   *
+   * A THUNK for the same reason the coverage axis is one — it is consulted only once the spine
+   * reaches GATE, so an aborted walk stamps no baseline. Supplied ONLY when driving a STORY node
+   * (a capability or criterion verdict establishes no baseline and returns `undefined`), and absent
+   * on every pre-ADR-0416 caller, so existing behaviour is unchanged.
+   */
+  storyBaseline?: () => StoryBaselineScope | undefined;
   /**
    * ADR-0048 §3 v2 (optional): a phase OBSERVER the spine invokes as it commits to each phase
    * (`AUTHOR_TEST → CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE`), so the in-flight-build wisp can
@@ -282,6 +296,9 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   // committed by now). Consulted only on this signed-green path, so an aborted walk stamps nothing
   // (test m). A thunk returning undefined (no contracts / unreadable surface) leaves the key OFF.
   const coverage = spec.contractCoverage?.();
+  // ADR-0416 D6: the scope this pass covers, on the same lazy, signed-green-only path as the coverage
+  // axis above — an aborted walk establishes no baseline.
+  const baseline = spec.storyBaseline?.();
 
   const verdict: Verdict = {
     unitId: spec.unitId,
@@ -298,6 +315,7 @@ export async function proveUnit(spec: ProveSpec): Promise<ProveResult> {
   };
   if (spec.binding !== undefined) verdict.boundHash = spec.binding.boundHash;
   if (coverage !== undefined) verdict.contractCoverage = coverage;
+  if (baseline !== undefined) verdict.storyBaseline = baseline;
 
   // The signed promotion event: healthy/proven is reachable ONLY through this append (never authored).
   await spec.store.appendEvent({

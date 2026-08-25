@@ -24,6 +24,8 @@ import { existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
+import type { StoryCapabilityRef } from "@storytree/orchestrator";
+
 // The raw-TS workspace packages re-export through `.js` specifiers that don't resolve under a non-tsx
 // loader; load the runtime VALUES lazily, on first use — the SAME discipline local-backend.ts follows.
 let orchestratorModule: Promise<typeof import("@storytree/orchestrator")> | null = null;
@@ -201,7 +203,7 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
   // ADR-0436: the retired-gate filter. Pulled through the same lazy library seam this file already
   // uses for `openQuestionsGatingNode`, so the pg-free / electron-free boundary in the header holds.
-  const { activeReliabilityGates } = await loadLibrary();
+  const { activeReliabilityGates, crownObligations } = await loadLibrary();
 
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
     if (!ent.isDirectory()) continue;
@@ -241,8 +243,10 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       // ADR-0436: a gate RETIRED IN PLACE keeps its ordinal but leaves the obligation union — and the
       // coverage set with it. Mirrors the studio's readTree collection verbatim.
       const liveGates = activeReliabilityGates(spec.reliabilityGates);
-      const ownObligations = [...witnessableUat, ...liveGates];
-      if (ownObligations.length > 0) uatTestCriteriaByStory.set(ent.name, ownObligations);
+      const ownObligations = crownObligations(spec.uatTestCriteria, spec.reliabilityGates);
+      // ADR-0443 D2/D3: ALWAYS recorded, even when empty — a story whose every obligation is
+      // unsignable is exactly the case D2 unblocks, and skipping it would keep it grey forever.
+      uatTestCriteriaByStory.set(ent.name, ownObligations);
       // forest-parcels inc-2: the UAT test criteria ALONE (never the reliability gates) — the
       // lantern-walk summary membership. Mirrors the studio's readTree collection verbatim.
       if (witnessableUat.length > 0) {
@@ -367,10 +371,25 @@ export function applyUatCriteria(
 }
 
 /**
- * Apply the story-green crown roll-up (ADR-0083 Fork A): a story declaring per-test UAT test criteria has its
- * crown set from `rollupStoryGreen` — the AND of (every capability proven healthy) AND (the per-test UAT
- * roll-up). healthy ⇒ a pass crown, unhealthy ⇒ a fail crown, unproven ⇒ NO verdict (the crown
- * under-claims to `mapped`, never a stale green). Mirrors the studio's `applyUatCrowns`.
+ * A `DTCapability.status` is the loosely-typed authored string the tree walk parsed; the crown clause
+ * (ADR-0443 D1) reads it as a `Status`. Narrow it here rather than casting: only `proposed` and
+ * `retired` change the clause's behaviour, and anything the parser produced that is neither reaches
+ * `isUndertakenCapability` as `undefined`, which counts the capability and holds the crown — the
+ * conservative direction for an unreadable spec.
+ */
+const CAPABILITY_STATUSES = ["proposed", "building", "healthy", "unhealthy", "mapped", "retired"] as const;
+function asCapabilityStatus(status: string | null): StoryCapabilityRef["status"] {
+  return CAPABILITY_STATUSES.find((s) => s === status);
+}
+
+/**
+ * Apply the story-green crown roll-up (ADR-0083 Fork A, narrowed by ADR-0443): a story's crown is set
+ * from `rollupStoryGreen` — (every UNDERTAKEN capability proven healthy) AND (every signable
+ * own-proof obligation signed) AND (≥1 of them actually discharged). healthy ⇒ a pass crown,
+ * unhealthy ⇒ a fail crown, unproven ⇒ NO verdict (the crown under-claims to `mapped`, never a stale
+ * green). Mirrors the studio's `applyUatCrowns`, ADR-0443's reach included: a story with no
+ * obligations left is still crowned (that is the state D2 unblocks), and only a story with nothing at
+ * all to read is passed over.
  */
 export function applyUatCrowns(
   stories: DTStory[],
@@ -381,7 +400,7 @@ export function applyUatCrowns(
   coverageByStory: ReadonlyMap<string, readonly { id: string; covers?: readonly string[] }[]>,
   events: readonly DTVerdictEvent[],
   rollup: (
-    capabilityIds: readonly string[],
+    capabilities: readonly StoryCapabilityRef[],
     tests: readonly ({ criterionId: string; revisionId: string } | { id: string })[],
     events: readonly DTVerdictEvent[],
     coverage?: readonly { id: string; covers?: readonly string[] }[],
@@ -389,10 +408,16 @@ export function applyUatCrowns(
 ): void {
   for (const story of stories) {
     const tests = uatTestCriteriaByStory.get(story.id);
-    if (!tests || tests.length === 0) continue;
+    if (tests === undefined) continue;
+    if (tests.length === 0 && story.capabilities.length === 0) continue;
     const capabilityIds = story.capabilities.map((c) => c.id);
+    // ADR-0443 D1: the clause reads each capability's AUTHORED status beside its id.
+    const capabilities: StoryCapabilityRef[] = story.capabilities.map((c) => ({
+      id: c.id,
+      status: asCapabilityStatus(c.status),
+    }));
     const coverage = coverageByStory.get(story.id) ?? [];
-    const rolled = rollup(capabilityIds, tests, events, coverage);
+    const rolled = rollup(capabilities, tests, events, coverage);
     if (rolled === "healthy" || rolled === "unhealthy") {
       const at = latestVerdictAt(
         events,

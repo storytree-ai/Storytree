@@ -121,8 +121,13 @@ test("focused view through the dispatch weaves verdict glyphs from the injected 
   assert.match(env.body, /cap-a ✓/);
   assert.match(env.body, /cap-b ✗/);
   assert.match(env.body, /cap-c –/); // registered in the story, never built
-  // The story row reads ONLY its own UAT node's verdict — children's passes grant it nothing.
-  assert.match(env.body, /Story: demo-story –/);
+  // Children's PASSES still grant the crown nothing — cap-a is green and the crown is not.
+  // What DOES reach it is cap-b's signed FAIL: a red plant withers the crown (ADR-0083), and since
+  // ADR-0443 D2/D3 that clause is evaluated for a story declaring no own-proof obligations too. This
+  // fixture declares none, so before ADR-0443 the crown was not computed at all and fell back to the
+  // story's own (absent) verdict glyph, `–`. Reporting `–` over a signed capability failure was the
+  // less honest of the two readings — `✗` is what the evidence says.
+  assert.match(env.body, /Story: demo-story ✗/);
 });
 
 test("the bare view carries the story's own glyph too", async () => {

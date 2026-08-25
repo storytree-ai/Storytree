@@ -4,10 +4,16 @@ import type { PhaseAuthor } from "@storytree/agent";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { AdrMeta } from "./adr-frontmatter.js";
 import type { Store } from "@storytree/storage-protocol";
-import { activeReliabilityGates, effectiveUatWitness } from "@storytree/library";
+import {
+  activeReliabilityGates,
+  crownObligations,
+  crownUatCriteria,
+  effectiveUatWitness,
+} from "@storytree/library";
 import {
   createBuildWorktree,
   findNodeSpecFile,
+  isUndertakenCapability,
   loadNodeSpec,
   promoteRealPass,
   registeredNodeIds,
@@ -19,6 +25,8 @@ import {
   runStoryBuild,
   topoOrderStoryNodes,
 } from "@storytree/orchestrator";
+import type { OwnProofObligation, StoryCapabilityRef } from "@storytree/orchestrator";
+import { storyBaselineScope, type StoryBaselineScope } from "@storytree/proof-protocol";
 import type {
   AddDepsGroup,
   BuildWorktree,
@@ -101,32 +109,37 @@ function storyUatProofLine(
 }
 
 /**
- * ADR-0083 Fork A: the story CROWN rolled up from BOTH necessary clauses — (every declared capability
- * proven `healthy`) AND (the per-test UAT roll-up green) — as a report line. Pure (`rollupStoryGreen`).
- * Capabilities-green is a necessary condition (the capabilities-green dependency rule), refining ADR-0082's
- * UAT-only crown: six green plants are still not sufficient, but a crown can never be green while any
- * capability is red or unproven. A story with zero capabilities (a foundational port) satisfies the
- * capability clause vacuously — its green derives entirely from the per-test UAT.
+ * ADR-0083 Fork A (narrowed by ADR-0443): the story CROWN rolled up from both necessary clauses over
+ * the non-vacuity floor — (every UNDERTAKEN capability proven `healthy`) AND (every signable
+ * own-proof obligation signed) AND (≥1 of them actually discharged) — as a report line. Pure
+ * (`rollupStoryGreen`). Capabilities-green is a necessary condition (the capabilities-green
+ * dependency rule), refining ADR-0082's UAT-only crown: six green plants are still not sufficient,
+ * but a crown can never be green while any undertaken capability is red or unproven. A story with
+ * zero undertaken capabilities satisfies the capability clause vacuously.
  */
 function storyGreenLine(
-  capabilityIds: readonly string[],
-  tests: readonly (
-    | { readonly criterionId: string; readonly revisionId: string }
-    | { readonly id: string }
-  )[],
+  capabilities: readonly StoryCapabilityRef[],
+  obligations: readonly OwnProofObligation[],
   events: readonly { kind: string; seq: number; doc: unknown }[],
   coverage: readonly { readonly id: string; readonly covers?: readonly string[] }[] = [],
 ): string {
-  const rolled = rollupStoryGreen(capabilityIds, tests, events, coverage);
+  const rolled = rollupStoryGreen(capabilities, obligations, events, coverage);
   const word =
     rolled === "healthy"
-      ? "GREEN — all capabilities proven healthy AND every per-test UAT verdict passed"
+      ? "GREEN — every undertaken capability is proven AND every signable own-proof obligation is signed"
       : rolled === "unhealthy"
-        ? "WITHERED — a capability or a proven per-test UAT verdict is a signed fail"
-        : "unproven — a capability is not yet proven healthy, or not every per-test UAT verdict is a signed pass yet";
+        ? "WITHERED — an undertaken capability or a proven obligation is a signed fail"
+        : "unproven — an undertaken capability is not yet proven, or a signable obligation is not yet signed";
+  // Counted through the REAL predicate: a `proposed` capability carrying a signed verdict IS
+  // undertaken, so reporting it as "declared intent" would contradict its own proven status.
+  const notCounted = capabilities.filter((c) => !isUndertakenCapability(c, events, coverage)).length;
   const capNote =
-    capabilityIds.length === 0 ? " (no capabilities — vacuous; green is the UAT alone)" : "";
-  return `${word}${capNote} (ADR-0083 Fork A)`;
+    capabilities.length === 0
+      ? " (no capabilities — vacuous; green is the own-proof alone)"
+      : notCounted > 0
+        ? ` (${notCounted} declared intent, not yet begun — not counted, ADR-0443 D1)`
+        : "";
+  return `${word}${capNote} (ADR-0083 Fork A + ADR-0443)`;
 }
 
 /**
@@ -796,6 +809,19 @@ export async function storyBuild(
             // ADR-0130: a slice draws the remaining total when `--budget` is set; unbounded otherwise.
             if (remainingUsd !== undefined) realArgs.budgetUsd = remainingUsd;
             if (opts.maxTurns !== undefined) realArgs.maxTurns = opts.maxTurns;
+            // ADR-0416 D6: driving the STORY node is the one pass that establishes a baseline, so it
+            // is the one that records WHAT it covered. A capability node supplies nothing — a
+            // capability verdict is not a whole-story outcome and must never read as one. The thunk
+            // is consulted only if the walk reaches GATE, so an aborted story build stamps nothing.
+            if (spec.id === story.id) {
+              realArgs.storyBaseline = (): StoryBaselineScope =>
+                storyBaselineScope(
+                  capabilities.filter((c) => c.status !== "retired").map((c) => c.id),
+                  crownObligations(story.uatTestCriteria, story.reliabilityGates).map((o) =>
+                    "criterionId" in o ? o.criterionId : o.id,
+                  ),
+                );
+            }
             const built = await buildNodeReal(realArgs);
             if (built.liveAuthor !== undefined) {
               leaves.set(spec.id, built.liveAuthor);
@@ -953,20 +979,24 @@ export async function storyBuild(
       // ADR-0097: a would-be (aspirational) UAT leg is not a hard obligation; the reliability gates are
       // both own-proof obligations AND per-cap coverage. The crown is over the witnessable obligations.
       ...((): string[] => {
-        const hardUat = story.uatTestCriteria.filter((t) => !t.wouldBe);
+        // ADR-0443 D2: `crownUatCriteria` applies all the obligation drops in one place — would-be
+        // legs (ADR-0097) and legs that can never be signed as authored.
+        const hardUat = crownUatCriteria(story.uatTestCriteria, story.reliabilityGates);
         const wouldBeCount = story.uatTestCriteria.length - hardUat.length;
         // ADR-0436: a gate retired in place keeps its ordinal but is no longer an obligation, and
         // must not supply `(covers:)` coverage either — hence the same filtered list on both.
         const liveGates = activeReliabilityGates(story.reliabilityGates);
-        const obligations = [...hardUat, ...liveGates];
-        if (obligations.length === 0) return [];
+        const obligations = crownObligations(story.uatTestCriteria, story.reliabilityGates);
+        if (obligations.length === 0 && capabilities.length === 0) return [];
         const uatLine =
           hardUat.length > 0
             ? `uat proof:   ${storyUatProofLine(hardUat, events)}`
             : `uat proof:   would-be — ${wouldBeCount} aspirational leg(s), no scripted test yet (ADR-0097)`;
+        // ADR-0443 D1: the crown clause reads each capability's authored status, not just its id.
+        const capRefs = capabilities.map((c) => ({ id: c.id, status: c.status }));
         return [
           uatLine,
-          `story green: ${storyGreenLine(story.capabilities, obligations, events, liveGates)}`,
+          `story green: ${storyGreenLine(capRefs, obligations, events, liveGates)}`,
         ];
       })(),
       runtime === "codex" && (real || live)

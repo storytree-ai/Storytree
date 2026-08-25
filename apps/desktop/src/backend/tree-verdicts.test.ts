@@ -94,7 +94,9 @@ function passEvent(
  * and one `## Story UAT` leg (→ the obligation id `alpha#uat-1`). The authored statuses are all
  * proposed/`mapped`-free, so any green MUST come from the verdict fold, never authored paint.
  */
-async function seedStories(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
+async function seedStories(
+  opts: { witness?: "machine" | "human" } = {},
+): Promise<{ dir: string; cleanup: () => Promise<void> }> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tree-verdicts-"));
   const storyDir = path.join(dir, "alpha");
   await fs.mkdir(storyDir);
@@ -115,7 +117,14 @@ async function seedStories(): Promise<{ dir: string; cleanup: () => Promise<void
       "",
       "## Story UAT",
       "",
-      authoredCriterionLine(1, "**The one leg** (witness: machine) — it works end to end."),
+      // DEFAULT `human` — a SIGNABLE leg (an operator attestation proves it, no proof-gate needed),
+      // so it is a real crown obligation and the tests below exercise the ordinary "unsigned
+      // obligation holds the crown" path. Pass `witness: "machine"` for the ADR-0443 D2 case: an
+      // unbound machine leg can never be signed and leaves the obligation set entirely.
+      authoredCriterionLine(
+        1,
+        `**The one leg** (witness: ${opts.witness ?? "human"}) — it works end to end.`,
+      ),
     ].join("\n"),
     "utf8",
   );
@@ -350,22 +359,46 @@ test("tree-verdicts: foldVerdicts with null verdict sources attaches NO verdict 
   }
 });
 
-// The story crown is the per-test roll-up's, never a child verdict map entry: a cap-only verdict (no
-// UAT verdict) leaves the island ungreened even though its plant is green (ADR-0040 §2: green plants do
-// not make a green crown). Proves the crown derives from the UAT clause, not from latestVerdicts[story].
-test("tree-verdicts: a green plant alone does NOT green the island (the crown awaits its own UAT roll-up)", async () => {
-  const { dir, cleanup } = await seedStories();
+// ADR-0443 D2/D3: this fixture's ONE leg is a `machine` criterion naming no `(proof-gate:)`, so it is
+// UNSIGNABLE — no adopt pass can ever sign it, and holding the island grey on it is a permanent block
+// rather than an incentive. It therefore leaves the obligation set, the crown rests on the story's
+// undertaken capabilities, and the proven `cap-a` greens the island. Before ADR-0443 this asserted
+// `undefined` — the fixture is exactly the shape of the 9 "Shape 1" stories the decision unblocks.
+test("tree-verdicts: an island whose only obligation is UNSIGNABLE greens on its proven capability (ADR-0443 D2/D3)", async () => {
+  const { dir, cleanup } = await seedStories({ witness: "machine" }); // unbound ⇒ can never be signed
   try {
     const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
     await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
-      verdictEvents: [passEvent(1, "cap-a", "capability")], // cap proven, but NO alpha#uat-1 verdict
+      verdictEvents: [passEvent(1, "cap-a", "capability")], // cap proven; the one leg can never be signed
       openQuestions: [],
     });
     const alpha = stories[0];
     assert.ok(alpha);
     assert.equal(alpha.capabilities[0]?.verdict?.outcome, "pass", "the plant is green");
-    assert.equal(alpha.verdict, undefined, "the island is NOT green — the UAT clause is unproven");
+    assert.equal(alpha.verdict?.outcome, "pass", "and the crown greens on what it CAN prove");
+  } finally {
+    await cleanup();
+  }
+});
+
+// The invariant the test above used to pin, with a fixture that actually expresses it: a SIGNABLE
+// obligation (a `human` leg, provable by operator attestation) left unsigned keeps the island grey
+// however green its plants are. ADR-0040 §2 / ADR-0044 §3 — green plants do not make a green crown —
+// is untouched by ADR-0443; what D2 removed is only the obligation nothing could ever discharge.
+test("tree-verdicts: a green plant alone does NOT green the island while a SIGNABLE obligation is unsigned", async () => {
+  const { dir, cleanup } = await seedStories({ witness: "human" });
+  try {
+    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
+    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
+      latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
+      verdictEvents: [passEvent(1, "cap-a", "capability")], // cap proven, but NO verdict for the leg
+      openQuestions: [],
+    });
+    const alpha = stories[0];
+    assert.ok(alpha);
+    assert.equal(alpha.capabilities[0]?.verdict?.outcome, "pass", "the plant is green");
+    assert.equal(alpha.verdict, undefined, "the island is NOT green — a signable obligation is unsigned");
   } finally {
     await cleanup();
   }
@@ -466,7 +499,14 @@ async function seedMixedStory(): Promise<{ dir: string; cleanup: () => Promise<v
       "",
       "## UAT Test Criteria",
       "",
-      authoredCriterionLine(1, "**First leg** _(witness: machine)_: it works."),
+      // BOUND to the observe gate below: a `machine` leg naming no `(proof-gate:)` can never be
+      // signed, so ADR-0443 D2 drops it from the crown's obligation set and this fixture would stop
+      // exercising the two-different-sets point it exists for. A bound leg is also what the corpus
+      // mostly holds — the unbound case is covered by `seedStories` and its own test above.
+      authoredCriterionLine(
+        1,
+        "**First leg** _(witness: machine)_ _(proof-gate: mixed#gate-1)_: it works.",
+      ),
       authoredCriterionLine(2, "**Second leg** _(witness: human)_: it also works."),
       "",
       "## Reliability Gates",

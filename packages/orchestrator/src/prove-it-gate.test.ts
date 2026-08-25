@@ -5,6 +5,7 @@ import { MapToolExecutor, ScriptedModel } from "@storytree/agent";
 import type { AuthorResult, AuthoringPhase, ModelResponse, PhaseAuthor } from "@storytree/agent";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import type { Verdict } from "@storytree/proof-protocol";
+import { storyBaselineScope } from "@storytree/proof-protocol";
 import type { SignerInputs } from "./proof/signer.js";
 
 import { PathWriteScope, RecordingTestExecutor } from "./phase-machine.js";
@@ -554,4 +555,50 @@ test("gitTreeState returns a callable treeState seam (constructible; not run aga
   assert.equal(typeof seam, "function");
   const seamCwd = gitTreeState("C:/some/where");
   assert.equal(typeof seamCwd, "function");
+});
+
+// ── ADR-0416 D6: the story-BASELINE scope is stamped on a signed whole-story pass ────────────────
+// A durable green (D1) is only half-expressible without it: a reader can see that a story was once
+// proven and that it declares more work now, but not WHICH work sits outside the proven baseline.
+// Same lazy, signed-green-only seam as the coverage axis above — an aborted walk stamps nothing.
+
+test("(n) storyBaseline seam present => the scope is stamped on the verdict AND the persisted row", async () => {
+  const { spec, store } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  const scope = storyBaselineScope(["cap-a", "cap-b"], ["s#gate-1"]);
+  spec.storyBaseline = () => scope;
+
+  const result = await proveUnit(spec);
+
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.deepEqual(result.verdict.storyBaseline, scope);
+
+  const signing = (await store.readEvents()).find((e) => e.kind === "signing");
+  assert.ok(signing !== undefined);
+  assert.deepEqual((signing.doc as Verdict).storyBaseline, scope);
+});
+
+test("(o) no storyBaseline seam => the verdict OMITS it (a capability pass establishes no baseline)", async () => {
+  // Only a whole-story pass establishes a baseline. A capability or criterion verdict must never
+  // carry one, or `storyBaselineOf` would read a plant's proof as the story's.
+  const { spec } = freshSpec({ observations: [RED, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal("storyBaseline" in result.verdict, false, "the key is OMITTED, not set to undefined");
+});
+
+test("(p) the storyBaseline seam is NEVER consulted when the walk fails before GATE", async () => {
+  // A forged green at CONFIRM_RED aborts before any verdict is built — an aborted story build must
+  // establish no baseline at all, exactly as it stamps no coverage axis.
+  const { spec, store } = freshSpec({ observations: [GREEN, GREEN], tree: CLEAN, signerInputs: SIGNER });
+  let consulted = 0;
+  spec.storyBaseline = (): undefined => {
+    consulted += 1;
+    return undefined;
+  };
+  const result = await proveUnit(spec);
+  assert.equal(result.ok, false);
+  assert.equal(consulted, 0, "the seam must not run on a walk that never reaches GATE");
+  assert.equal((await store.readEvents()).some((e) => e.kind === "signing"), false);
 });
