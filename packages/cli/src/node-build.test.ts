@@ -150,6 +150,15 @@ test("node build parses --runtime, keeps it live-only, and refuses fake Codex co
   assert.equal(unknown.ok, false);
   assert.match(unknown.body, /unknown --runtime "other"/);
 
+  // `pi` is in the `LiveRuntime` TYPE (`PiPhaseAuthor` exists behind the seam and its walls are
+  // proved, `pi-harness-admission-arc` increment 2) and deliberately NOT in the CLI: walking a
+  // real unit with pi, and choosing which endpoint, is increment 3's owner-gated decision. This
+  // assertion is the thing that has to be changed ON PURPOSE when that lands, rather than a path
+  // that opens silently the moment someone widens a union.
+  const pi = await run(["node", "build", "library-cli", "--live", "--runtime", "pi"], deps);
+  assert.equal(pi.ok, false);
+  assert.match(pi.body, /unknown --runtime "pi"/);
+
   const budget = await run(
     ["node", "build", "library-cli", "--live", "--runtime", "codex", "--budget", "1"],
     deps,

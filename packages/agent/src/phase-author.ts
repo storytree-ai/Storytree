@@ -17,8 +17,17 @@
 /** The two phases a leaf authors in (ADR-0020 §1). All other phases are spine-only — no leaf runs. */
 export type AuthoringPhase = "AUTHOR_TEST" | "IMPLEMENT";
 
-/** The admitted subscription-funded live leaves (ADR-0232). */
-export type LiveRuntime = "claude" | "codex";
+/**
+ * The admitted live leaves (ADR-0232), plus pi (`pi-harness-admission-arc`).
+ *
+ * `"pi"` is in the TYPE before it is in the CLI, deliberately. Increment 2 built `PiPhaseAuthor`
+ * behind this seam and proved its walls hold; increment 3 walks one real unit through the gate and
+ * decides which endpoint, which is an owner-gated call this vocabulary must not pre-empt. So
+ * `resolveLiveRuntime` (`packages/drive/src/node-build.ts`) still REFUSES `--runtime pi`, and a
+ * test asserts that refusal — the day the wiring lands, that test is what has to be changed on
+ * purpose rather than a silent path opening.
+ */
+export type LiveRuntime = "claude" | "codex" | "pi";
 
 /**
  * The authoring outcome the gate consumes: complete, or fail-closed with a reason.

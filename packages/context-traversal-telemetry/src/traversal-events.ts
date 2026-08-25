@@ -197,12 +197,12 @@ function spawnEdgeIsValid(value: { sessionId: string; parentSessionId: string; c
 /**
  * WHICH leaf runtime a spawned child ran on. A deliberate DUPLICATE of `UsageSource`
  * (`@storytree/proof-protocol`), not an import: this package is a root the whole traversal graph
- * rests on and takes no dependency to borrow three string literals — the same call `proof-protocol`
+ * rests on and takes no dependency to borrow four string literals — the same call `proof-protocol`
  * already makes for `Tier`/`Status`. The values are kept identical ON PURPOSE so a later reader can
  * join a traversal lane to its `events.usage_event` row without a translation table; changing one
  * without the other silently breaks that join.
  */
-export const AgentRuntime = z.enum(["sdk-leaf", "codex-leaf", "owned-loop"]);
+export const AgentRuntime = z.enum(["sdk-leaf", "codex-leaf", "owned-loop", "pi-leaf"]);
 export type AgentRuntime = z.infer<typeof AgentRuntime>;
 
 export const SpawnHandoffEvent = z

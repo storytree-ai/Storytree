@@ -24,11 +24,14 @@ import { foldScopeSlices, renderScopeReading, scopeReading } from "./scope-readi
  * to the rendered reading. Delete the `violations.push` in the executor, the fold in
  * `scope-walls.ts`, or the append, and `armed-wall-fires` goes red rather than quietly reading zero.
  *
- * ## The three renderings that must never converge
+ * ## The four renderings that must never converge
  *
- * ABSENCE (nothing recorded) · ARMED-AND-SILENT (M slices, 0 refusals) · FIRED (N > 0). A reading
- * that cannot separate the first two is unfalsifiable, which is exactly how an unverified state gets
- * reported as an authoritative one. Each is asserted below, on wording that does not overlap.
+ * ABSENCE (nothing recorded) · ARMED-AND-SILENT (M slices, 0 refusals) · FIRED (N > 0) ·
+ * WRITE-FENCE-SILENT-BUT-SURFACE-FIRED (the pi leaf's shell wall refused while the write fence
+ * never did). A reading that cannot separate the first two is unfalsifiable, which is exactly how
+ * an unverified state gets reported as an authoritative one; one that cannot separate the last two
+ * credits the write fence with refusals it never made. Each is asserted below, on wording that
+ * does not overlap.
  */
 
 const TEST_REL = "unit.test.cjs";
@@ -202,11 +205,12 @@ test("scope-reading-fold: a malformed row is dropped, never counted as an armed 
 function event(
   unitId: string,
   phase: "AUTHOR_TEST" | "IMPLEMENT",
-  source: "sdk-leaf" | "codex-leaf" | "owned-loop",
+  source: "sdk-leaf" | "codex-leaf" | "owned-loop" | "pi-leaf",
   refusals: number,
   noPathCalls: number,
   noPathDisposition: "refused" | "passed-through" | "not-applicable",
   at: string,
+  toolSurfaceRefusals: number = 0,
 ): StoreEvent {
   return {
     seq: 1,
@@ -226,8 +230,52 @@ function event(
       })),
       noPathCalls,
       noPathDisposition,
+      // No `path` and no `kind`: a tool-surface refusal resolved neither, and the wire shape is
+      // `.strict()`, so a helper that invented either would be refused rather than carried.
+      toolSurfaceRefusals: Array.from({ length: toolSurfaceRefusals }, () => ({ tool: "bash" })),
     },
     actor: "tester@storytree.invalid",
     at,
   };
 }
+
+test("scope-reading-tool-surface: it is counted and rendered APART from the refusal total", () => {
+  const entries = foldScopeSlices([
+    event("cap-pi", "AUTHOR_TEST", "pi-leaf", 0, 0, "refused", "2026-08-25T00:00:00.000Z", 2),
+  ]);
+  const reading = scopeReading(entries);
+  assert.equal(reading.slices, 1);
+  assert.equal(reading.toolSurfaceRefusals, 2);
+  // THE property: a call refused for the tool it is resolved no path and compared nothing against
+  // the phase predicate, so it is not a write-fence firing and must not inflate this number.
+  assert.equal(reading.refusals, 0);
+  assert.equal(reading.byRuntime.get("pi-leaf")?.toolSurfaceRefusals, 2);
+
+  const rendered = renderScopeReading({ entries });
+  assert.match(rendered, /tool-surface:\s+2/);
+  assert.match(rendered, /refusals:\s+0/);
+  assert.match(rendered, /tool-surface refusals, oldest first:/);
+  assert.match(rendered, /\[tool-surface\]\s+bash/);
+  assert.match(rendered, /NEVER added in either/i);
+});
+
+test("scope-reading-tool-surface: a silent write fence beside a fired surface wall says BOTH", () => {
+  // The rendering that would otherwise be a lie. "THE WALL WAS ARMED N TIMES AND NEVER FIRED" is
+  // false when the surface wall fired; crediting the write fence with those refusals is worse.
+  const fired = renderScopeReading({
+    entries: foldScopeSlices([
+      event("cap-pi", "AUTHOR_TEST", "pi-leaf", 0, 0, "refused", "2026-08-25T00:00:00.000Z", 1),
+    ]),
+  });
+  assert.match(fired, /THE WRITE FENCE WAS ARMED 1 TIME\(S\) AND NEVER FIRED/);
+  assert.match(fired, /but the tool-surface/);
+
+  // …and with NEITHER wall fired, the plain armed-and-silent wording is what comes back.
+  const silent = renderScopeReading({
+    entries: foldScopeSlices([
+      event("cap-pi", "AUTHOR_TEST", "pi-leaf", 0, 0, "refused", "2026-08-25T00:00:00.000Z", 0),
+    ]),
+  });
+  assert.match(silent, /THE WALL WAS ARMED 1 TIME\(S\) AND NEVER FIRED\./);
+  assert.doesNotMatch(silent, /but the tool-surface/);
+});

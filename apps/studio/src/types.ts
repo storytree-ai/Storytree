@@ -1055,7 +1055,7 @@ export interface TraversalSpawnHandoffEvent extends TraversalSpawnEdgeBase {
   agentType: string;
   /** The model that lane ran on (PR #1272). Absent means UNOBSERVED — never a default or a guess. */
   model?: string;
-  runtime?: 'sdk-leaf' | 'codex-leaf' | 'owned-loop';
+  runtime?: 'sdk-leaf' | 'codex-leaf' | 'owned-loop' | 'pi-leaf';
   payloadTokenCount?: number;
 }
 

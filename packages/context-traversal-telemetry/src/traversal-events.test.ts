@@ -783,14 +783,14 @@ test("spawn-edge-schemas-link-independent-sessions: a spawned lane carries its m
   // The vocabulary is CLOSED and kept identical to `UsageSource` on purpose, so a lane can be
   // joined to its accounting row without a translation table. A plausible-looking runtime name
   // that is not in that set is refused rather than carried.
-  for (const runtime of ["claude", "codex", "anthropic", "sdk", ""]) {
+  for (const runtime of ["claude", "codex", "anthropic", "sdk", "pi", ""]) {
     assert.equal(
       SpawnHandoffEvent.safeParse({ ...LANE_BASE, runtime }).success,
       false,
       `runtime ${JSON.stringify(runtime)} must be refused — it is not the usage_event.source vocabulary`,
     );
   }
-  for (const runtime of ["sdk-leaf", "codex-leaf", "owned-loop"]) {
+  for (const runtime of ["sdk-leaf", "codex-leaf", "owned-loop", "pi-leaf"]) {
     assert.equal(SpawnHandoffEvent.safeParse({ ...LANE_BASE, runtime }).success, true);
   }
 });

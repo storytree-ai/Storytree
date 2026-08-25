@@ -7,6 +7,7 @@ import {
   ScopeEventDoc,
   ScopeRefusal,
   ScopeSource,
+  ScopeToolSurfaceRefusal,
 } from "./index.js";
 
 /**
@@ -24,6 +25,7 @@ const SILENT: ScopeEventDoc = {
   refusals: [],
   noPathCalls: 0,
   noPathDisposition: "refused",
+  toolSurfaceRefusals: [],
 };
 
 const FIRED: ScopeEventDoc = {
@@ -95,7 +97,44 @@ test("scope-event-no-path: an unextractable-path call is NOT expressible as a re
 });
 
 test("scope-event-source: the runtime vocabulary is the usage stream's, so the two join", () => {
-  assert.deepEqual([...ScopeSource.options].sort(), ["codex-leaf", "owned-loop", "sdk-leaf"]);
+  assert.deepEqual(
+    [...ScopeSource.options].sort(),
+    ["codex-leaf", "owned-loop", "pi-leaf", "sdk-leaf"],
+  );
+});
+
+test("scope-event-tool-surface: the list is REQUIRED, so an empty one is a zero and not a gap", () => {
+  const { toolSurfaceRefusals: _dropped, ...missing } = SILENT;
+  assert.equal(ScopeEventDoc.safeParse(missing).success, false);
+  assert.deepEqual(ScopeEventDoc.parse(SILENT).toolSurfaceRefusals, []);
+});
+
+test("scope-event-tool-surface: a tool-surface refusal carries NO path, and cannot acquire one", () => {
+  // The reason it rides its own field rather than joining `ScopeRefusalKind`: nothing was
+  // resolved and nothing was compared, so there is no target to record. `.strict()` makes that
+  // structural — a caller that tries to smuggle one in is refused rather than quietly carried.
+  const parsed = ScopeEventDoc.parse({
+    ...SILENT,
+    toolSurfaceRefusals: [
+      { tool: "bash", reason: "refused: 'bash' is not on the authoring tool surface" },
+      { tool: "some_future_tool" },
+    ],
+  });
+  assert.equal(parsed.toolSurfaceRefusals.length, 2);
+  assert.equal(parsed.toolSurfaceRefusals[0]?.tool, "bash");
+  assert.equal(
+    ScopeToolSurfaceRefusal.safeParse({ tool: "bash", path: "src/x.ts" }).success,
+    false,
+  );
+});
+
+test("scope-event-tool-surface: it is NOT expressible as a scoped refusal either", () => {
+  // The mirror of the no-path case: `refusals` has no `tool-surface` kind, so a reader summing
+  // that list cannot pick up a call that never touched the write fence.
+  assert.equal(
+    ScopeRefusal.safeParse({ kind: "tool-surface", tool: "bash", path: "(no path)" }).success,
+    false,
+  );
 });
 
 test("scope-event-strict: an unadmitted field is REFUSED, never silently dropped", () => {

@@ -48,7 +48,7 @@ export interface LeafSliceRun {
    * instruments therefore agree wherever the field is present and this one stays silent where it is
    * not, rather than both inventing the same answer.
    */
-  source?: "sdk-leaf" | "codex-leaf" | "owned-loop";
+  source?: "sdk-leaf" | "codex-leaf" | "owned-loop" | "pi-leaf";
 }
 
 export interface ObserveLeafSlicesArgs {
