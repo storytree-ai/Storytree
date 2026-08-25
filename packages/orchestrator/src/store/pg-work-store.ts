@@ -258,13 +258,19 @@ export class PgWorkStore implements Store {
       // the detail can never disagree. `no_path_calls` gets its own column for the same reason it
       // gets its own doc field: it is the case the two mechanisms disagree about, and a query that
       // had to add them together would be one keystroke from hiding that.
+      //
+      // `tool_surface_refusals` is the third scalar and is kept apart for the same reason again
+      // (`pi-harness-admission-arc` inc 2): the pi leaf refuses a call for THE TOOL IT IS before
+      // any path is resolved, so it compared nothing against the phase predicate and is not a
+      // write-fence firing at all. Written from the array's own length too, so the count and the
+      // detail cannot disagree here either.
       const doc = ScopeEventDoc.parse(e.doc);
       const actor = e.actor ?? "system";
       const res = await this.#client.query(
         `INSERT INTO events.scope_event
            (unit_id, run_id, phase, source, model, refusal_count, no_path_calls, no_path_disposition,
-            doc, actor)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, $10)
+            tool_surface_refusals, doc, actor)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11)
          RETURNING seq, at`,
         [
           doc.unitId,
@@ -275,6 +281,7 @@ export class PgWorkStore implements Store {
           doc.refusals.length,
           doc.noPathCalls,
           doc.noPathDisposition,
+          doc.toolSurfaceRefusals.length,
           JSON.stringify(doc),
           actor,
         ],
