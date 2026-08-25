@@ -17,3 +17,4 @@ export * from "./anchor.js";
 export * from "./attestations.js";
 export * from "./work-event.js";
 export * from "./usage-event.js";
+export * from "./scope-event.js";

@@ -331,8 +331,23 @@ export interface StoreHealth {
 
 // ---------- members (app-owned users, ADR-0043) ----------
 
-export type UserRole = 'admin' | 'member';
-export type UserStatus = 'invited' | 'active';
+// The role/status sets are the SCHEMA's, never literal unions restated here. This line WAS such a
+// restatement — `'admin' | 'member'` — and it fell behind: `builder` (ADR-0117) was a real role in
+// `USER_ROLES`, in `resolveAccess`'s brokered-write scope, in `guestPolicy`, in `writeBroker`, in the
+// `/api/users` validator and in `storytree members`, while the client's own copy still knew two
+// roles. That is what left the Members panel unable to grant `builder` and held `studio-members` UAT
+// leg 8 red — a gap invisible to a grep for `builder`, because every OTHER surface had it.
+//
+// TYPE-ONLY, DELIBERATELY. `apps/studio/server/apiRouter.ts` imports this module, which puts it in
+// the vite config-load chain (vite.config.ts → server/devApi.ts → apiRouter.ts), where a VALUE
+// import of a workspace package breaks `vite build` at config-load — the trap `6aa42421` fixed in
+// that very file. A `export type { … } from` is erased and never resolves at runtime, so it is safe
+// here; client components that need the enum as a VALUE import it directly (see MembersPanel).
+// Imported AND re-exported: the shapes below (`MeInfo`, `Member`) reference these names in this
+// module's own scope, which a bare `export … from` re-export would not provide.
+import type { UserRole, UserStatus } from '@storytree/studio-members';
+
+export type { UserRole, UserStatus };
 
 /**
  * GET /api/me — the caller's membership, so the SPA can render the app or the

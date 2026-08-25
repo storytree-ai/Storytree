@@ -74,6 +74,12 @@ import { resolveReport } from "./resolve-report.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
 import { appendSliceUsage } from "./usage.js";
+import {
+  appendSliceScope,
+  liveAuthorScopeWalls,
+  ownedLoopScopeWalls,
+  type ScopeRunIds,
+} from "./scope-walls.js";
 import type { LiveRunInfo, UsageRunIds } from "./usage.js";
 import { staleExistenceClaimRefusal } from "./stale-existence-claim.js";
 
@@ -830,6 +836,28 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
       if (args.model !== undefined) usageIds.model = args.model;
       await appendSliceUsage(args.store, usageIds, resolved.liveAuthor.runs, args.signer);
     }
+    // Per-slice WRITE-FENCE record (ADR-0446, advisory): one row per ARMED authoring slice, so a
+    // wall that held silently reads as a zero rather than as an absence. Appended for PASS and FAIL
+    // alike, and for the OWNED LOOP as well as a live leaf — the owned loop's executor is one of the
+    // two mechanisms whose refusals had nowhere to land. In a dry-run / live smoke the store is
+    // in-memory, so this record honestly dies with the run, exactly as its usage and its verdict do.
+    const scopeIds: ScopeRunIds = { unitId: spec.id, runId: args.runId };
+    if (args.model !== undefined) scopeIds.model = args.model;
+    if (resolved.liveAuthor !== undefined) {
+      await appendSliceScope(
+        args.store,
+        scopeIds,
+        liveAuthorScopeWalls(resolved.liveAuthor),
+        args.signer,
+      );
+    } else if (resolved.ownedAuthor !== undefined) {
+      await appendSliceScope(
+        args.store,
+        scopeIds,
+        ownedLoopScopeWalls(resolved.ownedAuthor),
+        args.signer,
+      );
+    }
     return resolved.liveAuthor !== undefined
       ? { resolved: true, result, liveAuthor: resolved.liveAuthor }
       : { resolved: true, result };
@@ -1107,6 +1135,14 @@ export async function buildNodeReal(args: RealBuildArgs): Promise<RealBuildResul
     const usageIds: UsageRunIds = { unitId: spec.id, runId };
     if (args.model !== undefined) usageIds.model = args.model;
     await appendSliceUsage(store, usageIds, resolved.liveAuthor.runs, signer);
+  }
+  // Per-slice WRITE-FENCE record (ADR-0446, advisory): the same append on the REAL path, which is
+  // the one that reaches events.scope_event under --store pg. One row per ARMED slice — a silent
+  // wall is a counted zero, and the row count is the denominator any reading has to divide by.
+  if (resolved.liveAuthor !== undefined) {
+    const scopeIds: ScopeRunIds = { unitId: spec.id, runId };
+    if (args.model !== undefined) scopeIds.model = args.model;
+    await appendSliceScope(store, scopeIds, liveAuthorScopeWalls(resolved.liveAuthor), signer);
   }
   const out: RealBuildResult = { result };
   if (resolved.liveAuthor !== undefined) out.liveAuthor = resolved.liveAuthor;
@@ -1904,6 +1940,12 @@ export function nodeHelp(storiesDir: string = defaultStoriesDir()): Envelope {
       "      FREE, read-only: show how a node spec RESOLVES (source: spec vs registry vs",
       "      not-buildable, the proof command + write scope, the real: arm, REAL-buildability)",
       "      without building or spending anything. Run this before a paid --real build.",
+      "",
+      "  storytree node walls [<id>] --pg",
+      "      FREE, read-only: the WRITE-SCOPE WALL reading (ADR-0446) — how often the spine's",
+      "      phase fence actually refused a write, always printed against the slices it was armed",
+      "      for. Omit the id for every unit. An empty sink reads as NOTHING RECORDED, never as",
+      "      `0 refusals`: a wall nobody observed and a wall that held are different facts.",
       "",
       "  storytree node build <id> --dry-run [--actor <email>]",
       "      walk a real node spec through AUTHOR_TEST → … → GATE with a scripted model in a",

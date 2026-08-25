@@ -112,7 +112,7 @@ positional, and moving one silently re-points already-signed verdicts (`asset:ed
 | 5. **Stranger** | `uatc_f71ee15e9dc5d4ae8deac1a2` | **Delete as duplicate — all three clauses.** API halves: `serveApi.integration.test.ts` **“a stranger gets 403 + requestAccess on the whole corpus; only /api/me answers”**. Frontend half: `apps/studio/src/App.boot-independence.test.tsx` renders the real `<App/>` with a NON_MEMBER `/api/me` under “Ceiling 2: a NON-member never reaches the corpus at all (ADR-0043)” and asserts the *Request access* wall renders while `api.tree` and `api.listAssets` are never called — which is precisely this leg's “the frontend load-state projects that result to the request-access wall”. |
 | 6. **No lockout** | `uatc_4c2ed36bb3a1e59d5d9a2344` | **Delete as duplicate — proven in two places, as the gate itself already recorded.** `serveApi.integration.test.ts` **“the last admin cannot be removed or down-roled (409)”** asserts the status; `packages/studio-members/src/users.test.ts` **“last-admin guard: cannot remove or downgrade the only admin”** asserts the guarded mutation does not occur at the store. |
 | 7. **Remove** | `uatc_caeb6702bd8022ab71349e27` | **Delete as duplicate.** [`user-directory`](user-directory.md), `apps/studio/server/serveApi.integration.test.ts` **“an admin lists, invites, re-roles and removes …”** ends with the exact walk this leg claims — `DELETE /api/users?email=…` returns `200`, then a fresh `/api/me` from that account returns `member: false` (`// remove → gone; a request from that account then hits the wall`). The leg's comment-history clause was already declared STRUCTURAL rather than asserted, so nothing proven is lost. |
-| 8. **Mark a builder (ADR-0117)** | `uatc_226051427c57b95a23dd2e01` | **Keep.** Not a duplicate: no node proves it, because the in-app `builder` grant does not exist — the panel offers only member/admin and the `/api/users` role validator 400s a `builder`. Bound 2026-08-22 to `studio-members#gate-2`, a model-driven drive witness that is RED until the grant exists (see open modeling call B); it is still NOT bound to gate-1, because that command exercises no in-app `builder` grant and a passing run of it would read as proof of a path that does not exist. |
+| 8. **Mark a builder (ADR-0117)** | `uatc_226051427c57b95a23dd2e01` | **Keep.** Not a duplicate: no node proves it. It was kept while the in-app `builder` grant did not exist — the panel offered only member/admin and the `/api/users` role validator 400s a `builder` — and the grant landed on **2026-08-25** (`in-app-builder-grant-arc`): the route and the `storytree members` verb were corrected on 08-24, and the studio client, the last of the three surfaces still restating the role set as `'admin' \| 'member'`, followed. Bound 2026-08-22 to `studio-members#gate-2`, a model-driven drive witness that was honestly RED until then and is now SIGNED over a real drive; it is still NOT bound to gate-1, because that command exercises no in-app `builder` grant and a passing run of it would read as proof of a path it never walked. |
 
 2. **Invite:** _(witness: machine)_ _(proof-gate: studio-members#gate-1)_ the admin POSTs _(criterion-id: uatc_90b7f952124f26e6eaa46b3a)_ _(revision-id: uatr1:adb1d912ba4bb75d)_
    `dev@example.com` as a member through the shared `/api/users` route the Members panel calls.
@@ -153,9 +153,9 @@ positional, and moving one silently re-points already-signed verdicts (`asset:ed
    email (the suite injects no mailer, so every invite reports its notification skipped), and no
    Cloud SQL. Leg 8 is deliberately NOT bound to THIS gate: the command exercises no in-app `builder`
    grant, and binding it here would let a passing run read as proof of a path that does not exist. That
-   wall is unchanged. Leg 8 is bound instead to gate 2 below, a model-driven drive witness that cannot
-   exit 0 without a recorded walk of the grant itself — so it is honestly RED while the path is missing,
-   which is the opposite of a passing run that proves nothing.
+   wall is unchanged, and it did not move when the grant landed: this command still exercises no
+   in-app `builder` grant. Leg 8 stays bound instead to gate 2 below, a model-driven drive witness
+   that cannot exit 0 without a recorded walk of the grant itself.
 
 **Gate 2 is NEW (2026-08-22, `machine-uat-signing-gap-arc-inc-02`) and was APPENDED — gate 1 kept its
 ordinal.** Gate ids are positional (`asset:edit-story-uat-criteria` step 2), so inserting or renumbering
@@ -168,9 +168,11 @@ ADR-0010 §5) and this gate is the cheap standing WITNESS of the record that dri
 still mints the verdict over an exit code IT watched and ADR-0295 D2 holds unchanged. It goes red —
 honestly — when no `pass` record exists for the criterion's CURRENT `revision-id`, when the driven commit
 is not in HEAD's ancestry, or when the newest record is older than 90 days (the ADR-0016 ageing floor).
-**It is RED today and expected to stay red until the in-app grant exists** (open modeling call B): that is
-the recorded gap holding this story short of green, stated as a failing obligation rather than as an
-absent one.
+**It was RED from the day it was authored until 2026-08-25, and that was the point** — the recorded gap
+was stated as a failing obligation rather than as an absent one. It went green the ordinary way, not by
+being re-stated: the in-app grant was BUILT (`in-app-builder-grant-arc` — the studio client was the last
+of the three grant surfaces still restating the role set as `'admin' | 'member'`), the leg was driven
+against the real running studio, and the drive record is what this gate now witnesses.
 
 2. **UAT leg 8 — "an admin marks a builder through the in-app `/api/users` route (ADR-0117)" was driven end to end** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/uat-drive-witness.check.ts studio-members uatc_226051427c57b95a23dd2e01`.
    Witnesses that a model, as an admin in the running studio, granted `friend@example.com` the **builder**
@@ -198,7 +200,17 @@ what the signatures key off). The owner decides whether to accept the machine le
 signatures as history of a superseded condition, or to restore a live-journey leg — noting that an
 appended leg takes a NEW id, so the existing signatures would not follow it.
 
-**B. Leg 8's in-app `builder` grant does not exist yet (recorded gap; bound to a RED drive witness since 2026-08-22).** ADR-0117 d.2
+**B. RESOLVED 2026-08-25 — leg 8's in-app `builder` grant now exists, and the leg is driven and signed.**
+This call recorded a BUILD gap and named its own dissolution condition; `in-app-builder-grant-arc` met it.
+The `/api/users` validator and the `storytree members` verb were corrected on 2026-08-24 (both now derive
+the role set from `USER_ROLES` rather than restating it); the studio CLIENT — which restated it a third
+time as `UserRole = 'admin' | 'member'`, and was therefore the last surface that could not grant the role
+— followed on 2026-08-25, and the Members panel now renders both its invite select and a per-row re-role
+select from the enum. Leg 8 was then driven against the real running studio and `studio-members#gate-2`
+is SIGNED. **Nothing here was an owner call in the end** — the paragraph below correctly predicted that,
+and it is kept verbatim as the record of what the gap was. The original text follows.
+
+ADR-0117 d.2
 decided the Members panel marks a `builder` exactly as it does an admin or member. Neither layer
 implements it: the panel's invite select offers only `member` and `admin` and its row action is a
 binary admin/member toggle, and beneath it the `/api/users` role validator admits only `admin` or
