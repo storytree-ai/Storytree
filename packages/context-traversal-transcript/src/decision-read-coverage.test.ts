@@ -1,6 +1,14 @@
 /**
- * Tests for `decision-read-coverage.ts` — the ADR-0419 / `decision-read-measurement-arc-inc-01`
- * finding, pinned.
+ * Tests for `decision-read-coverage.ts` — capability `transcript-decision-read-coverage`, story
+ * `context-traversal-transcript`. The `decision-read-measurement-arc-inc-01` finding, pinned.
+ *
+ * EVERY TEST NAME LEADS WITH ITS DECLARED CONTRACT ID, and that is a BINDING rather than a style
+ * rule: `testNameCoversContract` matches a contract id from the capability spec's `## Contracts`
+ * list as a whole token inside the test name, and the trailing `:` is what makes the boundary work.
+ * The ids come from `stories/context-traversal-transcript/transcript-decision-read-coverage.md`
+ * verbatim — rename one here and it stops covering anything, silently. The leads were added when
+ * that capability was minted (`linked-session-context-arc-inc-34`); before it, these files had no
+ * owning capability, which is why they carried none.
  *
  * THE FINDING IS THE THING UNDER TEST, not the arithmetic. Every assertion below is written so that
  * the defect it guards would make it RED: the join test seeds a pair that spans the two spellings
@@ -66,7 +74,7 @@ function followedEdge(toVisitId: string): ContextTraversalEvent {
   };
 }
 
-test("resolveDecisionId: all four live id forms resolve to the same decision NUMBER", () => {
+test("all-four-id-spellings-resolve-to-one-decision-number: all four live id forms resolve to the same decision NUMBER, each keeping its own spelling", () => {
   assert.deepEqual(resolveDecisionId("adr-0022"), { number: 22, spelling: "row" });
   assert.deepEqual(resolveDecisionId("asset:adr-0022"), { number: 22, spelling: "asset" });
   assert.deepEqual(resolveDecisionId("doc:decisions/0022-ci-green.md"), {
@@ -79,7 +87,7 @@ test("resolveDecisionId: all four live id forms resolve to the same decision NUM
   });
 });
 
-test("resolveDecisionId: the row form is what a LIVE read mints, and parseDecisionPointer alone refuses it", () => {
+test("the-row-spelling-is-refused-by-the-pointer-parser-alone: the row form is what a LIVE read mints, and parseDecisionPointer alone refuses it", () => {
   // The specific blindness this function exists to remove. A reader that used the corpus's pointer
   // parser alone — the obvious choice — would classify every post-ADR-0403 live read as "not a
   // decision", which is the shape of the very defect this arc keeps finding in its instruments.
@@ -90,7 +98,7 @@ test("resolveDecisionId: the row form is what a LIVE read mints, and parseDecisi
   assert.equal(coverage.decisionVisitsByRoute["live-cli"], 1);
 });
 
-test("resolveDecisionId: a non-decision id is null, and an `adr-` id that is not four digits is too", () => {
+test("a-non-decision-id-resolves-to-null: a non-decision id is null, and an `adr-` id that is not four digits is too", () => {
   assert.equal(resolveDecisionId("merge-ceremony"), null);
   assert.equal(resolveDecisionId("doc:docs/research/notes.md"), null);
   assert.equal(resolveDecisionId("asset:merge-ceremony"), null);
@@ -99,7 +107,7 @@ test("resolveDecisionId: a non-decision id is null, and an `adr-` id that is not
   assert.equal(resolveDecisionId("adr-04031"), null);
 });
 
-test("THE JOIN: a raw-id join loses the pair that spans the two spellings, and the resolved one keeps it", () => {
+test("a-raw-id-join-silently-loses-the-cross-spelling-pair: a raw-id join loses the pair that spans the two spellings, and the resolved one keeps it", () => {
   // The acceptance condition of `decision-read-measurement-arc-inc-01`, in one case: the corpus
   // OFFERS `doc:decisions/0022-….md` and the live CLI RECORDS the read as `adr-0022`. They are the
   // same decision, and a join on the id string cannot see it.
@@ -119,7 +127,7 @@ test("THE JOIN: a raw-id join loses the pair that spans the two spellings, and t
   );
 });
 
-test("THE JOIN: the raw-id figure is not vacuously zero — a same-spelling pair joins on it", () => {
+test("the-raw-id-figure-is-not-vacuously-zero: the control — a same-spelling pair joins on the raw id", () => {
   // The control for the test above. Without it, `joinableOnRawId: 0` would be consistent with a
   // summariser that never joins anything, and the finding would rest on a figure that cannot move.
   const events = [
@@ -131,7 +139,7 @@ test("THE JOIN: the raw-id figure is not vacuously zero — a same-spelling pair
   assert.equal(coverage.joinableOnDecisionNumber, 1);
 });
 
-test("the two recorders are counted APART — a read seen by both is two events, never one", () => {
+test("the-two-recorders-are-counted-apart-never-summed: a read seen by both is two events, never one", () => {
   // `decision-reads.ts` declares the overlap: the live observer fires as the command runs and the
   // transcript sweep recovers the same invocation afterwards, on different surfaces. Summing them
   // would double every post-migration read, so the report must keep them separable.
@@ -146,7 +154,7 @@ test("the two recorders are counted APART — a read seen by both is two events,
   assert.equal(coverage.distinctDecisionsRead, 1, "one decision, reached twice");
 });
 
-test("routeOfSurface names every host-transcript surface, and an unknown surface is `other`", () => {
+test("every-host-transcript-surface-is-named-and-unknown-is-other: routeOfSurface names all four, and an unknown surface is `other`", () => {
   assert.equal(routeOfSurface(LIVE_SURFACE), "live-cli");
   assert.equal(routeOfSurface("host-transcript-file-read"), "host-transcript");
   assert.equal(routeOfSurface("host-transcript-grep"), "host-transcript");
@@ -156,7 +164,7 @@ test("routeOfSurface names every host-transcript surface, and an unknown surface
   assert.equal(routeOfSurface(undefined), "other");
 });
 
-test("the unobservable count is the REAL classifier's answer, never a restated prefix table", () => {
+test("the-unobservable-count-comes-from-the-real-classifier: never a restated prefix table", () => {
   // Pinned against `classifyOfferObservability` — the corpus's own machinery, which builds the argv
   // a follow would use and runs it through the actual allowlist. A local copy of the rule would
   // agree with the renderer whatever the renderer did; this figure's value is that it can disagree.
@@ -180,7 +188,7 @@ test("the unobservable count is the REAL classifier's answer, never a restated p
   );
 });
 
-test("the render states the refusal, so the denominator cannot be mistaken for a worklist item", () => {
+test("the-render-states-the-refusal-so-the-denominator-is-not-a-worklist: the size cannot be mistaken for a worklist item", () => {
   // ADR-0312 (owner-directed, 2026-08-05) amends ADR-0260: the `doc:` blind spot is MEASURED, not
   // closed, because closing it would render every unanswered offer as a declined branch. A report
   // that printed the size without the refusal would invite exactly the repair that was refused.
@@ -195,7 +203,7 @@ test("the render states the refusal, so the denominator cannot be mistaken for a
   assert.match(rendered, /over the OBSERVABLE branches/);
 });
 
-test("the render names BOTH offer-to-follow routes, so the narrowing cannot be read as the whole picture", () => {
+test("the-render-names-both-offer-to-follow-routes: the narrowing cannot be read as the whole picture", () => {
   // `-inc-01`'s rule is CORRECT about the `followed_edge` route — the one `classifyOfferObservability`
   // scopes — and read as the whole picture it is a 65x self-inflicted wound: `-inc-02` measured the
   // READ-RECORD route over the same 3,351 decision offers and found 3,351 observable rather than 51,
@@ -226,7 +234,7 @@ test("the render names BOTH offer-to-follow routes, so the narrowing cannot be r
   );
 });
 
-test("a followed edge is attributed to a decision only when its ANSWERING visit read one", () => {
+test("a-followed-edge-counts-only-when-its-answering-visit-read-a-decision: attribution follows the answering visit, never the offer", () => {
   const events = [
     offers("doc:decisions/0022-ci-green.md", "trunk"),
     visit("adr-0022", LIVE_SURFACE, "v-decision"),
@@ -239,7 +247,7 @@ test("a followed edge is attributed to a decision only when its ANSWERING visit 
   assert.equal(coverage.followedEdgesToADecision, 1);
 });
 
-test("a followed edge naming a visit this record does not hold is not counted as a decision follow", () => {
+test("a-followed-edge-with-no-answering-visit-fails-closed: an edge naming a visit this record does not hold is not a decision follow", () => {
   // Fail-closed over an incomplete record: a trace truncated mid-write, or an edge whose answering
   // visit landed in another session's file, must not be attributed to a decision on a guess.
   const coverage = summariseDecisionReadCoverage([followedEdge("v-absent")], 1);
@@ -247,7 +255,7 @@ test("a followed edge naming a visit this record does not hold is not counted as
   assert.equal(coverage.followedEdgesToADecision, 0);
 });
 
-test("populations are counted independently: a non-decision offer and read touch no decision figure", () => {
+test("non-decision-offers-and-reads-touch-no-decision-figure: the populations are counted independently", () => {
   const events = [offers("trunk", "merge-ceremony"), visit("trunk", LIVE_SURFACE)];
   const coverage = summariseDecisionReadCoverage(events, 1);
   assert.equal(coverage.offeredIds, 2);
@@ -258,7 +266,7 @@ test("populations are counted independently: a non-decision offer and read touch
   assert.equal(coverage.joinableOnDecisionNumber, 0);
 });
 
-test("the render states the join VERDICT, not just two numbers a reader could take either of", () => {
+test("the-render-states-the-join-verdict-not-two-bare-numbers: not two numbers a reader could take either of", () => {
   const spanning = summariseDecisionReadCoverage(
     [offers("doc:decisions/0022-ci-green.md"), visit("adr-0022", LIVE_SURFACE)],
     1,
@@ -273,7 +281,7 @@ test("the render states the join VERDICT, not just two numbers a reader could ta
   assert.match(rendered, /adr pull/);
 });
 
-test("the render does NOT claim agreement licenses a raw-id join when nothing spans the spellings", () => {
+test("agreement-is-not-a-licence-to-join-on-the-raw-id: the render refuses the claim when nothing spans the spellings", () => {
   const agreeing = summariseDecisionReadCoverage(
     [offers("adr-0022"), visit("adr-0022", LIVE_SURFACE)],
     1,
@@ -283,7 +291,7 @@ test("the render does NOT claim agreement licenses a raw-id join when nothing sp
   assert.match(rendered, /not a licence to join on the raw id/);
 });
 
-test("an empty record renders zeroes rather than dividing by them", () => {
+test("an-empty-record-renders-zeroes-and-never-nan: zeroes rather than dividing by them", () => {
   const empty = summariseDecisionReadCoverage([], 0);
   assert.equal(empty.visits, 0);
   assert.equal(empty.offeredIds, 0);
@@ -292,7 +300,7 @@ test("an empty record renders zeroes rather than dividing by them", () => {
   assert.doesNotMatch(rendered, /NaN/);
 });
 
-test("collectDecisionReadCoverage over a missing directory is an empty corpus, never a throw", () => {
+test("a-missing-trace-directory-is-an-empty-corpus-never-a-throw: collectDecisionReadCoverage answers rather than throwing", () => {
   const coverage = collectDecisionReadCoverage({
     traceDir: "./no-such-directory-decision-read-coverage",
   });
@@ -300,7 +308,7 @@ test("collectDecisionReadCoverage over a missing directory is an empty corpus, n
   assert.equal(coverage.visits, 0);
 });
 
-test("THE JOIN, FORWARD-LOOKING: the historical half flatters the raw-id figure and the live-only pair does not", () => {
+test("the-live-only-pair-removes-the-flattering-historical-half: the historical half flatters the raw-id figure and the live-only pair does not", () => {
   // The trap this pair exists to remove. The whole-record raw join looks healthy purely because the
   // three historical file shapes mint the offers' own spelling — a population that can never grow
   // again, since `docs/decisions/` was deleted whole. Restricted to the live reads, the same offer
@@ -325,7 +333,7 @@ test("THE JOIN, FORWARD-LOOKING: the historical half flatters the raw-id figure 
   assert.match(rendered, /DECAYS/);
 });
 
-test("the live-only join is not vacuously zero — a live read of an `asset:`-spelled offer joins raw", () => {
+test("the-live-only-join-is-not-vacuously-zero: a live read of an `asset:`-spelled offer joins raw", () => {
   // The control. `offerIdOf` strips `asset:`, so an `asset:adr-0022` reference is OFFERED as
   // `adr-0022` — byte-identical to what a live read mints. That 2.7% of the offer surface is the
   // only part a raw join will still see once the historical half stops growing.
@@ -335,7 +343,7 @@ test("the live-only join is not vacuously zero — a live read of an `asset:`-sp
   assert.equal(coverage.joinableOnDecisionNumberLiveReads, 1);
 });
 
-test("a decision read ONLY by the transcript sweep counts for neither live-only figure", () => {
+test("a-transcript-only-read-counts-for-neither-live-only-figure: the live-only sets are not fed by every route", () => {
   // The case that separates the live-only sets from the whole-record ones. Without it, both
   // live-only figures could be fed by every route and still look right on a record where the live
   // observer happened to see the same decision — which is precisely the flattering-by-history error
