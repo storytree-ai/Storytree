@@ -7,11 +7,24 @@
 --      history row per cleared claim.
 --   2. READ — the generated-guidance gate rungs. `verify` runs `check:guidance` and `check:agents`,
 --      which read the live-canonical Library before comparing committed harness projections.
+--   3. WRITE — the work-hierarchy mirror (ADR-0451, `map-freshness-arc`). `automerge` runs
+--      `pnpm hierarchy:load`, which re-projects `stories/**` into events.work_* now that the PR is
+--      part of `main`, so the mirror cannot lag the branch it mirrors.
 --
--- THE READ HALF IS READ-ONLY, AND THAT IS A DECISION, NOT AN OVERSIGHT. CI has no business writing
--- the corpus: every corpus write is authored by a session or the studio through a validated write
--- path, and a CI runner is neither. So the grants below add SELECT and nothing else on the library
--- tables. Anything that later wants CI to WRITE the corpus is a new decision, not a wider grant here.
+-- THE CORPUS READ HALF IS READ-ONLY, AND THAT IS A DECISION, NOT AN OVERSIGHT. CI has no business
+-- writing the corpus: every corpus write is authored by a session or the studio through a validated
+-- write path, and a CI runner is neither. So the grants below add SELECT and nothing else on the
+-- library tables. Anything that later wants CI to WRITE the corpus is a new decision, not a wider
+-- grant here.
+--
+-- ⚠ THAT RULE STANDS AND IS NOT WIDENED BY JOB 3 (ADR-0451 D2) — the in-place annotation this
+-- paragraph's own sentence above asked for. The discriminator is AUTHORSHIP, not the database: the
+-- work-hierarchy tables are a one-directional PROJECTION of `stories/**`, which stays disk-canonical
+-- for authoring (ADR-0309 D3) and for proving. CI does not acquire an authoring voice by writing a
+-- view derived from a source it does not control, and every row is reproducible from any checkout by
+-- one command. The precedent is job 1, three paragraphs down: CI already writes machine-derived facts
+-- about the merge. What job 3 still cannot touch: events.verdict, events.attestation and
+-- events.library_artifact — no proof can be forged and no corpus row authored.
 --
 -- SCOPE OF THE IDENTITY, stated because the grants alone understate it: the WIF binding in
 -- ci-presence.tf is keyed on `attribute.repository`, NOT on a ref, so ANY branch's workflow in
@@ -58,4 +71,29 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA events
 -- it so that a later READ-ONLY check does not cost a second owner-run round-trip. Neither confers
 -- any write: no INSERT, no UPDATE, no DELETE, and no grant on any other table in the schema.
 GRANT SELECT ON events.library_artifact, events.library_event
+  TO "storytree-ci-presence@storytree-498613.iam";
+
+-- ADR-0451 D1 — the work-hierarchy MIRROR (ADR-0445 D1's first half). The automerge job's
+-- `pnpm hierarchy:load` replaces the whole projection in one transaction, so it needs SELECT (the
+-- read-back and the store's own reassembly), INSERT and DELETE on the four row tables, and
+-- INSERT/UPDATE on the singleton stamp it upserts.
+--
+-- NO `UPDATE` ON THE FOUR ROW TABLES, DELIBERATELY. The write is a whole-snapshot REPLACE — the
+-- projection is total over the tree, so a story deleted from `stories/**` has to vanish, which an
+-- upsert could never express. UPDATE would buy the writer nothing and widen the grant past what it
+-- does, which is the difference between a grant that describes a caller and one that describes a
+-- table.
+--
+-- WHAT BOUNDS THE DAMAGE, and therefore what makes this acceptable (ADR-0451 D3): every row is
+-- re-derivable by `pnpm hierarchy:load` from any checkout; these tables carry NO history to destroy
+-- (git is the history — there is no `*_event` sibling); and `check:hierarchy-drift` reads the mirror
+-- back against the tree and fails LOUDLY when the two disagree. A forged or wiped mirror is detected
+-- by the next gate run and repaired by one command. If any of those three stops holding, re-decide.
+GRANT SELECT ON events.work_hierarchy_snapshot, events.work_story, events.work_capability,
+                events.work_criterion, events.work_gate
+  TO "storytree-ci-presence@storytree-498613.iam";
+GRANT INSERT, DELETE ON events.work_story, events.work_capability,
+                        events.work_criterion, events.work_gate
+  TO "storytree-ci-presence@storytree-498613.iam";
+GRANT INSERT, UPDATE ON events.work_hierarchy_snapshot
   TO "storytree-ci-presence@storytree-498613.iam";

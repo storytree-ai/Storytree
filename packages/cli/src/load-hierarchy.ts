@@ -113,7 +113,23 @@ async function main(): Promise<number> {
   try {
     // DDL before data — the same order `load-corpus.ts`'s `runSeed` exists to prove, and the reason
     // this command can be the first thing a fresh database ever sees.
-    await applySchema(handle.pool);
+    //
+    // BEST-EFFORT, AND ONLY FOR A PRIVILEGE REFUSAL (ADR-0451). `schema.sql` carries ALTER TABLE
+    // statements that require OWNERSHIP, and the CI service account that runs the post-merge
+    // regeneration is not the schema owner — so under that identity the DDL refuses while the write
+    // below is perfectly within its grant. The DDL's real caller is an owner-run load, which is what
+    // creates these tables in the first place. Any OTHER failure still throws: swallowing a genuine
+    // migration error here would let the write proceed against a shape nobody applied.
+    try {
+      await applySchema(handle.pool);
+    } catch (err) {
+      const code = (err as { code?: unknown } | null)?.code;
+      if (code !== "42501" && !/must be owner of|permission denied/i.test(String(err))) throw err;
+      process.stdout.write(
+        "· schema DDL skipped — this identity may not run it (not the schema owner). Continuing to\n" +
+          "  the write, which is a separate grant. An owner-run `pnpm hierarchy:load` applies the DDL.\n",
+      );
+    }
     await new PgWorkHierarchyStore(handle.pool).writeSnapshot(snapshot, defaultCliActor());
     process.stdout.write(
       `✓ work hierarchy projected into the live store from ${treeSha} (${commitSha.slice(0, 8)}).\n` +

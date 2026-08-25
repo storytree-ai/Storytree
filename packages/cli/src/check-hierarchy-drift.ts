@@ -52,10 +52,24 @@ const repoRoot = (): string =>
     derived: fileURLToPath(new URL("../../../", import.meta.url)),
   }).root;
 
-/** A Postgres "relation does not exist" — the DDL has never been applied to this database. */
-function isMissingRelation(err: unknown): boolean {
+/**
+ * The two ways this store can refuse the read for a reason that is about the DATABASE rather than
+ * about the mirror — each with its own repair, which is why they are told apart rather than folded.
+ *
+ * `42P01` the DDL has never been applied here; `42501` the connecting identity has no grant. Both
+ * are FAILURES: the mirror was never read, so nothing about it was judged. Neither is ever a skip.
+ */
+function pgErrorCode(err: unknown): string | undefined {
   const code = (err as { code?: unknown } | null)?.code;
-  return code === "42P01" || /relation .* does not exist/i.test(String(err));
+  return typeof code === "string" ? code : undefined;
+}
+
+function isMissingRelation(err: unknown): boolean {
+  return pgErrorCode(err) === "42P01" || /relation .* does not exist/i.test(String(err));
+}
+
+function isPermissionDenied(err: unknown): boolean {
+  return pgErrorCode(err) === "42501" || /permission denied for (table|relation)/i.test(String(err));
 }
 
 async function main(): Promise<number> {
@@ -80,6 +94,20 @@ async function main(): Promise<number> {
     try {
       stored = await new PgWorkHierarchyStore(handle.pool).readSnapshot();
     } catch (err) {
+      if (isPermissionDenied(err)) {
+        // The tables exist; this identity may not read them. In CI that means the ADR-0451 grants
+        // have not been applied to this database — a one-command owner-run repair, and NOT something
+        // a re-run or a wider `catch` should paper over.
+        process.stdout.write(
+          "✗ check:hierarchy-drift — permission denied on the work-hierarchy tables.\n\n" +
+            `  ${err instanceof Error ? err.message : String(err)}\n\n` +
+            "  The tables are here; this identity has no grant on them. The mirror was never read,\n" +
+            "  so nothing about it was judged — a FAILURE, never a skip. Apply the grants as the\n" +
+            "  schema owner (ADR-0451 D4), from the repo root:\n\n" +
+            "    STORYTREE_DB_USER=<owner> npx tsx infra/apply-ci-presence-grants.ts\n",
+        );
+        return EXIT_FAIL;
+      }
       if (!isMissingRelation(err)) throw err;
       // The tables are not in THIS database yet. Distinct from "loaded nothing", and it has its own
       // remedy: the loader applies the DDL, so one run creates the relations and fills them.
