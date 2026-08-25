@@ -34,6 +34,7 @@ import {
 import type {
   ExtensionFactory,
   PiFenceViolation,
+  PiRefusalKind,
   PiToolCallDecision,
   ToolCallEvent,
 } from "./pi-fence.js";
@@ -72,6 +73,10 @@ const testOnlyInAuthor = (phase: AuthoringPhase, rel: string): boolean =>
 
 /** Read the refusal reason off a decision; the empty string when the call was allowed. */
 const reasonOf = (decision: PiToolCallDecision): string => (decision.allow ? "" : decision.reason);
+
+/** Read the refusal kind off a decision; `undefined` when the call was allowed. */
+const kindOf = (decision: PiToolCallDecision): PiRefusalKind | undefined =>
+  decision.allow ? undefined : decision.kind;
 
 // ── The pure decision: the same fail-closed rules the Claude leaf applies ────
 
@@ -216,6 +221,43 @@ test("decidePiToolCall refuses every pi shell tool — THE hole a write-only fen
   }
 });
 
+test("every refusal is STAMPED with the wall it hit, so three fences share one denominator", () => {
+  // ADR-0446 landed a durable sink for write-scope refusals and both existing fence mechanisms
+  // stamp `kind` at the refusal. This is the third fence; a refusal it cannot label is a refusal
+  // the sink's denominator cannot count. The first three kinds mirror `SdkRefusalKind` member for
+  // member; `tool-surface` is pi's own, because only pi has a shell to keep off the surface.
+  const cases: Array<[string, unknown, PiRefusalKind]> = [
+    ["write", { path: "impl.cjs", content: "x" }, "scope"],
+    ["write", { path: "../outside.test.cjs", content: "x" }, "outside-workspace"],
+    ["write", {}, "no-path"],
+    ["bash", { command: "echo pwned > unit.test.cjs" }, "tool-surface"],
+    ["some_future_tool", { path: "unit.test.cjs" }, "tool-surface"],
+  ];
+  for (const [toolName, toolInput, expected] of cases) {
+    const d = decidePiToolCall({
+      phase: "AUTHOR_TEST",
+      cwd: CWD,
+      toolName,
+      toolInput,
+      isWriteAllowed: testOnlyInAuthor,
+    });
+    assert.equal(d.allow, false, `${toolName} must be refused`);
+    assert.equal(kindOf(d), expected, `${toolName} must be stamped '${expected}'`);
+  }
+
+  // And an ALLOWED call carries no kind at all — the stamp is a property of a refusal, so a
+  // reader counting kinds can never pick up a call that was let through.
+  const allowed = decidePiToolCall({
+    phase: "AUTHOR_TEST",
+    cwd: CWD,
+    toolName: "write",
+    toolInput: { path: "unit.test.cjs", content: "x" },
+    isWriteAllowed: testOnlyInAuthor,
+  });
+  assert.equal(allowed.allow, true);
+  assert.equal(kindOf(allowed), undefined);
+});
+
 test("decidePiToolCall refuses an unknown tool name (allowlist, not denylist)", () => {
   // A pi version bump that ADDS a write-capable tool, or an extension that registers one, is
   // refused by default rather than silently permitted.
@@ -349,8 +391,8 @@ test("pi's own runner returns the fence's block for an out-of-scope write", asyn
   assert.equal(result?.block, true);
   assert.match(result?.reason ?? "", /phase scope/);
   assert.deepEqual(
-    violations.map((v) => [v.phase, v.tool, v.path]),
-    [["AUTHOR_TEST", "write", "impl.cjs"]],
+    violations.map((v) => [v.phase, v.tool, v.path, v.kind]),
+    [["AUTHOR_TEST", "write", "impl.cjs", "scope"]],
   );
 });
 

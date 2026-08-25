@@ -136,6 +136,7 @@ export { buildInspectTools, INSPECT_SERVER } from "./inspect-tool-surface.js";
 // fence is proven). `pi-fence.ts` is the single pi import site and imports pi TYPES ONLY.
 export type {
   PiFenceViolation,
+  PiRefusalKind,
   PiToolCallDecision,
   ExtensionAPI as PiExtensionAPI,
   ExtensionFactory as PiExtensionFactory,

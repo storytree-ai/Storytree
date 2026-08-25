@@ -126,18 +126,44 @@ export const PI_WRITE_TOOLS: readonly string[] = WRITE_TOOLS;
  */
 const PI_WRITE_PATH_KEY: keyof WriteToolCallEvent["input"] & keyof EditToolCallEvent["input"] = "path";
 
-/** A fail-closed write refusal the fence recorded (mirrors the SDK leaf's SdkWriteViolation). */
+/**
+ * Why one refusal fired — a LABEL on a decision this file already makes, never a new branch.
+ *
+ * The first three mirror {@link SdkRefusalKind} member for member and mean the same things, so the
+ * three fence mechanisms stay countable against ONE denominator (ADR-0446): a refusal stamped here
+ * is comparable with one stamped by the Claude hook or the owned loop's executor. `no-path` is
+ * again the case the owned loop PASSES THROUGH and both hooks fail closed on — the disagreement is
+ * only findable if the two are counted apart, which is why the kind is stamped AT the refusal
+ * rather than sniffed downstream out of the refusal text.
+ *
+ * `tool-surface` is pi's own fourth, and it has no analogue in the other two because they have no
+ * analogous hole: it is the SHELL wall — a call refused for the tool it is, before any path is
+ * looked at, because that tool is not on {@link PI_AUTHORING_TOOLS}. It carries no path at all, so
+ * a reader must not fold it in with the path-shaped kinds. proof-protocol's `ScopeRefusalKind`
+ * has no member for it today; which of its two shapes it takes at the sink — a new enum member, or
+ * separate carriage the way `noPathCalls` is kept out of `refusals` — is the pi LEAF's call, when
+ * there is a slice to record. Not decided here, and deliberately not pre-empted.
+ *
+ * A LOCAL union, deliberately, for the same reason `SdkRefusalKind` is one: `@storytree/agent`
+ * depends on no other storytree package, so it does not reach for proof-protocol's enum. The drive
+ * maps one onto the other at the sink.
+ */
+export type PiRefusalKind = "scope" | "outside-workspace" | "no-path" | "tool-surface";
+
+/** A fail-closed refusal the fence recorded (mirrors the SDK leaf's SdkWriteViolation). */
 export interface PiFenceViolation {
   phase: AuthoringPhase;
   tool: string;
   path: string;
   reason: string;
+  /** Which wall it hit. Stamped at the refusal; see {@link PiRefusalKind}. */
+  kind: PiRefusalKind;
 }
 
 /** The pure fence decision: allow the call through, or refuse it with a reason. */
 export type PiToolCallDecision =
   | { allow: true; relPath: string }
-  | { allow: false; relPath: string; reason: string };
+  | { allow: false; relPath: string; reason: string; kind: PiRefusalKind };
 
 /**
  * The pure decision the `tool_call` handler applies (exported for offline tests). Fail-closed, in
@@ -164,6 +190,7 @@ export function decidePiToolCall(args: {
       allow: false,
       relPath: "(no path)",
       reason: `refused: '${args.toolName}' is not on the authoring tool surface${shellNote}`,
+      kind: "tool-surface",
     };
   }
 
@@ -177,6 +204,7 @@ export function decidePiToolCall(args: {
       allow: false,
       relPath: "(no path)",
       reason: `write refused: '${args.toolName}' call carries no readable path (fail-closed)`,
+      kind: "no-path",
     };
   }
 
@@ -186,6 +214,7 @@ export function decidePiToolCall(args: {
       allow: false,
       relPath: rel,
       reason: `write refused: '${filePath}' resolves outside the workspace`,
+      kind: "outside-workspace",
     };
   }
 
@@ -194,6 +223,7 @@ export function decidePiToolCall(args: {
       allow: false,
       relPath: rel,
       reason: `write refused by phase scope: '${args.toolName}' may not write ${rel} in phase ${args.phase}`,
+      kind: "scope",
     };
   }
 
@@ -242,6 +272,7 @@ export function createPiScopeFence(args: {
         tool: event.toolName,
         path: decision.relPath,
         reason: decision.reason,
+        kind: decision.kind,
       });
       return { block: true, reason: decision.reason };
     });
