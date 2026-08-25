@@ -25,6 +25,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { getDesktopApply } from '../lib/desktopApply';
+import type { CodeCurrency } from '../lib/mapCurrency';
 
 const SLOW_POLL_MS = 30_000;
 const FAST_POLL_MS = 5_000;
@@ -54,6 +55,7 @@ export function StoreBanner({
   canWake = false,
   onPhase,
   onCodeHead,
+  onCodeCurrency,
 }: {
   onRecovered: () => void;
   /**
@@ -78,6 +80,19 @@ export function StoreBanner({
    * the local dev banner that doesn't lift it keeps working unchanged.
    */
   onCodeHead?: (head: string) => void;
+  /**
+   * Lift the CODE-CURRENCY pair this banner already derives (ADR-0445 D3, `map-currency-signal`):
+   * whether the checkout moved under the running server (`code.stale`) and how many commits a
+   * pinned runtime is behind `origin/main` (`runtime.behind`). The forest's currency signal reads
+   * them to answer "is what I am seeing current?" — the question a connectivity light cannot see,
+   * because through the whole 2026-08-25 incident the database answered perfectly.
+   *
+   * SERVED BY THIS BANNER'S SINGLE POLLER, never a second one — the same rule `onCodeHead` already
+   * follows, and for the same reason. Fires on every resolved health response (including the ones
+   * that report everything current, so the signal can leave amber again). Optional: a caller that
+   * doesn't wire the signal keeps working unchanged.
+   */
+  onCodeCurrency?: (currency: CodeCurrency) => void;
 }): React.JSX.Element | null {
   const [phase, setPhase] = useState<StorePhase>('unknown');
   const [startError, setStartError] = useState('');
@@ -123,6 +138,10 @@ export function StoreBanner({
       // Update-available signal for the installed desktop app: pinned runtime worktree behind main.
       const behindCount = health.runtime?.pinned ? (health.runtime.behind ?? 0) : 0;
       setBehind(behindCount > 0 ? { count: behindCount } : null);
+      // ADR-0445 D3: the same two facts, lifted for the forest's currency signal. Reported on EVERY
+      // resolved probe rather than only when something is wrong — the signal has to be able to
+      // return to green, and it must be able to tell "current" from "not asked yet".
+      onCodeCurrency?.({ serverCodeMoved: health.code?.stale === true, behindMain: behindCount });
       if (health.store === 'json') {
         setPhase('json');
         return;
@@ -165,7 +184,7 @@ export function StoreBanner({
     } finally {
       inFlight.current = false;
     }
-  }, [onRecovered, onCodeHead]);
+  }, [onRecovered, onCodeHead, onCodeCurrency]);
 
   // Lift the phase up so App's load-state machine can react to it (STARTING / TAKING-LONGER /
   // SERVER-LOST) without a second poller. Runs after each phase change.
@@ -238,9 +257,14 @@ export function StoreBanner({
     if (desktop !== undefined) {
       // Prefer the behind-main count — the primary "a newer version has landed" signal for the installed
       // pinned app; fall back to the moved-commit copy when only the built code drifted.
+      // ADR-0445 D3: say what being behind COSTS, not just that it is true. The old copy reported a
+      // version gap and left the reader to discover on their own that the forest's colours are
+      // computed from this app's own `stories/**` — so a behind app asks about criteria that have
+      // since been re-worded, matches no verdict, and paints yellow. That is the 2026-08-25
+      // incident's whole cost, and this banner is where it first became sayable.
       const message = behind
-        ? `A newer version has landed — this app is ${behind.count} commit${behind.count === 1 ? '' : 's'} behind main. Rebuild and relaunch to update.`
-        : `This app is running commit ${moved!.startedAt.slice(0, 7)} but the checkout has moved to ${moved!.head.slice(0, 7)} — a newer version has landed. Rebuild and relaunch to apply it.`;
+        ? `A newer version has landed — this app is ${behind.count} commit${behind.count === 1 ? '' : 's'} behind main, so the forest may be under-claiming: work proven since can still show as unproven here. Rebuild and relaunch to update.`
+        : `This app is running commit ${moved!.startedAt.slice(0, 7)} but the checkout has moved to ${moved!.head.slice(0, 7)} — a newer version has landed, so the forest may be under-claiming. Rebuild and relaunch to apply it.`;
       return (
         <div className="store-banner" role="status">
           <span>{message}</span>
@@ -273,8 +297,9 @@ export function StoreBanner({
           <span>
             This studio server started on commit <code>{moved.startedAt.slice(0, 7)}</code> but the
             checkout has moved to <code>{moved.head.slice(0, 7)}</code> — it is serving stale code
-            (new endpoints 404, the UI is old). Restart it: <code>pnpm studio:down</code> ·{' '}
-            <code>pnpm studio:up</code>; this page reloads itself when the server returns.
+            (new endpoints 404, the UI is old, and the forest may be under-claiming). Restart it:{' '}
+            <code>pnpm studio:down</code> · <code>pnpm studio:up</code>; this page reloads itself
+            when the server returns.
           </span>
         </div>
       );
