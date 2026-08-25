@@ -119,6 +119,21 @@ export type OrchestrateResult = HeadlessOrchestratorResult & {
  */
 let compositionInFlight = false;
 
+/**
+ * Clear the composition-level single-session guard without touching any in-flight session.
+ *
+ * A narrow recovery valve (ADR-0108 decision 6, extended for the desktop reset route): if a prior
+ * composition session wedged and never reached its `finally` (or is genuinely still parked
+ * mid-flight and simply won't be waited on), this flag can be stuck `true` forever with no other
+ * way to clear it short of restarting the process. This function does exactly one thing — set the
+ * flag back to `false` — and nothing else: it does NOT abort a running session, hold any signing
+ * key, or touch `runHeadlessOrchestrator`'s own lower-level `inFlight` backstop. Idempotent: safe
+ * to call whether or not the guard is currently set.
+ */
+export function resetCompositionGuard(): void {
+  compositionInFlight = false;
+}
+
 // ---------------------------------------------------------------------------
 // Composition
 // ---------------------------------------------------------------------------
