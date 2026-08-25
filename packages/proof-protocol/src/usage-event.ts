@@ -56,7 +56,14 @@ export const ModelTokenUsage = TokenUsage.extend({
 }).strict();
 export type ModelTokenUsage = z.infer<typeof ModelTokenUsage>;
 
-/** Which leaf runtime produced a usage row (ADR-0030/0232's PhaseAuthor implementations). */
+/**
+ * Which leaf runtime produced a row (ADR-0030/0232's PhaseAuthor implementations).
+ *
+ * SHARED with the write-scope stream since ADR-0446, which re-exports it as `ScopeSource` rather
+ * than declaring a parallel copy: a reading that wants "refusals per slice per runtime" joins
+ * `events.scope_event` to `events.usage_event` on exactly this vocabulary, and two enums that must
+ * agree are two enums that will eventually disagree.
+ */
 export const UsageSource = z.enum(["sdk-leaf", "codex-leaf", "owned-loop"]);
 export type UsageSource = z.infer<typeof UsageSource>;
 

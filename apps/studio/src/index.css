@@ -359,6 +359,14 @@ code {
   background: var(--accent);
   color: #fff;
 }
+/* `builder` (ADR-0117) sits between the two — a member who also holds the brokered-write scope — so
+   it reads as an accent OUTLINE: neither the solid admin fill nor the muted member pill, which would
+   have made it indistinguishable from a plain member at a glance. */
+.badge.role-builder {
+  background: var(--surface-2);
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 .badge.role-member,
 .badge.status-invited {
   background: var(--surface-2);

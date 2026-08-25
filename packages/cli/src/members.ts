@@ -13,13 +13,15 @@
  * apply identically. A CLI that poked `events."user"` directly would be able to lock the owner out
  * of the studio; this one cannot, because the guard lives under it rather than beside it.
  *
- * ⚠ IT ALSO GRANTS A ROLE THE UI CANNOT. `USER_ROLES` is `["admin", "builder", "member"]`, but the
- * studio route's `asRole` admitted only `admin`/`member`, so the Members panel could never grant
- * `builder` — the very role `stories/studio-members`' `builder-role` capability exists for, and the
- * one `stories/desktop` leg 8's journey ("the owner's in-app `builder` grant opens the brokered
- * write path") requires. The route is corrected in the same change; this verb accepts all three
- * from the outset. That defect surviving unnoticed is itself the argument for the owner's rule: with
- * no CLI path, nothing ever exercised the role, and a half-built capability sat behind a panel.
+ * ⚠ IT ONCE GRANTED A ROLE THE UI COULD NOT — and that is why this verb exists. `USER_ROLES` is
+ * `["admin", "builder", "member"]`, but the studio route's `asRole` admitted only `admin`/`member`,
+ * so the Members panel could never grant `builder` — the very role `stories/studio-members`'
+ * `builder-role` capability exists for, and the one `stories/desktop` leg 8's journey ("the owner's
+ * in-app `builder` grant opens the brokered write path") requires. The route was corrected in the
+ * same change that added this verb; the PANEL's own half followed on 2026-08-25 (its client
+ * restated the role set a second time), so BOTH surfaces now grant all three. That defect surviving
+ * unnoticed is itself the argument for the owner's rule: with no CLI path, nothing ever exercised
+ * the role, and a half-built capability sat behind a panel.
  */
 
 import type { UserDoc, UserRole } from "@storytree/studio-members";
@@ -292,9 +294,9 @@ export function membersHelp(): Envelope {
       "  storytree members history <email> --pg            the append-only audit for one member",
       "",
       `  roles: ${roleList()} — admin ⊇ builder ⊇ member.`,
-      "  `builder` is a member who may POST brokered writes; the studio's Members panel could not",
-      "  grant it until 2026-08-24, which is why this verb exists alongside the panel rather than",
-      "  behind it.",
+      "  `builder` is a member who may POST brokered writes. The studio's Members panel can grant it",
+      "  too (since 2026-08-25); this verb exists ALONGSIDE the panel rather than behind it, because",
+      "  no studio workflow is UI-only (ADR-0439).",
       "",
       "Every write goes through the SAME store the studio's own /api/users handler uses, so the",
       "last-admin guard applies identically: downgrading or removing the only admin is REFUSED, and",

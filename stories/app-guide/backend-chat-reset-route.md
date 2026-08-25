@@ -43,7 +43,16 @@ proof:
     sourceFile: "apps/desktop/src/backend/chat-reset-route.ts"
     scope:
       testGlobs: ["apps/desktop/src/backend/chat-reset-route.test.ts"]
-      sourceGlobs: ["apps/desktop/src/backend/chat-reset-route.ts"]
+      # WIDENED 2026-08-25 after run `real-mt8mq9gy` failed closed at CONFIRM_GREEN. The outcome above
+      # requires "an exported guard-reset the mount calls", and the guard it resets
+      # (`compositionInFlight`) is a module-level `let` in `packages/drive/src/orchestrate.ts` with no
+      # exported reset. The old single-file scope made the capability's own stated outcome
+      # unreachable: the leaf observed the red, then hit the write wall
+      # (`scope walls: IMPLEMENT:packages/drive/src/orchestrate.ts`) and the proof stayed red. The wall
+      # was right and the SCOPE was wrong — this capability genuinely spans the two files.
+      sourceGlobs:
+        - "apps/desktop/src/backend/chat-reset-route.ts"
+        - "packages/drive/src/orchestrate.ts"
     install: true
     typecheck:
       file: pnpm
@@ -187,9 +196,12 @@ against the no-export / 404 code at HEAD), then add the drive export + the sidec
   `node:assert/strict`, a real `node:http` server + loopback `fetch`, driving the real drive guard — the
   `chat-sse-mount.test.ts` convention). Name each test for its `bcr-…` contract id so `storytree coverage
   backend-chat-reset-route` reports 2/2 (ADR-0122).
-- **The RED the spine observes —** the import resolves nothing (`chat-reset-route.ts` does not exist at
-  HEAD) and there is no exported drive guard-reset — the test fails module-not-found / unresolved symbol
-  (the net-new + brownfield red).
+- **The RED the spine observed —** on run `real-mt8n6ern` (2026-08-25) the import resolved nothing and
+  there was no exported drive guard-reset, so the test failed module-not-found / unresolved symbol (the
+  net-new + brownfield red). **Stated in the PAST tense deliberately: this capability is now BUILT, and
+  a present-tense absence claim anchored on the file's basename would be a stale existence claim —
+  ADR-0378's `staleExistenceClaimRefusal` would refuse a future `--real` on this spec, and
+  `packages/drive/src/stale-existence-claim.test.ts` reads this prose live.**
 - **The GREEN —** export a narrow `resetCompositionGuard()` from `packages/drive/src/orchestrate.ts`
   (sets `compositionInFlight = false`); write `apps/desktop/src/backend/chat-reset-route.ts` exporting
   `createChatResetRoute()` returning the `(req, res, pathname) => Promise<boolean>` dispatcher that, on
