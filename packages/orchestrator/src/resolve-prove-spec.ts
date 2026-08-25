@@ -323,9 +323,14 @@ export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor;
 /**
  * Resolution outcome: the full ProveSpec (plus, in live mode, the live author for cost/violation
  * reporting), or a fail-closed refusal with the buildable ids.
+ *
+ * `ownedAuthor` is the same reporting seam for the OWNED LOOP (ADR-0446): it is the leaf the dry-run
+ * arm constructs, and its write wall is one of the two mechanisms whose refusals had nowhere to land.
+ * Set ONLY where this resolver builds the leaf itself — an injected `authorOverride` is somebody
+ * else's object and this resolver has no standing to claim its fence record.
  */
 export type ResolveResult =
-  | { ok: true; spec: ProveSpec; liveAuthor?: LiveAuthor }
+  | { ok: true; spec: ProveSpec; liveAuthor?: LiveAuthor; ownedAuthor?: OwnedLoopAuthor }
   | { ok: false; reason: string; registered: string[] };
 
 /**
@@ -395,14 +400,16 @@ export function resolveProveSpec(
   // The leaf, per mode: scripted owned loop or one explicit subscription author.
   let author: PhaseAuthor;
   let liveAuthor: LiveAuthor | undefined;
+  let ownedAuthor: OwnedLoopAuthor | undefined;
   let prompts: PhasePrompts;
   if (opts.mode === "dry-run") {
-    author = new OwnedLoopAuthor({
+    ownedAuthor = new OwnedLoopAuthor({
       model: dryRunModel(),
       tools: new FileToolExecutor({ rootDir: opts.workspace }),
       scope,
       writeTools: FILE_WRITE_TOOLS,
     });
+    author = ownedAuthor;
     prompts = assemblePrompts(spec);
   } else {
     if ((opts.runtime ?? "claude") === "codex") {
@@ -458,9 +465,9 @@ export function resolveProveSpec(
     prompts,
     runId: opts.runId,
   };
-  return liveAuthor !== undefined
-    ? { ok: true, spec: proveSpec, liveAuthor }
-    : { ok: true, spec: proveSpec };
+  if (liveAuthor !== undefined) return { ok: true, spec: proveSpec, liveAuthor };
+  if (ownedAuthor !== undefined) return { ok: true, spec: proveSpec, ownedAuthor };
+  return { ok: true, spec: proveSpec };
 }
 
 /**

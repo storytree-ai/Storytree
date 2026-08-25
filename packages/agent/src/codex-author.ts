@@ -47,11 +47,24 @@ export interface CodexCommandResult {
 /** Injectable process seam. The default resolves the CLI wrapper pinned by `@openai/codex`. */
 export type CodexRunner = (command: CodexCommand) => Promise<CodexCommandResult>;
 
+/**
+ * Why one refusal fired — the same LABEL vocabulary `SdkRefusalKind` carries, minus `no-path`.
+ *
+ * That absence is a fact about this mechanism, not an omission: Codex never inspects a tool INPUT.
+ * It observes the disposable replica's filesystem diff after the leaf stops, so "a write-shaped call
+ * whose path could not be read" is not a state it can be in — which is why its scope rows declare
+ * `noPathDisposition: "not-applicable"` rather than being folded in with the SDK hook's `refused`
+ * (ADR-0446).
+ */
+export type CodexRefusalKind = "scope" | "outside-workspace";
+
 export interface CodexWriteViolation {
   phase: AuthoringPhase;
   tool: string;
   path: string;
   reason: string;
+  /** Which wall it hit. Stamped at the refusal; see {@link CodexRefusalKind}. */
+  kind: CodexRefusalKind;
 }
 
 export interface CodexRunInfo {
@@ -941,6 +954,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
               phase,
               tool: "file_change",
               path: reportedPath,
+              kind: "outside-workspace",
               reason: `Codex reported a path outside its disposable replica: ${reportedPath}`,
             });
             continue;
@@ -960,6 +974,7 @@ export class CodexPhaseAuthor implements PhaseAuthor {
             phase,
             tool: "file_change",
             path: observedPath,
+            kind: "scope",
             reason:
               `observed replica path '${observedPath}' is ` +
               (!listed ? "not in the spine-authored promotion manifest" : `refused by the ${phase} predicate`),

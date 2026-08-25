@@ -41,6 +41,7 @@ export * from "./stale-existence-claim.js";
 // Per-slice token-usage persistence (accounting, never proof): the SdkRunInfo → UsageEventDoc
 // mapping + the advisory append the build paths run after proveUnit.
 export * from "./usage.js";
+export * from "./scope-walls.js";
 export * from "./story-build.js";
 export * from "./adopt.js";
 export * from "./orchestrate.js";

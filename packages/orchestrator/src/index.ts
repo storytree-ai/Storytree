@@ -169,6 +169,8 @@ export type { RollupEvent } from "./proof/rollup.js";
 // The per-slice token-usage event builder (accounting, never proof — the sibling stream to
 // events.verdict; the signed Verdict deliberately carries no runtime cost).
 export { usageEvent } from "./proof/usage-event.js";
+export type { ScopeEventResult } from "./proof/scope-event.js";
+export { scopeEvent } from "./proof/scope-event.js";
 export { rollupParitySuite } from "./proof/rollup-parity.js";
 export { deriveAttestations } from "./proof/attestations.js";
 // The per-test UAT proof compute (ADR-0082): the sign-time trust guard + the read-time AND-roll-up

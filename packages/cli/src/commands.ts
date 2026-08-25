@@ -242,6 +242,7 @@ import { typeMismatchRefusal } from "./set-value.js";
 import { bannerRefusal, strayPositionalRefusal, truncationRefusal } from "./write-fidelity.js";
 import { foldHistory, renderHistory } from "./artifact-history.js";
 import { foldWorkLog, renderWorkLog, type WorkLogReaderLike } from "./work-log.js";
+import { foldScopeSlices, renderScopeReading } from "./scope-reading.js";
 import { storyBuild, storyHelp } from "@storytree/drive";
 import { flipFrontmatterStatus, type AdoptStory, type FlipResult } from "@storytree/drive";
 import { treeCommand } from "./tree.js";
@@ -3092,13 +3093,49 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         next: [`storytree node resolve ${third}`, `storytree tree ${third} --pg`],
       };
     }
+    if (sub === "walls") {
+      // FREE, read-only: the write-scope wall READING (ADR-0446) — how often the spine's phase
+      // fence actually refused a write, ALWAYS against the slices it was armed for. The unit id is
+      // optional: with none, the reading covers every unit, which is the shape the question that
+      // motivated this ("is the fence still earning its keep?") is actually asked in.
+      if (deps.workLog === undefined || deps.workLog === null) {
+        // REFUSE rather than render an empty reading. events.scope_event lives in Postgres, and a
+        // rendered "0 refusals" with no store behind it is the exact absence-read-as-a-zero this
+        // stream exists to make impossible.
+        return {
+          ok: false,
+          body: [
+            "the write-scope record lives in the live store — rerun with --pg.",
+            "",
+            "Refused rather than answered empty: with no store to read, `0 refusals` would be",
+            "indistinguishable from a fence that has never been observed at all, which is the one",
+            "confusion this reading exists to end.",
+          ].join("\n"),
+          next: [third === undefined ? "storytree node walls --pg" : `storytree node walls ${third} --pg`],
+        };
+      }
+      const events = await deps.workLog.readEvents();
+      const entries = foldScopeSlices(events, third);
+      const body = third === undefined
+        ? renderScopeReading({ entries })
+        : renderScopeReading({ unitId: third, entries });
+      return {
+        ok: true,
+        body,
+        next:
+          third === undefined
+            ? ["storytree node walls <unit-id> --pg", "storytree arc show spine-wall-measurement-arc --pg"]
+            : [`storytree node log ${third} --pg`, "storytree node walls --pg"],
+      };
+    }
     if (sub !== "build") {
       return {
         ok: false,
-        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id> | storytree node log <id> --pg`,
+        body: `unknown node command "${sub}". try: storytree node build <id> --dry-run | storytree node resolve <id> | storytree node log <id> --pg | storytree node walls --pg`,
         next: [
           "storytree node resolve <id>",
           "storytree node log <id> --pg",
+          "storytree node walls --pg",
           "storytree node build <id> --dry-run",
         ],
       };
