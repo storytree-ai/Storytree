@@ -72,16 +72,17 @@ function traversalIngest(sessionId: string): Envelope {
     // not observe at all. Left unsaid, a subagent-heavy session reads as fully ingested.
     `reached ${result.sidechainFiles} subagent window(s) this adapter does not observe`,
     "",
-    // THE TWO ADAPTERS NO LONGER AGREE ON WHAT A SESSION IS, and that is said here rather than left
-    // for a reader to discover as a missing capacity line (`linked-session-context-arc-inc-30`).
-    // Terminal-CLI reads are now keyed by the host context WINDOW; this ingest still keys occupancy
-    // by the correlated storytree session, which is the worktree SLOT — the identity the `cwd` join
-    // is built on (ADR-0248). So an ingested slot trace and a window's read trace are different
-    // files, and `traversal show <windowId>` reports capacity as unknown even after an ingest.
-    // Moving the ingest to window keying is transcript-story work, not something to infer here.
-    "note: occupancy is written under the storytree session id above (the worktree slot), while",
-    "terminal-CLI reads are keyed by the host context window — so a window's replay will not carry",
-    "this series. `storytree traversal show <this id>` is where the occupancy lands.",
+    // THE TWO ADAPTERS AGREE ON WHAT A SESSION IS AGAIN (`linked-session-context-arc-inc-32`).
+    // inc-30 made terminal-CLI reads keyed by the host context WINDOW while this ingest still keyed
+    // occupancy by the correlated storytree session (the worktree SLOT), so the two landed in
+    // different files and `traversal show <windowId>` reported capacity as unknown even after a
+    // successful ingest. A DISCLOSURE of that split stood here; the split is now closed, so the
+    // disclosure would be a false statement rather than a stale one and is replaced, not kept.
+    // Correlation is still slot-driven — the `cwd` join (ADR-0248) is what FINDS the transcripts —
+    // and only the destination moved.
+    "note: occupancy is written under each WINDOW id listed above, not under the session id — the",
+    "same identity the terminal-CLI reads use, so a window's replay carries its reads and this",
+    "series together. The session id above is recorded on each line as the grouping slot.",
     "",
     // ADR-0235 clause 6 — an adapter publishes what it can observe AT ITS OWN BOUNDARY. The replay
     // renderer in `context-traversal-spawn` does not yet know this adapter; until it does, this is
@@ -92,7 +93,16 @@ function traversalIngest(sessionId: string): Envelope {
   return {
     ok: true,
     body: lines.join("\n"),
-    next: [`storytree traversal show ${sessionId} — replay the session with its occupancy series`],
+    // Offer the WINDOWS, because they are where the series now is. Offering `show <sessionId>` would
+    // point at a file this ingest no longer writes — a follow-up command that answers empty is worse
+    // than none, since it reads as "the ingest recorded nothing". Falls back to the session id only
+    // when nothing correlated, where it is the honest thing to re-run against.
+    next:
+      result.windows.length > 0
+        ? result.windows.map(
+            (window) => `storytree traversal show ${window.windowId} — replay that window with its occupancy series`,
+          )
+        : [`storytree traversal show ${sessionId} — replay the session (no window correlated to ingest)`],
   };
 }
 

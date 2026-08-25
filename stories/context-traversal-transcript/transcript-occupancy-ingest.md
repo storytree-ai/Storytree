@@ -92,13 +92,34 @@ export function ingestTranscriptOccupancy(input: {
 }): TranscriptIngestResult;
 ```
 
+**Where it lands, and why that changed.** Each correlated window's events are written to **that
+window's own trace** (`{dir, sessionId: windowId}`), stamped `grade: "window"` with the storytree
+session recorded beside them as the `slot` grouping attribute. CORRELATION is unchanged and still
+slot-driven — the `cwd` join (ADR-0248) is what FINDS a session's transcripts, matching the final
+segment of `.claude/worktrees/<name>` — so the verb's argument is still the storytree session and
+only the destination moved.
+
+`linked-session-context-arc-inc-30` made the terminal-CLI read trace's identity the host context
+WINDOW while this ingest still keyed occupancy by the slot, so the two adapters disagreed about what
+a session was: `traversal show <windowId>` rendered a window's reads and reported `capacity: unknown`
+even after a successful ingest, while `traversal show <slot>` rendered the occupancy and none of the
+reads. That was disclosed rather than fixed at the time, because the repair lives in this story and
+inc-30's fence did not reach it. It is fixed here, and the disclosure the CLI printed is REPLACED
+rather than left standing — it would now be a false statement, not merely a stale one.
+
+The two slot-keyed traces already on this machine are left exactly as they are. Traces are local,
+unretained and version-pinned (ADR-0241), so nothing is owed a migration; their lines carry no grade,
+so `classifyTraceIdentity` reads them as the legacy `slot` era and `traversal list` / `show` label
+them as such. That is a THIRD labelling case only if it goes unsaid — it is said here, and it is the
+same answer inc-30 gave for the reads it could not retrofit.
+
 **The event.** One `model_context` event per observation, in window order then request order:
 
 | field | value |
 |---|---|
 | `kind` | `"model_context"` |
 | `eventId` | `` `host-transcript:${windowId}:${requestId}` `` — DETERMINISTIC, no `randomUUID` |
-| `sessionId` | the storytree session id |
+| `sessionId` | **the window's id** — the context window this observation was read from, not the storytree session that found it (`linked-session-context-arc-inc-32`) |
 | `at` | the observation's `at`, verbatim |
 | `windowId` | the observation's window |
 | `modelId` | the observation's `modelId`, key ABSENT when it had none |
@@ -151,19 +172,26 @@ do not touch `src/index.ts`, `transcript-occupancy.ts`, or `correlate-transcript
 ## Contracts
 
 1. **`ingest-writes-validated-model-context-events-to-disk`**
-   - **asserts —** over a temporary transcript root and a separate temporary trace directory, a
-     session with one correlated window whose transcript holds three requests produces a trace file
-     that `readTraversalSession` replays as three `model_context` events, in request order, each
-     carrying the storytree `sessionId`, the window's `windowId`, and the observation's
-     `residentInputTokens` — every assertion read off the REPLAY of the bytes on disk, never off the
-     returned result object. `JSON.stringify` of the file's raw contents contains none of the canary
-     prose planted in the fixture's message text.
+   - **asserts —** over a temporary transcript root and a separate temporary trace directory, each
+     correlated WINDOW produces its own trace file that `readTraversalSession` replays, in request
+     order, as `model_context` events carrying that window's id as BOTH `sessionId` and `windowId`,
+     plus the observation's `residentInputTokens` — every assertion read off the REPLAY of the bytes
+     on disk, never off the returned result object. Each trace reports `identity: "window"` and
+     `slots: [<the storytree session>]`. The storytree-session-keyed file does NOT exist, asserted as
+     file EXISTENCE. `JSON.stringify` of the raw contents contains none of the canary prose planted
+     in the fixture's message text.
    - **falsifiability —** a first run that comes back green is the diagnosis, not the result: this
      assertion must fail against an implementation that returns the events without writing them (the
-     replay would be empty), against one that writes them with the HOST session id instead of the
-     storytree one, and against one that bypasses `appendTraversalEvents` — an event carrying an
-     unknown key is refused by the `.strict()` vocabulary before it reaches the bytes, so a
-     hand-rolled writer that smuggles one through must be caught by the replay, not merely by review.
+     replay would be empty), against one that bypasses `appendTraversalEvents` — an event carrying an
+     unknown key is refused by the `.strict()` vocabulary before it reaches the bytes — and, since
+     `linked-session-context-arc-inc-32`, against one that keys the write by the storytree session
+     instead of the window. **The existence assertion is what carries that last one.** A reader over
+     a MISSING file returns an empty replay exactly as a genuinely empty one does, so an assertion
+     phrased as "the session trace replays nothing" would pass against a still-session-keyed
+     implementation the moment anything else about the fixture changed; only existence separates
+     *moved* from *wrote nothing*. Renaming the file alone is caught too: `replay(sessionId)` filters
+     on `event.sessionId`, so the events themselves must carry the window's identity, and the
+     `identity`/`slots` assertions fail against a write that omits the grade the sink stamps.
 2. **`cumulative-is-the-running-billing-total-per-window`**
    - **asserts —** for a window whose resident series is 100, 240, 228, the replayed events carry
      `residentInputTokens` 100, 240, 228 and `cumulativeInputTokens` 100, 340, 568 — so cumulative
@@ -189,15 +217,31 @@ do not touch `src/index.ts`, `transcript-occupancy.ts`, or `correlate-transcript
      arc's signature bar.
 4. **`re-ingesting-appends-no-bytes`**
    - **asserts —** running `ingestTranscriptOccupancy` twice over unchanged directories leaves the
-     trace file's BYTE LENGTH identical to after the first run, leaves the replay's event count
-     identical, and returns `appended: 0` on the second run with each window's `observed` unchanged.
-     A third run after appending ONE new request to the transcript appends exactly one event.
+     BYTE LENGTH summed across every window's trace identical to after the first run, leaves the
+     replayed event count identical, and returns `appended: 0` on the second run with each window's
+     `observed` unchanged. A third run after appending ONE new request appends exactly one event, and
+     it lands in the window that GREW while the other window's count is unchanged.
    - **falsifiability —** a first run that comes back green is the diagnosis, not the result: this
      assertion must fail against an implementation using `randomUUID` or any non-deterministic
      `eventId` (byte length would grow), and — critically — against one that appends duplicates and
      relies on the sink's tolerant reader to skip them: the reader would report the same event count
      while the file silently doubled, so the byte-length assertion is the one that carries this
-     contract and the event-count assertion alone must not be able to satisfy it.
+     contract and the event-count assertion alone must not be able to satisfy it. Summing ACROSS
+     window files is what keeps that true after `linked-session-context-arc-inc-32` — asserting one
+     window's file would leave the other's bytes unread — and the third-run placement assertion is
+     what stops a growing window's event being credited to the wrong trace.
+6. **`one-window-named-by-two-files-is-written-once`**
+   - **asserts —** one identical request written verbatim into TWO transcript files under the same
+     worktree cwd is counted and written ONCE inside a SINGLE run: `scannedFiles: 2` (both files
+     genuinely walked), `appended: 1`, and the window's trace holds exactly one LINE.
+   - **falsifiability —** this contract exists because `linked-session-context-arc-inc-32` made the
+     re-ingest guard a per-window read taken INSIDE the window loop, rather than one read taken
+     before it. The old shape could not satisfy this: both files missed a guard read before either
+     append, so the request landed twice — the shape a resumed or forked session produces. It goes
+     red against restoring a single pre-loop read, against de-duplicating only within one file, and
+     against "fixing" it by skipping the second file, which `scannedFiles: 2` pins. **Asserted on
+     LINE COUNT, not on a replayed event count**, because the sink's tolerant reader collapses a
+     duplicate id and would report 1 either way — the same reason contract 4 asserts bytes.
 5. **`the-adapter-declares-its-own-exhaustive-coverage`**
    - **asserts —** `ContextTraversalCoverage.parse(HOST_TRANSCRIPT_COVERAGE)` succeeds;
      `adapterId` is `host-transcript`; `surface:host_transcript`, `event:model_context`,

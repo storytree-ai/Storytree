@@ -9,6 +9,33 @@
  * written goes through that sink, which is what makes ADR-0241 D4's validate-before-write rule hold
  * here for free. Neither directory is resolved here: both are supplied by the caller (the CLI's
  * job), which keeps this module HOME-independent and its tests deterministic.
+ *
+ * ## OCCUPANCY IS KEYED BY WINDOW, AND CORRELATION IS STILL KEYED BY SLOT
+ *
+ * These are two different questions and this module answers them differently on purpose
+ * (`linked-session-context-arc-inc-32`). WHICH transcripts belong to a session is answered by the
+ * `cwd` join (ADR-0248) — matching the final segment of `.claude/worktrees/<name>`, i.e. the
+ * worktree SLOT — so the verb's argument is still the storytree session. WHERE the findings land is
+ * answered by the context WINDOW each observation was read from: each window's events carry that
+ * window as their `sessionId` and are appended to that window's own trace, `grade: "window"`, with
+ * the storytree session recorded beside them as the `slot` grouping attribute.
+ *
+ * `linked-session-context-arc-inc-30` had made the terminal-CLI read trace's identity the host
+ * window while this ingest still keyed occupancy by the slot, so the two adapters disagreed about
+ * what a session was: `traversal show <windowId>` rendered a window's reads and reported
+ * `capacity: unknown` even after a successful ingest, while `traversal show <slot>` rendered the
+ * occupancy and none of the reads. inc-30 DISCLOSED that rather than fixing it, because the repair
+ * lives in this story and its fence did not reach here. The disclosure the CLI printed is REPLACED
+ * rather than left standing — it would now be a false statement, not merely a stale one.
+ *
+ * ⚠ Renaming the destination file alone would NOT have moved the series: `replay(sessionId)` filters
+ * on `event.sessionId`, so the events themselves have to carry the window's identity. Both halves
+ * are asserted, and the "no session-keyed file" half is asserted as file EXISTENCE — a reader over a
+ * missing file returns an empty replay exactly as a genuinely empty one does.
+ *
+ * Traces already written under a slot are left alone: they are local, unretained and version-pinned
+ * (ADR-0241), so nothing is owed a migration, and their ungraded lines classify as the legacy `slot`
+ * era, which `traversal list` / `show` already label honestly.
  */
 import {
   appendTraversalEvents,
@@ -64,17 +91,16 @@ function eventIdFor(windowId: string, requestId: string): string {
 export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs): TranscriptIngestResult {
   const { sessionId, traceDir, transcriptDir } = input;
 
+  // CORRELATION STAYS SLOT-DRIVEN, AND ONLY THE DESTINATION MOVES. The `cwd` join (ADR-0248) is
+  // what FINDS a session's transcripts in the first place — it matches the final segment of
+  // `.claude/worktrees/<name>`, which is the worktree SLOT — so the verb's argument is still the
+  // storytree session. What changed is where its findings LAND.
   const correlation = correlateTranscripts(sessionId, { dir: transcriptDir });
 
-  // Read the existing trace FIRST so idempotence is a property of the ids, not of run order:
-  // an event whose id already appears on disk is never appended again.
-  const { replay } = readTraversalSession({ dir: traceDir, sessionId });
-  const alreadyPresent = new Set(replay.events.map((event) => event.eventId));
-
   const windows: IngestedWindow[] = [];
-  const toAppend: ContextTraversalEvent[] = [];
   let skippedLines = 0;
   let sidechainRequests = 0;
+  let appendedCount = 0;
 
   for (const window of correlation.windows) {
     const read = readTranscriptWindow(window.file);
@@ -83,8 +109,21 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
     if (read.windowId === undefined) continue;
 
     const windowId = read.windowId;
+
+    // IDEMPOTENCE IS NOW PER WINDOW, because each window's events live in the window's own trace.
+    // Read that trace FIRST so idempotence stays a property of the IDS, not of run order: an event
+    // whose id already appears on disk is never appended again. This costs one read per correlated
+    // window rather than one per ingest, which is the price of the split and is paid deliberately.
+    //
+    // It also STRENGTHENS the guarantee rather than merely preserving it. The old single read was
+    // taken once, before any append, so two transcript FILES naming the same window inside one run
+    // (the shape a resumed or forked session produces) both missed the guard and wrote the request
+    // twice. Reading inside the loop means the second file sees the first file's append.
+    const { replay } = readTraversalSession({ dir: traceDir, sessionId: windowId });
+    const alreadyPresent = new Set(replay.events.map((event) => event.eventId));
+
+    const toAppend: ContextTraversalEvent[] = [];
     let cumulativeInputTokens = 0;
-    let appendedForWindow = 0;
 
     for (const observation of read.observations) {
       cumulativeInputTokens += observation.residentInputTokens;
@@ -95,7 +134,12 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
       const event: ModelContextEvent = {
         kind: "model_context",
         eventId,
-        sessionId,
+        // THE EVENT'S SESSION IS THE WINDOW IT WAS READ FROM, not the storytree session that found
+        // it. `replay(sessionId)` filters on `event.sessionId`, so the file name alone would not
+        // have moved the series — the events themselves have to carry the window's identity, which
+        // is the same id `linked-session-context-arc-inc-30` gave the terminal-CLI reads. That is
+        // what puts a window's reads and its occupancy in one replay instead of two files.
+        sessionId: windowId,
         at: observation.at,
         windowId,
         residentInputTokens: observation.residentInputTokens,
@@ -109,17 +153,25 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
       };
       if (observation.modelId !== undefined) event.modelId = observation.modelId;
 
-      if (!alreadyPresent.has(eventId)) {
-        toAppend.push(event);
-        appendedForWindow++;
-      }
+      if (!alreadyPresent.has(eventId)) toAppend.push(event);
     }
+
+    // The identity attributes the sink stamps on every line: `grade: "window"` says this id IS one
+    // context window (`TraceIdentityGrade`, inc-30), and the storytree session rides along as the
+    // `slot` GROUPING attribute — never as the identity, which is the whole point of that decision.
+    // Before this, occupancy lines carried no grade at all and `classifyTraceIdentity` therefore
+    // read them as the legacy slot era. They now classify honestly beside the reads.
+    const appended = appendTraversalEvents(toAppend, {
+      dir: traceDir,
+      sessionId: windowId,
+      grade: "window",
+      slot: sessionId,
+    });
+    const appendedForWindow = appended ? toAppend.length : 0;
+    appendedCount += appendedForWindow;
 
     windows.push({ windowId, observed: read.observations.length, appended: appendedForWindow });
   }
-
-  const appended = appendTraversalEvents(toAppend, { dir: traceDir, sessionId });
-  const appendedCount = appended ? toAppend.length : 0;
 
   return {
     sessionId,

@@ -183,7 +183,15 @@ const WINDOW_B_CUMULATIVE = [5_000, 20_000];
 interface Fixture {
   readonly traceDir: string;
   readonly transcriptDir: string;
-  readonly traceFile: string;
+  /**
+   * The trace file each correlated WINDOW is written to. There is no session-keyed file any more
+   * (`linked-session-context-arc-inc-32`): occupancy is keyed by the context window it was read
+   * from, which is the identity the terminal-CLI read trace already uses, so a window's replay
+   * carries both its reads and its occupancy instead of the two landing in different files.
+   */
+  readonly windowTraceFiles: readonly string[];
+  /** The file the OLD session-keyed shape wrote, kept only so a leg can assert it is not there. */
+  readonly legacySessionTraceFile: string;
   readonly env: NodeJS.ProcessEnv;
 }
 
@@ -215,9 +223,20 @@ function buildFixture(): Fixture {
   return {
     traceDir,
     transcriptDir,
-    traceFile: path.join(traceDir, `${SESSION}.jsonl`),
+    windowTraceFiles: [path.join(traceDir, `${WINDOW_A}.jsonl`), path.join(traceDir, `${WINDOW_B}.jsonl`)],
+    legacySessionTraceFile: path.join(traceDir, `${SESSION}.jsonl`),
     env: { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: traceDir, STORYTREE_TRANSCRIPT_DIR: transcriptDir },
   };
+}
+
+/** Every trace line the ingest wrote, across every window file — the bytes, not a parsed replay. */
+function allWindowTraceLines(fixture: Fixture): string[] {
+  return fixture.windowTraceFiles.flatMap((file) =>
+    fs
+      .readFileSync(file, "utf8")
+      .split("\n")
+      .filter((line) => line.trim() !== ""),
+  );
 }
 
 function modelContextEvents(events: readonly ContextTraversalEvent[]): ModelContextEvent[] {
@@ -225,7 +244,10 @@ function modelContextEvents(events: readonly ContextTraversalEvent[]): ModelCont
 }
 
 function eventsFor(fixture: Fixture, windowId: string): ModelContextEvent[] {
-  const { replay } = readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION });
+  // Read the WINDOW's own trace. The `windowId` filter is kept deliberately even though the file
+  // should now hold nothing else: it is what keeps this helper honest if a future adapter ever
+  // writes a foreign window's event into a window's file.
+  const { replay } = readTraversalSession({ dir: fixture.traceDir, sessionId: windowId });
   return modelContextEvents(replay.events).filter((event) => event.windowId === windowId);
 }
 
@@ -235,16 +257,36 @@ test("a real spawned ingest writes a falling occupancy series, resident not bill
   const res = runCli(["traversal", "ingest", SESSION], fixture.env);
   assert.equal(res.status, 0, `ingest exited ${res.status}: ${res.stderr}`);
 
-  const { replay, skipped } = readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION });
-  assert.equal(skipped, 0, "the trace the CLI wrote must replay with nothing skipped");
+  // Each correlated WINDOW is its own trace now, and the storytree session names no file at all.
+  const traceA = readTraversalSession({ dir: fixture.traceDir, sessionId: WINDOW_A });
+  const traceB = readTraversalSession({ dir: fixture.traceDir, sessionId: WINDOW_B });
+  assert.equal(traceA.skipped, 0, "the trace the CLI wrote must replay with nothing skipped");
+  assert.equal(traceB.skipped, 0, "the trace the CLI wrote must replay with nothing skipped");
+
+  // Asserted as file EXISTENCE, because a reader over a MISSING file returns an empty replay just
+  // as a genuinely empty one does — only existence separates "moved" from "wrote nothing".
+  assert.equal(
+    fs.existsSync(fixture.legacySessionTraceFile),
+    false,
+    "occupancy must no longer be written under the storytree session id",
+  );
+
+  // Each trace SAYS what its id names, from its lines' own grade rather than the id's shape: one
+  // context window, with the storytree session recorded beside it as the grouping slot.
+  assert.equal(traceA.identity, "window");
+  assert.equal(traceB.identity, "window");
+  assert.deepEqual(traceA.slots, [SESSION]);
+  assert.deepEqual(traceB.slots, [SESSION]);
 
   // The `traversal` area is not on the terminal adapter's read allowlist, so the ONLY events in
-  // this file are the ones the transcript adapter appended.
-  assert.equal(
-    replay.events.length,
-    modelContextEvents(replay.events).length,
-    "the trace must hold model_context events and nothing else",
-  );
+  // these files are the ones the transcript adapter appended.
+  for (const { replay } of [traceA, traceB]) {
+    assert.equal(
+      replay.events.length,
+      modelContextEvents(replay.events).length,
+      "the trace must hold model_context events and nothing else",
+    );
+  }
 
   const windowA = eventsFor(fixture, WINDOW_A);
   // One event per REQUEST, not per line: `msg_a2` was written twice, and the sidechain request is
@@ -279,8 +321,7 @@ test("a real spawned ingest writes a falling occupancy series, resident not bill
 
   // Capacity is RUNTIME-DECLARED (ADR-0235 clause 4) and a transcript declares none: the key must
   // be absent on the BYTES, not merely falsy in memory.
-  const rawLines = fs.readFileSync(fixture.traceFile, "utf8").split("\n").filter((line) => line.trim() !== "");
-  for (const line of rawLines) {
+  for (const line of allWindowTraceLines(fixture)) {
     const parsed = JSON.parse(line) as { event: Record<string, unknown> };
     assert.equal("contextWindowCapacity" in parsed.event, false, "no capacity may be invented at this boundary");
   }
@@ -298,17 +339,26 @@ test("two host windows under one session stay two windows, each with its own run
   const res = runCli(["traversal", "ingest", SESSION], fixture.env);
   assert.equal(res.status, 0, `ingest exited ${res.status}: ${res.stderr}`);
 
-  const { replay } = readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION });
-  const all = modelContextEvents(replay.events);
+  const all = [...eventsFor(fixture, WINDOW_A), ...eventsFor(fixture, WINDOW_B)];
   assert.equal(all.length, WINDOW_A_RESIDENT.length + WINDOW_B_RESIDENT.length);
 
-  // Every event is under ONE storytree session id, and every event names the window it came from.
+  // Two windows stay two windows — and since inc-32 they are separated BY FILE, each event carrying
+  // its own window as its SESSION rather than the worktree slot they were found through. The slot
+  // is not lost: it rides along as the grouping attribute, which is what still makes them "under
+  // one session" for anyone who asks that question.
   for (const event of all) {
-    assert.equal(event.sessionId, SESSION);
+    assert.equal(event.sessionId, event.windowId, "a window's events are keyed by that window");
     assert.notEqual(event.windowId, undefined, "an observation with no window would be an unreadable bar");
   }
   const windowIds = new Set(all.map((event) => event.windowId));
   assert.deepEqual([...windowIds].sort(), [WINDOW_A, WINDOW_B].sort());
+
+  // The separation is real on disk, not merely a field: two files, and no session-keyed file.
+  for (const file of fixture.windowTraceFiles) assert.equal(fs.existsSync(file), true);
+  assert.equal(fs.existsSync(fixture.legacySessionTraceFile), false);
+  for (const windowId of [WINDOW_A, WINDOW_B]) {
+    assert.deepEqual(readTraversalSession({ dir: fixture.traceDir, sessionId: windowId }).slots, [SESSION]);
+  }
 
   // Window B's running total restarts from its own first request — it never continues window A's
   // 576,723. A worktree-derived session id outlives any single runtime window, so concatenating
@@ -333,10 +383,27 @@ test("a main-checkout transcript and a prefix-named worktree are scanned and nev
   const res = runCli(["traversal", "ingest", SESSION], fixture.env);
   assert.equal(res.status, 0, `ingest exited ${res.status}: ${res.stderr}`);
 
-  const { replay } = readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION });
-  const windowIds = new Set(modelContextEvents(replay.events).map((event) => event.windowId));
-  assert.equal(windowIds.has("host-window-main"), false, "a main-checkout transcript must never correlate");
-  assert.equal(windowIds.has("host-window-prefix"), false, "a strict-prefix worktree name must never correlate");
+  // ⚠ THIS LEG MUST NOT BE READ THROUGH A SESSION-KEYED TRACE. It used to replay
+  // `sessionId: SESSION` and assert the foreign windows were absent from it — and once inc-32 moved
+  // occupancy onto window keys, that file stopped existing, so the read returned an empty replay and
+  // the two assertions below passed while verifying NOTHING. The leg was still green at the moment
+  // it went blind, which is exactly the fault class this arc keeps finding in its own instruments.
+  //
+  // The honest question is about FILES: an uncorrelated transcript must produce no trace of its own,
+  // and must not have leaked into either correlated window's trace.
+  for (const foreign of ["host-window-main", "host-window-prefix"]) {
+    assert.equal(
+      fs.existsSync(path.join(fixture.traceDir, `${foreign}.jsonl`)),
+      false,
+      `${foreign} must never correlate, so it must never get a trace`,
+    );
+  }
+  const windowIds = new Set([...eventsFor(fixture, WINDOW_A), ...eventsFor(fixture, WINDOW_B)].map((e) => e.windowId));
+  assert.deepEqual([...windowIds].sort(), [WINDOW_A, WINDOW_B].sort());
+
+  // The directory holds the two correlated windows and nothing else — so a future adapter cannot
+  // quietly add a third file here and leave this leg reporting a clean separation.
+  assert.deepEqual(fs.readdirSync(fixture.traceDir).sort(), [`${WINDOW_A}.jsonl`, `${WINDOW_B}.jsonl`].sort());
 
   // The denominator is what makes "2 of 4" honest rather than indistinguishable from "nothing to
   // scan": an uncorrelated file is REPORTED, never silently dropped.
@@ -357,8 +424,17 @@ test("re-ingesting the same transcripts appends no bytes, and a new request appe
 
   const first = runCli(["traversal", "ingest", SESSION], fixture.env);
   assert.equal(first.status, 0, `first ingest exited ${first.status}: ${first.stderr}`);
-  const bytesAfterFirst = fs.statSync(fixture.traceFile).size;
-  const countAfterFirst = readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION }).replay.events.length;
+  // Summed across EVERY window file: idempotence is now a property of each window's own trace, so
+  // asserting one file would leave the other unguarded.
+  const bytesOf = (): number => fixture.windowTraceFiles.reduce((sum, file) => sum + fs.statSync(file).size, 0);
+  const countOf = (): number =>
+    [WINDOW_A, WINDOW_B].reduce(
+      (sum, windowId) =>
+        sum + readTraversalSession({ dir: fixture.traceDir, sessionId: windowId }).replay.events.length,
+      0,
+    );
+  const bytesAfterFirst = bytesOf();
+  const countAfterFirst = countOf();
 
   const second = runCli(["traversal", "ingest", SESSION], fixture.env);
   assert.equal(second.status, 0, `second ingest exited ${second.status}: ${second.stderr}`);
@@ -366,11 +442,8 @@ test("re-ingesting the same transcripts appends no bytes, and a new request appe
 
   // BYTE length, not event count: an implementation that appends duplicates and leans on the sink's
   // tolerant reader to skip them would report an unchanged count while the file silently doubled.
-  assert.equal(fs.statSync(fixture.traceFile).size, bytesAfterFirst, "a re-ingest must append no bytes");
-  assert.equal(
-    readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION }).replay.events.length,
-    countAfterFirst,
-  );
+  assert.equal(bytesOf(), bytesAfterFirst, "a re-ingest must append no bytes");
+  assert.equal(countOf(), countAfterFirst);
 
   // One genuinely new request appends exactly one event — idempotence is not staleness.
   const grown = [
@@ -383,10 +456,10 @@ test("re-ingesting the same transcripts appends no bytes, and a new request appe
   const third = runCli(["traversal", "ingest", SESSION], fixture.env);
   assert.equal(third.status, 0, `third ingest exited ${third.status}: ${third.stderr}`);
   assert.match(third.stdout, /appended 1 occupancy event\(s\)/);
-  assert.equal(
-    readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION }).replay.events.length,
-    countAfterFirst + 1,
-  );
+  assert.equal(countOf(), countAfterFirst + 1);
+  // …and it lands in the window that grew, not in the other one.
+  assert.equal(eventsFor(fixture, WINDOW_A).length, WINDOW_A_RESIDENT.length + 1);
+  assert.equal(eventsFor(fixture, WINDOW_B).length, WINDOW_B_RESIDENT.length);
 
   fs.rmSync(path.dirname(fixture.traceDir), { recursive: true, force: true });
 });
@@ -399,14 +472,18 @@ test("no transcript content reaches the trace bytes or the rendered envelope (le
 
   // ADR-0235 clause 6 asserted on the BYTES, exactly as increment 2 asserts it: message text, a
   // tool-use input, a tool result, a user line, and the recorded git branch all carried the canary.
-  const raw = fs.readFileSync(fixture.traceFile, "utf8");
-  assert.equal(raw.includes(CANARY), false, "no owner prose may reach the trace file");
+  // Across EVERY window file — checking one would leave the other's bytes unread, and the canary
+  // only has to leak once.
+  for (const file of fixture.windowTraceFiles) {
+    const raw = fs.readFileSync(file, "utf8");
+    assert.equal(raw.includes(CANARY), false, "no owner prose may reach the trace file");
+    // The trace is not empty — an adapter that wrote nothing would pass a canary check vacuously.
+    assert.ok(raw.length > 0);
+  }
   assert.equal(res.stdout.includes(CANARY), false, "no owner prose may reach the rendered envelope");
 
-  // The trace is not empty — an adapter that wrote nothing would pass a canary check vacuously.
-  assert.ok(raw.length > 0);
   assert.equal(
-    readTraversalSession({ dir: fixture.traceDir, sessionId: SESSION }).replay.events.length,
+    eventsFor(fixture, WINDOW_A).length + eventsFor(fixture, WINDOW_B).length,
     WINDOW_A_RESIDENT.length + WINDOW_B_RESIDENT.length,
   );
 
