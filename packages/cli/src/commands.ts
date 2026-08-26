@@ -157,6 +157,7 @@ import {
 } from "./friction.js";
 // ADR-0316 — the report-only factory-floor health instrument (`factory-floor-health-arc`).
 import { factoryHealth, factoryHelp, type FactoryHealthOpts } from "./factory.js";
+import type { DecisionDiscoveryOutcome } from "./decision-discovery-gather.js";
 import type { CommitRec, DetachedSpawn } from "@storytree/drive";
 import type { AdoptPlanStory } from "./adopt-plan.js";
 import { contractlessCommand, type BehaviourClaimUnit } from "./coverage-claims.js";
@@ -2130,6 +2131,16 @@ export interface RunDeps {
     readonly now?: string;
     readonly commits?: (ref: string) => CommitRec[];
     readonly absorbed?: (commit: CommitRec) => string[];
+    /**
+     * Question 4's reader (ADR-0444). Injected the same way the churn seams are, and for a sharper
+     * reason: the real one sweeps this machine's host transcripts AND dials the live decision log,
+     * so a `factory health` test that could not stub it would be neither hermetic nor
+     * credential-free — the two properties ADR-0302 D3 keeps `pnpm -r test` on.
+     */
+    readonly decisionDiscovery?: (window: {
+      readonly from?: string | undefined;
+      readonly to?: string | undefined;
+    }) => Promise<DecisionDiscoveryOutcome>;
   };
 }
 
@@ -4307,7 +4318,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (sub !== undefined && sub !== "health") {
       return {
         ok: false,
-        body: `unknown factory command "${sub}". try: storytree factory health [recurrence|bottlenecks|churn]`,
+        body: `unknown factory command "${sub}". try: storytree factory health [recurrence|bottlenecks|churn|decisions]`,
         next: ["storytree factory health", "storytree factory --help"],
       };
     }
@@ -4325,6 +4336,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (values.ref !== undefined) factoryOpts.ref = values.ref;
     if (deps.factory?.commits !== undefined) factoryOpts.commits = deps.factory.commits;
     if (deps.factory?.absorbed !== undefined) factoryOpts.absorbed = deps.factory.absorbed;
+    if (deps.factory?.decisionDiscovery !== undefined) {
+      factoryOpts.decisionDiscovery = deps.factory.decisionDiscovery;
+    }
     return factoryHealth(deps.store, factoryOpts);
   }
 
