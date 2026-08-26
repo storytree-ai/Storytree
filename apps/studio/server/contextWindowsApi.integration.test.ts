@@ -108,7 +108,7 @@ beforeEach(() => {
 });
 
 describe('GET /api/context-windows — the reading', () => {
-  it('does not let a synthetic zero-token tail draw an empty meter for a full window', async () => {
+  it('context-window-meter-reads-the-window-the-harness-is-writing: does not let a synthetic zero-token tail draw an empty meter for a full window', async () => {
     writeWindow(
       'window-synthetic-tail',
       [
@@ -138,7 +138,7 @@ describe('GET /api/context-windows — the reading', () => {
     expect(window?.syntheticObservations).toBe(1);
   });
 
-  it('reports a peak that a later reading fell below — the quantity ADR-0248 chose because it CAN fall', async () => {
+  it('context-window-meter-reads-the-window-the-harness-is-writing: reports a peak that a later reading fell below — the quantity ADR-0248 chose because it CAN fall', async () => {
     writeWindow(
       'window-receding',
       [
@@ -155,7 +155,7 @@ describe('GET /api/context-windows — the reading', () => {
     expect(window?.peakTokens).toBe(240_900);
   });
 
-  it('orders by the last READING, not by the file’s mtime — so the ages printed down the list agree with it', async () => {
+  it('context-window-meter-reports-its-own-limits: orders by the last READING, not by the file’s mtime — so the ages printed down the list agree with it', async () => {
     // The window whose FILE is freshest but whose last request is oldest. A transcript is touched by
     // things that are not model requests, so mtime and last-reading genuinely diverge — observed on
     // this machine as ages reading 1m, 33m, 5h, 25m down a list captioned "newest first".
@@ -175,7 +175,7 @@ describe('GET /api/context-windows — the reading', () => {
     expect(payload.windows.map((w) => w.windowId)).toEqual(['window-active', 'window-touched-late']);
   });
 
-  it('orders windows newest-first and reports what it read against what it found', async () => {
+  it('context-window-meter-reports-its-own-limits: orders windows newest-first and reports what it read against what it found', async () => {
     writeWindow(
       'window-old',
       [assistantLine({ windowId: 'window-old', at: '2026-08-20T09:00:00.000Z', id: 'o1', tokens: 50_000 })],
@@ -197,7 +197,7 @@ describe('GET /api/context-windows — the reading', () => {
     expect(payload.scan.root).toBe(transcriptRoot);
   });
 
-  it('answers an honest empty reading for a machine with no transcripts, never an error', async () => {
+  it('context-window-meter-reports-its-own-limits: answers an honest empty reading for a machine with no transcripts, never an error', async () => {
     const { status, body } = await get('/api/context-windows');
     const payload = body as { windows: unknown[]; scan: { windowFilesFound: number } };
     expect(status).toBe(200);
@@ -207,7 +207,7 @@ describe('GET /api/context-windows — the reading', () => {
 });
 
 describe('GET /api/context-windows — helper windows are never folded in (ADR-0413 D2 / ADR-0452 D4)', () => {
-  it('reads each helper’s own peak and leaves the parent’s figure untouched by it', async () => {
+  it('context-window-meter-never-folds-a-helper-into-a-window: reads each helper’s own peak and leaves the parent’s figure untouched by it', async () => {
     // Every line of a real helper transcript stamps the PARENT's session id and is a sidechain line.
     writeHelper('window-with-helpers', 'agent-a16b5d320d7caa8bd', [
       assistantLine({ windowId: 'window-with-helpers', at: '2026-08-26T10:01:00.000Z', id: 'h1', tokens: 40_000, isSidechain: true }),
@@ -246,7 +246,7 @@ describe('GET /api/context-windows — helper windows are never folded in (ADR-0
     expect(payload.scan.helperFilesOnMachine).toBe(2);
   });
 
-  it('never counts a helper transcript as a session window of its own', async () => {
+  it('context-window-meter-never-folds-a-helper-into-a-window: never counts a helper transcript as a session window of its own', async () => {
     writeHelper('window-alone', 'agent-only', [
       assistantLine({ windowId: 'window-alone', at: '2026-08-26T10:01:00.000Z', id: 'h1', tokens: 40_000, isSidechain: true }),
     ]);
@@ -272,13 +272,13 @@ describe('GET /api/context-windows — helper windows are never folded in (ADR-0
 });
 
 describe('GET /api/context-windows — posture', () => {
-  it('refuses a write by name: a transcript is the harness’s own record', async () => {
+  it('context-window-meter-reports-its-own-limits: refuses a write by name: a transcript is the harness’s own record', async () => {
     const res = await fetch(`${base}/api/context-windows`, { method: 'POST' });
     expect(res.status).toBe(405);
     expect((JSON.parse(await res.text()) as { error: string }).error).toMatch(/read-only/);
   });
 
-  it('primes without throwing, and priming and the route read the same body', async () => {
+  it('context-window-meter-reports-its-own-limits: primes without throwing, and priming and the route read the same body', async () => {
     writeWindow(
       'window-primed',
       [assistantLine({ windowId: 'window-primed', at: '2026-08-26T10:00:00.000Z', id: 'p1', tokens: 33_000 })],

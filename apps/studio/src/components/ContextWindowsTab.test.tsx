@@ -58,7 +58,7 @@ function widthFraction(testId: string): number {
 }
 
 describe('ContextWindowsTab — the read is lazy', () => {
-  it('reads nothing until the tab is actually open', async () => {
+  it('context-window-meter-reads-the-window-the-harness-is-writing: reads nothing until the tab is actually open', async () => {
     const read = vi.fn(async () => payload([windowEntry()]));
     const { rerender } = render(
       <ContextWindowsTab active={false} onMeta={() => {}} compact={false} read={read} nowMs={NOW} />,
@@ -72,7 +72,7 @@ describe('ContextWindowsTab — the read is lazy', () => {
 });
 
 describe('ContextWindowsTab — the marks are drawn as colour, never as a marker', () => {
-  it('draws only the calm segment below both marks', async () => {
+  it('context-window-meter-draws-the-two-marks-as-colour: draws only the calm segment below both marks', async () => {
     render(
       <ContextWindowsTab
         active
@@ -88,7 +88,7 @@ describe('ContextWindowsTab — the marks are drawn as colour, never as a marker
     expect(screen.queryByTestId('context-window-headline-track-hard')).toBeNull();
   });
 
-  it('adds the soft segment past 400k, and the hard segment past 500k, with nothing drawn AT either mark', async () => {
+  it('context-window-meter-draws-the-two-marks-as-colour: adds the soft segment past 400k, and the hard segment past 500k, with nothing drawn AT either mark', async () => {
     render(
       <ContextWindowsTab
         active
@@ -109,7 +109,7 @@ describe('ContextWindowsTab — the marks are drawn as colour, never as a marker
     expect(track.querySelectorAll(':scope > *')).toHaveLength(3);
   });
 
-  it('states the DECISION each band carries, not only the number', async () => {
+  it('context-window-meter-draws-the-two-marks-as-colour: states the DECISION each band carries, not only the number', async () => {
     render(
       <ContextWindowsTab
         active
@@ -125,7 +125,7 @@ describe('ContextWindowsTab — the marks are drawn as colour, never as a marker
 });
 
 describe('ContextWindowsTab — one shared track', () => {
-  it('scales every window against one ceiling, so two meters compare by eye', async () => {
+  it('context-window-meter-scales-every-window-on-one-track: scales every window against one ceiling, so two meters compare by eye', async () => {
     const big = windowEntry({ windowId: 'big-window', residentTokens: 500_250, peakTokens: 500_250 });
     const small = windowEntry({ windowId: 'small-window', residentTokens: 120_000, peakTokens: 120_000 });
     render(
@@ -148,7 +148,7 @@ describe('ContextWindowsTab — one shared track', () => {
 });
 
 describe('ContextWindowsTab — honesty', () => {
-  it('names the synthetic readings it excluded rather than dropping them silently', async () => {
+  it('context-window-meter-reads-the-window-the-harness-is-writing: names the synthetic readings it excluded rather than dropping them silently', async () => {
     render(
       <ContextWindowsTab
         active
@@ -163,7 +163,7 @@ describe('ContextWindowsTab — honesty', () => {
     expect(note.textContent).toMatch(/3219/);
   });
 
-  it('shows a peak only when a later reading fell below it', async () => {
+  it('context-window-meter-reads-the-window-the-harness-is-writing: shows a peak only when a later reading fell below it', async () => {
     render(
       <ContextWindowsTab
         active
@@ -178,7 +178,7 @@ describe('ContextWindowsTab — honesty', () => {
     expect(readout.textContent).toMatch(/peak 240\.9k/);
   });
 
-  it('reports a failed read as the server not answering, never as an empty machine', async () => {
+  it('context-window-meter-reports-its-own-limits: reports a failed read as the server not answering, never as an empty machine', async () => {
     render(
       <ContextWindowsTab
         active
@@ -194,7 +194,7 @@ describe('ContextWindowsTab — honesty', () => {
     expect(note.textContent).toMatch(/not an empty machine/);
   });
 
-  it('says where it looked when the machine genuinely holds nothing', async () => {
+  it('context-window-meter-reports-its-own-limits: says where it looked when the machine genuinely holds nothing', async () => {
     render(
       <ContextWindowsTab
         active
@@ -208,7 +208,7 @@ describe('ContextWindowsTab — honesty', () => {
     expect(note.textContent).toMatch(/projects/);
   });
 
-  it('reports the headline reading to the tab strip against the hard mark', async () => {
+  it('context-window-meter-reads-the-window-the-harness-is-writing: reports the headline reading to the tab strip against the hard mark', async () => {
     const onMeta = vi.fn();
     render(
       <ContextWindowsTab
@@ -226,7 +226,7 @@ describe('ContextWindowsTab — honesty', () => {
 });
 
 describe('ContextWindowsTab — the helper lane declares itself unsigned (ADR-0452 D3)', () => {
-  it('renders the proposal even with nothing to draw, saying WHERE it found none', async () => {
+  it('context-window-meter-never-folds-a-helper-into-a-window: renders the proposal even with nothing to draw, saying WHERE it found none', async () => {
     // The ordinary case on this machine, measured 2026-08-26: the twelve newest windows had spawned
     // no helper while 190 helper transcripts sat under the project. A block that vanished here would
     // leave the owner nothing to review, and "none" would be indistinguishable from "not looked at".
@@ -262,14 +262,14 @@ describe('ContextWindowsTab — the helper lane declares itself unsigned (ADR-04
       { helperFilesFound: 2, helperFilesRead: 2, helperFilesOnMachine: 2 },
     );
 
-  it('badges the block as an unsigned proposal on the surface itself', async () => {
+  it('context-window-meter-never-folds-a-helper-into-a-window: badges the block as an unsigned proposal on the surface itself', async () => {
     render(<ContextWindowsTab active onMeta={() => {}} compact={false} nowMs={NOW} read={async () => withHelpers()} />);
     const block = await screen.findByTestId('context-windows-helpers');
     expect(block.textContent).toMatch(/UNSIGNED PROPOSAL/);
     expect(block.textContent).toMatch(/not owner-attested/);
   });
 
-  it('never adds a helper’s tokens into the parent’s readout', async () => {
+  it('context-window-meter-never-folds-a-helper-into-a-window: never adds a helper’s tokens into the parent’s readout', async () => {
     render(<ContextWindowsTab active onMeta={() => {}} compact={false} nowMs={NOW} read={async () => withHelpers()} />);
     const readout = await screen.findByTestId('context-window-headline-readout');
     // 150k + 210k + 71k = 431k, the number this surface must never show for a window.
@@ -282,13 +282,13 @@ describe('ContextWindowsTab — the helper lane declares itself unsigned (ADR-04
     );
   });
 
-  it('states the population it can never attribute rather than presenting a whole-looking total', async () => {
+  it('context-window-meter-never-folds-a-helper-into-a-window: states the population it can never attribute rather than presenting a whole-looking total', async () => {
     render(<ContextWindowsTab active onMeta={() => {}} compact={false} nowMs={NOW} read={async () => withHelpers()} />);
     const block = await screen.findByTestId('context-windows-helpers');
     expect(block.textContent).toMatch(/233 of 1,074/);
   });
 
-  it('yields the helper block and the legend when the panel is dragged small', async () => {
+  it('context-window-meter-never-folds-a-helper-into-a-window: yields the helper block and the legend when the panel is dragged small', async () => {
     render(<ContextWindowsTab active onMeta={() => {}} compact nowMs={NOW} read={async () => withHelpers()} />);
     await screen.findByTestId('context-window-headline-track');
     // Compact means the chrome yields and the meters keep the room (ADR-0354 D4) — the headline
