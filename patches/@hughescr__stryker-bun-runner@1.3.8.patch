@@ -1,0 +1,38 @@
+diff --git a/dist/index.js b/dist/index.js
+index f6e45fcc5f722d30f23fa9486700e44a60787bca..507ccafd2ca38fb0f1ddb4bfd8bc1a351d395d3d 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -5531,7 +5531,7 @@ async function generatePreloadScript(options) {
+   const template = await readFile(templatePath, "utf8");
+   const preloadLogicPath = isBundled ? path.join(__dirname2, "coverage/preload-logic.js") : path.join(__dirname2, "preload-logic.ts");
+   const eagerModules = options.eagerModules ?? [];
+-  const content = template.replace("__PRELOAD_LOGIC_PATH__", preloadLogicPath).replace("__EAGER_MODULES__", JSON.stringify(eagerModules));
++  const content = template.replace("__PRELOAD_LOGIC_PATH__", preloadLogicPath.split(String.fromCharCode(92)).join("/")).replace("__EAGER_MODULES__", JSON.stringify(eagerModules));
+   await writeFile(preloadPath, content, "utf8");
+   return preloadPath;
+ }
+@@ -9026,6 +9026,24 @@ ${lines.join(`
+         }
+         continue;
+       }
++      const normalizeName = (s) => String(s).split(String.fromCharCode(92)).join("/");
++      const targetName = normalizeName(name);
++      let suffixHit;
++      for (const pool of [localRegistry, this.cachedTestNames]) {
++        if (!pool) continue;
++        const hits = [];
++        for (const candidate of pool) {
++          const normalized = normalizeName(candidate);
++          if (normalized === targetName || normalized.endsWith("/" + targetName)) hits.push(candidate);
++        }
++        if (hits.length === 1) { suffixHit = hits[0]; break; }
++        if (hits.length > 1) break;
++      }
++      if (suffixHit !== undefined) {
++        this.logger.debug("Resolved killedBy name %s to dry-run id %s by path-suffix match for mutant %s", name, suffixHit, mutantId);
++        killedBySet.add(suffixHit);
++        continue;
++      }
+       unresolved.add(name);
+     }
+     this.warnUnresolvedKilledBy(unresolved, mutantId);
