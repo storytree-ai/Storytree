@@ -34,6 +34,11 @@
 // failed. It renders as its own sentence and never as "0 annotated" — the same trap
 // `assetsStatus`/`assetsError` exist to prevent app-wide (ADR-0240 decision 3).
 
+import { adrNumberOfArtifactId } from '@storytree/library/decision-pointer';
+import {
+  decisionSupportResolver,
+  type SupportOnlyDecision,
+} from '@storytree/library/decision-support';
 import {
   depthFromWorkOf,
   evaluateDepthFromWork,
@@ -41,6 +46,37 @@ import {
   type DepthFromWorkVerdict,
 } from '@storytree/library/knowledge-depth';
 import type { GuidanceAsset, TraversalEventEnvelope } from '../types';
+
+/**
+ * The decision half of the graph, read off the SAME `/api/assets` payload as the artifact half.
+ *
+ * Since ADR-0403 dec 1 a decision is an ordinary Library artifact, so `listAssets()` already serves
+ * every `adr-NNNN` row with its `dependsOn` — nothing new crosses the wire for this. What was
+ * missing was only that the judge was called with ONE argument, which made every decision pointer
+ * bedrock and reproduced the pre-ADR-0403 sink reading exactly (`traversal-panel-arc`, increment
+ * `traversal-panel-draws-the-decision-depth`).
+ *
+ * `SupportOnlyDecision` is the load-bearing type here, not a convenience: it does not carry
+ * `supersedes`, so this cannot read it even by mistake. `supersedes` points new → old and measures
+ * how many times a thing was RE-DECIDED — archaeology, not distance from the work — and summing the
+ * two would produce a confident number that means nothing (ADR-0403 dec 6, ADR-0431 D6b).
+ *
+ * `dependsOn` is passed through EXACTLY as the wire delivered it, absent included. Defaulting an
+ * absent field to `[]` would erase the distinction between "this reader cannot see the edge" and
+ * "this decision has none" — the two causes of a zero that `decisionsCarryingDependsOn` exists to
+ * tell apart, and which were both true at once as recently as 2026-08-23.
+ */
+function decisionRowsOf(assets: readonly GuidanceAsset[]): SupportOnlyDecision[] {
+  const rows: SupportOnlyDecision[] = [];
+  for (const asset of assets) {
+    // Strict four-digit shape: an artifact whose id merely BEGINS `adr-` is not a decision, and
+    // rounding it to the nearest number is the failure `adrNumberOfArtifactId` guards.
+    const number = adrNumberOfArtifactId(asset.id);
+    if (number === null) continue;
+    rows.push(asset.dependsOn === undefined ? { number } : { number, dependsOn: asset.dependsOn });
+  }
+  return rows;
+}
 
 export type KnowledgeDepthModel =
   /** The corpus was read: `verdict` carries the depths AND the denominators that make them readable. */
@@ -77,6 +113,10 @@ export function buildKnowledgeDepth(input: {
         dependsOn: asset.dependsOn ?? [],
         cites: asset.cites ?? [],
       })),
+      // THE SECOND ARGUMENT IS THE WHOLE INCREMENT. Without it every `doc:` decision pointer is
+      // bedrock, and half the corpus's dependency pointers terminate at a decision — so the panel
+      // reported a ceiling of 2 over a corpus whose join reaches 9.
+      decisionSupportResolver(decisionRowsOf(input.assets)),
     ),
   };
 }

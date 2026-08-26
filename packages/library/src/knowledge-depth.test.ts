@@ -7,6 +7,7 @@ import {
   evaluateDepthFromWork,
   type DepthFromWorkSource,
 } from "./knowledge-depth.js";
+import { decisionSupportResolver } from "./decision-support-seam.js";
 
 /**
  * ADR-0363 D2's read-only depth-from-work join, as a pure function over stored rows.
@@ -207,4 +208,85 @@ test("depth-from-work-parses-through-parseCiteRef: an unprefixed or unknown-sche
   // not silently resolved onto `real-target` a second and third time.
   assert.equal(verdict.bedrockTargets, 2);
   assert.equal(verdict.edgesScanned, 2);
+});
+
+/**
+ * A DECISION IS IN THE GRAPH TWICE ONCE ITS ROWS ARE IN HAND, AND ONLY ONE TWIN CARRIES ITS EDGES.
+ *
+ * Since ADR-0403 dec 1 a decision is an ordinary Library artifact, so any caller handing over a
+ * corpus listing hands over `adr-NNNN` ROWS — while the walk mints `decision:NNNN` for the same
+ * decision whenever a pointer resolves onto it. Both land in `knownIds`, and `decisionTarget` routes
+ * every decision pointer to the `decision:` node, so the artifact twin is left with none of the
+ * decision's support edges.
+ *
+ * Reading the twin therefore answered UNREACHABLE — "no authored chain reaches this" — about a
+ * decision one hop from the work. That is the confident-wrong-answer shape, not a missing reading,
+ * and it is what the studio's replay panel rendered for every ADR a session read
+ * (`traversal-panel-arc`, increment `traversal-panel-draws-the-decision-depth`).
+ */
+function decisionRow(number: number, dependsOn?: readonly string[]): DepthFromWorkSource {
+  const id = `adr-${String(number).padStart(4, "0")}`;
+  return {
+    id,
+    doc: dependsOn === undefined ? { kind: "adr", id } : { kind: "adr", id, dependsOn },
+  };
+}
+
+const DECISION_ROWS = [
+  row("anchor", { cites: ["story:studio"], dependsOn: ["doc:decisions/0403-artifacts.md"] }),
+  decisionRow(403, ["doc:decisions/0363-the-knowledge-dag.md"]),
+  decisionRow(363),
+] as const;
+
+const DECISION_RESOLVER = decisionSupportResolver([
+  { number: 403, dependsOn: ["doc:decisions/0363-the-knowledge-dag.md"] },
+  { number: 363 },
+]);
+
+test("depth-from-work-reads-a-decision-through-its-artifact-twin: an `adr-NNNN` id answers with its DECISION's depth", () => {
+  const verdict = evaluateDepthFromWork(depthFromWorkNodes(DECISION_ROWS), DECISION_RESOLVER);
+
+  // The chain runs anchor(0) → ADR-0403(1) → ADR-0363(2), crossing the artifact/decision boundary
+  // once and then running decision-to-decision — the shape the live corpus has.
+  assert.deepEqual(depthFromWorkOf(verdict, "adr-0403"), { state: "reached", depth: 1 });
+  assert.deepEqual(depthFromWorkOf(verdict, "adr-0363"), { state: "reached", depth: 2 });
+  // The decision's own node id keeps answering identically — the twin is resolved ONTO it, never
+  // instead of it.
+  assert.deepEqual(depthFromWorkOf(verdict, "decision:0403"), { state: "reached", depth: 1 });
+});
+
+test("depth-from-work-reads-a-decision-through-its-artifact-twin: an unreached decision is UNREACHABLE, and one outside the log is ABSENT", () => {
+  const verdict = evaluateDepthFromWork(
+    depthFromWorkNodes([...DECISION_ROWS, decisionRow(9999)]),
+    decisionSupportResolver([
+      { number: 403, dependsOn: ["doc:decisions/0363-the-knowledge-dag.md"] },
+      { number: 363 },
+      { number: 9999 },
+    ]),
+  );
+
+  // Held by the resolver, reached by nothing: unmeasured, and never rendered as "very deep".
+  assert.deepEqual(depthFromWorkOf(verdict, "adr-9999"), { state: "unreachable" });
+  // Not in the log at all: a fact about the id, not about the wiring. Collapsing these two is the bug.
+  assert.deepEqual(depthFromWorkOf(verdict, "adr-0001"), { state: "absent" });
+});
+
+test("depth-from-work-reads-a-decision-through-its-artifact-twin: with no resolver the answer is byte-identical to the pre-ADR-0403 reading", () => {
+  const verdict = evaluateDepthFromWork(depthFromWorkNodes(DECISION_ROWS));
+
+  // THE FENCE. No resolver means no decision nodes exist, so the new branch cannot fire and the
+  // `doc:` pointer is bedrock again — the twin is an ordinary unreached artifact row.
+  assert.deepEqual(depthFromWorkOf(verdict, "adr-0403"), { state: "unreachable" });
+  assert.deepEqual(depthFromWorkOf(verdict, "decision:0403"), { state: "absent" });
+});
+
+test("depth-from-work-reads-a-decision-through-its-artifact-twin: an id that merely begins `adr-` is not rounded to a decision", () => {
+  const verdict = evaluateDepthFromWork(
+    depthFromWorkNodes([...DECISION_ROWS, row("adr-health-notes")]),
+    DECISION_RESOLVER,
+  );
+
+  // `adrNumberOfArtifactId` is strict about the four-digit shape precisely so this legal artifact id
+  // reads as "not a decision" instead of resolving to NaN and answering for some other row.
+  assert.deepEqual(depthFromWorkOf(verdict, "adr-health-notes"), { state: "unreachable" });
 });

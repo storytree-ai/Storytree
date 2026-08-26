@@ -9,6 +9,8 @@
     "./sources": "./src/knowledge-sources.ts",
     "./knowledge": "./src/knowledge.ts",
     "./knowledge-depth": "./src/knowledge-depth.ts",
+    "./decision-pointer": "./src/decision-pointer.ts",
+    "./decision-support": "./src/decision-support-seam.ts",
     "./knowledge-render": "./src/knowledge-render.ts",
     "./adr-doc": "./src/adr-doc.ts",
     "./repo-root": "./src/repo-root.ts",
