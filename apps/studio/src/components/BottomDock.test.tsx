@@ -5,7 +5,8 @@
 // ADR-0354 D1 adds a sibling tab and must NOT degrade the CLI, so the assertions are split evenly
 // between "the traversal is reachable" and "the terminal is untouched":
 //
-//   • both-tabs: the panel renders a Terminal tab and a Traversal tab       (bdh-renders-both-tabs)
+//   • both-tabs: the panel renders a Terminal, Traversal and Context tab    (bdh-renders-both-tabs)
+//     (the third arrived with the context-window meter, ADR-0452 D1/D2)
 //   • terminal-default: the terminal is the tab an operator meets first     (bdh-opens-on-the-terminal)
 //   • switch-mounts-child: selecting Traversal mounts its child             (bdh-traversal-tab-mounts-its-child)
 //   • preserves-state: BOTH panes stay MOUNTED across a switch, so neither  (bdh-switch-preserves-tab-state)
@@ -90,10 +91,24 @@ function TraversalPaneProbe(props: {
   );
 }
 
+function ContextPaneProbe(props: {
+  active: boolean;
+  onMeta: (meta: string | null) => void;
+}): React.JSX.Element {
+  return (
+    <div data-testid="context-tab-mock" data-active={String(props.active)}>
+      <button type="button" onClick={() => props.onMeta('292.3k of 500.0k')}>
+        report context meta
+      </button>
+    </div>
+  );
+}
+
 /** The slot value every render below passes. */
 const PANES: BottomDockPanes = {
   terminal: (props) => <TerminalPaneProbe {...props} />,
   traversal: (props) => <TraversalPaneProbe {...props} />,
+  context: (props) => <ContextPaneProbe {...props} />,
 };
 
 /** The panes are hidden via `hidden`, so "visible" means the pane wrapper is not hidden. */
@@ -112,11 +127,14 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe('BottomDock — the panel offers both tabs (bdh-renders-both-tabs)', () => {
-  it('renders a Terminal tab and a Traversal tab in one tablist', () => {
+describe('BottomDock — the panel offers its tabs (bdh-renders-both-tabs)', () => {
+  it('renders a Terminal tab, a Traversal tab and a Context tab in one tablist', () => {
     render(<BottomDock panes={PANES} />);
     const tabs = screen.getAllByRole('tab');
-    expect(tabs.map((tab) => tab.textContent)).toEqual(['›_Terminal', '⌁Traversal']);
+    // The Context tab is the meter (ADR-0452 D1/D2), a THIRD sibling rather than a section inside
+    // the traversal one: it answers a different question and must be reachable without picking a
+    // trace. ADR-0354 D1 placed the replay beside the terminal; it fenced no sibling.
+    expect(tabs.map((tab) => tab.textContent)).toEqual(['›_Terminal', '⌁Traversal', '▮Context']);
   });
 
   it('opens on the TERMINAL — the traversal is the new sibling, not the new default', () => {
@@ -128,6 +146,18 @@ describe('BottomDock — the panel offers both tabs (bdh-renders-both-tabs)', ()
   it('keeps the terminal available — ADR-0354 D1 adds a tab and never replaces the CLI', () => {
     render(<BottomDock panes={PANES} />);
     expect(screen.getByTestId('terminal-gate-mock')).toBeTruthy();
+  });
+
+  it('tells the context pane it is ACTIVE only while it is both forward and unfolded', () => {
+    render(<BottomDock panes={PANES} />);
+    // Mounted from the start (the panel's retention idiom) but not active — which is what keeps its
+    // transcript read LAZY rather than paid on every page that mounts the panel.
+    expect(screen.getByTestId('context-tab-mock').getAttribute('data-active')).toBe('false');
+
+    fireEvent.click(screen.getByRole('tab', { name: /context/i }));
+    expect(screen.getByTestId('context-tab-mock').getAttribute('data-active')).toBe('true');
+    expect(paneHidden('context-tab-mock')).toBe(false);
+    expect(paneHidden('traversal-tab-mock')).toBe(true);
   });
 });
 
@@ -248,5 +278,23 @@ describe('BottomDock — the tab strip names the selected trace', () => {
     // A tab the operator cannot see should not still be describing itself in the strip.
     fireEvent.click(screen.getByRole('tab', { name: /terminal/i }));
     expect(screen.queryByTestId('bottom-dock-meta')).toBeNull();
+  });
+
+  it('keeps each tab’s line to its own tab — a hidden pane never overwrites the forward one', () => {
+    // Every pane stays MOUNTED across a switch, so with one shared meta slot the context tab's
+    // effect would land its reading in the strip while the traversal tab is the one being read.
+    render(<BottomDock panes={PANES} />);
+    fireEvent.click(screen.getByRole('tab', { name: /context/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'report context meta' }));
+    expect(screen.getByTestId('bottom-dock-meta').textContent).toBe('292.3k of 500.0k');
+
+    fireEvent.click(screen.getByRole('tab', { name: /traversal/i }));
+    expect(screen.queryByTestId('bottom-dock-meta')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'report meta' }));
+    expect(screen.getByTestId('bottom-dock-meta').textContent).toBe('trace-a · 42 events');
+
+    // Back to context: its OWN line returns, rather than the traversal's leaking across.
+    fireEvent.click(screen.getByRole('tab', { name: /context/i }));
+    expect(screen.getByTestId('bottom-dock-meta').textContent).toBe('292.3k of 500.0k');
   });
 });

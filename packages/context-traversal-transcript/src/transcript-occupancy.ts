@@ -28,6 +28,29 @@ export interface TranscriptWindowRead {
   readonly skippedLines: number;
   /** Sidechain requests seen and deliberately excluded — reported, never silently dropped. */
   readonly sidechainRequests: number;
+  /**
+   * The SIDECHAIN requests' own readings, in file order — the helper windows' occupancy, kept
+   * separate from {@link observations} rather than merged into it.
+   *
+   * These lines were always parsed and summed here (they have to be, to be counted at all); until
+   * now the totals were computed and thrown away. Carrying them costs one array and is what lets a
+   * caller show a helper window's own fullness WITHOUT re-implementing this file's parse rules
+   * somewhere else — a second copy of "what counts as a resident total" is exactly how two surfaces
+   * come to describe one transcript differently.
+   *
+   * ⚠ THEY ARE NEVER ADDED TO {@link observations}, AND A CALLER MUST NOT ADD THEM EITHER
+   * (ADR-0413 D2, restated by ADR-0452 D4 — permanent, not deferred). A helper runs an independent
+   * context window that is gone by the time the parent reaches its own peak; summing windows that
+   * were never full at the same moment draws a fullness level no real window ever reached, and how
+   * close a window sits to its limit is the whole purpose of the reading. Display them beside the
+   * parent, never inside its number.
+   *
+   * ⚠ THEY DO NOT CARRY THE HELPER'S OWN WINDOW ID, and none is recoverable here: a subagent
+   * transcript stamps its PARENT's `sessionId` on every line (measured 2026-08-21, 188/188 files).
+   * A helper window's identity is therefore its FILE, which only the caller holding the path knows —
+   * so this array is deliberately un-keyed rather than grouped.
+   */
+  readonly sidechainObservations: readonly OccupancyObservation[];
 }
 
 /** The three axes that make up resident occupancy for one request. Any other usage key is ignored. */
@@ -61,6 +84,7 @@ const EMPTY_READ: TranscriptWindowRead = {
   observations: [],
   skippedLines: 0,
   sidechainRequests: 0,
+  sidechainObservations: [],
 };
 
 export function readTranscriptWindow(filePath: string): TranscriptWindowRead {
@@ -76,6 +100,7 @@ export function readTranscriptWindow(filePath: string): TranscriptWindowRead {
   const sidechainSeen = new Set<string>();
   const sessionIdsSeen = new Set<string>();
   const parentObservations: OccupancyObservation[] = [];
+  const sidechainObservations: OccupancyObservation[] = [];
 
   for (const line of raw.split(/\r?\n/)) {
     if (line.trim() === "") continue;
@@ -126,27 +151,39 @@ export function readTranscriptWindow(filePath: string): TranscriptWindowRead {
       continue;
     }
 
-    // A subagent's own window — excluded from the parent series, counted separately.
-    if (isSidechain) continue;
-
-    sessionIdsSeen.add(sessionId);
     const modelId =
       messageRecord !== undefined && typeof messageRecord.model === "string" ? messageRecord.model : undefined;
-    parentObservations.push(
+    const observation: OccupancyObservation =
       modelId !== undefined
         ? { requestId, at: timestamp, residentInputTokens: total, modelId }
-        : { requestId, at: timestamp, residentInputTokens: total },
-    );
+        : { requestId, at: timestamp, residentInputTokens: total };
+
+    // A subagent's own window — excluded from the parent series, kept in its own (rule: never
+    // merged, see `sidechainObservations`). Its `sessionId` is deliberately NOT added to
+    // `sessionIdsSeen`: the line carries the PARENT's id, so counting it would make a helper-only
+    // file appear to name a window it does not.
+    if (isSidechain) {
+      sidechainObservations.push(observation);
+      continue;
+    }
+
+    sessionIdsSeen.add(sessionId);
+    parentObservations.push(observation);
   }
 
   const sidechainRequests = sidechainSeen.size;
 
   // No usable line at all, or usable lines that disagree about the window's own identity: refuse
   // rather than guess, since every downstream event keys on this id.
+  //
+  // A SUBAGENT TRANSCRIPT LANDS HERE BY CONSTRUCTION and that is the correct answer, not a failure:
+  // every one of its assistant lines is a sidechain line, so nothing ever reaches `sessionIdsSeen`
+  // and the file names no parent window of its own. Its readings still travel out on
+  // `sidechainObservations` — the refusal is about the WINDOW ID, never about the readings.
   if (sessionIdsSeen.size !== 1) {
-    return { windowId: undefined, observations: [], skippedLines, sidechainRequests };
+    return { windowId: undefined, observations: [], skippedLines, sidechainRequests, sidechainObservations };
   }
 
   const [windowId] = sessionIdsSeen;
-  return { windowId, observations: parentObservations, skippedLines, sidechainRequests };
+  return { windowId, observations: parentObservations, skippedLines, sidechainRequests, sidechainObservations };
 }

@@ -102,6 +102,14 @@ that is the primary way the shape is read, not a static diagram that happens to 
   owner-selected 500k threshold renders red; **no marker, tick, or danger arc is drawn for the
   threshold itself.** The red is the whole signal, and it stays display-only — never a runtime cutoff,
   eviction trigger, or claim about any model's window size.
+  - **A SECOND surface now follows this clause, and it is not a departure from it** (recorded
+    2026-08-26, ADR-0452 D1/D2). The bottom panel's **Context tab** — `context-window-meter`, the
+    studio's context-window meter — draws one reading per session window rather than a playhead
+    series, and it colours THREE portions rather than two, because ADR-0411 D3 set a second mark
+    (~400K soft, beside this bar's 500K). That is this clause applied to two thresholds, not
+    weakened: the marks are still drawn ONLY as colour, and nothing is drawn at either boundary.
+    Nothing here changes: this bar keeps its one threshold, its one red, and its playhead. If a
+    future reader meets the two surfaces and suspects the marker rule was reopened, it was not.
 - The occupancy quantity the bar plots is settled by ADR-0248: it is a per-request resident-context
   figure, sourced from the host transcript surface, which can fall as well as rise. A billing total is
   monotonic and cannot draw this bar.

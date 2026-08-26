@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal, map-live-hierarchy-read]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal, map-live-hierarchy-read, context-window-meter]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -30,6 +30,15 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # two packages `packages/cli/src/traversal.ts` imports for the same two jobs. The runtime values are
 # pulled lazily inside the handler (the vite config-load trap), but check:boundaries reads the code
 # graph rather than the emit, so both are declared here.
+# `linked-session-context-arc` (increment `make-the-single-window-meter-useful`, ADR-0452 D1/D2): a
+# THIRD traversal edge, onto `context-traversal-transcript`. The context-window meter at GET
+# /api/context-windows reads the HOST TRANSCRIPTS directly through that story's `readTranscriptWindow`
+# / `collectTranscriptFiles`, and it is not a re-point of either edge above: those two read the
+# INGESTED trace, and occupancy reaches a trace only through an explicit `storytree traversal ingest`
+# — measured 2026-08-26, 2 of 697 local traces carry it, so a trace-backed meter would be blank for
+# the session looking at it. Reading the same files through the same reader (rather than re-deriving
+# the parse rules studio-side) is what stops the widget and the ingest describing one transcript
+# differently. Lazy-imported inside the handler like the other two, and declared for the same reason.
 # `arc-tier-extraction-arc` (ADR-0369): the arc → children JOIN this server's `handleArcs` serves is
 # no longer in `@storytree/drive` — ADR-0369 D1 gave the arc domain its own package and D2 fixed the
 # arrow at arc → drive, so `drive`'s barrel dropped the `arc-rollup` re-export and this app now
@@ -39,7 +48,7 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # guarantee, and it still does not import `@storytree/cli`. The module is pulled lazily inside the
 # handler (the vite config-load trap, same as `loadDrive()`), but check:boundaries reads the code
 # graph rather than the emit, so the edge is declared here.
-depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol, context-traversal-spawn, context-traversal-capture, arc]
+depends_on: [library, drive-machinery, notice-board, forest-world, studio-members, proof-protocol, uat-criterion-detail, art-factory, app-surface, storage-protocol, context-traversal-spawn, context-traversal-capture, context-traversal-transcript, arc]
 # Deciding ADRs (ADR-0037 §2): UI-drives-agents (8), the story world (36, recalibrated by 38),
 # the app brought into the boundary scan as a consuming surface (100), the drive-package
 # extraction that re-pointed the build/secrets seam off cli onto @storytree/drive (112), the

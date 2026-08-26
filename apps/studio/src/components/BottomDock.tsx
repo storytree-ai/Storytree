@@ -30,6 +30,7 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties } from 're
 import type { TerminalDockSeed } from './TerminalDock.js';
 import { TerminalRepoGate } from './TerminalRepoGate.js';
 import { TraversalTab } from './TraversalTab.js';
+import { ContextWindowsTab } from './ContextWindowsTab.js';
 import { RepoPicker } from './RepoPicker.js';
 
 /** Drag bounds for the expanded panel height (px) — the SAME values the dock has always used, so
@@ -46,7 +47,7 @@ const VIEWPORT_MARGIN = 100;
  */
 const COMPACT_BELOW = 240;
 
-export type BottomDockTab = 'terminal' | 'traversal';
+export type BottomDockTab = 'terminal' | 'traversal' | 'context';
 
 export interface BottomDockProps {
   /** A map Build's pre-filled command (ADR-0137), forwarded to the terminal tab. */
@@ -76,6 +77,12 @@ export interface BottomDockPanes {
     onMeta: (meta: string | null) => void;
     compact: boolean;
   }) => React.JSX.Element;
+  /** The context-window meter (ADR-0452 D1/D2) — same three-prop shape as the traversal slot. */
+  context?: (props: {
+    active: boolean;
+    onMeta: (meta: string | null) => void;
+    compact: boolean;
+  }) => React.JSX.Element;
 }
 
 const REAL_PANES: Required<BottomDockPanes> = {
@@ -83,6 +90,7 @@ const REAL_PANES: Required<BottomDockPanes> = {
     <TerminalRepoGate {...props} repoControl={<RepoPicker />} />
   ),
   traversal: (props) => <TraversalTab {...props} />,
+  context: (props) => <ContextWindowsTab {...props} />,
 };
 
 /**
@@ -96,12 +104,27 @@ export function BottomDock({
 }: BottomDockProps = {}): React.JSX.Element {
   const renderTerminalPane = panes?.terminal ?? REAL_PANES.terminal;
   const renderTraversalPane = panes?.traversal ?? REAL_PANES.traversal;
+  const renderContextPane = panes?.context ?? REAL_PANES.context;
   const [expanded, setExpanded] = useState(false);
   const [height, setHeight] = useState(DEFAULT_HEIGHT);
   const [tab, setTab] = useState<BottomDockTab>(initialTab);
-  /** The right-hand meta line in the tab strip — the traversal tab names its selected trace there,
-   *  the way the composition reference does. Owned here because the strip is this component's. */
-  const [meta, setMeta] = useState<string | null>(null);
+  /**
+   * The right-hand meta line in the tab strip — the traversal tab names its selected trace there,
+   * the way the composition reference does, and the context tab names its headline reading. Owned
+   * here because the strip is this component's.
+   *
+   * KEYED BY TAB, and that is forced rather than tidy: every pane stays MOUNTED across a switch (the
+   * header's own rule), so with one shared slot a hidden pane's effect would overwrite the forward
+   * tab's line and the strip would describe a tab the operator cannot see. Keying also replaces the
+   * clear-on-switch effect this used to need — a tab that is not forward simply has no line.
+   */
+  const [metaByTab, setMetaByTab] = useState<Partial<Record<BottomDockTab, string | null>>>({});
+  const setTraversalMeta = useCallback((next: string | null): void => {
+    setMetaByTab((prev) => ({ ...prev, traversal: next }));
+  }, []);
+  const setContextMeta = useCallback((next: string | null): void => {
+    setMetaByTab((prev) => ({ ...prev, context: next }));
+  }, []);
 
   const asideRef = useRef<HTMLElement>(null);
   const drag = useRef<{ startY: number; startHeight: number } | null>(null);
@@ -144,11 +167,10 @@ export function BottomDock({
     [height],
   );
 
-  // A tab the operator cannot see should not be describing itself in the strip. Clearing on the way
-  // out of the traversal tab keeps the meta line honest rather than stale.
-  useEffect(() => {
-    if (tab !== 'traversal') setMeta(null);
-  }, [tab]);
+  // A tab the operator cannot see should not be describing itself in the strip — held by the
+  // per-tab keying above rather than by a clearing effect, so the answer is right by construction
+  // instead of right as long as someone remembers to add the next tab to the condition.
+  const meta = metaByTab[tab] ?? null;
 
   const compact = expanded && height < COMPACT_BELOW;
 
@@ -204,6 +226,19 @@ export function BottomDock({
           onSelect={setTab}
           onToggle={toggleDock}
         />
+        {/* ADR-0452 D1/D2 — the context-window meter. A THIRD tab rather than a section inside the
+            traversal one: they answer different questions (a playhead series over one picked trace
+            there, one reading per window here), and the meter must be reachable without picking
+            anything. ADR-0354 D1 put the replay beside the terminal; it fenced no sibling. */}
+        <TabButton
+          id="context"
+          label="Context"
+          glyph="▮"
+          active={tab === 'context'}
+          expanded={expanded}
+          onSelect={setTab}
+          onToggle={toggleDock}
+        />
 
         <span className="bottom-dock-tabs-spacer" />
 
@@ -250,7 +285,21 @@ export function BottomDock({
       >
         {renderTraversalPane({
           active: expanded && tab === 'traversal',
-          onMeta: setMeta,
+          onMeta: setTraversalMeta,
+          compact,
+        })}
+      </div>
+
+      <div
+        className="bottom-dock-pane bottom-dock-pane-context"
+        role="tabpanel"
+        id="bottom-dock-pane-context"
+        aria-labelledby="bottom-dock-tab-context"
+        hidden={!expanded || tab !== 'context'}
+      >
+        {renderContextPane({
+          active: expanded && tab === 'context',
+          onMeta: setContextMeta,
           compact,
         })}
       </div>
