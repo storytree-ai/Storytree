@@ -25,6 +25,7 @@ export * from "./crown-obligations.js";
 // PROJECTOR that fills it lives in `@storytree/drive` (it needs `loadNodeSpec`, which is the
 // orchestrator's and which this package sits below).
 export * from "./work-hierarchy-projection.js";
+export * from "./work-hierarchy-tree.js";
 // ADR-0020 coverage-honesty follow-on: the `## Contracts` parser — a capability's declared leaf
 // contracts, so a coverage check can map each to an observed test (a signed `--real` green attests
 // ONE authored test, not every enumerated contract).

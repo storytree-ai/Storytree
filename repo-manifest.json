@@ -590,7 +590,11 @@
       "packages/cli/src/load-hierarchy.ts": "work-hierarchy-store-projection",
       "packages/cli/src/hierarchy-drift.ts": "work-hierarchy-drift-gate",
       "packages/cli/src/check-hierarchy-drift.ts": "work-hierarchy-drift-gate",
-      "packages/cli/src/hierarchy-git.ts": "work-hierarchy-drift-gate"
+      "packages/cli/src/hierarchy-git.ts": "work-hierarchy-drift-gate",
+      "$comment_map_freshness_render": "ELEVENTH BLOCK — the RENDERING readers (ADR-0445 D1, `map-freshness-arc` inc-03), the half that actually closes the incident. Capability grain per rule (1): all three capabilities state their own proof and are claimable. The split follows ROLE, exactly as the tenth block does: the pure FOLD that turns stored raw facts into a map read is the library's own shape work and homes with `work-hierarchy-store-projection` beside the projection it is the inverse of — one package, one pair, and neither app owns a rule the other also compiles. The two SOURCE SELECTORS are each their app's own: they decide which clock that surface asks, they degrade differently (the studio falls back to disk, the desktop to a runtime cache because for an installed app a disk read IS the incident), and they announce different consequences.",
+      "packages/library/src/work-hierarchy-tree.ts": "work-hierarchy-store-projection",
+      "apps/studio/server/hierarchySource.ts": "map-live-hierarchy-read",
+      "apps/desktop/src/backend/hierarchy-live.ts": "desktop-live-hierarchy-read"
     }
   },
   "hostedStories": {

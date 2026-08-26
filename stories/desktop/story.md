@@ -31,7 +31,7 @@ proof_mode: UAT
 # apps/studio, apps/desktop) and whose proof is a standing GATE rather than a package suite — see its
 # spec for the placement call and for why a per-surface split would have been illegal, not merely
 # undesirable.
-capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-routes, chat-sse-mount, shared-forest-connection, brokered-local-uat-signing, desktop-launch-preconditions, pinned-runtime-apply, advisory-overlay-reads, mirrored-route-conformance]
+capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-routes, chat-sse-mount, shared-forest-connection, brokered-local-uat-signing, desktop-launch-preconditions, pinned-runtime-apply, advisory-overlay-reads, mirrored-route-conformance, desktop-live-hierarchy-read]
 # Story-level edges (ADR-0010 §4 / ADR-0074 — these are the cross-story `depends_on` the boundary
 # gate (`check:boundaries`) enforces against apps/desktop/package.json's @storytree/* deps, ADR-0100;
 # ADR-0113 §8 requires the desktop → studio-server/drive edges to be DECLARED here or CI goes red):

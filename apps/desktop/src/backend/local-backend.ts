@@ -17,6 +17,29 @@ import type {
   ForestWriteResult,
 } from "./forest-readiness.js";
 import { readTreeWithCaps, foldVerdicts } from "./tree-verdicts.js";
+import type { WorkHierarchySnapshot } from "@storytree/library";
+
+import {
+  HierarchyRuntimeCache,
+  announceDesktopHierarchyOrigin,
+  selectDesktopHierarchy,
+} from "./hierarchy-live.js";
+
+// The raw-TS workspace packages re-export through `.js` specifiers that don't resolve under a
+// non-tsx loader; load the runtime VALUES lazily, on first use — the same discipline the rest of this
+// module and `tree-verdicts.ts` already follow.
+let libraryFoldModule: Promise<typeof import("@storytree/library")> | null = null;
+const loadLibraryFold = (): Promise<typeof import("@storytree/library")> =>
+  (libraryFoldModule ??= import("@storytree/library"));
+
+/**
+ * The process-lifetime runtime cache (ADR-0445 D2) behind the desktop map's hierarchy.
+ *
+ * MODULE-scoped deliberately: it must outlive a single request but must never outlive the process,
+ * which is exactly what separates a legitimate runtime cache from the committed mirror ADR-0302 D1
+ * deleted. Nothing writes it to disk and nothing reads it back on boot.
+ */
+const hierarchyCache = new HierarchyRuntimeCache();
 import type { DTVerdict, DTVerdictEvent } from "./tree-verdicts.js";
 
 // The verdict/claim zod schemas live in raw-TS workspace packages whose `.js` re-export
@@ -123,6 +146,18 @@ export interface LocalBackendBackend {
   }>;
   inFlightBuilds: () => Promise<unknown[] | null>;
   latestVerdicts: () => Promise<unknown>;
+  /**
+   * The stored WORK-HIERARCHY projection (ADR-0445 D1) — the QUESTION half of the map's join.
+   *
+   * This is the seam that closes the incident. The installed desktop app is the surface where the
+   * skew actually bit: it ships a copy of `stories/**` frozen at the commit it was built from, reads
+   * the verdict database perfectly, and finds no verdict matching any criterion re-worded since —
+   * because a verdict binds by `criterionId` + `revisionId` (ADR-0253). It asked an outdated question
+   * and got an honest answer, so it painted yellow until somebody rebuilt it.
+   *
+   * Optional like {@link verdictEvents}: a narrow stub may omit it. `null` is a first-class answer.
+   */
+  workHierarchy?: () => Promise<WorkHierarchySnapshot | null>;
   /** Optional — absent on the json backend; the handler falls back gracefully when missing. */
   verdictEvents?: () => Promise<unknown>;
   /**
@@ -241,9 +276,18 @@ export interface LocalBackendDeps {
  * this module stays pg-free (the desktop's brokered-only write boundary, ADR-0117).
  */
 async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, unknown>> {
-  const { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = await readTreeWithCaps(
-    deps.storiesDir,
-  );
+  // ADR-0445 D1: the QUESTION comes from the live store when it can answer, so it shares a clock with
+  // the PROOF folded in below. The frozen `stories/**` copy that ships inside this app is LAST, and
+  // is only reachable through a branch that says why — it is the incident, not a neutral fallback.
+  const { foldWorkHierarchy } = await loadLibraryFold();
+  const selection = await selectDesktopHierarchy({
+    live: deps.backend.workHierarchy?.bind(deps.backend),
+    fold: foldWorkHierarchy,
+    cache: hierarchyCache,
+    disk: () => readTreeWithCaps(deps.storiesDir),
+  });
+  announceDesktopHierarchyOrigin(selection);
+  const { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = selection.read;
   // Run the advisory reads in parallel so a down DB costs one timeout budget, not four.
   const [latestVerdicts, verdictEvents, builds, assets] = await Promise.all([
     deps.backend.latestVerdicts() as Promise<Record<string, DTVerdict> | null>,
