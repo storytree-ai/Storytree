@@ -171,6 +171,16 @@ export interface GatePlanStep extends GateStep {
  *   report-only and `check:boundaries` is package-grain, so nothing sat between the author and the
  *   decay; without it the map silently stops being total and the arc that owns it hand-repairs on
  *   every increment.
+ * - check:hierarchy-camps — PROOF INTEGRITY (ADR-0445 D1, added 2026-08-26). PREVENTIVE rather than
+ *   catch-evidenced, on the `check:web-experience-closure` precedent, and the class it prevents is
+ *   MEASURED rather than imagined: `readCorpusStoryDocs` walks every story directory and no UAT
+ *   instrument filters `status: retired`, so every instrument built over it inherited that blindness
+ *   for free (ADR-0396's Context). ADR-0445 D1 created a second, permanent way for that to happen —
+ *   the tree is now disk-canonical for proving and live-canonical for rendering — and its own
+ *   Consequences name the failure mode: "a THIRD reader added later without asking which camp it is
+ *   in". Without it a rendering surface acquires a checkout read (the 2026-08-25 yellow-island
+ *   incident, structurally) or a proving rung acquires a live one (a proof validating a tree the
+ *   branch is not at), and nothing sits between the author and either.
  * - check:mirror-conformance — PROOF INTEGRITY. Commit 3ef84c96 records a historical studio-only
  *   docs change producing 256+4 divergences; without it desktop and studio behavior diverge.
  * - check:guidance — FACTORY BOOKKEEPING. A clean worktree on 2026-08-05 caught stale
@@ -242,6 +252,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     subject: "own-work",
     cost: "seconds",
     why: "reds when this diff adds a source file under no declared `sourceOwnership` subtree, or un-owns one that WAS declared; a breach already on the merge base is reported and never charged, so a red here can only be this branch's (ADR-0317 D2 charged by ADR-0301)",
+  },
+  {
+    command: "pnpm check:hierarchy-camps",
+    check: "check:hierarchy-camps",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when this diff adds a module that reads the work hierarchy and declares no CAMP, or declares one and reads the other clock. ADR-0445 D1 made the tree disk-canonical for proving and live-canonical for rendering, and its Consequences name the failure mode this watches for — a third reader added later without asking which camp it is in. Offline and disk-only, so it sits with its `check:boundaries` / `check:ownership-totality` neighbours; its store-reading sibling `check:hierarchy-drift` asks a different question and stays in block C",
   },
   {
     command: "pnpm check:mirror-conformance",
@@ -801,6 +818,7 @@ export const GATE_VOICE_SCAN_ROOTS: readonly string[] = ["packages/cli/src", "pa
 export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   "check:boundaries",
   "check:ownership-totality",
+  "check:hierarchy-camps",
   "check:mirror-conformance",
   // `check:web-grounding` left this set for `SHARED_ENVIRONMENT_CHECKS` (ADR-0403 dec 1): it reads
   // the DECISION LOG, which is shared live state now, so it can red on a sibling's status flip. Its

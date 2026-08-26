@@ -28,7 +28,7 @@ proof_mode: UAT
 #     packages-forward rule REGARDLESS of any declared edge, since `cli` is not in the frozen
 #     `hostedStories.register`. It is also a REFINEMENT of `arcNew`, so `stories/arc` is where it
 #     belongs on the merits and not merely to satisfy a rule.
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, guided-setup-repair, verification-decay-instruments]
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, work-hierarchy-camp-fence, guided-setup-repair, verification-decay-instruments]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store / arc) are declared PROVIDER-SIDE on each
 # spoke (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns

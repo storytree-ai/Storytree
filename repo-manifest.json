@@ -592,12 +592,362 @@
       "packages/drive/src/hierarchy-projection.ts": "work-hierarchy-store-projection",
       "packages/cli/src/load-hierarchy.ts": "work-hierarchy-store-projection",
       "packages/cli/src/hierarchy-drift.ts": "work-hierarchy-drift-gate",
+    "packages/cli/src/hierarchy-camps.ts": "work-hierarchy-camp-fence",
+    "packages/cli/src/check-hierarchy-camps.ts": "work-hierarchy-camp-fence",
       "packages/cli/src/check-hierarchy-drift.ts": "work-hierarchy-drift-gate",
       "packages/cli/src/hierarchy-git.ts": "work-hierarchy-drift-gate",
       "$comment_map_freshness_render": "ELEVENTH BLOCK — the RENDERING readers (ADR-0445 D1, `map-freshness-arc` inc-03), the half that actually closes the incident. Capability grain per rule (1): all three capabilities state their own proof and are claimable. The split follows ROLE, exactly as the tenth block does: the pure FOLD that turns stored raw facts into a map read is the library's own shape work and homes with `work-hierarchy-store-projection` beside the projection it is the inverse of — one package, one pair, and neither app owns a rule the other also compiles. The two SOURCE SELECTORS are each their app's own: they decide which clock that surface asks, they degrade differently (the studio falls back to disk, the desktop to a runtime cache because for an installed app a disk read IS the incident), and they announce different consequences.",
       "packages/library/src/work-hierarchy-tree.ts": "work-hierarchy-store-projection",
       "apps/studio/server/hierarchySource.ts": "map-live-hierarchy-read",
       "apps/desktop/src/backend/hierarchy-live.ts": "desktop-live-hierarchy-read"
+    }
+  },
+  "hierarchyCamps": {
+    "$comment": "The THIRD declared ownership map (ADR-0445 D1, `map-freshness-arc` inc-04), read by packages/cli/src/check-hierarchy-camps.ts and judged by its pure neighbour hierarchy-camps.ts. `packageOwnership` answers 'which story owns this PACKAGE' and `sourceOwnership` answers 'which unit is responsible for this FILE'; this one answers a question neither can: WHICH CLOCK does this module have to agree with when it reads the work hierarchy. ### WHY IT EXISTS. ADR-0445 D1 made the work hierarchy disk-canonical for PROVING and live-canonical for RENDERING, and its own Consequences name the failure mode: 'a THIRD reader added later without asking which camp it is in'. That is not hypothetical here — `readCorpusStoryDocs` walks every story directory and no UAT instrument filters `status: retired`, so every instrument built over it inherited that blindness for free (ADR-0396's Context). A split with no fence acquires wrong-camp readers the same way, one convenience at a time. ### THE ANSWERS. `prove` = 'I must agree with the commit under test' — it reads stories/** off the checkout, because CI validating a live tree would validate the wrong thing. `render` = 'I must agree with NOW' — it reads the store's projection, so the map's QUESTION and its PROOF cannot sit at different commits. `bridge` = 'the gap between them IS my subject' — the loader and the drift rung, and a bridge MUST read both sources, which is what stops it being the label a reader reaches for to avoid answering. There is no 'either'. ### WHAT THE RUNG ENFORCES, and why it is not the presence check ADR-0427 deleted. It never reads a string the subject writes about itself. It computes, from each module's own code, which source that module NAMES — the checkout's stories directory, or `PgWorkHierarchyStore` — and holds that computed fact against the declaration here, in BOTH directions: an undeclared reader fails, a declared read the code does not perform fails, a live read in the prove camp fails, an unstated checkout read in the render camp fails (ADR-0445 D2 permits the fallback and requires it to be STATED — that is what `fallback` is), a bridge that spans one source fails, and a render reader with no stated fallback that imports a prove reader's helper fails, because reaching the wrong clock through a helper is still reaching it. Prose cannot satisfy either half. ### THE MAP IS TOTAL IN BOTH DIRECTIONS, at EXACT paths, no globs — a declaration naming a file that reads nothing is a failure too, the `check:boundaries` 24/24 posture. Adding a reader means adding a line here; that friction is the point, and it is the whole increment. ### WHO IS NOT HERE, deliberately: a module HANDED a folded hierarchy chose no clock, so it has no camp — `apps/studio/server/hierarchySource.ts` and `apps/desktop/src/backend/hierarchy-live.ts` are SEAMS that pick between two callbacks and read nothing themselves; their callers name the sources and carry the camps.",
+    "readers": {
+      "apps/studio/server/apiRouter.ts": {
+        "camp": "render",
+        "reads": [
+          "checkout"
+        ],
+        "fallback": "the studio's `/api/tree` prefers the live projection through `selectHierarchy`, which this module wires; what it reads here IS the disk arm that seam falls back to, plus the per-criterion UAT detail still read off the checkout. Every fallback is announced by `announceHierarchyOrigin`, so the disk read can only be reached through a branch that says why (ADR-0445 D2).",
+        "because": "the studio map's route table — the render surface the 2026-08-25 incident was reported against."
+      },
+      "apps/studio/server/libraryBackend.ts": {
+        "camp": "render",
+        "reads": [
+          "live"
+        ],
+        "because": "opens `PgWorkHierarchyStore` and is the studio's LIVE half of the map's join. It reads no checkout at all, which is why it carries no `fallback` — and why a checkout read appearing here would red this rung rather than pass unnoticed."
+      },
+      "apps/desktop/electron/backend-entry.ts": {
+        "camp": "render",
+        "reads": [
+          "checkout",
+          "live"
+        ],
+        "fallback": "the desktop composition root supplies BOTH arms: the live `workHierarchy()` reader the map prefers, and the checkout reads behind it — the UAT criterion detail, and the disk arm the runtime cache degrades to. ADR-0445 D2 legitimises the runtime cache and requires the disk arm to be stated; this is the statement.",
+        "because": "wires the desktop backend's hierarchy sources; the map it feeds must agree with now."
+      },
+      "apps/desktop/src/backend/local-backend.ts": {
+        "camp": "render",
+        "reads": [
+          "checkout"
+        ],
+        "fallback": "names the stories directory it hands to `readTreeWithCaps` — the disk arm `selectDesktopHierarchy` degrades to, after the runtime cache, when the store cannot answer. For an INSTALLED app a disk read is the incident rather than a neutral fallback (ADR-0445 D2), which is why it is last and why it is declared here.",
+        "because": "the desktop map's route table."
+      },
+      "apps/desktop/src/backend/tree-verdicts.ts": {
+        "camp": "render",
+        "reads": [
+          "checkout"
+        ],
+        "fallback": "the desktop's disk walk itself — the arm `local-backend.ts` above falls back to. It is in the render camp because the surface it serves must agree with now; it reads the checkout only when nothing current can be reached.",
+        "because": "folds verdicts onto the desktop tree."
+      },
+      "packages/library/src/store/pg-work-hierarchy-store.ts": {
+        "camp": "render",
+        "reads": [
+          "live"
+        ],
+        "because": "the live door itself — the only way the stored projection is read or written. Its currency is NOW by construction, so it is `render` rather than a fourth role; the loader and the drift rung that reach through it carry their own `bridge` declarations."
+      },
+      "packages/cli/src/check-hierarchy-drift.ts": {
+        "camp": "bridge",
+        "reads": [
+          "checkout",
+          "live"
+        ],
+        "because": "`check:hierarchy-drift` — the gap between the two clocks IS its verdict. It reads the checkout's projection and the store's mirror and reports whether they still describe the same tree, so it necessarily spans both and belongs to neither camp."
+      },
+      "packages/cli/src/load-hierarchy.ts": {
+        "camp": "bridge",
+        "reads": [
+          "checkout",
+          "live"
+        ],
+        "because": "the LOADER — it reads the checkout and writes the store's projection, which is the act that makes the two clocks agree. A module that only read one side could not perform it."
+      },
+      "apps/desktop/src/backend/activity-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe: it drives one route over a FIXTURE tree in its own process, and its answer has to describe the commit under test."
+      },
+      "apps/desktop/src/backend/arcs-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe over a fixture tree — its subject is this commit's two surfaces, not the live store."
+      },
+      "apps/desktop/src/backend/floor-health-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe over a fixture tree — its subject is this commit's two surfaces, not the live store."
+      },
+      "apps/studio/server/arcsMirrorProbe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the studio half of the same conformance harness; it must answer for the code in this diff."
+      },
+      "docs/research/chapter2-healthy-island-2026-08-16/census_healthy.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a one-shot research script, frozen against the checkout it was run on."
+      },
+      "docs/research/chapter2-healthy-island-2026-08-16/emit_healthy_island.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a one-shot research script, frozen against the checkout it was run on."
+      },
+      "docs/research/chapter2-healthy-island-2026-08-16/emit_proof.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a one-shot research script, frozen against the checkout it was run on."
+      },
+      "packages/arc/src/arc-rollup.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the arc-to-children join reads story frontmatter off the commit under test."
+      },
+      "packages/arc/src/arc.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "reads the arc stamps declared in this checkout's story frontmatter."
+      },
+      "packages/cli/scripts/validate-corpus.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the `stories/**` corpus guard — its entire subject is the tree in this diff."
+      },
+      "packages/cli/src/adr-health.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "reads each story's `decisions:` off the commit under test."
+      },
+      "packages/cli/src/check-adr-health.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the decision-binding gate judges the bindings this commit declares."
+      },
+      "packages/cli/src/check-boundaries.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the organism-boundary gate judges the edges declared in THIS diff."
+      },
+      "packages/cli/src/check-coverage.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "coverage is judged against the units the commit under test declares."
+      },
+      "packages/cli/src/check-mirror-conformance.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "builds the fixture tree the probes above run over; its subject is this commit."
+      },
+      "packages/cli/src/check-verification-decay.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the decay instruments bind to proof declared in the commit under test."
+      },
+      "packages/cli/src/ci-affected.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the affected-scope classifier maps THIS diff's changed paths; scoping from a live tree would narrow the wrong branch."
+      },
+      "packages/cli/src/commands.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the CLI's tree/build/claim verbs address the units this checkout declares."
+      },
+      "packages/cli/src/coverage-gate.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the coverage ceiling is measured over the units in the commit under test."
+      },
+      "packages/cli/src/friction.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "names the `stories/**` write scope of the checkout a friction item was captured on."
+      },
+      "packages/cli/src/gate-build-driver.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "drives a build of the unit exactly as this commit declares it."
+      },
+      "packages/cli/src/hierarchy-git.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "stamps the checkout's `stories/` tree id — the anchor the mirror is later compared against."
+      },
+      "packages/cli/src/main.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the CLI composition root hands its verbs the checkout's stories directory."
+      },
+      "packages/cli/src/ownership.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the source-ownership sweep is judged against the files in this commit."
+      },
+      "packages/cli/src/worktree-create.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "stamps a new worktree's story and arc from the tree it is cut from."
+      },
+      "packages/drive/src/adopt.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "adoption signs against the unit as the commit under test declares it."
+      },
+      "packages/drive/src/claim-universe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the claim namespace is the set of ids this commit declares."
+      },
+      "packages/drive/src/coupling-churn.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "measures churn over a commit range in this checkout."
+      },
+      "packages/drive/src/hierarchy-projection.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the PROJECTOR: it reads the checkout so the mirror describes a COMMIT. Pointing it at the store would make the mirror a copy of itself; the loader that writes what it produces is the bridge."
+      },
+      "packages/drive/src/node-build.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a build proves the unit the checkout declares — ADR-0445 D1 names the build drivers as deliberately unmoved."
+      },
+      "packages/drive/src/orientation-reads.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "orientation reports on the tree the session is actually working in."
+      },
+      "packages/drive/src/orientation-runner.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "orientation reports on the tree the session is actually working in."
+      },
+      "packages/drive/src/story-build.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a story build proves the units the checkout declares, in the order it declares."
+      },
+      "packages/drive/src/tree.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the tree read behind the build drivers — the commit under test is its subject."
+      },
+      "packages/drive/src/uat-drive-witness.check.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a UAT walk is signed against the criterion revision in the commit it ran on (ADR-0253)."
+      },
+      "packages/drive/src/uat-drive.run.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a UAT walk is signed against the criterion revision in the commit it ran on (ADR-0253)."
+      },
+      "packages/drive/src/work-hierarchy.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the `story:`/`capability:` ref resolver reads the ids this commit declares."
+      },
+      "packages/library/scripts/migrate-adr0253.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a one-shot migration over the checkout it was run against."
+      },
+      "packages/model-uat-pilot/src/pilot-migration-harness.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the ADR-0209 D8 pilot harness reads the stories it migrates off the checkout."
+      },
+      "packages/orchestrator/src/node-spec.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the spine's unit-spec loader — the PROOF's own reader, named by ADR-0445 D1 as deliberately unmoved."
+      }
     }
   },
   "hostedStories": {
