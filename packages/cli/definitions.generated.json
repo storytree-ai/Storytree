@@ -121,6 +121,12 @@
   },
   {
     "kind": "definition",
+    "id": "grow-tell-roam-ask",
+    "title": "Grow · Tell · Roam · Ask — the four movements of chapter 2",
+    "oneLine": "The four movements of the public site's chapter 2, named so that each name states WHO IS DRIVING it: the system GROWS the forest, we TELL, the visitor ROAMS, and we ASK."
+  },
+  {
+    "kind": "definition",
     "id": "in-session-subagent",
     "title": "in-session subagent",
     "oneLine": "A subagent spawned in-process by a running session's own Agent tool — starts immediately with no owner approval, is a CHILD of the spawning session, and dies if the parent's process exits."
