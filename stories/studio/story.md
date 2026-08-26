@@ -31,14 +31,20 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # pulled lazily inside the handler (the vite config-load trap), but check:boundaries reads the code
 # graph rather than the emit, so both are declared here.
 # `linked-session-context-arc` (increment `make-the-single-window-meter-useful`, ADR-0452 D1/D2): a
-# THIRD traversal edge, onto `context-traversal-transcript`. The context-window meter at GET
-# /api/context-windows reads the HOST TRANSCRIPTS directly through that story's `readTranscriptWindow`
-# / `collectTranscriptFiles`, and it is not a re-point of either edge above: those two read the
-# INGESTED trace, and occupancy reaches a trace only through an explicit `storytree traversal ingest`
-# — measured 2026-08-26, 2 of 697 local traces carry it, so a trace-backed meter would be blank for
-# the session looking at it. Reading the same files through the same reader (rather than re-deriving
-# the parse rules studio-side) is what stops the widget and the ingest describing one transcript
-# differently. Lazy-imported inside the handler like the other two, and declared for the same reason.
+# THIRD traversal edge, onto `context-traversal-transcript`. GET /api/context-windows reads the HOST
+# TRANSCRIPTS directly through that story's `readWindowOccupancySeries` / `readContextWindows`, and it
+# is not a re-point of either edge above: those two read the INGESTED trace, and occupancy reaches a
+# trace only through an explicit `storytree traversal ingest` — measured 2026-08-26, 2 of 697 local
+# traces carry it, so a trace-backed reading would be blank for the session looking at it. Reading the
+# same files through the same reader (rather than re-deriving the parse rules studio-side) is what
+# stops the surface and the ingest describing one transcript differently. Lazy-imported inside the
+# handler like the other two, and declared for the same reason.
+#   ⚠ THE EDGE SURVIVES THE CONTEXT TAB'S RETIREMENT, and its REASON is what moved (ADR-0456 D1/D2,
+#   increment `merge-the-context-meter-into-the-traversal-surface`). It was declared for the
+#   standalone Context tab; that tab retires, and the same route now serves the TRAVERSAL REPLAY
+#   PANEL's own occupancy bar at `?session=<windowId>` — the bar that has been in the owner-signed
+#   design since `traversal-panel-spine-render` and had never drawn a real reading here. So this is
+#   not an edge to sweep away with the widget: `apps/studio` still imports that package.
 # `arc-tier-extraction-arc` (ADR-0369): the arc → children JOIN this server's `handleArcs` serves is
 # no longer in `@storytree/drive` — ADR-0369 D1 gave the arc domain its own package and D2 fixed the
 # arrow at arc → drive, so `drive`'s barrel dropped the `arc-rollup` re-export and this app now

@@ -13,13 +13,31 @@
 //
 // Two absences are rendered as absences and never smoothed:
 //   - `partial` (ADR-0241 D5): a trace with unusable lines must never present as complete.
-//   - `occupancy`: the series is populated only by the host-transcript adapter, which is NOT ambient
-//     (it needs an explicit `storytree traversal ingest <sessionId>`). A never-ingested session has
-//     no series, and the route says so in a line written to be rendered VERBATIM. This component
-//     renders that line rather than composing its own, so the surface and the CLI cannot disagree.
+//   - `occupancy`: the TRACE's series is populated only by the host-transcript adapter, which is NOT
+//     ambient (it needs an explicit `storytree traversal ingest <sessionId>`). A never-ingested
+//     session has no series, and the route says so in a line written to be rendered VERBATIM.
 //     Note that `occupancy.declared` reads false even on a trace that really carries the field — the
 //     producing adapter's coverage is genuinely not in the replay composition yet, and both halves
 //     of that are printed. Hard-coding either one true is the one thing this must not do.
+//
+// ★ AND THAT ABSENCE IS WHY THIS MOUNT NOW MAKES A SECOND READ (ADR-0456 D2). Measured 2026-08-26,
+// 2 of 697 local traces carry occupancy at all — so the bar the owner signed has been rendering its
+// honest "none observed" for effectively every trace on this machine, including whichever one an
+// operator picks. The HOST TRANSCRIPTS are ambient (one per window, written as the window runs) and
+// answer for 25 of the 30 most recent traces. `api.contextWindowSeries` reads THIS window's own
+// transcript through the same fold `storytree context` reads, and the picture prefers it.
+//
+// It is a SECOND CALL rather than a widening of `/api/traversal`, and that is deliberate: the replay
+// route composes one session's replay out of the sink's own readers and derives nothing, which is
+// what keeps this panel and `storytree traversal show` unable to disagree about what a trace
+// contains. A transcript is not in the trace. `traversal-panel-arc` names widening the composition
+// as its own unit and warns against half-doing it inside a UI increment; ADR-0456 leaves that unit
+// where it is. The cost accepted is one picture assembled from two reads.
+//
+// THE TWO READS ARE INDEPENDENT ON PURPOSE. A failed or slow series read must never take the
+// replay's picture down with it — the traversal is the signed subject and the bar is one column of
+// it — so the series lands as `null` and the trace-sourced series draws, which already knows how to
+// say "none observed". A pending read is likewise NOT an absence.
 //
 // IT IS ALSO WHERE THE KNOWLEDGE-DEPTH JOIN IS BUILT (ADR-0363 D2, increment
 // `standson-depth-from-work-join`): the app-wide corpus meets this component's replay here, and the
@@ -30,6 +48,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
+import { buildTranscriptOccupancySeries, type OccupancySeries } from '../lib/traversalOccupancy';
 import type { TraversalReplayPayload } from '../types';
 import { TraversalSpine } from './TraversalSpine';
 
@@ -51,6 +70,8 @@ export function TraversalReplay({
   compact?: boolean;
 }): React.JSX.Element {
   const [state, setState] = useState<ReplayState>({ status: 'reading' });
+  /** `null` while unread OR unreadable — never an empty series, which would claim an empty window. */
+  const [transcriptOccupancy, setTranscriptOccupancy] = useState<OccupancySeries | null>(null);
 
   // ADR-0363 D2's read-only depth-from-work join, built HERE because this is where both halves meet:
   // the app already holds the whole corpus (`/api/assets`, one fetch for the whole studio), and this
@@ -82,6 +103,30 @@ export function TraversalReplay({
     };
   }, [sessionId]);
 
+  // The occupancy read, kept in its own effect so neither read can delay or fail the other. A
+  // storytree session id that is a HOST WINDOW id names its own transcript by file name; one that is
+  // a legacy worktree SLOT names no single window, and the route answers that as a stated absence
+  // rather than a 404 — which the bar renders as "none observed", exactly as it does today.
+  useEffect(() => {
+    let live = true;
+    setTranscriptOccupancy(null);
+    void (async (): Promise<void> => {
+      try {
+        const series = await api.contextWindowSeries(sessionId);
+        if (live) setTranscriptOccupancy(buildTranscriptOccupancySeries(series));
+      } catch {
+        // Swallowed BY DESIGN, and it is the one place in this component that is right to swallow:
+        // the bar's fallback is the trace-sourced series, which already renders an honest absence.
+        // Surfacing a failure here would replace one column's "none observed" with a failure state
+        // for the whole picture.
+        if (live) setTranscriptOccupancy(null);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [sessionId]);
+
   if (state.status === 'reading') {
     return (
       <div className="traversal-replay" data-testid="traversal-replay" data-replay-state="reading">
@@ -105,7 +150,12 @@ export function TraversalReplay({
     <div className="traversal-replay" data-testid="traversal-replay" data-replay-state="read">
       {/* The picture. It goes FIRST because the design's second acceptance clause is that the
           traversal — not the bar, not a metric, not a line of prose — dominates the first glance. */}
-      <TraversalSpine replay={replay} compact={compact} knowledge={knowledge} />
+      <TraversalSpine
+        replay={replay}
+        compact={compact}
+        knowledge={knowledge}
+        transcriptOccupancy={transcriptOccupancy}
+      />
 
       {/* THE FACTS LIST IS DELETED (ADR-0393 D1). It stated the replayed-event count, the PARTIAL
           warning, and the occupancy note verbatim from the route. The owner deleted all prose under

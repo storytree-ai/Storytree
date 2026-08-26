@@ -1004,6 +1004,50 @@ export interface ContextWindowsPayload {
   windows: ContextWindowEntry[];
 }
 
+// ---- ONE window's occupancy series (ADR-0456 D2, server/contextWindowsApi.ts) ----
+//
+// What the traversal replay panel's occupancy bar plots. A SERIES rather than a reading, because a
+// playhead asks "what did this window hold at that instant" — which is the one question the two
+// shapes above throw the data away to answer.
+
+/** One reading from a window's own host transcript. */
+export interface ContextSeriesObservation {
+  /** The request's ISO-8601 instant, carried through verbatim. A playhead cannot use a reading without one. */
+  at: string;
+  /** Tokens RESIDENT at that request (ADR-0248 D1) — not monotonic, it falls on compaction. */
+  residentTokens: number;
+}
+
+/** WHERE the series was searched for, so a not-found carries its own denominator. */
+export interface ContextSeriesScan {
+  root: string;
+  windowFilesFound: number;
+  /** The transcript the reading came from, or `null` when none was matched. */
+  file: string | null;
+}
+
+/** Why there is no series. Each sends a reader somewhere different, so they are not merged. */
+export type ContextSeriesAbsence =
+  | 'no-transcript-root'
+  | 'no-window-transcript'
+  | 'no-readable-occupancy';
+
+/** GET /api/context-windows?session=<windowId> — one window's whole occupancy series. */
+export interface ContextWindowSeriesPayload {
+  windowId: string;
+  scan: ContextSeriesScan;
+  observations: ContextSeriesObservation[];
+  peakTokens: number;
+  /** Readings excluded as synthetic — a `<synthetic>` zero-token line ENDS 2 of 125 windows here. */
+  syntheticObservations: number;
+  /** Helper requests seen and excluded (ADR-0413 D2, permanent) — counted, never silently dropped. */
+  sidechainRequests: number;
+  /** Set exactly when `observations` is empty, and never otherwise. Absence is never a zero. */
+  absence: ContextSeriesAbsence | null;
+  /** One line a reader may render VERBATIM — what was read, or what was looked for and not found. */
+  note: string;
+}
+
 // ---- the replayed event union, mirrored (`traversal-panel-spine-render`) ----
 //
 // WIDENED HERE, and by the increment the previous one named: the picker + mount seam mirrored a

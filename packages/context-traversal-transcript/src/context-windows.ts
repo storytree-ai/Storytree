@@ -2,13 +2,16 @@
  * THE CONTEXT-WINDOW FOLD — a transcript root reduced to "how full is this window", for every
  * surface that asks (`linked-session-context-arc`, capability `context-window-meter`).
  *
- * Two readers sit on it and they ask different questions:
+ * Three readers sit on it and they ask different questions:
  *
  *   • {@link readContextWindows} — this machine's recent windows, newest first. The studio meter's
  *     answer (`GET /api/context-windows`, ADR-0452 D1/D2): a GLANCE at how the box is loaded.
  *   • {@link readOwnContextWindow} — THIS worktree's own window, and nothing else. The answer
  *     `storytree context` hands a running session at an increment boundary, so ADR-0411 D6's
  *     "I estimated" stops being the only honest thing a session can say about its own headroom.
+ *   • {@link readWindowOccupancySeries} — ONE named window's whole series, with instants. The
+ *     traversal replay panel's occupancy bar (ADR-0456 D2), which plots what a window held at the
+ *     playhead and therefore needs the readings a latest-only answer throws away.
  *
  * ★ THE FOLD LIVES HERE RATHER THAN IN THE STUDIO BECAUSE IT ACQUIRED A SECOND READER. It was
  * written in `apps/studio/server/contextWindowsApi.ts`, which was right while the widget was the
@@ -540,5 +543,197 @@ export function readOwnContextWindow(args: OwnWindowArgs): OwnWindowRead {
     absence: null,
     selectedBy: named === undefined ? "latest-activity" : "harness-window-id",
     harnessWindowUnmatched,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// ONE WINDOW'S SERIES — the traversal panel's occupancy bar (ADR-0456 D2)
+// ---------------------------------------------------------------------------
+
+/**
+ * One reading from a window's host transcript, as the replay panel's bar plots it.
+ *
+ * The timestamp rides along because this reader's consumer is a PLAYHEAD: the bar shows what the
+ * window held at the instant the playhead sits on, so a series without instants is not plottable.
+ * That is the whole difference between this reader and the two above, which answer "how full is it
+ * NOW" and need only the latest.
+ */
+export interface WindowSeriesObservation {
+  /** The request's own ISO-8601 timestamp, carried through verbatim from the transcript line. */
+  readonly at: string;
+  /** Tokens RESIDENT in the window at that request. Not monotonic — it falls on compaction. */
+  readonly residentTokens: number;
+}
+
+/** Why there is no series. Each sends a reader somewhere different, so they are not merged. */
+export type WindowSeriesAbsence =
+  /** Nothing to look at: the transcript root holds no session transcript at all. */
+  | "no-transcript-root"
+  /** Looked, and no transcript on this machine speaks for a window of that id. */
+  | "no-window-transcript"
+  /** The window's transcript was found and carries no usable reading — the honest zero-free zero. */
+  | "no-readable-occupancy";
+
+export interface WindowSeriesScan {
+  /** WHERE it looked. `STORYTREE_TRANSCRIPT_DIR` moves this. */
+  readonly root: string;
+  /** Parent session transcripts found under the root — the denominator behind "not found". */
+  readonly windowFilesFound: number;
+  /** The transcript this reading came from, or `null` when none was matched. */
+  readonly file: string | null;
+}
+
+export interface WindowSeriesRead {
+  /** The window id asked about, echoed back. */
+  readonly windowId: string;
+  readonly scan: WindowSeriesScan;
+  /** Chronological, exactly as the transcript recorded them. Empty exactly when {@link absence} is set. */
+  readonly observations: readonly WindowSeriesObservation[];
+  /** The fullest this window was observed to be — the bar's ceiling is chosen from it. */
+  readonly peakTokens: number;
+  /** Readings excluded as synthetic — reported, never silently dropped. */
+  readonly syntheticObservations: number;
+  /**
+   * Helper (sidechain) requests seen in this transcript and excluded (ADR-0413 D2, permanent).
+   *
+   * The same fact the trace-sourced series calls `foreignWindowCount`, and it is carried for the
+   * same reason: an exclusion nobody can see reads exactly like an absence of the thing excluded.
+   */
+  readonly sidechainRequests: number;
+  /** Set exactly when {@link observations} is empty, and never otherwise. */
+  readonly absence: WindowSeriesAbsence | null;
+  /** One line a reader may render VERBATIM — what was read, or what was looked for and not found. */
+  readonly note: string;
+}
+
+export interface WindowSeriesArgs {
+  /**
+   * The HOST WINDOW id — which is also the transcript's own file name, and that is the whole join.
+   *
+   * ★ THIS IS AN EXACT IDENTITY JOIN, NOT THE `cwd` CORRELATION the other two readers use, and the
+   * difference is what makes it affordable on a request path. `correlateTranscripts` answers "which
+   * windows ran inside session S's worktree" by READING every transcript's `cwd` lines — minutes
+   * over this machine's root. A window id needs none of that: the harness names a window's
+   * transcript after the window, so the lookup is a walk plus ONE file read. It is also stricter —
+   * the matched file's own lines must AGREE that they speak for this window, the same rule
+   * {@link helperDirFor} keeps, so a file is never claimed for a window on the strength of its name.
+   *
+   * A trace keyed by a worktree SLOT (the legacy era — see `classifyTraceIdentity`) matches nothing
+   * here, and that is the right answer rather than a gap: a slot pools every window that ran in it,
+   * so there is no single window whose fullness a bar could draw. Summing them would be the same
+   * fabrication ADR-0413 D2 rules out for helpers.
+   */
+  readonly windowId: string;
+  /** The transcript root. Defaults to {@link resolveTranscriptDir}. */
+  readonly root?: string;
+}
+
+function seriesAbsence(
+  windowId: string,
+  scan: WindowSeriesScan,
+  absence: WindowSeriesAbsence,
+  note: string,
+  extra: { syntheticObservations?: number; sidechainRequests?: number } = {},
+): WindowSeriesRead {
+  return {
+    windowId,
+    scan,
+    observations: [],
+    peakTokens: 0,
+    syntheticObservations: extra.syntheticObservations ?? 0,
+    sidechainRequests: extra.sidechainRequests ?? 0,
+    absence,
+    note,
+  };
+}
+
+/**
+ * How did ONE host window's occupancy move while it ran?
+ *
+ * The third reader on this fold, and the one that makes the traversal panel's occupancy bar work
+ * (ADR-0456 D2). That bar has been in the owner-signed design since `traversal-panel-spine-render`
+ * and has never displayed a real reading on this machine, because it plotted INGESTED traces and
+ * `residentInputTokens` reaches a trace only through an explicit `storytree traversal ingest` —
+ * measured 2026-08-26, 2 of 697 local traces carry it. The host transcripts are ambient, so the same
+ * bar sourced from here answers for 25 of the 30 most recent traces instead of 2 of 697.
+ *
+ * It derives NO parse rule of its own: the readings are {@link readTranscriptWindow}'s, and the
+ * synthetic exclusion is {@link foldWindowOccupancy}'s own rule applied to a series rather than to a
+ * latest — which is why both live in this file rather than one of them in a surface.
+ */
+export function readWindowOccupancySeries(args: WindowSeriesArgs): WindowSeriesRead {
+  const root = args.root ?? resolveTranscriptDir();
+  const { windowId } = args;
+  // NOT `statSortedWindowFiles`, and the difference is the point of this reader: the other two need
+  // an mtime ORDER, because they are choosing which windows to read. This one is looking a named
+  // file up, so it needs no order and pays for no stats — a walk and one read. Measured against this
+  // machine's root on 2026-08-26: 30 lookups in 3.0 s, ~100 ms each.
+  const windowFiles = collectTranscriptFiles(root).filter((file) => !isHelperPath(file));
+
+  const baseScan: WindowSeriesScan = { root, windowFilesFound: windowFiles.length, file: null };
+
+  if (windowFiles.length === 0) {
+    return seriesAbsence(
+      windowId,
+      baseScan,
+      "no-transcript-root",
+      `no host transcript under ${root} — this reading is local-only, and a machine that has run no session here holds none`,
+    );
+  }
+
+  const match = windowFiles.find((file) => path.basename(file, ".jsonl") === windowId);
+  if (match === undefined) {
+    return seriesAbsence(
+      windowId,
+      baseScan,
+      "no-window-transcript",
+      `no host transcript named "${windowId}" among ${windowFiles.length} under ${root} — a trace keyed by a worktree slot pools every window that ran in it and names no single window`,
+    );
+  }
+
+  const scan: WindowSeriesScan = { ...baseScan, file: match };
+  const read = readTranscriptWindow(match);
+
+  // The file's own lines must AGREE that they speak for this window. A name is not a claim: the
+  // same check `helperDirFor` makes before claiming a directory's helpers, for the same reason.
+  if (read.windowId !== windowId) {
+    return seriesAbsence(
+      windowId,
+      scan,
+      "no-window-transcript",
+      read.windowId === undefined
+        ? `a transcript named "${windowId}" was found and names no window of its own — nothing here speaks for that window`
+        : `a transcript named "${windowId}" carries lines naming window "${read.windowId}" instead — a file is not claimed for a window on the strength of its name`,
+      { sidechainRequests: read.sidechainRequests },
+    );
+  }
+
+  const counted = read.observations.filter(isCounted);
+  const syntheticObservations = read.observations.length - counted.length;
+
+  if (counted.length === 0) {
+    return seriesAbsence(
+      windowId,
+      scan,
+      "no-readable-occupancy",
+      `this window's host transcript carries no usable occupancy reading (${syntheticObservations} synthetic line(s) excluded, ${read.skippedLines} unusable) — unobserved, which is not an empty window`,
+      { syntheticObservations, sidechainRequests: read.sidechainRequests },
+    );
+  }
+
+  const observations = counted.map((reading) => ({
+    at: reading.at,
+    residentTokens: reading.residentInputTokens,
+  }));
+
+  return {
+    windowId,
+    scan,
+    observations,
+    peakTokens: peakOf(counted),
+    syntheticObservations,
+    sidechainRequests: read.sidechainRequests,
+    absence: null,
+    note: `${observations.length} reading(s) from this window's own host transcript`,
   };
 }

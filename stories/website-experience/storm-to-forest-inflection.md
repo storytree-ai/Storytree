@@ -11,11 +11,11 @@ decisions: [216, 123]
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work; the transform is a felt, choreographed moment no
 # machine can honestly judge. Its machine floor lives upstream: `experience-rollout-guardrails`'s
 # judge holds the lazy-load wall (the R3F island is reachable from Act 1 ONLY behind a dynamic
-# import — a static chain reds it); that property is a live gate rung again as
-# `check:web-experience-closure` (ADR-0336) — the combined `check:web-experience` name stays retired
-# (ADR-0311 D2), but this half of the floor is machine-guarded on every merge again; the
-# extended `check:web-engine` is still a live gate rung and holds that the R3F island it mounts is
-# the byte-fresh synced artifact. NO `proof:` block — witnessed, not `--real`-built. This is also
+# import — a static chain reds it); ADR-0311 D2 retired the combined `check:web-experience` rung, but
+# `check:web-experience-closure` (ADR-0336) re-wired exactly this lazy-load-wall property as its own
+# live gate rung, so it is machine-guarded on every merge again, not answered only on a direct
+# invocation; the extended `check:web-engine` is still a live gate rung and holds that the R3F island
+# it mounts is the byte-fresh synced artifact. NO `proof:` block — witnessed, not `--real`-built. This is also
 # the FIRST mount of the R3F island on the public site (client-only, non-SSR, ADR-0123 §3): the
 # island mount is deliberately FOLDED INTO this capability rather than split out, because the
 # inflection IS the moment the island enters the experience — an island mounted anywhere else would

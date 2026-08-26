@@ -185,11 +185,11 @@ pnpm install
 git submodule update --init web
 ```
 
-**Initialise the `web` submodule.** Three gate steps — `check:web-grounding`,
-`check:web-experience-closure`, `check:web-engine` — exit the reserved code 3 (SKIP) when it is
-absent. A skipped step is **unverified, not passed**, and a box with different submodule state is
-running a different gate plan while printing a green-looking summary. If you are here to compare
-this machine against another, the plans must match.
+**Initialise the `web` submodule.** Four gate steps — `check:web-grounding`,
+`check:web-experience-closure`, `check:web-experience-markers` (ADR-0454), `check:web-engine` — exit
+the reserved code 3 (SKIP) when it is absent. A skipped step is **unverified, not passed**, and a box
+with different submodule state is running a different gate plan while printing a green-looking
+summary. If you are here to compare this machine against another, the plans must match.
 
 `legacy/Agentic` is a second submodule: a read-only vendored copy of the V1 Rust project, reference
 only. You do not need it initialised and you must never edit it.

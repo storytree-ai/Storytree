@@ -179,3 +179,13 @@ is exactly how two surfaces come to describe one transcript differently.
   answer. Doing it would add a `MIRRORS` pair registration and is its own unit.
 - **Anything about the replay panel's own occupancy bar.** That bar plots a series at a playhead and
   is untouched here; `traversal-panel-arc` still owns it and is parked.
+  - ⚠ **OVERTAKEN IN PART, 2026-08-26 — ADR-0456 D1/D2** (increment
+    `merge-the-context-meter-into-the-traversal-surface`). The owner corrected the referent of the
+    answer this capability was built on: "the widget" always meant the context traversal surface, not
+    a tab of its own. So the replay panel's bar is no longer outside this route's scope —
+    `GET /api/context-windows?session=<windowId>` now serves that bar its series, which is what turns
+    a bar that had never drawn a real reading here into a working one. Nothing else in this spec
+    changes, and the LIST mode and its tab retire next, in `retire-the-standalone-context-tab`
+    (ADR-0456 D1), which also re-homes whatever of `contextWindowsApi.ts` survives. The `?session=`
+    cases in `contextWindowsApi.integration.test.ts` deliberately carry NO contract-id prefix: they
+    test the traversal panel's half, and none of the contracts below covers it.

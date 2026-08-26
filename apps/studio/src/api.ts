@@ -25,6 +25,7 @@ import type {
   TraversalReplayPayload,
   TraversalSessionsPayload,
   ContextWindowsPayload,
+  ContextWindowSeriesPayload,
   TreePayload,
   UatVerdictResult,
   UserRole,
@@ -370,6 +371,25 @@ export const api = {
   contextWindows: (): Promise<ContextWindowsPayload> =>
     retryRead(
       () => http<ContextWindowsPayload>('/api/context-windows', { signal: AbortSignal.timeout(20_000) }),
+      { attempts: 3, backoffMs: (attempt) => attempt * 500 },
+    ),
+  // ONE window's occupancy series (ADR-0456 D2) — what the replay panel's bar plots at its playhead.
+  //
+  // A SECOND call beside `traversal()` rather than a widening of it, and deliberately: `/api/traversal`
+  // composes a replay out of the trace and derives nothing, which is what keeps the panel and
+  // `storytree traversal show` unable to disagree about what a trace contains. A transcript is not in
+  // the trace. The cost accepted is that the picture is assembled from two reads; the alternative
+  // changes what a replay MEANS for the CLI as well as for this panel.
+  //
+  // NEVER 404s for an unknown window — an absent series comes back as a stated absence with the
+  // reason, because a window with no transcript and a missing route send an operator to different
+  // places. Cheaper than the list read beside it (one file, not twelve), so a tighter budget.
+  contextWindowSeries: (windowId: string): Promise<ContextWindowSeriesPayload> =>
+    retryRead(
+      () =>
+        http<ContextWindowSeriesPayload>(`/api/context-windows?session=${q(windowId)}`, {
+          signal: AbortSignal.timeout(15_000),
+        }),
       { attempts: 3, backoffMs: (attempt) => attempt * 500 },
     ),
   // NO build() / buildStatus() / adopt() here (ADR-0404 D2/D3): dispatching a build or an adoption
