@@ -285,7 +285,9 @@ The verified anchors in the pinned tree (cite these, not the older sketches):
   (`window.__stormSkipToTutorial`, index.astro:73–75) — falling back to `#calm-view` only with no JS.
   The `data-experience-fallback` calm view (index.astro:212) stays as the no-JS / reduced-motion
   degradation (ADR-0148 §5; `check:web-experience` green at the time — ADR-0311 D2 has since retired
-  that rung, see [`experience-rollout-guardrails`](experience-rollout-guardrails.md)).
+  that combined rung, but this marker property is machine-guarded again as
+  `check:web-experience-markers` (ADR-0454), see
+  [`experience-rollout-guardrails`](experience-rollout-guardrails.md)).
 - **One shared mount, two ways in** — `web/src/scripts/act1-storm.ts`: `beginTransform` (the finale
   transform, :567) and `jumpToTutorial` (the skip-straight-in, :674) both mount through the shared
   `resolveToLand` (:526); `window.__stormSkipToTutorial` is registered at :683. Zero WebGL on the path.
@@ -497,8 +499,9 @@ COHESION — ALL IN ON THE TUTORIAL (ADR-0148 §5 — the end-to-end flow the ow
   capable-visitor affordance. The ONLY surviving non-experience path is the no-JS /
   reduced-motion accessibility fallback (a clean minimal static page — NOT the old marketing
   homepage, and NOT an escape a capable visitor is offered). *(It read "gate-required ...
-  `check:web-experience` green"; ADR-0311 D2 retired that rung, so the requirement is now carried by
-  owner decision 6 and this spec — see
+  `check:web-experience` green"; ADR-0311 D2 retired that combined rung, and for a period the
+  requirement was carried only by owner decision 6 and this spec — as of ADR-0454 the marker is
+  gate-enforced again via `check:web-experience-markers` — see
   [`experience-rollout-guardrails`](experience-rollout-guardrails.md).)* *(Note: the SHIPPED
   build wires `[data-experience-skip]` to jump into the tutorial — see "As built"; the reshape removes
   that capable-visitor skip, keeping only the a11y fallback marker the gate requires. Confirm with the

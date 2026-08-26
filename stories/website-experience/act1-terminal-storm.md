@@ -14,9 +14,10 @@ decisions: [216]
 # audio, the diegetic reading), which no machine can honestly judge. Its machine floor is owned
 # upstream by `experience-rollout-guardrails` (its judge: the skip + fallback markers present, no
 # static R3F reachability from Act 1; ARMED by `data-experience-entry` on the entry page — this cap
-# ships all three markers together) — do NOT duplicate those assertions here. That floor is
-# currently UNENFORCED: ADR-0311 D2 retired the `check:web-experience` rung, so the judge answers
-# only when invoked directly (see that cap's ⚠ note). NO
+# ships all three markers together) — do NOT duplicate those assertions here. That floor is LIVE:
+# `check:web-experience-closure` (ADR-0336) covers the static-R3F-reachability third and
+# `check:web-experience-markers` (ADR-0454) covers the skip+fallback marker third — both run on every
+# merge (the combined `check:web-experience` name stays retired, ADR-0311 D2). NO
 # `proof:` block — operator-attested capabilities are witnessed, not `--real`-built. The
 # frontend-builder is the inner-loop role; the owner witnesses on the live/preview site; appearance
 # is never self-signed.
