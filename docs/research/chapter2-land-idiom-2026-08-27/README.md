@@ -84,6 +84,14 @@ box too, which is the point of making it a choice rather than a constant.
   on a **CPU-only** box — the exact false positive that would make the fallback unreachable. Filter
   by `d.type == backend`; that is the only reading that answers the question asked. *(New.)*
 
+**The fallback was EXERCISED, not just written.** A CPU path that has never run is the fault class
+this arc keeps hitting — a green check that verified nothing — and it is the path the Windows box
+depends on, where it cannot be tested from here. Both failure shapes were forced on this box and
+both land on CPU with the right reason: `--device hip` (a backend that enumerates an **empty list**)
+and `--device metal` (a backend that **raises `TypeError`** on Linux) each print
+`render device : CPU -- CPU (no GPU backend enumerates a device here)`, in `build_island.py` and
+`build_land.py` alike.
+
 ### The measured numbers, and what they are actually of
 
 This box: **Linux Mint, AMD Ryzen 5 5600X (12 threads), NVIDIA RTX 2060 6 GB, driver 595.84,
