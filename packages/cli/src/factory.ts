@@ -16,6 +16,20 @@ import {
   type ReferenceRate,
 } from "@storytree/drive";
 
+import {
+  ALTITUDE_IS_A_NULL,
+  BLINDNESS,
+  DETECTABLE_FALL,
+  FROZEN_ALTITUDE_P_EDITORIAL,
+  FROZEN_ALTITUDE_P_LEXICAL,
+  FROZEN_WINDOWS_READING_A_DECISION,
+  OFFER_TO_FOLLOW_DEFERRAL,
+  REFERENCE_DECLARED_TO,
+} from "./decision-discovery.js";
+import { loadDecisionDiscoveryReading } from "./decision-discovery-gather.js";
+
+import type { DecisionDiscoveryFigure } from "./decision-discovery.js";
+import type { DecisionDiscoveryOutcome, DecisionDiscoveryWindow } from "./decision-discovery-gather.js";
 import type { Envelope } from "./envelope.js";
 
 /**
@@ -44,7 +58,7 @@ import type { Envelope } from "./envelope.js";
  * anything.
  */
 
-const HEALTH_SUBS = ["recurrence", "bottlenecks", "churn"] as const;
+const HEALTH_SUBS = ["recurrence", "bottlenecks", "churn", "decisions"] as const;
 type HealthSub = (typeof HEALTH_SUBS)[number];
 
 export interface FactoryHealthOpts {
@@ -64,6 +78,16 @@ export interface FactoryHealthOpts {
   absorbed?: ((commit: CommitRec) => string[]) | undefined;
   /** ISO now, for the default churn window. */
   now: string;
+  /**
+   * Injected for tests — the real reader is `loadDecisionDiscoveryReading`.
+   *
+   * The same seam `commits`/`absorbed` open for the churn walk, and for the same reason: question 4
+   * sweeps this machine's host transcripts, so a render test that could not stub it would be
+   * asserting against whatever history the box running it happens to hold.
+   */
+  decisionDiscovery?:
+    | ((window: DecisionDiscoveryWindow) => Promise<DecisionDiscoveryOutcome>)
+    | undefined;
 }
 
 function pct(share: number): string {
@@ -274,6 +298,95 @@ function defaultChurnWindow(now: string) {
   return { from: from.toISOString(), to: to.toISOString() };
 }
 
+/**
+ * QUESTION 4 — the DECISION DISCOVERY section (ADR-0444).
+ *
+ * Every figure prints its STATUS FIRST and its number second, and the refusing states print no
+ * number at all. That ordering is the render half of the gate ordering: a number printed beside a
+ * reference WILL be compared to it, whatever caveat follows on the next line.
+ */
+function renderDecisionDiscovery(outcome: DecisionDiscoveryOutcome): string[] {
+  const lines: string[] = [
+    "## 4. CAN A SESSION STILL FIND THE DECISIONS IT NEEDS?  (decision discovery)",
+    "",
+  ];
+
+  const reading = outcome.reading;
+  if (reading === null) {
+    lines.push(
+      `  REFUSED: ${outcome.unavailable ?? "no reading could be taken"}`,
+      ...wrap(
+        "No figure is reported. A decision-discovery reading that could not run must not print a " +
+          "table of zeros — that is the failure `probe:decision-reads` was repaired for.",
+      ),
+      "",
+    );
+    return lines;
+  }
+
+  lines.push(
+    `  window:    ${reading.declaredFrom ?? REFERENCE_DECLARED_TO} -> ${reading.declaredTo ?? "(now)"}`,
+    `  observed:  ${reading.observedFrom ?? "(nothing)"} -> ${reading.observedTo ?? "(nothing)"}`,
+    `  reference: FROZEN 2026-08-23 — ${String(FROZEN_WINDOWS_READING_A_DECISION)} context window(s) that read a decision`,
+    `  sample:    ${String(reading.windowsReadingADecision)} context window(s) that read a decision, ` +
+      `${String(reading.readsResolved)} read(s), ${String(reading.decisionsInLog)} decision(s) in the log`,
+    `             ${String(outcome.scannedFiles)} transcript file(s) swept — this reading is a property of ONE machine's history`,
+    "",
+  );
+
+  if (reading.refusals.length > 0) {
+    lines.push("  REFUSED — this reading measured nothing:");
+    for (const reason of reading.refusals) lines.push(`    - ${reason}`);
+    lines.push("");
+  }
+
+  for (const figure of reading.figures) lines.push(...renderFigure(figure));
+
+  lines.push(
+    `  altitude          [null]  p = ${FROZEN_ALTITUDE_P_EDITORIAL.toFixed(4)} (editorial) / ${FROZEN_ALTITUDE_P_LEXICAL.toFixed(4)} (lexical)`,
+    ...wrap(ALTITUDE_IS_A_NULL, 96, "                    "),
+    "",
+    "  offer-to-follow   [deferred]",
+    ...wrap(OFFER_TO_FOLLOW_DEFERRAL, 96, "                    "),
+    "",
+    ...wrap(BLINDNESS),
+    "",
+  );
+  return lines;
+}
+
+/** One figure: status, then a number only where the figure earned one. */
+function renderFigure(figure: DecisionDiscoveryFigure): string[] {
+  const name = figure.label.padEnd(17);
+  const reference = `ref ${pct(figure.referenceRate)}`;
+  const indent = "                    ";
+
+  if (figure.status === "not-comparable") {
+    return [`  ${name} [not comparable]  ${reference}`, ...wrap(figure.condition ?? "", 96, indent), ""];
+  }
+  if (figure.status === "underpowered") {
+    return [`  ${name} [UNDERPOWERED]  ${reference}`, ...wrap(figure.condition ?? "", 96, indent), ""];
+  }
+
+  const mark = figure.status === "tripwire" ? "[TRIPWIRE]" : figure.status === "improved" ? "[improved]" : "[holds]";
+  const interval = figure.comparison === null ? "" : ` [${pct(figure.comparison.after.low)}-${pct(figure.comparison.after.high)}]`;
+  const movement = figure.movement === null ? "" : `  ${figure.movement >= 0 ? "+" : ""}${figure.movement.toFixed(1)} points`;
+  const lines = [`  ${name} ${mark}  ${pct(figure.currentRate ?? 0)}${interval}  ${reference}${movement}`];
+  if (figure.status === "tripwire") {
+    lines.push(
+      ...wrap(
+        "below the frozen reference's 95% interval, in the worse direction. This instrument reports " +
+          "that a figure MOVED; it never says what moved it — investigating a tripped wire is a " +
+          "session's job (ADR-0444 D5).",
+        96,
+        indent,
+      ),
+    );
+  }
+  lines.push("");
+  return lines;
+}
+
 export async function factoryHealth(store: Store, opts: FactoryHealthOpts): Promise<Envelope> {
   const question = opts.question;
   if (question !== undefined && !HEALTH_SUBS.includes(question as HealthSub)) {
@@ -287,6 +400,7 @@ export async function factoryHealth(store: Store, opts: FactoryHealthOpts): Prom
   const wantRecurrence = question === undefined || question === "recurrence";
   const wantBottlenecks = question === undefined || question === "bottlenecks";
   const wantChurn = question === undefined || question === "churn";
+  const wantDecisions = question === undefined || question === "decisions";
 
   const lines: string[] = [
     "FACTORY-FLOOR HEALTH — report-only (ADR-0316 D1: not a gate rung, blocks no merge).",
@@ -351,6 +465,12 @@ export async function factoryHealth(store: Store, opts: FactoryHealthOpts): Prom
     }
   }
 
+  if (wantDecisions) {
+    const window: DecisionDiscoveryWindow = { from: opts.from, to: opts.to };
+    const read = opts.decisionDiscovery ?? ((w: DecisionDiscoveryWindow) => loadDecisionDiscoveryReading(store, w));
+    lines.push(...renderDecisionDiscovery(await read(window)));
+  }
+
   if (recurrence !== undefined && bottlenecks !== undefined) {
     const reading = floorHealthReading({ recurrence, bottlenecks });
     lines.push(
@@ -376,6 +496,7 @@ export async function factoryHealth(store: Store, opts: FactoryHealthOpts): Prom
       "storytree factory health recurrence   (question 1 alone)",
       "storytree factory health bottlenecks  (question 2 alone)",
       "storytree factory health churn --from <date> --to <date>   (question 3 over a chosen window)",
+      "storytree factory health decisions   (question 4 alone — can a session still FIND the decisions it needs?)",
       "storytree arc show factory-floor-health-arc --pg   (what this instrument is for)",
     ],
   };
@@ -388,7 +509,7 @@ export function factoryHelp(): Envelope {
     body: [
       "storytree factory — is the factory getting better, and can a command say so? (ADR-0316)",
       "",
-      "  storytree factory health [recurrence|bottlenecks|churn]",
+      "  storytree factory health [recurrence|bottlenecks|churn|decisions]",
       "        [--from <date>] [--to <date>] [--landings-per-day <n>] [--ref <git-ref>]",
       "",
       "        1. recurrence   reinforcements SINCE ROUTE, split by route — ADR-0168's own success",
@@ -402,6 +523,13 @@ export function factoryHelp(): Envelope {
       "                        composition, walked from git. ALWAYS reported beside the window's",
       "                        dispatch rate, and the rate-sensitive ratio is REFUSED where the window",
       "                        is not comparable to its reference — a quiet week must not look like a win.",
+      "        4. decisions    can a session still FIND the decisions it needs? Chain depth held against",
+      "                        the reference frozen 2026-08-23, with a [TRIPWIRE] on a material adverse",
+      "                        move (ADR-0444). Reach is REPORTED and never alarmed — it is cumulative",
+      "                        coverage, so it falls as the window shortens with no change in discovery;",
+      "                        altitude is a stated NULL; offer-to-follow is deferred while the traversal",
+      "                        trace store it joins against is still moving. Sweeps this machine's host",
+      `                        transcripts (~14s), so it is a property of ONE laptop's history.`,
       "",
       "        --from/--to     the window (ISO date or datetime). Questions 1 and 2 bound reinforcements",
       "                        by date; question 3 defaults to the last 7 days.",
