@@ -92,7 +92,7 @@ There is **no camera, no light and no ground material** in the file. One EMPTY, 
 
 ## 2. What was built (`build_island.py`)
 
-Run: `blender.exe -b "<pack>/Pine_Forest_Kit.blend" -P build_island.py -- --samples 128 --widths 487,1948`
+Run: `blender -b "<pack>/Pine_Forest_Kit.blend" -P build_island.py -- --samples 128 --widths 487,1948 [--device auto|gpu|cpu]`
 
 A 22-cell hex island — the same cellular land the arc's own islands use — dressed by seeded
 scatter from the kit: 13 tree stands of 4–8, plus boulders, ferns, grasses, flowers and logs.
@@ -180,6 +180,13 @@ target with two sides to it.
    rather than trading it for hand-authored scenes.
 
 6. **Hardware, measured — and this is the first genuinely GPU-bound work the project has had.**
+   ⚠ **THIS ROW IS ABOUT THE BOX IT WAS MEASURED ON AND IS NOT A PROPERTY OF THE SCRIPT.** The
+   Linux/RTX 2060 box enumerates OptiX and CUDA, so `build_island.py`'s device is now **selected at
+   runtime** (`--device auto|gpu|cpu`) rather than hardcoded — the old `scene.cycles.device = "CPU"
+   # no CUDA/OptiX/HIP on this box, measured` was corrected in place on 2026-08-27 (ADR-0139).
+   The GPU/CPU numbers on that box, and the finding that the speedup is **5.8× machine and only
+   2.2× GPU**, are in `docs/research/chapter2-land-idiom-2026-08-27/` §1. What follows is unchanged
+   and remains true of THIS box:
    Cycles enumerates **no** GPU backend on this box: CUDA, OptiX, HIP, oneAPI and Metal are all
    absent, leaving `Snapdragon(R) X 12-core X1E80100` as the only device. Blender 5.2 LTS is a
    native ARM64 build, so the 12 cores run at full speed, but Cycles is CPU-only:

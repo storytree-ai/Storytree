@@ -2,7 +2,7 @@
 at OUR camera and OUR light, so the picture is a comparison rather than a mood board.
 
 Run:
-  blender.exe -b "<pack>/Pine_Forest_Kit.blend" -P build_island.py -- --out <dir>
+  blender -b "<pack>/Pine_Forest_Kit.blend" -P build_island.py -- --out <dir> [--device auto|gpu|cpu]
 
 WHAT IS COPIED FROM US, AND WHY EACH ONE:
   - camera elevation 50 deg, ORTHOGRAPHIC. The owner signed that angle on 2026-08-16
@@ -41,6 +41,7 @@ SAMPLES = int(arg("--samples", "128"))
 SEED = int(arg("--seed", "7"))
 SCATTER = arg("--scatter", "forest")                    # forest | sparse | rocky
 WIDTHS = [int(w) for w in arg("--widths", "487,1948").split(",")]
+DEVICE = arg("--device", "auto").upper()                # auto | gpu | cpu | optix | cuda | ...
 os.makedirs(OUT_DIR, exist_ok=True)
 
 # ---------------------------------------------------------------- our constants
@@ -345,6 +346,55 @@ def add_light():
         bg.inputs[1].default_value = 0.40
 
 
+
+# ---------------------------------------------------------------- render device
+
+# CYCLES DEVICE SELECTION. This was hardcoded to "CPU" with the comment "no CUDA/OptiX/HIP on
+# this box, measured". That was true of the box the trial ran on (Snapdragon X / Adreno) and is
+# FALSE on the Linux box with an RTX 2060, where OptiX and CUDA both enumerate. So the choice is
+# made at runtime instead of being written down: use a GPU backend when one actually offers a
+# non-CPU device, and fall back to CPU when none does.
+#
+# TWO TRAPS, both measured:
+#   - `get_devices_for_type(t)` raises TypeError for a backend this build does not know (METAL on
+#     Linux), rather than returning an empty list. Wrap PER TYPE or it dies on the first one.
+#   - it also returns the CPU alongside any GPU, so `if devices:` reports a GPU on a CPU-only
+#     box. Filter by `d.type == t` -- that is the only reading that answers the question asked.
+
+GPU_BACKENDS = ("OPTIX", "CUDA", "HIP", "ONEAPI", "METAL")
+
+
+def gpus_of(cprefs, backend):
+    try:
+        devs = cprefs.get_devices_for_type(backend)
+    except Exception:                              # TypeError on a backend this build lacks
+        return []
+    return [d for d in devs if getattr(d, "type", None) == backend]
+
+
+def select_device(scene, want="AUTO"):
+    """Return (device_string, description). `want` is AUTO | GPU | CPU | <backend name>."""
+    addon = bpy.context.preferences.addons.get("cycles")
+    if want == "CPU" or addon is None:
+        scene.cycles.device = "CPU"
+        return "CPU", "CPU (requested)" if want == "CPU" else "CPU (no cycles preferences)"
+
+    cprefs = addon.preferences
+    order = GPU_BACKENDS if want in ("AUTO", "GPU") else (want,)
+    for backend in order:
+        gpus = gpus_of(cprefs, backend)
+        if not gpus:
+            continue
+        cprefs.compute_device_type = backend
+        for d in cprefs.devices:                   # GPU only: mixing in the CPU is not free
+            d.use = (getattr(d, "type", None) == backend)
+        scene.cycles.device = "GPU"
+        return "GPU", "%s: %s" % (backend, ", ".join(d.name for d in gpus))
+
+    scene.cycles.device = "CPU"
+    return "CPU", "CPU (no GPU backend enumerates a device here)"
+
+
 # ---------------------------------------------------------------- main
 
 def main():
@@ -370,7 +420,7 @@ def main():
     view_w, view_h = frame_scene(cam)
 
     scene.render.engine = "CYCLES"
-    scene.cycles.device = "CPU"                   # no CUDA/OptiX/HIP on this box, measured
+    dev, dev_desc = select_device(scene, DEVICE)
     scene.cycles.samples = SAMPLES
     scene.cycles.use_denoising = True
     scene.render.film_transparent = True          # our islands composite on a page, not a sky
@@ -382,6 +432,7 @@ def main():
     print("  trees         : %d  (%.1f%% of view width)" % (n_trees, 2.3 / view_w * 100))
     print("  objects drawn : %d" % sum(1 for o in scene.objects
                                        if o.type == "MESH" and not o.hide_render))
+    print("  render device : %s -- %s" % (dev, dev_desc))
 
     for px in WIDTHS:
         scene.render.resolution_x = px
