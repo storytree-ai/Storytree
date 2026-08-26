@@ -43,6 +43,7 @@
     "standson:bootstrap": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/standson-bootstrap.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-grounding.ts",
     "check:web-experience-closure": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-experience-closure.ts",
+    "check:web-experience-markers": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-experience-markers.ts",
     "sync:web-engine": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/web-engine.ts",
     "check:web-engine": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/web-engine.ts --check",
     "ci:affected": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/ci-affected-main.ts",

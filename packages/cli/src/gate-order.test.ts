@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0223, ADR-0317, ADR-0403, ADR-0445 and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445 and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -175,6 +175,9 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       "pnpm check:mirror-conformance",
       "pnpm check:web-engine",
       "pnpm check:web-experience-closure",
+      // ADR-0454, added 2026-08-26: the marker-presence third of the retired check:web-experience,
+      // narrowing ADR-0336 D2 on the corrected premise that it needs no network fetch either.
+      "pnpm check:web-experience-markers",
       "pnpm -r --no-bail typecheck",
       "pnpm -r --no-bail test",
       // Both of these read the DECISION LOG, which is shared live state since ADR-0403 dec 1, so both

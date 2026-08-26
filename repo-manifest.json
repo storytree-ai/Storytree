@@ -126,6 +126,7 @@
       "packages/cli/src/build.ts": "build-drive-cli",
       "packages/cli/src/web-engine*.ts": "web-experience-sync",
       "packages/cli/src/web-experience-check.ts": "experience-rollout-guardrails",
+      "packages/cli/src/check-web-experience-*.ts": "experience-rollout-guardrails",
       "packages/cli/src/check-web-grounding.ts": "website",
       "packages/cli/scripts": "cli-resident-corpus-tools",
       "$section_cli_residual": "The `packages/cli/src` residual working area — gate rungs, drains, generated-view builders, doctors, and CLI-resident verb surfaces (retire) whose organism was, or still is, unsettled. NOT a grain claim: entries move from story grain to capability grain IN PLACE as `capability-layer-coverage-arc` resolves them, and stay in this alphabetical section rather than migrating out. The one exception to `in place` is a file that physically LEAVES the package: `arc.ts`, `question.ts` and `increment.ts` were listed here until 2026-08-14, when ADR-0369 extracted them into packages/arc, so their entries moved to $section_arc with the code — the map is held to the disk, and a declaration matching no file is reported STALE by `storytree ownership`, not silently tolerated. Read the live split from that command, never from this marker; see the block $comment.",
