@@ -5,7 +5,7 @@ story: studio
 arc: linked-session-context-arc
 title: "The map says how full a session's context window is"
 outcome: "An operator can see how full each recent session's context window is, against the two marks that decide whether a session takes on more work."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: []
 decisions: [452, 413, 411, 248]
@@ -37,6 +37,46 @@ proof:
 ---
 
 # The map says how full a session's context window is
+
+> ## ⚠ RETIRED, 2026-08-26 — ADR-0456 D1, increment `retire-the-standalone-context-tab`
+>
+> **The outcome below is still wanted; the SURFACE this unit built for it was the wrong one, and it
+> is gone.** This capability was a standalone "Context" tab, a third tab in the studio's bottom
+> panel beside Terminal and Traversal. It was built on ADR-0452, which recorded the owner's answer
+> — *"we should land the widget showing the orchestration session only for now"* — correctly, and
+> pointed it at the wrong subject. He corrected the referent the same day: *"when i said that on the
+> 26 i thought i was talking about the context traversal surface."*
+>
+> **WHERE THE READING LIVES NOW:** inside the traversal replay panel's own occupancy bar, which has
+> been in the owner-signed design since `traversal-panel-spine-render` and had never displayed a
+> real reading on this machine — it plotted INGESTED traces, and occupancy reaches a trace only
+> through an explicit `storytree traversal ingest` (2 of 697 local traces). Repointed at the ambient
+> host transcripts by `merge-the-context-meter-into-the-traversal-surface`, that bar answers for 25
+> of the 30 most recent traces, and it carries ADR-0411 D3's second mark as a third colour.
+>
+> **WHAT SURVIVED, and must not be swept away as widget residue** (ADR-0456 D3 — MACHINERY, not
+> surface): the fold `packages/context-traversal-transcript/src/context-windows.ts`; the
+> `@storytree/context-traversal-transcript/marks` subpath; the `storytree context` CLI verb;
+> `readTranscriptWindow`'s `sidechainObservations`; the `<synthetic>` zero-token exclusion; and the
+> select-by-mtime / present-by-last-reading rule. The route
+> `apps/studio/server/contextWindowsApi.ts` survived too — its `?session=<windowId>` mode is what
+> the panel dials — and left this capability's ownership with it, the same absence its sibling
+> `traversalApi.ts` carries, because the traversal panel has no capability of its own.
+>
+> **WHAT WENT:** `ContextWindowsTab.tsx`, `contextWindowMeter.ts`, both their tests, the route's
+> machine-wide LIST mode and its wire types, the `context` tab in `BottomDock`, and the `.ctx-*`
+> CSS. The per-tab meta keying (`metaByTab`) in `BottomDock` STAYED — it replaced a clear-on-switch
+> effect that was wrong for any panel with more than two tabs, and is correct on its own terms.
+>
+> **DO NOT re-open "should the meter have its own tab"** — ADR-0456 D1 means exactly this. And
+> **`linked-session-context-arc-inc-25`** (whether helper measurement earns a stamp) is UNSETTLED
+> and stays parked: the owner's review answered PLACEMENT only (ADR-0456 D5). The helper block this
+> tab carried was an explicitly UNSIGNED proposal and has had no owner verdict; it has no home in
+> the merged surface, and that is a deferral rather than a decision against it.
+>
+> The specification below is kept as HISTORY. Its findings are not history: the `<synthetic>`
+> tail, the never-fold-a-helper rule, the mtime-versus-last-reading split and the two marks are all
+> live, and all of them are asserted today over the fold and over the surviving route.
 
 **Outcome —** An operator can see how full each recent session's context window is, against the two
 marks that decide whether a session takes on more work.
@@ -179,13 +219,13 @@ is exactly how two surfaces come to describe one transcript differently.
   answer. Doing it would add a `MIRRORS` pair registration and is its own unit.
 - **Anything about the replay panel's own occupancy bar.** That bar plots a series at a playhead and
   is untouched here; `traversal-panel-arc` still owns it and is parked.
-  - ⚠ **OVERTAKEN IN PART, 2026-08-26 — ADR-0456 D1/D2** (increment
-    `merge-the-context-meter-into-the-traversal-surface`). The owner corrected the referent of the
-    answer this capability was built on: "the widget" always meant the context traversal surface, not
-    a tab of its own. So the replay panel's bar is no longer outside this route's scope —
-    `GET /api/context-windows?session=<windowId>` now serves that bar its series, which is what turns
-    a bar that had never drawn a real reading here into a working one. Nothing else in this spec
-    changes, and the LIST mode and its tab retire next, in `retire-the-standalone-context-tab`
-    (ADR-0456 D1), which also re-homes whatever of `contextWindowsApi.ts` survives. The `?session=`
-    cases in `contextWindowsApi.integration.test.ts` deliberately carry NO contract-id prefix: they
-    test the traversal panel's half, and none of the contracts below covers it.
+  - ⚠ **OVERTAKEN, then RESOLVED — ADR-0456 D1/D2, both increments landed 2026-08-26.** The owner
+    corrected the referent of the answer this capability was built on: "the widget" always meant the
+    context traversal surface, not a tab of its own. `merge-the-context-meter-into-the-traversal-surface`
+    gave the replay panel's bar its series at `GET /api/context-windows?session=<windowId>`, which is
+    what turned a bar that had never drawn a real reading here into a working one; then
+    `retire-the-standalone-context-tab` retired this capability, its tab, and the route's LIST mode.
+    So the exclusion above did not merely lapse — it inverted, and the panel's bar is the only
+    surface left. The surviving `?session=` cases in `contextWindowsApi.integration.test.ts` carry NO
+    contract-id prefix: they test the traversal panel's half, and none of the contracts below covers
+    it.

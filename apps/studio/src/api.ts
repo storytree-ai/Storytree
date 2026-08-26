@@ -24,7 +24,6 @@ import type {
   TopicKind,
   TraversalReplayPayload,
   TraversalSessionsPayload,
-  ContextWindowsPayload,
   ContextWindowSeriesPayload,
   TreePayload,
   UatVerdictResult,
@@ -355,25 +354,15 @@ export const api = {
   // offering only sessions the index named, and the mount still reports honestly if it happens.
   traversal: (sessionId: string): Promise<TraversalReplayPayload> =>
     http(`/api/traversal?session=${q(sessionId)}`, { signal: AbortSignal.timeout(30_000) }),
-  // The context-window meter (ADR-0452 D1/D2, server/contextWindowsApi.ts) — this machine's recent
-  // session windows and how full each one is, read straight from the host transcripts.
-  //
-  // RETRIES like the index read beside it and for the same reason: it is a pure GET that writes
-  // nothing, and losing one race must cost a slow render rather than a permanently blank widget.
-  // The budget is generous because the reading is bounded server-side (twelve windows) and primed at
-  // dev-server start — measured cold on this machine, the whole reading is ~1.2 s once the lazy
-  // import is paid, and the import is what priming moves off the first click.
-  //
-  // NOT POLLED. A transcript grows while its window runs, so unlike a finished trace this one CAN
-  // move under the widget — but a cadence would put an always-on read on every page that mounts the
-  // panel, for a number that is a glance rather than a monitor. The widget re-reads when the
-  // operator opens it, which is when they are asking.
-  contextWindows: (): Promise<ContextWindowsPayload> =>
-    retryRead(
-      () => http<ContextWindowsPayload>('/api/context-windows', { signal: AbortSignal.timeout(20_000) }),
-      { attempts: 3, backoffMs: (attempt) => attempt * 500 },
-    ),
   // ONE window's occupancy series (ADR-0456 D2) — what the replay panel's bar plots at its playhead.
+  //
+  // The machine-wide `contextWindows()` read that used to sit here retired with the standalone
+  // Context tab (ADR-0456 D1). Nothing in the SPA asks that question now.
+  //
+  // NOT POLLED. A transcript grows while its window runs, so unlike a finished trace this reading
+  // CAN move under the panel — but a cadence would put an always-on read on every page that mounts
+  // it, for a bar that is read at a playhead rather than watched. It re-reads when the operator
+  // picks a trace, which is when they are asking.
   //
   // A SECOND call beside `traversal()` rather than a widening of it, and deliberately: `/api/traversal`
   // composes a replay out of the trace and derives nothing, which is what keeps the panel and
