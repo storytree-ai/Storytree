@@ -29,6 +29,10 @@ import type { Attestation, StoredAttestation, Verdict } from '@storytree/proof-p
 // `@storytree/storage-protocol`'s main entry is pure/browser-safe, but a TYPE import cannot emit a
 // runtime require either way — which is what keeps `vite build`'s plain-ESM config load happy.
 import type { Store } from '@storytree/storage-protocol';
+// TYPE-only (ADR-0436 / studio-vite-config-load-trap): a VALUE import of `@storytree/library` at the
+// top level of a module vite loads during config breaks `vite build`. The runtime store class is
+// reached through `loadStoreModule()` below, like every other pg store here.
+import type { WorkHierarchySnapshot } from '@storytree/library';
 import {
   type AssetCategory,
   type BuildActivity,
@@ -158,6 +162,30 @@ export interface LibraryBackend {
    * so the handler refuses with "needs the live store", mirroring the CLI's `--pg`-only refusal.
    */
   signUatVerdict?(verdict: Verdict, actor: string): Promise<Verdict>;
+
+  /**
+   * The stored WORK-HIERARCHY projection (ADR-0445 D1) — the stories, capabilities, criteria and
+   * gates the map draws, read from the same clock as the verdicts it joins them against.
+   *
+   * This is the QUESTION half of the map's join. The PROOF half ({@link latestVerdicts} /
+   * {@link verdictEvents}) has always been live; the question was read off the app's own disk, frozen
+   * at the commit it was built from, so an old app matched no verdict for any criterion re-worded
+   * since and correctly painted yellow (ADR-0253 binds a verdict by `criterionId` + `revisionId`).
+   *
+   * OPTIONAL. **`null` means ONE thing: the store holds no projection.** A read that FAILED — pool,
+   * timeout, permissions — THROWS, and that is a deliberate departure from {@link latestVerdicts}'s
+   * never-throw idiom rather than an oversight.
+   *
+   * The neighbours can null on failure because they are enrichment layers: a lost verdict costs a
+   * glyph. This one is the map's spine, and the two outcomes need OPPOSITE remedies — "no projection"
+   * means run the loader, "the read failed" means look at the store. Collapsing them into `null` made
+   * the studio announce *"the live store holds no work-hierarchy projection yet"* while the store held
+   * a perfectly good 46-story snapshot (measured 2026-08-26, before this was split). That is the same
+   * false-report shape ADR-0302 names, one layer down.
+   *
+   * The CALLER catches (`selectHierarchy`) and reports the real reason, so the tree still renders.
+   */
+  workHierarchy?(): Promise<WorkHierarchySnapshot | null>;
 
   /**
    * In-flight builds (ADR-0048): the latest `events.work_event` `building` row per
@@ -736,6 +764,21 @@ function toGuidanceAsset(rendered: {
   return asset;
 }
 
+/**
+ * The work-hierarchy read's time budget — deliberately WIDER than the 4 s its advisory neighbours use.
+ *
+ * MEASURED on this store (2026-08-26): the connector handshake that builds the pool takes ~5.9 s cold
+ * (the code comment on `primeStores` puts the worst case near 11 s), while `readSnapshot()` itself is
+ * ~760 ms cold and ~80 ms warm. So a 4 s budget does not bound the QUERY at all — it bounds the
+ * one-time POOL BUILD, and the first `/api/tree` after a cold boot loses the live hierarchy every
+ * time.
+ *
+ * The neighbours can afford 4 s because they are enrichment layers: losing one costs a glyph. Losing
+ * this one costs the whole point of ADR-0445 D1 — the map falls back to the app's own commit, which
+ * is the fault the decision exists to close. A slightly longer wait beats a confidently wrong map.
+ */
+const WORK_HIERARCHY_BUDGET_MS = 12_000;
+
 export class PgBackend implements LibraryBackend {
   #store: StoreModule | null = null;
   #handle: PoolHandle | null = null;
@@ -1012,6 +1055,38 @@ export class PgBackend implements LibraryBackend {
    * own identity, never a session's). Same advisory contract / 4s race as
    * latestVerdicts: null on any failure, never a throw.
    *
+   * The stored work-hierarchy projection (ADR-0445 D1) — the QUESTION half of the map's join, read
+   * from the same store as the PROOF half so the two can no longer sit at different commits.
+   *
+   * Advisory like its neighbours: NEVER throws, `null` on a down store or a timeout. The 4 s budget
+   * is the same one `inFlightBuilds` and `latestVerdicts` use, and it matters more here — this read
+   * is not an enrichment layer the map can simply render without, so a hang would take the whole
+   * tree with it. The CALLER decides what a `null` means for what it draws; this only reports it.
+   */
+  async workHierarchy(): Promise<WorkHierarchySnapshot | null> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      const timeout = new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("work-hierarchy read did not complete within 12s")),
+          WORK_HIERARCHY_BUDGET_MS,
+        );
+      });
+      return await Promise.race([
+        (async () => {
+          const { store } = await this.#ready();
+          const handle = this.#handle;
+          if (!handle) throw new Error("the store pool was not built");
+          return new store.PgWorkHierarchyStore(handle.pool).readSnapshot();
+        })(),
+        timeout,
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  /**
    * "No verdict for (unit_id, run_id)" is the authoritative terminal: a signed
    * pass for this run clears the wisp (it hands off to the ADR-0045 bloom). A
    * FAILED run signs no verdict, so the TTL is what clears it (ADR-0048 §2).

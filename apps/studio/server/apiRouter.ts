@@ -24,7 +24,12 @@ import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import type { ReliabilityGate, ResolvedWitnessKind, UatTestCriterion } from '@storytree/library';
+import type {
+  FoldedWorkHierarchy,
+  ReliabilityGate,
+  ResolvedWitnessKind,
+  UatTestCriterion,
+} from '@storytree/library';
 // A RUNTIME import, so it must survive the vite config-load trap: vite.config.ts loads devApi.ts →
 // this file through Node's plain ESM loader, where the root barrel's `./schema.js`-style specifiers
 // do not resolve (only the .ts files exist). Hence the dedicated `/repo-root` LEAF subpath — that
@@ -58,6 +63,7 @@ import {
 } from './libraryBackend';
 import { HttpError, sendJson, sendJsonValidated } from './httpUtil';
 import { memoizeCorpusWalk } from './corpusMemo';
+import { selectHierarchy, announceHierarchyOrigin } from './hierarchySource';
 import { handleDb } from './dbControl';
 import { handleDbWake, type DbWaker } from './dbWake';
 import type { CodeStamp } from './codeStamp';
@@ -1287,6 +1293,82 @@ export async function readTree(
 }
 
 /**
+ * The four-part tree read the `/api/tree` handler consumes, named once because TWO functions now
+ * produce it — {@link readTree} off disk and {@link foldedToTreeWalk} off the live projection
+ * (ADR-0445 D1). An anonymous shape repeated at both would let the two drift apart silently.
+ */
+interface TreeWalk {
+  payload: TreePayload;
+  uatTestCriteriaByStory: Map<
+    string,
+    ({ criterionId: string; revisionId: string } | { id: string })[]
+  >;
+  uatCriteriaByStory: Map<string, { criterionId: string; revisionId: string }[]>;
+  coverageByStory: Map<string, { id: string; covers?: readonly string[] }[]>;
+}
+
+/**
+ * Adapt the live fold (ADR-0445 D1) into exactly what {@link readTree} returns.
+ *
+ * The two differ in one way that matters at this boundary and in no other: the fold's nodes are
+ * `readonly`, and the `/api/tree` handler MUTATES its payload in place as it enriches each story with
+ * verdicts, builds and claims. So the arrays and nodes are rebuilt as mutable here rather than cast —
+ * a cast would compile and then throw at the first enrichment write in a frozen-object runtime, and
+ * discarding type evidence that wide is what the house standard refuses.
+ *
+ * The FIELDS are a straight copy: agreement between the two readers is proven by
+ * `hierarchyLiveRead.test.ts`, which drives one tree through both and compares field for field. If a
+ * field is ever added to `TreeStory`, that test is what fails — not this function, which would
+ * quietly carry a default.
+ */
+function foldedToTreeWalk(folded: FoldedWorkHierarchy): TreeWalk {
+  const stories: TreeStory[] = folded.stories.map((s) => {
+    const story: TreeStory = {
+      id: s.id,
+      title: s.title,
+      outcome: s.outcome,
+      // The projection validates through the library's `Status` enum, so this narrows rather than
+      // sanitises — but it is the SAME guard the disk path applies, and keeping the two identical is
+      // what stops one reader accepting a status the other would drop.
+      status: s.status !== null && isWorkStatus(s.status) ? s.status : null,
+      proofMode: s.proofMode,
+      uatWitness: s.uatWitness,
+      dependsOn: [...s.dependsOn],
+      consumedBy: [...s.consumedBy],
+      decisions: [...s.decisions],
+      building: s.building,
+      capabilities: s.capabilities.map((c) => {
+        const cap: TreeCapability = {
+          id: c.id,
+          title: c.title,
+          outcome: c.outcome,
+          status: c.status !== null && isWorkStatus(c.status) ? c.status : null,
+          proofMode: c.proofMode,
+          dependsOn: [...c.dependsOn],
+          testCount: c.testCount,
+        };
+        if (c.error !== undefined) cap.error = c.error;
+        return cap;
+      }),
+    };
+    if (s.error !== undefined) story.error = s.error;
+    return story;
+  });
+  return {
+    payload: { stories },
+    uatTestCriteriaByStory: new Map(
+      [...folded.uatTestCriteriaByStory].map(([id, obligations]) => [id, [...obligations]]),
+    ),
+    uatCriteriaByStory: new Map(
+      [...folded.uatCriteriaByStory].map(([id, criteria]) => [id, [...criteria]]),
+    ),
+    coverageByStory: new Map(
+      [...folded.coverageByStory].map(([id, gates]) => [id, [...gates]]),
+    ),
+  };
+}
+
+/**
  * Apply the story-green crown roll-up (ADR-0083 Fork A, refining ADR-0082, narrowed by ADR-0443) to
  * the tree payload. A story's crown is set from `rollupStoryGreen` — both necessary clauses over the
  * non-vacuity floor: (a) every UNDERTAKEN capability is proven `healthy`, (b) every signable
@@ -2042,10 +2124,21 @@ export async function handleApiRequest(
       // signed a second ago, so a file fingerprint can never be its freshness authority. The clone
       // `memoizeCorpusWalk` hands back is mutated in place below; that mutation can never reach what
       // is stored, so a later unchanged-corpus request is never served yesterday's live proof state.
-      const { value: treeWalk } = await memoizeCorpusWalk(ctx.paths.storiesDir, () =>
-        readTree(ctx.paths.storiesDir),
-      );
-      const { payload, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = treeWalk;
+      // ADR-0445 D1: the QUESTION comes from the live store when it can answer, so it sits on the
+      // same clock as the PROOF enriched in below. The disk walk stays as the announced fallback —
+      // `selectHierarchy` cannot reach it without saying why, which is what keeps this from becoming
+      // the silently-preferred stale copy ADR-0302 D1 deleted.
+      const { foldWorkHierarchy } = await loadLibrary();
+      const selection = await selectHierarchy({
+        live: ctx.backend.workHierarchy?.bind(ctx.backend),
+        fold: (snapshot) => foldedToTreeWalk(foldWorkHierarchy(snapshot)),
+        disk: async () =>
+          (await memoizeCorpusWalk(ctx.paths.storiesDir, () => readTree(ctx.paths.storiesDir)))
+            .value,
+      });
+      announceHierarchyOrigin(selection);
+      const { payload, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } =
+        selection.read;
       // Advisory enrichments (ADR-0048): no call ever throws — null
       // (json store / DB down) just means the tree renders without that layer.
       // Run in parallel so a down DB costs one 4s budget, not three. `builds`

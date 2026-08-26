@@ -16,10 +16,12 @@ proof:
   scope:
     testGlobs:
       - "packages/library/src/work-hierarchy-projection.test.ts"
+      - "packages/library/src/work-hierarchy-tree.test.ts"
       - "packages/library/src/store/pg-work-hierarchy-store.test.ts"
       - "packages/drive/src/hierarchy-projection.test.ts"
     sourceGlobs:
       - "packages/library/src/work-hierarchy-projection.ts"
+      - "packages/library/src/work-hierarchy-tree.ts"
       - "packages/library/src/store/pg-work-hierarchy-store.ts"
       - "packages/drive/src/hierarchy-projection.ts"
 ---

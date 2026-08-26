@@ -25,6 +25,7 @@ import {
   closePool,
   PgLibraryStore,
   PgCommentStore,
+  PgWorkHierarchyStore,
   renderStoredDoc,
 } from "@storytree/library/store";
 import { DEPARTURE_WINDOW_MS, foldDepartures } from "@storytree/notice-board";
@@ -425,6 +426,17 @@ async function main(): Promise<void> {
     // The RAW signed-verdict event stream — what the per-test crown roll-up
     // (rollupStoryGreen/rollupCapStatus) reads; advisory here (null on any failure).
     verdictEvents: async () => advisory("verdict-events", readVerdictEventRows),
+    // The stored WORK-HIERARCHY projection (ADR-0445 D1) — the QUESTION half of the map's join, so it
+    // shares a clock with the verdicts above instead of coming from the frozen `stories/**` copy that
+    // ships inside this app. This is the wire that closes the incident: an installed app at an older
+    // commit now asks TODAY's question, and a criterion re-worded since it was built stops reading as
+    // unproven. Advisory like its neighbours — `null` on any failure, and the caller then degrades to
+    // its runtime cache (never silently to disk).
+    // NOT wrapped in `advisory(...)`, deliberately. That helper nulls on ANY failure, which would
+    // collapse "the store holds no projection" (run the loader) into "the read failed" (look at the
+    // store) — opposite remedies reported as one answer. `selectDesktopHierarchy` catches the throw
+    // and states the real reason, so the tree still renders either way.
+    workHierarchy: () => new PgWorkHierarchyStore(pool).readSnapshot(),
     // In-flight builds (ADR-0048): the latest `building` work-event per unit whose run has NOT yet
     // produced a signed verdict, TTL-filtered + phase-surfaced in JS — the orbiting-wisp layer. Mirrors
     // the studio PgBackend's inFlightBuilds query + its rowsToBuildActivity fold (re-composed here).
