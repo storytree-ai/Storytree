@@ -163,6 +163,7 @@
       "packages/cli/src/*coverage*.ts": "cli",
       "packages/cli/src/db-cli.ts": "cli",
       "packages/cli/src/*decay*.ts": "verification-decay-instruments",
+      "packages/cli/src/decision-discovery*.ts": "cli",
       "packages/cli/src/definitions-projection.ts": "cli",
       "packages/cli/src/desktop.ts": "cli",
       "packages/cli/src/doctor*.ts": "guided-setup-repair",
