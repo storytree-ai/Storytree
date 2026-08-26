@@ -98,18 +98,22 @@ that is the primary way the shape is read, not a static diagram that happens to 
 - **Context visits are plain node marks, not gauges.** They carry identity, read strength, and agent
   type — not a per-visit token readout.
 - **One bar carries context occupancy for the whole panel.** It fills as the playback advances, showing
-  context resident in the runtime-declared window at the playhead. The portion of the fill beyond the
-  owner-selected 500k threshold renders red; **no marker, tick, or danger arc is drawn for the
-  threshold itself.** The red is the whole signal, and it stays display-only — never a runtime cutoff,
-  eviction trigger, or claim about any model's window size.
-  - **A SECOND surface now follows this clause, and it is not a departure from it** (recorded
-    2026-08-26, ADR-0452 D1/D2). The bottom panel's **Context tab** — `context-window-meter`, the
-    studio's context-window meter — draws one reading per session window rather than a playhead
-    series, and it colours THREE portions rather than two, because ADR-0411 D3 set a second mark
-    (~400K soft, beside this bar's 500K). That is this clause applied to two thresholds, not
-    weakened: the marks are still drawn ONLY as colour, and nothing is drawn at either boundary.
-    Nothing here changes: this bar keeps its one threshold, its one red, and its playhead. If a
-    future reader meets the two surfaces and suspects the marker rule was reopened, it was not.
+  context resident in the runtime-declared window at the playhead. The portion of the fill beyond a
+  threshold renders in that threshold's colour; **no marker, tick, or danger arc is drawn for a
+  threshold itself.** The colour is the whole signal, and it stays display-only — never a runtime
+  cutoff, eviction trigger, or claim about any model's window size.
+  - **THE BAR CARRIES TWO THRESHOLDS AND THREE COLOURED PORTIONS** (recorded 2026-08-26, ADR-0452
+    D1/D2; corrected in place 2026-08-26 by ADR-0456 D4). ADR-0411 D3 set a second mark — ~400K soft,
+    beside the owner-selected 500K — so the fill splits at each mark and nothing is drawn AT either.
+    That is this clause applied to two thresholds, not weakened.
+  - **AND THERE IS ONLY ONE SURFACE AGAIN.** ADR-0452 D1/D2 briefly gave the same reading a second
+    home, the bottom panel's standalone **Context tab** (`context-window-meter`). The owner corrected
+    the referent the same day — his answer had always been about the context traversal surface — and
+    ADR-0456 retires that tab, folding the reading into THIS bar, which is repointed at the ambient
+    host transcripts so it finally has data to draw (occupancy reaches a trace only through an
+    explicit `storytree traversal ingest`: 2 of 697 local traces). If a future reader meets a
+    reference to two surfaces and suspects the marker rule was reopened, it was not — and the second
+    surface is gone.
 - The occupancy quantity the bar plots is settled by ADR-0248: it is a per-request resident-context
   figure, sourced from the host transcript surface, which can fall as well as rise. A billing total is
   monotonic and cannot draw this bar.

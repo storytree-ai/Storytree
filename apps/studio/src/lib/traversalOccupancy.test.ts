@@ -1,26 +1,31 @@
 // Red-green on the ONE playhead occupancy bar (`traversal-panel-arc`, increment
-// `traversal-panel-spine-render`).
+// `traversal-panel-spine-render`; REPOINTED at the host transcripts by ADR-0456 D2).
 //
-// Four rules, each of which fails silently and plausibly if it is wrong — which is exactly why they are
-// asserted here rather than looked at:
+// The rules asserted here each fail silently and PLAUSIBLY if they are wrong — a wrong bar is still
+// a bar, which is exactly why they are asserted rather than looked at:
 //
 //   1. the plotted quantity is `residentInputTokens` and never the monotonic billing total, so a
 //      RECEDING series must render a FALLING bar (the signed reference trace recedes twice; ADR-0248);
 //   2. occupancy is HELD at the last observation at-or-before the playhead, never interpolated;
-//   3. the fill splits at EXACTLY 500k, with only the over-portion red;
-//   4. a child's window is never summed into the parent's figure.
+//   3. the fill splits at EXACTLY each of ADR-0411 D3's two marks, and only the excess above a mark
+//      is ever coloured for it (ADR-0456 D4 — three portions, nothing drawn AT either boundary);
+//   4. a helper's window is never summed into the parent's figure (ADR-0413 D2, permanent);
+//   5. the two sources build ONE shape, and the transcript's readings are not re-parsed here.
 //
-// Plus the absence rule: an un-ingested session has no series, and that is `observationCount: 0` — the
+// Plus the absence rule: a window with no readings has none, and that is `observationCount: 0` — the
 // surface says so rather than drawing a flat zero.
 
 import { describe, it, expect } from 'vitest';
-import type { TraversalEventEnvelope } from '../types';
+import type { ContextWindowSeriesPayload, TraversalEventEnvelope } from '../types';
 import {
   buildOccupancySeries,
+  buildTranscriptOccupancySeries,
   formatTokens,
+  HARD_MARK_TOKENS,
   occupancyAt,
   occupancyFill,
-  OCCUPANCY_THRESHOLD_TOKENS,
+  preferredOccupancy,
+  SOFT_MARK_TOKENS,
 } from './traversalOccupancy';
 
 const SESSION = 'kind-hamilton-e938be';
@@ -47,6 +52,22 @@ function modelContext(
   return over.resident === undefined ? event : { ...event, residentInputTokens: over.resident };
 }
 
+function seriesPayload(
+  over: Partial<ContextWindowSeriesPayload> = {},
+): ContextWindowSeriesPayload {
+  return {
+    windowId: SESSION,
+    scan: { root: '/transcripts', windowFilesFound: 3, file: `/transcripts/${SESSION}.jsonl` },
+    observations: [],
+    peakTokens: 0,
+    syntheticObservations: 0,
+    sidechainRequests: 0,
+    absence: null,
+    note: '',
+    ...over,
+  };
+}
+
 describe('the quantity is the resident figure, and it can fall', () => {
   it('renders a FALLING bar for the reference trace’s receding series', () => {
     // The two recessions the signed design cites as its evidence, in tokens.
@@ -61,7 +82,7 @@ describe('the quantity is the resident figure, and it can fall', () => {
     );
 
     const fills = series.observations.map(
-      (observation) => occupancyFill(observation.residentTokens, series.scaleTokens).safeFraction,
+      (observation) => occupancyFill(observation.residentTokens, series.scaleTokens).calmFraction,
     );
     expect(fills[1]).toBeLessThan(fills[0] as number);
     expect(fills[3]).toBeLessThan(fills[2] as number);
@@ -84,7 +105,7 @@ describe('the quantity is the resident figure, and it can fall', () => {
     expect(series.maxResidentTokens).toBe(0);
   });
 
-  it('reports an un-ingested session as unobserved rather than as an empty window', () => {
+  it('reports a session with no readings as unobserved rather than as an empty window', () => {
     const series = buildOccupancySeries([], SESSION);
     expect(series.observationCount).toBe(0);
     expect(occupancyAt(series, T0)).toBeNull();
@@ -117,38 +138,68 @@ describe('occupancy is held at the playhead, never interpolated', () => {
   });
 });
 
-describe('the fill splits at exactly 500k, and only the excess is red', () => {
+describe('the fill splits at each of the two marks, and only the excess above one is coloured', () => {
   const SCALE = 1_000_000;
 
-  it('has NO red at exactly the threshold', () => {
-    const fill = occupancyFill(OCCUPANCY_THRESHOLD_TOKENS, SCALE);
-    expect(fill.overFraction).toBe(0);
-    expect(fill.safeFraction).toBe(0.5);
+  it('has NO soft portion at exactly the soft mark, and no hard portion at exactly the hard one', () => {
+    const atSoft = occupancyFill(SOFT_MARK_TOKENS, SCALE);
+    expect(atSoft.softFraction).toBe(0);
+    expect(atSoft.hardFraction).toBe(0);
+    expect(atSoft.calmFraction).toBe(0.4);
+
+    const atHard = occupancyFill(HARD_MARK_TOKENS, SCALE);
+    expect(atHard.hardFraction).toBe(0);
+    expect(atHard.calmFraction).toBe(0.4);
+    expect(atHard.softFraction).toBeCloseTo(0.1, 10);
   });
 
-  it('reddens only the portion past the threshold', () => {
+  it('colours the middle band between the marks and nothing above it', () => {
+    const fill = occupancyFill(450_000, SCALE);
+    expect(fill.calmFraction).toBe(0.4);
+    expect(fill.softFraction).toBeCloseTo(0.05, 10);
+    expect(fill.hardFraction).toBe(0);
+    expect(fill.softStartFraction).toBe(0.4);
+  });
+
+  it('reddens only the portion past the hard mark', () => {
     const fill = occupancyFill(600_000, SCALE);
-    expect(fill.safeFraction).toBe(0.5);
-    expect(fill.overFraction).toBeCloseTo(0.1, 10);
-    expect(fill.overStartFraction).toBe(0.5);
+    expect(fill.calmFraction).toBe(0.4);
+    expect(fill.softFraction).toBeCloseTo(0.1, 10);
+    expect(fill.hardFraction).toBeCloseTo(0.1, 10);
+    expect(fill.hardStartFraction).toBe(0.5);
   });
 
-  it('leaves a reading under the threshold entirely safe', () => {
+  it('leaves a reading under the soft mark entirely calm', () => {
     const fill = occupancyFill(240_900, SCALE);
-    expect(fill.overFraction).toBe(0);
-    expect(fill.safeFraction).toBeCloseTo(0.2409, 10);
+    expect(fill.softFraction).toBe(0);
+    expect(fill.hardFraction).toBe(0);
+    expect(fill.calmFraction).toBeCloseTo(0.2409, 10);
   });
 
-  it('grows the track ceiling rather than clipping a series that runs past the base scale', () => {
+  it('the three portions sum to the reading — no band double-counts another', () => {
+    const fill = occupancyFill(575_000, SCALE);
+    expect(fill.calmFraction + fill.softFraction + fill.hardFraction).toBeCloseTo(0.575, 10);
+  });
+
+  it('keeps a typical window legible against the base ceiling rather than scaled for nothing', () => {
+    // The measured peaks this bar now plots run 149k–616k (30 newest traces, 2026-08-26). A ceiling
+    // chosen for a figure real work never reaches would draw every one of them as a sliver.
+    const series = buildOccupancySeries([modelContext({ atMs: T0, resident: 250_000 })], SESSION);
+    const fill = occupancyFill(250_000, series.scaleTokens);
+    expect(fill.calmFraction).toBeGreaterThan(0.4);
+  });
+
+  it('grows the track ceiling STRICTLY past a series that runs above the base scale', () => {
     const series = buildOccupancySeries([modelContext({ atMs: T0, resident: 1_300_000 })], SESSION);
-    expect(series.scaleTokens).toBeGreaterThanOrEqual(1_300_000);
+    expect(series.scaleTokens).toBeGreaterThan(1_300_000);
 
     const fill = occupancyFill(1_300_000, series.scaleTokens);
+    const filled = fill.calmFraction + fill.softFraction + fill.hardFraction;
     // The whole reading is represented — nothing is clipped off the end of the track…
-    expect(fill.safeFraction + fill.overFraction).toBeCloseTo(1_300_000 / series.scaleTokens, 10);
+    expect(filled).toBeCloseTo(1_300_000 / series.scaleTokens, 10);
     // …and the ceiling keeps headroom above the peak, so a bar at its maximum is not a full bar.
-    expect(fill.safeFraction + fill.overFraction).toBeLessThan(1);
-    expect(fill.overFraction).toBeGreaterThan(0);
+    // A peak landing exactly on a step boundary is the case that would otherwise fill the track.
+    expect(filled).toBeLessThan(1);
   });
 });
 
@@ -167,11 +218,133 @@ describe('child windows are never summed into the parent figure', () => {
     // 190_000 would be the merged figure the design's anti-goals forbid.
     expect(occupancyAt(series, T0 + 2 * MIN)?.residentTokens).toBe(100_000);
   });
+
+  it('carries the transcript source’s own helper exclusion through as the same fact', () => {
+    // The server excluded them (`sidechainRequests`); this must arrive as a counted exclusion rather
+    // than as an absence of helpers — and it must never be added to anything.
+    const series = buildTranscriptOccupancySeries(
+      seriesPayload({
+        observations: [{ at: new Date(T0).toISOString(), residentTokens: 100_000 }],
+        sidechainRequests: 4,
+      }),
+    );
+
+    expect(series.foreignWindowCount).toBe(4);
+    expect(series.maxResidentTokens).toBe(100_000);
+  });
+});
+
+describe('the transcript source builds the same shape, and re-parses nothing', () => {
+  it('plots the readings in time order with their own instants', () => {
+    const series = buildTranscriptOccupancySeries(
+      seriesPayload({
+        observations: [
+          { at: new Date(T0 + 2 * MIN).toISOString(), residentTokens: 431_000 },
+          { at: new Date(T0).toISOString(), residentTokens: 240_900 },
+          { at: new Date(T0 + MIN).toISOString(), residentTokens: 228_100 },
+        ],
+        peakTokens: 431_000,
+        note: '3 reading(s) from this window’s own host transcript',
+      }),
+    );
+
+    expect(series.source).toBe('transcript');
+    expect(series.observations.map((o) => o.residentTokens)).toEqual([240_900, 228_100, 431_000]);
+    expect(occupancyAt(series, T0 + 90_000)?.residentTokens).toBe(228_100);
+    expect(series.note).toContain('host transcript');
+  });
+
+  it('counts an excluded synthetic reading in the denominator, never in the series', () => {
+    // A `<synthetic>` zero-token line ENDS 2 of 125 windows on this machine, at 437k and 429k. The
+    // server drops it from the readings; dropping it from the denominator too would report a window
+    // that made 2 requests as having made 1, which quietly overstates how complete the series is.
+    const series = buildTranscriptOccupancySeries(
+      seriesPayload({
+        observations: [{ at: new Date(T0).toISOString(), residentTokens: 429_276 }],
+        syntheticObservations: 1,
+      }),
+    );
+
+    expect(series.observationCount).toBe(1);
+    expect(series.modelContextCount).toBe(2);
+    expect(series.maxResidentTokens).toBe(429_276);
+  });
+
+  it('reports a stated absence as unobserved, never as a zero-token window', () => {
+    const series = buildTranscriptOccupancySeries(
+      seriesPayload({
+        observations: [],
+        absence: 'no-window-transcript',
+        note: 'no host transcript named "sweet-lovelace-f6a3fa" — a trace keyed by a worktree slot names no single window',
+      }),
+    );
+
+    expect(series.observationCount).toBe(0);
+    expect(occupancyAt(series, T0)).toBeNull();
+    expect(series.note).toContain('worktree slot');
+  });
+
+  it('drops a reading the playhead cannot place, and keeps it in the denominator', () => {
+    const series = buildTranscriptOccupancySeries(
+      seriesPayload({
+        observations: [
+          { at: 'not-a-timestamp', residentTokens: 900_000 },
+          { at: new Date(T0).toISOString(), residentTokens: 120_000 },
+        ],
+      }),
+    );
+
+    expect(series.observationCount).toBe(1);
+    expect(series.modelContextCount).toBe(2);
+    // The unplaceable reading must not set the ceiling either — nothing plots it.
+    expect(series.maxResidentTokens).toBe(120_000);
+  });
+});
+
+describe('one bar, two sources, a stated preference', () => {
+  const withReadings = (tokens: number): typeof empty =>
+    buildTranscriptOccupancySeries(
+      seriesPayload({ observations: [{ at: new Date(T0).toISOString(), residentTokens: tokens }] }),
+    );
+  const empty = buildTranscriptOccupancySeries(
+    seriesPayload({ absence: 'no-window-transcript', note: 'a worktree slot names no single window' }),
+  );
+  const tracePlot = buildOccupancySeries([modelContext({ atMs: T0, resident: 240_900 })], SESSION);
+  const traceEmpty = buildOccupancySeries([modelContext({ atMs: T0 })], SESSION);
+
+  it('draws the AMBIENT transcript when it has readings, even over an ingested trace', () => {
+    expect(preferredOccupancy(tracePlot, withReadings(431_000)).source).toBe('transcript');
+  });
+
+  it('keeps the trace when the transcript came back empty — the 2-in-697 case must not regress', () => {
+    expect(preferredOccupancy(tracePlot, empty).source).toBe('trace');
+    expect(preferredOccupancy(tracePlot, empty).maxResidentTokens).toBe(240_900);
+  });
+
+  it('prefers the transcript when NEITHER has readings, because only it says WHY', () => {
+    // The commonest state on this machine by far, and the one a naive "trace unless transcript has
+    // data" rule gets wrong: it would trade a stated absence for a silent one.
+    const chosen = preferredOccupancy(traceEmpty, empty);
+    expect(chosen.observationCount).toBe(0);
+    expect(chosen.note).toContain('worktree slot');
+  });
+
+  it('treats an UNREAD transcript as unread — never as an observation of absence', () => {
+    expect(preferredOccupancy(tracePlot, null).source).toBe('trace');
+    expect(preferredOccupancy(traceEmpty, null).source).toBe('trace');
+  });
 });
 
 describe('the readout', () => {
   it('formats thousands and millions', () => {
     expect(formatTokens(240_900)).toBe('240.9k');
     expect(formatTokens(1_300_000)).toBe('1.30M');
+  });
+
+  it('reads the marks from the one shared copy, never a second declaration', () => {
+    // ADR-0411 D8 says the marks may be TUNED. Two copies of a tunable constant is how one surface
+    // comes to say "soft" while the other says "calm" about the same window.
+    expect(SOFT_MARK_TOKENS).toBe(400_000);
+    expect(HARD_MARK_TOKENS).toBe(500_000);
   });
 });

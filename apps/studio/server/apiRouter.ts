@@ -2236,7 +2236,12 @@ export async function handleApiRequest(
       // Member-readable by the gate's GET rule and read-only by decision. Local for the same reason
       // the traversal route is: the hosted container holds no operator transcripts, so it answers an
       // honest empty list. See contextWindowsApi.ts.
-      await handleContextWindows(req, res);
+      //
+      // `?session=<windowId>` asks the same route for ONE window's whole series, with instants —
+      // what the traversal replay panel's occupancy bar plots at its playhead (ADR-0456 D2). The
+      // list mode above feeds the standalone Context tab, which ADR-0456 D1 retires; the session
+      // mode is what the retirement leaves standing.
+      await handleContextWindows(req, res, url);
     } else if (url.pathname.startsWith(`${STORE_DOOR_BASE_PATH}/`)) {
       // ADR-0259 D1 — the store door: the raw `Store` seam over HTTPS, for a client that cannot open
       // a Cloud SQL connector. READ-ONLY (writes 403 by name — ADR-0259 D5's gate is not lifted), and

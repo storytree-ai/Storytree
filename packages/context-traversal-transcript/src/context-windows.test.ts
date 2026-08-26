@@ -22,7 +22,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { readContextWindows, readOwnContextWindow } from "./context-windows.js";
+import { readContextWindows, readOwnContextWindow, readWindowOccupancySeries } from "./context-windows.js";
 
 interface LineSpec {
   readonly requestId: string;
@@ -324,4 +324,125 @@ test("readContextWindows still folds the machine-wide list, helpers beside the p
   assert.equal(wire.scan.root, root);
   assert.equal(wire.scan.windowFilesFound, 1, "the helper file is not counted as a session window");
   assert.equal(wire.scan.helperFilesOnMachine, 1);
+});
+
+// ---------------------------------------------------------------------------
+// `readWindowOccupancySeries` — the traversal panel's bar (ADR-0456 D2)
+// ---------------------------------------------------------------------------
+//
+// The bar it feeds has been in the owner-signed design since `traversal-panel-spine-render` and has
+// never drawn a real reading on this machine, because it plotted INGESTED traces (2 of 697 carry
+// occupancy). These cases pin the four ways this reader could re-lose that, each of which fails
+// PLAUSIBLY — a wrong answer here still draws a bar.
+
+test("one window's whole series comes back with its instants, chronologically", () => {
+  const root = freshRoot();
+  const win = "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa";
+  writeWindow(root, "proj", win, [
+    { requestId: "r1", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:00:00Z", tokens: 240_900, model: "claude-opus-5" },
+    // The RECESSION is the whole reason the plotted quantity is the resident figure (ADR-0248): a
+    // series that can only rise cannot draw this bar.
+    { requestId: "r2", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:10:00Z", tokens: 228_100, model: "claude-opus-5" },
+    { requestId: "r3", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:20:00Z", tokens: 431_000, model: "claude-opus-5" },
+  ]);
+
+  const read = readWindowOccupancySeries({ windowId: win, root });
+
+  assert.equal(read.absence, null);
+  assert.deepEqual(
+    read.observations.map((o) => o.residentTokens),
+    [240_900, 228_100, 431_000],
+  );
+  assert.equal(read.observations[0]?.at, "2026-08-26T01:00:00Z", "the instant rides along — a playhead needs it");
+  assert.equal(read.peakTokens, 431_000);
+  assert.equal(read.scan.file, path.join(root, "proj", `${win}.jsonl`));
+});
+
+test("a synthetic line is excluded from the SERIES too, and the exclusion is reported", () => {
+  const root = freshRoot();
+  const win = "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb";
+  writeWindow(root, "proj", win, [
+    { requestId: "r1", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:00:00Z", tokens: 429_276, model: "claude-opus-5" },
+    // A zero-token `<synthetic>` line ENDS 2 of 125 windows on this machine. Plotted, it draws the
+    // bar collapsing to empty at the end of a window that reached 429k.
+    { requestId: "r2", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:00:05Z", tokens: 0, model: "<synthetic>" },
+  ]);
+
+  const read = readWindowOccupancySeries({ windowId: win, root });
+
+  assert.equal(read.observations.length, 1);
+  assert.equal(read.peakTokens, 429_276);
+  assert.equal(read.syntheticObservations, 1, "the exclusion must be visible, not silent");
+});
+
+test("a helper's readings never enter the window's series (ADR-0413 D2)", () => {
+  const root = freshRoot();
+  const win = "cccccccc-3333-4333-8333-cccccccccccc";
+  // A sidechain line stamps the PARENT's window id on every line (188/188 files measured
+  // 2026-08-21), so it is INDISTINGUISHABLE by id — only `isSidechain` separates them.
+  writeWindow(root, "proj", win, [
+    { requestId: "r1", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:00:00Z", tokens: 100_000, model: "claude-opus-5" },
+    { requestId: "h1", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:01:00Z", tokens: 300_000, model: "claude-opus-5", sidechain: true },
+  ]);
+
+  const read = readWindowOccupancySeries({ windowId: win, root });
+
+  assert.deepEqual(read.observations.map((o) => o.residentTokens), [100_000]);
+  // 400_000 is the merged figure ADR-0413 D2 rules out permanently — a level no real window reached.
+  assert.equal(read.peakTokens, 100_000);
+  assert.equal(read.sidechainRequests, 1, "the exclusion is counted, never silently dropped");
+});
+
+test("a window with no transcript is an ABSENCE naming what was searched, never an empty series", () => {
+  const root = freshRoot();
+  writeWindow(root, "proj", "dddddddd-4444-4444-8444-dddddddddddd", [
+    { requestId: "r1", cwd: MY_CWD, windowId: "dddddddd-4444-4444-8444-dddddddddddd", at: "2026-08-26T01:00:00Z", tokens: 10_000, model: "claude-opus-5" },
+  ]);
+
+  // A legacy SLOT-keyed trace id: 601 of 704 local traces are named this way, and a slot pools every
+  // window that ran in it, so there is no single window whose fullness a bar could draw.
+  const read = readWindowOccupancySeries({ windowId: "sweet-lovelace-f6a3fa", root });
+
+  assert.equal(read.absence, "no-window-transcript");
+  assert.deepEqual(read.observations, []);
+  assert.equal(read.peakTokens, 0);
+  assert.equal(read.scan.windowFilesFound, 1, "the denominator behind a not-found is on the answer");
+  assert.match(read.note, /worktree slot/, "the note says why a slot names no window");
+});
+
+test("an empty transcript root is its own absence, distinct from a window that was not found", () => {
+  const read = readWindowOccupancySeries({ windowId: "eeeeeeee-5555-4555-8555-eeeeeeeeeeee", root: freshRoot() });
+  assert.equal(read.absence, "no-transcript-root");
+  assert.equal(read.scan.windowFilesFound, 0);
+});
+
+test("a file is not claimed for a window on the strength of its NAME", () => {
+  const root = freshRoot();
+  const named = "ffffffff-6666-4666-8666-ffffffffffff";
+  const actual = "99999999-7777-4777-8777-999999999999";
+  // The file is named for one window and its lines speak for another. `helperDirFor` makes the same
+  // check before claiming a directory's helpers; this reader makes it before claiming a series.
+  writeWindow(root, "proj", named, [
+    { requestId: "r1", cwd: MY_CWD, windowId: actual, at: "2026-08-26T01:00:00Z", tokens: 200_000, model: "claude-opus-5" },
+  ]);
+
+  const read = readWindowOccupancySeries({ windowId: named, root });
+
+  assert.equal(read.absence, "no-window-transcript");
+  assert.deepEqual(read.observations, []);
+  assert.match(read.note, new RegExp(actual), "the note names the window the file actually speaks for");
+});
+
+test("a window whose every reading is synthetic is unobserved, not an empty window", () => {
+  const root = freshRoot();
+  const win = "12121212-8888-4888-8888-121212121212";
+  writeWindow(root, "proj", win, [
+    { requestId: "r1", cwd: MY_CWD, windowId: win, at: "2026-08-26T01:00:00Z", tokens: 0, model: "<synthetic>" },
+  ]);
+
+  const read = readWindowOccupancySeries({ windowId: win, root });
+
+  assert.equal(read.absence, "no-readable-occupancy");
+  assert.equal(read.syntheticObservations, 1);
+  assert.match(read.note, /not an empty window/);
 });
