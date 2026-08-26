@@ -98,6 +98,9 @@ import {
 import { traversalCommand, traversalHelp } from "./traversal.js";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./session-cost.js";
+// `context` — this session's OWN context-window occupancy, the number ADR-0411 D6 says a session
+// must be handed rather than estimate. Offline; reads the harness's local transcripts.
+import { contextCommand, contextHelp } from "./context.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import { dispatchCommand, dispatchHelp, dispatchWaitCommand } from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
@@ -4381,6 +4384,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       return dispatchWaitCommand(positionals.slice(1), values["timeout"]);
     }
     return dispatchCommand(positionals.slice(1));
+  }
+
+  if (area === "context") {
+    // How full is THIS session's own context window (ADR-0411 D3/D6, `linked-session-context-arc`)?
+    // Offline and read-only — the reading lives in the harness's local transcripts, which is the
+    // only place it exists for a window that is still running; a trace carries it only after an
+    // explicit ingest, and two of 697 local traces do. It hands the session a number and enforces
+    // nothing: D6 leaves the judgement with the session, D8 keeps the marks reversible.
+    if (help) return contextHelp();
+    return contextCommand();
   }
 
   if (area === "lint-panel") {

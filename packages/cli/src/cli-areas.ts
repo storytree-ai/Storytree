@@ -81,6 +81,12 @@ export const CLI_AREAS = [
   "doctor",
   "guide",
   "traversal",
+  // `storytree context` — how full is THIS session's own context window (ADR-0411 D3/D6,
+  // `linked-session-context-arc`). Offline, read-only, no store: it reads the harness's own local
+  // transcripts, which is the only place the reading exists for a window that is still running.
+  // It supplies the number D6 says a session must be handed rather than estimate, and enforces
+  // nothing — D8 keeps the marks reversible.
+  "context",
   // `storytree dispatch <handle>` — the caller's half of the ADR-0328 D3 handback: read a
   // backgrounded job's verdict ONCE, and report RUNNING / UNVERIFIED as non-verdicts rather than
   // folding them into a pass. Read-only, offline, no store.
