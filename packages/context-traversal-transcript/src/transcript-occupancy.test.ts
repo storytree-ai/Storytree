@@ -245,6 +245,61 @@ test("subagent-requests-never-enter-the-parent-window: sidechain requests are ex
   );
   assert.equal(result.sidechainRequests, 2);
   assert.equal(result.skippedLines, 0);
+
+  // The sidechain readings travel out in their OWN array, deduped by the same rule, and the parent's
+  // series is untouched by them — the two must never be one number (ADR-0413 D2 / ADR-0452 D4).
+  assert.deepEqual(
+    result.sidechainObservations.map((o) => [o.requestId, o.residentInputTokens]),
+    [
+      ["msg_sub1", 5000],
+      ["msg_sub2", 6000],
+    ],
+  );
+  assert.deepEqual(
+    result.observations.map((o) => o.residentInputTokens),
+    [100, 200],
+  );
+});
+
+test("subagent-requests-never-enter-the-parent-window: a HELPER-ONLY transcript names no window of its own, yet still yields its readings", () => {
+  // A subagent transcript stamps its PARENT's sessionId on every line (measured 188/188), so the
+  // parent id here is deliberately the same string a real helper file would carry. Nothing about
+  // that may make the file look like it names a window: `windowId` must refuse.
+  const dir = freshDir("helper-only");
+  const filePath = path.join(dir, "agent-a16b5d320d7caa8bd.jsonl");
+  const lines = [
+    assistantLine({
+      sessionId: "parent-session",
+      timestamp: "2026-08-26T01:00:00.000Z",
+      id: "msg_h1",
+      isSidechain: true,
+      model: "claude-opus-5",
+      usage: { input_tokens: 10, cache_read_input_tokens: 40_000 },
+    }),
+    assistantLine({
+      sessionId: "parent-session",
+      timestamp: "2026-08-26T01:00:10.000Z",
+      id: "msg_h2",
+      isSidechain: true,
+      model: "claude-opus-5",
+      usage: { input_tokens: 10, cache_read_input_tokens: 71_000 },
+    }),
+  ];
+  fs.writeFileSync(filePath, `${lines.join("\n")}\n`);
+
+  const result = readTranscriptWindow(filePath);
+
+  // The window id is REFUSED even though every line agreed on one — because the one they agreed on
+  // is the parent's, and this file is not the parent's window.
+  assert.equal(result.windowId, undefined);
+  assert.deepEqual(result.observations, []);
+  assert.equal(result.sidechainRequests, 2);
+  assert.deepEqual(
+    result.sidechainObservations.map((o) => o.residentInputTokens),
+    [40_010, 71_010],
+  );
+  assert.equal(result.sidechainObservations[1]?.modelId, "claude-opus-5");
+  assert.equal(result.skippedLines, 0);
 });
 
 test("an-unusable-transcript-reads-partially-and-never-throws: a missing file, an empty file, unusable assistant lines, a crash-truncated line, and an ambiguous window all read partially and never throw", () => {

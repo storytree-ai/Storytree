@@ -952,6 +952,58 @@ export interface TraversalSessionsPayload {
   sessions: TraversalSessionEntry[];
 }
 
+// ---- the context-window meter's wire (ADR-0452 D1/D2, server/contextWindowsApi.ts) ----
+//
+// MIRRORED here rather than imported, the arc-surface idiom the traversal types above already
+// follow: the producing package reaches `node:fs` and cannot enter a browser bundle. The server's
+// own interfaces carry the reasoning; these are the same shapes, kept in one place the SPA can see.
+
+/** One helper window that ran under a session window. THE UNSIGNED HALF (ADR-0452 D3). */
+export interface ContextHelperEntry {
+  /** The transcript FILE's base name — a helper window has no id of its own anywhere in the record
+   *  (a subagent transcript stamps its PARENT's session id on every line). */
+  file: string;
+  requestCount: number;
+  /** This helper's OWN peak. NEVER added to the parent's figure (ADR-0413 D2 / ADR-0452 D4). */
+  peakTokens: number;
+  lastObservedAt: string | null;
+}
+
+/** One session window — an orchestration session's own context window. */
+export interface ContextWindowEntry {
+  windowId: string;
+  /** The latest COUNTED reading; synthetic zero-token lines are excluded (see `syntheticObservations`). */
+  residentTokens: number;
+  peakTokens: number;
+  observationCount: number;
+  /** Readings excluded as synthetic — reported so the exclusion is visible, never silent. */
+  syntheticObservations: number;
+  modelId: string | null;
+  lastObservedAt: string | null;
+  lastWrittenAt: string;
+  helpers: ContextHelperEntry[];
+  /** `false` means the helper join could not be made — a different fact from "no helpers". */
+  helpersJoined: boolean;
+}
+
+/** What one request examined, and what it did not. */
+export interface ContextScanPayload {
+  root: string;
+  windowFilesFound: number;
+  windowFilesRead: number;
+  helperFilesFound: number;
+  helperFilesRead: number;
+  /** Helper transcripts under the WHOLE root — so "no helper windows" and "none under what I looked
+   *  at" stay different facts. Measured 2026-08-26: 0 beside the newest twelve, 190 on the machine. */
+  helperFilesOnMachine: number;
+}
+
+/** GET /api/context-windows — this machine's recent session windows and how full each one is. */
+export interface ContextWindowsPayload {
+  scan: ContextScanPayload;
+  windows: ContextWindowEntry[];
+}
+
 // ---- the replayed event union, mirrored (`traversal-panel-spine-render`) ----
 //
 // WIDENED HERE, and by the increment the previous one named: the picker + mount seam mirrored a

@@ -24,6 +24,7 @@ import type {
   TopicKind,
   TraversalReplayPayload,
   TraversalSessionsPayload,
+  ContextWindowsPayload,
   TreePayload,
   UatVerdictResult,
   UserRole,
@@ -353,6 +354,24 @@ export const api = {
   // offering only sessions the index named, and the mount still reports honestly if it happens.
   traversal: (sessionId: string): Promise<TraversalReplayPayload> =>
     http(`/api/traversal?session=${q(sessionId)}`, { signal: AbortSignal.timeout(30_000) }),
+  // The context-window meter (ADR-0452 D1/D2, server/contextWindowsApi.ts) — this machine's recent
+  // session windows and how full each one is, read straight from the host transcripts.
+  //
+  // RETRIES like the index read beside it and for the same reason: it is a pure GET that writes
+  // nothing, and losing one race must cost a slow render rather than a permanently blank widget.
+  // The budget is generous because the reading is bounded server-side (twelve windows) and primed at
+  // dev-server start — measured cold on this machine, the whole reading is ~1.2 s once the lazy
+  // import is paid, and the import is what priming moves off the first click.
+  //
+  // NOT POLLED. A transcript grows while its window runs, so unlike a finished trace this one CAN
+  // move under the widget — but a cadence would put an always-on read on every page that mounts the
+  // panel, for a number that is a glance rather than a monitor. The widget re-reads when the
+  // operator opens it, which is when they are asking.
+  contextWindows: (): Promise<ContextWindowsPayload> =>
+    retryRead(
+      () => http<ContextWindowsPayload>('/api/context-windows', { signal: AbortSignal.timeout(20_000) }),
+      { attempts: 3, backoffMs: (attempt) => attempt * 500 },
+    ),
   // NO build() / buildStatus() / adopt() here (ADR-0404 D2/D3): dispatching a build or an adoption
   // is a CLI verb — `storytree node build` / `storytree story build` / `storytree adopt` — and the
   // SPA carries no dispatch surface over either engine. These three were the SPA's only path to

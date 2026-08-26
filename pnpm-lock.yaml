@@ -95,6 +95,9 @@ importers:
       '@storytree/context-traversal-spawn':
         specifier: workspace:*
         version: link:../../packages/context-traversal-spawn
+      '@storytree/context-traversal-transcript':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-transcript
       '@storytree/drive':
         specifier: workspace:*
         version: link:../../packages/drive

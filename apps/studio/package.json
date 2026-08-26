@@ -21,6 +21,7 @@
     "@storytree/arc": "workspace:*",
     "@storytree/context-traversal-capture": "workspace:*",
     "@storytree/context-traversal-spawn": "workspace:*",
+    "@storytree/context-traversal-transcript": "workspace:*",
     "@storytree/drive": "workspace:*",
     "@storytree/forest-world": "workspace:*",
     "@storytree/library": "workspace:*",

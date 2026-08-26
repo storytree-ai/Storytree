@@ -81,6 +81,10 @@ import { handleStoreDoor, STORE_DOOR_BASE_PATH } from './storeDoorApi';
 // writeBroker.ts is: it type-imports the two traversal packages (fully erased) and pulls their runtime
 // values lazily inside the handler, so their `node:`/zod graph never enters vite's config-load path.
 import { handleTraversal } from './traversalApi';
+// The context-window meter's read route (ADR-0452 D1/D2). Config-load-safe the same way: it
+// type-imports `@storytree/context-traversal-transcript` (fully erased) and pulls the runtime value
+// lazily inside the handler. See contextWindowsApi.ts.
+import { handleContextWindows } from './contextWindowsApi';
 import { handleSuggestionDecision, type SuggestionDecisionBackend } from './suggestionApi';
 import { handleSuggestionCreate, type SuggestionCreateBackend } from './suggestionCreateApi';
 // The shared block model (ADR-0140): the SAME deterministic split/splice the Review-mode client
@@ -2225,6 +2229,14 @@ export async function handleApiRequest(
       // decision. Local by the owner's 2026-08-10 call — the hosted container holds no operator
       // traces, so hosted answers an honest empty list rather than inventing one. See traversalApi.ts.
       await handleTraversal(req, res, url);
+    } else if (url.pathname === '/api/context-windows') {
+      // ADR-0452 D1/D2 — the context-window meter: this machine's recent SESSION windows and how
+      // full each one is, read straight from the host transcripts rather than from ingested traces
+      // (only 2 of 697 local traces carry occupancy at all, so a trace-backed meter would be blank).
+      // Member-readable by the gate's GET rule and read-only by decision. Local for the same reason
+      // the traversal route is: the hosted container holds no operator transcripts, so it answers an
+      // honest empty list. See contextWindowsApi.ts.
+      await handleContextWindows(req, res);
     } else if (url.pathname.startsWith(`${STORE_DOOR_BASE_PATH}/`)) {
       // ADR-0259 D1 — the store door: the raw `Store` seam over HTTPS, for a client that cannot open
       // a Cloud SQL connector. READ-ONLY (writes 403 by name — ADR-0259 D5's gate is not lifted), and

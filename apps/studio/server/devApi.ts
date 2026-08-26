@@ -18,6 +18,7 @@ import { handleApiRequest, resolveStudioPaths, type Paths } from './apiRouter';
 import { createInviteMailer, type InviteMailer } from './inviteMailer';
 import { installDevServerResilience } from './devServerResilience';
 import { primeTraversalIndex } from './traversalApi';
+import { primeContextWindows } from './contextWindowsApi';
 
 // Re-exported for the existing integration tests (the route table's real home).
 export { handleHealth, handleActivity, handleClaims, type HealthDeps } from './apiRouter';
@@ -70,6 +71,11 @@ export function storytreeDataApi(options: StorytreeDataApiOptions = {}): Plugin 
       // page load that matters most. Fire-and-forget: `primeTraversalIndex` swallows its own faults,
       // and the route works exactly as before if this never completes.
       void primeTraversalIndex();
+
+      // The same move for the context-window meter (ADR-0452): its lazy transcript import is most of
+      // its cold cost, and unprimed that cost lands on the first click — which is the click an owner
+      // makes when the widget is staged for a LOOK. Fire-and-forget; it swallows its own faults.
+      void primeContextWindows();
 
       // The SAME move one layer down (ADR-0354). The pg pool is built lazily on first use, and that
       // build is a ~11 s Cloud SQL connector handshake — paid, unprimed, inside the first page
