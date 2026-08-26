@@ -210,12 +210,12 @@ test("the reading a surface consumes is printed, and the loud/quiet threshold is
   assert.match(env.body, /The loud\/quiet THRESHOLD is not set here/);
 });
 
-test("an unknown question is refused by name, with the three that exist offered", async () => {
+test("an unknown question is refused by name, with the four that exist offered", async () => {
   const store = await seeded();
   const env = await run(["factory", "health", "velocity"], { store });
   assert.equal(env.ok, false);
   assert.match(env.body, /unknown factory health question "velocity"/);
-  assert.match(env.body, /recurrence \| bottlenecks \| churn/);
+  assert.match(env.body, /recurrence \| bottlenecks \| churn \| decisions/);
 });
 
 test("factory --help describes a REPORT-ONLY instrument that does not adjudicate", async () => {
