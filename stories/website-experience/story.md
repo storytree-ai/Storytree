@@ -15,8 +15,9 @@ proof_mode: UAT
 # intent the owner answers by walking the live site. Everything MECHANICAL underneath them is `machine`,
 # including the site BEHAVIOUR the two parent-side guards (the extended web-engine drift gate — still
 # a live rung; the rollout guard, whose `check:web-experience` rung ADR-0311 D2 retired — ADR-0336
-# then re-wired only its static-closure third as the new `check:web-experience-closure` rung, leaving
-# the marker-presence half still unwired) cannot see:
+# re-wired its static-closure third as `check:web-experience-closure`, and ADR-0454 then re-wired the
+# marker-presence third too, as `check:web-experience-markers`; both rungs now cover what the retired
+# rung used to) cannot see:
 # cross-repo and not-yet-harnessed are COSTS, not
 # judgment gaps (`human-witness-is-a-judgment-gap-not-cost`). Eight machine legs, zero human legs;
 # each Story-UAT leg below marks its own witness (the split table is in "UAT Test Criteria").
@@ -131,10 +132,11 @@ five-row beat table is the ORIGIN of the Act 2 spine, carried into `act2-beat-di
   affordance marker" or fold it into the a11y-fallback marker is a change to that LEAF cap's contract,
   outside this Act-2 re-spec's scope; the owner tunes it. Until then the guardrail still requires both
   markers, and the Act-2 build simply stops offering the skip as a capable-visitor escape — the marker
-  can remain present on the a11y path. **Since 2026-08-05 that MARKER requirement is unenforced**:
-  ADR-0311 D2 retired the `check:web-experience` rung, and ADR-0336 (2026-08-09) re-wired only its
-  static-closure third as `check:web-experience-closure` — the marker contract still answers only on
-  a direct invocation of the intact judge — open call 9, closed to that narrower scope.)*
+  can remain present on the a11y path. **Between 2026-08-05 and 2026-08-26 that MARKER requirement
+  went unenforced**: ADR-0311 D2 retired the `check:web-experience` rung, ADR-0336 (2026-08-09)
+  re-wired only its static-closure third as `check:web-experience-closure`, and ADR-0454 (2026-08-26)
+  then re-wired the marker third too, as `check:web-experience-markers` — the marker contract is
+  machine-enforced on every merge again — open call 9, closed to that narrower scope.)*
 
 ## The felt thesis — design intent, deliberately NOT UAT legs (ADR-0348 D6)
 
@@ -234,7 +236,7 @@ owner witnesses it), or CONTENT (owner-attested editorial judgement).
 | # | capability | class | outcome (short) | `--real` | depends on |
 |---|---|---|---|---|---|
 | 1 | [`r3f-world-spike`](r3f-world-spike.md) | LEAF | `packages/forest-world-r3f` is born: a real forest-world `World` + scene-graph maps to typed 3D instance descriptors, rendered in an R3F canvas with drei `MapControls` in a dev harness. | yes | — |
-| 2 | [`experience-rollout-guardrails`](experience-rollout-guardrails.md) | LEAF | A parent-side judge (check:web-grounding pattern) reds when the experience entry lacks the skip affordance or the reduced-motion/no-WebGL fallback, or when Act 1 statically reaches R3F. **Its `check:web-experience` rung was retired by ADR-0311 D2; ADR-0336 re-wired only the static-closure third as the new `check:web-experience-closure` gate rung — the two marker-presence assertions stay unwired (open call 9, closed to that scope).** | yes | — |
+| 2 | [`experience-rollout-guardrails`](experience-rollout-guardrails.md) | LEAF | A parent-side judge (check:web-grounding pattern) reds when the experience entry lacks the skip affordance or the reduced-motion/no-WebGL fallback, or when Act 1 statically reaches R3F. **Its `check:web-experience` rung was retired by ADR-0311 D2; ADR-0336 re-wired the static-closure third as `check:web-experience-closure`, and ADR-0454 re-wired the two marker-presence assertions as `check:web-experience-markers` — all three properties are gate-enforced again, split across two rungs (open call 9, closed to that scope).** | yes | — |
 | 3 | [`web-experience-sync`](web-experience-sync.md) | LEAF | The sync + drift-gate mechanism generalises to carry the R3F mapper package (`.tsx`-aware, `@storytree/forest-world` imports rewritten to the synced sibling core) into the site under the same `@generated` discipline. | yes | `r3f-world-spike` |
 | 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the ONE continuous arc as typed data (the website walk then the UPSTREAM dependency-layer reveal), advancing one tap at a time; a multi-story world where each story carries a `dependsOn` edge set + tri-state status; green appears only with a signed-proof marker (preserved verbatim); the wrong-way road is retired as the teach (ADR-0150). | yes | `r3f-world-spike` |
 | 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt (now **"build me a shopping website"**, reused across both acts) breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
@@ -774,17 +776,20 @@ story-tier attestation in that condition: ADR-0348 D6 deleted all five human leg
 entirely on machine verdicts. Where an attestation IS still owed — the capability tier's ADR-0070
 stage-2 nodes — it is recorded, never presumed (ADR-0044).
 
-**A note on leg 2's route, added 2026-08-07, updated 2026-08-09 (ADR-0336).** Both legs are gate rungs
-again, but leg 2 is narrower than it was. `check:web-engine` (leg 12) has run continuously in
-`pnpm gate` and in CI throughout. Leg 2's `check:web-experience` was retired by ADR-0311 D2 on
-2026-08-05; its judge — intact, still leaf-proven, still directly runnable — answered only on demand
-for a month. ADR-0336 (2026-08-09) re-wired ONLY its static-import-closure property as the new
-`check:web-experience-closure` gate rung — leg 2's OBSERVABLE narrowed to just that property (the
-criterion text above now says so), and it is machine-verified on every merge again. The
-skip-affordance / reduced-motion-fallback MARKER properties the old rung also asserted were
-deliberately left out of the re-wiring and remain "true when last checked" at best — the intact judge
-still answers them on a direct invocation, but no gate rung runs it. Re-wiring the marker half would
-need its own ADR-0311 D5 justification.
+**A note on leg 2's route, added 2026-08-07, updated 2026-08-09 (ADR-0336), updated again 2026-08-26
+(ADR-0454).** Both legs are gate rungs again, but leg 2 is narrower than it was. `check:web-engine`
+(leg 12) has run continuously in `pnpm gate` and in CI throughout. Leg 2's `check:web-experience` was
+retired by ADR-0311 D2 on 2026-08-05; its judge — intact, still leaf-proven, still directly runnable —
+answered only on demand for a month. ADR-0336 (2026-08-09) re-wired ONLY its static-import-closure
+property as the new `check:web-experience-closure` gate rung — leg 2's OBSERVABLE narrowed to just
+that property (the criterion text above now says so), and it is machine-verified on every merge
+again. The skip-affordance / reduced-motion-fallback MARKER properties the old rung also asserted
+were deliberately left out of that re-wiring and, between 2026-08-05 and 2026-08-26, remained "true
+when last checked" at best. **ADR-0454 (2026-08-26) closed that gap**: it re-wired the marker third as
+its own new gate rung, `check:web-experience-markers`, reusing the same intact judge's marker
+primitives — no story UAT leg names this rung (the marker contract lives at the capability tier, on
+[`experience-rollout-guardrails`](experience-rollout-guardrails.md)), but the marker properties are
+now machine-verified on every merge exactly as the closure property already was.
 
 ## Open modeling calls (for the owner)
 
@@ -869,6 +874,17 @@ Surfaced rather than guessed — none blocks the first increments:
    the FIRST increment" — was a machine-guarded property and had become an unguarded one.** The
    no-WebGL half of that consequence is machine-guarded again; the skip/fallback-marker half is not,
    and stays call 9's un-re-opened remainder should a future session want it.
+
+   **UPDATE 2026-08-26 (ADR-0454): call 9's un-re-opened remainder is now closed too.** ADR-0454 found
+   that the premise behind leaving the marker half retired — that re-wiring it needs a live-site fetch
+   or the unmerged cross-repo work referenced above — did not match what the retired judge actually
+   does: a plain static string search over the same `web/` submodule source the closure walk already
+   reads. On that corrected premise it re-wired the marker third as its own new gate rung,
+   `check:web-experience-markers`, reusing the same intact judge's marker primitives, exactly as
+   ADR-0336 re-wired the closure third. **Owner decision 6 is machine-guarded in full again** — both
+   the no-WebGL half and the skip/fallback-marker half — split across two rungs rather than restored as
+   one; `check:web-experience` itself stays retired and unwired (ADR-0454 D3). The residual gap both
+   ADRs accept is unchanged: static source presence is not proof the affordance works at runtime.
    (a) **Re-wire as it was** — cheapest, and the retirement's own premise (D5: the implementations
    stay so re-wiring is cheap) anticipates it; but ADR-0311 retired it on measured grounds, and
    re-adding it without a production catch re-litigates that decision rather than answering it.

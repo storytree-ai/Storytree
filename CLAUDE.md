@@ -344,9 +344,10 @@ kind owes a seed export any more.
   long `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
   *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine RED behind an
   unrelated flake. It is now a runner over a declared plan
-  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **ten** declared steps — the
-  nine evidence-backed ones retained by ADR-0311, plus `check:web-experience-closure`, re-wired by
-  ADR-0336 — and prints a per-step **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **eleven** declared steps — the
+  nine evidence-backed ones retained by ADR-0311, plus `check:web-experience-closure` (ADR-0336) and
+  `check:web-experience-markers` (ADR-0454, narrowing ADR-0336 D2) — and prints a per-step
+  **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
   25 steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
   **A step running past two minutes now prints one liveness line a minute (ADR-0376), and it is the
   only honest answer to "is this wedged or just slow?"** — `PROGRESSING` (its process tree burned CPU,
@@ -364,10 +365,11 @@ kind owes a seed export any more.
   means the runner never asked (only under `--fail-fast`, or when a run was interrupted / a step was
   killed), while `SKIP` means the step RAN and declared it had nothing to check. A step declares a
   skip by exiting the reserved code 3 — an opt-in its own author wrote, never inferred — and today
-  **three** do, all three declared in `SKIP_CAPABLE_CHECKS`: `check:web-grounding`,
-  `check:web-experience-closure` and `check:web-engine`, when the `web/` submodule is not checked out
+  **four** do, all four declared in `SKIP_CAPABLE_CHECKS`: `check:web-grounding`,
+  `check:web-experience-closure`, `check:web-experience-markers` (ADR-0454) and `check:web-engine`,
+  when the `web/` submodule is not checked out
   locally (`git submodule update --init web` to actually verify it) — so a laptop gate normally reads
-  GREEN, NARROWED with those three named, and that is the honest reading, not a defect.
+  GREEN, NARROWED with those four named, and that is the honest reading, not a defect.
   `check:web-engine` was the last to adopt the vocabulary; until then it returned 0 on the same state
   and was recorded as a PASS that had compared nothing. **The skip code is LOCAL**: CI runs these as
   ordinary steps where any non-zero code is a failure, so the two bootstrap branches that can fire

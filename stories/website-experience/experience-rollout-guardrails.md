@@ -3,7 +3,7 @@ id: "experience-rollout-guardrails"
 tier: capability
 story: website-experience
 title: "Skip and fallback are first-class from the first increment — machine-guarded"
-outcome: "A parent-side judge, web-experience-check.ts, reds when the experience entry page lacks the persistent skip-to-calm affordance marker or the prefers-reduced-motion / no-WebGL fallback marker, or when any module statically reachable from the Act 1 entry imports the R3F island or three; absent an experience entry it SKIPs (bootstrap allowance). It is BUILT and answers on demand — ADR-0311 D2 retired its check:web-experience rung, and ADR-0336 (2026-08-09) re-wired only the no-WebGL static-import-closure third as the new check:web-experience-closure gate rung, so a static R3F/three leak into Act 1 is machine-stopped on every merge again — but the skip/fallback MARKER-presence half stays unwired, so a marker regression still ships with nothing red."
+outcome: "A parent-side judge, web-experience-check.ts, reds when the experience entry page lacks the persistent skip-to-calm affordance marker or the prefers-reduced-motion / no-WebGL fallback marker, or when any module statically reachable from the Act 1 entry imports the R3F island or three; absent an experience entry it SKIPs (bootstrap allowance). It is BUILT and answers on demand — ADR-0311 D2 retired its check:web-experience rung; ADR-0336 (2026-08-09) re-wired the no-WebGL static-import-closure third as the new check:web-experience-closure gate rung, and ADR-0454 (2026-08-26) re-wired the skip/fallback MARKER-presence third too, as check:web-experience-markers, so a static R3F/three leak into Act 1 and a marker regression are both machine-stopped on every merge again."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -48,25 +48,30 @@ or when any module statically reachable from the Act 1 entry imports the R3F isl
 Absent an experience entry it SKIPs — so the guard could land BEFORE the storm and fail closed the
 moment the storm exists.
 
-> **⚠ THE RUNG IS RETIRED — THE JUDGE IS NOT. Read every `check:web-experience` mention in this
+> **⚠ THE COMBINED RUNG IS RETIRED — THE JUDGE IS NOT, AND ALL THREE OF ITS PROPERTIES ARE NOW
+> GATE-ENFORCED AGAIN THROUGH TWO NARROWER RUNGS. Read every `check:web-experience` mention in this
 > story against this paragraph.** ADR-0311 D2 (2026-08-05) retired `check:web-experience` from the
 > gate. It is **not a root `package.json` script**, **not a `GATE_PLAN` step**, and **not a CI
 > step** — it is declared in `RETIRED_CHECKS` in
 > [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts), and
 > [`packages/cli/src/web-experience-check.ts`](../../packages/cli/src/web-experience-check.ts)
-> carries the `UNWIRED` banner the tombstone pins. So **nothing invokes it on a merge**: the storm
-> can ship as a toll booth, or leak WebGL into Act 1, and no machine will say so.
+> carries the `UNWIRED` banner the tombstone pins. **That name specifically stays unwired — but its
+> three properties do not**: ADR-0336 (2026-08-09) re-wired the no-WebGL static-import-closure third
+> as `check:web-experience-closure`, and ADR-0454 (2026-08-26) re-wired the skip/fallback
+> marker-presence third as `check:web-experience-markers` (below). Between those two dates the marker
+> half genuinely had no machine watching it; since 2026-08-26 it does again.
 >
 > What SURVIVES is real and is the reason this is a re-scope rather than a retirement. The judge and
 > its fs shell are intact and **directly runnable** —
 > `npx tsx packages/cli/src/web-experience-check.ts` answers today (SKIP without the `web/`
 > submodule checked out; ARMED against a checkout carrying the entry marker). Its four contracts are
 > still proven: the leaf's signed PASS (`real-mr2tjkid` @ `fc9b20f`) stands, and
-> `web-experience-check.test.ts` still runs green under `pnpm -r test`. **That green is not
-> evidence the rule is enforced** — it is exactly the trap ADR-0311's Consequences named, and this
-> capability is one of its instances.
+> `web-experience-check.test.ts` still runs green under `pnpm -r test`. That green was never by
+> itself evidence the rule was enforced on a merge — it is exactly the trap ADR-0311's Consequences
+> named — but as of ADR-0454 the same primitives it exercises are also reached by a live gate rung on
+> every merge, so the gap that trap named is closed for all three properties now.
 >
-> **Re-wiring is an owner decision, not a wiring change** (ADR-0311 D5: fresh production-catch
+> **Re-wiring was an owner decision, not a wiring change** (ADR-0311 D5: fresh production-catch
 > evidence AND an ADR, never merely the wiring). It is surfaced as the story's open modeling call 9.
 >
 > **UPDATE 2026-08-09 (ADR-0336):**
@@ -79,6 +84,20 @@ moment the storm exists.
 > `checkExperienceEntry`/`checkExperienceSite`), stay exactly as retired and `UNWIRED` as described
 > above — the skip/fallback marker properties remain unguarded by any machine, a known and accepted
 > gap (ADR-0336 D2).
+>
+> **UPDATE 2026-08-26 (ADR-0454): the marker gap ADR-0336 D2 accepted is closed.** ADR-0454 found that
+> the premise behind leaving the marker half retired — that re-wiring it needs a live-site fetch or a
+> dependency on unmerged cross-repo work — did not match what `findExperienceMarkers` actually does: a
+> plain static string search (`html.includes("data-experience-skip")`) over the SAME static source
+> text `checkExperienceEntry` already reads, no network involved. On that corrected premise it re-wired
+> the marker third as its own new gate rung, `check:web-experience-markers`
+> ([`packages/cli/src/check-web-experience-markers.ts`](../../packages/cli/src/check-web-experience-markers.ts)),
+> reusing this file's `findExperienceEntries` / `findExperienceMarkers` exports rather than re-deriving
+> them, and following the same bootstrap-allowance / local-SKIP / CI-fail posture as its closure
+> sibling. `check:web-experience` itself still stays retired and unwired (ADR-0454 D3) — the readmission
+> is per-slice, not a restoration of the combined rung — but as of this ADR all three of the original
+> judge's properties are gate-enforced again, split across two rungs instead of one. The residual gap
+> both ADRs accept is unchanged: static source presence is not proof the affordance works at runtime.
 
 **Depends on —** (root — deliberately upstream of `act1-terminal-storm`: the storm may only face
 real visitors once these exits are machine-guarded. Owner decision 6, 2026-07-02.)

@@ -18,7 +18,9 @@
 // plain 90° reading would merely have moved the old 360px crowding onto the new scarce vertical.
 //
 // THE SIGNED GRAMMAR SURVIVES THE RE-FLOW UNCHANGED (ADR-0354 D3 reopened LAYOUT only): one playhead
-// occupancy bar with the over-500k portion red and NO marker/tick/arc for the threshold; plain node
+// occupancy bar with the over-threshold portion coloured and NO marker/tick/arc for the threshold
+// itself — THREE portions since ADR-0456 D4, because ADR-0411 D3 set a second mark at ~400K beside
+// the bar's 500K, and the clause applies to two thresholds exactly as it did to one; plain node
 // marks with no per-node gauge; solid full-payload and grey dotted front-matter edges; a magnifying
 // glass for search; branching carried by animation rather than drawn loop-backs; explicit-only forks
 // stating a raw `M of N` and never a percentage; and no depth ever inferred from order, time or the
@@ -52,10 +54,15 @@ import {
 import { TRAVERSAL_MAX_DRAWN_DEPTH } from '../lib/traversalDepth';
 import type { TraversalOffer } from '../lib/traversalOffers';
 import {
+  bandGuidance,
+  bandOf,
   formatTokens,
+  HARD_MARK_TOKENS,
   occupancyAt,
   occupancyFill,
-  OCCUPANCY_THRESHOLD_TOKENS,
+  preferredOccupancy,
+  SOFT_MARK_TOKENS,
+  type OccupancySeries,
 } from '../lib/traversalOccupancy';
 import { buildTraversalSpine, type TraversalEdge, type TraversalMark } from '../lib/traversalSpine';
 import { formatClock, formatDuration, timeAt } from '../lib/traversalTime';
@@ -103,10 +110,22 @@ export function TraversalSpine({
   replay,
   compact = false,
   knowledge,
+  transcriptOccupancy = null,
 }: {
   replay: TraversalReplayPayload;
   /** The host's own measurement that the panel is dragged small. OR-ed with this component's. */
   compact?: boolean;
+  /**
+   * This window's occupancy read from its own HOST TRANSCRIPT, supplied by the mount (ADR-0456 D2).
+   *
+   * PREFERRED over the trace-sourced series the replay carries, and the preference is the whole
+   * point of the repoint: occupancy reaches a trace only through an explicit `storytree traversal
+   * ingest` (2 of 697 local traces), while the transcripts are ambient (25 of the 30 most recent
+   * traces). `null` means the mount has not read it yet — which is NOT an absence, and must never
+   * render as "this window was never observed"; the trace-sourced series is what draws until it
+   * arrives, and it already knows how to say "none observed".
+   */
+  transcriptOccupancy?: OccupancySeries | null;
   /**
    * ADR-0363 D2's READ-ONLY depth-from-work join, supplied by the mount (`TraversalReplay`), which is
    * where the corpus lives. OPTIONAL and absent-by-default: with no corpus to join against, the
@@ -120,7 +139,13 @@ export function TraversalSpine({
   knowledge?: KnowledgeDepthModel;
 }): React.JSX.Element {
   const model = useMemo(() => buildTraversalSpine(replay), [replay]);
-  const { scale, marks, edges, occupancy, depth, offers } = model;
+  const { scale, marks, edges, depth, offers } = model;
+
+  // ONE bar, two possible sources, and the trace is the FALLBACK rather than the equal (ADR-0456 D2).
+  // The rule is a proven function rather than a ternary here, because its interesting case is the
+  // one a component would get wrong: when NEITHER source has readings, the transcript still wins,
+  // since it is the only one carrying a reason for the absence.
+  const occupancy = preferredOccupancy(model.occupancy, transcriptOccupancy);
 
   // The playhead lives in AXIS UNITS — one source of truth for "where are we", from which the clock
   // and the occupancy reading are both derived. Mirrored in a ref so the animation frame reads it
@@ -362,6 +387,7 @@ export function TraversalSpine({
         observed={observed?.residentTokens ?? null}
         scaleTokens={occupancy.scaleTokens}
         observationCount={occupancy.observationCount}
+        note={occupancy.note}
       />
     </div>
   );
@@ -730,25 +756,32 @@ function OccupancyTrack({
   observed,
   scaleTokens,
   observationCount,
+  note,
 }: {
   observed: number | null;
   scaleTokens: number;
   observationCount: number;
+  /** The source's own sentence about what it read, or looked for and did not find. May be empty. */
+  note: string;
 }): React.JSX.Element {
   if (observationCount === 0) {
     // The track keeps its column and goes DASHED rather than disappearing, so the picture's geometry
-    // does not change shape depending on whether a session happened to be ingested. It draws no fill
+    // does not change shape depending on whether a window happened to be readable. It draws no fill
     // at all — a flat zero bar would say the window was empty, which is a claim about the session
-    // rather than about the observation. The sentence naming the absence AND its remedy no longer
-    // renders anywhere in the panel (ADR-0393 D1 deleted the notes); the caption below and the
-    // `aria-label` are what is left, and `storytree traversal show` states the remedy in full.
+    // rather than about the observation. The sentence naming the absence no longer renders as PROSE
+    // anywhere in the panel (ADR-0393 D1 deleted the notes); it rides the `aria-label` instead, so
+    // the reason survives for a reader who asks without returning six paragraphs to the picture.
     return (
       <div className="traversal-occupancy is-unobserved">
         <span className="traversal-occupancy-cap">resident</span>
         <div
           className="traversal-occupancy-track is-unobserved"
           role="img"
-          aria-label="no context occupancy was observed for this session"
+          aria-label={
+            note === ''
+              ? 'no context occupancy was observed for this session'
+              : `no context occupancy was observed for this session — ${note}`
+          }
         />
         <span className="traversal-occupancy-readout is-unobserved">
           none
@@ -760,7 +793,7 @@ function OccupancyTrack({
   }
 
   const fill = observed === null ? null : occupancyFill(observed, scaleTokens);
-  const over = fill !== null && fill.overFraction > 0;
+  const band = observed === null ? null : bandOf(observed);
   return (
     <div className="traversal-occupancy" data-testid="traversal-occupancy">
       <span className="traversal-occupancy-cap">resident</span>
@@ -770,37 +803,46 @@ function OccupancyTrack({
         aria-label={
           observed === null
             ? 'no context observation yet at the playhead'
-            : `${formatTokens(observed)} tokens resident in the session window at the playhead`
+            : `${formatTokens(observed)} tokens resident in the session window at the playhead — ${bandGuidance(bandOf(observed))}`
         }
       >
         {fill !== null && (
           <>
+            {/* THREE portions, and the colour is the WHOLE signal for both marks — no marker, tick,
+                or arc is drawn at either boundary anywhere (ADR-0393 D1, carried to two marks by
+                ADR-0456 D4). Each segment simply starts where the fill splits. */}
             <span
-              className="traversal-occupancy-fill is-safe"
-              data-testid="traversal-occupancy-safe"
-              style={{ height: `${fill.safeFraction * 100}%` }}
+              className="traversal-occupancy-fill is-calm"
+              data-testid="traversal-occupancy-calm"
+              style={{ height: `${fill.calmFraction * 100}%` }}
             />
-            {/* The red is the WHOLE signal for the threshold — no marker, tick, or arc is drawn for
-                it anywhere; this segment simply starts where the fill splits. */}
             <span
-              className="traversal-occupancy-fill is-over"
-              data-testid="traversal-occupancy-over"
+              className="traversal-occupancy-fill is-soft"
+              data-testid="traversal-occupancy-soft"
               style={{
-                bottom: `${fill.overStartFraction * 100}%`,
-                height: `${fill.overFraction * 100}%`,
+                bottom: `${fill.softStartFraction * 100}%`,
+                height: `${fill.softFraction * 100}%`,
+              }}
+            />
+            <span
+              className="traversal-occupancy-fill is-hard"
+              data-testid="traversal-occupancy-hard"
+              style={{
+                bottom: `${fill.hardStartFraction * 100}%`,
+                height: `${fill.hardFraction * 100}%`,
               }}
             />
           </>
         )}
       </div>
       <span
-        className={`traversal-occupancy-readout${over ? ' is-over' : ''}`}
+        className={`traversal-occupancy-readout${band === null || band === 'calm' ? '' : ` is-${band}`}`}
         data-testid="traversal-occupancy-readout"
       >
         {observed === null ? '—' : formatTokens(observed)}
         <br />
         <span className="traversal-occupancy-threshold">
-          red past {formatTokens(OCCUPANCY_THRESHOLD_TOKENS)}
+          {formatTokens(SOFT_MARK_TOKENS)} · {formatTokens(HARD_MARK_TOKENS)}
         </span>
       </span>
     </div>
@@ -835,10 +877,12 @@ function Legend(): React.JSX.Element {
       </span>
       <span className="traversal-legend-key">
         <span className="traversal-legend-bar" aria-hidden="true">
-          <span className="traversal-legend-bar-safe" />
-          <span className="traversal-legend-bar-over" />
+          <span className="traversal-legend-bar-calm" />
+          <span className="traversal-legend-bar-soft" />
+          <span className="traversal-legend-bar-hard" />
         </span>
-        resident context, red past {formatTokens(OCCUPANCY_THRESHOLD_TOKENS)}
+        resident context, colouring past {formatTokens(SOFT_MARK_TOKENS)} and{' '}
+        {formatTokens(HARD_MARK_TOKENS)}
       </span>
       <span className="traversal-legend-key">∥ folded idle span</span>
     </div>

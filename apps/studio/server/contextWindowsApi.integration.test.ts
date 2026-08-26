@@ -12,6 +12,13 @@
 // zero, and TWO windows END on one. Taking the last observation verbatim therefore draws an EMPTY
 // meter for a window that reached 437.5k. That is a defect a reader cannot see and a bar cannot
 // confess, so it is pinned first.
+//
+// ★ THE `?session=` CASES CARRY NO CONTRACT-ID PREFIX, and that is deliberate rather than sloppy.
+// The prefix is the coverage binding (`testNameCoversContract`) and names a contract of
+// `context-window-meter` — the capability that owns this file's LIST mode and the tab it feeds.
+// The session mode belongs to the traversal replay panel (ADR-0456 D2), which has no capability of
+// its own, so a `context-window-meter-…` prefix here would assert a contract about the meter that
+// these cases do not test. An unprefixed name is inert to coverage, which walks contract → test.
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { createServer, type Server } from 'node:http';
@@ -20,7 +27,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
-import { handleContextWindows, primeContextWindows, readContextWindows } from './contextWindowsApi';
+import { handleContextWindows, primeContextWindows, readContextWindows, readWindowSeries } from './contextWindowsApi';
 import { HttpError } from './httpUtil';
 
 const PROJECT = 'C--code-storytree';
@@ -83,7 +90,7 @@ beforeAll(async () => {
   server = createServer((req, res) => {
     void (async (): Promise<void> => {
       try {
-        await handleContextWindows(req, res);
+        await handleContextWindows(req, res, new URL(req.url ?? '/', base));
       } catch (error) {
         const status = error instanceof HttpError ? error.status : 500;
         res.statusCode = status;
@@ -268,6 +275,89 @@ describe('GET /api/context-windows — helper windows are never folded in (ADR-0
     expect(payload.windows.map((w) => w.windowId)).toEqual(['window-alone']);
     expect(payload.scan.windowFilesFound).toBe(1);
     expect(payload.scan.helperFilesOnMachine).toBe(1);
+  });
+});
+
+describe('GET /api/context-windows?session=<id> — the replay panel\u2019s bar (ADR-0456 D2)', () => {
+  it('serves ONE window\u2019s whole series, with the instants a playhead needs', async () => {
+    writeWindow(
+      'window-series',
+      [
+        assistantLine({ windowId: 'window-series', at: '2026-08-26T09:00:00.000Z', id: 's1', tokens: 240_900 }),
+        // A recession: the quantity ADR-0248 chose precisely because it CAN fall.
+        assistantLine({ windowId: 'window-series', at: '2026-08-26T09:10:00.000Z', id: 's2', tokens: 228_100 }),
+        assistantLine({ windowId: 'window-series', at: '2026-08-26T09:20:00.000Z', id: 's3', tokens: 431_000 }),
+      ],
+      Date.parse('2026-08-26T09:20:00.000Z'),
+    );
+
+    const { status, body } = await get('/api/context-windows?session=window-series');
+    expect(status).toBe(200);
+    const payload = body as {
+      windowId: string;
+      observations: { at: string; residentTokens: number }[];
+      peakTokens: number;
+      absence: string | null;
+    };
+    expect(payload.windowId).toBe('window-series');
+    expect(payload.absence).toBeNull();
+    expect(payload.observations.map((o) => o.residentTokens)).toEqual([240_900, 228_100, 431_000]);
+    // Without the instant the reading cannot be placed at a playhead, which is the whole job here.
+    expect(payload.observations[0]?.at).toBe('2026-08-26T09:00:00.000Z');
+    expect(payload.peakTokens).toBe(431_000);
+  });
+
+  it('answers an unknown window with a stated ABSENCE and a 200 — never a 404, and never an empty series', async () => {
+    writeWindow(
+      'window-present',
+      [assistantLine({ windowId: 'window-present', at: '2026-08-26T09:00:00.000Z', id: 'p1', tokens: 10_000 })],
+      Date.parse('2026-08-26T09:00:00.000Z'),
+    );
+
+    // A LEGACY slot-keyed trace id: 601 of 704 local traces are named this way, and a slot pools
+    // every window that ran in it, so no single window's fullness could be drawn for one.
+    const { status, body } = await get('/api/context-windows?session=sweet-lovelace-f6a3fa');
+    // A 404 would read as "the route is missing" and send an operator somewhere else entirely.
+    expect(status).toBe(200);
+    const payload = body as { absence: string; observations: unknown[]; note: string; scan: { windowFilesFound: number } };
+    expect(payload.absence).toBe('no-window-transcript');
+    expect(payload.observations).toEqual([]);
+    expect(payload.scan.windowFilesFound).toBe(1);
+    expect(payload.note).toMatch(/worktree slot/);
+  });
+
+  it('never lets a helper transcript answer for a window (ADR-0413 D2)', async () => {
+    writeHelper('window-guarded', 'agent-a16b5d320d7caa8bd', [
+      assistantLine({ windowId: 'window-guarded', at: '2026-08-26T10:01:00.000Z', id: 'h1', tokens: 300_000, isSidechain: true }),
+    ]);
+    writeWindow(
+      'window-guarded',
+      [assistantLine({ windowId: 'window-guarded', at: '2026-08-26T10:00:00.000Z', id: 'p1', tokens: 100_000 })],
+      Date.parse('2026-08-26T10:05:00.000Z'),
+    );
+
+    const { body } = await get('/api/context-windows?session=window-guarded');
+    const payload = body as { observations: { residentTokens: number }[]; peakTokens: number };
+    // 400_000 is the merged figure that must appear nowhere — no window was ever that full.
+    expect(payload.observations.map((o) => o.residentTokens)).toEqual([100_000]);
+    expect(payload.peakTokens).toBe(100_000);
+  });
+
+  it('refuses a window id that is not a flat token — the parameter becomes a file name', async () => {
+    const { status, body } = await get('/api/context-windows?session=..%2F..%2Fetc');
+    expect(status).toBe(400);
+    expect((body as { error: string }).error).toMatch(/flat token/);
+  });
+
+  it('reads the same body through the route as through the exported reader', async () => {
+    writeWindow(
+      'window-parity',
+      [assistantLine({ windowId: 'window-parity', at: '2026-08-26T10:00:00.000Z', id: 'p1', tokens: 33_000 })],
+      Date.parse('2026-08-26T10:00:00.000Z'),
+    );
+    const direct = await readWindowSeries('window-parity');
+    const { body } = await get('/api/context-windows?session=window-parity');
+    expect(body).toEqual(JSON.parse(JSON.stringify(direct)));
   });
 });
 

@@ -215,3 +215,118 @@ describe('the anchor line travels with every per-trace figure', () => {
     expect(anchorSummary(buildKnowledgeDepth({ assets: [], assetsStatus: 'loading', assetsError: '' }))).toBeNull();
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE DECISION LAYER (`traversal-panel-arc`, increment
+// `traversal-panel-draws-the-decision-depth`; ADR-0403 dec 4, ADR-0431 D1).
+//
+// Until 2026-08-26 this adapter called the judge with ONE argument, so every `doc:` decision pointer
+// stayed bedrock and the panel reproduced the pre-ADR-0403 sink reading exactly — a ceiling of 2 over
+// a corpus whose join reaches 9. These cases are the two halves of closing that, and each is one
+// where a collapse produces a CONFIDENT WRONG reading rather than a missing one:
+//
+//   • the walk must continue THROUGH a decision, so depth stops being capped at the first `doc:`;
+//   • a visited `adr-NNNN` must read its DECISION's depth. It is on the wire twice — once as the
+//     artifact row `/api/assets` serves like any other, once as the walk's `decision:NNNN` node — and
+//     the artifact twin carries NONE of the decision's edges. Looking up the twin returns
+//     `unreachable`, which is the panel confidently reporting "no chain reaches this decision" about
+//     a decision sitting two hops from the work.
+
+/** An `adr` row exactly as `/api/assets` serves it — the artifact twin of a decision. */
+function decisionAsset(number: number, dependsOn: string[] = []): GuidanceAsset {
+  const id = `adr-${String(number).padStart(4, '0')}`;
+  const doc: GuidanceAsset = {
+    id,
+    category: 'adr',
+    title: `ADR-${String(number).padStart(4, '0')}`,
+    description: id,
+    body: '',
+    references: [],
+    createdAt: '2026-08-26T00:00:00.000Z',
+    updatedAt: '2026-08-26T00:00:00.000Z',
+  };
+  if (dependsOn.length > 0) doc.dependsOn = dependsOn;
+  return doc;
+}
+
+/**
+ * anchor(0) → ceremony(1) → ADR-0403(2) → ADR-0363(3).
+ *
+ * The chain crosses the artifact/decision boundary ONCE and then runs decision-to-decision, which is
+ * the shape the live corpus has: half its dependency pointers terminate at a decision.
+ */
+const DECISION_CORPUS: GuidanceAsset[] = [
+  asset('inc-one', { cites: ['story:studio', 'asset:ceremony'] }),
+  asset('ceremony', { dependsOn: ['doc:decisions/0403-decisions-are-artifacts.md'] }),
+  decisionAsset(403, ['doc:decisions/0363-the-knowledge-dag.md']),
+  decisionAsset(363),
+];
+
+const DECISIONS_READY = {
+  assets: DECISION_CORPUS,
+  assetsStatus: 'ready' as const,
+  assetsError: '',
+};
+
+describe('the walk continues THROUGH a decision', () => {
+  it('does not stop at the first `doc:` pointer', () => {
+    const model = buildKnowledgeDepth(DECISIONS_READY);
+    expect(model.status).toBe('measured');
+    if (model.status !== 'measured') return;
+    // Artifact-only, this corpus is 2 nodes deep and the chain dies at `ceremony`. Walking the
+    // decisions is what takes it to 3 — the difference this increment exists to close.
+    expect(model.verdict.maxDepth).toBe(3);
+    expect(model.verdict.decisionsReached).toBe(2);
+  });
+
+  it('reports the decision denominators, so a resolver that sees nothing is not mistaken for a shallow log', () => {
+    const model = buildKnowledgeDepth(DECISIONS_READY);
+    if (model.status !== 'measured') return;
+    expect(model.verdict.decisionsScanned).toBe(2);
+    // PRESENCE, not non-emptiness: ADR-0363 carries no `dependsOn` field at all, ADR-0403 does.
+    expect(model.verdict.decisionsCarryingDependsOn).toBe(1);
+  });
+});
+
+describe('a visited decision reads its own depth, not its artifact twin`s absence', () => {
+  it('reads `adr-NNNN` at the depth its DECISION node sits at', () => {
+    const model = buildKnowledgeDepth(DECISIONS_READY);
+    // The regression this guards: `adr-0403` IS in `knownIds` as an ordinary artifact row, so a
+    // lookup on the twin returns a confident `unreachable` for a decision two hops from the work.
+    expect(markKnowledgeDepth(model, 'adr-0403')).toMatchObject({ state: 'reached', depth: 2 });
+    expect(markKnowledgeDepth(model, 'adr-0363')).toMatchObject({ state: 'reached', depth: 3 });
+  });
+
+  it('counts a trace`s decision reads as reached, and carries them into the deepest figure', () => {
+    const model = buildKnowledgeDepth(DECISIONS_READY);
+    const report = reportKnowledgeDepth(
+      [visit('ceremony', 0), visit('adr-0403', 10), visit('adr-0363', 20)],
+      model,
+    );
+    expect(report).toMatchObject({ visited: 3, reached: 3, unreachable: 0, absent: 0, maxDepth: 3 });
+  });
+
+  it('still says UNREACHABLE for a decision no chain reaches — the three readings stay three', () => {
+    const model = buildKnowledgeDepth({
+      assets: [...DECISION_CORPUS, decisionAsset(9999)],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+    // In the corpus, reached by nothing. Never rendered as "very deep", and never as absent.
+    expect(markKnowledgeDepth(model, 'adr-9999')).toMatchObject({ state: 'unreachable' });
+    // And a decision the corpus does not hold at all is ABSENT, not unreachable — a fact about the
+    // id, not about the wiring.
+    expect(markKnowledgeDepth(model, 'adr-0001')).toMatchObject({ state: 'absent' });
+  });
+
+  it('leaves a non-decision `adr-`prefixed id alone', () => {
+    const model = buildKnowledgeDepth({
+      assets: [...DECISION_CORPUS, asset('adr-health-notes')],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+    // `adr-health-notes` is a legal artifact id that is NOT a decision. Rounding it to the nearest
+    // decision number is the confident-wrong-answer failure `adrNumberOfArtifactId` guards.
+    expect(markKnowledgeDepth(model, 'adr-health-notes')).toMatchObject({ state: 'unreachable' });
+  });
+});

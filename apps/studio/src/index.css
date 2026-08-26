@@ -4229,12 +4229,18 @@ button.legend-tile:hover {
   border-radius: 4px;
   overflow: hidden;
 }
-.traversal-legend-bar-safe {
-  width: 62%;
+/* Three keys since ADR-0456 D4, one per band, because ADR-0411 D3 set a second mark beside the
+   bar's own. The widths are legend proportions, not the marks' real positions on a track. */
+.traversal-legend-bar-calm {
+  width: 55%;
   background: var(--accent);
 }
-.traversal-legend-bar-over {
-  width: 20%;
+.traversal-legend-bar-soft {
+  width: 17%;
+  background: var(--warn);
+}
+.traversal-legend-bar-hard {
+  width: 17%;
   background: var(--danger);
 }
 /* `.traversal-gaps` held the six explanatory notes and is retired with them (ADR-0393 D1). The
@@ -4327,13 +4333,19 @@ button.legend-tile:hover {
   right: 0;
   height: 0;
 }
-.traversal-occupancy-fill.is-safe {
+/* THREE portions, one per band of ADR-0411 D3's two marks (ADR-0456 D4). The COLOUR is the whole
+   signal for both: no marker, tick or danger arc is drawn at 400k or at 500k anywhere, by the
+   design's own words — the clause applied to two thresholds rather than weakened for them. The
+   palette is the one the retiring Context tab used for the same three bands, so a reader who has
+   seen both meets one vocabulary. */
+.traversal-occupancy-fill.is-calm {
   bottom: 0;
   background: var(--accent);
 }
-/* The over-threshold portion of the FILL is the whole threshold signal: no marker, tick or
-   danger arc is drawn for 500k anywhere, by the design's own words. */
-.traversal-occupancy-fill.is-over {
+.traversal-occupancy-fill.is-soft {
+  background: var(--warn);
+}
+.traversal-occupancy-fill.is-hard {
   background: var(--danger);
 }
 .traversal-occupancy-readout {
@@ -4343,7 +4355,10 @@ button.legend-tile:hover {
   text-align: center;
   line-height: 1.2;
 }
-.traversal-occupancy-readout.is-over {
+.traversal-occupancy-readout.is-soft {
+  color: var(--warn);
+}
+.traversal-occupancy-readout.is-hard {
   color: var(--danger);
 }
 .traversal-occupancy-readout.is-unobserved {

@@ -129,7 +129,12 @@ async function main(): Promise<void> {
     const { anchors, anchorEdges, artifactsScanned, reached, unreachable, maxDepth, histogram } =
       renderedVerdict;
     console.log("");
-    console.log(`  depth from the work, as the studio would draw it:`);
+    // CORRECTED 2026-08-26 (`traversal-panel-draws-the-decision-depth`): this block is the
+    // NO-RESOLVER reading, and it is no longer what the studio draws. The panel now passes a
+    // `decisionSupportResolver` built from the `adr-NNNN` rows `/api/assets` already serves, so the
+    // reading it renders is the decision-walking one printed BELOW. Kept, and kept first, because it
+    // is the control: the pair is what shows how much of the depth lives past the old sink.
+    console.log(`  depth from the work, walking artifacts only (the control, NOT what the panel draws):`);
     console.log(
       `    anchors: ${anchors} of ${artifactsScanned} artifacts name a story/capability ` +
         `(${anchorEdges} asset: pointer${anchorEdges === 1 ? "" : "s"} out of the seed)`,
@@ -211,7 +216,8 @@ async function main(): Promise<void> {
     );
     console.log(
       `      artifact-only deepest, unchanged: ${withDecisions.maxArtifactDepth} ` +
-        `(the pre-ADR-0403 sink reading, and the one the studio panel still draws)`,
+        `(the pre-ADR-0403 sink reading — NO LONGER what the studio panel draws, since ` +
+        `\`traversal-panel-draws-the-decision-depth\` gave it this resolver on 2026-08-26)`,
     );
     console.log(
       `      decisions by depth: ${

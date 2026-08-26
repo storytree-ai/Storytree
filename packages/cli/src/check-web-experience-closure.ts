@@ -5,8 +5,9 @@
 // directory anywhere? This is a NEW, narrower rung — not a readmission of `check:web-experience`,
 // which stays retired and `UNWIRED` (ADR-0311 D5's re-addition bar is met by this ADR for this one
 // property only). The two runtime-marker assertions the old rung also carried
-// (`data-experience-skip` / `data-experience-fallback` presence) are DELIBERATELY out of scope here —
-// see ADR-0336 D2: they remain unguarded by any machine, a known and accepted gap.
+// (`data-experience-skip` / `data-experience-fallback` presence) are DELIBERATELY out of scope here:
+// they have their OWN rung, `check-web-experience-markers.ts` (ADR-0454, narrowing this ADR's D2,
+// which had left them retired). The two rungs are independent; this file is unchanged by that.
 //
 // Reuses the intact, tested closure-walk primitives the retired judge already exports
 // (`web-experience-check.ts`) rather than re-deriving them: `findExperienceEntries` (the

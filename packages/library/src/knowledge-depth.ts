@@ -140,7 +140,11 @@
 // pushes the figure toward *that artifact's depth + 12*. A reader handed the bare number will quote
 // the sample as the population — which is the same "unreachable is not shallow" error one layer up.
 
-import { decisionNodeId, parseDecisionPointer } from "./decision-pointer.js";
+import {
+  adrNumberOfArtifactId,
+  decisionNodeId,
+  parseDecisionPointer,
+} from "./decision-pointer.js";
 import { type DecisionSupportResolver } from "./decision-support-seam.js";
 import { readDependsOnPointers } from "./depends-on.js";
 
@@ -345,7 +349,10 @@ export function evaluateDepthFromWork(
    * Returns null when the pointer names no decision, OR when no resolver was supplied. The second
    * case is the fence, not an oversight: with no resolver there are no decision nodes to land on, so
    * a `doc:` decision pointer stays bedrock and an `asset:adr-NNNN` stays an ordinary artifact
-   * pointer at an ordinary artifact row — which is what the studio panel still draws.
+   * pointer at an ordinary artifact row. ⚠ CORRECTED 2026-08-26: that used to read "which is what
+   * the studio panel still draws", and it no longer does — `traversal-panel-draws-the-decision-depth`
+   * gave the panel a resolver built from the `adr-NNNN` rows `/api/assets` already served. The
+   * no-resolver branch remains the fence for any caller that genuinely has no decision log in hand.
    */
   function decisionTarget(pointer: string): { number: number; held: boolean } | null {
     if (decisions === undefined) return null;
@@ -646,6 +653,36 @@ export function depthFromWorkOf(
   verdict: DepthFromWorkVerdict,
   id: string,
 ): DepthFromWorkReading {
+  // A DECISION IS IN THIS GRAPH TWICE, AND ONLY ONE OF THE TWO CARRIES ITS EDGES.
+  //
+  // Since ADR-0403 dec 1 a decision is an ordinary Library artifact, so a caller holding a corpus
+  // listing hands `evaluateDepthFromWork` an `adr-NNNN` ROW like any other — and the walk ALSO mints
+  // `decision:NNNN` for the same decision the moment a pointer resolves onto it. Both land in
+  // `knownIds`. The rows are not interchangeable: the walk deliberately routes every decision
+  // pointer to `decision:NNNN` (see `decisionTarget`), so the artifact twin is left carrying none of
+  // the decision's inbound or outbound support edges.
+  //
+  // Looking up the twin therefore answers UNREACHABLE — "no authored chain reaches this" — about a
+  // decision that may sit two hops from the work. That is the confident-wrong-answer shape this
+  // module exists to prevent, and it is not hypothetical: it is what the studio's replay panel
+  // rendered for every ADR read a session made, which is precisely the layer the panel was built to
+  // show (`traversal-panel-arc`, increment `traversal-panel-draws-the-decision-depth`).
+  //
+  // So an `adr-NNNN` id is resolved to its decision node FIRST, and only when that node is in the
+  // graph. When no resolver was supplied there are no decision nodes at all, the branch cannot fire,
+  // and the answer is byte-identical to the pre-ADR-0403 reading — the same fence `decisionTarget`
+  // keeps on the walk itself. `adrNumberOfArtifactId` is strict about the four-digit shape, so a
+  // legal artifact id that merely begins `adr-` is never rounded to the nearest decision.
+  const decisionNumber = adrNumberOfArtifactId(id);
+  if (decisionNumber !== null) {
+    const nodeId = decisionNodeId(decisionNumber);
+    if (verdict.knownIds.has(nodeId)) {
+      const decisionDepth = verdict.depthById.get(nodeId);
+      return decisionDepth === undefined
+        ? { state: "unreachable" }
+        : { state: "reached", depth: decisionDepth };
+    }
+  }
   const depth = verdict.depthById.get(id);
   if (depth !== undefined) return { state: "reached", depth };
   if (verdict.knownIds.has(id)) return { state: "unreachable" };
