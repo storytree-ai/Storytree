@@ -10,8 +10,9 @@
 //   • the marks appear as the playhead reaches them, and not before;
 //   • a full payload read and a front-matter read draw DIFFERENT edges, discriminated by event kind;
 //   • a search is its own mark;
-//   • the occupancy bar reddens only past 500k, holds its reading, and SAYS SO when there is no series
-//     rather than drawing a flat zero;
+//   • the occupancy bar colours each portion past its own mark (ADR-0411 D3's 400k and 500k), holds
+//     its reading, prefers the window's own HOST TRANSCRIPT over the replayed trace (ADR-0456 D2),
+//     and SAYS SO when there is no series rather than drawing a flat zero;
 //   • the events this increment defers are named on the surface rather than silently omitted.
 
 import { describe, it, expect, afterEach } from 'vitest';
@@ -23,6 +24,7 @@ import type {
   TraversalReplayPayload,
 } from '../types';
 import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
+import { buildTranscriptOccupancySeries } from '../lib/traversalOccupancy';
 import { buildTraversalSpine } from '../lib/traversalSpine';
 import {
   TraversalSpine,
@@ -315,12 +317,12 @@ describe('the one playhead occupancy bar', () => {
     expect(screen.queryByTestId('traversal-occupancy-absent')).toBeNull();
   });
 
-  it('holds the reading at the playhead and reddens only the portion past 500k', () => {
+  it('holds the reading at the playhead and colours each portion past its own mark', () => {
     render(
       <TraversalSpine
         replay={replay([
           visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 600_000),
+          occupancyEvent(1_000, 550_000),
           visit('full_payload_read', 20_000, 'b'),
           visit('full_payload_read', 40_000, 'c'),
         ])}
@@ -328,18 +330,62 @@ describe('the one playhead occupancy bar', () => {
     );
 
     scrubTo(1);
-    // Scale is the base 1M ceiling: 500k safe + 100k over.
-    expect((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.height).toBe('50%');
-    const over = screen.getByTestId('traversal-occupancy-over') as HTMLElement;
-    expect(over.style.height).toBe('10%');
-    expect(over.style.bottom).toBe('50%');
+    // Scale is the base 600k ceiling — chosen ABOVE the hard mark so at-the-limit and past-it cannot
+    // draw alike. 400k calm + 100k soft + 50k hard, as fractions of 600k.
+    expect((screen.getByTestId('traversal-occupancy-calm') as HTMLElement).style.height).toBe(
+      `${(400_000 / 600_000) * 100}%`,
+    );
+    const soft = screen.getByTestId('traversal-occupancy-soft') as HTMLElement;
+    expect(soft.style.height).toBe(`${(100_000 / 600_000) * 100}%`);
+    expect(soft.style.bottom).toBe(`${(400_000 / 600_000) * 100}%`);
+    const hard = screen.getByTestId('traversal-occupancy-hard') as HTMLElement;
+    expect(hard.style.height).toBe(`${(50_000 / 600_000) * 100}%`);
+    expect(hard.style.bottom).toBe(`${(500_000 / 600_000) * 100}%`);
     // The word "resident" caps the track above the readout in the vertical composition, so the claim
     // is read off the whole block rather than the numeric line alone.
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('600.0k');
+    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('550.0k');
     expect(screen.getByTestId('traversal-occupancy').textContent).toContain('resident');
   });
 
-  it('has no red at all at exactly the threshold', () => {
+  it('draws NOTHING at either mark — the colour is the whole signal (ADR-0393 D1 / ADR-0456 D4)', () => {
+    render(
+      <TraversalSpine
+        replay={replay([
+          visit('full_payload_read', 0, 'a'),
+          occupancyEvent(1_000, 550_000),
+          visit('full_payload_read', 20_000, 'b'),
+        ])}
+      />,
+    );
+
+    scrubTo(1);
+    // Every child of the track is a FILL. A marker, tick, or danger arc at 400k or 500k is the one
+    // thing the signed grammar rules out, and it would arrive here as a fourth kind of child.
+    const track = document.querySelector('.traversal-occupancy-track') as HTMLElement;
+    const kinds = [...track.children].map((child) => child.className);
+    expect(kinds).toEqual([
+      'traversal-occupancy-fill is-calm',
+      'traversal-occupancy-fill is-soft',
+      'traversal-occupancy-fill is-hard',
+    ]);
+  });
+
+  it('has no soft portion at exactly the soft mark, and no hard portion at exactly the hard one', () => {
+    const { unmount } = render(
+      <TraversalSpine
+        replay={replay([
+          visit('full_payload_read', 0, 'a'),
+          occupancyEvent(1_000, 400_000),
+          visit('full_payload_read', 20_000, 'b'),
+        ])}
+      />,
+    );
+
+    scrubTo(1);
+    expect((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height).toBe('0%');
+    expect((screen.getByTestId('traversal-occupancy-hard') as HTMLElement).style.height).toBe('0%');
+    unmount();
+
     render(
       <TraversalSpine
         replay={replay([
@@ -351,8 +397,96 @@ describe('the one playhead occupancy bar', () => {
     );
 
     scrubTo(1);
-    expect((screen.getByTestId('traversal-occupancy-over') as HTMLElement).style.height).toBe('0%');
-    expect((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.height).toBe('50%');
+    expect((screen.getByTestId('traversal-occupancy-hard') as HTMLElement).style.height).toBe('0%');
+    expect((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height).toBe(
+      `${(100_000 / 600_000) * 100}%`,
+    );
+  });
+
+  it('prefers the window\u2019s own HOST TRANSCRIPT over the replayed trace (ADR-0456 D2)', () => {
+    // The whole repoint, in one assertion. The trace carries nothing — the ordinary state, since
+    // occupancy reaches a trace only through an explicit `storytree traversal ingest` (2 of 697 local
+    // traces on this machine). Before this, the bar drew its honest "none observed" here. The host
+    // transcript is ambient and answers for 25 of the 30 most recent traces.
+    render(
+      <TraversalSpine
+        replay={replay([
+          visit('full_payload_read', 0, 'a'),
+          occupancyEvent(1_000),
+          visit('full_payload_read', 20_000, 'b'),
+        ])}
+        transcriptOccupancy={buildTranscriptOccupancySeries({
+          windowId: 'the-session',
+          scan: { root: '/transcripts', windowFilesFound: 9, file: '/transcripts/the-session.jsonl' },
+          observations: [{ at: at(1_000), residentTokens: 431_000 }],
+          peakTokens: 431_000,
+          syntheticObservations: 0,
+          sidechainRequests: 0,
+          absence: null,
+          note: '1 reading(s) from this window’s own host transcript',
+        })}
+      />,
+    );
+
+    scrubTo(1);
+    expect(document.querySelector('.traversal-occupancy.is-unobserved')).toBeNull();
+    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('431.0k');
+    // Past the soft mark, short of the hard one: the middle band is coloured and the top is not.
+    expect(
+      Number.parseFloat((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height),
+    ).toBeGreaterThan(0);
+    expect((screen.getByTestId('traversal-occupancy-hard') as HTMLElement).style.height).toBe('0%');
+  });
+
+  it('keeps the TRACE series when the transcript answered an absence — the ingested case must not regress', () => {
+    // The 2-in-697 shape: this trace really was ingested and carries the series, while the window's
+    // transcript is gone (a project directory removed, say). An empty transcript answer overwriting
+    // a real trace series would silently delete the only reading that exists.
+    render(
+      <TraversalSpine
+        replay={replay([
+          visit('full_payload_read', 0, 'a'),
+          occupancyEvent(1_000, 240_900),
+          visit('full_payload_read', 20_000, 'b'),
+        ])}
+        transcriptOccupancy={buildTranscriptOccupancySeries({
+          windowId: 'the-session',
+          scan: { root: '/transcripts', windowFilesFound: 9, file: null },
+          observations: [],
+          peakTokens: 0,
+          syntheticObservations: 0,
+          sidechainRequests: 0,
+          absence: 'no-window-transcript',
+          note: 'no host transcript named "the-session"',
+        })}
+      />,
+    );
+
+    scrubTo(1);
+    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('240.9k');
+  });
+
+  it('carries the source\u2019s own absence sentence into the track\u2019s label rather than losing it', () => {
+    render(
+      <TraversalSpine
+        replay={replay([visit('full_payload_read', 0, 'a'), visit('full_payload_read', 20_000, 'b')])}
+        transcriptOccupancy={buildTranscriptOccupancySeries({
+          windowId: 'sweet-lovelace-f6a3fa',
+          scan: { root: '/transcripts', windowFilesFound: 9, file: null },
+          observations: [],
+          peakTokens: 0,
+          syntheticObservations: 0,
+          sidechainRequests: 0,
+          absence: 'no-window-transcript',
+          note: 'a trace keyed by a worktree slot pools every window that ran in it',
+        })}
+      />,
+    );
+
+    // ADR-0393 D1 deleted the prose under the picture; the REASON still has to reach a reader who
+    // asks, so it rides the label rather than returning as a paragraph.
+    const track = document.querySelector('.traversal-occupancy-track.is-unobserved');
+    expect(track?.getAttribute('aria-label')).toContain('worktree slot');
   });
 
   it('reads "— resident" before the first observation rather than zero', () => {
@@ -391,7 +525,7 @@ describe('the one playhead occupancy bar', () => {
     // The bar is a VERTICAL track since the rotation, so its fill is a height. The claim is
     // unchanged: the plotted quantity is resident context and it must be free to FALL.
     const safeFill = (): number =>
-      Number.parseFloat((screen.getByTestId('traversal-occupancy-safe') as HTMLElement).style.height);
+      Number.parseFloat((screen.getByTestId('traversal-occupancy-calm') as HTMLElement).style.height);
 
     scrubTo(0.5);
     const first = safeFill();

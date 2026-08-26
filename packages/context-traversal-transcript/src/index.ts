@@ -37,6 +37,7 @@ export {
 export {
   readContextWindows,
   readOwnContextWindow,
+  readWindowOccupancySeries,
   type ContextHelperWire,
   type ContextScanWire,
   type ContextWindowWire,
@@ -47,6 +48,11 @@ export {
   type OwnWindowScan,
   type OwnWindowSelection,
   type WindowOccupancy,
+  type WindowSeriesAbsence,
+  type WindowSeriesArgs,
+  type WindowSeriesObservation,
+  type WindowSeriesRead,
+  type WindowSeriesScan,
 } from "./context-windows.js";
 
 export {
