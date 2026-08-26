@@ -33,15 +33,23 @@ import { formatTokens } from './traversalOccupancy';
 
 export { formatTokens };
 
-/**
- * ADR-0411 D3's SOFT mark: past this, take on no NEW increment — finish what you hold, hand over.
- * `~400K` in the decision's own words; the tilde is about when to CHECK (at an increment boundary,
- * D5), not about the number being approximate.
- */
-export const SOFT_MARK_TOKENS = 400_000;
+// ★ THE MARKS THEMSELVES ARE NOT DECLARED HERE ANY MORE. They were, while this widget was their only
+// reader; `storytree context` (increment `hand-a-running-session-its-own-occupancy`) is the second,
+// and the CLI must not import `apps/studio`. So they moved to
+// `@storytree/context-traversal-transcript/marks` — a subpath that imports NOTHING, so pulling it
+// into this bundle drags no `node:` module behind it, unlike that package's node-only barrel.
+// ADR-0411 D8 says out loud that the marks may be TUNED, and two copies of a tunable constant is how
+// one surface comes to say "soft" while the other says "calm" about the same window.
+import {
+  HARD_MARK_TOKENS,
+  SOFT_MARK_TOKENS,
+  bandGuidance,
+  bandOf,
+  type ContextBand,
+} from '@storytree/context-traversal-transcript/marks';
 
-/** ADR-0411 D3's HARD mark: land what is green, write the handover, let a fresh session continue. */
-export const HARD_MARK_TOKENS = 500_000;
+export { SOFT_MARK_TOKENS, HARD_MARK_TOKENS, bandOf, bandGuidance };
+export type { ContextBand };
 
 /**
  * The track's base ceiling.
@@ -55,15 +63,6 @@ export const BASE_SCALE_TOKENS = 600_000;
 
 /** Ceiling growth granularity, so a series peaking above the base still gets a stable track. */
 const SCALE_STEP_TOKENS = 100_000;
-
-/** Which of ADR-0411 D3's bands a reading falls in. `calm` is below both marks. */
-export type ContextBand = 'calm' | 'soft' | 'hard';
-
-export function bandOf(residentTokens: number): ContextBand {
-  if (residentTokens >= HARD_MARK_TOKENS) return 'hard';
-  if (residentTokens >= SOFT_MARK_TOKENS) return 'soft';
-  return 'calm';
-}
 
 /**
  * ONE ceiling for every meter the widget draws, chosen from the fullest reading among them.
@@ -115,23 +114,6 @@ export function meterSegments(residentTokens: number, scaleTokens: number): Mete
     softStartFraction: Math.min(1, SOFT_MARK_TOKENS / scale),
     hardStartFraction: Math.min(1, HARD_MARK_TOKENS / scale),
   };
-}
-
-/**
- * The plain-language consequence of a reading — ADR-0411 D3's own instruction, not a paraphrase.
- *
- * This is the sentence that makes the number worth glancing at: a bar alone says how full, and a
- * session's actual question is what to do about it.
- */
-export function bandGuidance(band: ContextBand): string {
-  switch (band) {
-    case 'hard':
-      return 'past the hard mark — land what is green, write the handover, let a fresh session continue';
-    case 'soft':
-      return 'past the soft mark — take on no new increment; finish what is held, then hand over';
-    default:
-      return 'below both marks — room for another increment';
-  }
 }
 
 /** "4m", "3h", "2d" — how long ago, at the coarsest unit that is still true. */

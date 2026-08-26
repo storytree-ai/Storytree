@@ -16,11 +16,38 @@ export {
 
 export {
   collectTranscriptFiles,
+  correlateTranscriptFile,
   correlateTranscripts,
   resolveTranscriptDir,
   type CorrelatedWindow,
   type TranscriptCorrelation,
+  type TranscriptFileCorrelation,
 } from "./correlate-transcripts.js";
+
+// The two marks are ALSO reachable at the `./marks` subpath, which imports nothing — that is the
+// door the studio's browser-side meter uses, since this barrel is node-only by construction.
+export {
+  bandGuidance,
+  bandOf,
+  HARD_MARK_TOKENS,
+  SOFT_MARK_TOKENS,
+  type ContextBand,
+} from "./context-marks.js";
+
+export {
+  readContextWindows,
+  readOwnContextWindow,
+  type ContextHelperWire,
+  type ContextScanWire,
+  type ContextWindowWire,
+  type ContextWindowsWire,
+  type OwnWindowAbsence,
+  type OwnWindowArgs,
+  type OwnWindowRead,
+  type OwnWindowScan,
+  type OwnWindowSelection,
+  type WindowOccupancy,
+} from "./context-windows.js";
 
 export {
   DECISION_READ_SURFACES,

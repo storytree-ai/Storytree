@@ -240,6 +240,29 @@ function windowFromLines(file: string, lines: readonly CorrelatingLine[]): Corre
   return { windowId, file, firstObservedAt };
 }
 
+/** What one transcript file says about one storytree session. */
+export interface TranscriptFileCorrelation {
+  /** The window this file names for the session, or `undefined` when it names none. */
+  readonly window: CorrelatedWindow | undefined;
+  /** Correlating lines a SUBAGENT wrote — real context inside the worktree, naming no window. */
+  readonly sidechainLines: number;
+}
+
+/**
+ * The correlation rule applied to ONE file, so a caller that already knows which files to look at
+ * does not have to read every file under the root to use it.
+ *
+ * EXPORTED for the same reason `collectTranscriptFiles` is: `correlateTranscripts` sweeps the whole
+ * root, which is minutes on a machine holding thousands of transcripts, and a caller asking only
+ * "is THIS file mine?" — `readOwnContextWindow`, walking newest-first under a bound — must not
+ * answer it with a second copy of {@link correlatesTo}. A second identity rule is how a session
+ * comes to read someone else's window.
+ */
+export function correlateTranscriptFile(file: string, sessionId: string): TranscriptFileCorrelation {
+  const { windowLines, sidechainLines } = readCorrelatingLines(file, sessionId);
+  return { window: windowFromLines(file, windowLines), sidechainLines };
+}
+
 export function correlateTranscripts(
   sessionId: string,
   location: { readonly dir: string },
@@ -249,8 +272,7 @@ export function correlateTranscripts(
   const windows: CorrelatedWindow[] = [];
   let sidechainFiles = 0;
   for (const file of files) {
-    const { windowLines, sidechainLines } = readCorrelatingLines(file, sessionId);
-    const window = windowFromLines(file, windowLines);
+    const { window, sidechainLines } = correlateTranscriptFile(file, sessionId);
     if (window !== undefined) {
       windows.push(window);
     } else if (sidechainLines > 0) {
