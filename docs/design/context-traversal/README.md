@@ -109,11 +109,12 @@ that is the primary way the shape is read, not a static diagram that happens to 
   - **AND THERE IS ONLY ONE SURFACE AGAIN.** ADR-0452 D1/D2 briefly gave the same reading a second
     home, the bottom panel's standalone **Context tab** (`context-window-meter`). The owner corrected
     the referent the same day — his answer had always been about the context traversal surface — and
-    ADR-0456 retires that tab, folding the reading into THIS bar, which is repointed at the ambient
+    ADR-0456 retired that tab, folding the reading into THIS bar, which is repointed at the ambient
     host transcripts so it finally has data to draw (occupancy reaches a trace only through an
-    explicit `storytree traversal ingest`: 2 of 697 local traces). If a future reader meets a
-    reference to two surfaces and suspects the marker rule was reopened, it was not — and the second
-    surface is gone.
+    explicit `storytree traversal ingest`: 2 of 697 local traces; the transcripts answer for 25 of
+    the 30 most recent). The tab and its capability are GONE as of 2026-08-26. If a future reader
+    meets a reference to two surfaces and suspects the marker rule was reopened, it was not — and the
+    second surface no longer exists.
 - The occupancy quantity the bar plots is settled by ADR-0248: it is a per-request resident-context
   figure, sourced from the host transcript surface, which can fall as well as rise. A billing total is
   monotonic and cannot draw this bar.

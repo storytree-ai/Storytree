@@ -5,7 +5,7 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal, map-live-hierarchy-read, context-window-meter]
+capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal, map-live-hierarchy-read]
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -39,12 +39,14 @@ capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus
 # same files through the same reader (rather than re-deriving the parse rules studio-side) is what
 # stops the surface and the ingest describing one transcript differently. Lazy-imported inside the
 # handler like the other two, and declared for the same reason.
-#   ⚠ THE EDGE SURVIVES THE CONTEXT TAB'S RETIREMENT, and its REASON is what moved (ADR-0456 D1/D2,
-#   increment `merge-the-context-meter-into-the-traversal-surface`). It was declared for the
-#   standalone Context tab; that tab retires, and the same route now serves the TRAVERSAL REPLAY
-#   PANEL's own occupancy bar at `?session=<windowId>` — the bar that has been in the owner-signed
-#   design since `traversal-panel-spine-render` and had never drawn a real reading here. So this is
-#   not an edge to sweep away with the widget: `apps/studio` still imports that package.
+#   ⚠ THE EDGE SURVIVED THE CONTEXT TAB'S RETIREMENT, and its REASON is what moved (ADR-0456 D1/D2,
+#   increments `merge-the-context-meter-into-the-traversal-surface` / `retire-the-standalone-context-tab`).
+#   It was declared for the standalone Context tab; that tab and the `context-window-meter`
+#   capability are RETIRED, and the same route now serves the TRAVERSAL REPLAY PANEL's own occupancy
+#   bar at `?session=<windowId>` — the bar that has been in the owner-signed design since
+#   `traversal-panel-spine-render` and had never drawn a real reading here. So this is not an edge to
+#   sweep away with the widget: `apps/studio` still imports that package, and the import is now the
+#   panel's rather than the meter's.
 # `arc-tier-extraction-arc` (ADR-0369): the arc → children JOIN this server's `handleArcs` serves is
 # no longer in `@storytree/drive` — ADR-0369 D1 gave the arc domain its own package and D2 fixed the
 # arrow at arc → drive, so `drive`'s barrel dropped the `arc-rollup` re-export and this app now

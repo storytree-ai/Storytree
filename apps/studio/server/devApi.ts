@@ -72,9 +72,11 @@ export function storytreeDataApi(options: StorytreeDataApiOptions = {}): Plugin 
       // and the route works exactly as before if this never completes.
       void primeTraversalIndex();
 
-      // The same move for the context-window meter (ADR-0452): its lazy transcript import is most of
-      // its cold cost, and unprimed that cost lands on the first click — which is the click an owner
-      // makes when the widget is staged for a LOOK. Fire-and-forget; it swallows its own faults.
+      // The same move for the traversal panel's OCCUPANCY read (ADR-0452, repointed by ADR-0456 D2):
+      // its lazy transcript import is most of its cold cost, and unprimed that cost lands on the
+      // first trace an operator opens. It primes the MODULE rather than a reading — the route
+      // answers per window now, and there is no window to name before one is picked.
+      // Fire-and-forget; it swallows its own faults.
       void primeContextWindows();
 
       // The SAME move one layer down (ADR-0354). The pg pool is built lazily on first use, and that

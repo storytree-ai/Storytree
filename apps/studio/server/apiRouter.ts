@@ -2230,17 +2230,14 @@ export async function handleApiRequest(
       // traces, so hosted answers an honest empty list rather than inventing one. See traversalApi.ts.
       await handleTraversal(req, res, url);
     } else if (url.pathname === '/api/context-windows') {
-      // ADR-0452 D1/D2 — the context-window meter: this machine's recent SESSION windows and how
-      // full each one is, read straight from the host transcripts rather than from ingested traces
-      // (only 2 of 697 local traces carry occupancy at all, so a trace-backed meter would be blank).
+      // ADR-0452 D1/D2 as repointed by ADR-0456 D2 — ONE host window's occupancy series, read
+      // straight from the ambient host transcripts rather than from ingested traces (only 2 of 697
+      // local traces carry occupancy at all, so a trace-backed bar would be blank). It is what the
+      // traversal replay panel's own occupancy bar plots at its playhead. `?session=<windowId>` is
+      // REQUIRED: the machine-wide list mode retired with the standalone Context tab (ADR-0456 D1).
       // Member-readable by the gate's GET rule and read-only by decision. Local for the same reason
       // the traversal route is: the hosted container holds no operator transcripts, so it answers an
-      // honest empty list. See contextWindowsApi.ts.
-      //
-      // `?session=<windowId>` asks the same route for ONE window's whole series, with instants —
-      // what the traversal replay panel's occupancy bar plots at its playhead (ADR-0456 D2). The
-      // list mode above feeds the standalone Context tab, which ADR-0456 D1 retires; the session
-      // mode is what the retirement leaves standing.
+      // honest absence. See contextWindowsApi.ts.
       await handleContextWindows(req, res, url);
     } else if (url.pathname.startsWith(`${STORE_DOOR_BASE_PATH}/`)) {
       // ADR-0259 D1 — the store door: the raw `Store` seam over HTTPS, for a client that cannot open
