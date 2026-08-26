@@ -194,10 +194,19 @@ export interface GatePlanStep extends GateStep {
  *   without it the public site runs a stale forest engine.
  * - check:web-experience-closure — PROOF INTEGRITY (ADR-0336, added 2026-08-09). Re-wires only the
  *   static-import-closure third of the retired check:web-experience (ADR-0311 D2); the two
- *   runtime-marker assertions stay retired. Preventive rather than catch-evidenced — it SKIPs
- *   (bootstrap allowance) until the story's Act 1 entry ships — but is a cheap, deterministic,
- *   offline machine expression of the ADR-0216 D2/D4 no-WebGL-in-Act-1 constraint that no other rung
- *   watches for.
+ *   runtime-marker assertions stayed retired until ADR-0454 (below). Preventive rather than
+ *   catch-evidenced — it SKIPs (bootstrap allowance) until the story's Act 1 entry ships — but is a
+ *   cheap, deterministic, offline machine expression of the ADR-0216 D2/D4 no-WebGL-in-Act-1
+ *   constraint that no other rung watches for.
+ * - check:web-experience-markers — PROOF INTEGRITY (ADR-0454, added 2026-08-26, narrowing ADR-0336
+ *   D2). Re-wires the other two-thirds of the retired check:web-experience: the
+ *   `data-experience-skip` / `data-experience-fallback` marker-presence assertions. ADR-0336 D2 left
+ *   these retired on the premise that re-wiring needed a live-site network fetch; ADR-0454 found that
+ *   premise did not match the retired judge's actual implementation (a static string search over the
+ *   same `web/` submodule source the closure walk already reads) and re-wired them the same way,
+ *   same posture, same cost. Preventive rather than catch-evidenced, on the check:web-experience-closure
+ *   precedent — it protects owner decision 6 on `website-experience` (the skip/fallback affordances
+ *   are load-bearing from the first increment), not a specific production catch.
  * - pnpm -r typecheck — PROOF INTEGRITY. CI run 27761462602, fix 34f320dc, PR224 caught a moved,
  *   nonexistent export after other gates and build were green; without it a stale loader ships.
  * - pnpm -r test — PROOF INTEGRITY. CI run 30976384824, fix 327151fb, PR1151 caught
@@ -280,6 +289,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     subject: "own-work",
     cost: "seconds",
     why: "reds when Act 1's static import closure in this diff's web/ pin reaches three or @react-three/* (ADR-0336)",
+  },
+  {
+    command: "pnpm check:web-experience-markers",
+    check: "check:web-experience-markers",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when this diff's web/ pin's experience entry page drops the data-experience-skip or data-experience-fallback marker (ADR-0454, narrowing ADR-0336 D2)",
   },
   // ── B. own-work, minutes ───────────────────────────────────────────────────
   {
@@ -394,6 +410,10 @@ export const SKIP_CAPABLE_CHECKS: ReadonlyMap<string, string> = new Map([
   ],
   [
     "check:web-experience-closure",
+    "the `web/` submodule is absent locally (it is cloned in CI, where an absent web/ is a hard failure instead)",
+  ],
+  [
+    "check:web-experience-markers",
     "the `web/` submodule is absent locally (it is cloned in CI, where an absent web/ is a hard failure instead)",
   ],
   [
@@ -825,6 +845,7 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   // two web/ neighbours stay — they compare this diff's submodule pin against this repo's source.
   "check:web-engine",
   "check:web-experience-closure",
+  "check:web-experience-markers",
 ]);
 
 /**

@@ -258,6 +258,13 @@ jobs:
       - name: web experience closure
         run: pnpm check:web-experience-closure
 
+      # The marker-presence third of the retired check:web-experience (ADR-0454, narrowing ADR-0336
+      # D2 — that D2's premise that re-wiring needs a live-site fetch did not match the retired
+      # judge's actual static-source implementation). SKIPs (bootstrap allowance) until the site
+      # adopts an experience entry; needs the cloned web/ above.
+      - name: web experience markers
+        run: pnpm check:web-experience-markers
+
       # Affected-only PR scope (ADR-0195, amends ADR-0022; ADR-0304 D2 puts the SAME classifier
       # behind the local `pnpm gate`): classify the PR's changed files and,
       # when every one maps cleanly into the workspace graph, narrow typecheck+test to the changed
