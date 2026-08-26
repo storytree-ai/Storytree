@@ -206,6 +206,19 @@ jobs:
       - name: Source-ownership totality
         run: pnpm check:ownership-totality
 
+      # Work-hierarchy CAMPS (ADR-0445 D1, `map-freshness-arc` inc-04). D1 made the tree
+      # disk-canonical for PROVING and live-canonical for RENDERING, and its own Consequences name
+      # the failure mode: "a THIRD reader added later without asking which camp it is in". This rung
+      # computes, from each module's code, which source it NAMES, and holds that against the camp
+      # declared in `repo-manifest.json` -> `hierarchyCamps.readers` — in both directions, so an
+      # undeclared reader, a declared read the code does not perform, a live read in the prove camp,
+      # an unstated checkout fallback in the render camp, and a render reader reaching a prove
+      # reader's helper all red. Offline and disk-only: no store, no credential. Deliberately a ROOT
+      # step, OUTSIDE the ADR-0195 narrowing below — a new reader may land in any package, and the
+      # cross-camp rule reads two modules that need not be in the same affected scope.
+      - name: Work-hierarchy reader camps
+        run: pnpm check:hierarchy-camps
+
       # Cross-surface mirror conformance (verification-integrity-arc inc 2). Surfaces that
       # re-compose another's route — the desktop backend hand-mirrors the studio's /api/docs walk
       # and may never import it (ADR-0176) — must serve the SAME payload. Each surface is run by

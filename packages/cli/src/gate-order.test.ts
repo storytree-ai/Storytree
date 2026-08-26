@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0223, ADR-0317, ADR-0403 and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0223, ADR-0317, ADR-0403, ADR-0445 and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -168,6 +168,10 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       "pnpm lint",
       "pnpm check:boundaries",
       "pnpm check:ownership-totality",
+      // The ADR-0445 D1 camp fence, added 2026-08-26: offline, disk-only and this branch's to fix,
+      // so it sits with its two declared-ownership neighbours rather than beside the store-reading
+      // `check:hierarchy-drift` it shares an arc with.
+      "pnpm check:hierarchy-camps",
       "pnpm check:mirror-conformance",
       "pnpm check:web-engine",
       "pnpm check:web-experience-closure",
