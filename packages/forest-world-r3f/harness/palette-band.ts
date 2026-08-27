@@ -51,17 +51,69 @@ export interface Rgb255 {
   b: number;
 }
 
+/** ONE STATUS'S AUTHORED GROUND FAMILY: the three `top` variants a cell hash-picks between, the
+ *  shared `wheat` override, and the `side` flank a wall face wears.
+ *
+ *  It is a NAMED contract rather than an inline shape because more than one binding is typed by
+ *  it — `STATUS_TOKENS`'s values, the shared {@link YELLOW_FAMILY}, and every caller that passes
+ *  an alternate token table (`shadow-ladder.ts`'s reader, `status-vocabulary.ts`'s frozen
+ *  pre-ADR-0462 palette). Three anonymous copies of one shape is how they drift. */
+export interface StatusFamily {
+  top: readonly string[];
+  wheat: string;
+  side: string;
+}
+
+/**
+ * THE YELLOW `proposed` AND `building` BOTH WEAR — ONE OBJECT, SHARED BY TWO KEYS.
+ *
+ * Owner-directed 2026-08-27, verbatim: *"if something is building just color it yellow because
+ * its basicly the same as proposed, theres no value add, we can already see if wisps are working
+ * on it or not."* The land stopped carrying a separate orange-gold for live work; the wisp is the
+ * live-work signal and always was (ADR-0200 / ADR-0142 — a work claim IS the orbiting wisp).
+ *
+ * IT IS THE SAME OBJECT RATHER THAN TWO EQUAL LITERALS, and that is the whole point: "two states,
+ * one token" is then a fact about the code that no later edit can half-apply. Two copies would
+ * agree today and drift the first time somebody retuned one of them.
+ */
+const YELLOW_FAMILY: StatusFamily = {
+  top: ['#d8c069', '#ccb258', '#e2cf7e'],
+  wheat: '#d6b271',
+  side: '#a8914a',
+};
+
 /** The per-status authored tokens. Verbatim from the app's `.hex-territory.st-<status>`
  *  blocks via chapter2-land-interior-fork-2026-08-15/compose.py `STATUS_TOKENS`. `top` is
  *  the three-variant ground family (`substrate.ts:237` hash-picks one per cell), `wheat`
- *  the override, `side` the wall/side-face family. */
-export const STATUS_TOKENS: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = new Map([
-  ["proposed", { top: ['#d8c069', '#ccb258', '#e2cf7e'], wheat: '#d6b271', side: '#a8914a' }],
-  ["building", { top: ['#dcab52', '#d09a42', '#e6bc68'], wheat: '#d6b271', side: '#aa7d33' }],
+ *  the override, `side` the wall/side-face family.
+ *
+ *  SIX STATES, FIVE COLOURS (ADR-0462). `proposed` and `building` share {@link YELLOW_FAMILY};
+ *  the other four each own one. `status-vocabulary.ts` carries the mapping as data, the
+ *  separation instrument, and the frozen pre-2026-08-27 table this one replaced. */
+export const STATUS_TOKENS: ReadonlyMap<string, StatusFamily> = new Map([
+  ["proposed", YELLOW_FAMILY],
+  ["building", YELLOW_FAMILY],
   ["healthy", { top: ['#8cb85e', '#7dab50', '#9ac570'], wheat: '#d6b271', side: '#648244' }],
   ["mapped", { top: ['#b3946a', '#a68557', '#bda278'], wheat: '#d6b271', side: '#85683f' }],
   ["unhealthy", { top: ['#57544a', '#4a473e', '#635f52'], wheat: '#6f6852', side: '#37352c' }],
-  ["unknown", { top: ['#a9c87f', '#9fc174', '#b2cf8b'], wheat: '#d6b271', side: '#87985f' }],
+  // `unknown` GAINED a colour here; it did not have one before. It used to fall through to the
+  // base grass family, which is why it sat 3.33 from `healthy` — a parcel asserting NOTHING and
+  // a parcel asserting a SIGNED PASS were the same colour to a reader, and two of its four lit
+  // rungs read as `healthy` outright. The slate is not new art: `#9ca3af` is the app's own
+  // `--crown-unknown-hi` and `#6b7280` its `--crown-unknown-lo` / `--st-unknown`, already drawn
+  // for every unknown crown, tree-card strip and badge. The land now says what the rest of the
+  // app already said. The two intermediate `top` variants are the family's own 0.93x / 1.07x
+  // bounds, matching how the other families' variants are spaced.
+  //
+  // ⚠ THE FLANK IS `#70757e`, NOT THE APP'S `--st-unknown` `#6b7280`, AND THE ONE HEX OF
+  // DIFFERENCE IS DELIBERATE. `#6b7280` is already a CROWN token here — it is what a `building`
+  // story's tree falls through to (see {@link TREE_TOKENS}) as well as an `unknown` one's — so
+  // handing it to the ground family as well would put one hex in two token sets and leave
+  // `statusFamilyOf`'s first-match search naming `building` for four of `unknown`'s own rungs.
+  // `#70757e` is the same slate at the flank ratio every other family uses (0.72x its own top,
+  // against healthy's 0.71x), so it is kin to the crown exactly the way `mapped`'s `#85683f`
+  // flank is kin to its `#7d5f3b` crown — near neighbours, never the same entry.
+  ["unknown", { top: ['#9ca3af', '#9198a3', '#a7aebb'], wheat: '#d6b271', side: '#70757e' }],
 ]);
 
 /** The STORY TREE's authored crown token, per status. Verbatim from the app's
@@ -87,6 +139,14 @@ export const TREE_TOKENS: ReadonlyMap<string, { crown: string }> = new Map([
   // Transcribed as what the app DELIVERS rather than as the amber the ground family would
   // suggest — inventing the missing pair here would put a colour on an island that the shipped
   // renderer never draws.
+  //
+  // ⚠ IT DID NOT MOVE WITH THE GROUND, AND THAT IS THE SAME RULE RATHER THAN AN EXCEPTION
+  // (ADR-0462). The GROUND families merged because the app's `.hex-territory` blocks merged;
+  // the crowns did not, because the app's `--crown-*` pairs did not. This file transcribes,
+  // it does not harmonise — a `building` crown wearing `proposed`'s `#b06a24` here would be
+  // this module authoring a colour the app has never drawn. The state is unreachable on the
+  // shipped map either way: `worldStatus` folds `building` to `proposed` before anything is
+  // stamped (ADR-0038), so no island has ever worn either crown.
   ["building", { crown: '#6b7280' }],
   ["healthy", { crown: '#2f6b3f' }],
   ["mapped", { crown: '#7d5f3b' }],

@@ -15,6 +15,7 @@ import {
   STATUS_TOKENS,
   landPalette,
   landTokens,
+  paletteImageOfToken,
   parseHex,
   statusFamilyOf,
   toHex,
@@ -41,21 +42,44 @@ import {
   safeDepth,
   shadowRamp,
 } from './shadow-ladder.js';
+import { LEGACY_STATUS_TOKENS } from './status-vocabulary.js';
 
 const ALL_SIX = [...STATUS_TOKENS.keys()].sort();
 
 /** `safe_depth` of a status's ground token against a given reader table, rounded the way the
  *  recorded numbers are printed. */
-function ceiling(status: string, table: Record<string, { r: number; g: number; b: number }[]>) {
-  return safeDepth(parseHex(STATUS_TOKENS.get(status)!.top[0]!), table).deepest;
+function ceiling(
+  status: string,
+  table: Record<string, { r: number; g: number; b: number }[]>,
+  tokens: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = STATUS_TOKENS,
+) {
+  return safeDepth(parseHex(tokens.get(status)!.top[0]!), table).deepest;
 }
 
+// ---------------------------------------------------------------------------
+// THE PORT'S PROVENANCE — pinned to the palette the recorded figures were measured on
+// ---------------------------------------------------------------------------
+//
+// ⚠⚠ THE THREE TESTS BELOW READ `LEGACY_STATUS_TOKENS`, NOT THE LIVE PALETTE, AND THAT IS THE
+// WHOLE POINT OF THEM. Their job is to prove this module is the SAME instrument as the
+// compositor's `shadow.py` by reproducing three independently recorded configurations of the
+// ceiling. Those figures were measured in August 2026 against the palette as it then stood.
+// ADR-0462 has since moved `unknown` off the base grass family and merged `building` into
+// `proposed`, so a reproduction pointed at the live table would reproduce nothing — it would
+// simply recompute today's numbers and assert them against yesterday's, and the only honest
+// way to keep it green would be to overwrite the recorded figures with whatever the port now
+// emits. At that moment the provenance evidence is gone and every test still passes, which is
+// indistinguishable from a port that works.
+//
+// So the historical arm is frozen and the LIVE arm is separate, below. If the palette moves
+// again, these three do not move with it.
+
 test('THE PORT — reproduces PR #1385s ceilings: all six statuses, top faces, full light', () => {
-  const table = readerStatusTable({ statuses: ALL_SIX });
-  assert.equal(ceiling('healthy', table), 0.74);
-  assert.equal(ceiling('mapped', table), 0.76);
-  assert.equal(ceiling('proposed', table), 0.88);
-  assert.equal(ceiling('unknown', table), 0.91);
+  const table = readerStatusTable({ statuses: ALL_SIX, tokens: LEGACY_STATUS_TOKENS });
+  assert.equal(ceiling('healthy', table, LEGACY_STATUS_TOKENS), 0.74);
+  assert.equal(ceiling('mapped', table, LEGACY_STATUS_TOKENS), 0.76);
+  assert.equal(ceiling('proposed', table, LEGACY_STATUS_TOKENS), 0.88);
+  assert.equal(ceiling('unknown', table, LEGACY_STATUS_TOKENS), 0.91);
 });
 
 test('THE PORT — reproduces PR #1407s FOLDED ceilings: the four statuses worldStatus renders', () => {
@@ -63,18 +87,33 @@ test('THE PORT — reproduces PR #1407s FOLDED ceilings: the four statuses world
   // merging their tokens: a reader cannot have learned a colour the app never draws. That
   // reading is what makes `mapped` bottom out at the floor — with nothing darker left in the
   // table, darkening it flips to nothing.
-  const table = readerStatusTable({ statuses: RENDERED_STATUSES });
-  assert.equal(ceiling('healthy', table), 0.67);
-  assert.equal(ceiling('mapped', table), 0.3, 'the floor: it never flips at all');
-  assert.equal(ceiling('proposed', table), 0.88);
-  assert.equal(ceiling('unknown', table), 0.91);
+  const table = readerStatusTable({ statuses: RENDERED_STATUSES, tokens: LEGACY_STATUS_TOKENS });
+  assert.equal(ceiling('healthy', table, LEGACY_STATUS_TOKENS), 0.67);
+  assert.equal(ceiling('mapped', table, LEGACY_STATUS_TOKENS), 0.3, 'the floor: it never flips at all');
+  assert.equal(ceiling('proposed', table, LEGACY_STATUS_TOKENS), 0.88);
+  assert.equal(ceiling('unknown', table, LEGACY_STATUS_TOKENS), 0.91);
 });
 
 test('THE PORT — reproduces the COLLAPSED configuration: one token per status', () => {
-  const table = readerStatusTable({ statuses: RENDERED_STATUSES, oneToken: true });
-  assert.equal(ceiling('unknown', table), 0.94, 'the collapse moves the binding ceiling the WRONG way');
-  assert.equal(ceiling('proposed', table), 0.9);
-  assert.equal(ceiling('healthy', table), 0.72);
+  const table = readerStatusTable({ statuses: RENDERED_STATUSES, oneToken: true, tokens: LEGACY_STATUS_TOKENS });
+  assert.equal(ceiling('unknown', table, LEGACY_STATUS_TOKENS), 0.94, 'the collapse moves the binding ceiling the WRONG way');
+  assert.equal(ceiling('proposed', table, LEGACY_STATUS_TOKENS), 0.9);
+  assert.equal(ceiling('healthy', table, LEGACY_STATUS_TOKENS), 0.72);
+});
+
+test('THE FROZEN TABLE IS FROZEN — the port would report different ceilings on the live palette', () => {
+  // Without this, `tokens: LEGACY_STATUS_TOKENS` above could be deleted from all three tests
+  // and they would go on passing IF the palette happened not to have moved — so the pin would
+  // read as ceremony rather than as the thing holding the provenance up. It HAS moved, and the
+  // ceiling that moved most is `unknown`'s, which is the binding one.
+  const legacy = readerStatusTable({ statuses: RENDERED_STATUSES, oneToken: true, tokens: LEGACY_STATUS_TOKENS });
+  const live = readerStatusTable({ statuses: RENDERED_STATUSES, oneToken: true });
+  assert.notDeepEqual(legacy, live, 'the palette has not moved — this pin is proving nothing');
+  assert.notEqual(
+    ceiling('unknown', live),
+    ceiling('unknown', legacy, LEGACY_STATUS_TOKENS),
+    'the live and frozen palettes agree on unknown’s ceiling — check LEGACY_STATUS_TOKENS is still history',
+  );
 });
 
 test('NON-VACUITY: the reader really can report a foreign status', () => {
@@ -104,18 +143,32 @@ test('THE FINDING: the SHIPPED ladder is already inadmissible, before any shadow
   const bad = ladderAdmissibility(SHADE_LEVELS).filter((v) => !v.admissible);
   const seen = bad.map((v) => `${v.status}@${v.level}->${v.readsAs}`).sort();
   assert.deepEqual(seen, [
-    // DOWNWARD — the direction a shadow moves, and the one the increment names: doubt
-    // painted as proof. Both of `unknown`'s dark rungs read `healthy`.
+    // DOWNWARD — the direction a shadow moves: `proposed`'s two dark rungs read `mapped`.
+    // Unproven greenfield read as inherited brownfield. This pair is what survives ADR-0462
+    // and it is the whole remaining scope of `pull-the-four-land-colours-apart-in-hue`.
     'proposed@0.78->mapped',
     'proposed@0.8->mapped',
-    'unknown@0.78->healthy',
-    'unknown@0.8->healthy',
-    // UPWARD, which nobody had looked for: a `healthy` slope tilted INTO the light lands on
-    // rung 1.00 and reads `unknown` — proof painted as doubt. Relief delivers rung 1.00
-    // today, so this is live too, and it means the collision is not a property of DARKENING.
-    // It is a property of a ladder that steps further than the statuses are apart.
-    'healthy@1->unknown',
   ].sort());
+
+  // ⚠ THREE ENTRIES LEFT THIS LIST ON 2026-08-27 (ADR-0462) AND THEY ARE THE POINT OF THE
+  // CHANGE, so they are recorded here rather than deleted. Until `unknown` was given its own
+  // colour it kept the base grass family, four degrees of hue from `healthy`:
+  //
+  //     unknown@0.78->healthy   doubt painted as PROOF — the worst available direction
+  //     unknown@0.8 ->healthy   (ADR-0367 D5, ADR-0226), and it fired on two rungs of four
+  //     healthy@1   ->unknown   proof painted as doubt, on the rung relief actually delivers
+  //
+  // The frozen palette still produces all five, which is what makes the improvement a
+  // measurement rather than a claim about the diff.
+  const legacyTable = readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL, oneToken: true, tokens: LEGACY_STATUS_TOKENS });
+  const legacyBad = RENDERED_STATUSES.flatMap((st) =>
+    SHADE_LEVELS.map((level) => ({ st, level, readsAs: nearestStatus(deliveredColour(LEGACY_STATUS_TOKENS.get(st)!.top[0]!, level), legacyTable) })),
+  ).filter((v) => v.readsAs !== v.st);
+  assert.deepEqual(
+    legacyBad.map((v) => `${v.st}@${v.level}->${v.readsAs}`).sort(),
+    ['healthy@1->unknown', 'proposed@0.78->mapped', 'proposed@0.8->mapped', 'unknown@0.78->healthy', 'unknown@0.8->healthy'],
+  );
+  assert.ok(legacyBad.length > seen.length, 'ADR-0462 did not reduce the inadmissible set');
   // `mapped` is clear at every shipped rung. The failure is NOT uniform, which is what makes
   // a per-status ladder tempting and a single one bind hard.
   assert.equal(bad.filter((v) => v.status === 'mapped').length, 0);
@@ -134,7 +187,10 @@ test('the SHADOW RUNG adds no collision of its own — it is the whole point of 
 test('THE SHADOW RUNG is DERIVED, is the deepest admissible level, and is a boundary', () => {
   const derived = deepestAdmissibleRung();
   assert.equal(derived, SHADOW_RUNG);
-  assert.equal(SHADOW_RUNG, 0.84);
+  // 0.84 until 2026-08-27. ADR-0462 moved the binding status from `unknown` to `proposed` and
+  // the derived rung went DEEPER with it. The literal is the witness; `derived === SHADOW_RUNG`
+  // above is the assertion, and it is what would catch the rung being typed rather than derived.
+  assert.equal(SHADOW_RUNG, 0.81);
   // admissible for every rendered status...
   const table = liveReaderTable();
   for (const st of RENDERED_STATUSES) {
@@ -152,17 +208,32 @@ test('THE SHADOW RUNG is DERIVED, is the deepest admissible level, and is a boun
     (st) => nearestStatus(deliveredColour(STATUS_TOKENS.get(st)!.top[0]!, deeper), table) !== st,
   );
   assert.ok(fails.length > 0, `${deeper} is also admissible — the ceiling is not where it says`);
-  assert.deepEqual(fails, ['unknown'], 'unknown is the binding status');
+  // ⚠ THE BINDING STATUS MOVED FROM `unknown` TO `proposed` ON 2026-08-27 (ADR-0462), and the
+  // rung went 0.84 -> 0.81 with it: a DEEPER shadow is now admissible, because the status that
+  // used to bind was the one sitting four degrees of hue from `healthy` and it is no longer
+  // there. Nothing about the shadow was retuned — the rung is derived, and it moved because
+  // the palette under it did.
+  assert.deepEqual(fails, ['proposed'], 'proposed is the binding status');
 });
 
-test('the per-status ceilings differ by a factor of ~1.3, which is why ONE ladder binds hard', () => {
+test('the per-status ceilings still differ enough that ONE ladder binds hard', () => {
   const ceilings = liveCeilings();
   const byStatus = Object.fromEntries(ceilings.map((c) => [c.status, c.absolute]));
-  // healthy can go far deeper than unknown can. A per-status ladder is therefore POSSIBLE —
-  // and it would make the shadow's own depth a status signal, which is the trade the
-  // increment records rather than takes.
-  assert.ok(byStatus['healthy']! < byStatus['unknown']! - 0.15, JSON.stringify(byStatus));
-  assert.ok(byStatus['unknown']! > 0.84 && byStatus['unknown']! < 0.85);
+  // A ceiling is the level at which a status flips, so the HIGHEST one binds the single
+  // ladder and the lowest has the most room to spare. `mapped` never flips at all (it bottoms
+  // out at the floor with nothing darker left in the table), so the spread that matters is
+  // over the three that do. A per-status ladder is therefore still POSSIBLE — and it would
+  // make the shadow's own depth a status signal, which is the trade the increment records
+  // rather than takes.
+  const flipping = ['healthy', 'unknown', 'proposed'].map((st) => byStatus[st]!);
+  const binding = Math.max(...flipping);
+  const roomiest = Math.min(...flipping);
+  assert.equal(binding, byStatus['proposed'], JSON.stringify(byStatus));
+  assert.ok(binding / roomiest > 1.2, `spread is only ${binding / roomiest}x — ${JSON.stringify(byStatus)}`);
+  // ADR-0462 WIDENED the spread rather than narrowing it: 0.648 (healthy) .. 0.81 (proposed),
+  // a factor of 1.25, against 0.67 .. 0.84 before. The shadow got deeper AND the argument for
+  // one ladder is unchanged.
+  assert.ok(byStatus['proposed']! > 0.8 && byStatus['proposed']! < 0.82);
 });
 
 test('the ladder SPAN is wider than the gaps between statuses — the structural reason', () => {
@@ -211,8 +282,19 @@ test('THE PALETTE COST, as a number: one rung, one entry per land token, nothing
   // one colour per rung just as a multiplied one does, so the shadow still costs one entry per
   // land token. That is the property worth having, and it is why the identity is the assertion
   // and these two literals are only the witness.
-  assert.equal(before.length, 240);
-  assert.equal(after.length, 300);
+  //
+  // 2026-08-27 (ADR-0462): `building` stopped owning a ground family and now shares
+  // `proposed`'s object, so FOUR authored tokens left `landTokens()` — 240 -> 224 lit,
+  // 300 -> 280 shadowed. `unknown`'s four moved rather than changed in number, but one of them
+  // NOW COUNTS where it did not before: its old flank `#87985f` was unique, its new one
+  // `#70757e` is too, while the interim candidate `#6b7280` would have been free because a
+  // crown already held it — which is precisely the collision it was rejected for. This is the
+  // first time the closure has SHRUNK, and the strict-superset assertion below is deliberately
+  // NOT relaxed for it: every entry the smaller lit palette still holds must still be in the
+  // shadowed one. What a shrinking palette needs guarding is the OTHER direction, and the
+  // identity `after - before === landTokens().length` is what does that.
+  assert.equal(before.length, 224);
+  assert.equal(after.length, 280);
   // A STRICT SUPERSET WITH AN IDENTITY ON EVERY OLD ENTRY — the same property PR #1385
   // asserted of its 506-entry closure over the shipped 132. Without it, "we added 26
   // entries" could hide "and moved four of the ones already there".
@@ -249,19 +331,37 @@ test('WHY THE SHIPPED INSTRUMENT CANNOT ANSWER THIS — statusFamilyOf is vacuou
   // reads" for an answer to the confusability question. Every colour the SHIPPED ladder can
   // deliver is a member of its own token's image, at every rung, by construction — including
   // the two rungs the reader model calls foreign.
+  //
+  // ⚠ MEMBERSHIP IS ASSERTED DIRECTLY, NOT THROUGH `statusFamilyOf`'S SEARCH, and the
+  // distinction started mattering on 2026-08-27. That function returns the FIRST family
+  // holding a colour, in map order, so it cannot disambiguate a hex two families genuinely
+  // share — and ADR-0462 made `unknown`'s flank the app's `--st-unknown` slate `#6b7280`,
+  // which `building`'s crown has always worn too (the app authors no `--crown-building-*`
+  // pair, so it falls through to `unknown`'s). Asking the search would report `building` for
+  // four of `unknown`'s own rungs and read as a collision. The CLAIM here was never about the
+  // search's tie-break; it is that the delivered colour is in the instance's own token image.
   let mismatches = 0;
   for (const st of RENDERED_STATUSES) {
     const fam = STATUS_TOKENS.get(st)!;
     for (const token of [...fam.top, fam.side]) {
+      const image = new Set(paletteImageOfToken(token).map(toHex));
       for (const level of SHADE_LEVELS) {
-        if (statusFamilyOf(deliveredColour(token, level)) !== st) mismatches++;
+        if (!image.has(toHex(deliveredColour(token, level)))) mismatches++;
       }
     }
   }
   assert.equal(mismatches, 0, 'exact membership holds at every rung — which is exactly the point');
-  // ...while the reader model says five of those same (status, rung) pairs are foreign. The
+  // and the search really is the weaker instrument, not merely a different one: it reports a
+  // family for every one of those colours too, so it can never be the thing that fails.
+  for (const st of RENDERED_STATUSES) {
+    const fam = STATUS_TOKENS.get(st)!;
+    for (const level of SHADE_LEVELS) {
+      assert.notEqual(statusFamilyOf(deliveredColour(fam.top[0]!, level)), null);
+    }
+  }
+  // ...while the reader model says two of those same (status, rung) pairs are foreign. The
   // two instruments disagree, they are both right, and they answer different questions.
-  assert.equal(ladderAdmissibility(SHADE_LEVELS).filter((v) => !v.admissible).length, 5);
+  assert.equal(ladderAdmissibility(SHADE_LEVELS).filter((v) => !v.admissible).length, 2);
 });
 
 test('the shadow rung needs a shadow-AWARE family test, or the capture would cry wolf', () => {
@@ -273,13 +373,16 @@ test('the shadow rung needs a shadow-AWARE family test, or the capture would cry
   assert.equal(familyOnShadowLadder(shadowed), 'healthy', 'the shadow-aware one can');
   // and it is not simply permissive: a colour on no ladder at all is still nobody's.
   assert.equal(familyOnShadowLadder({ r: 1, g: 2, b: 3 }), null);
-  // every entry of the shadowed palette belongs to somebody or is the shared wheat override
+  // every entry of the shadowed palette belongs to SOMEBODY — never `null`, which is the only
+  // value `capture.mjs` counts. WHICH family the search names is not asserted, for the reason
+  // the membership test above records: `#6b7280` is worn by `unknown`'s flank and `building`'s
+  // crown alike, so a first-match search must name one of the two and either answer is right.
   let orphans = 0;
   for (const st of RENDERED_STATUSES) {
     const fam = STATUS_TOKENS.get(st)!;
     for (const token of [...fam.top, fam.side]) {
       for (const level of SHADOW_LADDER) {
-        if (familyOnShadowLadder(deliveredColour(token, level)) !== st) orphans++;
+        if (familyOnShadowLadder(deliveredColour(token, level)) === null) orphans++;
       }
     }
   }
@@ -287,24 +390,31 @@ test('the shadow rung needs a shadow-AWARE family test, or the capture would cry
 });
 
 test('THE OVERCLAIM THIS SPLIT CAUGHT: healthy@1.00 is the reader talking, not the island', () => {
-  // Against the live renderer's own one-token reader, `healthy` at full light reads
-  // `unknown` — and the island delivers two million pixels of exactly that colour, so
-  // reporting it as a foreign read would have been this pass's headline number.
-  const narrow = liveReaderTable();
-  const healthyLit = deliveredColour(STATUS_TOKENS.get('healthy')!.top[0]!, 1.0);
-  assert.equal(nearestStatus(healthyLit, narrow), 'unknown');
+  // ⚠ THIS ONE IS HISTORY NOW, AND IT IS KEPT BECAUSE THE LESSON OUTLIVES THE COLLISION.
+  // ADR-0462 moved `unknown` to its own slate, and `healthy@1.00` no longer reads as anything
+  // but `healthy` — asserted at the end of this test. What must not be lost is WHY the figure
+  // was never quotable in the first place: a narrow reference set can manufacture a headline
+  // foreign read out of a reference set rather than out of any pixel. Pointed at the frozen
+  // palette, the trap is still demonstrable, and the next reader who widens or narrows a
+  // reader table has the worked example in front of them.
+  const narrow = readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL, oneToken: true, tokens: LEGACY_STATUS_TOKENS });
+  const legacyHealthyLit = deliveredColour(LEGACY_STATUS_TOKENS.get('healthy')!.top[0]!, 1.0);
+  assert.equal(nearestStatus(legacyHealthyLit, narrow), 'unknown');
   // It disappears the moment the reader's table carries the three authored ground variants,
   // so it is a property of the REFERENCE SET, not of the colours the island draws.
-  const wide = readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL });
-  assert.equal(nearestStatus(healthyLit, wide), 'healthy');
-  // The robust set is what survives both — three verdicts, all DOWNWARD, which is the
-  // direction a shadow moves and the one ADR-0367 D5 is about.
+  const wide = readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL, tokens: LEGACY_STATUS_TOKENS });
+  assert.equal(nearestStatus(legacyHealthyLit, wide), 'healthy');
+  // ON THE LIVE PALETTE IT NO LONGER FIRES UNDER EITHER READER — the collision is gone rather
+  // than merely re-described, which is the change ADR-0462 bought.
+  const healthyLit = deliveredColour(STATUS_TOKENS.get('healthy')!.top[0]!, 1.0);
+  assert.equal(nearestStatus(healthyLit, liveReaderTable()), 'healthy');
+  assert.equal(nearestStatus(healthyLit, readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL })), 'healthy');
+  // The robust set is what survives BOTH readers — the verdicts no choice of reference set can
+  // argue away. It was three, all DOWNWARD; ADR-0462 took the two `unknown` ones out and left
+  // ONE. That is the honest headline of this change: the map's remaining colour confusion is a
+  // single pair on a single rung, and it is `pull-the-four-land-colours-apart-in-hue`'s.
   const robust = robustlyInadmissible().map((v) => `${v.status}@${v.level}->${v.readsAs}`);
-  assert.deepEqual(robust.sort(), [
-    'proposed@0.78->mapped',
-    'unknown@0.78->healthy',
-    'unknown@0.8->healthy',
-  ]);
+  assert.deepEqual(robust.sort(), ['proposed@0.78->mapped']);
   assert.ok(!robust.some((r) => r.startsWith('healthy@')));
 });
 

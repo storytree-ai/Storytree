@@ -52,6 +52,7 @@ import type { GeneratedMesh } from './mesh-kit.js';
 import { plantsFrom, type PlantInstance } from './plant-descriptors.js';
 import { growPlant } from './plant-geometry.js';
 import { STATUS_TOKENS } from './palette-band.js';
+import { LEGACY_STATUS_TOKENS, type StatusFamily } from './status-vocabulary.js';
 import { treesFrom } from './tree-descriptors.js';
 import { growTree } from './tree-geometry.js';
 import {
@@ -124,9 +125,33 @@ export type LandEdge = 'flush' | 'material';
  */
 export type GroundVariation = 'single' | 'regional' | 'regional-deep';
 
+/**
+ * WHICH AUTHORED PALETTE THE LAND WEARS.
+ *
+ * `live` is `STATUS_TOKENS` and is the default, so every panel that predates this option delivers
+ * exactly the pixels it delivered before. `legacy` is the frozen pre-ADR-0462 table.
+ *
+ * ⚠ IT EXISTS TO DRAW A **BEFORE**, and that is a narrow licence rather than a general palette
+ * switch. The owner's standing instruction on this arc is that an increment lands a comparison he
+ * can look at, and a colour-vocabulary change has no comparison at all unless the renderer can
+ * still draw the vocabulary it replaced. It must never be reached for to keep an old colour alive
+ * on a page that is claiming to show the current one.
+ */
+export type LandPaletteChoice = 'live' | 'legacy';
+
+/** The authored families for a palette choice. Not exported: nothing outside this file should be
+ *  resolving a token table, because a caller holding one could hand it to a page that then
+ *  reports its pixels as the shipped palette's. */
+function familiesFor(choice: LandPaletteChoice | undefined): ReadonlyMap<string, StatusFamily> {
+  return choice === 'legacy' ? LEGACY_STATUS_TOKENS : STATUS_TOKENS;
+}
+
 export interface IslandViewProps {
   /** Rasterise at this many device pixels per ground unit. 1 = the sprite convention. */
   pxPerUnit: number;
+  /** Which authored status palette the land wears. Defaults to `live` — see
+   *  {@link LandPaletteChoice} for why `legacy` exists and what it may not be used for. */
+  palette?: LandPaletteChoice;
   /** Present at this many CSS pixels per ground unit. */
   displayPxPerUnit: number;
   /** Plant silhouette style — the owner's "circular swirls" fork. */
@@ -367,6 +392,7 @@ function groundMeshes(
   wallDepth: number,
   grain: GrainOptions | undefined,
   cover: GroundCover | undefined,
+  families: ReadonlyMap<string, StatusFamily>,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
   const bevel = land === 'bevel' || land === 'full';
@@ -414,7 +440,7 @@ function groundMeshes(
   const meshes: THREE.Mesh[] = [];
   for (const [key, group] of byStatus) {
     const [status, wheat, variant] = key.split('::');
-    const fam = STATUS_TOKENS.get(status!) ?? STATUS_TOKENS.get('unknown')!;
+    const fam = families.get(status!) ?? families.get('unknown')!;
     const positions: number[] = [];
     const normals: number[] = [];
     // The RIM's own buffer. It stays empty under `edge: 'flush'`, in which case the wall
@@ -774,6 +800,7 @@ function plantMesh(
   plants: readonly PlantInstance[],
   style: 'mound' | 'foliage',
   relief: number,
+  families: ReadonlyMap<string, StatusFamily>,
 ): THREE.Mesh[] {
   const byStatus = new Map<string, PlantInstance[]>();
   for (const p of plants) {
@@ -796,7 +823,7 @@ function plantMesh(
   const upright = uprightForeshortening(LAND_CAMERA_ELEVATION_DEG);
   const meshes: THREE.Mesh[] = [];
   for (const [status, group] of byStatus) {
-    const fam = STATUS_TOKENS.get(status) ?? STATUS_TOKENS.get('unknown')!;
+    const fam = families.get(status) ?? families.get('unknown')!;
     const positions: number[] = [];
     const normals: number[] = [];
 
@@ -955,11 +982,13 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     props.wallDepth ?? CELL_DEPTH,
     props.grain,
     props.cover,
+    familiesFor(props.palette),
   )) {
     scene3.add(m);
   }
   if (props.plants !== false) {
-    for (const m of plantMesh(plants, props.style ?? 'mound', relief)) scene3.add(m);
+    for (const m of plantMesh(plants, props.style ?? 'mound', relief, familiesFor(props.palette)))
+      scene3.add(m);
   }
   if (props.flowers !== false) for (const m of flowerMeshes(scene, relief)) scene3.add(m);
   if (props.tree !== false) for (const m of treeMeshes(scene, relief)) scene3.add(m);
@@ -1070,6 +1099,7 @@ export function IslandPanel({
     props.plantFraction,
     props.grain,
     props.cover,
+    props.palette,
   ]);
   return (
     <figure className="panel">

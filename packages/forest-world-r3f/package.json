@@ -15,7 +15,8 @@
     "capture": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/capture.mjs",
     "hardware-floor": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/hardware-floor.mjs",
     "measure-grain": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/grain-measure.mjs",
-    "measure-cover": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/cover-measure.mjs"
+    "measure-cover": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/cover-measure.mjs",
+    "measure-status": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/status-measure.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
