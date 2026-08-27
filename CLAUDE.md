@@ -376,8 +376,15 @@ kind owes a seed export any more.
   GREEN, NARROWED with those named, and that is the honest reading, not a defect.
   `check:web-engine` was the last to adopt the vocabulary; until then it returned 0 on the same state
   and was recorded as a PASS that had compared nothing. **The skip code is LOCAL**: CI runs these as
-  ordinary steps where any non-zero code is a failure, so the two bootstrap branches that can fire
-  there say `NOTHING TO COMPARE` and exit 0 rather than emitting a 3 the runner would read as red.
+  ordinary steps where any non-zero code is a failure, so every branch that can fire THERE withholds
+  the code and never the fact — it prints what it did not do and exits 0. THREE can: the two web
+  bootstrap branches (`NOTHING TO COMPARE` / `NOTHING TO CHECK`), and — since `check:mutation-diff`
+  was wired into `ci.yml` (ADR-0458 / `mutation-rung-in-ci`) — its skip, `NOTHING TO MUTATE`. That
+  third one is the OPPOSITE of a bootstrap allowance: it is the everyday case, firing on every
+  corpus, docs or config landing, so a CI step that inherited the 3 would have redded most PRs in
+  this repo. The fork is `skipDisposition` in `packages/cli/src/mutation-diff.ts`, and it is not
+  `continue-on-error` on purpose — that flag swallows REAL reds too, and the point of the step is
+  that the rung finally blocks a merge.
   A skip does **not** red the gate, but the
   summary says **GATE GREEN, NARROWED** and names every skipped step, so green-with-skips can no
   longer read as unqualified green. Any step failing still exits non-zero, so the `.exit` sentinel
