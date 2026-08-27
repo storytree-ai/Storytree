@@ -8,7 +8,7 @@ outcome: "A library artifact read invoked with an offer id on the command line s
 status: proposed
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, terminal-boundary-observations, artifact-offer-candidate-sets]
-decisions: [235, 260]
+decisions: [235, 464]
 proof:
   command:
     file: pnpm
