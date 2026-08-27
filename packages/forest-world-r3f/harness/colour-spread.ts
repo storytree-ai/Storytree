@@ -143,7 +143,7 @@ export interface SpreadDeclaration {
  * about continuous canvases cannot tell "this page has none" from "this page's declarations
  * stopped resolving".
  */
-export const SPREAD_MANIFEST: Readonly<Record<string, SpreadDeclaration>> = {
+export const SPREAD_MANIFEST = {
   // --- grain.html: the crossing page, and the first page carrying continuous panels ----------
   //
   // The two `colour` variants perturb the ground's COLOUR after quantisation, so they deliver
@@ -193,7 +193,12 @@ export const SPREAD_MANIFEST: Readonly<Record<string, SpreadDeclaration>> = {
   // audits is how a manifest goes stale without anything noticing. Pointing the driver at that
   // page therefore refuses with `undeclared`, which is the correct answer rather than a gap:
   // it says "declare these first", loudly, instead of checking nothing quietly.
-};
+  //
+  // `as const satisfies` rather than an annotation, per `docs/typescript-standard.md`'s
+  // `no-known-value-widening` remedy and matching `prop-presence.ts`'s own manifest: every entry
+  // is checked against the contract while the keys stay known, so a tag that is declared here is
+  // visible to the compiler rather than dissolved into `string`.
+} as const satisfies Record<string, SpreadDeclaration>;
 
 /**
  * The fewest opaque pixels a canvas may deliver and still have its 90%-mass colour count read as
@@ -260,8 +265,15 @@ export interface SpreadVerdict {
   readonly unresolvedTags: ReadonlyArray<string>;
 }
 
+/** The two figures a colour histogram alone can answer — see `pixel-metrics.ts`'s note on why
+ *  MICRO and STRUCT are not among them. */
+interface ColourSpreadFigures {
+  readonly distinct: number;
+  readonly bins90: number;
+}
+
 /** Distinct colours and the 90%-mass count, from a histogram alone. */
-function spreadOf(canvas: DeliveredCanvas): { distinct: number; bins90: number } {
+function spreadOf(canvas: DeliveredCanvas): ColourSpreadFigures {
   const counts = canvas.colours.map(([, n]) => n);
   return {
     distinct: counts.length,

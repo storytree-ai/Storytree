@@ -84,10 +84,15 @@ function evenCanvas(tag: string, opaque: number, distinct: number): DeliveredCan
 const CONTROL = canvas('grain-none-8px', 1_234_059, 4, 3);
 const CONTINUOUS = canvas('grain-colour-8px', 1_234_059, 186, 94);
 
-const MANIFEST: Record<string, SpreadDeclaration> = {
+const MANIFEST = {
   'grain-none-8px': { regime: 'banded' },
   'grain-colour-8px': { regime: 'continuous', control: 'grain-none-8px' },
-};
+} as const satisfies Record<string, SpreadDeclaration>;
+
+/** The shipped manifest as a lookup an arbitrary tag can be asked of. `SPREAD_MANIFEST` keeps its
+ *  literal key type on purpose, so the two coverage assertions below reach it through a Map rather
+ *  than through a widened binding — which is the shape `no-known-value-widening` refuses. */
+const SHIPPED = new Map<string, SpreadDeclaration>(Object.entries(SPREAD_MANIFEST));
 
 test('the fixture reproduces the committed crossing figures', () => {
   // If this drifts, every case below is measuring something other than the pictures the arc took.
@@ -253,12 +258,12 @@ test('the shipped manifest declares every tag on both pages capture.mjs drives',
     'shrine',
     'wild',
   ]) {
-    assert.equal(SPREAD_MANIFEST[tag]?.regime, 'banded', `${tag} must be declared`);
+    assert.equal(SHIPPED.get(tag)?.regime, 'banded', `${tag} must be declared`);
   }
   for (const variant of ['none', 'normal', 'colour', 'both']) {
     for (const zoom of ['2px', '8px']) {
       const tag = `grain-${variant}-${zoom}`;
-      const declaration = SPREAD_MANIFEST[tag];
+      const declaration = SHIPPED.get(tag);
       assert.ok(declaration, `${tag} must be declared`);
       // The two `colour` variants are the ones that leave the ladder; `none` and `normal` were
       // MEASURED closed on both zooms (0 off-palette px), which is why they are controls.
@@ -273,13 +278,13 @@ test('every continuous declaration names a control that is itself declared bande
   // A structural check over the shipped manifest, so a hand-edit cannot leave a continuous panel
   // pointing at another continuous one — the `control-not-banded` case, caught at authoring time
   // rather than on a run.
-  for (const [tag, declaration] of Object.entries(SPREAD_MANIFEST)) {
+  for (const [tag, declaration] of SHIPPED) {
     if (declaration.regime !== 'continuous') {
       assert.equal(declaration.control, undefined, `${tag}: a banded canvas needs no control`);
       continue;
     }
     const controlTag = declaration.control;
     assert.ok(controlTag, `${tag}: continuous canvases must name a control`);
-    assert.equal(SPREAD_MANIFEST[controlTag]?.regime, 'banded', `${tag}: control must be banded`);
+    assert.equal(SHIPPED.get(controlTag)?.regime, 'banded', `${tag}: control must be banded`);
   }
 });
