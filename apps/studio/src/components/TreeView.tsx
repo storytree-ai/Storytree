@@ -666,6 +666,11 @@ export function buildWorld(
       y: centers.reduce((s, p) => s + p.y, 0) / Math.max(centers.length, 1),
     };
     const radius =
+      // Deliberately the SCREEN twin — `scene-territory-radius-states-its-space` split it from
+      // `groundRadius` below. Its honest consumers are screen chrome: the wisp orbit radii and the
+      // panel offsets. The one consumer whose space is still in question is `ringR` below, and that
+      // is `studio-island-layout-moves-to-ground-space`'s to answer, not this rung's.
+      // screen-space: a screen magnitude by construction, with its ground twin declared beside it
       Math.max(0, ...centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y))) +
       HEX_R;
     // A true GROUND-plane radius (scene-territory-radius-states-its-space) — same formula as
@@ -679,6 +684,8 @@ export function buildWorld(
       y: groundTileCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundTileCenters.length, 1),
     };
     const groundRadius =
+      // ground-space: `groundTileCenters` are `hexCenter` at PLAN_VIEW_ELEVATION_DEG, i.e. the
+      // pre-camera tile positions, so this radius is isotropic and does not move with the camera.
       Math.max(0, ...groundTileCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
       HEX_R;
 
@@ -689,6 +696,12 @@ export function buildWorld(
       [...tiles].sort((a, b) => {
         const ca = hexCenter(a);
         const cb = hexCenter(b);
+        // The hero tile is picked by nearest-to-centroid on PROJECTED centres, so the camera's
+        // depth compression biases the argmin toward tiles north or south of the centroid. Measured:
+        // it disagrees with the ground-space answer on 26.8% of islands, and the tile it picks is
+        // where the story's own tree stands. Left as it is ON PURPOSE — the fix belongs to the
+        // increment named below, which also owns the ring squash this same block feeds.
+        // screen-space-defect: studio-island-layout-moves-to-ground-space — a projected argmin
         return (
           Math.hypot(ca.x - centroid.x, ca.y - centroid.y) -
           Math.hypot(cb.x - centroid.x, cb.y - centroid.y)
@@ -875,6 +888,11 @@ export function buildWorld(
       y: groundCenters.reduce((s, p) => s + p.y, 0) / Math.max(groundCenters.length, 1),
     };
     const groundRadius =
+      // The router's obstacle discs are isotropic, so both the centroid and this radius are built
+      // from PLAN_VIEW_ELEVATION_DEG centres and the network is projected once at the end
+      // (`projectTrailNetwork`). Mixing the two spaces here is the measured 0 -> 156 `world-cave`
+      // regression named in the comment above.
+      // ground-space: pre-camera tile centres, so the obstacle disc stays isotropic
       Math.max(0, ...groundCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
       HEX_R;
     return { id: t.story.id, x: groundCentroid.x, y: groundCentroid.y, r: groundRadius * 0.82 };
@@ -2270,6 +2288,8 @@ export function TreeView({
     if (dx === 0 && dy === 0) return;
     liveOffsetRef.current = { x: liveOffsetRef.current.x + dx, y: liveOffsetRef.current.y + dy };
     paintPanLayer();
+    // screen-space: a pan gesture's accumulated offset against a threshold declared in CSS pixels.
+    // The land is not involved — this measures how far the viewport has been dragged.
     if (Math.hypot(liveOffsetRef.current.x, liveOffsetRef.current.y) > PAN_FOLD_THRESHOLD_PX) {
       foldLivePan(liveOffsetRef.current.x, liveOffsetRef.current.y);
     }
@@ -2436,6 +2456,8 @@ export function TreeView({
     // Until the pointer wanders past the slop the press is still a CLICK: don't pan and don't mark it
     // moved, so a click that jitters a few px still selects the node (it is NOT suppressed on
     // pointerup). Track lastX/Y meanwhile so the pan tracks smoothly once the slop IS crossed.
+    // screen-space: pointer slop — how far the pointer wandered in client pixels before a press
+    // stops being a click. A ground distance would be meaningless for an input gesture.
     if (!d.moved && Math.hypot(e.clientX - d.x, e.clientY - d.y) <= DRAG_SLOP) {
       d.lastX = e.clientX;
       d.lastY = e.clientY;
@@ -2713,6 +2735,9 @@ export function TreeView({
       for (let i = 1; i < segment.points.length; i += 1) {
         const a = segment.points[i - 1]!;
         const b = segment.points[i]!;
+        // screen-space: the segment's DRAWN length, which is the right quantity — this paces a mark
+        // travelling along the pathway as it appears, so a foreshortened leg should take less time
+        // in exactly the proportion it looks shorter. `world.trails` is already projected.
         total += Math.hypot(b.x - a.x, b.y - a.y);
       }
       lengths.set(segment.id, total);
