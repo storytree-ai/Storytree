@@ -274,6 +274,93 @@ yellow grass in both directions.
   answer**, which is why the treatment is procedural. A pack would help the props standing in the
   wheat; expect it to do nothing for the wheat.
 
+## 10. ⚠⚠ WHICH GPU DREW THIS — and the grain is NOT the same picture on two of them
+
+Added 2026-08-27, owner-directed (*"you should be using the desktop as needed for this — the
+desktop box with the graphics card"*). Increment
+`every-land-measurement-says-which-gpu-drew-it`.
+
+### 10.1 Every browser figure this arc has published came off a SOFTWARE RASTERISER
+
+Read off `UNMASKED_RENDERER_WEBGL` on the live context rather than assumed: headless Chromium on
+the primary Windows box comes up on
+
+    ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero)), SwiftShader driver)
+
+**not** the Adreno. That covers the grain crossing (PR #1665) and everything in §3 above. The
+numbers are not thereby wrong — a software rasteriser is deterministic, and for a palette-closure
+claim it is arguably the strictest reading available. What was wrong is that **no report said so**,
+so any of them could be quoted later as a GPU result. `cover-measure.mjs` now records the renderer,
+the vendor and `EXT_disjoint_timer_query_webgl2` availability in `cover-measure.json` on every run,
+and prints it above the table.
+
+### 10.2 The second box reaches the real device, headless — with these flags and not others
+
+On the Mint desktop (RTX 2060, driver 595.84):
+
+| launch | renderer | timer query |
+|---|---|---|
+| headless, default | SwiftShader | no |
+| headless `--use-gl=angle --use-angle=gl --enable-gpu --ignore-gpu-blocklist` | **RTX 2060, OpenGL 4.5.0** | **YES** |
+| headless `--use-gl=egl --enable-gpu` | SwiftShader | no |
+| headed on `DISPLAY=:0` | RTX 2060 | YES |
+
+⚠ **`--use-gl=egl` FAILS SILENTLY** — same box, same driver, and it reports a plausible-looking
+result from software. Verify by reading the renderer string, never by trusting the flag.
+`ST_COVER_GPU=1` now refuses the run when the context comes up software, because a software
+renderer reporting as hardware is the one outcome worse than no measurement.
+⚠ **`DISPLAY=:0` must be in the environment even headless** — without it the same flags fall back
+to SwiftShader on this box. That cost one run and the refusal is what caught it.
+
+✅ **`EXT_disjoint_timer_query_webgl2` is available there and absent on the Windows box.** That is
+the named follow-up in the frame-budget work: a GPU clock is the instrument that can settle whether
+`gl.finish()` on ANGLE/D3D11 was ever blocking until the GPU retired the work. **This pass does not
+build it** — end-state item 2's grain half stays undischarged. It establishes that the capability
+exists and where.
+
+### 10.3 The palette fence HOLDS across renderers. The grain PICTURE does not.
+
+The same twelve panels, same commit, drawn by both:
+
+| panel class | total px | differ | % | coverage | interior |
+|---|---|---|---|---|---|
+| ungrained, 2 px/unit | 111,360 | 129 | 0.116% | 12 | 117 |
+| ungrained, 8 px/unit | 1,781,822 | 439 | 0.025% | 38 | 401 |
+| **grained, 2 px/unit** | 111,360 | **27,242** | **24.46%** | 12 | 27,230 |
+| **grained, 8 px/unit** | 1,781,822 | **436,155** | **24.48%** | 38 | 436,117 |
+
+✅ **Palette closure: 0 off-palette pixels on BOTH renderers, all twelve panels.** Every delivered
+pixel is an authored ramp entry on the NVIDIA GPU exactly as on SwiftShader. That is the fence this
+whole arc rests on and it is renderer-independent — which matters because the shipped map runs on
+users' machines, not ours.
+
+⚠⚠ **But a QUARTER of every grained pixel lands on a different rung.** Ungrained the two renderers
+agree to 0.025%; grained they disagree on 24.5%. The cause is named in `land-grain.ts` already —
+*"a `fract(sin(..))` hash is not reproducible across vendors"* — but it was a caveat without a
+number, and the number is the finding: this is not a rounding difference at the margins, it is a
+**different mottle**. The grain field's hash is `fract(sin(i.x*127.1 + i.y*311.7) * 43758.5453123)`,
+and `sin`'s argument reduction differs between implementations, so the noise lands differently and
+the normal perturbation pushes a different quarter of the surface across a rung boundary.
+
+**Three consequences, and the first is the one to carry:**
+
+1. ⚠ **A committed evidence PNG of grained land is a picture of ONE renderer's grain.** Anyone
+   building a pixel-baseline regression check over this land would be locking it to whichever
+   machine produced the baseline, and it would red on any other. Do not build one without reading
+   this section.
+2. The contrast figures shift ~2 percentage points: the grain lift is 180.8 / 181.4 / 180.4% on
+   software and **178.6 / 179.2 / 178.3%** on the RTX. The *finding* is untouched — the lift is
+   still token-independent to within a point, and wheat still delivers ~8% more absolute contrast
+   — but a figure quoted to three digits now needs its renderer attached.
+3. ✅ **An internal consistency check came free.** The differing-pixel counts are **identical**
+   across all three covers (129 / 129 / 129 and 27,242 / 27,242 / 27,242). Same geometry, same
+   field, differing only in the token — so exactly the same fragments cross a rung boundary
+   whatever colour the rungs hold. That is the pixel-level restatement of §3's finding, and it
+   would not hold if the covers were doing anything to the lighting.
+
+Raw: `cover-measure.json` (software) and `cover-measure-rtx2060.json` (hardware) carry the full
+per-panel figures and their `renderer` blocks.
+
 ## 9. Reproducing
 
 ```
