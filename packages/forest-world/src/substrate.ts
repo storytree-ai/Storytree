@@ -15,8 +15,17 @@
 // axial keys that territory tinted as wheat.
 
 import { hash, rand01 } from './rng.js';
-import { groundFlattening } from './camera.js';
-import { HEX_R, hexCenter, hexCorners, pixelToHex, axialKey, type Axial, type Pt } from './hex.js';
+import { LAND_CAMERA_ELEVATION_DEG, PLAN_VIEW_ELEVATION_DEG, projectGround } from './camera.js';
+import {
+  HEX_R,
+  hexCenter,
+  hexCorners,
+  pixelToHex,
+  axialKey,
+  type Axial,
+  type ElevationOpts,
+  type Pt,
+} from './hex.js';
 
 export type SubstrateMode = 'relaxed-hex' | 'relaxed-quad' | 'mesh';
 
@@ -43,6 +52,28 @@ export interface SubstrateTuning {
   subdiv?: number;
 }
 
+/**
+ * THE SUBSTRATE IS BUILT ON THE GROUND AND PROJECTED ONCE, AT THE END (ADR-0367 D1).
+ *
+ * `hexCenter` / `hexCorners` / `pixelToHex` all hand back SCREEN coordinates by default, so the
+ * whole mesh used to be built in screen space -- which is what put vertex IDENTITY, the jitter
+ * seed and the cell decomposition itself downstream of the camera. Asking the lattice for the
+ * PLAN VIEW recovers the pre-camera, un-flattened positions exactly, so every stage below runs on
+ * the ground plane and `buildRelaxedCells` projects the finished polygons once.
+ *
+ * THAT IS AN EXACT EQUIVALENCE, not an approximation, which is why the look does not drift: the
+ * projection is affine, and every operation between here and the projection -- midpoints,
+ * centroids, Laplacian averaging, a polar jitter offset -- commutes with it. What does NOT commute
+ * is ROUNDING, and that is the whole defect: `VKEY` rounds, so where it rounds decides what the
+ * mesh thinks a vertex IS.
+ *
+ * It is also why the camera cannot re-decompose the mesh even in principle now. Nothing upstream
+ * of the projection can see `elevationDeg`, so there is no round trip through `sin` for floating
+ * point to disagree about at a rounding boundary -- the ground coordinates are bit-identical at
+ * every elevation rather than merely close.
+ */
+const GROUND = { elevationDeg: PLAN_VIEW_ELEVATION_DEG } as const;
+
 const QUAD_TUNING: SubstrateTuning = { jitter: 0.78, iters: 2, relax: 0.26, wheatScatter: true };
 const HEX_TUNING: SubstrateTuning = { jitter: 0.7, iters: 2, relax: 0.28, wheatScatter: false };
 // Path B's irregular topology carries the de-hexing, so jitter sits lower than
@@ -64,6 +95,39 @@ export interface RelaxedCell {
   wheat: boolean;
 }
 
+/**
+ * VERTEX IDENTITY, DECIDED ON THE GROUND (ADR-0367 D1, `substrate-interning-moves-to-ground-space`).
+ *
+ * This is the mesh's answer to "are these two vertices the same point?", and until this increment it
+ * asked that question in SCREEN space: every stage below ran on PROJECTED coordinates and this key
+ * rounded them to 0.1 px. The land now has a declared camera, so the projection compresses the
+ * ground's depth axis by `sin 20 deg ~ 0.342` -- and a bucket 0.1 px tall on screen is 0.292 units
+ * tall on the ground. The tolerance was ANISOTROPIC in the space that matters, nearly three times
+ * looser across depth than across width.
+ *
+ * ⚠ WHAT THAT ACTUALLY COST, MEASURED RATHER THAN ASSUMED -- and it is NOT what the increment that
+ * commissioned this fix expected, so read this before repeating the old claim. The increment cites
+ * PR #1344's "the same island re-decomposed from 50 to 52 cells". That consequence is NOT
+ * reproducible: comparing this file against its own previous revision over symmetric discs of 7 to
+ * 61 tiles and 480 irregular grown blobs, in all three modes, the cell count is IDENTICAL in every
+ * single case. The hex lattice's vertices are units apart, so a 0.292-unit bucket never actually
+ * merged two distinct ground points -- it only ever absorbed floating-point noise on shared corners,
+ * which is what it was for.
+ *
+ * WHAT THE SCREEN KEY REALLY DECIDED IS THE JITTER. `relaxVerts` seeds each vertex's displacement
+ * off this key (`jx:` / `jm:`), so a key computed from a projected coordinate makes every vertex's
+ * GROUND position a function of the camera. That is the defect that was live, and it is not a small
+ * one: 79.2% of vertex positions move between the old rule and this one, by up to 11.4 px. Counts,
+ * owners, wheat and the parcel partition are all untouched -- what changes is that the island's
+ * interior texture is now the LAND's, seen from wherever, instead of one the projection re-rolled.
+ *
+ * THE TOLERANCE IS STATED, NOT INHERITED. 0.1 was authored before the land had a camera, when the two
+ * spaces COINCIDED -- so 0.1 px was already 0.1 ground unit, and 0.1 ground units is exactly what it
+ * has always meant. What the camera did was silently loosen it on one axis by `1 / sin 20 deg ~ 2.92`.
+ * Building on the ground restores the number the author chose rather than replacing it. The merge
+ * hazard that loosening created stayed theoretical, but it is closed the same way as the live one and
+ * at no extra cost.
+ */
 const VKEY = (p: Pt): string => `${Math.round(p.x * 10)},${Math.round(p.y * 10)}`;
 
 /**
@@ -85,12 +149,13 @@ function relaxVerts(
     if (!p) continue;
     const ang = rand01(hash(`jx:${orig[i]}`)) * Math.PI * 2;
     const mag = rand01(hash(`jm:${orig[i]}`)) * opts.jitterMag;
-    // The jitter is a GROUND-plane displacement, so its y foreshortens with the lattice it
-    // perturbs (ADR-0367 D1). Left isotropic in SCREEN space it would inject a wobble several
-    // times larger than the projected row pitch and tangle the mesh in y alone. The relaxation
-    // below needs no such term: averaging commutes with the affine projection.
+    // The jitter is a GROUND-plane displacement and this whole mesh is built on the GROUND, so
+    // it is isotropic here and the camera never enters (ADR-0367 D1). PR #1344 had to carry an
+    // explicit `sin` here precisely because the mesh was then built in screen space, where an
+    // isotropic wobble is several times the projected row pitch and tangles the mesh in y alone.
+    // That term is gone rather than moved: `buildRelaxedCells` projects once, at the end.
     p.x += Math.cos(ang) * mag;
-    p.y += Math.sin(ang) * mag * groundFlattening();
+    p.y += Math.sin(ang) * mag;
   }
   for (let it = 0; it < opts.iters; it++) {
     const next = verts.map((p) => ({ x: p.x, y: p.y }));
@@ -148,8 +213,8 @@ function buildRelaxedHexCells(
   const edgeUse = new Map<string, number>();
   const eKey = (a: number, b: number): string => (a < b ? `${a}|${b}` : `${b}|${a}`);
   for (const { h, owner } of drawTiles) {
-    const c = hexCenter(h);
-    const ids = hexCorners(c.x, c.y, HEX_R).map(intern);
+    const c = hexCenter(h, GROUND);
+    const ids = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG).map(intern);
     tileCorners.push({ owner, key: axialKey(h), ids });
     for (let i = 0; i < 6; i++) {
       const a = ids[i];
@@ -214,8 +279,8 @@ function buildRelaxedQuadCells(
     edgeUse.set(k, (edgeUse.get(k) ?? 0) + 1);
   };
   for (const { h, owner } of drawTiles) {
-    const c = hexCenter(h);
-    const corners = hexCorners(c.x, c.y, HEX_R);
+    const c = hexCenter(h, GROUND);
+    const corners = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG);
     const oid = intern(c);
     const key = axialKey(h);
     const wheat = wheatSets[owner]?.has(key) ?? false;
@@ -310,9 +375,9 @@ function buildMeshCells(
   const tris: Tri[] = [];
   const triEdges = new Map<string, number[]>();
   for (const { h, owner } of drawTiles) {
-    const c = hexCenter(h);
+    const c = hexCenter(h, GROUND);
     const oid = intern(c);
-    const cornerIds = hexCorners(c.x, c.y, HEX_R).map(intern);
+    const cornerIds = hexCorners(c.x, c.y, HEX_R, PLAN_VIEW_ELEVATION_DEG).map(intern);
     for (let i = 0; i < 6; i++) {
       const a = cornerIds[i] ?? 0;
       const b = cornerIds[(i + 1) % 6] ?? 0;
@@ -397,7 +462,7 @@ function buildMeshCells(
       cx += p.x;
       cy += p.y;
     }
-    const hkey = axialKey(pixelToHex({ x: cx / ids.length, y: cy / ids.length }));
+    const hkey = axialKey(pixelToHex({ x: cx / ids.length, y: cy / ids.length }, GROUND));
     cells.push({ ids, owner, hkey });
     for (let i = 0; i < ids.length; i++) link(ids[i] ?? 0, ids[(i + 1) % ids.length] ?? 0);
   };
@@ -481,12 +546,19 @@ export function buildRelaxedCells(
   wheatSets: readonly ReadonlySet<string>[],
   mode: SubstrateMode,
   override: Partial<SubstrateTuning> = {},
+  opts?: ElevationOpts,
 ): RelaxedCell[] {
-  if (mode === 'relaxed-hex') {
-    return buildRelaxedHexCells(drawTiles, wheatSets, { ...HEX_TUNING, ...override });
-  }
-  if (mode === 'mesh') {
-    return buildMeshCells(drawTiles, wheatSets, { ...MESH_TUNING, ...override });
-  }
-  return buildRelaxedQuadCells(drawTiles, wheatSets, { ...QUAD_TUNING, ...override });
+  const elevationDeg = opts?.elevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
+  const ground =
+    mode === 'relaxed-hex'
+      ? buildRelaxedHexCells(drawTiles, wheatSets, { ...HEX_TUNING, ...override })
+      : mode === 'mesh'
+        ? buildMeshCells(drawTiles, wheatSets, { ...MESH_TUNING, ...override })
+        : buildRelaxedQuadCells(drawTiles, wheatSets, { ...QUAD_TUNING, ...override });
+  // The ONE place the camera enters (see {@link GROUND}). Callers still receive SCREEN polygons,
+  // so nothing downstream changes shape.
+  return ground.map((cell) => ({
+    ...cell,
+    poly: cell.poly.map((p) => projectGround(p, elevationDeg)),
+  }));
 }

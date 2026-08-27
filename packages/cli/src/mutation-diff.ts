@@ -194,6 +194,35 @@ function isMutableSource(file: string): boolean {
 }
 
 /** A test file, by this repo's convention (`*.test.ts`, including `*.e2e.test.ts`). */
+/**
+ * Can this rung's test runner actually EXECUTE a project's suite?
+ *
+ * The rung runs Stryker's `bun` test runner, which is the only runner that gives per-test
+ * attribution here. A project whose own `test` script is `vitest run` is therefore OUT OF ITS
+ * REACH — not because its tests are worse, but because they are written against a DOM environment
+ * (`window`, jsdom) and a cwd-relative fixture root that the bun runner does not provide. Handing
+ * one to Stryker anyway kills the DRY RUN, before a single mutant is tested, with a
+ * `ReferenceError: window is not defined` naming a test file the author may not even have written.
+ *
+ * MEASURED, on the first branch to hit it: a change to `packages/forest-world/src/substrate.ts`
+ * that also updated a downstream snapshot in `apps/studio/src/components/TreeViewShell.test.tsx`.
+ * The mutation target was correct (one file, one project, both bun-runnable); the STUDIO test came
+ * along because the rung collects "this branch's own changed tests" without asking whether it can
+ * run them. The rung red on a diff whose own code was fine.
+ *
+ * The narrowing is reported, never silent — a project this rung cannot reach is a real coverage
+ * gap, and a gap nobody can see is worse than one that is named on every run.
+ */
+export function runsUnderBun(testScript: string | undefined): boolean {
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — this guard is a TYPE narrowing,
+  // not a behavioural branch. With it removed, `undefined` reaches `RegExp.test`, which coerces its
+  // argument to the string "undefined" — which contains no `bun test` and yields the same `false`.
+  // The guard earns its place by keeping the function honest to its own signature, and no input can
+  // distinguish the two, so no test can kill this mutant.
+  if (testScript === undefined) return false;
+  return /(^|[\s&|;])bun\s+test(\s|$)/.test(testScript);
+}
+
 export function isTestFile(file: string): boolean {
   return file.endsWith(".test.ts") || file.endsWith(".test.tsx");
 }

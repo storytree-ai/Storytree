@@ -35,6 +35,7 @@ import {
   type MutationReport,
   type MutationTarget,
   parseUnifiedDiffRanges,
+  runsUnderBun,
   selectMutationTargets,
   siblingTestFor,
   skipDisposition,
@@ -199,6 +200,18 @@ function testFilesFor(
   return [...files].sort();
 }
 
+/** A workspace project's own `test` script, or `undefined` when it declares none. */
+function testScriptOf(dir: string): string | undefined {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(path.join(repoRoot, dir, "package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    return manifest.scripts?.test;
+  } catch {
+    return undefined;
+  }
+}
+
 function main(): void {
   const base = resolveBaseRef();
   console.log(`${TAG} base: ${base.because}`);
@@ -212,9 +225,26 @@ function main(): void {
       scripts?: Record<string, string>;
     }
   ).scripts;
+  // NARROW TO WHAT THE BUN RUNNER CAN ACTUALLY EXECUTE, and say what that leaves out.
+  // A `vitest run` project's suite needs a DOM environment this runner does not provide, so handing
+  // Stryker one kills the dry run before a single mutant is tested — see {@link runsUnderBun}.
+  const allProjects = discoverWorkspaceProjects(repoRoot);
+  const projects = allProjects.filter((p) => runsUnderBun(testScriptOf(p.dir)));
+  const outOfReach = allProjects.filter((p) => !runsUnderBun(testScriptOf(p.dir)));
+  const touchedOutOfReach = outOfReach.filter((p) =>
+    ranges.some((r) => r.file.split("\\").join("/").startsWith(`${p.dir}/`)),
+  );
+  for (const p of touchedOutOfReach) {
+    console.log(
+      `${TAG} NARROWED: ${p.dir} is out of this rung's reach — its own test script is ` +
+        `\`${(testScriptOf(p.dir) ?? "(none)").trim()}\`, and Stryker's bun runner cannot execute it. ` +
+        "This branch's changes there are neither mutated nor used as covering tests.",
+    );
+  }
+
   const selection = selectMutationTargets({
     changed: ranges,
-    projects: discoverWorkspaceProjects(repoRoot),
+    projects,
     existingFiles,
     exemptFiles: new Set(entryPointsFromScripts(rootScripts ?? {})),
   });
