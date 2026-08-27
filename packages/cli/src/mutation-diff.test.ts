@@ -1149,6 +1149,8 @@ test("mutation-diff: the two dispositions never share a label — the runners mu
   const ci = skipDisposition({ inCi: true, gateSkipExitCode: 3 });
   assert.notEqual(local.label, ci.label);
   assert.notEqual(local.exitCode, ci.exitCode);
+});
+
 // ── runsUnderBun ─────────────────────────────────────────────────────────────
 //
 // The rung runs Stryker's bun test runner. A project whose own suite is `vitest run` needs a DOM
