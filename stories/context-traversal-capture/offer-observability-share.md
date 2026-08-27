@@ -8,7 +8,7 @@ outcome: "Every recorded offer set renders the share of its candidates a follow 
 status: proposed
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, artifact-offer-candidate-sets, offer-follow-edges, decision-point-playback]
-decisions: [235, 260, 312]
+decisions: [235, 464, 312]
 proof:
   command:
     file: pnpm
