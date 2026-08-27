@@ -1,0 +1,726 @@
+{
+  "url": "http://localhost:5211/cover.html",
+  "covers": {
+    "wheat": [
+      {
+        "token": "#d6b271",
+        "rgb": {
+          "r": 214,
+          "g": 178,
+          "b": 113
+        },
+        "luma": 181.65,
+        "separation": {
+          "token": "#d6b271",
+          "nearest": "proposed",
+          "distance": 7.675285010994705,
+          "at": "proposed.top[1] (#ccb258) at level 0.78",
+          "per": {
+            "proposed": 7.675285010994705,
+            "building": 9.252567211320326,
+            "healthy": 28.205673188208078,
+            "mapped": 14.454065172123723,
+            "unhealthy": 70.61239268003882,
+            "unknown": 23.480204428411604
+          }
+        },
+        "floor": 7.675,
+        "margin": 0.0002850109947054591,
+        "ok": true
+      },
+      {
+        "token": "#6f6852",
+        "rgb": {
+          "r": 111,
+          "g": 104,
+          "b": 82
+        },
+        "luma": 103.67999999999999,
+        "separation": {
+          "token": "#6f6852",
+          "nearest": "unhealthy",
+          "distance": 7.675285010994705,
+          "at": "unhealthy.top[2] (#635f52) at level 0.78",
+          "per": {
+            "proposed": 59.52066867903955,
+            "building": 51.024307932592286,
+            "healthy": 40.39925741891798,
+            "mapped": 29.035667720925584,
+            "unhealthy": 7.675285010994705,
+            "unknown": 58.10387250433485
+          }
+        },
+        "floor": 7.675,
+        "margin": 0.0002850109947054591,
+        "ok": true
+      }
+    ],
+    "yellowGrass": [
+      {
+        "token": "#b0b040",
+        "rgb": {
+          "r": 176,
+          "g": 176,
+          "b": 64
+        },
+        "luma": 163.67999999999998,
+        "separation": {
+          "token": "#b0b040",
+          "nearest": "proposed",
+          "distance": 13.619838471876236,
+          "at": "proposed.top[1] (#ccb258) at level 0.8",
+          "per": {
+            "proposed": 13.619838471876236,
+            "building": 18.924058761270004,
+            "healthy": 17.952715672009067,
+            "mapped": 17.72991821752148,
+            "unhealthy": 58.679383091508384,
+            "unknown": 18.5024322725419
+          }
+        },
+        "floor": 7.675,
+        "margin": 5.944838471876236,
+        "ok": true
+      }
+    ]
+  },
+  "separationFloor": 7.675,
+  "worstStatusPair": {
+    "a": "healthy",
+    "b": "unknown",
+    "distance": 3.331666249791536,
+    "at": "#9ac570 vs #9fc174 at 0.78"
+  },
+  "statusTokens": {
+    "proposed": {
+      "top": [
+        "#d8c069",
+        "#ccb258",
+        "#e2cf7e"
+      ],
+      "wheat": "#d6b271",
+      "side": "#a8914a"
+    },
+    "building": {
+      "top": [
+        "#dcab52",
+        "#d09a42",
+        "#e6bc68"
+      ],
+      "wheat": "#d6b271",
+      "side": "#aa7d33"
+    },
+    "healthy": {
+      "top": [
+        "#8cb85e",
+        "#7dab50",
+        "#9ac570"
+      ],
+      "wheat": "#d6b271",
+      "side": "#648244"
+    },
+    "mapped": {
+      "top": [
+        "#b3946a",
+        "#a68557",
+        "#bda278"
+      ],
+      "wheat": "#d6b271",
+      "side": "#85683f"
+    },
+    "unhealthy": {
+      "top": [
+        "#57544a",
+        "#4a473e",
+        "#635f52"
+      ],
+      "wheat": "#6f6852",
+      "side": "#37352c"
+    },
+    "unknown": {
+      "top": [
+        "#a9c87f",
+        "#9fc174",
+        "#b2cf8b"
+      ],
+      "wheat": "#d6b271",
+      "side": "#87985f"
+    }
+  },
+  "greenReference": {
+    "2": {
+      "flat": 1.408
+    },
+    "8": {
+      "flat": 0.374,
+      "grain": 1.058,
+      "liftPct": 183
+    }
+  },
+  "panels": {
+    "cover-status-flat-2px": {
+      "cover": "status",
+      "grain": "flat",
+      "zoom": 2,
+      "w": 480,
+      "h": 232,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 77061,
+      "micro": 1.4338450113495471,
+      "struct": 6.763275699835691,
+      "ratio": 0.21200451896177785,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 49,
+      "p2": 131.4328,
+      "p50": 151.6478,
+      "p98": 168.1476,
+      "spread": 36.714800000000025
+    },
+    "cover-wheat-flat-2px": {
+      "cover": "wheat",
+      "grain": "flat",
+      "zoom": 2,
+      "w": 480,
+      "h": 232,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 77061,
+      "micro": 1.5451709317191682,
+      "struct": 7.312786914454554,
+      "ratio": 0.2112971360706494,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 60,
+      "p2": 141.2706,
+      "p50": 162.82819999999998,
+      "p98": 180.9606,
+      "spread": 39.69
+    },
+    "cover-yellowgrass-flat-2px": {
+      "cover": "yellowgrass",
+      "grain": "flat",
+      "zoom": 2,
+      "w": 480,
+      "h": 232,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 77061,
+      "micro": 1.4319525399849076,
+      "struct": 6.727111979743912,
+      "ratio": 0.2128628963360023,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 31,
+      "p2": 130.7186,
+      "p50": 150.78,
+      "p98": 167.9136,
+      "spread": 37.19499999999999
+    },
+    "cover-status-grain-2px": {
+      "cover": "status",
+      "grain": "grain",
+      "zoom": 2,
+      "w": 480,
+      "h": 232,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 77061,
+      "micro": 3.88225115062527,
+      "struct": 6.356667898683702,
+      "ratio": 0.6107368219486787,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 48,
+      "p2": 131.4328,
+      "p50": 151.6478,
+      "p98": 168.1476,
+      "spread": 36.714800000000025
+    },
+    "cover-wheat-grain-2px": {
+      "cover": "wheat",
+      "grain": "grain",
+      "zoom": 2,
+      "w": 480,
+      "h": 232,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 77061,
+      "micro": 4.191634719650526,
+      "struct": 6.863965079601946,
+      "ratio": 0.6106725006668605,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 58,
+      "p2": 141.2706,
+      "p50": 162.82819999999998,
+      "p98": 180.9606,
+      "spread": 39.69
+    },
+    "cover-yellowgrass-grain-2px": {
+      "cover": "yellowgrass",
+      "grain": "grain",
+      "zoom": 2,
+      "w": 480,
+      "h": 232,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 77061,
+      "micro": 3.872214998564571,
+      "struct": 6.330784078336332,
+      "ratio": 0.6116485652725264,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 29,
+      "p2": 130.7186,
+      "p50": 150.78,
+      "p98": 167.9136,
+      "spread": 37.19499999999999
+    },
+    "cover-status-flat-8px": {
+      "cover": "status",
+      "grain": "flat",
+      "zoom": 8,
+      "w": 1918,
+      "h": 929,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 1233595,
+      "micro": 0.3778146261122992,
+      "struct": 8.84984239849657,
+      "ratio": 0.04269167846158291,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 33,
+      "p2": 131.4328,
+      "p50": 151.6478,
+      "p98": 168.1476,
+      "spread": 36.714800000000025
+    },
+    "cover-wheat-flat-8px": {
+      "cover": "wheat",
+      "grain": "flat",
+      "zoom": 8,
+      "w": 1918,
+      "h": 929,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 1233595,
+      "micro": 0.4070247597123065,
+      "struct": 9.559313678487475,
+      "ratio": 0.04257886846294054,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 41,
+      "p2": 141.2706,
+      "p50": 162.82819999999998,
+      "p98": 180.9606,
+      "spread": 39.69
+    },
+    "cover-yellowgrass-flat-8px": {
+      "cover": "yellowgrass",
+      "grain": "flat",
+      "zoom": 8,
+      "w": 1918,
+      "h": 929,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 1233595,
+      "micro": 0.377521935596929,
+      "struct": 8.813721154018516,
+      "ratio": 0.04283343312090174,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 24,
+      "p2": 130.7186,
+      "p50": 150.78,
+      "p98": 167.9136,
+      "spread": 37.19499999999999
+    },
+    "cover-status-grain-8px": {
+      "cover": "status",
+      "grain": "grain",
+      "zoom": 8,
+      "w": 1918,
+      "h": 929,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 1233595,
+      "micro": 1.060776405178801,
+      "struct": 9.164078253499115,
+      "ratio": 0.11575374804048244,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 56,
+      "p2": 131.4328,
+      "p50": 151.6478,
+      "p98": 168.1476,
+      "spread": 36.714800000000025
+    },
+    "cover-wheat-grain-8px": {
+      "cover": "wheat",
+      "grain": "grain",
+      "zoom": 8,
+      "w": 1918,
+      "h": 929,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 1233595,
+      "micro": 1.145208169251962,
+      "struct": 9.893915580749965,
+      "ratio": 0.11574873061178419,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 70,
+      "p2": 141.2706,
+      "p50": 162.82819999999998,
+      "p98": 180.9606,
+      "spread": 39.69
+    },
+    "cover-yellowgrass-grain-8px": {
+      "cover": "yellowgrass",
+      "grain": "grain",
+      "zoom": 8,
+      "w": 1918,
+      "h": 929,
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "opaque": 1233595,
+      "micro": 1.0584524954919805,
+      "struct": 9.140104584150999,
+      "ratio": 0.11580310550574488,
+      "distinct": 4,
+      "bins90": 3,
+      "bins90b": 36,
+      "p2": 130.7186,
+      "p50": 150.78,
+      "p98": 167.9136,
+      "spread": 37.19499999999999
+    }
+  },
+  "paletteVerdicts": [
+    {
+      "tag": "cover-status-flat-2px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-wheat-flat-2px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-yellowgrass-flat-2px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-status-grain-2px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-wheat-grain-2px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-yellowgrass-grain-2px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-status-flat-8px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-wheat-flat-8px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-yellowgrass-flat-8px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-status-grain-8px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-wheat-grain-8px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    },
+    {
+      "tag": "cover-yellowgrass-grain-8px",
+      "offPalette": 0,
+      "offPaletteColours": 0,
+      "closed": true,
+      "worstOffender": null
+    }
+  ],
+  "coverVerdicts": [
+    {
+      "tag": "cover-status-flat-2px",
+      "expected": null,
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 77061
+    },
+    {
+      "tag": "cover-wheat-flat-2px",
+      "expected": "wheat",
+      "counts": {
+        "wheat": 77061,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 77061
+    },
+    {
+      "tag": "cover-yellowgrass-flat-2px",
+      "expected": "yellowGrass",
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 77061
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 77061
+    },
+    {
+      "tag": "cover-status-grain-2px",
+      "expected": null,
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 77061
+    },
+    {
+      "tag": "cover-wheat-grain-2px",
+      "expected": "wheat",
+      "counts": {
+        "wheat": 77061,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 77061
+    },
+    {
+      "tag": "cover-yellowgrass-grain-2px",
+      "expected": "yellowGrass",
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 77061
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 77061
+    },
+    {
+      "tag": "cover-status-flat-8px",
+      "expected": null,
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 1233595
+    },
+    {
+      "tag": "cover-wheat-flat-8px",
+      "expected": "wheat",
+      "counts": {
+        "wheat": 1233595,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 1233595
+    },
+    {
+      "tag": "cover-yellowgrass-flat-8px",
+      "expected": "yellowGrass",
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 1233595
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 1233595
+    },
+    {
+      "tag": "cover-status-grain-8px",
+      "expected": null,
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 1233595
+    },
+    {
+      "tag": "cover-wheat-grain-8px",
+      "expected": "wheat",
+      "counts": {
+        "wheat": 1233595,
+        "yellowGrass": 0
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 1233595
+    },
+    {
+      "tag": "cover-yellowgrass-grain-8px",
+      "expected": "yellowGrass",
+      "counts": {
+        "wheat": 0,
+        "yellowGrass": 1233595
+      },
+      "present": true,
+      "leaked": [],
+      "opaque": 1233595
+    }
+  ],
+  "table": [
+    {
+      "zoom": 2,
+      "cover": "status",
+      "microFlat": 1.4338450113495471,
+      "microGrain": 3.88225115062527,
+      "grainLiftPct": 170.7580749589708,
+      "structFlat": 6.763275699835691,
+      "structGrain": 6.356667898683702,
+      "distinctFlat": 4,
+      "distinctGrain": 4,
+      "bins90Flat": 3,
+      "bins90Grain": 3,
+      "spreadFlat": 36.714800000000025,
+      "spreadGrain": 36.714800000000025,
+      "opaqueFlat": 77061,
+      "opaqueGrain": 77061
+    },
+    {
+      "zoom": 2,
+      "cover": "wheat",
+      "microFlat": 1.5451709317191682,
+      "microGrain": 4.191634719650526,
+      "grainLiftPct": 171.27320567614376,
+      "structFlat": 7.312786914454554,
+      "structGrain": 6.863965079601946,
+      "distinctFlat": 4,
+      "distinctGrain": 4,
+      "bins90Flat": 3,
+      "bins90Grain": 3,
+      "spreadFlat": 39.69,
+      "spreadGrain": 39.69,
+      "opaqueFlat": 77061,
+      "opaqueGrain": 77061
+    },
+    {
+      "zoom": 2,
+      "cover": "yellowgrass",
+      "microFlat": 1.4319525399849076,
+      "microGrain": 3.872214998564571,
+      "grainLiftPct": 170.41503754065644,
+      "structFlat": 6.727111979743912,
+      "structGrain": 6.330784078336332,
+      "distinctFlat": 4,
+      "distinctGrain": 4,
+      "bins90Flat": 3,
+      "bins90Grain": 3,
+      "spreadFlat": 37.19499999999999,
+      "spreadGrain": 37.19499999999999,
+      "opaqueFlat": 77061,
+      "opaqueGrain": 77061
+    },
+    {
+      "zoom": 8,
+      "cover": "status",
+      "microFlat": 0.3778146261122992,
+      "microGrain": 1.060776405178801,
+      "grainLiftPct": 180.76636844215304,
+      "structFlat": 8.84984239849657,
+      "structGrain": 9.164078253499115,
+      "distinctFlat": 4,
+      "distinctGrain": 4,
+      "bins90Flat": 3,
+      "bins90Grain": 3,
+      "spreadFlat": 36.714800000000025,
+      "spreadGrain": 36.714800000000025,
+      "opaqueFlat": 1233595,
+      "opaqueGrain": 1233595
+    },
+    {
+      "zoom": 8,
+      "cover": "wheat",
+      "microFlat": 0.4070247597123065,
+      "microGrain": 1.145208169251962,
+      "grainLiftPct": 181.36081206986492,
+      "structFlat": 9.559313678487475,
+      "structGrain": 9.893915580749965,
+      "distinctFlat": 4,
+      "distinctGrain": 4,
+      "bins90Flat": 3,
+      "bins90Grain": 3,
+      "spreadFlat": 39.69,
+      "spreadGrain": 39.69,
+      "opaqueFlat": 1233595,
+      "opaqueGrain": 1233595
+    },
+    {
+      "zoom": 8,
+      "cover": "yellowgrass",
+      "microFlat": 0.377521935596929,
+      "microGrain": 1.0584524954919805,
+      "grainLiftPct": 180.3684754949086,
+      "structFlat": 8.813721154018516,
+      "structGrain": 9.140104584150999,
+      "distinctFlat": 4,
+      "distinctGrain": 4,
+      "bins90Flat": 3,
+      "bins90Grain": 3,
+      "spreadFlat": 37.19499999999999,
+      "spreadGrain": 37.19499999999999,
+      "opaqueFlat": 1233595,
+      "opaqueGrain": 1233595
+    }
+  ]
+}

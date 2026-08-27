@@ -30,6 +30,9 @@ pnpm-debug.log*
 # grain-measure.mjs's working output. The EVIDENCE that is kept lives under
 # docs/research/chapter2-grain-crossing-2026-08-27/; this is where a re-run lands.
 .grain-measure/
+# cover-measure.mjs's working output. The EVIDENCE that is kept lives under
+# docs/research/chapter2-ground-cover-2026-08-27/; this is where a re-run lands.
+.cover-measure/
 
 # Test / coverage
 coverage/
