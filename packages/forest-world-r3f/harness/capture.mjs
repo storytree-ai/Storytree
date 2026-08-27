@@ -71,6 +71,10 @@ import {
 // style of `data-st-tag`; that would let the layer being audited decide whether it is audited,
 // and a page that stopped drawing its props would very plausibly also stop declaring them.
 import { checkPropPresence, describePresenceFailure } from './prop-presence.js';
+// THE COLOUR-SPREAD BAND — ADR-0418 D4's replacement for the fence D3 lifted. Imported here for
+// the same reason as everything above it: the declaration of what each canvas claims to be lives
+// inside this script's own module graph, not on the page being audited.
+import { checkColourSpread, describeSpreadFailure } from './colour-spread.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 // The output directory is overridable so one capture script serves both evidence pages
@@ -196,19 +200,50 @@ const delivered = await page.evaluate(() => {
 
 if (delivered.length === 0) fail('the page drew no canvases at all');
 
+// --- THE COLOUR-SPREAD BAND, RESOLVED FIRST because the palette tally depends on it ----------
+//
+// ADR-0418 D3 lifted ADR-0380 D6 fence 3 on this surface: a live render here need no longer stay
+// banded to an authored palette. D4 committed to replacing the check that lift removes. This is
+// where the replacement refuses; the reasoning, the design decision and the measured margin are
+// in `colour-spread.ts`'s header and are not restated here.
+//
+// ⚠ WHAT THIS CHANGES FOR THE PALETTE REFUSAL, STATED PRECISELY BECAUSE IT IS THE ONE THING THAT
+// MUST NOT DRIFT. Canvases declared `banded` are held to the off-palette refusal exactly as
+// before, unchanged, and that is every canvas on every page this script drove until today.
+// Canvases declared `continuous` are EXEMPT from it and held to the band instead — because on
+// those the fence is already lifted by ADR-0418 D2/D3, and running an off-palette refusal over
+// them is not a stricter check, it is a check that refuses the page for being what it is
+// authorised to be. That is precisely why `grain.html` could not be audited by this script at
+// all until now, which the crossing increment recorded as the consequence of the lift.
+//
+// The exemption is DECLARED, never inferred: `colour-spread.ts`'s manifest is hand-authored, and
+// a tagged canvas it does not name is refused rather than skipped. So a page cannot acquire an
+// exemption by drawing off-palette pixels — only by someone writing the declaration down.
+const spread = checkColourSpread(delivered);
+const exemptFromPalette = new Set(
+  spread.canvases.filter((c) => c.regime === 'continuous').map((c) => c.tag),
+);
+
 const palette = new Set(landPaletteWithShadow());
 // The pre-shadow closure, kept so the report can state the COST as a difference the reader
 // can check rather than a number they have to take on trust.
 const paletteBefore = new Set(landPalette());
 let totalOpaque = 0;
 let offPalette = 0;
+let exemptOpaque = 0;
 const offenders = new Map();
 const distinct = new Set();
 
 for (const c of delivered) {
   totalOpaque += c.opaque;
+  // A continuous canvas still contributes its pixels to the page's opaque total and its colours
+  // to the delivered set — both are facts about what was drawn. What it does not contribute to
+  // is the off-palette TALLY, which is the only thing the exemption touches.
+  const exempt = c.tag !== null && exemptFromPalette.has(c.tag);
+  if (exempt) exemptOpaque += c.opaque;
   for (const [hex, n] of c.colours) {
     distinct.add(hex);
+    if (exempt) continue;
     if (!palette.has(hex)) {
       offPalette += n;
       offenders.set(hex, (offenders.get(hex) ?? 0) + n);
@@ -446,6 +481,31 @@ const report = {
         deliveredPx: t.deliveredPx,
         present: t.present,
       })),
+    })),
+  },
+  // THE COLOUR-SPREAD BAND — ADR-0418 D4's replacement, per canvas.
+  //
+  // The BAR is recorded next to the figure it judged, and that is deliberate: the bar is read off
+  // a control in the same run rather than committed, so a report carrying only the verdict would
+  // be unreadable a week later. `bar` is the control's total delivered colour count; `bins90` is
+  // what the canvas needed to cover nine tenths of itself.
+  colourSpread: {
+    ok: spread.ok,
+    checked: spread.checked,
+    continuousChecked: spread.continuousChecked,
+    unresolvedTags: spread.unresolvedTags,
+    // Pixels this run did NOT hold to the palette closure, so the cost of the exemption is a
+    // number in the report rather than something a reader has to reconstruct from the manifest.
+    exemptFromPaletteOpaquePixels: exemptOpaque,
+    canvases: spread.canvases.map((c) => ({
+      tag: c.tag,
+      regime: c.regime,
+      opaque: c.opaque,
+      distinct: c.distinct,
+      bins90: c.bins90,
+      control: c.control,
+      bar: c.bar,
+      fault: c.fault,
     })),
   },
   // Watertightness, REPORTED not judged — see the flood fill above for why there is no
@@ -724,6 +784,19 @@ for (const c of presence.canvases) {
   );
 }
 console.log(
+  `spread     : ${spread.continuousChecked} continuous of ${spread.checked} declared canvases` +
+    (exemptOpaque ? `, ${exemptOpaque} px exempt from the palette closure` : '') +
+    (spread.unresolvedTags.length
+      ? `; ${spread.unresolvedTags.length} tagged canvases carry no declaration`
+      : ''),
+);
+for (const c of spread.canvases.filter((v) => v.regime === 'continuous')) {
+  console.log(
+    `   ${(c.fault ? 'XX ' : 'ok ') + c.tag.padEnd(20)} bins90 ${String(c.bins90).padStart(5)} ` +
+      `vs bar ${String(c.bar ?? '-').padStart(5)} (${c.control ?? 'no control'})`,
+  );
+}
+console.log(
   `holes      : ${report.watertight.totalInteriorHoles} interior px across ${delivered.length} ` +
     'canvases (REPORTED, not a rung — the flat control reads 0)',
 );
@@ -769,9 +842,30 @@ if (offPalette > 0) {
   refusals.push(`PALETTE BREACHED — ${offPalette} delivered px outside the authored closure`);
 }
 
+if (!spread.ok) {
+  // THE COLOUR-SPREAD BAND REFUSED. This is the rung that can still fail once the palette fence
+  // is lifted, and it fails in five different ways — a continuous surface that COLLAPSED back
+  // onto the authored ladder, arms that are not the same island, too few pixels for the figure
+  // to mean anything, a control that is missing or is not itself banded, and a tagged canvas
+  // with no declaration at all. `colour-spread.ts` names which.
+  //
+  // Held to the same last-position rule as the two above, for the same reason: the pictures and
+  // the report are on disk by now, so a refusal still leaves the evidence to diagnose it from.
+  refusals.push(`COLOUR SPREAD — ${describeSpreadFailure(spread)}`);
+}
+
 if (refusals.length) fail(refusals.join('\n  AND '));
 
-console.log('PALETTE CLOSED ON THE GPU');
+console.log(
+  exemptOpaque
+    ? `PALETTE CLOSED ON THE GPU (over the banded canvases; ${exemptOpaque} px exempt by declaration)`
+    : 'PALETTE CLOSED ON THE GPU',
+);
+console.log(
+  spread.continuousChecked
+    ? `EVERY CONTINUOUS CANVAS CLEARS ITS CONTROL (${spread.continuousChecked} of ${spread.checked} declared)`
+    : `NO CONTINUOUS CANVASES ON THIS PAGE — the band checked nothing (${spread.checked} declared banded)`,
+);
 console.log(
   presence.checked
     ? `EVERY DECLARED PROP DELIVERED (${presence.withProps} islands verified)`
