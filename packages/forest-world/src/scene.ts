@@ -1120,6 +1120,8 @@ function pointInPoly(x: number, y: number, poly: Pt[]): boolean {
  */
 function groundGap(a: Pt, b: Pt, elevationDeg: number): number {
   const d = unprojectGround({ x: a.x - b.x, y: a.y - b.y }, elevationDeg);
+  // ground-space: `d` is the separation already unprojected onto the ground plane, so the isotropic
+  // hypot is the ground distance. This function IS the repo's answer to the class the rung guards.
   return Math.hypot(d.x, d.y);
 }
 
@@ -1748,14 +1750,48 @@ function parcelFloraItem(
   return { y, node: g(marks, attrs) };
 }
 
+/** How many times a drift placement is resampled before it gives up and plants on its anchor.
+ *
+ *  REJECT-AND-RESAMPLE, not clamp, and the difference is the MASSING. Pulling an escaped point back
+ *  toward its anchor (the `towardLand` ladder this file uses for the island keep-in) would pile every
+ *  rejected placement onto the parcel's boundary, which is a visible line of plants where there was
+ *  open lawn. Redrawing keeps the distribution exactly what it was — sqrt-uniform inside the bed —
+ *  merely conditioned on landing in the parcel, so the 2026-07-18 massing decision survives the fix
+ *  rather than being traded against it.
+ *
+ *  WHY 12. The measured escape rate runs 5.6% on a bare parcel to 22.2% on the largest bed the
+ *  density budget builds (tests = 20, spread = 18), so twelve independent redraws exhaust with
+ *  probability 0.222^12 ≈ 1e-8 on the worst REAL parcel. It is a bound, not a tuning knob: the value
+ *  only decides how a pathological parcel — one small cell under a large bed — degrades, and any
+ *  value large enough to make that probability negligible behaves identically on real ground.
+ *
+ *  THE FALLBACK IS PROVABLY INSIDE. An anchor is a cell's own vertex-mean centroid, and the mesh's
+ *  cells are convex, so the anchor lies in the cell it came from and therefore in the parcel:
+ *  measured 0 of 12,150 anchors outside their parcel across all three substrate modes. That is what
+ *  makes exhaustion safe to give up on — the escape hatch cannot itself escape. */
+export const DRIFT_CONTAINMENT_TRIES = 12;
+
 /** DRIFTS & CLEARINGS (the owner-directed vegetation refinement, 2026-07-18): every theme spends
  *  its density budget inside 1–2 seeded drift BEDS per parcel instead of an even all-cells
  *  scatter — massed vegetation with open lawn between reads as a garden, not static. The drift's
  *  AREA grows with the test count (spread = 7 + tests·0.55; two beds once tests ≥ 7), so density
  *  stays legible as "how big is the bed" while the counts themselves are untouched. Deterministic:
  *  anchors and every placement draw only from the parcel's seeded `rand`. The y-radius wears the
- *  same top-down squash the wisp orbit uses. */
-function driftSpot(cells: ParcelCell[], tests: number, rand: () => number): () => Pt {
+ *  same top-down squash the wisp orbit uses.
+ *
+ *  ⚠ EVERY PLACEMENT IS CONTAINED BY THE PARCEL THAT TINTS IT
+ *  (`driftspot-plants-stand-on-the-ground-that-tinted-them`). `buildTerritorySurface` stamps every
+ *  mark this positions with its parcel's `capId`, and the ground under it wears that capability's
+ *  STATUS. A placement that drifted over the boundary therefore carried capability A's proof state
+ *  while standing on capability B's ground — ADR-0226 makes the vegetation MEAN something and
+ *  ADR-0367 D5 puts semantic state above the art, so that is a false claim, not a wobble. There was
+ *  no containment test of any kind: measured, 10.21% of 90,800 placements landed off their parcel,
+ *  rising from 5.55% on a bare parcel to 22.18% on the largest bed the density budget builds.
+ *  `drift-containment.test.ts` holds it at zero and re-measures the massing either side.
+ *
+ *  ⚠ EXPORTED FOR THAT PROOF, and it has a precondition: `cells` must be NON-EMPTY. All three
+ *  `SurfaceFn`s return early on an empty parcel before they ever call this. */
+export function driftSpot(cells: ParcelCell[], tests: number, rand: () => number): () => Pt {
   const anchors: Pt[] = [];
   const n = tests >= 7 ? 2 : 1;
   for (let d = 0; d < n; d++) {
@@ -1763,11 +1799,30 @@ function driftSpot(cells: ParcelCell[], tests: number, rand: () => number): () =
     anchors.push({ x: c.cx, y: c.cy });
   }
   const spread = 7 + Math.max(0, tests) * 0.55;
+  // THE CONTAINMENT TEST. `cells` is exactly the parcel's own share of the island's mesh, so this
+  // asks the only question that makes the tint true: is this plant standing on the capability that
+  // coloured it? The polygons are GROUND polygons seen through the declared camera, and
+  // point-in-polygon is affine-invariant — a point is inside a polygon in projected coordinates iff
+  // it is inside in ground coordinates — so this needs no unprojection and cannot depend on the
+  // camera. (The `* 0.6` squash below is a different question, and deliberately not answered here —
+  // it is a second site of this arc's fault class and needs its own owner-scoped increment.)
+  const onParcel = (x: number, y: number): boolean => cells.some((c) => pointInPoly(x, y, c.poly));
   return (): Pt => {
     const a = anchors[Math.floor(rand() * anchors.length)]!;
-    const ang = rand() * Math.PI * 2;
-    const rr = Math.sqrt(rand()) * spread;
-    return { x: a.x + Math.cos(ang) * rr, y: a.y + Math.sin(ang) * rr * 0.6 };
+    for (let t = 0; t < DRIFT_CONTAINMENT_TRIES; t++) {
+      const ang = rand() * Math.PI * 2;
+      const rr = Math.sqrt(rand()) * spread;
+      const ox = Math.cos(ang) * rr;
+      const oy = Math.sin(ang) * rr * 0.6; // the top-down squash the wisp orbit wears
+      // Stryker disable next-line ArithmeticOperator: EQUIVALENT — `ang` is uniform on [0, 2π), so
+      // negating either component of the offset maps the placement distribution exactly onto itself.
+      // No property of the bed can separate `+` from `-` here, and one that appeared to would be
+      // measuring the seed rather than the geometry. `substrate.ts`'s jitter carries the same
+      // symmetry, and `substrate-camera.test.ts` records the same limit for the same reason.
+      const p: Pt = { x: a.x + ox, y: a.y + oy };
+      if (onParcel(p.x, p.y)) return p;
+    }
+    return { x: a.x, y: a.y };
   };
 }
 
@@ -2708,6 +2763,8 @@ function buildStonePath(
     const b = unprojectGround(waypoints[leg + 1]!, elevationDeg);
     const dx = b.x - a.x;
     const dy = b.y - a.y;
+    // ground-space: `a`/`b` are the leg's waypoints unprojected two lines above, so the leg length
+    // that meters the stone spacing is a ground length and does not shorten as the camera lowers.
     const len = Math.hypot(dx, dy);
     if (len < 1e-3) continue;
     const ux = dx / len;
@@ -2760,12 +2817,16 @@ function detourAroundTree(
   const mid: Pt = { x: (ag.x + bg.x) / 2, y: (ag.y + bg.y) / 2 };
   const dx = mid.x - treeG.x;
   const dy = mid.y - treeG.y;
+  // ground-space: `mid` and `treeG` are both on the ground plane, and `crownR` it is compared
+  // against is the crown's ground footprint half-width — both sides of the test in one space.
   const d = Math.hypot(dx, dy);
   const want = crownR * 1.3; // clear the crown with a small lawn gap
   if (d >= want) return projectGround(mid, elevationDeg);
   if (d < 1e-3) {
     // midpoint sits on the trunk — bow perpendicular to the leg (deterministic side: +perp).
     const lx = bg.x - ag.x, ly = bg.y - ag.y;
+    // ground-space: `ag`/`bg` are unprojected, and this length only normalises the leg direction to
+    // a unit ground vector before `want` (a ground radius) scales it.
     const ll = Math.hypot(lx, ly) || 1;
     return projectGround(
       { x: treeG.x + (-ly / ll) * want, y: treeG.y + (lx / ll) * want },

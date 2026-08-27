@@ -265,6 +265,16 @@ jobs:
       - name: web experience markers
         run: pnpm check:web-experience-markers
 
+      # The ADR-0367 screen-space-distance guard (`ground-space-truth-arc-inc-01`): every
+      # point-to-point distance in a file that mints projected coordinates from the lattice must
+      # declare which space it is measured in. It runs HERE, after the web/ clone, for the reason it
+      # exists: the fourth instance of the class survived PR #1356 by living in `web/src`, which no
+      # workspace project's test leg covers and only the `check:web-*` family reads. Unlike its three
+      # neighbours it has NO skip branch — the parent's own surfaces are always scannable, so it
+      # narrows (and says so) rather than opting out, and any non-zero exit here is a real failure.
+      - name: ground-space markers
+        run: pnpm check:ground-space
+
       # Affected-only PR scope (ADR-0195, amends ADR-0022; ADR-0304 D2 puts the SAME classifier
       # behind the local `pnpm gate`): classify the PR's changed files and,
       # when every one maps cleanly into the workspace graph, narrow typecheck+test to the changed

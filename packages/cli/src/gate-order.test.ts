@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458 and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ground-space and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -178,6 +178,12 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // ADR-0454, added 2026-08-26: the marker-presence third of the retired check:web-experience,
       // narrowing ADR-0336 D2 on the corrected premise that it needs no network fetch either.
       "pnpm check:web-experience-markers",
+      // `ground-space-truth-arc-inc-01`, added 2026-08-27: the ADR-0367 screen-space-distance guard.
+      // Last in block A because it belongs with the `check:web-*` family — it is the only other rung
+      // that reads `web/src`, and `web/src` is where the instance that survived PR #1356 lived. It
+      // is NOT skip-capable, unlike its three neighbours: the parent's own surfaces are always
+      // scannable, so an absent submodule narrows what it covers rather than excusing the run.
+      "pnpm check:ground-space",
       "pnpm -r --no-bail typecheck",
       "pnpm -r --no-bail test",
       // ADR-0458's diff-scoped mutation rung. Own-work, but the third MINUTES-cost leg, and placed
@@ -201,6 +207,31 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       "pnpm check:hierarchy-drift",
     ],
   );
+});
+
+test("every step DECLARES a subject, and the declaration matches the order axis 2 asserts", () => {
+  // AXIS 2 is stated in this module's header as a fact about the plan, and each step's `subject` is
+  // the plan's own record of which side of it that step is on. Nothing else reads the field, so
+  // without this the two can disagree — a step could sit in block A carrying `shared-environment`,
+  // or carry no subject at all, and the header would go on describing a partition that had stopped
+  // being true. This holds the declared subject to the position.
+  const subjects = GATE_PLAN.map((s) => s.subject);
+  for (const [i, subject] of subjects.entries()) {
+    assert.ok(
+      subject === "own-work" || subject === "shared-environment",
+      `step ${i + 1} (${GATE_PLAN[i]?.command}) declares no recognised subject: ${JSON.stringify(subject)}`,
+    );
+  }
+  const lastOwnWork = subjects.lastIndexOf("own-work");
+  const firstShared = subjects.indexOf("shared-environment");
+  assert.ok(firstShared > lastOwnWork, "every own-work step must precede every shared-environment one");
+  // …and both sides are non-empty, so the assertion above is not satisfied by a plan that lost one.
+  assert.ok(lastOwnWork >= 0 && firstShared >= 0);
+  // Every step also says WHY, in a sentence — the field exists so a subject call is auditable
+  // rather than asserted, and an empty one turns the classification back into a bare claim.
+  for (const step of GATE_PLAN) {
+    assert.ok(step.why.trim().length > 20, `step \`${step.command}\` gives no reason for its subject`);
+  }
 });
 
 test("the seven live/shared checks are pinned LATE", () => {
