@@ -18,12 +18,14 @@ numbers under them.
    transcribed from the shipped app's own CSS, carried by every status, already threaded through
    this renderer. Driving it across a whole island took a prop, not a mechanism.
 2. **The grain crossing was a property of the TREATMENT, not of the green it was measured on.**
-   The lift is **+182.7% / +183.4% / +182.7%** on green / wheat / yellow grass at the zoom —
-   within 0.7 percentage points across three very different colours — and the luma percentiles are
-   unchanged to a tenth for all three, exactly as they were for green alone.
+   The lift is **+180.8% / +181.4% / +180.4%** on green / wheat / yellow grass at the zoom —
+   within **1.0 percentage point** across three very different colours — and the luma percentiles
+   are unchanged to a tenth for all three, exactly as they were for green alone.
 3. **What the token changes is the LEVEL, not the lift.** Wheat delivers **8% more** absolute
    contrast than green, before and after the grain alike, because it is a brighter token and the
-   shade ladder is multiplicative.
+   shade ladder is multiplicative. ⚠ Every absolute figure here is from the POST-MERGE run:
+   `substrate.ts` moved on `main` during this branch and shifted the island's geometry. §2 names
+   the commit and prices the difference.
 4. ⚠ **A yellow ground is not a free colour choice, and the finding is a trade curve rather than a
    verdict.** `proposed` and `building` are themselves yellows. Nothing that reads as a *bright*
    yellow grass gets further from a proof state than the shipped wheat override already is. The
@@ -51,22 +53,35 @@ delivered pixel outside `landPalette()`, so widening that set would relax the fe
 its own page-local widening (`coverPalette()`), and a test asserts that widening is **exactly the
 yellow grass's four ladder rungs and nothing else**.
 
-## 2. The control column is byte-identical to the committed grain crossing
+## 2. What the control column proved, and ⚠ what the merge took away from it
 
 Before any figure below means anything, the page has to be drawing the same island the previous
-pass drew. It is — not approximately:
+pass drew. **Measured against this branch's own base commit (`563044ca`) it drew it exactly**: all
+four control panels came back **byte-identical** to the committed grain-crossing PNGs — md5
+`4f3dc40d…` / `f92706f6…` / `33a0f4e0…` / `d1ed4d5c…` — and the opaque masks matched PR #1665's
+**77,008** and **1,234,059** to the pixel.
 
-| panel | md5 | the grain crossing's |
-|---|---|---|
-| `cover-status-flat-2px.png` | `4f3dc40d…` | `grain-none-2px.png` `4f3dc40d…` |
-| `cover-status-grain-2px.png` | `f92706f6…` | `grain-normal-2px.png` `f92706f6…` |
-| `cover-status-flat-8px.png` | `33a0f4e0…` | `grain-none-8px.png` `33a0f4e0…` |
-| `cover-status-grain-8px.png` | `d1ed4d5c…` | `grain-normal-8px.png` `d1ed4d5c…` |
+⚠ **THAT IS NO LONGER TRUE OF THE PICTURES IN THIS DIRECTORY, AND THE REASON IS NAMED RATHER THAN
+GLOSSED.** Merging `origin/main` before opening the PR brought in
+`7417bc09 fix(forest-world): the substrate is built on the ground and projected once`, which moves
+the relaxed-cell geometry every island in this repo is built from. The masks moved with it —
+**77,008 → 77,061** and **1,234,059 → 1,233,595** — so the committed PNGs were re-rendered against
+the merged tree and no longer hash-match the earlier pass. **Every figure in §3 is the post-merge
+run**; the pre-merge run is cited here only for the byte-identity it established.
 
-All four match. The opaque masks match too — **77,008 px** at 2 px/unit and **1,234,059 px** at
-8 px/unit, the same two figures PR #1665 recorded, and identical across all six panels at each zoom
-(the run refuses if they are not). So every difference in the wheat and yellow columns is
-attributable to the cover token and to nothing else.
+**What that costs, precisely: nothing in this pass's argument, and one cross-pass check.** The
+figures moved in the third digit (green's grained MICRO 1.058 → 1.061, its lift 182.7% → 180.8%),
+they moved *together* across all three covers, and the conclusion — the lift is token-independent,
+the level tracks the token — is what it was. The attribution that actually carries the cover
+comparison is **within** this run, not across passes: every panel at a zoom covers an **identical**
+mask (77,061 at 2 px/unit and 1,233,595 at 8 px/unit, over six panels each) and `cover-measure.mjs`
+refuses the run if they differ. So a difference between two columns here is the cover token and
+nothing else, whatever the substrate did.
+
+✅ **The idiom is still worth reusing, with its expiry understood.** Hashing a new comparison
+page's control column against a previous pass's committed picture is the strongest available proof
+that the two describe the same island — and it holds only until something underneath both of them
+moves on `main`. Take it, record it, and expect the pre-PR merge to spend it.
 
 ## 3. Does the treatment survive a change of colour?
 
@@ -74,24 +89,28 @@ Bare land, same fixture, same relief, same light, same camera, grain's **normal 
 
 | zoom | cover | MICRO flat | MICRO grained | lift | STRUCT flat → grained | spread | distinct | bins90 |
 |---|---|---|---|---|---|---|---|---|
-| 8 px | status green | 0.374 | 1.058 | **+182.7%** | 8.65 → 9.06 | 36.7 | 4 | 3 |
-| 8 px | wheat | 0.403 | **1.142** | **+183.4%** | 9.33 → 9.77 | 39.7 | 4 | 3 |
-| 8 px | yellow grass | 0.373 | 1.056 | **+182.7%** | 8.60 → 9.02 | 37.2 | 4 | 3 |
-| 2 px | status green | 1.408 | 3.873 | +175.2% | 6.56 → 6.24 | 36.7 | 4 | 3 |
-| 2 px | wheat | 1.516 | 4.181 | +175.7% | 7.09 → 6.74 | 39.7 | 4 | 3 |
-| 2 px | yellow grass | 1.404 | 3.862 | +175.0% | 6.52 → 6.21 | 37.2 | 4 | 3 |
+| 8 px | status green | 0.378 | 1.061 | **+180.8%** | 8.85 → 9.16 | 36.7 | 4 | 3 |
+| 8 px | wheat | 0.407 | **1.145** | **+181.4%** | 9.56 → 9.89 | 39.7 | 4 | 3 |
+| 8 px | yellow grass | 0.378 | 1.058 | **+180.4%** | 8.81 → 9.14 | 37.2 | 4 | 3 |
+| 2 px | status green | 1.434 | 3.882 | +170.8% | 6.76 → 6.36 | 36.7 | 4 | 3 |
+| 2 px | wheat | 1.545 | 4.192 | +171.3% | 7.31 → 6.86 | 39.7 | 4 | 3 |
+| 2 px | yellow grass | 1.432 | 3.872 | +170.4% | 6.73 → 6.33 | 37.2 | 4 | 3 |
 
-**The lift is token-independent.** Three colours, 0.7 percentage points between the extremes at
-either zoom. The grain octave perturbs the *normal* before the lighting is quantised, so what it
-manipulates is which rung a fragment lands on — an operation that knows nothing about which colours
-the rungs hold. The measurement now says that rather than the argument alone.
+**The lift is token-independent.** Three colours, **1.0 percentage point** between the extremes at
+the zoom and 0.9 at the overview. The grain octave perturbs the *normal* before the lighting is
+quantised, so what it manipulates is which rung a fragment lands on — an operation that knows
+nothing about which colours the rungs hold. The measurement now says that rather than the argument
+alone. ⚠ The same three covers measured **before** the merge in §2 gave 182.7 / 183.4 / 182.7: they
+move together and the spread between them stays about a point, which is the finding — a single
+absolute figure quoted out of this table has a substrate commit attached to it.
 
-**The level is not.** Wheat sits 7.8% above green ungrained and 7.9% above it grained; its
+**The level is not.** Wheat sits 7.7% above green ungrained and 7.9% above it grained; its
 luminance spread is 8.2% wider. The ladder is multiplicative (`token x level`), so a brighter token
 has wider gaps between its rungs in absolute terms and every contrast figure scales with it.
 ⚠ **The relationship is close at that size and does not resolve at the small one**: yellow grass
-carries 1.4% more spread than green and delivers 0.2% *less* MICRO. Do not read the two as
-proportional — read wheat's 8% as "a brighter token buys a little contrast for free".
+carries 1.4% more spread than green and delivers the SAME MICRO to three decimals ungrained (0.378)
+and 0.3% *less* grained. Do not read the two as proportional — read wheat's 8% as "a brighter token
+buys a little contrast for free".
 
 **The palette cost is still zero, for every cover.** `distinct` stays at 4 and `bins90` at 3 in all
 twelve panels, and the luma percentiles are unchanged by the grain to a tenth (green
@@ -100,8 +119,8 @@ twelve panels, and the luma percentiles are unchanged by the grain to a tenth (g
 had — the PR #1665 finding, now shown to hold on tokens it was never measured on.
 
 ⚠ **STRUCT moves in OPPOSITE directions at the two zooms, on every cover, and the mechanism is NOT
-established here.** It falls ~5% at the overview (6.56 → 6.24 on green, and the same ~5% on both
-other covers) and rises ~5% at the zoom (8.65 → 9.06). The observation is solid — three independent
+established here.** It falls ~6% at the overview (6.76 → 6.36 on green, and the same ~6% on both
+other covers) and rises ~3.5% at the zoom (8.85 → 9.16). The observation is solid — three independent
 covers, same sign, same magnitude — and it is recorded rather than explained. The plausible reading
 is that the grain breaks solid rung regions into mixtures, which a 9x9 blur averages toward the
 middle when the feature is near the window's size (~6.7 ground units is 13 px at 2 px/unit against a
