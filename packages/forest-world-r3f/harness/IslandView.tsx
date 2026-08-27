@@ -28,6 +28,7 @@ import { buildContactField, mergeOcclusion } from './contact-shade.js';
 import { coverTokenFor, type GroundCover } from './ground-cover.js';
 import { variantAt } from './ground-variation.js';
 import { buildShadowField, type ShadowCaster, type ShadowField } from './land-shadow.js';
+import { terrainOf } from './terrain-vocabulary.js';
 import {
   groundBounds,
   groundCellsFrom,
@@ -245,6 +246,21 @@ export interface IslandViewProps {
    * represents nothing (ADR-0406 D1), so nothing here decides it.
    */
   cover?: GroundCover;
+  /**
+   * WEAR THE TERRAIN VOCABULARY (ADR-0461 D1) — each cell's ground character is chosen by the
+   * STATE it carries, not passed in per panel. `forest` for `healthy`, `wheatfield` for
+   * `building`, `fallow` for `proposed`, and so on (`terrain-vocabulary.ts`).
+   *
+   * ⚠ IT IS A SWITCH, NOT A CHOICE, AND THAT IS THE POINT. A panel cannot ask for a terrain
+   * that disagrees with the state it is drawing, because the map's obligation is that every
+   * capability reads as the state it holds and as no other (ADR-0461 D1). A per-panel terrain
+   * override would be a way to draw a lie.
+   *
+   * ⚠ IT NEEDS THE GRAIN. The terrain warps the grain's sample space, so with `grain` absent
+   * this is inert — see `createBandedMaterial`'s own note. Absent ⇒ pixels are bit-identical
+   * to a panel that predates the vocabulary.
+   */
+  terrain?: boolean;
   /** A stable NAME for this canvas, stamped onto the element as `data-st-tag`.
    *
    *  It exists so the capture can find a specific panel by name rather than by position.
@@ -392,6 +408,7 @@ function groundMeshes(
   wallDepth: number,
   grain: GrainOptions | undefined,
   cover: GroundCover | undefined,
+  terrain: boolean | undefined,
   families: ReadonlyMap<string, StatusFamily>,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
@@ -642,6 +659,14 @@ function groundMeshes(
     // samples that field along a line rather than across it, which delivers a smeared vertical
     // streak instead of grain. The same reasoning the shadow field already applies to itself.
     if (grain) groundMaterial.grain = grain;
+    // ⚠ THE TERRAIN IS LOOKED UP FROM THE STATUS, never passed in. That is ADR-0461 D1's whole
+    // claim — a capability's state IS the terrain — and doing it here means a MIXED island gets
+    // the right ground character per parcel for free, rather than one terrain smeared over an
+    // island whose cells disagree about what they are.
+    if (terrain && status) {
+      const t = terrainOf(status);
+      if (t) groundMaterial.terrain = t;
+    }
     meshes.push(new THREE.Mesh(geom, createBandedMaterial(groundMaterial)));
 
     if (wallPositions.length) {
@@ -982,6 +1007,7 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     props.wallDepth ?? CELL_DEPTH,
     props.grain,
     props.cover,
+    props.terrain,
     familiesFor(props.palette),
   )) {
     scene3.add(m);
@@ -1099,6 +1125,7 @@ export function IslandPanel({
     props.plantFraction,
     props.grain,
     props.cover,
+    props.terrain,
     props.palette,
   ]);
   return (
