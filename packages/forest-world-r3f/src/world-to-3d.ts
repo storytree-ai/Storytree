@@ -5,6 +5,8 @@
 // The mapper consumes the SEMANTIC LAYER (SceneKind / status / position), never the
 // 2D SVG primitives. It supplies its own 3D geometry family for each core kind:
 //   tile        → hex-ground        (extruded/instanced hex mesh)
+//   cell        → cell-ground       (extruded parcel prism, the RELAXED-MESH substrate)
+//   cell-wheat  → cell-ground       (ditto — wheat is a 2D look, not a different ground)
 //   tree        → story-tree        (3D story tree)
 //   trail-fill  → trail-strip       (routed ribbon strip on the ground plane, ADR-0169 §4)
 //   trail-ghost → trail-ghost-strip (the under-island run — surfaces may skip it)
@@ -16,6 +18,24 @@
 //
 // All other SceneKinds yield { kind: 'skipped', sceneKind } — explicit, never a
 // throw, never a silent drop. Total coverage is the invariant.
+//
+// ⚠⚠ THE TWO GROUND SUBSTRATES, AND WHY BOTH CASES EXIST. `@storytree/forest-world`
+// emits ground in one of two shapes (`scene.ts:658`): the CLASSIC extruded-hex island
+// (`tile` groups, used when `relaxedCells` is null) and the RELAXED MESH the studio
+// actually ships (`cell` / `cell-wheat` paths, one per parcel). Between ADR-0123 and
+// 2026-08-28 this mapper had a case for the first only, so for an island of the shape
+// the product draws it emitted NO GROUND AT ALL — 164 cells fell through to the default
+// skip and the shipped canvas rendered one story tree over empty space. That was
+// measured, pinned and pictured by `adopt-the-land-into-the-shipped-map-arc-inc-01`
+// (PR #1679, `docs/research/chapter2-shipped-baseline-2026-08-28/`).
+//
+// ⚠ `cell-ground` IS DELIBERATELY THE SAME FIDELITY AS `hex-ground` — a flat prism
+// wearing the parcel's folded status colour. It is the representation the mapper always
+// intended to draw, arriving in the shape the product now emits it. It is NOT the land
+// treatment `adopt-the-land-into-the-shipped-map-arc` is carrying toward this surface:
+// no relief, no grain, no coast smoothing, no stepped skirt, no terrain. Adoption stays
+// a separate, deliberate event (ADR-0380 D6 / ADR-0406 D2) with the ADR-0418 D4
+// replacement check as its precondition — do not graft the treatment in here.
 
 import { trailFillWidth, type Pt, type SceneG, type SceneNode, type ScenePath } from '@storytree/forest-world';
 
@@ -34,6 +54,7 @@ export interface Transform3D {
 /** The 3D mesh family a mapped scene node belongs to. */
 export type InstanceKind =
   | 'hex-ground'
+  | 'cell-ground'
   | 'story-tree'
   | 'trail-strip'
   | 'trail-ghost-strip'
@@ -51,12 +72,16 @@ export interface InstanceDescriptor {
   group: string;
   /** The material variant, derived from the territory's folded SceneStatus (e.g.
    *  'healthy' / 'unhealthy' / 'proposed'). Set for status-bearing families (hex-ground,
-   *  story-tree, cave-arch); absent on families that don't carry a territory status. */
+   *  cell-ground, story-tree, cave-arch); absent on families that don't carry a territory
+   *  status. */
   material?: string;
-  /** A ground-plane polyline (trail strips only): the segment's smoothed path as 3D
-   *  points, in path order — the ribbon the canvas lays on the ground. Curve control
-   *  points join the polyline (the pathPoints approximation). Absent on point-like
-   *  families (hex-ground / story-tree / wisp-sprite / cave-arch). */
+  /** A ground-plane polyline: the family's own path as 3D points, in path order.
+   *  On a `trail-strip` / `trail-ghost-strip` it is the segment's smoothed centreline —
+   *  the ribbon the canvas lays on the ground; curve control points join the polyline
+   *  (the pathPoints approximation). On a `cell-ground` it is the parcel's CLOSED RING,
+   *  each vertex once and no repeated first point (`polyPath` closes with `Z`, which
+   *  carries no coordinates). Absent on point-like families (hex-ground / story-tree /
+   *  wisp-sprite / cave-arch), whose geometry is a primitive at `transform`. */
   points?: Transform3D[];
   /** Ribbon / portal-mouth width in world px. Trail strips: `trailFillWidth(usage)` —
    *  the ONE width rule every surface shares; cave-arch: the portal mouth width. */
@@ -155,13 +180,25 @@ function edgeKeys(edges: string | undefined): string[] {
 /** Recursively walk a scene node, emitting descriptors into `out`.
  *  `parentXY` carries the accumulated 2D translation from ancestor `<g>` nodes;
  *  it is used to position wisp-sprites at their territory's centroid (the centroid
- *  lives on the `wisps` group's translate, one level above the individual `wisp`). */
+ *  lives on the `wisps` group's translate, one level above the individual `wisp`).
+ *
+ *  ⚠ `parentStatus` carries the nearest enclosing group's folded SceneStatus down, and it
+ *  is REQUIRED rather than a convenience: on the relaxed-mesh substrate a plain parcel
+ *  `cell` carries NO status of its own — the core puts it on the `<g kind="ground"
+ *  status=…>` one level up (`scene.ts:3252` vs `:3254`). Read the cell alone and every
+ *  parcel on the shipped map draws as `unknown`, which is a map that has stopped reporting
+ *  (ADR-0392 D5 / ADR-0398 D7) rather than one that merely looks wrong. The parcels-present
+ *  shape DOES stamp per-cell status (`scene.ts:1718`, per-capability rather than
+ *  per-territory) and must WIN over the inherited value — hence `node.status ?? parentStatus`
+ *  at every level, never the other way round. */
 function walkNode(
   node: SceneNode,
   out: Descriptor3D[],
   parentXY: Pt,
+  parentStatus?: string,
 ): void {
   const kind = node.kind;
+  const status = node.status ?? parentStatus;
 
   // Leaf nodes (path / circle / ellipse / polygon / rect / text) carry no children.
   // The trail FILL pass is the ribbon geometry source (ADR-0169 §4) — one strip per
@@ -190,6 +227,34 @@ function walkNode(
       out.push(strip);
       return;
     }
+    // The RELAXED-MESH ground: one closed parcel ring per cell (`polyPath`, `scene.ts:3252`).
+    // `cell-wheat` is the SAME ground wearing a 2D wheat look — the classic case already folds
+    // its own `tile-top-wheat` into one `hex-ground`, so folding here keeps the two substrates
+    // telling the same story rather than inventing a third drawable this surface has no idea
+    // what to do with.
+    if (node.el === 'path' && (kind === 'cell' || kind === 'cell-wheat')) {
+      const ring = pathPoints(node.d).map((p) => ({ x: parentXY.x + p.x, y: 0, z: parentXY.y + p.y }));
+      // A ring of fewer than three vertices bounds no area. Skipping rather than emitting a
+      // degenerate parcel keeps `cell-ground` a family a consumer can always build a face from.
+      if (ring.length < 3) {
+        out.push({ kind: 'skipped', sceneKind: kind });
+        return;
+      }
+      const c = centroidOf(ring.map((p) => ({ x: p.x, y: p.z })));
+      // ⚠ THE RING IS PASSED ON IN THE SCENE'S OWN ORDER, winding included. A Voronoi relaxation
+      // clipped to an island boundary guarantees neither a handedness nor convexity, and the
+      // mapper deliberately does NOT normalise either: `cell-ground-geometry.ts` must be robust to
+      // both anyway (it is exported on its own), and normalising in two places is how the two come
+      // to disagree about which way is up. Winding is settled once, where it is tested.
+      out.push({
+        kind: 'cell-ground',
+        transform: { x: c.x, y: 0, z: c.y },
+        group: 'cell-ground',
+        material: status ?? 'unknown',
+        points: ring,
+      });
+      return;
+    }
     if (kind) out.push({ kind: 'skipped', sceneKind: kind });
     return;
   }
@@ -212,7 +277,7 @@ function walkNode(
         kind: 'hex-ground',
         transform: { x: childXY.x + c.x, y: 0, z: childXY.y + c.y },
         group: 'hex-ground',
-        material: node.status ?? 'unknown',
+        material: status ?? 'unknown',
       });
       break;
     }
@@ -224,7 +289,7 @@ function walkNode(
         kind: 'story-tree',
         transform: { x: childXY.x, y: 0, z: childXY.y },
         group: 'story-tree',
-        material: node.status ?? 'unknown',
+        material: status ?? 'unknown',
       });
       break;
 
@@ -245,7 +310,7 @@ function walkNode(
         kind: 'cave-arch',
         transform: { x: childXY.x, y: 0, z: childXY.y },
         group: 'cave-arch',
-        material: node.status ?? 'unknown',
+        material: status ?? 'unknown',
         bearing,
         width: (hw * 2) / 1.6,
         edges: edgeKeys(node.edges),
@@ -276,7 +341,7 @@ function walkNode(
   // Always recurse into children so every descendant gets its own descriptor
   // (core descendants emit instances; non-core descendants emit skips).
   for (const child of node.children) {
-    walkNode(child, out, childXY);
+    walkNode(child, out, childXY, status);
   }
 }
 

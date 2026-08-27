@@ -1,0 +1,136 @@
+{
+  "url": "http://localhost:5241/baseline.html",
+  "wantGpu": true,
+  "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+  "vendor": "Google Inc. (NVIDIA Corporation)",
+  "timerQuery": true,
+  "census": {
+    "skipped": 1132,
+    "cell-ground": 164,
+    "story-tree": 1
+  },
+  "cellGroundTriangles": 1640,
+  "census_before": {
+    "skipped": 1132,
+    "story-tree": 1
+  },
+  "mixedMaterials": {
+    "healthy": 152,
+    "unhealthy": 12
+  },
+  "authored": {
+    "triangles": 1784,
+    "byKind": [
+      {
+        "kind": "hex-ground",
+        "drawables": 0,
+        "triangles": 0
+      },
+      {
+        "kind": "story-tree/trunk",
+        "drawables": 1,
+        "triangles": 128
+      },
+      {
+        "kind": "story-tree/crown",
+        "drawables": 1,
+        "triangles": 16
+      },
+      {
+        "kind": "cave-arch",
+        "drawables": 0,
+        "triangles": 0
+      },
+      {
+        "kind": "wisp-sprite",
+        "drawables": 0,
+        "triangles": 0
+      },
+      {
+        "kind": "cell-ground",
+        "drawables": 164,
+        "triangles": 1640
+      }
+    ]
+  },
+  "panels": {
+    "shipped-before": {
+      "widthPx": 640,
+      "heightPx": 420,
+      "devicePixelRatio": 1,
+      "calls": 2,
+      "triangles": 144,
+      "frames": 30,
+      "scaleAtTarget": 1.37881701557375,
+      "scaleNear": 1.37881701557375,
+      "scaleFar": 1.37881701557375
+    },
+    "shipped-overview": {
+      "widthPx": 640,
+      "heightPx": 420,
+      "devicePixelRatio": 1,
+      "calls": 3,
+      "triangles": 1784,
+      "frames": 30,
+      "scaleAtTarget": 1.2375783826534272,
+      "scaleNear": 1.2346819987005164,
+      "scaleFar": 1.1548544776750878
+    },
+    "shipped-uniform": {
+      "widthPx": 900,
+      "heightPx": 560,
+      "devicePixelRatio": 1,
+      "calls": 3,
+      "triangles": 1784,
+      "frames": 30,
+      "scaleAtTarget": 1.6501045102045697,
+      "scaleNear": 1.6462426649340218,
+      "scaleFar": 1.5398059702334503
+    },
+    "shipped-mixed": {
+      "widthPx": 900,
+      "heightPx": 560,
+      "devicePixelRatio": 1,
+      "calls": 3,
+      "triangles": 1784,
+      "frames": 30,
+      "scaleAtTarget": 1.6501045102045697,
+      "scaleNear": 1.6462426649340218,
+      "scaleFar": 1.5398059702334503
+    },
+    "shipped-overview-2": {
+      "widthPx": 640,
+      "heightPx": 420,
+      "devicePixelRatio": 1,
+      "calls": 3,
+      "triangles": 1784,
+      "frames": 30,
+      "scaleAtTarget": 1.2375783826534272,
+      "scaleNear": 1.2346819987005164,
+      "scaleFar": 1.1548544776750878
+    },
+    "shipped-zoom": {
+      "widthPx": 1280,
+      "heightPx": 840,
+      "devicePixelRatio": 1,
+      "calls": 3,
+      "triangles": 1784,
+      "frames": 30,
+      "scaleAtTarget": 2.4751567653068545,
+      "scaleNear": 2.469363997401033,
+      "scaleFar": 2.3097089553501755
+    },
+    "shipped-classic": {
+      "widthPx": 1900,
+      "heightPx": 1200,
+      "devicePixelRatio": 1,
+      "calls": 3,
+      "triangles": 456,
+      "frames": 30,
+      "scaleAtTarget": 3.9394771873535714,
+      "scaleNear": 3.9144824025169505,
+      "scaleFar": 3.7235372793518318
+    }
+  },
+  "measuredVsAuthoredDelta": 0
+}

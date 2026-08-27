@@ -20,6 +20,13 @@
 // transcription nobody checks is how this codebase acquired two disagreeing palettes in the
 // first place (`palette-band.ts` vs the shipped file vs `apps/studio/src/index.css`).
 
+// ⚠ The harness may import `src/`; the reverse is fenced (`scope-fence.test.ts`). `cellGroundTriangles`
+// is imported rather than transcribed because it is the ONE number in this module that a second copy
+// could silently disagree with — every other count here is authored against three.js, which this
+// repo does not own, so a transcription is the only option there and a refusal holds it.
+import { cellGroundTriangles } from '../src/cell-ground-geometry.js';
+import type { Descriptor3D } from '../src/world-to-3d.js';
+
 /** Three.js `CylinderGeometry` torso triangles.
  *
  *  Three emits TWO triangles per (radial x height) cell, except where one end has radius 0 —
@@ -143,8 +150,17 @@ export interface AuthoredCount {
 
 /** ⚠ A kind in the census with no primitive here contributes ZERO and is REPORTED, never
  *  silently dropped: a scene family the shipped canvas does not draw is exactly the thing a
- *  baseline must say out loud. */
-export function authoredTriangles(census: DrawableCensus): AuthoredCount {
+ *  baseline must say out loud.
+ *
+ *  ⚠⚠ `cell-ground` CANNOT BE A ROW IN {@link SHIPPED_PRIMITIVES} and its absence there is not
+ *  an omission. Every other family is a fixed primitive whose triangle count is the same for
+ *  every drawable, so "drawables x triangles" is the whole story. A parcel is an arbitrary
+ *  polygon: an n-vertex ring costs `cellGroundTriangles(n)` and n varies parcel to parcel, so
+ *  the count is a property of the SCENE and not of the family. It is passed in via
+ *  `cellGroundTrianglesFor(descriptors)` rather than guessed from a mean ring length — a mean
+ *  would make the authored total approximately right, and `baseline-measure.mjs` refuses a run
+ *  where authored and measured disagree precisely so that "approximately" is never available. */
+export function authoredTriangles(census: DrawableCensus, cellGroundTriangleTotal = 0): AuthoredCount {
   const byKind: { kind: string; drawables: number; triangles: number }[] = [];
   let triangles = 0;
   for (const p of SHIPPED_PRIMITIVES) {
@@ -154,7 +170,24 @@ export function authoredTriangles(census: DrawableCensus): AuthoredCount {
     triangles += t;
     byKind.push({ kind: p.kind, drawables, triangles: t });
   }
+  const parcels = census['cell-ground'] ?? 0;
+  if (parcels > 0 || cellGroundTriangleTotal > 0) {
+    triangles += cellGroundTriangleTotal;
+    byKind.push({ kind: 'cell-ground', drawables: parcels, triangles: cellGroundTriangleTotal });
+  }
   return { triangles, byKind };
+}
+
+/** The authored triangle total for the `cell-ground` parcels in a descriptor set — summed from
+ *  each parcel's OWN ring length, which is the only honest way to count a family whose members
+ *  differ. Mirrors `cellGroundTriangles` in `src/`, which is where the shape is decided. */
+export function cellGroundTrianglesFor(descriptors: readonly Descriptor3D[]): number {
+  let total = 0;
+  for (const d of descriptors) {
+    if (d.kind !== 'cell-ground') continue;
+    total += cellGroundTriangles(d.points?.length ?? 0);
+  }
+  return total;
 }
 
 /** The families `world-to-3d.ts` can emit that the shipped canvas draws NOTHING for.
@@ -170,6 +203,27 @@ export const SHIPPED_UNDRAWN: readonly { kind: string; why: string }[] = [
   },
   { kind: 'skipped', why: 'an audit record, not a drawable' },
 ];
+
+/** ⚠ THE TWO GROUND SUBSTRATES DIFFER BY EXACTLY ONE FACE PER PARCEL, and it is recorded rather
+ *  than smoothed over. The classic `cylinderGeometry` prism carries a BOTTOM cap because three
+ *  generates one and the shipped file does not ask it not to; `cellGroundGeometry` emits none,
+ *  since the map is viewed from above and the parcels tile the island with no gaps. So a
+ *  like-for-like triangle comparison between the two substrates is off by `ringLength` per
+ *  parcel in the classic path's favour, and a reader comparing the two columns should know that
+ *  before concluding the mesh ground is cheaper than it is. */
+export const CELL_GROUND_HAS_NO_BOTTOM_CAP = true;
+
+/** What the shipped mapper produced for the mesh-substrate fixture BEFORE the `cell` case
+ *  existed. Kept as data, not prose: it is the other half of every "what did this cost" answer
+ *  this arc gives, and PR #1679's report is the only other place it is written down. */
+export const BEFORE_THE_CELL_CASE = {
+  hexGround: 0,
+  cellGround: 0,
+  skippedCells: 164,
+  storyTree: 1,
+  triangles: 144,
+  drawCalls: 2,
+} as const;
 
 /** The shipped canvas's OWN status palette, transcribed from `src/ForestWorldCanvas.tsx:30-37`.
  *

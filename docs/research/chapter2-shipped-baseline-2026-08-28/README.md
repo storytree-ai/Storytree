@@ -1,3 +1,13 @@
+> ⚠⚠ **FIXED THE NEXT DAY — read this document as the DIAGNOSIS, not as current state.**
+> The defect below ("the shipped canvas draws no ground at all for the substrate the studio
+> ships") was closed on 2026-08-28 by `the-shipped-map-draws-its-ground-again`. The shipped canvas
+> now draws all 164 parcels, in one extra draw call, still reporting each capability's status.
+> **The measurements here are unchanged and remain the authoritative BEFORE** — the fix's own
+> report checks its reconstruction against them. See
+> [`../chapter2-shipped-ground-2026-08-28/`](../chapter2-shipped-ground-2026-08-28/README.md).
+> The other findings in this document — the perspective camera, the third stale status palette,
+> the authored triangle counts — are all still live.
+
 # What the shipped forest map draws today — the baseline
 
 **Increment:** `adopt-the-land-into-the-shipped-map-arc-inc-01` on

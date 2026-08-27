@@ -13,6 +13,25 @@ export {
   type Descriptor3D,
 } from './world-to-3d.js';
 
+// The `cell-ground` family's PURE geometry half (the relaxed-mesh substrate the studio ships):
+// parcel rings → one merged, flat-shaded ground buffer. Arithmetic only — no React, no three —
+// so it lives on this side of the provability firewall and `<ForestWorldCanvas>` merely hands
+// the result to a `<bufferGeometry>`.
+export {
+  cellGroundGeometry,
+  cellGroundTriangles,
+  normalisedRing,
+  pointInTriangle,
+  signedRingArea2,
+  signedTriangleArea2,
+  triangulateRing,
+  CELL_GROUND_DEPTH,
+  type P2,
+  type CellGroundGeometry,
+  type CellGroundGeometryInput,
+  type LinearRgb,
+} from './cell-ground-geometry.js';
+
 // The Act 2 beat director (the act2-beat-director capability): pure, visitor-paced
 // choreography — zod contracts + a pure state machine, no React/three imports.
 // The schema consts (CameraTarget/LimbDelta/RoadDelta/BeatDelta/Beat/BeatScript)

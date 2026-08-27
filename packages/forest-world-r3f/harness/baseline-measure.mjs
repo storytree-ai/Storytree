@@ -27,7 +27,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { SHIPPED_UNDRAWN, authoredTriangles } from './shipped-baseline.ts';
+import { BEFORE_THE_CELL_CASE, SHIPPED_UNDRAWN, authoredTriangles } from './shipped-baseline.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL = process.env['ST_BASELINE_URL'] ?? 'http://localhost:5231/baseline.html';
@@ -79,7 +79,7 @@ console.log('');
 // A panel that drew NOTHING is the failure this instrument is most likely to meet and least
 // likely to notice: an empty canvas costs zero draw calls, which reads exactly like a cheap one.
 const panels = Object.entries(report.panels);
-if (panels.length < 3) refuse(`only ${panels.length} panel(s) filed a reading; expected three shipped mounts`);
+if (panels.length < 7) refuse(`only ${panels.length} panel(s) filed a reading; expected seven shipped mounts`);
 for (const [tag, r] of panels) {
   if (r.calls === 0) refuse(`panel ${tag} drew ZERO draw calls — an empty canvas is not a cheap one`);
   if (!(r.triangles > 0)) refuse(`panel ${tag} drew ZERO triangles`);
@@ -104,8 +104,19 @@ if (Math.round(overview.triangles) !== Math.round(zoom.triangles)) {
 // driver actually received. They are computed by completely different routes — one parses
 // geometry arguments, the other counts GL calls — so agreement is evidence and disagreement is
 // a finding rather than a bug to paper over.
-const authored = authoredTriangles(report.census);
+// ⚠ THE PARCEL TOTAL MUST BE PASSED IN. `authoredTriangles(census)` alone still returns a
+// number, and until 2026-08-28 that number was right — the story tree alone. It is now an
+// undercount by the entire ground, and it would go on being reported with the same authority.
+const authored = authoredTriangles(report.census, report.cellGroundTriangles ?? 0);
 const delta = Math.round(zoom.triangles) - authored.triangles;
+if (delta !== 0) {
+  refuse(
+    `authored ${authored.triangles} triangles, the driver counted ${Math.round(zoom.triangles)}.\n` +
+      'These are computed by entirely different routes — one from the shipped file\'s primitive\n' +
+      'arguments, one from the GL calls the driver received — so a disagreement means one of them\n' +
+      'is describing a scene that is not being drawn. Do not report either number until it is zero.',
+  );
+}
 
 console.log('THE SHIPPED PATH, ONE ISLAND');
 console.log(`  drawables: ${Object.entries(report.census).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
@@ -130,24 +141,106 @@ console.log('');
 const classic = report.panels['shipped-classic'];
 if (classic) {
   console.log('');
-  console.log('THE CONTROL — the same canvas on the CLASSIC hex substrate it was written for');
+  console.log('THE CONTROL — the same canvas on the CLASSIC hex substrate');
   console.log(`  ${Math.round(classic.triangles)} triangles over ${classic.calls.toFixed(1)} draw calls/frame`);
-  // ⚠ NON-VACUITY. The mesh-substrate mounts draw only a story tree; if the control drew the
-  // same it would mean the mapper is broken outright rather than pointed at the wrong
-  // representation, and the whole finding would change shape.
-  if (Math.round(classic.triangles) <= Math.round(zoom.triangles)) {
+  // ⚠ NON-VACUITY, RE-AIMED. Until the `cell` case landed this asked whether the control drew
+  // MORE than the mesh mount, because the mesh mount drew nothing. That question is now
+  // meaningless — the mesh mount draws a whole island. What has to be checked instead is that
+  // the classic path STILL WORKS: a mapper re-pointed from `tile` to `cell`, rather than taught
+  // both, would draw the island and nothing here, which is the same defect facing the other way.
+  if (!(classic.triangles > 0)) {
     refuse(
-      'the CLASSIC-substrate control drew no more than the mesh-substrate mount. The finding ' +
-        'is that the mapper works and is pointed at a representation the product no longer ' +
-        'produces; if the control draws nothing either, that finding is wrong.',
+      'the CLASSIC-substrate control drew nothing. The `cell` case was meant to ADD a\n' +
+        'representation, not replace one; if the classic hex path has stopped drawing, the fix\n' +
+        'traded the reported defect for its mirror image.',
     );
   }
 }
 
+/* ── ⚠⚠ THE BEFORE/AFTER REFUSALS — the claim this run exists to make ─────────────────────────
+   The BEFORE panel is today's mapper with `cell-ground` filtered out, which reproduces the old
+   drawable set exactly (every parcel used to come back as a skip, and a skip is not drawn). That
+   is an argument, so it is checked: the panel must land on the 144 triangles over 2 draw calls
+   PR #1679 measured on this same GPU before the fix existed. A reconstruction that agrees with a
+   number taken beforehand is evidence; one that only agrees with itself is decoration. */
+const before = report.panels['shipped-before'];
+if (!before) refuse('the BEFORE panel filed no reading — there is no comparison to report');
+
 console.log('');
-// ⚠ TAKEN OFF THE CONTROL, and it has to be. The mesh-substrate mounts draw ONE object, so
-// their "island" is a single point and the near/far spread is 0.0% — a figure that is true
-// about the measurement and says nothing about the renderer. The control has real extent.
+console.log('BEFORE → AFTER, the same component on the same island in the same run');
+console.log(`  BEFORE  ${Math.round(before.triangles)} tris over ${before.calls.toFixed(1)} calls/frame`);
+console.log(`  AFTER   ${Math.round(overview.triangles)} tris over ${overview.calls.toFixed(1)} calls/frame`);
+console.log(`  ground  ${report.cellGroundTriangles} tris across ${report.census['cell-ground'] ?? 0} parcels`);
+
+if (Math.round(before.triangles) !== BEFORE_THE_CELL_CASE.triangles) {
+  refuse(
+    `the BEFORE panel drew ${Math.round(before.triangles)} triangles; PR #1679 measured ` +
+      `${BEFORE_THE_CELL_CASE.triangles} on this GPU before the fix.\n` +
+      'The reconstruction does not reproduce the state it claims to, so the comparison is void.',
+  );
+}
+if (Math.round(before.calls) !== BEFORE_THE_CELL_CASE.drawCalls) {
+  refuse(
+    `the BEFORE panel drew ${before.calls} draw calls; PR #1679 measured ` +
+      `${BEFORE_THE_CELL_CASE.drawCalls} before the fix.`,
+  );
+}
+if (!(overview.triangles > before.triangles)) {
+  refuse('the AFTER panel drew no more than the BEFORE panel — the ground did not arrive');
+}
+
+/* ── ⚠⚠ THE GROUND STILL REPORTS — the fence, checked rather than looked at ────────────────────
+   ADR-0392 D5 / ADR-0398 D7 put the land's colour beyond an art call: it is a capability's proof
+   state, and a ground that draws beautifully while misreporting it is a REGRESSION. The mixed
+   panel gives one capability a foreign status. Two things must hold together, and each alone is
+   satisfied by a defect: the parcels must come back in MORE THAN ONE state (else the ground is
+   ignoring status), and the two panels must draw IDENTICAL geometry (else something other than
+   the colour varies with the status and the comparison is confounded — ADR-0462's premise
+   refusal, in the shape this arc has settled on). */
+const mixedStates = Object.keys(report.mixedMaterials ?? {});
+const uniform = report.panels['shipped-uniform'];
+const mixed = report.panels['shipped-mixed'];
+if (!uniform || !mixed) refuse('the status-reporting row filed no reading — the fence is unchecked');
+console.log('');
+console.log('THE GROUND STILL REPORTS');
+console.log(`  mixed island parcels by state: ${Object.entries(report.mixedMaterials).map(([k, v]) => `${v} ${k}`).join(' · ')}`);
+if (mixedStates.length < 2) {
+  refuse(
+    `the mixed island came back in ${mixedStates.length} state(s): ${mixedStates.join(', ') || '(none)'}.\n` +
+      'One capability was given a foreign status; a ground that draws one colour anyway has\n' +
+      'stopped reporting, which is the one way this work can do real harm.',
+  );
+}
+if (Math.round(uniform.triangles) !== Math.round(mixed.triangles) || Math.round(uniform.calls) !== Math.round(mixed.calls)) {
+  refuse(
+    `the uniform and mixed panels drew different geometry (${uniform.triangles}/${uniform.calls} vs ` +
+      `${mixed.triangles}/${mixed.calls}).\nSomething other than the colour varies with the status, ` +
+      'so the row does not show what it claims to.',
+  );
+}
+console.log(`  both panels drew ${Math.round(uniform.triangles)} triangles over ${uniform.calls.toFixed(1)} calls — only the colour differs`);
+
+// ⚠ THE DRAW-CALL CEILING IS THE POINT OF THE MERGED BUFFER, so it is refused rather than
+// reported. 164 parcels are arbitrary polygons: they cannot share a geometry, so instancing is
+// unavailable and the naive shape is one mesh each — 164 extra draw calls to draw ground the
+// classic substrate drew in ONE. Restoring the ground at that price would be a regression on the
+// metric `hardware-floor.*` actually sweeps, dressed as a fix.
+const extraCalls = Math.round(overview.calls) - Math.round(before.calls);
+console.log(`  the whole ground cost ${extraCalls} extra draw call(s)`);
+if (extraCalls > 1) {
+  refuse(
+    `restoring the ground cost ${extraCalls} extra draw calls. The parcels are meant to merge ` +
+      'into ONE buffer;\nmore than one call means the merge is not happening and the cost scales ' +
+      'with the island.',
+  );
+}
+
+console.log('');
+// ⚠ TAKEN OFF THE CONTROL. Until the `cell` case landed this HAD to be, because the
+// mesh-substrate mounts drew ONE object — a single point, whose near/far spread is 0.0%, a
+// figure true about the measurement and silent about the renderer. The mesh mounts now have real
+// extent too, so the control is no longer the only source; it is kept as the source so the
+// figure stays comparable with the one PR #1679 published (5.1%).
 if (classic) {
   const spread = (classic.scaleNear / classic.scaleFar - 1) * 100;
   console.log(
@@ -164,7 +257,15 @@ mkdirSync(OUT, { recursive: true });
 // ⚠ THE CANVAS, NOT ITS WRAPPER. Screenshotting the padded `.stage` div bakes in the page's
 // checkerboard border, and the sheet's content-crop then reads that border as the background
 // colour and crops nothing — which is how the first sheet came out 70% empty black.
-for (const tag of ['shipped-overview', 'shipped-zoom', 'shipped-classic']) {
+for (const tag of [
+  'shipped-before',
+  'shipped-overview',
+  'shipped-overview-2',
+  'shipped-uniform',
+  'shipped-mixed',
+  'shipped-zoom',
+  'shipped-classic',
+]) {
   const el = page.locator(`[data-st-tag="${tag}"] canvas`).first();
   await el.screenshot({ path: join(OUT, `${tag}.png`) });
 }

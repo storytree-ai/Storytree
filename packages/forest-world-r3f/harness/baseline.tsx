@@ -35,9 +35,11 @@ import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/wo
 import { IslandPanel } from './IslandView.js';
 import { ISLAND_TILES, islandScene } from './island-fixture.js';
 import {
+  BEFORE_THE_CELL_CASE,
   SHIPPED_STATUSES,
   SHIPPED_STATUS_COLOUR,
   authoredTriangles,
+  cellGroundTrianglesFor,
   classicHexScene,
   type AuthoredCount,
 } from './shipped-baseline.js';
@@ -48,6 +50,15 @@ interface BaselineReport {
   vendor: string;
   timerQuery: boolean;
   census: Record<string, number>;
+  /** The parcel triangle total, summed per ring. ⚠ It cannot be derived from the census the way
+   *  every other family can — a parcel is an arbitrary polygon, so its cost is a property of the
+   *  SCENE. The driver's authored-vs-measured refusal needs it or it compares the ground against
+   *  a total that never counted the ground. */
+  cellGroundTriangles: number;
+  census_before: Record<string, number>;
+  /** Parcel counts by status on the MIXED island — the evidence that the restored ground still
+   *  REPORTS rather than merely draws. */
+  mixedMaterials: Record<string, number>;
   authored: AuthoredCount;
   panels: Record<string, PanelReading>;
 }
@@ -160,6 +171,36 @@ function census(ds: readonly Descriptor3D[]) {
 }
 
 const CENSUS = census(DESCRIPTORS);
+const CELL_TRIANGLES = cellGroundTrianglesFor(DESCRIPTORS);
+
+/* ── THE BEFORE, RECONSTRUCTED EXACTLY ───────────────────────────────────────────────────────
+   ⚠ IT IS THE CURRENT MAPPER WITH ONE FAMILY REMOVED, not a copy of the old one and not a flag
+   in `src/`. Before the `cell` case existed, every one of these parcels came back as
+   `{ kind: 'skipped', sceneKind: 'cell' }` — and a skip is not drawn. So the DRAWABLE set the
+   old mapper produced is exactly today's minus `cell-ground`, which makes this reconstruction
+   exact rather than approximate. `baseline-measure.mjs` refuses the run unless this panel draws
+   the 144 triangles over 2 draw calls that PR #1679 measured on this same GPU, so the claim is
+   checked against a number taken before the fix existed rather than asserted here.
+
+   Reconstructing it this way is also what keeps `src/ForestWorldCanvas.tsx` free of a
+   draw-the-old-way switch — a flag added to a shipped file to serve its own evidence page is
+   the shape of instrument this arc has twice been burned by. */
+const BEFORE_DESCRIPTORS: readonly Descriptor3D[] = DESCRIPTORS.filter((d) => d.kind !== 'cell-ground');
+const BEFORE_CENSUS = census(BEFORE_DESCRIPTORS);
+
+/* ── THE MIXED ISLAND — the fence, not the look ──────────────────────────────────────────────
+   ⚠ THE ONE WAY THIS ARC CAN DO REAL HARM is a land that reads beautifully and MISREPORTS a
+   capability's proof state (ADR-0392 D5 / ADR-0398 D7). Restoring the ground is the first time
+   anything on the shipped canvas has had to carry that, and the all-healthy fixture cannot show
+   it: 164 parcels in one colour is equally consistent with a ground that ignores status entirely.
+   So one capability is given a foreign status, exactly the labelled deviation `island-fixture.ts`
+   provides for. The parcels must come back in TWO colours, and they must be the RIGHT twelve. */
+const MIXED_ODD_ONE_OUT = { index: 3, status: 'unhealthy' as const };
+const MIXED_DESCRIPTORS: readonly Descriptor3D[] = worldTo3D(islandScene({ oddOneOut: MIXED_ODD_ONE_OUT }));
+const MIXED_MATERIALS: Record<string, number> = {};
+for (const d of MIXED_DESCRIPTORS) {
+  if (d.kind === 'cell-ground') MIXED_MATERIALS[d.material ?? '?'] = (MIXED_MATERIALS[d.material ?? '?'] ?? 0) + 1;
+}
 
 /* ── the CONTROL scene ──────────────────────────────────────────────────────────────────────
    ⚠ The mesh-substrate island above yields the shipped canvas NO GROUND AT ALL — its `tile`
@@ -202,7 +243,10 @@ function emptyReport(): BaselineReport {
     vendor: '',
     timerQuery: false,
     census: CENSUS,
-    authored: authoredTriangles(CENSUS),
+    cellGroundTriangles: CELL_TRIANGLES,
+    census_before: BEFORE_CENSUS,
+    mixedMaterials: MIXED_MATERIALS,
+    authored: authoredTriangles(CENSUS, CELL_TRIANGLES),
     panels: {},
   };
 }
@@ -400,9 +444,11 @@ function App() {
         <h1>What the shipped forest map draws today</h1>
         <p>
           Every picture this arc has shown came out of <code>harness/</code>. What actually ships
-          is <code>src/ForestWorldCanvas.tsx</code>, and it has never been photographed. The left
-          column below is that component, imported unchanged; the right column is the harness at
-          the matching delivered scale. Same fixture, same island, same GPU, same run.
+          is <code>src/ForestWorldCanvas.tsx</code>. When it was first photographed, on 2026-08-28,
+          it drew <strong>no ground at all</strong> for the substrate the studio ships &mdash; its
+          mapper had a case for the classic extruded-hex <code>tile</code> only, and the product
+          emits <code>cell</code> parcels. This page now shows that gap and its fix side by side.
+          Same fixture, same island, same GPU, same run.
         </p>
         <p className="numbers">
           island extent {meshExtent.spread.toFixed(1)} units from centre &middot; camera backed off{' '}
@@ -415,18 +461,96 @@ function App() {
         <PaletteDivergence />
       </header>
 
-      <section data-st-panel="baseline-overview">
-        <h2>The overview</h2>
+      <section data-st-panel="baseline-before-after">
+        <h2>The fix, as a picture</h2>
         <p className="lede">
-          The shipped canvas frames the whole world to fit, so its delivered scale is set by the
-          canvas size rather than chosen. The harness panel beside it is the research&rsquo;s own
-          2&nbsp;px/ground-unit overview.
+          The same component, the same island, the same run &mdash; differing in exactly one
+          thing: whether the mapper has a case for the <code>cell</code> parcels the studio
+          emits. <strong>Left</strong> is what shipped until 2026-08-28, reconstructed by taking
+          today&rsquo;s mapper output and removing the one family it gained; every parcel used to
+          come back as a skip, and a skip is not drawn, so the reconstruction is exact rather
+          than a re-creation. <strong>Right</strong> is the same component today.
+        </p>
+        <p className="lede">
+          &#9888; <strong>The camera differs, and that is part of the finding rather than a
+          confound.</strong> <code>frameWorld</code> derives the framing from the drawables it is
+          given (<code>ForestWorldCanvas.tsx:158-168</code>), so with one story tree and nothing
+          else the world has no extent to frame &mdash; it backs off its 260-unit floor and the
+          island-that-is-not-there occupies a corner. Restoring the ground restores the framing
+          with it. The tree sits at the same world position in both panels.
         </p>
         <div className="row">
           <ShippedPanel
+            tag="shipped-before"
+            label="BEFORE — no case for `cell`"
+            note={`${BEFORE_THE_CELL_CASE.skippedCells} parcels skipped · one story tree · ${BEFORE_THE_CELL_CASE.triangles} triangles`}
+            width={640}
+            height={420}
+            descriptors={BEFORE_DESCRIPTORS}
+          />
+          <ShippedPanel
             tag="shipped-overview"
-            label="SHIPPED — ForestWorldCanvas"
-            note="flat instanced 6-segment prisms, meshStandardMaterial, perspective fov 45"
+            label="AFTER — the parcels are drawn"
+            note={`${CENSUS['cell-ground'] ?? 0} parcels in ONE merged mesh · ${CELL_TRIANGLES} ground triangles`}
+            width={640}
+            height={420}
+            descriptors={DESCRIPTORS}
+          />
+        </div>
+      </section>
+
+      <section data-st-panel="baseline-reports-status">
+        <h2>&#9888; The restored ground still REPORTS</h2>
+        <p className="lede">
+          The fixture is the all-healthy research surface, so every panel above draws 164 parcels
+          in one colour &mdash; which is equally consistent with a ground that has stopped reading
+          the status at all. This row gives ONE capability a foreign state. The left panel is the
+          island above; the right is the same island with that one capability{' '}
+          <code>unhealthy</code>. Same geometry, same triangle count, same draw calls &mdash; the
+          only difference is what the map is asserting.
+        </p>
+        <p className="lede">
+          &#9888; The parcels carry the status <strong>per capability</strong>, not per island:
+          the plain relaxed cell has no status of its own and the core stamps it one level up, so
+          a mapper that read only the cell would draw the whole island <code>unknown</code>. That
+          would be a map that had stopped reporting, which ADR-0392 D5 / ADR-0398 D7 put beyond an
+          art call, and it is the failure this row exists to make visible.{' '}
+          {Object.entries(MIXED_MATERIALS).map(([k, v]) => `${v} ${k}`).join(' · ')}.
+        </p>
+        <div className="row">
+          <ShippedPanel
+            tag="shipped-uniform"
+            label="ALL HEALTHY — the research surface"
+            note={`${CENSUS['cell-ground'] ?? 0} parcels, one state`}
+            width={900}
+            height={560}
+            descriptors={DESCRIPTORS}
+          />
+          <ShippedPanel
+            tag="shipped-mixed"
+            label="ONE CAPABILITY UNHEALTHY — the same island"
+            note={Object.entries(MIXED_MATERIALS).map(([k, v]) => `${v} ${k}`).join(' · ')}
+            width={900}
+            height={560}
+            descriptors={MIXED_DESCRIPTORS}
+          />
+        </div>
+      </section>
+
+      <section data-st-panel="baseline-overview-harness">
+        <h2>The overview, against where this arc is going</h2>
+        <p className="lede">
+          The restored ground is the PLACEHOLDER ground &mdash; a flat prism per parcel wearing
+          the parcel&rsquo;s folded status colour, which is exactly the fidelity the classic
+          substrate always had. It is deliberately not the treatment on the right: no relief, no
+          grain, no coast, no skirt. Closing a representation gap and adopting a treatment are
+          separate events (ADR-0380 D6 / ADR-0406 D2), and this is the first.
+        </p>
+        <div className="row">
+          <ShippedPanel
+            tag="shipped-overview-2"
+            label="SHIPPED — the placeholder ground, restored"
+            note="flat parcel prisms, meshStandardMaterial, perspective fov 45"
             width={640}
             height={420}
             descriptors={DESCRIPTORS}
@@ -470,24 +594,20 @@ function App() {
       </section>
 
       <section data-st-panel="baseline-classic-control">
-        <h2>&#9888; The same shipped canvas, on the substrate it was written for</h2>
+        <h2>The control &mdash; the same canvas on the CLASSIC substrate</h2>
         <p className="lede">
-          The two panels above are not a like-for-like comparison, and the reason is the finding
-          of this baseline. The shipped canvas maps ground from a scene node of kind{' '}
-          <code>tile</code> &mdash; the CLASSIC extruded-hex island. The studio ships the relaxed
-          MESH instead, whose ground arrives as <code>cell</code> nodes, and the mapper has no
-          case for those: all {CENSUS['skipped'] ?? 0} of them fall through to a skip. So for an
-          island of the shape the product actually draws, <strong>
-            the shipped 3D canvas renders no land at all
-          </strong> &mdash; one story tree, {authoredTriangles(CENSUS).triangles} triangles, two
-          draw calls.
+          &#9888; <strong>The control is what says the fix ADDED a representation rather than
+          swapping one for another.</strong> The shipped canvas has always mapped ground from a
+          scene node of kind <code>tile</code> &mdash; the classic extruded-hex island &mdash; and
+          it still does. A mapper that had simply been re-pointed at <code>cell</code> would draw
+          the island above and nothing here, which is the same defect facing the other way. This
+          row is the same component and the same code path on a classic hex island, and it draws
+          its {CLASSIC_CENSUS['hex-ground'] ?? 0} hexes exactly as before.
         </p>
         <p className="lede">
-          This row is the control: the same component, the same code path, on a classic hex
-          island. It draws ground &mdash; which is what says the mapper WORKS and is pointed at a
-          representation that no longer arrives, rather than simply being broken. It is also the
-          only way to see what the shipped land looks like at all, which is the flat, untextured
-          placeholder on the left.
+          It is also the row that shows the two substrates now agree about what the placeholder
+          land LOOKS like: flat, untextured, one colour per parcel from the status. The panel
+          beside it is where this arc is going.
         </p>
         <div className="row">
           <ShippedPanel
@@ -520,7 +640,7 @@ if (root) {
   // the driver must not read `__stBaseline` before both have filed.
   const waitForPanels = (tries: number) => {
     const filed = Object.keys(window.__stBaseline?.panels ?? {}).length;
-    if (filed >= 2 || tries <= 0) {
+    if (filed >= 7 || tries <= 0) {
       const gl = document.createElement('canvas').getContext('webgl2');
       const dbg = gl?.getExtension('WEBGL_debug_renderer_info') ?? null;
       const report = (window.__stBaseline ??= emptyReport());
