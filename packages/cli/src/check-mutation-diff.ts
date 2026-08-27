@@ -51,14 +51,38 @@ const repoRoot = path.resolve(fileURLToPath(new URL("../../..", import.meta.url)
 const CONFIG_FILE = "stryker.mutation-diff.conf.mjs";
 const REPORT_FILE = "reports/mutation-diff.json";
 
+const GIT_MAX_BUFFER = 64 * 1024 * 1024;
+
 function git(args: string[]): string {
-  return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", maxBuffer: GIT_MAX_BUFFER });
 }
 
-/** `git` that reports "did not resolve" as `null` instead of throwing — for the probe-shaped calls. */
+/**
+ * `git` that reports "did not resolve" as `null` instead of throwing — for the probe-shaped calls.
+ *
+ * ITS STDERR IS DISCARDED, and that is the difference from {@link git} above rather than an
+ * oversight. A probe asks a question whose "no" is a NORMAL ANSWER: `merge-base origin/main HEAD`
+ * on a CI checkout is EXPECTED to fail, because `fetch-depth: 2` fetches no `origin/main` — that
+ * is the whole reason {@link chooseBaseRef} exists. git writes `fatal: Not a valid object name
+ * origin/main` to stderr anyway, and with stderr inherited that line lands in the CI log of every
+ * PR, on the HEALTHY path, immediately above a PASS. Measured on PR #1668's own run, the first
+ * time this rung ran in CI. A red `fatal:` printed by a step that then succeeds is worse than
+ * noise: it invites a session to diagnose a break that is not there, and it teaches everyone to
+ * read past `fatal:` lines that sometimes DO matter.
+ *
+ * `check-ownership-totality.ts`'s `git()` silences its probe for exactly this reason and has since
+ * it was written; this rung reuses that check's `chooseBaseRef` and simply failed to copy the
+ * stdio with it. {@link git} keeps stderr INHERITED on purpose — its callers ask questions whose
+ * failure is a genuine fault worth seeing.
+ */
 function gitOrNull(args: string[]): string | null {
   try {
-    const out = git(args).trim();
+    const out = execFileSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: GIT_MAX_BUFFER,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
     return out === "" ? null : out;
   } catch {
     return null;
