@@ -95,7 +95,28 @@ const GREEN_REFERENCE = {
   2: { flat: 1.408 },
 };
 
-const browser = await chromium.launch({ headless: true });
+/**
+ * ⚠ WHICH GPU DREW THESE PIXELS IS PART OF THE MEASUREMENT, AND IT IS RECORDED RATHER THAN
+ * ASSUMED.
+ *
+ * Headless Chromium picks **SwiftShader** by default on every platform — a software rasteriser.
+ * That is a perfectly reproducible way to draw, and for a palette-closure claim it is arguably the
+ * strictest reading available; but a report that does not say which renderer produced it can be
+ * quoted later as though it came from hardware, and this arc's whole fence is a claim about what
+ * pixels a GPU delivers. So the renderer string is read out of the live context and written into
+ * `cover-measure.json` on every run.
+ *
+ * `ST_COVER_GPU=1` asks for the real device instead. The flags are not interchangeable and the
+ * combination matters: measured on the RTX 2060 box, `--use-gl=angle --use-angle=gl` reaches the
+ * NVIDIA driver **headless**, while `--use-gl=egl` silently falls back to SwiftShader and reports
+ * a plausible-looking result from software. Verified by reading `UNMASKED_RENDERER_WEBGL`, never
+ * by trusting the flag.
+ */
+const WANT_GPU = process.env['ST_COVER_GPU'] === '1';
+const GPU_ARGS = ['--use-gl=angle', '--use-angle=gl', '--enable-gpu', '--ignore-gpu-blocklist'];
+const launchOptions = { headless: true };
+if (WANT_GPU) launchOptions.args = GPU_ARGS;
+const browser = await chromium.launch(launchOptions);
 const page = await browser.newPage({ viewport: { width: 1800, height: 1200 } });
 
 const consoleErrors = [];
@@ -116,6 +137,31 @@ if (!/a wheat field and a yellow grass/.test(marker)) {
 }
 
 await page.waitForFunction(() => window.__stExperimentSettled === true, null, { timeout: 120_000 });
+
+// THE RENDERER, read off a live context on the page that just drew. A separate context from the
+// panels', but the same process and the same driver selection, which is what the record is for.
+const renderer = await page.evaluate(() => {
+  const gl = document.createElement('canvas').getContext('webgl2');
+  if (!gl) return { renderer: '(no webgl2)', vendor: '', timerQuery: false };
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  return {
+    renderer: dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '(masked)',
+    vendor: dbg ? String(gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)) : '(masked)',
+    // Recorded because it is the capability the arc's UNDISCHARGED frame-cost item needs, and
+    // knowing which machines have it is half of knowing where that work can run.
+    timerQuery: Boolean(gl.getExtension('EXT_disjoint_timer_query_webgl2')),
+  };
+});
+const SOFTWARE = /swiftshader|llvmpipe|softwarerasterizer/i.test(renderer.renderer);
+if (WANT_GPU && SOFTWARE) {
+  console.error(
+    `REFUSED: ST_COVER_GPU=1 was asked for and the context came up on ${renderer.renderer}.\n` +
+      'A software renderer reporting as hardware is the one outcome worse than no measurement — ' +
+      'it produces a plausible number attributed to a GPU that never drew it.',
+  );
+  await browser.close();
+  process.exit(2);
+}
 
 const tags = await page.evaluate(() =>
   [...document.querySelectorAll('canvas[data-st-tag]')].map((c) => c.getAttribute('data-st-tag')),
@@ -318,7 +364,11 @@ console.log(
 const zooms = [...new Set(Object.values(results).map((r) => r.zoom))].sort((a, b) => a - b);
 const covers = ['status', 'wheat', 'yellowgrass'];
 
-console.log(`\nground cover x grain — delivered by ${URL}\n`);
+console.log(`\nground cover x grain — delivered by ${URL}`);
+console.log(
+  `renderer: ${renderer.renderer}${SOFTWARE ? '  [SOFTWARE RASTERISER]' : '  [hardware]'}` +
+    `  ·  EXT_disjoint_timer_query_webgl2 ${renderer.timerQuery ? 'available' : 'ABSENT'}\n`,
+);
 const table = [];
 for (const z of zooms) {
   console.log(`  ${z} px/unit —  cover         MICRO    grain lift    STRUCT   distinct  bins90  spread`);
@@ -385,6 +435,10 @@ writeFileSync(
   `${JSON.stringify(
     {
       url: URL,
+      // The hardware the pixels came off. See the launch block: a report that cannot say which
+      // renderer drew it can be quoted later as though it came from a GPU.
+      renderer,
+      software: SOFTWARE,
       covers: Object.fromEntries(
         GROUND_COVERS.map((c) => [
           c,

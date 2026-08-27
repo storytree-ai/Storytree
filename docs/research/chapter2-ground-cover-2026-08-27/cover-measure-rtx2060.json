@@ -1,11 +1,11 @@
 {
-  "url": "http://localhost:5212/cover.html",
+  "url": "http://localhost:5211/cover.html",
   "renderer": {
-    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
-    "vendor": "Google Inc. (Google)",
-    "timerQuery": false
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "timerQuery": true
   },
-  "software": true,
+  "software": false,
   "covers": {
     "wheat": [
       {
@@ -172,10 +172,10 @@
       "h": 232,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 77061,
-      "micro": 1.4338450113495471,
-      "struct": 6.763275699835691,
-      "ratio": 0.21200451896177785,
+      "opaque": 77067,
+      "micro": 1.4361560527000798,
+      "struct": 6.76205094718896,
+      "ratio": 0.2123846838653444,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 49,
@@ -192,10 +192,10 @@
       "h": 232,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 77061,
-      "micro": 1.5451709317191682,
-      "struct": 7.312786914454554,
-      "ratio": 0.2112971360706494,
+      "opaque": 77067,
+      "micro": 1.5476312444560538,
+      "struct": 7.311546544094275,
+      "ratio": 0.21166947856006135,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 60,
@@ -212,10 +212,10 @@
       "h": 232,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 77061,
-      "micro": 1.4319525399849076,
-      "struct": 6.727111979743912,
-      "ratio": 0.2128628963360023,
+      "opaque": 77067,
+      "micro": 1.4341021771458777,
+      "struct": 6.726188216611239,
+      "ratio": 0.21321172274129452,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 31,
@@ -232,13 +232,13 @@
       "h": 232,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 77061,
-      "micro": 3.88225115062527,
-      "struct": 6.356667898683702,
-      "ratio": 0.6107368219486787,
+      "opaque": 77067,
+      "micro": 3.849898279416038,
+      "struct": 6.4164483053110875,
+      "ratio": 0.6000045658015137,
       "distinct": 4,
       "bins90": 3,
-      "bins90b": 48,
+      "bins90b": 49,
       "p2": 131.4328,
       "p50": 151.6478,
       "p98": 168.1476,
@@ -252,13 +252,13 @@
       "h": 232,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 77061,
-      "micro": 4.191634719650526,
-      "struct": 6.863965079601946,
-      "ratio": 0.6106725006668605,
+      "opaque": 77067,
+      "micro": 4.155979564311115,
+      "struct": 6.9312317353279225,
+      "ratio": 0.5996018778492754,
       "distinct": 4,
       "bins90": 3,
-      "bins90b": 58,
+      "bins90b": 59,
       "p2": 141.2706,
       "p50": 162.82819999999998,
       "p98": 180.9606,
@@ -272,10 +272,10 @@
       "h": 232,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 77061,
-      "micro": 3.872214998564571,
-      "struct": 6.330784078336332,
-      "ratio": 0.6116485652725264,
+      "opaque": 77067,
+      "micro": 3.840231416644579,
+      "struct": 6.395933456928317,
+      "ratio": 0.600417662645426,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 29,
@@ -292,10 +292,10 @@
       "h": 929,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 1233595,
-      "micro": 0.3778146261122992,
-      "struct": 8.84984239849657,
-      "ratio": 0.04269167846158291,
+      "opaque": 1233579,
+      "micro": 0.37770712016070035,
+      "struct": 8.850165521485838,
+      "ratio": 0.04267797243381814,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 33,
@@ -312,10 +312,10 @@
       "h": 929,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 1233595,
-      "micro": 0.4070247597123065,
-      "struct": 9.559313678487475,
-      "ratio": 0.04257886846294054,
+      "opaque": 1233579,
+      "micro": 0.40691028328763934,
+      "struct": 9.559662888794351,
+      "ratio": 0.04256533813180918,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 41,
@@ -332,10 +332,10 @@
       "h": 929,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 1233595,
-      "micro": 0.377521935596929,
-      "struct": 8.813721154018516,
-      "ratio": 0.04283343312090174,
+      "opaque": 1233579,
+      "micro": 0.3774209794994407,
+      "struct": 8.814041352346292,
+      "ratio": 0.04282042305133632,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 24,
@@ -352,10 +352,10 @@
       "h": 929,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 1233595,
-      "micro": 1.060776405178801,
-      "struct": 9.164078253499115,
-      "ratio": 0.11575374804048244,
+      "opaque": 1233579,
+      "micro": 1.0523507627573188,
+      "struct": 9.264264198645428,
+      "ratio": 0.1135924818412657,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 56,
@@ -372,10 +372,10 @@
       "h": 929,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 1233595,
-      "micro": 1.145208169251962,
-      "struct": 9.893915580749965,
-      "ratio": 0.11574873061178419,
+      "opaque": 1233579,
+      "micro": 1.1359222338973456,
+      "struct": 10.002837801497472,
+      "ratio": 0.11355999731669074,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 70,
@@ -392,10 +392,10 @@
       "h": 929,
       "offPalette": 0,
       "offPaletteColours": 0,
-      "opaque": 1233595,
-      "micro": 1.0584524954919805,
-      "struct": 9.140104584150999,
-      "ratio": 0.11580310550574488,
+      "opaque": 1233579,
+      "micro": 1.0502575224300623,
+      "struct": 9.240570778219883,
+      "ratio": 0.11365721313509439,
       "distinct": 4,
       "bins90": 3,
       "bins90b": 36,
@@ -501,29 +501,29 @@
       },
       "present": true,
       "leaked": [],
-      "opaque": 77061
+      "opaque": 77067
     },
     {
       "tag": "cover-wheat-flat-2px",
       "expected": "wheat",
       "counts": {
-        "wheat": 77061,
+        "wheat": 77067,
         "yellowGrass": 0
       },
       "present": true,
       "leaked": [],
-      "opaque": 77061
+      "opaque": 77067
     },
     {
       "tag": "cover-yellowgrass-flat-2px",
       "expected": "yellowGrass",
       "counts": {
         "wheat": 0,
-        "yellowGrass": 77061
+        "yellowGrass": 77067
       },
       "present": true,
       "leaked": [],
-      "opaque": 77061
+      "opaque": 77067
     },
     {
       "tag": "cover-status-grain-2px",
@@ -534,29 +534,29 @@
       },
       "present": true,
       "leaked": [],
-      "opaque": 77061
+      "opaque": 77067
     },
     {
       "tag": "cover-wheat-grain-2px",
       "expected": "wheat",
       "counts": {
-        "wheat": 77061,
+        "wheat": 77067,
         "yellowGrass": 0
       },
       "present": true,
       "leaked": [],
-      "opaque": 77061
+      "opaque": 77067
     },
     {
       "tag": "cover-yellowgrass-grain-2px",
       "expected": "yellowGrass",
       "counts": {
         "wheat": 0,
-        "yellowGrass": 77061
+        "yellowGrass": 77067
       },
       "present": true,
       "leaked": [],
-      "opaque": 77061
+      "opaque": 77067
     },
     {
       "tag": "cover-status-flat-8px",
@@ -567,29 +567,29 @@
       },
       "present": true,
       "leaked": [],
-      "opaque": 1233595
+      "opaque": 1233579
     },
     {
       "tag": "cover-wheat-flat-8px",
       "expected": "wheat",
       "counts": {
-        "wheat": 1233595,
+        "wheat": 1233579,
         "yellowGrass": 0
       },
       "present": true,
       "leaked": [],
-      "opaque": 1233595
+      "opaque": 1233579
     },
     {
       "tag": "cover-yellowgrass-flat-8px",
       "expected": "yellowGrass",
       "counts": {
         "wheat": 0,
-        "yellowGrass": 1233595
+        "yellowGrass": 1233579
       },
       "present": true,
       "leaked": [],
-      "opaque": 1233595
+      "opaque": 1233579
     },
     {
       "tag": "cover-status-grain-8px",
@@ -600,133 +600,133 @@
       },
       "present": true,
       "leaked": [],
-      "opaque": 1233595
+      "opaque": 1233579
     },
     {
       "tag": "cover-wheat-grain-8px",
       "expected": "wheat",
       "counts": {
-        "wheat": 1233595,
+        "wheat": 1233579,
         "yellowGrass": 0
       },
       "present": true,
       "leaked": [],
-      "opaque": 1233595
+      "opaque": 1233579
     },
     {
       "tag": "cover-yellowgrass-grain-8px",
       "expected": "yellowGrass",
       "counts": {
         "wheat": 0,
-        "yellowGrass": 1233595
+        "yellowGrass": 1233579
       },
       "present": true,
       "leaked": [],
-      "opaque": 1233595
+      "opaque": 1233579
     }
   ],
   "table": [
     {
       "zoom": 2,
       "cover": "status",
-      "microFlat": 1.4338450113495471,
-      "microGrain": 3.88225115062527,
-      "grainLiftPct": 170.7580749589708,
-      "structFlat": 6.763275699835691,
-      "structGrain": 6.356667898683702,
+      "microFlat": 1.4361560527000798,
+      "microGrain": 3.849898279416038,
+      "grainLiftPct": 168.06963436723632,
+      "structFlat": 6.76205094718896,
+      "structGrain": 6.4164483053110875,
       "distinctFlat": 4,
       "distinctGrain": 4,
       "bins90Flat": 3,
       "bins90Grain": 3,
       "spreadFlat": 36.714800000000025,
       "spreadGrain": 36.714800000000025,
-      "opaqueFlat": 77061,
-      "opaqueGrain": 77061
+      "opaqueFlat": 77067,
+      "opaqueGrain": 77067
     },
     {
       "zoom": 2,
       "cover": "wheat",
-      "microFlat": 1.5451709317191682,
-      "microGrain": 4.191634719650526,
-      "grainLiftPct": 171.27320567614376,
-      "structFlat": 7.312786914454554,
-      "structGrain": 6.863965079601946,
+      "microFlat": 1.5476312444560538,
+      "microGrain": 4.155979564311115,
+      "grainLiftPct": 168.53810164396216,
+      "structFlat": 7.311546544094275,
+      "structGrain": 6.9312317353279225,
       "distinctFlat": 4,
       "distinctGrain": 4,
       "bins90Flat": 3,
       "bins90Grain": 3,
       "spreadFlat": 39.69,
       "spreadGrain": 39.69,
-      "opaqueFlat": 77061,
-      "opaqueGrain": 77061
+      "opaqueFlat": 77067,
+      "opaqueGrain": 77067
     },
     {
       "zoom": 2,
       "cover": "yellowgrass",
-      "microFlat": 1.4319525399849076,
-      "microGrain": 3.872214998564571,
-      "grainLiftPct": 170.41503754065644,
-      "structFlat": 6.727111979743912,
-      "structGrain": 6.330784078336332,
+      "microFlat": 1.4341021771458777,
+      "microGrain": 3.840231416644579,
+      "grainLiftPct": 167.77948446374532,
+      "structFlat": 6.726188216611239,
+      "structGrain": 6.395933456928317,
       "distinctFlat": 4,
       "distinctGrain": 4,
       "bins90Flat": 3,
       "bins90Grain": 3,
       "spreadFlat": 37.19499999999999,
       "spreadGrain": 37.19499999999999,
-      "opaqueFlat": 77061,
-      "opaqueGrain": 77061
+      "opaqueFlat": 77067,
+      "opaqueGrain": 77067
     },
     {
       "zoom": 8,
       "cover": "status",
-      "microFlat": 0.3778146261122992,
-      "microGrain": 1.060776405178801,
-      "grainLiftPct": 180.76636844215304,
-      "structFlat": 8.84984239849657,
-      "structGrain": 9.164078253499115,
+      "microFlat": 0.37770712016070035,
+      "microGrain": 1.0523507627573188,
+      "grainLiftPct": 178.61554802291857,
+      "structFlat": 8.850165521485838,
+      "structGrain": 9.264264198645428,
       "distinctFlat": 4,
       "distinctGrain": 4,
       "bins90Flat": 3,
       "bins90Grain": 3,
       "spreadFlat": 36.714800000000025,
       "spreadGrain": 36.714800000000025,
-      "opaqueFlat": 1233595,
-      "opaqueGrain": 1233595
+      "opaqueFlat": 1233579,
+      "opaqueGrain": 1233579
     },
     {
       "zoom": 8,
       "cover": "wheat",
-      "microFlat": 0.4070247597123065,
-      "microGrain": 1.145208169251962,
-      "grainLiftPct": 181.36081206986492,
-      "structFlat": 9.559313678487475,
-      "structGrain": 9.893915580749965,
+      "microFlat": 0.40691028328763934,
+      "microGrain": 1.1359222338973456,
+      "grainLiftPct": 179.15790791022542,
+      "structFlat": 9.559662888794351,
+      "structGrain": 10.002837801497472,
       "distinctFlat": 4,
       "distinctGrain": 4,
       "bins90Flat": 3,
       "bins90Grain": 3,
       "spreadFlat": 39.69,
       "spreadGrain": 39.69,
-      "opaqueFlat": 1233595,
-      "opaqueGrain": 1233595
+      "opaqueFlat": 1233579,
+      "opaqueGrain": 1233579
     },
     {
       "zoom": 8,
       "cover": "yellowgrass",
-      "microFlat": 0.377521935596929,
-      "microGrain": 1.0584524954919805,
-      "grainLiftPct": 180.3684754949086,
-      "structFlat": 8.813721154018516,
-      "structGrain": 9.140104584150999,
+      "microFlat": 0.3774209794994407,
+      "microGrain": 1.0502575224300623,
+      "grainLiftPct": 178.27216277775005,
+      "structFlat": 8.814041352346292,
+      "structGrain": 9.240570778219883,
       "distinctFlat": 4,
       "distinctGrain": 4,
       "bins90Flat": 3,
       "bins90Grain": 3,
       "spreadFlat": 37.19499999999999,
       "spreadGrain": 37.19499999999999,
-      "opaqueFlat": 1233595,
-      "opaqueGrain": 1233595
+      "opaqueFlat": 1233579,
+      "opaqueGrain": 1233579
     }
   ]
 }

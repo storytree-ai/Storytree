@@ -195,6 +195,16 @@ export function grainStopHexes(): readonly [string, string] {
  * to agree is the field's SHAPE (wavelength, octave count, amplitude), and that is carried by
  * the constants this module interpolates into the shader.
  *
+ * ⚠⚠ THE NON-PORTABILITY NOW HAS A NUMBER, AND IT IS LARGER THAN "not bit-identical" SUGGESTS.
+ * Measured 2026-08-27 on the same commit and the same page, SwiftShader against an RTX 2060
+ * (`docs/research/chapter2-ground-cover-2026-08-27/` §10): ungrained land agrees to **0.025%** of
+ * pixels, grained land disagrees on **24.5%** — a quarter of the surface lands on a different
+ * ladder rung, because `sin`'s argument reduction differs and the normal perturbation pushes a
+ * different quarter across a boundary. The palette closure is UNAFFECTED (0 off-palette pixels on
+ * both), so the fence holds; what does not survive is the PICTURE. A committed PNG of grained
+ * land is one renderer's mottle, and a pixel-baseline regression check over it would be locked to
+ * whichever machine produced the baseline. Do not build one without reading that section.
+ *
  * The lattice is small on purpose: the island spans ~94 grain cells, so the arguments stay in
  * a range where the hash is well-behaved rather than out where `sin`'s argument reduction
  * dominates.
