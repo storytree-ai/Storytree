@@ -99,5 +99,7 @@ Thumbs.db
 # `.stryker-tmp/` is Stryker's sandbox (a full copy of the repo, recreated per run) and `reports/`
 # holds the JSON it emits. Both are per-run measurements, regenerable with
 # `pnpm mutation:attribution-probe`, and neither is evidence of anything once the run has ended.
+# generated per-branch by check:mutation-diff — its mutate list IS the diff, so it is never committed
+stryker.mutation-diff.conf.mjs
 .stryker-tmp*/
 reports/
