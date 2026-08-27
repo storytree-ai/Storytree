@@ -9,6 +9,9 @@
 //   1  at least one was not — or the run could not be trusted
 //   3  SKIP: this branch changes no mutable source, so there is nothing to mutate. A declared,
 //      opt-in skip, never inferred — the runner prints it as SKIP and the gate reads GREEN, NARROWED.
+//      LOCAL ONLY. `.github/workflows/ci.yml` runs this as an ordinary step where any non-zero code
+//      is a hard failure, so in CI that same state prints `NOTHING TO MUTATE` and exits 0 — the fact
+//      is stated either way and only the code differs. See `skipDisposition` for why.
 //
 // WHY THE SCOPE CLASSIFIER IS IMPORTED RATHER THAN RE-DERIVED. `diff-scoped-mutation-rung` makes this
 // a ship condition: `ci-affected.ts` already owns "what does this branch affect", it is the SAME
@@ -22,6 +25,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { discoverWorkspaceProjects } from "./ci-affected.js";
+import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
 import {
   adjudicateMutants,
   type ChangedRanges,
@@ -34,6 +38,7 @@ import {
   runsUnderBun,
   selectMutationTargets,
   siblingTestFor,
+  skipDisposition,
 } from "./mutation-diff.js";
 import {
   type BaseRefChoice,
@@ -43,9 +48,6 @@ import {
 
 const TAG = "[mutation-diff]";
 const repoRoot = path.resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-
-/** Exit code the gate reads as "this step ran and had nothing to check" (`gate-order.ts`). */
-const EXIT_SKIP = 3;
 
 const CONFIG_FILE = "stryker.mutation-diff.conf.mjs";
 const REPORT_FILE = "reports/mutation-diff.json";
@@ -230,8 +232,15 @@ function main(): void {
   }
 
   if (selection.targets.length === 0) {
-    console.log(`${TAG} SKIP — ${selection.skipReason ?? "nothing to mutate"}`);
-    process.exit(EXIT_SKIP);
+    // The commonest outcome this rung has, and the one CI cannot inherit the code for — a corpus,
+    // docs or config landing changes no mutable TypeScript. `skipDisposition` owns the fork.
+    const skip = skipDisposition({
+      inCi: process.env["CI"] === "true",
+      gateSkipExitCode: GATE_SKIP_EXIT_CODE,
+    });
+    console.log(`${TAG} ${skip.label} — ${selection.skipReason ?? "nothing to mutate"}`);
+    if (skip.exitCode !== 0) process.exit(skip.exitCode);
+    return;
   }
 
   if (selection.changedTestFiles.length === 0) {
