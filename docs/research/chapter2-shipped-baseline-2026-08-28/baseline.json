@@ -1,0 +1,77 @@
+{
+  "url": "http://localhost:5231/baseline.html",
+  "wantGpu": true,
+  "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+  "vendor": "Google Inc. (NVIDIA Corporation)",
+  "timerQuery": true,
+  "census": {
+    "skipped": 1296,
+    "story-tree": 1
+  },
+  "authored": {
+    "triangles": 144,
+    "byKind": [
+      {
+        "kind": "hex-ground",
+        "drawables": 0,
+        "triangles": 0
+      },
+      {
+        "kind": "story-tree/trunk",
+        "drawables": 1,
+        "triangles": 128
+      },
+      {
+        "kind": "story-tree/crown",
+        "drawables": 1,
+        "triangles": 16
+      },
+      {
+        "kind": "cave-arch",
+        "drawables": 0,
+        "triangles": 0
+      },
+      {
+        "kind": "wisp-sprite",
+        "drawables": 0,
+        "triangles": 0
+      }
+    ]
+  },
+  "panels": {
+    "shipped-overview": {
+      "widthPx": 640,
+      "heightPx": 420,
+      "devicePixelRatio": 1,
+      "calls": 2,
+      "triangles": 144,
+      "frames": 30,
+      "scaleAtTarget": 1.37881701557375,
+      "scaleNear": 1.37881701557375,
+      "scaleFar": 1.37881701557375
+    },
+    "shipped-zoom": {
+      "widthPx": 1280,
+      "heightPx": 840,
+      "devicePixelRatio": 1,
+      "calls": 2,
+      "triangles": 144,
+      "frames": 30,
+      "scaleAtTarget": 2.7576340311475,
+      "scaleNear": 2.7576340311475,
+      "scaleFar": 2.7576340311475
+    },
+    "shipped-classic": {
+      "widthPx": 1900,
+      "heightPx": 1200,
+      "devicePixelRatio": 1,
+      "calls": 3,
+      "triangles": 456,
+      "frames": 30,
+      "scaleAtTarget": 3.9394771873535714,
+      "scaleNear": 3.9144824025169505,
+      "scaleFar": 3.7235372793518318
+    }
+  },
+  "measuredVsAuthoredDelta": 0
+}
