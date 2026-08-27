@@ -12,6 +12,7 @@ import {
   type ProjectDir,
   selectMutationTargets,
   siblingTestFor,
+  skipDisposition,
 } from "./mutation-diff.js";
 
 const PROJECTS: ProjectDir[] = [
@@ -1111,4 +1112,40 @@ test("mutation-diff: a location with no start reads as an unknown line, not a cr
     [],
   );
   assert.equal(verdict.mutants[0]?.line, null);
+});
+
+// ── skipDisposition ─────────────────────────────────────────────────────────
+//
+// The rung's SKIP is the commonest outcome it has (a corpus, docs or config landing changes no
+// mutable TypeScript), and the two runners that read it disagree about what a non-zero code means.
+// `gate-run.ts` reads 3 as a declared SKIP and prints GATE GREEN, NARROWED; `.github/workflows/ci.yml`
+// runs the same script as a plain step where ANY non-zero code is a hard failure. So the fact is
+// stated either way and only the code differs — see `gate-skip-exit-3-is-local-only` in
+// `check-web-experience-closure.ts`, whose bootstrap branch established this shape.
+
+test("mutation-diff: locally a skip DECLARES itself with the gate's skip code", () => {
+  assert.deepEqual(skipDisposition({ inCi: false, gateSkipExitCode: 3 }), {
+    exitCode: 3,
+    label: "SKIP",
+  });
+});
+
+test("mutation-diff: in CI a skip exits 0 — a declared 3 there is read as a hard failure", () => {
+  assert.deepEqual(skipDisposition({ inCi: true, gateSkipExitCode: 3 }), {
+    exitCode: 0,
+    label: "NOTHING TO MUTATE",
+  });
+});
+
+test("mutation-diff: the skip code is the caller's, never re-declared here", () => {
+  assert.equal(skipDisposition({ inCi: false, gateSkipExitCode: 7 }).exitCode, 7);
+  // CI's zero is NOT the caller's code — it is the one branch that must not carry it.
+  assert.equal(skipDisposition({ inCi: true, gateSkipExitCode: 7 }).exitCode, 0);
+});
+
+test("mutation-diff: the two dispositions never share a label — the runners must be told apart", () => {
+  const local = skipDisposition({ inCi: false, gateSkipExitCode: 3 });
+  const ci = skipDisposition({ inCi: true, gateSkipExitCode: 3 });
+  assert.notEqual(local.label, ci.label);
+  assert.notEqual(local.exitCode, ci.exitCode);
 });

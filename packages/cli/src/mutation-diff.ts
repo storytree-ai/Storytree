@@ -67,6 +67,48 @@ export interface TargetSelection {
   readonly skipReason: string | null;
 }
 
+/** How a "nothing to mutate" run must report itself, for the runner that is actually reading it. */
+export interface SkipDisposition {
+  /** The process exit code. */
+  readonly exitCode: number;
+  /** The word the skip line leads with. The FACT is printed either way; only this differs. */
+  readonly label: string;
+}
+
+/**
+ * Decide how a SKIP announces itself — and it is a DECISION, because two runners read this same
+ * script and disagree about what a non-zero code means.
+ *
+ * `gate-run.ts` reads {@link SkipDisposition.exitCode} 3 as a DECLARED skip: it prints the step as
+ * SKIP, names it in `GATE GREEN, NARROWED`, and does not red the gate. `.github/workflows/ci.yml`
+ * runs the very same `pnpm check:mutation-diff` as an ordinary step with no `continue-on-error`,
+ * where ANY non-zero code is a hard failure. Emitting the declared 3 into CI would therefore turn
+ * this rung's COMMONEST outcome — a branch that changes no mutable TypeScript, i.e. every corpus,
+ * docs and config landing — into a red on a PR that did nothing wrong. That is the same dishonesty
+ * the skip protocol exists to remove, with the sign flipped.
+ *
+ * WITHHOLD THE CODE, NEVER THE FACT. Both dispositions print; a CI reader sees `NOTHING TO MUTATE`
+ * and knows this run proved nothing, exactly as a local reader sees `SKIP`. What must not happen is
+ * a CI run that is silently indistinguishable from a rung that ran and passed.
+ *
+ * `gateSkipExitCode` is the CALLER's, not re-declared here: `GATE_SKIP_EXIT_CODE` is owned by
+ * `gate-runner.ts`, and a second literal 3 in the pure core is exactly the drift that would let the
+ * protocol change on one side only. CI's 0 is not the caller's code and never can be — it is the
+ * one branch whose whole point is to not carry it.
+ *
+ * The shape is `check-web-experience-closure.ts`'s bootstrap branch, which established it; this is
+ * the third rung to need it and the first whose skip fires on ordinary everyday landings.
+ */
+export function skipDisposition(args: {
+  /** `process.env.CI === "true"` — measured by the shell, never guessed here. */
+  readonly inCi: boolean;
+  /** `GATE_SKIP_EXIT_CODE`, passed in so this module owns no copy of it. */
+  readonly gateSkipExitCode: number;
+}): SkipDisposition {
+  if (args.inCi) return { exitCode: 0, label: "NOTHING TO MUTATE" };
+  return { exitCode: args.gateSkipExitCode, label: "SKIP" };
+}
+
 /**
  * The executable ENTRY POINTS a root `package.json` invokes directly — exempt from mutation.
  *
