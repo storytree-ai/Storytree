@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>the shipped forest map, as it is today — chapter2 baseline (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2200px; margin: 0 auto; padding: 32px 28px 80px; }
+      h1 { font-size: 25px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 16px; margin: 40px 0 6px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 18px; }
+      header p { max-width: 82ch; color: #b0bec5; }
+      p.lede { max-width: 82ch; color: #9fb0ba; margin: 4px 0 18px; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 100ch; }
+      p.numbers.small { font-size: 11px; padding: 6px 10px; margin: 8px 0 0; max-width: none; }
+      .row { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+      .panel { margin: 0; }
+      .panel figcaption { display: flex; flex-direction: column; gap: 1px; margin-bottom: 7px; }
+      .panel figcaption strong { color: #eceff1; font-size: 12px; letter-spacing: 0.04em; }
+      .panel figcaption span { font: 11px/1.4 ui-monospace, Menlo, monospace; color: #8fa0aa; }
+      .stage { background-color: #3a424b;
+        background-image: linear-gradient(45deg, #333a42 25%, transparent 25%),
+          linear-gradient(-45deg, #333a42 25%, transparent 25%),
+          linear-gradient(45deg, transparent 75%, #333a42 75%),
+          linear-gradient(-45deg, transparent 75%, #333a42 75%);
+        background-size: 12px 12px; background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+        border: 1px solid #4a545e; border-radius: 6px; padding: 10px; display: inline-block; line-height: 0; }
+      table.sep { border-collapse: collapse; font: 11px/1.5 ui-monospace, Menlo, monospace; margin: 14px 0 20px; }
+      table.sep th, table.sep td { border: 1px solid #3b434c; padding: 5px 9px; text-align: left; white-space: nowrap; }
+      table.sep thead th { color: #cfd8dc; background: #232930; }
+      .swatch { display: inline-block; width: 11px; height: 11px; border-radius: 2px;
+        margin-right: 6px; vertical-align: -1px; border: 1px solid #00000055; }
+      code { font: 12px ui-monospace, Menlo, monospace; color: #d6e6b8; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/baseline.tsx"></script>
+  </body>
+</html>

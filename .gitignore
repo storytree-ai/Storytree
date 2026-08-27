@@ -33,6 +33,10 @@ pnpm-debug.log*
 # cover-measure.mjs's working output. The EVIDENCE that is kept lives under
 # docs/research/chapter2-ground-cover-2026-08-27/; this is where a re-run lands.
 .cover-measure/
+
+# baseline-measure.mjs's working output — same rule: the EVIDENCE that is kept is copied
+# into docs/research/ by hand, so a re-run cannot quietly rewrite committed pictures.
+.baseline-measure/
 # status-measure.mjs's working output. The EVIDENCE that is kept lives under
 # docs/research/chapter2-status-vocabulary-2026-08-27/ — the two combined sheets and the JSON
 # report — so this directory is only the per-run scratch the driver writes 24 PNGs into.

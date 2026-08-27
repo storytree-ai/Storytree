@@ -1,0 +1,536 @@
+// baseline.tsx — WHAT THE SHIPPED FOREST MAP DRAWS TODAY, on real pixels.
+//
+// THE INCREMENT: `adopt-the-land-into-the-shipped-map-arc-inc-01`. The arc's end state asks
+// what the new land COSTS, and a cost is a difference — but nothing in this repo records what
+// the SHIPPED renderer costs now. Every picture this arc has ever shown came from `harness/`,
+// which is a different renderer that is deliberately not adopted (ADR-0380 D6). This page puts
+// the two side by side on one screen, on one GPU, in one run.
+//
+// ⚠⚠ THE LEFT-HAND PANELS ARE THE REAL SHIPPED COMPONENT, IMPORTED FROM `../src/`. It is not a
+// re-creation of it and must never become one: the whole value of this baseline is that a later
+// session can trust the number belongs to the file that ships. The harness may import `src/`;
+// the reverse is fenced (`scope-fence.test.ts`), so nothing here reaches the public mirror.
+//
+// ⚠ HOW THE DRAW COUNTS ARE TAKEN, and why not from `renderer.info`. `<ForestWorldCanvas>`
+// owns its own R3F renderer and exposes it to nobody, so reading three's counters would mean
+// changing the shipped file to suit its own measurement — the shape of instrument this arc has
+// twice been burned by. Instead `WebGL2RenderingContext.prototype.drawElements*` is wrapped
+// BEFORE anything mounts, so the count is of GL calls the driver actually received. That is
+// renderer-agnostic, works identically for the raw-three harness panels, and cannot be
+// satisfied by a component that quietly stopped drawing.
+//
+// ⚠ THE SHIPPED CANVAS IS PERSPECTIVE (fov 45, `ForestWorldCanvas.tsx:174`) WHILE THE HARNESS
+// IS ORTHOGRAPHIC. So "px per ground unit" is not one number on the shipped path — it varies
+// across the frame. The page reports the scale at the framing target AND the near/far spread,
+// because a baseline that quoted a single figure would be quoting the centre and calling it
+// the picture.
+
+import { useEffect, useRef, useState } from 'react';
+import { createRoot } from 'react-dom/client';
+
+import { buildScene, hexCenter, type SceneG } from '@storytree/forest-world';
+
+import { ForestWorldCanvas } from '../src/ForestWorldCanvas.js';
+import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
+import { IslandPanel } from './IslandView.js';
+import { ISLAND_TILES, islandScene } from './island-fixture.js';
+import {
+  SHIPPED_STATUSES,
+  SHIPPED_STATUS_COLOUR,
+  authoredTriangles,
+  classicHexScene,
+  type AuthoredCount,
+} from './shipped-baseline.js';
+import { STATUS_TOKENS } from './palette-band.js';
+
+interface BaselineReport {
+  renderer: string;
+  vendor: string;
+  timerQuery: boolean;
+  census: Record<string, number>;
+  authored: AuthoredCount;
+  panels: Record<string, PanelReading>;
+}
+
+interface PanelReading {
+  widthPx: number;
+  heightPx: number;
+  devicePixelRatio: number;
+  calls: number;
+  triangles: number;
+  /** Renders the panel performed inside the measurement window — the divisor. */
+  frames: number;
+  /** Delivered px per ground unit at the framing target, and across the island. */
+  scaleAtTarget: number;
+  scaleNear: number;
+  scaleFar: number;
+}
+
+declare global {
+  interface Window {
+    __stExperimentSettled?: boolean;
+    __stBaseline?: BaselineReport;
+  }
+}
+
+/* ── the GL-call counter, installed before any canvas mounts ───────────────────────────────
+   ⚠ IT IS KEYED BY CONTEXT, AND THE FIRST VERSION OF THIS FILE WAS NOT — that version's own
+   refusal is what caught it. A page-global tally cannot attribute a draw to a panel: four
+   canvases are live here, two of them R3F canvases rendering CONTINUOUSLY on their own rAF
+   loops, so a "delta across one frame" read from a fifth rAF callback picks up whatever
+   happened to run before it, which on the first run was nothing at all. Every count below
+   belongs to ONE WebGL context, and `canvas.getContext('webgl2')` returns the very context the
+   component created, so a panel can ask for its own.
+
+   ⚠ FRAMES ARE COUNTED FROM `clear`, not from rAF. Three calls `clear()` once per
+   `renderer.render()` with `autoClear` on, so dividing by clears yields a PER-RENDER cost even
+   when the component renders at a cadence of its own choosing. Dividing by elapsed rAFs would
+   silently report half the cost for a component that renders every other frame. */
+interface ContextTally {
+  calls: number;
+  triangles: number;
+  clears: number;
+}
+
+const TALLIES = new WeakMap<WebGL2RenderingContext, ContextTally>();
+
+function tallyFor(gl: WebGL2RenderingContext): ContextTally {
+  let t = TALLIES.get(gl);
+  if (!t) {
+    t = { calls: 0, triangles: 0, clears: 0 };
+    TALLIES.set(gl, t);
+  }
+  return t;
+}
+
+/** Module-local rather than a flag stamped on the prototype: the prototype route needs an
+ *  assertion chain to write a property TypeScript does not know about, and `anti-slop`'s
+ *  no-chained-type-assertions is right that discarding the type evidence buys nothing here. */
+let counterInstalled = false;
+
+function installCounter(): void {
+  if (counterInstalled) return;
+  counterInstalled = true;
+
+  const de = WebGL2RenderingContext.prototype.drawElements;
+  WebGL2RenderingContext.prototype.drawElements = function patched(mode, count, type, offset) {
+    const t = tallyFor(this);
+    t.calls += 1;
+    if (mode === this.TRIANGLES) t.triangles += count / 3;
+    return de.call(this, mode, count, type, offset);
+  };
+  const dei = WebGL2RenderingContext.prototype.drawElementsInstanced;
+  WebGL2RenderingContext.prototype.drawElementsInstanced = function patched(mode, count, type, offset, instances) {
+    const t = tallyFor(this);
+    t.calls += 1;
+    if (mode === this.TRIANGLES) t.triangles += (count / 3) * instances;
+    return dei.call(this, mode, count, type, offset, instances);
+  };
+  const da = WebGL2RenderingContext.prototype.drawArrays;
+  WebGL2RenderingContext.prototype.drawArrays = function patched(mode, first, count) {
+    const t = tallyFor(this);
+    t.calls += 1;
+    if (mode === this.TRIANGLES) t.triangles += count / 3;
+    return da.call(this, mode, first, count);
+  };
+  const dai = WebGL2RenderingContext.prototype.drawArraysInstanced;
+  WebGL2RenderingContext.prototype.drawArraysInstanced = function patched(mode, first, count, instances) {
+    const t = tallyFor(this);
+    t.calls += 1;
+    if (mode === this.TRIANGLES) t.triangles += (count / 3) * instances;
+    return dai.call(this, mode, first, count, instances);
+  };
+  const clear = WebGL2RenderingContext.prototype.clear;
+  WebGL2RenderingContext.prototype.clear = function patched(mask) {
+    if ((mask & this.COLOR_BUFFER_BIT) !== 0) tallyFor(this).clears += 1;
+    return clear.call(this, mask);
+  };
+}
+installCounter();
+
+/* ── the scene, once ───────────────────────────────────────────────────────────────────── */
+
+const SCENE = islandScene();
+const DESCRIPTORS: readonly Descriptor3D[] = worldTo3D(SCENE);
+
+function census(ds: readonly Descriptor3D[]) {
+  const c: Record<string, number> = {};
+  for (const d of ds) c[d.kind] = (c[d.kind] ?? 0) + 1;
+  return c;
+}
+
+const CENSUS = census(DESCRIPTORS);
+
+/* ── the CONTROL scene ──────────────────────────────────────────────────────────────────────
+   ⚠ The mesh-substrate island above yields the shipped canvas NO GROUND AT ALL — its `tile`
+   case (`world-to-3d.ts:207`) has no counterpart for the `cell` nodes the relaxed mesh
+   emits, so 164 of them fall to the default skip. That is the finding, and on its own it is
+   equally consistent with a mapper that is simply broken. The classic-substrate control below
+   is the same mapper on `relaxedCells: null` (`scene.ts:658`), and it draws ground — which is
+   what makes the finding "pointed at a representation the product no longer produces" rather
+   than "broken". It is also the only way to SHOW what the shipped land looks like at all. */
+// ⚠ THE SAME THIRTEEN TILES the mesh fixture uses, imported rather than re-listed: the
+// control is only a control if the two panels are the same island in two representations.
+const CLASSIC_SCENE = classicHexScene(buildScene as never, hexCenter, ISLAND_TILES) as SceneG;
+const CLASSIC_DESCRIPTORS: readonly Descriptor3D[] = worldTo3D(CLASSIC_SCENE);
+const CLASSIC_CENSUS = census(CLASSIC_DESCRIPTORS);
+
+/** The island's world extent, from the drawable instances themselves. */
+function extent(ds: readonly Descriptor3D[]) {
+  const inst = ds.filter((d): d is InstanceDescriptor => d.kind !== 'skipped');
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minZ = Infinity;
+  let maxZ = -Infinity;
+  for (const i of inst) {
+    minX = Math.min(minX, i.transform.x);
+    maxX = Math.max(maxX, i.transform.x);
+    minZ = Math.min(minZ, i.transform.z);
+    maxZ = Math.max(maxZ, i.transform.z);
+  }
+  const cx = (minX + maxX) / 2;
+  const cz = (minZ + maxZ) / 2;
+  const spread = Math.max(maxX - cx, maxZ - cz, cx - minX, cz - minZ);
+  return { minX, maxX, minZ, maxZ, cx, cz, spread };
+}
+
+
+/** The report shell, so the two panels and the settle hook cannot disagree about its shape. */
+function emptyReport(): BaselineReport {
+  return {
+    renderer: '',
+    vendor: '',
+    timerQuery: false,
+    census: CENSUS,
+    authored: authoredTriangles(CENSUS),
+    panels: {},
+  };
+}
+
+type Extent = ReturnType<typeof extent>;
+
+/** `frameWorld`'s camera, recomputed here so the delivered scale can be stated.
+ *  ⚠ Transcribed from `ForestWorldCanvas.tsx:158-168`. */
+function shippedCamera(e: Extent) {
+  const back = Math.max(260, e.spread * 2.6);
+  return { back, target: [e.cx, 0, e.cz] as const, position: [e.cx, back, e.cz + back] as const };
+}
+
+/** Delivered device px per ground unit for a perspective camera of `fov` at distance `d`,
+ *  in a viewport `h` px tall. Exact at the plane through the point; the island spans a RANGE
+ *  of distances, which is what the near/far pair reports. */
+function pxPerUnitAt(distance: number, viewportH: number, fovDeg = 45): number {
+  return viewportH / (2 * distance * Math.tan((fovDeg * Math.PI) / 360));
+}
+
+/** Delivered device px per ground unit at three points on the island. NAMED rather than an
+ *  anonymous return annotation, per `anti-slop/no-known-value-widening` — and it earns the name:
+ *  the whole reason there are three numbers is that a perspective camera does not have one. */
+interface DeliveredScale {
+  /** At the framing target — the figure a single-number report would quote. */
+  target: number;
+  /** At the island corner NEAREST the eye. */
+  near: number;
+  /** At the island corner FURTHEST from the eye. */
+  far: number;
+}
+
+function shippedScales(e: Extent, viewportH: number): DeliveredScale {
+  const cam = shippedCamera(e);
+  const eye = { x: cam.position[0], y: cam.position[1], z: cam.position[2] };
+  const dist = (x: number, z: number) => Math.hypot(eye.x - x, eye.y - 0, eye.z - z);
+  const centre = dist(e.cx, e.cz);
+  // The island's nearest and furthest ground corners from the eye.
+  const corners: [number, number][] = [
+    [e.minX, e.minZ],
+    [e.minX, e.maxZ],
+    [e.maxX, e.minZ],
+    [e.maxX, e.maxZ],
+  ];
+  const ds = corners.map(([x, z]) => dist(x, z));
+  return {
+    target: pxPerUnitAt(centre, viewportH),
+    near: pxPerUnitAt(Math.min(...ds), viewportH),
+    far: pxPerUnitAt(Math.max(...ds), viewportH),
+  };
+}
+
+/* ── the shipped panel ─────────────────────────────────────────────────────────────────── */
+
+interface ShippedPanelProps {
+  tag: string;
+  label: string;
+  note: string;
+  width: number;
+  height: number;
+  descriptors: readonly Descriptor3D[];
+}
+
+/** One mount of the REAL shipped component, sized to a chosen delivered scale, with the GL
+ *  calls it costs measured around its own settle. */
+function ShippedPanel({ tag, label, note, width, height, descriptors }: ShippedPanelProps) {
+  const own = extent(descriptors);
+  const host = useRef<HTMLDivElement>(null);
+  const [reading, setReading] = useState<PanelReading | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    /** How many rendered frames the reading is averaged over. One frame is a sample of one,
+     *  and this arc has already published a physical impossibility off a single sample
+     *  (`the-hardware-floor-can-fail-on-frame-time`). */
+    const WINDOW_FRAMES = 30;
+
+    const settle = () => {
+      if (cancelled) return;
+      const canvas = host.current?.querySelector('canvas');
+      const gl = canvas?.getContext('webgl2') ?? null;
+      if (!canvas || !gl) {
+        requestAnimationFrame(settle);
+        return;
+      }
+      const t = TALLIES.get(gl);
+      if (!t) {
+        // The context exists but has drawn nothing yet — wait for the component's first render
+        // rather than recording a zero, which would read as a cheap panel.
+        requestAnimationFrame(settle);
+        return;
+      }
+      const before = { calls: t.calls, triangles: t.triangles, clears: t.clears };
+      let waited = 0;
+      const collect = () => {
+        if (cancelled) return;
+        const frames = t.clears - before.clears;
+        if (frames < WINDOW_FRAMES && waited < 600) {
+          waited += 1;
+          requestAnimationFrame(collect);
+          return;
+        }
+        const scales = shippedScales(own, canvas.height);
+        const divisor = Math.max(1, frames);
+        const r: PanelReading = {
+          widthPx: canvas.width,
+          heightPx: canvas.height,
+          devicePixelRatio: window.devicePixelRatio,
+          calls: (t.calls - before.calls) / divisor,
+          triangles: (t.triangles - before.triangles) / divisor,
+          frames,
+          scaleAtTarget: scales.target,
+          scaleNear: scales.near,
+          scaleFar: scales.far,
+        };
+        setReading(r);
+        const report = (window.__stBaseline ??= emptyReport());
+        report.panels[tag] = r;
+      };
+      requestAnimationFrame(collect);
+    };
+    requestAnimationFrame(() => requestAnimationFrame(settle));
+    return () => {
+      cancelled = true;
+    };
+  }, [tag, own]);
+
+  return (
+    <figure className="panel">
+      <figcaption>
+        <strong>{label}</strong>
+        <span>{note}</span>
+      </figcaption>
+      <div className="stage" style={{ width, height }} data-st-tag={tag} ref={host}>
+        <ForestWorldCanvas descriptors={descriptors} />
+      </div>
+      <p className="numbers small">
+        {reading
+          ? `${reading.widthPx}x${reading.heightPx} px · ${reading.calls.toFixed(1)} draw calls/frame · ${Math.round(
+              reading.triangles,
+            )} triangles/frame · averaged over ${reading.frames} frames · ${reading.scaleAtTarget.toFixed(
+              2,
+            )} px/unit at target (${reading.scaleNear.toFixed(2)}–${reading.scaleFar.toFixed(2)} across the island)`
+          : 'measuring…'}
+      </p>
+    </figure>
+  );
+}
+
+/* ── the page ──────────────────────────────────────────────────────────────────────────── */
+
+/** The two palettes side by side. ⚠ The DIVERGENCE is the finding: `ForestWorldCanvas.tsx`
+ *  carries its own six-colour spike map, while ADR-0462 settled the vocabulary at five colours
+ *  over six states in `palette-band.ts` / `apps/studio/src/index.css`. The shipped canvas has
+ *  never been moved onto it. */
+function PaletteDivergence() {
+  return (
+    <table className="sep">
+      <thead>
+        <tr>
+          <th>status</th>
+          <th>what the SHIPPED canvas draws</th>
+          <th>the settled vocabulary (ADR-0462)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {SHIPPED_STATUSES.map((s) => {
+          const shipped = SHIPPED_STATUS_COLOUR.get(s)!;
+          const settled = STATUS_TOKENS.get(s)?.top[0] ?? '(none)';
+          return (
+            <tr key={s}>
+              <td>{s}</td>
+              <td>
+                <span className="swatch" style={{ background: shipped }} /> <code>{shipped}</code>
+              </td>
+              <td>
+                <span className="swatch" style={{ background: settled }} /> <code>{settled}</code>
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+function App() {
+  const meshExtent = extent(DESCRIPTORS);
+  const cam = shippedCamera(meshExtent);
+  const authored = authoredTriangles(CENSUS);
+  const classicAuthored = authoredTriangles(CLASSIC_CENSUS);
+  return (
+    <main>
+      <header>
+        <h1>What the shipped forest map draws today</h1>
+        <p>
+          Every picture this arc has shown came out of <code>harness/</code>. What actually ships
+          is <code>src/ForestWorldCanvas.tsx</code>, and it has never been photographed. The left
+          column below is that component, imported unchanged; the right column is the harness at
+          the matching delivered scale. Same fixture, same island, same GPU, same run.
+        </p>
+        <p className="numbers">
+          island extent {meshExtent.spread.toFixed(1)} units from centre &middot; camera backed off{' '}
+          {cam.back.toFixed(0)} units at fov&nbsp;45 &middot; authored triangles{' '}
+          {authored.triangles} &middot; drawables{' '}
+          {Object.entries(CENSUS)
+            .map(([k, v]) => `${k} ${v}`)
+            .join(' · ')}
+        </p>
+        <PaletteDivergence />
+      </header>
+
+      <section data-st-panel="baseline-overview">
+        <h2>The overview</h2>
+        <p className="lede">
+          The shipped canvas frames the whole world to fit, so its delivered scale is set by the
+          canvas size rather than chosen. The harness panel beside it is the research&rsquo;s own
+          2&nbsp;px/ground-unit overview.
+        </p>
+        <div className="row">
+          <ShippedPanel
+            tag="shipped-overview"
+            label="SHIPPED — ForestWorldCanvas"
+            note="flat instanced 6-segment prisms, meshStandardMaterial, perspective fov 45"
+            width={640}
+            height={420}
+            descriptors={DESCRIPTORS}
+          />
+          <IslandPanel
+            label="HARNESS — the experiment"
+            note="per-cell mesh, analytic relief, banded ShaderMaterial, rim skirt"
+            tag="harness-overview"
+            pxPerUnit={2}
+            displayPxPerUnit={2}
+            land="full"
+          />
+        </div>
+      </section>
+
+      <section data-st-panel="baseline-zoom">
+        <h2>Zoomed in</h2>
+        <p className="lede">
+          The zoom the owner singled out. The shipped panel is the same component at four times
+          the canvas, which is the only zoom control it has; the harness panel is 8&nbsp;px per
+          ground unit.
+        </p>
+        <div className="row">
+          <ShippedPanel
+            tag="shipped-zoom"
+            label="SHIPPED — ForestWorldCanvas"
+            note="the same component, 4x the canvas"
+            width={1280}
+            height={840}
+            descriptors={DESCRIPTORS}
+          />
+          <IslandPanel
+            label="HARNESS — the experiment"
+            note="8 px / ground unit"
+            tag="harness-zoom"
+            pxPerUnit={8}
+            displayPxPerUnit={2}
+            land="full"
+          />
+        </div>
+      </section>
+
+      <section data-st-panel="baseline-classic-control">
+        <h2>&#9888; The same shipped canvas, on the substrate it was written for</h2>
+        <p className="lede">
+          The two panels above are not a like-for-like comparison, and the reason is the finding
+          of this baseline. The shipped canvas maps ground from a scene node of kind{' '}
+          <code>tile</code> &mdash; the CLASSIC extruded-hex island. The studio ships the relaxed
+          MESH instead, whose ground arrives as <code>cell</code> nodes, and the mapper has no
+          case for those: all {CENSUS['skipped'] ?? 0} of them fall through to a skip. So for an
+          island of the shape the product actually draws, <strong>
+            the shipped 3D canvas renders no land at all
+          </strong> &mdash; one story tree, {authoredTriangles(CENSUS).triangles} triangles, two
+          draw calls.
+        </p>
+        <p className="lede">
+          This row is the control: the same component, the same code path, on a classic hex
+          island. It draws ground &mdash; which is what says the mapper WORKS and is pointed at a
+          representation that no longer arrives, rather than simply being broken. It is also the
+          only way to see what the shipped land looks like at all, which is the flat, untextured
+          placeholder on the left.
+        </p>
+        <div className="row">
+          <ShippedPanel
+            tag="shipped-classic"
+            label="SHIPPED — the placeholder land, drawn"
+            note={`classic hex substrate · ${classicAuthored.triangles} triangles`}
+            width={1900}
+            height={1200}
+            descriptors={CLASSIC_DESCRIPTORS}
+          />
+          <IslandPanel
+            label="HARNESS — where this arc is going"
+            note="the treatment the owner approved, at 8 px / ground unit"
+            tag="harness-classic-compare"
+            pxPerUnit={8}
+            displayPxPerUnit={8}
+            land="full"
+          />
+        </div>
+      </section>
+    </main>
+  );
+}
+
+const root = document.getElementById('root');
+if (root) {
+  createRoot(root).render(<App />);
+  // The SETTLED SIGNAL, on the same contract every other evidence page on this arc uses. The
+  // extra delay is because the shipped panels take their reading across rAFs of their own and
+  // the driver must not read `__stBaseline` before both have filed.
+  const waitForPanels = (tries: number) => {
+    const filed = Object.keys(window.__stBaseline?.panels ?? {}).length;
+    if (filed >= 2 || tries <= 0) {
+      const gl = document.createElement('canvas').getContext('webgl2');
+      const dbg = gl?.getExtension('WEBGL_debug_renderer_info') ?? null;
+      const report = (window.__stBaseline ??= emptyReport());
+      report.renderer = dbg && gl ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '(masked)';
+      report.vendor = dbg && gl ? String(gl.getParameter(dbg.UNMASKED_VENDOR_WEBGL)) : '(masked)';
+      report.timerQuery = gl?.getExtension('EXT_disjoint_timer_query_webgl2') != null;
+      window.__stExperimentSettled = true;
+      return;
+    }
+    setTimeout(() => waitForPanels(tries - 1), 100);
+  };
+  requestAnimationFrame(() => requestAnimationFrame(() => waitForPanels(150)));
+}
