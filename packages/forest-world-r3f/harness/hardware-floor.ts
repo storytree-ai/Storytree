@@ -31,7 +31,13 @@
 
 import * as THREE from 'three';
 
-import { createBandedMaterial, configureExactColour, toBufferGeometry } from './banded-material.js';
+import {
+  createBandedMaterial,
+  configureExactColour,
+  toBufferGeometry,
+  type BandedMaterialOptions,
+  type GrainMode,
+} from './banded-material.js';
 import { STATUS_TOKENS } from './palette-band.js';
 import { growPlant } from './plant-geometry.js';
 
@@ -64,6 +70,19 @@ export interface FloorRunSpec {
   frames: number;
   /** Renders per `gl.finish()` batch for the GPU-cost figure. */
   batch: number;
+  /**
+   * WEAR the grain octave on the GROUND, so its FRAGMENT cost can be isolated.
+   *
+   * Absent means the land this module has always benchmarked — `createBandedMaterial` emits no
+   * grain GLSL at all when it is not asked for, so a run without this measures the shader it
+   * always measured and the sweep's committed numbers stay comparable.
+   *
+   * ⚠ THE GROUND ONLY, AND THAT IS WHAT MAKES IT AN ISOLATION. The plants keep the ungrained
+   * material, so an A/B between two runs differs in exactly one fragment shader over exactly the
+   * same geometry, the same draw calls and the same buffer size. Graining the plants too would
+   * measure "the scene got dearer" rather than "the grain costs this much".
+   */
+  grain?: GrainMode;
 }
 
 export interface FloorReading extends FloorRunSpec {
@@ -107,7 +126,7 @@ export interface BuildLandResult {
  * material the comparison page uses — a benchmark against a different scene would measure a
  * different thing and settle nothing about the experiment it is attached to.
  */
-export function buildLand(plants: number): BuildLandResult {
+export function buildLand(plants: number, grain?: GrainMode): BuildLandResult {
   const scene = new THREE.Scene();
   const rand = mulberry32(0x1a2b3c4d);
 
@@ -116,9 +135,13 @@ export function buildLand(plants: number): BuildLandResult {
   // and the sweep would vary two things at once.
   const extent = Math.max(24, Math.sqrt(plants) * 6);
 
+  // The ground is the surface the grain would actually ship on, and under this orthographic
+  // camera it fills the frame — so its fragment cost is the one the budget is spent on.
+  const groundMaterial: BandedMaterialOptions = { token: HEALTHY, doubleSided: true };
+  if (grain) groundMaterial.grain = { mode: grain };
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(extent, extent),
-    createBandedMaterial({ token: HEALTHY, doubleSided: true }),
+    createBandedMaterial(groundMaterial),
   );
   ground.rotation.x = -Math.PI / 2;
   scene.add(ground);
@@ -170,7 +193,7 @@ export async function runFloor(canvas: HTMLCanvasElement, spec: FloorRunSpec): P
   renderer.setClearColor(0x0b0e13, 1);
   renderer.setSize(spec.width, spec.height, false);
 
-  const { scene, camera } = buildLand(spec.plants);
+  const { scene, camera } = buildLand(spec.plants, spec.grain);
 
   // Warm-up: the first renders pay shader compilation and buffer upload, which are real
   // costs but are NOT the per-frame cost being reported.

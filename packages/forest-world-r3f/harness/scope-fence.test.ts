@@ -64,6 +64,10 @@ const EXPERIMENT = [
   // above: adoption is a separate event (ADR-0380 D6 / ADR-0406 D2).
   'land-grain.ts',
   'pixel-metrics.ts',
+  // The frame-budget rung — the pure half of the hardware floor's first refusal. It belongs out
+  // here with the rest for the same reason: adoption is a separate event, and nothing about the
+  // experiment publishes.
+  'frame-budget.ts',
 ];
 
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];
