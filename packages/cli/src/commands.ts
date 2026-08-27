@@ -102,7 +102,12 @@ import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./ses
 // must be handed rather than estimate. Offline; reads the harness's local transcripts.
 import { contextCommand, contextHelp } from "./context.js";
 import { CLI_AREAS } from "./cli-areas.js";
-import { dispatchCommand, dispatchHelp, dispatchWaitCommand } from "./dispatch-command.js";
+import {
+  dispatchCommand,
+  dispatchHelp,
+  dispatchWaitCommand,
+  type DispatchWaitOptions,
+} from "./dispatch-command.js";
 // ADR-0290: a live library write records WHICH BRANCH made it, so `check:corpus-content` can charge a
 // seed↔live drift to the session that must reconcile it instead of to whoever gates next.
 import { currentGitBranch, defaultCliActor, inFlightBranches } from "./cli-actor.js";
@@ -2942,6 +2947,14 @@ export const CLI_OPTIONS = {
   // for a verdict string that also appears inside test names.
   wait: { type: "boolean", default: false },
   timeout: { type: "string" },
+  // `storytree dispatch <handle> --wait --host <target> [--pid-file <remote-path>]` — the REMOTE
+  // arm (`dispatched-work-wakes-its-dispatcher-arc` inc 1). Work dispatched to another machine
+  // cannot report back by construction, so the watcher blocks on a condition THERE and its own
+  // completion is the notification here. `--pid-file` names the remote file holding the run's
+  // process-GROUP id; without it a dead remote run cannot be told from a slow one, and the wait
+  // says so by expiring UNVERIFIED rather than guessing.
+  host: { type: "string" },
+  "pid-file": { type: "string" },
   // `storytree adr rebind <n> --refute <key> --reason <why>` (ADR-0438, `grounded-decisions-arc`
   // inc-03) — the anchor a drain closes as the ANCHOR's error rather than the decision's. LITERAL:
   // the value is an identity key (`<file>#<symbol>`), never prose. Its mandatory companion
@@ -4395,7 +4408,30 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // foreground call to WAIT on work it does not HOLD — `pnpm gate:bg` detaches, so this holds
     // nothing). It reports the JOB's exit code, which is why its envelope carries `exitCode`.
     if (values["wait"] === true) {
-      return dispatchWaitCommand(positionals.slice(1), values["timeout"]);
+      // `--host` swaps the OBSERVER, not the loop: the same bound, the same exit mapping, and one
+      // ssh round trip per poll instead of one stat. Every way it can fail to know carries its own
+      // reserved status (69 unreachable / 76 vanished), so none of them can read as finished.
+      let waitOptions: DispatchWaitOptions = {};
+      if (values["host"] !== undefined) waitOptions = { ...waitOptions, host: values["host"] };
+      if (values["pid-file"] !== undefined) {
+        waitOptions = { ...waitOptions, pidFile: values["pid-file"] };
+      }
+      return dispatchWaitCommand(positionals.slice(1), values["timeout"], waitOptions);
+    }
+    if (values["host"] !== undefined || values["pid-file"] !== undefined) {
+      // REFUSED rather than ignored. A one-shot remote READ is a different verb that does not
+      // exist yet, and quietly answering a question about the LOCAL filesystem when the caller
+      // named another host is the confident-wrong-answer this whole arc is about.
+      return {
+        ok: false,
+        body: [
+          "--host / --pid-file only apply to `storytree dispatch <handle> --wait`.",
+          "",
+          "Without --wait this command reads a LOCAL handle once; it would have answered about this",
+          "machine's filesystem while you named another host. Add --wait to arm the remote watcher.",
+        ].join("\n"),
+        next: ["storytree dispatch --help"],
+      };
     }
     return dispatchCommand(positionals.slice(1));
   }

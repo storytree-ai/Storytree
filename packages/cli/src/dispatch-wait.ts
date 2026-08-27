@@ -56,11 +56,46 @@ export const MAX_TIMEOUT_MS = 9 * 60 * 1000;
 /** How often the sentinel is re-read. Two seconds: a stat, and the caller is already blocked. */
 export const DEFAULT_POLL_MS = 2000;
 
+/**
+ * A NON-VERDICT terminal condition the OBSERVER itself discovered — "I stopped being able to see
+ * the job", never "the job finished". The loop below ends on one exactly as it ends on an expired
+ * bound: with something that {@link isVerdict} refuses.
+ *
+ * WHY THE LOOP NEEDS THIS AT ALL, given that the local arm does not. Locally `exists() === false`
+ * is a fact: the sentinel is not there. Across a network it may instead mean the host did not
+ * answer, or that the process writing it died — two things that are NOT "not yet" and must not be
+ * waited out as though they were. An observer that knows more than the sentinel says so here; the
+ * loop stays the one loop, and the vocabulary for "I could not tell" stays with the observer that
+ * can actually tell the difference (`packages/cli/src/dispatch-remote.ts`).
+ *
+ * The local arm supplies no {@link WaitIo.halt}, so nothing about its behaviour changes.
+ */
+export interface WaitHalt {
+  /** A stable machine word for what stopped the wait — never `passed` / `failed`. */
+  readonly kind: string;
+  /**
+   * The reserved exit status for this halt. It must collide with neither the gate's own codes
+   * (0/1/3/4) nor {@link UNVERIFIED_EXIT}, or "I could not observe it" reads as something observed.
+   */
+  readonly exitCode: number;
+  /** One line, opening with a distinct word, in the register `describeReading` uses. */
+  readonly summary: string;
+  /** The lines the command prints under the summary — what was seen, and what to do about it. */
+  readonly detail: readonly string[];
+}
+
 /** The clock and the sleep, injected so the whole wait is testable without waiting. */
 export interface WaitIo extends HandleIo {
   /** Milliseconds since some fixed origin — only differences are used. */
   now(): number;
   sleep(ms: number): Promise<void>;
+  /**
+   * OPTIONAL, and consulted only AFTER {@link isVerdict} — so a settled sentinel always wins over
+   * anything the observer thinks about the process that wrote it. Returning a {@link WaitHalt} ends
+   * the wait without a verdict; returning `null` (or not implementing it at all) leaves the loop
+   * exactly as it was.
+   */
+  halt?(): WaitHalt | null;
 }
 
 export interface WaitOptions {
@@ -77,6 +112,8 @@ export interface WaitOutcome {
   readonly timedOut: boolean;
   /** How many times the sentinel was read. Reported so a caller can see the wait really polled. */
   readonly polls: number;
+  /** Present when the OBSERVER stopped the wait rather than the bound or the job. Never a verdict. */
+  readonly halt?: WaitHalt;
 }
 
 /**
@@ -128,6 +165,13 @@ export async function waitForDispatchHandle(
     if (isVerdict(reading)) {
       return { reading, waitedMs: io.now() - started, timedOut: false, polls };
     }
+    // AFTER the verdict check, never before: a job that finished normally leaves a settled sentinel
+    // AND a dead process, and asking the observer first would report the corpse instead of the
+    // result. Only once there is no verdict does "I can no longer see it" become the answer.
+    const halt = io.halt?.() ?? null;
+    if (halt !== null) {
+      return { reading, waitedMs: io.now() - started, timedOut: false, polls, halt };
+    }
     const elapsed = io.now() - started;
     if (elapsed >= timeoutMs) {
       return { reading, waitedMs: elapsed, timedOut: true, polls };
@@ -151,6 +195,10 @@ export async function waitForDispatchHandle(
 export const UNVERIFIED_EXIT = 75;
 
 export function waitExitCode(outcome: WaitOutcome): number {
+  // A halt carries its OWN reserved code, and it is checked first so that "the host went away" and
+  // "my bound expired" can never be told apart only by reading prose. They are different facts and
+  // the caller's next move differs, so they get different numbers.
+  if (outcome.halt !== undefined) return outcome.halt.exitCode;
   if (outcome.timedOut || !isVerdict(outcome.reading)) return UNVERIFIED_EXIT;
   return outcome.reading.exitCode ?? UNVERIFIED_EXIT;
 }
@@ -158,6 +206,9 @@ export function waitExitCode(outcome: WaitOutcome): number {
 /** The one-line summary of a wait, in the same register `describeReading` uses. */
 export function describeWait(outcome: WaitOutcome): string {
   const seconds = (outcome.waitedMs / 1000).toFixed(0);
+  if (outcome.halt !== undefined) {
+    return `gave up after ${seconds}s (${String(outcome.polls)} reads) — ${outcome.halt.summary}`;
+  }
   if (!outcome.timedOut) return `settled after ${seconds}s (${String(outcome.polls)} reads)`;
   return `still unsettled after ${seconds}s (${String(outcome.polls)} reads) — the bound expired, the job did not`;
 }
