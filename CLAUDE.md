@@ -344,12 +344,13 @@ kind owes a seed export any more.
   long `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
   *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine RED behind an
   unrelated flake. It is now a runner over a declared plan
-  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **twelve** declared steps — the
-  nine evidence-backed ones retained by ADR-0311, plus `check:web-experience-closure` (ADR-0336),
-  `check:web-experience-markers` (ADR-0454, narrowing ADR-0336 D2) and `check:mutation-diff`
-  (ADR-0458, the diff-scoped mutation rung) — and prints a per-step
-  **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
-  25 steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes every declared step and prints a
+  per-step **PASS / FAIL / SKIP / NOT RUN** table. **ASK THE PLAN FOR THE COUNT, never this file** —
+  it is `packages/cli/src/gate-order.ts`, and the runner prints the number in every `[n/N]` row. A
+  count hand-copied here goes stale silently and in the direction that reads as reassurance: this
+  sentence said **twelve** on 2026-08-27 while the plan held **eighteen**, six steps having been
+  added since anyone re-counted. (For scale, the plan carried 25 before ADR-0302 and ADR-0311
+  retired sixteen.)
   **A step running past two minutes now prints one liveness line a minute (ADR-0376), and it is the
   only honest answer to "is this wedged or just slow?"** — `PROGRESSING` (its process tree burned CPU,
   or changed shape), `NO CPU PROGRESS`, or `LIVENESS UNKNOWN`. Read it precisely: elapsed silence
