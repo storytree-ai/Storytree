@@ -292,6 +292,32 @@ jobs:
       - name: Test
         run: pnpm ${{ steps.affected.outputs.pnpm_args || '-r' }} test
 
+      # The diff-scoped mutation rung (ADR-0458, `mutation-rung-in-ci`). Mutates ONLY the line spans
+      # this branch changed and passes only if this branch's OWN new or changed tests kill every
+      # mutant. It gives the red phase the teeth it lacks: red-green proves a test went red, never
+      # that it would still have gone red for a slightly different defect. NO score and NO threshold
+      # — ADR-0447 refused a mutation-score ceiling outright, and this step adds no policy of its own.
+      #
+      # HERE for the same reason `gate-order.ts` declares it here: after the test leg, because
+      # mutation results gathered over a RED suite describe the breakage, not the strength of the
+      # tests. It is a ROOT step, outside the ADR-0195 narrowing above — it takes its own scope from
+      # the diff via `chooseBaseRef`, the SAME judge `check:ownership-totality` uses, which anchors on
+      # HEAD^1 on this pull_request merge ref precisely because `fetch-depth: 2` fetches no
+      # `origin/main` (see `chooseBaseRef`). Nothing to configure here for that; it already holds.
+      #
+      # THE SKIP IS HANDLED IN THE CHECK, NOT WITH `continue-on-error`. The rung exits
+      # GATE_SKIP_EXIT_CODE (3) locally when the branch changes no mutable TypeScript under a
+      # project's `src/` — the ordinary shape of a corpus, docs or config landing and this rung's
+      # COMMONEST outcome. A plain step reads any non-zero as a hard failure, so the check itself
+      # prints `NOTHING TO MUTATE` and exits 0 when `CI=true` (`skipDisposition` in
+      # `mutation-diff.ts`). `continue-on-error` would have been the wrong instrument: it swallows
+      # REAL reds too, and the whole point of this step is that the rung finally blocks a merge.
+      #
+      # Needs the `Set up Bun` step above — the mutation runner drives `bun test` through the patched
+      # @hughescr/stryker-bun-runner, and `pnpm install --frozen-lockfile` applies that patch.
+      - name: Mutation rung (this branch's tests must kill this branch's mutants)
+        run: pnpm check:mutation-diff
+
       # The only buildable target is apps/studio (`vite build`); the packages
       # export raw TS and have no build step. studio's `vite build` used to fail
       # because its dev API pulled the Node-only store substrate into config load;
