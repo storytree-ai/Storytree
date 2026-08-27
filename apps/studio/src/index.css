@@ -1600,9 +1600,10 @@ a.stat:hover {
 .relaxed-cell.is-wheat { fill: var(--hex-wheat); }
 
 /* ISLAND GROUND STATUS TINT (owner calls 2026-07-21, grounded-art arc): the island's LAND carries
-   the story's folded status — the meaning read at a glance: yellow = proposed (the young-amber
-   rung of the ADR-0038 crown ladder, on the ground), orange-gold = building, green = healthy,
-   brown = mapped (the brownfield), blackened = unhealthy. The yellow must stay clearly YELLOW —
+   the story's folded status — the meaning read at a glance.
+   SIX STATES, FIVE COLOURS (ADR-0462, owner-settled 2026-08-27): yellow = proposed AND building
+   (one token, two states), green = healthy, brown = mapped (the brownfield), blackened =
+   unhealthy, slate grey = unknown (no data, or error). The yellow must stay clearly YELLOW —
    the first cut's muted amber-tan read as brown and drowned the mostly-proposed map (owner
    rejection); mapped's tilled brown is the desaturated one.
    Implemented as territory-scoped re-definitions of the same hex-top/hex-side tokens the cells
@@ -1612,18 +1613,25 @@ a.stat:hover {
    classes were
    already stamped on every island's tile/coast/flora groups by TreeView/SceneView, so this is
    CSS-only. Element-scoped vars beat the body-scoped cosy sage (the sage wasteland read was the
-   original complaint); `unknown` alone keeps the base family. */
-.hex-territory.st-proposed {
-  --hex-top-0: #d8c069; /* bright wheat yellow — young, unproven land */
+   original complaint).
+   THE MIRROR: `packages/forest-world-r3f/harness/palette-band.ts` `STATUS_TOKENS` transcribes
+   these six blocks verbatim for the live-render experiment. Nothing mechanical compares the two
+   copies — if you retune a token here, move it there in the same landing. */
+.hex-territory.st-proposed,
+.hex-territory.st-building {
+  /* ONE BLOCK, TWO SELECTORS — deliberately, not a leftover. Owner 2026-08-27: "if something is
+     building just color it yellow because its basicly the same as proposed, theres no value add,
+     we can already see if wisps are working on it or not." The live-work signal is the WISP
+     (ADR-0200 / ADR-0142 — a work claim IS the orbiting wisp), never the ground, so the land was
+     spending a sixth colour saying something it was not the one saying. Sharing the block rather
+     than duplicating it is what makes "the same token" unable to drift.
+     `building` is in any case unreachable on the shipped map: `worldStatus` folds it to
+     `proposed` before any class is stamped (ADR-0038). This block is what a surface that does
+     NOT fold — the r3f harness, a legend, a demo — now draws. */
+  --hex-top-0: #d8c069; /* bright wheat yellow — young, unproven land, and work in flight */
   --hex-top-1: #ccb258;
   --hex-top-2: #e2cf7e;
   --hex-side: #a8914a;
-}
-.hex-territory.st-building {
-  --hex-top-0: #dcab52; /* orange-gold — work underway, the proposed crown's own hue family */
-  --hex-top-1: #d09a42;
-  --hex-top-2: #e6bc68;
-  --hex-side: #aa7d33;
 }
 .hex-territory.st-healthy {
   --hex-top-0: #8cb85e; /* a lusher, deeper green than the base grass — proven-alive land */
@@ -1643,6 +1651,31 @@ a.stat:hover {
   --hex-top-2: #635f52;
   --hex-side: #37352c;
   --hex-wheat: #6f6852; /* the wheat accent cells char with the ground (bright wheat would pop) */
+}
+/* `unknown` — NO DATA, OR ERROR. Owner 2026-08-27: "I have seen grey capabilities for no data or
+   error and I dont mind that, so maybe error or some other edge case can color grey which can be
+   the 'unknown' label."
+   IT GAINED A COLOUR HERE; IT DID NOT HAVE ONE. Until now `unknown` alone kept the base family,
+   which is why a parcel asserting NOTHING drew 3.33 (luma-weighted) from `healthy`, a parcel
+   asserting a SIGNED PASS — and why two of its four lit rungs read as `healthy` outright under
+   the live renderer's own reader. That was the parked row
+   `app-healthy-green-and-null-status-base-family-are-separated`; this discharges it, at 24.55.
+   THE SLATE IS NOT NEW ART. `#9ca3af` is this file's own `--crown-unknown-hi`, already drawn for
+   every unknown crown; `--crown-unknown-lo` / `--st-unknown` `#6b7280` is the same slate darker,
+   on the tree-card strips and badges. The land now says what the rest of the app already said.
+   The flank is `#70757e` rather than `#6b7280` itself — one hex off, at the 0.72x ratio the other
+   families use — so that no single hex belongs to both the ground family and a crown.
+   ⚠ IT IS COOL ON PURPOSE, AND THAT IS MEASURED RATHER THAN TASTE. `unhealthy` above is a WARM
+   near-neutral (hue 46, 8% saturation); a grey grown out of the warm base instead lands
+   `healthy@0.78` and `mapped@0.78` on `unknown`, and a DARKER warm grey (say #6d6a5f) slides
+   `unknown`'s own dark rungs onto `unhealthy` — proof read as doubt, then doubt read as failure.
+   Two low-saturation neutrals separated only by brightness is the ADR-0414 D4 failure exactly.
+   The cool cast is what buys the separation; do not warm this family toward the charred one. */
+.hex-territory.st-unknown {
+  --hex-top-0: #9ca3af; /* cool slate — no data, or error. Kin to --crown-unknown-hi. */
+  --hex-top-1: #9198a3;
+  --hex-top-2: #a7aebb;
+  --hex-side: #70757e; /* the flank, at the 0.72x ratio the other families use */
 }
 
 /* organic island land: the smoothed coastline filled as a sandy beach, drawn

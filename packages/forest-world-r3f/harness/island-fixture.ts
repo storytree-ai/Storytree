@@ -84,6 +84,21 @@ const CRITERIA = [
 export type CriterionState = 'proven' | 'pending' | 'failing';
 
 export interface IslandOptions {
+  /**
+   * Put EVERY capability, and the territory itself, in one status — the whole island as one
+   * state.
+   *
+   * It is the comparison the colour vocabulary needs (ADR-0462) and nothing else can give: a
+   * mixed island shows five colours at five different sizes, in five different neighbourhoods,
+   * against five different neighbours, so a reader comparing two of them is comparing shape and
+   * placement as much as colour. One state per island holds everything else fixed.
+   *
+   * ⚠ IT IS A LABELLED DEVIATION, never a default, for the same reason `criteriaStates` is: an
+   * island that shipped `unhealthy` as its resting state would be the art asserting a proof state
+   * the work does not hold (ADR-0367 D5). `oddOneOut` wins over it where both are given, so the
+   * mixed panel keeps working unchanged.
+   */
+  status?: SceneStatus;
   /** Give ONE capability a foreign status, to show a mixed island. Index into CAP_TESTS. */
   oddOneOut?: { index: number; status: SceneStatus };
   /** Override the UAT criteria's proof states, positionally. Short arrays fill from the front
@@ -106,7 +121,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
 
   const parcels: SceneParcelInput[] = CAP_TESTS.map((tests, i) => ({
     capId: `cap-${i}`,
-    status: opts.oddOneOut?.index === i ? opts.oddOneOut.status : ('healthy' as SceneStatus),
+    status: opts.oddOneOut?.index === i ? opts.oddOneOut.status : (opts.status ?? ('healthy' as SceneStatus)),
     testCount: tests,
     theme: THEMES[i % THEMES.length]!,
     // Seeds spread over the tiles so the Voronoi sub-partition gives every capability a
@@ -116,7 +131,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
 
   const territory: SceneTerritoryInput = {
     id: 'context-traversal-capture',
-    status: 'healthy',
+    status: opts.status ?? 'healthy',
     caps: parcels.length,
     centroid: { x: cx, y: cy },
     groundRadius: 70,

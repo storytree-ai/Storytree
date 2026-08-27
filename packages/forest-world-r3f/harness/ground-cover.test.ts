@@ -110,15 +110,37 @@ test('the ladder\'s first step is far shallower than the rest, so "a rung" is no
   assert.ok(gaps[1]! > SEPARATION_FLOOR * 2, `the deep rungs should dwarf the bar`);
 });
 
-test('the closest two DIFFERENT statuses are healthy and unknown', () => {
-  // The 2026-08-18 pass's headline defect, reproduced against THIS renderer's ladder rather than
-  // the Blender pipeline's — same pair, same direction, a slightly different number because the
-  // two ladders differ. It is here because it is the denominator every separation in the report
-  // is read against: the map already draws a MEANINGFUL difference this quietly.
+test('the closest two DIFFERENT statuses are proposed and mapped', () => {
+  // THE DENOMINATOR every separation in the report is read against: how quietly the map already
+  // draws a MEANINGFUL difference.
+  //
+  // ⚠ IT WAS `healthy`/`unknown` AT **3.33** UNTIL 2026-08-27 — the 2026-08-18 pass's headline
+  // defect, a parcel asserting a signed pass and a parcel asserting nothing. ADR-0462 gave
+  // `unknown` its own slate and the pair is now 24.55 apart, which moves the worst meaningful
+  // pair onto `proposed`/`mapped` at 14.23: unproven greenfield against inherited brownfield,
+  // and the whole remaining scope of `pull-the-four-land-colours-apart-in-hue`.
   const worst = worstStatusPair();
-  assert.deepEqual([worst.a, worst.b].sort(), ['healthy', 'unknown']);
-  assert.ok(worst.distance < SEPARATION_FLOOR, 'the worst meaningful pair should be quieter than the scenery bar');
-  assert.ok(Math.abs(worst.distance - 3.33) < 0.01, `worst pair moved to ${worst.distance.toFixed(2)}`);
+  assert.deepEqual([worst.a, worst.b].sort(), ['mapped', 'proposed']);
+  assert.ok(Math.abs(worst.distance - 14.23) < 0.01, `worst pair moved to ${worst.distance.toFixed(2)}`);
+  // AND THE COMPARISON WITH THE SCENERY BAR HAS INVERTED, which is worth an assertion rather than
+  // a comment because it is the sentence `YELLOW_GRASS`'s docstring had to be corrected for. The
+  // worst meaningful pair used to be QUIETER than the bar a scenery colour is held to; it is now
+  // nearly twice it. Improving the status vocabulary raises the standard scenery is judged by.
+  assert.ok(worst.distance > SEPARATION_FLOOR, 'the worst meaningful pair is no longer under the scenery bar');
+});
+
+test('`proposed` and `building` are ONE colour asked twice, and the instrument knows it', () => {
+  // Without the shared-family skip in `worstStatusPair`, ADR-0462's deliberate merge would report
+  // as a distance of exactly 0 — the map's worst possible defect — and would MASK the pair that
+  // really is closest. The skip is keyed on the tokens, so this test is what proves the two
+  // statuses actually do share a family rather than merely being listed as merged somewhere.
+  const proposed = STATUS_TOKENS.get('proposed')!;
+  const building = STATUS_TOKENS.get('building')!;
+  assert.deepEqual([...building.top], [...proposed.top], 'building must wear proposed’s ground family');
+  assert.equal(building.side, proposed.side);
+  const worst = worstStatusPair();
+  assert.notDeepEqual([worst.a, worst.b].sort(), ['building', 'proposed']);
+  assert.ok(worst.distance > 0);
 });
 
 // --- the bar ---------------------------------------------------------------------------------

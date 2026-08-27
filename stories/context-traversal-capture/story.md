@@ -9,7 +9,7 @@ uat_witness: machine
 arc: linked-session-context-arc
 depends_on: [context-traversal-telemetry]
 consumed_by: [cli]
-decisions: [235, 241, 260]
+decisions: [235, 241, 464]
 capabilities:
   [
     traversal-trace-sink,
