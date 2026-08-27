@@ -16,6 +16,7 @@
     "storytree": "node packages/cli/launch.mjs",
     "check:boundaries": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-boundaries.ts",
     "check:ownership-totality": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-ownership-totality.ts",
+    "check:contract-grammar": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-contract-grammar.ts",
     "check:mirror-conformance": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-mirror-conformance.ts",
     "check:mutation-diff": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-mutation-diff.ts",
     "build:guidance": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/build-claude-md.ts",

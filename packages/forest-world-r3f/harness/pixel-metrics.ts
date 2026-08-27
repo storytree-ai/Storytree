@@ -118,8 +118,17 @@ export function maskedBoxBlur(
   return out;
 }
 
-/** Colours needed to cover `fraction` of `total` pixels, given a colour histogram. */
-function binsToCover(counts: number[], total: number, fraction: number): number {
+/**
+ * Colours needed to cover `fraction` of `total` pixels, given a colour histogram.
+ *
+ * EXPORTED so `colour-spread.ts` can compute bins90 from a HISTOGRAM alone. `capture.mjs`'s
+ * readback returns a colour histogram per canvas rather than the raw RGBA buffer — deliberately,
+ * because a 1918x930 canvas is 7 MB of pixels to serialise out of the page and there are eight of
+ * them. bins90 is exact from the histogram; MICRO and STRUCT are not, because they are spatial.
+ * A second copy of this arithmetic living in the spread module is precisely how two instruments
+ * quietly disagree, which is the fault `capture.mjs`'s own header records paying for.
+ */
+export function binsToCover(counts: number[], total: number, fraction: number): number {
   const sorted = [...counts].sort((a, b) => b - a);
   const target = total * fraction;
   let cum = 0;

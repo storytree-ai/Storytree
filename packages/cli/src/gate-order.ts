@@ -275,6 +275,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     why: "reds when this diff adds a module that reads the work hierarchy and declares no CAMP, or declares one and reads the other clock. ADR-0445 D1 made the tree disk-canonical for proving and live-canonical for rendering, and its Consequences name the failure mode this watches for — a third reader added later without asking which camp it is in. Offline and disk-only, so it sits with its `check:boundaries` / `check:ownership-totality` neighbours; its store-reading sibling `check:hierarchy-drift` asks a different question and stays in block C",
   },
   {
+    command: "pnpm check:contract-grammar",
+    check: "check:contract-grammar",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when a contract this diff ADDED or EDITED does not parse as a contract sentence — no `asserts —` bullet at all, or a system named nowhere mechanically (ADR-0459, realising ADR-0447 D4). A ratchet, never a migration: the corpus's 133 standing breaches are not charged to a branch that did not author them. Disk and git only, like its `check:ownership-totality` neighbour, whose `chooseBaseRef` it reuses rather than copying",
+  },
+  {
     command: "pnpm check:mirror-conformance",
     check: "check:mirror-conformance",
     subject: "own-work",
@@ -862,6 +869,7 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   "check:boundaries",
   "check:ownership-totality",
   "check:hierarchy-camps",
+  "check:contract-grammar",
   "check:mirror-conformance",
   // `check:web-grounding` left this set for `SHARED_ENVIRONMENT_CHECKS` (ADR-0403 dec 1): it reads
   // the DECISION LOG, which is shared live state now, so it can red on a sibling's status flip. Its

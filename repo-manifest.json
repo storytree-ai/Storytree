@@ -106,6 +106,7 @@
       "packages/cli/src/gate*.ts": "gate-ci-parity",
       "packages/cli/src/ci-affected*.ts": "gate-ci-parity",
       "packages/cli/src/*mutation-diff*.ts": "ci-cd",
+      "packages/cli/src/*contract-grammar*.ts": "green-gate",
       "packages/cli/src/typecheck-aperture*.ts": "gate-ci-parity",
       "packages/cli/src/adr*.ts": "adr-health-gate",
       "packages/cli/src/*deploy-health*.ts": "deploy-health-signal",
@@ -611,6 +612,13 @@
   "hierarchyCamps": {
     "$comment": "The THIRD declared ownership map (ADR-0445 D1, `map-freshness-arc` inc-04), read by packages/cli/src/check-hierarchy-camps.ts and judged by its pure neighbour hierarchy-camps.ts. `packageOwnership` answers 'which story owns this PACKAGE' and `sourceOwnership` answers 'which unit is responsible for this FILE'; this one answers a question neither can: WHICH CLOCK does this module have to agree with when it reads the work hierarchy. ### WHY IT EXISTS. ADR-0445 D1 made the work hierarchy disk-canonical for PROVING and live-canonical for RENDERING, and its own Consequences name the failure mode: 'a THIRD reader added later without asking which camp it is in'. That is not hypothetical here — `readCorpusStoryDocs` walks every story directory and no UAT instrument filters `status: retired`, so every instrument built over it inherited that blindness for free (ADR-0396's Context). A split with no fence acquires wrong-camp readers the same way, one convenience at a time. ### THE ANSWERS. `prove` = 'I must agree with the commit under test' — it reads stories/** off the checkout, because CI validating a live tree would validate the wrong thing. `render` = 'I must agree with NOW' — it reads the store's projection, so the map's QUESTION and its PROOF cannot sit at different commits. `bridge` = 'the gap between them IS my subject' — the loader and the drift rung, and a bridge MUST read both sources, which is what stops it being the label a reader reaches for to avoid answering. There is no 'either'. ### WHAT THE RUNG ENFORCES, and why it is not the presence check ADR-0427 deleted. It never reads a string the subject writes about itself. It computes, from each module's own code, which source that module NAMES — the checkout's stories directory, or `PgWorkHierarchyStore` — and holds that computed fact against the declaration here, in BOTH directions: an undeclared reader fails, a declared read the code does not perform fails, a live read in the prove camp fails, an unstated checkout read in the render camp fails (ADR-0445 D2 permits the fallback and requires it to be STATED — that is what `fallback` is), a bridge that spans one source fails, and a render reader with no stated fallback that imports a prove reader's helper fails, because reaching the wrong clock through a helper is still reaching it. Prose cannot satisfy either half. ### THE MAP IS TOTAL IN BOTH DIRECTIONS, at EXACT paths, no globs — a declaration naming a file that reads nothing is a failure too, the `check:boundaries` 24/24 posture. Adding a reader means adding a line here; that friction is the point, and it is the whole increment. ### WHO IS NOT HERE, deliberately: a module HANDED a folded hierarchy chose no clock, so it has no camp — `apps/studio/server/hierarchySource.ts` and `apps/desktop/src/backend/hierarchy-live.ts` are SEAMS that pick between two callbacks and read nothing themselves; their callers name the sources and carry the camps.",
     "readers": {
+      "packages/cli/src/check-contract-grammar.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the ADR-0459 contract-line grammar rung reads the checkout's `stories/` tree at TWO revisions of it — the working tree and the merge base — because the whole question it answers is which contracts THIS COMMIT added or edited. A live projection would answer about a tree nobody is proving, and would excuse or charge contracts by whichever PR merged last."
+      },
       "apps/studio/server/apiRouter.ts": {
         "camp": "render",
         "reads": [
