@@ -1,0 +1,559 @@
+{
+  "url": "http://localhost:5241/terrain.html",
+  "renderer": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "timerQuery": true
+  },
+  "panels": {
+    "terrain-proposed-off-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.19893632590429738,
+        0.21932060788867083,
+        0.2333211430013155,
+        0.3484219232057163
+      ],
+      "anisotropy": 1.751424339531294,
+      "fineness": {
+        "x": 3.125222934893283,
+        "y": 3.506787972233639
+      },
+      "withinSpread": 0.03657849395525903,
+      "withinFineness": 0.36070842398821057
+    },
+    "terrain-building-off-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.19893632590429738,
+        0.21932060788867083,
+        0.2333211430013155,
+        0.3484219232057163
+      ],
+      "anisotropy": 1.751424339531294,
+      "fineness": {
+        "x": 3.125222934893283,
+        "y": 3.506787972233639
+      },
+      "withinSpread": 0.03657849395525903,
+      "withinFineness": 0.36070842398821057
+    },
+    "terrain-proposed-on-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.16411728359563799,
+        0.24273506088995833,
+        0.2421143713081425,
+        0.35103328420626106
+      ],
+      "anisotropy": 2.1389172213644354,
+      "fineness": {
+        "x": 1.3205852405751233,
+        "y": 1.9175099446407566
+      },
+      "withinSpread": 0.06432218608634956,
+      "withinFineness": 0.8792085347728181
+    },
+    "terrain-building-on-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.14329005638025072,
+        0.268194719669805,
+        0.21787852724042678,
+        0.3706366967095175
+      ],
+      "anisotropy": 2.5866184023680887,
+      "fineness": {
+        "x": 2.8020078732497584,
+        "y": 5.1757528297741775
+      },
+      "withinSpread": 0.03393983122460237,
+      "withinFineness": 0.27760938998174206
+    },
+    "terrain-proposed-on-2px": {
+      "w": 480,
+      "h": 232,
+      "opaque": 77067,
+      "offPalette": 0,
+      "signature": [
+        0.17050495754157854,
+        0.24127433947273746,
+        0.24057463614959615,
+        0.3476460668360878
+      ],
+      "anisotropy": 2.0389205794870358,
+      "fineness": {
+        "x": 5.120083084512528,
+        "y": 7.143135194051929
+      },
+      "withinSpread": 0.06525339835992927,
+      "withinFineness": 0.8491270857229233
+    },
+    "terrain-building-on-2px": {
+      "w": 480,
+      "h": 232,
+      "opaque": 77067,
+      "offPalette": 0,
+      "signature": [
+        0.16742612509034635,
+        0.26672099627232604,
+        0.22935265102468985,
+        0.3365002276126378
+      ],
+      "anisotropy": 2.0098430124394016,
+      "fineness": {
+        "x": 10.65948331818772,
+        "y": 16.70494504781554
+      },
+      "withinSpread": 0.032978935534112214,
+      "withinFineness": 0.22110312681481803
+    },
+    "terrain-healthy-on-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.19884253951140402,
+        0.21944825113222396,
+        0.2330416502820843,
+        0.34866755907428776
+      ],
+      "anisotropy": 1.7534857477229664,
+      "fineness": {
+        "x": 3.127249615741311,
+        "y": 3.5141648812114994
+      },
+      "withinSpread": 0.03677646715223651,
+      "withinFineness": 0.3563032013878063
+    },
+    "terrain-mapped-on-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.22974760138408173,
+        0.18014525529365366,
+        0.2928580002768255,
+        0.29724914304543903
+      ],
+      "anisotropy": 1.6500525787420548,
+      "fineness": {
+        "x": 2.6229303535179938,
+        "y": 2.03424344934536
+      },
+      "withinSpread": 0.04301021327588063,
+      "withinFineness": 0.39210095198293043
+    },
+    "terrain-unhealthy-on-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.1991167365750647,
+        0.21750194853804744,
+        0.23627485448211627,
+        0.34710646040477167
+      ],
+      "anisotropy": 1.7432309627770368,
+      "fineness": {
+        "x": 2.1482816989098077,
+        "y": 2.384038638790057
+      },
+      "withinSpread": 0.050795831484622536,
+      "withinFineness": 0.36416540956596105
+    },
+    "terrain-unknown-on-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.2015723931529487,
+        0.22232004407906653,
+        0.22808357311405797,
+        0.3480239896539269
+      ],
+      "anisotropy": 1.7265459034851758,
+      "fineness": {
+        "x": 6.1102806223369415,
+        "y": 6.910137088909588
+      },
+      "withinSpread": 0.025925415700700533,
+      "withinFineness": 0.4594666598115577
+    },
+    "terrain-healthy-off-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.19884253951140402,
+        0.21944825113222396,
+        0.2330416502820843,
+        0.34866755907428776
+      ],
+      "anisotropy": 1.7534857477229664,
+      "fineness": {
+        "x": 3.127249615741311,
+        "y": 3.5141648812114994
+      },
+      "withinSpread": 0.03677646715223651,
+      "withinFineness": 0.3563032013878063
+    },
+    "terrain-mapped-off-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.1989131046645702,
+        0.21934585754569147,
+        0.23327780874860402,
+        0.34846322904113436
+      ],
+      "anisotropy": 1.7518364595874791,
+      "fineness": {
+        "x": 3.1228719851095703,
+        "y": 3.5064637124983484
+      },
+      "withinSpread": 0.036599700216036646,
+      "withinFineness": 0.36448141088107633
+    },
+    "terrain-unhealthy-off-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.198820342582821,
+        0.2194735646252226,
+        0.2329954337389424,
+        0.3487106590530139
+      ],
+      "anisotropy": 1.7538982909042835,
+      "fineness": {
+        "x": 3.126601077869942,
+        "y": 3.517650673365873
+      },
+      "withinSpread": 0.03680166783748881,
+      "withinFineness": 0.3563032013878063
+    },
+    "terrain-unknown-off-8px": {
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233579,
+      "offPalette": 0,
+      "signature": [
+        0.19887006686396796,
+        0.21940885090935736,
+        0.2331315634760795,
+        0.3485895187505953
+      ],
+      "anisotropy": 1.7528506137076885,
+      "fineness": {
+        "x": 3.1264389434021,
+        "y": 3.5145702058806125
+      },
+      "withinSpread": 0.03670981973700174,
+      "withinFineness": 0.35872089488792314
+    }
+  },
+  "verdicts": [
+    {
+      "a": "fallow",
+      "b": "wheatfield",
+      "states": [
+        "proposed",
+        "building"
+      ],
+      "between": 0.04506307128310305,
+      "bar": 0.06432218608634956,
+      "betweenFineness": 1.4325346625838808,
+      "barFineness": 0.8792085347728181,
+      "separatedByDirection": false,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 1.629345719390723
+    },
+    {
+      "a": "fallow",
+      "b": "wheatfield",
+      "zoom": 2,
+      "between": 0.02544665679958852,
+      "bar": 0.06525339835992927,
+      "betweenFineness": 1.2256459050579793,
+      "barFineness": 0.8491270857229233,
+      "separatedByDirection": false,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 1.4434186892230605
+    }
+  ],
+  "otherPairs": [
+    {
+      "a": "forest",
+      "b": "heath",
+      "between": 0.09072141186741899,
+      "bar": 0.04301021327588063,
+      "betweenFineness": 0.7886895378372888,
+      "barFineness": 0.39210095198293043,
+      "separatedByDirection": true,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 2.1092992793480043,
+      "colourNearest": "healthy"
+    },
+    {
+      "a": "forest",
+      "b": "fallow",
+      "between": 0.03472525591576596,
+      "bar": 0.06432218608634956,
+      "betweenFineness": 1.243716952189646,
+      "barFineness": 0.8792085347728181,
+      "separatedByDirection": false,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 1.4145869870462695,
+      "colourNearest": "healthy"
+    },
+    {
+      "a": "forest",
+      "b": "wheatfield",
+      "between": 0.0707156061728108,
+      "bar": 0.03677646715223651,
+      "betweenFineness": 0.5585868396867829,
+      "barFineness": 0.3563032013878063,
+      "separatedByDirection": true,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 1.922849355814492,
+      "colourNearest": "healthy"
+    },
+    {
+      "a": "forest",
+      "b": "swamp",
+      "between": 0.0035074012636926444,
+      "bar": 0.050795831484622536,
+      "betweenFineness": 0.5597742646307948,
+      "barFineness": 0.36416540956596105,
+      "separatedByDirection": false,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 1.5371428749863276,
+      "colourNearest": "healthy"
+    },
+    {
+      "a": "forest",
+      "b": "scree",
+      "between": 0.005601646588387216,
+      "bar": 0.03677646715223651,
+      "betweenFineness": 0.9755324494650609,
+      "barFineness": 0.4594666598115577,
+      "separatedByDirection": false,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 2.123184410954124,
+      "colourNearest": "healthy"
+    },
+    {
+      "a": "heath",
+      "b": "fallow",
+      "between": 0.11637394675712673,
+      "bar": 0.06432218608634956,
+      "betweenFineness": 0.9900020733560927,
+      "barFineness": 0.8792085347728181,
+      "separatedByDirection": true,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 1.8092349442368159,
+      "colourNearest": "mapped"
+    },
+    {
+      "a": "heath",
+      "b": "wheatfield",
+      "between": 0.16143701804022978,
+      "bar": 0.04301021327588063,
+      "betweenFineness": 1.3472763775240717,
+      "barFineness": 0.39210095198293043,
+      "separatedByDirection": true,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 3.7534577428092137,
+      "colourNearest": "mapped"
+    },
+    {
+      "a": "heath",
+      "b": "swamp",
+      "between": 0.08721401060372634,
+      "bar": 0.050795831484622536,
+      "betweenFineness": 0.2879963175436863,
+      "barFineness": 0.39210095198293043,
+      "separatedByDirection": true,
+      "separatedByScale": false,
+      "separated": true,
+      "margin": 1.716952120965452,
+      "colourNearest": "mapped"
+    },
+    {
+      "a": "heath",
+      "b": "scree",
+      "between": 0.09294963539390065,
+      "bar": 0.04301021327588063,
+      "betweenFineness": 1.7642219873023495,
+      "barFineness": 0.4594666598115577,
+      "separatedByDirection": true,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 3.839717092913585,
+      "colourNearest": "mapped"
+    },
+    {
+      "a": "fallow",
+      "b": "swamp",
+      "between": 0.034999452979426623,
+      "bar": 0.06432218608634956,
+      "betweenFineness": 0.7020057558124061,
+      "barFineness": 0.8792085347728181,
+      "separatedByDirection": false,
+      "separatedByScale": false,
+      "separated": false,
+      "margin": 0.7984519349482884,
+      "colourNearest": "proposed"
+    },
+    {
+      "a": "fallow",
+      "b": "scree",
+      "between": 0.037455109557310615,
+      "bar": 0.06432218608634956,
+      "betweenFineness": 2.210061212175986,
+      "barFineness": 0.8792085347728181,
+      "separatedByDirection": false,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 2.5136939926851958,
+      "colourNearest": "proposed"
+    },
+    {
+      "a": "wheatfield",
+      "b": "swamp",
+      "between": 0.07422300743650344,
+      "bar": 0.050795831484622536,
+      "betweenFineness": 1.1183611043175776,
+      "barFineness": 0.36416540956596105,
+      "separatedByDirection": true,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 3.0710250752550117,
+      "colourNearest": "proposed"
+    },
+    {
+      "a": "wheatfield",
+      "b": "scree",
+      "between": 0.06848738264632913,
+      "bar": 0.03393983122460237,
+      "betweenFineness": 1.1247776296077072,
+      "barFineness": 0.4594666598115577,
+      "separatedByDirection": true,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 2.44800706555948,
+      "colourNearest": "proposed"
+    },
+    {
+      "a": "swamp",
+      "b": "scree",
+      "between": 0.0081912813680583,
+      "bar": 0.050795831484622536,
+      "betweenFineness": 1.5353067140958556,
+      "barFineness": 0.4594666598115577,
+      "separatedByDirection": false,
+      "separatedByScale": true,
+      "separated": true,
+      "margin": 3.341497541357049,
+      "colourNearest": "unhealthy"
+    }
+  ],
+  "vocabulary": [
+    {
+      "name": "forest",
+      "state": "healthy",
+      "provenance": "owner",
+      "character": "closed canopy over undisturbed ground — no direction, no working",
+      "stretch": 1,
+      "bearing": 0,
+      "lattice": 1,
+      "token": "#8cb85e",
+      "terrain": "forest"
+    },
+    {
+      "name": "heath",
+      "state": "mapped",
+      "provenance": "proposed-here",
+      "character": "open scrub over surveyed ground — walked, marked, not worked",
+      "stretch": 1.7,
+      "bearing": 1.2566370614359172,
+      "lattice": 1.25,
+      "token": "#b3946a",
+      "terrain": "heath"
+    },
+    {
+      "name": "fallow",
+      "state": "proposed",
+      "provenance": "proposed-here",
+      "character": "ploughed and set out, nothing grown in it yet — wide bare furrows",
+      "stretch": 6,
+      "bearing": 0.3141592653589793,
+      "lattice": 2.6,
+      "token": "#d8c069",
+      "terrain": "fallow"
+    },
+    {
+      "name": "wheatfield",
+      "state": "building",
+      "provenance": "owner",
+      "character": "the crop standing while the work is in flight — fine dense rows",
+      "stretch": 4,
+      "bearing": 0.3141592653589793,
+      "lattice": 0.55,
+      "token": "#d8c069",
+      "terrain": "wheatfield"
+    },
+    {
+      "name": "swamp",
+      "state": "unhealthy",
+      "provenance": "owner",
+      "character": "standing water in broad pools — no direction, coarse and high-contrast",
+      "stretch": 1,
+      "bearing": 0,
+      "lattice": 1.9,
+      "token": "#57544a",
+      "terrain": "swamp"
+    },
+    {
+      "name": "scree",
+      "state": "unknown",
+      "provenance": "proposed-here",
+      "character": "broken stone with nothing growing — the sparsest land there is",
+      "stretch": 1,
+      "bearing": 0,
+      "lattice": 0.42,
+      "token": "#9ca3af",
+      "terrain": "scree"
+    }
+  ]
+}

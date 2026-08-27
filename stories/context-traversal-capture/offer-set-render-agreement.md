@@ -8,7 +8,7 @@ outcome: "A real spawned `library artifact <id>` read's recorded candidate set i
 status: proposed
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, artifact-offer-candidate-sets]
-decisions: [235, 260, 312]
+decisions: [235, 464, 312]
 proof:
   command:
     file: pnpm
