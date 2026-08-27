@@ -8,6 +8,7 @@ import {
   relatedArtifacts,
   resolveRefTarget,
   salientTerms,
+  stemOf,
   searchCorpus,
   tokenize,
   type LibrarySearchDoc,
@@ -92,7 +93,54 @@ test("stop words and single characters are dropped", () => {
 });
 
 test("punctuation and case do not survive tokenising", () => {
-  assert.deepEqual(tokenize("Amends, ANNOTATION."), ["amends", "annotation"]);
+  // The stems ride ALONGSIDE the words, never instead of them — see the stemming block below.
+  assert.deepEqual(tokenize("Amends, ANNOTATION."), ["amends", "amend", "annotation", "annot"]);
+});
+
+// ---------------------------------------------------------------------------
+// Stemming (ADR-0464 D3) — the measured red was `bypass` never matching `bypassable`
+// ---------------------------------------------------------------------------
+
+test("a word and its inflections share a stem, so one query reaches all of them", () => {
+  for (const word of ["bypassed", "bypassable", "bypassing", "bypasses"]) {
+    assert.ok(
+      tokenize(word).includes("bypass"),
+      `"${word}" must reach the same stem the bare query "bypass" produces`,
+    );
+  }
+});
+
+test("a -ss word is not read as a plural — the carve-out the whole `bypass` case rests on", () => {
+  // Without it `bypass` stems to `bypas` while `bypassed` stems to `bypass`, and the pair this
+  // exists to join stops matching. The bare word must be its OWN stem.
+  assert.deepEqual(tokenize("bypass"), ["bypass"]);
+});
+
+test("the stem is emitted BESIDE the word, so the exact word keeps its own weight", () => {
+  const tokens = tokenize("bypassable");
+  assert.ok(tokens.includes("bypassable"), "an artifact that says the exact word must still say it");
+  assert.ok(tokens.includes("bypass"));
+});
+
+test("every stem is a PREFIX of its word — the property excerptFor's indexOf depends on", () => {
+  // A rewriting stemmer (`relational` → `relate`) would make `excerptFor` return "" on a real match,
+  // which renders as "no context available" and is simply false. Removal-only makes this structural.
+  const words = "bypassable annotations increments smallest ranking merged policies gates capability";
+  for (const word of words.split(" ")) {
+    for (const token of tokenize(word)) {
+      assert.ok(word.startsWith(token), `"${token}" must be a prefix of "${word}"`);
+    }
+  }
+});
+
+test("a strip that would leave a fragment is REFUSED, so `capability` is never `cap`", () => {
+  // `cap` is a real word in this corpus ("the turn cap"), and conflating it with the definition every
+  // session opens is the failure the four-character floor exists to prevent. The shorter `-y` rule
+  // still applies, which is what joins `capability` to `capabilities`.
+  const tokens = tokenize("capability");
+  assert.ok(!tokens.includes("cap"), `the fragment must be refused, got ${tokens.join(", ")}`);
+  assert.deepEqual(tokens, ["capability", "capabilit"]);
+  assert.ok(tokenize("capabilities").includes("capabilit"), "and the plural must reach the same stem");
 });
 
 // ---------------------------------------------------------------------------
@@ -296,4 +344,192 @@ test("the excerpt windows on the RAREST matched term, not the earliest occurrenc
   // the excerpt radius — so an earliest-occurrence window cannot reach the rare term and this
   // assertion separates the two rules rather than passing under both.
   assert.match(hit.excerpt, /kumquat/, `expected the rare term's window, got: ${hit.excerpt}`);
+});
+
+// ---------------------------------------------------------------------------
+// The ranked POPULATION (ADR-0464 D3) — the tier rule and what it reports
+// ---------------------------------------------------------------------------
+
+/**
+ * A corpus shaped like the live one's fault: a short knowledge artifact whose id IS the query, and
+ * transient work records that say the same words at length. On the real corpus this is 66% of 2,545
+ * rows; here two rows against one is enough to make the ordering assertion real.
+ */
+const TIERED: readonly LibrarySearchDoc[] = [
+  doc({
+    id: "never-bypass-the-gate",
+    kind: "guardrail",
+    title: "The gate is never bypassable",
+    description: "Content invariants can never be bypassed; the gate refuses invalid work.",
+  }),
+  doc({
+    id: "inc-01",
+    kind: "increment",
+    title: "Land the gate rung",
+    body: "The gate refuses. The gate is the rung. Nothing may bypass the gate; the gate bypass check ran.",
+  }),
+  doc({
+    id: "fr-01",
+    kind: "friction",
+    description: "A gate bypass was attempted and the gate refused; bypass, gate, gate, bypass.",
+  }),
+  doc({ id: "adr-0500", title: "Something else entirely", body: "Islands and land colour." }),
+];
+const TIERED_INDEX = buildSearchIndex(TIERED);
+
+test("the transient tier does not outrank the knowledge tier for a query matching both", () => {
+  const result = searchCorpus(TIERED_INDEX, "bypass gate");
+  assert.deepEqual(
+    result.hits.map((h) => h.id),
+    ["never-bypass-the-gate"],
+    "increment and friction rows must not be ranked against knowledge by default",
+  );
+});
+
+test("what was held back is COUNTED, so a narrowed ranking cannot read as a whole-corpus one", () => {
+  const result = searchCorpus(TIERED_INDEX, "bypass gate");
+  assert.equal(result.withheld, 2, "both transient rows are reported");
+  assert.equal(result.scanned, 2, "and the denominator describes what was actually ranked");
+});
+
+test("a query that matches nothing STILL reports the withheld count", () => {
+  // The two facts a caller must be able to separate: "the knowledge tier has nothing for you" and
+  // "your answer is in the work log and this call withheld it".
+  const result = searchCorpus(TIERED_INDEX, "kumquat");
+  assert.equal(result.matchCount, 0);
+  assert.equal(result.withheld, 2);
+});
+
+test("a NAMED kind is the population — the tier rule does not apply on top of it", () => {
+  // The failure this pins: applying the tier filter after `--kind increment` makes the one command
+  // that asks for work records the one command that answers zero.
+  const result = searchCorpus(TIERED_INDEX, "bypass gate", { kind: "increment" });
+  assert.deepEqual(result.hits.map((h) => h.id), ["inc-01"]);
+  assert.equal(result.withheld, 0, "nothing is withheld when the caller named the population");
+});
+
+test("includeTransient puts the tier back and it can then outrank knowledge", () => {
+  const result = searchCorpus(TIERED_INDEX, "bypass gate", { includeTransient: true });
+  assert.equal(result.scanned, 4);
+  assert.equal(result.withheld, 0);
+  assert.ok(
+    result.hits.some((h) => h.kind === "increment" || h.kind === "friction"),
+    "the opt-out must actually widen the population, not merely re-label it",
+  );
+});
+
+test("relatedArtifacts obeys the same tier rule, and says how much it held back", () => {
+  // The measured second fault: asked for neighbours of a guardrail it returned work-log rows matched
+  // on shared vocabulary — rows that author no edges, so `--unlinked` was trivially true of them.
+  const result = relatedArtifacts(TIERED_INDEX, TIERED, "never-bypass-the-gate");
+  assert.ok(!result.hits.some((h) => h.kind === "increment" || h.kind === "friction"));
+  assert.equal(result.withheld, 2);
+  const wide = relatedArtifacts(TIERED_INDEX, TIERED, "never-bypass-the-gate", { includeTransient: true });
+  assert.ok(wide.hits.some((h) => h.kind === "increment" || h.kind === "friction"));
+});
+
+test("an artifact's own id is searchable — it is the handle every command uses", () => {
+  // Before ADR-0464 D3 the index never read the id. Measured on the live corpus, searching an
+  // artifact by its exact id ranked it 9th, 28th and 9th; with the id indexed, 1st, 4th and 1st.
+  const result = searchCorpus(TIERED_INDEX, "never-bypass-the-gate");
+  assert.equal(result.hits[0]?.id, "never-bypass-the-gate");
+});
+
+test("salientTerms drops the unreachable terms ONLY when asked to seed a neighbour query", () => {
+  const bare = salientTerms(INDEX, "salience-probe", 5);
+  assert.ok(bare.includes("kumquat"), "unfiltered, the most distinguishing term leads");
+  const reachable = salientTerms(INDEX, "salience-probe", 5, { reachableOnly: true });
+  assert.ok(
+    !reachable.includes("kumquat"),
+    "a term no other document carries scores zero against every candidate, so it wastes a slot",
+  );
+});
+
+// ---------------------------------------------------------------------------
+// The stemmer's own table — one word per suffix, and the two carve-outs
+// ---------------------------------------------------------------------------
+
+/**
+ * One word per entry in the suffix table, with the stem it must produce.
+ *
+ * EXACT EQUALITY, one row per suffix, because the suffixes are ORDERED and a table this shape is the
+ * only thing that can tell a deleted rule from a rule the next one happens to cover: drop `ements`
+ * and `requirements` still stems — to `require` through `ments`, not to `requir`. A test asserting
+ * only "it stems somehow" would pass under both and prove nothing about the order.
+ */
+const SUFFIX_TABLE: ReadonlyArray<readonly [word: string, stem: string]> = [
+  ["followability", "follow"],
+  ["operations", "oper"],
+  ["requirements", "requir"],
+  ["annotation", "annot"],
+  ["requirement", "requir"],
+  ["arguments", "argu"],
+  ["seemingly", "seem"],
+  ["bypassable", "bypass"],
+  ["markedly", "mark"],
+  ["reversible", "revers"],
+  ["findings", "find"],
+  ["argument", "argu"],
+  ["readiness", "readi"],
+  ["smallest", "small"],
+  ["policies", "polic"],
+  ["ranking", "rank"],
+  ["ranked", "rank"],
+  ["matches", "match"],
+  ["quickly", "quick"],
+  ["verdicts", "verdict"],
+  ["capability", "capabilit"],
+];
+
+test("every suffix in the table strips, and strips to exactly the stem the order implies", () => {
+  for (const [word, stem] of SUFFIX_TABLE) {
+    assert.equal(stemOf(word), stem, `stemOf("${word}")`);
+  }
+});
+
+test("the -ss carve-out fires ONLY on -ss, and every other -s word still stems", () => {
+  assert.equal(stemOf("bypass"), null, "a -ss word is its own stem");
+  assert.equal(stemOf("progress"), null);
+  assert.equal(stemOf("verdicts"), "verdict", "and an ordinary plural is unaffected");
+});
+
+test("a strip that leaves fewer than four characters is skipped, not accepted", () => {
+  assert.equal(stemOf("ranking"), "rank", "exactly four is the floor, and the floor is inclusive");
+  assert.equal(stemOf("moved"), null, "three would be a fragment, so nothing is stripped");
+});
+
+test("the trailing -e rule obeys the same floor, and only fires on a trailing e", () => {
+  assert.equal(stemOf("merge"), "merg", "five minus the e is four — it fires");
+  assert.equal(stemOf("gate"), null, "four minus the e is three — it does not");
+  assert.equal(stemOf("island"), null, "and a word with no trailing e is untouched");
+});
+
+test("a two-character token survives; a one-character token does not", () => {
+  // MIN_TOKEN_LENGTH is a floor, not a threshold: `db` and `up` are real query words here.
+  assert.deepEqual(tokenize("db up"), ["db", "up"]);
+  assert.deepEqual(tokenize("x y"), []);
+});
+
+// ---------------------------------------------------------------------------
+// The id in the index (ADR-0464 D3)
+// ---------------------------------------------------------------------------
+
+/** Two artifacts identical in every indexed field EXCEPT their ids. */
+const ID_ONLY: readonly LibrarySearchDoc[] = [
+  doc({ id: "worktree-provisioning", title: "Alpha", description: "Beta", body: "Gamma delta" }),
+  doc({ id: "unrelated-thing", title: "Alpha", description: "Beta", body: "Gamma delta" }),
+];
+
+test("a word that appears ONLY in the id is searchable, and finds only that artifact", () => {
+  // The sharp form of the id case: `provisioning` is in no title, description or body, so this
+  // returns nothing at all unless the id is in the index.
+  const result = searchCorpus(buildSearchIndex(ID_ONLY), "provisioning");
+  assert.deepEqual(result.hits.map((h) => h.id), ["worktree-provisioning"]);
+});
+
+test("related uses a BOUNDED number of the source's terms, and honours an explicit count", () => {
+  const bounded = relatedArtifacts(INDEX, CORPUS, "adr-0139");
+  assert.ok(bounded.terms.length <= 12, `the default is a cap, got ${bounded.terms.length}`);
+  const two = relatedArtifacts(INDEX, CORPUS, "adr-0139", { termCount: 2 });
+  assert.equal(two.terms.length, 2, "an explicit count is the count, not a floor");
 });

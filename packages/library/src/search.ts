@@ -37,6 +37,31 @@
  * the fixture with no database at all. If the corpus outgrows that, the seam change is still
  * available and this module's SHAPE is what it would have to satisfy.
  *
+ * ## THE RANKED POPULATION, REPAIRED (ADR-0464 D3, 2026-08-28)
+ *
+ * As first built this ranked every row against every other, and measured on the live corpus that was
+ * wrong in three compounding ways — none of them a fault in BM25, which is why the fix is here and in
+ * the ADAPTER rather than in the scorer:
+ *
+ * 1. **Composition.** 1,674 of 2,544 rows (66%) are `increment` and `friction` — records of what a
+ *    session did, ranked as though they were knowledge. {@link TRANSIENT_KINDS} holds them out of the
+ *    default population, counted and named, reachable by `--kind` or the opt-out.
+ * 2. **Coverage.** Only `adr`, `increment` and `template` carry a `body` field; every other kind keeps
+ *    its prose in per-kind structured fields (a guardrail's `rule`, a process's `steps`, an agent's
+ *    `workflow`). So the knowledge tier was ranked on ~165 characters of description against a
+ *    decision's 11,742 characters of body. `searchProse` in `./search-prose.ts` closes that, and it
+ *    is the half that does most of the work — no tier rule can promote text the index never saw.
+ * 3. **Inflection.** `bypass` did not match `bypassable`. See {@link stemOf}.
+ *
+ * The measured red all three were repaired against: `"bypass gate"` ranked `never-bypass-the-gate`
+ * — the guardrail whose id IS the query — 70th of 1,087; `"smallest unit to green"` did not reach
+ * `slow-growth-minimum-to-green` in 200 hits at all.
+ *
+ * ⚠ **READ FREQUENCY IS REFUSED AS A RANKING TERM, PERMANENTLY (ADR-0464 D9)** and the refusal binds
+ * harder here than anywhere: after ADR-0464 D1 this is the only ranked surface in the system. A
+ * popularity term would feed the decision-discovery instrument its own output — it could never show a
+ * regression — and it drops precisely the unread decision the corpus most needs surfaced.
+ *
  * ## THE HONESTY REQUIREMENTS, WHICH ARE THE PART WORTH REVIEWING
  *
  * A search verb is an unusually easy place to build a green check that verified nothing, so three
@@ -106,6 +131,16 @@ export interface SearchResult {
   readonly terms: readonly string[];
   /** How many documents were ranked — the denominator. See honesty requirement 2 in the header. */
   readonly scanned: number;
+  /**
+   * How many TRANSIENT work records were held out of the ranked population — see
+   * {@link TRANSIENT_KINDS}. Zero when a `kind` was named or `includeTransient` was set.
+   *
+   * Reported rather than silently dropped, because honesty requirement 2 applies to an exclusion as
+   * much as to a denominator: "the knowledge tier has nothing for you" and "your answer is in the
+   * work log and this verb withheld it" are different facts, and a caller that could not tell them
+   * apart would render a narrowed view as a whole one.
+   */
+  readonly withheld: number;
   /** How many documents matched at least one term, BEFORE `limit` truncated the list. */
   readonly matchCount: number;
   readonly hits: readonly SearchHit[];
@@ -116,6 +151,31 @@ export interface SearchOptions {
   readonly kind?: string | undefined;
   /** How many hits to return. The counts above always describe the FULL match set. */
   readonly limit?: number | undefined;
+  /**
+   * Rank the transient work-record tier alongside the knowledge tier (ADR-0464 D3's opt-out).
+   *
+   * Default false: `increment` and `friction` are 66% of the corpus and are held out, so a plain
+   * question gets the durable answer. A named `kind` overrides this entirely — asking for
+   * `--kind increment` ranks increments, which is the whole point of naming one.
+   */
+  readonly includeTransient?: boolean | undefined;
+}
+
+/**
+ * The documents a query is ranked against, and how many were held back to get there.
+ *
+ * THE ORDER OF THE TWO BRANCHES IS THE DECISION. A named `kind` is a caller saying exactly which
+ * population it wants, so the tier rule does not apply on top of it — otherwise `--kind increment`
+ * would return nothing at all, and the narrow path ADR-0464 D3 requires to stay green would instead
+ * become the one path that silently answers zero.
+ */
+function rankedPool(docs: readonly IndexedDoc[], opts: SearchOptions) {
+  if (opts.kind !== undefined) {
+    return { pool: docs.filter((d) => d.doc.kind === opts.kind), withheld: 0 };
+  }
+  if (opts.includeTransient === true) return { pool: docs, withheld: 0 };
+  const pool = docs.filter((d) => !TRANSIENT_KINDS.has(d.doc.kind));
+  return { pool, withheld: docs.length - pool.length };
 }
 
 /**
@@ -139,6 +199,106 @@ const STOP_WORDS: ReadonlySet<string> = new Set([
 /** Below this length a token is noise in prose and an ordinal in an id; either way it does not discriminate. */
 const MIN_TOKEN_LENGTH = 2;
 
+/**
+ * The TRANSIENT WORK-RECORD tier: kinds that record what a session DID, not what is true.
+ *
+ * 1,674 of 2,544 live artifacts (66%) are these two, and before ADR-0464 D3 they were ranked against
+ * the knowledge tier on equal footing — so a plain orientation question ("what is a capability", "the
+ * smallest unit to green") returned the work log rather than the definition or the principle that
+ * answers it. They are held OUT of the default ranked population by {@link rankedPool}.
+ *
+ * ⚠ THE SEPARATION IS BY TIER AND MAY NEVER BECOME A POPULARITY TERM (ADR-0464 D9). Ranking by how
+ * often a row is read feeds the decision-discovery instrument its own output, and it drops precisely
+ * the unread decision the corpus most needs surfaced. This set is a statement about what KIND of row
+ * is knowledge, never about how often one was opened.
+ *
+ * DELIBERATELY THE TWO ADR-0464 NAMES AND NOTHING ELSE. `arc` (an initiative overlay),
+ * `open-question` (a live ask) and `uat-criterion` are all durable and all things a session
+ * legitimately orients on, so widening this set is a decision, not a tidy-up. It is neither
+ * {@link EPHEMERAL_KINDS} (`increment` alone) nor `EDGE_FREE_KINDS` (`friction`, `open-question`,
+ * `definition`) — both exist to answer different questions, and reusing either would silently
+ * withhold `definition`, the tier orientation needs most. (Named in prose rather than imported:
+ * this module is deliberately zod-free, and `knowledge.ts` is not.)
+ */
+export const TRANSIENT_KINDS: ReadonlySet<string> = new Set(["increment", "friction"]);
+
+/**
+ * Suffixes stripped to form a token's stem, LONGEST FIRST — the whole of the stemmer.
+ *
+ * WHY THIS EXISTS. Without it `bypass` never matched `bypassable`, so the guardrail whose id IS
+ * `never-bypass-the-gate` matched only one of the two terms in `"bypass gate"` and eleven decisions
+ * that spell the word out in full outranked it (ADR-0464, measured 2026-08-27).
+ *
+ * WHY IT IS REMOVAL-ONLY, WHICH IS THE PART A REVIEWER SHOULD CHECK. A full Porter stemmer REWRITES
+ * (`relational` → `relate`), and two things here depend on a stem being a PREFIX of the word it came
+ * from: {@link excerptFor} locates the window with `indexOf(term)` against the raw source text, and
+ * the `matched` / `terms:` lines show the reader terms they can find on the page. A rewriting stemmer
+ * would return an empty excerpt on a real match — an honest-looking "no context available" that is
+ * simply wrong. Every rule below only ever deletes trailing characters, so the prefix property holds
+ * by construction rather than by test.
+ *
+ * WHY THE STEM IS EMITTED BESIDE THE WORD RATHER THAN INSTEAD OF IT — the same shape the hyphen rule
+ * already uses. The exact word keeps its own weight (a query for `bypassable` should still prefer the
+ * artifact that says `bypassable`), and no query can be made unanswerable by an over-eager strip.
+ */
+const SUFFIXES: readonly string[] = [
+  "ability",
+  "ations",
+  "ements",
+  "ation",
+  "ement",
+  "ments",
+  "ingly",
+  "able",
+  "edly",
+  "ible",
+  "ings",
+  "ment",
+  "ness",
+  "est",
+  "ies",
+  "ing",
+  "ed",
+  "es",
+  "ly",
+  "s",
+  "y",
+];
+
+/**
+ * A stem shorter than this is not a stem, it is a fragment.
+ *
+ * Four, not three, and the difference is load-bearing on this corpus: at three, `ability` strips
+ * `capability` to `cap`, which is a real word here (`cap-3`, "the turn cap") and would quietly
+ * conflate the definition every session opens with an unrelated budget term. At four the strip is
+ * rejected and `capability` stands as itself, while `followability` → `follow` still lands.
+ */
+const MIN_STEM_LENGTH = 4;
+
+/**
+ * The stem of one token, or `null` when the token is already its own stem.
+ *
+ * Longest matching suffix wins, and a suffix whose removal would leave a fragment is SKIPPED rather
+ * than ending the search — `gates` gives up `es` (leaving `gat`) and takes `s` instead, reaching
+ * `gate`. Two carve-outs:
+ *
+ *   - `-s` never fires on a word ending `ss`. Without it `bypass` stems to `bypas` while `bypassed`
+ *     stems to `bypass`, and the two stop matching each other — the exact pairing this exists for.
+ *   - A trailing `e` is dropped when nothing else matched, so `merge` reaches `merging` / `merged`
+ *     through `merg`. It is subject to the same floor, which is why `gate` stays `gate`.
+ */
+export function stemOf(word: string): string | null {
+  for (const suffix of SUFFIXES) {
+    if (!word.endsWith(suffix)) continue;
+    if (suffix === "s" && word.endsWith("ss")) continue;
+    const stem = word.slice(0, -suffix.length);
+    if (stem.length < MIN_STEM_LENGTH) continue;
+    return stem;
+  }
+  if (word.endsWith("e") && word.length - 1 >= MIN_STEM_LENGTH) return word.slice(0, -1);
+  return null;
+}
+
 /** BM25 term-frequency saturation. The standard value; nothing here justifies tuning it. */
 const BM25_K1 = 1.2;
 /** BM25 length normalisation. The standard value. */
@@ -156,6 +316,22 @@ const TITLE_WEIGHT = 6;
 const DESCRIPTION_WEIGHT = 3;
 const BODY_WEIGHT = 1;
 
+/**
+ * The id is weighted like a title, because in this corpus it IS one.
+ *
+ * Ids here are authored English phrases — `never-bypass-the-gate`, `merge-ceremony`,
+ * `slow-growth-minimum-to-green` — and they are the handle every command and every cross-reference
+ * uses. Until ADR-0464 D3 the index never read them: this module's own header claimed "searching
+ * `adr-0139` matches the exact id strongly", which was true only by accident, because a decision
+ * happens to repeat its id in a `description` no other kind does. Asked `"bypass gate"`, the ranker
+ * could not see that one artifact was LITERALLY CALLED THAT.
+ *
+ * Same weight as the title rather than a higher one: an id and a title are two spellings of the same
+ * claim about what an artifact is, and a heavier id would let an arc named after its subject
+ * (`capability-claim-binds-arc`) outrank the definition of the subject itself.
+ */
+const ID_WEIGHT = TITLE_WEIGHT;
+
 const DEFAULT_LIMIT = 20;
 
 /**
@@ -172,17 +348,23 @@ const DEFAULT_LIMIT = 20;
  */
 export function tokenize(text: string): string[] {
   const out: string[] = [];
+  // STEM BESIDE THE WORD, never instead of it — the same shape the hyphen rule uses two lines down,
+  // and the reason an over-eager strip can dilute a ranking but can never make a query unanswerable.
+  const emit = (token: string): void => {
+    if (token.length < MIN_TOKEN_LENGTH || STOP_WORDS.has(token)) return;
+    out.push(token);
+    const stem = stemOf(token);
+    if (stem !== null && !STOP_WORDS.has(stem)) out.push(stem);
+  };
   const runs = text.toLowerCase().match(/[a-z0-9]+(?:-[a-z0-9]+)*/g);
   if (runs === null) return out;
   for (const run of runs) {
     if (run.includes("-")) {
-      if (run.length >= MIN_TOKEN_LENGTH && !STOP_WORDS.has(run)) out.push(run);
-      for (const part of run.split("-")) {
-        if (part.length >= MIN_TOKEN_LENGTH && !STOP_WORDS.has(part)) out.push(part);
-      }
+      emit(run);
+      for (const part of run.split("-")) emit(part);
       continue;
     }
-    if (run.length >= MIN_TOKEN_LENGTH && !STOP_WORDS.has(run)) out.push(run);
+    emit(run);
   }
   return out;
 }
@@ -195,6 +377,7 @@ function docTokens(doc: LibrarySearchDoc): string[] {
     const tokens = tokenize(text);
     for (let i = 0; i < weight; i += 1) bag.push(...tokens);
   };
+  push(doc.id, ID_WEIGHT);
   push(doc.title, TITLE_WEIGHT);
   push(doc.description, DESCRIPTION_WEIGHT);
   push(doc.body, BODY_WEIGHT);
@@ -346,8 +529,11 @@ export function searchCorpus(
   opts: SearchOptions = {},
 ): SearchResult {
   const terms = [...new Set(tokenize(query))];
-  const pool = opts.kind === undefined ? index.docs : index.docs.filter((d) => d.doc.kind === opts.kind);
-  if (terms.length === 0) return { terms, scanned: pool.length, matchCount: 0, hits: [] };
+  const { pool, withheld } = rankedPool(index.docs, opts);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — with no terms the loop below
+  // matches nothing, so it already returns `matchCount: 0` and `hits: []` over the same `pool`. This
+  // guard buys a skipped traversal, not a different answer, and no test can observe the difference.
+  if (terms.length === 0) return { terms, scanned: pool.length, withheld, matchCount: 0, hits: [] };
 
   const scored: SearchHit[] = [];
   for (const entry of pool) {
@@ -366,6 +552,7 @@ export function searchCorpus(
   return {
     terms,
     scanned: pool.length,
+    withheld,
     matchCount: scored.length,
     hits: scored.slice(0, opts.limit ?? DEFAULT_LIMIT),
   };
@@ -412,6 +599,8 @@ export interface RelatedResult {
   readonly terms: readonly string[];
   /** How many artifacts were ranked. The denominator; see honesty requirement 2. */
   readonly scanned: number;
+  /** How many TRANSIENT work records were held out of the ranked population. See {@link SearchResult.withheld}. */
+  readonly withheld: number;
   /** How many of the ranked artifacts already carry an edge to or from the source. */
   readonly linkedCount: number;
   readonly hits: readonly RelatedHit[];
@@ -434,16 +623,35 @@ const DEFAULT_TERM_COUNT = 12;
  * same for every artifact in it, so every "related" query would return the same neighbours. Ranking
  * by tf·idf instead returns the words that are common IN THIS DOCUMENT and rare everywhere else,
  * which is what makes two artifacts about the same subject find each other.
+ *
+ * `reachableOnly` NARROWS IT TO THE TERMS THAT CAN FIND SOMETHING, and that is a different question
+ * from the one above rather than a refinement of it. A term carried by no other document is
+ * maximally distinguishing AND useless as a query: it scores zero against every candidate BY
+ * CONSTRUCTION, so it cannot change a ranking, it can only occupy one of the `count` slots a term
+ * with reach would have used. {@link relatedArtifacts} asks for the reachable set because it is
+ * seeding a search for OTHER artifacts; a caller asking "what is this artifact ABOUT" wants the
+ * unfiltered answer and gets it by default.
+ *
+ * The distinction only started to bite when ADR-0464 D3 put each artifact's own id in the index:
+ * `adr-0037` and `0037` are then the two highest-scoring terms on that decision and are carried by
+ * nothing else in the corpus, so an unfiltered seed spent its best slots on words that could not
+ * match — measured as a real neighbour dropping out of the ranking entirely.
  */
-export function salientTerms(index: SearchIndex, id: string, count: number): string[] {
+export function salientTerms(
+  index: SearchIndex,
+  id: string,
+  count: number,
+  opts: { readonly reachableOnly?: boolean } = {},
+): string[] {
   const entry = index.docs.find((d) => d.doc.id === id);
   if (entry === undefined) return [];
   const total = index.docs.length;
   const scored: Array<{ term: string; weight: number }> = [];
   for (const [term, f] of entry.tf) {
     const df = index.documentFrequency.get(term) ?? 0;
-    // A term carried by EVERY document distinguishes nothing; idf handles that by measurement, and
-    // a term unique to this document is kept — it is often the id of the thing itself.
+    // A term carried by EVERY document distinguishes nothing, and idf handles that by measurement.
+    // A term carried by NO OTHER document reaches nothing, and only the count can say so.
+    if (opts.reachableOnly === true && df <= 1) continue;
     scored.push({ term, weight: f * idf(df, total) });
   }
   scored.sort((a, b) => b.weight - a.weight || a.term.localeCompare(b.term));
@@ -499,13 +707,20 @@ export function relatedArtifacts(
   sourceId: string,
   opts: RelatedOptions = {},
 ): RelatedResult {
-  const terms = salientTerms(index, sourceId, opts.termCount ?? DEFAULT_TERM_COUNT);
+  // `reachableOnly`: this is a query for OTHER artifacts, so a term nothing else carries would spend
+  // a slot and match nobody. See {@link salientTerms}.
+  const terms = salientTerms(index, sourceId, opts.termCount ?? DEFAULT_TERM_COUNT, {
+    reachableOnly: true,
+  });
   const links = linkedNeighbours(docs, sourceId);
-  const pool = index.docs.filter(
-    (d) => d.doc.id !== sourceId && (opts.kind === undefined || d.doc.kind === opts.kind),
-  );
+  // The SAME tier rule the free-text search obeys (ADR-0464 D3). Before it, asking for the
+  // neighbours of `never-bypass-the-gate` returned work-log entries matched on words like
+  // "invariants" — the unlinked-neighbour verb answering with the tier that authors no edges at all,
+  // so "nothing links these" was trivially true of every row it surfaced.
+  const { pool: kindPool, withheld } = rankedPool(index.docs, opts);
+  const pool = kindPool.filter((d) => d.doc.id !== sourceId);
   if (terms.length === 0) {
-    return { sourceId, terms, scanned: pool.length, linkedCount: 0, hits: [] };
+    return { sourceId, terms, scanned: pool.length, withheld, linkedCount: 0, hits: [] };
   }
 
   const scored: RelatedHit[] = [];
@@ -535,6 +750,7 @@ export function relatedArtifacts(
     sourceId,
     terms,
     scanned: pool.length,
+    withheld,
     linkedCount,
     hits: shown.slice(0, opts.limit ?? DEFAULT_LIMIT),
   };
