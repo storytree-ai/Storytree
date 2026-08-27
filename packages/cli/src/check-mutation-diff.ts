@@ -9,6 +9,9 @@
 //   1  at least one was not — or the run could not be trusted
 //   3  SKIP: this branch changes no mutable source, so there is nothing to mutate. A declared,
 //      opt-in skip, never inferred — the runner prints it as SKIP and the gate reads GREEN, NARROWED.
+//      LOCAL ONLY. `.github/workflows/ci.yml` runs this as an ordinary step where any non-zero code
+//      is a hard failure, so in CI that same state prints `NOTHING TO MUTATE` and exits 0 — the fact
+//      is stated either way and only the code differs. See `skipDisposition` for why.
 //
 // WHY THE SCOPE CLASSIFIER IS IMPORTED RATHER THAN RE-DERIVED. `diff-scoped-mutation-rung` makes this
 // a ship condition: `ci-affected.ts` already owns "what does this branch affect", it is the SAME
@@ -22,6 +25,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { discoverWorkspaceProjects } from "./ci-affected.js";
+import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
 import {
   adjudicateMutants,
   type ChangedRanges,
@@ -31,8 +35,10 @@ import {
   type MutationReport,
   type MutationTarget,
   parseUnifiedDiffRanges,
+  runsUnderBun,
   selectMutationTargets,
   siblingTestFor,
+  skipDisposition,
 } from "./mutation-diff.js";
 import {
   type BaseRefChoice,
@@ -43,20 +49,41 @@ import {
 const TAG = "[mutation-diff]";
 const repoRoot = path.resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 
-/** Exit code the gate reads as "this step ran and had nothing to check" (`gate-order.ts`). */
-const EXIT_SKIP = 3;
-
 const CONFIG_FILE = "stryker.mutation-diff.conf.mjs";
 const REPORT_FILE = "reports/mutation-diff.json";
 
+const GIT_MAX_BUFFER = 64 * 1024 * 1024;
+
 function git(args: string[]): string {
-  return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
+  return execFileSync("git", args, { cwd: repoRoot, encoding: "utf8", maxBuffer: GIT_MAX_BUFFER });
 }
 
-/** `git` that reports "did not resolve" as `null` instead of throwing — for the probe-shaped calls. */
+/**
+ * `git` that reports "did not resolve" as `null` instead of throwing — for the probe-shaped calls.
+ *
+ * ITS STDERR IS DISCARDED, and that is the difference from {@link git} above rather than an
+ * oversight. A probe asks a question whose "no" is a NORMAL ANSWER: `merge-base origin/main HEAD`
+ * on a CI checkout is EXPECTED to fail, because `fetch-depth: 2` fetches no `origin/main` — that
+ * is the whole reason {@link chooseBaseRef} exists. git writes `fatal: Not a valid object name
+ * origin/main` to stderr anyway, and with stderr inherited that line lands in the CI log of every
+ * PR, on the HEALTHY path, immediately above a PASS. Measured on PR #1668's own run, the first
+ * time this rung ran in CI. A red `fatal:` printed by a step that then succeeds is worse than
+ * noise: it invites a session to diagnose a break that is not there, and it teaches everyone to
+ * read past `fatal:` lines that sometimes DO matter.
+ *
+ * `check-ownership-totality.ts`'s `git()` silences its probe for exactly this reason and has since
+ * it was written; this rung reuses that check's `chooseBaseRef` and simply failed to copy the
+ * stdio with it. {@link git} keeps stderr INHERITED on purpose — its callers ask questions whose
+ * failure is a genuine fault worth seeing.
+ */
 function gitOrNull(args: string[]): string | null {
   try {
-    const out = git(args).trim();
+    const out = execFileSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      maxBuffer: GIT_MAX_BUFFER,
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
     return out === "" ? null : out;
   } catch {
     return null;
@@ -173,6 +200,18 @@ function testFilesFor(
   return [...files].sort();
 }
 
+/** A workspace project's own `test` script, or `undefined` when it declares none. */
+function testScriptOf(dir: string): string | undefined {
+  try {
+    const manifest = JSON.parse(
+      readFileSync(path.join(repoRoot, dir, "package.json"), "utf8"),
+    ) as { scripts?: Record<string, string> };
+    return manifest.scripts?.test;
+  } catch {
+    return undefined;
+  }
+}
+
 function main(): void {
   const base = resolveBaseRef();
   console.log(`${TAG} base: ${base.because}`);
@@ -186,9 +225,26 @@ function main(): void {
       scripts?: Record<string, string>;
     }
   ).scripts;
+  // NARROW TO WHAT THE BUN RUNNER CAN ACTUALLY EXECUTE, and say what that leaves out.
+  // A `vitest run` project's suite needs a DOM environment this runner does not provide, so handing
+  // Stryker one kills the dry run before a single mutant is tested — see {@link runsUnderBun}.
+  const allProjects = discoverWorkspaceProjects(repoRoot);
+  const projects = allProjects.filter((p) => runsUnderBun(testScriptOf(p.dir)));
+  const outOfReach = allProjects.filter((p) => !runsUnderBun(testScriptOf(p.dir)));
+  const touchedOutOfReach = outOfReach.filter((p) =>
+    ranges.some((r) => r.file.split("\\").join("/").startsWith(`${p.dir}/`)),
+  );
+  for (const p of touchedOutOfReach) {
+    console.log(
+      `${TAG} NARROWED: ${p.dir} is out of this rung's reach — its own test script is ` +
+        `\`${(testScriptOf(p.dir) ?? "(none)").trim()}\`, and Stryker's bun runner cannot execute it. ` +
+        "This branch's changes there are neither mutated nor used as covering tests.",
+    );
+  }
+
   const selection = selectMutationTargets({
     changed: ranges,
-    projects: discoverWorkspaceProjects(repoRoot),
+    projects,
     existingFiles,
     exemptFiles: new Set(entryPointsFromScripts(rootScripts ?? {})),
   });
@@ -200,8 +256,15 @@ function main(): void {
   }
 
   if (selection.targets.length === 0) {
-    console.log(`${TAG} SKIP — ${selection.skipReason ?? "nothing to mutate"}`);
-    process.exit(EXIT_SKIP);
+    // The commonest outcome this rung has, and the one CI cannot inherit the code for — a corpus,
+    // docs or config landing changes no mutable TypeScript. `skipDisposition` owns the fork.
+    const skip = skipDisposition({
+      inCi: process.env["CI"] === "true",
+      gateSkipExitCode: GATE_SKIP_EXIT_CODE,
+    });
+    console.log(`${TAG} ${skip.label} — ${selection.skipReason ?? "nothing to mutate"}`);
+    if (skip.exitCode !== 0) process.exit(skip.exitCode);
+    return;
   }
 
   if (selection.changedTestFiles.length === 0) {

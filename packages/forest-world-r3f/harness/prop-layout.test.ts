@@ -349,8 +349,15 @@ test("every parcel yields a loop, and its centroid sits inside its OWN parcel's 
   }
   // The two pinched capabilities, named so the case stays covered if the fixture is ever
   // reshaped and they stop being the pinched ones.
-  assert.equal(parcelLoop(CELLS, 'cap-1').length, 30);
-  assert.equal(parcelLoop(CELLS, 'cap-5').length, 20);
+  //
+  // The counts moved from 30 / 20 when the substrate stopped interning vertices in SCREEN space
+  // (`substrate-interning-moves-to-ground-space`): the mesh is now built on the ground and projected
+  // once, so its jitter is seeded off ground coordinates rather than projected ones and the interior
+  // vertices sit where the pre-camera mesh put them. A pinched parcel's outline follows those
+  // vertices, so its point count follows too. Nothing structural moved -- the enclosed area still
+  // matches the parcel's cells exactly (asserted above), and both are still pinched.
+  assert.equal(parcelLoop(CELLS, 'cap-1').length, 28);
+  assert.equal(parcelLoop(CELLS, 'cap-5').length, 18);
 });
 
 test('parcelLoop refuses a parcel that does not exist', () => {

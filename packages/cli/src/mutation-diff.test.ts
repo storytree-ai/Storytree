@@ -10,8 +10,10 @@ import {
   type MutationTarget,
   parseUnifiedDiffRanges,
   type ProjectDir,
+  runsUnderBun,
   selectMutationTargets,
   siblingTestFor,
+  skipDisposition,
 } from "./mutation-diff.js";
 
 const PROJECTS: ProjectDir[] = [
@@ -1111,4 +1113,103 @@ test("mutation-diff: a location with no start reads as an unknown line, not a cr
     [],
   );
   assert.equal(verdict.mutants[0]?.line, null);
+});
+
+// ── skipDisposition ─────────────────────────────────────────────────────────
+//
+// The rung's SKIP is the commonest outcome it has (a corpus, docs or config landing changes no
+// mutable TypeScript), and the two runners that read it disagree about what a non-zero code means.
+// `gate-run.ts` reads 3 as a declared SKIP and prints GATE GREEN, NARROWED; `.github/workflows/ci.yml`
+// runs the same script as a plain step where ANY non-zero code is a hard failure. So the fact is
+// stated either way and only the code differs — see `gate-skip-exit-3-is-local-only` in
+// `check-web-experience-closure.ts`, whose bootstrap branch established this shape.
+
+test("mutation-diff: locally a skip DECLARES itself with the gate's skip code", () => {
+  assert.deepEqual(skipDisposition({ inCi: false, gateSkipExitCode: 3 }), {
+    exitCode: 3,
+    label: "SKIP",
+  });
+});
+
+test("mutation-diff: in CI a skip exits 0 — a declared 3 there is read as a hard failure", () => {
+  assert.deepEqual(skipDisposition({ inCi: true, gateSkipExitCode: 3 }), {
+    exitCode: 0,
+    label: "NOTHING TO MUTATE",
+  });
+});
+
+test("mutation-diff: the skip code is the caller's, never re-declared here", () => {
+  assert.equal(skipDisposition({ inCi: false, gateSkipExitCode: 7 }).exitCode, 7);
+  // CI's zero is NOT the caller's code — it is the one branch that must not carry it.
+  assert.equal(skipDisposition({ inCi: true, gateSkipExitCode: 7 }).exitCode, 0);
+});
+
+test("mutation-diff: the two dispositions never share a label — the runners must be told apart", () => {
+  const local = skipDisposition({ inCi: false, gateSkipExitCode: 3 });
+  const ci = skipDisposition({ inCi: true, gateSkipExitCode: 3 });
+  assert.notEqual(local.label, ci.label);
+  assert.notEqual(local.exitCode, ci.exitCode);
+});
+
+// ── runsUnderBun ─────────────────────────────────────────────────────────────
+//
+// The rung runs Stryker's bun test runner. A project whose own suite is `vitest run` needs a DOM
+// environment the bun runner does not provide, so handing Stryker one kills the DRY RUN before a
+// single mutant is tested — measured on the first branch to touch a `packages/forest-world` source
+// file and an `apps/studio` snapshot in the same diff. These pin the discrimination, including the
+// two shapes the real repo actually carries.
+
+test("runsUnderBun: a plain bun suite is runnable", () => {
+  assert.equal(runsUnderBun("bun test --timeout 300000 src/"), true);
+});
+
+test("runsUnderBun: a bun suite behind a chained prelude is still runnable", () => {
+  // packages/cli's real script — a tsx guard, then the bun suite.
+  assert.equal(
+    runsUnderBun(
+      "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/validate-corpus.ts && bun test --preload ../../scripts/tsx-cache-off.mjs --timeout 300000 src/",
+    ),
+    true,
+  );
+});
+
+test("runsUnderBun: vitest is NOT runnable — this is the case that killed the dry run", () => {
+  assert.equal(runsUnderBun("vitest run"), false);
+});
+
+test("runsUnderBun: a project with no test script is not runnable", () => {
+  assert.equal(runsUnderBun(undefined), false);
+});
+
+test("runsUnderBun: a script that merely MENTIONS bun does not count as running bun test", () => {
+  // The failure this guards is the opposite of the one above and just as quiet: matching too widely
+  // would readmit exactly the projects the narrowing exists to exclude.
+  assert.equal(runsUnderBun("echo use bun to run these && vitest run"), false);
+  assert.equal(runsUnderBun("bunx vitest run"), false);
+  assert.equal(runsUnderBun("vitest run --reporter=bun-tests"), false);
+});
+
+test("runsUnderBun: the boundary before `bun` is load-bearing, not decoration", () => {
+  // A pattern that dropped the leading boundary would match any script whose text merely CONTAINS
+  // the letters — and readmit the projects this narrowing exists to exclude.
+  assert.equal(runsUnderBun("rebun test src/"), false);
+  assert.equal(runsUnderBun("prebun  test"), false);
+  assert.equal(runsUnderBun("pnpm exec bun test src/"), true);
+  assert.equal(runsUnderBun("build.sh;bun test"), true);
+});
+
+test("runsUnderBun: the separator between `bun` and `test` must be whitespace", () => {
+  assert.equal(runsUnderBun("bun test"), true);
+  assert.equal(runsUnderBun("bun  test src/"), true);
+  assert.equal(runsUnderBun("buntest src/"), false);
+  assert.equal(runsUnderBun("bun-test src/"), false);
+});
+
+test("runsUnderBun: `bun test` must END a word — `bun tests` is a different command", () => {
+  assert.equal(runsUnderBun("bun testing-helper.ts"), false);
+  assert.equal(runsUnderBun("bun tests/"), false);
+});
+
+test("runsUnderBun: an empty script is not runnable", () => {
+  assert.equal(runsUnderBun(""), false);
 });

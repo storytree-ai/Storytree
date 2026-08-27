@@ -344,12 +344,13 @@ kind owes a seed export any more.
   long `&&` chain, so the first red aborted it and every later step was left UNRUN and reported as
   *nothing at all* — which cost ~25 min of hand re-runs per hit and once hid a genuine RED behind an
   unrelated flake. It is now a runner over a declared plan
-  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes the **twelve** declared steps — the
-  nine evidence-backed ones retained by ADR-0311, plus `check:web-experience-closure` (ADR-0336),
-  `check:web-experience-markers` (ADR-0454, narrowing ADR-0336 D2) and `check:mutation-diff`
-  (ADR-0458, the diff-scoped mutation rung) — and prints a per-step
-  **PASS / FAIL / SKIP / NOT RUN** table. (The plan carried
-  25 steps before ADR-0302 and ADR-0311 retired sixteen; the plan remains the count's source of truth.)
+  (`packages/cli/src/gate-order.ts` → `gate-run.ts`) that executes every declared step and prints a
+  per-step **PASS / FAIL / SKIP / NOT RUN** table. **ASK THE PLAN FOR THE COUNT, never this file** —
+  it is `packages/cli/src/gate-order.ts`, and the runner prints the number in every `[n/N]` row. A
+  count hand-copied here goes stale silently and in the direction that reads as reassurance: this
+  sentence said **twelve** on 2026-08-27 while the plan held **eighteen**, six steps having been
+  added since anyone re-counted. (For scale, the plan carried 25 before ADR-0302 and ADR-0311
+  retired sixteen.)
   **A step running past two minutes now prints one liveness line a minute (ADR-0376), and it is the
   only honest answer to "is this wedged or just slow?"** — `PROGRESSING` (its process tree burned CPU,
   or changed shape), `NO CPU PROGRESS`, or `LIVENESS UNKNOWN`. Read it precisely: elapsed silence
@@ -376,8 +377,15 @@ kind owes a seed export any more.
   GREEN, NARROWED with those named, and that is the honest reading, not a defect.
   `check:web-engine` was the last to adopt the vocabulary; until then it returned 0 on the same state
   and was recorded as a PASS that had compared nothing. **The skip code is LOCAL**: CI runs these as
-  ordinary steps where any non-zero code is a failure, so the two bootstrap branches that can fire
-  there say `NOTHING TO COMPARE` and exit 0 rather than emitting a 3 the runner would read as red.
+  ordinary steps where any non-zero code is a failure, so every branch that can fire THERE withholds
+  the code and never the fact — it prints what it did not do and exits 0. THREE can: the two web
+  bootstrap branches (`NOTHING TO COMPARE` / `NOTHING TO CHECK`), and — since `check:mutation-diff`
+  was wired into `ci.yml` (ADR-0458 / `mutation-rung-in-ci`) — its skip, `NOTHING TO MUTATE`. That
+  third one is the OPPOSITE of a bootstrap allowance: it is the everyday case, firing on every
+  corpus, docs or config landing, so a CI step that inherited the 3 would have redded most PRs in
+  this repo. The fork is `skipDisposition` in `packages/cli/src/mutation-diff.ts`, and it is not
+  `continue-on-error` on purpose — that flag swallows REAL reds too, and the point of the step is
+  that the rung finally blocks a merge.
   A skip does **not** red the gate, but the
   summary says **GATE GREEN, NARROWED** and names every skipped step, so green-with-skips can no
   longer read as unqualified green. Any step failing still exits non-zero, so the `.exit` sentinel

@@ -553,16 +553,21 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       expect(section).toBeTruthy();
       expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('50');
       expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
-      // 50 cells over 9 connected waves. The counts moved from 52 / `1,4,8,13,13,9,4` when
-      // `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out` halved RANK_GAP/ISLAND_GAP/
-      // RANK_SWING — this fixture's two-story world (buildWorld([demoStory, COMPANION_STORY], …))
-      // seeds at a different row/column offset under the new spacing, and the relaxed mesh interns
-      // vertices at 0.1 px in SCREEN space (as the prior two moves already established), so a
-      // shifted seed re-decides which vertices coincide and the cell decomposition shifts with it.
-      // The reveal STRUCTURE is unchanged — still one connected adjacency wave per ring, still
-      // monotone-then-tapering (1,4,7,9,10, then 8,5,4,2) — and the shift is caught here loudly
-      // rather than silently, which is what this assertion is for.
-      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,9,10,8,5,4,2');
+      // 50 cells over 8 connected waves. The counts have moved twice before — from 52 /
+      // `1,4,8,13,13,9,4` when `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`
+      // halved RANK_GAP/ISLAND_GAP/RANK_SWING and this fixture's two-story world seeded at a
+      // different row/column offset, and then to `1,4,7,9,10,8,5,4,2`.
+      //
+      // THIS move has a different cause and it closes the one the note above was describing. The
+      // relaxed mesh no longer interns vertices at 0.1 px in SCREEN space
+      // (`substrate-interning-moves-to-ground-space`): it is built on the ground and projected once,
+      // so its jitter is seeded off ground coordinates and the interior vertices sit where the
+      // pre-camera mesh put them. Adjacency follows the vertices, so the wave partition follows too.
+      // What is NOT allowed to move is asserted separately above and still holds — 50 cells, one
+      // connected adjacency wave per ring. The wave shape is still a rise and a taper, now peaking
+      // later (1,4,6,6,8,11 then 10,4). The shift is caught here loudly rather than silently, which
+      // is what this assertion is for.
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,6,6,8,11,10,4');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();
       for (const term of [
