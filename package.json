@@ -17,6 +17,7 @@
     "check:boundaries": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-boundaries.ts",
     "check:ownership-totality": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-ownership-totality.ts",
     "check:mirror-conformance": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-mirror-conformance.ts",
+    "check:mutation-diff": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-mutation-diff.ts",
     "build:guidance": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/build-claude-md.ts",
     "check:guidance": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/build-claude-md.ts --check",
     "build:claude": "pnpm build:guidance",
