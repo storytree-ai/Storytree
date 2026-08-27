@@ -25,6 +25,7 @@ import {
   type ShadowTexture,
 } from './banded-material.js';
 import { buildContactField, mergeOcclusion } from './contact-shade.js';
+import { coverTokenFor, type GroundCover } from './ground-cover.js';
 import { variantAt } from './ground-variation.js';
 import { buildShadowField, type ShadowCaster, type ShadowField } from './land-shadow.js';
 import {
@@ -202,6 +203,23 @@ export interface IslandViewProps {
    * lands — which is why the grain comparison has a page of its own.
    */
   grain?: GrainOptions;
+  /**
+   * WEAR A SCENERY GROUND COVER instead of the status family's own ground token
+   * (`ground-cover.ts`) — a wheat field, a yellow-grass meadow.
+   *
+   * Absent means the island as every panel before this one drew it: each cell wears its
+   * capability's status colour, and the fixture's own per-cell wheat scatter (empty in this
+   * fixture) is the only override in play.
+   *
+   * ⚠ A COVER SUPPRESSES THE LAND'S STATUS REPORT, WHICH IS THE POINT AND ALSO THE HAZARD. The
+   * land's colour is a capability's status (ADR-0392 D5 / ADR-0398 D7), so a covered cell reports
+   * no capability state at all. The project already accepts exactly that for `wheat`, which
+   * `palette-band.ts` declares family-less on purpose — a worked precedent, not a new licence.
+   * Whether it should is the owner's open question
+   * (`oq-how-does-the-map-report-a-capability-s-state-once-the-gro`), and this harness island
+   * represents nothing (ADR-0406 D1), so nothing here decides it.
+   */
+  cover?: GroundCover;
   /** A stable NAME for this canvas, stamped onto the element as `data-st-tag`.
    *
    *  It exists so the capture can find a specific panel by name rather than by position.
@@ -348,6 +366,7 @@ function groundMeshes(
   ground: GroundVariation,
   wallDepth: number,
   grain: GrainOptions | undefined,
+  cover: GroundCover | undefined,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
   const bevel = land === 'bevel' || land === 'full';
@@ -583,7 +602,11 @@ function groundMeshes(
     // field and knows nothing about tokens, which is what keeps it node-provable.
     const variantIndex = Number(variant ?? '0');
     const groundToken = variantIndex === 3 ? fam.side : (fam.top[variantIndex] ?? fam.top[0]!);
-    const token = wheat ? fam.wheat : groundToken;
+    // A SCENERY COVER OUTRANKS BOTH — it is the whole ground, not a scatter within it, which is
+    // what makes a comparison between two covers differ in exactly one thing. The fixture's own
+    // per-cell `wheat` scatter (`substrate.ts` keeps ~72% of a wheat hex's cells) survives
+    // underneath and still applies when no cover is asked for.
+    const token = cover ? coverTokenFor(cover, status!) : wheat ? fam.wheat : groundToken;
     // Unshadowed ⇒ `shadow` stays ABSENT, which is what keeps the ramp at the four authored
     // rungs (`createBandedMaterial` branches on `opts.shadow !== undefined`).
     const groundMaterial: BandedMaterialOptions = { token, doubleSided: false };
@@ -610,7 +633,7 @@ function groundMeshes(
       //
       // ⚠ The RIM only. The wall is emitted at `role === 'rim'` and nowhere else, so a
       // capability boundary is untouched by this and stays a fold in one colour.
-      const wallToken = wheat ? fam.wheat : fam.side;
+      const wallToken = cover ? coverTokenFor(cover, status!) : wheat ? fam.wheat : fam.side;
       const wallMaterial: BandedMaterialOptions = { token: wallToken, doubleSided: false };
       if (shadow) wallMaterial.shadow = shadow;
       meshes.push(new THREE.Mesh(wallGeom, createBandedMaterial(wallMaterial)));
@@ -931,6 +954,7 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     props.ground ?? 'single',
     props.wallDepth ?? CELL_DEPTH,
     props.grain,
+    props.cover,
   )) {
     scene3.add(m);
   }
@@ -1045,6 +1069,7 @@ export function IslandPanel({
     props.dressing,
     props.plantFraction,
     props.grain,
+    props.cover,
   ]);
   return (
     <figure className="panel">

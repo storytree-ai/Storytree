@@ -64,6 +64,11 @@ const EXPERIMENT = [
   // above: adoption is a separate event (ADR-0380 D6 / ADR-0406 D2).
   'land-grain.ts',
   'pixel-metrics.ts',
+  // The scenery ground covers and the separation instrument that authorises one. It belongs out
+  // here for a second reason on top of the usual one: it deliberately keeps its own palette
+  // widening rather than growing `landTokens()`, so the shipped fence on the audited pages does
+  // not move — a property that only holds while the module stays outside the synced tree.
+  'ground-cover.ts',
   // The frame-budget rung — the pure half of the hardware floor's first refusal. It belongs out
   // here with the rest for the same reason: adoption is a separate event, and nothing about the
   // experiment publishes.
