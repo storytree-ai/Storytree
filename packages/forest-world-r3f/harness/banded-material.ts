@@ -29,6 +29,7 @@ import {
   grainGlsl,
   grainStops,
 } from './land-grain.js';
+import { terrainWarpGlsl, type Terrain } from './terrain-vocabulary.js';
 import type { ShadowField } from './land-shadow.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, parseHex, tokenRamp } from './palette-band.js';
 import {
@@ -91,6 +92,8 @@ export interface GrainOptions {
   colourMix?: number;
 }
 
+/** How a terrain reaches the shader. A `Terrain` from `terrain-vocabulary.ts` — kept as an
+ *  import type so this module carries none of the vocabulary's own constants. */
 export interface BandedMaterialOptions {
   /** The authored token this material's surfaces wear, `#rrggbb`. */
   token: string;
@@ -104,6 +107,21 @@ export interface BandedMaterialOptions {
    *  byte-identical to the one this file emitted before the grain existed — the same argument
    *  `shadow` makes above, and `banded-material.test.ts` asserts it rather than claiming it. */
   grain?: GrainOptions;
+  /**
+   * WEAR A NAMED TERRAIN (ADR-0461 D1) — a rotation and a non-uniform squeeze applied to the
+   * grain's sample space, so one proven field delivers rows, furrows, pools or stony fines
+   * according to which state the land is carrying.
+   *
+   * ⚠ IT ONLY DOES ANYTHING WHERE THE GRAIN IS ALREADY ON. The terrain warps the grain's
+   * sample coordinate; with no grain there is nothing to warp, and asking for one is a
+   * no-op rather than an error — `terrainWithoutGrainIsInert` states that about the source.
+   *
+   * ⚠ ABSENT MEANS THE SHADER SOURCE IS BYTE-IDENTICAL to the one this file emitted before
+   * terrains existed. Same argument as the grain's, same reason: a panel that predates the
+   * vocabulary must deliver the pixels it always delivered, or every comparison against an
+   * earlier pass silently becomes a comparison of two different renderers.
+   */
+  terrain?: Terrain;
 }
 
 /** The shadow field, uploaded. Built by `shadowFieldTexture` so the rect and the texture can
@@ -192,6 +210,14 @@ export function createBandedMaterial(opts: BandedMaterialOptions): THREE.ShaderM
   const grainNormal = opts.grain?.mode === 'normal' || opts.grain?.mode === 'both';
   const grainColour = opts.grain?.mode === 'colour' || opts.grain?.mode === 'both';
   const grained = grainNormal || grainColour;
+  // The terrain warps the grain's SAMPLE COORDINATE. With no grain there is nothing to warp,
+  // so a terrain asked for on an ungrained material emits nothing at all — inert, not an error.
+  const terrain = grained ? opts.terrain : undefined;
+  // ⚠ ONE EXPRESSION, USED AT EVERY GRAIN SAMPLE SITE. The grain is sampled in two places (the
+  // normal half's gradient and the colour half's ramp) and a terrain that reached only one of
+  // them would deliver a directional bump under an undirected mottle — a picture that looks
+  // like a bug in the art rather than in the wiring.
+  const grainSample = terrain ? 'st_terrainWarp(vWorld.xz)' : 'vWorld.xz';
   const [grainDark, grainLight] = grainStops();
   const glslVec3 = (c: { r: number; g: number; b: number }): string =>
     `vec3(${(c.r / 255).toFixed(6)}, ${(c.g / 255).toFixed(6)}, ${(c.b / 255).toFixed(6)})`;
@@ -242,7 +268,7 @@ export function createBandedMaterial(opts: BandedMaterialOptions): THREE.ShaderM
     `,
     fragmentShader: `
       ${bandGlsl()}
-${grained ? `\n      ${grainGlsl().split('\n').join('\n      ')}\n` : ''}
+${grained ? `\n      ${grainGlsl().split('\n').join('\n      ')}\n` : ''}${terrain ? `\n      ${terrainWarpGlsl(terrain).split('\n').join('\n      ')}\n` : ''}
       uniform vec3 uRamp[${levels.length}];
       uniform vec3 uLightDir;
       ${shadowed ? 'uniform sampler2D uShadowTex;\n      uniform vec4 uShadowRect;' : ''}
@@ -265,7 +291,7 @@ ${
         // and it is also this half's ceiling: on a four-rung ladder the delivered grain is a
         // stipple between two authored colours, not the continuous micro-variation Cycles
         // delivers. See land-grain.ts.
-        vec2 gradient = st_grainGradient(vWorld.xz);
+        vec2 gradient = st_grainGradient(${grainSample});
         n = normalize(n - uGrainNormalStrength * vec3(gradient.x, 0.0, gradient.y));
 `
     : ''
@@ -306,7 +332,7 @@ ${
         // shading on harness/; the INSTRUMENT has not caught up, which is what
         // replace-the-palette-closure-check exists to fix. It is built so the crossing can be
         // measured against the treatment as approved, not so it can be adopted today.
-        vec3 grainCol = mix(${glslVec3(grainDark)}, ${glslVec3(grainLight)}, st_grainRamped(vWorld.xz));
+        vec3 grainCol = mix(${glslVec3(grainDark)}, ${glslVec3(grainLight)}, st_grainRamped(${grainSample}));
         vec3 outColour = mix(c, grainCol, uGrainColourMix);
         gl_FragColor = vec4(outColour, 1.0);`
     : '        gl_FragColor = vec4(c, 1.0);'
