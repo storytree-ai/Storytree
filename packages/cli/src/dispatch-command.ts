@@ -26,6 +26,14 @@ import {
   waitForDispatchHandle,
   type WaitIo,
 } from "./dispatch-wait.js";
+import {
+  UNREACHABLE_EXIT,
+  VANISHED_EXIT,
+  createRemoteWaitIo,
+  remoteTarget,
+  sshProbe,
+  type RemoteWaitIo,
+} from "./dispatch-remote.js";
 import type { Envelope } from "./envelope.js";
 
 const realIo: HandleIo = {
@@ -49,6 +57,8 @@ export function dispatchHelp(): Envelope {
       "",
       "  --wait               block until the job settles, then exit with THE JOB'S own status",
       `  --timeout <seconds>  bound the wait (default ${String(DEFAULT_TIMEOUT_MS / 1000)}s, ceiling 540s)`,
+      "  --host <target>      wait on a run on ANOTHER HOST over ssh (an ssh alias, or user@host)",
+      "  --pid-file <path>    the REMOTE file holding that run's process-GROUP id (from `setsid`)",
       "",
       "Dispatch a job (any command, not just the gate) with:",
       "  GATE_BG_LOG=<path> pnpm gate:bg <command…>",
@@ -70,8 +80,34 @@ export function dispatchHelp(): Envelope {
       "grep the log for GATE GREEN / GATE RED, which appear inside TEST NAMES and so read a verdict",
       "the gate never gave. It exits with the job's own code (the gate's 3=SKIP and 4=PARTIAL survive),",
       `and with ${String(UNVERIFIED_EXIT)} — a code the gate never returns — if the bound expires first.`,
+      "",
+      "--host arms the same wait on a run on ANOTHER machine, so a session that dispatched work",
+      "there is NOTIFIED when it lands instead of polling for it. One ssh round trip per poll reads",
+      "the remote sentinel, the remote log and the remote process GROUP:",
+      "",
+      "  storytree dispatch /tmp/<slot>.jsonl --wait --host mint --pid-file /tmp/<slot>.pid",
+      "",
+      "Each way it can fail to know carries its OWN status, and none of them reads as finished:",
+      `  ${String(UNREACHABLE_EXIT)}  the host could not be reached — NOTHING about the run was observed`,
+      `  ${String(VANISHED_EXIT)}  the remote process group is gone and wrote no sentinel — killed or crashed`,
+      `  ${String(UNVERIFIED_EXIT)}  this watcher's own bound expired — the run may well still be going`,
+      "",
+      "Without --pid-file the process group cannot be probed, so a dead remote run cannot be told",
+      `from a slow one and the wait expires as ${String(UNVERIFIED_EXIT)} instead. That is deliberate: no way to look`,
+      "is not evidence of death.",
+      "",
+      "⚠ ON WINDOWS, CALL IT FROM POWERSHELL, NOT GIT BASH. MSYS rewrites a POSIX-looking argument",
+      "into a Windows path before it ever reaches this command, so `/tmp/run.log` arrives as",
+      "`C:/Users/…/Temp/run.log` and every probe of the real host looks for a file that is not there.",
+      "The wait then honestly reports UNVERIFIED rather than guessing — but it waits out its whole",
+      "bound first. The printed `log:` line shows the path actually used; read it if a wait surprises",
+      "you. (`MSYS_NO_PATHCONV=1` also works.)",
     ].join("\n"),
-    next: ["storytree dispatch <handle>", "storytree dispatch <handle> --wait"],
+    next: [
+      "storytree dispatch <handle>",
+      "storytree dispatch <handle> --wait",
+      "storytree dispatch <handle> --wait --host <host> --pid-file <remote-pid-file>",
+    ],
   };
 }
 
@@ -82,9 +118,17 @@ export function dispatchHelp(): Envelope {
  * supplies the real clock, the real sleep and the real filesystem, and formats the envelope. The
  * envelope carries `exitCode` because the status being reported is the JOB's and not this command's.
  */
+export interface DispatchWaitOptions {
+  /** `--host` — arm the wait against another machine over ssh instead of this filesystem. */
+  readonly host?: string;
+  /** `--pid-file` — the REMOTE path holding the dispatched run's process-GROUP id. */
+  readonly pidFile?: string;
+}
+
 export async function dispatchWaitCommand(
   args: readonly string[],
   timeoutRaw: string | undefined,
+  options: DispatchWaitOptions = {},
 ): Promise<Envelope> {
   const handle = args[0];
   if (handle === undefined || handle === "") {
@@ -102,19 +146,54 @@ export async function dispatchWaitCommand(
     return { ok: false, body: bound.error, next: ["storytree dispatch --help"] };
   }
 
-  const outcome = await waitForDispatchHandle(handle, realWaitIo, { timeoutMs: bound.ms });
-  const { reading } = outcome;
+  // The REMOTE arm is the same wait with a different observer — the loop, the bound and the exit
+  // mapping are untouched, which is what keeps one failure vocabulary rather than two.
+  const target =
+    options.host === undefined
+      ? null
+      : remoteTarget(options.host, handle, options.pidFile);
+  const remoteIo: RemoteWaitIo | null =
+    target === null
+      ? null
+      : createRemoteWaitIo(target, () => sshProbe(target), {
+          now: realWaitIo.now,
+          sleep: realWaitIo.sleep,
+        });
+
+  const outcome = await waitForDispatchHandle(handle, remoteIo ?? realWaitIo, {
+    timeoutMs: bound.ms,
+  });
+  const { reading, halt } = outcome;
   const exitCode = waitExitCode(outcome);
+  const settled = halt === undefined && isVerdict(reading) && !outcome.timedOut;
+  const where = target === null ? "" : `${target.host}:`;
   const lines = [
-    describeReading(reading),
+    halt === undefined ? describeReading(reading) : `UNVERIFIED — ${halt.summary}.`,
     `  waited    : ${describeWait(outcome)}`,
     "",
-    `  log       : ${reading.logPath}`,
-    `  exit-file : ${reading.exitFile}`,
-    `  exit code : ${String(exitCode)} — ${isVerdict(reading) && !outcome.timedOut ? "the JOB's own status" : "UNVERIFIED, not a verdict"}`,
+    ...(target === null ? [] : [`  host      : ${target.host}`]),
+    `  log       : ${where}${reading.logPath}`,
+    `  exit-file : ${where}${reading.exitFile}`,
+    ...(target?.pidFile === undefined ? [] : [`  pid-file  : ${where}${target.pidFile}`]),
+    `  exit code : ${String(exitCode)} — ${settled ? "the JOB's own status" : "UNVERIFIED, not a verdict"}`,
   ];
 
-  if (outcome.timedOut) {
+  if (remoteIo !== null) {
+    const snapshot = remoteIo.lastSnapshot();
+    // The log's mtime is REPORTED and never decided on: an mtime that has not moved does not prove
+    // the run is dead, exactly as the gate's own `NO CPU PROGRESS` line proves nothing on its own.
+    const mtime = snapshot?.logMtimeEpoch;
+    lines.push(
+      `  probes    : ${String(remoteIo.probeCount())} ssh round trips`,
+      `  remote    : group=${snapshot?.group ?? "unknown"} · log last written ${
+        mtime === undefined || mtime === null ? "(unknown)" : new Date(mtime * 1000).toISOString()
+      }`,
+    );
+  }
+
+  if (halt !== undefined) {
+    lines.push("", ...halt.detail);
+  } else if (outcome.timedOut) {
     lines.push(
       "",
       "The BOUND expired; the job did not. It is still running and nothing about it has been",
@@ -122,13 +201,20 @@ export async function dispatchWaitCommand(
     );
   }
 
+  const rearm =
+    target === null
+      ? `storytree dispatch ${reading.logPath} --wait`
+      : `storytree dispatch ${reading.logPath} --wait --host ${target.host}` +
+        (target.pidFile === undefined ? "" : ` --pid-file ${target.pidFile}`);
+
   return {
     ok: exitCode === 0,
     body: lines.join("\n"),
     exitCode,
-    next: outcome.timedOut
-      ? [`storytree dispatch ${reading.logPath} --wait`]
-      : [`cat ${reading.logPath}`],
+    next:
+      outcome.timedOut || halt !== undefined
+        ? [rearm]
+        : [target === null ? `cat ${reading.logPath}` : `ssh ${target.host} cat ${reading.logPath}`],
   };
 }
 

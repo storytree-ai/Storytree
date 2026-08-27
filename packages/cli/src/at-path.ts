@@ -208,6 +208,14 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   // blocks (ADR-0397 D4). A number the waiter parses and refuses if malformed; never stored into
   // an artifact, so it cannot corrupt a durable record.
   "timeout",
+  // `dispatch <handle> --wait --host <target> --pid-file <remote-path>` — the REMOTE arm
+  // (`dispatched-work-wakes-its-dispatcher-arc` inc 1). `--host` is an ssh destination, and
+  // `--pid-file` names a file on THE OTHER MACHINE — so `@path` expansion would be worse than
+  // merely unhelpful here: it would read THIS machine's filesystem and send the contents where a
+  // path was wanted. Literal is not just the safe default for these two, it is the only correct
+  // class. Neither is stored into an artifact.
+  "host",
+  "pid-file",
 ]);
 
 /** A `@path` value that could not be read — the refusal the boundary returns instead of storing it. */
