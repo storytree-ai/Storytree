@@ -106,3 +106,7 @@ Thumbs.db
 stryker.mutation-diff.conf.mjs
 .stryker-tmp*/
 reports/
+
+# capture.mjs's working output when it is pointed somewhere other than a research directory.
+# The EVIDENCE that is kept lives under docs/research/.
+.capture-scratch/
