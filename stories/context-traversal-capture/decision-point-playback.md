@@ -8,7 +8,7 @@ outcome: "A replay carrying a recorded offer renders that offer's every candidat
 status: proposed
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, artifact-offer-candidate-sets, offer-follow-edges]
-decisions: [235, 260]
+decisions: [235, 464]
 proof:
   command:
     file: pnpm
