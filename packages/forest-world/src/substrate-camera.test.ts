@@ -47,8 +47,15 @@ import {
   projectGround,
   unprojectGround,
 } from './camera.js';
-import type { Axial, Pt } from './hex.js';
-import { buildRelaxedCells, type DrawTile, type RelaxedCell, type SubstrateMode } from './substrate.js';
+import { HEX_R, type Axial, type Pt } from './hex.js';
+import { hash } from './rng.js';
+import {
+  MESH_TUNING,
+  buildRelaxedCells,
+  type DrawTile,
+  type RelaxedCell,
+  type SubstrateMode,
+} from './substrate.js';
 
 /** The declared camera plus a sweep either side, matching `camera.test.ts`'s range. */
 const SWEEP = [PLAN_VIEW_ELEVATION_DEG, 60, 45, 30, 26.565, LAND_CAMERA_ELEVATION_DEG, 12] as const;
@@ -198,4 +205,154 @@ test('TEETH (b) — the key the old rule used really was camera-dependent, and t
     'the screen key must merge these two — 0.1 ground units is 0.034 px at sin(20°)',
   );
   assert.notEqual(groundKey(a), groundKey(b), 'the ground key must keep them apart');
+});
+
+// ── WHAT A CAMERA SWEEP STRUCTURALLY CANNOT SEE ──────────────────────────────
+//
+// Everything above compares the mesh against ITSELF at another elevation, so it is blind by
+// construction to any change that is wrong at EVERY camera equally — a flipped jitter sign, a
+// mis-keyed cell, the wrong builder for a mode. The diff-scoped mutation rung named exactly that
+// gap on this branch (`check:mutation-diff`, ADR-0458): 14 mutants inside these changed lines
+// survived the sweep untouched. These are the assertions that close it. They are not decoration
+// added to satisfy a counter — each one states a property the sweep cannot state.
+
+test('each mode routes to its OWN builder — the three decompositions differ', () => {
+  // `buildRelaxedCells` dispatches on `mode`, and a sweep that builds each mode and compares it to
+  // itself passes with any dispatch at all, including one that returns the same builder for all
+  // three. The three paths produce very different cell densities over the same tiles, which is the
+  // property that makes the dispatch observable.
+  const counts = new Map(MODES.map((m) => [m, build(m, PLAN_VIEW_ELEVATION_DEG).length]));
+  const mesh = counts.get('mesh') as number;
+  const quad = counts.get('relaxed-quad') as number;
+  const hex = counts.get('relaxed-hex') as number;
+  assert.ok(hex > 0 && quad > 0 && mesh > 0, `a mode produced no cells: ${[...counts].join(', ')}`);
+  // relaxed-hex is one cell per tile; relaxed-quad fans each tile into 6; mesh subdivides further.
+  assert.equal(hex, TILES.length, 'relaxed-hex is one cell per claimed tile');
+  assert.ok(quad > hex, `relaxed-quad (${quad}) must be denser than relaxed-hex (${hex})`);
+  assert.ok(mesh > quad, `mesh (${mesh}) must be denser than relaxed-quad (${quad})`);
+});
+
+test('the jitter displaces interior vertices, isotropically and within its own budget', () => {
+  // `jitter: 0` is the control: with no displacement budget every vertex sits exactly where the
+  // lattice put it, so any movement in the default build is the jitter and nothing else.
+  const still = buildRelaxedCells(TILES, WHEAT, 'mesh', { jitter: 0, iters: 0, relax: 0 }, {
+    elevationDeg: PLAN_VIEW_ELEVATION_DEG,
+  });
+  const moved = buildRelaxedCells(TILES, WHEAT, 'mesh', { iters: 0, relax: 0 }, {
+    elevationDeg: PLAN_VIEW_ELEVATION_DEG,
+  });
+  assert.equal(moved.length, still.length, 'the jitter must not change the decomposition');
+
+  let maxDx = 0;
+  let maxDy = 0;
+  let anyMoved = false;
+  for (let i = 0; i < moved.length; i++) {
+    const a = moved[i] as RelaxedCell;
+    const b = still[i] as RelaxedCell;
+    for (let v = 0; v < a.poly.length; v++) {
+      const dx = Math.abs((a.poly[v] as Pt).x - (b.poly[v] as Pt).x);
+      const dy = Math.abs((a.poly[v] as Pt).y - (b.poly[v] as Pt).y);
+      if (dx > 1e-9 || dy > 1e-9) anyMoved = true;
+      maxDx = Math.max(maxDx, dx);
+      maxDy = Math.max(maxDy, dy);
+    }
+  }
+  assert.ok(anyMoved, 'the default tuning jittered nothing at all');
+
+  // The budget: `jitterMag = HEX_R * t.jitter`, and a displacement is `(cos·mag, sin·mag)`, so
+  // NEITHER axis may exceed it. A y term divided by the magnitude instead of multiplied by it
+  // collapses; one multiplied twice overshoots. Both are outside this bound.
+  const budget = HEX_R * (MESH_TUNING.jitter as number) + 1e-9;
+  assert.ok(maxDx <= budget, `x displacement ${maxDx.toFixed(3)} exceeds the budget ${budget.toFixed(3)}`);
+  assert.ok(maxDy <= budget, `y displacement ${maxDy.toFixed(3)} exceeds the budget ${budget.toFixed(3)}`);
+
+  // ISOTROPIC ON THE GROUND — the whole reason the explicit `sin` term could be deleted. The two
+  // axes must reach comparable extents; a y term carrying the camera's flattening would come in at
+  // ~34% of x, and one carrying it twice at ~12%.
+  assert.ok(
+    maxDy / maxDx > 0.75 && maxDy / maxDx < 1.34,
+    `the jitter is not isotropic on the ground: max dy/dx = ${(maxDy / maxDx).toFixed(3)}. ` +
+      'On the ground plane the displacement is a circle, not an ellipse — if this is ~0.34 the ' +
+      "camera's flattening has leaked back in.",
+  );
+});
+
+test('wheat covers the share of the island its own hexes cover — the cell keeps its hex key', () => {
+  // Each mesh cell resolves its owning HEX by keying its centroid through `pixelToHex` in GROUND
+  // space, and that key decides whether the cell is wheat. The camera sweep cannot see a mis-key: a
+  // cell keyed to the wrong hex is keyed to the SAME wrong hex at every elevation. What a mis-key
+  // DOES move is how much of the island ends up wheat, because a displaced key lands on hexes
+  // nobody tinted.
+  //
+  // The expected share is arithmetic on the fixture, not a recorded number: 4 of the 26 claimed
+  // tiles are wheat, and `wheatScatter` keeps ~72% of a wheat hex's cells, so ~11% of cells are
+  // wheat. A key read at the declared camera instead of on the ground scales the row axis by
+  // 1/sin(20 deg) ~ 2.9 and lands most cells on untinted hexes; a centroid multiplied by its vertex
+  // count instead of divided by it lands them off the island entirely. Both collapse this toward 0.
+  const cells = build('mesh', PLAN_VIEW_ELEVATION_DEG);
+  const wheatHexes = WHEAT.reduce((n, set) => n + set.size, 0);
+  const expected = (wheatHexes / TILES.length) * 0.72;
+  const share = cells.filter((c) => c.wheat).length / cells.length;
+  assert.ok(
+    share > expected * 0.6 && share < expected * 1.4,
+    `wheat covers ${(share * 100).toFixed(1)}% of the cells; ${wheatHexes} of ${TILES.length} tiles ` +
+      `are wheat and the scatter keeps ~72%, so ~${(expected * 100).toFixed(1)}% was expected. A ` +
+      'share near zero means the cells resolved to hexes nobody tinted.',
+  );
+  assert.ok(cells.some((c) => !c.wheat), 'every cell is wheat — the scatter did nothing');
+});
+
+test('the default camera IS the declared camera — an omitted option is not a different mesh', () => {
+  // Every real caller omits the options argument entirely (`buildRelaxedCells(tiles, wheat, 'mesh')`),
+  // so the sweep above — which always passes one — never exercises the path the app actually takes.
+  const declared = build('mesh', LAND_CAMERA_ELEVATION_DEG);
+  const defaulted = buildRelaxedCells(TILES, WHEAT, 'mesh');
+  assert.equal(defaulted.length, declared.length, 'the default build has a different cell count');
+  for (let i = 0; i < declared.length; i++) {
+    const a = defaulted[i] as RelaxedCell;
+    const b = declared[i] as RelaxedCell;
+    assert.equal(a.wheat, b.wheat, `cell ${i} differs in wheat between the default and 20 degrees`);
+    for (let v = 0; v < a.poly.length; v++) {
+      assert.ok(
+        Math.abs((a.poly[v] as Pt).x - (b.poly[v] as Pt).x) < TOLERANCE &&
+          Math.abs((a.poly[v] as Pt).y - (b.poly[v] as Pt).y) < TOLERANCE,
+        `cell ${i} vertex ${v} moved between the default build and an explicit ` +
+          `LAND_CAMERA_ELEVATION_DEG. The default must BE the declared camera.`,
+      );
+    }
+  }
+});
+
+test('THE MESH IS A FIXED ARTIFACT — if this digest moves, the land moved, and it must be said out loud', () => {
+  // ⚠ THIS IS A SNAPSHOT, DELIBERATELY, and it is the only one here. Everything else in this file
+  // states a PROPERTY, and a property-only suite is blind to any change that is wrong at every
+  // camera equally — a flipped jitter sign is the exact case, since the jitter angle is uniform on
+  // [0, 2pi) and negating one component maps the distribution onto itself. The diff-scoped mutation
+  // rung named that mutant on this branch and nothing property-shaped could kill it.
+  //
+  // It is worth pinning for a reason beyond the mutant: NOBODY EYEBALLS THIS MESH. When it moved on
+  // this branch it surfaced two repos away, as an accretion-wave partition in `apps/studio` and a
+  // parcel-outline point count in `forest-world-r3f` — both real, both loud, and both a long way
+  // from the line that caused them. This is the same alarm at the source.
+  //
+  // WHEN IT GOES RED: do not re-record it reflexively. Establish WHAT moved and why, say so in the
+  // landing, then update it. A mesh change with a reason is ordinary; a mesh change nobody noticed
+  // is what this exists to prevent.
+  const cells = build('mesh', PLAN_VIEW_ELEVATION_DEG);
+  const digest = hash(
+    cells
+      .map(
+        (c) =>
+          `${c.owner}:${c.variant}:${c.wheat ? 1 : 0}:` +
+          c.poly.map((p) => `${p.x.toFixed(3)},${p.y.toFixed(3)}`).join(';'),
+      )
+      .join('|'),
+  );
+  assert.equal(cells.length, 326, 'the fixture no longer decomposes into 326 cells');
+  assert.equal(
+    digest,
+    4012762627,
+    'the ground mesh this fixture produces has changed. That is not automatically wrong — but it ' +
+      'is never invisible: name what moved and why in the landing, then re-record it here.',
+  );
 });

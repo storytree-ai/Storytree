@@ -10,6 +10,7 @@ import {
   type MutationTarget,
   parseUnifiedDiffRanges,
   type ProjectDir,
+  runsUnderBun,
   selectMutationTargets,
   siblingTestFor,
 } from "./mutation-diff.js";
@@ -1111,4 +1112,67 @@ test("mutation-diff: a location with no start reads as an unknown line, not a cr
     [],
   );
   assert.equal(verdict.mutants[0]?.line, null);
+});
+
+// ── runsUnderBun ─────────────────────────────────────────────────────────────
+//
+// The rung runs Stryker's bun test runner. A project whose own suite is `vitest run` needs a DOM
+// environment the bun runner does not provide, so handing Stryker one kills the DRY RUN before a
+// single mutant is tested — measured on the first branch to touch a `packages/forest-world` source
+// file and an `apps/studio` snapshot in the same diff. These pin the discrimination, including the
+// two shapes the real repo actually carries.
+
+test("runsUnderBun: a plain bun suite is runnable", () => {
+  assert.equal(runsUnderBun("bun test --timeout 300000 src/"), true);
+});
+
+test("runsUnderBun: a bun suite behind a chained prelude is still runnable", () => {
+  // packages/cli's real script — a tsx guard, then the bun suite.
+  assert.equal(
+    runsUnderBun(
+      "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/validate-corpus.ts && bun test --preload ../../scripts/tsx-cache-off.mjs --timeout 300000 src/",
+    ),
+    true,
+  );
+});
+
+test("runsUnderBun: vitest is NOT runnable — this is the case that killed the dry run", () => {
+  assert.equal(runsUnderBun("vitest run"), false);
+});
+
+test("runsUnderBun: a project with no test script is not runnable", () => {
+  assert.equal(runsUnderBun(undefined), false);
+});
+
+test("runsUnderBun: a script that merely MENTIONS bun does not count as running bun test", () => {
+  // The failure this guards is the opposite of the one above and just as quiet: matching too widely
+  // would readmit exactly the projects the narrowing exists to exclude.
+  assert.equal(runsUnderBun("echo use bun to run these && vitest run"), false);
+  assert.equal(runsUnderBun("bunx vitest run"), false);
+  assert.equal(runsUnderBun("vitest run --reporter=bun-tests"), false);
+});
+
+test("runsUnderBun: the boundary before `bun` is load-bearing, not decoration", () => {
+  // A pattern that dropped the leading boundary would match any script whose text merely CONTAINS
+  // the letters — and readmit the projects this narrowing exists to exclude.
+  assert.equal(runsUnderBun("rebun test src/"), false);
+  assert.equal(runsUnderBun("prebun  test"), false);
+  assert.equal(runsUnderBun("pnpm exec bun test src/"), true);
+  assert.equal(runsUnderBun("build.sh;bun test"), true);
+});
+
+test("runsUnderBun: the separator between `bun` and `test` must be whitespace", () => {
+  assert.equal(runsUnderBun("bun test"), true);
+  assert.equal(runsUnderBun("bun  test src/"), true);
+  assert.equal(runsUnderBun("buntest src/"), false);
+  assert.equal(runsUnderBun("bun-test src/"), false);
+});
+
+test("runsUnderBun: `bun test` must END a word — `bun tests` is a different command", () => {
+  assert.equal(runsUnderBun("bun testing-helper.ts"), false);
+  assert.equal(runsUnderBun("bun tests/"), false);
+});
+
+test("runsUnderBun: an empty script is not runnable", () => {
+  assert.equal(runsUnderBun(""), false);
 });
