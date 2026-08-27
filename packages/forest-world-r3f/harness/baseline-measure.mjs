@@ -134,7 +134,8 @@ for (const [tag, r] of panels) {
   console.log(
     `  ${tag.padEnd(18)} ${r.widthPx}x${r.heightPx}px  ${String(r.calls).padStart(4)} calls  ` +
       `${String(Math.round(r.triangles)).padStart(6)} tris  ` +
-      `${r.scaleAtTarget.toFixed(2)} px/unit at target (${r.scaleNear.toFixed(2)}–${r.scaleFar.toFixed(2)} across)`,
+      `${r.scaleAtTarget.toFixed(2)} px/unit at target (${r.scaleNear.toFixed(2)}–${r.scaleFar.toFixed(2)} across)  ` +
+      `${String(r.projection).toUpperCase()} ${r.spreadPct.toFixed(1)}%`,
   );
 }
 console.log('');
@@ -236,20 +237,50 @@ if (extraCalls > 1) {
 }
 
 console.log('');
-// ⚠ TAKEN OFF THE CONTROL. Until the `cell` case landed this HAD to be, because the
-// mesh-substrate mounts drew ONE object — a single point, whose near/far spread is 0.0%, a
-// figure true about the measurement and silent about the renderer. The mesh mounts now have real
-// extent too, so the control is no longer the only source; it is kept as the source so the
-// figure stays comparable with the one PR #1679 published (5.1%).
-if (classic) {
-  const spread = (classic.scaleNear / classic.scaleFar - 1) * 100;
-  console.log(
-    `PERSPECTIVE SPREAD (off the classic control, the only mount with real extent): the shipped ` +
-      `canvas delivers ${spread.toFixed(1)}% more px/unit at the near edge of the island than at the far one.`,
+/* ── ⚠⚠ FENCE 4, CHECKED RATHER THAN LOOKED AT ────────────────────────────────────────────────
+   ADR-0380 D6 fence 4: the game stays 2.5D isometric — no free camera, no orbit control, no
+   perspective view. The shipped canvas failed all three for months, and the failure survived
+   because nothing asked. This block is the asking.
+
+   ⚠ THE ANSWER IS TAKEN OFF THE UNIFORM UPLOAD, not off the source and not off a formula this
+   page keeps. `projection-probe.ts` classifies the matrix three.js handed the driver: an
+   ORTHOGRAPHIC matrix leaves `clip.w` at a constant 1, so there is no perspective divide and the
+   delivered scale cannot vary with depth. That is why the spread below is 0.0% — a property of
+   the matrix, not of the arithmetic that read it. Hand this an `indeterminate` and it refuses
+   rather than reporting the zero it would like. */
+const NOT_ORTHOGRAPHIC = panels.filter(([, r]) => r.projection !== 'orthographic');
+if (NOT_ORTHOGRAPHIC.length > 0) {
+  refuse(
+    `ADR-0380 D6 fence 4 says the shipped canvas is 2.5D isometric, and ` +
+      `${NOT_ORTHOGRAPHIC.length} of ${panels.length} mount(s) uploaded a projection that is not ` +
+      `orthographic:\n` +
+      NOT_ORTHOGRAPHIC.map(([tag, r]) => `    ${tag}: ${r.projection}`).join('\n') +
+      `\nThe matrix is read off the GL uniform upload, so this is what the driver was actually ` +
+      `given.\nAn 'indeterminate' means the page captured no matrix at all — the instrument is ` +
+      `missing, which is not the same as a pass.`,
   );
-  console.log('  The harness is ORTHOGRAPHIC, so its px/ground-unit is one number by construction.');
-} else {
-  console.log('PERSPECTIVE SPREAD: NOT ESTABLISHED — the control mount filed no reading.');
+}
+const worstSpread = Math.max(...panels.map(([, r]) => Math.abs(r.spreadPct)));
+console.log('THE PROJECTION — read off the matrix each mount uploaded');
+console.log(`  all ${panels.length} shipped mounts: ORTHOGRAPHIC`);
+console.log(
+  `  delivered px/ground-unit is ONE number across the island: worst near/far spread ` +
+    `${worstSpread.toFixed(2)}%`,
+);
+console.log(
+  '  BEFORE (perspective, fov 45, measured on this GPU 2026-08-27 and 2026-08-28): 5.1% more ' +
+    'px/unit at the near edge than the far.',
+);
+// ⚠ NON-VACUITY, and it is worth the four lines. `0.0%` is also what a page that captured nothing
+// would print if the refusal above were ever loosened, and it is what a mount with no extent
+// prints — a single point has no near and no far. So the run is void unless the island the spread
+// was measured ACROSS is real.
+const extentful = panels.filter(([, r]) => r.scaleAtTarget > 0);
+if (extentful.length !== panels.length) {
+  refuse('a mount reported a non-positive delivered scale — the spread was measured over nothing');
+}
+if (!(classic && classic.triangles > 0)) {
+  refuse('the classic control filed no geometry — the 0.0% spread is measured over nothing');
 }
 
 // ── the pictures ────────────────────────────────────────────────────────────────────────────

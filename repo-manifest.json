@@ -507,6 +507,7 @@
       "packages/forest-world-r3f/src/world-to-3d.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/ForestWorldCanvas.tsx": "r3f-world-spike",
       "packages/forest-world-r3f/src/cell-ground-geometry.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/camera-framing.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/index.ts": "website-experience",
       "packages/forest-world-r3f/harness": "website-experience",
       "packages/app-surface/src/SceneView.tsx": "app-surface-world-view",
