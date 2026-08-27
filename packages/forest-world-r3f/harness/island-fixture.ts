@@ -39,7 +39,7 @@ import {
 
 /** A 13-hex island: a centre, its six neighbours, and a second ring stub — the shape a
  *  real mid-sized story tends to take once its capabilities are laid out. */
-const TILES: Axial[] = [
+export const ISLAND_TILES: Axial[] = [
   { q: 0, r: 0 },
   { q: 1, r: 0 },
   { q: -1, r: 0 },
@@ -112,10 +112,10 @@ export interface IslandOptions {
 }
 
 export function islandScene(opts: IslandOptions = {}): SceneG {
-  const centres = TILES.map((h) => hexCenter(h));
+  const centres = ISLAND_TILES.map((h) => hexCenter(h));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
-  const drawTiles = TILES.map((h) => ({ h, owner: 0 }));
+  const drawTiles = ISLAND_TILES.map((h) => ({ h, owner: 0 }));
   // 'mesh' is the shipped studio substrate — the relaxed decomposition the parcels ride on.
   const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()], 'mesh');
 
@@ -126,7 +126,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     theme: THEMES[i % THEMES.length]!,
     // Seeds spread over the tiles so the Voronoi sub-partition gives every capability a
     // real parcel rather than slivers.
-    seed: hexCenter(TILES[i % TILES.length]!),
+    seed: hexCenter(ISLAND_TILES[i % ISLAND_TILES.length]!),
   }));
 
   const territory: SceneTerritoryInput = {
