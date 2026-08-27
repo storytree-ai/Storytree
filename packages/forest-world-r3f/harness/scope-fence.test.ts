@@ -57,6 +57,13 @@ const EXPERIMENT = [
   'prop-layout.ts',
   'island-dressing.ts',
   'banded-material.ts',
+  // The grain octave and the instrument that measures it (the adoption arc's crossing probe).
+  // `pixel-metrics.ts` is the TypeScript twin of `measure_land.py`, which only runs inside
+  // Blender — it exists so a number taken off a BROWSER can be read against that file's
+  // committed table. Both belong outside the synced tree for the same reason as everything
+  // above: adoption is a separate event (ADR-0380 D6 / ADR-0406 D2).
+  'land-grain.ts',
+  'pixel-metrics.ts',
 ];
 
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];

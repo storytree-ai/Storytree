@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the grain octave in the live renderer — chapter2 experiment (dev-only)</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      html,
+      body {
+        margin: 0;
+        background: #2b3138;
+        color: #cfd8dc;
+        font: 14px/1.55 system-ui, sans-serif;
+      }
+      main {
+        max-width: 1600px;
+        margin: 0 auto;
+        padding: 32px 28px 80px;
+      }
+      h1 {
+        font-size: 25px;
+        margin: 0 0 10px;
+        color: #eceff1;
+      }
+      h2 {
+        font-size: 16px;
+        margin: 40px 0 6px;
+        color: #b7e08a;
+        border-top: 1px solid #3b434c;
+        padding-top: 18px;
+      }
+      header p,
+      p.lede {
+        max-width: 78ch;
+        color: #b0bec5;
+      }
+      p.numbers {
+        max-width: none;
+        color: #8d9aa4;
+        font-size: 12.5px;
+      }
+      code {
+        color: #d7c07a;
+      }
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 22px;
+        align-items: flex-start;
+        margin-top: 16px;
+      }
+      figure.panel {
+        margin: 0;
+      }
+      figure.panel figcaption {
+        display: flex;
+        flex-direction: column;
+        margin-bottom: 6px;
+        font-size: 12px;
+      }
+      figure.panel figcaption strong {
+        color: #eceff1;
+      }
+      figure.panel figcaption span {
+        color: #8d9aa4;
+      }
+      /* ⚠ THE STAGE IS DELIBERATELY NOT CHECKERBOARDED. Two earlier evidence pictures on this
+         arc were Playwright ELEMENT screenshots with the page's checkerboard composited in
+         opaque, so an alpha mask never reached the island and every figure derived from them
+         was confounded — those two rows had to be quoted from an older pass rather than
+         re-measured. `grain-measure.mjs` reads the canvas's own pixels through getImageData
+         instead of screenshotting, so alpha survives; a flat background keeps a human reading
+         of the page consistent with what the instrument sees. */
+      .stage {
+        background: #21262c;
+        padding: 6px;
+        border: 1px solid #3b434c;
+        border-radius: 4px;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/grain.tsx"></script>
+  </body>
+</html>

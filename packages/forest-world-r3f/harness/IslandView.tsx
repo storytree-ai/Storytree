@@ -21,6 +21,7 @@ import {
   createBandedMaterial,
   shadowFieldTexture,
   type BandedMaterialOptions,
+  type GrainOptions,
   type ShadowTexture,
 } from './banded-material.js';
 import { buildContactField, mergeOcclusion } from './contact-shade.js';
@@ -188,6 +189,19 @@ export interface IslandViewProps {
    * be drawn, and that difference would be read as the direction.
    */
   plantFraction?: number;
+  /**
+   * WEAR THE HIGH-FREQUENCY GRAIN OCTAVE on the ground (`land-grain.ts`).
+   *
+   * Absent means the island as every panel before this one drew it — the option is threaded
+   * through to `createBandedMaterial`, which emits no grain GLSL at all when it is not asked
+   * for, so a panel that predates the grain delivers the pixels it always delivered.
+   *
+   * ⚠ `mode: 'colour'` and `mode: 'both'` are OFF-PALETTE BY CONSTRUCTION and `capture.mjs`
+   * refuses an off-palette pixel. A panel wearing either must stay off the pages that audit
+   * runs over (`island.html`, `directions.html`) until `replace-the-palette-closure-check`
+   * lands — which is why the grain comparison has a page of its own.
+   */
+  grain?: GrainOptions;
   /** A stable NAME for this canvas, stamped onto the element as `data-st-tag`.
    *
    *  It exists so the capture can find a specific panel by name rather than by position.
@@ -333,6 +347,7 @@ function groundMeshes(
   edge: LandEdge,
   ground: GroundVariation,
   wallDepth: number,
+  grain: GrainOptions | undefined,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
   const bevel = land === 'bevel' || land === 'full';
@@ -573,6 +588,11 @@ function groundMeshes(
     // rungs (`createBandedMaterial` branches on `opts.shadow !== undefined`).
     const groundMaterial: BandedMaterialOptions = { token, doubleSided: false };
     if (shadow) groundMaterial.shadow = shadow;
+    // THE GRAIN GOES ON THE GROUND AND NOWHERE ELSE. The rim wall below deliberately does not
+    // take it: the grain is authored against a ground-space XZ field, and a near-vertical face
+    // samples that field along a line rather than across it, which delivers a smeared vertical
+    // streak instead of grain. The same reasoning the shadow field already applies to itself.
+    if (grain) groundMaterial.grain = grain;
     meshes.push(new THREE.Mesh(geom, createBandedMaterial(groundMaterial)));
 
     if (wallPositions.length) {
@@ -910,6 +930,7 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     props.edge ?? 'flush',
     props.ground ?? 'single',
     props.wallDepth ?? CELL_DEPTH,
+    props.grain,
   )) {
     scene3.add(m);
   }
@@ -1023,6 +1044,7 @@ export function IslandPanel({
     props.wallDepth,
     props.dressing,
     props.plantFraction,
+    props.grain,
   ]);
   return (
     <figure className="panel">

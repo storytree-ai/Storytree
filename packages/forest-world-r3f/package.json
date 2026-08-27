@@ -13,7 +13,8 @@
     "test": "bun test --timeout 300000 src/ harness/",
     "dev": "vite harness",
     "capture": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/capture.mjs",
-    "hardware-floor": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/hardware-floor.mjs"
+    "hardware-floor": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/hardware-floor.mjs",
+    "measure-grain": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/grain-measure.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
