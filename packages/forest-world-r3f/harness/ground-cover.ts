@@ -60,8 +60,20 @@ export const GROUND_COVERS: readonly GroundCover[] = ['wheat', 'yellowGrass'];
  *
  *   - the shipped `wheat` override sits **7.68** from `proposed`, so this cover is 1.8x further
  *     from a proof state than a colour the app already draws;
- *   - the closest two DIFFERENT statuses sit **3.33** apart, so the map already draws a
- *     MEANINGFUL difference 4.1x quieter than this scenery colour's distance from any of them.
+ *   - the closest two DIFFERENT statuses sit **14.23** apart (`proposed` vs `mapped`).
+ *
+ * ⚠ THAT SECOND FIGURE WAS **3.33** WHEN THIS TOKEN WAS AUTHORED, AND THE CHANGE INVERTS WHAT IT
+ * SAYS — corrected in place rather than left standing. It used to read "the map already draws a
+ * MEANINGFUL difference 4.1x quieter than this scenery colour is from any status", which was the
+ * argument that a cover at 13.62 was comfortably safe. ADR-0462 gave `unknown` its own slate and
+ * merged `building` into `proposed`, and the map's worst meaningful pair improved from 3.33 to
+ * 14.23 — so the comparison now runs the OTHER WAY: a `yellowGrass` cell is 13.62 from the
+ * nearest proof state, marginally CLOSER than two genuinely different states are to each other.
+ * Nothing about the cover moved; the denominator did. The relative bar it was authored against
+ * ({@link SEPARATION_FLOOR}, the shipped wheat's own 7.675) is untouched and it still clears it
+ * by 1.8x, so this is not a defect that has appeared — it is the headroom argument losing its
+ * force as the status vocabulary gets better, which is exactly the trade
+ * `oq-how-does-the-map-report-a-capability-s-state-once-the-gro` exists to price.
  *
  * ⚠ RED EQUALS GREEN, EXACTLY, AND THAT IS THE COLOUR CONSTRAINT DOING WORK. The first token
  * authored here scored 11.96 and rendered OLIVE-GREEN: the luma weights put 59% of the distance
@@ -217,14 +229,29 @@ export function separationOf(token: string): Separation {
 
 /** The closest two DIFFERENT statuses come to each other, at matched condition — the distance
  *  the map already draws between two MEANINGFUL states, and therefore the floor below which a
- *  scenery colour is not the map's biggest problem. */
+ *  scenery colour is not the map's biggest problem.
+ *
+ *  ⚠ TWO STATUSES SHARING ONE AUTHORED FAMILY ARE SKIPPED, and that is the instrument
+ *  understanding the vocabulary rather than an exemption. Since ADR-0462 `proposed` and
+ *  `building` wear the SAME token deliberately, so their distance is exactly 0 — and reported
+ *  as the worst meaningful pair it would say the map cannot distinguish two states it never
+ *  again tries to, while hiding the pair that actually is closest. They are one colour asked
+ *  about twice, not a pair. The test is on the TOKENS, not on a hand-kept list of which
+ *  statuses have merged: a future merge is caught with no edit here, and an accidental
+ *  un-merge stops being skipped the instant the tokens differ. */
 export function worstStatusPair(): { a: string; b: string; distance: number; at: string } {
   const statuses = [...STATUS_TOKENS.keys()];
+  const sameColour = (x: string, y: string): boolean => {
+    const fx = STATUS_TOKENS.get(x)!.top;
+    const fy = STATUS_TOKENS.get(y)!.top;
+    return fx.length === fy.length && fx.every((t, i) => t === fy[i]);
+  };
   let out = { a: '', b: '', distance: Infinity, at: '' };
   for (let i = 0; i < statuses.length; i++) {
     for (let j = i + 1; j < statuses.length; j++) {
       const sa = statuses[i]!;
       const sb = statuses[j]!;
+      if (sameColour(sa, sb)) continue;
       for (const ta of STATUS_TOKENS.get(sa)!.top) {
         for (const tb of STATUS_TOKENS.get(sb)!.top) {
           for (const level of SHADE_LEVELS) {

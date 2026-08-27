@@ -75,6 +75,20 @@ export function luma(c: Rgb255): number {
 export interface ReaderTableOptions {
   /** Which statuses the reader has learned. */
   statuses?: readonly string[];
+  /**
+   * The authored token table the reference colours are built from. Defaults to the LIVE
+   * `STATUS_TOKENS`.
+   *
+   * ⚠ IT EXISTS SO THE PORT'S PROVENANCE CAN SURVIVE A PALETTE CHANGE, which is not a
+   * hypothetical: ADR-0462 moved `unknown` and merged `building` into `proposed`. The three
+   * recorded configurations this module reproduces to prove it is the SAME instrument as the
+   * compositor's were measured against the palette as it stood BEFORE that. Reading the live
+   * table in those tests would make the reproduction re-derive itself from whatever the palette
+   * is today — it would go on passing, having stopped proving anything, which is the exact shape
+   * of an expectation computed from its own subject. `status-vocabulary.ts` holds the frozen
+   * table (`LEGACY_STATUS_TOKENS`) those tests pass here.
+   */
+  tokens?: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }>;
   /** The shade level the reference colours are delivered AT. The compositor's table was
    *  built at full light because its lit top faces WERE delivered at full light; the LIVE
    *  renderer never delivers flat ground at 1.0 (see `FLAT_GROUND_LEVEL`), so pointing the
@@ -123,11 +137,12 @@ export function deliveredColour(token: string, level: number): Rgb255 {
  *  statuses share the identical wheat hex, so a wheat cell reports no status by colour at
  *  all, and including it would make every status equidistant from every shadowed pixel. */
 export function readerStatusTable(opts: ReaderTableOptions = {}) {
-  const statuses = opts.statuses ?? [...STATUS_TOKENS.keys()].sort();
+  const families = opts.tokens ?? STATUS_TOKENS;
+  const statuses = opts.statuses ?? [...families.keys()].sort();
   const rung = opts.rung ?? 1.0;
   const table: Record<string, Rgb255[]> = {};
   for (const st of statuses) {
-    const fam = STATUS_TOKENS.get(st);
+    const fam = families.get(st);
     if (!fam) throw new Error(`shadow-ladder: no token family for status ${JSON.stringify(st)}`);
     const tokens = opts.oneToken ? [fam.top[0]!] : [...fam.top];
     if (opts.faces === 'all') tokens.push(fam.side);
