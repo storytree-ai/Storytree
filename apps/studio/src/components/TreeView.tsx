@@ -435,6 +435,60 @@ function verdictPhrase(v: TreeVerdict): string {
   return v.outcome === 'pass' ? '✓ proven' : '✗ last run failed';
 }
 
+/**
+ * The island's HERO TILE — the tile the story's own tree stands on: the one nearest the island's
+ * centroid ON THE GROUND (`studio-island-layout-moves-to-ground-space`, ADR-0367 D1's fault class).
+ *
+ * It used to be an argmin over PROJECTED centres against the PROJECTED centroid. The declared camera
+ * compresses the depth axis by `sin 20° ≈ 0.342`, so a tile displaced along the ground's depth looks
+ * NEARER on screen than it is and the argmin systematically preferred it — a hero tree standing
+ * where the camera put it rather than where the island's middle is. Measured on the code this
+ * replaced: the projected answer differs from this one on 224 of 1,600 synthetic grown islands
+ * (14.00%) and on 5 of the shipped corpus's 35 islands (14.29%), each by a whole tile — 46.8 ground
+ * px. (The increment cited 26.8% from an earlier sweep; that magnitude did NOT reproduce, though the
+ * class and its direction did — see the increment's closure.)
+ *
+ * A function of the TILE SET ALONE. It reads no camera, so its answer cannot move when the camera
+ * does — the invariant is structural here, not merely asserted. `undefined` only for an empty tile
+ * set, which `buildWorld` never has (it falls back to the island's seed regardless).
+ *
+ * Ties break toward the earliest tile in input order, exactly as the `Array.prototype.sort` this
+ * replaced did (a stable sort keeps the first of an equal pair).
+ */
+export function groundHeroTile(tiles: readonly Axial[]): Axial | undefined {
+  if (!tiles.length) return undefined;
+  const centers = tiles.map((h) => hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
+  const centroid: Pt = {
+    x: centers.reduce((s, p) => s + p.x, 0) / centers.length,
+    y: centers.reduce((s, p) => s + p.y, 0) / centers.length,
+  };
+  // ground-space: `centers` are `hexCenter` at PLAN_VIEW_ELEVATION_DEG — the pre-camera tile
+  // positions — so this is a true ground separation and the argmin is camera-independent.
+  const gaps = centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y));
+  let best = 0;
+  for (let k = 1; k < gaps.length; k++) {
+    if ((gaps[k] ?? Infinity) < (gaps[best] ?? Infinity)) best = k;
+  }
+  return tiles[best];
+}
+
+/**
+ * A polar offset of GROUND radius `r` at ground bearing `ang`, returned in SCREEN units — what a
+ * layout adds to an already-projected anchor to land `r` away ACROSS THE GROUND.
+ *
+ * The studio-side twin of the `groundPolarOffset` `packages/forest-world/src/scene.ts` already uses
+ * for its own scatters, and a deliberate LOCAL copy rather than a new export from that package:
+ * `packages/forest-world/src` reaches the website through a wholesale sync, so touching it would owe
+ * this increment an engine sync and a web pin bump for two lines of arithmetic.
+ *
+ * ⚠ NEVER pass this point-free to `Array.prototype.map` — the third parameter that `.map` supplies
+ * would land in a slot this signature does not have today, and adding one later would resurrect the
+ * `['1','2'].map(parseInt)` trap `hexCenter` documents.
+ */
+export function groundPolarOffset(ang: number, r: number): Pt {
+  return projectGround({ x: Math.cos(ang) * r, y: Math.sin(ang) * r });
+}
+
 export function buildWorld(
   allStories: TreeStory[],
   opts?: {
@@ -668,8 +722,9 @@ export function buildWorld(
     const radius =
       // Deliberately the SCREEN twin — `scene-territory-radius-states-its-space` split it from
       // `groundRadius` below. Its honest consumers are screen chrome: the wisp orbit radii and the
-      // panel offsets. The one consumer whose space is still in question is `ringR` below, and that
-      // is `studio-island-layout-moves-to-ground-space`'s to answer, not this rung's.
+      // panel offsets. `ringR` below used to read it too, which was the open question that split
+      // asked and `studio-island-layout-moves-to-ground-space` has now answered: the ring is a
+      // GROUND circle, so it reads `groundRadius`, and every remaining consumer here wants screen.
       // screen-space: a screen magnitude by construction, with its ground twin declared beside it
       Math.max(0, ...centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y))) +
       HEX_R;
@@ -689,27 +744,17 @@ export function buildWorld(
       Math.max(0, ...groundTileCenters.map((p) => Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y))) +
       HEX_R;
 
-    // The story's own tree takes the tile nearest the centroid; capabilities
-    // garden in a squashed ring around it (walked inward until they sit on
-    // owned land). ADR-0238 retires scenery-only conifers and wheat.
-    const centerTile =
-      [...tiles].sort((a, b) => {
-        const ca = hexCenter(a);
-        const cb = hexCenter(b);
-        // The hero tile is picked by nearest-to-centroid on PROJECTED centres, so the camera's
-        // depth compression biases the argmin toward tiles north or south of the centroid. Measured:
-        // it disagrees with the ground-space answer on 26.8% of islands, and the tile it picks is
-        // where the story's own tree stands. Left as it is ON PURPOSE — the fix belongs to the
-        // increment named below, which also owns the ring squash this same block feeds.
-        // screen-space-defect: studio-island-layout-moves-to-ground-space — a projected argmin
-        return (
-          Math.hypot(ca.x - centroid.x, ca.y - centroid.y) -
-          Math.hypot(cb.x - centroid.x, cb.y - centroid.y)
-        );
-      })[0] ?? seed;
+    // The story's own tree takes the tile nearest the centroid ON THE GROUND; capabilities garden
+    // in a ring around it — a CIRCLE on the land, which the camera projects to an ellipse (walked
+    // inward until they sit on owned land). ADR-0238 retires scenery-only conifers and wheat.
+    const centerTile = groundHeroTile(tiles) ?? seed;
     const treeSpot = hexCenter(centerTile);
     const crownR = crownRadius(story.capabilities.length);
-    const ringR = Math.max(crownR * 0.9, Math.min(crownR + 18, radius - HEX_R * 0.55));
+    // A GROUND radius. `crownR` is the tree's screen HALF-WIDTH, and the camera foreshortens only
+    // the depth axis, so a horizontal half-width is already a ground magnitude; `HEX_R` is a ground
+    // radius by definition. The one screen quantity in this expression was the island `radius`, and
+    // it is replaced by its declared ground twin (`studio-island-layout-moves-to-ground-space`).
+    const ringR = Math.max(crownR * 0.9, Math.min(crownR + 18, groundRadius - HEX_R * 0.55));
     // Front 240° arc only (centred south) — a plant behind the tree would
     // vanish under the canopy.
     const ARC = (Math.PI * 4) / 3;
@@ -730,8 +775,19 @@ export function buildWorld(
             ringR * (0.62 + rand01(hash(`${story.id}:${cap.id}:rb`)) * 0.72),
           )
         : ringR + (rand01(hash(`${story.id}:${cap.id}:r`)) - 0.5) * 10;
-      let x = treeSpot.x + Math.cos(angle) * rr;
-      let y = treeSpot.y + Math.sin(angle) * rr * 0.66; // top-down squash
+      // `angle` is a GROUND bearing and `rr` a GROUND radius, so the ring is a circle on the land;
+      // `groundPolarOffset` projects it ONCE, through the declared camera, into the screen offset the
+      // already-projected `treeSpot` needs. The retired `* 0.66` was a hand-picked top-down squash
+      // where the camera says `sin 20° ≈ 0.342` — a 1.93x ground ellipse (measured), so a plant
+      // asked for `rr` landed up to 93% further out in ground-y than in ground-x. Each of these is
+      // its capability's parcel seed (`capToParcel`), so the ellipse was skewing the partition that
+      // decides which ground each capability owns.
+      const off = groundPolarOffset(angle, rr);
+      let x = treeSpot.x + off.x;
+      let y = treeSpot.y + off.y;
+      // The keep-IN walk stays in screen space, correctly: a 25% step toward `treeSpot` is an AFFINE
+      // interpolation, so it is the same 25% of the way across the ground — and `pixelToHex` reads
+      // the same declared camera these points were projected through.
       for (let k = 0; k < 4 && owner.get(axialKey(pixelToHex({ x, y }))) !== i; k++) {
         x += (treeSpot.x - x) * 0.25;
         y += (treeSpot.y - y) * 0.25;
@@ -4503,6 +4559,16 @@ export function cityStampSpots(
     const a0 = Math.PI / 2 - ARC / 2; // start just west of due-south
     const angle = a0 + ((slot + 0.5) / inRing) * ARC + ring * 0.4;
     let x = treeSpot.x + Math.cos(angle) * radius;
+    // ⚠ A THIRD SITE OF ADR-0367's SQUASH CLASS, LEFT OPEN DELIBERATELY, and this note plus the
+    // increment's closure are the only record: `pnpm check:ground-space` guards point-to-point
+    // DISTANCES, and a bare y-multiply is not one, so nothing mechanical will raise it (the same
+    // blind spot `driftSpot`'s own `* 0.6` sits in, recorded on `ground-space-truth-arc`'s
+    // driftspot closure). `0.66` is a hand-picked
+    // top-down squash where the declared camera says `sin 20° ≈ 0.342` — the identical constant
+    // `studio-island-layout-moves-to-ground-space` retired from the capability ring. It is NOT
+    // folded in there because this fan seats BUILDINGS in the Shared Islands panel and its density
+    // and spread are owner-attested (see this function's own doc above), so correcting it changes an
+    // attested picture and needs an owner look, exactly as `driftSpot`'s does.
     let y = treeSpot.y + Math.sin(angle) * radius * 0.66 + 4; // top-down squash, a touch in front
     for (let k = 0; k < 6 && !onLand({ x, y }); k++) {
       x += (treeSpot.x - x) * 0.28;

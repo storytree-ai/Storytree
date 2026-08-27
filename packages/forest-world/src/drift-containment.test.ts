@@ -21,9 +21,16 @@
 //
 // ⚠ THE SUITE BELOW SWEEPS A SUBSET of that probe — 108 parcels x 120 placements rather than
 // 227 x 400 — so it stays inside the gate's seconds budget. On the subset the same two figures read
-// 8.08% -> 0.00% and 11.60x -> 12.28x. The bands asserted below are generous enough to hold on
+// 7.40% -> 0.00% and 11.81x -> 12.44x. The bands asserted below are generous enough to hold on
 // EITHER sweep on purpose: they exist to catch a fixture that stopped describing the defect, not to
 // pin a value the sample size moves.
+//
+// ⚠ THOSE SUBSET FIGURES MOVED ONCE, AND THE REASON IS NOT THIS FIX. They read 8.08% -> 0.00% and
+// 11.60x -> 12.28x until `studio-island-layout-moves-to-ground-space` re-mirrored `capSeeds` below
+// onto the studio's new GROUND-space ring — different Voronoi seeds, so a different partition of the
+// same mesh, so a different set of parcels to escape from. The 90,800-placement figures in the
+// paragraphs above were measured against the OLD seeds and are left as the historical record of
+// what the driftSpot fix itself did; the re-mirrored subset is what this file measures today.
 //
 // THE FIX is reject-and-resample against the parcel's own cells, and the choice of reject over clamp
 // is the MASSING: see `DRIFT_CONTAINMENT_TRIES` in scene.ts. After it, 0 of the same 90,800.
@@ -49,6 +56,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { HEX_R, axialKey, hexCenter, pixelToHex, type Axial, type Pt } from './hex.js';
+import { PLAN_VIEW_ELEVATION_DEG, projectGround } from './camera.js';
 import { hash, rand01 } from './rng.js';
 import { crownRadius } from './sizing.js';
 import { buildRelaxedCells, type DrawTile, type SubstrateMode } from './substrate.js';
@@ -132,41 +140,47 @@ function discTiles(rings: number): Axial[] {
 }
 
 /** The studio's capability ring (`TreeView.tsx`'s `caps` walk) — each capability's layout position,
- *  which is the Voronoi seed its parcel is grown from. */
+ *  which is the Voronoi seed its parcel is grown from.
+ *
+ *  ⚠ RE-MIRRORED by `studio-island-layout-moves-to-ground-space`, the increment this fixture named
+ *  as the owner of the question. The studio now takes BOTH decisions on the ground: the hero tile is
+ *  the tile nearest the island's centroid in PLAN VIEW, and the ring is a ground CIRCLE projected
+ *  once through the declared camera, where the retired code used a hand-picked `0.66` squash (a
+ *  1.93x ground ellipse) around a hero tile the projection had chosen. The seeds below track that,
+ *  because a fixture mirroring a formula the map no longer runs stops describing the map — which is
+ *  the same reason it was mirrored verbatim before. */
 function capSeeds(storyId: string, capIds: readonly string[], tiles: readonly Axial[]): Pt[] {
-  const centers = tiles.map((h) => hexCenter(h));
-  const centroid: Pt = {
-    x: centers.reduce((s, p) => s + p.x, 0) / centers.length,
-    y: centers.reduce((s, p) => s + p.y, 0) / centers.length,
+  const groundCenters = tiles.map((h) => hexCenter(h, { elevationDeg: PLAN_VIEW_ELEVATION_DEG }));
+  const groundCentroid: Pt = {
+    x: groundCenters.reduce((s, p) => s + p.x, 0) / groundCenters.length,
+    y: groundCenters.reduce((s, p) => s + p.y, 0) / groundCenters.length,
   };
-  // screen-space: the studio's own ring radius, mirrored verbatim so the seeds are the shipped
-  // seeds; `studio-island-layout-moves-to-ground-space` is the increment that owns whether it should
-  // be a ground radius, and a fixture that silently corrected it would stop describing the map.
-  const radius =
-    Math.max(0, ...centers.map((p) => Math.hypot(p.x - centroid.x, p.y - centroid.y))) + HEX_R;
+  // ground-space: `groundCenters` are `hexCenter` at PLAN_VIEW_ELEVATION_DEG — the pre-camera tile
+  // positions — so this radius is isotropic, exactly as the studio's `groundRadius` is.
+  const groundGaps = groundCenters.map((p) =>
+    Math.hypot(p.x - groundCentroid.x, p.y - groundCentroid.y),
+  );
+  const groundRadius = Math.max(0, ...groundGaps) + HEX_R;
   const owned = new Set(tiles.map(axialKey));
-  const centerTile =
-    [...tiles].sort((a, b) => {
-      const ca = hexCenter(a);
-      const cb = hexCenter(b);
-      // screen-space: the studio's own hero-tile argmin, mirrored (same increment owns it).
-      return (
-        Math.hypot(ca.x - centroid.x, ca.y - centroid.y) -
-        Math.hypot(cb.x - centroid.x, cb.y - centroid.y)
-      );
-    })[0] ?? tiles[0]!;
-  const treeSpot = hexCenter(centerTile);
+  // The studio's `groundHeroTile`: the tile nearest the centroid ON THE GROUND, ties to the earliest.
+  let heroIdx = 0;
+  for (let k = 1; k < groundGaps.length; k++) {
+    if (groundGaps[k]! < groundGaps[heroIdx]!) heroIdx = k;
+  }
+  const treeSpot = hexCenter(tiles[heroIdx] ?? tiles[0]!);
   const ringR = Math.max(
     crownRadius(capIds.length) * 0.9,
-    Math.min(crownRadius(capIds.length) + 18, radius - HEX_R * 0.55),
+    Math.min(crownRadius(capIds.length) + 18, groundRadius - HEX_R * 0.55),
   );
   const ARC = (Math.PI * 4) / 3;
   return capIds.map((capId, j) => {
     const slot = -Math.PI / 6 + ((j + 0.5) / capIds.length) * ARC;
     const angle = slot + (rand01(hash(`${storyId}:${capId}:a`)) - 0.5) * (ARC / capIds.length) * 0.5;
     const rr = ringR + (rand01(hash(`${storyId}:${capId}:r`)) - 0.5) * 10;
-    let x = treeSpot.x + Math.cos(angle) * rr;
-    let y = treeSpot.y + Math.sin(angle) * rr * 0.66;
+    // The studio's `groundPolarOffset`: a GROUND circle of radius `rr`, projected once.
+    const off = projectGround({ x: Math.cos(angle) * rr, y: Math.sin(angle) * rr });
+    let x = treeSpot.x + off.x;
+    let y = treeSpot.y + off.y;
     for (let k = 0; k < 4 && !owned.has(axialKey(pixelToHex({ x, y }))); k++) {
       x += (treeSpot.x - x) * 0.25;
       y += (treeSpot.y - y) * 0.25;
