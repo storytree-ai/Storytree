@@ -204,9 +204,15 @@ test("the rewrite consumes pnpmArgsFor's output verbatim — no second arg forma
   const legs = scoped.filter((s) => isExpensiveStep(s.command)).map((s) => s.command);
   // `--no-bail` survives the rewrite in place: narrowing WHICH packages run must not quietly drop
   // the flag that makes all of the selected ones report.
+  //
+  // The third expensive leg is ADR-0458's mutation rung, which carries no `-r` to rewrite. It must
+  // come through BYTE-IDENTICAL rather than half-scoped into `pnpm --filter ...studio
+  // check:mutation-diff`, which would name a script the filtered packages do not declare. The rung
+  // does its own diff scoping internally, so there is nothing for this rewrite to do to it.
   assert.deepEqual(legs, [
     "pnpm --filter ...studio --no-bail typecheck",
     "pnpm --filter ...studio --no-bail test",
+    "pnpm check:mutation-diff",
   ]);
 });
 

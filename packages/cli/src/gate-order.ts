@@ -38,6 +38,11 @@
 export const EXPENSIVE_STEPS: readonly string[] = [
   "pnpm -r --no-bail typecheck",
   "pnpm -r --no-bail test",
+  // ADR-0458. The third minutes-cost leg, and the only one that is a `check:*` — it runs a real
+  // mutation pass over this branch's changed lines, so it belongs on the expensive side of the
+  // ordering wall even though it names a check rather than a `-r` leg. It is NOT pinned into
+  // PRE_EXPENSIVE_CHECKS: those must precede the wall, and this one IS past it.
+  "pnpm check:mutation-diff",
 ];
 
 /*
@@ -312,6 +317,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     cost: "minutes",
     why: "the session's own diff; independent of typecheck because tests run transpile-only via tsx",
   },
+  {
+    command: "pnpm check:mutation-diff",
+    check: "check:mutation-diff",
+    subject: "own-work",
+    cost: "minutes",
+    why: "asks whether the tests this branch wrote actually CATCH bugs in the lines this branch changed — the red phase proves a test went red, never that it would have gone red for a slightly different defect (ADR-0447 D2, ADR-0458). Runs AFTER the test leg deliberately: mutation results over a red suite describe the breakage, not the tests",
+  },
 
   // ── C. shared environment ──────────────────────────────────────────────────
   {
@@ -419,6 +431,10 @@ export const SKIP_CAPABLE_CHECKS: ReadonlyMap<string, string> = new Map([
   [
     "check:web-engine",
     "the `web/` submodule is absent locally (a hard failure in CI, as for its two siblings), or no synced package dir has been adopted by the site yet — in both cases it compares nothing",
+  ],
+  [
+    "check:mutation-diff",
+    "this branch changes no mutable TypeScript under a workspace project's `src/`, so there are no mutants to generate — the ordinary shape of a corpus, docs or config landing, and the commonest outcome of this rung",
   ],
 ]);
 
