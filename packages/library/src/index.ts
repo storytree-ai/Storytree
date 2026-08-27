@@ -170,3 +170,8 @@ export * from "./query.js";
 // verb: the discovery route that replaces edge-following when the `amends` edge retires. Pure and
 // browser-safe; the CLI supplies the rows from `Store.queryDocs()`.
 export * from "./search.js";
+// ADR-0464 D3 — the searchable prose of a STRUCTURED artifact, harvested from KIND_SPECS. Only
+// `adr`, `increment` and `template` store their prose in a `body`; every other kind keeps it in
+// per-kind section fields, so without this the whole knowledge tier was ranked on its description
+// alone. Kept out of `search.ts` to hold that module zod-free.
+export { searchProse } from "./search-prose.js";

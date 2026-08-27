@@ -2813,6 +2813,8 @@ export const CLI_OPTIONS = {
   "end-state": { type: "string" },
   // `storytree arc list --all | --closed | --parked` — widen past the default active-only worklist
   // (ADR-0239 D3, third scope by ADR-0374 D1). `--all` wins, then `--closed`, then `--parked`.
+  // ALSO `storytree library search|related --all` (ADR-0464 D3) — the same "widen past the default
+  // narrowing" sense: rank the transient work-record tier alongside the knowledge tier.
   all: { type: "boolean", default: false },
   closed: { type: "boolean", default: false },
   parked: { type: "boolean", default: false },
@@ -4601,7 +4603,11 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   // the discovery route that does NOT follow an authored edge. Both are READS.
   if (sub === "search") {
     if (help) return librarySearchHelp();
-    return librarySearch(deps.store, third, { kind: values.kind, limit: values.limit });
+    return librarySearch(deps.store, third, {
+      kind: values.kind,
+      limit: values.limit,
+      all: values.all === true,
+    });
   }
   if (sub === "related") {
     if (third === undefined || help) return libraryRelatedHelp();
@@ -4609,6 +4615,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       kind: values.kind,
       limit: values.limit,
       unlinked: values.unlinked === true,
+      all: values.all === true,
     });
   }
 

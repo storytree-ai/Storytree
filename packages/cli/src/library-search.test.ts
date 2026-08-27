@@ -98,14 +98,14 @@ test("a malformed doc payload adapts to an empty artifact rather than throwing",
 
 test("library search refuses an empty query rather than ranking everything", async () => {
   const store = await storeWith(CORPUS);
-  const env = await librarySearch(store, undefined, { kind: undefined, limit: undefined });
+  const env = await librarySearch(store, undefined, { kind: undefined, limit: undefined, all: false });
   assert.equal(env.ok, false);
   assert.match(env.body, /needs a query/);
 });
 
 test("library search reports a real zero WITH its denominator", async () => {
   const store = await storeWith(CORPUS);
-  const env = await librarySearch(store, "kumquat", { kind: undefined, limit: undefined });
+  const env = await librarySearch(store, "kumquat", { kind: undefined, limit: undefined, all: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /^0 of 5 artifacts/m);
   assert.match(env.body, /real zero/);
@@ -113,7 +113,7 @@ test("library search reports a real zero WITH its denominator", async () => {
 
 test("library search finds a body-only match and names the terms it used", async () => {
   const store = await storeWith(CORPUS);
-  const env = await librarySearch(store, "pull request", { kind: undefined, limit: undefined });
+  const env = await librarySearch(store, "pull request", { kind: undefined, limit: undefined, all: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /merge-ceremony/);
   assert.match(env.body, /`pull` `request`/);
@@ -121,14 +121,14 @@ test("library search finds a body-only match and names the terms it used", async
 
 test("--kind narrows both the ranking and the reported denominator", async () => {
   const store = await storeWith(CORPUS);
-  const env = await librarySearch(store, "decision", { kind: "adr", limit: undefined });
+  const env = await librarySearch(store, "decision", { kind: "adr", limit: undefined, all: false });
   assert.match(env.body, / of 4 adr artifacts/);
   assert.ok(!env.body.includes("merge-ceremony"));
 });
 
 test("--limit must be a positive integer", async () => {
   const store = await storeWith(CORPUS);
-  const env = await librarySearch(store, "decision", { kind: undefined, limit: "0" });
+  const env = await librarySearch(store, "decision", { kind: undefined, limit: "0", all: false });
   assert.equal(env.ok, false);
   assert.match(env.body, /positive integer/);
 });
@@ -139,21 +139,21 @@ test("--limit must be a positive integer", async () => {
 
 test("library related refuses an id the corpus does not hold, and says how many it read", async () => {
   const store = await storeWith(CORPUS);
-  const env = await libraryRelated(store, "adr-9999", { kind: undefined, limit: undefined, unlinked: false });
+  const env = await libraryRelated(store, "adr-9999", { kind: undefined, limit: undefined, unlinked: false, all: false });
   assert.equal(env.ok, false);
   assert.match(env.body, /no artifact "adr-9999" in the corpus \(5 read\)/);
 });
 
 test("related marks an amended decision LINKED, naming the field that joined them", async () => {
   const store = await storeWith(CORPUS);
-  const env = await libraryRelated(store, "adr-0139", { kind: undefined, limit: undefined, unlinked: false });
+  const env = await libraryRelated(store, "adr-0139", { kind: undefined, limit: undefined, unlinked: false, all: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /adr-0037.*← linked via amends/);
 });
 
 test("--unlinked hides the linked neighbours AND still counts them", async () => {
   const store = await storeWith(CORPUS);
-  const env = await libraryRelated(store, "adr-0139", { kind: undefined, limit: undefined, unlinked: true });
+  const env = await libraryRelated(store, "adr-0139", { kind: undefined, limit: undefined, unlinked: true, all: false });
   assert.equal(env.ok, true);
   assert.ok(!env.body.includes("← linked via"), "a linked neighbour must not be printed under --unlinked");
   assert.match(env.body, /further neighbour/, "the hidden count must still be reported");
@@ -165,7 +165,7 @@ test("an artifact whose neighbours are ALL linked says so rather than printing a
     row("a", "adr", { title: "Amends and annotation", body: "amends annotation obligation", dependsOn: ["asset:b"] }),
     row("b", "adr", { title: "Annotation obligation", body: "amends annotation obligation" }),
   ]);
-  const env = await libraryRelated(store, "a", { kind: undefined, limit: undefined, unlinked: true });
+  const env = await libraryRelated(store, "a", { kind: undefined, limit: undefined, unlinked: true, all: false });
   assert.equal(env.ok, true);
   assert.match(env.body, /every ranked neighbour is ALREADY linked \(1 of them\)/);
 });

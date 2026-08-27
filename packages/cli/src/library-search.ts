@@ -26,6 +26,7 @@ import {
   buildSearchIndex,
   relatedArtifacts,
   searchCorpus,
+  searchProse,
   type DocRef,
   type LibrarySearchDoc,
   type RelatedHit,
@@ -84,15 +85,29 @@ function refsOf(doc: Record<string, unknown>): DocRef[] {
   return refs;
 }
 
-/** Adapt one stored row onto the ranker's structural view. */
+/**
+ * Adapt one stored row onto the ranker's structural view.
+ *
+ * THE `body` FIELD IS NOT THE ARTIFACT'S TEXT, and reading it as though it were is the coverage half
+ * of ADR-0464 D3's defect. Only `adr`, `increment` and `template` store prose there; the rest of the
+ * corpus keeps it in the per-kind section fields `searchProse` reads (a guardrail's `rule`, a
+ * process's `steps`, an agent's `workflow`). Before this line the entire knowledge tier was ranked on
+ * its ~165-character description against a decision's 11,742-character body, and lost.
+ *
+ * `searchProse` FIRST, `body` as the fallback — not the other way round. On `increment` the spec
+ * table names `objective` AND `body`, so the harvest is a superset; falling back to `body` would
+ * quietly drop the objective. The fallback exists for the rendered kinds that have no spec entry at
+ * all (`template`), where it is the only text there is.
+ */
 export function toSearchDoc(row: StoredDoc): LibrarySearchDoc {
   const doc = (typeof row.doc === "object" && row.doc !== null ? row.doc : {}) as Record<string, unknown>;
+  const prose = searchProse(row.kind, doc);
   return {
     id: row.id,
     kind: row.kind,
     title: stringField(doc, "title"),
     description: stringField(doc, "description"),
-    body: stringField(doc, "body"),
+    body: prose === "" ? stringField(doc, "body") : prose,
     refs: refsOf(doc),
   };
 }
@@ -113,6 +128,24 @@ function renderHit(hit: SearchHit, mark = ""): string[] {
 export interface SearchOptions {
   readonly kind: string | undefined;
   readonly limit: string | undefined;
+  /** `--all`: rank the transient work-record tier too (ADR-0464 D3's opt-out). */
+  readonly all: boolean;
+}
+
+/**
+ * The one line that keeps a NARROWED ranking from reading as a whole-corpus one.
+ *
+ * Printed whenever `increment` / `friction` rows were held out, and it names both the count and the
+ * verb that reaches them. Without it "0 of 870 artifacts match" would be indistinguishable from "the
+ * answer is in the 1,674 rows this verb declined to rank" — the same distinction the denominator
+ * itself exists to make.
+ */
+function withheldNote(withheld: number): string[] {
+  if (withheld === 0) return [];
+  return [
+    `  (${withheld} transient work records — increment, friction — were NOT ranked; ` +
+      `--all ranks them, or --kind increment / --kind friction.)`,
+  ];
 }
 
 /**
@@ -138,7 +171,7 @@ export async function librarySearch(store: Store, query: string | undefined, opt
   const rows = await store.queryDocs();
   const docs = rows.map(toSearchDoc);
   const index = buildSearchIndex(docs);
-  const result = searchCorpus(index, query, { kind: opts.kind, limit });
+  const result = searchCorpus(index, query, { kind: opts.kind, limit, includeTransient: opts.all });
 
   const scope = opts.kind === undefined ? "artifacts" : `${opts.kind} artifacts`;
   if (result.terms.length === 0) {
@@ -152,12 +185,16 @@ export async function librarySearch(store: Store, query: string | undefined, opt
     };
   }
   if (result.matchCount === 0) {
+    // The zero is REAL over what was ranked, and `withheldNote` says what was not — the claim below
+    // is scoped to the ranked population deliberately, because ADR-0464 D3's tier rule made "every
+    // artifact was ranked" false by default and a sentence left standing would have been a lie.
     return {
       ok: true,
       body: [
         `0 of ${result.scanned} ${scope} match any of ${result.terms.map((t) => `\`${t}\``).join(" ")}.`,
-        `  Nothing in the corpus uses these words. This is a real zero, not a narrowed view —`,
-        `  every ${opts.kind === undefined ? "artifact" : opts.kind} was ranked.`,
+        `  Nothing in the ranked population uses these words. This is a real zero, not a truncation —`,
+        `  every ${opts.kind === undefined ? "artifact" : opts.kind} in it was ranked.`,
+        ...withheldNote(result.withheld),
       ].join("\n"),
       next: ['storytree library search "<other terms>"', "storytree library"],
     };
@@ -173,6 +210,7 @@ export async function librarySearch(store: Store, query: string | undefined, opt
     body: [
       `${result.matchCount} of ${result.scanned} ${scope} match at least one of ` +
         `${result.terms.map((t) => `\`${t}\``).join(" ")} — best first`,
+      ...withheldNote(result.withheld),
       ...shown,
       ...truncated,
     ].join("\n"),
@@ -187,6 +225,8 @@ export interface RelatedOptions {
   readonly kind: string | undefined;
   readonly limit: string | undefined;
   readonly unlinked: boolean;
+  /** `--all`: rank the transient work-record tier too (ADR-0464 D3's opt-out). */
+  readonly all: boolean;
 }
 
 /** `  adr-0271   …   [adr]  linked via amends → this` */
@@ -241,12 +281,14 @@ export async function libraryRelated(
     kind: opts.kind,
     limit,
     unlinkedOnly: opts.unlinked,
+    includeTransient: opts.all,
   });
 
   const header = [
     `${source.id} — ${source.title ?? source.id}   [${source.kind}]`,
     `ranked ${result.scanned} other artifacts${opts.kind === undefined ? "" : ` of kind ${opts.kind}`}` +
       ` against its ${result.terms.length} most distinctive terms.`,
+    ...withheldNote(result.withheld),
     `terms: ${result.terms.join(", ")}`,
   ];
 
@@ -283,20 +325,26 @@ export function librarySearchHelp(): Envelope {
   return {
     ok: true,
     body: [
-      'storytree library search "<terms>" [--kind <kind>] [--limit <n>]',
+      'storytree library search "<terms>" [--kind <kind>] [--limit <n>] [--all]',
       "",
-      "  Ranked search across every artifact's title, description and body.",
+      "  Ranked search across every artifact's title, description and prose — including the per-kind",
+      "  section fields (a guardrail's rule, a process's steps, an agent's workflow), not just the",
+      "  three kinds that store a `body`.",
       "  A READ — it needs no --pg to be current.",
       "",
       "  Ranking is BM25 with the title weighted heaviest. Hyphenated ids are searchable whole",
-      "  (`adr-0139`, `session-orchestrator`) and by their parts.",
+      "  (`adr-0139`, `session-orchestrator`) and by their parts, and words are matched by stem, so",
+      "  `bypass` reaches `bypassable`.",
       "",
-      "  A query that matches nothing says so and prints how many artifacts were ranked — an empty",
-      "  answer is never a narrowed view.",
+      "  The TRANSIENT tier — increment and friction, 66% of the corpus — is NOT ranked by default:",
+      "  it records what a session did, not what is true, and it used to outrank the definition or",
+      "  guardrail that answers a plain question. --all ranks it too; --kind increment ranks it alone.",
+      "  Whenever rows are held back the count is printed, so a narrowed answer never reads as a whole one.",
       "",
       "examples",
       '  storytree library search "amends annotation"',
       '  storytree library search "worktree provisioning" --kind adr --limit 5',
+      '  storytree library search "session cutting" --all      (include the work log)',
     ].join("\n"),
     next: ['storytree library search "amends annotation"'],
   };
@@ -307,7 +355,7 @@ export function libraryRelatedHelp(): Envelope {
   return {
     ok: true,
     body: [
-      "storytree library related <id> [--unlinked] [--kind <kind>] [--limit <n>]",
+      "storytree library related <id> [--unlinked] [--kind <kind>] [--limit <n>] [--all]",
       "",
       "  What else in the corpus is about this — and whether anything already links the two.",
       "",
@@ -315,6 +363,9 @@ export function libraryRelatedHelp(): Envelope {
       "  the artifact that is about your subject and that nobody connected. --unlinked is that set.",
       "",
       "  The `already linked` count always describes the whole ranking, not the printed page.",
+      "",
+      "  The transient tier (increment, friction) is held out by default, as it is for search: it",
+      "  authors no edges, so it was answering --unlinked with rows nothing COULD link. --all includes it.",
       "",
       "examples",
       "  storytree library related adr-0139 --unlinked",
