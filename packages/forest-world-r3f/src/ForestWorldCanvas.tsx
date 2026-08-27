@@ -16,9 +16,12 @@
 // nothing focused, nothing shown; opting in draws the whole network. Ghost
 // (under-island) strips are never drawn here — the cave props carry that story.
 
+import { useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
+import { Color } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
+import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry.js';
 
 /** Status-variant → placeholder colour (spike palette, not art direction).
  *
@@ -47,6 +50,9 @@ const byKind = (descriptors: readonly Descriptor3D[], kind: InstanceDescriptor['
 /** SVG-plane scale → world units. The core's 2D coordinates are SVG pixels
  *  (HEX_R ≈ 10s of units); render them 1:1 and size the camera instead. */
 const HEX_RADIUS = 9;
+// ⚠ Held equal to `CELL_GROUND_DEPTH` by `shipped-baseline.test.ts` — the two ground substrates
+// are the same ground in two representations and must not drift to different thicknesses. It stays
+// a literal because that same test parses this file's source for it.
 const TILE_HEIGHT = 3;
 
 function HexGround({ tiles }: { tiles: InstanceDescriptor[] }) {
@@ -64,6 +70,45 @@ function HexGround({ tiles }: { tiles: InstanceDescriptor[] }) {
         />
       ))}
     </Instances>
+  );
+}
+
+/** Status variant → LINEAR colour, using three's OWN sRGB transfer function rather than a
+ *  transcription of it. `<Instance color="#4f9d5d" />` puts the hex through `THREE.Color` on its
+ *  way into the instanced attribute, so a vertex-colour buffer built any other way would draw the
+ *  same status token at a visibly different lightness from the classic prisms — the two substrates
+ *  would stop agreeing about what a colour MEANS, which on this surface is what the map reports
+ *  (ADR-0392 D5 / ADR-0398 D7). Going through the same class is what makes that unrepresentable. */
+const linearColourOf = (material: string | undefined): LinearRgb => {
+  const c = new Color(colourOf(material));
+  return { r: c.r, g: c.g, b: c.b };
+};
+
+/** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
+ *
+ *  ⚠ THIS IS THE SUBSTRATE THE STUDIO ACTUALLY SHIPS, and until 2026-08-28 this canvas drew
+ *  nothing for it — the mapper had a case for the classic `tile` hex only, so 164 parcels fell
+ *  through to a skip and a real island rendered as one story tree over empty space (measured and
+ *  pictured by `adopt-the-land-into-the-shipped-map-arc-inc-01`, PR #1679).
+ *
+ *  ⚠ ONE MESH, NOT ONE PER PARCEL. Parcels are arbitrary polygons, so they cannot share a
+ *  geometry and `<Instances>` is unavailable; 164 separate meshes would cost 164 draw calls to
+ *  draw ground the classic substrate drew in one. The merge keeps it at one, and per-parcel status
+ *  colour survives as a vertex attribute. */
+function CellGround({ cells }: { cells: InstanceDescriptor[] }) {
+  const geo = useMemo(() => cellGroundGeometry({ cells, resolve: linearColourOf }), [cells]);
+  if (geo.triangles === 0) return null;
+  return (
+    <mesh>
+      <bufferGeometry>
+        <bufferAttribute attach="attributes-position" args={[geo.positions, 3]} />
+        <bufferAttribute attach="attributes-normal" args={[geo.normals, 3]} />
+        <bufferAttribute attach="attributes-color" args={[geo.colors, 3]} />
+      </bufferGeometry>
+      {/* `vertexColors` is what carries the per-parcel status through the merge; the material is
+          otherwise the same placeholder `meshStandardMaterial` the classic prisms wear. */}
+      <meshStandardMaterial vertexColors />
+    </mesh>
   );
 }
 
@@ -169,6 +214,11 @@ function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
  */
 export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWorldCanvasProps) {
   const grounds = byKind(descriptors, 'hex-ground');
+  // The relaxed-mesh parcels. A scene carries ONE substrate or the other (`scene.ts:658`), so in
+  // practice exactly one of `grounds` / `cells` is ever non-empty — but both are drawn
+  // unconditionally rather than switched on, because a mapper that started emitting both would
+  // then show it rather than silently drop one.
+  const cells = byKind(descriptors, 'cell-ground');
   const trees = byKind(descriptors, 'story-tree');
   // trail-ghost-strip descriptors are deliberately not drawn (the surface's call —
   // the under-island run is told by the cave props, which render unconditionally
@@ -183,6 +233,7 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
       <ambientLight intensity={0.7} />
       <directionalLight position={[120, 300, 80]} intensity={1.1} />
       <HexGround tiles={grounds} />
+      <CellGround cells={cells} />
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
       ))}

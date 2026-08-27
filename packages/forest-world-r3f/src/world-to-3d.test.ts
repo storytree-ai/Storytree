@@ -32,6 +32,8 @@ import {
   type SceneG,
   type SceneInput,
   type SceneKind,
+  type SceneNode,
+  type SceneStatus,
   type SceneTerritoryInput,
   type TrailIsland,
 } from '@storytree/forest-world';
@@ -462,4 +464,275 @@ test('all instance descriptors carry a non-empty instancing group string', () =>
     assert.equal(typeof inst.group, 'string', 'group is a string');
     assert.ok(inst.group.length > 0, 'group is non-empty');
   }
+});
+
+// ---------------------------------------------------------------------------
+// The RELAXED-MESH ground — the substrate the studio actually ships
+// ---------------------------------------------------------------------------
+//
+// ⚠ Between ADR-0123 and 2026-08-28 the mapper had a case for the classic `tile` hex only, so an
+// island of the shape the product draws produced NO GROUND AT ALL — every parcel fell through to
+// the default skip (`docs/research/chapter2-shipped-baseline-2026-08-28/`). These tests hold the
+// `cell` case that closed it. They are hand-built scene fragments rather than a `buildScene`
+// round trip on purpose: what has to be pinned is the mapper's reading of a SHAPE — a status
+// stamped one level above its cells — and a fixture that happens to carry that shape today would
+// stop testing it the day the core changed, silently.
+
+/** A relaxed-mesh ground fragment: a `ground` group carrying the status, with plain `cell` paths
+ *  under it carrying NONE — exactly what `scene.ts:3252` emits. */
+function meshGround(
+  rings: readonly (readonly (readonly [number, number])[])[],
+  over: { status?: SceneStatus; kind?: SceneKind; transform?: string } = {},
+): SceneG {
+  const d = (r: readonly (readonly [number, number])[]) =>
+    r.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ') + ' Z';
+  const cells: SceneNode[] = rings.map((r) => ({ el: 'path', kind: over.kind ?? 'cell', d: d(r) }));
+  // ANNOTATED local, then guarded assignments — the shape `anti-slop`'s
+  // no-conditional-empty-object-spread and no-known-value-widening both want, and it keeps the
+  // fixture a real `SceneG` rather than something asserted into one.
+  const group: SceneG = { el: 'g', kind: 'ground', children: cells };
+  if (over.status !== undefined) group.status = over.status;
+  if (over.transform !== undefined) group.transform = over.transform;
+  return group;
+}
+
+const UNIT_SQUARE = [
+  [0, 0],
+  [0, 10],
+  [10, 10],
+  [10, 0],
+] as const;
+
+test('worldTo3D maps relaxed-mesh cells to cell-ground descriptors — one per parcel', () => {
+  const ds = worldTo3D(meshGround([UNIT_SQUARE, UNIT_SQUARE, UNIT_SQUARE], { status: 'healthy' }));
+  const cells = ds.filter(asInstance).filter((d) => d.kind === 'cell-ground');
+  assert.equal(cells.length, 3);
+  for (const c of cells) {
+    assert.equal(c.group, 'cell-ground', 'the instancing group names the family');
+    assert.equal(c.material, 'healthy');
+    assert.equal(c.points?.length, 4, 'the ring, each vertex once — polyPath closes with Z');
+  }
+  // No parcel is left as a skip.
+  assert.equal(ds.filter(asSkipped).filter((s) => s.sceneKind === 'cell').length, 0);
+});
+
+test('a cell-wheat parcel is the SAME ground, not a third drawable', () => {
+  // The classic case already folds its own `tile-top-wheat` into one `hex-ground`; folding here
+  // keeps the two substrates telling the same story rather than inventing a family this surface
+  // has no idea what to do with.
+  const ds = worldTo3D(meshGround([UNIT_SQUARE], { status: 'mapped', kind: 'cell-wheat' }));
+  const cells = ds.filter(asInstance).filter((d) => d.kind === 'cell-ground');
+  assert.equal(cells.length, 1);
+  assert.equal(cells[0]!.material, 'mapped');
+  assert.equal(ds.filter(asSkipped).filter((s) => s.sceneKind === 'cell-wheat').length, 0);
+});
+
+test('⚠ a parcel INHERITS its territory status — reading the cell alone draws every parcel unknown', () => {
+  // ⚠ THE LOAD-BEARING ONE. A plain relaxed `cell` carries NO status of its own; the core puts it
+  // on the `<g kind="ground" status=…>` one level up. A mapper that read the cell would draw the
+  // whole shipped map `unknown` — a map that has STOPPED REPORTING (ADR-0392 D5 / ADR-0398 D7),
+  // not one that merely looks wrong.
+  for (const status of ['healthy', 'unhealthy', 'proposed', 'mapped'] as const) {
+    const cells = worldTo3D(meshGround([UNIT_SQUARE], { status }))
+      .filter(asInstance)
+      .filter((d) => d.kind === 'cell-ground');
+    assert.equal(cells[0]!.material, status, `a parcel under a ${status} ground did not inherit it`);
+  }
+});
+
+test('a cell’s OWN status wins over the inherited one — the parcels-present shape', () => {
+  // `scene.ts:1718` stamps per-CAPABILITY status on each cell when parcels are present, which is
+  // finer than the territory's and must not be overwritten by it.
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'ground',
+    status: 'healthy',
+    children: [
+      { el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z' },
+      { el: 'path', kind: 'cell', status: 'unhealthy', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z' },
+    ],
+  };
+  const materials = worldTo3D(scene)
+    .filter(asInstance)
+    .filter((d) => d.kind === 'cell-ground')
+    .map((d) => d.material);
+  assert.deepEqual(materials, ['healthy', 'unhealthy']);
+});
+
+test('a parcel with no status anywhere falls back to unknown, never to undefined', () => {
+  const cells = worldTo3D(meshGround([UNIT_SQUARE]))
+    .filter(asInstance)
+    .filter((d) => d.kind === 'cell-ground');
+  assert.equal(cells[0]!.material, 'unknown');
+});
+
+test('a parcel’s ring and centre carry the ancestor translate', () => {
+  // ⚠ The ring is in the scene's own coordinates; an ancestor `<g translate(...)>` has to reach
+  // it or the island draws in the wrong place — off-by-a-translate is invisible on a single
+  // island and obvious the moment there are two.
+  const ds = worldTo3D(meshGround([UNIT_SQUARE], { status: 'healthy', transform: 'translate(100 200)' }));
+  const cell = ds.filter(asInstance).find((d) => d.kind === 'cell-ground')!;
+  assert.deepEqual(
+    cell.points?.map((p) => [p.x, p.y, p.z]),
+    [
+      [100, 0, 200],
+      [100, 0, 210],
+      [110, 0, 210],
+      [110, 0, 200],
+    ],
+  );
+  // The transform is the ring's centroid, on the ground plane.
+  closeTo(cell.transform.x, 105, 'parcel centre x');
+  closeTo(cell.transform.y, 0, 'a parcel sits on the ground plane');
+  closeTo(cell.transform.z, 205, 'parcel centre z');
+});
+
+test('a ring bounding no area is SKIPPED, not emitted as a degenerate parcel', () => {
+  // ⚠ Two vertices bound no area. Emitting one would put a parcel in the drawable set that no
+  // consumer can build a face from; skipping it keeps `cell-ground` a family whose members are
+  // always drawable, and the skip is still an audit record rather than a silent drop.
+  const ds = worldTo3D(
+    meshGround(
+      [
+        [
+          [0, 0],
+          [10, 10],
+        ],
+        UNIT_SQUARE,
+      ],
+      { status: 'healthy' },
+    ),
+  );
+  assert.equal(ds.filter(asInstance).filter((d) => d.kind === 'cell-ground').length, 1);
+  const skips = ds.filter(asSkipped).filter((s) => s.sceneKind === 'cell');
+  assert.equal(skips.length, 1, 'the degenerate parcel must still be recorded as a skip');
+});
+
+test('the classic hex substrate is UNAFFECTED — the cell case ADDED a representation', () => {
+  // Without this the tests above are satisfied by a mapper re-pointed from `tile` to `cell`,
+  // which is the same defect facing the other way.
+  const ds = worldTo3D(buildScene(mkInput()));
+  assert.ok(ds.filter(asInstance).filter((d) => d.kind === 'hex-ground').length > 0);
+  assert.equal(ds.filter(asInstance).filter((d) => d.kind === 'cell-ground').length, 0);
+});
+
+test('a TRIANGULAR parcel is drawn — three vertices bound an area', () => {
+  // ⚠ The degeneracy guard is `< 3`, and `<= 3` would throw away every triangular parcel while
+  // still passing every test built on quads. The relaxed mesh gives quads today, but a parcel
+  // clipped against an island boundary is not obliged to keep four corners.
+  const ds = worldTo3D(
+    meshGround(
+      [
+        [
+          [0, 0],
+          [10, 0],
+          [5, 8],
+        ],
+      ],
+      { status: 'healthy' },
+    ),
+  );
+  const cells = ds.filter(asInstance).filter((d) => d.kind === 'cell-ground');
+  assert.equal(cells.length, 1, 'a triangular parcel was dropped');
+  assert.equal(cells[0]!.points?.length, 3);
+});
+
+test('a non-cell leaf NEVER becomes a parcel — the guard is on the kind, not on being a path', () => {
+  // ⚠ Widen that guard and every kinded leaf in the scene turns into ground: the classic tile's
+  // own `tile-top` and `tile-side` paths are the ones immediately in reach, so a whole hex island
+  // would draw twice, once as prisms and once as flat parcels.
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'ground',
+    status: 'healthy',
+    children: [
+      { el: 'path', kind: 'tile-side', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z' },
+      { el: 'path', kind: 'parcel-blade', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 Z' },
+      // ⚠ A `cell` KIND on a non-path element — the guard is on both, and this is the arm that
+      // says so.
+      { el: 'circle', kind: 'cell', cx: 0, cy: 0, r: 5 },
+    ],
+  };
+  const ds = worldTo3D(scene);
+  assert.equal(ds.filter(asInstance).filter((d) => d.kind === 'cell-ground').length, 0);
+  // They are still recorded as skips — total coverage, never a silent drop. (The enclosing
+  // `ground` group is kinded too, so it contributes a fourth skip of its own.)
+  const skipped = ds.filter(asSkipped).map((s) => s.sceneKind).sort();
+  assert.deepEqual(skipped, ['cell', 'ground', 'parcel-blade', 'tile-side']);
+});
+
+test('every status-bearing family falls back to `unknown` when nothing above it carries a status', () => {
+  // ⚠ Each family writes its own `status ?? 'unknown'`, so each is its own chance to fall back to
+  // the empty string — a material no palette has an entry for, which draws as whatever the
+  // canvas's own default happens to be rather than as an honest "this asserts nothing".
+  const noStatus: SceneTerritoryInput = mkTerritory();
+  delete (noStatus as Partial<SceneTerritoryInput>).status;
+  const statusless = buildScene(mkInput({ territories: [noStatus] }));
+  for (const d of worldTo3D(statusless).filter(asInstance)) {
+    if (d.material === undefined) continue;
+    assert.notEqual(d.material, '', `${d.kind} fell back to the empty string`);
+    assert.equal(typeof d.material, 'string');
+  }
+  const parcels = worldTo3D(meshGround([UNIT_SQUARE])).filter(asInstance);
+  assert.equal(parcels[0]!.material, 'unknown');
+});
+
+test('a status-bearing family reports ITS OWN status, never a constant', () => {
+  // ⚠ `status ?? 'unknown'` mutated to `status && 'unknown'` reads identically until a status IS
+  // present — and then every family on the map reports `unknown` while the code still looks like
+  // it consults the status. That is the map lying, which ADR-0392 D5 / ADR-0398 D7 put beyond an
+  // art call, so it is asserted per family rather than once.
+  for (const status of ['healthy', 'unhealthy', 'mapped'] as const) {
+    const ds = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ status })] })));
+    const bearing = ds.filter(asInstance).filter((d) => d.material !== undefined);
+    assert.ok(bearing.length > 0, 'no status-bearing family in the scene');
+    for (const d of bearing) {
+      assert.equal(d.material, status, `${d.kind} did not report the territory's own status`);
+    }
+    const parcel = worldTo3D(meshGround([UNIT_SQUARE], { status })).filter(asInstance)[0]!;
+    assert.equal(parcel.material, status, 'a parcel did not report its own status');
+  }
+});
+
+test('a CAVE PORTAL reports its island’s status too, and falls back to unknown without one', () => {
+  // ⚠ The cave arch writes its own `status ?? 'unknown'`, and the existing portal test only ever
+  // exercises the fallback (its fixture has no territory for the island). So the ?? has never had
+  // a status to prefer, and `status && 'unknown'` — which makes every portal report `unknown`
+  // whatever the island holds — reads identically on that fixture.
+  const walled = mkInput({ trails: CAVE_TRAILS });
+  assert.ok(CAVE_TRAILS.caves.length > 0, 'the walled-in fixture forces cave portals');
+  for (const status of ['healthy', 'unhealthy'] as const) {
+    const withTerritory = mkInput({
+      ...walled,
+      territories: [mkTerritory({ id: CAVE_TRAILS.caves[0]!.islandId, status })],
+    });
+    const arches = worldTo3D(buildScene(withTerritory)).filter(asInstance).filter((d) => d.kind === 'cave-arch');
+    assert.ok(arches.length > 0, 'no portal in the scene');
+    const own = arches.filter((a) => a.island === CAVE_TRAILS.caves[0]!.islandId);
+    assert.ok(own.length > 0, 'the portal on the territory we gave a status is missing');
+    for (const a of own) assert.equal(a.material, status, 'a portal did not report its island status');
+  }
+});
+
+test('a cave portal with NO status ANYWHERE above it falls back to `unknown`', () => {
+  // ⚠ THE EXISTING PORTAL TEST NO LONGER REACHES THIS, and the mutation sweep is what said so.
+  // Its fixture has no territory for the island, so the portal used to see `undefined` — but
+  // since parcels made the walk inherit an ancestor's status, the portal now inherits `unknown`
+  // from a group above it and the `?? 'unknown'` literal is never evaluated. It still asserts
+  // `unknown` and still passes, while testing a different thing than it used to. The fallback
+  // needs a scene with no status anywhere in the ancestry to be exercised at all.
+  const scene: SceneG = {
+    el: 'g',
+    children: [
+      {
+        el: 'g',
+        kind: 'cave',
+        transform: 'translate(10 20) rotate(0)',
+        children: [{ el: 'path', kind: 'cave-arch', d: 'M 0 -8 A 8 8 0 0 1 0 8' }],
+      },
+    ],
+  };
+  const arches = worldTo3D(scene).filter(asInstance).filter((d) => d.kind === 'cave-arch');
+  assert.equal(arches.length, 1);
+  assert.equal(arches[0]!.material, 'unknown', 'the portal fell back to something other than unknown');
 });

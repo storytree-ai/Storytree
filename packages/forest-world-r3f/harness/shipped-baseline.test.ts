@@ -17,7 +17,8 @@ import { fileURLToPath } from 'node:url';
 import { CircleGeometry, ConeGeometry, CylinderGeometry, SphereGeometry } from 'three';
 import { buildScene, hexCenter as hexCentre, type SceneG } from '@storytree/forest-world';
 
-import { worldTo3D } from '../src/world-to-3d.js';
+import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
+import { cellGroundTriangles } from '../src/cell-ground-geometry.js';
 import { islandScene } from './island-fixture.js';
 import type { BufferGeometry } from 'three';
 
@@ -29,7 +30,9 @@ import {
   SHIPPED_TILE_HEIGHT,
   SHIPPED_UNDRAWN,
   CLASSIC_TILES,
+  BEFORE_THE_CELL_CASE,
   authoredTriangles,
+  cellGroundTrianglesFor,
   circleTriangles,
   classicHexScene,
   cylinderTriangles,
@@ -126,48 +129,141 @@ test('every primitive names the shipped file it was read off', () => {
   }
 });
 
-/* ── ⚠⚠ THE FINDING THIS BASELINE EXISTS FOR ─────────────────────────────────────────────────
-   The shipped canvas's ground case keys on a scene node of kind `tile` (`world-to-3d.ts:207`),
-   which is the CLASSIC extruded-hex ground. The substrate the studio actually ships is the
-   RELAXED MESH (`scene.ts:658`: "Mesh substrate cells; null => the classic extruded-hex
-   ground"), whose ground arrives as `cell` nodes — and the mapper has no case for those, so
-   they fall to the default skip.
+/* ── ⚠⚠ THE FINDING THIS BASELINE EXISTED FOR — AND ITS FIX ─────────────────────────────────
+   ⚠ READ THE HISTORY BEFORE CHANGING THESE. As of PR #1679 (2026-08-28) the shipped canvas's
+   ground case keyed on a scene node of kind `tile` (the CLASSIC extruded-hex ground) only. The
+   substrate the studio actually ships is the RELAXED MESH (`scene.ts:658`), whose ground arrives
+   as `cell` nodes — and the mapper had no case for those, so they fell to the default skip.
+   Measured on an RTX 2060 that day: for an island of the shape the studio ships,
+   `<ForestWorldCanvas>` drew NO GROUND AT ALL. One story tree, 144 triangles, two draw calls.
 
-   The consequence, measured on an RTX 2060 on 2026-08-28: for an island of the shape the
-   studio ships, `<ForestWorldCanvas>` draws NO GROUND AT ALL. One story tree, 144 triangles,
-   two draw calls. The land this whole arc is about does not currently reach the shipped
-   renderer in any form.
+   `the-shipped-map-draws-its-ground-again` closed that gap by teaching the mapper the `cell` /
+   `cell-wheat` representation. The tests below now pin the FIX, and the ORIGINAL numbers are
+   kept in `BEFORE_THE_CELL_CASE` so the size of the change stays checkable rather than
+   remembered — a before/after that only lives in a report is one nobody can re-run.
 
-   BOTH tests below are needed and neither is sufficient. The first states the finding; on its
-   own it is satisfied by a mapper that is simply broken for everything. The second is the
-   non-vacuity control — the SAME mapper, the SAME fixture shape, the classic substrate — and
-   it draws ground. Together they say the mapper works and is pointed at a representation the
-   product no longer produces. ────────────────────────────────────────────────────────────── */
+   THREE tests, and none is sufficient alone. The first says the ground arrives. The second is
+   the non-vacuity control — the SAME mapper on the classic substrate still draws its hexes, so
+   the fix ADDED a representation rather than swapping one for another. The third says nothing
+   falls through to a skip any more, which is what the original finding actually was.
+   ────────────────────────────────────────────────────────────────────────────────────────── */
 
-test('⚠ the shipped mapper emits NO ground for the mesh substrate the studio ships', () => {
+
+test('the shipped mapper NOW draws the mesh substrate the studio ships', () => {
   const ds = worldTo3D(islandScene());
-  const ground = ds.filter((d) => d.kind === 'hex-ground');
-  assert.equal(ground.length, 0, 'if this ever becomes non-zero the finding has been FIXED — say so, do not delete the test');
-  const skippedCells = ds.filter((d) => d.kind === 'skipped' && d.sceneKind === 'cell');
-  assert.ok(
-    skippedCells.length > 100,
-    `the island's ground cells should be arriving and being skipped; got ${skippedCells.length}`,
+  const cells = ds.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');
+  assert.equal(
+    cells.length,
+    BEFORE_THE_CELL_CASE.skippedCells,
+    'every parcel that used to be skipped should now be a drawable',
   );
+  // Each one carries a ring it is possible to build a face from, and a status to colour it by.
+  for (const c of cells) {
+    assert.ok((c.points?.length ?? 0) >= 3, 'a parcel needs a ring');
+    assert.equal(typeof c.material, 'string', 'a parcel needs a status');
+  }
 });
 
-test('NON-VACUITY: the same mapper DOES draw ground for the classic hex substrate', () => {
-  // Without this control the test above is satisfied by a mapper that draws nothing ever.
+test('NON-VACUITY: the same mapper STILL draws ground for the classic hex substrate', () => {
+  // Without this control the test above is satisfied by a mapper that swapped one substrate for
+  // the other — which would trade the reported defect for the same defect facing the other way.
   const scene = classicHexScene(buildScene as never, hexCentre) as SceneG;
-  const ground = worldTo3D(scene).filter((d) => d.kind === 'hex-ground');
-  assert.equal(ground.length, CLASSIC_TILES.length, 'the classic substrate maps one hex-ground per tile');
+  const ds = worldTo3D(scene);
+  assert.equal(
+    ds.filter((d) => d.kind === 'hex-ground').length,
+    CLASSIC_TILES.length,
+    'the classic substrate maps one hex-ground per tile',
+  );
+  assert.equal(ds.filter((d) => d.kind === 'cell-ground').length, 0, 'and emits no parcels');
 });
 
-test('the shipped canvas costs what the authored count says, for the scene it CAN draw', () => {
-  // The 2026-08-28 GPU run measured 144 triangles across 2 draw calls for the mesh-substrate
-  // island — the story tree alone. Recorded as an assertion so a change to the shipped
-  // primitives is caught here rather than in a report nobody re-runs.
+test('no ground cell falls through to a skip any more — the original finding, inverted', () => {
+  const ds = worldTo3D(islandScene());
+  const skippedCells = ds.filter((d) => d.kind === 'skipped' && (d.sceneKind === 'cell' || d.sceneKind === 'cell-wheat'));
+  assert.equal(skippedCells.length, 0, `${skippedCells.length} ground cells are still being skipped`);
+});
+
+test('a parcel wears its territory status, which the cell itself does not carry', () => {
+  // ⚠ THE INHERITANCE IS THE LOAD-BEARING PART. On the relaxed mesh a plain `cell` has no status
+  // of its own — the core puts it on the `<g kind="ground" status=…>` above it (`scene.ts:3252`
+  // vs `:3254`). Read the cell alone and every parcel draws `unknown`, which is a map that has
+  // stopped REPORTING (ADR-0392 D5 / ADR-0398 D7) rather than one that merely looks wrong. So a
+  // test that only counted parcels would pass on exactly the version that lies.
+  const ds = worldTo3D(islandScene());
+  const materials = new Set(
+    ds.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground').map((d) => d.material),
+  );
+  assert.ok(materials.size > 0, 'no parcels at all');
+  assert.ok(!materials.has('unknown'), 'a parcel fell back to `unknown` — the status did not reach it');
+});
+
+test('the shipped canvas costs what the authored count says — parcels included', () => {
+  // ⚠ THE PARCEL TOTAL MUST BE PASSED IN, and this test is where that is enforced. Calling
+  // `authoredTriangles(census)` alone still returns a number, and before the `cell` case existed
+  // that number was RIGHT — 144, the story tree alone. It is now an undercount by the entire
+  // ground, and it would go on being reported with the same calm authority. So the assertion is
+  // that the two forms DISAGREE, which is the only way a defaulted argument can be held to
+  // being supplied.
   const ds = worldTo3D(islandScene());
   const c: Record<string, number> = {};
   for (const d of ds) c[d.kind] = (c[d.kind] ?? 0) + 1;
-  assert.equal(authoredTriangles(c).triangles, 144);
+
+  const parcelTriangles = cellGroundTrianglesFor(ds);
+  assert.ok(parcelTriangles > 0, 'the fixture draws no parcels — the fixture, not the count, is wrong');
+
+  const treeOnly = authoredTriangles(c).triangles;
+  assert.equal(treeOnly, BEFORE_THE_CELL_CASE.triangles, 'the story tree alone is still 144');
+
+  const whole = authoredTriangles(c, parcelTriangles).triangles;
+  assert.equal(whole, treeOnly + parcelTriangles);
+  assert.ok(whole > treeOnly, 'the ground contributed nothing — the parcel total was dropped');
+
+  // And the per-kind breakdown names the parcels rather than folding them into a total.
+  const row = authoredTriangles(c, parcelTriangles).byKind.find((k) => k.kind === 'cell-ground');
+  assert.ok(row, 'cell-ground must appear in the breakdown');
+  assert.equal(row.drawables, BEFORE_THE_CELL_CASE.skippedCells);
+  assert.equal(row.triangles, parcelTriangles);
+});
+
+test('EVERY parcel of the shipped substrate is a QUADRILATERAL — recorded, not assumed', () => {
+  // ⚠ Worth knowing before sizing anything on this geometry: `buildRelaxedCells` produces
+  // four-vertex parcels uniformly — 164 of them, all rings of 4. It is the same figure the
+  // harness records from the other side ("164 cells x 4-pt fan"), reached independently here.
+  // It is a property of TODAY'S generator, not a guarantee, which is why the triangle total is
+  // still summed per ring rather than shortcut to `164 * 10`.
+  const ds = worldTo3D(islandScene());
+  const rings = ds
+    .filter((d): d is InstanceDescriptor => d.kind === 'cell-ground')
+    .map((d) => d.points?.length ?? 0);
+  assert.deepEqual([...new Set(rings)], [4]);
+  assert.equal(rings.length, BEFORE_THE_CELL_CASE.skippedCells);
+  assert.equal(cellGroundTrianglesFor(ds), rings.length * cellGroundTriangles(4));
+});
+
+test('the parcel total reads each ring’s OWN length, not the quad the fixture happens to be', () => {
+  // ⚠ A CLAIM THIS TEST WAS FIRST WRITTEN TO MAKE IS FALSE, and it is recorded rather than
+  // quietly dropped. `cellGroundTriangles` is AFFINE in the ring length (3n - 2), so a
+  // count-times-MEAN estimate is not an approximation at all — it is exactly equal, and an
+  // implementation that averaged would pass every check here. The real hazard is narrower and
+  // this is what the test now pins: a ring length ASSUMED to be 4, which is what today's
+  // generator uniformly produces (above) and what a reader sizing this geometry would most
+  // naturally hardcode. `baseline-measure.mjs` refuses a run in which the authored and GL counts
+  // differ by ANY amount, so on a future non-quad island that assumption is a refused run.
+  const ring = (n: number) =>
+    Array.from({ length: n }, (_, i) => ({
+      x: Math.cos((i / n) * Math.PI * 2) * 10,
+      y: 0,
+      z: Math.sin((i / n) * Math.PI * 2) * 10,
+    }));
+  const mixed: Descriptor3D[] = [3, 4, 9].map((n) => ({
+    kind: 'cell-ground' as const,
+    transform: { x: 0, y: 0, z: 0 },
+    group: 'cell-ground',
+    material: 'healthy',
+    points: ring(n),
+  }));
+  const summed = cellGroundTriangles(3) + cellGroundTriangles(4) + cellGroundTriangles(9);
+  assert.equal(cellGroundTrianglesFor(mixed), summed);
+  // What an implementation that assumed the fixture's quad would report, shown to differ.
+  assert.notEqual(summed, mixed.length * cellGroundTriangles(4));
 });
