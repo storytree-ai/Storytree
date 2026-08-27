@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>the grain octave on the GPU clock — chapter2 frame cost (dev-only)</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0b0e13;
+        color: #e6e9ef;
+        font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+        padding: 20px;
+      }
+      p {
+        max-width: 78ch;
+        color: #aab2c0;
+      }
+      code {
+        color: #d7c07a;
+      }
+      canvas {
+        border: 1px solid #2a3038;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>the grain octave, on the GPU's own clock</h1>
+    <p>
+      A FRAGMENT-BOUND A/B scene: one ground quad, <strong>one draw call</strong>, filling the
+      frame, so the ground's fragment shader is the dominant term. The existing
+      <code>hardware-floor</code> scene draws one call per plant and is measured draw-call bound —
+      quadrupling its fragments moved its number 0%, so a shader A/B there cannot resolve
+      anything.
+    </p>
+    <p>
+      The page does nothing on its own. <code>harness/frame-cost-measure.mjs</code> drives it,
+      calling <code>window.__stFrameCost(spec)</code> once per sample, round-robin across every
+      variant and zoom. Each sample times the identical batch twice — once by wall clock around
+      <code>gl.finish()</code>, once by <code>EXT_disjoint_timer_query_webgl2</code> — so the two
+      routes can be compared on the same work at the same moment.
+    </p>
+    <div id="root"></div>
+    <script type="module">
+      import { mountFrameCost } from './frame-cost-scene.ts';
+      mountFrameCost(document.getElementById('root'));
+    </script>
+  </body>
+</html>

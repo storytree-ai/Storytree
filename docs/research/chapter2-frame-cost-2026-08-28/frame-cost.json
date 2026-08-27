@@ -1,0 +1,1436 @@
+{
+  "what": "adopt-the-land-into-the-shipped-map-arc end-state item 2 — the per-frame cost of the land grain, costed separately, on the GPU's own clock",
+  "url": "http://localhost:5217/frame-cost.html",
+  "measuredOn": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "timerQueryExtension": "EXT_disjoint_timer_query_webgl2",
+    "timerQueryAvailable": true,
+    "software": false
+  },
+  "scene": {
+    "drawCalls": 1,
+    "triangles": 2,
+    "groundCoveragePct": {
+      "none@2px": 100,
+      "normal@2px": 100,
+      "colour@2px": 100,
+      "both@2px": 100,
+      "normal-forward@2px": 100,
+      "normal-dfd@2px": 100,
+      "none@8px": 100,
+      "normal@8px": 100,
+      "colour@8px": 100,
+      "both@8px": 100,
+      "normal-forward@8px": 100,
+      "normal-dfd@8px": 100
+    },
+    "bufferWidth": 2880,
+    "bufferHeight": 1920
+  },
+  "sweep": {
+    "repeats": 11,
+    "batchRendersPerSample": 30,
+    "interleaved": true,
+    "zooms": [
+      2,
+      8
+    ],
+    "variants": [
+      "none",
+      "normal",
+      "colour",
+      "both",
+      "normal-forward",
+      "normal-dfd"
+    ],
+    "frameBudget60HzMs": 16.666666666666668
+  },
+  "integrity": {
+    "status": "SOUND",
+    "reasons": [],
+    "prose": "SOUND — the GPU clock was available and undisturbed on ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0) (Google Inc. (NVIDIA Corporation)); every row kept at least 3 samples and a majority of what it attempted."
+  },
+  "table": [
+    {
+      "zoom": 2,
+      "variant": "none",
+      "sinCallsPerFragment": 0,
+      "gpuMedianMs": 0.09755093333333333,
+      "gpuSpreadMs": 0.014956800000000006,
+      "wallMedianMs": 0.0033333331346511843,
+      "wallSpreadMs": 0.04000000009934108,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 0.5853055999999999,
+      "resolution": "BASELINE",
+      "deltaVsControlMs": null,
+      "noiseFloorMs": 0.014956800000000006,
+      "costStatement": "the control"
+    },
+    {
+      "zoom": 2,
+      "variant": "normal",
+      "sinCallsPerFragment": 32,
+      "gpuMedianMs": 0.7005472,
+      "gpuSpreadMs": 0.08847360000000004,
+      "wallMedianMs": 0.0033333331346511843,
+      "wallSpreadMs": 0.046666666368643445,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 4.2032831999999996,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.6029962666666667,
+      "noiseFloorMs": 0.08847360000000004,
+      "costStatement": "+0.603 ms/frame (3.62% of a 16.67 ms frame, 7.18x the control)"
+    },
+    {
+      "zoom": 2,
+      "variant": "colour",
+      "sinCallsPerFragment": 8,
+      "gpuMedianMs": 0.26200746666666663,
+      "gpuSpreadMs": 0.03207786666666668,
+      "wallMedianMs": 0.0033333336313565573,
+      "wallSpreadMs": 0.03000000019868215,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 1.5720447999999998,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.16445653333333332,
+      "noiseFloorMs": 0.03207786666666668,
+      "costStatement": "+0.164 ms/frame (0.99% of a 16.67 ms frame, 2.69x the control)"
+    },
+    {
+      "zoom": 2,
+      "variant": "both",
+      "sinCallsPerFragment": 40,
+      "gpuMedianMs": 0.8519466666666666,
+      "gpuSpreadMs": 0.15471786666666654,
+      "wallMedianMs": 0.0066666662693023685,
+      "wallSpreadMs": 0.020000000298023225,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 5.11168,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.7543957333333333,
+      "noiseFloorMs": 0.15471786666666654,
+      "costStatement": "+0.754 ms/frame (4.53% of a 16.67 ms frame, 8.73x the control)"
+    },
+    {
+      "zoom": 2,
+      "variant": "normal-forward",
+      "sinCallsPerFragment": 24,
+      "gpuMedianMs": 0.5243541333333334,
+      "gpuSpreadMs": 0.09551146666666654,
+      "wallMedianMs": 0.0033333331346511843,
+      "wallSpreadMs": 0.016666666666666666,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 3.1461248,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.42680320000000005,
+      "noiseFloorMs": 0.09551146666666654,
+      "costStatement": "+0.427 ms/frame (2.56% of a 16.67 ms frame, 5.38x the control)"
+    },
+    {
+      "zoom": 2,
+      "variant": "normal-dfd",
+      "sinCallsPerFragment": 8,
+      "gpuMedianMs": 0.27809706666666667,
+      "gpuSpreadMs": 0.05126933333333339,
+      "wallMedianMs": 0.0033333336313565573,
+      "wallSpreadMs": 0.013333333532015483,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 1.6685823999999998,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.18054613333333336,
+      "noiseFloorMs": 0.05126933333333339,
+      "costStatement": "+0.181 ms/frame (1.08% of a 16.67 ms frame, 2.85x the control)"
+    },
+    {
+      "zoom": 8,
+      "variant": "none",
+      "sinCallsPerFragment": 0,
+      "gpuMedianMs": 0.09761706666666667,
+      "gpuSpreadMs": 0.016784000000000007,
+      "wallMedianMs": 0.0033333331346511843,
+      "wallSpreadMs": 0.01333333303531011,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 0.5857024,
+      "resolution": "BASELINE",
+      "deltaVsControlMs": null,
+      "noiseFloorMs": 0.016784000000000007,
+      "costStatement": "the control"
+    },
+    {
+      "zoom": 8,
+      "variant": "normal",
+      "sinCallsPerFragment": 32,
+      "gpuMedianMs": 0.7000394666666666,
+      "gpuSpreadMs": 0.09900053333333325,
+      "wallMedianMs": 0.0033333331346511843,
+      "wallSpreadMs": 0.013333333532015483,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 4.200236799999999,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.6024223999999999,
+      "noiseFloorMs": 0.09900053333333325,
+      "costStatement": "+0.602 ms/frame (3.61% of a 16.67 ms frame, 7.17x the control)"
+    },
+    {
+      "zoom": 8,
+      "variant": "colour",
+      "sinCallsPerFragment": 8,
+      "gpuMedianMs": 0.26180586666666666,
+      "gpuSpreadMs": 0.03579413333333331,
+      "wallMedianMs": 0.0033333336313565573,
+      "wallSpreadMs": 0.0066666667660077415,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 1.5708351999999999,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.1641888,
+      "noiseFloorMs": 0.03579413333333331,
+      "costStatement": "+0.164 ms/frame (0.99% of a 16.67 ms frame, 2.68x the control)"
+    },
+    {
+      "zoom": 8,
+      "variant": "both",
+      "sinCallsPerFragment": 40,
+      "gpuMedianMs": 0.8508288,
+      "gpuSpreadMs": 0.10869119999999999,
+      "wallMedianMs": 0.0033333331346511843,
+      "wallSpreadMs": 0.0066666667660077415,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 5.1049728000000005,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.7532117333333334,
+      "noiseFloorMs": 0.10869119999999999,
+      "costStatement": "+0.753 ms/frame (4.52% of a 16.67 ms frame, 8.72x the control)"
+    },
+    {
+      "zoom": 8,
+      "variant": "normal-forward",
+      "sinCallsPerFragment": 24,
+      "gpuMedianMs": 0.5236042666666667,
+      "gpuSpreadMs": 0.06591039999999992,
+      "wallMedianMs": 0.0033333336313565573,
+      "wallSpreadMs": 0.0066666667660077415,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 3.1416256000000002,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.4259872,
+      "noiseFloorMs": 0.06591039999999992,
+      "costStatement": "+0.426 ms/frame (2.56% of a 16.67 ms frame, 5.36x the control)"
+    },
+    {
+      "zoom": 8,
+      "variant": "normal-dfd",
+      "sinCallsPerFragment": 8,
+      "gpuMedianMs": 0.2775765333333334,
+      "gpuSpreadMs": 0.03379306666666665,
+      "wallMedianMs": 0.0033333331346511843,
+      "wallSpreadMs": 0.0066666667660077415,
+      "keptSamples": 11,
+      "attemptedSamples": 11,
+      "discardedDisjoint": 0,
+      "discardedUnavailable": 0,
+      "sharePctOf60Hz": 1.6654592000000004,
+      "resolution": "RESOLVED",
+      "deltaVsControlMs": 0.1799594666666667,
+      "noiseFloorMs": 0.03379306666666665,
+      "costStatement": "+0.180 ms/frame (1.08% of a 16.67 ms frame, 2.84x the control)"
+    }
+  ],
+  "gpuClockBudgetByZoom": {
+    "2": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "none",
+      "rows": [
+        {
+          "label": "none",
+          "gpuMsPerFrame": 0.09755093333333333,
+          "spreadMs": 0.014956800000000006,
+          "samples": 11,
+          "sharePct": 0.5853055999999999,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.014956800000000006
+        },
+        {
+          "label": "normal",
+          "gpuMsPerFrame": 0.7005472,
+          "spreadMs": 0.08847360000000004,
+          "samples": 11,
+          "sharePct": 4.2032831999999996,
+          "deltaVsBaselineMs": 0.6029962666666667,
+          "factorVsBaseline": 7.1813480000874765,
+          "deltaSharePct": 3.6179776000000006,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.08847360000000004
+        },
+        {
+          "label": "colour",
+          "gpuMsPerFrame": 0.26200746666666663,
+          "spreadMs": 0.03207786666666668,
+          "samples": 11,
+          "sharePct": 1.5720447999999998,
+          "deltaVsBaselineMs": 0.16445653333333332,
+          "factorVsBaseline": 2.6858529971351714,
+          "deltaSharePct": 0.9867391999999999,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.03207786666666668
+        },
+        {
+          "label": "both",
+          "gpuMsPerFrame": 0.8519466666666666,
+          "spreadMs": 0.15471786666666654,
+          "samples": 11,
+          "sharePct": 5.11168,
+          "deltaVsBaselineMs": 0.7543957333333333,
+          "factorVsBaseline": 8.733352286395347,
+          "deltaSharePct": 4.5263744,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.15471786666666654
+        },
+        {
+          "label": "normal-forward",
+          "gpuMsPerFrame": 0.5243541333333334,
+          "spreadMs": 0.09551146666666654,
+          "samples": 11,
+          "sharePct": 3.1461248,
+          "deltaVsBaselineMs": 0.42680320000000005,
+          "factorVsBaseline": 5.375183152185799,
+          "deltaSharePct": 2.5608192,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.09551146666666654
+        },
+        {
+          "label": "normal-dfd",
+          "gpuMsPerFrame": 0.27809706666666667,
+          "spreadMs": 0.05126933333333339,
+          "samples": 11,
+          "sharePct": 1.6685823999999998,
+          "deltaVsBaselineMs": 0.18054613333333336,
+          "factorVsBaseline": 2.850788374483347,
+          "deltaSharePct": 1.0832768000000002,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.05126933333333339
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"both\" at 0.85 ms (5.1% of the budget), and the costliest RESOLVED addition over \"none\" is \"both\" at +0.75 ms (4.5 percentage points of the frame, 8.73x the control)."
+    },
+    "8": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "none",
+      "rows": [
+        {
+          "label": "none",
+          "gpuMsPerFrame": 0.09761706666666667,
+          "spreadMs": 0.016784000000000007,
+          "samples": 11,
+          "sharePct": 0.5857024,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.016784000000000007
+        },
+        {
+          "label": "normal",
+          "gpuMsPerFrame": 0.7000394666666666,
+          "spreadMs": 0.09900053333333325,
+          "samples": 11,
+          "sharePct": 4.200236799999999,
+          "deltaVsBaselineMs": 0.6024223999999999,
+          "factorVsBaseline": 7.171281524542156,
+          "deltaSharePct": 3.614534399999999,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.09900053333333325
+        },
+        {
+          "label": "colour",
+          "gpuMsPerFrame": 0.26180586666666666,
+          "spreadMs": 0.03579413333333331,
+          "samples": 11,
+          "sharePct": 1.5708351999999999,
+          "deltaVsBaselineMs": 0.1641888,
+          "factorVsBaseline": 2.681968180427466,
+          "deltaSharePct": 0.9851327999999999,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.03579413333333331
+        },
+        {
+          "label": "both",
+          "gpuMsPerFrame": 0.8508288,
+          "spreadMs": 0.10869119999999999,
+          "samples": 11,
+          "sharePct": 5.1049728000000005,
+          "deltaVsBaselineMs": 0.7532117333333334,
+          "factorVsBaseline": 8.715984090213734,
+          "deltaSharePct": 4.5192704,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.10869119999999999
+        },
+        {
+          "label": "normal-forward",
+          "gpuMsPerFrame": 0.5236042666666667,
+          "spreadMs": 0.06591039999999992,
+          "samples": 11,
+          "sharePct": 3.1416256000000002,
+          "deltaVsBaselineMs": 0.4259872,
+          "factorVsBaseline": 5.363859871497881,
+          "deltaSharePct": 2.5559231999999996,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.06591039999999992
+        },
+        {
+          "label": "normal-dfd",
+          "gpuMsPerFrame": 0.2775765333333334,
+          "spreadMs": 0.03379306666666665,
+          "samples": 11,
+          "sharePct": 1.6654592000000004,
+          "deltaVsBaselineMs": 0.1799594666666667,
+          "factorVsBaseline": 2.843524629572971,
+          "deltaSharePct": 1.0797568000000002,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.03379306666666665
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"both\" at 0.85 ms (5.1% of the budget), and the costliest RESOLVED addition over \"none\" is \"both\" at +0.75 ms (4.5 percentage points of the frame, 8.72x the control)."
+    }
+  },
+  "wallClockBudgetByZoom": {
+    "2": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "none",
+      "rows": [
+        {
+          "label": "none",
+          "gpuMsPerFrame": 0.0033333331346511843,
+          "spreadMs": 0.04000000009934108,
+          "samples": 11,
+          "sharePct": 0.019999998807907104,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.04000000009934108
+        },
+        {
+          "label": "normal",
+          "gpuMsPerFrame": 0.0033333331346511843,
+          "spreadMs": 0.046666666368643445,
+          "samples": 11,
+          "sharePct": 0.019999998807907104,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.046666666368643445
+        },
+        {
+          "label": "colour",
+          "gpuMsPerFrame": 0.0033333336313565573,
+          "spreadMs": 0.03000000019868215,
+          "samples": 11,
+          "sharePct": 0.020000001788139342,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.04000000009934108
+        },
+        {
+          "label": "both",
+          "gpuMsPerFrame": 0.0066666662693023685,
+          "spreadMs": 0.020000000298023225,
+          "samples": 11,
+          "sharePct": 0.03999999761581421,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.04000000009934108
+        },
+        {
+          "label": "normal-forward",
+          "gpuMsPerFrame": 0.0033333331346511843,
+          "spreadMs": 0.016666666666666666,
+          "samples": 11,
+          "sharePct": 0.019999998807907104,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.04000000009934108
+        },
+        {
+          "label": "normal-dfd",
+          "gpuMsPerFrame": 0.0033333336313565573,
+          "spreadMs": 0.013333333532015483,
+          "samples": 11,
+          "sharePct": 0.020000001788139342,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.04000000009934108
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"both\" at 0.01 ms (0.0% of the budget). ⚠ 5 configuration(s) — \"normal\", \"colour\", \"both\", \"normal-forward\", \"normal-dfd\" — moved the frame by LESS than the 0.05 ms run-to-run noise, so their cost is UNRESOLVED rather than zero: this run fits the budget but does not say what they cost."
+    },
+    "8": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "none",
+      "rows": [
+        {
+          "label": "none",
+          "gpuMsPerFrame": 0.0033333331346511843,
+          "spreadMs": 0.01333333303531011,
+          "samples": 11,
+          "sharePct": 0.019999998807907104,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.01333333303531011
+        },
+        {
+          "label": "normal",
+          "gpuMsPerFrame": 0.0033333331346511843,
+          "spreadMs": 0.013333333532015483,
+          "samples": 11,
+          "sharePct": 0.019999998807907104,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.013333333532015483
+        },
+        {
+          "label": "colour",
+          "gpuMsPerFrame": 0.0033333336313565573,
+          "spreadMs": 0.0066666667660077415,
+          "samples": 11,
+          "sharePct": 0.020000001788139342,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.01333333303531011
+        },
+        {
+          "label": "both",
+          "gpuMsPerFrame": 0.0033333331346511843,
+          "spreadMs": 0.0066666667660077415,
+          "samples": 11,
+          "sharePct": 0.019999998807907104,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.01333333303531011
+        },
+        {
+          "label": "normal-forward",
+          "gpuMsPerFrame": 0.0033333336313565573,
+          "spreadMs": 0.0066666667660077415,
+          "samples": 11,
+          "sharePct": 0.020000001788139342,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.01333333303531011
+        },
+        {
+          "label": "normal-dfd",
+          "gpuMsPerFrame": 0.0033333331346511843,
+          "spreadMs": 0.0066666667660077415,
+          "samples": 11,
+          "sharePct": 0.019999998807907104,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.01333333303531011
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"colour\" at 0.00 ms (0.0% of the budget). ⚠ 5 configuration(s) — \"normal\", \"colour\", \"both\", \"normal-forward\", \"normal-dfd\" — moved the frame by LESS than the 0.01 ms run-to-run noise, so their cost is UNRESOLVED rather than zero: this run fits the budget but does not say what they cost."
+    }
+  },
+  "finishRouteCrossCheck": [
+    {
+      "label": "none@2px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.09755093333333333,
+      "wallMedianMs": 0.0033333331346511843,
+      "ratio": 29.26528174434672,
+      "noiseFloorMs": 0.04000000009934108,
+      "gpuSpreadMs": 0.014956800000000006,
+      "wallSpreadMs": 0.04000000009934108,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"none@2px\": the GPU clock reads 0.098 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 29.3x, at or past the 10x order-of-magnitude bar and far outside the 0.040 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "normal@2px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.7005472,
+      "wallMedianMs": 0.0033333331346511843,
+      "ratio": 210.16417252676084,
+      "noiseFloorMs": 0.08847360000000004,
+      "gpuSpreadMs": 0.08847360000000004,
+      "wallSpreadMs": 0.046666666368643445,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"normal@2px\": the GPU clock reads 0.701 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 210.2x, at or past the 10x order-of-magnitude bar and far outside the 0.088 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "colour@2px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.26200746666666663,
+      "wallMedianMs": 0.0033333336313565573,
+      "ratio": 78.60223297241272,
+      "noiseFloorMs": 0.03207786666666668,
+      "gpuSpreadMs": 0.03207786666666668,
+      "wallSpreadMs": 0.03000000019868215,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"colour@2px\": the GPU clock reads 0.262 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 78.6x, at or past the 10x order-of-magnitude bar and far outside the 0.032 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "both@2px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.8519466666666666,
+      "wallMedianMs": 0.0066666662693023685,
+      "ratio": 127.79200761699721,
+      "noiseFloorMs": 0.15471786666666654,
+      "gpuSpreadMs": 0.15471786666666654,
+      "wallSpreadMs": 0.020000000298023225,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"both@2px\": the GPU clock reads 0.852 ms/frame against 0.007 ms/frame from the wall clock around gl.finish() — 127.8x, at or past the 10x order-of-magnitude bar and far outside the 0.155 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "normal-forward@2px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.5243541333333334,
+      "wallMedianMs": 0.0033333331346511843,
+      "ratio": 157.3062493761831,
+      "noiseFloorMs": 0.09551146666666654,
+      "gpuSpreadMs": 0.09551146666666654,
+      "wallSpreadMs": 0.016666666666666666,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"normal-forward@2px\": the GPU clock reads 0.524 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 157.3x, at or past the 10x order-of-magnitude bar and far outside the 0.096 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "normal-dfd@2px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.27809706666666667,
+      "wallMedianMs": 0.0033333336313565573,
+      "ratio": 83.42911254085607,
+      "noiseFloorMs": 0.05126933333333339,
+      "gpuSpreadMs": 0.05126933333333339,
+      "wallSpreadMs": 0.013333333532015483,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"normal-dfd@2px\": the GPU clock reads 0.278 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 83.4x, at or past the 10x order-of-magnitude bar and far outside the 0.051 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "none@8px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.09761706666666667,
+      "wallMedianMs": 0.0033333331346511843,
+      "ratio": 29.285121745529278,
+      "noiseFloorMs": 0.016784000000000007,
+      "gpuSpreadMs": 0.016784000000000007,
+      "wallSpreadMs": 0.01333333303531011,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"none@8px\": the GPU clock reads 0.098 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 29.3x, at or past the 10x order-of-magnitude bar and far outside the 0.017 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "normal@8px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.7000394666666666,
+      "wallMedianMs": 0.0033333331346511843,
+      "ratio": 210.01185251768183,
+      "noiseFloorMs": 0.09900053333333325,
+      "gpuSpreadMs": 0.09900053333333325,
+      "wallSpreadMs": 0.013333333532015483,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"normal@8px\": the GPU clock reads 0.700 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 210.0x, at or past the 10x order-of-magnitude bar and far outside the 0.099 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "colour@8px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.26180586666666666,
+      "wallMedianMs": 0.0033333336313565573,
+      "ratio": 78.54175297782007,
+      "noiseFloorMs": 0.03579413333333331,
+      "gpuSpreadMs": 0.03579413333333331,
+      "wallSpreadMs": 0.0066666667660077415,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"colour@8px\": the GPU clock reads 0.262 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 78.5x, at or past the 10x order-of-magnitude bar and far outside the 0.036 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "both@8px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.8508288,
+      "wallMedianMs": 0.0033333331346511843,
+      "ratio": 255.24865521400542,
+      "noiseFloorMs": 0.10869119999999999,
+      "gpuSpreadMs": 0.10869119999999999,
+      "wallSpreadMs": 0.0066666667660077415,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"both@8px\": the GPU clock reads 0.851 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 255.2x, at or past the 10x order-of-magnitude bar and far outside the 0.109 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "normal-forward@8px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.5236042666666667,
+      "wallMedianMs": 0.0033333336313565573,
+      "ratio": 157.08126595584042,
+      "noiseFloorMs": 0.06591039999999992,
+      "gpuSpreadMs": 0.06591039999999992,
+      "wallSpreadMs": 0.0066666667660077415,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"normal-forward@8px\": the GPU clock reads 0.524 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 157.1x, at or past the 10x order-of-magnitude bar and far outside the 0.066 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    },
+    {
+      "label": "normal-dfd@8px",
+      "hypothesis": "ESTABLISHED",
+      "gpuMedianMs": 0.2775765333333334,
+      "wallMedianMs": 0.0033333331346511843,
+      "ratio": 83.27296496345551,
+      "noiseFloorMs": 0.03379306666666665,
+      "gpuSpreadMs": 0.03379306666666665,
+      "wallSpreadMs": 0.0066666667660077415,
+      "samples": 11,
+      "prose": "ESTABLISHED on \"normal-dfd@8px\": the GPU clock reads 0.278 ms/frame against 0.003 ms/frame from the wall clock around gl.finish() — 83.3x, at or past the 10x order-of-magnitude bar and far outside the 0.034 ms noise. gl.finish() returned before the GPU had retired the work, so every figure taken through that route is timing CPU submission."
+    }
+  ],
+  "rawSamples": {
+    "none@2px": [
+      {
+        "gpuMsPerFrame": 0.09803093333333333,
+        "wallMsPerFrame": 0.04000000009934108,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09753493333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09753386666666668,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09750506666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.0976128,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09755093333333333,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.0975008,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09830933333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09749866666666666,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.11139306666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.11245546666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      }
+    ],
+    "normal@2px": [
+      {
+        "gpuMsPerFrame": 0.7109557333333334,
+        "wallMsPerFrame": 0.046666666368643445,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7006709333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7005472,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7001429333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7003136,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7002314666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.700416,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7001568,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7006304,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7886165333333334,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7885664,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      }
+    ],
+    "colour@2px": [
+      {
+        "gpuMsPerFrame": 0.2656170666666667,
+        "wallMsPerFrame": 0.03333333333333333,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2619392,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.26200746666666663,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2618101333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.26197333333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2618026666666667,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2620288,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2616448,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2620266666666667,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.29368853333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2937226666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      }
+    ],
+    "both@2px": [
+      {
+        "gpuMsPerFrame": 0.8638474666666667,
+        "wallMsPerFrame": 0.023333333432674408,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8514218666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8512768000000001,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8511829333333334,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8519466666666666,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.851664,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8521045333333334,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8506677333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 1.0053855999999999,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.9590101333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.9589418666666667,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      }
+    ],
+    "normal-forward@2px": [
+      {
+        "gpuMsPerFrame": 0.5242314666666666,
+        "wallMsPerFrame": 0.016666666666666666,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5244021333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5240896,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5240853333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5244245333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5243541333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5237728,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5239744,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.6192842666666666,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5890197333333334,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5890538666666667,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      }
+    ],
+    "normal-dfd@2px": [
+      {
+        "gpuMsPerFrame": 0.27810239999999997,
+        "wallMsPerFrame": 0.016666666666666666,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2781557333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2779818666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.27795733333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.27809706666666667,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2777770666666666,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.27784533333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.27803093333333334,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.3290464,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.31133013333333337,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.3112992,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      }
+    ],
+    "none@8px": [
+      {
+        "gpuMsPerFrame": 0.09755306666666666,
+        "wallMsPerFrame": 0.01333333303531011,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.10089386666666668,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09823466666666666,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09754986666666668,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09761706666666667,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09755306666666666,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09755306666666666,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.09750613333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.11429013333333334,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.11133653333333333,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.11134293333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      }
+    ],
+    "normal@8px": [
+      {
+        "gpuMsPerFrame": 0.7000394666666666,
+        "wallMsPerFrame": 0.013333333532015483,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7002016,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.6998080000000001,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.6995061333333333,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.6997333333333333,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.699392,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.6997888,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7000746666666667,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7983925333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7884821333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.7885365333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      }
+    ],
+    "colour@8px": [
+      {
+        "gpuMsPerFrame": 0.26180586666666666,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.26185173333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2616501333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2617237333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.26187093333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2615552,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2616330666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2616074666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2973493333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2936928,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.29372906666666665,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      }
+    ],
+    "both@8px": [
+      {
+        "gpuMsPerFrame": 0.8510122666666666,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8508789333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8503872,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8500565333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8508288,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8504106666666666,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8505344,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.8502133333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.9587477333333333,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.9586933333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.9587328,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      }
+    ],
+    "normal-forward@8px": [
+      {
+        "gpuMsPerFrame": 0.5236042666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5236565333333333,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5234048,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5229994666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5236170666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5231509333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5230794666666667,
+        "wallMsPerFrame": 0.0066666662693023685,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5234517333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5889098666666667,
+        "wallMsPerFrame": 0.0033333336313565573,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5888682666666667,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.5888821333333334,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      }
+    ],
+    "normal-dfd@8px": [
+      {
+        "gpuMsPerFrame": 0.2775765333333334,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2775722666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2777109333333333,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2775210666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.27771840000000003,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2775146666666667,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.2773674666666667,
+        "wallMsPerFrame": 0.0066666667660077415,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.27750400000000003,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.31114986666666666,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.3111509333333334,
+        "wallMsPerFrame": 0,
+        "disjoint": false
+      },
+      {
+        "gpuMsPerFrame": 0.3111605333333333,
+        "wallMsPerFrame": 0.0033333331346511843,
+        "disjoint": false
+      }
+    ]
+  }
+}
