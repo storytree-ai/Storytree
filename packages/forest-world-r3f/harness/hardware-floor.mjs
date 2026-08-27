@@ -33,6 +33,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { cadenceNoiseFloorMs, describeCadence } from './cadence-verdict.js';
+import { FRAME_BUDGET_60HZ_MS, frameBudgetVerdict } from './frame-budget.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT = join(HERE, '../../../docs/research/chapter2-live-render-2026-08-19');
@@ -180,6 +181,15 @@ await comparePage.close();
 //
 // The real-corpus island carries ~171 vegetation marks, so the rungs bracket it and then go
 // well past it: the useful output is not one number but WHERE the floor gives way.
+// ONE definition of the budget, imported from the pure half — see `frame-budget.ts`. The literal
+// here was `16.7`; the exact value is 16.666…, so headroom figures move by 0.2%.
+//
+// Both constants are declared HERE, above the sweep, rather than down beside the verdict where
+// they used to live: the grain A/B below the sweep needs the island's plant count too, and a
+// `const` read before its declaration is a TDZ error rather than an undefined.
+const BUDGET_60HZ = FRAME_BUDGET_60HZ_MS;
+const ISLAND_PLANTS = 171;
+
 const RUNGS = [0, 50, 171, 500, 1500, 4000];
 const readings = [];
 for (const plants of RUNGS) {
@@ -204,6 +214,109 @@ for (const r of readings) {
   if (r.software) fail(`the plants=${r.plants} rung reported a software renderer`);
 }
 
+// --- the GRAIN A/B: the same scene, differing in ONE fragment shader ------------------------
+//
+// WHY AN A/B RATHER THAN AN ABSOLUTE NUMBER FOR THE GRAIN. The sweep above varies plant count,
+// so every rung conflates geometry with shading — which is the wrong decomposition for the land
+// treatment, whose components are almost entirely fragment-stage work (the research measured
+// geometry as nearly free: `relief` moved bins90 +14% and STRUCT/spread under 1.5%). These four
+// runs hold the plant count, the buffer size, the draw calls and the geometry FIXED and change
+// only the ground's shader, so the delta between them is the grain and nothing else.
+//
+// The plant count is the real corpus island's, so the number is the one a shipped map would pay.
+const GRAIN_MODES = [
+  { label: 'no grain', grain: undefined },
+  { label: 'normal half', grain: 'normal' },
+  { label: 'colour half', grain: 'colour' },
+  { label: 'both halves', grain: 'both' },
+];
+
+// ⚠⚠ REPEATED AND INTERLEAVED, AND THE FIRST RUN OF THIS RUNG IS WHY. One sample per
+// configuration reported the grain making rendering FASTER — `both halves` at 0.97 ms against an
+// ungrained 1.23 ms on an Adreno X1-85 — which is impossible, since the grain only ever adds
+// fragment work. Two readings of the IDENTICAL 171-plant configuration in the same run differed
+// by 43%, so run-to-run variance simply swamped the effect.
+//
+// INTERLEAVED rather than four repeats of each in turn: this box thermally throttles and the GPU
+// clocks drift over a run, so grouping the repeats would alias that drift onto the variable —
+// the last configuration measured would always look dearest. Round-robin spreads any drift
+// evenly across all four.
+const GRAIN_REPEATS = Number(process.env['ST_GRAIN_REPEATS'] ?? 5);
+// THE BUFFER IS A KNOB BECAUSE THE VERDICT ASKS FOR ONE. A grain is FRAGMENT work, so its cost
+// scales with the pixels the ground covers — and at the D2 buffer this scene's whole frame costs
+// under 1 ms, which the report's own caveat puts at this instrument's noise floor. When the rung
+// comes back with the cost UNRESOLVED, raising this is the lever that separates "genuinely
+// cheap" from "too small to see here": if the delta stays flat as the fragment count rises, the
+// grain really is free at delivery scale; if it climbs, the D2 buffer was simply too small to
+// resolve it. Both are answers. Defaults to the D2 buffer so a plain run reports the shipped size.
+const GRAIN_WIDTH = Number(process.env['ST_GRAIN_WIDTH'] ?? 2880);
+const GRAIN_HEIGHT = Number(process.env['ST_GRAIN_HEIGHT'] ?? 1920);
+// AND SO IS THE PLANT COUNT, for the reason the buffer knob alone could not reach. This scene
+// draws ONE CALL PER PLANT, so at the island's 171 it submits 172 draw calls per render and the
+// measured cost is dominated by that submission rather than by shading. Dropping to 0 plants
+// leaves a single full-frame quad — the only configuration in which this harness is actually
+// FRAGMENT-bound, and therefore the only one in which a shader A/B can resolve anything.
+const GRAIN_PLANTS = Number(process.env['ST_GRAIN_PLANTS'] ?? ISLAND_PLANTS);
+console.log(
+  `\ngrain A/B at ${ISLAND_PLANTS} plants, ${GRAIN_WIDTH}x${GRAIN_HEIGHT} — ground shader is the ` +
+    `only variable, ${GRAIN_REPEATS} interleaved repeats:`,
+);
+const grainSamples = new Map(GRAIN_MODES.map((m) => [m.label, []]));
+const grainMeta = new Map();
+for (let pass = 0; pass < GRAIN_REPEATS; pass++) {
+  for (const mode of GRAIN_MODES) {
+    const spec = {
+      plants: GRAIN_PLANTS,
+      width: GRAIN_WIDTH,
+      height: GRAIN_HEIGHT,
+      frames: 20,
+      batch: 60,
+    };
+    if (mode.grain) spec.grain = mode.grain;
+    const r = await page.evaluate((s) => window.__stFloor(s), spec);
+    grainSamples.get(mode.label).push(r.gpuMsPerFrame);
+    grainMeta.set(mode.label, r);
+  }
+}
+const grainRows = GRAIN_MODES.map((mode) => {
+  const samples = grainSamples.get(mode.label);
+  const meta = grainMeta.get(mode.label);
+  console.log(
+    `  ${mode.label.padEnd(12)} ${samples.map((v) => v.toFixed(2)).join('  ')}   ` +
+      `tris ${meta.triangles}  calls ${meta.drawCalls}`,
+  );
+  return { label: mode.label, samples, software: meta.software, hidden: meta.hidden };
+});
+
+// THE RUNG. Before this existed, `hardware-floor.mjs` hard-failed only on renderer IDENTITY —
+// no WebGL, a software rasteriser, a throttled tab — and its timings were descriptive JSON, so a
+// change that halved the frame rate would have been recorded and reported GREEN. ADR-0415 D1
+// left performance as one of only two constraints that bind detail; this is what lets it refuse.
+//
+// The threshold is the 60 Hz frame ADR-0380 D2 names, NOT a chosen tolerance — this file's own
+// history is why (an earlier version scored rungs against `16.7 * 1.35`, "a number picked to
+// make the answer come out"). The grain's cost is reported against a CONTROL instead.
+const budget = frameBudgetVerdict({ rows: grainRows, baselineLabel: 'no grain' });
+console.log(`\n${budget.prose}`);
+for (const row of budget.rows) {
+  const cost =
+    row.resolution === 'BASELINE'
+      ? '(the control)'
+      : row.resolution === 'RESOLVED'
+        ? `+${row.deltaVsBaselineMs.toFixed(2)}ms  +${row.deltaSharePct.toFixed(1)} points  ` +
+          `${row.factorVsBaseline.toFixed(2)}x`
+        : row.resolution === 'BELOW_NOISE'
+          ? `cost UNRESOLVED — moved less than the ${row.noiseFloorMs.toFixed(2)}ms noise floor`
+          : `IMPOSSIBLE — measured cheaper than the control while doing more work`;
+  console.log(
+    `  ${row.label.padEnd(12)} median ${row.gpuMsPerFrame.toFixed(2)}ms  ` +
+      `spread ${row.spreadMs.toFixed(2)}ms  ${row.sharePct.toFixed(1)}% of a frame   ${cost}`,
+  );
+}
+if (budget.status === 'FAIL') {
+  fail(`the frame budget rung REFUSED this run:\n  ${budget.failures.join('\n  ')}`);
+}
+
 mkdirSync(OUT, { recursive: true });
 await page.screenshot({ path: join(OUT, 'hardware-floor-page.png') });
 
@@ -219,8 +332,6 @@ await page.screenshot({ path: join(OUT, 'hardware-floor-page.png') });
 // claiming the 0-plant rung's p95 was HIGHER than the island rung's, when in the very run that
 // wrote it the two were equal. Every computed number in this report held up; the only untrue
 // statement was the one typed by hand where no instrument could check it.
-const BUDGET_60HZ = 16.7;
-const ISLAND_PLANTS = 171;
 const cadenceInput = {
   sweep: readings,
   blankPage: controlBlank,
@@ -265,6 +376,7 @@ const report = {
     plantsAtWhichOneFrameIsSpent: plantsAtFullFrame,
     cadenceNoiseFloorMs: cadenceNoiseFloor,
     cadenceIsUninformative: describeCadence(cadenceInput),
+    grainFrameBudget: budget,
     caveats: [
       'MEASUREMENT FLOOR: the 0-plant rung costs about as much as the 50-plant rung, so ' +
         "readings below ~0.5 ms/frame are at this instrument's noise floor and should not be " +
@@ -278,6 +390,13 @@ const report = {
         'asked about; it does not certify a whole live map.',
       'ACCESSIBILITY, which ADR-0380 names as the HARDEST part of D6, is untouched by this ' +
         'and by PR #1417. Nothing here is evidence that fence is affordable.',
+      'THE GRAIN A/B ISOLATES THE GROUND SHADER AND NOTHING ELSE. The plants keep the ' +
+        'ungrained material, so the delta is one fragment shader over identical geometry, ' +
+        'draw calls and buffer size. It is NOT the cost of the whole land treatment: the ' +
+        'other five components are unbuilt in the live renderer.',
+      'THE FRAME BUDGET RUNG IS UNVERIFIED, NOT PASSED, ON A SOFTWARE RASTERISER. It reports ' +
+        'a third outcome for exactly this reason, and that outcome outranks FAIL — a number ' +
+        'already declared meaningless cannot fail a run either.',
     ],
   },
 };
