@@ -140,8 +140,13 @@ than the whole mechanism.
 ## 3. The mutation evidence — every refusal, fired against the live page
 
 ⚠ **THE AUTOMATIC RUNG DID NOT RUN, AND HERE IS WHY.** `pnpm gate`'s `check:mutation-diff` skips
-`harness/**`: the harness sits outside any workspace project's `src/`, so the rung reports
-`NOTHING TO MUTATE` rather than exercising these assertions. Every mutation below was applied by
+`harness/**`: the harness sits outside any workspace project's `src/`, so the rung skips rather
+than exercising these assertions. Verbatim, from this branch's own green gate run:
+
+```
+[mutation-diff] SKIP — this branch changes no mutable source under a workspace project's src/
+                — 2 changed .ts file(s) sit outside any project's src/
+``` Every mutation below was applied by
 hand to the real source, run against the real page, and reverted — `git status` clean after each.
 This section is the mutation record for this module; the gate did not produce it and cannot.
 
