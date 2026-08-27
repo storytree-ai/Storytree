@@ -219,6 +219,21 @@ jobs:
       - name: Work-hierarchy reader camps
         run: pnpm check:hierarchy-camps
 
+      # The CONTRACT-LINE GRAMMAR (ADR-0459, realising ADR-0447 D4). Contracts are prose sentences
+      # bound to their tests by a naming convention, and a convention is not a grammar: an agent
+      # reading one must INFER trigger / system / response, and inference is where slop enters. This
+      # rung reds when a contract THIS BRANCH added or edited declares no `asserts —` sentence at all,
+      # or names its system nowhere mechanically. A RATCHET, never a migration — the corpus's 133
+      # standing breaches are charged to nobody, exactly as `check:ownership-totality` handles a
+      # pre-existing unowned file, and it anchors on the same `chooseBaseRef` so the two rungs can
+      # never disagree about what "before" means. It is HERE and not local-only for the
+      # anti-slop-adoption-arc reason: that rule regressed on `main` within a day of adoption because
+      # nothing at merge time held it. Offline, disk-and-git only: no store, no credential. A ROOT
+      # step, OUTSIDE the ADR-0195 narrowing below — a contract may be edited in any story directory,
+      # and `stories/**` narrows to a package scope that need not contain this check.
+      - name: Contract-line grammar
+        run: pnpm check:contract-grammar
+
       # Cross-surface mirror conformance (verification-integrity-arc inc 2). Surfaces that
       # re-compose another's route — the desktop backend hand-mirrors the studio's /api/docs walk
       # and may never import it (ADR-0176) — must serve the SAME payload. Each surface is run by

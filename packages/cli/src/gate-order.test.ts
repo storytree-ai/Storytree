@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458 and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459 and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -172,6 +172,10 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // so it sits with its two declared-ownership neighbours rather than beside the store-reading
       // `check:hierarchy-drift` it shares an arc with.
       "pnpm check:hierarchy-camps",
+      // The ADR-0459 contract-line grammar, added 2026-08-27: disk-and-git only and charged strictly
+      // to this branch's own added/edited contracts, so it belongs with its `check:ownership-totality`
+      // neighbour, whose `chooseBaseRef` anchor it reuses.
+      "pnpm check:contract-grammar",
       "pnpm check:mirror-conformance",
       "pnpm check:web-engine",
       "pnpm check:web-experience-closure",
