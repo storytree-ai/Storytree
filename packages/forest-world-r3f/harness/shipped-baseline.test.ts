@@ -267,3 +267,55 @@ test('the parcel total reads each ring’s OWN length, not the quad the fixture 
   // What an implementation that assumed the fixture's quad would report, shown to differ.
   assert.notEqual(summed, mixed.length * cellGroundTriangles(4));
 });
+
+/* ── ⚠⚠ FENCE 4 — THE PROJECTION, GUARDED AT SOURCE ──────────────────────────────────────────
+   ADR-0380 D6 fence 4: the game stays 2.5D isometric — no free camera, no orbit control, no
+   perspective view. The shipped canvas violated all three from the day the spike authored it
+   until 2026-08-28, and the violation survived for one reason: nothing ever asked.
+
+   ⚠ THIS IS THE CHEAP HALF, AND IT IS NOT THE ONE THAT MATTERS. `baseline-measure.mjs` asks the
+   real question — it classifies the projection matrix the driver was actually GIVEN, and refuses
+   a run where any shipped mount uploaded something that is not orthographic. What these three
+   tests add is that the refusal cannot be reached by accident on a machine with no GPU: they run
+   under `pnpm -r test`, credential-free and headless, and they fail on the exact edit that would
+   quietly restore the old projection.
+
+   ⚠ `fov` IS TESTED FOR ABSENCE ON PURPOSE. R3F reads the PRESENCE of a `fov` prop as a request
+   for a PerspectiveCamera, so `<Canvas orthographic camera={{ fov: 45, … }}>` is a canvas that
+   LOOKS compliant, reads compliant in review, and is not. Asserting `orthographic` alone would
+   pass on it. */
+test('FENCE 4: the shipped canvas declares an ORTHOGRAPHIC projection', () => {
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(src, /<Canvas\s+orthographic\b/, 'the Canvas must be declared orthographic');
+});
+
+test('FENCE 4: no `fov` survives anywhere in the shipped file', () => {
+  const src = readFileSync(SHIPPED, 'utf8');
+  // Comments are allowed to discuss the retired camera — the file explains why the framing
+  // constant exists — so only a PROP assignment is refused.
+  assert.doesNotMatch(
+    src,
+    /(^|[^\w])fov\s*:/,
+    'a `fov` prop makes R3F build a PerspectiveCamera regardless of the `orthographic` flag',
+  );
+});
+
+test('FENCE 4: the orbit control cannot rotate', () => {
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(
+    src,
+    /<MapControls[^>]*enableRotate=\{false\}/s,
+    'an orthographic camera the viewer can still swing around is still a free camera',
+  );
+});
+
+/* ⚠ AND THE ZOOM, WHICH THE FENCE DOES NOT TOUCH AND A REMEDY COULD EASILY HAVE TAKEN. The owner
+   affirmed zoom explicitly (2026-08-22) and ADR-0415 D1 made it a standing constraint; the fence
+   names the PROJECTION and the free ROTATION, never the ability to get closer. Two ways a later
+   edit could remove it by accident, so both are refused: turning the control's zoom off, and
+   turning off `MapControls` panning while at it. */
+test('ZOOM AND PAN SURVIVE THE FENCE — neither is disabled', () => {
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.doesNotMatch(src, /enableZoom=\{false\}/, 'zoom is not what fence 4 forbids');
+  assert.doesNotMatch(src, /enablePan=\{false\}/, 'panning is not what fence 4 forbids');
+});

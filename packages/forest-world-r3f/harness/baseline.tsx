@@ -44,6 +44,12 @@ import {
   type AuthoredCount,
 } from './shipped-baseline.js';
 import { STATUS_TOKENS } from './palette-band.js';
+import {
+  deliveredScale,
+  perspectiveSpreadPct,
+  type Mat4,
+  type ProjectionKind,
+} from './projection-probe.js';
 
 interface BaselineReport {
   renderer: string;
@@ -71,10 +77,18 @@ interface PanelReading {
   triangles: number;
   /** Renders the panel performed inside the measurement window — the divisor. */
   frames: number;
-  /** Delivered px per ground unit at the framing target, and across the island. */
+  /** Delivered px per ground unit at the framing target, and across the island — computed from
+   *  the projection and view matrices this panel's own context was GIVEN, never from a
+   *  transcription of the shipped camera (`projection-probe.ts` says why). */
   scaleAtTarget: number;
   scaleNear: number;
   scaleFar: number;
+  /** How the uploaded projection matrix classified. ⚠ Carried beside the numbers so no report can
+   *  quote a spread without saying which projection produced it — and so a panel that filed no
+   *  matrix at all reports `indeterminate` rather than a plausible zero. */
+  projection: ProjectionKind;
+  /** The near/far spread as a percentage. 0 for an orthographic projection BY MEASUREMENT. */
+  spreadPct: number;
 }
 
 declare global {
@@ -101,6 +115,11 @@ interface ContextTally {
   calls: number;
   triangles: number;
   clears: number;
+  /** ⚠ THE PROJECTION AS THE DRIVER RECEIVED IT, not as this page believes it to be. Captured
+   *  from the `uniformMatrix4fv` upload three.js makes to the location it got back for the name
+   *  `projectionMatrix` — the same wrap-the-prototype route the draw counts use, and it has the
+   *  same property: a component that quietly stopped doing the thing cannot satisfy it. */
+  projection: Mat4 | null;
 }
 
 const TALLIES = new WeakMap<WebGL2RenderingContext, ContextTally>();
@@ -108,7 +127,7 @@ const TALLIES = new WeakMap<WebGL2RenderingContext, ContextTally>();
 function tallyFor(gl: WebGL2RenderingContext): ContextTally {
   let t = TALLIES.get(gl);
   if (!t) {
-    t = { calls: 0, triangles: 0, clears: 0 };
+    t = { calls: 0, triangles: 0, clears: 0, projection: null };
     TALLIES.set(gl, t);
   }
   return t;
@@ -155,6 +174,60 @@ function installCounter(): void {
   WebGL2RenderingContext.prototype.clear = function patched(mask) {
     if ((mask & this.COLOR_BUFFER_BIT) !== 0) tallyFor(this).clears += 1;
     return clear.call(this, mask);
+  };
+
+  /* ── ⚠⚠ THE PROJECTION, TAKEN OFF THE WIRE ────────────────────────────────────────────────
+     Locations are opaque objects, so the only way to know WHICH uniform an upload is for is to
+     remember what three.js asked for by NAME. `getUniformLocation` is wrapped to record the two
+     names that matter, per context; `uniformMatrix4fv` then records the value uploaded to them.
+
+     ⚠ A LOCATION IS NOT PORTABLE BETWEEN PROGRAMS OR CONTEXTS, so the map is keyed by context and
+     holds locations, never names.
+
+     ⚠⚠ THERE IS NO VIEW MATRIX ON THE WIRE AT ALL, and establishing that cost two runs rather
+     than an assumption. three declares `viewMatrix` in its shader chunks, but nothing in
+     `meshStandardMaterial` reads it, so the GLSL compiler eliminates it and `getUniformLocation`
+     returns null. The obvious fallback — recover it from the `modelViewMatrix` uploaded beside an
+     IDENTITY `modelMatrix`, which is what the merged ground mesh has — was BUILT and then
+     REMOVED, because a census of the actual uploads refuted it: 570 `modelViewMatrix` uploads
+     across the page against just 2 identity `modelMatrix` uploads and ZERO non-identity ones
+     (RTX 2060, 2026-08-28). `modelMatrix` is eliminated from the standard-material programs too;
+     the two survivors belong to other materials entirely. So there is no pairing to key on.
+
+     ⚠ THAT COSTS THIS PAGE NOTHING, which is why the fallback is gone rather than patched.
+     `deliveredScale` needs a view matrix only on the PERSPECTIVE branch, and an orthographic
+     matrix delivers ONE scale at every depth — which is the whole property being established.
+     What a perspective canvas gets here is `indeterminate` and a refusal naming it, never a
+     plausible number; the retired camera's 5.1% spread is committed evidence (PR #1679), taken
+     with the transcribed instrument this one replaces. */
+  const named = new WeakMap<WebGL2RenderingContext, Map<WebGLUniformLocation, 'projection'>>();
+  const CAPTURED = new Map<string, 'projection'>([['projectionMatrix', 'projection']]);
+
+  const gul = WebGL2RenderingContext.prototype.getUniformLocation;
+  WebGL2RenderingContext.prototype.getUniformLocation = function patched(program, name) {
+    const loc = gul.call(this, program, name);
+    const which = CAPTURED.get(name);
+    if (loc && which) {
+      let m = named.get(this);
+      if (!m) {
+        m = new Map();
+        named.set(this, m);
+      }
+      m.set(loc, which);
+    }
+    return loc;
+  };
+
+  const um4 = WebGL2RenderingContext.prototype.uniformMatrix4fv;
+  WebGL2RenderingContext.prototype.uniformMatrix4fv = function patched(location, transpose, data, ...rest) {
+    const which = location ? named.get(this)?.get(location) : undefined;
+    if (which && !transpose) {
+      // ⚠ COPIED, not retained. three reuses one scratch array across every upload, so keeping the
+      // reference would hand the reader whatever the LAST draw happened to leave in it.
+      const flat = Array.from(data as ArrayLike<number>).slice(0, 16);
+      if (flat.length === 16) tallyFor(this)[which] = flat;
+    }
+    return um4.call(this, location, transpose, data as never, ...(rest as []));
   };
 }
 installCounter();
@@ -253,51 +326,21 @@ function emptyReport(): BaselineReport {
 
 type Extent = ReturnType<typeof extent>;
 
-/** `frameWorld`'s camera, recomputed here so the delivered scale can be stated.
- *  ⚠ Transcribed from `ForestWorldCanvas.tsx:158-168`. */
-function shippedCamera(e: Extent) {
-  const back = Math.max(260, e.spread * 2.6);
-  return { back, target: [e.cx, 0, e.cz] as const, position: [e.cx, back, e.cz + back] as const };
-}
+/* ── ⚠⚠ THE DELIVERED SCALE IS NOW MEASURED, NOT TRANSCRIBED ──────────────────────────────────
+   Until 2026-08-28 this file carried a `shippedCamera()` "⚠ Transcribed from
+   ForestWorldCanvas.tsx:158-168" and a `pxPerUnitAt(d, h, fovDeg = 45)` beside it, and the whole
+   perspective-spread finding rested on them. They are DELETED rather than updated, and the reason
+   is the reason this increment exists at all: an expectation derived from its subject cannot fail.
+   Point the shipped canvas at an orthographic camera and a transcribed fov-45 formula goes on
+   reporting the retired camera's 5.1% spread; transcribe the NEW camera instead and the same
+   formula reports 0.0% whether or not the shipped file ever changed. Either way the headline is a
+   restatement of what this page believes, wearing the authority of a measurement.
 
-/** Delivered device px per ground unit for a perspective camera of `fov` at distance `d`,
- *  in a viewport `h` px tall. Exact at the plane through the point; the island spans a RANGE
- *  of distances, which is what the near/far pair reports. */
-function pxPerUnitAt(distance: number, viewportH: number, fovDeg = 45): number {
-  return viewportH / (2 * distance * Math.tan((fovDeg * Math.PI) / 360));
-}
-
-/** Delivered device px per ground unit at three points on the island. NAMED rather than an
- *  anonymous return annotation, per `anti-slop/no-known-value-widening` — and it earns the name:
- *  the whole reason there are three numbers is that a perspective camera does not have one. */
-interface DeliveredScale {
-  /** At the framing target — the figure a single-number report would quote. */
-  target: number;
-  /** At the island corner NEAREST the eye. */
-  near: number;
-  /** At the island corner FURTHEST from the eye. */
-  far: number;
-}
-
-function shippedScales(e: Extent, viewportH: number): DeliveredScale {
-  const cam = shippedCamera(e);
-  const eye = { x: cam.position[0], y: cam.position[1], z: cam.position[2] };
-  const dist = (x: number, z: number) => Math.hypot(eye.x - x, eye.y - 0, eye.z - z);
-  const centre = dist(e.cx, e.cz);
-  // The island's nearest and furthest ground corners from the eye.
-  const corners: [number, number][] = [
-    [e.minX, e.minZ],
-    [e.minX, e.maxZ],
-    [e.maxX, e.minZ],
-    [e.maxX, e.maxZ],
-  ];
-  const ds = corners.map(([x, z]) => dist(x, z));
-  return {
-    target: pxPerUnitAt(centre, viewportH),
-    near: pxPerUnitAt(Math.min(...ds), viewportH),
-    far: pxPerUnitAt(Math.max(...ds), viewportH),
-  };
-}
+   `projection-probe.ts` reads the projection and view matrices off the GL uniform uploads the
+   panel's own context received, and `deliveredScale` divides by depth only when the matrix it was
+   handed actually carries a depth term. So 0.0% is a property of the matrix the driver was given.
+   The line numbers that comment cited had already moved by the time anyone read it, which is its
+   own small argument. */
 
 /* ── the shipped panel ─────────────────────────────────────────────────────────────────── */
 
@@ -349,7 +392,10 @@ function ShippedPanel({ tag, label, note, width, height, descriptors }: ShippedP
           requestAnimationFrame(collect);
           return;
         }
-        const scales = shippedScales(own, canvas.height);
+        // ⚠ OFF THIS PANEL'S OWN CONTEXT. Four canvases are live on this page and they do not
+        // share a projection — the harness mounts are orthographic and always were — so a
+        // page-global read would attribute one panel's camera to another.
+        const scales = deliveredScale(t.projection, null, own, canvas.height);
         const divisor = Math.max(1, frames);
         const r: PanelReading = {
           widthPx: canvas.width,
@@ -361,6 +407,8 @@ function ShippedPanel({ tag, label, note, width, height, descriptors }: ShippedP
           scaleAtTarget: scales.target,
           scaleNear: scales.near,
           scaleFar: scales.far,
+          projection: scales.kind,
+          spreadPct: perspectiveSpreadPct(scales),
         };
         setReading(r);
         const report = (window.__stBaseline ??= emptyReport());
@@ -389,7 +437,9 @@ function ShippedPanel({ tag, label, note, width, height, descriptors }: ShippedP
               reading.triangles,
             )} triangles/frame · averaged over ${reading.frames} frames · ${reading.scaleAtTarget.toFixed(
               2,
-            )} px/unit at target (${reading.scaleNear.toFixed(2)}–${reading.scaleFar.toFixed(2)} across the island)`
+            )} px/unit at target (${reading.scaleNear.toFixed(2)}–${reading.scaleFar.toFixed(
+              2,
+            )} across the island) · ${reading.projection.toUpperCase()}, spread ${reading.spreadPct.toFixed(1)}%`
           : 'measuring…'}
       </p>
     </figure>
@@ -435,7 +485,6 @@ function PaletteDivergence() {
 
 function App() {
   const meshExtent = extent(DESCRIPTORS);
-  const cam = shippedCamera(meshExtent);
   const authored = authoredTriangles(CENSUS);
   const classicAuthored = authoredTriangles(CLASSIC_CENSUS);
   return (
@@ -451,8 +500,8 @@ function App() {
           Same fixture, same island, same GPU, same run.
         </p>
         <p className="numbers">
-          island extent {meshExtent.spread.toFixed(1)} units from centre &middot; camera backed off{' '}
-          {cam.back.toFixed(0)} units at fov&nbsp;45 &middot; authored triangles{' '}
+          island extent {meshExtent.spread.toFixed(1)} units from centre &middot; projection read
+          off each panel&rsquo;s own uniform uploads &middot; authored triangles{' '}
           {authored.triangles} &middot; drawables{' '}
           {Object.entries(CENSUS)
             .map(([k, v]) => `${k} ${v}`)

@@ -11,16 +11,27 @@
 // segment, a dark rim disc for a cave portal, an emissive sprite-ball for a
 // wisp — coloured by the folded status variant.
 //
+// THE PROJECTION IS ORTHOGRAPHIC AND THE VIEW DOES NOT ROTATE (ADR-0380 D6 fence 4). This
+// canvas shipped for months as a PerspectiveCamera under a rotate-capable orbit control, which
+// the fence does not license — the spike authored the camera, the ADR later fenced the
+// projection, and nobody reconciled the two (`the-shipped-canvas-meets-the-isometric-fence`).
+// ⚠ ZOOM AND PAN ARE UNTOUCHED and must stay that way: the fence names the PROJECTION and the
+// free ROTATION, never the ability to get closer, and the owner affirmed zoom explicitly
+// (2026-08-22, ADR-0415 D1). Zoom on an orthographic camera is `camera.zoom`, which is exactly
+// what `MapControls` already drives — see {@link FitOrthographicFraming} for the one wrinkle
+// that creates.
+//
 // Trails are HIDDEN BY DEFAULT (ADR-0169 §3/§4): this canvas has no island
 // focus/selection concept yet, so the minimal reveal is the `showTrails` prop —
 // nothing focused, nothing shown; opting in draws the whole network. Ghost
 // (under-island) strips are never drawn here — the cave props carry that story.
 
-import { useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { useLayoutEffect, useMemo, useRef } from 'react';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
-import { Color } from 'three';
+import { Color, OrthographicCamera } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
+import { frameWorld, orthographicZoomFor } from './camera-framing.js';
 import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry.js';
 
 /** Status-variant → placeholder colour (spike palette, not art direction).
@@ -177,39 +188,35 @@ export interface ForestWorldCanvasProps {
   showTrails?: boolean;
 }
 
-/** Where the camera sits and what it looks at — a `[x, y, z]` pair the drei `MapControls` reads.
- *  Named rather than written inline on {@link frameWorld}'s return, because
- *  `anti-slop/no-known-value-widening` reads an anonymous object return annotation as discarded
- *  type evidence and inc-08's refactor panel settled the fork toward NAMING rather than deleting
- *  (deleting it would infer the tuples as `number[]` and break the drei props). */
-interface CameraFraming {
-  target: [number, number, number];
-  position: [number, number, number];
-}
-
-/** Frame the whole world on load: the instance centroid is the MapControls target
- *  and the camera backs off proportionally to the world's spread. */
-function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
-  if (instances.length === 0) return { target: [0, 0, 0], position: [0, 260, 260] };
-  let sx = 0;
-  let sz = 0;
-  for (const i of instances) {
-    sx += i.transform.x;
-    sz += i.transform.z;
-  }
-  const cx = sx / instances.length;
-  const cz = sz / instances.length;
-  let spread = 0;
-  for (const i of instances) {
-    spread = Math.max(spread, Math.abs(i.transform.x - cx), Math.abs(i.transform.z - cz));
-  }
-  const back = Math.max(260, spread * 2.6);
-  return { target: [cx, 0, cz], position: [cx, back, cz + back] };
+/** Apply the framing to the orthographic camera — and PRESERVE THE VIEWER'S OWN ZOOM across a
+ *  resize, which is the one wrinkle the projection change creates.
+ *
+ *  ⚠ `camera.zoom` is doing two jobs at once: it is how the island is framed on load, AND it is
+ *  the property `MapControls` mutates when the viewer zooms in. Recomputing the fit on every
+ *  resize would therefore silently throw the viewer's zoom away every time the window changed —
+ *  taking away, by a side door, exactly the zoom the fence was careful not to touch. So the fit is
+ *  applied as a RATIO against the previous fit: the first pass sets it outright, and every later
+ *  one rescales whatever the viewer has since chosen by how much the fit itself moved. */
+function FitOrthographicFraming({ halfHeight }: { halfHeight: number }) {
+  const camera = useThree((s) => s.camera);
+  const width = useThree((s) => s.size.width);
+  const height = useThree((s) => s.size.height);
+  const appliedFit = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (!(camera instanceof OrthographicCamera)) return;
+    const fit = orthographicZoomFor(halfHeight, Math.min(width, height));
+    const previous = appliedFit.current;
+    camera.zoom = previous === null || previous <= 0 ? fit : camera.zoom * (fit / previous);
+    appliedFit.current = fit;
+    camera.updateProjectionMatrix();
+  }, [camera, halfHeight, width, height]);
+  return null;
 }
 
 /**
  * The minimal R3F canvas of the spike: descriptors → placeholder meshes under drei
- * `MapControls` (pan / zoom / rotate a top-down-ish world map). Client-only
+ * `MapControls` (pan / zoom a top-down-ish world map — NOT rotate; the projection is fixed
+ * 2.5D isometric per ADR-0380 D6 fence 4). Client-only
  * (`ssr:false` posture — the site lazy-loads this island after the inflection).
  */
 export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWorldCanvasProps) {
@@ -228,7 +235,12 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   const wisps = byKind(descriptors, 'wisp-sprite');
   const frame = frameWorld(descriptors.filter((d): d is InstanceDescriptor => d.kind !== 'skipped'));
   return (
-    <Canvas camera={{ position: frame.position, fov: 45, near: 1, far: 4000 }}>
+    /* ⚠ `orthographic` is the fence (ADR-0380 D6 fence 4), and `fov` is GONE rather than merely
+       unused: R3F reads the presence of `fov` as a request for a PerspectiveCamera, so leaving it
+       beside `orthographic` is the one way to write this that silently keeps the old projection.
+       `near`/`far` now clip along the view direction rather than radially, and the eye sits
+       `back * √2` away, so the same 1/4000 range still contains the whole world. */
+    <Canvas orthographic camera={{ position: frame.position, near: 1, far: 4000 }}>
       <color attach="background" args={['#101418']} />
       <ambientLight intensity={0.7} />
       <directionalLight position={[120, 300, 80]} intensity={1.1} />
@@ -246,7 +258,12 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
       {wisps.map((w, i) => (
         <WispSprite key={i} wisp={w} />
       ))}
-      <MapControls makeDefault target={frame.target} />
+      <FitOrthographicFraming halfHeight={frame.halfHeight} />
+      {/* ⚠ `enableRotate={false}` is the second half of fence 4 — an orthographic camera the
+          viewer can still swing around is still a free camera, and the banded land treatment this
+          arc is carrying in is authored against a FIXED light direction that would slide across
+          static geometry under one. Pan (left drag) and zoom (wheel / pinch) are untouched. */}
+      <MapControls makeDefault target={frame.target} enableRotate={false} />
     </Canvas>
   );
 }

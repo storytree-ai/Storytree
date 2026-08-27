@@ -1,0 +1,65 @@
+# The fence instrument, run against the PERSPECTIVE camera it retired.
+# Same page, same GPU, same island — only src/ForestWorldCanvas.tsx reverted to HEAD (aaa057d5).
+# Captured 2026-08-28. This is the run that shows the check can go RED.
+
+
+> @storytree/forest-world-r3f@0.0.0 measure-baseline /home/mickh/code/Storytree/.claude/worktrees/land-third/packages/forest-world-r3f
+> node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/baseline-measure.mjs
+
+renderer: ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+vendor:   Google Inc. (NVIDIA Corporation)
+EXT_disjoint_timer_query_webgl2: available
+
+THE SHIPPED PATH, ONE ISLAND
+  drawables: skipped 1132 · cell-ground 164 · story-tree 1
+  authored triangles (from the primitives): 1784
+  measured triangles (GL calls):            1784  [delta 0]
+    hex-ground             0 x  = 0
+    story-tree/trunk       1 x  = 128
+    story-tree/crown       1 x  = 16
+    cave-arch              0 x  = 0
+    wisp-sprite            0 x  = 0
+    cell-ground          164 x  = 1640
+  not drawn at all:
+    trail-strip          drawn only when a mount passes showTrails; the default is false (ADR-0169 §3)
+    trail-ghost-strip    never drawn on this canvas at any setting — the cave props carry the under-island run
+    skipped              an audit record, not a drawable
+
+PER MOUNT
+  shipped-before     640x420px     2 calls     144 tris  NaN px/unit at target (NaN–NaN across)  PERSPECTIVE NaN%
+  shipped-overview   640x420px     3 calls    1784 tris  NaN px/unit at target (NaN–NaN across)  PERSPECTIVE NaN%
+  shipped-uniform    900x560px     3 calls    1784 tris  NaN px/unit at target (NaN–NaN across)  PERSPECTIVE NaN%
+  shipped-mixed      900x560px     3 calls    1784 tris  NaN px/unit at target (NaN–NaN across)  PERSPECTIVE NaN%
+  shipped-overview-2 640x420px     3 calls    1784 tris  NaN px/unit at target (NaN–NaN across)  PERSPECTIVE NaN%
+  shipped-zoom       1280x840px     3 calls    1784 tris  NaN px/unit at target (NaN–NaN across)  PERSPECTIVE NaN%
+  shipped-classic    1900x1200px     3 calls     456 tris  NaN px/unit at target (NaN–NaN across)  PERSPECTIVE NaN%
+
+
+THE CONTROL — the same canvas on the CLASSIC hex substrate
+  456 triangles over 3.0 draw calls/frame
+
+BEFORE → AFTER, the same component on the same island in the same run
+  BEFORE  144 tris over 2.0 calls/frame
+  AFTER   1784 tris over 3.0 calls/frame
+  ground  1640 tris across 164 parcels
+
+THE GROUND STILL REPORTS
+  mixed island parcels by state: 152 healthy · 12 unhealthy
+  both panels drew 1784 triangles over 3.0 calls — only the colour differs
+  the whole ground cost 1 extra draw call(s)
+
+REFUSED: ADR-0380 D6 fence 4 says the shipped canvas is 2.5D isometric, and 7 of 7 mount(s) uploaded a projection that is not orthographic:
+    shipped-before: perspective
+    shipped-overview: perspective
+    shipped-uniform: perspective
+    shipped-mixed: perspective
+    shipped-overview-2: perspective
+    shipped-zoom: perspective
+    shipped-classic: perspective
+The matrix is read off the GL uniform upload, so this is what the driver was actually given.
+An 'indeterminate' means the page captured no matrix at all — the instrument is missing, which is not the same as a pass.
+/home/mickh/code/Storytree/.claude/worktrees/land-third/packages/forest-world-r3f:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @storytree/forest-world-r3f@0.0.0 measure-baseline: `node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/baseline-measure.mjs`
+Exit status 1
+
+# exit status: non-zero (the driver refused)
