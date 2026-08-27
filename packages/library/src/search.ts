@@ -169,10 +169,7 @@ export interface SearchOptions {
  * would return nothing at all, and the narrow path ADR-0464 D3 requires to stay green would instead
  * become the one path that silently answers zero.
  */
-function rankedPool(
-  docs: readonly IndexedDoc[],
-  opts: SearchOptions,
-): { readonly pool: readonly IndexedDoc[]; readonly withheld: number } {
+function rankedPool(docs: readonly IndexedDoc[], opts: SearchOptions) {
   if (opts.kind !== undefined) {
     return { pool: docs.filter((d) => d.doc.kind === opts.kind), withheld: 0 };
   }
@@ -533,6 +530,9 @@ export function searchCorpus(
 ): SearchResult {
   const terms = [...new Set(tokenize(query))];
   const { pool, withheld } = rankedPool(index.docs, opts);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — with no terms the loop below
+  // matches nothing, so it already returns `matchCount: 0` and `hits: []` over the same `pool`. This
+  // guard buys a skipped traversal, not a different answer, and no test can observe the difference.
   if (terms.length === 0) return { terms, scanned: pool.length, withheld, matchCount: 0, hits: [] };
 
   const scored: SearchHit[] = [];

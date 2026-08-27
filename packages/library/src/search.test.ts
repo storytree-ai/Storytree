@@ -8,6 +8,7 @@ import {
   relatedArtifacts,
   resolveRefTarget,
   salientTerms,
+  stemOf,
   searchCorpus,
   tokenize,
   type LibrarySearchDoc,
@@ -442,4 +443,93 @@ test("salientTerms drops the unreachable terms ONLY when asked to seed a neighbo
     !reachable.includes("kumquat"),
     "a term no other document carries scores zero against every candidate, so it wastes a slot",
   );
+});
+
+// ---------------------------------------------------------------------------
+// The stemmer's own table — one word per suffix, and the two carve-outs
+// ---------------------------------------------------------------------------
+
+/**
+ * One word per entry in the suffix table, with the stem it must produce.
+ *
+ * EXACT EQUALITY, one row per suffix, because the suffixes are ORDERED and a table this shape is the
+ * only thing that can tell a deleted rule from a rule the next one happens to cover: drop `ements`
+ * and `requirements` still stems — to `require` through `ments`, not to `requir`. A test asserting
+ * only "it stems somehow" would pass under both and prove nothing about the order.
+ */
+const SUFFIX_TABLE: ReadonlyArray<readonly [word: string, stem: string]> = [
+  ["followability", "follow"],
+  ["operations", "oper"],
+  ["requirements", "requir"],
+  ["annotation", "annot"],
+  ["requirement", "requir"],
+  ["arguments", "argu"],
+  ["seemingly", "seem"],
+  ["bypassable", "bypass"],
+  ["markedly", "mark"],
+  ["reversible", "revers"],
+  ["findings", "find"],
+  ["argument", "argu"],
+  ["readiness", "readi"],
+  ["smallest", "small"],
+  ["policies", "polic"],
+  ["ranking", "rank"],
+  ["ranked", "rank"],
+  ["matches", "match"],
+  ["quickly", "quick"],
+  ["verdicts", "verdict"],
+  ["capability", "capabilit"],
+];
+
+test("every suffix in the table strips, and strips to exactly the stem the order implies", () => {
+  for (const [word, stem] of SUFFIX_TABLE) {
+    assert.equal(stemOf(word), stem, `stemOf("${word}")`);
+  }
+});
+
+test("the -ss carve-out fires ONLY on -ss, and every other -s word still stems", () => {
+  assert.equal(stemOf("bypass"), null, "a -ss word is its own stem");
+  assert.equal(stemOf("progress"), null);
+  assert.equal(stemOf("verdicts"), "verdict", "and an ordinary plural is unaffected");
+});
+
+test("a strip that leaves fewer than four characters is skipped, not accepted", () => {
+  assert.equal(stemOf("ranking"), "rank", "exactly four is the floor, and the floor is inclusive");
+  assert.equal(stemOf("moved"), null, "three would be a fragment, so nothing is stripped");
+});
+
+test("the trailing -e rule obeys the same floor, and only fires on a trailing e", () => {
+  assert.equal(stemOf("merge"), "merg", "five minus the e is four — it fires");
+  assert.equal(stemOf("gate"), null, "four minus the e is three — it does not");
+  assert.equal(stemOf("island"), null, "and a word with no trailing e is untouched");
+});
+
+test("a two-character token survives; a one-character token does not", () => {
+  // MIN_TOKEN_LENGTH is a floor, not a threshold: `db` and `up` are real query words here.
+  assert.deepEqual(tokenize("db up"), ["db", "up"]);
+  assert.deepEqual(tokenize("x y"), []);
+});
+
+// ---------------------------------------------------------------------------
+// The id in the index (ADR-0464 D3)
+// ---------------------------------------------------------------------------
+
+/** Two artifacts identical in every indexed field EXCEPT their ids. */
+const ID_ONLY: readonly LibrarySearchDoc[] = [
+  doc({ id: "worktree-provisioning", title: "Alpha", description: "Beta", body: "Gamma delta" }),
+  doc({ id: "unrelated-thing", title: "Alpha", description: "Beta", body: "Gamma delta" }),
+];
+
+test("a word that appears ONLY in the id is searchable, and finds only that artifact", () => {
+  // The sharp form of the id case: `provisioning` is in no title, description or body, so this
+  // returns nothing at all unless the id is in the index.
+  const result = searchCorpus(buildSearchIndex(ID_ONLY), "provisioning");
+  assert.deepEqual(result.hits.map((h) => h.id), ["worktree-provisioning"]);
+});
+
+test("related uses a BOUNDED number of the source's terms, and honours an explicit count", () => {
+  const bounded = relatedArtifacts(INDEX, CORPUS, "adr-0139");
+  assert.ok(bounded.terms.length <= 12, `the default is a cap, got ${bounded.terms.length}`);
+  const two = relatedArtifacts(INDEX, CORPUS, "adr-0139", { termCount: 2 });
+  assert.equal(two.terms.length, 2, "an explicit count is the count, not a floor");
 });
