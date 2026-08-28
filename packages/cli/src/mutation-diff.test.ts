@@ -1526,16 +1526,58 @@ test("declaredTestRoots: a flag's VALUE is not a suite root — existence is the
   assert.deepEqual(roots, ["electron/"]);
 });
 
-test("declaredTestRoots: `.` is refused even though it IS a directory", () => {
+test("declaredTestRoots: `.`, `..` and escapes are refused even though they ARE directories", () => {
   // `bun test .` would otherwise declare the whole project one big suite root, which would make the
-  // GAP report fire on every drop — reporting everything is the same as reporting nothing.
-  // isDirectory answers YES for exactly the two refused tokens, so nothing but the refusal itself
-  // can account for the empty result.
+  // GAP report fire on every drop — reporting everything is the same as reporting nothing. The
+  // `../` and `/` forms are refused for the neighbouring reason: a root outside the project is not
+  // the project's declaration about itself.
+  // isDirectory answers YES for exactly the refused token in each case, so nothing but the refusal
+  // itself can account for the empty result.
   const yesTo = (want: string) => (rel: string) => rel === want;
-  assert.deepEqual(declaredTestRoots({ testScript: "bun test .", isDirectory: yesTo(".") }), []);
+  for (const token of [".", "..", "../x", "/etc"]) {
+    assert.deepEqual(
+      declaredTestRoots({ testScript: `bun test ${token}`, isDirectory: yesTo(token) }),
+      [],
+      `${token} must not become a suite root`,
+    );
+  }
+});
+
+test("declaredTestRoots: a trailing slash in the script names the same root", () => {
+  // `bun test src/ electron/` is how the desktop app actually writes it, so the trailing slash is
+  // the COMMON form rather than an edge case, and the roots it yields must be identical to the
+  // bare form's — otherwise the classifier answers differently depending on typing style.
+  const isDirectory = (rel: string) => rel === "src" || rel === "electron";
   assert.deepEqual(
-    declaredTestRoots({ testScript: "bun test ../x", isDirectory: yesTo("../x") }),
-    [],
+    declaredTestRoots({ testScript: "bun test src/ electron/", isDirectory }),
+    ["electron/", "src/"],
+  );
+  assert.deepEqual(
+    declaredTestRoots({ testScript: "bun test src electron", isDirectory }),
+    ["electron/", "src/"],
+  );
+});
+
+test("declaredTestRoots: a NESTED root keeps its inner slashes — only the trailing ones go", () => {
+  // The strip is anchored at the END on purpose. Un-anchor it and `src/backend/` collapses to
+  // `srcbackend`, which names no directory, so the project's declaration silently vanishes — the
+  // failure mode this whole change exists to stop, arriving through a typo in a regex.
+  assert.deepEqual(
+    declaredTestRoots({
+      testScript: "bun test src/backend/ electron//",
+      isDirectory: (rel) => rel === "src/backend" || rel === "electron",
+    }),
+    ["electron/", "src/backend/"],
+  );
+});
+
+test("declaredTestRoots: tabs and runs of spaces separate tokens just as one space does", () => {
+  assert.deepEqual(
+    declaredTestRoots({
+      testScript: "bun test\t--timeout   300000\n  src/",
+      isDirectory: (rel) => rel === "src",
+    }),
+    ["src/"],
   );
 });
 
@@ -1652,4 +1694,47 @@ test("formatNarrowingLines: an untested-root drop does NOT read as a gap", () =>
 
 test("formatNarrowingLines: nothing narrowed prints nothing", () => {
   assert.deepEqual(formatNarrowingLines([]), []);
+});
+
+test("mutation-diff: several narrowed files are reported in a stable order", () => {
+  // Order is not cosmetic here. This list is what a reader scans to find the file the rung did not
+  // prove, and an order that shifts between runs makes two logs of the same branch look different.
+  const selection = selectMutationTargets({
+    changed: [
+      { file: "apps/desktop/src/backend/a.ts", ranges: [{ start: 1, end: 1 }] },
+      { file: "apps/desktop/electron/z-server.ts", ranges: [{ start: 1, end: 1 }] },
+      { file: "apps/desktop/electron/a-server.ts", ranges: [{ start: 1, end: 1 }] },
+    ],
+    projects: DESKTOP_PROJECTS,
+    existingFiles: existing(
+      "apps/desktop/src/backend/a.ts",
+      "apps/desktop/electron/z-server.ts",
+      "apps/desktop/electron/a-server.ts",
+    ),
+  });
+  assert.deepEqual(
+    selection.narrowed.map((n) => n.file),
+    ["apps/desktop/electron/a-server.ts", "apps/desktop/electron/z-server.ts"],
+  );
+});
+
+test("formatNarrowingLines: the GAP line says what the reader is being told, not just that it happened", () => {
+  // The last sentence is the one that turns a fact into a consequence. Asserting only the `NARROWED
+  // (GAP)` prefix would leave the sentence that explains the cost unpinned.
+  const [line] = formatNarrowingLines([
+    { file: "apps/desktop/electron/static-server.ts", kind: "declared-test-root", project: "desktop" },
+  ]);
+  assert.ok(line !== undefined);
+  assert.match(line, /only mutates a project's src\//);
+  assert.match(line, /Nothing on this branch proves those lines\./);
+});
+
+test("formatNarrowingLines: the ordinary line says the drop was deliberate, and why", () => {
+  const [line] = formatNarrowingLines([
+    { file: "packages/cli/scripts/tool.ts", kind: "untested-root", project: "@storytree/cli" },
+  ]);
+  assert.ok(line !== undefined);
+  assert.match(line, /sits outside/);
+  assert.match(line, /which no unit test is written against/);
+  assert.match(line, /Dropped on purpose\./);
 });

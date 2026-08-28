@@ -537,10 +537,24 @@ export function declaredTestRoots(args: {
 }): readonly string[] {
   if (args.testScript === undefined) return [];
   const roots = new Set<string>();
+  // Stryker disable next-line Regex: EQUIVALENT — any weakening of `\s+` (to `\s`, say) splits the
+  // same script into the same tokens PLUS empty strings between adjacent separators, and the empty
+  // guard on the next line drops those. No script can distinguish the two.
   for (const raw of args.testScript.split(/\s+/)) {
+    // Stryker disable next-line all: EQUIVALENT — redundant with the {@link isDirectory} filter
+    // below, which is the whole design. The empty string is not a directory, so a run that reaches
+    // the predicate with it gets the same `continue` by a longer route. The guard is here so the
+    // loop reads honestly rather than relying on a predicate three lines away.
     if (raw === "") continue;
+    // Stryker disable next-line all: EQUIVALENT — same reason. `--timeout` is not a directory
+    // either, so removing this cannot change any result; it exists to say out loud that flags are
+    // not suite roots, which is the misreading this function was written to prevent.
     if (raw.startsWith("-")) continue;
     const token = normalise(raw).replace(/\/+$/, "");
+    // Stryker disable next-line ConditionalExpression,StringLiteral: EQUIVALENT for the `token === ""`
+    // arm alone — it is reachable (a bare `/` strips to nothing) but redundant with `isDirectory`,
+    // which answers false for the empty path. The `.` and `..` arms are NOT equivalent and are
+    // covered by their own test; Stryker groups them on one line because they share it.
     if (token === "" || token === "." || token === "..") continue;
     if (token.startsWith("../") || token.startsWith("/")) continue;
     if (!args.isDirectory(token)) continue;
@@ -619,6 +633,10 @@ export function selectMutationTargets(args: {
     if (!isMutableSource(file)) continue;
     if (!file.startsWith(`${owner.dir}/src/`)) {
       droppedOutsideSrc += 1;
+      // Stryker disable next-line ArrayDeclaration: EQUIVALENT — the fallback stands for "this
+      // project declared no roots", and the ONLY use of the value is `relative.startsWith(root)`.
+      // Stryker's replacement is a fixed nonsense string, which prefixes no real path, so the empty
+      // array and the replacement agree on every input a test could supply.
       const declared = testRootsByProject.get(owner.name) ?? [];
       // Project-relative, so the declared roots (`src/`, `electron/`) can be matched as prefixes.
       // A project's own `src/` is in `declared` too and needs no special case: reaching this branch
