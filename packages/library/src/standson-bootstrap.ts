@@ -21,9 +21,16 @@ import { DependsOnRef } from "./knowledge.js";
 /**
  * The tier order, bedrock → composite (ADR-0223 dec 3, as amended by ADR-0363 D1).
  *
- * TIER 0 IS NOT IN THIS MAP because it is not a kind: it is the ADR set, reached by a `doc:<relpath>`
- * pointer (ADR-0223 dec 4). ADRs are not Library artifacts, carry no `dependsOn` of their own, and are
- * therefore natural sinks — strictly below every kind here and incapable of closing a cycle.
+ * TIER 0 IS NOT IN THIS MAP, and TWO of ADR-0223 dec 4's three reasons for that have since expired.
+ * It is the decision set, reached by a `doc:<relpath>` pointer or an `asset:adr-NNNN` one. ADR-0223
+ * wrote that ADRs "are not Library artifacts, carry no `dependsOn` of their own, and are therefore
+ * natural sinks"; ADR-0403 dec 1 moved the decision log into the store, so a decision IS an ordinary
+ * artifact and 339 of them carry authored edges today. What survives is the PLACEMENT — tier 0,
+ * beneath every kind below — and it is recorded in {@link TIER_ZERO_KINDS} rather than here, because
+ * this map's entries are the tiers the seed projects DOWN FROM and there is nothing below tier 0 to
+ * project into. What does NOT survive is the sink argument: a cycle through the decision tier is now
+ * reachable in principle, and `check:library-dag-acyclic` is what rules it out — it reads the whole
+ * corpus unfiltered, so it has always covered this.
  *
  * A kind ABSENT from this map is outside the DAG: it emits no edge and is never pointed at by a
  * seeded one. THREE kinds are absent, for two reasons:
@@ -31,8 +38,16 @@ import { DependsOnRef } from "./knowledge.js";
  *     a reader uses, and it is the corpus's densest mutually-constitutive citation core.
  *   - `friction`, `open-question` — the transient signal tier (ADR-0223 dec 1/dec 4).
  *
- * All three also sit in `EDGE_FREE_KINDS`, so the schema refuses them the field outright — absence
- * here and refusal there now AGREE for every absent kind, which is the state ADR-0365 D1 restored.
+ * TWO of them — `friction` and `open-question` — also sit in `EDGE_FREE_KINDS`, so the schema refuses
+ * them the field outright. `definition` NO LONGER DOES (ADR-0468 D1): the schema admits it the field,
+ * because ADR-0464 D4 needs the orientation reads to carry authored edges once the citation-derived
+ * offer surface is deleted, while ADR-0363 D1's depth exclusion — which is what keeps it out of THIS
+ * map — is untouched. So absence here and refusal there no longer agree for every absent kind, which
+ * was the invariant ADR-0365 D1 restored for `uat-criterion`. That agreement is REPLACED, not
+ * dropped: `DAG_EXCLUDED_KINDS` names the deliberate split, and `knowledge-standson.test.ts` asserts
+ * every kind sits in EXACTLY ONE of four places — this map, {@link TIER_ZERO_KINDS},
+ * `EDGE_FREE_KINDS` or `DAG_EXCLUDED_KINDS` — which is strictly stronger, since the old agreement
+ * said nothing at all about a kind left out of both.
  *
  * `uat-criterion` was the exception and is no longer: it sat in NO tier (so the seed wrote it
  * nothing) and NO `EDGE_FREE_KINDS` (so the schema accepted a hand-authored edge on it) — outside
@@ -58,6 +73,23 @@ export const KNOWLEDGE_TIERS: ReadonlyMap<string, number> = new Map([
   // ADR-0365 D1 — a peer of `increment`, not a successor: same tier, so neither seeds into the other.
   ["uat-criterion", 6],
 ]);
+
+/**
+ * TIER 0 — the decision set, the bedrock every other kind may stand on (ADR-0223 dec 3/dec 4).
+ *
+ * SEPARATE FROM {@link KNOWLEDGE_TIERS} ON PURPOSE, and the separation is not a hedge. That map is
+ * read as "which citations may this kind project DOWN into an edge", so an entry only earns its keep
+ * if something sits beneath it. Nothing sits beneath tier 0, so `adr` would be inert there — and
+ * adding it would instead change the seed's behaviour in a direction nobody has decided, by making
+ * every kind's citations to a decision newly projectable.
+ *
+ * DECLARED RATHER THAN LEFT IMPLICIT, because the implicit version is the exact defect ADR-0365 D1
+ * was written to repair. `adr` became a KIND on ADR-0403 dec 1 and was placed in no tier and no
+ * exclusion set — outside the graph for the seed, inside it for the schema, with nothing on record
+ * saying which was meant. That is `uat-criterion`'s shape, and it went unnoticed for the same reason:
+ * nothing asserted that every kind is placed somewhere. `knowledge-standson.test.ts` now does.
+ */
+export const TIER_ZERO_KINDS: ReadonlySet<string> = new Set<string>(["adr"]);
 
 /** The `doc:` scheme reaching tier 0. */
 const DOC_PREFIX = "doc:";
