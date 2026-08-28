@@ -196,15 +196,36 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
       );
     }
 
-    // ADR-0260 D7: every declared gap rides with the declaration in this render too, since this is
-    // the one the CLI actually calls. The command-form gap keeps its stable id while its NOTE got
-    // sharper (a bare command now loses an edge outright), and D4's asymmetry joined it.
-    for (const caveatId of [
+    // ADR-0235 clause 6: every declared gap rides with the declaration in this render too, since this
+    // is the one the CLI actually calls.
+    //
+    // ADR-0464 D1 REPLACED THE THREE CAVEATS THIS ONCE PINNED, and the replacement is asserted here
+    // rather than the block simply being deleted. The old three all described gaps in the offer
+    // mechanism — `doc:` offers being unfollowable, follow-completeness depending on the agent reusing
+    // the printed form, and an unanswered offer being indistinguishable from a bypassed one. A
+    // mechanism that does not exist has no gaps, so carrying them forward would have described the
+    // thinness of a picture this adapter no longer draws.
+    //
+    // Deleting the loop outright was the tempting move and would have been wrong: this render's whole
+    // contract is that it states what it cannot see, and a render with NO caveat block satisfies that
+    // contract vacuously. So the successor caveat is pinned by id, and it says the honest successor
+    // thing — that offers and follows are no longer recorded at all, and that the lost causality must
+    // not be reconstructed by joining a read to an earlier render (ADR-0260 D4's refusal, which
+    // outlives the mechanism it was written for).
+    assert.ok(
+      result.body.includes("offers-and-follows-are-no-longer-recorded"),
+      "the declaration must still surface a caveat — a render that states no gap at all satisfies " +
+        "ADR-0235 clause 6 vacuously",
+    );
+    for (const retired of [
       "doc-refs-are-offered-but-follows-are-unobservable",
       "follow-completeness-depends-on-the-offered-command-form",
       "an-unanswered-visit-and-a-bypassed-mechanism-are-indistinguishable",
     ]) {
-      assert.ok(result.body.includes(caveatId), `the declaration must surface caveat ${caveatId}`);
+      assert.ok(
+        !result.body.includes(retired),
+        `${retired} describes the retired offer mechanism and must not survive it`,
+      );
     }
 
     const terminalLine = `coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId} supported=[${AGENT_DESCENT_COVERAGE.supported.join(", ")}] omitted=[${AGENT_DESCENT_COVERAGE.omitted.join(", ")}]`;
