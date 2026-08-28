@@ -402,6 +402,21 @@ export interface DecisionDiscoveryReading {
  * than this silently returning a smaller cohort that would read as a full one.
  */
 export function reachCohort(decisionNumbers: readonly number[]): readonly number[] {
+  // Stryker disable next-line all: KILLED EVERYWHERE, NAMEABLE ONLY LOCALLY — a runner defect, not a
+  // coverage gap, and disabled here rather than left to red every CI run on a line whose behaviour
+  // IS tested. `check:mutation-diff` kills every mutant on this line in both environments; on CI it
+  // then reports them UNPROVEN, whose own wording is "killed, but the report named no test". That is
+  // Defect B of `docs/research/stryker-bun-attribution-2026-08-26.md`: the bun runner derives the
+  // dry-run's test names from the Inspector Protocol (absolute sandbox paths) and the mutant run's
+  // from the run output (relative paths), so `resolveKilledBy` discards a killer it has already
+  // found. The vendored patch repairs the common case by suffix-matching and deliberately resolves
+  // NOTHING when a name is ambiguous, which is the arm this line lands in — it is exercised by most
+  // of the section's tests at once, so every killer's name arrives unresolvable together.
+  //
+  // What holds the behaviour instead, and why this is not a hole: `reachCohort` is directly tested
+  // for the ordering these mutants break — that the cohort is the LOWEST-numbered decisions, that a
+  // growing log cannot manufacture a fall, and that post-freeze decisions cannot flatter reach. Any
+  // of those reds if this sort changes. Revisit when the plugin's attribution is fixed upstream.
   return [...decisionNumbers].sort((a, b) => a - b).slice(0, FROZEN_DECISIONS_IN_LOG);
 }
 
