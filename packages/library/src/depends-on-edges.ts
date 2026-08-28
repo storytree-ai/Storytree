@@ -45,17 +45,24 @@
  * failure mode, and inference may never repair it — is the same rule read at render time. Measured
  * 2026-08-27 the drop is empty: all 1,357 authored edges resolve to a live row, 0 dangling.
  *
- * A `doc:` pointer at a repository file that is NOT a decision is dropped for a different and
- * narrower reason: it resolves to a FILE, not to a CLI read, which is the coverage caveat the
- * `Sources:` block already declares for the same token. The schema admits only `asset:` and `doc:`
- * ADR pointers here ({@link DependsOnRef}), and the live corpus carries no such entry.
+ * That ONE gate also answers a `doc:` pointer at a repository file that is not a decision — it
+ * resolves to a FILE, not to a CLI read, which is the coverage caveat the `Sources:` block already
+ * declares for the same token. Such an entry keeps its scheme and simply resolves to nothing, so it
+ * needs no scheme test of its own: a second branch would be a rule to keep in step with the schema
+ * ({@link DependsOnRef} admits only `asset:` and `doc:` ADR pointers) for a case resolution has
+ * already settled. The live corpus carries no such entry.
  *
  * Pure and browser-safe: it resolves strings through a caller-supplied corpus view and touches
  * nothing, so the same derivation can run in the CLI, in the studio and in a test over a fixture.
  */
 
 import { ASSET_REF_PREFIX, adrDocId, parseDecisionPointer } from "./decision-pointer.js";
-import { SOURCE_GROUP_ORDER, sourceGroupOf, type AssetTarget } from "./knowledge-sources.js";
+import {
+  SOURCE_GROUP_ORDER,
+  sourceGroupOf,
+  type AssetTarget,
+  type SourceGroupName,
+} from "./knowledge-sources.js";
 
 /**
  * One resolved onward edge, shaped to drop straight into a `NodeEdge` for the shared emitter.
@@ -70,11 +77,6 @@ export interface DependsOnEdge {
   readonly label: string;
 }
 
-/** A canonicalised entry, held while the list is ordered by {@link SOURCE_GROUP_ORDER}. */
-interface CanonicalEdge extends DependsOnEdge {
-  readonly group: (typeof SOURCE_GROUP_ORDER)[number];
-}
-
 /**
  * PURE and TOTAL: read an artifact's authored `dependsOn` pointers into ordered, resolved onward
  * edges (ADR-0464 D2). See the header for the four rules this encodes — canonicalise both decision
@@ -83,40 +85,47 @@ interface CanonicalEdge extends DependsOnEdge {
  * `resolveAsset(id)` returns the target's `{ kind, title }`, or `null`/`undefined` when the corpus
  * holds no such artifact — the same callback shape {@link groupSources} takes, so a call site fills
  * it from the corpus view it already has rather than being handed one.
+ *
+ * ONE GATE DECIDES WHAT IS OFFERABLE, and it is `resolveAsset`. There is deliberately no second
+ * "is this scheme followable?" test beside it: a `doc:` pointer at a repository file keeps its
+ * scheme here and resolves to nothing, because no artifact is stored under an id carrying a colon.
+ * A separate scheme branch would be a rule to keep in step with {@link DependsOnRef} for a case
+ * resolution already answers — and, being unobservable, a branch no test could ever discriminate.
  */
 export function dependsOnEdges(
   pointers: readonly string[],
   resolveAsset: (id: string) => AssetTarget | null | undefined,
 ): DependsOnEdge[] {
-  const resolved: CanonicalEdge[] = [];
+  // Bucketed as they arrive, exactly as `groupSources` buckets a citation list — so author order
+  // survives inside a group and the group ORDER is read off the shared tuple below, once.
+  const buckets = new Map<SourceGroupName, DependsOnEdge[]>();
   const seen = new Set<string>();
   for (const pointer of pointers) {
     // DECISION FIRST: the parser answers for all three live spellings, so `doc:decisions/0139-….md`
-    // and `asset:adr-0139` reach the same row id. A pointer it declines is a Library artifact if it
-    // carries the `asset:` scheme, and otherwise a repository file this block cannot offer.
+    // and `asset:adr-0139` reach the same row id — which is what collapses them to one edge below.
+    // The `asset:` strip mirrors the emitter's own (`emitNodeEnvelope`), the other end of this trip.
     const decision = parseDecisionPointer(pointer);
-    const id =
-      decision !== null
-        ? adrDocId(decision.number)
-        : pointer.startsWith(ASSET_REF_PREFIX)
-          ? pointer.slice(ASSET_REF_PREFIX.length)
-          : "";
-    if (id === "" || seen.has(id)) continue;
+    // Stryker disable next-line Regex: EQUIVALENT — dropping the anchor strips the same token. A `dependsOn` pointer carries its scheme at position 0 by construction, and `DependsOnRef` restricts what follows to `[A-Za-z0-9_-]+` (an artifact id) or `[A-Za-z0-9_./-]+` (a doc relpath), neither of which admits a colon — so the substring `asset:` cannot occur anywhere but the start, and an anchored and an unanchored match remove the same characters.
+    const id = decision === null ? pointer.replace(/^asset:/, "") : adrDocId(decision.number);
+    if (seen.has(id)) continue;
     const target = resolveAsset(id);
     if (!target) continue;
     seen.add(id);
-    resolved.push({
+    const bucket = buckets.get(sourceGroupOf(target.kind));
+    const edge: DependsOnEdge = {
       ref: `${ASSET_REF_PREFIX}${id}`,
       // The title is what a reader recognises; the id is the honest fallback for a row that carries
       // none, so a titleless artifact still renders a label rather than a bare bracketed kind.
       label: `${target.title === "" ? id : target.title} [${target.kind}]`,
-      group: sourceGroupOf(target.kind),
-    });
+    };
+    if (bucket) bucket.push(edge);
+    else buckets.set(sourceGroupOf(target.kind), [edge]);
   }
   // Order by the Sources grouping, author order preserved WITHIN a group. On the decision tier —
   // 1.7 edges, all decisions — this is the author's list unchanged; on the agent tier, 16.8 edges
   // wide across every kind in the corpus, it is what turns a flat dump into a scannable one.
-  return SOURCE_GROUP_ORDER.flatMap((group) =>
-    resolved.filter((edge) => edge.group === group).map(({ ref, label }) => ({ ref, label })),
-  );
+  return SOURCE_GROUP_ORDER.flatMap((group) => {
+    const items = buckets.get(group);
+    return items === undefined ? [] : items;
+  });
 }
