@@ -1,5 +1,5 @@
 {
-  "url": "http://localhost:5241/terrain.html",
+  "url": "http://localhost:5242/terrain.html",
   "renderer": {
     "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
     "vendor": "Google Inc. (NVIDIA Corporation)",
@@ -145,18 +145,18 @@
       "opaque": 1233579,
       "offPalette": 0,
       "signature": [
-        0.22974760138408173,
-        0.18014525529365366,
-        0.2928580002768255,
-        0.29724914304543903
+        0.22971210841908093,
+        0.18020038541097988,
+        0.2931602636629728,
+        0.2969272425069663
       ],
-      "anisotropy": 1.6500525787420548,
+      "anisotropy": 1.6477614175450819,
       "fineness": {
-        "x": 2.6229303535179938,
-        "y": 2.03424344934536
+        "x": 2.623822093091126,
+        "y": 2.054996072403956
       },
-      "withinSpread": 0.04301021327588063,
-      "withinFineness": 0.39210095198293043
+      "withinSpread": 0.0418847812341306,
+      "withinFineness": 0.3853129574888117
     },
     "terrain-unhealthy-on-8px": {
       "w": 1918,
@@ -221,18 +221,18 @@
       "opaque": 1233579,
       "offPalette": 0,
       "signature": [
-        0.1989131046645702,
-        0.21934585754569147,
-        0.23327780874860402,
-        0.34846322904113436
+        0.1988040958164132,
+        0.21950384228894362,
+        0.23291377575811026,
+        0.348778286136533
       ],
-      "anisotropy": 1.7518364595874791,
+      "anisotropy": 1.7543817933138275,
       "fineness": {
-        "x": 3.1228719851095703,
-        "y": 3.5064637124983484
+        "x": 3.124574397021914,
+        "y": 3.5114086734615295
       },
-      "withinSpread": 0.036599700216036646,
-      "withinFineness": 0.36448141088107633
+      "withinSpread": 0.0368722022047083,
+      "withinFineness": 0.35574799817168884
     },
     "terrain-unhealthy-off-8px": {
       "w": 1918,
@@ -308,14 +308,14 @@
     {
       "a": "forest",
       "b": "heath",
-      "between": 0.09072141186741899,
-      "bar": 0.04301021327588063,
-      "betweenFineness": 0.7886895378372888,
-      "barFineness": 0.39210095198293043,
+      "between": 0.0909881822885655,
+      "bar": 0.0418847812341306,
+      "betweenFineness": 0.7740462462184946,
+      "barFineness": 0.3853129574888117,
       "separatedByDirection": true,
       "separatedByScale": true,
       "separated": true,
-      "margin": 2.1092992793480043,
+      "margin": 2.172344694364121,
       "colourNearest": "healthy"
     },
     {
@@ -373,53 +373,53 @@
     {
       "a": "heath",
       "b": "fallow",
-      "between": 0.11637394675712673,
+      "between": 0.11664071717827325,
       "bar": 0.06432218608634956,
-      "betweenFineness": 0.9900020733560927,
+      "betweenFineness": 0.990492475099038,
       "barFineness": 0.8792085347728181,
       "separatedByDirection": true,
       "separatedByScale": true,
       "separated": true,
-      "margin": 1.8092349442368159,
+      "margin": 1.8133823533560953,
       "colourNearest": "mapped"
     },
     {
       "a": "heath",
       "b": "wheatfield",
-      "between": 0.16143701804022978,
-      "bar": 0.04301021327588063,
-      "betweenFineness": 1.3472763775240717,
-      "barFineness": 0.39210095198293043,
+      "between": 0.16170378846137629,
+      "bar": 0.0418847812341306,
+      "betweenFineness": 1.3326330859052777,
+      "barFineness": 0.3853129574888117,
       "separatedByDirection": true,
       "separatedByScale": true,
       "separated": true,
-      "margin": 3.7534577428092137,
+      "margin": 3.8606812235086694,
       "colourNearest": "mapped"
     },
     {
       "a": "heath",
       "b": "swamp",
-      "between": 0.08721401060372634,
+      "between": 0.08748078102487286,
       "bar": 0.050795831484622536,
-      "betweenFineness": 0.2879963175436863,
-      "barFineness": 0.39210095198293043,
+      "betweenFineness": 0.2884867192866317,
+      "barFineness": 0.3853129574888117,
       "separatedByDirection": true,
       "separatedByScale": false,
       "separated": true,
-      "margin": 1.716952120965452,
+      "margin": 1.7222039381589016,
       "colourNearest": "mapped"
     },
     {
       "a": "heath",
       "b": "scree",
-      "between": 0.09294963539390065,
-      "bar": 0.04301021327588063,
-      "betweenFineness": 1.7642219873023495,
+      "between": 0.09321640581504717,
+      "bar": 0.0418847812341306,
+      "betweenFineness": 1.7495786956835553,
       "barFineness": 0.4594666598115577,
       "separatedByDirection": true,
       "separatedByScale": true,
       "separated": true,
-      "margin": 3.839717092913585,
+      "margin": 3.8078468988394385,
       "colourNearest": "mapped"
     },
     {
@@ -492,7 +492,7 @@
     {
       "name": "forest",
       "state": "healthy",
-      "provenance": "owner",
+      "provenance": "owner-named",
       "character": "closed canopy over undisturbed ground — no direction, no working",
       "stretch": 1,
       "bearing": 0,
@@ -503,18 +503,18 @@
     {
       "name": "heath",
       "state": "mapped",
-      "provenance": "proposed-here",
+      "provenance": "owner-accepted",
       "character": "open scrub over surveyed ground — walked, marked, not worked",
       "stretch": 1.7,
       "bearing": 1.2566370614359172,
       "lattice": 1.25,
-      "token": "#b3946a",
+      "token": "#b7684e",
       "terrain": "heath"
     },
     {
       "name": "fallow",
       "state": "proposed",
-      "provenance": "proposed-here",
+      "provenance": "owner-accepted",
       "character": "ploughed and set out, nothing grown in it yet — wide bare furrows",
       "stretch": 6,
       "bearing": 0.3141592653589793,
@@ -525,7 +525,7 @@
     {
       "name": "wheatfield",
       "state": "building",
-      "provenance": "owner",
+      "provenance": "owner-named",
       "character": "the crop standing while the work is in flight — fine dense rows",
       "stretch": 4,
       "bearing": 0.3141592653589793,
@@ -536,7 +536,7 @@
     {
       "name": "swamp",
       "state": "unhealthy",
-      "provenance": "owner",
+      "provenance": "owner-named",
       "character": "standing water in broad pools — no direction, coarse and high-contrast",
       "stretch": 1,
       "bearing": 0,
@@ -547,7 +547,7 @@
     {
       "name": "scree",
       "state": "unknown",
-      "provenance": "proposed-here",
+      "provenance": "owner-accepted",
       "character": "broken stone with nothing growing — the sparsest land there is",
       "stretch": 1,
       "bearing": 0,

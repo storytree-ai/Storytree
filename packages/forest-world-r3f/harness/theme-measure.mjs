@@ -271,20 +271,51 @@ for (const { theme, offered } of ALL) {
 }
 
 // ── ⚠ THE THEMES REALLY ARE DIFFERENT PICTURES ───────────────────────────────────────────────
-// NON-VACUITY over the whole page. Three themes that rendered the same pixels would pass every
-// check above and would say nothing whatever about theming.
-console.log(`\n${'─'.repeat(96)}\nDO THE THEMES ACTUALLY LOOK DIFFERENT?`);
+// NON-VACUITY over the whole page. Three OFFERED themes that rendered the same pixels would pass
+// every check above and would say nothing whatever about theming.
+//
+// ⚠⚠ IT ASKS THE OFFERED THEMES ONLY, AND THE FIRST RUN OF THIS DRIVER PROVED WHY. Asking it of
+// ALL five refused the run five times over, correctly: `levelled-fields` IS high summer's palette
+// with one land changed, so five of its six states are byte-identical to high summer BY
+// CONSTRUCTION. That is the fixture doing its job — it isolates the LAND half by holding colour
+// fixed — and a distinctness rule applied to it was the instrument misreading the fixture rather
+// than the fixture being wrong. The right question of a refusal fixture is the one below it.
+console.log(`\n${'─'.repeat(96)}\nDO THE OFFERED THEMES ACTUALLY LOOK DIFFERENT?`);
 const bytesEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
 for (const t of TERRAINS) {
   const seen = [];
-  for (const { theme } of ALL) {
+  for (const { theme } of ALL.filter((x) => x.offered)) {
     const p = panels.get(`theme-${theme.id}-${t.state}-8px`);
     if (!p) continue;
     const twin = seen.find((s) => bytesEqual(s.p.data, p.data));
     if (twin) refuse(`${theme.id} and ${twin.id} draw ${t.state} BYTE-IDENTICALLY — one of them is not a theme`);
     seen.push({ id: theme.id, p });
   }
-  console.log(`  ${t.state.padEnd(11)} ${seen.length} themes, all distinct pictures`);
+  console.log(`  ${t.state.padEnd(11)} ${seen.length} offered themes, all distinct pictures`);
+}
+
+// ── ⚠⚠ THE LAND-COLLAPSE FIXTURE CHANGES EXACTLY WHAT IT SAYS IT CHANGES ─────────────────────
+// `levelled-fields` differs from `high-summer` in ONE authored field: `fallow`'s land. If it
+// differed anywhere else, its refusal could be coming from something other than the collapse it
+// names — and if it differed NOWHERE, the theme never reached the renderer and the whole page is
+// one picture drawn five times. Both failures are silent; this is what makes them loud.
+console.log('\nTHE LAND-COLLAPSE FIXTURE — it must differ from its own base in ONE state and no other');
+const changed = [];
+const same = [];
+for (const t of TERRAINS) {
+  const a = panels.get(`theme-high-summer-${t.state}-8px`);
+  const b = panels.get(`theme-levelled-fields-${t.state}-8px`);
+  if (!a || !b) continue;
+  (bytesEqual(a.data, b.data) ? same : changed).push(t.state);
+}
+console.log(`  differs in: ${changed.join(', ') || '(nothing)'} · identical in: ${same.join(', ') || '(nothing)'}`);
+if (changed.length !== 1 || changed[0] !== 'proposed') {
+  refuse(
+    `levelled-fields should differ from high-summer in 'proposed' ALONE; it differs in ` +
+      `[${changed.join(', ')}]. Either the theme did not reach the renderer or it moved something it does not declare.`,
+  );
+} else {
+  console.log('  ✓ exactly one state moved, and it is the one the fixture levels.');
 }
 
 writeFileSync(

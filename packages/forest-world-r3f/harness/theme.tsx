@@ -28,7 +28,10 @@ import { createRoot } from 'react-dom/client';
 import { IslandPanel } from './IslandView.js';
 import { grainFeaturePeriod } from './land-grain.js';
 import {
+  COLD_SEASON_THEME,
+  HIGH_SUMMER_THEME,
   REFUSED_THEMES,
+  SHIPPED_THEME,
   THEMES,
   resolveTheme,
   themeSeparation,
@@ -43,6 +46,41 @@ declare global {
 }
 
 const BASE = grainFeaturePeriod();
+
+/** The two refusal fixtures, looked up by id rather than by index. ⚠ A missing one throws at module
+ *  load — the page refuses to render rather than quietly dropping the row that proves the floor can
+ *  say no, which is the row a reader most needs. */
+function refusedById(id: string): LandTheme {
+  const t = REFUSED_THEMES.find((x) => x.id === id);
+  if (t === undefined) throw new Error(`theme.tsx: no refusal fixture '${id}' — the page cannot show the floor refusing`);
+  return t;
+}
+const DUSK_FLATS = refusedById('dusk-flats');
+const LEVELLED_FIELDS = refusedById('levelled-fields');
+
+/**
+ * ⚠⚠ EVERY THEME THE MODULE OFFERS MUST BE ON THIS PAGE, and this is what says so.
+ *
+ * The sections below are authored by hand rather than mapped, so a theme added to `THEMES` would
+ * simply not appear — and the page would still render, still measure, and still report a clean
+ * pass over the themes it happened to draw. That is a SHRINKING evidence set that reads as a
+ * growing one, which is the same fault class the section-id guard exists for. Refusing at
+ * module load makes it loud: the page does not render at all.
+ */
+const ON_THE_PAGE: readonly LandTheme[] = [
+  SHIPPED_THEME,
+  HIGH_SUMMER_THEME,
+  COLD_SEASON_THEME,
+  DUSK_FLATS,
+  LEVELLED_FIELDS,
+];
+const unshown = [...THEMES, ...REFUSED_THEMES].filter((t) => !ON_THE_PAGE.includes(t));
+if (unshown.length > 0) {
+  throw new Error(
+    `theme.tsx: ${unshown.map((t) => t.id).join(', ')} exist but are not on this page. Author a ` +
+      'section for each, or the evidence silently covers fewer themes than the module offers.',
+  );
+}
 
 /** The colour-blind pair leads every row: `proposed` and `building` wear one token under every
  *  theme (ADR-0462), so they are the two states a theme can destroy and colour cannot save. */
@@ -119,9 +157,21 @@ function FloorReading({ theme }: { theme: LandTheme }) {
   );
 }
 
-function ThemeSection({ theme, refused }: { theme: LandTheme; refused: boolean }) {
+/** One theme's heading, floor reading and both zoom rows.
+ *
+ * ⚠ IT DOES NOT OWN ITS SECTION ELEMENT, AND THAT IS DELIBERATE. `capture-panels.test.ts` scans
+ * this file's SOURCE for a literal `data-st-panel="..."` on every section opening tag, because a
+ * source scan is the only thing that catches a section somebody forgot to label — an id built from
+ * a prop is invisible to it and would be skipped rather than checked, which is the fault class
+ * that guard exists for. So each section is authored by hand below, one per theme.
+ *
+ * ⚠ AND DO NOT WRITE A LITERAL SECTION TAG IN A COMMENT IN THIS FILE. The guard's scan is a
+ * regex over the source, so a tag inside prose is counted as a real one and reported as
+ * unlabelled — a check tripping on its own rationale, which cost a gate run here.
+ */
+function ThemeBody({ theme, refused }: { theme: LandTheme; refused: boolean }) {
   return (
-    <section data-st-panel={`theme-${theme.id}`}>
+    <>
       <h2 className={refused ? 'bad' : undefined}>
         {theme.title}
         {refused ? ' — this one must NOT ship' : ''}
@@ -131,7 +181,7 @@ function ThemeSection({ theme, refused }: { theme: LandTheme; refused: boolean }
       <ThemeRow theme={theme} zoom={8} />
       <p className="numbers">the same six states at the overview — 2 px per ground unit</p>
       <ThemeRow theme={theme} zoom={2} />
-    </section>
+    </>
   );
 }
 
@@ -164,11 +214,19 @@ function App() {
         </p>
       </header>
 
-      {THEMES.map((t) => (
-        <ThemeSection key={t.id} theme={t} refused={false} />
-      ))}
+      <section data-st-panel="theme-shipped">
+        <ThemeBody theme={SHIPPED_THEME} refused={false} />
+      </section>
 
-      <section>
+      <section data-st-panel="theme-high-summer">
+        <ThemeBody theme={HIGH_SUMMER_THEME} refused={false} />
+      </section>
+
+      <section data-st-panel="theme-cold-season">
+        <ThemeBody theme={COLD_SEASON_THEME} refused={false} />
+      </section>
+
+      <section data-st-panel="theme-refusals-lede">
         <h2 className="bad">The two that are refused</h2>
         <p className="lede">
           These are authored to fail and are never offered. They are here because a floor that
@@ -181,9 +239,13 @@ function App() {
         </p>
       </section>
 
-      {REFUSED_THEMES.map((t) => (
-        <ThemeSection key={t.id} theme={t} refused />
-      ))}
+      <section data-st-panel="theme-dusk-flats">
+        <ThemeBody theme={DUSK_FLATS} refused />
+      </section>
+
+      <section data-st-panel="theme-levelled-fields">
+        <ThemeBody theme={LEVELLED_FIELDS} refused />
+      </section>
     </main>
   );
 }

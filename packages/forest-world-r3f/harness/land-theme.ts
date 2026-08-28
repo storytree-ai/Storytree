@@ -263,12 +263,17 @@ export function resolveTheme(theme: LandTheme): ResolvedTheme {
  *     are the same land and must score zero, not a right angle. The bearing folds into [0, 90°]
  *     because a bearing is an AXIS, not a heading — rows at 10° and at 190° run the same way.
  *
- * ⚠ THE OCTAVE CONVERSION ON THE DIRECTION CHANNEL IS AN AUTHORED CONVENTION, NOT A MEASUREMENT.
- * A right angle between two lands each directed by one octave is called one octave of separation
- * because that is the exchange rate that made the shipped vocabulary's own pairs rank the way a
- * person ranks them, and for no deeper reason. It is stated here rather than buried because the
- * PIXEL half is what actually adjudicates a theme; this channel exists to catch the theme that is
- * obviously collapsed before anyone spends a GPU on it.
+ * ⚠⚠ THE OCTAVE CONVERSION ON THE DIRECTION CHANNEL IS AN AUTHORED CONVENTION AND WAS FITTED TO
+ * NOTHING. A right angle between two lands each directed by one octave is *declared* worth one
+ * octave of separation. There is no measurement behind that exchange rate and none is claimed —
+ * the two channels are not commensurable, and putting them in one `max` needs a rate whether or
+ * not one can be derived. It is said out loud here rather than buried because a reader could
+ * otherwise take the number for a measured one. What keeps that acceptable: the PIXEL half is what
+ * actually adjudicates a theme, and it reads the two channels SEPARATELY off delivered pixels with
+ * no exchange rate at all (`pairVerdict`'s `separatedByDirection` / `separatedByScale`). This
+ * channel exists to catch the obviously-collapsed theme before anyone spends a GPU on it, and the
+ * rate would have to be wrong by a large factor to change a verdict — the shipped pairs it ranks
+ * sit between 0.77 and 5.2 octaves.
  */
 export interface GeometryDistance {
   scale: number;

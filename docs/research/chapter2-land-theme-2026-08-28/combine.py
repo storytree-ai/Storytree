@@ -151,7 +151,7 @@ sheet(
           ("theme-shipped-building-8px", "building — wheatfield", "shipped · the crop standing"),
           ("theme-cold-season-proposed-8px", "proposed — fallow", "cold season · a different bearing, coarser"),
           ("theme-cold-season-building-8px", "building — wheatfield", "cold season · still four times finer")]),
-        ("!REFUSED — 'levelled fields': a palette that clears the floor, with the ploughed field given the standing crop's own land. Two states, one colour, one land, nothing left.",
+        ("!REFUSED — and the two halves refuse for different reasons.",
          [("theme-levelled-fields-proposed-8px", "proposed — fallow", "REFUSED · 0.00 octaves apart"),
           ("theme-levelled-fields-building-8px", "building — wheatfield", "REFUSED · the same land exactly"),
           ("theme-dusk-flats-mapped-8px", "mapped — heath", "REFUSED on COLOUR · 0.09x its bar"),

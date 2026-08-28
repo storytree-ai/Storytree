@@ -118,25 +118,148 @@ one that refuses something we drew.
 
 ### 3c. Hand-run mutations
 
-⚠⚠ **THE AUTOMATIC RUNG COVERS NONE OF THIS, AND THAT IS MEASURED RATHER THAN PREDICTED.**
-`pnpm gate`'s `check:mutation-diff` skips `harness/**` — the harness sits outside any workspace
-project's `src/`. On PR #1687's branch it printed `SKIP — this branch changes no mutable source
-under a workspace project's src/ — 5 changed .ts file(s) sit outside any project's src/`. So every
-mutation below was applied by hand, run, watched go red, and reverted.
+⚠⚠ **THE AUTOMATIC RUNG COVERS NONE OF THIS, AND IT IS MEASURED ON THIS BRANCH RATHER THAN
+INFERRED FROM THE LAST ONE.** `pnpm gate`'s `check:mutation-diff` skips `harness/**` — the harness
+sits outside any workspace project's `src/`. This branch's own gate run printed:
 
-<!-- MUTATIONS -->
+```
+[mutation-diff] base: `git merge-base origin/main HEAD` → 635a51003
+[mutation-diff] SKIP — this branch changes no mutable source under a workspace project's src/
+                — 2 changed .ts file(s) sit outside any project's src/
+```
+
+So every mutation below was applied by hand, run, watched go red, and reverted.
+
+**8 mutations, 8 killed.** The loop is `/tmp/mutate-land-theme.py`'s shape: a reversible two-anchor
+swap, `git checkout --` between each, and — ⚠ the part that matters — **the final assertion is the
+FULL pass count (42/0), not "did anything change".** A loop that only diffed against the previous
+run would report "no change, all good" and leave mutations in the tree. An anchor that does not
+match is a hard exit 2, because a mutation that did not apply reads exactly like a check that
+cannot fail.
+
+| # | mutation | killed by |
+|---|---|---|
+| M1 | the bearing weight takes the STRONGER of the two lands, not the weaker | the bar digest + the verdict line (2 tests) |
+| M2 | a bearing is a heading, not an axis — drop the fold to [0, 90°] | *a bearing is an AXIS, not a heading* |
+| M3 | the geometry half compares the pairs colour ALREADY separates (`!==` → `===`) | **7 tests**, including both refusal fixtures and the vacuity arm |
+| M4 | the class-integrity refusal is dropped | *a theme SPLITTING ADR-0462's shared colour is refused* |
+| M5 | the bar becomes `0.1`, a number somebody picked | the bar digest + the verdict line (2 tests) |
+| M6 | the theme verdict forgets the land half (`colour.pass && geometry.pass` → `colour.pass`) | *a theme that collapses two LANDS is REFUSED* |
+| M7 | the colour half is asked about the SHIPPED palette instead of the theme's | *a theme that collapses two colours is REFUSED* |
+| M8 | a partial theme silently falls back to the shipped land | *a PARTIAL theme is refused* |
+
+M7 is the one worth naming: it is the "check the wrong subject" failure this arc has met before,
+and without a theme authored to be refused on colour there would be nothing to kill it with — the
+shipped palette clears the floor, so a floor that always asked about the shipped palette would be
+green forever.
+
+⚠ **A NEW FILE CANNOT BE REVERTED WITH `git checkout --`.** `land-theme.ts` was committed before
+this loop ran. On an untracked file every revert fails silently and the mutations ACCUMULATE, which
+reads as a broken suite rather than as un-reverted edits — the trap
+`an-expectation-derived-from-its-subject-cannot-fail` records.
+
+### 3d. The pixel driver refused its own first run
+
+Not a rehearsal: `theme-measure.mjs`'s first run against this page **exited 1 with five refusals**.
+The distinctness check was asking whether all five themes drew different pictures, and
+`levelled-fields` is high summer's palette with ONE land changed — so five of its six states are
+byte-identical to high summer *by construction*. That is the fixture doing its job (it isolates the
+land half by holding colour fixed), and the rule applied to it was the instrument misreading the
+fixture. It was narrowed to the OFFERED themes, and the right question of the fixture was added in
+its place: **`levelled-fields` must differ from `high-summer` in exactly one state and no other** —
+if it differed nowhere the theme never reached the renderer, and if it differed elsewhere its
+refusal could be coming from something it does not declare. Both of those failures are silent
+otherwise.
 
 ---
 
 ## 4. The themes
 
-<!-- THEMES -->
+Three are offered. ⚠ **How many themes exist and whether a viewer can switch them is NOT decided
+here** — ADR-0461 D5 leaves both open. These exist so the mechanism has something to be true of.
+
+| theme | what it is | moves | tightest colour pair | tightest land pair |
+|---|---|---|---|---|
+| `shipped` | the land as it stands on the map today — the reference | — | `yellow/green` **1.13×** | `fallow/wheatfield` **3.69×** |
+| `high-summer` | hot and bleached — olive green, sienna scrub, amber crop, cool pale stone | colour only | `green/grey` **1.60×** | 3.69× (unchanged) |
+| `cold-season` | low sun and hard ground — dark pine, cold umber scrub, ochre stubble, pale ice stone | colour **and** land | `yellow/brown` **1.87×** | `fallow/wheatfield` **3.53×** |
+
+⚠ **BOTH NEW THEMES ARE BETTER SEPARATED THAN THE SHIPPED PALETTE** (1.60× and 1.87× against its
+1.13×). That is a fact about how tight the shipped palette is, not a claim that they look better.
+
+### The floor is not what limits how different a theme can look
+
+A sweep of global hue / saturation / lightness transforms over the shipped palette found **697**
+that clear the colour half. So the constraint on a theme is taste, not the floor — which is the
+same thing the owner's steer says from the other side: *"we can tighten it up if things get too
+wild and I can no longer tell, but its a taste thing that needs a human eye."*
+
+⚠ **AND SEPARATION RATIO IS NOT A PROXY FOR LOOKING LIKE LAND.** The highest-scoring transforms in
+that sweep were saturation ×1.7 hue rotations — magenta forests, electric blue fields, scoring 3.1×
+where the shipped palette scores 1.1×. Optimising the floor produces a Tron poster. Both themes
+here were hand-authored inside a hue window and then *verified*, never tuned against the number.
+An early draft of `high-summer` put `scree` at a bleached bone `#c9c3b4` and the floor REFUSED it —
+`yellow/grey` at 0.62× with three foreign reads, the straw and the stone reading as each other.
+That is the floor doing exactly its job during authoring.
 
 ---
 
 ## 5. The pixel half
 
-<!-- PIXEL -->
+![three themes, one island](land-themes-2026-08-28.png)
+
+![the floor can say no](land-theme-refusals-2026-08-28.png)
+
+`harness/theme-measure.mjs`, 60 panels (5 themes × 6 states × 2 zooms), **ANGLE / NVIDIA GeForce
+RTX 2060, OpenGL 4.5.0**. Buffers read with `getImageData` off each canvas — never a screenshot, so
+alpha survives and the water round the island is genuinely transparent.
+
+**Palette closure, per theme: CLOSED on all five, 7,863,876 opaque pixels each.** Every delivered
+pixel is an entry of the ramp of the theme it was drawn with. ⚠ Closure is asked **per theme, not
+against `landPalette()`** — a theme's colours are foreign to the shipped palette by construction,
+so auditing them against it would refuse every theme for being a theme. The claim that matters is
+that a theme may not deliver a colour ITS OWN vocabulary does not authorise.
+
+**The pair colour cannot help with**, at both zooms. Bars are each land's own within-island spread,
+measured on sub-regions of the same frame:
+
+| theme | 8 px/unit | 2 px/unit (the overview) |
+|---|---|---|
+| `shipped` | scale 1.433 / bar 0.879 → **SEPARATED, 1.6×** | 1.226 / 0.849 → **SEPARATED, 1.4×** |
+| `high-summer` | 1.431 / 0.879 → **SEPARATED, 1.6×** | 1.228 / 0.849 → **SEPARATED, 1.4×** |
+| `cold-season` | 1.221 / 0.649 → **SEPARATED, 1.9×** | 1.157 / 0.621 → **SEPARATED, 1.9×** |
+| `dusk-flats` *(refused on colour)* | 1.422 / 0.877 → SEPARATED, 1.6× | 1.221 / 0.853 → SEPARATED, 1.4× |
+| `levelled-fields` *(refused on land)* | **0.000 / 0.275 → NOT SEPARATED** | **0.000 / 0.218 → NOT SEPARATED** |
+
+⚠⚠ **THE CROSS-CHECK CUTS BOTH WAYS, and that is what makes the driver an instrument rather than a
+report.** An *offered* theme whose pair collapses on pixels refuses the run. And a theme the pure
+half refused *for collapsing lands* that comes back SEPARATED on pixels **also** refuses — because
+that means either the theme never reached the renderer or `readTerrain` cannot tell two identical
+lands apart, and both of those are the instrument being broken rather than the theme being good.
+`levelled-fields` came back NOT SEPARATED at both zooms; `dusk-flats`, whose land is untouched,
+stayed separated. The pixels agree with the pure half about *which half* each theme breaks.
+
+Two further non-vacuity checks the run makes:
+
+- **The three offered themes draw six byte-distinct pictures each.** Three themes that rendered the
+  same pixels would pass every check above and say nothing whatever about theming.
+- **`levelled-fields` differs from `high-summer` in exactly one state and no other.** If it
+  differed nowhere the theme never reached the renderer; if it differed elsewhere, its refusal
+  could be coming from something it does not declare. Measured: *differs in `proposed`; identical
+  in `healthy`, `mapped`, `building`, `unhealthy`, `unknown`.*
+
+⚠ **One thing changed on the page AFTER this run, and it moved no pixel.** `capture-panels.test.ts`
+requires a literal `data-st-panel` on every section opening tag — a source scan, because that is the
+only thing that catches a section somebody forgot to label — so the page's sections were unrolled
+from a mapped component into six authored ones. The canvases are produced by the same `IslandPanel`
+calls with the same props; a headless re-load confirmed **60 tagged canvases with the same tags and
+no page errors**. The panels above are the panels the page still draws.
+
+⚠ **Cost, so the next session budgets for it:** ~50 s per 8 px panel, ~50 minutes for the run. The
+cost is serialising a ~7 MB canvas buffer out of the page, not rendering it. And while the run
+holds the page, **any edit to a file in the page's module graph triggers an HMR reload that blanks
+the canvases the driver has not read yet** — so hand mutation-testing of `land-theme.ts` and this
+run cannot overlap.
 
 ---
 
