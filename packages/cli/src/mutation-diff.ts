@@ -59,6 +59,30 @@ export interface MutationTarget {
   readonly sourceFiles: readonly string[];
 }
 
+/**
+ * One changed source file this rung declined to mutate because it sits outside its project's
+ * `src/` — and the two of these are NOT the same finding, which is the whole reason the shape
+ * carries a discriminator instead of just a path.
+ *
+ * `untested-root` is the conservative drop {@link selectMutationTargets} was designed around: a
+ * `scripts/` or `infra/` file no unit test is written against, whose mutants would all survive and
+ * red an honest landing. Nothing is wrong and nothing is owed.
+ *
+ * `declared-test-root` is a REAL COVERAGE GAP wearing the same clothes: the owning project's own
+ * `test` script names that directory as a suite root, so its tests DO run there and the rung could
+ * mutate it — the `src/` prefix is simply narrower than the project's own declaration. Measured on
+ * `apps/desktop`, whose `test` script is `bun test … src/ electron/`: 2,140 lines across four
+ * `electron/` files, 45% of the app's non-test TypeScript and the whole 931-line sidecar route
+ * table, sat outside the rung with no line ever printed about it.
+ */
+export interface NarrowedFile {
+  /** Repo-root-relative posix path. */
+  readonly file: string;
+  readonly kind: "untested-root" | "declared-test-root";
+  /** The project that owns it, for the human-facing line. */
+  readonly project: string;
+}
+
 /** The selection: what to mutate, which tests count as this branch's, or why there is nothing to do. */
 export interface TargetSelection {
   readonly targets: readonly MutationTarget[];
@@ -66,6 +90,20 @@ export interface TargetSelection {
   readonly changedTestFiles: readonly string[];
   /** Changed source dropped as an executable entry point — REPORTED, never silent. */
   readonly exempted: readonly string[];
+  /**
+   * Changed source dropped for sitting outside its project's `src/` — REPORTED ON EVERY RUN, which
+   * is the repair {@link selectMutationTargets}' own doc comment had been promising and not keeping.
+   *
+   * THE BUG THIS FIELD EXISTS TO CLOSE, measured 2026-08-29. The drop was only ever surfaced
+   * through {@link TargetSelection.skipReason}, which the driver prints in the `targets.length === 0`
+   * branch alone. So a branch that changed NOTHING mutable said `1 changed .ts file(s) sit outside
+   * any project's src/` and was honest, while a branch that changed one mutable file AND a
+   * 149-line Electron HTTP server printed `1 changed source file(s)` and not one word about the
+   * second. The narrowing was visible exactly when it cost nothing and invisible exactly when it
+   * cost something — the reassuring direction, and this repo's standing fault class (a rung that
+   * quietly covers less than you think) one level up from the tests it grades.
+   */
+  readonly narrowed: readonly NarrowedFile[];
   /** Present only when {@link targets} is empty — the reason, for an honest SKIP. */
   readonly skipReason: string | null;
 }
@@ -438,6 +476,80 @@ function mergeRanges(ranges: readonly LineRange[]): LineRange[] {
 }
 
 /**
+ * Render every narrowed file as one human line — the two kinds worded differently, because they are
+ * not the same news.
+ *
+ * PURE, AND THAT IS THE POINT rather than tidiness. This text is the ONLY thing that makes the
+ * rung's blind spot visible to a reader, so a version of it living in the I/O shell would be a
+ * report that nothing can test — the precise failure this whole change exists to repair, one level
+ * further out. `formatMutationVerdict` is already here for the same reason.
+ *
+ * `untested-root` is a NOTE: a `scripts/` or `infra/` file no unit test is written against, dropped
+ * on purpose so its inevitably-surviving mutants cannot red an honest landing.
+ *
+ * `declared-test-root` is a GAP: the owning project's own `test` script runs that directory, so its
+ * tests execute there and the rung could mutate it — `src/` is simply narrower than the project's
+ * own declaration. Widening the boundary to close it is a separate decision with a real cost and is
+ * NOT made by this line. Measured on `apps/desktop/electron/` (2026-08-29): mutants are cheap, ~5 s
+ * for the 149-line static server, and no Stryker dry-run abort — but 26 of 26 mutants in the
+ * 931-line sidecar route table are NO-COVERAGE, no test reaching them at all, so widening today
+ * would red the desktop app's most-edited file until that coverage is written.
+ */
+export function formatNarrowingLines(narrowed: readonly NarrowedFile[]): readonly string[] {
+  return narrowed.map((entry) =>
+    entry.kind === "declared-test-root"
+      ? `NARROWED (GAP): ${entry.file} was NOT mutated — this rung only mutates a project's src/, ` +
+        `but \`${entry.project}\`'s own test script runs that directory, so its tests do execute ` +
+        "there. Nothing on this branch proves those lines."
+      : `NARROWED: ${entry.file} was NOT mutated — it sits outside \`${entry.project}\`'s src/, ` +
+        "which no unit test is written against. Dropped on purpose.",
+  );
+}
+
+/**
+ * The directories a project's own `test` script names as suite roots — `["electron/", "src/"]` for
+ * `apps/desktop`'s `bun test --timeout 300000 src/ electron/`.
+ *
+ * WHY THIS IS DERIVED FROM THE SCRIPT AND NOT A LIST. The rung's mutable root is the hardcoded
+ * `src/`, and for most projects that IS the project's own answer. Where it is not, the disagreement
+ * is a coverage gap, and the only party that can state it without drifting is the project itself:
+ * the `test` script is what CI and the gate actually run, so a directory named there is a directory
+ * whose tests demonstrably execute. A hand-kept table of exceptions in this file would be a second
+ * source of truth for a fact `package.json` already holds, and it would go stale silently and in
+ * the reassuring direction — which is the exact failure this whole change is repairing.
+ *
+ * ⚠ EXISTENCE IS THE FILTER, NOT A DENYLIST OF RUNNER WORDS. The naive parse — "tokens after
+ * `bun test` that do not start with `-`" — keeps `300000` out of `--timeout 300000`, and any
+ * denylist of runner names (`bun`, `test`, `vitest`, `run`, `pnpm`, `node`, `npx`, …) is a list
+ * that must be extended every time a script changes shape, with a silent wrong answer as the cost
+ * of forgetting. Asking {@link isDirectory} instead cannot be fooled by a flag value, a runner
+ * name, a `&&`, or a file path: none of them are directories. The predicate is the caller's, so
+ * this function stays pure and its unit tests need no filesystem.
+ *
+ * `.` and `..` are refused explicitly. Both ARE directories, and `bun test .` would otherwise
+ * declare the whole project a test root — turning a widening this function only ever REPORTS into
+ * one that reports everything, which is the same as reporting nothing.
+ */
+export function declaredTestRoots(args: {
+  readonly testScript: string | undefined;
+  /** Does this project-relative posix path name a directory? Supplied by the caller — keeps this pure. */
+  readonly isDirectory: (relDir: string) => boolean;
+}): readonly string[] {
+  if (args.testScript === undefined) return [];
+  const roots = new Set<string>();
+  for (const raw of args.testScript.split(/\s+/)) {
+    if (raw === "") continue;
+    if (raw.startsWith("-")) continue;
+    const token = normalise(raw).replace(/\/+$/, "");
+    if (token === "" || token === "." || token === "..") continue;
+    if (token.startsWith("../") || token.startsWith("/")) continue;
+    if (!args.isDirectory(token)) continue;
+    roots.add(`${token}/`);
+  }
+  return [...roots].sort();
+}
+
+/**
  * Decide what this branch's diff puts in scope.
  *
  * `existingFiles` is the caller's answer to "does this path still exist in the working tree?" — a
@@ -449,6 +561,19 @@ function mergeRanges(ranges: readonly LineRange[]): LineRange[] {
  * there, failing wide runs more tests, which is safe; here, failing wide would mutate scripts and
  * config that no unit test is written against, and every one of those mutants would survive and red
  * an honest landing. The conservative direction for a mutation rung is to ask LESS, and to say so.
+ *
+ * ⚠ "AND TO SAY SO" IS THE HALF THAT WAS NOT TRUE, and {@link TargetSelection.narrowed} is the
+ * repair. Until 2026-08-29 every drop was surfaced through {@link TargetSelection.skipReason}
+ * ALONE, which the driver prints only when there is nothing left to mutate — so the rung announced
+ * its narrowing precisely on the branches where it had narrowed away everything and cost nothing,
+ * and stayed silent on the branches where it had narrowed away something real. Each dropped file is
+ * now returned and printed on EVERY run.
+ *
+ * `testRootsByProject` is what lets the report distinguish the two kinds. Pass a project's own
+ * declared suite roots ({@link declaredTestRoots}) and a file dropped from a directory the project
+ * itself says it tests is reported as `declared-test-root` — a genuine gap — rather than as the
+ * ordinary conservative drop it is otherwise indistinguishable from. Omitting the map costs only
+ * that distinction; every drop is still reported.
  */
 export function selectMutationTargets(args: {
   readonly changed: readonly ChangedRanges[];
@@ -456,9 +581,17 @@ export function selectMutationTargets(args: {
   readonly existingFiles: ReadonlySet<string>;
   /** Executable entry points — see {@link entryPointsFromScripts}. Absent means exempt nothing. */
   readonly exemptFiles?: ReadonlySet<string>;
+  /**
+   * Project NAME → the suite roots that project's own `test` script declares
+   * ({@link declaredTestRoots}), project-relative and trailing-slashed. Absent means every drop is
+   * reported as `untested-root` — the report stays complete, it just cannot name the worse kind.
+   */
+  readonly testRootsByProject?: ReadonlyMap<string, readonly string[]>;
 }): TargetSelection {
   const { changed, projects, existingFiles } = args;
   const exemptFiles = args.exemptFiles ?? new Set<string>();
+  const testRootsByProject = args.testRootsByProject ?? new Map<string, readonly string[]>();
+  const narrowed: NarrowedFile[] = [];
   const byProject = new Map<string, { dir: string; globs: string[]; files: string[] }>();
   const changedTestFiles: string[] = [];
   const exempted: string[] = [];
@@ -486,6 +619,19 @@ export function selectMutationTargets(args: {
     if (!isMutableSource(file)) continue;
     if (!file.startsWith(`${owner.dir}/src/`)) {
       droppedOutsideSrc += 1;
+      const declared = testRootsByProject.get(owner.name) ?? [];
+      // Project-relative, so the declared roots (`src/`, `electron/`) can be matched as prefixes.
+      // A project's own `src/` is in `declared` too and needs no special case: reaching this branch
+      // MEANS the file is not under `${owner.dir}/src/`, so `relative` cannot start with `src/`. An
+      // explicit `root !== "src/"` guard here reads as load-bearing and is unreachable — it survived
+      // deletion against the whole suite, which is how it was caught.
+      const relative = file.slice(owner.dir.length + 1);
+      const inDeclaredRoot = declared.some((root) => relative.startsWith(root));
+      narrowed.push({
+        file,
+        kind: inDeclaredRoot ? "declared-test-root" : "untested-root",
+        project: owner.name,
+      });
       continue;
     }
     if (exemptFiles.has(file)) {
@@ -510,8 +656,15 @@ export function selectMutationTargets(args: {
 
   const sortedTests = changedTestFiles.sort();
   const sortedExempt = exempted.sort();
+  const sortedNarrowed = [...narrowed].sort((a, b) => byUniqueKey(a.file, b.file));
   if (targets.length > 0) {
-    return { targets, changedTestFiles: sortedTests, exempted: sortedExempt, skipReason: null };
+    return {
+      targets,
+      changedTestFiles: sortedTests,
+      exempted: sortedExempt,
+      narrowed: sortedNarrowed,
+      skipReason: null,
+    };
   }
 
   const detail: string[] = [];
@@ -525,6 +678,7 @@ export function selectMutationTargets(args: {
     targets: [],
     changedTestFiles: sortedTests,
     exempted: sortedExempt,
+    narrowed: sortedNarrowed,
     skipReason:
       `this branch changes no mutable source under a workspace project's src/` +
       (detail.length > 0 ? ` — ${detail.join("; ")}` : ""),
