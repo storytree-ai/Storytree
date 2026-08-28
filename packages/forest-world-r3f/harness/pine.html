@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the first textured asset on the GPU clock — chapter2 pine (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 1600px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      p { max-width: 78ch; color: #b0bec5; }
+      code { color: #d7c07a; }
+      #root { margin-top: 18px; }
+      canvas { display: block; border: 1px solid #3b434c; background: #21262c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Does the live renderer draw a bought, textured pine &mdash; and what does it cost?</h1>
+      <p>
+        A driveable surface, not a gallery. <code>pine-measure.mjs</code> calls
+        <code>window.__stPine(spec)</code> once per sample and
+        <code>window.__stPineSnapshot(spec)</code> for each committed picture, so the interleaved
+        sweep lives in the driver where it can be read rather than in a query string. Three arms:
+        the bare ground, nine of the island&rsquo;s own grown trees, and nine instances of
+        <code>assets/pine-01.glb</code> at the same height on the same points.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountPine } from './pine-scene.ts';
+      mountPine(document.getElementById('root')).catch((e) => {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e}</pre>`);
+      });
+    </script>
+  </body>
+</html>
