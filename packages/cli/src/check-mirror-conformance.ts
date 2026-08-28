@@ -68,6 +68,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { appendTraversalEvents } from "@storytree/context-traversal-capture";
+
 import {
   MIRRORS,
   compareMirrors,
@@ -75,6 +77,7 @@ import {
   projectActivityPayload,
   projectArcsPayload,
   projectFloorHealthPayload,
+  projectTraversalPayload,
   type Divergence,
   type Entry,
   type MirrorInputSet,
@@ -525,11 +528,139 @@ function buildFloorHealthFixtures() {
  * {@link MirrorInputSet} is built ONCE and shared by every row that names it, so two mirrors over
  * the same input are compared over the identical bytes.
  */
+/**
+ * Build the two fixture DIRECTORIES both traversal probes run over — the replay panel's three
+ * local-file reads (`traversal-panel-arc`, increment `desktop-serves-the-traversal-routes`).
+ *
+ * WHY A DIRECTORY RATHER THAN A DOCUMENT STORE. These three routes have no backend at all: their
+ * source of truth is a directory of JSONL files, reached through the documented ambient overrides
+ * `STORYTREE_TRAVERSAL_DIR` and `STORYTREE_TRANSCRIPT_DIR`. Each arm therefore carries its own trace
+ * dir and transcript root, and each probe points the env at them — so the resolution path the
+ * handlers actually take is inside the comparison rather than bypassed by handing them a path.
+ *
+ * BOTH PROBES GET THE SAME ABSOLUTE FIXTURE PATH, which is load-bearing rather than incidental:
+ * `dir` rides the `/api/traversal/sessions` wire and `scan.root` rides the occupancy wire, so a
+ * surface that resolved its root differently shows up as a divergence instead of hiding behind two
+ * per-surface temp dirs that were never expected to match.
+ *
+ * THE TRACES ARE WRITTEN THROUGH THE SINK'S OWN `appendTraversalEvents`, never as hand-spelled
+ * bytes: that is how a real trace grows, and a fixture written any other way would be proving the
+ * two surfaces agree about a file shape neither will ever meet.
+ *
+ * THE ARMS, and what each is the only way to catch:
+ *   `populated` — two readable traces (one multi-event, so `eventCount`/`lastObservedAt` are
+ *     exercised), an ALL-CORRUPT trace, and one host transcript carrying two real readings.
+ *   `empty` — the ADVISORY-ABSENCE arm: no traces and no transcripts. It is the only arm that
+ *     catches a mirror answering an ERROR where its reference answers an honest empty list, or
+ *     inventing a series where its reference reports `absence`. The SAME requests are replayed
+ *     against both arms, because the whole point is that identical asks give different honest
+ *     answers.
+ *
+ * THE REQUEST LIST LIVES HERE, NOT IN EITHER PROBE — two hand-kept lists of what to ask is the same
+ * drift class one level up (`mirror-pair-registration-is-mandatory-not-optional`). Most of these
+ * requests exist for their STATUS: the envelope is what is hand-copied on this pair, and half of it
+ * is expressed as a status code rather than as a field.
+ */
+function buildTraversalFixtures() {
+  const dir = mkdtempSync(join(tmpdir(), "storytree-traversal-"));
+
+  const requests = [
+    // The index, and the honest-empty answer that is a different fact from "no traces here".
+    { label: "sessions", method: "GET", path: "/api/traversal/sessions" },
+    // A readable replay, and the two answers an unreadable one must keep apart: ABSENT is a 404,
+    // ALL-CORRUPT is a 200 carrying `skipped > 0`, because that is something observed (ADR-0241 D5).
+    { label: "replay", method: "GET", path: "/api/traversal?session=session-alpha" },
+    { label: "replay-absent", method: "GET", path: "/api/traversal?session=never-captured" },
+    { label: "replay-corrupt", method: "GET", path: "/api/traversal?session=session-garbage" },
+    // The two guards standing between a query parameter and a `path.join`, refused BY NAME.
+    { label: "replay-no-id", method: "GET", path: "/api/traversal" },
+    { label: "replay-escaping-id", method: "GET", path: "/api/traversal?session=..%2Fescape" },
+    // The occupancy read, its deliberate NON-404 absence, and the same two guards.
+    { label: "occupancy", method: "GET", path: "/api/context-windows?session=window-alpha" },
+    { label: "occupancy-absent", method: "GET", path: "/api/context-windows?session=never-opened" },
+    { label: "occupancy-no-id", method: "GET", path: "/api/context-windows" },
+    { label: "occupancy-escaping-id", method: "GET", path: "/api/context-windows?session=a%2Fb" },
+    // Read-only is a DECISION on both routes, and it is expressed as a status — so it is replayed.
+    { label: "sessions-write", method: "POST", path: "/api/traversal/sessions" },
+    { label: "replay-write", method: "POST", path: "/api/traversal?session=session-alpha" },
+    { label: "occupancy-write", method: "POST", path: "/api/context-windows?session=window-alpha" },
+  ];
+
+  /** One assistant line in the shape the host harness actually writes. */
+  const assistantLine = (windowId: string, at: string, id: string, tokens: number): string =>
+    JSON.stringify({
+      type: "assistant",
+      sessionId: windowId,
+      timestamp: at,
+      isSidechain: false,
+      cwd: "/home/mickh/code/storytree",
+      message: { id, model: "claude-opus-5", usage: { input_tokens: tokens, output_tokens: 12 } },
+    });
+
+  const arm = (label: string, populate: (traceDir: string, transcriptRoot: string) => void) => {
+    const armDir = join(dir, label);
+    const traceDir = join(armDir, "traces");
+    const transcriptRoot = join(armDir, "transcripts");
+    mkdirSync(traceDir, { recursive: true });
+    mkdirSync(transcriptRoot, { recursive: true });
+    populate(traceDir, transcriptRoot);
+    const file = join(armDir, "fixture.json");
+    writeFileSync(file, JSON.stringify({ traceDir, transcriptRoot, requests }, null, 2));
+    return { label, arg: file };
+  };
+
+  let visit = 0;
+  const appendVisit = (traceDir: string, sessionId: string, at: string): void => {
+    visit += 1;
+    const ok = appendTraversalEvents(
+      [
+        {
+          kind: "front_matter_read",
+          eventId: `event:visit-${visit}`,
+          sessionId,
+          visitId: `visit-${visit}`,
+          nodeId: "node-a",
+          surfaceId: "tree",
+          at,
+        },
+      ],
+      { dir: traceDir, sessionId },
+    );
+    if (!ok) throw new Error("traversal fixture: the sink refused a fixture event");
+  };
+
+  const inputs = [
+    arm("populated", (traceDir, transcriptRoot) => {
+      appendVisit(traceDir, "session-alpha", "2026-08-28T10:00:00.000Z");
+      appendVisit(traceDir, "session-alpha", "2026-08-28T10:00:05.000Z");
+      appendVisit(traceDir, "session-beta", "2026-08-28T11:00:00.000Z");
+      // Every line garbage: the tolerant reader skips all of them, so the session is omitted from
+      // the index and its replay is a 200 with `skipped > 0` rather than a 404.
+      writeFileSync(join(traceDir, "session-garbage.jsonl"), "not json at all\nnor is this\n");
+      const project = join(transcriptRoot, "C--code-storytree");
+      mkdirSync(project, { recursive: true });
+      writeFileSync(
+        join(project, "window-alpha.jsonl"),
+        `${[
+          assistantLine("window-alpha", "2026-08-28T10:00:00.000Z", "msg-1", 110_300),
+          assistantLine("window-alpha", "2026-08-28T10:05:00.000Z", "msg-2", 220_600),
+        ].join("\n")}\n`,
+      );
+    }),
+    // Nothing captured at all — every root exists and is empty, which is a normal state on a fresh
+    // machine and must answer as one on both surfaces.
+    arm("empty", () => {}),
+  ];
+
+  return { dir, inputs };
+}
+
 function buildInputSets() {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
   const arcs = buildArcFixtures();
   const floorHealth = buildFloorHealthFixtures();
+  const traversal = buildTraversalFixtures();
   return {
     sets: {
       "docs-trees": [
@@ -539,12 +670,14 @@ function buildInputSets() {
       "activity-fixtures": activity.inputs,
       "arc-fixtures": arcs.inputs,
       "floor-health-fixtures": floorHealth.inputs,
+      "traversal-fixtures": traversal.inputs,
     },
     cleanup: () => {
       rmSync(docsFixture, { recursive: true, force: true });
       rmSync(activity.dir, { recursive: true, force: true });
       rmSync(arcs.dir, { recursive: true, force: true });
       rmSync(floorHealth.dir, { recursive: true, force: true });
+      rmSync(traversal.dir, { recursive: true, force: true });
     },
   };
 }
@@ -582,6 +715,12 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
     case "floor-health-fixtures":
       try {
         return projectFloorHealthPayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
+    case "traversal-fixtures":
+      try {
+        return projectTraversalPayload(payload);
       } catch (err) {
         throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
       }

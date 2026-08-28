@@ -107,6 +107,8 @@ import {
 } from "./decision-source-decay.js";
 import { GATE_PLAN } from "./gate-order.js";
 import { registeredMirrorRoutes } from "./mirror-conformance.js";
+import { MIRROR_SURFACE, REFERENCE_SURFACE } from "./route-surfaces.js";
+import { parseDispatchedRoutes } from "./route-tables.js";
 import {
   CONTRACT_BINDING_DRIFT,
   MIRROR_PAIR_DRIFT,
@@ -397,37 +399,22 @@ const CEILINGS = {
 // ---------------------------------------------------------------------------
 
 /**
- * The two surfaces ADR-0176 requires to agree while forbidding them to share code: the studio's
- * `/api/*` router is the REFERENCE, and the desktop backend holds the hand-written copy.
+ * The two surfaces, and the enumeration of what each one serves, both come from
+ * {@link file://./route-surfaces.ts} and {@link file://./route-tables.ts} — this instrument no
+ * longer holds private copies.
  *
- * Whole DIRECTORIES rather than a hand-listed set of route files, deliberately — a list of files to
- * scan is a second thing somebody must keep in step, and a new route file nobody added to it would be
- * invisible to a sweep that still reported full coverage.
+ * WHY THEY MOVED. `check:desktop-route-coverage` needed the same two facts to ask its own question
+ * (which route does the desktop LACK, rather than which pair nobody registered), and the two ways to
+ * give it them were both worse: importing this gate script would have dragged its ceilings and its
+ * whole sweep along, and re-spelling the surfaces and the dispatch regex would have been two lists
+ * of one fact — the exact class both checks exist to fence, arriving inside them.
  *
- * THE DESKTOP IS TWO DIRECTORIES, and reading only the first was this instrument's own blind spot —
- * a guard measuring a smaller world than the one it guards. The desktop serves `/api/*` from BOTH
- * `src/backend` (the headless, node:test-provable factory) and `electron/` (the mounts that need the
- * live pool — `backend-entry.ts` mounts `/api/attestations` and `/api/uat/attest`, and its own
- * comment says it re-composes the studio's payload with no studio import: a mirror by its author's
- * description, invisible to the sweep that was supposed to find it). The split is a WIRING boundary,
- * not a re-composition boundary, so scanning one dir dropped real pairs while the instrument still
- * reported a complete sweep. Adding the dir is what put them in view — see the `MIRROR_PAIR_DRIFT`
- * ceiling note, which records that the POPULATION changed, not merely the count.
+ * WHAT THIS INSTRUMENT READS IS UNCHANGED. {@link parseDispatchedRoutes} returns exact and prefix
+ * dispatch separately, and `mirror-pair-drift` consumes only the EXACT half, so its population and
+ * its ceiling are untouched. Prefix dispatch stays this instrument's stated blind spot — affordable
+ * for an advisory pair-finder, and NOT affordable for a coverage check, which is why the coverage
+ * check reads both halves.
  */
-const REFERENCE_SURFACE = { surface: "studio", dirs: ["apps/studio/server"] };
-const MIRROR_SURFACE = {
-  surface: "desktop",
-  dirs: ["apps/desktop/src/backend", "apps/desktop/electron"],
-};
-
-/**
- * Every `/api/*` path a source file DISPATCHES on. Both spellings are read, and both matter:
- * `pathname === "/api/x"` is the router's if-chain, while `pathname !== "/api/x"` is how the
- * desktop's fall-through mount factories claim exactly one route (`build-route.ts`, `adopt-route.ts`,
- * `chat-sse-mount.ts`). A `===`-only scan would silently miss every mounted desktop route — the sweep
- * looking at less than it claims to, which is the class this whole check exists to fence.
- */
-const DISPATCH = /pathname\s*(?:===|!==)\s*["'](\/api\/[^"']*)["']/g;
 
 /** Recursively collect the source files of a surface — tests and fixtures serve nothing. */
 function walkSourceFiles(absDir: string): string[] {
@@ -458,12 +445,10 @@ function loadSurfaceRoutes(source: { surface: string; dirs: readonly string[] })
     if (!existsSync(abs)) throw new Error(`${source.surface}: route directory ${dir} does not exist`);
     for (const file of walkSourceFiles(abs)) {
       const rel = path.relative(repoRoot, file).replace(/\\/g, "/");
-      const text = readFileSync(file, "utf8");
-      for (const match of text.matchAll(DISPATCH)) {
-        const route = match[1];
-        // First dispatcher wins: the report needs ONE place to look, and a route claimed twice is
-        // still one route.
-        if (route !== undefined && !routes.has(route)) routes.set(route, rel);
+      // EXACT only — see the note above. First dispatcher wins: the report needs ONE place to look,
+      // and a route claimed twice is still one route.
+      for (const [route, owner] of parseDispatchedRoutes(readFileSync(file, "utf8"), rel).exact) {
+        if (!routes.has(route)) routes.set(route, owner);
       }
     }
   }

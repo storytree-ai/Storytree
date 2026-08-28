@@ -40,6 +40,15 @@ importers:
       '@storytree/arc':
         specifier: workspace:*
         version: link:../../packages/arc
+      '@storytree/context-traversal-capture':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-capture
+      '@storytree/context-traversal-spawn':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-spawn
+      '@storytree/context-traversal-transcript':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-transcript
       '@storytree/drive':
         specifier: workspace:*
         version: link:../../packages/drive
@@ -367,6 +376,9 @@ importers:
       esbuild:
         specifier: ^0.24.2
         version: 0.24.2
+      typescript5:
+        specifier: npm:typescript@5.7.3
+        version: typescript@5.7.3
       yaml:
         specifier: ^2.6.1
         version: 2.9.0
@@ -383,9 +395,6 @@ importers:
       typescript:
         specifier: ~7.0.2
         version: 7.0.2
-      typescript5:
-        specifier: npm:typescript@5.7.3
-        version: typescript@5.7.3
 
   packages/context-traversal-capture:
     dependencies:

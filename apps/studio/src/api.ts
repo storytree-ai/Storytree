@@ -339,7 +339,8 @@ export const api = {
   //
   // The index read RETRIES, and that is the picker's real repair (increment
   // `traversal-panel-index-read`). The route is now answered from an incremental index keyed on each
-  // trace's mtime+size (server/traversalIndexMemo.ts), so the 10 s budget below is generous rather
+  // trace's mtime+size (@storytree/context-traversal-capture's traversal-index-memo.ts), so the 10 s
+  // budget below is generous rather
   // than tight — it is left where it was on purpose, because raising it was never the fix. What
   // changes is that losing the race once is no longer terminal: the picker read once per mount with
   // no second chance, so one aborted request disabled every claimed session for the life of the

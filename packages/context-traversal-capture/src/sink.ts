@@ -232,6 +232,40 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
 }
 
 /**
+ * The filename convention a trace is stored under. Exported so an index built over the same
+ * directory splits ids exactly the way this module joins them, rather than re-spelling `.jsonl`.
+ */
+export const TRAVERSAL_TRACE_EXT = ".jsonl";
+
+/**
+ * ONE session's summary, or `null` when the file replays to zero usable events.
+ *
+ * ★ EXTRACTED SO THERE IS ONE FOLD, not two that a test has to hold together. This body used to be
+ * inlined in {@link listTraversalSessions} and hand-MIRRORED again in the studio's incremental index
+ * — two copies of "what a summary is", kept honest only by a deep-equality parity test, which is a
+ * fence rather than a structure. Both callers now call this, so a field added to
+ * {@link TraversalSessionSummary} cannot reach one answer and miss the other.
+ */
+export function summarizeTraversalSession(
+  dir: string,
+  sessionId: string,
+): TraversalSessionSummary | null {
+  const { replay, identity, slots } = readTraversalSession({ dir, sessionId });
+  if (replay.events.length === 0) return null;
+  const lastEvent = replay.events[replay.events.length - 1];
+  return {
+    sessionId,
+    eventCount: replay.events.length,
+    // Stryker disable next-line OptionalChaining: EQUIVALENT — the zero-event case returned above,
+    // so `events.length - 1` is a valid index and `lastEvent` is never undefined here. The `?.` is
+    // `noUncheckedIndexedAccess` satisfying the compiler, not a runtime guard.
+    lastObservedAt: lastEvent?.at,
+    identity,
+    slots,
+  };
+}
+
+/**
  * Enumerates every captured session under `dir`: its event count and the timestamp of its
  * last-observed (chronologically last) event. A session file that fails to read, or replays to zero
  * usable events, is omitted rather than reported with a fabricated timestamp.
@@ -246,18 +280,15 @@ export function listTraversalSessions(location: TraversalListLocation): Traversa
 
   const summaries: TraversalSessionSummary[] = [];
   for (const entry of entries) {
-    if (!entry.endsWith(".jsonl")) continue;
-    const sessionId = entry.slice(0, -".jsonl".length);
-    const { replay, identity, slots } = readTraversalSession({ dir: location.dir, sessionId });
-    if (replay.events.length === 0) continue;
-    const lastEvent = replay.events[replay.events.length - 1];
-    summaries.push({
-      sessionId,
-      eventCount: replay.events.length,
-      lastObservedAt: lastEvent?.at,
-      identity,
-      slots,
-    });
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT for this list's ANSWER — a
+    // non-trace entry that slipped past the filter is read by `summarizeTraversalSession`, which
+    // returns null for a file it cannot replay, so the list is identical either way. The filter is
+    // there to avoid the read, not to change the result; the incremental index beside it asserts the
+    // no-read property directly, by counting.
+    if (!entry.endsWith(TRAVERSAL_TRACE_EXT)) continue;
+    const sessionId = entry.slice(0, -TRAVERSAL_TRACE_EXT.length);
+    const summary = summarizeTraversalSession(location.dir, sessionId);
+    if (summary !== null) summaries.push(summary);
   }
   return summaries;
 }

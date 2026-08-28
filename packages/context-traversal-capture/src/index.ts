@@ -13,6 +13,8 @@ export {
   appendTraversalEvents,
   readTraversalSession,
   listTraversalSessions,
+  summarizeTraversalSession,
+  TRAVERSAL_TRACE_EXT,
   type TraversalLineIdentity,
   type TraversalSinkLocation,
   type TraversalListLocation,
@@ -76,3 +78,12 @@ export {
   type CaptureCliInvocationInput,
   type TraversalQueryOptions,
 } from "./terminal-capture.js";
+
+// The trace index, answered incrementally (moved here from the studio server by increment
+// `desktop-serves-the-traversal-routes` so the studio and the desktop share ONE cache rather than
+// two that must be kept deep-equal by hand).
+export {
+  listTraversalSessionsIncremental,
+  resetTraversalIndexMemo,
+  type SummarizeTraversalSession,
+} from "./traversal-index-memo.js";

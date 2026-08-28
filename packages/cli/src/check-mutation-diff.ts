@@ -26,9 +26,11 @@ import { fileURLToPath } from "node:url";
 
 import { discoverWorkspaceProjects } from "./ci-affected.js";
 import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
+import { MIRRORS } from "./mirror-conformance.js";
 import {
   adjudicateMutants,
   type ChangedRanges,
+  entryPointsFromMirrorRegistry,
   entryPointsFromScripts,
   formatMutationVerdict,
   isTestFile,
@@ -403,13 +405,20 @@ function main(): void {
     changed: ranges,
     projects,
     existingFiles,
-    exemptFiles: new Set(entryPointsFromScripts(rootScripts ?? {})),
+    // Both kinds of executable entry point: the files a root script INVOKES, and the probe modules
+    // the mirror registry SPAWNS. Neither is imported by anything, both exit non-zero when run
+    // without their arguments, and an unexempt probe kills the WHOLE rung at Stryker's dry run
+    // rather than merely scoring badly — see entryPointsFromMirrorRegistry.
+    exemptFiles: new Set([
+      ...entryPointsFromScripts(rootScripts ?? {}),
+      ...entryPointsFromMirrorRegistry(MIRRORS),
+    ]),
   });
 
   for (const file of selection.exempted) {
     // Loud, never silent: an exemption a reader cannot see is indistinguishable from a file the
     // rung simply failed to notice.
-    console.log(`${TAG} EXEMPT (executable entry point, invoked by a root script): ${file}`);
+    console.log(`${TAG} EXEMPT (executable entry point — a root script invokes it, or the mirror registry spawns it): ${file}`);
   }
 
   if (selection.targets.length === 0) {

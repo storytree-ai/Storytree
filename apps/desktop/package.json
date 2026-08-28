@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "storytree desktop — a thin Electron credential-host client (ADR-0109 Step 1): loads the COMPILED studio bundle and keeps the member's Claude credential in the OS keychain. Carries no source, no build engine, no stories; never imports the agent.",
+  "description": "storytree desktop \u2014 a thin Electron credential-host client (ADR-0109 Step 1): loads the COMPILED studio bundle and keeps the member's Claude credential in the OS keychain. Carries no source, no build engine, no stories; never imports the agent.",
   "main": "dist/main.cjs",
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.electron.json",
@@ -16,6 +16,9 @@
   "dependencies": {
     "@napi-rs/keyring": "^1.1.6",
     "@storytree/arc": "workspace:*",
+    "@storytree/context-traversal-capture": "workspace:*",
+    "@storytree/context-traversal-spawn": "workspace:*",
+    "@storytree/context-traversal-transcript": "workspace:*",
     "@storytree/drive": "workspace:*",
     "@storytree/library": "workspace:*",
     "@storytree/notice-board": "workspace:*",

@@ -370,7 +370,8 @@ describe('GET /api/traversal/sessions', () => {
   });
 
   // The route answers from an incremental index keyed on each trace's mtime+size (increment
-  // `traversal-panel-index-read`, traversalIndexMemo.ts — where the memo's own semantics are proved
+  // `traversal-panel-index-read`, `traversal-index-memo.ts` in @storytree/context-traversal-capture —
+  // where the memo's own semantics are proved
   // directly). THIS asserts the property END TO END over real HTTP, because it is the one a cache
   // can silently break and the one an operator would meet: the panel is open while their own live
   // session keeps appending, and a second request must see what the first could not.

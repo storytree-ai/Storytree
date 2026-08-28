@@ -1,9 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { MIRRORS } from "./mirror-conformance.js";
+
 import {
   isSpawnUatTest,
   adjudicateMutants,
+  entryPointsFromMirrorRegistry,
   entryPointsFromScripts,
   formatMutationVerdict,
   isTestFile,
@@ -1250,6 +1253,52 @@ test("isSpawnUatTest: a `.uat.test.ts` leg is excluded, an ordinary unit test is
   assert.equal(isSpawnUatTest("packages/cli/src/uat.test.ts.bak"), false);
   assert.equal(isSpawnUatTest("packages/uat/src/thing.test.ts"), false);
   assert.equal(isSpawnUatTest("packages/cli/src/thing.uat.ts"), false);
+});
+
+// ---------- entryPointsFromMirrorRegistry ----------
+
+/**
+ * The registry's probes are executable entry points that nothing imports. Unexempt, one of them in a
+ * branch's changed set kills the WHOLE rung at Stryker's dry run — the instrumented module runs,
+ * finds no fixture path in `process.argv`, and exits 2 — so the run reports `nothing was proved`
+ * rather than a bad score. Measured 2026-08-29 on `traversal-panel-arc`'s desktop landing.
+ */
+test("entryPointsFromMirrorRegistry: both sides of every pair are exempt", () => {
+  assert.deepEqual(
+    entryPointsFromMirrorRegistry([
+      { reference: { file: "apps/studio/server/xMirrorProbe.ts" }, mirror: { file: "apps/desktop/src/backend/x-mirror-probe.ts" } },
+    ]),
+    ["apps/desktop/src/backend/x-mirror-probe.ts", "apps/studio/server/xMirrorProbe.ts"],
+  );
+});
+
+test("entryPointsFromMirrorRegistry: a probe shared by two rows is listed ONCE", () => {
+  // Several rows may name one probe pair — `/api/traversal` covers three paths through one pair —
+  // and a duplicate would make the printed exemption list read as more files than exist.
+  const shared = { reference: { file: "a/ref.ts" }, mirror: { file: "b/mir.ts" } };
+  assert.deepEqual(entryPointsFromMirrorRegistry([shared, shared]), ["a/ref.ts", "b/mir.ts"]);
+});
+
+test("entryPointsFromMirrorRegistry: paths are normalised, so a Windows-authored row still matches", () => {
+  assert.deepEqual(
+    entryPointsFromMirrorRegistry([
+      { reference: { file: "apps\\studio\\server\\p.ts" }, mirror: { file: "apps/desktop/q.ts" } },
+    ]),
+    ["apps/desktop/q.ts", "apps/studio/server/p.ts"],
+  );
+});
+
+test("entryPointsFromMirrorRegistry: an EMPTY registry exempts nothing rather than everything", () => {
+  assert.deepEqual(entryPointsFromMirrorRegistry([]), []);
+});
+
+test("entryPointsFromMirrorRegistry: the REAL registry names probes, and they are the files it spawns", () => {
+  const exempt = entryPointsFromMirrorRegistry(MIRRORS);
+  assert.ok(exempt.length > 0, "an empty answer would silently un-exempt every probe");
+  assert.equal(exempt.length, new Set(exempt).size);
+  for (const file of exempt) {
+    assert.match(file, /-mirror-probe\.ts$|MirrorProbe\.ts$/, `${file} is not a probe module`);
+  }
 });
 
 
