@@ -190,7 +190,6 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "cap",
   "threshold-hours",
   "runtime",
-  "from-offer",
   // `factory health` — a window bound, a landings/day rate, a git ref (ADR-0316). All read-only
   // report inputs: none is ever stored into an artifact, so none can corrupt a durable record.
   "from",

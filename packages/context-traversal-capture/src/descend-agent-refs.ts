@@ -164,3 +164,56 @@ export const AGENT_DESCENT_COVERAGE: ContextTraversalCoverage = {
   supported: [...REVISIT_LINK_COVERAGE.supported, "field:parent_visit_id"],
   omitted: REVISIT_LINK_COVERAGE.omitted.filter((feature) => feature !== "field:parent_visit_id"),
 };
+
+// ---------------------------------------------------------------------------
+// Coverage caveats
+// ---------------------------------------------------------------------------
+
+/**
+ * A named gap in what an adapter can observe, stated alongside its supported/omitted lists
+ * (ADR-0235 clause 6). The closed feature enum says WHICH events an adapter emits; it cannot say
+ * why the resulting picture is thin. A caveat says that, in prose, in the same body.
+ *
+ * Re-homed here by ADR-0464 D1, which deleted `offer-candidate-sets.ts` where it used to live.
+ * Nothing about the type is offer-specific — it outlived the module that happened to introduce it,
+ * and it now sits beside {@link AGENT_DESCENT_COVERAGE}, the outermost surviving composition.
+ */
+export interface CoverageCaveat {
+  readonly id: string;
+  readonly note: string;
+}
+
+/**
+ * The `terminal-cli-dispatch` caveats after ADR-0464 D1.
+ *
+ * The three ADR-0260 D7 caveats this list replaces were all about the OFFER surface — that a `doc:`
+ * ref is offered but its follow is unobservable, that follow-completeness depends on the agent
+ * re-using the offered command form, and that an unanswered offer is indistinguishable from a
+ * bypassed mechanism. All three described gaps in a mechanism that no longer exists, so carrying
+ * them forward would describe a thinness in a picture this adapter no longer draws at all.
+ *
+ * What replaces them is the honest successor limit, and it is deliberately stated rather than left
+ * as an empty block: this adapter records no `candidate_set` and no `followed_edge`, so the
+ * offer→follow causality question cannot be asked of a trace captured after this landing. That is
+ * ADR-0464 D5's accepted cost written where a coverage READER meets it — the push became a pull, and
+ * no instrument survives that could say which offers were useful. ADR-0260 D4's standing refusal
+ * carries through unchanged and now binds trivially: the gap is never repaired by inference, and a
+ * reader must not join a read to a prior render and call the result a follow.
+ */
+export const AGENT_DESCENT_CAVEATS: readonly CoverageCaveat[] = [
+  {
+    id: "offers-and-follows-are-no-longer-recorded",
+    note:
+      "This adapter records no `candidate_set` and no `followed_edge` — the citation-derived offer " +
+      "surface was retired by ADR-0464 D1, and both event kinds are declared `omitted` above. So a " +
+      "trace captured after that landing can answer nothing about which onward pointer a render " +
+      "offered or which one a later read answered. The gap is deliberate, not a defect, and it is " +
+      "never repaired by inference (ADR-0260 D4): joining a read to an earlier render on node id " +
+      "alone would manufacture the causality the retired mechanism declined to guess at.",
+  },
+];
+
+/** Render a caveat list as lines of `<id>: <note>`, for surfacing alongside a coverage report. */
+export function renderCoverageCaveats(caveats: readonly CoverageCaveat[]): string {
+  return caveats.map((caveat) => `${caveat.id}: ${caveat.note}`).join("\n");
+}

@@ -17,7 +17,6 @@ capabilities:
     transcript-occupancy-ingest,
     transcript-decision-read-extraction,
     transcript-decision-read-ingest,
-    transcript-decision-read-coverage,
   ]
 ---
 

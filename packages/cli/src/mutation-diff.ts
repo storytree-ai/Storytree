@@ -110,6 +110,41 @@ export function skipDisposition(args: {
 }
 
 /**
+ * A `*.uat.test.ts` leg — EXCLUDED from the mutation runner's test set, and this is a repair rather
+ * than a weakening.
+ *
+ * MEASURED 2026-08-28, on clean `origin/main` at 785cc021, with a one-line comment added to
+ * `terminal-capture.ts` and another to `terminal-capture.uat.test.ts` purely to force this rung to
+ * select them: SIX legs of `terminal-capture.uat.test.ts` failed Stryker's INITIAL DRY RUN with
+ * `connect ECONNREFUSED 127.0.0.1:<port>`, and the rung exited 1 having evaluated no mutant at all.
+ * The evidence is a clean-main reproduction, not an inference from a branch that was also changing
+ * those files.
+ *
+ * WHY IT HAPPENS. These legs spawn the REAL CLI binary against a REAL fixture door server started in
+ * a `before` hook and killed in `after`. Stryker's `perTest` coverage analysis re-runs the suite, and
+ * a re-run that does not re-enter `before` finds the door already dead — so the child gets a refused
+ * connection. A test that spawns a process and a server is an integration proof; it was never a
+ * mutation-kill witness, and it cannot be one inside a sandbox that owns the process lifecycle.
+ *
+ * WHY EXCLUDING IS THE REPAIR. A dry-run failure aborts the WHOLE rung (`ConfigError: There were
+ * failed tests in the initial test run`), so today the rung does not merely lose one witness — it
+ * evaluates ZERO mutants and reds, for every branch that touches a spawn-based UAT. Excluding these
+ * files is what lets it run and judge the mutants it can judge. The cost is stated rather than
+ * hidden: a mutant that ONLY a UAT leg would have killed now reports as a survivor, which is red in
+ * the safe direction — it asks for a unit test, it never green-lights an unproven line.
+ *
+ * ⚠ THIS IS NOT AN OPT-OUT MECHANISM, and it must not become one. {@link entryPointsFromScripts}
+ * refuses a curated ignore-list on purpose, and that refusal stands: the rule here is DERIVED from a
+ * filename convention this repo already uses for spawn-based acceptance legs, it is narrow to
+ * `.uat.test.ts`, and it is PRINTED by the rung so an excluded file is never silent. A session cannot
+ * exempt an ordinary unit test by editing a list — it would have to rename the file to claim it is an
+ * acceptance leg, which is a visible lie rather than a quiet one.
+ */
+export function isSpawnUatTest(file: string): boolean {
+  return file.endsWith(".uat.test.ts");
+}
+
+/**
  * The executable ENTRY POINTS a root `package.json` invokes directly — exempt from mutation.
  *
  * WHY THIS EXEMPTION EXISTS, AND WHY IT IS MECHANICAL RATHER THAN A LIST SOMEONE CURATES. This arc

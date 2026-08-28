@@ -10,11 +10,10 @@
 // good it is. Every difference on the AFTER row is the terrain, because there is nothing else
 // left for it to be.
 //
-// ⚠ ONLY THREE OF THE SIX MAPPINGS ARE THE OWNER'S. He named `forest`, `swamp` and
-// `wheatfield`; ADR-0461 D5 leaves the rest undecided. `fallow`, `heath` and `scree` are
-// authored here as a PROPOSAL and are labelled as such in the table, because the difference
-// between "he said this" and "a session proposed this" is exactly what he needs to see in
-// order to answer.
+// ⚠ ALL SIX MAPPINGS ARE SETTLED. He named `forest`, `swamp` and `wheatfield` himself, and
+// accepted `heath`, `fallow` and `scree` on 2026-08-28 ("All three are fine"). The table below
+// still records WHICH three he originated, because "he named it" and "he accepted it when asked"
+// are different facts — but nothing on this page is a proposal awaiting an answer any more.
 //
 // ⚠ BARE LAND THROUGHOUT — no plants, no flowers, no tree. `heathConf()` already varies
 // vegetation per status, so a dressed island would show a difference that is partly the
@@ -91,7 +90,7 @@ function VocabularyTable() {
           <th>what it is</th>
           <th>colour</th>
           <th>feature (along × across)</th>
-          <th>whose name</th>
+          <th>how it was settled</th>
         </tr>
       </thead>
       <tbody>
@@ -112,8 +111,8 @@ function VocabularyTable() {
               <td>
                 {f.along.toFixed(1)} × {f.across.toFixed(1)}
               </td>
-              <td className={t.provenance === 'owner' ? 'ok' : 'ref'}>
-                {t.provenance === 'owner' ? 'the owner named it' : 'proposed here — your call'}
+              <td className="ok">
+                {t.provenance === 'owner-named' ? 'you named it' : 'proposed here — you accepted it'}
               </td>
             </tr>
           );
@@ -185,7 +184,8 @@ function App() {
         <h2>The other four states</h2>
         <p className="lede">
           <strong>forest</strong> and <strong>swamp</strong> are the owner&rsquo;s own names.{' '}
-          <strong>heath</strong> and <strong>scree</strong> are proposed here and are his call.
+          <strong>heath</strong> and <strong>scree</strong> were proposed here and he accepted
+          them on 2026-08-28.
         </p>
         <Row terrains={REST} zoom={8} terrain />
       </section>

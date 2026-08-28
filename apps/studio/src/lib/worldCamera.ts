@@ -6,6 +6,8 @@
 // math here pure (no DOM) lets the geometry be proven red-green in isolation;
 // TreeView.tsx owns the DOM wiring (wheel/drag/keys) on top of these functions.
 
+import { restingFrame } from '@storytree/forest-world';
+
 export interface Camera {
   tx: number;
   ty: number;
@@ -79,7 +81,18 @@ export function act2RegrowCamera(
   // cursor range near 1 under a real padded/contain fit, so clamp down to the containing scale
   // whenever it is tighter (never looser — this only ever zooms OUT further, preserving the
   // monotonic pull-back and the exact identity/opening endpoints at progress 1 and 0).
-  if (groundWorldY !== undefined && groundWorldY > 0 && progress > 0) {
+  //
+  // ⚠ ITS PREMISE IS THAT THE SETTLED CAMERA ITSELF CONTAINS THE WORLD, and since ADR-0471 that is
+  // no longer true of the resting view: a DESIGNED resting frame deliberately runs the forest's
+  // canopy off the top edge, so `fitted.ty` is negative and the world's top is already above the
+  // frame at rest. Applying the clamp under that shape drives `scale` below `fitted.scale` for most
+  // of the cursor range, the floor below then pins it back up to `fitted.scale`, and the whole
+  // pull-back flattens into a constant — the growth plays with no camera movement at all. So the
+  // clamp is skipped exactly when its own premise fails, leaving the single linear interpolation
+  // above to run from the 2.5x opening down to the settled resting scale. The contained case (a
+  // small forest, or any 'contain' fit) is untouched.
+  const settledContainsTop = fitted.ty >= 0;
+  if (settledContainsTop && groundWorldY !== undefined && groundWorldY > 0 && progress > 0) {
     const containScale = targetY / (groundWorldY * progress);
     if (containScale < scale) scale = containScale;
   }
@@ -222,4 +235,67 @@ export function fitWorld(
 /** Zoom range derived from the fit scale, so it adapts to world size. */
 export function limitsForFit(fitScale: number): ScaleLimits {
   return { min: fitScale * 0.4, max: fitScale * 5 };
+}
+
+/**
+ * The DESIGNED resting camera — what the map opens on (ADR-0471).
+ *
+ * Same placement rules as {@link fitWorld}: horizontally centred, vertically bottom-aligned, and it
+ * records the same `groundWorldY`. The ONE thing that differs is the scale, which comes from
+ * `restingFrame` in the shared render core rather than from containing the bounding box. Because
+ * the forest is ranked bottom-up, bottom-aligning a scale that is TIGHTER than the fit is what puts
+ * the foundation on screen and runs the canopy off the top edge — the crop is the composition, not
+ * an overflow.
+ *
+ * ⚠ It intentionally does NOT take `fit`/`maxScale`. Those are fit-shaped knobs and the whole point
+ * here is that the scale is not a fit; a `maxScale` ceiling applied on top would silently return the
+ * surface to a computed framing under exactly the conditions (a very wide world) where the design
+ * matters most. `padding`/`paddingTop`/`paddingBottom` still apply, because docked chrome covers the
+ * frame whatever the scale is.
+ */
+export function restingWorld(
+  worldW: number,
+  worldH: number,
+  frameW: number,
+  frameH: number,
+  islandDiameters: readonly number[],
+  opts?: Pick<FitOpts, 'padding' | 'paddingTop' | 'paddingBottom' | 'align'>,
+): Camera {
+  const pad = opts?.padding ?? 0;
+  const padTop = opts?.paddingTop ?? pad;
+  const padBottom = opts?.paddingBottom ?? pad;
+  if (worldW <= 0 || worldH <= 0 || frameW <= 0 || frameH <= 0) {
+    return { tx: 0, ty: 0, scale: 1 };
+  }
+  // The frame the composition is measured in is the frame MINUS the chrome docked over it: an
+  // island half-covered by the terminal dock is not on screen, so sizing against the raw frame
+  // would quietly deliver a smaller island than the composition states.
+  const { scale } = restingFrame({
+    islandDiameters,
+    contentWidth: worldW,
+    contentHeight: worldH,
+    frameWidth: Math.max(1, frameW - 2 * pad),
+    frameHeight: Math.max(1, frameH - padTop - padBottom),
+  });
+  const tx = (frameW - worldW * scale) / 2;
+  const bottomAlign = (opts?.align ?? 'bottom') === 'bottom';
+  const ty = bottomAlign ? frameH - padBottom - worldH * scale : (frameH - worldH * scale) / 2;
+  return bottomAlign ? { tx, ty, scale, groundWorldY: worldH } : { tx, ty, scale };
+}
+
+/**
+ * Zoom range for a DESIGNED resting view.
+ *
+ * ⚠ THE ZOOM-OUT FLOOR IS DERIVED FROM THE FIT, NEVER FROM THE RESTING SCALE, and that is the whole
+ * reason this exists rather than reusing {@link limitsForFit}. The resting scale is deliberately
+ * tighter than the fit, so `limitsForFit(restingScale)` would raise the minimum zoom by exactly the
+ * ratio the view was cropped by, eating the reader's headroom below the whole-world view — and past
+ * a 2.5x crop it would put the floor ABOVE the scale at which the whole forest is visible, making
+ * the rest of the world unreachable outright. Measured on the live corpus the crop is ~2.3x, so
+ * today it is the headroom that suffers rather than the reachability; the floor here removes both
+ * failures by keeping the floor exactly where it was before the composition moved. A resting view
+ * short of the whole world is only honest if the rest stays reachable; this is where that holds.
+ */
+export function limitsForResting(restingScale: number, fitScale: number): ScaleLimits {
+  return { min: Math.min(fitScale, restingScale) * 0.4, max: restingScale * 5 };
 }

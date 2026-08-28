@@ -5,7 +5,7 @@ story: context-traversal-capture
 arc: context-decision-tree-arc
 title: "A read that carries an offer id declares the edge it answered; a bare read declares none"
 outcome: "A library artifact read invoked with an offer id on the command line stamps that edge on its own visit and records it, and a read invoked without one records no edge at all."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, terminal-boundary-observations, artifact-offer-candidate-sets]
 decisions: [235, 464]
@@ -16,19 +16,10 @@ proof:
   scope:
     testGlobs: ["packages/context-traversal-capture/src/follow-offer-edges.test.ts"]
     sourceGlobs: ["packages/context-traversal-capture/src/follow-offer-edges.ts"]
-  real:
-    testFile: "packages/context-traversal-capture/src/follow-offer-edges.test.ts"
-    sourceFile: "packages/context-traversal-capture/src/follow-offer-edges.ts"
-    scope:
-      testGlobs: ["packages/context-traversal-capture/src/follow-offer-edges.test.ts"]
-      sourceGlobs: ["packages/context-traversal-capture/src/follow-offer-edges.ts"]
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "typecheck"]
+  # THE `real:` ARM WAS REMOVED HERE, NOT MERELY LEFT BESIDE A RETIRED STATUS (ADR-0464 D1).
+  # `status: retired` alone does NOTHING: `sweepRealBuildCoverage` filters on `real === undefined`,
+  # never on status, so an arm naming the deleted `packages/context-traversal-capture/src/follow-offer-edges.ts`
+  # would breach `contract-binding-drift` and the coverage drain at their ceiling of zero.
 ---
 
 # A read that carries an offer id declares the edge it answered; a bare read declares none

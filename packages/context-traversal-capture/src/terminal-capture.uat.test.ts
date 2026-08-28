@@ -39,7 +39,6 @@ import { nodeExecutable } from "./node-executable.test-helpers.js";
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 import type { ContextTraversalEvent, ContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
-import { OFFER_FLAG, OFFER_FOLLOW_NOTE } from "./follow-offer-edges.js";
 import { readTraversalSession } from "./sink.js";
 
 const LAUNCHER = fileURLToPath(new URL("../../cli/launch.mjs", import.meta.url));
@@ -154,16 +153,6 @@ function listDir(dir: string): string[] {
  */
 function visitsOf(events: readonly ContextTraversalEvent[]): ContextVisitEvent[] {
   return events.filter((event): event is ContextVisitEvent => isContextVisitEvent(event));
-}
-
-/** The `candidate_set` events of a replay, in order. */
-function candidateSetsOf(
-  events: readonly ContextTraversalEvent[],
-): Extract<ContextTraversalEvent, { kind: "candidate_set" }>[] {
-  return events.filter(
-    (event): event is Extract<ContextTraversalEvent, { kind: "candidate_set" }> =>
-      event.kind === "candidate_set",
-  );
 }
 
 /** Narrows a raw event to a visit event (front_matter_read | full_payload_read) or fails loudly. */
@@ -408,44 +397,34 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
   const baseline = runCli(args, baseEnv());
   assert.equal(baseline.status, 0, `expected the baseline read to exit 0: ${baseline.stderr}`);
 
-  // ADR-0260 D3 CHANGED THE AGENT-FACING SURFACE, deliberately, and this leg is where that cost is
-  // paid rather than worked around. A render that records an offer also PRINTS follow-up commands
-  // carrying that offer's id, and the id is a fresh visit id per invocation — so "byte-identical"
-  // can no longer mean the whole stdout, not even between two capture-ON runs of the same command.
+  // ADR-0464 D1 RESTORED THIS LEG'S ORIGINAL, STRONGER CLAIM, and the history is worth keeping because
+  // it explains why the assertion below is so blunt.
   //
-  // What the leg was ALWAYS claiming is that opting out changes nothing an agent depends on. That
-  // splits cleanly in two, and both halves are asserted below: the command's own PAYLOAD is
-  // byte-identical whatever capture does, and the offer-carrying lines appear ONLY where an offer is
-  // genuinely recorded — never on a run that captures nothing, which would be an id naming a
-  // candidate set that does not exist. Together those two ARE ADR-0241 **D2**'s opt-out-clean
-  // envelope, intact. (D2 is the clause this leg pins; D3's envelope promise is the narrower one that
-  // no telemetry FAILURE may alter an envelope, which an opted-out run never engages. ADR-0241's own
-  // Consequences make that split — don't re-file this leg under D3.) Comparing the payloads rather
-  // than tuning a fixture is the honest repair: the claim did not move, the surface underneath it did.
+  // The leg has always claimed that opting out changes nothing an agent depends on. It began as plain
+  // stdout equality. ADR-0260 D3 broke that: a render recording an offer also PRINTED follow-up
+  // commands carrying that offer's id, and the id was a fresh visit id per invocation — so no two runs
+  // of the same command had identical stdout, not even two capture-ON runs. The leg was weakened to
+  // compare stdout MINUS the offer lines. ADR-0320 widened the offer surface again with the `note:`
+  // ask stanza, and the strip had to widen with it.
   //
-  // ADR-0320 WIDENED THE OFFER-CARRYING SURFACE AGAIN, and the same repair applies a second time. The
-  // printed form now travels with an ASK — the envelope's `note:` stanza — because printing the form
-  // alone was measured insufficient (5048 offered ids, zero `followed_edge` events, 2026-08-06). So
-  // "byte-identical" can no longer mean stdout-minus-the-`--from-offer`-lines either; it means
-  // stdout minus the whole offer SURFACE, which is now that stanza plus those lines. The stanza is
-  // stripped via the exported constant rather than a copied literal, so re-wording the ask cannot
-  // silently break this leg — and the note is asserted present-with-the-offer and absent-without it
-  // below, which is the same present-only-where-genuinely-recorded claim the offer lines already carry.
-  const OFFER_LINE = ` ${OFFER_FLAG} `;
-  const NOTE_STANZA = `note:\n${OFFER_FOLLOW_NOTE.map((line) => `  ${line}`).join("\n")}\n\n`;
-  const payloadOf = (stdout: string): string =>
-    stdout
-      .replace(NOTE_STANZA, "")
-      .split("\n")
-      .filter((line) => !line.includes(OFFER_LINE))
-      .join("\n");
-  const offerLinesOf = (stdout: string): string[] =>
-    stdout.split("\n").filter((line) => line.includes(OFFER_LINE));
-  const carriesNote = (stdout: string): boolean => stdout.includes(NOTE_STANZA);
+  // Nothing is printed conditionally on capture any more, so the strip is gone and the comparison is
+  // whole-stdout again. That is a STRONGER assertion than the one it replaces, not a weaker one: a
+  // stripping comparison cannot see a regression inside the bytes it strips, and this one has nothing
+  // to strip. ADR-0241 **D2**'s opt-out-clean envelope is what it pins. (D3's envelope promise is the
+  // narrower one that no telemetry FAILURE may alter an envelope, which an opted-out run never
+  // engages. ADR-0241's own Consequences make that split — don't re-file this leg under D3.)
+  //
+  // ⚠ THE POSITIVE HALF HAD TO BE REPLACED, NOT JUST DROPPED. The captured variant used to prove
+  // capture was really ON by asserting it printed offer lines. Deleting that assertion and keeping
+  // only the three "no trace file" checks would have left a leg that passes identically whether
+  // capture works or has been ripped out entirely — every variant writing nothing, every stdout equal,
+  // all green. So the captured variant now asserts the direct positive the offer lines stood proxy
+  // for: a run with capture ON WRITES A TRACE FILE. It is the exact mirror of the absence checks in
+  // variants A and B, which is what lets the three of them discriminate at all.
 
   // Variant CAPTURED: capture unambiguously ON — an explicit session id and a real trace directory,
   // so this run's behaviour does not depend on whether the test's own cwd happens to be a worktree
-  // slot (see variant B's note on that trap). This is the run that MUST carry offer lines.
+  // slot (see variant B's note on that trap). This is the run that MUST leave a trace.
   const onDir = freshDir("contract5-on");
   const onResult = runCli(args, {
     ...baseEnv(),
@@ -453,18 +432,16 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
     STORYTREE_SESSION_ID: "session-contract5-on",
   });
   assert.equal(onResult.status, 0, `expected the captured read to exit 0: ${onResult.stderr}`);
-  assert.ok(
-    offerLinesOf(onResult.stdout).length > 0,
-    "a run that records an offer MUST print the follow-up commands carrying its id (ADR-0260 D3)",
-  );
-  assert.ok(
-    carriesNote(onResult.stdout),
-    "and it MUST print the ask beside them (ADR-0320) — the form alone was measured insufficient",
+  assert.notDeepEqual(
+    listDir(onDir),
+    [],
+    "a run with capture ON must WRITE a trace — without this the absence checks below would all hold " +
+      "just as well against a capture path that had been deleted outright",
   );
   assert.equal(
-    payloadOf(onResult.stdout),
-    payloadOf(baseline.stdout),
-    "capture adds the offer surface and NOTHING else — the command's own payload is untouched",
+    onResult.stdout,
+    baseline.stdout,
+    "capture changes NOTHING an agent reads — stdout is byte-identical, with nothing stripped first",
   );
 
   // Variant A: explicit opt-out, even with a valid session id and a real trace directory.
@@ -477,20 +454,9 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
   });
   assert.equal(offResult.status, baseline.status, "STORYTREE_TRAVERSAL=off must not change the exit code");
   assert.equal(
-    payloadOf(offResult.stdout),
-    payloadOf(baseline.stdout),
-    "STORYTREE_TRAVERSAL=off must not change the envelope's payload",
-  );
-  assert.deepEqual(
-    offerLinesOf(offResult.stdout),
-    [],
-    "an opted-out run records no offer, so it must print no offer id — a printed id nothing recorded " +
-      "is an id an agent can return that names a candidate set which never existed",
-  );
-  assert.equal(
-    carriesNote(offResult.stdout),
-    false,
-    "and it must print no ask either — an ask about follow-ups that were never printed is noise",
+    offResult.stdout,
+    baseline.stdout,
+    "STORYTREE_TRAVERSAL=off must not change the envelope",
   );
   assert.deepEqual(listDir(offDir), [], "STORYTREE_TRAVERSAL=off must create no trace file");
 
@@ -517,19 +483,9 @@ test("capture-off-leaves-a-byte-identical-envelope: STORYTREE_TRAVERSAL=off and 
   );
   assert.equal(noIdResult.status, baseline.status, "an unresolved identity must not change the exit code");
   assert.equal(
-    payloadOf(noIdResult.stdout),
-    payloadOf(baseline.stdout),
-    "an unresolved identity must not change the envelope's payload",
-  );
-  assert.deepEqual(
-    offerLinesOf(noIdResult.stdout),
-    [],
-    "an uninstrumented run records no offer, so it must print no offer id either",
-  );
-  assert.equal(
-    carriesNote(noIdResult.stdout),
-    false,
-    "nor the ask that goes with one",
+    noIdResult.stdout,
+    baseline.stdout,
+    "an unresolved identity must not change the envelope",
   );
   assert.deepEqual(listDir(noIdDir), [], "an unresolved identity must create no trace file");
 });
@@ -643,9 +599,17 @@ test("an-agents-render-writes-a-parent-linked-descent: a real spawned `agents <n
   const { replay } = readTraversalSession({ dir, sessionId });
   const agentVisits = visitsOf(replay.events);
   assert.ok(agentVisits.length >= 2, "an agents render must write the agent visit AND at least one child");
-  // The `agents` surface renders no Sources block, so it offers nothing and records no candidate set
-  // — stated rather than assumed, since this leg indexes positionally into the trace below.
-  assert.deepEqual(candidateSetsOf(replay.events), [], "an agents render offers nothing to record");
+  // This leg indexes POSITIONALLY into the trace below, so it must first establish that every event
+  // here is a visit. It used to say that by asserting the `agents` surface records no `candidate_set`
+  // — true, but only because that surface rendered no Sources block. After ADR-0464 D1 no surface
+  // records one, so that assertion would have held for a reason that has nothing to do with `agents`
+  // and would have kept passing had the descent itself broken. Asserting the positive property the
+  // indexing actually needs — these events are ALL visits — is the version that can still fail.
+  assert.equal(
+    replay.events.length,
+    agentVisits.length,
+    "this leg indexes positionally, so every recorded event must be a visit",
+  );
 
   const parent = expectVisit(agentVisits[0], "the agent's own visit");
   assert.equal(parent.kind, "full_payload_read", "the agent itself is read at full-payload strength");
@@ -696,472 +660,24 @@ test("an-agents-render-writes-a-parent-linked-descent: a real spawned `agents <n
 });
 
 // ---------------------------------------------------------------------------
-// 7. a real artifact read records the branches it did NOT take
+// LEGS 7-10 WERE DELETED HERE BY ADR-0464 D1, WITH THE CAPABILITIES THEY PROVED.
+//
+// They were, in order: an artifact read records the branches not taken (`artifact-offer-candidate-sets`);
+// a follow-up carrying the offer id declares its edge while a bare read declares none
+// (`offer-follow-edges`); a real replay draws the branches not taken (`decision-point-playback`); and a
+// real replay states how much of each offer set it could not see (`offer-observability-share`).
+//
+// All four proved behaviour of the citation-derived offer surface, which is retired. They are DELETED
+// rather than kept and skipped, because every one of them was written against a REAL spawned CLI and
+// would otherwise have gone on running against a population that is now empty by construction —
+// asserting `candidateSets.length === 1` would have failed loudly (fine), but their NEGATIVE halves
+// ("a session that recorded no offer renders no block at all") would have PASSED while verifying
+// nothing at all. A leg whose negative half survives its positive half is worse than a deleted leg:
+// it keeps a green tick beside a capability that no longer exists.
+//
+// The story's UAT criteria for those four legs are retired in the same landing (`stories/
+// context-traversal-capture/story.md`), so the signed proof record and the suite agree about what is
+// still claimed. Legs 1-6 above are UNTOUCHED and still cover the surviving capabilities: the sink,
+// the observer's allowlist, revisit links, the opt-out-clean envelope, context-window keying, and the
+// agent-ref descent.
 // ---------------------------------------------------------------------------
-
-test("an-artifact-read-records-the-branches-not-taken: a real spawned `library artifact <id>` leaves a candidate_set naming every offered id, followed or not", () => {
-  const dir = freshDir("contract7");
-  const sessionId = "session-contract7";
-  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
-
-  // ONE invocation, and nothing after it. Whatever this read offered, nothing in this session ever
-  // follows — which is the whole point: ADR-0260 D2 records the offer at RENDER time, so the branches
-  // not taken exist in the telemetry precisely because they were recorded when they were offered.
-  const result = runCli(["library", "artifact", "plan"], env);
-  assert.equal(result.status, 0, `expected the spawned read to exit 0: ${result.stderr}`);
-
-  const { replay, skipped } = readTraversalSession({ dir, sessionId });
-  assert.equal(skipped, 0);
-
-  const visits = visitsOf(replay.events);
-  assert.equal(visits.length, 1, "one read is one visit");
-  const renderVisit = expectVisit(visits[0], "the rendering visit");
-
-  const candidateSets = candidateSetsOf(replay.events);
-  assert.equal(candidateSets.length, 1, "the render must record exactly one offer");
-  const offer = candidateSets[0];
-  assert.ok(offer !== undefined, "expected the recorded offer");
-
-  // The offer is joinable to the render that made it — by an id carried on the event, never by
-  // adjacency or timestamp proximity (ADR-0235 clause 3).
-  assert.ok(
-    offer.candidateSetId.includes(renderVisit.visitId),
-    `expected candidateSetId ${offer.candidateSetId} to name visit ${renderVisit.visitId}`,
-  );
-  assert.equal(offer.surfaceId, "library-artifact");
-
-  // The recorded ids are the artifact's REAL authored refs, read independently of the traversal that
-  // produced them — the arc's own closing condition. `plan` carries four, and the `doc:` one is kept
-  // prefix-and-all because an ADR file has no canonical Library node to be visited.
-  assert.deepEqual(
-    [...offer.candidateNodeIds],
-    [
-      "doc:decisions/0183-arcs-contain-plans-the-initiative-overlay-upstream-of-storie.md",
-      "arc",
-      "anchor-implementation-surface",
-      "orchestrate-route-supplement",
-    ],
-    "every offered ref must be recorded, in authored order",
-  );
-
-  // THE D2 PIN, at the real boundary: not one of those four ids was ever visited in this session, and
-  // all four are on the record anyway. An implementation that emitted offers lazily — only once
-  // something followed — would leave this trace with NO candidate set at all, and would still pass
-  // every other assertion in this file.
-  const visitedNodeIds = new Set(visits.map((visit) => visit.nodeId));
-  const neverFollowed = offer.candidateNodeIds.filter((id) => !visitedNodeIds.has(id));
-  assert.deepEqual(
-    [...neverFollowed],
-    [...offer.candidateNodeIds],
-    "every recorded offer must be a branch this session did not take",
-  );
-
-  // The RENDER must show what the trace carries, and must not deny it.
-  const shown = runCli(["traversal", "show", sessionId], env);
-  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
-  assert.ok(
-    shown.stdout.includes(`[candidate-set] set=${offer.candidateSetId} surface=library-artifact candidates=4`),
-    "the rendered body must name the recorded offer and how many artifacts were on the table",
-  );
-
-  const coverageLine = shown.stdout
-    .split("\n")
-    .find((line) => line.includes("coverage: adapter=terminal-cli-dispatch"));
-  assert.ok(coverageLine !== undefined, "the terminal adapter's coverage block must render");
-  const [supportedHalf, omittedHalf] = coverageLine.split(" omitted=");
-  assert.ok(supportedHalf?.includes("event:candidate_set"), "offers are emitted, so they must be SUPPORTED");
-  assert.ok(!omittedHalf?.includes("event:candidate_set"), "a render may not deny an event it produces");
-  // ...and it must still deny what it genuinely cannot see. This adapter observes no model at all,
-  // so claiming a token or capacity field here would be the inverse dishonesty. (`followed_edge` and
-  // `field:candidate_follow_causality` were pinned here until ADR-0260 D3's producer landed; leg 8
-  // below now holds them on the SUPPORTED side, against a trace that visibly carries an edge.)
-  assert.ok(omittedHalf?.includes("event:model_context"), "the CLI boundary sees no model request");
-  assert.ok(
-    omittedHalf?.includes("field:context_window_capacity"),
-    "the CLI boundary declares no window capacity",
-  );
-
-  // ADR-0260 D7: both gaps must be visible in the same body, because D4 forbids ever repairing them
-  // by inference. A tidy-looking tree that never states what it cannot show is the failure mode.
-  assert.match(shown.stdout, /coverage-caveats:/, "the declaration must surface its caveats");
-  assert.ok(
-    shown.stdout.includes("doc-refs-are-offered-but-follows-are-unobservable"),
-    "the `doc:` blind spot must be declared — it is the MAJORITY of a typical offer set",
-  );
-  assert.ok(
-    shown.stdout.includes("follow-completeness-depends-on-the-offered-command-form"),
-    "the behavioural dependency must be declared — it is a new class for this telemetry",
-  );
-});
-
-// ---------------------------------------------------------------------------
-// 8. a real followed command declares its edge, and a bare one declares none
-// ---------------------------------------------------------------------------
-
-test("a-followed-command-declares-its-edge-and-a-bare-one-declares-none: a real spawned follow-up carrying the offer id records the edge it answered, while a bare read of another offered node records none", () => {
-  const dir = freshDir("contract8");
-  const sessionId = "session-contract8";
-  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
-
-  // 1. The OFFERING read. Its envelope must print pasteable follow-up commands carrying the id of
-  //    the offer it is about to record — the whole of ADR-0260 D3's first half. The id is minted
-  //    before the render and recorded after it, in one process, so this is also the only place the
-  //    two halves can be proven to be the SAME id rather than two that merely look alike.
-  const offering = runCli(["library", "artifact", "plan"], env);
-  assert.equal(offering.status, 0, `expected the offering read to exit 0: ${offering.stderr}`);
-
-  const followUp = offering.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.startsWith("- storytree library artifact arc --from-offer "));
-  assert.ok(
-    followUp !== undefined,
-    `the render must print a pasteable follow-up carrying its offer id; got:\n${offering.stdout}`,
-  );
-
-  const followArgs = followUp.replace(/^- storytree /, "").split(" ");
-  const printedOfferId = followArgs[followArgs.length - 1];
-  assert.ok(printedOfferId !== undefined && printedOfferId.startsWith("candidate-set:"));
-
-  const afterOffer = readTraversalSession({ dir, sessionId });
-  const recordedOffer = candidateSetsOf(afterOffer.replay.events)[0];
-  assert.ok(recordedOffer !== undefined, "the offering read must have recorded its offer");
-  assert.equal(
-    recordedOffer.candidateSetId,
-    printedOfferId,
-    "the id PRINTED on the follow-up command must be the id RECORDED for the offer — an id an agent " +
-      "can return is the entire mechanism; two ids that merely look alike join nothing",
-  );
-  const offeringVisit = expectVisit(visitsOf(afterOffer.replay.events)[0], "the offering visit");
-
-  // 2. The FOLLOW, run VERBATIM as an agent would paste it. Two separate OS processes with no shared
-  //    memory: the second knows about the first only through the string on its own command line.
-  const followed = runCli(followArgs, env);
-  assert.equal(followed.status, 0, `expected the followed read to exit 0: ${followed.stderr}`);
-
-  // 3. A BARE read of a DIFFERENT node the very same offer put on the table. This is ADR-0260 D3's
-  //    refusal at the real boundary: the trace visibly contains a recent candidate set offering
-  //    `anchor-implementation-surface`, which is exactly the join a recency-resolving implementation
-  //    would make. Without the id on the command line there is no edge, and the missing edge is D4's
-  //    accepted under-report — never repaired by correlating after the fact.
-  const bare = runCli(["library", "artifact", "anchor-implementation-surface"], env);
-  assert.equal(bare.status, 0, `expected the bare read to exit 0: ${bare.stderr}`);
-
-  const { replay, skipped } = readTraversalSession({ dir, sessionId });
-  assert.equal(skipped, 0);
-  const visits = visitsOf(replay.events);
-  assert.equal(visits.length, 3, "three reads, three visits");
-
-  const answeringVisit = expectVisit(visits[1], "the answering visit");
-  assert.equal(answeringVisit.nodeId, "arc");
-  const bareVisit = expectVisit(visits[2], "the bare visit");
-  assert.equal(bareVisit.nodeId, "anchor-implementation-surface");
-
-  const edges = replay.events.filter(
-    (event): event is Extract<ContextTraversalEvent, { kind: "followed_edge" }> =>
-      event.kind === "followed_edge",
-  );
-  assert.equal(edges.length, 1, "exactly one read named an offer, so exactly one edge exists");
-  const edge = edges[0];
-  assert.ok(edge !== undefined);
-  assert.equal(edge.candidateSetId, printedOfferId, "the edge names the offer the command line carried");
-  assert.equal(edge.fromVisitId, offeringVisit.visitId, "…which resolves to the visit that offered it");
-  assert.equal(edge.toVisitId, answeringVisit.visitId, "…and lands on the visit that answered it");
-  assert.equal(
-    answeringVisit.followedEdgeId,
-    edge.edgeId,
-    "the answering visit must itself carry the edge — an edge event beside an unstamped visit would " +
-      "make `field:candidate_follow_causality` a claim the visit cannot support",
-  );
-
-  // THE D3 PIN at the real boundary: the bare read carries NO edge, though the trace plainly offered
-  // its node moments earlier. If the key is present at all here, recency has crept back in.
-  assert.equal(
-    bareVisit.followedEdgeId,
-    undefined,
-    "a bare command answers nothing, even when a recent offer named the very node it read",
-  );
-
-  // A followed read is still a read: it records its OWN offer, so the chain continues past one hop.
-  const offers = candidateSetsOf(replay.events);
-  assert.equal(offers.length, 3, "every one of the three reads recorded the offer it printed");
-
-  // 4. The RENDER must show the edge and must not deny the ability to see it.
-  const shown = runCli(["traversal", "show", sessionId], env);
-  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
-  assert.ok(
-    shown.stdout.includes(
-      `[followed-edge] edge=${edge.edgeId} from=${edge.fromVisitId} to=${edge.toVisitId}`,
-    ),
-    "the rendered body must draw the edge the trace carries",
-  );
-
-  const coverageLine = shown.stdout
-    .split("\n")
-    .find((line) => line.includes("coverage: adapter=terminal-cli-dispatch"));
-  assert.ok(coverageLine !== undefined, "the terminal adapter's coverage block must render");
-  const [supportedHalf, omittedHalf] = coverageLine.split(" omitted=");
-  for (const feature of ["event:followed_edge", "field:candidate_follow_causality"]) {
-    assert.ok(supportedHalf?.includes(feature), `${feature} now has a producer, so it must be SUPPORTED`);
-    assert.ok(!omittedHalf?.includes(feature), `a render may not deny ${feature} on a trace carrying it`);
-  }
-
-  // ADR-0260 D7, sharpened: the command-form gap keeps its id but its note now says a BARE command
-  // loses the edge outright, and D4's asymmetry is stated in the same body — because the tree this
-  // trace draws is thin by design and a reader must be able to see why.
-  for (const caveatId of [
-    "doc-refs-are-offered-but-follows-are-unobservable",
-    "follow-completeness-depends-on-the-offered-command-form",
-    "an-unanswered-visit-and-a-bypassed-mechanism-are-indistinguishable",
-  ]) {
-    assert.ok(shown.stdout.includes(caveatId), `the declaration must surface caveat ${caveatId}`);
-  }
-});
-
-// ---------------------------------------------------------------------------
-// 9. a real replay draws the branches the session did NOT take
-// ---------------------------------------------------------------------------
-
-/** The lines of the rendered `decision points:` block, or `[]` when the block is absent entirely. */
-function decisionBlockLines(stdout: string): string[] {
-  const lines = stdout.split("\n");
-  const start = lines.findIndex((line) => line === "decision points:");
-  if (start === -1) return [];
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => line.trimEnd() === "" || line.startsWith("coverage-caveats:"));
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
-test("a-real-replay-draws-the-branches-not-taken: a real spawned replay renders every recorded offer's candidates with what the trace says happened to each, and a session that recorded no offer renders no block at all", () => {
-  const dir = freshDir("contract9");
-  const sessionId = "session-contract9";
-  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
-
-  // The offering read, then the follow-up it printed, run verbatim as an agent would paste it.
-  const offering = runCli(["library", "artifact", "plan"], env);
-  assert.equal(offering.status, 0, `expected the offering read to exit 0: ${offering.stderr}`);
-
-  const followUp = offering.stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .find((line) => line.startsWith("- storytree library artifact arc " + OFFER_FLAG + " "));
-  assert.ok(followUp !== undefined, `the offering read must print a pasteable follow-up; got:\n${offering.stdout}`);
-  const followArgs = followUp.replace(/^- storytree /, "").split(" ");
-
-  const followed = runCli(followArgs, env);
-  assert.equal(followed.status, 0, `expected the followed read to exit 0: ${followed.stderr}`);
-
-  const { replay } = readTraversalSession({ dir, sessionId });
-  const recordedOffer = candidateSetsOf(replay.events)[0];
-  assert.ok(recordedOffer !== undefined, "the offering read must have recorded its offer");
-  const answeringVisit = expectVisit(visitsOf(replay.events)[1], "the answering visit");
-  assert.equal(answeringVisit.nodeId, "arc");
-
-  const shown = runCli(["traversal", "show", sessionId], env);
-  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
-
-  const block = decisionBlockLines(shown.stdout);
-  assert.ok(block.length > 0, `the replay must render a decision-points block; got:\n${shown.stdout}`);
-
-  // The block names the offer this read actually recorded — not some other set, and not a set id the
-  // test composed.
-  const summary = block.find((line) => line.includes(recordedOffer.candidateSetId));
-  assert.ok(
-    summary !== undefined,
-    `the block must name the recorded offer ${recordedOffer.candidateSetId}; got:\n${block.join("\n")}`,
-  );
-
-  // The candidate lines belonging to THIS offer: from its summary line up to the next summary line.
-  const summaryIdx = block.indexOf(summary);
-  const rest = block.slice(summaryIdx + 1);
-  const nextSummary = rest.findIndex((line) => line.startsWith("  candidate-set:"));
-  const candidateLines = nextSummary === -1 ? rest : rest.slice(0, nextSummary);
-
-  // EVERY offered id reaches the screen — the count rendered equals the count recorded. A picture
-  // that silently drops offers under-reports what was on the table, which is the exact quantity this
-  // arc measures.
-  assert.equal(
-    candidateLines.length,
-    recordedOffer.candidateNodeIds.length,
-    `every recorded candidate must render exactly once; got:\n${candidateLines.join("\n")}`,
-  );
-  for (const nodeId of recordedOffer.candidateNodeIds) {
-    assert.ok(
-      candidateLines.some((line) => line.includes(nodeId)),
-      `offered id ${nodeId} must appear in the block`,
-    );
-  }
-
-  // The branch TAKEN names the visit that answered it.
-  const followedLine = candidateLines.find((line) => line.includes("[followed]"));
-  assert.ok(followedLine !== undefined, "the answered offer must render as followed");
-  assert.ok(followedLine.includes("arc"), "…naming the node that was actually read");
-  assert.ok(
-    followedLine.includes(answeringVisit.visitId),
-    "…and naming the answering visit, so the edge is readable off the picture",
-  );
-
-  // The branches NOT taken are VISIBLE — the whole point of this leg. Before this capability the
-  // replay printed only `candidates=N` and an unfollowed branch appeared nowhere at all.
-  const notFollowed = candidateLines.filter((line) => line.includes("[not-followed]"));
-  assert.ok(
-    notFollowed.length > 0,
-    `at least one offered branch went untaken and must be drawn; got:\n${candidateLines.join("\n")}`,
-  );
-
-  // A `doc:` offer is UNOBSERVABLE, never a declined branch: no CLI read could follow one, so
-  // rendering it as not-followed would over-report how often the session turned an offer down.
-  const docIds = recordedOffer.candidateNodeIds.filter((id) => id.startsWith("doc:"));
-  for (const docId of docIds) {
-    const docLine = candidateLines.find((line) => line.includes(docId));
-    assert.ok(docLine !== undefined, `the doc: offer ${docId} must still be drawn — it really was offered`);
-    assert.ok(docLine.includes("[unobservable]"), "a doc: offer is unobservable, not a branch the session declined");
-    assert.ok(!docLine.includes("[not-followed]"), "…and must never be reported as declined");
-  }
-
-  // THE NEGATIVE HALF, in the same leg: a session that recorded no offer renders no block at all —
-  // the section appears only where a real offer was observed, never as a heading announcing an
-  // absence. Every trace captured before ADR-0260's producers landed has this shape.
-  const bareDir = freshDir("contract9-nooffer");
-  const bareSession = "session-contract9-nooffer";
-  const bareEnvironment = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: bareDir, STORYTREE_SESSION_ID: bareSession };
-  const spec = runCli(["tree", "spec", "context-traversal-telemetry"], bareEnvironment);
-  assert.equal(spec.status, 0, `expected the spec read to exit 0: ${spec.stderr}`);
-
-  const bareReplay = readTraversalSession({ dir: bareDir, sessionId: bareSession });
-  assert.equal(candidateSetsOf(bareReplay.replay.events).length, 0, "this read records no offer");
-  assert.ok(visitsOf(bareReplay.replay.events).length > 0, "…but it did record a visit, so the trace is real");
-
-  const bareShown = runCli(["traversal", "show", bareSession], bareEnvironment);
-  assert.equal(bareShown.status, 0, `expected traversal show to exit 0: ${bareShown.stderr}`);
-  assert.ok(
-    !bareShown.stdout.includes("decision points:"),
-    `a replay with no recorded offer must render no decision block; got:\n${bareShown.stdout}`,
-  );
-});
-
-// ---------------------------------------------------------------------------
-// 10. a real replay states how much of each offer set it could NOT see
-// ---------------------------------------------------------------------------
-
-/** The lines of the rendered `offer observability:` block, or `[]` when the block is absent. */
-function observabilityBlockLines(stdout: string): string[] {
-  const lines = stdout.split("\n");
-  const start = lines.findIndex((line) => line === "offer observability:");
-  if (start === -1) return [];
-  const rest = lines.slice(start + 1);
-  const end = rest.findIndex((line) => line.trimEnd() === "");
-  return end === -1 ? rest : rest.slice(0, end);
-}
-
-test("a-real-replay-states-how-much-of-each-offer-set-it-could-not-see: a real spawned replay renders the observable denominator beside the offered count, names a reason for every unobservable offer, and renders no block at all for a session that recorded none", () => {
-  const dir = freshDir("contract10");
-  const sessionId = "session-contract10";
-  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
-
-  // `plan`'s Sources block carries BOTH followable `asset:` refs and a `doc:` ref no CLI read reaches.
-  const offering = runCli(["library", "artifact", "plan"], env);
-  assert.equal(offering.status, 0, `expected the offering read to exit 0: ${offering.stderr}`);
-
-  const { replay } = readTraversalSession({ dir, sessionId });
-  const recordedOffer = candidateSetsOf(replay.events)[0];
-  assert.ok(recordedOffer !== undefined, "the offering read must have recorded its offer");
-
-  const docIds = recordedOffer.candidateNodeIds.filter((id) => id.startsWith("doc:"));
-  assert.ok(docIds.length > 0, "this leg needs an offer set that really does carry a doc: ref");
-
-  const shown = runCli(["traversal", "show", sessionId], env);
-  assert.equal(shown.status, 0, `expected traversal show to exit 0: ${shown.stderr}`);
-
-  const block = observabilityBlockLines(shown.stdout);
-  assert.ok(block.length > 0, `the replay must render an observability block; got:\n${shown.stdout}`);
-
-  const pointLine = block.find((line) => line.includes(recordedOffer.candidateSetId));
-  assert.ok(
-    pointLine !== undefined,
-    `the block must name the recorded offer ${recordedOffer.candidateSetId}; got:\n${block.join("\n")}`,
-  );
-
-  // The DENOMINATOR is the whole offer, not a filtered subset: `offered` equals what was recorded.
-  const offeredCount = recordedOffer.candidateNodeIds.length;
-  assert.ok(
-    pointLine.includes(`offered ${offeredCount}`),
-    `the offered count must equal the ${offeredCount} ids actually recorded; got: ${pointLine}`,
-  );
-
-  // …and `observable` is STRICTLY smaller, which is the distortion this leg exists to make legible:
-  // the `[candidate-set]` line beside it reports only the offered count, and a reader taking that as
-  // the denominator over-reports how often the session stayed inside the asset graph.
-  const observableMatch = /observable (\d+) of (\d+)/.exec(pointLine);
-  assert.ok(observableMatch !== null, `the point line must state "observable M of N"; got: ${pointLine}`);
-  const observableCount = Number(observableMatch[1]);
-  assert.equal(Number(observableMatch[2]), offeredCount, "…over the offered count as denominator");
-  assert.ok(
-    observableCount < offeredCount,
-    `a set carrying a doc: ref must report fewer observable than offered; got: ${pointLine}`,
-  );
-  assert.equal(
-    observableCount,
-    offeredCount - docIds.length,
-    "…and exactly the doc: refs are the ones no follow could land on",
-  );
-
-  // Every unobservable offer is accounted for by a NAMED reason, never a bare remainder.
-  assert.ok(
-    pointLine.includes(`unobservable ${docIds.length}:`),
-    `the unobservable count must be stated; got: ${pointLine}`,
-  );
-  assert.ok(
-    pointLine.includes("no-cli-read-shape-observes-a-visit-for-this-offer"),
-    `…with the reason named rather than left as a remainder; got: ${pointLine}`,
-  );
-
-  // The total line is the sentence that stops the misreading.
-  const totalLine = block.find((line) => line.includes("trace total"));
-  assert.ok(totalLine !== undefined, `the block must close with a trace total; got:\n${block.join("\n")}`);
-  assert.ok(
-    totalLine.includes("observable branches, not") && totalLine.includes("offered"),
-    `…stating the followed counts are over the observable branches; got: ${totalLine}`,
-  );
-
-  // The two DERIVED views cannot disagree about what was on the table: the decision block lists one
-  // line per offered id, and this block's denominator is that same count.
-  const decisionLines = decisionBlockLines(shown.stdout);
-  const decisionSummary = decisionLines.find((line) => line.includes(recordedOffer.candidateSetId));
-  assert.ok(decisionSummary !== undefined, "the decision block must name the same offer");
-  const decisionSummaryIdx = decisionLines.indexOf(decisionSummary);
-  const decisionRest = decisionLines.slice(decisionSummaryIdx + 1);
-  const nextDecisionSummary = decisionRest.findIndex((line) => line.startsWith("  candidate-set:"));
-  const decisionCandidateLines =
-    nextDecisionSummary === -1 ? decisionRest : decisionRest.slice(0, nextDecisionSummary);
-  assert.equal(
-    decisionCandidateLines.length,
-    offeredCount,
-    "the two derived views must agree on how many offers were on the table",
-  );
-
-  // NO PERCENTAGE anywhere in the block: a rounded share of a small offer set claims precision the
-  // observation does not carry.
-  assert.ok(
-    !block.some((line) => line.includes("%")),
-    `the observability block must render no percentage; got:\n${block.join("\n")}`,
-  );
-
-  // THE NEGATIVE HALF, in the same leg: a session that recorded no offer renders no block at all.
-  const bareDir = freshDir("contract10-nooffer");
-  const bareSession = "session-contract10-nooffer";
-  const bareEnvironment = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: bareDir, STORYTREE_SESSION_ID: bareSession };
-  const spec = runCli(["tree", "spec", "context-traversal-telemetry"], bareEnvironment);
-  assert.equal(spec.status, 0, `expected the spec read to exit 0: ${spec.stderr}`);
-
-  const bareReplay = readTraversalSession({ dir: bareDir, sessionId: bareSession });
-  assert.equal(candidateSetsOf(bareReplay.replay.events).length, 0, "this read records no offer");
-  assert.ok(visitsOf(bareReplay.replay.events).length > 0, "…but it did record a visit, so the trace is real");
-
-  const bareShown10 = runCli(["traversal", "show", bareSession], bareEnvironment);
-  assert.equal(bareShown10.status, 0, `expected traversal show to exit 0: ${bareShown10.stderr}`);
-  assert.ok(
-    !bareShown10.stdout.includes("offer observability:"),
-    `a replay with no recorded offer must render no observability block; got:\n${bareShown10.stdout}`,
-  );
-});

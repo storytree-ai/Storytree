@@ -19,8 +19,8 @@ import {
   renderCoverageCaveats,
   renderTraversalSession,
   resolveTraversalDir,
-  FOLLOW_OFFER_EDGE_CAVEATS,
-  FOLLOW_OFFER_EDGE_COVERAGE,
+  AGENT_DESCENT_CAVEATS,
+  AGENT_DESCENT_COVERAGE,
 } from "@storytree/context-traversal-capture";
 import type {
   CoverageCaveat,
@@ -43,26 +43,31 @@ import { BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
  * (currently the terminal CLI dispatch adapter and the build spawn boundary adapter). Reads only —
  * this composition writes nothing.
  *
- * The terminal declaration is the OUTERMOST composed constant — now `FOLLOW_OFFER_EDGE_COVERAGE`,
- * which composes `OFFER_CANDIDATE_SET_COVERAGE` → `AGENT_DESCENT_COVERAGE` → `REVISIT_LINK_COVERAGE`
- * → `observe-cli.ts`'s base. Each layer adds what the wired composition genuinely emits: increment 6
- * added `field:prior_visit_id` (same-node revisits), increment 11 added `field:parent_visit_id` (an
- * `agents <name>` render's floor-ref descent), `context-decision-tree-arc`'s first build increment
- * added `event:candidate_set` (a `library artifact <id>` render's recorded offer, ADR-0260 D1), and
- * its second adds `event:followed_edge` + `field:candidate_follow_causality` (an offer-carrying read
- * declaring the edge it answered, ADR-0260 D3). This is the one render the CLI actually calls, and
- * declaring an inner layer here printed a field under `omitted` on a trace that visibly carried it —
- * the self-denial ADR-0235 clause 6 forbids, and the shape the capacity render (#933), the
- * prior-visit render (#944) and the candidate-set render (#1003) each had to correct at this exact
- * seam. When a further layer is composed, this import moves to it — and the only way to know it
- * moved is to walk the real binary, because the owning package's own suite goes green either way.
+ * The terminal declaration is the OUTERMOST composed constant — now `AGENT_DESCENT_COVERAGE`, which
+ * composes `REVISIT_LINK_COVERAGE` → `observe-cli.ts`'s base. Each layer adds what the wired
+ * composition genuinely emits: increment 6 added `field:prior_visit_id` (same-node revisits) and
+ * increment 11 added `field:parent_visit_id` (an `agents <name>` render's floor-ref descent). This is
+ * the one render the CLI actually calls, and declaring an inner layer here printed a field under
+ * `omitted` on a trace that visibly carried it — the self-denial ADR-0235 clause 6 forbids, and the
+ * shape the capacity render (#933), the prior-visit render (#944) and the candidate-set render
+ * (#1003) each had to correct at this exact seam. When a further layer is composed, this import moves
+ * to it — and the only way to know it moved is to walk the real binary, because the owning package's
+ * own suite goes green either way.
  *
- * The body also carries the terminal adapter's CAVEATS (ADR-0260 D7). The closed feature enum can say
- * `event:followed_edge` is emitted; it cannot say why the resulting picture will still be thin — that
- * a `doc:` offer can never be observed as followed, that a follow is recorded only when the agent
- * re-uses the offered form CARRYING the offer id, and that an unanswered offer is indistinguishable
- * from a bypassed mechanism. ADR-0260 D4 forbids repairing any of those gaps by inference, so saying
- * so in the same body is the only mitigation there is.
+ * ⚠ ADR-0464 D1 moved it INWARD, which no earlier increment had done, so the seam now has a second
+ * direction to fail in. Two outer layers were DELETED with the citation-derived offer surface:
+ * `OFFER_CANDIDATE_SET_COVERAGE` (`event:candidate_set`, a `library artifact <id>` render's recorded
+ * offer) and `FOLLOW_OFFER_EDGE_COVERAGE` (`event:followed_edge` + `field:candidate_follow_causality`,
+ * an offer-carrying read declaring the edge it answered). Both kinds are back under `omitted`, which
+ * is the truth: nothing writes them any more. Declaring a retired layer here would be the mirror of
+ * the old failure — claiming an event the composition cannot produce — and it is the easier mistake to
+ * make, because the constant still exists in git history and reads as the more complete one.
+ *
+ * The body also carries the terminal adapter's CAVEATS (ADR-0235 clause 6). The closed feature enum
+ * can say those two kinds are omitted; it cannot say the omission is a DELIBERATE RETIREMENT rather
+ * than an unbuilt adapter, nor that recovering the lost offer→follow causality by joining a read to an
+ * earlier render is REFUSED rather than merely unimplemented — ADR-0260 D4's refusal outlives the
+ * mechanism it was written for. `AGENT_DESCENT_CAVEATS` states both.
  */
 export function showTraversalSessionAllAdapters(
   sessionId: string,
@@ -70,14 +75,14 @@ export function showTraversalSessionAllAdapters(
 ): TraversalRenderEnvelope {
   const { replay, skipped, identity, slots } = composeReplay(sessionId, opts);
   const rendered = renderTraversalSession(replay, { skipped, identity, slots });
-  const caveats = renderCoverageCaveats(FOLLOW_OFFER_EDGE_CAVEATS);
+  const caveats = renderCoverageCaveats(AGENT_DESCENT_CAVEATS);
   return { ...rendered, body: `${rendered.body}\n\ncoverage-caveats:\n${caveats}` };
 }
 
 /**
  * THE one place the installed-adapter coverage composition lives. Both the rendered replay above and
  * the structured view below read it, so a text reader and a UI reader can never be told different
- * things about what these adapters can observe — the drift the file header's `FOLLOW_OFFER_EDGE_COVERAGE`
+ * things about what these adapters can observe — the drift the file header's `AGENT_DESCENT_COVERAGE`
  * note describes (each composition layer moved this import outward, and only walking the real binary
  * caught it) would otherwise now have TWO places to hide instead of one.
  */
@@ -93,7 +98,7 @@ function composeReplay(
   // which is the same outward-moving-composition trap the coverage constant above documents.
   const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId });
   return {
-    replay: { ...replay, coverage: [FOLLOW_OFFER_EDGE_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
+    replay: { ...replay, coverage: [AGENT_DESCENT_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
     skipped,
     identity,
     slots,
@@ -210,7 +215,7 @@ export function replayTraversalSessionAllAdapters(
     events: replay.events,
     relationships: replay.relationships,
     coverage: replay.coverage,
-    coverageCaveats: FOLLOW_OFFER_EDGE_CAVEATS,
+    coverageCaveats: AGENT_DESCENT_CAVEATS,
     skipped,
     partial: skipped > 0,
     occupancy: {

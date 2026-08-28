@@ -9,7 +9,6 @@ import {
   observedIdSpelling,
   supportAdjacency,
   SupportGraphCycleError,
-  type DecisionOfferObservation,
   type DecisionReadObservation,
   type DecisionSupportGraph,
 } from "./decision-read-baseline.js";
@@ -45,29 +44,14 @@ function read(
   };
 }
 
-function offer(
-  partial: Partial<DecisionOfferObservation> & Pick<DecisionOfferObservation, "nodeId">,
-): DecisionOfferObservation {
-  return {
-    slotId: "slot-a",
-    candidateSetId: "candidate-set:v1",
-    at: "2026-08-01T00:00:00.000Z",
-    // Defaults to UNOBSERVABLE, which is the live majority: a `doc:`-spelled decision offer is never
-    // printed as a followable line, and ADR-0312 settled that the gap is measured rather than closed.
-    observable: false,
-    ...partial,
-  };
-}
 
 function baseline(
   reads: readonly DecisionReadObservation[],
-  offers: readonly DecisionOfferObservation[] = [],
   support: DecisionSupportGraph = ladder(),
   window: { from?: string; to?: string } = {},
 ) {
   return computeDecisionReadBaseline({
     reads,
-    offers,
     support,
     declaredFrom: window.from,
     declaredTo: window.to,
@@ -106,18 +90,6 @@ test("decision-read-baseline: the spelling census names each live form apart", (
   assert.equal(observedIdSpelling("merge-ceremony"), null);
 });
 
-test("decision-read-baseline: reads and offers in DIFFERENT spellings of one decision still join", () => {
-  // The measured live state: reads carry `doc:decisions/…`, offers carry the bare id (and vice
-  // versa). A raw-string join would score this pair as offered-and-never-followed.
-  const result = baseline(
-    [read({ nodeId: "doc:decisions/0010-a.md", at: "2026-08-01T02:00:00.000Z" })],
-    [offer({ nodeId: "adr-0010", at: "2026-08-01T01:00:00.000Z" })],
-  );
-  assert.equal(result.offersResolved, 1);
-  assert.equal(result.offersFollowed, 1);
-  assert.equal(result.decisionsOfferedNeverFollowed, 0);
-});
-
 // ---------------------------------------------------------------------------
 // The support adjacency — both edges walked, never summed, `supersedes` unreachable
 // ---------------------------------------------------------------------------
@@ -138,7 +110,7 @@ test("decision-read-baseline: the adjacency unions both support edges, so a reho
 });
 
 test("decision-read-baseline: the two edge populations are reported apart, never as one figure", () => {
-  const result = baseline([], [], ladder({ dependsOn: [{ from: 20, to: 12 }], decisionsCarryingDependsOn: 1 }));
+  const result = baseline([], ladder({ dependsOn: [{ from: 20, to: 12 }], decisionsCarryingDependsOn: 1 }));
   assert.equal(result.amendsEdges, 2);
   assert.equal(result.dependsOnEdges, 1);
   // The shape itself is the fence: there is no field on the baseline that sums them.
@@ -276,61 +248,22 @@ test("decision-read-baseline: a read onto a decision the log does not hold is re
 // Offer-to-follow
 // ---------------------------------------------------------------------------
 
-test("decision-read-baseline: a read BEFORE the offer is not a follow of it", () => {
-  const result = baseline(
-    [read({ nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z" })],
-    [offer({ nodeId: "adr-0010", at: "2026-08-01T05:00:00.000Z" })],
-  );
-  assert.equal(result.offersResolved, 1);
-  assert.equal(result.offersFollowed, 0);
-  assert.equal(result.decisionsOfferedNeverFollowed, 1);
-});
-
-test("decision-read-baseline: a read in a DIFFERENT slot is not a follow", () => {
-  const result = baseline(
-    [read({ slotId: "slot-b", nodeId: "adr-0010", at: "2026-08-01T05:00:00.000Z" })],
-    [offer({ slotId: "slot-a", nodeId: "adr-0010", at: "2026-08-01T01:00:00.000Z" })],
-  );
-  assert.equal(result.offersFollowed, 0);
-});
-
-test("decision-read-baseline: a decision offered constantly and never read is NOISE, and says so", () => {
-  const result = baseline(
-    [],
-    Array.from({ length: 50 }, (_, i) =>
-      offer({ nodeId: "adr-0020", candidateSetId: `candidate-set:v${i}` }),
-    ),
-  );
-  assert.deepEqual(result.offerFollowRows, [{ decision: 20, offered: 50, followed: 0 }]);
-  assert.equal(result.decisionsOfferedNeverFollowed, 1);
-});
-
-test("decision-read-baseline: an offer naming a non-decision is counted unresolved, never dropped", () => {
-  const result = baseline([], [offer({ nodeId: "merge-ceremony" })]);
-  assert.equal(result.offersObserved, 1);
-  assert.equal(result.offersResolved, 0);
-  assert.equal(result.offersUnresolved, 1);
-});
-
 // ---------------------------------------------------------------------------
 // The declared window
 // ---------------------------------------------------------------------------
 
-test("decision-read-baseline: the declared window bounds reads and offers alike", () => {
+test("decision-read-baseline: the declared window bounds the reads it counts", () => {
+  // Was "bounds reads and offers alike" until ADR-0464 D7 retired the offer half. The claim about
+  // reads is unchanged and is asserted on the same two timestamps.
   const result = baseline(
     [
       read({ nodeId: "adr-0010", at: "2026-07-01T00:00:00.000Z" }),
       read({ nodeId: "adr-0011", at: "2026-08-15T00:00:00.000Z" }),
     ],
-    [
-      offer({ nodeId: "adr-0010", at: "2026-07-01T00:00:00.000Z" }),
-      offer({ nodeId: "adr-0011", at: "2026-08-15T00:00:00.000Z" }),
-    ],
     ladder(),
     { from: "2026-08-01T00:00:00.000Z" },
   );
   assert.equal(result.readsObserved, 1);
-  assert.equal(result.offersObserved, 1);
   assert.equal(result.observedFrom, "2026-08-15T00:00:00.000Z");
 });
 
@@ -341,7 +274,6 @@ test("decision-read-baseline: the declared window bounds reads and offers alike"
 test("decision-read-baseline: a healthy reading reports no vacuity reason", () => {
   const result = baseline(
     [read({ windowId: "w1", nodeId: "adr-0010" }), read({ windowId: "w1", nodeId: "adr-0011" })],
-    [offer({ nodeId: "adr-0010" })],
   );
   assert.deepEqual(result.vacuity, []);
 });
@@ -354,7 +286,7 @@ test("decision-read-baseline: an EMPTY decision log is a vacuity reason, not a c
     decisionsCarryingDependsOn: 0,
     dependsOnNonDecisionTargets: 0,
   };
-  const result = baseline([read({ nodeId: "adr-0010" })], [offer({ nodeId: "adr-0010" })], empty);
+  const result = baseline([read({ nodeId: "adr-0010" })], empty);
   assert.ok(result.vacuity.some((reason) => reason.includes("0 decisions")));
 });
 
@@ -367,7 +299,7 @@ test("decision-read-baseline: vacuity ANDs the two support edges and never tests
     dependsOn: [{ from: 10, to: 11 }, { from: 11, to: 12 }],
     decisionsCarryingDependsOn: 4,
   });
-  const result = baseline([read({ nodeId: "adr-0010" })], [offer({ nodeId: "adr-0010" })], drained);
+  const result = baseline([read({ nodeId: "adr-0010" })], drained);
   assert.equal(result.amendsEdges, 0);
   assert.ok(
     !result.vacuity.some((reason) => reason.includes("support edges")),
@@ -376,23 +308,22 @@ test("decision-read-baseline: vacuity ANDs the two support edges and never tests
 
   // ...and a log with NEITHER edge does fire it.
   const edgeless = ladder({ amends: [], dependsOn: [] });
-  const blind = baseline([read({ nodeId: "adr-0010" })], [offer({ nodeId: "adr-0010" })], edgeless);
+  const blind = baseline([read({ nodeId: "adr-0010" })], edgeless);
   assert.ok(blind.vacuity.some((reason) => reason.includes("support edges")));
 });
 
-test("decision-read-baseline: zero reads and zero offers each name themselves, separately", () => {
-  const noReads = baseline([], [offer({ nodeId: "adr-0010" })]);
+test("decision-read-baseline: zero reads names itself as a vacuity reason", () => {
+  // The offer half of this test went with the figure (ADR-0464 D7): there is no longer a
+  // "0 decision offers were recorded" reason to assert, because nothing records offers and a reason
+  // that fired on every run would report the instrument as broken rather than the corpus as quiet.
+  const noReads = baseline([]);
   assert.ok(noReads.vacuity.some((reason) => reason.includes("0 decision reads were observed")));
-
-  const noOffers = baseline([read({ windowId: "w1", nodeId: "adr-0010" })], []);
-  assert.ok(noOffers.vacuity.some((reason) => reason.includes("0 decision offers were recorded")));
 });
 
 test("decision-read-baseline: reads that all fail to resolve are a JOIN failure, not a quiet corpus", () => {
   // The pointer-spelling regression, wearing a new coat: numbers that compute and are wrong.
   const result = baseline(
     [read({ nodeId: "0419" }), read({ nodeId: "ADR-0419" })],
-    [offer({ nodeId: "adr-0010" })],
   );
   assert.equal(result.readsObserved, 2);
   assert.equal(result.readsResolved, 0);
@@ -400,7 +331,7 @@ test("decision-read-baseline: reads that all fail to resolve are a JOIN failure,
 });
 
 test("decision-read-baseline: the vacuity function is total over its own output", () => {
-  const result = baseline([read({ windowId: "w1", nodeId: "adr-0010" })], [offer({ nodeId: "adr-0010" })]);
+  const result = baseline([read({ windowId: "w1", nodeId: "adr-0010" })]);
   // Recomputing over the returned baseline must agree with what the baseline already carries —
   // otherwise the reported reasons and the computed ones could drift apart silently.
   assert.deepEqual(decisionReadBaselineVacuity(result), result.vacuity);
@@ -410,40 +341,16 @@ test("decision-read-baseline: the vacuity function is total over its own output"
 // The observable-branch denominator — ADR-0312's rule, honoured without discarding the rest
 // ---------------------------------------------------------------------------
 
-test("decision-read-baseline: the follow rate is reported over BOTH populations, never only the offered one", () => {
-  // `decision-read-measurement-arc-inc-01` (PR #1570) requires the OBSERVABLE-branch rate, because a
-  // near-zero `followed_edge` count is a property of the CLI follow machinery rather than evidence
-  // about agents. But this baseline's follow is a READ recovered from the read record, which exists
-  // for every spelling — so it can see a follow of an offer that machinery calls unobservable, and
-  // discarding those would throw away most of what the instrument genuinely saw. Both, with their
-  // own denominators.
-  const result = baseline(
-    [read({ nodeId: "adr-0010", at: "2026-08-01T05:00:00.000Z" })],
-    [
-      // Followed, and UNOBSERVABLE — the case a rate over observable branches alone cannot see.
-      offer({ nodeId: "doc:decisions/0010-a.md", at: "2026-08-01T01:00:00.000Z", observable: false }),
-      // Followed, and observable.
-      offer({ nodeId: "adr-0010", at: "2026-08-01T02:00:00.000Z", observable: true }),
-      // Observable and NOT followed.
-      offer({ nodeId: "adr-0020", at: "2026-08-01T02:00:00.000Z", observable: true }),
-    ],
-  );
-  assert.equal(result.offersResolved, 3);
-  assert.equal(result.offersFollowed, 2);
-  assert.equal(result.offersObservable, 2);
-  assert.equal(result.offersObservableFollowed, 1);
-});
-
-test("decision-read-baseline: zero observable offers is a denominator, never a vacuity reason", () => {
-  // WHAT WOULD MAKE THIS RED: promoting the observable-branch emptiness to a vacuity reason. ADR-0312
-  // settled that the `doc:` gap is measured and NOT closed, and ADR-0419 D3 makes the mixed period
-  // deliberately long — so a probe that failed on it would be a standing false red rather than a
-  // finding, which is exactly the call `decisionWalkVacuity` already made about reader-blindness.
-  const result = baseline(
-    [read({ windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T05:00:00.000Z" })],
-    [offer({ nodeId: "doc:decisions/0010-a.md", at: "2026-08-01T01:00:00.000Z", observable: false })],
-  );
-  assert.equal(result.offersObservable, 0);
-  assert.equal(result.offersFollowed, 1, "the read record still saw the follow");
-  assert.deepEqual(result.vacuity, []);
+test("decision-read-baseline: observedFrom/To are the window's EXTREMES, so the timestamps must be sorted", () => {
+  // Pins the `.sort()` on the observed-window bounds. Fed OUT OF ORDER deliberately: without the
+  // sort, `observedFrom` is whichever read happened to come first in the input array and
+  // `observedTo` whichever came last, so a baseline would report a window narrower than the reads it
+  // actually saw — and would do it silently, since both fields would still hold real timestamps.
+  const result = baseline([
+    read({ nodeId: "adr-0011", at: "2026-08-15T00:00:00.000Z" }),
+    read({ nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z" }),
+    read({ nodeId: "adr-0012", at: "2026-08-30T00:00:00.000Z" }),
+  ]);
+  assert.equal(result.observedFrom, "2026-08-01T00:00:00.000Z", "the EARLIEST read, not the first one handed in");
+  assert.equal(result.observedTo, "2026-08-30T00:00:00.000Z", "the LATEST read, not the last one handed in");
 });

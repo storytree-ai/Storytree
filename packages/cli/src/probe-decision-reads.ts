@@ -59,9 +59,7 @@
 
 import { resolveTraversalDir } from "@storytree/context-traversal-capture";
 import {
-  collectDecisionReadCoverage,
   ingestDecisionReads,
-  renderDecisionReadCoverage,
   renderDecisionReadIngest,
   resolveTranscriptDir,
 } from "@storytree/context-traversal-transcript";
@@ -71,6 +69,9 @@ const TAG = "probe:decision-reads";
 function main(): void {
   const dryRun = process.argv.slice(2).includes("--dry-run");
 
+  // `traceDir` is the ingest's WRITE target — the sweep folds each extracted read into that
+  // session's trace — so it survives ADR-0464 D1 untouched. Only the coverage READ of the same
+  // directory went (see below).
   const traceDir = resolveTraversalDir();
   const transcriptDir = resolveTranscriptDir();
 
@@ -117,23 +118,17 @@ function main(): void {
   //
   // It reads the traversal record BACK, after the ingest above has written into it, so the picture
   // it prints is the one a baseline consumer would actually query. Ordered after the ingest for that
-  // reason and not by taste: run before it, it would report the record as it was one sweep ago and a
-  // reader would take a stale join for the current one.
+  // THE COVERAGE SECTION WAS DELETED HERE BY ADR-0464 D1. It rendered
+  // `collectDecisionReadCoverage`, whose whole subject was the offer/read JOIN — how many decision
+  // pointers a render OFFERED, in which spelling, how many of those offers a follow could ever have
+  // been observed on, and how many were answered. Nothing records an offer any more, so the section
+  // could only ever have printed zeroes, and a zero there reads as "agents follow nothing" rather
+  // than "there is nothing left to count". The module behind it went with it.
   //
-  // On a DRY RUN it still reports, and honestly — the ingest wrote nothing, so what it describes is
-  // the record as it stands WITHOUT this sweep's reads. That is a real state to be able to inspect
-  // (it is what every consumer sees until the sweep is run for real), so the render says which mode
-  // produced it rather than being suppressed.
-  console.log("");
-  console.log(renderDecisionReadCoverage(collectDecisionReadCoverage({ traceDir })));
-  if (dryRun) {
-    console.log("");
-    console.log(
-      `${TAG} — the section above describes the record WITHOUT this sweep's ${result.extracted} ` +
-        "read(s): a dry run appended nothing. Re-run without --dry-run to fold them in.",
-    );
-  }
-
+  // What this probe still does is unchanged and is its main job: sweep the host transcripts and fold
+  // the decision READS into the trace. That population is untouched by the retirement — it is read
+  // from the harness's own transcripts, never from the traversal record's offers — and it is what
+  // ADR-0464 D7 preserves when it says chain depth stands.
   console.log("");
   console.log(
     `${TAG} — swept ${result.scannedFiles} file(s); ${result.extracted} read(s) extracted, ` +
