@@ -18,12 +18,20 @@
 // first time a theme moves it, leaving a token called `forest-green` painting something that is
 // not green. Nothing in this file may acquire a colour word in its name.
 //
-// ⚠⚠ ONLY THREE OF THE SIX MAPPINGS ARE THE OWNER'S. He named `forest`, `swamp` and
-// `wheatfield` on 2026-08-27 ("swap the colors for color theme names like forest-green,
-// swamp-black, wheatfield-yellow"), and ADR-0461 D5 says in terms that *"which terrain maps to
-// which state beyond the three the owner named"* is NOT decided. The other three — `fallow`,
-// `heath`, `scree` — are AUTHORED HERE as a proposal and are flagged as such on every row.
-// They are for the owner to look at and accept or move; they are not a decision this file made.
+// ⚠⚠ ALL SIX MAPPINGS ARE SETTLED, AND THE ROWS RECORD WHICH THREE HE ORIGINATED. He named
+// `forest`, `swamp` and `wheatfield` on 2026-08-27 ("swap the colors for color theme names like
+// forest-green, swamp-black, wheatfield-yellow"). The other three — `heath`, `fallow`, `scree` —
+// were proposed here and ACCEPTED by him on 2026-08-28, verbatim: *"All three are fine."*
+// (`oq-three-of-the-six-land-names-are-mine-not-yours-accept-the`, settled; the arc carries the
+// full settlement.) ADR-0461 D5's *"which terrain maps to which state beyond the three the owner
+// named is not decided"* is therefore DISCHARGED rather than standing.
+//
+// ⚠ THE ROWS WERE FLAGGED `proposed-here` UNTIL 2026-08-28 AND THAT FLAGGING WAS RIGHT — it is
+// what stopped a guess quietly becoming a decision nobody made. Keeping it after the answer would
+// have inverted its own purpose, making a settled vocabulary read as unsettled, so it came off in
+// the landing that built the theme layer. The origin distinction is KEPT, because "he named it"
+// and "he accepted it when asked" are different facts a later reader may need; what is gone is
+// the claim that anything here is still open.
 //
 // ⚠ WHAT A TERRAIN IS, MECHANICALLY, AND WHY IT IS THIS. A terrain warps the GRAIN OCTAVE's
 // sample space before the field is evaluated: a rotation and a non-uniform scale. That is
@@ -51,16 +59,21 @@ export const TERRAIN_STATES: readonly string[] = [
  *  and must not share a terrain, or the map loses the ability to tell them apart at all. */
 export type TerrainName = 'forest' | 'heath' | 'fallow' | 'wheatfield' | 'swamp' | 'scree';
 
-/** Who chose a mapping. Recorded per row rather than in prose, because the difference between
- *  "the owner said this" and "a session proposed this" is exactly what a later reader needs and
- *  exactly what prose loses. */
-export type TerrainProvenance = 'owner' | 'proposed-here';
+/** How a mapping became the owner's. Recorded per row rather than in prose, because the
+ *  difference between "he named this himself" and "the build proposed it and he accepted it" is
+ *  exactly what a later reader needs and exactly what prose loses.
+ *
+ *  ⚠ THERE IS NO UNSETTLED MEMBER, AND ITS ABSENCE IS THE DECISION. Every one of the six is his
+ *  as of 2026-08-28. A row cannot be marked as a guess any more, so re-entering a proposal into
+ *  this table means widening this union — a visible edit that asks the question out loud rather
+ *  than a flag someone can forget to set. */
+export type TerrainProvenance = 'owner-named' | 'owner-accepted';
 
 export interface Terrain {
   name: TerrainName;
   /** The state it carries. */
   state: string;
-  /** Who chose this mapping — see {@link TerrainProvenance}. */
+  /** How this mapping became his — see {@link TerrainProvenance}. */
   provenance: TerrainProvenance;
   /** What the terrain IS, in one line. The reason a reader can judge the mapping. */
   character: string;
@@ -104,7 +117,7 @@ export const TERRAINS: readonly Terrain[] = [
   {
     name: 'forest',
     state: 'healthy',
-    provenance: 'owner',
+    provenance: 'owner-named',
     character: 'closed canopy over undisturbed ground — no direction, no working',
     stretch: 1,
     bearing: 0,
@@ -114,7 +127,7 @@ export const TERRAINS: readonly Terrain[] = [
   {
     name: 'heath',
     state: 'mapped',
-    provenance: 'proposed-here',
+    provenance: 'owner-accepted',
     character: 'open scrub over surveyed ground — walked, marked, not worked',
     stretch: 1.7,
     bearing: deg(72),
@@ -124,7 +137,7 @@ export const TERRAINS: readonly Terrain[] = [
   {
     name: 'fallow',
     state: 'proposed',
-    provenance: 'proposed-here',
+    provenance: 'owner-accepted',
     character: 'ploughed and set out, nothing grown in it yet — wide bare furrows',
     stretch: 6,
     bearing: deg(18),
@@ -134,7 +147,7 @@ export const TERRAINS: readonly Terrain[] = [
   {
     name: 'wheatfield',
     state: 'building',
-    provenance: 'owner',
+    provenance: 'owner-named',
     character: 'the crop standing while the work is in flight — fine dense rows',
     stretch: 4,
     bearing: deg(18),
@@ -144,7 +157,7 @@ export const TERRAINS: readonly Terrain[] = [
   {
     name: 'swamp',
     state: 'unhealthy',
-    provenance: 'owner',
+    provenance: 'owner-named',
     character: 'standing water in broad pools — no direction, coarse and high-contrast',
     stretch: 1,
     bearing: 0,
@@ -154,7 +167,7 @@ export const TERRAINS: readonly Terrain[] = [
   {
     name: 'scree',
     state: 'unknown',
-    provenance: 'proposed-here',
+    provenance: 'owner-accepted',
     character: 'broken stone with nothing growing — the sparsest land there is',
     stretch: 1,
     bearing: 0,

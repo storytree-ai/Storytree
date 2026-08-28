@@ -28,7 +28,8 @@ import { buildContactField, mergeOcclusion } from './contact-shade.js';
 import { coverTokenFor, type GroundCover } from './ground-cover.js';
 import { variantAt } from './ground-variation.js';
 import { buildShadowField, type ShadowCaster, type ShadowField } from './land-shadow.js';
-import { terrainOf } from './terrain-vocabulary.js';
+import { terrainOf, type Terrain } from './terrain-vocabulary.js';
+import { resolveTheme, type LandTheme } from './land-theme.js';
 import {
   groundBounds,
   groundCellsFrom,
@@ -146,13 +147,40 @@ export type GroundVariation = 'single' | 'regional' | 'regional-deep';
  */
 export type LandPaletteChoice = 'live' | 'legacy' | 'pre-clay';
 
-/** The authored families for a palette choice. Not exported: nothing outside this file should be
- *  resolving a token table, because a caller holding one could hand it to a page that then
- *  reports its pixels as the shipped palette's. */
-function familiesFor(choice: LandPaletteChoice | undefined): ReadonlyMap<string, StatusFamily> {
+/** The authored families for a palette choice, or for a THEME. Not exported: nothing outside this
+ *  file should be resolving a token table, because a caller holding one could hand it to a page
+ *  that then reports its pixels as the shipped palette's.
+ *
+ *  ⚠ A THEME OUTRANKS A PALETTE CHOICE, and a panel asking for both is an author error rather than
+ *  a blend — `theme` names a whole vocabulary and `palette` names a frozen historical one, so
+ *  honouring both would deliver a picture that is neither. The refusal is loud for the same reason
+ *  every refusal in this harness is: a silently-resolved conflict produces a NUMBER, and a number
+ *  from the wrong palette is indistinguishable from a number from the right one. */
+function familiesFor(
+  choice: LandPaletteChoice | undefined,
+  theme: LandTheme | undefined,
+): ReadonlyMap<string, StatusFamily> {
+  if (theme) {
+    if (choice !== undefined && choice !== 'live') {
+      throw new Error(
+        `IslandView: a panel asked for theme '${theme.id}' AND the '${choice}' palette. A theme is a ` +
+          'whole vocabulary; pick one.',
+      );
+    }
+    return resolveTheme(theme).tokens;
+  }
   if (choice === 'legacy') return LEGACY_STATUS_TOKENS;
   if (choice === 'pre-clay') return ADR0462_STATUS_TOKENS;
   return STATUS_TOKENS;
+}
+
+/** The terrain a state wears under a theme, or under the shipped vocabulary when there is none.
+ *  ⚠ THIS IS "the resolution layer ADR-0461 D2 implies": source names a TERRAIN and a theme
+ *  resolves the name to delivered colour and land. Note what it does NOT do — it never lets a
+ *  panel choose which terrain a state gets. A theme substitutes what a terrain LOOKS LIKE; which
+ *  terrain a state wears is ADR-0461 D1's binding and is not a theme's to move. */
+function terrainsFor(theme: LandTheme | undefined): ReadonlyMap<string, Terrain> | undefined {
+  return theme ? resolveTheme(theme).terrainByState : undefined;
 }
 
 export interface IslandViewProps {
@@ -161,6 +189,17 @@ export interface IslandViewProps {
   /** Which authored status palette the land wears. Defaults to `live` — see
    *  {@link LandPaletteChoice} for why `legacy` exists and what it may not be used for. */
   palette?: LandPaletteChoice;
+  /**
+   * WHICH THEME THE LAND WEARS (ADR-0461 D3). A theme resolves all six terrain names to delivered
+   * colour and land at once; absent, the panel draws the shipped vocabulary exactly as it always
+   * did, so every panel predating themes delivers the pixels it delivered before.
+   *
+   * ⚠ IT DOES NOT EXEMPT A PANEL FROM THE FLOOR. A theme may move every hue on the map and may
+   * not let one state read as another (ADR-0461 D3) — `themeSeparation` is what says whether it
+   * does, and `theme-measure.mjs` is what says whether the delivered pixels agree. Rendering a
+   * theme here proves nothing about it; it only shows it.
+   */
+  theme?: LandTheme;
   /** Present at this many CSS pixels per ground unit. */
   displayPxPerUnit: number;
   /** Plant silhouette style — the owner's "circular swirls" fork. */
@@ -418,6 +457,7 @@ function groundMeshes(
   cover: GroundCover | undefined,
   terrain: boolean | undefined,
   families: ReadonlyMap<string, StatusFamily>,
+  terrains: ReadonlyMap<string, Terrain> | undefined,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
   const bevel = land === 'bevel' || land === 'full';
@@ -672,7 +712,9 @@ function groundMeshes(
     // the right ground character per parcel for free, rather than one terrain smeared over an
     // island whose cells disagree about what they are.
     if (terrain && status) {
-      const t = terrainOf(status);
+      // Under a theme the land comes from the theme's own resolution; with no theme it is the
+      // shipped vocabulary's. Either way it is looked up FROM THE STATUS and never passed in.
+      const t = terrains?.get(status) ?? terrainOf(status);
       if (t) groundMaterial.terrain = t;
     }
     meshes.push(new THREE.Mesh(geom, createBandedMaterial(groundMaterial)));
@@ -1016,12 +1058,13 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     props.grain,
     props.cover,
     props.terrain,
-    familiesFor(props.palette),
+    familiesFor(props.palette, props.theme),
+    terrainsFor(props.theme),
   )) {
     scene3.add(m);
   }
   if (props.plants !== false) {
-    for (const m of plantMesh(plants, props.style ?? 'mound', relief, familiesFor(props.palette)))
+    for (const m of plantMesh(plants, props.style ?? 'mound', relief, familiesFor(props.palette, props.theme)))
       scene3.add(m);
   }
   if (props.flowers !== false) for (const m of flowerMeshes(scene, relief)) scene3.add(m);
@@ -1135,6 +1178,7 @@ export function IslandPanel({
     props.cover,
     props.terrain,
     props.palette,
+    props.theme,
   ]);
   return (
     <figure className="panel">
