@@ -48,85 +48,38 @@ test("artifact <id> prints the artifact with its id and body", async () => {
   assert.match(env.body, /[Ee]dit/);
 });
 
-test("artifact <id> given an offerId prints a follow-up command per FOLLOWABLE ref, each carrying it", async () => {
-  // The CLI-side half of ADR-0260 D3 (glue, ADR-0158 — the proof lives in the capability's own file
-  // pair). `offerId` is pre-minted in main.ts so the id PRINTED here is the id capture RECORDS.
-  const store = new InMemoryStore();
-  await store.upsertDoc({
-    id: "offering-thing",
-    kind: "definition",
-    doc: {
-      kind: "definition",
-      id: "offering-thing",
-      title: "Offering Thing",
-      description: "offers two assets and one doc",
-      body: "b",
-      references: ["asset:merge-ceremony", "doc:decisions/0260-a-thing.md", "asset:arc"],
-    },
-  });
-
-  const withOffer = await run(["library", "artifact", "offering-thing"], {
-    store,
-    offerId: "candidate-set:visit-x",
-  });
-  assert.equal(withOffer.ok, true);
-  assert.deepEqual(withOffer.next, [
-    "storytree library tree focus offering-thing   (its local DAG)",
-    "storytree library artifact edit offering-thing   (coming soon)",
-    // the ordinary nav is untouched and the offer follow-ups are APPENDED — one per followable ref,
-    // in authored order, each naming the same offer. The `doc:` ref gets none: it resolves to a file,
-    // not to a CLI read, so there is no command that could follow it (the declared D7 caveat).
-    "storytree library artifact merge-ceremony --from-offer candidate-set:visit-x",
-    "storytree library artifact arc --from-offer candidate-set:visit-x",
-  ]);
-
-  // ADR-0320: the form does not travel alone. Printing it was measured insufficient (5048 offers,
-  // zero edges, 2026-08-06), so the ASK rides above it as the envelope's `note:` — and the ask is
-  // what makes the trailing flag read as the point of the line rather than a token to strip.
-  assert.ok(withOffer.note !== undefined && withOffer.note.length > 0, "the offered form carries its ask");
-  const noteText = (withOffer.note ?? []).join(" ");
-  assert.match(noteText, /AS PRINTED/, "it asks for the printed line, not a retyped one");
-  assert.match(noteText, /--from-offer/, "it names the flag that does the recording");
-  assert.match(noteText, /answered no offer/, "and it fences ADR-0320 D4 against naming an offer that was not followed");
-
-  // Without one — every test, and every run that will record no offer — the nav is exactly what it
-  // always was. A follow-up carrying an id nothing recorded is an id an agent can return.
-  const withoutOffer = await run(["library", "artifact", "offering-thing"], { store });
-  assert.deepEqual(withoutOffer.next, [
-    "storytree library tree focus offering-thing   (its local DAG)",
-    "storytree library artifact edit offering-thing   (coming soon)",
-  ]);
-  assert.equal(withoutOffer.note, undefined, "no offer, no ask — the envelope is unchanged (ADR-0241 D2)");
-});
-
-test("artifact <id> whose refs are ALL doc: gets no follow-ups and therefore no note", async () => {
-  // The note is attached only where follow-ups were actually produced. An artifact offering nothing
-  // followable would otherwise carry an ask pointing at commands that are not there — noise on
-  // exactly the reads ADR-0260 D7's `doc:` caveat already calls unobservable.
-  const store = new InMemoryStore();
-  await store.upsertDoc({
-    id: "docs-only",
-    kind: "definition",
-    doc: {
-      kind: "definition",
-      id: "docs-only",
-      title: "Docs Only",
-      description: "every ref is a file, none is a CLI read",
-      body: "b",
-      references: ["doc:decisions/0260-a-thing.md", "doc:decisions/0320-another.md"],
-    },
-  });
-
-  const env = await run(["library", "artifact", "docs-only"], {
-    store,
-    offerId: "candidate-set:visit-y",
+test("artifact <id> offers the AUTHORED edge and NOT the citation that is only a citation", async () => {
+  // ADR-0464 D1/D2, replacing the two `offerId` tests that stood here. Those proved the citation-
+  // derived offer surface: one pasteable `--from-offer` follow-up per followable `references` entry,
+  // plus an ask stanza in the envelope's `note:`. Both are deleted; this is the successor claim.
+  //
+  // ⚠ THE FIXTURE IS CHOSEN SO THE NEGATIVE HALF CAN ACTUALLY FAIL. `resting-thing` CITES
+  // `asset:adr-0139`, and here it is deliberately NOT given as an authored edge — so `adr-0139` is a
+  // citation and nothing more. The retired block would have printed a follow-up for it, because its
+  // selection rule was "whatever happened to cite this". If that block is ever restored, this test
+  // reds by name.
+  //
+  // Phrasing matters as much as the fixture. "No line contains `--from-offer`" would have passed
+  // against a restored block that merely dropped the flag, AND against a render that had stopped
+  // emitting any onward block at all — the vacuous shape this landing exists to avoid, reproduced in
+  // the test written to prevent it. Asserting the whole `next` array pins both directions at once.
+  const env = await run(["library", "artifact", "resting-thing"], {
+    store: await withAuthoredEdges(["asset:never-bypass-the-gate"]),
   });
   assert.equal(env.ok, true);
   assert.deepEqual(env.next, [
-    "storytree library tree focus docs-only   (its local DAG)",
-    "storytree library artifact edit docs-only   (coming soon)",
+    "storytree library artifact never-bypass-the-gate   (Never bypass the gate [guardrail])",
+    "storytree library tree focus resting-thing   (its local DAG)",
+    "storytree library artifact edit resting-thing   (coming soon)",
   ]);
-  assert.equal(env.note, undefined, "nothing followable was offered, so there is nothing to ask about");
+
+  // The citation is still RECORDED — `Sources:` was never the defect and ADR-0464 keeps it. What is
+  // gone is printing it a second time as navigation, with its title and type grouping stripped off.
+  assert.ok(
+    env.body.includes("    - Consolidate the load-bearing set  (asset:adr-0139)"),
+    "the citation stays in the Sources block, where it says what this was WRITTEN FROM",
+  );
+  assert.equal(env.note, undefined, "the ADR-0320 ask stanza went with the surface it asked about");
 });
 
 test("artifact <id> for a process DERIVES its next: from branch-edges (ADR-0161 process graph)", async () => {

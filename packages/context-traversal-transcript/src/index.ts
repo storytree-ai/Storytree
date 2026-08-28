@@ -91,15 +91,13 @@ export {
   type TranscriptIngestResult,
 } from "./ingest-occupancy.js";
 
+// ADR-0464 D1 deleted `decision-read-coverage.ts`, whose subject was the offer/read join. The three
+// symbols below are the part of it that was never about offers — the reconciliation of the four live
+// spellings of a decision id — and they moved to `decision-reads.ts`, which is the read-side home and
+// already held the surface table they sit beside. `decision-read-baseline.ts`'s chain-depth and reach
+// figures import them, and ADR-0464 D7 preserves those figures explicitly.
 export {
-  collectDecisionReadCoverage,
-  renderDecisionReadCoverage,
   resolveDecisionId,
-  routeOfSurface,
-  summariseDecisionReadCoverage,
-  type CountsBy,
   type DecisionIdSpelling,
-  type DecisionReadCoverage,
-  type DecisionReadRoute,
   type ResolvedDecisionId,
-} from "./decision-read-coverage.js";
+} from "./decision-reads.js";
