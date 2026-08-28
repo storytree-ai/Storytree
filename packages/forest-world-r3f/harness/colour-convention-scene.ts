@@ -24,8 +24,9 @@
 import * as THREE from 'three';
 
 import { configureExactColour } from './banded-material.js';
+import { loadKit } from './kit-scene.js';
 import { calibrateLights, loadPine } from './pine-scene.js';
-import type { LightCalibration, LoadedPine } from './pine-scene.js';
+import type { LightCalibration } from './pine-scene.js';
 import {
   MIN_OPAQUE_FRACTION,
   OPAQUE_TEXEL_CUT,
@@ -38,8 +39,22 @@ import type { ConventionJudgement, Rgb } from './texture-convention.js';
 /** A decoded texture image, in the one shape both the 2D canvas and three's loaders answer. */
 type DecodedMap = CanvasImageSource & { width?: number; height?: number };
 
-/** Every committed asset this page judges. Adding one here is what puts it under the guard. */
-export const GUARDED_ASSETS: readonly string[] = ['/assets/pine-01.glb'];
+/**
+ * EVERY COMMITTED ASSET THIS PAGE JUDGES, EACH THROUGH THE LOADER THAT ACTUALLY LOADS IT.
+ *
+ * ⚠⚠ THE LOADER IS PART OF THE SUBJECT, and this was a real hole before it was closed. Both
+ * assets were judged through `loadPine`, so deleting the convention call from `kit-scene.ts` —
+ * the path the island page really uses — left every material still reporting RAW. The static
+ * scan caught it, which is why that leg exists; but a runtime probe that judges an asset through
+ * a loader nothing uses is answering about a code path no picture is drawn by.
+ *
+ * Adding an asset here is what puts it under this leg, and it must be paired with the loader its
+ * own page calls.
+ */
+export const GUARDED_ASSETS: ReadonlyArray<{ url: string; via: 'pine' | 'kit' }> = [
+  { url: '/assets/pine-01.glb', via: 'pine' },
+  { url: '/assets/dressing-kit.glb', via: 'kit' },
+];
 
 /**
  * The largest square buffer a swatch is rendered into. Each material is rendered at ITS OWN map's
@@ -55,6 +70,8 @@ export interface MaterialReport extends ConventionJudgement {
   /** The side of the buffer it was rendered into, and how much of the map was solid. */
   swatchPx: number;
   opaqueFraction: number;
+  /** What fraction of the swatch's pixels survived the alpha test and entered the mean. */
+  coveredFraction: number;
   /** Mean of the map's texels, and mean of the map's texels after linearising. */
   sourceMeanRaw: Rgb;
   sourceMeanLinear: Rgb;
@@ -178,6 +195,20 @@ function swatchMaterial(base: THREE.MeshStandardMaterial, map: THREE.Texture): T
   m.metalnessMap = null;
   m.aoMap = null;
   m.emissiveMap = null;
+  // ⚠⚠ AND THE VERTEX COLOURS GO, BECAUSE THE SWATCH'S GEOMETRY HAS NONE. This one produced a
+  // wrong verdict before it was found. The kit's `Logs` material carries `vertexColors: true` —
+  // its meshes ship a COLOR_0 attribute and three multiplies it into the base colour. A
+  // `PlaneGeometry` has no such attribute, so the shader multiplied by nothing and the swatch
+  // came out BLACK: delivered (1,1,1) against a map whose own mean is (93,72,59), which the
+  // check honestly reported as INDISCRIMINATE (both hypotheses collapse to black) rather than
+  // as a pass. It was the instrument that was wrong, not the asset — the logs render correctly
+  // on the island, where the real geometry carries its colours.
+  //
+  // The material's own vertex colours are therefore OUT OF SCOPE for this probe, and that is a
+  // stated limitation rather than a silent one: it judges base-colour MAPS. A vertex-colour
+  // channel is a second place colour enters this non-colour-managed pipeline and nothing here
+  // checks it.
+  m.vertexColors = false;
   // Solid texels only, matching the predicate the source mean was taken over exactly.
   m.alphaTest = OPAQUE_TEXEL_CUT / 255;
   m.transparent = false;
@@ -250,21 +281,34 @@ function renderSwatch(
 
 // ------------------------------------------------------------------ the run
 
-/** Every distinct material the loaded asset carries that has a base-colour map to judge. */
-function texturedMaterials(pine: LoadedPine): Map<string, THREE.MeshStandardMaterial> {
+/** Every distinct material an asset carries that has a base-colour map to judge, loaded through
+ *  the path its own page uses. */
+async function texturedMaterials(
+  asset: (typeof GUARDED_ASSETS)[number],
+): Promise<Map<string, THREE.MeshStandardMaterial>> {
+  const materials: Array<{ material: THREE.Material; name: string }> = [];
+  if (asset.via === 'kit') {
+    const kit = await loadKit(asset.url);
+    for (const assembly of kit.assemblies.values()) {
+      for (const part of assembly.objects) materials.push({ material: part.material, name: part.name });
+    }
+  } else {
+    const pine = await loadPine(asset.url);
+    for (const part of pine.parts) materials.push({ material: part.material, name: part.name });
+  }
+
   const out = new Map<string, THREE.MeshStandardMaterial>();
-  for (const part of pine.parts) {
-    const m = part.material;
-    if (!(m instanceof THREE.MeshStandardMaterial)) continue;
-    if (!m.map) continue;
-    out.set(m.name || part.name, m);
+  for (const { material, name } of materials) {
+    if (!(material instanceof THREE.MeshStandardMaterial)) continue;
+    if (!material.map) continue;
+    out.set(material.name || name, material);
   }
   return out;
 }
 
 export async function runColourConvention(
   canvas: HTMLCanvasElement,
-  assets: readonly string[] = GUARDED_ASSETS,
+  assets: typeof GUARDED_ASSETS = GUARDED_ASSETS,
 ): Promise<ConventionReport> {
   // ⚠ `alpha` so a discarded cut-out texel leaves a transparent pixel the readback can tell from
   // a solid one, and `premultipliedAlpha: false` so a solid pixel's rgb is written unscaled —
@@ -290,9 +334,9 @@ export async function runColourConvention(
   const materials: MaterialReport[] = [];
   const refusals: string[] = [];
 
-  for (const url of assets) {
-    const loaded = await loadPine(url);
-    const found = texturedMaterials(loaded);
+  for (const asset of assets) {
+    const url = asset.url;
+    const found = await texturedMaterials(asset);
 
     // ⚠ THE FLOOR THAT STOPS AN EMPTY RUN READING AS A GREEN. Every judgement below is per
     // material FOUND; an asset whose materials failed to load carries none and would pass over
@@ -334,7 +378,8 @@ export async function runColourConvention(
       const armRaw = swatchMaterial(material, rawTex);
       const armManaged = swatchMaterial(material, managedTex);
 
-      const delivered = renderSwatch(renderer, armTextured, calibration, swatchPx).mean;
+      const deliveredSwatch = renderSwatch(renderer, armTextured, calibration, swatchPx);
+      const delivered = deliveredSwatch.mean;
       const rawControl = renderSwatch(renderer, armRaw, calibration, swatchPx).mean;
       const managedControl = renderSwatch(renderer, armManaged, calibration, swatchPx).mean;
 
@@ -346,6 +391,7 @@ export async function runColourConvention(
         mapHeight: source.height,
         swatchPx,
         opaqueFraction: source.opaqueFraction,
+        coveredFraction: deliveredSwatch.covered / (swatchPx * swatchPx),
         sourceMeanRaw: source.raw,
         sourceMeanLinear: source.linear,
         delivered,

@@ -289,6 +289,14 @@ export function judgeColourConvention(obs: ConventionObservation): ConventionJud
  */
 export const ASSET_MATERIALS = {
   '/assets/pine-01.glb': ['Pine_Trunks', 'Pine_Branches'],
+  '/assets/dressing-kit.glb': [
+    'Logs',
+    'Pine_Branches',
+    'Pine_Foliage_02',
+    'Pine_Forest_Foliage',
+    'Pine_Rocks_01',
+    'Pine_Trunks',
+  ],
 } as const satisfies Record<string, readonly string[]>;
 
 /** Refuse an asset whose materials are not exactly the declared ones. */

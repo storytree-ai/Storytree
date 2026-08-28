@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>a whole island dressed from the bought kit — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 1900px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 16px; margin: 30px 0 10px; color: #b0bec5; font-weight: 600; }
+      p { max-width: 82ch; color: #b0bec5; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; text-transform: uppercase; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>A whole island, dressed out of the bought kit &mdash; beside the island as it is dressed today</h1>
+      <p>
+        Three arms on one island: <strong>bare</strong> (the control), <strong>today</strong> (the
+        <code>wild</code> composition &mdash; procedural canopy lathes, plants, flower markers) and
+        <strong>kit</strong> (the same ground, dressed from <code>dressing-kit.glb</code>). Every
+        prop in the kit arm carries a signal read off the island&rsquo;s own capabilities: a pine
+        per proven contract, standing dead wood where a capability is unhealthy, undergrowth where
+        one is not built yet, rocks for drift, logs for retired work, blooms for signed criteria.
+        A driveable surface, not a gallery &mdash; <code>kit-island-measure.mjs</code> reads the
+        payload, the frame cost and the pictures off <code>window</code>.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountKitIsland } from './kit-island-scene.ts';
+      mountKitIsland(document.getElementById('root')).catch((e) => {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e}</pre>`);
+      });
+    </script>
+  </body>
+</html>
