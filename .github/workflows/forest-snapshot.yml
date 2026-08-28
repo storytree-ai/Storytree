@@ -1,0 +1,136 @@
+name: Publish the public forest snapshot
+
+# THE JOB behind the public site's real forest (ADR-0453 D5/D7, the
+# `website-refresh-arc-forest-snapshot` increment).
+#
+# The public site is a static Astro build in a SEPARATE, PUBLIC repo with no database access by
+# design. It cannot read the corpus, so the only honest way for it to show the real forest is a
+# snapshot published on a cadence and STAMPED with the moment it was taken. This workflow is that
+# publisher: it reads the studio's own map fold against the live store here (where the credentials
+# are), writes `web/src/data/forest-snapshot.json` in the site repo, and pushes — which is what
+# triggers storytree-web's own deploy.
+#
+# ⚠ THIS IS NOT THE COMMITTED CORPUS MIRROR ADR-0302 D1 DELETED, and the distinction is not a
+# technicality. That file mirrored a canonical database FOR READERS WHO COULD REACH THE DATABASE,
+# and three ceremonies existed to police the two into agreement. Nothing here is policed: no
+# `check:*` rung compares the live corpus to the published file, none may be added, and no human
+# edits it. Staleness is not a defect of this artifact — it is what the artifact IS, which is
+# exactly why the page it feeds prints the date.
+#
+# ⚠ THE SNAPSHOT IS AN EXPORT OF AN EXISTING READER'S OUTPUT (ADR-0453 D7). The fold lives in
+# `apps/studio/server/forestSnapshot.ts` and reuses `/api/tree`'s own read plus the studio map's own
+# presentation fold. Do not add a query here. If the website ever needs a field this does not carry,
+# it is added to the allow-list in that module, next to the reasons.
+#
+# ⚠ WISPS ARE NOT PUBLISHED (ADR-0453 D5). A wisp renders a session working RIGHT NOW; in a nightly
+# snapshot that would show last night's sessions as live.
+
+on:
+  schedule:
+    # 18:00 UTC daily — early morning in the owner's timezone, so a refresh has landed before he
+    # looks. Nightly is the STARTING cadence and is deliberately the cheap end of the fork
+    # (`oq-how-often-should-the-public-forest-refresh`); on-merge is the other option and is one
+    # trigger change away.
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: forest-snapshot
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # keyless WIF to the live store (ADR-0021)
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 9.15.0
+
+      - name: Set up Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The site repo is PUBLIC, so the read needs no credential — but the PUSH does, and it is a
+      # different repo, so `GITHUB_TOKEN` cannot do it. Refused up front and by name: a missing
+      # secret must not be discovered at the push, after a snapshot has already been generated.
+      - name: Check the publish credential
+        env:
+          WEB_PUSH_TOKEN: ${{ secrets.WEB_PUSH_TOKEN }}
+        run: |
+          if [ -z "${WEB_PUSH_TOKEN}" ]; then
+            echo "::error::WEB_PUSH_TOKEN is not set. This job publishes into the SEPARATE public"
+            echo "::error::repo storytree-ai/storytree-web, which the built-in GITHUB_TOKEN cannot"
+            echo "::error::write to. Add a fine-grained PAT with Contents: write on storytree-web"
+            echo "::error::under Settings -> Secrets and variables -> Actions -> WEB_PUSH_TOKEN."
+            exit 1
+          fi
+
+      - name: Check out the site repo
+        env:
+          WEB_PUSH_TOKEN: ${{ secrets.WEB_PUSH_TOKEN }}
+        run: |
+          rm -rf web
+          git clone --quiet "https://x-access-token:${WEB_PUSH_TOKEN}@github.com/storytree-ai/storytree-web.git" web
+
+      - name: Authenticate to GCP (keyless WIF — ADR-0021)
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: projects/635716509357/locations/global/workloadIdentityPools/github-actions/providers/github
+          service_account: storytree-ci-presence@storytree-498613.iam.gserviceaccount.com
+
+      # Refuses and writes nothing when the store cannot answer — the fold falls back to the
+      # authored status ladder there, and every live story in this corpus is authored `proposed`, so
+      # an unguarded publish would put 35 identical grey islands on the public site rather than
+      # nothing (see `unpublishableReason`).
+      - name: Export the snapshot
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm web:forest-snapshot --out web/src/data/forest-snapshot.json
+
+      # The site must still BUILD with the new snapshot before any of it is published. Its own
+      # `assertSnapshot` reds the build on a shape it cannot honestly draw, and that check is worth
+      # nothing if it runs for the first time on the deploy that already pushed.
+      - name: Prove the site builds on it
+        working-directory: web
+        run: |
+          npm ci
+          npm run typecheck
+          npm test
+          npm run build
+
+      # Nothing to push when the corpus has not moved — the exporter sorts by id and stamps only
+      # `generatedAt`, so an unchanged forest still produces a one-line diff. Publishing that would
+      # deploy the site daily to change a timestamp nobody asked about; instead the site keeps
+      # saying the date it last actually changed, which is the more honest of the two.
+      - name: Publish if the forest moved
+        working-directory: web
+        env:
+          WEB_PUSH_TOKEN: ${{ secrets.WEB_PUSH_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name 'storytree snapshot'
+          git config user.email 'noreply@storytree.ai'
+          if git diff --quiet -- src/data/forest-snapshot.json; then
+            echo "The forest has not moved since the last publish — nothing to deploy."
+            exit 0
+          fi
+          summary=$(node -e "
+            const s = require('./src/data/forest-snapshot.json');
+            console.log(\`\${s.provenStoryCount} of \${s.storyCount} stories proven, \${s.capabilityCount} capabilities\`);
+          ")
+          git add src/data/forest-snapshot.json
+          git commit -m "snapshot: the forest as of $(date -u +%Y-%m-%d) — ${summary}"
+          git push origin HEAD:main
+          echo "Published. storytree-web's own deploy takes it from here."

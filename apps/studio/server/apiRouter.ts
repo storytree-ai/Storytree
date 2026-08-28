@@ -2056,6 +2056,116 @@ function reviewFeedSuggestionStore(backend: LibraryBackend): ReviewFeedSuggestio
   };
 }
 
+/**
+ * THE forest map read — the studio's fold, in one callable place.
+ *
+ * Extracted from the `/api/tree` route so it has a SECOND consumer that is not an HTTP client:
+ * the public website's forest snapshot exporter (`forestSnapshot.ts`, ADR-0453 D7). That decision
+ * requires the published snapshot to be an EXPORT OF AN EXISTING READER'S OUTPUT rather than a new
+ * computation over the store, because authored `status` is uniform in this corpus (every live story
+ * reads `proposed`) and the green a reader sees is COMPUTED here from signed verdicts. A website
+ * that folded the store itself would be a third reader, drifting from the studio and the CLI
+ * invisibly — which has already happened once between the two readers that exist.
+ *
+ * The route is now a two-liner over this; nothing about the read moved or changed.
+ */
+export async function buildTreePayload(
+  ctx: Pick<ApiContext, 'paths' | 'backend'>,
+): Promise<TreePayload> {
+  // map-server-memo (ADR-0240 stage 3): the FILE WALK alone is memoized by the stories corpus's
+  // on-disk fingerprint. The live enrichment below (verdicts, in-flight builds, open questions)
+  // is recomputed on EVERY request — nothing about the corpus on disk says whether a verdict was
+  // signed a second ago, so a file fingerprint can never be its freshness authority. The clone
+  // `memoizeCorpusWalk` hands back is mutated in place below; that mutation can never reach what
+  // is stored, so a later unchanged-corpus request is never served yesterday's live proof state.
+  // ADR-0445 D1: the QUESTION comes from the live store when it can answer, so it sits on the
+  // same clock as the PROOF enriched in below. The disk walk stays as the announced fallback —
+  // `selectHierarchy` cannot reach it without saying why, which is what keeps this from becoming
+  // the silently-preferred stale copy ADR-0302 D1 deleted.
+  const { foldWorkHierarchy } = await loadLibrary();
+  const selection = await selectHierarchy({
+    live: ctx.backend.workHierarchy?.bind(ctx.backend),
+    fold: (snapshot) => foldedToTreeWalk(foldWorkHierarchy(snapshot)),
+    disk: async () =>
+      (await memoizeCorpusWalk(ctx.paths.storiesDir, () => readTree(ctx.paths.storiesDir)))
+        .value,
+  });
+  announceHierarchyOrigin(selection);
+  const { payload, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } =
+    selection.read;
+  // Advisory enrichments (ADR-0048): no call ever throws — null
+  // (json store / DB down) just means the tree renders without that layer.
+  // Run in parallel so a down DB costs one 4s budget, not three. `builds`
+  // seeds the in-flight wisp layer so the world paints it on first load
+  // (the poll then keeps it fresh). `verdictEvents` feeds the per-test UAT
+  // crown roll-up (ADR-0082); absent on a backend that doesn't implement it
+  // (the json store / a partial mock). The `sessions` presence weave is
+  // RETIRED (ADR-0200 D7) — claim activity rides /api/activity + /api/claims.
+  const [verdicts, verdictEvents, builds, assets] = await Promise.all([
+    ctx.backend.latestVerdicts(),
+    ctx.backend.verdictEvents?.() ?? Promise.resolve(null),
+    ctx.backend.inFlightBuilds(),
+    // ADR-0107: the proving-process OQ-gate layer reads the live open-questions to withhold the
+    // green of any story with an open fork. Advisory like the rest — null on failure never throws.
+    ctx.backend.listAssets().catch(() => null),
+  ]);
+  if (verdicts) {
+    for (const story of payload.stories) {
+      const sv = verdicts[story.id];
+      if (sv) story.verdict = sv; // a capability/legacy story's OWN unit verdict, never a roll-up
+      for (const cap of story.capabilities) {
+        const cv = verdicts[cap.id];
+        if (cv) cap.verdict = cv;
+      }
+    }
+  }
+  // forest-parcels inc-2 (the marker walk): the story's WITNESSABLE UAT test criteria summary —
+  // ALWAYS set (even with no verdict events / a down DB, when every entry reads 'pending'), so the
+  // field is never silently missing on the wire. `rollupStatus` is the SAME per-test proof read
+  // `applyUatCrowns` / the attestations route's `provenOf` use.
+  const { rollupCriterionStatus } = await loadOrchestrator();
+  applyUatCriteria(
+    payload.stories,
+    uatCriteriaByStory,
+    verdictEvents,
+    rollupCriterionStatus,
+  );
+  // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT test criteria greens from the
+  // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
+  // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
+  // or no story declares per-test tests.
+  if (verdictEvents) {
+    const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } =
+      await loadOrchestrator();
+    // ADR-0097 §5 / owner Option A (2026-06-25): a covered brownfield plant greens the same as the
+    // crown counts it — run BEFORE the crown so the world's plants and crown agree. Independent of
+    // per-test UAT existing (a cap greens via its gate's coverage alone).
+    applyCapCoverage(payload.stories, coverageByStory, verdictEvents, rollupCapStatus);
+    if (uatTestCriteriaByStory.size > 0) {
+      applyUatCrowns(payload.stories, uatTestCriteriaByStory, coverageByStory, verdictEvents, rollupStoryGreen);
+    }
+    // ADR-0107 (generalising ADR-0106 d4): an OPEN question raised during a story's proving process
+    // — attached via a `node:<id>` reference — WITHHOLDS that story's green until it is resolved
+    // (retired). Run AFTER the crown passes (it only ever drops a `pass` crown to no-verdict, never
+    // paints red), so the world reflects an open fork the same way the CLI/spine roll-up does.
+    if (assets && assets.length > 0) {
+      const openQuestions = assets.filter((a) => a.category === 'open-question');
+      if (openQuestions.length > 0) {
+        const { openQuestionsGatingNode } = await loadLibrary();
+        const gatingCountByStory = new Map<string, number>();
+        for (const story of payload.stories) {
+          const n = openQuestionsGatingNode(openQuestions, story.id).length;
+          if (n > 0) gatingCountByStory.set(story.id, n);
+        }
+        if (gatingCountByStory.size > 0) {
+          applyOpenQuestionGate(payload.stories, gatingCountByStory, gateStoryGreenOnOpenQuestions);
+        }
+      }
+    }
+  }
+  if (builds && builds.length > 0) payload.builds = builds;
+  return payload;
+}
 // ---------- the dispatch ----------
 
 /** Everything one front (dev plugin / hosted server) wires into the route table. */
@@ -2122,99 +2232,7 @@ export async function handleApiRequest(
       await handleDocs(req, res, url, ctx.paths);
     } else if (url.pathname === '/api/tree') {
       if ((req.method ?? 'GET') !== 'GET') throw new HttpError(405, 'method not allowed');
-      // map-server-memo (ADR-0240 stage 3): the FILE WALK alone is memoized by the stories corpus's
-      // on-disk fingerprint. The live enrichment below (verdicts, in-flight builds, open questions)
-      // is recomputed on EVERY request — nothing about the corpus on disk says whether a verdict was
-      // signed a second ago, so a file fingerprint can never be its freshness authority. The clone
-      // `memoizeCorpusWalk` hands back is mutated in place below; that mutation can never reach what
-      // is stored, so a later unchanged-corpus request is never served yesterday's live proof state.
-      // ADR-0445 D1: the QUESTION comes from the live store when it can answer, so it sits on the
-      // same clock as the PROOF enriched in below. The disk walk stays as the announced fallback —
-      // `selectHierarchy` cannot reach it without saying why, which is what keeps this from becoming
-      // the silently-preferred stale copy ADR-0302 D1 deleted.
-      const { foldWorkHierarchy } = await loadLibrary();
-      const selection = await selectHierarchy({
-        live: ctx.backend.workHierarchy?.bind(ctx.backend),
-        fold: (snapshot) => foldedToTreeWalk(foldWorkHierarchy(snapshot)),
-        disk: async () =>
-          (await memoizeCorpusWalk(ctx.paths.storiesDir, () => readTree(ctx.paths.storiesDir)))
-            .value,
-      });
-      announceHierarchyOrigin(selection);
-      const { payload, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } =
-        selection.read;
-      // Advisory enrichments (ADR-0048): no call ever throws — null
-      // (json store / DB down) just means the tree renders without that layer.
-      // Run in parallel so a down DB costs one 4s budget, not three. `builds`
-      // seeds the in-flight wisp layer so the world paints it on first load
-      // (the poll then keeps it fresh). `verdictEvents` feeds the per-test UAT
-      // crown roll-up (ADR-0082); absent on a backend that doesn't implement it
-      // (the json store / a partial mock). The `sessions` presence weave is
-      // RETIRED (ADR-0200 D7) — claim activity rides /api/activity + /api/claims.
-      const [verdicts, verdictEvents, builds, assets] = await Promise.all([
-        ctx.backend.latestVerdicts(),
-        ctx.backend.verdictEvents?.() ?? Promise.resolve(null),
-        ctx.backend.inFlightBuilds(),
-        // ADR-0107: the proving-process OQ-gate layer reads the live open-questions to withhold the
-        // green of any story with an open fork. Advisory like the rest — null on failure never throws.
-        ctx.backend.listAssets().catch(() => null),
-      ]);
-      if (verdicts) {
-        for (const story of payload.stories) {
-          const sv = verdicts[story.id];
-          if (sv) story.verdict = sv; // a capability/legacy story's OWN unit verdict, never a roll-up
-          for (const cap of story.capabilities) {
-            const cv = verdicts[cap.id];
-            if (cv) cap.verdict = cv;
-          }
-        }
-      }
-      // forest-parcels inc-2 (the marker walk): the story's WITNESSABLE UAT test criteria summary —
-      // ALWAYS set (even with no verdict events / a down DB, when every entry reads 'pending'), so the
-      // field is never silently missing on the wire. `rollupStatus` is the SAME per-test proof read
-      // `applyUatCrowns` / the attestations route's `provenOf` use.
-      const { rollupCriterionStatus } = await loadOrchestrator();
-      applyUatCriteria(
-        payload.stories,
-        uatCriteriaByStory,
-        verdictEvents,
-        rollupCriterionStatus,
-      );
-      // ADR-0083 Fork A (refining ADR-0082): a story that declares per-test UAT test criteria greens from the
-      // AND of (all capabilities proven healthy) AND (the per-test UAT roll-up) — overriding any
-      // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
-      // or no story declares per-test tests.
-      if (verdictEvents) {
-        const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } =
-          await loadOrchestrator();
-        // ADR-0097 §5 / owner Option A (2026-06-25): a covered brownfield plant greens the same as the
-        // crown counts it — run BEFORE the crown so the world's plants and crown agree. Independent of
-        // per-test UAT existing (a cap greens via its gate's coverage alone).
-        applyCapCoverage(payload.stories, coverageByStory, verdictEvents, rollupCapStatus);
-        if (uatTestCriteriaByStory.size > 0) {
-          applyUatCrowns(payload.stories, uatTestCriteriaByStory, coverageByStory, verdictEvents, rollupStoryGreen);
-        }
-        // ADR-0107 (generalising ADR-0106 d4): an OPEN question raised during a story's proving process
-        // — attached via a `node:<id>` reference — WITHHOLDS that story's green until it is resolved
-        // (retired). Run AFTER the crown passes (it only ever drops a `pass` crown to no-verdict, never
-        // paints red), so the world reflects an open fork the same way the CLI/spine roll-up does.
-        if (assets && assets.length > 0) {
-          const openQuestions = assets.filter((a) => a.category === 'open-question');
-          if (openQuestions.length > 0) {
-            const { openQuestionsGatingNode } = await loadLibrary();
-            const gatingCountByStory = new Map<string, number>();
-            for (const story of payload.stories) {
-              const n = openQuestionsGatingNode(openQuestions, story.id).length;
-              if (n > 0) gatingCountByStory.set(story.id, n);
-            }
-            if (gatingCountByStory.size > 0) {
-              applyOpenQuestionGate(payload.stories, gatingCountByStory, gateStoryGreenOnOpenQuestions);
-            }
-          }
-        }
-      }
-      if (builds && builds.length > 0) payload.builds = builds;
-      sendJsonValidated(req, res, 200, payload);
+      sendJsonValidated(req, res, 200, await buildTreePayload(ctx));
     } else if (url.pathname === '/api/activity') {
       await handleActivity(req, res, ctx.backend);
     } else if (url.pathname === '/api/arcs' || url.pathname.startsWith('/api/arcs/')) {
