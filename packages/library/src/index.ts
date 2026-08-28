@@ -147,12 +147,16 @@ export * from "./graduation/graduation.js";
 export * from "./graduation/park.js";
 export {
   groupSources,
+  sourceGroupOf,
   SOURCE_GROUP_ORDER,
   type SourceGroup,
   type SourceGroupName,
   type ResolvedSource,
   type AssetTarget,
 } from "./knowledge-sources.js";
+// ADR-0464 D2: the authored `dependsOn` edge read as the rendered onward block. Pure + browser-safe,
+// like its `groupSources` neighbour — it resolves pointers through a caller-supplied corpus view.
+export { dependsOnEdges, type DependsOnEdge } from "./depends-on-edges.js";
 export {
   LibraryAsset,
   LibraryTemplate,
