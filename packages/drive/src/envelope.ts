@@ -105,8 +105,14 @@ export interface ContextNode {
  * un-deferred by ADR-0161) emit through this one helper over a compatible edge shape, so the Library
  * DAG stays one graph with one navigation format — never a bespoke per-surface `next:`. The caller
  * (each node type's extractor) is what knows how to READ a node into edges; the emitter is agnostic.
+ *
+ * The return type NARROWS `Envelope.next` from optional to present, which is simply what this
+ * function has always done — it maps the edges and sets the field on every path. Saying so in the
+ * type is what lets a caller splice the derived commands into its own nav without a `?? []` default
+ * that can never be taken: an unreachable fallback is a branch no test can kill, and the diff-scoped
+ * mutation rung (ADR-0458) is right to call that unproven rather than covered.
  */
-export function emitNodeEnvelope(node: ContextNode): Envelope {
+export function emitNodeEnvelope(node: ContextNode): Envelope & { readonly next: readonly string[] } {
   const next = node.edges.map((e) => {
     const id = e.ref.replace(/^asset:/, "");
     const cmd = `storytree library artifact ${id}`;

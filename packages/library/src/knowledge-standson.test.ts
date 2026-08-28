@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  DAG_EXCLUDED_KINDS,
   EDGE_FREE_KINDS,
   KIND_SPECS,
   Knowledge,
@@ -11,6 +12,7 @@ import {
   type KnowledgeKind,
 } from "./knowledge.js";
 import { validateLibraryDoc } from "./library-doc.js";
+import { KNOWLEDGE_TIERS, TIER_ZERO_KINDS } from "./standson-bootstrap.js";
 
 /**
  * ADR-0223 D1's `dependsOn` admission — the authored dependency edge, distinct from and additive to
@@ -86,10 +88,11 @@ test("library-standson-admitted-on-dag-kinds: every kind outside the transient s
 });
 
 test("library-standson-admitted-on-dag-kinds: the kinds outside the DAG stay edge-free, fail-closed", () => {
-  // `definition` joins the two signal kinds for a DIFFERENT reason (ADR-0363 D1, amending ADR-0223
-  // dec 3's tier 1): it is durable, but the depth it would contribute buys nothing a reader uses,
-  // and it is the corpus's densest mutually-constitutive citation core.
-  assert.deepEqual([...EDGE_FREE_KINDS].sort(), ["definition", "friction", "open-question"]);
+  // THE TRANSIENT SIGNAL TIER, AND NOTHING ELSE (ADR-0223 D1, narrowed by ADR-0468 D1). `definition`
+  // sat here until ADR-0468: ADR-0363 D1 had excluded it from the DAG for a reason entirely about
+  // DEPTH and enforced that at the schema, which made ADR-0464 D4's backfill of the tier impossible.
+  // The depth exclusion survives, one assertion down, in `DAG_EXCLUDED_KINDS`.
+  assert.deepEqual([...EDGE_FREE_KINDS].sort(), ["friction", "open-question"]);
 
   for (const kind of KINDS.filter((k) => EDGE_FREE_KINDS.has(k))) {
     assert.equal(
@@ -102,6 +105,57 @@ test("library-standson-admitted-on-dag-kinds: the kinds outside the DAG stay edg
     const result = Knowledge.safeParse({ ...minimalDoc(kind), dependsOn: ["asset:red-green"] });
     assert.equal(result.success, false, `${kind} must refuse an authored dependsOn`);
   }
+});
+
+test("library-standson-every-kind-is-placed: the tier order and the two exclusion sets partition the kinds", () => {
+  // WHAT THIS REPLACES, AND WHY IT IS STRONGER. ADR-0365 D1 repaired `uat-criterion` — a kind that
+  // arrived and was placed NOWHERE, so it was outside the graph for the seed and inside it for the
+  // schema, with nothing on record saying which was meant — by making tier-map absence and
+  // `EDGE_FREE_KINDS` membership AGREE. That invariant could only be stated while every out-of-DAG
+  // kind happened to be edge-free, and it said nothing at all about a kind left out of BOTH, which
+  // is the shape that actually bit. ADR-0468 D2 separates the two questions (does the schema admit
+  // the field / does the kind rank in the DAG), so the agreement is gone and this partition stands
+  // in its place: every kind is accounted for EXACTLY ONCE, and a new kind nobody places reds here.
+  const unplaced: string[] = [];
+  const doubled: string[] = [];
+  for (const kind of KINDS) {
+    const homes = [
+      KNOWLEDGE_TIERS.has(kind) ? "tier" : null,
+      TIER_ZERO_KINDS.has(kind) ? "tier-0" : null,
+      EDGE_FREE_KINDS.has(kind) ? "edge-free" : null,
+      DAG_EXCLUDED_KINDS.has(kind) ? "dag-excluded" : null,
+    ].filter((h): h is string => h !== null);
+    if (homes.length === 0) unplaced.push(kind);
+    if (homes.length > 1) doubled.push(`${kind} (${homes.join(" + ")})`);
+  }
+  assert.deepEqual(
+    unplaced,
+    [],
+    "every kind must be placed: give it a KNOWLEDGE_TIERS tier, or name it in TIER_ZERO_KINDS (the " +
+      "bedrock nothing sits beneath), EDGE_FREE_KINDS (the schema refuses the field) or " +
+      "DAG_EXCLUDED_KINDS (it carries the field but does not rank)",
+  );
+  assert.deepEqual(doubled, [], "a kind must sit in exactly one of the four, never two");
+
+  // The two single-member sets, spelled out — so removing either member is a visible edit rather
+  // than something a refactor does by accident. `adr` earned its entry by failing this very test:
+  // ADR-0403 dec 1 made the decision log a kind and placed it nowhere, and nothing said so until the
+  // partition was asserted.
+  assert.deepEqual([...TIER_ZERO_KINDS].sort(), ["adr"]);
+
+  // The one member, spelled out — so removing `definition` from the DAG exclusion is a visible edit
+  // and not something a refactor can do by accident.
+  assert.deepEqual([...DAG_EXCLUDED_KINDS].sort(), ["definition"]);
+
+  // And the half ADR-0468 D1 actually changed: a definition now takes the edge the schema used to
+  // refuse it, which is what makes ADR-0464 D4's backfill possible at all.
+  assert.equal(knownFieldsForKind("definition")?.has("dependsOn"), true);
+  assert.equal(arrayFieldsForKind("definition")?.has("dependsOn"), true);
+  const parsed = Knowledge.parse({
+    ...minimalDoc("definition"),
+    dependsOn: ["asset:adr-0010"],
+  }) as { dependsOn?: readonly string[] };
+  assert.deepEqual(parsed.dependsOn, ["asset:adr-0010"]);
 });
 
 test("library-standson-refs-are-asset-or-adr: the edge admits Library and ADR targets and refuses the rest", () => {

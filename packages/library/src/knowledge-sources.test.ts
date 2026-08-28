@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { groupSources, SOURCE_GROUP_ORDER } from "./knowledge-sources.js";
+import { groupSources, sourceGroupOf, SOURCE_GROUP_ORDER } from "./knowledge-sources.js";
 
 /**
  * Offline + pure: groupSources buckets `references` by target type, in SOURCE_GROUP_ORDER,
@@ -116,4 +116,18 @@ test("SOURCE_GROUP_ORDER ends with the two doc buckets then Other", () => {
     "Docs & references",
     "Other",
   ]);
+});
+
+test("sourceGroupOf reads the target-type table, and an unheaded kind answers Other", () => {
+  // The one reading of CATEGORY_TO_GROUP, exported for ADR-0464 D2's onward block, which orders by
+  // the same grouping. Two copies of the table is the drift surface where one gains a kind and the
+  // other does not, so the SHARING is what this pins — `groupSources` reads it through this function.
+  assert.equal(sourceGroupOf("adr"), "Decisions (ADRs)");
+  assert.equal(sourceGroupOf("guardrail"), "Guardrails");
+  assert.equal(sourceGroupOf("definition"), "Definitions");
+  // `agent`, `process` and `arc` are real kinds with no heading of their own: Other is a member of
+  // SOURCE_GROUP_ORDER, so they place and render rather than vanishing.
+  assert.equal(sourceGroupOf("process"), "Other");
+  assert.equal(sourceGroupOf("not-a-kind"), "Other");
+  assert.ok(SOURCE_GROUP_ORDER.includes(sourceGroupOf("process")));
 });

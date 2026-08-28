@@ -182,6 +182,150 @@ test("artifact <id> for a process with NO branch-edges keeps the hand-authored n
   );
 });
 
+// ── ADR-0464 D2: the authored `dependsOn` edge, rendered from the FIELD as the onward block ───────
+// Until this landed the field was rendered NOWHERE. A decision's support edges survived only as
+// whatever prose the author wrote (ADR-0431's body carries `**Depends on** ADR-0139, ADR-0403,
+// ADR-0427` as a sentence), so once ADR-0464 D1 deletes the citation-derived block a read would
+// offer nothing at all. The derivation itself is proved over its own table in
+// `packages/library/src/depends-on-edges.test.ts`; these assert the SURFACE — that the read reaches
+// it, that the resolved titles arrive, and that it did not fork ADR-0161's process path to get here.
+
+/** Seed one artifact carrying an authored `dependsOn`, plus the targets it names. */
+async function withAuthoredEdges(dependsOn: readonly string[]): Promise<InMemoryStore> {
+  const store = new InMemoryStore();
+  for (const target of [
+    { id: "adr-0139", kind: "adr", title: "Consolidate the load-bearing set" },
+    { id: "adr-0403", kind: "adr", title: "The decision log moves into the store" },
+    { id: "never-bypass-the-gate", kind: "guardrail", title: "Never bypass the gate" },
+  ]) {
+    await store.upsertDoc({
+      id: target.id,
+      kind: target.kind,
+      doc: {
+        kind: target.kind,
+        id: target.id,
+        title: target.title,
+        description: "d",
+        body: "b",
+        references: [],
+      },
+    });
+  }
+  await store.upsertDoc({
+    id: "resting-thing",
+    kind: "principle",
+    doc: {
+      kind: "principle",
+      id: "resting-thing",
+      title: "Resting Thing",
+      description: "an artifact that rests on things",
+      body: "b",
+      // One resolvable citation and one that names nothing: the Sources block reads the same
+      // target-type table the onward block orders by, and degrades honestly on a miss.
+      references: ["asset:adr-0139", "asset:no-such-reference"],
+      dependsOn: [...dependsOn],
+    },
+  });
+  return store;
+}
+
+test("artifact <id> derives its onward block from the AUTHORED dependsOn field, with resolved titles", async () => {
+  const env = await run(["library", "artifact", "resting-thing"], {
+    store: await withAuthoredEdges(["asset:never-bypass-the-gate", "asset:adr-0139"]),
+  });
+  assert.equal(env.ok, true);
+  assert.ok(env.body.includes("  Decisions (ADRs):"), "a resolved citation lands under its type heading");
+  assert.ok(
+    env.body.includes("    - Consolidate the load-bearing set  (asset:adr-0139)"),
+    "and keeps the title the onward block resolves through the same table",
+  );
+  assert.ok(env.body.includes("    - asset:no-such-reference (unknown asset)  (asset:no-such-reference)"));
+  // The authored edges lead, ordered by the Sources grouping (guardrails before decisions), each
+  // carrying the title and kind the bare command used to throw away. The nav verbs about THIS row
+  // follow — losing the terminal verb is the miss `terminalVerbFor`'s header already paid to close.
+  assert.deepEqual(env.next, [
+    "storytree library artifact never-bypass-the-gate   (Never bypass the gate [guardrail])",
+    "storytree library artifact adr-0139   (Consolidate the load-bearing set [adr])",
+    "storytree library tree focus resting-thing   (its local DAG)",
+    "storytree library artifact edit resting-thing   (coming soon)",
+  ]);
+});
+
+test("artifact <id> reaches a decision its author spelled as a doc: pointer", async () => {
+  // The spelling four whole tiers use exclusively — principle 128/128, pattern 45/45, guardrail
+  // 35/35, techstack 19/19 (measured 2026-08-27). Walking `asset:` alone would have rendered an
+  // EMPTY onward block for every artifact on them, which is the failure D2 exists to prevent.
+  const env = await run(["library", "artifact", "resting-thing"], {
+    store: await withAuthoredEdges(["doc:decisions/0403-a-thing.md"]),
+  });
+  assert.equal(env.ok, true);
+  assert.equal(
+    env.next?.[0],
+    "storytree library artifact adr-0403   (The decision log moves into the store [adr])",
+  );
+});
+
+test("artifact <id> offers no onward line for an authored edge naming nothing that exists", async () => {
+  // Under-report rather than print a command that cannot run (ADR-0260 D4, re-affirmed by ADR-0464).
+  const env = await run(["library", "artifact", "resting-thing"], {
+    store: await withAuthoredEdges(["asset:no-such-artifact"]),
+  });
+  assert.equal(env.ok, true);
+  assert.deepEqual(env.next, [
+    "storytree library tree focus resting-thing   (its local DAG)",
+    "storytree library artifact edit resting-thing   (coming soon)",
+  ]);
+});
+
+test("a process's branch-edge nav is NOT joined by its authored dependsOn (ADR-0161's path unforked)", async () => {
+  // The pin that this migration used ADR-0161's seam rather than growing a second one beside it.
+  // Both fields are authored onward edges and the process's own is the more specific: `branchEdges`
+  // say where a ceremony HANDS ON TO, `dependsOn` says what an artifact RESTS ON. Only one of the 21
+  // live processes carries branch-edges, so the other twenty do reach the derived block above.
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "merge-ceremony",
+    kind: "process",
+    doc: {
+      kind: "process",
+      id: "merge-ceremony",
+      title: "Merge ceremony",
+      description: "d",
+      body: "b",
+      references: [],
+    },
+  });
+  await store.upsertDoc({
+    id: "adr-0139",
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id: "adr-0139",
+      title: "Consolidate the load-bearing set",
+      description: "d",
+      body: "b",
+      references: [],
+    },
+  });
+  await store.upsertDoc({
+    id: "graphed-process",
+    kind: "process",
+    doc: {
+      kind: "process",
+      id: "graphed-process",
+      title: "Graphed Process",
+      description: "carries BOTH a branch-edge graph and an authored dependency edge",
+      body: "b",
+      references: [],
+      branchEdges: [{ ref: "asset:merge-ceremony", label: "when green" }],
+      dependsOn: ["asset:adr-0139"],
+    },
+  });
+  const env = await run(["library", "artifact", "graphed-process"], { store });
+  assert.equal(env.ok, true);
+  assert.deepEqual(env.next, ["storytree library artifact merge-ceremony   (when green)"]);
+});
+
 test("artifact list <category> returns rows and a doctrine pointer", async () => {
   const env = await run(["library", "artifact", "list", "principle"], { store: await seeded() });
   assert.equal(env.ok, true);

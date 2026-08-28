@@ -1,0 +1,93 @@
+{
+ "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+ "vendor": "Google Inc. (NVIDIA Corporation)",
+ "software": false,
+ "calibration": {
+  "probe": 0.3176470588235294,
+  "scale": 3.1481481481481484,
+  "target": 1,
+  "floor": 0.78
+ },
+ "materials": [
+  {
+   "material": "Pine_Branches",
+   "verdict": "RAW",
+   "rawError": 0.005390702122882983,
+   "managedError": 3.36167873980152,
+   "separation": 3.7868852459016398,
+   "ok": true,
+   "detail": "delivered within 0.5% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 0.35440826416015625,
+   "sourceMeanRaw": {
+    "r": 69.37741373000668,
+    "g": 89.79430822551826,
+    "b": 68.78685983682432
+   },
+   "sourceMeanLinear": {
+    "r": 16.520814143457503,
+    "g": 26.097146396343533,
+    "b": 15.166768720281683
+   },
+   "delivered": {
+    "r": 70.37734914860181,
+    "g": 90.79430822551826,
+    "b": 69.78685983682432
+   },
+   "rawControl": {
+    "r": 70,
+    "g": 91,
+    "b": 70
+   },
+   "managedControl": {
+    "r": 18,
+    "g": 27,
+    "b": 16
+   }
+  },
+  {
+   "material": "Pine_Trunks",
+   "verdict": "RAW",
+   "rawError": 0.006593598259819878,
+   "managedError": 3.207368289723116,
+   "separation": 3.2439024390243905,
+   "ok": true,
+   "detail": "delivered within 0.7% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 1,
+   "sourceMeanRaw": {
+    "r": 111.21719360351562,
+    "g": 81.19778060913086,
+    "b": 70.52526092529297
+   },
+   "sourceMeanLinear": {
+    "r": 41.491459580799564,
+    "g": 21.52873632998355,
+    "b": 16.062277295501303
+   },
+   "delivered": {
+    "r": 112.21719360351562,
+    "g": 82.19778060913086,
+    "b": 71.52526092529297
+   },
+   "rawControl": {
+    "r": 112,
+    "g": 82,
+    "b": 72
+   },
+   "managedControl": {
+    "r": 42,
+    "g": 23,
+    "b": 17
+   }
+  }
+ ],
+ "refusals": [],
+ "ok": true
+}
