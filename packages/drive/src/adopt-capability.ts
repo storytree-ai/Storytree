@@ -134,6 +134,17 @@ export interface AdoptCapabilityOpts {
  * dependency to a compute whose whole value is that it is trivially auditable.
  */
 export function pathMatchesDeclared(path: string, pattern: string): boolean {
+  // Stryker disable next-line ConditionalExpression,StringLiteral: EQUIVALENT — a pattern carrying no
+  // `*` falls through to a regex of `^escapeLiteral(pattern)$`, and `escapeLiteral` escapes every
+  // metacharacter a repo-relative path can hold (`.+^${}()|[]\?`); `*` is excluded by this very
+  // guard, and `-` and `/` are not special outside a character class. So the general branch accepts
+  // exactly the strings `===` accepts, and neither skipping this fast path (the `false` form) nor
+  // making `includes` unconditionally true can be observed. The `true` form IS a real change — it
+  // would compare a GLOB literally — and it is silenced only as collateral, because the directive
+  // works per line and per mutator; the glob cases in the tests still pin that behaviour directly.
+  // The same collateral covers `path === pattern` on this line; the literal cases in the tests pin it.
+  // (Splitting the comparison onto its own line does not help: an EMPTIED block falls through to the
+  // regex too, so the identical equivalence simply reappears as a `BlockStatement` mutant instead.)
   if (!pattern.includes("*")) return path === pattern;
   // Escape every regex metacharacter EXCEPT `*`, then expand `**` → `.*` and a lone `*` → `[^/]*`.
   // Built segment-by-segment rather than through a sentinel character: split on `**` FIRST (it

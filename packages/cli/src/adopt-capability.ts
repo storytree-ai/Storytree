@@ -70,6 +70,11 @@ export function declaredSourcePaths(config: NodeBuildConfig | undefined): string
 /** Load a capability spec off disk and project just the slice the adoption compute reads. */
 export function loadAdoptCapability(storiesDir: string, id: string): AdoptCapabilitySpec | null {
   const file = findNodeSpecFile(storiesDir, id);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — this guard is a TYPE narrowing, not
+  // a behavioural branch. With it removed, `null` reaches `loadNodeSpec`, whose first act is
+  // `readFileSync(file, …)`; that throws `ERR_INVALID_ARG_TYPE` inside the very try/catch below,
+  // which returns the same `null`. No input can distinguish the two, so no test can kill the `false`
+  // form; the guard earns its place by keeping this function honest to `loadNodeSpec`'s signature.
   if (file === null) return null;
   let spec;
   try {
@@ -101,9 +106,17 @@ function git(root: string, args: readonly string[]): string | null {
   }
 }
 
-/** Repo-relative, forward-slashed paths from a `git … --name-only` listing. */
-function pathLines(raw: string | null): string[] {
-  if (raw === null || raw.length === 0) return [];
+/**
+ * Repo-relative, forward-slashed paths from a `git … --name-only` listing.
+ *
+ * EXPORTED for its own tests rather than only through {@link branchAuthoredPaths}: this is where a
+ * path is normalised for the service-history fence, and the fence compares by STRING. A retained
+ * `\r` from git's Windows output, an untrimmed line, or a surviving backslash separator would each
+ * make a real self-authored source silently fail to match its own declared glob — an unfenced
+ * adoption that reports nothing wrong. Pure, so it is pinned directly.
+ */
+export function pathLines(raw: string | null): string[] {
+  if (raw === null) return [];
   return raw
     .split("\n")
     .map((l) => l.trim().replace(/\\/g, "/"))
@@ -126,14 +139,41 @@ function pathLines(raw: string | null): string[] {
  */
 export function branchAuthoredPaths(root: string): readonly string[] | null {
   const mergeBase = git(root, ["merge-base", "origin/main", "HEAD"]);
-  if (mergeBase === null || mergeBase.length === 0) return null;
-  const diff = git(root, ["diff", "--name-only", mergeBase]);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — forcing this condition FALSE hands
+  // the unresolved base straight to `git diff`, which throws inside `git()`'s own try (a null argv
+  // entry, or `fatal: ambiguous argument ''`) and yields null, so the `diff === null` line below
+  // returns exactly the null this branch returns. The guard is a fast path, not a behaviour. Forcing
+  // it TRUE *is* a real change, and it stays pinned: the sibling `EqualityOperator` mutants on this
+  // same line make the condition constantly-true too, and the per-line directive leaves those live.
+  const diff = mergeBase === null || mergeBase.length === 0
+    ? null
+    : git(root, ["diff", "--name-only", mergeBase]);
   if (diff === null) return null;
   const touched = new Set(pathLines(diff));
   for (const p of pathLines(git(root, ["ls-files", "--others", "--exclude-standard"]))) {
     touched.add(p);
   }
   return [...touched];
+}
+
+// ---------------------------------------------------------------------------
+// Signer seam
+// ---------------------------------------------------------------------------
+
+/**
+ * The `--signer` flag as the approver chain's OPTIONAL input: `{ flag }` when one was passed, and
+ * `undefined` when none was — never `{ flag: undefined }`, which `exactOptionalPropertyTypes`
+ * refuses and which reads as "a flag was supplied, and it is blank".
+ *
+ * EXPORTED, rather than inlined at the dispatch site, so a test can hold it to that contract
+ * directly. Inlined it is only ever evaluated deep inside a run that has already cleared the
+ * service-history fence — and from there the two shapes are indistinguishable, because
+ * `resolveSignerFromEnv` reads `opts?.flag !== undefined` and resolves the same signer either way.
+ * The distinction is real at the TYPE boundary and nowhere else, which is exactly the kind of
+ * contract a unit test pins and an end-to-end one cannot.
+ */
+export function approverOptsFor(flag: string | undefined): { flag?: string } | undefined {
+  return flag !== undefined ? { flag } : undefined;
 }
 
 // ---------------------------------------------------------------------------

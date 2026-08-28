@@ -117,7 +117,11 @@ import {
   type AdoptDispatchDeps,
   type AdoptInvocation,
 } from "./adopt.js";
-import { adoptCapabilityCommand, adoptCapabilityHelp } from "./adopt-capability.js";
+import {
+  adoptCapabilityCommand,
+  adoptCapabilityHelp,
+  approverOptsFor,
+} from "./adopt-capability.js";
 import { branchNext, branchHelp, type BranchDeps } from "./branch.js";
 import {
   pruneWorktrees,
@@ -4202,8 +4206,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         store: deps.uatStore ?? null,
         gitState: readGitState,
         observe: observeCommand,
-        resolveApprover: (flag?: string) =>
-          resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+        resolveApprover: (flag?: string) => resolveSignerFromEnv(approverOptsFor(flag)),
       });
     }
     // bare: `storytree adopt <story-id>` RUNS the adoption.
