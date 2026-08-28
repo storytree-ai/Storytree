@@ -56,6 +56,21 @@ const CATEGORY_TO_GROUP: ReadonlyMap<string, SourceGroupName> = new Map([
   ["adr", "Decisions (ADRs)"],
 ]);
 
+/**
+ * PURE: the Source group an artifact KIND renders under — the one reading of {@link
+ * CATEGORY_TO_GROUP}, shared rather than copied.
+ *
+ * Exported because the `Sources:` block is no longer the only surface that groups by target type:
+ * ADR-0464 D2's authored-edge onward block orders by this same grouping (`depends-on-edges.ts`), and
+ * two copies of the table is a drift surface where one gains a kind and the other does not. A kind
+ * with no heading of its own answers "Other", which is a real group in {@link SOURCE_GROUP_ORDER}
+ * rather than an absence — `agent`, `process` and `arc` all land there today.
+ */
+export function sourceGroupOf(kind: string): SourceGroupName {
+  const group = CATEGORY_TO_GROUP.get(kind);
+  return group === undefined ? "Other" : group;
+}
+
 /** One resolved citation, ready to render. `ref` is the original pointer (for the link href). */
 export interface ResolvedSource {
   /** The opaque pointer, e.g. `asset:red-green` or `doc:decisions/0007-...md`. */
@@ -97,7 +112,7 @@ export function groupSources(
     if (ref.startsWith("asset:")) {
       const id = ref.slice("asset:".length);
       const hit = resolveAsset(id);
-      if (hit) add(CATEGORY_TO_GROUP.get(hit.kind) ?? "Other", { ref, label: hit.title });
+      if (hit) add(sourceGroupOf(hit.kind), { ref, label: hit.title });
       else add("Other", { ref, label: `${ref} (unknown asset)` });
     } else if (ref.startsWith("doc:")) {
       const rel = ref.slice("doc:".length);
