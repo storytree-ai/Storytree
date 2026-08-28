@@ -119,6 +119,12 @@ Thumbs.db
 # `pnpm mutation:attribution-probe`, and neither is evidence of anything once the run has ended.
 # generated per-branch by check:mutation-diff — its mutate list IS the diff, so it is never committed
 stryker.mutation-diff.conf.mjs
+# One config per RUN GROUP once the rung drives more than one runner (bun + a vitest project each
+# need their own), so the numbered siblings are ignored alongside the single-group name above.
+stryker.mutation-diff.*.conf.mjs
+# The narrowed vitest config the rung generates INSIDE a vitest project — it must sit beside that
+# project's own config for `./vitest.config.js` to resolve, so it cannot live under reports/.
+vitest.mutation-diff.config.ts
 .stryker-tmp*/
 reports/
 
