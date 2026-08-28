@@ -20,7 +20,7 @@
 // `discoverWorkspaceProjects` and nothing else.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,15 +30,18 @@ import { MIRRORS } from "./mirror-conformance.js";
 import {
   adjudicateMutants,
   type ChangedRanges,
+  declaredTestRoots,
   entryPointsFromMirrorRegistry,
   entryPointsFromScripts,
   formatMutationVerdict,
+  formatNarrowingLines,
   isTestFile,
   isSpawnUatTest,
   mergeMutationReports,
   type MutationReport,
   type MutationRunner,
   type MutationTarget,
+  type NarrowedFile,
   parseUnifiedDiffRanges,
   changedLinesAreCodeFree,
   type ReportPart,
@@ -414,6 +417,24 @@ function main(): void {
       ...entryPointsFromScripts(rootScripts ?? {}),
       ...entryPointsFromMirrorRegistry(MIRRORS),
     ]),
+    // Each project's OWN answer to "which directories do my tests live in", so a file dropped from
+    // a directory the project itself declares it tests can be named as the real gap it is rather
+    // than as the ordinary conservative drop it otherwise looks exactly like.
+    testRootsByProject: new Map(
+      projects.map((p) => [
+        p.name,
+        declaredTestRoots({
+          testScript: testScriptOf(p.dir),
+          isDirectory: (rel) => {
+            try {
+              return statSync(path.join(repoRoot, p.dir, rel)).isDirectory();
+            } catch {
+              return false;
+            }
+          },
+        }),
+      ]),
+    ),
   });
 
   for (const file of selection.exempted) {
@@ -421,6 +442,12 @@ function main(): void {
     // rung simply failed to notice.
     console.log(`${TAG} EXEMPT (executable entry point — a root script invokes it, or the mirror registry spawns it): ${file}`);
   }
+
+  // EVERY RUN, not just the one where nothing survived the narrowing. This used to reach the reader
+  // only through `skipReason`, printed in the `targets.length === 0` branch below — so the rung
+  // named its blind spot exactly when the blind spot had cost nothing, and went quiet the moment it
+  // cost something. See TargetSelection.narrowed for the measurement.
+  for (const line of formatNarrowingLines(selection.narrowed)) console.log(`${TAG} ${line}`);
 
   if (selection.targets.length === 0) {
     // The commonest outcome this rung has, and the one CI cannot inherit the code for — a corpus,
