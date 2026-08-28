@@ -82,6 +82,13 @@ const EXPERIMENT = [
   // (`pine-scene.ts`) is deliberately NOT listed: it imports three by design.
   'asset-payload.ts',
   'pine-asset.ts',
+  // The textured-asset colour guard (`guard-the-textured-asset-colour-convention`). It is the
+  // convention every bought texture on this surface is sampled in, plus the arithmetic that
+  // judges a frame against it, and it must stay node-provable: the verdict is what refuses a
+  // build, and a verdict nobody can reproduce without a GPU is a verdict nobody can audit. Its
+  // browser half (`colour-convention-scene.ts`) is deliberately NOT listed, exactly as
+  // `pine-scene.ts` is not — it imports three because reading delivered pixels needs a renderer.
+  'texture-convention.ts',
 ];
 
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];

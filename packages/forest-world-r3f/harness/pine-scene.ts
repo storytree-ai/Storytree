@@ -42,6 +42,8 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 
 import { configureExactColour, createBandedMaterial } from './banded-material.js';
+import { applyRawColourConvention } from './texture-convention.js';
+import type { ConventionMaterial } from './texture-convention.js';
 import {
   CLEAR_RGB,
   awaitQuery,
@@ -174,24 +176,13 @@ export async function loadPine(url: string = PINE_ASSET_URL): Promise<LoadedPine
 
       // (3) THE COLOUR CONVENTION, and it is the whole reason the first run came out dark.
       //
-      // `GLTFLoader` marks a base-colour map `SRGBColorSpace`, and three DECODES that in the
-      // shader whatever `ColorManagement.enabled` says — the flag governs `Color` values, not
-      // texture transfer functions. The lighting then runs in linear, and
-      // `configureExactColour` deliberately leaves `outputColorSpace` LINEAR so an authored
-      // token survives byte-for-byte, so nothing ever encodes the result back. Measured: a map
-      // whose own mean is rgb(70,90,69) delivered rgb(14,27,16) — which is exactly
-      // `srgb_to_linear(70,90,69)`, not a lighting error at all.
-      //
-      // The fix is to put the asset in the SAME colour convention as everything else on this
-      // surface: `createBandedMaterial` does its half-lambert on authored sRGB numbers and
-      // writes them raw. So the base-colour map is sampled raw too. It is not colorimetrically
-      // correct and it is not meant to be — it is what makes a bought asset and the land beside
-      // it speak one convention, which is the precondition for comparing them at all. The
-      // DATA maps (normal, roughness) are already linear and are left alone.
-      if (material.map) {
-        material.map.colorSpace = THREE.NoColorSpace;
-        material.map.needsUpdate = true;
-      }
+      // The mechanism, the measurement and the reasoning now live in `texture-convention.ts`,
+      // which is where every loading path on this surface has to route — a check scans this
+      // directory and refuses a module that reaches for a loader without calling it. It used to
+      // be two lines written out here, which is a convention followed by hand rather than a
+      // guarantee: the next textured asset, loaded by a different path, would have come out
+      // about 3.5x dark and looked like a deliberate art choice.
+      applyRawColourConvention(material satisfies ConventionMaterial);
       for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap'] as const) {
         const tex = material[key];
         if (tex && tex.image) {
