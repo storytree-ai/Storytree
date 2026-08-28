@@ -12,6 +12,7 @@
     "forest-snapshot": "node --import ../../scripts/tsx-cache-off.mjs --import tsx server/forestSnapshotCli.ts",
     "measure:camera-rasterisation": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/measure-camera-rasterisation.mjs",
     "capture:comparative": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/comparative-capture.mjs",
+    "capture:unwatched": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/capture-unwatched-regrow.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
     "test": "vitest run",
     "uat": "playwright test"

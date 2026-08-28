@@ -7,6 +7,10 @@
 //
 //   pnpm check:web-grounding
 //
+// TWO AUTHORED FORMS, one validator: the `data-grounds="…"` attribute in markup, and a
+// `grounds: ['ADR-NNNN']` array in a script that writes that attribute at runtime (chapter 2's TELL
+// overlay). The second was added when the site started speaking from a script — see SCRIPT_GROUNDS.
+//
 // References live in storytree-web; validation lives here — the web repo can't self-check. In CI the
 // pinned web SHA is cloned first (storytree-web is public). Locally an absent `web/` is a SKIP
 // (`git submodule update --init web` to enable it); in CI an absent `web/` is a hard failure (the
@@ -20,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { loadTitledAdrMetasFromStore } from "@storytree/drive";
 
 import { GATE_SKIP_EXIT_CODE } from "./gate-runner.js";
+import { stripComments } from "./web-experience-check.js";
 
 export interface GroundingRef {
   /** web-relative path, e.g. "src/pages/index.astro". */
@@ -34,12 +39,44 @@ export interface GroundingProblem {
 }
 
 const DATA_GROUNDS = /data-grounds\s*=\s*"([^"]*)"/g;
+/**
+ * The SCRIPT-AUTHORED form of the same claim.
+ *
+ * ⚠ WHY A SECOND SHAPE EXISTS AT ALL, because a single one would obviously be better. The markup
+ * regex above can only see a claim written as an attribute in a `.astro`/`.html` source file. Since
+ * `website-refresh-arc-pitch-overlays` the site also speaks from a SCRIPT: chapter 2's TELL overlay
+ * holds its copy as data in `web/src/scripts/act2-tell.ts` and writes `data-grounds` into the DOM at
+ * runtime, so the attribute exists in the browser and NOWHERE in any source file. Every one of those
+ * claims was therefore invisible to this rung — it reported "OK: 2 references" on a page that had
+ * just acquired four more, which is the worst answer a check can give: a green that reads like
+ * coverage.
+ *
+ * Matching `grounds: [ … ]` closes it. The ids inside are extracted verbatim and handed to the same
+ * validator, so a script-authored claim citing a missing or superseded decision reds exactly as an
+ * attribute-authored one does. An unrecognised scheme is still FLAGGED rather than skipped, which is
+ * what stops this widening from becoming a way to launder a citation past the rung.
+ */
+const SCRIPT_GROUNDS = /\bgrounds\s*:\s*\[([^\]]*)\]/g;
+const QUOTED = /['"`]([^'"`]+)['"`]/g;
 const ADR_ID = /^ADR-(\d{3,4})$/;
 
 const pad = (n: number): string => String(n).padStart(4, "0");
 
-/** Pull every `data-grounds="…"` id-list out of one file's text. */
-export function extractGroundingRefs(file: string, content: string): GroundingRef[] {
+/**
+ * Pull every grounding id-list out of one file's text — both the markup and the script form.
+ *
+ * ⚠ COMMENTS ARE STRIPPED FIRST, AND THAT IS A CORRECTNESS FIX RATHER THAN TIDINESS. Both patterns
+ * are lexical, so before this the rung could not tell a CLAIM from a file merely WRITING ABOUT one:
+ * a source comment explaining the mechanism — `the \`data-grounds="…"\` attribute form` — was
+ * extracted as a live citation of an id called `…` and BLOCKED the gate. That is the same class as
+ * everything else this repo guards against, pointing the other way: an instrument reporting a
+ * problem that does not exist on the page, in a message that names a file whose page-visible copy is
+ * fine. Stripping also means a commented-OUT claim stops being validated, which is right — a claim
+ * nobody can read is not a claim. `stripComments` is the closure rung's, string- and
+ * template-literal-aware, so an id inside a real string still counts.
+ */
+export function extractGroundingRefs(file: string, rawContent: string): GroundingRef[] {
+  const content = stripComments(rawContent);
   const refs: GroundingRef[] = [];
   for (const m of content.matchAll(DATA_GROUNDS)) {
     const raw = m[1];
@@ -47,6 +84,14 @@ export function extractGroundingRefs(file: string, content: string): GroundingRe
     const ids = raw
       .split(",")
       .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (ids.length > 0) refs.push({ file, ids });
+  }
+  for (const m of content.matchAll(SCRIPT_GROUNDS)) {
+    const raw = m[1];
+    if (raw === undefined) continue;
+    const ids = [...raw.matchAll(QUOTED)]
+      .map((q) => (q[1] ?? "").trim())
       .filter((s) => s.length > 0);
     if (ids.length > 0) refs.push({ file, ids });
   }

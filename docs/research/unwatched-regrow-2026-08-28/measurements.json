@@ -1,0 +1,84 @@
+{
+  "headSha": "00d7db351d464583571ebcc4bc6d67f2ca576f4e",
+  "baselineSha": "1693f33ed01ddcd1a86ce2ed2753afab7720ba8b",
+  "baselineRef": "47376a69^",
+  "awayMs": 8000,
+  "arms": {
+    "before": {
+      "results": [
+        {
+          "arm": "before",
+          "scenario": "park",
+          "awayMsRequested": 8000,
+          "awayMsActual": 8698,
+          "leftAt": 0.1874,
+          "leftAtReadout": "❚❚ Pause↺ BackSkip to growndepth 1 of 13 · 2/35 islands · 2 pathways growing · 19%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "returnedAt": 1,
+          "returnedAtReadout": "▶ Regrow the forest↺ BackSkip to growndepth 13 of 13 · 35/35 islands · 0 pathways growing · 100%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "twoSecondsLater": 1,
+          "grewWhileAway": true,
+          "stillGrowingOnReturn": false,
+          "snappedToSettled": true,
+          "frozenMidRun": false
+        },
+        {
+          "arm": "before",
+          "scenario": "occlude",
+          "awayMsRequested": 8000,
+          "awayMsActual": 8054,
+          "leftAt": 0.1838,
+          "leftAtReadout": "❚❚ Pause↺ BackSkip to growndepth 1 of 13 · 2/35 islands · 2 pathways growing · 18%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "returnedAt": 0.2037,
+          "returnedAtReadout": "▶ Regrow the forestResume↺ BackSkip to growndepth 1 of 13 · 2/35 islands · 1 pathway growing · 20%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "twoSecondsLater": 0.2037,
+          "grewWhileAway": true,
+          "stillGrowingOnReturn": false,
+          "snappedToSettled": false,
+          "frozenMidRun": true
+        }
+      ],
+      "verdict": {
+        "ok": true,
+        "statement": "the defect reproduced: the parked route SNAPPED to the settled forest, and the occluded window FROZE mid-run and never moved again"
+      }
+    },
+    "after": {
+      "results": [
+        {
+          "arm": "after",
+          "scenario": "park",
+          "awayMsRequested": 8000,
+          "awayMsActual": 9994,
+          "leftAt": 0.1807,
+          "leftAtReadout": "❚❚ Pause↺ BackSkip to growndepth 1 of 13 · 2/35 islands · 2 pathways growing · 18%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "returnedAt": 0.6307,
+          "returnedAtReadout": "❚❚ Pause↺ BackSkip to growndepth 12 of 13 · 20/35 islands · 2 pathways growing · 63%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "twoSecondsLater": 0.7854,
+          "grewWhileAway": true,
+          "stillGrowingOnReturn": true,
+          "snappedToSettled": false,
+          "frozenMidRun": false
+        },
+        {
+          "arm": "after",
+          "scenario": "occlude",
+          "awayMsRequested": 8000,
+          "awayMsActual": 8042,
+          "leftAt": 0.1905,
+          "leftAtReadout": "❚❚ Pause↺ BackSkip to growndepth 1 of 13 · 2/35 islands · 2 pathways growing · 19%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "returnedAt": 0.549,
+          "returnedAtReadout": "❚❚ Pause↺ BackSkip to growndepth 11 of 13 · 16/35 islands · 2 pathways growing · 55%6 base nodes form from nothing; every other island forms only where a pathway reaches it.",
+          "twoSecondsLater": 0.6874,
+          "grewWhileAway": true,
+          "stillGrowingOnReturn": true,
+          "snappedToSettled": false,
+          "frozenMidRun": false
+        }
+      ],
+      "verdict": {
+        "ok": true,
+        "statement": "the forest kept growing through both absences and was still growing on return"
+      }
+    }
+  }
+}

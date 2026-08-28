@@ -14,7 +14,11 @@ import {
   type MutationTarget,
   parseUnifiedDiffRanges,
   type ProjectDir,
+  mergeMutationReports,
+  type ReportPart,
+  runnerFor,
   runsUnderBun,
+  runsUnderVitest,
   selectMutationTargets,
   siblingTestFor,
   skipDisposition,
@@ -1177,7 +1181,10 @@ test("runsUnderBun: a bun suite behind a chained prelude is still runnable", () 
   );
 });
 
-test("runsUnderBun: vitest is NOT runnable — this is the case that killed the dry run", () => {
+test("runsUnderBun: a vitest project is not the BUN runner's — it is the vitest runner's", () => {
+  // This assertion is unchanged in substance and changed in meaning. It used to be the whole story
+  // (a vitest project was out of the rung's reach entirely); now it only says which of two runners
+  // owns it. `runnerFor` below is what carries the reach.
   assert.equal(runsUnderBun("vitest run"), false);
 });
 
@@ -1292,4 +1299,197 @@ test("entryPointsFromMirrorRegistry: the REAL registry names probes, and they ar
   for (const file of exempt) {
     assert.match(file, /-mirror-probe\.ts$|MirrorProbe\.ts$/, `${file} is not a probe module`);
   }
+});
+
+
+// ── runsUnderVitest / runnerFor ──────────────────────────────────────────────
+//
+// The classifier that gave the rung its second runner. Before it, `apps/studio` and
+// `packages/app-surface` — the repo's entire browser-facing surface — were reported as out of reach
+// on every branch that touched them.
+
+test("runsUnderVitest: a plain vitest suite is runnable", () => {
+  assert.equal(runsUnderVitest("vitest run"), true);
+});
+
+test("runsUnderVitest: WATCH mode is not runnable — it would never terminate under Stryker", () => {
+  assert.equal(runsUnderVitest("vitest"), false);
+  assert.equal(runsUnderVitest("vitest --ui"), false);
+});
+
+test("runsUnderVitest: a bun suite is not vitest's", () => {
+  assert.equal(runsUnderVitest("bun test --timeout 300000 src/"), false);
+});
+
+test("runsUnderVitest: a project with no test script is not runnable", () => {
+  assert.equal(runsUnderVitest(undefined), false);
+});
+
+test("runsUnderVitest: a flag that merely CONTAINS the word does not make it a vitest suite", () => {
+  // The word-boundary match is the point: `vitest-runner` is a plugin name, not an invocation.
+  assert.equal(runsUnderVitest("node ./scripts/vitest-runner-check.mjs"), false);
+});
+
+test("runsUnderVitest: the invocation must START a word — `pnpm-vitest run` is a different binary", () => {
+  // Pins the NEGATED half of the leading character class. With `[^\s&|;]` in its place the `-` here
+  // would satisfy the boundary and this would read as a vitest project.
+  assert.equal(runsUnderVitest("pnpm-vitest run"), false);
+});
+
+test("runsUnderVitest: a vitest suite behind a chained prelude is still runnable", () => {
+  // Pins that the boundary class accepts WHITESPACE, not only the shell operators. The character
+  // immediately before `vitest` is a space, so a class narrowed to `\S` would miss this entirely —
+  // and every compound script in the repo has that shape.
+  assert.equal(runsUnderVitest("tsc --noEmit && vitest run"), true);
+});
+
+test("runsUnderVitest: repeated whitespace between the binary and `run` still matches", () => {
+  // Pins the `+`. With a single `\s` this is not a vitest project.
+  assert.equal(runsUnderVitest("vitest  run"), true);
+});
+
+test("runsUnderVitest: flags after `run` do not stop it matching", () => {
+  // Pins the TRAILING boundary as whitespace-or-end. With `\S` in its place, only a script whose
+  // very last token is `run` would match, and `vitest run --coverage` would fall out of reach.
+  assert.equal(runsUnderVitest("vitest run --coverage"), true);
+});
+
+test("runnerFor: the three real workspace shapes classify as bun, vitest, and out of reach", () => {
+  assert.equal(runnerFor("bun test --timeout 300000 src/"), "bun");
+  assert.equal(runnerFor("vitest run"), "vitest");
+  // `packages/orchestrator`. A DECIDED exclusion — see `runnerFor`'s own doc comment.
+  assert.equal(runnerFor('node --import tsx --test "src/**/*.test.ts"'), null);
+  assert.equal(runnerFor(undefined), null);
+});
+
+test("runnerFor: a compound script that reaches bun is BUN, not out of reach", () => {
+  // `packages/cli`'s own script. If this returned null the rung would stop covering the package
+  // that contains the rung.
+  assert.equal(
+    runnerFor(
+      "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/validate-corpus.ts && bun test --preload ../../scripts/tsx-cache-off.mjs --timeout 300000 src/",
+    ),
+    "bun",
+  );
+});
+
+// ── mergeMutationReports ─────────────────────────────────────────────────────
+
+const partOf = (key: string, report: MutationReport): ReportPart => ({ key, report });
+
+test("mergeMutationReports: colliding test ids across runs do NOT cross-attribute", () => {
+  // THE LOAD-BEARING CASE, and the one a naive merge fails while still looking healthy. Stryker
+  // numbers test ids from zero WITHIN each run, so both parts below declare a test `"0"` — in
+  // different projects. Merged without namespacing, the second `"0"` overwrites the first, and the
+  // bun mutant (killed only by an UNCHANGED cli test) resolves to the CHANGED studio test and is
+  // scored `proven`. The rung would then pass a branch whose own tests killed nothing.
+  const bun = partOf("bun", {
+    files: {
+      "packages/cli/src/a.ts": {
+        mutants: [{ id: "m1", status: "Killed", killedBy: ["0"], location: { start: { line: 4 } } }],
+      },
+    },
+    testFiles: { "packages/cli/src/a.test.ts": { tests: [{ id: "0", name: "an old cli test" }] } },
+  });
+  const vitest = partOf("vitest:apps/studio", {
+    files: {
+      "apps/studio/src/b.ts": {
+        mutants: [{ id: "m2", status: "Killed", killedBy: ["0"], location: { start: { line: 9 } } }],
+      },
+    },
+    testFiles: { "apps/studio/src/b.test.ts": { tests: [{ id: "0", name: "a new studio test" }] } },
+  });
+
+  const merged = mergeMutationReports([bun, vitest]);
+
+  // Both test files survive the merge, each with its own namespaced id.
+  assert.deepEqual(merged.testFiles?.["packages/cli/src/a.test.ts"]?.tests, [
+    { id: "bun::0", name: "an old cli test" },
+  ]);
+  assert.deepEqual(merged.testFiles?.["apps/studio/src/b.test.ts"]?.tests, [
+    { id: "vitest:apps/studio::0", name: "a new studio test" },
+  ]);
+
+  // And each mutant still points at ITS OWN run's test.
+  assert.deepEqual(merged.files?.["packages/cli/src/a.ts"]?.mutants?.[0]?.killedBy, ["bun::0"]);
+  assert.deepEqual(merged.files?.["apps/studio/src/b.ts"]?.mutants?.[0]?.killedBy, [
+    "vitest:apps/studio::0",
+  ]);
+
+  // The whole point, stated as the verdict rather than as the plumbing: only the studio test is
+  // this branch's, so only the studio mutant is `proven` — the cli one is `killed-by-others`.
+  const verdict = adjudicateMutants(merged, ["apps/studio/src/b.test.ts"]);
+  const outcomes = Object.fromEntries(verdict.mutants.map((m) => [m.file, m.outcome]));
+  assert.equal(outcomes["apps/studio/src/b.ts"], "proven");
+  assert.equal(outcomes["packages/cli/src/a.ts"], "killed-by-others");
+});
+
+test("mergeMutationReports: the same file in two parts keeps BOTH sets of mutants", () => {
+  // The driver partitions projects across runs, so this should not arise — but a merge that dropped
+  // one side would lose evaluated mutants while still producing a well-formed report, which is the
+  // silent direction. Duplication is visible; disappearance is not.
+  const merged = mergeMutationReports([
+    partOf("a", { files: { "x/src/f.ts": { mutants: [{ id: "1", status: "Survived" }] } } }),
+    partOf("b", { files: { "x/src/f.ts": { mutants: [{ id: "2", status: "Killed", killedBy: ["0"] }] } } }),
+  ]);
+  assert.equal(merged.files?.["x/src/f.ts"]?.mutants?.length, 2);
+});
+
+test("mergeMutationReports: an unresolvable killedBy stays unresolvable — the merge repairs nothing", () => {
+  // Constraint 4's arm. A `Killed` mutant naming an id no test file declares is NOT IDENTIFIABLE,
+  // and namespacing must not accidentally launder it into a pass.
+  const merged = mergeMutationReports([
+    partOf("bun", {
+      files: { "packages/cli/src/a.ts": { mutants: [{ id: "m", status: "Killed", killedBy: ["7"] }] } },
+      testFiles: { "packages/cli/src/a.test.ts": { tests: [{ id: "0", name: "t" }] } },
+    }),
+  ]);
+  const verdict = adjudicateMutants(merged, ["packages/cli/src/a.test.ts"]);
+  assert.equal(verdict.mutants[0]?.outcome, "unproven");
+});
+
+test("mergeMutationReports: the same TEST FILE in two parts keeps both parts' tests", () => {
+  // The `files` mirror of this is above. Both halves need it: if the testFiles branch OVERWROTE
+  // instead of appending, one part's test ids would vanish from the id registry, and every mutant
+  // those tests killed would resolve to nothing and be scored `unproven` — a red the branch cannot
+  // act on, because the test it is being told to write already exists.
+  const merged = mergeMutationReports([
+    partOf("a", { testFiles: { "x/src/f.test.ts": { tests: [{ id: "0", name: "first" }] } } }),
+    partOf("b", { testFiles: { "x/src/f.test.ts": { tests: [{ id: "0", name: "second" }] } } }),
+  ]);
+  assert.deepEqual(merged.testFiles?.["x/src/f.test.ts"]?.tests, [
+    { id: "a::0", name: "first" },
+    { id: "b::0", name: "second" },
+  ]);
+});
+
+test("mergeMutationReports: a test entry with no id is carried through WITHOUT a branded id", () => {
+  // `undefined` must not be branded into the string "a::undefined", which would enter the id
+  // registry as a real-looking key and could be matched by a mutant's killedBy.
+  const merged = mergeMutationReports([
+    partOf("a", { testFiles: { "x/src/f.test.ts": { tests: [{ name: "no id" }] } } }),
+  ]);
+  assert.deepEqual(merged.testFiles?.["x/src/f.test.ts"]?.tests, [{ name: "no id" }]);
+});
+
+test("mergeMutationReports: an absent or empty entry is tolerated rather than throwing", () => {
+  // Stryker emits `files`/`testFiles` keys whose value can be absent, and a report is read from
+  // disk — so these shapes are input, not hypotheticals. A throw here would abort the rung with a
+  // stack trace instead of a verdict.
+  const merged = mergeMutationReports([
+    partOf("a", {
+      files: { "x/src/absent.ts": undefined, "x/src/empty.ts": {} },
+      testFiles: { "x/src/absent.test.ts": undefined, "x/src/empty.test.ts": {} },
+    }),
+  ]);
+  assert.deepEqual(merged.files?.["x/src/absent.ts"]?.mutants, []);
+  assert.deepEqual(merged.files?.["x/src/empty.ts"]?.mutants, []);
+  assert.deepEqual(merged.testFiles?.["x/src/absent.test.ts"]?.tests, []);
+  assert.deepEqual(merged.testFiles?.["x/src/empty.test.ts"]?.tests, []);
+});
+
+test("mergeMutationReports: no parts yields an empty report, which adjudicates as VACUOUS not pass", () => {
+  const merged = mergeMutationReports([]);
+  assert.deepEqual(merged.files, {});
+  assert.notEqual(adjudicateMutants(merged, []).verdict, "pass");
 });
