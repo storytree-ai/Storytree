@@ -1,0 +1,1212 @@
+{
+  "url": "http://localhost:5242/theme.html",
+  "renderer": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)"
+  },
+  "base": 6.5,
+  "results": [
+    {
+      "theme": "shipped",
+      "offered": true,
+      "pure": {
+        "pass": true,
+        "colour": true,
+        "geometry": true,
+        "line": "CLEARS — colour: tightest yellow/green 1.13x its bar, 0 foreign read(s); land: tightest fallow/wheatfield 2.83 octaves against 0.77 from heath/swamp (3.69x)"
+      },
+      "pairs": [
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 8,
+          "between": 0.04506307128310305,
+          "bar": 0.06432218608634956,
+          "betweenFineness": 1.4325346625838808,
+          "barFineness": 0.8792085347728181,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.629345719390723
+        },
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 2,
+          "between": 0.02544665679958852,
+          "bar": 0.06525339835992927,
+          "betweenFineness": 1.2256459050579793,
+          "barFineness": 0.8491270857229233,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.4434186892230605
+        }
+      ]
+    },
+    {
+      "theme": "high-summer",
+      "offered": true,
+      "pure": {
+        "pass": true,
+        "colour": true,
+        "geometry": true,
+        "line": "CLEARS — colour: tightest green/grey 1.60x its bar, 0 foreign read(s); land: tightest fallow/wheatfield 2.83 octaves against 0.77 from heath/swamp (3.69x)"
+      },
+      "pairs": [
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 8,
+          "between": 0.04501869290853336,
+          "bar": 0.0642842342795028,
+          "betweenFineness": 1.4312736241796147,
+          "barFineness": 0.8792085347728181,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.6279114312163117
+        },
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 2,
+          "between": 0.02540314391431496,
+          "bar": 0.06522206952824947,
+          "betweenFineness": 1.228109180076236,
+          "barFineness": 0.8491270857229233,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.4463196389862631
+        }
+      ]
+    },
+    {
+      "theme": "cold-season",
+      "offered": true,
+      "pure": {
+        "pass": true,
+        "colour": true,
+        "geometry": true,
+        "line": "CLEARS — colour: tightest yellow/brown 1.87x its bar, 0 foreign read(s); land: tightest fallow/wheatfield 2.70 octaves against 0.77 from heath/swamp (3.53x)"
+      },
+      "pairs": [
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 8,
+          "between": 0.04358962431298567,
+          "bar": 0.0762960882905092,
+          "betweenFineness": 1.2207712716980283,
+          "barFineness": 0.6493467903211939,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.8799989310706906
+        },
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 2,
+          "between": 0.034061873051055264,
+          "bar": 0.07622640203429616,
+          "betweenFineness": 1.1568052419311916,
+          "barFineness": 0.6208501993811629,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.8632598380160719
+        }
+      ]
+    },
+    {
+      "theme": "dusk-flats",
+      "offered": false,
+      "pure": {
+        "pass": false,
+        "colour": false,
+        "geometry": true,
+        "line": "REFUSED — colour: tightest brown/black 0.09x its bar, 3 foreign read(s); land: tightest fallow/wheatfield 2.83 octaves against 0.77 from heath/swamp (3.69x)"
+      },
+      "pairs": [
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 8,
+          "between": 0.04520705846958355,
+          "bar": 0.06488798096139371,
+          "betweenFineness": 1.4224163349775145,
+          "barFineness": 0.8765925865658064,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.6226652572434603
+        },
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 2,
+          "between": 0.025466706350094417,
+          "bar": 0.06588926329310354,
+          "betweenFineness": 1.2209765165880242,
+          "barFineness": 0.8527293224031188,
+          "separatedByDirection": false,
+          "separatedByScale": true,
+          "separated": true,
+          "margin": 1.4318453517549152
+        }
+      ]
+    },
+    {
+      "theme": "levelled-fields",
+      "offered": false,
+      "pure": {
+        "pass": false,
+        "colour": true,
+        "geometry": false,
+        "line": "REFUSED — colour: tightest green/grey 1.60x its bar, 0 foreign read(s); land: tightest fallow/wheatfield 0.00 octaves against 0.77 from heath/swamp (0.00x)"
+      },
+      "pairs": [
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 8,
+          "between": 0,
+          "bar": 0.03391644270069519,
+          "betweenFineness": 0,
+          "barFineness": 0.2748305222701494,
+          "separatedByDirection": false,
+          "separatedByScale": false,
+          "separated": false,
+          "margin": 0
+        },
+        {
+          "pair": "fallow/wheatfield",
+          "zoom": 2,
+          "between": 0,
+          "bar": 0.03303896706223147,
+          "betweenFineness": 0,
+          "barFineness": 0.21817081881166012,
+          "separatedByDirection": false,
+          "separatedByScale": false,
+          "separated": false,
+          "margin": 0
+        }
+      ]
+    }
+  ],
+  "panels": {
+    "theme-shipped-proposed-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.16411728359563799,
+        0.24273506088995833,
+        0.2421143713081425,
+        0.35103328420626106
+      ],
+      "anisotropy": 2.1389172213644354,
+      "fineness": {
+        "x": 1.3205852405751233,
+        "y": 1.9175099446407566
+      },
+      "withinSpread": 0.06432218608634956,
+      "withinFineness": 0.8792085347728181
+    },
+    "theme-shipped-building-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.14329005638025072,
+        0.268194719669805,
+        0.21787852724042678,
+        0.3706366967095175
+      ],
+      "anisotropy": 2.5866184023680887,
+      "fineness": {
+        "x": 2.8020078732497584,
+        "y": 5.1757528297741775
+      },
+      "withinSpread": 0.03393983122460237,
+      "withinFineness": 0.27760938998174206
+    },
+    "theme-shipped-healthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19884253951140402,
+        0.21944825113222396,
+        0.2330416502820843,
+        0.34866755907428776
+      ],
+      "anisotropy": 1.7534857477229664,
+      "fineness": {
+        "x": 3.127249615741311,
+        "y": 3.5141648812114994
+      },
+      "withinSpread": 0.03677646715223651,
+      "withinFineness": 0.3563032013878063
+    },
+    "theme-shipped-mapped-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.22971210841908093,
+        0.18020038541097988,
+        0.2931602636629728,
+        0.2969272425069663
+      ],
+      "anisotropy": 1.6477614175450819,
+      "fineness": {
+        "x": 2.623822093091126,
+        "y": 2.054996072403956
+      },
+      "withinSpread": 0.0418847812341306,
+      "withinFineness": 0.3853129574888117
+    },
+    "theme-shipped-unhealthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.1991167365750647,
+        0.21750194853804744,
+        0.23627485448211627,
+        0.34710646040477167
+      ],
+      "anisotropy": 1.7432309627770368,
+      "fineness": {
+        "x": 2.1482816989098077,
+        "y": 2.384038638790057
+      },
+      "withinSpread": 0.050795831484622536,
+      "withinFineness": 0.36416540956596105
+    },
+    "theme-shipped-unknown-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.2015723931529487,
+        0.22232004407906653,
+        0.22808357311405797,
+        0.3480239896539269
+      ],
+      "anisotropy": 1.7265459034851758,
+      "fineness": {
+        "x": 6.1102806223369415,
+        "y": 6.910137088909588
+      },
+      "withinSpread": 0.025925415700700533,
+      "withinFineness": 0.4594666598115577
+    },
+    "theme-shipped-proposed-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.17050495754157854,
+        0.24127433947273746,
+        0.24057463614959615,
+        0.3476460668360878
+      ],
+      "anisotropy": 2.0389205794870358,
+      "fineness": {
+        "x": 5.120083084512528,
+        "y": 7.143135194051929
+      },
+      "withinSpread": 0.06525339835992927,
+      "withinFineness": 0.8491270857229233
+    },
+    "theme-shipped-building-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.16742612509034635,
+        0.26672099627232604,
+        0.22935265102468985,
+        0.3365002276126378
+      ],
+      "anisotropy": 2.0098430124394016,
+      "fineness": {
+        "x": 10.65948331818772,
+        "y": 16.70494504781554
+      },
+      "withinSpread": 0.032978935534112214,
+      "withinFineness": 0.22110312681481803
+    },
+    "theme-shipped-healthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.21004078930202344,
+        0.22266708421057207,
+        0.23246901151735028,
+        0.33482311497005435
+      ],
+      "anisotropy": 1.5940861586108541,
+      "fineness": {
+        "x": 11.678566792158898,
+        "y": 12.511191560590136
+      },
+      "withinSpread": 0.03532148372706609,
+      "withinFineness": 0.35131230182425693
+    },
+    "theme-shipped-mapped-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23457509359951426,
+        0.18247611574465186,
+        0.2923150296725783,
+        0.2906337609832556
+      ],
+      "anisotropy": 1.6019358395464183,
+      "fineness": {
+        "x": 9.984421653901078,
+        "y": 7.681627674620785
+      },
+      "withinSpread": 0.043335873773211034,
+      "withinFineness": 0.4412691184189193
+    },
+    "theme-shipped-unhealthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.20536262561645438,
+        0.2181145050149786,
+        0.23253436106840972,
+        0.3439885083001573
+      ],
+      "anisotropy": 1.6750297541608552,
+      "fineness": {
+        "x": 8.265610800986629,
+        "y": 8.911726160353977
+      },
+      "withinSpread": 0.052755028034980306,
+      "withinFineness": 0.34789508570597405
+    },
+    "theme-shipped-unknown-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23860265409718176,
+        0.23364144904874268,
+        0.23329071654825614,
+        0.2944651803058195
+      ],
+      "anisotropy": 1.2622241667507992,
+      "fineness": {
+        "x": 19.279501492924833,
+        "y": 19.09637069043819
+      },
+      "withinSpread": 0.018854377118632762,
+      "withinFineness": 0.47890139670169213
+    },
+    "theme-high-summer-proposed-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.1639226855362093,
+        0.24289907500809982,
+        0.24205384765540108,
+        0.35112439180028987
+      ],
+      "anisotropy": 2.142012197102085,
+      "fineness": {
+        "x": 1.3230983248266783,
+        "y": 1.9205093471921943
+      },
+      "withinSpread": 0.0642842342795028,
+      "withinFineness": 0.8792085347728181
+    },
+    "theme-high-summer-building-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.14314481811137564,
+        0.2683094210539403,
+        0.21781302217170137,
+        0.37073273866298273
+      ],
+      "anisotropy": 2.5899137918812363,
+      "fineness": {
+        "x": 2.8054126970744457,
+        "y": 5.179319686862374
+      },
+      "withinSpread": 0.03391644270069519,
+      "withinFineness": 0.2748305222701494
+    },
+    "theme-high-summer-healthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19899978934085114,
+        0.21922556971304957,
+        0.23354554117382909,
+        0.34822909977227023
+      ],
+      "anisotropy": 1.7498968261509862,
+      "fineness": {
+        "x": 3.1208453042615423,
+        "y": 3.4944661022925976
+      },
+      "withinSpread": 0.03640711157610882,
+      "withinFineness": 0.3646174844917781
+    },
+    "theme-high-summer-mapped-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.2298730848312655,
+        0.1799971387292499,
+        0.29301823375279806,
+        0.2971115426866866
+      ],
+      "anisotropy": 1.6506459201754264,
+      "fineness": {
+        "x": 2.623254622453678,
+        "y": 2.0316493714630357
+      },
+      "withinSpread": 0.04264316135834345,
+      "withinFineness": 0.3909041912001697
+    },
+    "theme-high-summer-unhealthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19904331923940932,
+        0.21770583187817932,
+        0.23595130994334942,
+        0.3472995389390619
+      ],
+      "anisotropy": 1.7448439880633722,
+      "fineness": {
+        "x": 2.1656300869689287,
+        "y": 2.413708404569144
+      },
+      "withinSpread": 0.0530976714786244,
+      "withinFineness": 0.36212394275859355
+    },
+    "theme-high-summer-unknown-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.20153252214022138,
+        0.22237480739082968,
+        0.2279208076338445,
+        0.34817186283510443
+      ],
+      "anisotropy": 1.7276212252871772,
+      "fineness": {
+        "x": 6.1031467057518825,
+        "y": 6.915892699210995
+      },
+      "withinSpread": 0.026071602018094428,
+      "withinFineness": 0.46173404933059037
+    },
+    "theme-high-summer-proposed-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.17025291662345718,
+        0.24147498153278438,
+        0.24049251755628429,
+        0.347779584287474
+      ],
+      "anisotropy": 2.0427232095920376,
+      "fineness": {
+        "x": 5.120083084512528,
+        "y": 7.143135194051929
+      },
+      "withinSpread": 0.06522206952824947,
+      "withinFineness": 0.8491270857229233
+    },
+    "theme-high-summer-building-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.16725253043322305,
+        0.2668781254470994,
+        0.22927227587473717,
+        0.33659706824494035
+      ],
+      "anisotropy": 2.0125080760995093,
+      "fineness": {
+        "x": 10.66727249123718,
+        "y": 16.733491637146898
+      },
+      "withinSpread": 0.03303896706223147,
+      "withinFineness": 0.21817081881166012
+    },
+    "theme-high-summer-healthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.21019589109083942,
+        0.22251081726044056,
+        0.23280298501679103,
+        0.33449030663192886
+      ],
+      "anisotropy": 1.5913265711144358,
+      "fineness": {
+        "x": 11.69025055173309,
+        "y": 12.509893988347802
+      },
+      "withinSpread": 0.03465467165174807,
+      "withinFineness": 0.3707945059314483
+    },
+    "theme-high-summer-mapped-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23457148605315067,
+        0.18243904022555815,
+        0.2921113626228058,
+        0.2908781110984854
+      ],
+      "anisotropy": 1.601145030480617,
+      "fineness": {
+        "x": 9.951966766194989,
+        "y": 7.629724784927401
+      },
+      "withinSpread": 0.04408995696345924,
+      "withinFineness": 0.4599654111524425
+    },
+    "theme-high-summer-unhealthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.2055870771417641,
+        0.21815550026101785,
+        0.2322830733991031,
+        0.3439743491981149
+      ],
+      "anisotropy": 1.6731321539287454,
+      "fineness": {
+        "x": 8.326625989874074,
+        "y": 8.994770783863391
+      },
+      "withinSpread": 0.054822108478778414,
+      "withinFineness": 0.35162458810403113
+    },
+    "theme-high-summer-unknown-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23861234270503248,
+        0.23366936735327704,
+        0.23324541815903824,
+        0.29447287178265236
+      ],
+      "anisotropy": 1.2625022781020556,
+      "fineness": {
+        "x": 19.271712319875373,
+        "y": 19.119726990800213
+      },
+      "withinSpread": 0.01893386264051132,
+      "withinFineness": 0.4801392319049917
+    },
+    "theme-cold-season-proposed-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19528975384140582,
+        0.2261872617045479,
+        0.21514877660388307,
+        0.36337420785016317
+      ],
+      "anisotropy": 1.860692641075569,
+      "fineness": {
+        "x": 1.3714954634775898,
+        "y": 1.529452106431773
+      },
+      "withinSpread": 0.0762960882905092,
+      "withinFineness": 0.6493467903211939
+    },
+    "theme-cold-season-building-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.20920211403417768,
+        0.22676276750128985,
+        0.17155915229089744,
+        0.39247596617363506
+      ],
+      "anisotropy": 2.2877005448718286,
+      "fineness": {
+        "x": 3.196562100743873,
+        "y": 3.4248313241389488
+      },
+      "withinSpread": 0.032604745227909945,
+      "withinFineness": 0.2356865732639093
+    },
+    "theme-cold-season-healthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19722950453372157,
+        0.21977468118420262,
+        0.23563635531397537,
+        0.3473594589681005
+      ],
+      "anisotropy": 1.761194197538078,
+      "fineness": {
+        "x": 2.7092669576439916,
+        "y": 3.115730731473217
+      },
+      "withinSpread": 0.043219639328988826,
+      "withinFineness": 0.32115440638590403
+    },
+    "theme-cold-season-mapped-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19250706161629239,
+        0.22315197622024416,
+        0.32402741501373283,
+        0.26031354714973054
+      ],
+      "anisotropy": 1.6831975528232235,
+      "fineness": {
+        "x": 2.1259071423475775,
+        "y": 2.534414091031057
+      },
+      "withinSpread": 0.051780217264764866,
+      "withinFineness": 0.4299404979541868
+    },
+    "theme-cold-season-unhealthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19625807037550352,
+        0.21818632605812574,
+        0.24463773440933473,
+        0.3409178691570362
+      ],
+      "anisotropy": 1.737089682501988,
+      "fineness": {
+        "x": 1.8296064023658662,
+        "y": 2.112957500087145
+      },
+      "withinSpread": 0.06395749054626931,
+      "withinFineness": 0.47163172155526656
+    },
+    "theme-cold-season-unknown-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.20004436896809405,
+        0.22191818587915452,
+        0.22934911369559716,
+        0.3486883314571542
+      ],
+      "anisotropy": 1.743054969534124,
+      "fineness": {
+        "x": 5.312497973319152,
+        "y": 6.035932842566224
+      },
+      "withinSpread": 0.02831739187090121,
+      "withinFineness": 0.3757736202099415
+    },
+    "theme-cold-season-proposed-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.2023807168675201,
+        0.22491529925464987,
+        0.2151004434250381,
+        0.3576035404527919
+      ],
+      "anisotropy": 1.7669842561476932,
+      "fineness": {
+        "x": 5.353758275996365,
+        "y": 5.778089195115938
+      },
+      "withinSpread": 0.07622640203429616,
+      "withinFineness": 0.6208501993811629
+    },
+    "theme-cold-season-building-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.22367152288961026,
+        0.23286947346180947,
+        0.18103857037398285,
+        0.36242043327459744
+      ],
+      "anisotropy": 2.001896239712469,
+      "fineness": {
+        "x": 11.936907698299365,
+        "y": 12.35418531926765
+      },
+      "withinSpread": 0.03250389563586477,
+      "withinFineness": 0.2576271236105137
+    },
+    "theme-cold-season-healthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.2066143619027066,
+        0.22211638585431423,
+        0.23343448179039397,
+        0.3378347704525851
+      ],
+      "anisotropy": 1.635098196182845,
+      "fineness": {
+        "x": 10.306374139945476,
+        "y": 11.378410993032038
+      },
+      "withinSpread": 0.04154743859301073,
+      "withinFineness": 0.36946124839580763
+    },
+    "theme-cold-season-mapped-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.19725396996891376,
+        0.22518186632051995,
+        0.3199755210532317,
+        0.25758864265733467
+      ],
+      "anisotropy": 1.6221499679000542,
+      "fineness": {
+        "x": 8.18901726600026,
+        "y": 9.608522454487654
+      },
+      "withinSpread": 0.05700719906696773,
+      "withinFineness": 0.4420719006716221
+    },
+    "theme-cold-season-unhealthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.2023319533651185,
+        0.2180787470491311,
+        0.24227626417466458,
+        0.33731303541108587
+      ],
+      "anisotropy": 1.6671268665230894,
+      "fineness": {
+        "x": 7.016746722056341,
+        "y": 7.916488250483345
+      },
+      "withinSpread": 0.06204615239118079,
+      "withinFineness": 0.47235065528601394
+    },
+    "theme-cold-season-unknown-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23127488657736603,
+        0.23207813038752292,
+        0.23283340707356723,
+        0.30381357596154385
+      ],
+      "anisotropy": 1.3136470650042333,
+      "fineness": {
+        "x": 17.992989744255485,
+        "y": 18.226997288074013
+      },
+      "withinSpread": 0.02729621739153551,
+      "withinFineness": 0.37709014403709473
+    },
+    "theme-dusk-flats-proposed-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.16424066365056636,
+        0.24266060869007774,
+        0.24214858595656047,
+        0.3509501417027954
+      ],
+      "anisotropy": 2.136804210980703,
+      "fineness": {
+        "x": 1.3257735435460754,
+        "y": 1.9326690872655905
+      },
+      "withinSpread": 0.06488798096139371,
+      "withinFineness": 0.8765925865658064
+    },
+    "theme-dusk-flats-building-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.14343089986418303,
+        0.2681203127833369,
+        0.2177512912733603,
+        0.37069749607911984
+      ],
+      "anisotropy": 2.5845023382697807,
+      "fineness": {
+        "x": 2.816599975355561,
+        "y": 5.1802114011344225
+      },
+      "withinSpread": 0.03423562691034218,
+      "withinFineness": 0.2734524996547744
+    },
+    "theme-dusk-flats-healthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19897847457726525,
+        0.21926192091256377,
+        0.23345213438552168,
+        0.3483074701246493
+      ],
+      "anisotropy": 1.7504781402341998,
+      "fineness": {
+        "x": 3.122709850641728,
+        "y": 3.5005459723292955
+      },
+      "withinSpread": 0.03648380241090711,
+      "withinFineness": 0.3597325234123511
+    },
+    "theme-dusk-flats-mapped-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.2296437457712647,
+        0.1802601891009534,
+        0.2925243767754597,
+        0.2975716883523221
+      ],
+      "anisotropy": 1.6507898379362582,
+      "fineness": {
+        "x": 2.6162828403364613,
+        "y": 2.0193275015219943
+      },
+      "withinSpread": 0.044028920877684646,
+      "withinFineness": 0.39006736110658563
+    },
+    "theme-dusk-flats-unhealthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19911608226215693,
+        0.2175356321281907,
+        0.236234226274905,
+        0.3471140593347474
+      ],
+      "anisotropy": 1.7432748545028915,
+      "fineness": {
+        "x": 2.1584151031499483,
+        "y": 2.3953066645914043
+      },
+      "withinSpread": 0.051542083140509926,
+      "withinFineness": 0.3578332266439025
+    },
+    "theme-dusk-flats-unknown-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.20152917032763387,
+        0.22236665871331476,
+        0.22798471634081785,
+        0.3481194546182336
+      ],
+      "anisotropy": 1.727389906147493,
+      "fineness": {
+        "x": 6.100390419798564,
+        "y": 6.910785608380168
+      },
+      "withinSpread": 0.02597197646728,
+      "withinFineness": 0.45603530106712004
+    },
+    "theme-dusk-flats-proposed-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.1706793137690902,
+        0.24116803401863757,
+        0.240623602635972,
+        0.3475290495763003
+      ],
+      "anisotropy": 2.0361521376074183,
+      "fineness": {
+        "x": 5.152537972218616,
+        "y": 7.180764789079632
+      },
+      "withinSpread": 0.06588926329310354,
+      "withinFineness": 0.8527293224031188
+    },
+    "theme-dusk-flats-building-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.16761409387240903,
+        0.26663474036873197,
+        0.22927203403770643,
+        0.3364791317211526
+      ],
+      "anisotropy": 2.0074632386062166,
+      "fineness": {
+        "x": 10.684149032844346,
+        "y": 16.738681926116236
+      },
+      "withinSpread": 0.03319901881074985,
+      "withinFineness": 0.21945150690365167
+    },
+    "theme-dusk-flats-healthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.2102302515771205,
+        0.2225011920370138,
+        0.232775444998354,
+        0.33449311138751164
+      ],
+      "anisotropy": 1.591079822614429,
+      "fineness": {
+        "x": 11.698039724782552,
+        "y": 12.51508427731714
+      },
+      "withinSpread": 0.03488629462605196,
+      "withinFineness": 0.36228300607593084
+    },
+    "theme-dusk-flats-mapped-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23457667535789428,
+        0.18257563653178932,
+        0.29162480331360485,
+        0.2912228847967115
+      ],
+      "anisotropy": 1.5972821393550412,
+      "fineness": {
+        "x": 9.924704660521874,
+        "y": 7.659568946501096
+      },
+      "withinSpread": 0.04605612158093865,
+      "withinFineness": 0.4563405473336884
+    },
+    "theme-dusk-flats-unhealthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.20547710474403155,
+        0.21808444377141442,
+        0.23252761057804205,
+        0.3439108409065121
+      ],
+      "anisotropy": 1.6737185456011328,
+      "fineness": {
+        "x": 8.31753862131637,
+        "y": 8.948058183139347
+      },
+      "withinSpread": 0.05345545192776183,
+      "withinFineness": 0.3503824915650691
+    },
+    "theme-dusk-flats-unknown-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23859498647251198,
+        0.23369550671130537,
+        0.23322816185496448,
+        0.29448134496121814
+      ],
+      "anisotropy": 1.2626320193028175,
+      "fineness": {
+        "x": 19.279501492924833,
+        "y": 19.139190574435233
+      },
+      "withinSpread": 0.01881339003341642,
+      "withinFineness": 0.47890139670169213
+    },
+    "theme-levelled-fields-proposed-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.14314481811137564,
+        0.2683094210539403,
+        0.21781302217170137,
+        0.37073273866298273
+      ],
+      "anisotropy": 2.5899137918812363,
+      "fineness": {
+        "x": 2.8054126970744457,
+        "y": 5.179319686862374
+      },
+      "withinSpread": 0.03391644270069519,
+      "withinFineness": 0.2748305222701494
+    },
+    "theme-levelled-fields-building-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.14314481811137564,
+        0.2683094210539403,
+        0.21781302217170137,
+        0.37073273866298273
+      ],
+      "anisotropy": 2.5899137918812363,
+      "fineness": {
+        "x": 2.8054126970744457,
+        "y": 5.179319686862374
+      },
+      "withinSpread": 0.03391644270069519,
+      "withinFineness": 0.2748305222701494
+    },
+    "theme-levelled-fields-healthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19899978934085114,
+        0.21922556971304957,
+        0.23354554117382909,
+        0.34822909977227023
+      ],
+      "anisotropy": 1.7498968261509862,
+      "fineness": {
+        "x": 3.1208453042615423,
+        "y": 3.4944661022925976
+      },
+      "withinSpread": 0.03640711157610882,
+      "withinFineness": 0.3646174844917781
+    },
+    "theme-levelled-fields-mapped-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.2298730848312655,
+        0.1799971387292499,
+        0.29301823375279806,
+        0.2971115426866866
+      ],
+      "anisotropy": 1.6506459201754264,
+      "fineness": {
+        "x": 2.623254622453678,
+        "y": 2.0316493714630357
+      },
+      "withinSpread": 0.04264316135834345,
+      "withinFineness": 0.3909041912001697
+    },
+    "theme-levelled-fields-unhealthy-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.19904331923940932,
+        0.21770583187817932,
+        0.23595130994334942,
+        0.3472995389390619
+      ],
+      "anisotropy": 1.7448439880633722,
+      "fineness": {
+        "x": 2.1656300869689287,
+        "y": 2.413708404569144
+      },
+      "withinSpread": 0.0530976714786244,
+      "withinFineness": 0.36212394275859355
+    },
+    "theme-levelled-fields-unknown-8px": {
+      "w": 1918,
+      "h": 929,
+      "signature": [
+        0.20153252214022138,
+        0.22237480739082968,
+        0.2279208076338445,
+        0.34817186283510443
+      ],
+      "anisotropy": 1.7276212252871772,
+      "fineness": {
+        "x": 6.1031467057518825,
+        "y": 6.915892699210995
+      },
+      "withinSpread": 0.026071602018094428,
+      "withinFineness": 0.46173404933059037
+    },
+    "theme-levelled-fields-proposed-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.16725253043322305,
+        0.2668781254470994,
+        0.22927227587473717,
+        0.33659706824494035
+      ],
+      "anisotropy": 2.0125080760995093,
+      "fineness": {
+        "x": 10.66727249123718,
+        "y": 16.733491637146898
+      },
+      "withinSpread": 0.03303896706223147,
+      "withinFineness": 0.21817081881166012
+    },
+    "theme-levelled-fields-building-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.16725253043322305,
+        0.2668781254470994,
+        0.22927227587473717,
+        0.33659706824494035
+      ],
+      "anisotropy": 2.0125080760995093,
+      "fineness": {
+        "x": 10.66727249123718,
+        "y": 16.733491637146898
+      },
+      "withinSpread": 0.03303896706223147,
+      "withinFineness": 0.21817081881166012
+    },
+    "theme-levelled-fields-healthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.21019589109083942,
+        0.22251081726044056,
+        0.23280298501679103,
+        0.33449030663192886
+      ],
+      "anisotropy": 1.5913265711144358,
+      "fineness": {
+        "x": 11.69025055173309,
+        "y": 12.509893988347802
+      },
+      "withinSpread": 0.03465467165174807,
+      "withinFineness": 0.3707945059314483
+    },
+    "theme-levelled-fields-mapped-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23457148605315067,
+        0.18243904022555815,
+        0.2921113626228058,
+        0.2908781110984854
+      ],
+      "anisotropy": 1.601145030480617,
+      "fineness": {
+        "x": 9.951966766194989,
+        "y": 7.629724784927401
+      },
+      "withinSpread": 0.04408995696345924,
+      "withinFineness": 0.4599654111524425
+    },
+    "theme-levelled-fields-unhealthy-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.2055870771417641,
+        0.21815550026101785,
+        0.2322830733991031,
+        0.3439743491981149
+      ],
+      "anisotropy": 1.6731321539287454,
+      "fineness": {
+        "x": 8.326625989874074,
+        "y": 8.994770783863391
+      },
+      "withinSpread": 0.054822108478778414,
+      "withinFineness": 0.35162458810403113
+    },
+    "theme-levelled-fields-unknown-2px": {
+      "w": 480,
+      "h": 232,
+      "signature": [
+        0.23861234270503248,
+        0.23366936735327704,
+        0.23324541815903824,
+        0.29447287178265236
+      ],
+      "anisotropy": 1.2625022781020556,
+      "fineness": {
+        "x": 19.271712319875373,
+        "y": 19.119726990800213
+      },
+      "withinSpread": 0.01893386264051132,
+      "withinFineness": 0.4801392319049917
+    }
+  }
+}

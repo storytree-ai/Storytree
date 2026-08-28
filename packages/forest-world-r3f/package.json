@@ -22,6 +22,7 @@
     "measure-frame": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/frame-cost-measure.mjs",
     "measure-clay": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/clay-measure.mjs",
     "measure-pine": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/pine-measure.mjs",
+    "measure-theme": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/theme-measure.mjs",
     "measure-convention": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/colour-convention-measure.mjs",
     "measure-kit-island": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/kit-island-measure.mjs"
   },
