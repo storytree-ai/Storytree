@@ -49,9 +49,11 @@ export const GROUND_COVERS: readonly GroundCover[] = ['wheat', 'yellowGrass'];
  *
  * AUTHORED AGAINST THE MEASUREMENT, NOT PICKED BY EYE, and the search that produced it is
  * recorded in `docs/research/chapter2-ground-cover-2026-08-27/`. The constraint that decides it
- * is not aesthetic: `proposed` (`#d8c069`) and `building` (`#dcab52`) are themselves yellows and
- * `unknown` (`#a9c87f`) is a light yellow-green, so the band a yellow grass would naturally
- * occupy is already spoken for three times over.
+ * is not aesthetic: `proposed` (`#d8c069`) and `building` (`#dcab52`) were themselves yellows and
+ * `unknown` (`#a9c87f`) a light yellow-green, so the band a yellow grass would naturally occupy
+ * was already spoken for three times over. (Those three hexes are the palette AS AT AUTHORING —
+ * `building` has since merged into `proposed` and `unknown` has become a slate. The crowding is
+ * what the search faced; the current palette is `STATUS_TOKENS`.)
  *
  * Measured, at matched condition (same face, same ladder rung — the only comparison a viewer
  * actually makes on one island), its nearest status colour is **13.62**, `proposed`'s middle
@@ -60,20 +62,25 @@ export const GROUND_COVERS: readonly GroundCover[] = ['wheat', 'yellowGrass'];
  *
  *   - the shipped `wheat` override sits **7.68** from `proposed`, so this cover is 1.8x further
  *     from a proof state than a colour the app already draws;
- *   - the closest two DIFFERENT statuses sit **14.23** apart (`proposed` vs `mapped`).
+ *   - the closest two DIFFERENT statuses sit **24.58** apart (`healthy` vs `unknown`).
  *
- * ⚠ THAT SECOND FIGURE WAS **3.33** WHEN THIS TOKEN WAS AUTHORED, AND THE CHANGE INVERTS WHAT IT
- * SAYS — corrected in place rather than left standing. It used to read "the map already draws a
- * MEANINGFUL difference 4.1x quieter than this scenery colour is from any status", which was the
- * argument that a cover at 13.62 was comfortably safe. ADR-0462 gave `unknown` its own slate and
- * merged `building` into `proposed`, and the map's worst meaningful pair improved from 3.33 to
- * 14.23 — so the comparison now runs the OTHER WAY: a `yellowGrass` cell is 13.62 from the
- * nearest proof state, marginally CLOSER than two genuinely different states are to each other.
- * Nothing about the cover moved; the denominator did. The relative bar it was authored against
- * ({@link SEPARATION_FLOOR}, the shipped wheat's own 7.675) is untouched and it still clears it
- * by 1.8x, so this is not a defect that has appeared — it is the headroom argument losing its
- * force as the status vocabulary gets better, which is exactly the trade
- * `oq-how-does-the-map-report-a-capability-s-state-once-the-gro` exists to price.
+ * ⚠ THAT SECOND FIGURE WAS **3.33** WHEN THIS TOKEN WAS AUTHORED AND HAS BEEN CORRECTED IN PLACE
+ * TWICE, EACH TIME IN THE SAME DIRECTION. It used to read "the map already draws a MEANINGFUL
+ * difference 4.1x quieter than this scenery colour is from any status", which was the argument
+ * that a cover at 13.62 was comfortably safe. ADR-0462 gave `unknown` its own slate and merged
+ * `building` into `proposed`, taking the worst meaningful pair from 3.33 to 14.23 and inverting
+ * the comparison. Re-authoring `mapped` as a clay on 2026-08-28 took it to 24.58, and the
+ * inversion is no longer marginal: a `yellowGrass` cell is 13.62 from the nearest proof state,
+ * a little over HALF what two genuinely different states are from each other.
+ *
+ * Nothing about the cover moved; the denominator did, twice. The relative bar it was authored
+ * against ({@link SEPARATION_FLOOR}, the shipped wheat's own 7.675) is untouched and it still
+ * clears it by 1.8x, so this is not a defect that has appeared — it is the headroom argument
+ * losing its force as the status vocabulary gets better, which is exactly the trade
+ * `oq-how-does-the-map-report-a-capability-s-state-once-the-gro` exists to price. ⚠ EXPECT THIS
+ * TO KEEP HAPPENING and do not read a later correction as a new defect: every improvement to the
+ * vocabulary raises the standard the scenery is judged by, and this token has not been re-authored
+ * since.
  *
  * ⚠ RED EQUALS GREEN, EXACTLY, AND THAT IS THE COLOUR CONSTRAINT DOING WORK. The first token
  * authored here scored 11.96 and rendered OLIVE-GREEN: the luma weights put 59% of the distance

@@ -19,7 +19,8 @@
     "measure-status": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/status-measure.mjs",
     "measure-baseline": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/baseline-measure.mjs",
     "measure-terrain": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/terrain-measure.mjs",
-    "measure-frame": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/frame-cost-measure.mjs"
+    "measure-frame": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/frame-cost-measure.mjs",
+    "measure-clay": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/clay-measure.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

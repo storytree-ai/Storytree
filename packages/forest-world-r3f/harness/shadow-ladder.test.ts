@@ -42,7 +42,7 @@ import {
   safeDepth,
   shadowRamp,
 } from './shadow-ladder.js';
-import { LEGACY_STATUS_TOKENS } from './status-vocabulary.js';
+import { ADR0462_STATUS_TOKENS, LEGACY_STATUS_TOKENS } from './status-vocabulary.js';
 
 const ALL_SIX = [...STATUS_TOKENS.keys()].sort();
 
@@ -136,19 +136,28 @@ test('FLAT GROUND IS DELIVERED AT 0.90, and that is derived from the light, not 
   assert.notEqual(FLAT_GROUND_LEVEL, 1.0);
 });
 
-test('THE FINDING: the SHIPPED ladder is already inadmissible, before any shadow exists', () => {
-  // A measurement about the land that landed on 2026-08-20, not a cost of this change.
-  // Relief reaches all four rungs, so an island carrying a `proposed` or `unknown` parcel
-  // already delivers ground that reads as another status.
+test('THE FINDING IS DISCHARGED: the shipped ladder is admissible at every rung', () => {
+  // ⚠ THE TITLE OF THIS TEST USED TO BE "the SHIPPED ladder is already inadmissible, before any
+  // shadow exists", and it recorded a real defect measured on 2026-08-20: relief reaches all four
+  // rungs, so an island carrying a `proposed` or `unknown` parcel delivered ground that read as
+  // another status. THE DEFECT IS NOW GONE, in two steps, and the two frozen arms below are what
+  // make that a measurement rather than a claim about a diff.
   const bad = ladderAdmissibility(SHADE_LEVELS).filter((v) => !v.admissible);
   const seen = bad.map((v) => `${v.status}@${v.level}->${v.readsAs}`).sort();
-  assert.deepEqual(seen, [
-    // DOWNWARD — the direction a shadow moves: `proposed`'s two dark rungs read `mapped`.
-    // Unproven greenfield read as inherited brownfield. This pair is what survives ADR-0462
-    // and it is the whole remaining scope of `pull-the-four-land-colours-apart-in-hue`.
-    'proposed@0.78->mapped',
-    'proposed@0.8->mapped',
-  ].sort());
+  assert.deepEqual(seen, [], 'no rendered status reads as another at any lit rung');
+
+  // STEP TWO, frozen: the palette ADR-0462 shipped still carried ONE pair on TWO rungs —
+  // `proposed`'s two darkest rungs reading `mapped`, unproven greenfield read as inherited
+  // brownfield. That was the entire remaining scope of the increment that landed the clay, and
+  // reading it off the live table would erase the thing the clay was authored to remove.
+  const midTable = readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL, oneToken: true, tokens: ADR0462_STATUS_TOKENS });
+  const midBad = RENDERED_STATUSES.flatMap((st) =>
+    SHADE_LEVELS.map((level) => ({ st, level, readsAs: nearestStatus(deliveredColour(ADR0462_STATUS_TOKENS.get(st)!.top[0]!, level), midTable) })),
+  ).filter((v) => v.readsAs !== v.st);
+  assert.deepEqual(
+    midBad.map((v) => `${v.st}@${v.level}->${v.readsAs}`).sort(),
+    ['proposed@0.78->mapped', 'proposed@0.8->mapped'],
+  );
 
   // ⚠ THREE ENTRIES LEFT THIS LIST ON 2026-08-27 (ADR-0462) AND THEY ARE THE POINT OF THE
   // CHANGE, so they are recorded here rather than deleted. Until `unknown` was given its own
@@ -168,10 +177,14 @@ test('THE FINDING: the SHIPPED ladder is already inadmissible, before any shadow
     legacyBad.map((v) => `${v.st}@${v.level}->${v.readsAs}`).sort(),
     ['healthy@1->unknown', 'proposed@0.78->mapped', 'proposed@0.8->mapped', 'unknown@0.78->healthy', 'unknown@0.8->healthy'],
   );
-  assert.ok(legacyBad.length > seen.length, 'ADR-0462 did not reduce the inadmissible set');
-  // `mapped` is clear at every shipped rung. The failure is NOT uniform, which is what makes
-  // a per-status ladder tempting and a single one bind hard.
-  assert.equal(bad.filter((v) => v.status === 'mapped').length, 0);
+  // FIVE, then TWO, then NONE — and each arm is measured on the palette it belongs to.
+  assert.ok(legacyBad.length > midBad.length, 'ADR-0462 did not reduce the inadmissible set');
+  assert.ok(midBad.length > seen.length, 'the clay did not reduce the inadmissible set');
+  // `mapped` was clear at every shipped rung throughout: the collision was always the yellow
+  // sliding onto it, never the brown moving. Re-authoring the brown was the cheapest way to end
+  // it because the brown was the colour with somewhere to go.
+  assert.equal(legacyBad.filter((v) => v.st === 'mapped').length, 0);
+  assert.equal(midBad.filter((v) => v.st === 'mapped').length, 0);
 });
 
 test('the SHADOW RUNG adds no collision of its own — it is the whole point of deriving it', () => {
@@ -187,10 +200,13 @@ test('the SHADOW RUNG adds no collision of its own — it is the whole point of 
 test('THE SHADOW RUNG is DERIVED, is the deepest admissible level, and is a boundary', () => {
   const derived = deepestAdmissibleRung();
   assert.equal(derived, SHADOW_RUNG);
-  // 0.84 until 2026-08-27. ADR-0462 moved the binding status from `unknown` to `proposed` and
-  // the derived rung went DEEPER with it. The literal is the witness; `derived === SHADOW_RUNG`
-  // above is the assertion, and it is what would catch the rung being typed rather than derived.
-  assert.equal(SHADOW_RUNG, 0.81);
+  // 0.84 until 2026-08-27, then 0.81, now 0.77. ADR-0462 moved the binding status from `unknown`
+  // to `proposed` and the rung went deeper with it; re-authoring `mapped`'s family as a clay
+  // moved it deeper again, because the level `proposed` used to flip AT was the level it slid
+  // onto the tan. The literal is the witness; `derived === SHADOW_RUNG` above is the assertion,
+  // and it is what would catch the rung being typed rather than derived. NOTHING WAS RETUNED
+  // EITHER TIME — the rung is derived on import and it moved because the palette under it did.
+  assert.equal(SHADOW_RUNG, 0.77);
   // admissible for every rendered status...
   const table = liveReaderTable();
   for (const st of RENDERED_STATUSES) {
@@ -208,11 +224,10 @@ test('THE SHADOW RUNG is DERIVED, is the deepest admissible level, and is a boun
     (st) => nearestStatus(deliveredColour(STATUS_TOKENS.get(st)!.top[0]!, deeper), table) !== st,
   );
   assert.ok(fails.length > 0, `${deeper} is also admissible — the ceiling is not where it says`);
-  // ⚠ THE BINDING STATUS MOVED FROM `unknown` TO `proposed` ON 2026-08-27 (ADR-0462), and the
-  // rung went 0.84 -> 0.81 with it: a DEEPER shadow is now admissible, because the status that
-  // used to bind was the one sitting four degrees of hue from `healthy` and it is no longer
-  // there. Nothing about the shadow was retuned — the rung is derived, and it moved because
-  // the palette under it did.
+  // ⚠ THE BINDING STATUS MOVED FROM `unknown` TO `proposed` ON 2026-08-27 (ADR-0462) AND HAS
+  // STAYED THERE. What changed since is how far it can fall before flipping: 0.84 -> 0.81 -> 0.77.
+  // The clay did not unseat `proposed` as the binding status — it moved the wall `proposed` was
+  // falling against.
   assert.deepEqual(fails, ['proposed'], 'proposed is the binding status');
 });
 
@@ -230,10 +245,13 @@ test('the per-status ceilings still differ enough that ONE ladder binds hard', (
   const roomiest = Math.min(...flipping);
   assert.equal(binding, byStatus['proposed'], JSON.stringify(byStatus));
   assert.ok(binding / roomiest > 1.2, `spread is only ${binding / roomiest}x — ${JSON.stringify(byStatus)}`);
-  // ADR-0462 WIDENED the spread rather than narrowing it: 0.648 (healthy) .. 0.81 (proposed),
-  // a factor of 1.25, against 0.67 .. 0.84 before. The shadow got deeper AND the argument for
-  // one ladder is unchanged.
-  assert.ok(byStatus['proposed']! > 0.8 && byStatus['proposed']! < 0.82);
+  // The spread has held through two palette changes: 0.67 .. 0.84 (1.25x) originally, 0.648 ..
+  // 0.81 (1.25x) after ADR-0462, and 0.63 .. 0.774 (1.23x) since the clay. Every ceiling moved
+  // DOWN — a deeper shadow is admissible for all three flipping statuses — and the argument for
+  // ONE ladder rather than a per-status one is unchanged, which is the point of re-checking the
+  // spread rather than only the binding number.
+  assert.ok(byStatus['proposed']! > 0.77 && byStatus['proposed']! < 0.78);
+  assert.ok(Math.abs(byStatus['healthy']! - 0.63) < 0.005, JSON.stringify(byStatus));
 });
 
 test('the ladder SPAN is wider than the gaps between statuses — the structural reason', () => {
@@ -269,7 +287,19 @@ test('THE PALETTE COST, as a number: one rung, one entry per land token, nothing
   // identity rather than as a literal that goes stale the next time the land grows a prop.
   // (It did, mid-flight: the story tree's crown and bole and the UAT flower materials landed
   // on `main` while this pass was measuring, taking the closure from 104 to 156.)
-  assert.equal(after.length - before.length, landTokens().length);
+  //
+  // ⚠⚠ 2026-08-28: THE IDENTITY BROKE, AND THE BREAK IS THE FINDING RATHER THAN A FAILURE. The
+  // clay took `SHADOW_RUNG` from 0.81 to 0.77, and at 0.77 exactly one land token's shadowed
+  // colour is a colour the palette ALREADY HELD: `unknown`'s middle ground variant `#9198a3`
+  // delivers `#70757e`, which is `unknown`'s own unshadowed FLANK. So 56 tokens buy 55 new
+  // entries. It is a collision WITHIN one family — a shadowed slate top matching an unlit slate
+  // wall — so it costs the map's report nothing (both pixels mean `unknown`), and the
+  // assertion below says exactly that rather than being relaxed to an inequality.
+  const collisions = landTokens().filter((t) => before.includes(toHex(deliveredColour(t, SHADOW_RUNG))));
+  assert.deepEqual(collisions, ['#9198a3'], 'a NEW shadow/lit collision appeared — check whose');
+  assert.equal(toHex(deliveredColour('#9198a3', SHADOW_RUNG)), '#70757e');
+  assert.equal(STATUS_TOKENS.get('unknown')!.side, '#70757e', 'the colour it lands on is the same family\'s');
+  assert.equal(after.length - before.length, landTokens().length - collisions.length);
   // 2026-08-21: the land grew props (ADR-0406), which is the case the comment above
   // anticipated. The eighteen `PROP_TOKENS` took the closure from 156 to 228 and the shadowed
   // closure from 195 to 285. The IDENTITY above is what actually holds the cost; these two
@@ -293,8 +323,12 @@ test('THE PALETTE COST, as a number: one rung, one entry per land token, nothing
   // NOT relaxed for it: every entry the smaller lit palette still holds must still be in the
   // shadowed one. What a shrinking palette needs guarding is the OTHER direction, and the
   // identity `after - before === landTokens().length` is what does that.
+  //
+  // 2026-08-28 (the clay): the token COUNT did not move — `mapped`'s four tokens changed value,
+  // not number — so the lit closure is unchanged at 224. The shadowed one went 280 -> 279 for the
+  // collision named above.
   assert.equal(before.length, 224);
-  assert.equal(after.length, 280);
+  assert.equal(after.length, 279);
   // A STRICT SUPERSET WITH AN IDENTITY ON EVERY OLD ENTRY — the same property PR #1385
   // asserted of its 506-entry closure over the shipped 132. Without it, "we added 26
   // entries" could hide "and moved four of the ones already there".
@@ -321,9 +355,15 @@ test('a shadow only DARKENS: the rungs it may move are those lighter than it', (
   for (let i = 0; i < SHADE_LEVELS.length; i++) {
     if (!darkenable.includes(i)) assert.ok(SHADE_LEVELS[i]! < SHADOW_RUNG);
   }
-  // The consequence worth knowing: relief's own dark rungs are BELOW the shadow rung, so a
-  // shadow falling on an already-shaded slope leaves it alone.
-  assert.deepEqual(darkenable, [2, 3]);
+  // ⚠ THIS MOVED WITH THE RUNG AND IT IS A REAL CHANGE IN WHAT A SHADOW DOES. At 0.81 the
+  // shadow sat BETWEEN the ladder's dark rungs and its light ones, so it could only darken the
+  // two lit rungs — relief's own dark faces were already below it and a shadow crossing one
+  // left it alone. At 0.77 the shadow rung is below EVERY authored level, so a shadow darkens
+  // any pixel it falls on. That makes the shadow uniform where it used to be selective; it does
+  // not make it dishonest, because the rung is still the deepest at which every status reads as
+  // itself. It IS a visual change to price at the look verdict.
+  assert.deepEqual(darkenable, [0, 1, 2, 3]);
+  assert.ok(SHADOW_RUNG < Math.min(...SHADE_LEVELS), 'the shadow rung now floors the whole ladder');
 });
 
 test('WHY THE SHIPPED INSTRUMENT CANNOT ANSWER THIS — statusFamilyOf is vacuous here', () => {
@@ -359,9 +399,21 @@ test('WHY THE SHIPPED INSTRUMENT CANNOT ANSWER THIS — statusFamilyOf is vacuou
       assert.notEqual(statusFamilyOf(deliveredColour(fam.top[0]!, level)), null);
     }
   }
-  // ...while the reader model says two of those same (status, rung) pairs are foreign. The
-  // two instruments disagree, they are both right, and they answer different questions.
-  assert.equal(ladderAdmissibility(SHADE_LEVELS).filter((v) => !v.admissible).length, 2);
+  // ⚠ AND HERE IS WHY THE CLAIM IS PINNED TO A FROZEN PALETTE RATHER THAN RE-READ. The point of
+  // this test is that the two instruments DISAGREE — membership says fine, the reader model says
+  // foreign — and on today's palette they agree, because there is nothing left to disagree about.
+  // Read live, the demonstration would quietly become a pair of greens proving nothing. Measured
+  // on the palette ADR-0462 shipped, the disagreement is still exhibited: membership held at
+  // every rung there too, while the reader model called two of those same (status, rung) pairs
+  // foreign.
+  const midTable = readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL, oneToken: true, tokens: ADR0462_STATUS_TOKENS });
+  const midForeign = RENDERED_STATUSES.flatMap((st) =>
+    SHADE_LEVELS.map((level) => nearestStatus(deliveredColour(ADR0462_STATUS_TOKENS.get(st)!.top[0]!, level), midTable) !== st),
+  ).filter(Boolean);
+  assert.equal(midForeign.length, 2, 'the frozen arm must still exhibit the disagreement');
+  // ...and on the live palette the reader model has nothing to report, which is the whole
+  // difference between an instrument that is VACUOUS and one that has simply been satisfied.
+  assert.equal(ladderAdmissibility(SHADE_LEVELS).filter((v) => !v.admissible).length, 0);
 });
 
 test('the shadow rung needs a shadow-AWARE family test, or the capture would cry wolf', () => {
@@ -410,23 +462,56 @@ test('THE OVERCLAIM THIS SPLIT CAUGHT: healthy@1.00 is the reader talking, not t
   assert.equal(nearestStatus(healthyLit, liveReaderTable()), 'healthy');
   assert.equal(nearestStatus(healthyLit, readerStatusTable({ statuses: RENDERED_STATUSES, rung: FLAT_GROUND_LEVEL })), 'healthy');
   // The robust set is what survives BOTH readers — the verdicts no choice of reference set can
-  // argue away. It was three, all DOWNWARD; ADR-0462 took the two `unknown` ones out and left
-  // ONE. That is the honest headline of this change: the map's remaining colour confusion is a
-  // single pair on a single rung, and it is `pull-the-four-land-colours-apart-in-hue`'s.
+  // argue away. It was THREE, all downward; ADR-0462 took the two `unknown` ones out and left
+  // ONE; the clay took the last. It is EMPTY, and that is the honest headline: there is no
+  // (status, rung) pair on the land whose delivered pixel any reference set reads as another
+  // status.
   const robust = robustlyInadmissible().map((v) => `${v.status}@${v.level}->${v.readsAs}`);
-  assert.deepEqual(robust.sort(), ['proposed@0.78->mapped']);
-  assert.ok(!robust.some((r) => r.startsWith('healthy@')));
+  assert.deepEqual(robust, []);
+  // ⚠ AN EMPTY SET IS ALSO WHAT A BROKEN INSTRUMENT RETURNS, so the same call is made against
+  // the frozen pre-clay palette and must still find the one it found then. Without this the
+  // headline above would be indistinguishable from `robustlyInadmissible` having stopped
+  // looking.
+  // ⚠ ON ITS OWN LADDER, NOT ON TODAY'S. The frozen palette derived a shadow rung of 0.81; the
+  // clay's is 0.77. Measuring a frozen palette against the ladder its successor derived is exactly
+  // the mixed-vocabulary confound the freeze exists to prevent — and it shows: on today's ladder
+  // the old palette reports an extra `proposed@0.77->mapped` that nothing ever rendered. The rung
+  // is DERIVED here rather than typed, so the reproduction proves ADR-0462's 0.81 as well as
+  // reusing it.
+  const midRung = deepestAdmissibleRung(RENDERED_STATUSES, 0.01, ADR0462_STATUS_TOKENS);
+  assert.equal(midRung, 0.81, 'ADR-0462 recorded 0.81 — the frozen palette must still derive it');
+  const midLadder = [...SHADE_LEVELS, midRung!].sort((a, b) => a - b);
+  const midRobust = robustlyInadmissible(RENDERED_STATUSES, midLadder, ADR0462_STATUS_TOKENS)
+    .map((v) => `${v.status}@${v.level}->${v.readsAs}`);
+  assert.deepEqual(midRobust.sort(), ['proposed@0.78->mapped']);
 });
 
-test('THE PARAMETER-FREE CORE: every status pair overlaps in delivered luminance', () => {
-  // No reader model can argue with this one. `mapped` at its lit rung is darker than
-  // `healthy` at its darkest; `unknown`'s two dark rungs bracket `healthy`'s lit one.
+test('THE PARAMETER-FREE CORE: brown now clears the other three in luminance alone', () => {
+  // ⚠⚠ THIS TEST USED TO ASSERT THAT ALL SIX PAIRS OVERLAP, AND IT IS THE ONE FINDING THE CLAY
+  // INVALIDATED RATHER THAN MOVED. It was the parameter-free core of the whole argument — no
+  // reader model could argue with it, and what it said was that LUMINANCE CANNOT SEPARATE ANY
+  // TWO STATUSES on this ladder, so no re-anchoring within the luminance ordering could fix the
+  // collisions and what had to do the separating was HUE. That was true of the tan.
+  //
+  // The clay is DARKER as well as browner. `mapped` now spans 97.4..124.8 and `healthy` starts
+  // at 125.7, so brown clears all three others on luminance alone and three of the six pairs
+  // survive. ⚠ THE MARGIN IS 0.9 LUMA — about a third of one channel unit — so this is a fact
+  // about today's tokens and not a property to build on. The three that remain are the ones the
+  // original claim was really about, and the conclusion it supported is UNCHANGED for them: the
+  // pairs that still overlap are still separated by hue and by nothing else.
   const { ranges, overlaps } = luminanceOverlap();
   assert.equal(ranges.length, RENDERED_STATUSES.length);
-  const pairs = (RENDERED_STATUSES.length * (RENDERED_STATUSES.length - 1)) / 2;
-  assert.equal(overlaps.length, pairs, 'some pair separates by luminance alone — check which');
-  // The consequence: no re-anchoring WITHIN the luminance ordering can fix the collisions,
-  // because there is no ordering left to re-anchor. What separates the statuses is HUE.
+  assert.deepEqual(
+    overlaps.map((o) => [o.a, o.b].sort().join('/')).sort(),
+    ['healthy/proposed', 'healthy/unknown', 'proposed/unknown'],
+  );
+  assert.ok(!overlaps.some((o) => o.a === 'mapped' || o.b === 'mapped'), 'brown is out of the pile');
+  const mapped = ranges.find((r) => r.status === 'mapped')!;
+  const nextUp = Math.min(...ranges.filter((r) => r.status !== 'mapped').map((r) => r.min));
+  assert.ok(nextUp - mapped.max > 0 && nextUp - mapped.max < 2, `margin is ${(nextUp - mapped.max).toFixed(1)} luma`);
+  // ...and the frozen arm, so the claim this replaces stays readable as a measurement.
+  const before = luminanceOverlap(RENDERED_STATUSES, ADR0462_STATUS_TOKENS);
+  assert.equal(before.overlaps.length, (RENDERED_STATUSES.length * (RENDERED_STATUSES.length - 1)) / 2);
   const worst = overlaps.reduce((m, o) => (o.luma > m.luma ? o : m));
   assert.ok(worst.luma > 30, `widest overlap is only ${worst.luma} luma`);
 });
