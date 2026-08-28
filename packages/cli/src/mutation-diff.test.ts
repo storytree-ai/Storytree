@@ -6,6 +6,8 @@ import { MIRRORS } from "./mirror-conformance.js";
 import {
   isSpawnUatTest,
   adjudicateMutants,
+  changedLinesAreCodeFree,
+  isCodeFreeLine,
   declaredTestRoots,
   formatNarrowingLines,
   entryPointsFromMirrorRegistry,
@@ -1494,6 +1496,116 @@ test("mergeMutationReports: no parts yields an empty report, which adjudicates a
   const merged = mergeMutationReports([]);
   assert.deepEqual(merged.files, {});
   assert.notEqual(adjudicateMutants(merged, []).verdict, "pass");
+});
+
+// ---------------------------------------------------------------------------------------------
+// A COMMENT-ONLY CHANGE IS "NOTHING TO MUTATE", NOT A VACUOUS RUN.
+//
+// The classifier is crude on purpose and must fail toward CODE, so these assert BOTH directions on
+// every branch: what it recognises as code-free, and — for each recogniser — a neighbouring line it
+// must still call code. A recogniser mutated to match everything is caught by the code lines; one
+// mutated to match nothing is caught by its own positive case.
+// ---------------------------------------------------------------------------------------------
+
+test("a blank, commented or JSDoc line carries no mutant", () => {
+  assert.equal(isCodeFreeLine(""), true);
+  // Whitespace-only: it must TRIM before comparing, or an indented comment reads as code.
+  assert.equal(isCodeFreeLine("      "), true);
+  assert.equal(isCodeFreeLine("// a line comment"), true);
+  assert.equal(isCodeFreeLine("      // an INDENTED line comment"), true);
+  assert.equal(isCodeFreeLine("/* a block opener"), true);
+  assert.equal(isCodeFreeLine(" * a JSDoc continuation"), true);
+  assert.equal(isCodeFreeLine(" */"), true);
+});
+
+test("and anything else is CODE — including a line that merely ENDS in a comment", () => {
+  assert.equal(isCodeFreeLine("const x = 1;"), false);
+  // ⚠ THE LOAD-BEARING ONE. If any prefix were mutated to the empty string, `startsWith` would
+  // match every line and the whole rung would become skippable. A trailing comment is the line most
+  // likely to be waved through by a classifier that looked for `//` anywhere rather than at the front.
+  assert.equal(isCodeFreeLine("const x = 1; // and a trailing comment"), false);
+  assert.equal(isCodeFreeLine("x /* inline */ = 2;"), false);
+  assert.equal(isCodeFreeLine("void 0;"), false);
+});
+
+const SRC = ["// header", "const x = 1;", " * continuation", ""].join("\n");
+
+test("a branch whose every changed line is comment or blank has nothing to mutate", () => {
+  const ok = changedLinesAreCodeFree(
+    [{ file: "packages/cli/src/a.ts", ranges: [{ start: 1, end: 1 }] }],
+    new Map([["packages/cli/src/a.ts", SRC]]),
+  );
+  assert.equal(ok, true);
+  // A range that starts past the code line: proves the walk honours `start`, not line 1.
+  assert.equal(
+    changedLinesAreCodeFree(
+      [{ file: "packages/cli/src/a.ts", ranges: [{ start: 3, end: 4 }] }],
+      new Map([["packages/cli/src/a.ts", SRC]]),
+    ),
+    true,
+  );
+});
+
+test("one changed line of code anywhere in the span is enough to refuse", () => {
+  // Line 2 is the code, and it is the LAST line of the span — so a walk that stopped one short
+  // would wrongly report "nothing to mutate".
+  assert.equal(
+    changedLinesAreCodeFree(
+      [{ file: "packages/cli/src/a.ts", ranges: [{ start: 1, end: 2 }] }],
+      new Map([["packages/cli/src/a.ts", SRC]]),
+    ),
+    false,
+  );
+  // And line 2 alone, addressed exactly — a one-off in the index would read line 1 or line 3, both
+  // of which are comments, and turn a real code change into a skip.
+  assert.equal(
+    changedLinesAreCodeFree(
+      [{ file: "packages/cli/src/a.ts", ranges: [{ start: 2, end: 2 }] }],
+      new Map([["packages/cli/src/a.ts", SRC]]),
+    ),
+    false,
+  );
+});
+
+test("a file the caller could not read is never claimed as code-free", () => {
+  // No sources at all: "I could not read them" is not "there was nothing in them", and the vacuous
+  // verdict exists precisely so a run that proved nothing is not a pass.
+  assert.equal(
+    changedLinesAreCodeFree([{ file: "packages/cli/src/a.ts", ranges: [{ start: 1, end: 1 }] }], new Map()),
+    false,
+  );
+  // A changed file that was not selected for mutation is not evidence either way — it is skipped,
+  // and the selected file still decides.
+  assert.equal(
+    changedLinesAreCodeFree(
+      [
+        { file: "packages/cli/src/unselected.ts", ranges: [{ start: 1, end: 99 }] },
+        { file: "packages/cli/src/a.ts", ranges: [{ start: 1, end: 1 }] },
+      ],
+      new Map([["packages/cli/src/a.ts", SRC]]),
+    ),
+    true,
+  );
+});
+
+test("a span reaching past end-of-file is unaccounted-for, not blank", () => {
+  // ⚠ THE SOURCE HERE IS ENTIRELY COMMENT, DELIBERATELY. Run against `SRC` this assertion passes
+  // for the wrong reason — line 2 is code, so it refuses long before the span runs off the end and
+  // the end-of-file guard is never reached at all. (Caught by the mutation rung: deleting the
+  // guard left this green.) With nothing but comment ahead of it, the ONLY thing that can refuse
+  // is the missing line, so the assertion is about the guard it names.
+  const allComment = ["// one", "  // two", ""].join("\n");
+  const sources = new Map([["packages/cli/src/a.ts", allComment]]);
+  assert.equal(
+    changedLinesAreCodeFree([{ file: "packages/cli/src/a.ts", ranges: [{ start: 1, end: 40 }] }], sources),
+    false,
+  );
+  // ...and the same file, addressed within its own length, is code-free — so the refusal above is
+  // the span overrunning and not the file's contents.
+  assert.equal(
+    changedLinesAreCodeFree([{ file: "packages/cli/src/a.ts", ranges: [{ start: 1, end: 3 }] }], sources),
+    true,
+  );
 });
 
 // ── declaredTestRoots + the narrowing report ─────────────────────────────────
