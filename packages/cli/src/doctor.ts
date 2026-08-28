@@ -540,8 +540,8 @@ export function runDoctor(obs: DoctorObservations, dev?: DevObservations): Docto
  * that a group was skipped, and a test must be able to assert it did not quietly disappear.
  */
 export const DEV_SCOPE_NOT_RUN =
-  "the DEV-PERSONA probes (database, secrets, GitHub auth, write-authority, worktree identity) " +
-  "were NOT run — `storytree doctor --dev`";
+  "the DEV-PERSONA probes (database, secrets, GitHub auth, the Codex runtime, write-authority, " +
+  "worktree identity) were NOT run — `storytree doctor --dev`";
 
 /** PURE: render a report as stable, greppable machine-readable lines + a fix hint under each non-PASS probe. */
 export function formatDoctorReport(report: DoctorReport): string {
@@ -743,9 +743,10 @@ export function doctorHelp(): Envelope {
       "",
       "  storytree doctor --dev",
       "      …plus the DEV group — can this machine do the WORK? gcloud ADC, the live store, the",
-      "      ~/.storytree/secrets.json credentials, GitHub auth, the write-authority wall, and whether",
-      "      this cwd has a claimable worktree identity. Slower: it makes one real SELECT 1 against",
-      "      the live store, the same probe `pnpm db:probe` runs.",
+      "      ~/.storytree/secrets.json credentials, GitHub auth, Bun, whether Codex is installed and",
+      "      logged in, the write-authority wall, and whether this cwd has a claimable worktree",
+      "      identity. Slower: it makes one real SELECT 1 against the live store, the same probe",
+      "      `pnpm db:probe` runs.",
       "",
       "      A bare sweep says so rather than printing an unqualified green — an explorer-scoped",
       "      \"setup is healthy\" on a machine that cannot open a PR is exactly the false green this",
