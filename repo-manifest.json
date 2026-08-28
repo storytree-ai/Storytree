@@ -595,6 +595,7 @@
       "apps/desktop/scripts/write-build-stamp.mjs": "desktop",
       "apps/studio/scripts/comparative-capture.mjs": "studio",
       "apps/studio/scripts/measure-camera-rasterisation.mjs": "camera-rasterisation-probe",
+      "apps/studio/scripts/capture-unwatched-regrow.mjs": "act2-intro-cursor",
       "packages/orchestrator/src/proof/assert-oracle-guard.mjs": "drive-machinery",
       "$comment_map_freshness": "TENTH BLOCK — the work-hierarchy PROJECTION (ADR-0445 D1, `map-freshness-arc` inc-02). Capability grain per rule (1): both capabilities state their own proof and both are claimable, so neither entry falls back to the `library` story. The split follows the modules' ROLES rather than their packages — the SHAPE, its projector and its store rows belong to `work-hierarchy-store-projection`, while the judge and the rung belong to `work-hierarchy-drift-gate`. `load-hierarchy.ts` is the projection's one WRITER and homes with the projection; `hierarchy-git.ts` is read by both and homes with the judge, the only one that JUDGES on what it reads (the loader merely stamps with it).",
       "packages/library/src/work-hierarchy-projection.ts": "work-hierarchy-store-projection",

@@ -330,6 +330,25 @@ describe('a run survives being unwatched (ADR-0469)', () => {
     advance(0);
     elapse(duration / 4);
 
+    // THE CONTROL, READ IN THIS SAME RUN. `progress === 1` on its own cannot tell the two worlds
+    // apart: the defect this test exists for ALSO produced 1, because parking the route dropped the
+    // plan and the cursor-reset effect settled the forest on the spot. Both worlds answer "settled",
+    // so the settle alone proves nothing — asserted by itself this test passes against the very code
+    // it was written to refuse.
+    //
+    // What separates them is WHEN. An absence too short to cover the rest of the run must come back
+    // still growing; only the elapsed time can settle it. The short absence below is that control,
+    // and it is what makes the long one downstream mean anything.
+    rerender({ enabled: false });
+    idle(duration / 4);
+    rerender({ enabled: true });
+    expect(
+      result.current.progress,
+      'the control: too little time passed for this run to be over',
+    ).toBeLessThan(1);
+    expect(result.current.regrowing, 'so it is still growing, not settled').toBe(true);
+
+    // And now an absence that genuinely outlasts the run.
     rerender({ enabled: false });
     idle(duration * 2);
     rerender({ enabled: true });
