@@ -20,9 +20,6 @@ export interface BaselineRenderContext {
   readonly transcriptFiles: number;
   readonly decisionMentions: number;
   readonly uncorrelatedReads: number;
-  readonly traceSessions: number;
-  readonly traceSessionsWithoutSlot: number;
-  readonly mixedIdentitySessions: number;
 }
 
 function pct(numerator: number, denominator: number): string {
@@ -71,7 +68,7 @@ export function renderDecisionReadBaseline(
 ): string {
   const lines: string[] = [];
 
-  lines.push("DECISION-READ BASELINE — reach, chain depth, offer-to-follow");
+  lines.push("DECISION-READ BASELINE — reach and chain depth");
   lines.push(
     `  declared window: ${baseline.declaredFrom ?? "(open)"} .. ${baseline.declaredTo ?? "(open)"}`,
   );
@@ -130,12 +127,6 @@ export function renderDecisionReadBaseline(
   for (const row of baseline.readSurfaces) {
     lines.push(`    ${String(row.reads).padStart(6)}  ${row.surface}`);
   }
-  lines.push(
-    `  trace sessions holding the offer record: ${context.traceSessions}   ` +
-      `with no single slot to join on: ${context.traceSessionsWithoutSlot}   ` +
-      `mixed identity: ${context.mixedIdentitySessions}`,
-  );
-
   lines.push("");
   lines.push("1. REACH — decisions ranked by DISTINCT SESSIONS, never by raw read count");
   lines.push(
@@ -183,48 +174,19 @@ export function renderDecisionReadBaseline(
   );
 
   lines.push("");
-  lines.push("3. OFFER-TO-FOLLOW — a decision offered constantly and never followed is NOISE, not heat");
-  lines.push(
-    `  offers recorded: ${baseline.offersObserved}   resolved to a decision: ${baseline.offersResolved}   ` +
-      `unresolved: ${baseline.offersUnresolved}`,
-  );
-  lines.push("  offer id spellings (the join's right side — compare with the read side above):");
-  if (baseline.offerSpellings.length === 0) lines.push("    (none)");
-  for (const row of baseline.offerSpellings) {
-    lines.push(`    ${String(row.reads).padStart(6)}  ${row.spelling}`);
-  }
-  lines.push(
-    `  distinct decisions offered: ${baseline.decisionsOffered}   ` +
-      `offers followed by a read in the same slot: ${baseline.offersFollowed} of ${baseline.offersResolved} ` +
-      `(${pct(baseline.offersFollowed, baseline.offersResolved)})`,
-  );
-  // ADR-0312's rule, restated by `decision-read-measurement-arc-inc-01`: a decision offer-to-follow
-  // rate must be reported over the OBSERVABLE branches, never over the offered ones. Printed BESIDE
-  // the all-offers rate rather than instead of it, because a follow here is a READ recovered from the
-  // read record and not a `followed_edge` — a route that exists for every spelling, and can therefore
-  // see a follow of an offer the CLI follow machinery calls unobservable.
-  lines.push(
-    `  of those, offers the CLI follow machinery could ever record a follow_edge for: ` +
-      `${baseline.offersObservable} of ${baseline.offersResolved} ` +
-      `(${pct(baseline.offersObservable, baseline.offersResolved)}) — a DENOMINATOR, never a defect ` +
-      "count (ADR-0312 settled that this gap is measured, not closed)",
-  );
-  lines.push(
-    `  followed, over the OBSERVABLE branches alone: ${baseline.offersObservableFollowed} of ` +
-      `${baseline.offersObservable} (${pct(baseline.offersObservableFollowed, baseline.offersObservable)})`,
-  );
-  lines.push(
-    `  decisions offered and NEVER followed: ${baseline.decisionsOfferedNeverFollowed} of ` +
-      `${baseline.decisionsOffered} (${pct(baseline.decisionsOfferedNeverFollowed, baseline.decisionsOffered)})`,
-  );
-  lines.push(`  top ${context.top} most-offered:`);
-  if (baseline.offerFollowRows.length === 0) lines.push("    (none)");
-  for (const row of baseline.offerFollowRows.slice(0, context.top)) {
-    lines.push(
-      `    ${decisionLabel(row.decision)}  offered ${String(row.offered).padStart(5)}   ` +
-        `followed ${String(row.followed).padStart(5)}   (${pct(row.followed, row.offered)})`,
-    );
-  }
+  // SECTION 3 — OFFER-TO-FOLLOW — WAS HERE, and ADR-0464 D7 retired it with its subject. It read
+  // the offer record (`candidate_set`) and reported how many decision pointers were offered, in which
+  // spelling, how many of those a follow could ever have been observed on, and how many were
+  // answered. Nothing records an offer any more.
+  //
+  // NOT REPLACED BY A ZEROED SECTION, deliberately. A block printing "offers recorded: 0 ... followed:
+  // 0 of 0" would read as a finding about how agents behave — the exact misreading its own ADR-0312
+  // caveat existed to prevent — when it would only mean the population is gone. The honest render of a
+  // retired figure is its absence, and the two sections that remain say what they measured.
+  //
+  // The three trace-session context fields went with it for the same reason: they described the
+  // gathering step that existed only to feed this section, and this probe no longer opens the trace
+  // directory at all.
 
   lines.push("");
   if (baseline.vacuity.length === 0) {

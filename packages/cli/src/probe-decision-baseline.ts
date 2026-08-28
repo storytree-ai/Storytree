@@ -46,18 +46,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-  classifyOfferObservability,
-  listTraversalSessions,
-  readTraversalSession,
-  resolveTraversalDir,
-} from "@storytree/context-traversal-capture";
 import { resolveTranscriptDir } from "@storytree/context-traversal-transcript";
 
 import {
   computeDecisionReadBaseline,
   SupportGraphCycleError,
-  type DecisionOfferObservation,
   type DecisionReadBaseline,
 } from "./decision-read-baseline.js";
 import { buildSupportGraph, gatherReads,
@@ -91,65 +84,27 @@ function parseArgs(argv: readonly string[]): Args {
   };
 }
 
-interface GatheredOffers {
-  readonly offers: readonly DecisionOfferObservation[];
-  readonly traceSessions: number;
-  /** Trace sessions whose slot could not be established, so their offers can join to no read. */
-  readonly sessionsWithoutSlot: number;
-  /** Trace sessions whose lines disagree about their own identity grade — reported, never merged. */
-  readonly mixedIdentitySessions: number;
-}
-
-function gatherOffers(traceDir: string): GatheredOffers {
-  const summaries = listTraversalSessions({ dir: traceDir });
-  const offers: DecisionOfferObservation[] = [];
-  let sessionsWithoutSlot = 0;
-  let mixedIdentitySessions = 0;
-
-  for (const summary of summaries) {
-    const { replay, identity, slots } = readTraversalSession({ dir: traceDir, sessionId: summary.sessionId });
-    if (identity === "mixed") mixedIdentitySessions += 1;
-
-    // WHICH KEY IS THE SLOT depends on what this trace's id turned out to name, and that is stated
-    // by `classifyTraceIdentity` rather than guessed from the id's shape. A legacy trace IS keyed by
-    // its slot; a window-keyed trace records the slot as a line attribute beside the identity.
-    let slotId: string | undefined;
-    if (identity === "slot") slotId = summary.sessionId;
-    else if (slots.length === 1) slotId = slots[0];
-    else if (slots.length === 0) slotId = undefined;
-    else slotId = undefined; // several slots on one window: no single slot to join on.
-    if (slotId === undefined) {
-      sessionsWithoutSlot += 1;
-      continue;
-    }
-
-    for (const event of replay.events) {
-      if (event.kind !== "candidate_set") continue;
-      for (const nodeId of event.candidateNodeIds) {
-        offers.push({
-          slotId,
-          candidateSetId: event.candidateSetId,
-          nodeId,
-          at: event.at,
-          // The REAL machinery — it builds the argv a follow would use and runs it through the actual
-          // allowlist. A second copy of the rule here would agree with the renderer whatever the
-          // renderer did, and the whole value of the figure is that it can disagree.
-          observable: classifyOfferObservability(nodeId).observable,
-        });
-      }
-    }
-  }
-
-  return { offers, traceSessions: summaries.length, sessionsWithoutSlot, mixedIdentitySessions };
-}
+// `GatheredOffers` and `gatherOffers` WERE HERE, and ADR-0464 D1 deleted them with their subject.
+// They walked every session in the trace directory, pulled each `candidate_set` event's offered ids,
+// keyed them by worktree slot, and asked the REAL allowlist whether a follow of each could ever have
+// been observed. Nothing writes a `candidate_set` any more, so the walk would have returned an empty
+// list from a directory that still has files in it — the most misleading possible shape, since the
+// probe would have gone on printing an offer-to-follow section reading "0 of 0" as though it had
+// measured something.
+//
+// This probe's OTHER two figures are untouched, and that is ADR-0464 D7's explicit carve-out: REACH
+// and CHAIN DEPTH are computed from `DecisionReadObservation`s gathered from the HOST TRANSCRIPTS,
+// never from the traversal trace store. They are the figures the arc's rail rests on, and they are
+// exactly as measurable after this landing as before it.
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
 
+  // The TRACE directory is no longer read here at all (ADR-0464 D1). Both surviving figures come
+  // from the host transcripts, so naming a trace path would advertise an input this probe has stopped
+  // having.
   const transcriptDir = resolveTranscriptDir();
-  const traceDir = resolveTraversalDir();
   console.log(`${TAG} — transcripts: ${transcriptDir}`);
-  console.log(`${TAG} — traces:      ${traceDir}`);
   console.log("");
 
   const { adrs, parseErrors } = await loadProbeDecisions(TAG);
@@ -161,7 +116,6 @@ async function main(): Promise<void> {
 
   const support = buildSupportGraph(adrs, frozenAmendsEdges());
   const gatheredReads = gatherReads(transcriptDir);
-  const gatheredOffers = gatherOffers(traceDir);
 
   if (gatheredReads.scannedFiles === 0) {
     console.error(
@@ -176,7 +130,6 @@ async function main(): Promise<void> {
   try {
     baseline = computeDecisionReadBaseline({
       reads: gatheredReads.reads,
-      offers: gatheredOffers.offers,
       support,
       declaredFrom: args.from,
       declaredTo: args.to,
@@ -196,9 +149,6 @@ async function main(): Promise<void> {
       transcriptFiles: gatheredReads.scannedFiles,
       decisionMentions: gatheredReads.decisionMentions,
       uncorrelatedReads: gatheredReads.uncorrelatedReads,
-      traceSessions: gatheredOffers.traceSessions,
-      traceSessionsWithoutSlot: gatheredOffers.sessionsWithoutSlot,
-      mixedIdentitySessions: gatheredOffers.mixedIdentitySessions,
     }),
   );
 
