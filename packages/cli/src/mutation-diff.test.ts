@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  isSpawnUatTest,
   adjudicateMutants,
   entryPointsFromScripts,
   formatMutationVerdict,
@@ -1212,4 +1213,34 @@ test("runsUnderBun: `bun test` must END a word — `bun tests` is a different co
 
 test("runsUnderBun: an empty script is not runnable", () => {
   assert.equal(runsUnderBun(""), false);
+});
+
+// ---------------------------------------------------------------------------
+// Spawn-based acceptance legs are excluded from the mutation runner (2026-08-28)
+// ---------------------------------------------------------------------------
+
+test("isSpawnUatTest: a `.uat.test.ts` leg is excluded, an ordinary unit test is NOT", () => {
+  // THE MEASURED REASON, so this is not read as taste. On clean `origin/main` at 785cc021, with a
+  // one-line comment added to `terminal-capture.ts` and another to `terminal-capture.uat.test.ts`
+  // purely to force this rung to select them, SIX legs of that UAT file failed Stryker's INITIAL DRY
+  // RUN with `connect ECONNREFUSED 127.0.0.1:<port>` and the rung exited 1 having evaluated no mutant
+  // at all. Those legs spawn the real CLI against a real fixture door started in `before` and killed
+  // in `after`; Stryker's `perTest` analysis re-runs the suite and finds the door dead.
+  assert.equal(isSpawnUatTest("packages/context-traversal-capture/src/terminal-capture.uat.test.ts"), true);
+  assert.equal(isSpawnUatTest("packages/context-traversal-telemetry/src/orientation-runner-adapter.uat.test.ts"), true);
+
+  // ⚠ THE NEGATIVE HALF IS THE POINT — it is what stops this becoming the curated opt-out list that
+  // `entryPointsFromScripts` refuses by design. An ordinary unit test must stay IN the runner however
+  // much a session might prefer it out; the only way to claim the exemption is to rename a file to
+  // assert it is an acceptance leg, which is a visible lie rather than a quiet one.
+  assert.equal(isSpawnUatTest("packages/cli/src/cli.test.ts"), false);
+  assert.equal(isSpawnUatTest("packages/cli/src/mutation-diff.test.ts"), false);
+  assert.equal(isSpawnUatTest("packages/context-traversal-capture/src/query-render.test.ts"), false);
+
+  // Near misses, so the rule cannot be widened by an accident of naming: the suffix is exact, and a
+  // file merely mentioning "uat" elsewhere in its path or stem is an ordinary test.
+  assert.equal(isSpawnUatTest("packages/cli/src/uat-criteria.test.ts"), false);
+  assert.equal(isSpawnUatTest("packages/cli/src/uat.test.ts.bak"), false);
+  assert.equal(isSpawnUatTest("packages/uat/src/thing.test.ts"), false);
+  assert.equal(isSpawnUatTest("packages/cli/src/thing.uat.ts"), false);
 });

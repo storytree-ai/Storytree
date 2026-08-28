@@ -14,7 +14,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { appendTraversalEvents, FOLLOW_OFFER_EDGE_COVERAGE } from "@storytree/context-traversal-capture";
+import { appendTraversalEvents, AGENT_DESCENT_COVERAGE } from "@storytree/context-traversal-capture";
 import { CoverageFeature } from "@storytree/context-traversal-telemetry";
 import type { CoverageFeature as CoverageFeatureValue } from "@storytree/context-traversal-telemetry";
 
@@ -111,7 +111,7 @@ test("every-rendered-event-kind-is-supported-by-a-declared-adapter: every render
     assert.equal(result.ok, true);
 
     const unionSupported = new Set<string>([
-      ...FOLLOW_OFFER_EDGE_COVERAGE.supported,
+      ...AGENT_DESCENT_COVERAGE.supported,
       ...BUILD_SPAWN_BOUNDARY_COVERAGE.supported,
     ]);
 
@@ -150,24 +150,14 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     // trace visibly carried (ADR-0235 clause 6). Found by walking the real CLI, not by any test.
     const renderedTerminal = result.body
       .split("\n")
-      .find((line) => line.includes(`coverage: adapter=${FOLLOW_OFFER_EDGE_COVERAGE.adapterId}`));
+      .find((line) => line.includes(`coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId}`));
     assert.ok(renderedTerminal !== undefined, "the terminal coverage line must render");
     const [renderedSupported, renderedOmitted] = renderedTerminal.split(" omitted=");
     // The pin tracks the OUTERMOST composed constant, and grows with it: each composition layer adds
     // a field the wired terminal really emits, and every one of them must render as supported and
     // NOT as omitted. Naming them individually (rather than looping the constant) keeps the pin
     // falsifiable against a render that silently drops back to an inner layer.
-    for (const field of [
-      "field:prior_visit_id",
-      "field:parent_visit_id",
-      "event:candidate_set",
-      // ADR-0260 D3's producer: an offer-carrying read declares the edge it answered, so the edge
-      // event and the causality field arrive TOGETHER. They moved off the omitted pin below in the
-      // same commit that wired the producer — the inverse dishonesty is claiming a producer exists
-      // OR denying one that does, and only walking the real binary distinguishes the two.
-      "event:followed_edge",
-      "field:candidate_follow_causality",
-    ]) {
+    for (const field of ["field:prior_visit_id", "field:parent_visit_id"]) {
       assert.ok(
         renderedSupported?.includes(field),
         `the wired terminal adapter emits ${field}, so its rendered declaration must SUPPORT it`,
@@ -179,9 +169,23 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     }
     // The inverse dishonesty is pinned too: what this adapter genuinely CANNOT see must stay denied.
     // No CLI boundary observes a model's own context window or a child's, so a declaration claiming
-    // either would be as wrong as one denying `event:followed_edge` above — and a pin that only
-    // checked the supported side would miss it.
-    for (const unobserved of ["field:resident_input_tokens", "field:child_context_window"]) {
+    // either would be as wrong as one denying a field it produces — and a pin that only checked the
+    // supported side would miss it.
+    //
+    // ⚠ THE OFFER TRIO JOINED THIS LIST ON ADR-0464 D1, MOVING THE OTHER WAY FOR THE FIRST TIME.
+    // `event:candidate_set`, `event:followed_edge` and `field:candidate_follow_causality` were pinned
+    // as SUPPORTED above from the commit that wired their producers; the producers are now deleted, so
+    // the honest declaration denies all three. This is the assertion that makes the deletion provable
+    // rather than merely done: `replay-adapters.ts` composes the outermost coverage constant, both
+    // retired constants are still recoverable from git, and re-wiring one is the single easiest way to
+    // undo this landing by accident. Doing so reds HERE, naming the exact feature.
+    for (const unobserved of [
+      "field:resident_input_tokens",
+      "field:child_context_window",
+      "event:candidate_set",
+      "event:followed_edge",
+      "field:candidate_follow_causality",
+    ]) {
       assert.ok(
         renderedOmitted?.includes(unobserved),
         `${unobserved} has no producer at this boundary, so the declaration must still OMIT it`,
@@ -192,18 +196,39 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
       );
     }
 
-    // ADR-0260 D7: every declared gap rides with the declaration in this render too, since this is
-    // the one the CLI actually calls. The command-form gap keeps its stable id while its NOTE got
-    // sharper (a bare command now loses an edge outright), and D4's asymmetry joined it.
-    for (const caveatId of [
+    // ADR-0235 clause 6: every declared gap rides with the declaration in this render too, since this
+    // is the one the CLI actually calls.
+    //
+    // ADR-0464 D1 REPLACED THE THREE CAVEATS THIS ONCE PINNED, and the replacement is asserted here
+    // rather than the block simply being deleted. The old three all described gaps in the offer
+    // mechanism — `doc:` offers being unfollowable, follow-completeness depending on the agent reusing
+    // the printed form, and an unanswered offer being indistinguishable from a bypassed one. A
+    // mechanism that does not exist has no gaps, so carrying them forward would have described the
+    // thinness of a picture this adapter no longer draws.
+    //
+    // Deleting the loop outright was the tempting move and would have been wrong: this render's whole
+    // contract is that it states what it cannot see, and a render with NO caveat block satisfies that
+    // contract vacuously. So the successor caveat is pinned by id, and it says the honest successor
+    // thing — that offers and follows are no longer recorded at all, and that the lost causality must
+    // not be reconstructed by joining a read to an earlier render (ADR-0260 D4's refusal, which
+    // outlives the mechanism it was written for).
+    assert.ok(
+      result.body.includes("offers-and-follows-are-no-longer-recorded"),
+      "the declaration must still surface a caveat — a render that states no gap at all satisfies " +
+        "ADR-0235 clause 6 vacuously",
+    );
+    for (const retired of [
       "doc-refs-are-offered-but-follows-are-unobservable",
       "follow-completeness-depends-on-the-offered-command-form",
       "an-unanswered-visit-and-a-bypassed-mechanism-are-indistinguishable",
     ]) {
-      assert.ok(result.body.includes(caveatId), `the declaration must surface caveat ${caveatId}`);
+      assert.ok(
+        !result.body.includes(retired),
+        `${retired} describes the retired offer mechanism and must not survive it`,
+      );
     }
 
-    const terminalLine = `coverage: adapter=${FOLLOW_OFFER_EDGE_COVERAGE.adapterId} supported=[${FOLLOW_OFFER_EDGE_COVERAGE.supported.join(", ")}] omitted=[${FOLLOW_OFFER_EDGE_COVERAGE.omitted.join(", ")}]`;
+    const terminalLine = `coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId} supported=[${AGENT_DESCENT_COVERAGE.supported.join(", ")}] omitted=[${AGENT_DESCENT_COVERAGE.omitted.join(", ")}]`;
     const buildLine = `coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId} supported=[${BUILD_SPAWN_BOUNDARY_COVERAGE.supported.join(", ")}] omitted=[${BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.join(", ")}]`;
 
     assert.ok(
@@ -218,7 +243,7 @@ test("both-adapter-declarations-render-supported-and-omitted: the rendered body 
     // Both declarations carry a non-empty omitted side in the real vocabulary — a render that
     // dropped the omitted half of either would still pass a naive "adapter=... appears" check but
     // fail these.
-    assert.ok(FOLLOW_OFFER_EDGE_COVERAGE.omitted.length > 0);
+    assert.ok(AGENT_DESCENT_COVERAGE.omitted.length > 0);
     assert.ok(BUILD_SPAWN_BOUNDARY_COVERAGE.omitted.length > 0);
   } finally {
     removeTempDir(dir);
@@ -324,7 +349,7 @@ test("the structured view and the rendered body declare the SAME installed-adapt
 
     assert.deepEqual(
       view.coverage.map((declaration) => declaration.adapterId),
-      [FOLLOW_OFFER_EDGE_COVERAGE.adapterId, BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId],
+      [AGENT_DESCENT_COVERAGE.adapterId, BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId],
     );
     for (const declaration of view.coverage) {
       const line = `coverage: adapter=${declaration.adapterId} supported=[${declaration.supported.join(", ")}] omitted=[${declaration.omitted.join(", ")}]`;
@@ -361,7 +386,7 @@ test("a session with no captured file at all replays empty, with no coverage-blo
 
     assert.equal(result.ok, true);
     assert.ok(result.body.includes("(no events observed)"));
-    assert.ok(result.body.includes(`coverage: adapter=${FOLLOW_OFFER_EDGE_COVERAGE.adapterId}`));
+    assert.ok(result.body.includes(`coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId}`));
     assert.ok(result.body.includes(`coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId}`));
   } finally {
     removeTempDir(dir);

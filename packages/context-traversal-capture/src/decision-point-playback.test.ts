@@ -38,8 +38,13 @@ import type {
   FollowedEdgeEvent,
 } from "@storytree/context-traversal-telemetry";
 
-import { candidateSetIdOf, offerIdOf } from "./offer-candidate-sets.js";
-import { renderOfferFollowUps } from "./follow-offer-edges.js";
+// INLINED BY ADR-0464 D1, which deleted `offer-candidate-sets.ts` where these two lived. Both are
+// one-line id conventions, and this suite is now the only place that needs them: it builds recorded
+// offers in the exact spelling a pre-retirement trace holds, which is what this module still reads.
+// Copying them here rather than re-homing them is deliberate — there is no producer left for them to
+// stay in agreement WITH, so a shared constant would imply a coupling that no longer exists.
+const candidateSetIdOf = (visitId: string): string => `candidate-set:${visitId}`;
+const offerIdOf = (ref: string): string => (ref.startsWith("asset:") ? ref.slice("asset:".length) : ref);
 import {
   computeDecisionPoints,
   isFollowableOfferId,
@@ -506,8 +511,17 @@ test("a-repeated-offer-is-ambiguous-only-when-an-edge-actually-lands-on-it", () 
 // ---------------------------------------------------------------------------
 
 test("an-unfollowable-offer-renders-unobservable-and-never-as-a-declined-branch", () => {
-  // isFollowableOfferId must agree byte-for-byte with renderOfferFollowUps's own skip rule: an id
-  // carrying a scheme prefix (containing ":") has no CLI read to follow, on either side.
+  // ⚠ THIS CONTRACT LOST ITS CROSS-CHECK PARTNER IN ADR-0464 D1, and what replaces it is weaker in a
+  // way worth stating rather than hiding. It used to assert that `isFollowableOfferId` agreed
+  // BYTE-FOR-BYTE with `renderOfferFollowUps`'s own skip rule — two independently-written
+  // implementations of "does this id have a CLI read that could follow it", pinned against each
+  // other. The renderer is deleted, so there is no second implementation left to disagree with, and
+  // an agreement test with one participant is not a test.
+  //
+  // The rule itself still matters — it is what decides `unobservable`, and ADR-0312 turns on
+  // `unobservable` never being read as a declined branch — so it is asserted DIRECTLY here instead:
+  // an id carrying a scheme prefix (containing ":") is unfollowable, a bare id is followable. Stated
+  // as the rule rather than as agreement, which is the honest form once only one side exists.
   const refs = ["asset:alpha", "doc:decisions/0001-z.md", "asset:bravo", "bare-thing"];
   const ids = refs.map(offerIdOf);
   const [firstId, ...restIds] = ids;
@@ -523,21 +537,20 @@ test("an-unfollowable-offer-renders-unobservable-and-never-as-a-declined-branch"
   assert.notEqual(point, undefined);
   if (point === undefined) throw new Error("unreachable");
 
-  const followUpLines = renderOfferFollowUps(candidateSetId, refs);
-
   for (const id of ids) {
-    const commandPrinted = followUpLines.some((line) => line.includes(`artifact ${id} `));
+    // The rule, stated directly rather than read off a second implementation.
+    const followable = !id.includes(":");
     const candidate = point.candidates.find((entry) => entry.nodeId === id);
     assert.notEqual(candidate, undefined, `expected a candidate for ${id}`);
     if (candidate === undefined) throw new Error("unreachable");
 
     assert.equal(
       isFollowableOfferId(id),
-      commandPrinted,
-      `isFollowableOfferId(${id}) must agree with renderOfferFollowUps's own skip rule`,
+      followable,
+      `isFollowableOfferId(${id}) must follow the scheme-prefix rule`,
     );
 
-    if (commandPrinted) {
+    if (followable) {
       expectNotFollowed(candidate.outcome, `${id} is followable and was never followed`);
     } else {
       const unobservable = expectUnobservable(candidate.outcome, `${id} is unfollowable and must render unobservable`);

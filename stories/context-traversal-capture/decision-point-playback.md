@@ -7,7 +7,13 @@ title: "The replay draws the branch taken and the branches not taken, and says s
 outcome: "A replay carrying a recorded offer renders that offer's every candidate with what the trace deterministically says happened to it — followed, not followed, unfollowable, or ambiguous — and surfaces every recorded follow it could not resolve rather than dropping it."
 status: proposed
 proof_mode: integration-test
-depends_on: [traversal-trace-sink, artifact-offer-candidate-sets, offer-follow-edges]
+# `artifact-offer-candidate-sets` and `offer-follow-edges` WERE EDGES HERE and were dropped by
+# ADR-0464 D1, which retired both. This capability outlives them because it is a READER, not a
+# producer: it joins `candidate_set` to `followed_edge` for a session being replayed, and traces
+# captured before that landing still hold both kinds. Keeping the edges would refuse the story's topo
+# order outright — `topoOrderStoryNodes` rejects a `dependsOn` naming an id outside the story's
+# capability set, and both were removed from that set.
+depends_on: [traversal-trace-sink]
 decisions: [235, 464]
 proof:
   command:

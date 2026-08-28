@@ -5,7 +5,7 @@ story: context-traversal-capture
 arc: context-decision-tree-arc
 title: "The recorded offer set is checked against the artifact's real rendered Sources block"
 outcome: "A real spawned `library artifact <id>` read's recorded candidate set is verified against an oracle read off the CLI's OWN printed Sources block rather than off the trace, so the offer set is known to be what the artifact actually offers — and the one axis where the two paths disagree is pinned rather than silently carried."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, artifact-offer-candidate-sets]
 decisions: [235, 464, 312]
@@ -16,19 +16,10 @@ proof:
   scope:
     testGlobs: ["packages/context-traversal-capture/src/offer-set-render-agreement.test.ts"]
     sourceGlobs: ["packages/context-traversal-capture/src/offer-set-render-agreement.ts"]
-  real:
-    testFile: "packages/context-traversal-capture/src/offer-set-render-agreement.test.ts"
-    sourceFile: "packages/context-traversal-capture/src/offer-set-render-agreement.ts"
-    scope:
-      testGlobs: ["packages/context-traversal-capture/src/offer-set-render-agreement.test.ts"]
-      sourceGlobs: ["packages/context-traversal-capture/src/offer-set-render-agreement.ts"]
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "typecheck"]
+  # THE `real:` ARM WAS REMOVED HERE, NOT MERELY LEFT BESIDE A RETIRED STATUS (ADR-0464 D1).
+  # `status: retired` alone does NOTHING: `sweepRealBuildCoverage` filters on `real === undefined`,
+  # never on status, so an arm naming the deleted `packages/context-traversal-capture/src/offer-set-render-agreement.ts`
+  # would breach `contract-binding-drift` and the coverage drain at their ceiling of zero.
 ---
 
 # The recorded offer set is checked against the artifact's real rendered Sources block

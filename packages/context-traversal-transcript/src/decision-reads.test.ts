@@ -17,9 +17,12 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
+import { parseDecisionPointer } from "@storytree/library";
+
 import {
   DECISION_READ_SURFACES,
   decisionNodeIdsInPath,
+  resolveDecisionId,
   scanTranscriptDecisionReads,
   scrapeCliDecisionReads,
   scrapeShellDecisionReads,
@@ -653,5 +656,58 @@ test("window-id-absent-is-undefined-not-blank: a line recording no usable window
   assert.deepEqual(
     scan.reads.map((read) => read.sessionId),
     ["slot-y", "slot-y", "slot-y"],
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Decision-id resolution — re-homed here by ADR-0464 D1
+// ---------------------------------------------------------------------------
+//
+// ⚠ THESE TESTS WERE RESCUED, NOT WRITTEN FRESH, and the reason is worth recording because it is the
+// exact hazard this landing set out to remove. `resolveDecisionId` MOVED here from
+// `decision-read-coverage.ts`, whose subject was the offer/read join and which was deleted whole —
+// and its tests went with it. The function kept working, every suite stayed green, and its coverage
+// silently became zero. Nothing in the red list pointed at it, because a deleted test reds nothing.
+//
+// `check:mutation-diff` is what caught it: mutants on these very lines came back NO-COVERAGE. Moving
+// a symbol away from its tests is the same shape as moving a write target away from its readers —
+// the assertions do not fail, they stop existing.
+
+test("all-four-id-spellings-resolve-to-one-decision-number: all four live id forms resolve to the same decision NUMBER, each keeping its own spelling", () => {
+  assert.deepEqual(resolveDecisionId("adr-0022"), { number: 22, spelling: "row" });
+  assert.deepEqual(resolveDecisionId("asset:adr-0022"), { number: 22, spelling: "asset" });
+  assert.deepEqual(resolveDecisionId("doc:decisions/0022-ci-green.md"), {
+    number: 22,
+    spelling: "decisions",
+  });
+  assert.deepEqual(resolveDecisionId("doc:docs/decisions/0022-ci-green.md"), {
+    number: 22,
+    spelling: "docs/decisions",
+  });
+});
+
+test("a-non-decision-id-resolves-to-null: a non-decision id is null, and an `adr-` id that is not four digits is too", () => {
+  // Null is an ordinary, expected answer: most traversal node ids name an artifact that is not a
+  // decision. It is returned and COUNTED by the caller, never coerced.
+  assert.equal(resolveDecisionId("merge-ceremony"), null);
+  assert.equal(resolveDecisionId("doc:docs/research/notes.md"), null);
+  assert.equal(resolveDecisionId("asset:merge-ceremony"), null);
+  // The collision `adrNumberOfArtifactId` guards: a legal artifact id merely BEGINNING `adr-`.
+  assert.equal(resolveDecisionId("adr-health-notes"), null);
+  assert.equal(resolveDecisionId("adr-04031"), null);
+});
+
+test("the-row-spelling-is-refused-by-the-pointer-parser-alone: the bare row id is what a LIVE read mints, and the pointer parser alone refuses it", () => {
+  // The specific blindness this function exists to remove, asserted directly now that the coverage
+  // summariser it used to be demonstrated through is gone. ADR-0403 dec 1 made a decision an ordinary
+  // Library row, so a live CLI read mints the bare `adr-NNNN` ARTIFACT ID — no scheme, nothing to
+  // parse. A reader using the corpus's pointer parser alone (the obvious choice) would classify every
+  // post-migration live read as "not a decision", which is the shape of the very defect this arc
+  // keeps finding in its own instruments.
+  assert.equal(parseDecisionPointer("adr-0419"), null, "the pointer parser alone cannot see a row id");
+  assert.deepEqual(
+    resolveDecisionId("adr-0419"),
+    { number: 419, spelling: "row" },
+    "and reconciling it with the row-id authority is what makes the live spelling visible",
   );
 });
