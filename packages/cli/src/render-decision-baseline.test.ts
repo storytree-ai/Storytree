@@ -146,3 +146,12 @@ test("render-decision-baseline: the floor and the two-sided bias are stated on e
   assert.match(text, /pooling pushes the\nslot-grained figure UP/);
   assert.match(text, /A read is not comprehension/);
 });
+
+test("render-decision-baseline: the header names the two figures this report still carries", () => {
+  // The header used to read "reach, chain depth, offer-to-follow". ADR-0464 D7 retired the third, and
+  // a header still advertising it would promise a section the reader will never find — the same class
+  // of dishonesty as a coverage declaration claiming an event it cannot emit.
+  const text = render([]);
+  assert.match(text, /DECISION-READ BASELINE — reach and chain depth/);
+  assert.doesNotMatch(text, /offer-to-follow/);
+});

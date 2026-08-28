@@ -411,9 +411,16 @@ test("AGENT_DESCENT_CAVEATS: the terminal adapter still DECLARES a gap, and it i
   assert.match(offerGap?.note ?? "", /followed_edge/);
   assert.match(
     offerGap?.note ?? "",
-    /never repaired by inference|ADR-0260 D4/,
+    /never repaired by inference/,
     "ADR-0260 D4's refusal outlives the mechanism it was written for, and the caveat must carry it",
   );
+  // The four clauses that make this caveat say something a reader can act on, rather than merely
+  // naming two event kinds: WHICH decision retired them, that they are declared omitted rather than
+  // silently missing, that the gap is deliberate, and the specific inference that is refused.
+  assert.match(offerGap?.note ?? "", /ADR-0464 D1/);
+  assert.match(offerGap?.note ?? "", /declared `omitted`/);
+  assert.match(offerGap?.note ?? "", /deliberate, not a defect/);
+  assert.match(offerGap?.note ?? "", /joining a read to an earlier render/);
 
   // The three RETIRED caveats described gaps in a mechanism that no longer exists. Carrying one
   // forward would describe the thinness of a picture this adapter no longer draws at all.
@@ -434,7 +441,7 @@ test("AGENT_DESCENT_COVERAGE: both retired event kinds are declared OMITTED, nev
   // The composition moved INWARD for the first time here (every earlier increment moved it out), so
   // the seam has a second direction to fail in: claiming an event this adapter can no longer write.
   // Both retired constants are still recoverable from git and read as the more complete ones.
-  for (const kind of ["event:candidate_set", "event:followed_edge", "field:candidate_follow_causality"]) {
+  for (const kind of ["event:candidate_set", "event:followed_edge", "field:candidate_follow_causality"] as const) {
     assert.ok(AGENT_DESCENT_COVERAGE.omitted.includes(kind), `${kind} has no producer, so it must be OMITTED`);
     assert.equal(
       AGENT_DESCENT_COVERAGE.supported.includes(kind),

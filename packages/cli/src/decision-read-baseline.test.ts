@@ -340,3 +340,17 @@ test("decision-read-baseline: the vacuity function is total over its own output"
 // ---------------------------------------------------------------------------
 // The observable-branch denominator — ADR-0312's rule, honoured without discarding the rest
 // ---------------------------------------------------------------------------
+
+test("decision-read-baseline: observedFrom/To are the window's EXTREMES, so the timestamps must be sorted", () => {
+  // Pins the `.sort()` on the observed-window bounds. Fed OUT OF ORDER deliberately: without the
+  // sort, `observedFrom` is whichever read happened to come first in the input array and
+  // `observedTo` whichever came last, so a baseline would report a window narrower than the reads it
+  // actually saw — and would do it silently, since both fields would still hold real timestamps.
+  const result = baseline([
+    read({ nodeId: "adr-0011", at: "2026-08-15T00:00:00.000Z" }),
+    read({ nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z" }),
+    read({ nodeId: "adr-0012", at: "2026-08-30T00:00:00.000Z" }),
+  ]);
+  assert.equal(result.observedFrom, "2026-08-01T00:00:00.000Z", "the EARLIEST read, not the first one handed in");
+  assert.equal(result.observedTo, "2026-08-30T00:00:00.000Z", "the LATEST read, not the last one handed in");
+});

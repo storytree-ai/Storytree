@@ -20,7 +20,7 @@ import { test } from "node:test";
 import { createContextTraversalTrace, CoverageFeature } from "@storytree/context-traversal-telemetry";
 
 import type { TraversalSessionSummary } from "./sink.js";
-import { REPLAY_PATHWAY_NOTE } from "./query-render.js";
+import { FILE_READS_OBSERVE_NOTHING, REPLAY_PATHWAY_NOTE } from "./query-render.js";
 import { renderTraversalSessions, renderTraversalSession } from "./query-render.js";
 
 test("session-list-is-newest-first-with-counts: the session index orders newest-observed first with counts, and an empty index renders without error", () => {
@@ -388,4 +388,15 @@ test("the-replay-states-its-own-pathway-even-with-no-offers: the whole-picture o
   assert.ok(result.body.includes("node-pathway"), "the events still render");
   assert.match(result.body, /capacity:/);
   assert.match(result.body, /coverage:/);
+});
+
+test("REPLAY_PATHWAY_NOTE carries the shared file-reads clause, which is the admission it exists to make", () => {
+  // `FILE_READS_OBSERVE_NOTHING` is a shared constant rather than a sentence written twice, precisely
+  // so a re-wording cannot drop it from one surface and leave the other still claiming it. Its
+  // sibling `PATHWAY_CAVEAT` — which composed the same clause onto the offer block's ratio — was
+  // deleted with that block by ADR-0464 D1, so this note is now the ONLY place the codebase admits a
+  // file read is unobserved. Losing the clause silently would leave the replay looking complete.
+  assert.ok(REPLAY_PATHWAY_NOTE.includes(FILE_READS_OBSERVE_NOTHING));
+  assert.match(REPLAY_PATHWAY_NOTE, /storytree CLI reads only/);
+  assert.match(REPLAY_PATHWAY_NOTE, /one pathway, not all of this session/);
 });
