@@ -297,7 +297,7 @@ export function buildGroundScene(spec: FrameCostSpec): GroundScene {
 
 // ---------------------------------------------------------------- reading the device
 
-interface DisjointTimerQuery {
+export interface DisjointTimerQuery {
   readonly TIME_ELAPSED_EXT: number;
   readonly GPU_DISJOINT_EXT: number;
 }
@@ -331,7 +331,7 @@ export function readIdentity(gl: WebGL2RenderingContext): RendererIdentity {
 
 /** The colour the frame is cleared to — magenta, which the land palette does not contain, so a
  *  cleared pixel can never be mistaken for a ground pixel. */
-const CLEAR_RGB: readonly [number, number, number] = [255, 0, 255];
+export const CLEAR_RGB: readonly [number, number, number] = [255, 0, 255];
 
 /** One pixel out of the current framebuffer. */
 function readPixel(gl: WebGL2RenderingContext, x: number, y: number): [number, number, number] {
@@ -384,7 +384,13 @@ function measureCoverage(
 
 /** Poll a query object until the driver has the answer. Resolves `null` on timeout, which the
  *  acceptance rules count as an unavailable sample rather than as a zero. */
-async function awaitQuery(
+/**
+ * Poll one timer query to completion. EXPORTED so a sibling scene (`pine-scene.ts`) takes the
+ * identical timing routine rather than a second copy of it — two polling loops that differ by a
+ * millisecond of slack are two instruments, and the whole point of PR #1683 was that this
+ * project had been comparing readings from instruments that were not the same.
+ */
+export async function awaitQuery(
   gl: WebGL2RenderingContext,
   query: WebGLQuery,
   timeoutMs: number,

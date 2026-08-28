@@ -73,6 +73,15 @@ const EXPERIMENT = [
   // here with the rest for the same reason: adoption is a separate event, and nothing about the
   // experiment publishes.
   'frame-budget.ts',
+  // The first-textured-asset probe's PURE half (`first-textured-asset-in-the-live-renderer`).
+  // `asset-payload.ts` is the bytes a visitor downloads and the three verdicts read off them;
+  // `pine-asset.ts` is where the comparison's trees stand, how big the bought pine has to be,
+  // and how many draw calls each arm is allowed. Both must stay reachable from node — the
+  // payload answer is the whole point of the increment and a number nobody can re-derive
+  // without a GPU is not one — so both belong in the pure sweep below. Their browser half
+  // (`pine-scene.ts`) is deliberately NOT listed: it imports three by design.
+  'asset-payload.ts',
+  'pine-asset.ts',
 ];
 
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];
