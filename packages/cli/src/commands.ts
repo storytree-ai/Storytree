@@ -29,7 +29,9 @@ import type { Store, StoredDoc } from "@storytree/storage-protocol";
 import {
   upcastAndValidate,
   explainDocValidationError,
+  dependsOnEdges,
   groupSources,
+  readDependsOnPointers,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
   arrayFieldsForKind,
@@ -609,10 +611,14 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
   lines.push(a.body);
   // "Sources": references grouped by target type, resolved against the corpus (asset:<id> -> kind).
   const byId = new Map(allDocs.map((d) => [d.id, d] as const));
-  const sources = groupSources(a.references, (refId) => {
+  // ONE corpus view, resolved once and used twice: the Sources block labels each citation with it,
+  // and ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds through the
+  // same callback. Two resolvers over one map is how the two blocks would drift apart.
+  const resolveAsset = (refId: string): { kind: string; title: string } | null => {
     const t = byId.get(refId);
     return t ? { kind: t.kind, title: fieldOf(t, "title") } : null;
-  });
+  };
+  const sources = groupSources(a.references, resolveAsset);
   if (sources.length > 0) {
     lines.push("", "Sources:");
     for (const group of sources) {
@@ -647,6 +653,7 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
   // kind is a process, so the two branches never contend for the same artifact.
   const terminal = terminalVerbFor(stored.kind, a.id);
   if (terminal !== undefined) next.push(terminal);
+  let derivedFromBranchEdges = false;
   if (stored.kind === "process") {
     const node = await renderProcessNode(store, a.id);
     if (node.ok && node.edges.length > 0) {
@@ -657,8 +664,31 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
           (e): NodeEdge => (e.label !== undefined ? { ref: e.ref, label: e.label } : { ref: e.ref }),
         ),
       });
-      if (derived.next && derived.next.length > 0) next = [...derived.next];
+      // No presence/non-empty guard: the emitter maps one command per edge and now SAYS so in its
+      // return type, and `node.edges.length > 0` above has already settled that there is at least one.
+      next = [...derived.next];
+      derivedFromBranchEdges = true;
     }
+  }
+  // ADR-0464 D2: the AUTHORED support edge, derived from the FIELD, is the onward block — the
+  // narrow list a person chose, resolved to its targets' titles and kinds and ordered by the same
+  // grouping the Sources block above uses. It travels ADR-0161's seam (one shared
+  // `emitNodeEnvelope`, never a bespoke per-surface `next:`), which is the point: dec 1 recorded the
+  // intent to migrate the other kinds' hand-authored nav to derived "opportunistically, per
+  // surface", and this is that migration rather than a second path beside it.
+  //
+  // A process's BRANCH-EDGE graph wins where it exists, and nothing here touches it. Both are
+  // authored onward edges and the more specific one is the process's own: `branchEdges` say where a
+  // ceremony HANDS ON TO, `dependsOn` says what an artifact RESTS ON. Only one of the 21 live
+  // processes carries branch-edges (measured 2026-08-27), so the other twenty reach this block.
+  //
+  // PREPENDED, not appended, and it does not replace the nav: these are edges out of the corpus,
+  // where `tree focus` / `edit` / the terminal verb are verbs about THIS row. Losing the terminal
+  // verb is what {@link terminalVerbFor}'s header measures the cost of, so an onward block that
+  // swallowed it would re-open a miss this surface already paid to close.
+  if (!derivedFromBranchEdges) {
+    const authored = dependsOnEdges(readDependsOnPointers(stored.doc), resolveAsset);
+    next = [...emitNodeEnvelope({ id: a.id, headline: a.title, edges: authored }).next, ...next];
   }
   // The Sources block IS the offer (ADR-0260 D1), and D3 makes the offer's identity travel: one
   // pasteable follow-up per FOLLOWABLE ref, each naming the candidate set it came from. A `doc:` ref

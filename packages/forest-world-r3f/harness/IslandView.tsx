@@ -53,7 +53,7 @@ import type { GeneratedMesh } from './mesh-kit.js';
 import { plantsFrom, type PlantInstance } from './plant-descriptors.js';
 import { growPlant } from './plant-geometry.js';
 import { STATUS_TOKENS } from './palette-band.js';
-import { LEGACY_STATUS_TOKENS, type StatusFamily } from './status-vocabulary.js';
+import { ADR0462_STATUS_TOKENS, LEGACY_STATUS_TOKENS, type StatusFamily } from './status-vocabulary.js';
 import { treesFrom } from './tree-descriptors.js';
 import { growTree } from './tree-geometry.js';
 import {
@@ -130,21 +130,29 @@ export type GroundVariation = 'single' | 'regional' | 'regional-deep';
  * WHICH AUTHORED PALETTE THE LAND WEARS.
  *
  * `live` is `STATUS_TOKENS` and is the default, so every panel that predates this option delivers
- * exactly the pixels it delivered before. `legacy` is the frozen pre-ADR-0462 table.
+ * exactly the pixels it delivered before. The other two are FROZEN historical tables, one per
+ * vocabulary change this arc has made: `legacy` is the pre-ADR-0462 palette (six colours over six
+ * states, `unknown` falling through to the base grass), and `pre-clay` is the palette ADR-0462
+ * shipped — identical to `live` except that `mapped` is still the warm tan `#b3946a` rather than
+ * the tilled clay that replaced it on 2026-08-28.
  *
  * ⚠ IT EXISTS TO DRAW A **BEFORE**, and that is a narrow licence rather than a general palette
  * switch. The owner's standing instruction on this arc is that an increment lands a comparison he
  * can look at, and a colour-vocabulary change has no comparison at all unless the renderer can
  * still draw the vocabulary it replaced. It must never be reached for to keep an old colour alive
- * on a page that is claiming to show the current one.
+ * on a page that is claiming to show the current one. ⚠ The list GROWS BY ONE PER CHANGE and the
+ * old members are never retired — `legacy` is not superseded by `pre-clay`, because the two answer
+ * different questions and each is the only picture of the palette it names.
  */
-export type LandPaletteChoice = 'live' | 'legacy';
+export type LandPaletteChoice = 'live' | 'legacy' | 'pre-clay';
 
 /** The authored families for a palette choice. Not exported: nothing outside this file should be
  *  resolving a token table, because a caller holding one could hand it to a page that then
  *  reports its pixels as the shipped palette's. */
 function familiesFor(choice: LandPaletteChoice | undefined): ReadonlyMap<string, StatusFamily> {
-  return choice === 'legacy' ? LEGACY_STATUS_TOKENS : STATUS_TOKENS;
+  if (choice === 'legacy') return LEGACY_STATUS_TOKENS;
+  if (choice === 'pre-clay') return ADR0462_STATUS_TOKENS;
+  return STATUS_TOKENS;
 }
 
 export interface IslandViewProps {

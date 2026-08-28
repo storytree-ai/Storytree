@@ -228,11 +228,23 @@ export function useStableVegetationLayer(
 export interface Act2IntroClock {
   requestFrame(callback: (timestamp: number) => void): number;
   cancelFrame(requestId: number): void;
+  /**
+   * Wall-clock milliseconds, on the SAME timeline as the timestamps `requestFrame` delivers.
+   *
+   * The cursor is a function of elapsed time since a run's anchor rather than a sum of per-frame
+   * deltas (ADR-0469), so the player has to be able to ask what time it is at a moment no frame is
+   * being delivered — the frame after an occlusion, and the first frame after the map route comes
+   * back. `performance.now()` in the browser; the test harness supplies its own, which is what keeps
+   * a run across an occlusion a deterministic sequence of injected timestamps.
+   */
+  now(): number;
 }
 
 const BROWSER_CLOCK: Act2IntroClock = {
   requestFrame: (callback) => window.requestAnimationFrame(callback),
   cancelFrame: (requestId) => window.cancelAnimationFrame(requestId),
+  // The same timeline rAF stamps its callbacks with, which is the whole reason this is not `Date.now()`.
+  now: () => performance.now(),
 };
 
 export interface Act2IntroInput {
@@ -300,6 +312,21 @@ export function forestRegrowGraphKey(
     .sort()
     .join(';');
   return `${storyPart}|${edgePart}`;
+}
+
+/**
+ * A run in flight, as an ANCHOR rather than as a boolean (ADR-0469).
+ *
+ * `fromProgress` is where the cursor was at `anchorMs` on the clock's timeline, and everything
+ * downstream is arithmetic over those two numbers. That is what lets a run be unwatched: nothing
+ * about it is stored in the frames that were delivered, so no frames need to be delivered for it to
+ * keep being true. `null` is a cursor at rest — paused, stepped back, settled, or finished.
+ */
+interface RegrowRun {
+  /** The plan this run is a cursor OVER. A run never outlives its own schedule. */
+  readonly plan: ForestRegrowPlan;
+  readonly anchorMs: number;
+  readonly fromProgress: number;
 }
 
 export interface Act2IntroPlayer {
@@ -386,12 +413,14 @@ export function useAct2Intro({
   // `forestRegrowGraphKey`. The ref write during render mirrors `useStableForestRegrowLayer`
   // above: it is a memo whose key is content, and it never reads back a value it did not just
   // compute from the current inputs.
+  //
+  // The cache deliberately SURVIVES `enabled` going false (ADR-0469). Parking the map route — the
+  // owner opening a Library artifact — is not a different forest, so re-enabling must hand back the
+  // SAME plan object; discarding it here is what used to make an unpark look like a brand-new graph
+  // and rewind the run to the settled forest.
   const held = useRef<{ key: string; plan: ForestRegrowPlan } | null>(null);
   const plan = useMemo(() => {
-    if (graphKey === null || !stories) {
-      held.current = null;
-      return null;
-    }
+    if (graphKey === null || !stories) return null;
     if (held.current?.key === graphKey) return held.current.plan;
     const next = deriveForestRegrowPlan(stories, edges ?? [], segmentLengths ? { segmentLengths } : {});
     held.current = { key: graphKey, plan: next };
@@ -411,24 +440,35 @@ export function useAct2Intro({
   restingRef.current = restingProgress;
 
   const [progress, setProgress] = useState(restingProgress);
-  const [playing, setPlaying] = useState(false);
-  const [runId, setRunId] = useState(0);
+  const [run, setRun] = useState<RegrowRun | null>(null);
   const progressRef = useRef(progress);
   progressRef.current = progress;
+  const tick = clock ?? BROWSER_CLOCK;
+  // Read wherever a run is anchored, which is in callbacks and effects that must not re-fire merely
+  // because a caller passed a new clock object.
+  const tickRef = useRef(tick);
+  tickRef.current = tick;
 
   // A new plan (a re-pulled tree, a different graph) invalidates the cursor rather than leaving it
   // pointing into a schedule that no longer exists. A plan that is merely the SAME graph re-fetched
   // never reaches here — see `forestRegrowGraphKey`.
+  //
+  // The guard is what makes a PARK survive (ADR-0469). While `enabled` is false the plan reads null
+  // and this holds the cursor; on the way back the cache above returns the plan this effect has
+  // already seeded, so re-arriving at a plan it has seen is not a reason to rewind anything.
+  const seeded = useRef<ForestRegrowPlan | null>(null);
   useEffect(() => {
+    if (!plan || seeded.current === plan) return;
+    seeded.current = plan;
     setProgress(restingRef.current);
-    setPlaying(false);
+    setRun(null);
   }, [plan]);
 
   // ADR-0282 D6: reduced motion settles on the FULLY GROWN forest — not a frozen half-forest and
   // not a shorter animation. The app owns that settlement rather than leaning on a stylesheet.
   useEffect(() => {
     if (!reducedMotion) return;
-    setPlaying(false);
+    setRun(null);
     setProgress(1);
   }, [reducedMotion]);
 
@@ -437,23 +477,35 @@ export function useAct2Intro({
   // whatever arrived from the URL.
   const rate = Number.isFinite(speed) && (speed as number) > 0 ? (speed as number) : 1;
 
+  // The dial can move mid-run. The cursor is elapsed-time-since-the-anchor, so changing the
+  // multiplier without re-anchoring would retroactively re-scale the WHOLE elapsed span and jump
+  // the forest. Re-anchoring at the cursor's present position keeps a dial change a change of pace
+  // rather than of position — which is exactly what ADR-0286 D4 says a speed is allowed to do.
   useEffect(() => {
-    if (!plan || !playing || reducedMotion) return;
-    const tick = clock ?? BROWSER_CLOCK;
+    setRun((current) =>
+      current === null
+        ? null
+        : { ...current, anchorMs: tickRef.current.now(), fromProgress: progressRef.current },
+    );
+  }, [rate]);
+
+  useEffect(() => {
+    // A run belongs to the plan it was started over. When the GRAPH really changes the seeding
+    // effect above rewinds the cursor, and this guard is what stops the sample below from reading the
+    // old run against the new schedule and overwriting that rewind in the same commit.
+    if (!plan || !run || run.plan !== plan || reducedMotion) return;
+    const frames = tickRef.current;
     let requestId = 0;
-    let previous: number | null = null;
     let cancelled = false;
     const step = (timestamp: number): void => {
       if (cancelled) return;
-      // The cursor advances by REAL elapsed time, so the regrow takes about the duration its plan
-      // says whatever the frame rate is — a slow frame shows less of the growth, it does not
-      // stretch the intro. (An earlier 100 ms clamp did stretch it: measured on the real corpus,
-      // frames at the full forest cost ~350 ms, so a 20 s regrow crawled past a minute.) The
-      // remaining clamp is only a backstop against a pathological gap; the real hazard — a hidden
-      // tab banking minutes of rAF debt — is handled by pausing on `visibilitychange` below.
-      const raw = previous === null ? 1000 / 60 : timestamp - previous;
-      previous = timestamp;
-      const deltaMs = Math.min(Math.max(raw, 0), 500);
+      // WHERE THE CURSOR IS, not how far it moved since the last frame (ADR-0469). A run is anchored
+      // to a wall-clock instant, so a gap in frame delivery — an occluded desktop window, a parked
+      // map route, one slow paint — is simply time that passed, and the next frame to arrive reports
+      // the truth rather than resuming from a stale sum. There is no rAF debt to bank, which is why
+      // the old 500 ms per-frame clamp and the `visibilitychange` pause are both gone: each existed
+      // only to protect an accumulator that no longer exists.
+      //
       // Global time is LINEAR on purpose: the plan's own wave pacing is the easing, and the
       // per-island accretion smoothsteps inside its own window. A second global ease on top would
       // distort the dependency schedule the order is supposed to make legible.
@@ -461,30 +513,25 @@ export function useAct2Intro({
       // `rate` (ADR-0286) is a plain multiplier on elapsed time, which is why it can only stretch
       // or compress the run: every island's `start`/`end` is a FRACTION of the plan, so scaling how
       // fast the cursor crosses it leaves the whole schedule proportionally identical.
-      const next = Math.min(1, progressRef.current + (deltaMs * rate) / plan.durationMs);
+      const elapsedMs = Math.max(0, timestamp - run.anchorMs);
+      const next = Math.min(1, run.fromProgress + (elapsedMs * rate) / plan.durationMs);
       progressRef.current = next;
       setProgress(next);
-      if (next >= 1) setPlaying(false);
-      else requestId = tick.requestFrame(step);
+      if (next >= 1) {
+        setRun(null);
+        return;
+      }
+      requestId = frames.requestFrame(step);
     };
-    requestId = tick.requestFrame(step);
+    // Sample once on entry as well as on every frame. The effect re-enters when a parked route comes
+    // back, and the run may have finished — or moved a long way — while it was gone; waiting for the
+    // browser's next frame to notice would publish one render of a cursor that is already wrong.
+    step(frames.now());
     return () => {
       cancelled = true;
-      tick.cancelFrame(requestId);
+      frames.cancelFrame(requestId);
     };
-  }, [plan, playing, reducedMotion, clock, runId, rate]);
-
-  // A hidden tab banks rAF debt (and in some browsers stops delivering frames entirely), so a
-  // regrow left running behind another window would either freeze or leap on return. Pausing is
-  // the honest behaviour: the owner comes back to where they left the forest, and Resume plays on.
-  useEffect(() => {
-    if (typeof document === 'undefined') return;
-    const onVisibility = (): void => {
-      if (document.hidden) setPlaying(false);
-    };
-    document.addEventListener('visibilitychange', onVisibility);
-    return () => document.removeEventListener('visibilitychange', onVisibility);
-  }, []);
+  }, [plan, run, reducedMotion, rate]);
 
   const state = useMemo(
     () => (plan ? forestRegrowAtProgress(plan, progress) : null),
@@ -496,15 +543,15 @@ export function useAct2Intro({
       setProgress(1);
       return;
     }
-    if (progressRef.current >= 1) {
-      progressRef.current = 0;
-      setProgress(0);
-    }
-    setRunId((id) => id + 1);
-    setPlaying(true);
-  }, [reducedMotion]);
+    const from = progressRef.current >= 1 ? 0 : progressRef.current;
+    progressRef.current = from;
+    setProgress(from);
+    // A FRESH anchor, so time spent paused is not banked. Pause is the one absence the owner asked
+    // for, and it is the only one that does not catch up.
+    if (plan) setRun({ plan, anchorMs: tickRef.current.now(), fromProgress: from });
+  }, [reducedMotion, plan]);
 
-  const pause = useCallback(() => setPlaying(false), []);
+  const pause = useCallback(() => setRun(null), []);
 
   const replay = useCallback(() => {
     if (reducedMotion) {
@@ -513,22 +560,21 @@ export function useAct2Intro({
     }
     progressRef.current = 0;
     setProgress(0);
-    setRunId((id) => id + 1);
-    setPlaying(true);
-  }, [reducedMotion]);
+    if (plan) setRun({ plan, anchorMs: tickRef.current.now(), fromProgress: 0 });
+  }, [reducedMotion, plan]);
 
   const back = useCallback(() => {
     if (!plan) return;
     const next = backProgress(plan, progressRef.current);
     progressRef.current = next;
     setProgress(next);
-    setPlaying(false);
+    setRun(null);
   }, [plan]);
 
   const settle = useCallback(() => {
     progressRef.current = 1;
     setProgress(1);
-    setPlaying(false);
+    setRun(null);
   }, []);
 
   if (!plan || !state) return IDLE;
@@ -536,7 +582,8 @@ export function useAct2Intro({
     plan,
     state,
     progress,
-    playing,
+    // A run IS its anchor: holding one is what "playing" means, and the loop clears it at cursor 1.
+    playing: run !== null,
     regrowing: progress < 1,
     wave: waveAtProgress(plan, progress),
     play,

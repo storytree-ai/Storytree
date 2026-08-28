@@ -110,23 +110,33 @@ test('the ladder\'s first step is far shallower than the rest, so "a rung" is no
   assert.ok(gaps[1]! > SEPARATION_FLOOR * 2, `the deep rungs should dwarf the bar`);
 });
 
-test('the closest two DIFFERENT statuses are proposed and mapped', () => {
+test('the closest two DIFFERENT statuses are healthy and unknown, at 24.58', () => {
   // THE DENOMINATOR every separation in the report is read against: how quietly the map already
   // draws a MEANINGFUL difference.
   //
-  // ⚠ IT WAS `healthy`/`unknown` AT **3.33** UNTIL 2026-08-27 — the 2026-08-18 pass's headline
-  // defect, a parcel asserting a signed pass and a parcel asserting nothing. ADR-0462 gave
-  // `unknown` its own slate and the pair is now 24.55 apart, which moves the worst meaningful
-  // pair onto `proposed`/`mapped` at 14.23: unproven greenfield against inherited brownfield,
-  // and the whole remaining scope of `pull-the-four-land-colours-apart-in-hue`.
+  // ⚠ IT HAS MOVED TWICE AND BOTH MOVES WENT THE SAME WAY. It was `healthy`/`unknown` at **3.33**
+  // until 2026-08-27 — the 2026-08-18 pass's headline defect, a parcel asserting a signed pass
+  // and a parcel asserting nothing. ADR-0462 gave `unknown` its own slate and the worst pair moved
+  // to `proposed`/`mapped` at **14.23**. Re-authoring `mapped` as a clay on 2026-08-28 moved it
+  // again — brown is now 41.52 from green and 24.36 from yellow, so what binds is `healthy`
+  // against `unknown` at **24.58**, which is the same PAIR the defect was and 7.4x further apart.
   const worst = worstStatusPair();
-  assert.deepEqual([worst.a, worst.b].sort(), ['mapped', 'proposed']);
-  assert.ok(Math.abs(worst.distance - 14.23) < 0.01, `worst pair moved to ${worst.distance.toFixed(2)}`);
-  // AND THE COMPARISON WITH THE SCENERY BAR HAS INVERTED, which is worth an assertion rather than
-  // a comment because it is the sentence `YELLOW_GRASS`'s docstring had to be corrected for. The
-  // worst meaningful pair used to be QUIETER than the bar a scenery colour is held to; it is now
-  // nearly twice it. Improving the status vocabulary raises the standard scenery is judged by.
-  assert.ok(worst.distance > SEPARATION_FLOOR, 'the worst meaningful pair is no longer under the scenery bar');
+  assert.deepEqual([worst.a, worst.b].sort(), ['healthy', 'unknown']);
+  assert.ok(Math.abs(worst.distance - 24.58) < 0.01, `worst pair moved to ${worst.distance.toFixed(2)}`);
+  // AND THE COMPARISON WITH THE SCENERY BAR HAS INVERTED AND KEPT GOING, which is worth an
+  // assertion rather than a comment because it is the sentence `YELLOW_GRASS`'s docstring has now
+  // been corrected for twice. The worst meaningful pair used to be QUIETER than the bar a scenery
+  // colour is held to (3.33 against 7.675); it is now 3.2x it. Improving the status vocabulary
+  // raises the standard scenery is judged by, every time.
+  assert.ok(worst.distance > SEPARATION_FLOOR * 3, 'the worst meaningful pair is well over the scenery bar');
+  // ⚠ AND `yellowGrass` IS NOW ON THE WRONG SIDE OF IT. At 13.62 from the nearest proof state it
+  // is a little over HALF the map's own worst meaningful difference — so a scenery cell differs
+  // from a status by less than two statuses differ from each other. Nothing about the cover moved;
+  // the denominator did, twice. This is not a defect that has appeared — it is the headroom
+  // argument continuing to lose force as the vocabulary gets better, and it is the trade
+  // `oq-how-does-the-map-report-a-capability-s-state-once-the-gro` exists to price. Recorded here
+  // rather than acted on: re-authoring the grass is not this increment's to do.
+  assert.ok(separationOf(YELLOW_GRASS).distance < worst.distance / 1.5);
 });
 
 test('`proposed` and `building` are ONE colour asked twice, and the instrument knows it', () => {

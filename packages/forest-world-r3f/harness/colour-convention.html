@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the textured-asset colour convention, judged on delivered pixels (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 1600px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      p { max-width: 78ch; color: #b0bec5; }
+      code { color: #d7c07a; }
+      pre { font: 12px/1.5 ui-monospace, monospace; color: #cfd8dc; white-space: pre; overflow-x: auto; }
+      #root { margin-top: 18px; }
+      canvas { display: block; border: 1px solid #3b434c; background: #21262c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Is every bought texture on this surface sampled in the land&rsquo;s own colour convention?</h1>
+      <p>
+        This renderer is deliberately not colour-managed, so a glTF base-colour map decoded the
+        ordinary way renders about 3.5&times; dark &mdash; and looks like a moody art direction
+        rather than a bug. For every material each committed asset carries, this draws three
+        swatches in one context: the asset&rsquo;s own map, a flat swatch of that map&rsquo;s mean,
+        and a flat swatch of that map&rsquo;s mean after linearising. The last two are what the
+        frame <em>would</em> look like under each convention, measured rather than modelled, so the
+        verdict is read off a control in the same run. Driven by
+        <code>colour-convention-measure.mjs</code>.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountColourConvention } from './colour-convention-scene.ts';
+      mountColourConvention(document.getElementById('root')).catch((e) => {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e}</pre>`);
+      });
+    </script>
+  </body>
+</html>

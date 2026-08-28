@@ -73,6 +73,22 @@ const EXPERIMENT = [
   // here with the rest for the same reason: adoption is a separate event, and nothing about the
   // experiment publishes.
   'frame-budget.ts',
+  // The first-textured-asset probe's PURE half (`first-textured-asset-in-the-live-renderer`).
+  // `asset-payload.ts` is the bytes a visitor downloads and the three verdicts read off them;
+  // `pine-asset.ts` is where the comparison's trees stand, how big the bought pine has to be,
+  // and how many draw calls each arm is allowed. Both must stay reachable from node — the
+  // payload answer is the whole point of the increment and a number nobody can re-derive
+  // without a GPU is not one — so both belong in the pure sweep below. Their browser half
+  // (`pine-scene.ts`) is deliberately NOT listed: it imports three by design.
+  'asset-payload.ts',
+  'pine-asset.ts',
+  // The textured-asset colour guard (`guard-the-textured-asset-colour-convention`). It is the
+  // convention every bought texture on this surface is sampled in, plus the arithmetic that
+  // judges a frame against it, and it must stay node-provable: the verdict is what refuses a
+  // build, and a verdict nobody can reproduce without a GPU is a verdict nobody can audit. Its
+  // browser half (`colour-convention-scene.ts`) is deliberately NOT listed, exactly as
+  // `pine-scene.ts` is not — it imports three because reading delivered pixels needs a renderer.
+  'texture-convention.ts',
 ];
 
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];
