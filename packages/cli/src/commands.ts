@@ -117,6 +117,7 @@ import {
   type AdoptDispatchDeps,
   type AdoptInvocation,
 } from "./adopt.js";
+import { adoptCapabilityCommand, adoptCapabilityHelp } from "./adopt-capability.js";
 import { branchNext, branchHelp, type BranchDeps } from "./branch.js";
 import {
   pruneWorktrees,
@@ -4185,6 +4186,25 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         makeGateOpts(values),
         makeGateDeps(deps, values, storiesDir),
       );
+    }
+    // `adopt capability <capability-id> --pg` — CAPABILITY-GRAIN adoption on the owner's recorded
+    // risk acceptance (ADR-0465 D4). It JOINS the story-grain `mapped`-only guard above with a
+    // different evidence basis rather than widening it: drive refuses any tier but `capability` and
+    // sends a story back to the status-guarded entry, so this can never become the way around
+    // ADR-0423 D1 at another grain. The capability's OWN verdict fold, the service-history fence and
+    // every other wall live in drive's `runAdoptCapability`; this wires the live seams only.
+    if (sub === "capability") {
+      if (help || third === undefined) return adoptCapabilityHelp();
+      return adoptCapabilityCommand(third, adoptOpts, {
+        storiesDir,
+        repoRoot: repoRoot(),
+        verdicts: deps.verdicts ?? null,
+        store: deps.uatStore ?? null,
+        gitState: readGitState,
+        observe: observeCommand,
+        resolveApprover: (flag?: string) =>
+          resolveSignerFromEnv(flag !== undefined ? { flag } : undefined),
+      });
     }
     // bare: `storytree adopt <story-id>` RUNS the adoption.
     return adoptCommand({ mode: "run", target: sub }, adoptOpts, adoptDeps);

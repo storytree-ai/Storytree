@@ -200,6 +200,7 @@
 
       "$section_drive": "packages/drive — the shared build/orchestrate drivers (ADR-0112). Nearly every module is a named drive-machinery capability or the driver half of another story's capability; the residue is composition glue.",
       "packages/drive/src/adopt.ts": "uat-bound-command-adoption",
+      "packages/drive/src/adopt-capability.ts": "drive-machinery",
       "packages/drive/src/adr-*.ts": "cli-resident-corpus-tools",
       "packages/drive/src/ambient-presence.ts": "ambient-integration",
       "packages/drive/src/build.ts": "build-drive-cli",

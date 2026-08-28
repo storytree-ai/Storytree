@@ -49,6 +49,7 @@ export * from "./usage.js";
 export * from "./scope-walls.js";
 export * from "./story-build.js";
 export * from "./adopt.js";
+export * from "./adopt-capability.js";
 export * from "./orchestrate.js";
 export * from "./chat-stream.js";
 // The ADR-0137 spawn-deps composition (`buildSpawnDeps`) and the ADR-0152 landing-deps composition
