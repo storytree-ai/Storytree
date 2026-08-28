@@ -94,7 +94,16 @@ export const STATUS_TOKENS: ReadonlyMap<string, StatusFamily> = new Map([
   ["proposed", YELLOW_FAMILY],
   ["building", YELLOW_FAMILY],
   ["healthy", { top: ['#8cb85e', '#7dab50', '#9ac570'], wheat: '#d6b271', side: '#648244' }],
-  ["mapped", { top: ['#b3946a', '#a68557', '#bda278'], wheat: '#d6b271', side: '#85683f' }],
+  // `mapped` is a TILLED CLAY, not the warm tan it was until 2026-08-28, and it was picked by a
+  // stated rule rather than by eye: the MINIMAL move from the authored colour at which brown stops
+  // being the vocabulary's weakest link — the tightest pair no longer involves brown at all. Not
+  // "clears by N%", which is a margin nobody could justify. 29 of 7,337 candidates satisfy it and
+  // this is the closest to what was already authored (hue -20, saturation x1.40, value x1.02;
+  // moved 38.2 in the arc's own luma-weighted space). It removed the last two foreign colour reads
+  // on the land — `proposed`'s two darkest lighting rungs had been reading as this family, unproven
+  // greenfield as inherited brownfield — and took `SHADOW_RUNG` from 0.81 to 0.77 with it. The
+  // search is `hue-frontier.ts`; the palette it searched is frozen as `ADR0462_STATUS_TOKENS`.
+  ["mapped", { top: ['#b7684e', '#a95539', '#c1795e'], wheat: '#d6b271', side: '#883d24' }],
   ["unhealthy", { top: ['#57544a', '#4a473e', '#635f52'], wheat: '#6f6852', side: '#37352c' }],
   // `unknown` GAINED a colour here; it did not have one before. It used to fall through to the
   // base grass family, which is why it sat 3.33 from `healthy` — a parcel asserting NOTHING and

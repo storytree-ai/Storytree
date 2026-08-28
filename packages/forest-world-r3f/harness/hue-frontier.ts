@@ -112,9 +112,21 @@ export function familyMovement(a: StatusFamily, b: StatusFamily): number {
   return Math.max(m, colourDistance(parseHex(a.side), parseHex(b.side)));
 }
 
-/** Today's bar for each pair, keyed `a/b` — the floor the ratchet holds. */
-export function todaysBars(): ReadonlyMap<string, number> {
-  return new Map(colourPairs().map((p) => [`${p.a}/${p.b}`, p.step] as const));
+/**
+ * The bar for each pair, keyed `a/b` — the floor the ratchet holds.
+ *
+ * ⚠ IT TAKES THE TABLE RATHER THAN READING THE LIVE ONE, because "today" moved. This sweep's
+ * published figures are all statements about the palette ADR-0462 shipped, and the clay it picked
+ * has since landed on `STATUS_TOKENS`. A default-argument read of the live table would quietly
+ * re-baseline every recorded figure onto the answer's own palette — the search would still pass,
+ * having become a different search. `status-vocabulary.ts`'s frozen `ADR0462_STATUS_TOKENS` is
+ * what the reproduction tests pass here.
+ */
+export function todaysBars(
+  tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
+  vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
+): ReadonlyMap<string, number> {
+  return new Map(colourPairs(tokens, vocab).map((p) => [`${p.a}/${p.b}`, p.step] as const));
 }
 
 export interface Tightest {
@@ -192,7 +204,9 @@ export function sweepFamily(
 ): Candidate[] {
   const base = tokens.get(status);
   if (!base) throw new Error(`hue-frontier: no token family for status "${status}"`);
-  const bars = todaysBars();
+  // ⚠ The ratchet's floor comes from the table BEING SWEPT, never from the live palette. Sweeping
+  // a frozen table while ratcheting against a live one mixes two vocabularies into one verdict.
+  const bars = todaysBars(tokens);
   const out: Candidate[] = [];
   for (const deg of sweep.deg) {
     for (const sat of sweep.sat) {

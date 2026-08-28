@@ -211,8 +211,9 @@ export const FLAT_GROUND_LEVEL: number = SHADE_LEVELS[rungOfNormal({ x: 0, y: 1,
  *  actually delivered at. */
 export function liveReaderTable(
   statuses: readonly string[] = RENDERED_STATUSES,
+  tokens: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = STATUS_TOKENS,
 ): Record<string, Rgb255[]> {
-  return readerStatusTable({ statuses, rung: FLAT_GROUND_LEVEL, oneToken: true });
+  return readerStatusTable({ statuses, rung: FLAT_GROUND_LEVEL, oneToken: true, tokens });
 }
 
 /** Per-status ceilings on the live path, as ABSOLUTE ladder levels — a level a rung could
@@ -246,13 +247,14 @@ export function liveCeilings(
 export function deepestAdmissibleRung(
   statuses: readonly string[] = RENDERED_STATUSES,
   step = 0.01,
+  tokens: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = STATUS_TOKENS,
 ): number | null {
-  const table = liveReaderTable(statuses);
+  const table = liveReaderTable(statuses, tokens);
   let admissible: number | null = null;
   for (let level = FLAT_GROUND_LEVEL - step; level > 0.3; level -= step) {
     const rounded = Math.round(level * 10000) / 10000;
     const ok = statuses.every(
-      (st) => nearestStatus(deliveredColour(STATUS_TOKENS.get(st)!.top[0]!, rounded), table) === st,
+      (st) => nearestStatus(deliveredColour(tokens.get(st)!.top[0]!, rounded), table) === st,
     );
     if (!ok) break;
     admissible = rounded;
@@ -348,19 +350,25 @@ export interface RungVerdict {
 
 /**
  * The whole ladder, status by status, as the reader sees it — the table the evidence sheet
- * prints. It reports on the SHIPPED rungs too, and it is not shy about them: the shipped
- * dark rungs are ALREADY inadmissible for `proposed` and `unknown`, before any shadow
- * exists. That is a finding about today's render, not a cost of this change.
+ * prints. It reports on the SHIPPED rungs too.
+ *
+ * ⚠ CORRECTED IN PLACE 2026-08-28. This docstring used to end *"the shipped dark rungs are
+ * ALREADY inadmissible for `proposed` and `unknown`, before any shadow exists"*, which was true
+ * of two earlier palettes and is not true now: ADR-0462 removed `unknown`'s two and re-authoring
+ * `mapped` as a clay removed `proposed`'s. **The live ladder is admissible at every rung.** The
+ * frozen tables in `status-vocabulary.ts` are how the old finding stays measurable — pass one as
+ * `tokens` and this function still reports it.
  */
 export function ladderAdmissibility(
   levels: readonly number[] = SHADOW_LADDER,
   statuses: readonly string[] = RENDERED_STATUSES,
+  tokens: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = STATUS_TOKENS,
 ): RungVerdict[] {
-  const table = liveReaderTable(statuses);
+  const table = liveReaderTable(statuses, tokens);
   const out: RungVerdict[] = [];
   for (const status of statuses) {
     for (const level of levels) {
-      const colour = deliveredColour(STATUS_TOKENS.get(status)!.top[0]!, level);
+      const colour = deliveredColour(tokens.get(status)!.top[0]!, level);
       const readsAs = nearestStatus(colour, table);
       out.push({ status, level, hex: toHex(colour), readsAs, admissible: readsAs === status });
     }
@@ -424,11 +432,16 @@ export function shadowRungEntries(): string[] {
 export function robustlyInadmissible(
   statuses: readonly string[] = RENDERED_STATUSES,
   levels: readonly number[] = SHADOW_LADDER,
+  tokens: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = STATUS_TOKENS,
 ): RungVerdict[] {
-  const wide = readerStatusTable({ statuses, rung: FLAT_GROUND_LEVEL, oneToken: false });
-  return ladderAdmissibility(levels, statuses).filter((v) => {
+  // ⚠ THE TABLE IS AN ARGUMENT FOR THE SAME REASON `readerStatusTable`'s is. This function's
+  // headline output is a LIST THAT CAN BE EMPTY, and an empty list is also what a broken
+  // instrument returns — so the only way to publish "there are none left" honestly is to run the
+  // same call against a frozen palette that still has one. Defaults to live.
+  const wide = readerStatusTable({ statuses, rung: FLAT_GROUND_LEVEL, oneToken: false, tokens });
+  return ladderAdmissibility(levels, statuses, tokens).filter((v) => {
     if (v.admissible) return false;
-    const colour = deliveredColour(STATUS_TOKENS.get(v.status)!.top[0]!, v.level);
+    const colour = deliveredColour(tokens.get(v.status)!.top[0]!, v.level);
     return nearestStatus(colour, wide) !== v.status;
   });
 }
@@ -450,9 +463,12 @@ export interface LuminanceOverlapResult {
  * would have to buy is hue/chroma separation between the status tokens — an owner art call
  * to price rather than an art call to make.
  */
-export function luminanceOverlap(statuses: readonly string[] = RENDERED_STATUSES): LuminanceOverlapResult {
+export function luminanceOverlap(
+  statuses: readonly string[] = RENDERED_STATUSES,
+  tokens: ReadonlyMap<string, { top: readonly string[]; wheat: string; side: string }> = STATUS_TOKENS,
+): LuminanceOverlapResult {
   const ranges = statuses.map((status) => {
-    const ls = SHADE_LEVELS.map((l) => luma(deliveredColour(STATUS_TOKENS.get(status)!.top[0]!, l)));
+    const ls = SHADE_LEVELS.map((l) => luma(deliveredColour(tokens.get(status)!.top[0]!, l)));
     return { status, min: Math.min(...ls), max: Math.max(...ls) };
   });
   const overlaps: { a: string; b: string; luma: number }[] = [];
