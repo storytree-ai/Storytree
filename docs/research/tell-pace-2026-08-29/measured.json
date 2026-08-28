@@ -1,0 +1,143 @@
+{
+  "isleCount": 35,
+  "firstGrown": {
+    "t": 1251,
+    "isles": 35,
+    "grown": 5,
+    "mid": 5,
+    "landOpacity": 0.72,
+    "beat": null,
+    "lines": []
+  },
+  "allGrown": {
+    "t": 2350,
+    "isles": 35,
+    "grown": 35,
+    "mid": 0,
+    "landOpacity": 0.99,
+    "beat": null,
+    "lines": []
+  },
+  "anyMid": 28,
+  "rows": [
+    {
+      "text": "This is storytree.",
+      "ms": 2193,
+      "cps": 8.207934336525307,
+      "wpm": 82.07934336525308,
+      "beat": "name"
+    },
+    {
+      "text": "You just watched the problem.",
+      "ms": 8550,
+      "cps": 3.3918128654970756,
+      "wpm": 35.08771929824562,
+      "beat": "problem"
+    },
+    {
+      "text": "Point a few agents at a codebase and they write more than anyone can read.",
+      "ms": 5750,
+      "cps": 12.869565217391305,
+      "wpm": 156.52173913043478,
+      "beat": "problem"
+    },
+    {
+      "text": "Which leaves two options, both bad: read every line yourself, or trust it and hope.",
+      "ms": 13300,
+      "cps": 6.2406015037593985,
+      "wpm": 67.66917293233082,
+      "beat": "binary"
+    },
+    {
+      "text": "What was missing was the middle — a way to see which parts wanted your attention.",
+      "ms": 6350,
+      "cps": 12.755905511811024,
+      "wpm": 151.1811023622047,
+      "beat": "binary"
+    },
+    {
+      "text": "So storytree grows software as a map you can stand in front of.",
+      "ms": 10250,
+      "cps": 6.146341463414634,
+      "wpm": 76.09756097560975,
+      "beat": "turn"
+    },
+    {
+      "text": "This one is real. It is storytree, drawn from its own records.",
+      "ms": 4850,
+      "cps": 12.783505154639176,
+      "wpm": 148.4536082474227,
+      "beat": "turn"
+    },
+    {
+      "text": "Every island is one story — one thing the system does.",
+      "ms": 6650,
+      "cps": 8.120300751879698,
+      "wpm": 99.24812030075188,
+      "beat": "islands"
+    },
+    {
+      "text": "35 of them.",
+      "ms": 1900,
+      "cps": 5.7894736842105265,
+      "wpm": 94.73684210526315,
+      "beat": "islands"
+    },
+    {
+      "text": "21 of them are green.",
+      "ms": 6616,
+      "cps": 3.1741233373639663,
+      "wpm": 45.34461910519952,
+      "beat": "proven"
+    },
+    {
+      "text": "Nothing goes green here because somebody said it was done.",
+      "ms": 4551,
+      "cps": 12.744451768842012,
+      "wpm": 131.83915622940012,
+      "beat": "proven"
+    },
+    {
+      "text": "Nobody signs off their own work.",
+      "ms": 5600,
+      "cps": 5.714285714285714,
+      "wpm": 64.28571428571428,
+      "beat": "loop"
+    },
+    {
+      "text": "The trails are what depends on what.",
+      "ms": 3104,
+      "cps": 11.597938144329897,
+      "wpm": 135.30927835051546,
+      "beat": "trails"
+    },
+    {
+      "text": "That one is this website.",
+      "ms": 8416,
+      "cps": 2.970532319391635,
+      "wpm": 35.64638783269962,
+      "beat": "self"
+    },
+    {
+      "text": "It is not green. Nobody has signed it off, so the map does not say otherwise.",
+      "ms": 6000,
+      "cps": 12.833333333333334,
+      "wpm": 160,
+      "beat": "self"
+    },
+    {
+      "text": "It is yours now.",
+      "ms": 5714,
+      "cps": 2.80014000700035,
+      "wpm": 42.00210010500525,
+      "beat": "handoff"
+    },
+    {
+      "text": "Drag to move around it. Scroll to zoom.",
+      "ms": 4000,
+      "cps": 9.75,
+      "wpm": 120,
+      "beat": "handoff"
+    }
+  ]
+}
