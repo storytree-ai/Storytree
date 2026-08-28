@@ -8,8 +8,8 @@
 
 ## The one sentence
 
-> ADR-0418 D4's replacement for the lifted palette fence was built and mutation-tested eleven months
-> of arc-time ago — and **no build ever ran it**. It is now the gate's `check:land-art`, and five
+> ADR-0418 D4's replacement for the lifted palette fence was built and mutation-tested the day
+> before — and **no build ever ran it**. It is now the gate's `check:land-art`, and five
 > hand-run mutations across four different halves of it each turn the gate red.
 
 ---
@@ -39,7 +39,7 @@ Confirmed by direct search on this branch rather than taken from the prose:
 
 | where a build could have run it | result |
 |---|---|
-| the gate plan (`packages/cli/src/gate-order.ts`, 23 steps) | **absent** |
+| the gate plan (`packages/cli/src/gate-order.ts`, 21 steps at the time) | **absent** |
 | `.github/workflows/ci.yml` | **absent** |
 | the package's own `test` script | **unreachable** — `bun test src/ harness/` collects `*.test.ts`; capture is a `.mjs` driver |
 
@@ -219,4 +219,5 @@ carries for exactly this purpose.
 - `packages/forest-world-r3f/harness/land-art-coverage.test.ts` — 14 unit tests over the real
   measured run.
 - `packages/cli/src/gate-order.ts` — the plan entry and the `SKIP_CAPABLE_CHECKS` reason.
-- `MU1-…` … `MU5-browser-absent.log` — the committed refusals.
+- `MU1-…` … `MU5-browser-absent.txt` — the committed refusals, plus `PASS-baseline.txt` for contrast.
+  (`.txt`, not `.log`: the repo gitignores `*.log` globally, so committing the refusals as logs would have silently committed nothing — which is the same fault class one more level up.)

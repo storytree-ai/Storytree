@@ -1,0 +1,8 @@
+
+> storytree@0.0.0 check:land-art /home/mickh/code/Storytree/.claude/worktrees/land-gate
+> pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-art-check.ts
+
+[land-art] SKIP — Playwright's Chromium is not downloaded (/tmp/empty-browsers/chromium-1223/chrome-linux64/chrome does not exist).
+[land-art] Install it with:  pnpm exec playwright install chromium
+[land-art] ⚠ SKIP IS NOT A PASS. Nothing audited the art on this run; ADR-0418 D4 asserts nothing here until the browser is present.
+ ELIFECYCLE  Command failed with exit code 3.

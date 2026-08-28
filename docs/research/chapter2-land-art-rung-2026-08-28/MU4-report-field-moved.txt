@@ -1,0 +1,14 @@
+
+> storytree@0.0.0 check:land-art /home/mickh/code/Storytree/.claude/worktrees/land-gate
+> pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-art-check.ts
+
+[land-art] harness on http://localhost:5174/  (ephemeral port — a sibling worktree cannot answer it)
+[land-art] XX grain.html        capture exit 0  4.7s
+[land-art] XX island.html       capture exit 0  17.1s
+[land-art] XX directions.html   capture exit 0  5.1s
+
+REFUSED: the land art rung.
+  COVERAGE — grain.html — could not read what was audited: capture report has no numeric `colourSpread.continuousChecked` — the rung reads coverage from that field, so it cannot state what was audited. If the report shape moved, move this reader with it; do not default it, or the rung starts asserting over nothing.
+  COVERAGE — island.html — could not read what was audited: capture report has no numeric `colourSpread.continuousChecked` — the rung reads coverage from that field, so it cannot state what was audited. If the report shape moved, move this reader with it; do not default it, or the rung starts asserting over nothing.
+  COVERAGE — directions.html — could not read what was audited: capture report has no numeric `colourSpread.continuousChecked` — the rung reads coverage from that field, so it cannot state what was audited. If the report shape moved, move this reader with it; do not default it, or the rung starts asserting over nothing.
+ ELIFECYCLE  Command failed with exit code 1.

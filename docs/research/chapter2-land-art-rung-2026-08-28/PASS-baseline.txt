@@ -1,0 +1,10 @@
+
+> storytree@0.0.0 check:land-art /home/mickh/code/Storytree/.claude/worktrees/land-gate
+> pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-art-check.ts
+
+[land-art] harness on http://localhost:5174/  (ephemeral port — a sibling worktree cannot answer it)
+[land-art] ok grain.html        capture exit 0  4.3s
+[land-art] ok island.html       capture exit 0  16.4s
+[land-art] ok directions.html   capture exit 0  4.6s
+
+[land-art] PASS — 3 pages audited; every page delivered the coverage it declares, and the declared set still covers all three parts of ADR-0418 D4.

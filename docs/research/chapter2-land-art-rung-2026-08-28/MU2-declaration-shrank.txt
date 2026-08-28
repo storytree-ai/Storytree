@@ -1,0 +1,11 @@
+
+> storytree@0.0.0 check:land-art /home/mickh/code/Storytree/.claude/worktrees/land-gate
+> pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-art-check.ts
+
+[land-art] harness on http://localhost:5174/  (ephemeral port — a sibling worktree cannot answer it)
+[land-art] ok island.html       capture exit 0  34.4s
+[land-art] ok directions.html   capture exit 0  9.1s
+
+REFUSED: the land art rung.
+  DECLARATION — ADR-0418 D4 part 2 — the colour-spread band: no page in the set is declared to carry a continuous canvas, so the band that REPLACED the lifted palette fence would judge nothing on any run. This is the half that only exists because ADR-0418 D3 lifted fence 3; a set without it has quietly returned to the state the ADR refused to leave behind.
+ ELIFECYCLE  Command failed with exit code 1.
