@@ -5,7 +5,7 @@ story: context-traversal-capture
 arc: context-decision-tree-arc
 title: "The replay draws the branch taken and the branches not taken, and says so when it cannot"
 outcome: "A replay carrying a recorded offer renders that offer's every candidate with what the trace deterministically says happened to it — followed, not followed, unfollowable, or ambiguous — and surfaces every recorded follow it could not resolve rather than dropping it."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, artifact-offer-candidate-sets, offer-follow-edges]
 decisions: [235, 464]
@@ -16,19 +16,10 @@ proof:
   scope:
     testGlobs: ["packages/context-traversal-capture/src/decision-point-playback.test.ts"]
     sourceGlobs: ["packages/context-traversal-capture/src/decision-point-playback.ts"]
-  real:
-    testFile: "packages/context-traversal-capture/src/decision-point-playback.test.ts"
-    sourceFile: "packages/context-traversal-capture/src/decision-point-playback.ts"
-    scope:
-      testGlobs: ["packages/context-traversal-capture/src/decision-point-playback.test.ts"]
-      sourceGlobs: ["packages/context-traversal-capture/src/decision-point-playback.ts"]
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "typecheck"]
+  # THE `real:` ARM WAS REMOVED HERE, NOT MERELY LEFT BESIDE A RETIRED STATUS (ADR-0464 D1).
+  # `status: retired` alone does NOTHING: `sweepRealBuildCoverage` filters on `real === undefined`,
+  # never on status, so an arm naming the deleted `packages/context-traversal-capture/src/decision-point-playback.ts`
+  # would breach `contract-binding-drift` and the coverage drain at their ceiling of zero.
 ---
 
 # The replay draws the branch taken and the branches not taken, and says so when it cannot

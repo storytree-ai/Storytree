@@ -18,11 +18,6 @@ capabilities:
     terminal-capture-activation,
     revisit-link-metadata,
     agent-ref-descent,
-    artifact-offer-candidate-sets,
-    offer-follow-edges,
-    decision-point-playback,
-    offer-observability-share,
-    offer-set-render-agreement,
   ]
 proof:
   command:
@@ -96,12 +91,22 @@ zod-only because the studio bundles it.
 | 4 | [`terminal-capture-activation`](terminal-capture-activation.md) | The real terminal CLI process captures its own reads additively and replays them on demand. | `traversal-trace-sink`, `terminal-boundary-observations`, `traversal-session-query` |
 | 5 | [`revisit-link-metadata`](revisit-link-metadata.md) | A visit to a node this session already read carries the earlier visit's id, and carries none when it does not. | `traversal-trace-sink`, `terminal-boundary-observations` |
 | 6 | [`agent-ref-descent`](agent-ref-descent.md) | Each floor ref the agents render resolves becomes a child visit naming the agent's visit as its parent, and no other CLI shape descends anything. | `traversal-trace-sink`, `terminal-boundary-observations` |
-| 7 | [`artifact-offer-candidate-sets`](artifact-offer-candidate-sets.md) | A library artifact read records every onward artifact its Sources block offered as a candidate set at render time, whether or not anything follows it. | `traversal-trace-sink`, `terminal-boundary-observations` |
-| 8 | [`offer-follow-edges`](offer-follow-edges.md) | A read invoked with an offer id on the command line stamps that edge on its own visit and records it; a read invoked without one records no edge at all. | `traversal-trace-sink`, `terminal-boundary-observations`, `artifact-offer-candidate-sets` |
-| 9 | [`decision-point-playback`](decision-point-playback.md) | A replay renders each recorded offer's every candidate with what the trace deterministically says happened to it, and surfaces every follow it could not resolve rather than dropping it. | `traversal-trace-sink`, `artifact-offer-candidate-sets`, `offer-follow-edges` |
 
 The graph is acyclic: the sink and the observation table consume only increment 1's vocabulary; the
 query consumes the sink's reader; the activation composes all three.
+
+**FIVE CAPABILITIES WERE RETIRED FROM THIS STORY BY ADR-0464 D1** — `artifact-offer-candidate-sets`,
+`offer-follow-edges`, `decision-point-playback`, `offer-observability-share` and
+`offer-set-render-agreement`. They built and read the citation-derived OFFER surface: what a
+`library artifact <id>` render offered in its Sources block, which offer a later read answered, and
+two derived readings over the join. The surface is retired (search and the authored `depends_on` edge
+are the discovery route now), so all five lost their subject at once and their modules were deleted.
+The six above are unaffected: none depended on any of the five, and the capture pipeline — sink,
+allowlist, replay, activation, revisit links, agent-ref descent — is untouched.
+
+⚠ The EVENT VOCABULARY is deliberately kept. `candidate_set` and `followed_edge` remain valid
+`ContextTraversalEvent` kinds and still replay from traces captured before that landing; what was
+retired is the RECORDING, not the ability to read what was already recorded.
 
 Capabilities 7, 8 and 9 are this story's contributions to a DIFFERENT arc (`context-decision-tree-arc`,
 ADR-0260) rather than to `linked-session-context-arc`, whose worklist is complete. They land here
@@ -133,6 +138,24 @@ whole distance between a containment chain and a decision tree.
 **Goal —** Spawn the REAL terminal CLI, prove it wrote a durable trace of exactly the reads it
 performed and nothing else, then replay that trace from the command line — with every ADR-0235
 uncertainty and every ADR-0241 honesty rule intact.
+
+**CRITERIA 7-10 WERE RETIRED BY ADR-0464 D1**, with the five capabilities they witnessed. They read:
+*a real artifact read records the branches it did NOT take*; *a real followed command declares its
+edge, and a bare one declares none*; *a real replay draws the branches the session did NOT take*; and
+*a real replay states how much of each offer set it could NOT see*. Each spawned the real CLI and
+asserted on a recorded `candidate_set` or `followed_edge`; nothing records either any more.
+
+They are removed rather than left standing against a gate they can no longer be observed on. A signed
+criterion nobody can re-observe is worse than a missing one — its verdict keeps reading as evidence
+while the behaviour behind it has gone. The corresponding legs in
+`packages/context-traversal-capture/src/terminal-capture.uat.test.ts` were deleted in the same
+landing, so the suite and the criteria agree about what is still claimed.
+
+⚠ Their NEGATIVE halves are the specific reason none of the four could be kept and narrowed. Each
+closed by asserting that a session which recorded no offer renders no block — true before the
+retirement because the surface was selective, and true forever afterwards because there is no
+surface. Kept, they would have gone on passing while verifying nothing, which is exactly the failure
+this landing set out to remove.
 
 1. **A real spawned read command writes a replayable visit.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real _(criterion-id: uatc_7d2fd64553fdd66d3d23248c)_ _(revision-id: uatr1:1ff82f7c25357a12)_
    CLI binary (`node packages/cli/launch.mjs library artifact plan`) with
@@ -176,69 +199,6 @@ uncertainty and every ADR-0241 honesty rule intact.
    The pure capability proves the descent over caller-supplied events, which is strictly weaker than
    "the real CLI, spawned, writes a parent-linked child visit and renders it" — this leg closes that
    gap at a boundary where spawning is free.
-7. **A real artifact read records the branches it did NOT take.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ Spawn the real _(criterion-id: uatc_cb75462a2561f8db0825a9a2)_ _(revision-id: uatr1:3fa49ba3844329a1)_
-   CLI binary (`node packages/cli/launch.mjs library artifact plan`) into a fresh temporary directory,
-   offline and without `--pg`, and run NOTHING after it — so nothing in the session ever follows what
-   that read offered. Then spawn `traversal show <sessionId>` against the same directory.
-   **Success —** the replay holds exactly one visit and exactly one `candidate_set` whose
-   `candidateSetId` names that visit and whose `candidateNodeIds` are the artifact's four real
-   authored refs in authored order (the `doc:` one kept prefix-and-all); NOT ONE of those four ids
-   appears as the `nodeId` of any visit in the trace, so every recorded offer is a branch this session
-   did not take; the rendered body names the offer and its count; the coverage block shows
-   `event:candidate_set` under `supported` and NOT `omitted`, while `event:followed_edge` and
-   `field:candidate_follow_causality` stay under `omitted`; and the body carries both ADR-0260 D7
-   caveats. This is the load-bearing leg for ADR-0260 D2: an implementation that recorded offers
-   lazily — only once something followed — would leave this trace with no candidate set at all and
-   would still pass every other leg above.
-8. **A real followed command declares its edge, and a bare one declares none.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one _(criterion-id: uatc_4bbb8909ea3e832c7033ae7a)_ _(revision-id: uatr1:4cfc5cbe322171bc)_
-   temporary directory and one session, spawn the real CLI three times, offline and without `--pg`:
-   the offering read (`library artifact plan`); then the follow-up command that read PRINTED, run
-   verbatim as an agent would paste it; then a BARE read of a different node the same offer put on
-   the table. **Success —** the id printed on the follow-up command is byte-identical to the
-   `candidateSetId` the offering read recorded (two OS processes, no shared memory — the string on
-   the command line is the only thing the second knows about the first); the answering visit carries
-   a `followedEdgeId` equal to the `edgeId` of exactly ONE recorded `followed_edge`, whose
-   `candidateSetId` is that printed id, whose `fromVisitId` is the offering visit and whose
-   `toVisitId` is the answering visit; all three reads record their own offer, so the chain continues
-   past one hop; `traversal show` draws the edge and declares `event:followed_edge` and
-   `field:candidate_follow_causality` under `supported` and NOT `omitted`, alongside all three
-   ADR-0260 D7 caveats. And the load-bearing half — the BARE read carries NO `followedEdgeId` and
-   adds NO second edge, even though the trace it ran against visibly holds a recent candidate set
-   offering the very node it read. That is exactly the join a recency-resolving implementation would
-   make, and ADR-0260 D3 refuses it: if the id is not on the command line, there is no edge. The
-   missing edge is D4's accepted under-report, and no pass may ever correlate it away.
-9. **A real replay draws the branches the session did NOT take.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one _(criterion-id: uatc_c52578cfeae287b056726977)_ _(revision-id: uatr1:81cf81492ff1399e)_
-   temporary directory and one session, spawn the real CLI offline and without `--pg`: the offering
-   read (`library artifact plan`), then the follow-up command that read PRINTED, run verbatim as an
-   agent would paste it. Then spawn `traversal show <sessionId>` against the same directory.
-   **Success —** the rendered body carries a `decision points:` block naming the offering read's
-   recorded `candidateSetId`; EVERY id in that read's recorded `candidateNodeIds` appears inside the
-   block, so the count rendered equals the count recorded and no offer is dropped from the picture;
-   the answered one is marked followed and names the answering visit; each of the others is visibly
-   NOT followed, which is the branch-not-taken this arc exists to draw; any `doc:` offer renders as
-   unobservable rather than as a declined branch, so the block never over-reports how often the
-   session turned an offer down. And the negative half, asserted in the same leg: a replay of a
-   session that recorded NO offer carries no `decision points:` block at all — the section appears
-   only where a real offer was observed, never as a heading announcing an absence.
-10. **A real replay states how much of each offer set it could NOT see.** _(witness: machine)_ _(proof-gate: context-traversal-capture#gate-1)_ In one _(criterion-id: uatc_413f00cf1ff8cd520194c4c4)_ _(revision-id: uatr1:e58f48ee23bb441e)_
-    temporary directory and one session, spawn the real CLI offline and without `--pg`: the offering
-    read (`library artifact plan`), whose Sources block carries BOTH followable `asset:` refs and a
-    `doc:` ref no CLI read can reach. Then spawn `traversal show <sessionId>` against the same
-    directory. **Success —** the rendered body carries an `offer observability:` block naming that
-    read's recorded `candidateSetId`; its `offered` count equals the number of ids in that read's
-    recorded `candidateNodeIds`, so the denominator is the whole offer and not a filtered subset; its
-    `observable` count is strictly SMALLER than `offered`, which is the distortion made legible —
-    the `[candidate-set]` line beside it reports only the offered count, and a reader taking that as
-    the denominator over-reports how often the session stayed inside the asset graph; every
-    unobservable entry is accounted for by a NAMED reason rather than a bare remainder; and the block
-    closes with a total line stating that the followed counts are over the observable branches, not
-    the offered ones. The rendered `offered` count also equals the number of entries the
-    `decision points:` block lists for that same set, so the two derived views cannot disagree about
-    what was on the table. And the negative halves, asserted in the same leg: a replay of a session
-    that recorded NO offer carries no `offer observability:` block at all, and the block never renders
-    a percentage — no `%` appears anywhere within it, since a rounded share of a three-element offer
-    set claims precision the observation does not carry.
-
 ## Evidence
 
 The standing machine UAT is
@@ -276,19 +236,25 @@ an adoption standing in for a red that never happened.
    bytes), the argv read-allowlist (owner prose never recorded), the replay renderers (read strength
    distinct, coverage always printed, capacity honestly unknown), and the standing UAT that SPAWNS
    the real `node packages/cli/launch.mjs` process to prove production emits — all offline, no DB and
-   no API key — plus the render-time offer recording (`artifact-offer-candidate-sets`), whose arrival
-   re-proved this gate deliberately rather than around it (ADR-0260 D6: emitting `candidate_set`
-   genuinely broke three of these legs' event-count assertions, which now count VISITS where they
-   were always making a claim about reads), and the offer-answering edge (`offer-follow-edges`),
-   whose arrival re-proved this gate a second time rather than around it (ADR-0260 D3 makes the
-   offer's id part of the RENDERED surface, so leg 5's "byte-identical envelope" narrowed to the
-   envelope's payload — the claim it was always making) — and the decision-point read side
-   (`decision-point-playback`), whose arrival re-proved this gate a THIRD time rather than around it,
-   and which was deliberately built to ADD a derived block rather than change any existing line: legs
-   7 and 8 pin the `[candidate-set]` and `[followed-edge]` lines VERBATIM, so making the offered ids
-   legible by rewriting those lines would have reddened two signed legs to no purpose — then signs an
-   `adopted` verdict (`storytree adopt context-traversal-capture --pg`, which observe-and-signs this
-   gate and the nine legs bound to it).
+   no API key.
+
+   **THIS GATE WAS RE-PROVED A FOURTH TIME BY ADR-0464 D1, AND THAT TIME BY DELETION.** The three
+   earlier re-provings were arrivals: the render-time offer recording, the offer-answering edge, and
+   the decision-point read side each broke legs on the way in and each was re-proved deliberately
+   rather than around. The offer surface is now retired, so legs 7-10 — which proved those very
+   capabilities — were DELETED with them, and leg 5 was RESTORED rather than narrowed again.
+   Leg 5 is the one worth reading twice. ADR-0260 D3 had narrowed its "byte-identical envelope" claim
+   to the envelope's PAYLOAD, because a render carrying an offer id could not have identical stdout
+   across two runs; ADR-0320 narrowed it again when the ask stanza arrived. With nothing printed
+   conditionally on capture, it compares whole stdout again — a STRONGER assertion than either
+   narrowed form, since a stripping comparison cannot see a regression inside the bytes it strips.
+   Its positive half was REPLACED rather than dropped: it used to prove capture was really on by
+   asserting offer lines were printed, and now asserts the trace file was written, which is the
+   property those lines stood proxy for. Without that replacement the leg would have passed
+   identically against a capture path that had been removed entirely.
+
+   Then signs an `adopted` verdict (`storytree adopt context-traversal-capture --pg`, which
+   observe-and-signs this gate and the legs bound to it).
 
 ## Explicitly outside this increment
 

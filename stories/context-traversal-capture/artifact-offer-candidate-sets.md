@@ -5,7 +5,7 @@ story: context-traversal-capture
 arc: context-decision-tree-arc
 title: "An artifact render records what it offered, followed or not"
 outcome: "A library artifact read records every onward artifact its Sources block offered as a candidate set at render time, whether or not anything follows it."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, terminal-boundary-observations]
 decisions: [235, 464]
@@ -16,19 +16,10 @@ proof:
   scope:
     testGlobs: ["packages/context-traversal-capture/src/offer-candidate-sets.test.ts"]
     sourceGlobs: ["packages/context-traversal-capture/src/offer-candidate-sets.ts"]
-  real:
-    testFile: "packages/context-traversal-capture/src/offer-candidate-sets.test.ts"
-    sourceFile: "packages/context-traversal-capture/src/offer-candidate-sets.ts"
-    scope:
-      testGlobs: ["packages/context-traversal-capture/src/offer-candidate-sets.test.ts"]
-      sourceGlobs: ["packages/context-traversal-capture/src/offer-candidate-sets.ts"]
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "typecheck"]
+  # THE `real:` ARM WAS REMOVED HERE, NOT MERELY LEFT BESIDE A RETIRED STATUS (ADR-0464 D1).
+  # `status: retired` alone does NOTHING: `sweepRealBuildCoverage` filters on `real === undefined`,
+  # never on status, so an arm naming the deleted `packages/context-traversal-capture/src/offer-candidate-sets.ts`
+  # would breach `contract-binding-drift` and the coverage drain at their ceiling of zero.
 ---
 
 # An artifact render records what it offered, followed or not

@@ -129,8 +129,12 @@ test("render-decision-baseline: the instrument's own blind spots print as number
   assert.match(text, /transcript files swept: 40/);
   assert.match(text, /tool calls that NAMED a decision and yielded no read: 7/);
   assert.match(text, /reads reached but attributable to no storytree session: 3/);
-  assert.match(text, /trace sessions holding the offer record: 11/);
-  assert.match(text, /with no single slot to join on: 1/);
+  // The two trace-session figures that stood here went with the offer-to-follow section (ADR-0464
+  // D7): they described the trace-store walk that existed only to gather offers, and this probe no
+  // longer opens that directory. Asserting their ABSENCE, not merely dropping the lines — a render
+  // still naming an input it has stopped reading is the failure this test exists to catch.
+  assert.doesNotMatch(text, /trace sessions holding the offer record/);
+  assert.doesNotMatch(text, /OFFER-TO-FOLLOW/);
 });
 
 test("render-decision-baseline: the floor and the two-sided bias are stated on every run", () => {
