@@ -44,6 +44,21 @@ export interface MirrorSpec {
    * arriving inside the instrument built to detect it.
    */
   route: string;
+  /**
+   * FURTHER pathnames this same handler and this same probe pair dispatch — one payload family
+   * reached through several dispatch strings.
+   *
+   * Added for `/api/traversal`, whose replay, index and occupancy reads are three paths served by
+   * ONE mount over ONE fixture. Modelling them as three registry rows would have run the identical
+   * probe pair three times to make the identical comparison, and left three near-duplicate rows to
+   * keep in step — the duplication class this file exists to fence, arriving inside the registry.
+   * The rows' PURPOSE is unchanged: `registeredMirrorRoutes` unions these with {@link route}, so
+   * `mirror-pair-drift` still derives "what has an observer" from the registry and never from prose.
+   *
+   * ⚠ It is NOT an exception list. Every path named here is COMPARED by this row's probes; a path
+   * the desktop deliberately does not serve has no place in it (and no pair, so no drift finding).
+   */
+  additionalRoutes?: readonly string[];
   /** The surface whose payload is the reference (the one being mirrored), e.g. `studio`. */
   reference: string;
   /** The surface holding the hand-written copy, e.g. `desktop`. */
@@ -94,7 +109,8 @@ export type MirrorInputSet =
   | "docs-trees"
   | "activity-fixtures"
   | "arc-fixtures"
-  | "floor-health-fixtures";
+  | "floor-health-fixtures"
+  | "traversal-fixtures";
 
 /** One registered mirrored payload: the rules, the input protocol, plus the two probes. */
 export interface MirrorTarget {
@@ -282,6 +298,67 @@ export const MIRRORS: readonly MirrorTarget[] = [
       file: "apps/desktop/src/backend/floor-health-mirror-probe.ts",
     },
   },
+  {
+    // THE FIFTH ROW, registered in the SAME branch that created the pair (`traversal-panel-arc`,
+    // increment `desktop-serves-the-traversal-routes`) — the discipline the two rows above
+    // established. `mirror-pair-drift` pins its ceiling at the CURRENT count, so three desktop routes
+    // serving paths the studio already serves, with no row here, reds gate step 9. Raising the
+    // ceiling would be the wrong remedy: ADR-0269 permits an upward move only for a genuine
+    // enlargement of what the instrument SCANS, and new pairs are not one.
+    //
+    // ONE ROW, THREE PATHS, and see `additionalRoutes` for why. `/api/traversal`,
+    // `/api/traversal/sessions` and `/api/context-windows` are one mount over one fixture on each
+    // surface; three rows would run the identical probe pair three times.
+    //
+    // THE FOURTH INSTANCE OF ONE CLASS, and the reason it is worth a row rather than a note. The
+    // desktop serves the COMPILED STUDIO BUNDLE against its own backend, so it ships every lens the
+    // studio gains. The Traversal tab shipped with `traversal-panel-bottom-tab-host`; its three
+    // fetches were never mirrored, and the tab answered `unknown endpoint` on the one surface the
+    // owner actually drives. `/api/arcs` had this shape (#1191 → #1195), then `/api/floor-health`
+    // (#1228 → the row above). Its ABSENCE half — a studio route the desktop never mirrored, which
+    // no payload comparison can see because there is no desktop payload to be unequal — is the
+    // sibling increment `desktop-route-coverage-is-unasked`, not this row.
+    //
+    // WHAT IS AND IS NOT AT RISK. The SUBSTANCE is shared code and carries no re-composition risk:
+    // both surfaces call `replayTraversalSessionAllAdapters`, `computeDecisionPoints`,
+    // `listTraversalSessionsIncremental` and `readWindowOccupancySeries` from the same three
+    // packages. (`listTraversalSessionsIncremental` MOVED into @storytree/context-traversal-capture
+    // in that increment precisely so it stayed one copy.) What is hand-copied is the ENVELOPE, and
+    // most of it is expressed as a STATUS — which is why both probes drive their surface's real
+    // dispatcher and print the status beside the body:
+    //   · the method guard, and its stated reason (405, not a 404 that reads as "no such route");
+    //   · the two flat-token id guards, which stand between a query parameter and a `path.join`;
+    //   · the honest EMPTY index answer, and `dir` riding the wire so "no sessions" and "no traces
+    //     where I looked" stay different facts;
+    //   · the 404-vs-200 fork for an unreadable trace — ABSENT is a 404, while ALL-CORRUPT is a 200
+    //     carrying `skipped > 0`, because that is something OBSERVED (ADR-0241 D5);
+    //   · `/api/context-windows`'s deliberate NON-404 for a window with no transcript, for the same
+    //     reason `/api/arcs` distinguishes its four states: a 404 there reads as "the route is
+    //     missing" and sends an operator somewhere else entirely.
+    // Every one of those is a DECISION the desktop copy could silently lose while still answering
+    // 200 on the happy path, which is exactly what a fixture with only a populated arm would miss.
+    spec: {
+      surface:
+        "GET /api/traversal · /api/traversal/sessions · /api/context-windows (the replay panel's local-file reads)",
+      route: "/api/traversal",
+      additionalRoutes: ["/api/traversal/sessions", "/api/context-windows"],
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<label>` / `<label>#<jsonPath>`), not a payload
+      // field — see `projectTraversalPayload`. Spelled literally like the rows above.
+      key: "_key",
+      // EMPTY BY DESIGN: both surfaces serve these three wires to the SAME compiled replay panel,
+      // which reads every field from either. A difference here is a defect, never a deliberate
+      // narrowing.
+      referenceOnlyFields: [],
+    },
+    inputs: "traversal-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/traversalMirrorProbe.ts" },
+    mirror: {
+      appDir: "apps/desktop",
+      file: "apps/desktop/src/backend/traversal-mirror-probe.ts",
+    },
+  },
 ];
 
 /**
@@ -291,7 +368,7 @@ export const MIRRORS: readonly MirrorTarget[] = [
 export function registeredMirrorRoutes(
   targets: readonly MirrorTarget[] = MIRRORS,
 ): ReadonlySet<string> {
-  return new Set(targets.map((t) => t.spec.route));
+  return new Set(targets.flatMap((t) => [t.spec.route, ...(t.spec.additionalRoutes ?? [])]));
 }
 
 /** One conformance failure. `where` names the fixture/corpus the comparison ran over. */
@@ -524,6 +601,78 @@ export function projectFloorHealthPayload(body: unknown): Entry[] {
     }
     // An error body (or any envelope with no `reading` key) — one entry, compared field by field.
     out.push({ ...fields, [FLOOR_HEALTH_KEY]: `${label}#body` });
+  }
+  return out;
+}
+
+/** {@link ACTIVITY_KEY}'s synthetic key, reused by the traversal projection — see {@link ARCS_KEY}. */
+export const TRAVERSAL_KEY = ACTIVITY_KEY;
+
+/**
+ * Flatten one JSON value into `path → primitive` pairs, in a stable sorted order.
+ *
+ * WHY A FLATTENING RATHER THAN THE PER-FIELD SHAPE THE OTHER THREE PROJECTIONS USE. Those payloads
+ * are shallow envelopes around one figure; a traversal REPLAY is a deep document (an event list,
+ * each event's own fields, an adapter-coverage block, a decision-point report). Comparing it as one
+ * opaque entry would report every divergence as a single unreadable diff of the whole body, and
+ * comparing only its top-level keys would let an event's `nodeId` drift unobserved. Flattening keeps
+ * `compareMirrors`'s field-by-field diagnostics: a divergence names the exact JSON path.
+ *
+ * Arrays are indexed rather than set-compared on purpose — the replay's event ORDER is the picture's
+ * time axis, so two surfaces emitting the same events in a different order is a defect, not a tie.
+ */
+function flattenJson(value: unknown, prefix: string, into: Map<string, unknown>): void {
+  if (Array.isArray(value)) {
+    into.set(`${prefix}[]`, `length:${value.length}`);
+    value.forEach((item, i) => flattenJson(item, `${prefix}[${i}]`, into));
+    return;
+  }
+  if (value !== null && typeof value === "object") {
+    const keys = Object.keys(value as Record<string, unknown>).sort();
+    into.set(`${prefix}{}`, keys.join(","));
+    for (const k of keys) flattenJson((value as Record<string, unknown>)[k], `${prefix}.${k}`, into);
+    return;
+  }
+  into.set(prefix, value === undefined ? null : value);
+}
+
+/**
+ * `{ [label]: { status, body } }` → comparable entries: one for the RESPONSE (its status and
+ * top-level shape) and one per JSON leaf of its body.
+ *
+ * The status is a first-class entry rather than a field on the body, because on these three routes
+ * half the envelope IS the status: 400 refuses a bad id BY NAME, 404 says "no trace here", 200-with-
+ * `skipped` says "the trace was unreadable but present", and 405 says read-only. A projection that
+ * compared bodies alone would pass a mirror that answered every one of them 500.
+ */
+export function projectTraversalPayload(body: unknown): Entry[] {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error(
+      `traversal payload must be a JSON object keyed by request label, got ${render(body)}`,
+    );
+  }
+  const out: Entry[] = [];
+  // Sorted so the entry order is the request SET, never the probe's iteration order.
+  for (const label of Object.keys(body as Record<string, unknown>).sort()) {
+    const answer = (body as Record<string, unknown>)[label];
+    if (answer === null || typeof answer !== "object" || Array.isArray(answer)) {
+      throw new Error(
+        `traversal answer "${label}" must be a { status, body } object, got ${render(answer)}`,
+      );
+    }
+    const { status, body: payload } = answer as { status?: unknown; body?: unknown };
+    out.push({
+      [TRAVERSAL_KEY]: `response:${label}`,
+      status: status ?? null,
+      shape: payload === null ? "null" : Array.isArray(payload) ? "array" : typeof payload,
+    });
+    const leaves = new Map<string, unknown>();
+    flattenJson(payload, "", leaves);
+    for (const path of [...leaves.keys()].sort()) {
+      // The synthetic key is written as the ONLY field beside `value`, so a payload path can never
+      // displace it and collapse two entries onto one.
+      out.push({ [TRAVERSAL_KEY]: `${label}#${path}`, value: leaves.get(path) ?? null });
+    }
   }
   return out;
 }

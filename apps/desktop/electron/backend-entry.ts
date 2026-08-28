@@ -62,6 +62,7 @@ import {
 import { createBootReadRoutes } from "../src/backend/boot-read-routes.js";
 import { guardHttpRequest } from "../src/backend/loopback-guard.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
+import { createTraversalRoutes, primeTraversalRoutes } from "../src/backend/traversal-routes.js";
 import { createChatResetMount } from "../src/backend/chat-reset-route.js";
 import type { ChatSseMountDeps } from "../src/backend/chat-sse-mount.js";
 import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
@@ -862,6 +863,20 @@ async function main(): Promise<void> {
   // actually delivered. It takes no deps and must sit BEFORE localHandler's 404 fall-through.
   const chatResetMount = createChatResetMount();
 
+  // The context-traversal replay panel's three local-file reads (`traversal-panel-arc`, increment
+  // `desktop-serves-the-traversal-routes`): GET /api/traversal, /api/traversal/sessions and
+  // /api/context-windows. The Traversal tab ships in the same compiled studio bundle this backend
+  // serves, and until this mount existed all three fell through to localHandler's catch-all
+  // `unknown endpoint` — the tab was mounted and broken on the surface the owner actually drives.
+  // It takes no deps (the trace dir and transcript root are ambient, `STORYTREE_TRAVERSAL_DIR` /
+  // `STORYTREE_TRANSCRIPT_DIR` overriding) and must sit BEFORE localHandler's 404 fall-through.
+  const traversalRoutes = createTraversalRoutes();
+  // Pull the three traversal packages and build the trace index NOW, while the window is still
+  // opening, rather than on the first request an operator makes — the studio's own `primeTraversalIndex`
+  // move, and the same measured reason: the lazy imports are most of a cold read's ~6 s.
+  // Fire-and-forget; it swallows its own faults.
+  void primeTraversalRoutes();
+
   const localHandler = createLocalBackend({ storiesDir, docsDir, backend, store: "pg" });
 
   // The auth / CSRF / DNS-rebinding wall (loopback-guard, ADR-0119 §1 hardening). The sidecar binds an
@@ -888,6 +903,7 @@ async function main(): Promise<void> {
         if (await bootRoutes(req, res, pathname)) return;
         if (await chatMount(req, res, pathname)) return;
         if (await chatResetMount(req, res, pathname)) return;
+        if (await traversalRoutes(req, res, pathname)) return;
         if (await uatAttestMount(req, res, pathname)) return;
         if (await attestationsMount(req, res, pathname)) return;
         await localHandler(req, res);

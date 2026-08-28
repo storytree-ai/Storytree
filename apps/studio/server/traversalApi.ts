@@ -13,9 +13,10 @@
 //
 // It DERIVES NOTHING (the handleArcs / handleFloorHealth posture): every value on the wire comes from
 // the sink's own readers — `replayTraversalSessionAllAdapters` for the replay, and, for the index,
-// `readTraversalSession` per file under `listTraversalSessions`'s own rules (traversalIndexMemo.ts,
-// which re-reads only the traces whose mtime+size moved, and is held to DEEP EQUALITY with
-// `listTraversalSessions` by test). That is the SAME composition `storytree traversal show` renders, so
+// `summarizeTraversalSession` per file under `listTraversalSessions`'s own rules
+// (`traversal-index-memo.ts` in @storytree/context-traversal-capture, which re-reads only the traces
+// whose mtime+size moved and folds each through the sink's OWN summary function). That is the SAME
+// composition `storytree traversal show` renders, so
 // the panel and the CLI can never disagree about what a trace contains, or about which adapters'
 // coverage that content sits under. This file adds routing, the method check, the session-id
 // containment guard, and the honest empty answer.
@@ -23,7 +24,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 import { HttpError, sendJson } from './httpUtil';
-import { listTraversalSessionsIncremental } from './traversalIndexMemo';
 
 // Type-only, so both are fully erased under `verbatimModuleSyntax` and never reach the vite
 // config-load graph — the runtime values are pulled by the lazy loaders below for exactly the reason
@@ -48,26 +48,22 @@ function loadTraversalSink(): Promise<CaptureModule> {
 
 /**
  * The picker's index, re-reading only the traces whose (mtime, size) moved since the last request
- * (`traversalIndexMemo.ts`, which carries the measurements and the freshness argument).
+ * (`traversal-index-memo.ts` in @storytree/context-traversal-capture, which carries the measurements
+ * and the freshness argument).
  *
- * It DERIVES NOTHING the sink would not: the per-file summary below is `listTraversalSessions`'s own
- * body — same tolerant read, same omission of a session that replays to zero usable events, same
- * `lastObservedAt` off the chronologically last event — and a parity test deep-compares the two over
- * the same directory, so the panel and `storytree traversal list` still cannot disagree.
+ * It DERIVES NOTHING, and since `desktop-serves-the-traversal-routes` that is STRUCTURAL rather than
+ * test-held: the per-file summary is the sink's own `summarizeTraversalSession`, the same function
+ * `listTraversalSessions` folds with. This route used to pass a HAND-MIRRORED copy of that fold, kept
+ * honest by a deep-equality parity test; the copy is gone, so a field added to the summary can no
+ * longer reach `storytree traversal list` and miss the panel.
+ *
+ * ⚠ PULLED THROUGH THE LAZY LOADER, never a static import. `@storytree/context-traversal-capture` has
+ * internal `./sink.js` specifiers that Node's plain ESM loader cannot resolve, and vite.config.ts
+ * loads this file through exactly that loader — see the loaders above.
  */
 async function readTraversalIndex(dir: string): Promise<TraversalSessionSummary[]> {
-  const { readTraversalSession } = await loadTraversalSink();
-  return listTraversalSessionsIncremental(dir, (sessionDir, sessionId) => {
-    const { replay, identity, slots } = readTraversalSession({ dir: sessionDir, sessionId });
-    if (replay.events.length === 0) return null;
-    const lastEvent = replay.events[replay.events.length - 1];
-    // `identity` / `slots` are MIRRORED, never re-derived (`linked-session-context-arc-inc-30`): the
-    // sink classifies a session from the grades its own lines carry, and this fold is held to deep
-    // equality with `listTraversalSessions` by test. Computing them here from anything but the
-    // reader's answer is how the panel and `storytree traversal list` would start disagreeing about
-    // whether a session id names one context window or a pooled worktree slot.
-    return { sessionId, eventCount: replay.events.length, lastObservedAt: lastEvent?.at, identity, slots };
-  });
+  const { listTraversalSessionsIncremental } = await loadTraversalSink();
+  return listTraversalSessionsIncremental(dir);
 }
 
 /**

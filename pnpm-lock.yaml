@@ -37,6 +37,15 @@ importers:
       '@storytree/arc':
         specifier: workspace:*
         version: link:../../packages/arc
+      '@storytree/context-traversal-capture':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-capture
+      '@storytree/context-traversal-spawn':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-spawn
+      '@storytree/context-traversal-transcript':
+        specifier: workspace:*
+        version: link:../../packages/context-traversal-transcript
       '@storytree/drive':
         specifier: workspace:*
         version: link:../../packages/drive

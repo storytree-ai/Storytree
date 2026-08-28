@@ -4,7 +4,8 @@
 // The picker's real defect was never that its index read is slow — it is that the read happens ONCE
 // per mount with no second chance, so a single lost race turns a slow answer into a PERMANENT
 // failure: `{status:'failed'}` for the life of the mount, every claimed session disabled, and the
-// only route to the replay panel closed. Making the read faster (see server/traversalIndexMemo.ts)
+// only route to the replay panel closed. Making the read faster (see traversal-index-memo.ts in
+// @storytree/context-traversal-capture)
 // removes the usual cause; this removes the amplification, so the next unusual cause costs one
 // slow render instead of the whole surface.
 //

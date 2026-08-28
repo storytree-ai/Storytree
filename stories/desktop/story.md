@@ -44,6 +44,14 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       local backend still consumes after ADR-0404 retired its Build/Adopt dispatch.
 #                       @storytree/agent is reached TRANSITIVELY through drive's `orchestrate` (the SDK
 #                       single-import-site, ADR-0004) — the desktop never imports @storytree/agent directly.
+#   - context-traversal-{capture,spawn,transcript}
+#                     — the replay panel's three local-file reads, mirrored into this backend by
+#                       `traversal-panel-arc`'s `desktop-serves-the-traversal-routes`. The Traversal tab
+#                       ships in the COMPILED studio bundle this app serves, so its `/api/traversal`,
+#                       `/api/traversal/sessions` and `/api/context-windows` fetches 404'd here while
+#                       working in the studio. Real package imports (the replay, the trace index and the
+#                       occupancy fold are shared code, never re-composed — only the route ENVELOPE is
+#                       hand-copied), so these are NOT artifact_edges.
 #   - library         — @storytree/library/store (renderAgentPrompt + loadFixtureCorpus) for the local backend's
 #                       library/tree reads and the orchestrate composition's prompt render (ADR-0051).
 #   - app-guide — the chat/loop streaming CORE that ships INSIDE this desktop (the orchestrate-driven
@@ -81,7 +89,7 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       coupling — and NOT an artifact edge: it is a real declared dep in
 #                       apps/desktop/package.json, pulled through a lazy `loadArc()` memo mirroring
 #                       `loadDrive()` for the vite config-load reason documented at the call site.
-depends_on: [studio, drive-machinery, library, app-guide, studio-cloud, proof-protocol, notice-board, arc]
+depends_on: [studio, drive-machinery, library, app-guide, studio-cloud, proof-protocol, notice-board, arc, context-traversal-capture, context-traversal-spawn, context-traversal-transcript]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever

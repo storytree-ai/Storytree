@@ -141,18 +141,48 @@ test("empty payloads on both sides are conformant, and an empty allowlist adds n
 
 test("the registry exposes its routes as DATA, so a second reader never scrapes them from prose", () => {
   // `mirror-pair-drift` in `check:verification-decay` locates pairs MISSING from this registry, so it
-  // has to know what is IN it. Deriving that from `MirrorSpec.route` keeps one fact in one place; a
-  // hand-kept second list of "what is registered" would be two lists of the same fact drifting apart,
-  // which is the exact class this whole harness exists to fence.
+  // has to know what is IN it. Deriving that from the spec keeps one fact in one place; a hand-kept
+  // second list of "what is registered" would be two lists of the same fact drifting apart, which is
+  // the exact class this whole harness exists to fence.
+  //
+  // ⚠ THE EXPECTATION BELOW IS HAND-AUTHORED, AND THAT IS THE POINT. This assertion used to read
+  // `assert.deepEqual([...routes], MIRRORS.map((m) => m.spec.route))` — an expectation computed from
+  // the very table it checks, so it agreed with the registry whatever the registry said. Deleting a
+  // row, or losing a route off one, would have left it green
+  // (`an-expectation-derived-from-its-subject-cannot-fail`). Spelling the set out means a route
+  // leaving the registry is a two-place edit, and the second place reds.
   const routes = registeredMirrorRoutes();
-  assert.deepEqual([...routes], MIRRORS.map((m) => m.spec.route));
-  assert.ok(routes.has("/api/docs"));
+  assert.deepEqual(
+    [...routes].sort(),
+    [
+      "/api/activity",
+      "/api/arcs",
+      "/api/context-windows",
+      "/api/docs",
+      "/api/floor-health",
+      "/api/traversal",
+      "/api/traversal/sessions",
+    ],
+    "registeredMirrorRoutes must union every row's `route` with its `additionalRoutes`",
+  );
 
-  // Every row's `route` must be a real `/api/*` path — a blank or prose-shaped one would silently
-  // register nothing and leave the pair looking covered.
+  // Every registered path must be a real `/api/*` path — a blank or prose-shaped one would silently
+  // register nothing and leave the pair looking covered — and must be NAMED in the human label, so a
+  // failure report says which route diverged.
   for (const m of MIRRORS) {
-    assert.match(m.spec.route, /^\/api\/[a-z/-]+$/, `${m.spec.surface} has an unusable route`);
-    assert.ok(m.spec.surface.includes(m.spec.route), "the human label must name the route it registers");
+    for (const route of [m.spec.route, ...(m.spec.additionalRoutes ?? [])]) {
+      assert.match(route, /^\/api\/[a-z/-]+$/, `${m.spec.surface} has an unusable route`);
+      assert.ok(m.spec.surface.includes(route), `the human label must name ${route}`);
+    }
+  }
+
+  // `additionalRoutes` names FURTHER paths one row's probes already compare — never a second row's
+  // primary route, which would leave two rows claiming one pair and hide which probes prove it.
+  const primaries = new Set(MIRRORS.map((m) => m.spec.route));
+  const extras = MIRRORS.flatMap((m) => m.spec.additionalRoutes ?? []);
+  assert.equal(new Set(extras).size, extras.length, "no route may be registered by two rows");
+  for (const extra of extras) {
+    assert.ok(!primaries.has(extra), `${extra} is already another row's primary route`);
   }
 });
 
