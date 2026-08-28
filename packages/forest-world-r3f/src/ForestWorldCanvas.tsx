@@ -34,26 +34,88 @@ import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 import { frameWorld, orthographicZoomFor } from './camera-framing.js';
 import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry.js';
 
-/** Status-variant → placeholder colour (spike palette, not art direction).
+/** THE DECIDED GROUND VOCABULARY — five colours over six states.
+ *
+ *  ⚠ THIS FILE USED TO CARRY A SEVENTH, PRIVATE PALETTE, and it disagreed with the decisions on
+ *  ALL SIX STATES rather than by a shade: `mapped` was a BLUE `#5d8fa8` where ADR-0470 settled a
+ *  tilled clay, `unhealthy` a BROWN `#8a5a44` where the decision says a charred near-black, and
+ *  `building` still owned a periwinkle after ADR-0462 merged it into `proposed`'s yellow. Its own
+ *  comment called it a "spike palette, not art direction", which was true when nothing mounted
+ *  this canvas and stopped being true on 2026-08-28, when the public site's chapter 2 began
+ *  opening on the real forest through this very component. THE LAND'S COLOUR IS A CAPABILITY'S
+ *  PROOF STATE (ADR-0392 D5 / ADR-0398 D7, as amended by ADR-0461), so a palette no decision
+ *  authorises is the map REPORTING STATES IT WAS NEVER TOLD TO REPORT — not a cosmetic lag.
+ *
+ *  The values are the authoring surface's own: `apps/studio/src/index.css`'s
+ *  `.hex-territory.st-<status>` blocks, of which `harness/palette-band.ts`'s `STATUS_TOKENS` is
+ *  the declared transcription. THIS IS THE THIRD COPY AND IT IS NOW HELD MECHANICALLY —
+ *  `pnpm check:palette-transcription` (and `harness/palette-transcription.test.ts`) reads all
+ *  three off disk and refuses any disagreement. The harness cannot simply be imported here: the
+ *  web sync mirrors `src/` into the public site and copies nothing from `harness/`, so an import
+ *  across that line would dangle in the published tree (`harness/scope-fence.test.ts`).
+ *
+ *  FIVE COLOURS, SIX STATES (ADR-0462): `proposed` and `building` deliberately share the yellow —
+ *  the live-work signal is the orbiting WISP (ADR-0200 / ADR-0142), never the ground, so the land
+ *  was spending a sixth colour saying something it was not the one saying. Each family's three
+ *  authored `--hex-top-*` variants collapse to the FIRST here, because this canvas draws one
+ *  colour per parcel and has no per-cell variant hash to pick between them.
  *
  *  A `ReadonlyMap` rather than a `Record<string, string>`: `InstanceDescriptor.material` is an open
  *  `string`, so this is a LOOKUP with a computed key and the key type carries no knowledge to
  *  discard — which is what `anti-slop/no-known-value-widening` fires on. The Map states the same
  *  thing without the widening annotation AND adds an immutability fence the object literal never
  *  had; the rule's classifier does not treat `ReadonlyMap` as a widening target. */
-const STATUS_COLOUR: ReadonlyMap<string, string> = new Map([
-  ['healthy', '#4f9d5d'],
-  ['mapped', '#5d8fa8'],
-  ['building', '#7f8fd1'],
-  ['proposed', '#c2b280'],
-  ['unhealthy', '#8a5a44'],
-  ['unknown', '#9a9a9a'],
+const GROUND_COLOUR: ReadonlyMap<string, string> = new Map([
+  ['healthy', '#8cb85e'],
+  ['mapped', '#b7684e'],
+  ['building', '#d8c069'],
+  ['proposed', '#d8c069'],
+  ['unhealthy', '#57544a'],
+  ['unknown', '#9ca3af'],
 ]);
 
-const UNKNOWN_COLOUR = '#9a9a9a';
+/** THE DECIDED CROWN VOCABULARY — the story tree's canopy, per status.
+ *
+ *  ⚠ IT IS A SEPARATE TABLE ON PURPOSE, AND THAT IS WHY THIS UNIT IS A SPLIT RATHER THAN A
+ *  FIND-AND-REPLACE. One lookup used to paint the ground AND the crowns, so swapping it wholesale
+ *  would have fixed the land and quietly repainted every canopy with a ground colour. Ground and
+ *  crown legitimately differ, and most visibly for `building`: the app authors no
+ *  `--crown-building-*` pair, so a building story's crown falls through to `unknown`'s slate while
+ *  its GROUND wears `proposed`'s yellow. A single table cannot hold both facts.
+ *
+ *  Transcribed from `apps/studio/src/index.css`'s `--crown-<status>-lo` custom properties — what
+ *  `.story-tree .crown-lo circle` actually fills with — mirrored in `harness/palette-band.ts` as
+ *  `TREE_TOKENS`, and held to both by the same check as {@link GROUND_COLOUR}. The lighter
+ *  `--crown-<status>-hi` is deliberately not transcribed: it is the flat SVG standing in for a
+ *  light it does not have, and this canvas has a real `directionalLight`.
+ *
+ *  `building` is in any case unreachable on the shipped map — `worldStatus` folds it to `proposed`
+ *  before anything is stamped (ADR-0038) — so both its entries describe what a surface that does
+ *  NOT fold would draw. Transcribing what the app DELIVERS rather than harmonising the two is the
+ *  same rule the harness follows: inventing the missing amber here would put a colour on the map
+ *  that the authoring surface has never drawn. */
+const CROWN_COLOUR: ReadonlyMap<string, string> = new Map([
+  ['healthy', '#2f6b3f'],
+  ['mapped', '#7d5f3b'],
+  ['building', '#6b7280'],
+  ['proposed', '#b06a24'],
+  ['unhealthy', '#9f2d22'],
+  ['unknown', '#6b7280'],
+]);
 
-const colourOf = (material: string | undefined): string =>
-  STATUS_COLOUR.get(material ?? 'unknown') ?? UNKNOWN_COLOUR;
+/** The fallback both lookups share: an unrecognised material is UNKNOWN, which is the one state
+ *  that means "no data". Falling back to any other status would have the map assert something
+ *  about work it could not classify. */
+const UNKNOWN_STATUS = 'unknown';
+
+/** GROUND colour for a status variant — the two ground substrates only (the classic hex prisms
+ *  and the relaxed-mesh parcels). */
+const groundColourOf = (material: string | undefined): string =>
+  GROUND_COLOUR.get(material ?? UNKNOWN_STATUS) ?? GROUND_COLOUR.get(UNKNOWN_STATUS)!;
+
+/** CROWN colour for a status variant — the story tree's canopy cone, and nothing else. */
+const crownColourOf = (material: string | undefined): string =>
+  CROWN_COLOUR.get(material ?? UNKNOWN_STATUS) ?? CROWN_COLOUR.get(UNKNOWN_STATUS)!;
 
 const byKind = (descriptors: readonly Descriptor3D[], kind: InstanceDescriptor['kind']) =>
   descriptors.filter((d): d is InstanceDescriptor => d.kind === kind);
@@ -77,7 +139,7 @@ function HexGround({ tiles }: { tiles: InstanceDescriptor[] }) {
         <Instance
           key={i}
           position={[t.transform.x, t.transform.y - TILE_HEIGHT / 2, t.transform.z]}
-          color={colourOf(t.material)}
+          color={groundColourOf(t.material)}
         />
       ))}
     </Instances>
@@ -91,7 +153,7 @@ function HexGround({ tiles }: { tiles: InstanceDescriptor[] }) {
  *  would stop agreeing about what a colour MEANS, which on this surface is what the map reports
  *  (ADR-0392 D5 / ADR-0398 D7). Going through the same class is what makes that unrepresentable. */
 const linearColourOf = (material: string | undefined): LinearRgb => {
-  const c = new Color(colourOf(material));
+  const c = new Color(groundColourOf(material));
   return { r: c.r, g: c.g, b: c.b };
 };
 
@@ -125,7 +187,7 @@ function CellGround({ cells }: { cells: InstanceDescriptor[] }) {
 
 function StoryTree({ tree }: { tree: InstanceDescriptor }) {
   const { x, y, z } = tree.transform;
-  const colour = colourOf(tree.material);
+  const colour = crownColourOf(tree.material);
   return (
     <group position={[x, y, z]}>
       <mesh position={[0, 4, 0]}>
