@@ -340,6 +340,11 @@ const cadenceInput = {
 const cadenceNoiseFloor = cadenceNoiseFloorMs(cadenceInput);
 
 const island = readings.find((r) => r.plants === ISLAND_PLANTS);
+// ⚠ SUBMISSION-time headroom, not GPU headroom. `gpuMsPerFrame` is a `gl.finish()`-closed batch,
+// and PR #1683 established that `gl.finish()` returns before the GPU has retired the work (29–255x
+// disagreement against EXT_disjoint_timer_query_webgl2, blind to an 8.7x change in real GPU work).
+// The field names are kept so the committed 2026-08-19 report stays readable against this code;
+// what changed is that they no longer claim to be GPU time. See `frame-cost.ts` for the real clock.
 const headroomAtIsland = island ? BUDGET_60HZ / island.gpuMsPerFrame : null;
 
 // Where the GPU-bound cost would reach a whole frame, extrapolated from the heaviest rung.
@@ -418,11 +423,20 @@ if (Math.abs(controlCompare.p50 - controlBlank.p50) < 1) {
 }
 if (island) {
   console.log(
-    `\nAt the real island's 171 plants: ${island.gpuMsPerFrame.toFixed(2)} ms/frame GPU-bound ` +
-      `= ${headroomAtIsland ? headroomAtIsland.toFixed(0) : '?'}x headroom against a 60 Hz frame.`,
+    `\nAt the real island's 171 plants: ${island.gpuMsPerFrame.toFixed(2)} ms/frame SUBMISSION time ` +
+      `= ${headroomAtIsland ? headroomAtIsland.toFixed(0) : '?'}x APPARENT headroom against a 60 Hz frame.`,
   );
 }
-console.log(`One whole frame would be spent at roughly ${plantsAtFullFrame} plants.`);
+console.log(`One whole frame would be SUBMITTED at roughly ${plantsAtFullFrame} plants.`);
+console.log(
+  '\n⚠ BOTH FIGURES ABOVE ARE SUBMISSION TIME, NOT GPU TIME — do not quote them as frame cost.\n' +
+    '  `gl.finish()` does not block until the GPU retires the work. Timing the same batches through\n' +
+    '  it and through EXT_disjoint_timer_query_webgl2 disagreed by 29x to 255x across 12/12\n' +
+    '  configurations, and this route stayed blind to an 8.7x change in real GPU work (PR #1683).\n' +
+    '  For a GPU-clock figure use `harness/frame-cost.ts` / `pnpm --filter @storytree/forest-world-r3f\n' +
+    '  measure-frame`. This sweep still answers what it always answered honestly: draw-call and\n' +
+    '  object-count scaling, and renderer identity.',
+);
 console.log(`wrote ${join(OUT, 'hardware-floor-report.json')}`);
 
 await browser.close();

@@ -13,7 +13,7 @@ renderer that draws at the display's resolution instead of at a fixed authored p
 | | question | answered? |
 |---|---|---|
 | 1 | Does vegetation stop being twelve pixels? | **Qualified yes — see below.** The answer is not the one the increment expected. |
-| 2 | Does it clear the ADR-0380 D2 hardware floor? | **YES, with ~41x headroom — measured on the Adreno X1-85 itself.** See section 2; this row was *"cannot be answered from here"* until the follow-up run below. |
+| 2 | Does it clear the ADR-0380 D2 hardware floor? | ⚠ **NOT ANSWERED — corrected 2026-08-28.** This row read *"YES, with ~41x headroom"*; that figure is `gl.finish()` submission time, which PR #1683 showed disagrees with the GPU's own clock by 29–255x. The land may well clear the floor comfortably, but this run does not establish it. See section 2. |
 | 3 | Does the locked palette survive in a shader? | **YES, proved on delivered pixels.** 46,576 opaque px, 0 off-palette. |
 
 > **Section 2 was rewritten on 2026-08-19, after the rest of this document.** The original run
@@ -135,7 +135,9 @@ measuring the presentation environment.
 generator, the same banded material and the same signed 50-degree orthographic camera. Two numbers
 are reported because they fail in different ways: `rafP50/P95` is **vsync-capped**, so it can only
 ever show 60 Hz being *missed*, never headroom; `gpuMsPerFrame` times a batch of renders closed by
-`gl.finish()`, so it is uncapped and is the one that shows margin.
+`gl.finish()`, so it is uncapped and is the one that shows margin. ⚠ **That second claim did not
+survive** — see the correction below: `gl.finish()` returns before the GPU has retired the work, so
+this column is submission time and the margin it shows is not GPU margin.
 
 | plants | GPU ms/frame | triangles | draw calls | rAF p95 |
 |---:|---:|---:|---:|---:|
@@ -146,9 +148,22 @@ ever show 60 Hz being *missed*, never headroom; `gpuMsPerFrame` times a batch of
 | 1,500 | 3.47 | 288,002 | 1,501 | 24.2 |
 | 4,000 | 8.79 | 768,002 | 4,001 | 19.8 |
 
-**At the real island's 171 vegetation marks the land costs 0.41 ms of a 16.7 ms frame — about 41x
-headroom.** Extrapolating the heaviest rung linearly, a whole frame would be spent at roughly
-**7,600 plants**, some 44x the island's actual count.
+> ⚠ **CORRECTED IN PLACE, 2026-08-28 — the two figures in this paragraph are SUBMISSION time, not
+> GPU time, and must not be quoted as frame cost.** PR #1683 established that the `gl.finish()` this
+> batch is closed with does **not** block until the GPU retires the work: timing the *same* batches
+> through `gl.finish()` and through `EXT_disjoint_timer_query_webgl2` disagreed by **29x to 255x**
+> across 12/12 configurations, and the wall-clock route stayed blind to an **8.7x** change in real
+> GPU work. So `gpuMsPerFrame` measures how fast this machine could *hand the work to the driver*.
+> The headroom is therefore overstated by an unknown factor somewhere in that 29–255x range, and
+> **no corrected headroom figure is offered here, because none has been measured** — the honest
+> instrument is `harness/frame-cost.ts`, and what it has costed so far is the ground shader
+> (0.85 ms for both grain halves filling a 2880x1920 frame, 4.5% of a 60 Hz frame on an RTX 2060),
+> not this island's 171 plants. The numbers below stay on the page as the record of what that run
+> emitted; they are evidence about the instrument, not an answer about the land.
+
+**At the real island's 171 vegetation marks the land submitted in 0.41 ms of a 16.7 ms frame — about
+41x apparent headroom.** Extrapolating the heaviest rung linearly, a whole frame would be *submitted*
+at roughly **7,600 plants**, some 44x the island's actual count.
 
 **Read the cadence column as noise, not as signal.** The **empty** scene and the **171-plant** scene
 have the *same* p95 (18.1), the 50-plant scene's is *higher* than both (18.2), and the blank-page
