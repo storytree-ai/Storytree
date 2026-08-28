@@ -77,16 +77,6 @@ function baselineFixture(overrides: Partial<DecisionReadBaseline> = {}): Decisio
     chainDepthByWindow: chain,
     chainDepthBySlot: chain,
     poolingFactor: 1,
-    offersObserved: 0,
-    offersResolved: 0,
-    offersUnresolved: 0,
-    offerSpellings: [],
-    decisionsOffered: 0,
-    offersFollowed: 0,
-    offersObservable: 0,
-    offersObservableFollowed: 0,
-    decisionsOfferedNeverFollowed: 0,
-    offerFollowRows: [],
     vacuity: [],
     ...overrides,
   };
@@ -214,14 +204,22 @@ test("reach stays out of the alarm this increment even when the window is compar
 // The vacuity scoping — the case that would silently disable the whole section
 // ---------------------------------------------------------------------------
 
-test("an offer-free baseline is NOT vacuous here, though the shared vacuity check would refuse forever", () => {
-  // Every real run of this section arrives with zero offers, because it never reads the trace store.
-  // `decisionReadBaselineVacuity` reports `offersObserved === 0` as a vacuity reason, so reusing it
-  // wholesale would make this section report itself as measuring nothing on every single input.
-  const reading = computeDecisionDiscovery(baselineFixture({ offersObserved: 0, offersResolved: 0 }));
-  assert.deepEqual(reading.refusals, [], "no offers is the normal shape here, not a blind instrument");
-  assert.equal(figureOf(reading, "chain-depth").status, "holds");
-});
+// THE "AN OFFER-FREE BASELINE IS NOT VACUOUS HERE" TEST WAS DELETED HERE BY ADR-0464 D7.
+//
+// It pinned why `decisionDiscoveryRefusals` reimplements the non-offer vacuity checks instead of
+// reusing `decisionReadBaselineVacuity`: that shared function reported `offersObserved === 0` as a
+// vacuity reason, and this section never read the trace store, so reusing it wholesale would have made
+// every real run here report itself as measuring nothing.
+//
+// The shared function no longer carries an offer-side reason, so the divergence it documented no
+// longer exists and the test's own premise — a baseline that is "offer-free" as distinct from a
+// normally-offer-carrying one — is unstateable: there is no baseline shape that carries offers to be
+// free of. It is deleted rather than edited, because an edited version would assert only that a
+// healthy baseline has no refusals, which the healthy-reading tests above already cover.
+//
+// `decisionDiscoveryRefusals` itself is UNCHANGED and still separate. Merging it back into the shared
+// check is now possible but is a behaviour change to the factory-health surface, and belongs to
+// whoever owns that reading rather than to this deletion.
 
 test("a blind instrument refuses with each cause named separately, never one collapsed flag", () => {
   assert.deepEqual(decisionDiscoveryRefusals(baselineFixture()), []);
