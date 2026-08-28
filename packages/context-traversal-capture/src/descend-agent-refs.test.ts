@@ -421,6 +421,12 @@ test("AGENT_DESCENT_CAVEATS: the terminal adapter still DECLARES a gap, and it i
   assert.match(offerGap?.note ?? "", /declared `omitted`/);
   assert.match(offerGap?.note ?? "", /deliberate, not a defect/);
   assert.match(offerGap?.note ?? "", /joining a read to an earlier render/);
+  assert.match(offerGap?.note ?? "", /which onward pointer a render/, "it says WHAT is now unanswerable");
+  assert.match(
+    offerGap?.note ?? "",
+    /manufacture the causality/,
+    "and names the failure mode a reader would otherwise reach for — inventing the join",
+  );
 
   // The three RETIRED caveats described gaps in a mechanism that no longer exists. Carrying one
   // forward would describe the thinness of a picture this adapter no longer draws at all.
