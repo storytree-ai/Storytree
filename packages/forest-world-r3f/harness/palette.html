@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- ⚠ THE TITLE IS A TREE MARKER, NOT DECORATION. `palette-measure.mjs` refuses a run whose
+         page does not match it, because `vite.config.ts` pins strictPort 5184 for every worktree
+         and a sibling's harness answering on the same port would be photographed perfectly
+         happily — a wrong-tree picture is worse than a missing one. -->
+    <title>the shipped ground+crown palette — before / after (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2600px; margin: 0 auto; padding: 32px 28px 80px; }
+      h1 { font-size: 25px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 16px; margin: 40px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 18px; }
+      header p { max-width: 88ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 100ch; }
+      p.numbers.small { font-size: 11px; padding: 6px 10px; margin: 8px 0 0; max-width: none; }
+      .row { display: flex; gap: 26px; align-items: flex-start; flex-wrap: wrap; }
+      .panel { margin: 0; }
+      .panel figcaption { display: flex; flex-direction: column; gap: 1px; margin-bottom: 7px; }
+      .panel figcaption strong { color: #eceff1; font-size: 12px; letter-spacing: 0.04em; }
+      .panel figcaption span { font: 11px/1.4 ui-monospace, Menlo, monospace; color: #8fa0aa; }
+      /* ⚠ A FLAT, NAMED STAGE BACKGROUND, not the chequerboard the other pages use. The driver
+         reads delivered colour back out of an ELEMENT SCREENSHOT, in which transparent water is
+         composited against whatever is behind it — so "behind it" has to be ONE colour the driver
+         can name and exclude, or the excluded set would depend on where a pixel fell on a
+         chequer. `#20262c` is far from every land colour in both palettes. */
+      .stage { background: #20262c; border: 1px solid #4a545e; border-radius: 6px;
+        padding: 10px; display: inline-block; line-height: 0; }
+      code { font: 12px ui-monospace, Menlo, monospace; color: #d6e6b8; }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/palette.tsx"></script>
+  </body>
+</html>

@@ -37,7 +37,9 @@ import { ISLAND_TILES, islandScene } from './island-fixture.js';
 import {
   BEFORE_THE_CELL_CASE,
   SHIPPED_STATUSES,
-  SHIPPED_STATUS_COLOUR,
+  SHIPPED_GROUND_COLOUR,
+  SHIPPED_CROWN_COLOUR,
+  SPIKE_STATUS_COLOUR,
   authoredTriangles,
   cellGroundTrianglesFor,
   classicHexScene,
@@ -448,32 +450,47 @@ function ShippedPanel({ tag, label, note, width, height, descriptors }: ShippedP
 
 /* ── the page ──────────────────────────────────────────────────────────────────────────── */
 
-/** The two palettes side by side. ⚠ The DIVERGENCE is the finding: `ForestWorldCanvas.tsx`
- *  carries its own six-colour spike map, while ADR-0462 settled the vocabulary at five colours
- *  over six states in `palette-band.ts` / `apps/studio/src/index.css`. The shipped canvas has
- *  never been moved onto it. */
-function PaletteDivergence() {
+/** THE CORRECTION, AS A TABLE — what this canvas drew until 2026-08-28, and what it draws now.
+ *
+ *  ⚠ THE LEFT COLUMN IS FROZEN HISTORY AND THE RIGHT ONE IS READ OFF THE LIVE FILE, which is what
+ *  makes this a comparison rather than a decoration. `SPIKE_STATUS_COLOUR` is the retired
+ *  six-colour map, kept as data and asserted to be in the past; `SHIPPED_GROUND_COLOUR` /
+ *  `SHIPPED_CROWN_COLOUR` are pinned against `src/ForestWorldCanvas.tsx` by
+ *  `shipped-baseline.test.ts`, and the whole chain back to `apps/studio/src/index.css` is held by
+ *  `pnpm check:palette-transcription`. If the canvas drifts again, this table moves with it.
+ *
+ *  The CROWN column is the reason the fix was a split rather than a swap: one lookup used to paint
+ *  ground and canopy alike, and they legitimately differ — `building` most visibly, whose crown
+ *  falls through to `unknown`'s slate while its ground wears `proposed`'s yellow. */
+function PaletteCorrection() {
   return (
     <table className="sep">
       <thead>
         <tr>
           <th>status</th>
-          <th>what the SHIPPED canvas draws</th>
-          <th>the settled vocabulary (ADR-0462)</th>
+          <th>the retired spike palette</th>
+          <th>GROUND now (ADR-0462 / ADR-0470)</th>
+          <th>CROWN now</th>
         </tr>
       </thead>
       <tbody>
         {SHIPPED_STATUSES.map((s) => {
-          const shipped = SHIPPED_STATUS_COLOUR.get(s)!;
-          const settled = STATUS_TOKENS.get(s)?.top[0] ?? '(none)';
+          const spike = SPIKE_STATUS_COLOUR.get(s)!;
+          const ground = SHIPPED_GROUND_COLOUR.get(s) ?? '(none)';
+          const crown = SHIPPED_CROWN_COLOUR.get(s) ?? '(none)';
+          const authored = STATUS_TOKENS.get(s)?.top[0] ?? '(none)';
           return (
             <tr key={s}>
               <td>{s}</td>
               <td>
-                <span className="swatch" style={{ background: shipped }} /> <code>{shipped}</code>
+                <span className="swatch" style={{ background: spike }} /> <code>{spike}</code>
               </td>
               <td>
-                <span className="swatch" style={{ background: settled }} /> <code>{settled}</code>
+                <span className="swatch" style={{ background: ground }} /> <code>{ground}</code>
+                {ground === authored ? '' : ' ⚠ DRIFT'}
+              </td>
+              <td>
+                <span className="swatch" style={{ background: crown }} /> <code>{crown}</code>
               </td>
             </tr>
           );
@@ -507,7 +524,7 @@ function App() {
             .map(([k, v]) => `${k} ${v}`)
             .join(' · ')}
         </p>
-        <PaletteDivergence />
+        <PaletteCorrection />
       </header>
 
       <section data-st-panel="baseline-before-after">

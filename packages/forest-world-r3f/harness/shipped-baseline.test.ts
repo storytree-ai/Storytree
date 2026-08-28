@@ -5,9 +5,12 @@
 //    friends are asserted against the real `CylinderGeometry` here rather than against memory.
 //    A formula derived from the docs and never run is how an authored count acquires the calm
 //    authority of a measurement while being wrong.
-// 2. THE PALETTE TRANSCRIPTION IS PARSED OUT OF THE SHIPPED FILE. `SHIPPED_STATUS_COLOUR` is a
-//    copy, and this repo already carries three disagreeing copies of the status palette — a
-//    fourth that nobody checks would be strictly worse than none.
+// 2. THE PALETTE TRANSCRIPTIONS ARE PARSED OUT OF THE SHIPPED FILE, using the SAME parser the
+//    `pnpm check:palette-transcription` rung uses rather than a second regex — a copy of a parser
+//    is one more thing that can quietly stop matching. The repo carried THREE disagreeing copies
+//    of the status palette until 2026-08-28; a fourth that nobody checks would be strictly worse
+//    than none. What the rung does NOT ask, and this file does, is whether the two transcriptions
+//    here still describe the file — and whether the retired spike palette is provably in the past.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -20,13 +23,16 @@ import { buildScene, hexCenter as hexCentre, type SceneG } from '@storytree/fore
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { cellGroundTriangles } from '../src/cell-ground-geometry.js';
 import { islandScene } from './island-fixture.js';
+import { parseCanvasPalette } from './palette-transcription.js';
 import type { BufferGeometry } from 'three';
 
 import {
   SHIPPED_HEX_RADIUS,
   SHIPPED_PRIMITIVES,
   SHIPPED_STATUSES,
-  SHIPPED_STATUS_COLOUR,
+  SHIPPED_GROUND_COLOUR,
+  SHIPPED_CROWN_COLOUR,
+  SPIKE_STATUS_COLOUR,
   SHIPPED_TILE_HEIGHT,
   SHIPPED_UNDRAWN,
   CLASSIC_TILES,
@@ -88,25 +94,55 @@ test('an empty census is zero, and every primitive still appears in the breakdow
   assert.equal(got.byKind.length, SHIPPED_PRIMITIVES.length);
 });
 
-test('the transcribed palette is what the shipped canvas actually holds', () => {
-  const src = readFileSync(SHIPPED, 'utf8');
-  const block = /STATUS_COLOUR[^=]*=\s*new Map\(\[([\s\S]*?)\]\)/.exec(src);
-  assert.ok(block, 'could not find STATUS_COLOUR in src/ForestWorldCanvas.tsx');
-  const parsed = new Map<string, string>();
-  for (const m of block[1]!.matchAll(/\[\s*'([a-z]+)'\s*,\s*'(#[0-9a-fA-F]{6})'\s*\]/g)) {
-    parsed.set(m[1]!, m[2]!);
-  }
-  assert.equal(parsed.size, 6, 'the shipped canvas should carry six status entries');
+test('the transcribed GROUND palette is what the shipped canvas actually holds', () => {
+  const parsed = parseCanvasPalette(readFileSync(SHIPPED, 'utf8'), 'GROUND_COLOUR');
+  assert.equal(parsed.size, 6, 'the shipped canvas should carry six ground entries');
   assert.deepEqual(
     [...parsed.entries()].sort(),
-    [...SHIPPED_STATUS_COLOUR.entries()].sort(),
-    'SHIPPED_STATUS_COLOUR has drifted from src/ForestWorldCanvas.tsx — re-transcribe it',
+    [...SHIPPED_GROUND_COLOUR.entries()].sort(),
+    'SHIPPED_GROUND_COLOUR has drifted from src/ForestWorldCanvas.tsx — re-transcribe it',
   );
 });
 
-test('the six statuses are the six the semantic layer can produce', () => {
-  assert.equal(SHIPPED_STATUSES.length, 6);
-  for (const s of SHIPPED_STATUSES) assert.ok(SHIPPED_STATUS_COLOUR.has(s), `${s} has no shipped colour`);
+test('the transcribed CROWN palette is what the shipped canvas actually holds', () => {
+  const parsed = parseCanvasPalette(readFileSync(SHIPPED, 'utf8'), 'CROWN_COLOUR');
+  assert.equal(parsed.size, 6, 'the shipped canvas should carry six crown entries');
+  assert.deepEqual(
+    [...parsed.entries()].sort(),
+    [...SHIPPED_CROWN_COLOUR.entries()].sort(),
+    'SHIPPED_CROWN_COLOUR has drifted from src/ForestWorldCanvas.tsx — re-transcribe it',
+  );
+});
+
+test('the two tables are TWO tables — ground and crown really do differ', () => {
+  // NON-VACUITY on the whole point of the split. If these ever became equal, one lookup would do
+  // and the pair of tests above would be checking one belief twice. `building` is the sharpest
+  // case (slate crown over yellow ground) but it is not the only one, so the assertion is about
+  // the tables rather than about that entry.
+  const differ = SHIPPED_STATUSES.filter((s) => SHIPPED_GROUND_COLOUR.get(s) !== SHIPPED_CROWN_COLOUR.get(s));
+  assert.deepEqual(differ.slice().sort(), [...SHIPPED_STATUSES].sort(), 'every status draws a crown unlike its ground');
+});
+
+test('FIVE COLOURS OVER SIX STATES survives on the shipped canvas (ADR-0462)', () => {
+  // The merge is a decision, and a decision that only lives in a comment is one an edit can undo
+  // without anything noticing. `proposed` and `building` share the yellow; the crowns do NOT
+  // merge, because the app authors no `--crown-building-*` pair and this canvas transcribes what
+  // the app delivers rather than harmonising the two.
+  assert.equal(SHIPPED_GROUND_COLOUR.get('proposed'), SHIPPED_GROUND_COLOUR.get('building'));
+  assert.equal(new Set(SHIPPED_GROUND_COLOUR.values()).size, 5, 'six states, five ground colours');
+  assert.notEqual(SHIPPED_CROWN_COLOUR.get('proposed'), SHIPPED_CROWN_COLOUR.get('building'));
+});
+
+test('the RETIRED spike palette is no longer what the shipped canvas holds', () => {
+  // The freeze is only evidence while it is PROVABLY the past. A `SPIKE_STATUS_COLOUR` that still
+  // matched the live source would mean the correction never landed, and every proof built on it
+  // (`palette-transcription.test.ts` runs the guard against this table and asserts a refusal)
+  // would be describing the present while claiming to describe history.
+  const src = readFileSync(SHIPPED, 'utf8').replace(/GROUND_COLOUR|CROWN_COLOUR/g, '');
+  assert.ok(!/\bSTATUS_COLOUR\b/.test(src), 'the single STATUS_COLOUR map is gone from the shipped canvas');
+  for (const [status, spike] of SPIKE_STATUS_COLOUR) {
+    assert.notEqual(SHIPPED_GROUND_COLOUR.get(status), spike, `${status} still draws its spike colour`);
+  }
 });
 
 test('the shipped size constants are what the shipped canvas holds', () => {

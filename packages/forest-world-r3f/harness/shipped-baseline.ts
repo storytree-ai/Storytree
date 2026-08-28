@@ -225,20 +225,67 @@ export const BEFORE_THE_CELL_CASE = {
   drawCalls: 2,
 } as const;
 
-/** The shipped canvas's OWN status palette, transcribed from `src/ForestWorldCanvas.tsx:30-37`.
+/** THE RETIRED SPIKE PALETTE — FROZEN HISTORY, NOT A TRANSCRIPTION OF ANYTHING LIVE.
  *
- *  ⚠⚠ THIS IS NOT THE PALETTE THE MAP SHIPS ELSEWHERE. `harness/palette-band.ts`'s
- *  `STATUS_TOKENS` and `apps/studio/src/index.css` carry a different, later vocabulary
- *  (ADR-0462: five colours over six states). These six values are what the R3F canvas draws
- *  today, and the divergence is a finding of this baseline rather than a defect it fixes.
- *  `shipped-baseline.test.ts` parses the shipped file and fails if this transcription drifts. */
-export const SHIPPED_STATUS_COLOUR: ReadonlyMap<string, string> = new Map([
+ *  These are the six colours `src/ForestWorldCanvas.tsx` drew until 2026-08-28, under a single
+ *  `STATUS_COLOUR` map whose own comment called it "a spike palette, not art direction". It
+ *  disagreed with `apps/studio/src/index.css` and `harness/palette-band.ts` on ALL SIX states:
+ *  `mapped` was this BLUE where ADR-0470 settled a tilled clay, `unhealthy` a BROWN where the
+ *  decision says a charred near-black, and `building` still owned a periwinkle after ADR-0462
+ *  merged it into `proposed`'s yellow.
+ *
+ *  ⚠ IT IS KEPT, AND KEPT FROZEN, FOR ONE REASON: it is the state the guard has to be able to
+ *  refuse. `palette-transcription.test.ts` runs the check against exactly this table and asserts
+ *  it says no — which is how "the check can fail" stays a property of the suite rather than a
+ *  claim in a commit message that decays the moment anyone touches the parser. Freezing the data
+ *  a proof is about, beside the proof, is the same discipline `ADR0462_STATUS_TOKENS` follows in
+ *  `status-vocabulary.ts`.
+ *
+ *  It is DELIBERATELY no longer parsed out of the shipped file — the shipped file no longer holds
+ *  it. `shipped-baseline.test.ts` asserts that: a frozen "before" that still matched the live
+ *  source would mean the fix never landed. */
+export const SPIKE_STATUS_COLOUR: ReadonlyMap<string, string> = new Map([
   ['healthy', '#4f9d5d'],
   ['mapped', '#5d8fa8'],
   ['building', '#7f8fd1'],
   ['proposed', '#c2b280'],
   ['unhealthy', '#8a5a44'],
   ['unknown', '#9a9a9a'],
+]);
+
+/** WHAT THE SHIPPED CANVAS DRAWS NOW — the GROUND, one colour per parcel.
+ *
+ *  Transcribed from `src/ForestWorldCanvas.tsx`'s `GROUND_COLOUR`, and pinned against it by
+ *  `shipped-baseline.test.ts`. These are the authoring surface's own `--hex-top-0` values: the
+ *  canvas has no per-cell variant hash, so it holds each family's FIRST authored variant and not
+ *  the three the CSS and `palette-band.ts` carry.
+ *
+ *  ⚠ FIVE COLOURS OVER SIX STATES (ADR-0462) — `proposed` and `building` share the yellow. Six
+ *  DISTINCT values here would be a regression, not a completion. */
+export const SHIPPED_GROUND_COLOUR: ReadonlyMap<string, string> = new Map([
+  ['healthy', '#8cb85e'],
+  ['mapped', '#b7684e'],
+  ['building', '#d8c069'],
+  ['proposed', '#d8c069'],
+  ['unhealthy', '#57544a'],
+  ['unknown', '#9ca3af'],
+]);
+
+/** WHAT THE SHIPPED CANVAS DRAWS NOW — the story tree's CROWN.
+ *
+ *  ⚠ IT IS A SECOND TABLE BECAUSE GROUND AND CROWN LEGITIMATELY DIFFER, and `building` is where
+ *  that is visible: the app authors no `--crown-building-*` pair, so a building crown falls
+ *  through to `unknown`'s slate while its ground wears `proposed`'s yellow. Before 2026-08-28 ONE
+ *  lookup painted both, which is why correcting the palette was a split rather than a swap — a
+ *  wholesale replacement would have fixed the land and repainted every canopy with a ground
+ *  colour. Transcribed from `CROWN_COLOUR` and pinned against it by the same test. */
+export const SHIPPED_CROWN_COLOUR: ReadonlyMap<string, string> = new Map([
+  ['healthy', '#2f6b3f'],
+  ['mapped', '#7d5f3b'],
+  ['building', '#6b7280'],
+  ['proposed', '#b06a24'],
+  ['unhealthy', '#9f2d22'],
+  ['unknown', '#6b7280'],
 ]);
 
 /** The six `SceneStatus` values, in the order this arc's reports print them. */

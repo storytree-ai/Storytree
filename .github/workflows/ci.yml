@@ -290,6 +290,17 @@ jobs:
       - name: ground-space markers
         run: pnpm check:ground-space
 
+      # The status palette says ONE thing across all three places it is written down:
+      # `apps/studio/src/index.css` (canonical — where ADR-0462 and ADR-0470 were authored),
+      # `forest-world-r3f/harness/palette-band.ts` (a declared transcription) and
+      # `forest-world-r3f/src/ForestWorldCanvas.tsx` (what the shipped map, and since 2026-08-28
+      # the public site's chapter 2, actually draws). The land's colour IS a capability's proof
+      # state (ADR-0392 D5 / ADR-0398 D7), so a copy that disagrees is the map reporting a state
+      # nobody decided. It runs here as an ORDINARY step: it has no skip branch, because all three
+      # sources are always present in a full checkout, so any non-zero exit is a real failure.
+      - name: status palette transcriptions agree
+        run: pnpm check:palette-transcription
+
       # Affected-only PR scope (ADR-0195, amends ADR-0022; ADR-0304 D2 puts the SAME classifier
       # behind the local `pnpm gate`): classify the PR's changed files and,
       # when every one maps cleanly into the workspace graph, narrow typecheck+test to the changed
