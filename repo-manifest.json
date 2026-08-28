@@ -861,6 +861,13 @@
         ],
         "because": "stamps a new worktree's story and arc from the tree it is cut from."
       },
+      "packages/cli/src/adopt-capability.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "capability-grain adoption signs against the unit as the commit under test declares it (ADR-0465 D4), exactly like its story-grain sibling."
+      },
       "packages/drive/src/adopt.ts": {
         "camp": "prove",
         "reads": [

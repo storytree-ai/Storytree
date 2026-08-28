@@ -39,7 +39,7 @@ import type { Envelope } from "./envelope.js";
 // ---------------------------------------------------------------------------
 
 /** Render a declared {@link ShellCommand} back to the one-line form the spine observes. */
-function renderCommand(command: ShellCommand): string {
+export function renderCommand(command: ShellCommand): string {
   return [command.file, ...command.args].join(" ").trim();
 }
 
@@ -48,7 +48,7 @@ function renderCommand(command: ShellCommand): string {
  * node's base proof command. Both are the author's own declaration of what exercises this capability
  * — this never invents one, because a command nobody declared is not evidence of anything.
  */
-function declaredCommand(config: NodeBuildConfig | undefined): string | undefined {
+export function declaredCommand(config: NodeBuildConfig | undefined): string | undefined {
   if (config === undefined) return undefined;
   const command = config.real?.proofCommand ?? config.command;
   const rendered = renderCommand(command);
@@ -60,7 +60,7 @@ function declaredCommand(config: NodeBuildConfig | undefined): string | undefine
  * scope's `sourceGlobs`. The service-history fence matches the branch diff against these, so a spec
  * that declares neither cannot be fenced and drive refuses it.
  */
-function declaredSourcePaths(config: NodeBuildConfig | undefined): string[] {
+export function declaredSourcePaths(config: NodeBuildConfig | undefined): string[] {
   if (config === undefined) return [];
   const paths = new Set<string>(config.scope.sourceGlobs);
   if (config.real?.sourceFile !== undefined) paths.add(config.real.sourceFile);
