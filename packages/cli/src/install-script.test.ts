@@ -25,8 +25,16 @@ const scriptPath = fileURLToPath(new URL("../../../infra/install.ps1", import.me
 const script = readFileSync(scriptPath, "utf8");
 
 // The canonical idempotent-prerequisite inventory, in dependency order (each step's Check assumes
-// its predecessors). The trailing Claude-login prompt and desktop launch are ACTIONS, not
+// its predecessors). The trailing Claude/Codex login prompts and desktop launch are ACTIONS, not
 // convergent steps, so they carry no `# @step:` marker and are intentionally excluded here.
+//
+// `codex-cli` is DECLARED here and OPT-IN at run time (`-WithCodex`), and the two are not in
+// tension: ADR-0030 makes Codex the opt-in runtime, so a default explorer run must not install a
+// product needing a ChatGPT subscription the dev may not have — but the step must still EXIST by
+// name, because `storytree doctor --dev`'s `codex-cli` probe carries it as its `fixStep` and D6's
+// repair loop re-invokes it as `-Step codex-cli`. A fixStep naming a step the script does not
+// declare would be a dead entry in the repair vocabulary, which is the failure the marker inventory
+// exists to catch (`codex-onboarding-journey-arc`).
 const EXPECTED_STEPS = [
   "git",
   "node",
@@ -36,6 +44,7 @@ const EXPECTED_STEPS = [
   "clone",
   "provision",
   "claude-cli",
+  "codex-cli",
 ] as const;
 
 test("Invoke-Step enforces the idempotency guard (never installs when already satisfied)", () => {
