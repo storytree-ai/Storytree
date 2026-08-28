@@ -396,9 +396,10 @@ describe('act2-regrow-camera-reduces-motion-and-settles-exactly', () => {
     expect(cameraValues(view.camera).scale).toBeGreaterThan(fitted.scale);
   });
 
-  it('disabling the real player cancels its requested frame and returns settled on re-entry', async () => {
+  it('disabling the real player cancels its requested frame, and holds the run it was mid-way through', async () => {
     const actual = await vi.importActual<typeof import('./act2Intro.js')>('./act2Intro.js');
     let pending: FrameRequestCallback | null = null;
+    let now = 0;
     const cancelFrame = vi.fn(() => {
       pending = null;
     });
@@ -408,6 +409,12 @@ describe('act2-regrow-camera-reduces-motion-and-settles-exactly', () => {
         return 1;
       },
       cancelFrame,
+      now: () => now,
+    };
+    const deliverFrame = (): void => {
+      const callback = pending;
+      pending = null;
+      if (callback) act(() => callback(now));
     };
     const graph = [
       { id: 'a', dependsOn: [] },
@@ -420,15 +427,27 @@ describe('act2-regrow-camera-reduces-motion-and-settles-exactly', () => {
     );
     act(() => hook.result.current.replay());
     expect(pending).not.toBeNull();
+    const durationMs = hook.result.current.plan!.durationMs;
 
+    now += durationMs / 4;
+    deliverFrame();
+    const midRun = hook.result.current.progress;
+    expect(midRun).toBeGreaterThan(0.2);
+
+    // Parking the map route cancels the frame in flight and asks for no other. That is the whole
+    // frame-cost claim (ADR-0272): a map nobody can see must not be repainting, which is exactly
+    // why the run has to continue in TIME rather than in paints.
     hook.rerender({ enabled: false });
     expect(cancelFrame).toHaveBeenCalled();
-    expect(hook.result.current.progress).toBe(1);
-    expect(hook.result.current.playing).toBe(false);
+    expect(pending, 'nothing is scheduled against a parked map').toBeNull();
 
+    // The owner spends a while on the other surface. The forest grew through it (ADR-0469): before,
+    // this returned a cursor of exactly 1 — a run that jumped to its own ending unseen.
+    now += durationMs / 4;
     hook.rerender({ enabled: true });
-    expect(hook.result.current.progress).toBe(1);
-    expect(hook.result.current.playing).toBe(false);
+    expect(hook.result.current.progress).toBeGreaterThan(midRun);
+    expect(hook.result.current.progress).toBeLessThan(1);
+    expect(hook.result.current.playing).toBe(true);
   });
 });
 
