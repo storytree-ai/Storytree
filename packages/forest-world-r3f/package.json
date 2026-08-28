@@ -26,6 +26,7 @@
     "measure-convention": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/colour-convention-measure.mjs",
     "measure-kit-island": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/kit-island-measure.mjs",
     "measure-crowd": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/crowd-measure.mjs",
+    "measure-palette": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/palette-measure.ts",
     "measure-real-map": "node harness/crowd-real-map.mjs"
   },
   "dependencies": {

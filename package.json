@@ -49,6 +49,7 @@
     "check:web-experience-markers": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-experience-markers.ts",
     "check:ground-space": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-ground-space.ts",
     "check:land-art": "pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-art-check.ts",
+    "check:palette-transcription": "pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/palette-transcription-check.ts",
     "sync:web-engine": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/web-engine.ts",
     "check:web-engine": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/web-engine.ts --check",
     "ci:affected": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/ci-affected-main.ts",

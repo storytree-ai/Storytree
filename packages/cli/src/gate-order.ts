@@ -188,6 +188,13 @@ export interface GatePlanStep extends GateStep {
  *   branch is not at), and nothing sits between the author and either.
  * - check:mirror-conformance — PROOF INTEGRITY. Commit 3ef84c96 records a historical studio-only
  *   docs change producing 256+4 divergences; without it desktop and studio behavior diverge.
+ * - check:palette-transcription — PROOF INTEGRITY (added 2026-08-28,
+ *   `the-shipped-canvas-third-status-palette` on adopt-the-land-into-the-shipped-map-arc).
+ *   CATCH-EVIDENCED, not preventive: the drift it watches for had already landed three times and
+ *   was live on the public site when the rung was written. The map's colour is what it REPORTS
+ *   about a capability's proof state, so a palette no decision authorises is a map asserting
+ *   states nobody decided — which this arc named as the one way it can do real harm.
+ *
  * - check:guidance — FACTORY BOOKKEEPING. A clean worktree on 2026-08-05 caught stale
  *   definitions.generated.json after the live source moved; without it root operating guidance and
  *   definitions ship stale.
@@ -322,6 +329,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     subject: "own-work",
     cost: "seconds",
     why: "reds when the land art is wrong. ADR-0418 D3 lifted the closed-palette fence on `forest-world-r3f/harness/` and D4 required a replacement that can still FAIL; PR #1673 built it into `capture.mjs` and mutation-tested it, and then nothing ever ran it \u2014 it appeared in no gate step, in no CI step, and is not reachable from the package's `test` script, which collects `*.test.ts` while capture is a `.mjs` driver. An instrument that CAN fail, that no build asks, cannot fail a build, which is what this arc's fence 3 requires. The rung starts its own vite server on an ephemeral port (so a sibling worktree's harness on the pinned 5184 cannot answer it), drives the three pages that between them carry all three parts of D4, and refuses both when `capture.mjs` refuses AND when a page audited less than it is declared to prove \u2014 the second being the half capture cannot assert about the run it is inside. ~29 s, browser-backed but SwiftShader-only, so it needs no GPU",
+  },
+  {
+    command: "pnpm check:palette-transcription",
+    check: "check:palette-transcription",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when the three copies of the status palette stop saying one thing. The land's colour IS a capability's proof state (ADR-0392 D5 / ADR-0398 D7), and it is written down in `apps/studio/src/index.css` (canonical), `forest-world-r3f/harness/palette-band.ts` (a declared transcription) and `forest-world-r3f/src/ForestWorldCanvas.tsx` (what the shipped map draws). Nothing compared any pair of them until 2026-08-28, and the CSS said so in terms; by then the shipped canvas disagreed with the other two on ALL SIX states \u2014 `mapped` blue where ADR-0470 settled a clay, `unhealthy` brown where the decision says charred, `building` still owning a colour ADR-0462 merged away \u2014 and the public site's chapter 2 had begun opening on that canvas. It is a RUNG rather than only the `node:test` suite beside it because `apps/studio` does not depend on `forest-world-r3f`: under ADR-0304 D1's affected-scope narrowing, a branch that retunes the CANONICAL surface runs no test in that package at all, and the canonical surface is the copy that MOVES. Pure fs reads and string parsing, single-digit milliseconds, never skips",
   },
   // ── B. own-work, minutes ───────────────────────────────────────────────────
   {

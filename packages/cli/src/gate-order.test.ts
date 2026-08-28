@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ground-space, land-art and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ground-space, land-art, palette-transcription and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -193,6 +193,12 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // being wrong. Browser-backed, but SwiftShader-only and ~29 s, so it sits in block A with
       // the other own-work checks rather than beside the two expensive legs.
       "pnpm check:land-art",
+      // The palette guard runs beside its `check:land-art` neighbour and for the same reason:
+      // both defend what the map REPORTS rather than how it looks. This one is the cheaper and
+      // the wider — pure fs reads over the three copies of the status vocabulary, and it is the
+      // only step that can see a retune of `apps/studio/src/index.css` at all, since that package
+      // does not depend on the one whose tests would otherwise catch it.
+      "pnpm check:palette-transcription",
       "pnpm -r --no-bail typecheck",
       "pnpm -r --no-bail test",
       // ADR-0458's diff-scoped mutation rung. Own-work, but the third MINUTES-cost leg, and placed

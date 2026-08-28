@@ -1,0 +1,1738 @@
+{
+  "url": "http://localhost:5241/palette.html",
+  "renderer": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false
+  },
+  "sourceUnderTest": {
+    "path": "packages/forest-world-r3f/src/ForestWorldCanvas.tsx",
+    "afterSha256": "9adb11d6df24d9a5503a2f9991ab55752e6ef7eb68ee793b1a9bcb19be646060"
+  },
+  "excludedColours": [
+    "#101418",
+    "#20262c"
+  ],
+  "backgroundExclusionRadius": 8,
+  "darkFloor": 60,
+  "groundPalette": {
+    "healthy": "#8cb85e",
+    "mapped": "#b7684e",
+    "building": "#d8c069",
+    "proposed": "#d8c069",
+    "unhealthy": "#57544a",
+    "unknown": "#9ca3af"
+  },
+  "spikePalette": {
+    "healthy": "#4f9d5d",
+    "mapped": "#5d8fa8",
+    "building": "#7f8fd1",
+    "proposed": "#c2b280",
+    "unhealthy": "#8a5a44",
+    "unknown": "#9a9a9a"
+  },
+  "verdicts": [
+    {
+      "tag": "healthy-overview",
+      "state": "healthy",
+      "zoom": "overview",
+      "decided": "#8cb85e",
+      "spike": "#4f9d5d",
+      "modalLand": {
+        "before": "#318042",
+        "after": "#759a49"
+      },
+      "modalShare": {
+        "before": 0.8473191489361702,
+        "after": 0.8474633980251958
+      },
+      "toDecided": {
+        "before": 0.15892244616661982,
+        "after": 0.009105581268850447
+      },
+      "toSpike": {
+        "before": 0.06273039486438566,
+        "after": 0.10426368057408132
+      },
+      "ok": true
+    },
+    {
+      "tag": "mapped-overview",
+      "state": "mapped",
+      "zoom": "overview",
+      "decided": "#b7684e",
+      "spike": "#5d8fa8",
+      "modalLand": {
+        "before": "#407289",
+        "after": "#964a33"
+      },
+      "modalShare": {
+        "before": 0.8473191489361702,
+        "after": 0.8473191489361702
+      },
+      "toDecided": {
+        "before": 0.3079696332178492,
+        "after": 0.046844250055411464
+      },
+      "toSpike": {
+        "before": 0.028166966382915368,
+        "after": 0.32648048453385575
+      },
+      "ok": true
+    },
+    {
+      "tag": "proposed-overview",
+      "state": "proposed",
+      "zoom": "overview",
+      "decided": "#d8c069",
+      "spike": "#c2b280",
+      "modalLand": {
+        "before": "#a2966a",
+        "after": "#b3a258"
+      },
+      "modalShare": {
+        "before": 0.8473191489361702,
+        "after": 0.8473191489361702
+      },
+      "toDecided": {
+        "before": 0.03687090033896795,
+        "after": 0.005070457720349234
+      },
+      "toSpike": {
+        "before": 0.002885449136035889,
+        "after": 0.03637383157539503
+      },
+      "ok": true
+    },
+    {
+      "tag": "building-overview",
+      "state": "building",
+      "zoom": "overview",
+      "decided": "#d8c069",
+      "spike": "#7f8fd1",
+      "modalLand": {
+        "before": "#6473ab",
+        "after": "#b3a258"
+      },
+      "modalShare": {
+        "before": 0.8474633980251958,
+        "after": 0.8477520435967303
+      },
+      "toDecided": {
+        "before": 0.17907333822388924,
+        "after": 0.005070457720349234
+      },
+      "toSpike": {
+        "before": 0.006099040145298868,
+        "after": 0.17144335376106623
+      },
+      "ok": true
+    },
+    {
+      "tag": "unhealthy-overview",
+      "state": "unhealthy",
+      "zoom": "overview",
+      "decided": "#57544a",
+      "spike": "#8a5a44",
+      "modalLand": {
+        "before": "#683a28",
+        "after": "#36332b"
+      },
+      "modalShare": {
+        "before": 0.8473191489361702,
+        "after": 0.8582758620689656
+      },
+      "toDecided": {
+        "before": 0.1691908474862969,
+        "after": 0.009916222665041994
+      },
+      "toSpike": {
+        "before": 0.05149618003570827,
+        "after": 0.10915874609056428
+      },
+      "ok": true
+    },
+    {
+      "tag": "unknown-overview",
+      "state": "unknown",
+      "zoom": "overview",
+      "decided": "#9ca3af",
+      "spike": "#9a9a9a",
+      "modalLand": {
+        "before": "#7e7e7e",
+        "after": "#818792"
+      },
+      "modalShare": {
+        "before": 0.8557675777892384,
+        "after": 0.8560619088564059
+      },
+      "toDecided": {
+        "before": 0.017865320235996927,
+        "after": 0.001346316609548682
+      },
+      "toSpike": {
+        "before": 0,
+        "after": 0.019135938692585047
+      },
+      "ok": true
+    },
+    {
+      "tag": "healthy-zoom",
+      "state": "healthy",
+      "zoom": "zoom",
+      "decided": "#8cb85e",
+      "spike": "#4f9d5d",
+      "modalLand": {
+        "before": "#318042",
+        "after": "#759a49"
+      },
+      "modalShare": {
+        "before": 0.8796265514184397,
+        "after": 0.8798459278964724
+      },
+      "toDecided": {
+        "before": 0.15892244616661982,
+        "after": 0.009105581268850447
+      },
+      "toSpike": {
+        "before": 0.06273039486438566,
+        "after": 0.10426368057408132
+      },
+      "ok": true
+    },
+    {
+      "tag": "mapped-zoom",
+      "state": "mapped",
+      "zoom": "zoom",
+      "decided": "#b7684e",
+      "spike": "#5d8fa8",
+      "modalLand": {
+        "before": "#407289",
+        "after": "#964a33"
+      },
+      "modalShare": {
+        "before": 0.8796265514184397,
+        "after": 0.8796265514184397
+      },
+      "toDecided": {
+        "before": 0.3079696332178492,
+        "after": 0.046844250055411464
+      },
+      "toSpike": {
+        "before": 0.028166966382915368,
+        "after": 0.32648048453385575
+      },
+      "ok": true
+    },
+    {
+      "tag": "proposed-zoom",
+      "state": "proposed",
+      "zoom": "zoom",
+      "decided": "#d8c069",
+      "spike": "#c2b280",
+      "modalLand": {
+        "before": "#a2966a",
+        "after": "#b3a258"
+      },
+      "modalShare": {
+        "before": 0.8796265514184397,
+        "after": 0.8796265514184397
+      },
+      "toDecided": {
+        "before": 0.03687090033896795,
+        "after": 0.005070457720349234
+      },
+      "toSpike": {
+        "before": 0.002885449136035889,
+        "after": 0.03637383157539503
+      },
+      "ok": true
+    },
+    {
+      "tag": "building-zoom",
+      "state": "building",
+      "zoom": "zoom",
+      "decided": "#d8c069",
+      "spike": "#7f8fd1",
+      "modalLand": {
+        "before": "#6473ab",
+        "after": "#b3a258"
+      },
+      "modalShare": {
+        "before": 0.8796265514184397,
+        "after": 0.8797240385681038
+      },
+      "toDecided": {
+        "before": 0.17907333822388924,
+        "after": 0.005070457720349234
+      },
+      "toSpike": {
+        "before": 0.006099040145298868,
+        "after": 0.17144335376106623
+      },
+      "ok": true
+    },
+    {
+      "tag": "unhealthy-zoom",
+      "state": "unhealthy",
+      "zoom": "zoom",
+      "decided": "#57544a",
+      "spike": "#8a5a44",
+      "modalLand": {
+        "before": "#683a28",
+        "after": "#36332b"
+      },
+      "modalShare": {
+        "before": 0.8513245388245388,
+        "after": 0.8554070801228515
+      },
+      "toDecided": {
+        "before": 0.1691908474862969,
+        "after": 0.009916222665041994
+      },
+      "toSpike": {
+        "before": 0.05149618003570827,
+        "after": 0.10915874609056428
+      },
+      "ok": true
+    },
+    {
+      "tag": "unknown-zoom",
+      "state": "unknown",
+      "zoom": "zoom",
+      "decided": "#9ca3af",
+      "spike": "#9a9a9a",
+      "modalLand": {
+        "before": "#7e7e7e",
+        "after": "#818792"
+      },
+      "modalShare": {
+        "before": 0.8546242463393626,
+        "after": 0.8546932622681633
+      },
+      "toDecided": {
+        "before": 0.017865320235996927,
+        "after": 0.001346316609548682
+      },
+      "toSpike": {
+        "before": 0,
+        "after": 0.019135938692585047
+      },
+      "ok": true
+    }
+  ],
+  "arms": {
+    "before": {
+      "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+      "vendor": "Google Inc. (NVIDIA Corporation)",
+      "sections": {
+        "overview": "before-overview.png",
+        "zoom": "before-zoom.png"
+      },
+      "panels": {
+        "healthy-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 480,
+          "h": 321,
+          "landPixels": 5875,
+          "landShare": 0.038129543094496364,
+          "distinctColours": 87,
+          "modeRgb": [
+            49,
+            128,
+            66
+          ],
+          "modeHex": "#318042",
+          "modeShare": 0.8473191489361702,
+          "topColours": [
+            {
+              "hex": "#318042",
+              "share": 0.8473191489361702
+            },
+            {
+              "hex": "#185d2b",
+              "share": 0.023319148936170212
+            },
+            {
+              "hex": "#125225",
+              "share": 0.022127659574468085
+            },
+            {
+              "hex": "#204a2d",
+              "share": 0.011234042553191489
+            },
+            {
+              "hex": "#182f22",
+              "share": 0.010212765957446808
+            },
+            {
+              "hex": "#296537",
+              "share": 0.008
+            }
+          ],
+          "modeChroma": [
+            0.20164609053497942,
+            0.5267489711934157
+          ],
+          "meanChroma": [
+            0.19755479255647573,
+            0.5288879700049421
+          ],
+          "digest": "fde977cba1e1c9c0"
+        },
+        "mapped-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5875,
+          "landShare": 0.03805027169513151,
+          "distinctColours": 86,
+          "modeRgb": [
+            64,
+            114,
+            137
+          ],
+          "modeHex": "#407289",
+          "modeShare": 0.8473191489361702,
+          "topColours": [
+            {
+              "hex": "#407289",
+              "share": 0.8473191489361702
+            },
+            {
+              "hex": "#275166",
+              "share": 0.023319148936170212
+            },
+            {
+              "hex": "#21475b",
+              "share": 0.022127659574468085
+            },
+            {
+              "hex": "#284350",
+              "share": 0.011234042553191489
+            },
+            {
+              "hex": "#1c2b34",
+              "share": 0.010212765957446808
+            },
+            {
+              "hex": "#345a6d",
+              "share": 0.008
+            }
+          ],
+          "modeChroma": [
+            0.20317460317460317,
+            0.3619047619047619
+          ],
+          "meanChroma": [
+            0.20136963614291845,
+            0.3617365407367392
+          ],
+          "digest": "e7530f431e730a56"
+        },
+        "proposed-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5875,
+          "landShare": 0.03805027169513151,
+          "distinctColours": 89,
+          "modeRgb": [
+            162,
+            150,
+            106
+          ],
+          "modeHex": "#a2966a",
+          "modeShare": 0.8473191489361702,
+          "topColours": [
+            {
+              "hex": "#a2966a",
+              "share": 0.8473191489361702
+            },
+            {
+              "hex": "#726641",
+              "share": 0.022127659574468085
+            },
+            {
+              "hex": "#7e714a",
+              "share": 0.020936170212765958
+            },
+            {
+              "hex": "#595541",
+              "share": 0.011234042553191489
+            },
+            {
+              "hex": "#34342c",
+              "share": 0.010212765957446808
+            },
+            {
+              "hex": "#7d7555",
+              "share": 0.008
+            }
+          ],
+          "modeChroma": [
+            0.3875598086124402,
+            0.3588516746411483
+          ],
+          "meanChroma": [
+            0.387725493001643,
+            0.35886049660926245
+          ],
+          "digest": "e9c2aa84cebb4d4a"
+        },
+        "building-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5874,
+          "landShare": 0.038043795053140844,
+          "distinctColours": 89,
+          "modeRgb": [
+            100,
+            115,
+            171
+          ],
+          "modeHex": "#6473ab",
+          "modeShare": 0.8474633980251958,
+          "topColours": [
+            {
+              "hex": "#6473ab",
+              "share": 0.8474633980251958
+            },
+            {
+              "hex": "#445287",
+              "share": 0.02349336057201226
+            },
+            {
+              "hex": "#3b487b",
+              "share": 0.022131426625808647
+            },
+            {
+              "hex": "#3a4361",
+              "share": 0.011235955056179775
+            },
+            {
+              "hex": "#252c3d",
+              "share": 0.010214504596527068
+            },
+            {
+              "hex": "#4f5b86",
+              "share": 0.008001361933946204
+            }
+          ],
+          "modeChroma": [
+            0.25906735751295334,
+            0.2979274611398964
+          ],
+          "meanChroma": [
+            0.2571048985758478,
+            0.29720717940378744
+          ],
+          "digest": "ad32a073a4b42591"
+        },
+        "unhealthy-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 480,
+          "h": 321,
+          "landPixels": 5875,
+          "landShare": 0.038129543094496364,
+          "distinctColours": 75,
+          "modeRgb": [
+            104,
+            58,
+            40
+          ],
+          "modeHex": "#683a28",
+          "modeShare": 0.8473191489361702,
+          "topColours": [
+            {
+              "hex": "#683a28",
+              "share": 0.8473191489361702
+            },
+            {
+              "hex": "#482518",
+              "share": 0.02348936170212766
+            },
+            {
+              "hex": "#3f2014",
+              "share": 0.022127659574468085
+            },
+            {
+              "hex": "#3c2720",
+              "share": 0.011234042553191489
+            },
+            {
+              "hex": "#261d1c",
+              "share": 0.010212765957446808
+            },
+            {
+              "hex": "#523024",
+              "share": 0.008
+            }
+          ],
+          "modeChroma": [
+            0.5148514851485149,
+            0.2871287128712871
+          ],
+          "meanChroma": [
+            0.5127447003176947,
+            0.28716646743010016
+          ],
+          "digest": "b83debb4a195605b"
+        },
+        "unknown-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5817,
+          "landShare": 0.03767462645967319,
+          "distinctColours": 58,
+          "modeRgb": [
+            126,
+            126,
+            126
+          ],
+          "modeHex": "#7e7e7e",
+          "modeShare": 0.8557675777892384,
+          "topColours": [
+            {
+              "hex": "#7e7e7e",
+              "share": 0.8557675777892384
+            },
+            {
+              "hex": "#5c5c5c",
+              "share": 0.029396596183599792
+            },
+            {
+              "hex": "#515151",
+              "share": 0.022348289496303936
+            },
+            {
+              "hex": "#47494b",
+              "share": 0.011346054667354307
+            },
+            {
+              "hex": "#2b2e31",
+              "share": 0.010314595152140279
+            },
+            {
+              "hex": "#626364",
+              "share": 0.008079766202509884
+            }
+          ],
+          "modeChroma": [
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "meanChroma": [
+            0.33280467871892266,
+            0.33333333333330556
+          ],
+          "digest": "9a546ac2155a7663"
+        },
+        "healthy-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36096,
+          "landShare": 0.037553058676654184,
+          "distinctColours": 152,
+          "modeRgb": [
+            49,
+            128,
+            66
+          ],
+          "modeHex": "#318042",
+          "modeShare": 0.8796265514184397,
+          "topColours": [
+            {
+              "hex": "#318042",
+              "share": 0.8796265514184397
+            },
+            {
+              "hex": "#185d2b",
+              "share": 0.03233045212765957
+            },
+            {
+              "hex": "#125225",
+              "share": 0.03158244680851064
+            },
+            {
+              "hex": "#182f22",
+              "share": 0.005125221631205674
+            },
+            {
+              "hex": "#204a2d",
+              "share": 0.004598847517730496
+            },
+            {
+              "hex": "#296537",
+              "share": 0.003490691489361702
+            }
+          ],
+          "modeChroma": [
+            0.20164609053497942,
+            0.5267489711934157
+          ],
+          "meanChroma": [
+            0.19696129559957531,
+            0.5306832383507398
+          ],
+          "digest": "95d0d5d78fecafba"
+        },
+        "mapped-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36096,
+          "landShare": 0.037553058676654184,
+          "distinctColours": 155,
+          "modeRgb": [
+            64,
+            114,
+            137
+          ],
+          "modeHex": "#407289",
+          "modeShare": 0.8796265514184397,
+          "topColours": [
+            {
+              "hex": "#407289",
+              "share": 0.8796265514184397
+            },
+            {
+              "hex": "#275166",
+              "share": 0.03235815602836879
+            },
+            {
+              "hex": "#21475b",
+              "share": 0.03158244680851064
+            },
+            {
+              "hex": "#1c2b34",
+              "share": 0.005125221631205674
+            },
+            {
+              "hex": "#284350",
+              "share": 0.004598847517730496
+            },
+            {
+              "hex": "#345a6d",
+              "share": 0.003490691489361702
+            }
+          ],
+          "modeChroma": [
+            0.20317460317460317,
+            0.3619047619047619
+          ],
+          "meanChroma": [
+            0.2009161687622036,
+            0.3619559250768431
+          ],
+          "digest": "6d5931471e579a36"
+        },
+        "proposed-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36096,
+          "landShare": 0.037553058676654184,
+          "distinctColours": 162,
+          "modeRgb": [
+            162,
+            150,
+            106
+          ],
+          "modeHex": "#a2966a",
+          "modeShare": 0.8796265514184397,
+          "topColours": [
+            {
+              "hex": "#a2966a",
+              "share": 0.8796265514184397
+            },
+            {
+              "hex": "#726641",
+              "share": 0.03163785460992908
+            },
+            {
+              "hex": "#7e714a",
+              "share": 0.028950576241134753
+            },
+            {
+              "hex": "#34342c",
+              "share": 0.005125221631205674
+            },
+            {
+              "hex": "#595541",
+              "share": 0.004598847517730496
+            },
+            {
+              "hex": "#7d7555",
+              "share": 0.003490691489361702
+            }
+          ],
+          "modeChroma": [
+            0.3875598086124402,
+            0.3588516746411483
+          ],
+          "meanChroma": [
+            0.38842599417652623,
+            0.35900826209618625
+          ],
+          "digest": "b38a257cd3d5f86f"
+        },
+        "building-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36096,
+          "landShare": 0.037553058676654184,
+          "distinctColours": 164,
+          "modeRgb": [
+            100,
+            115,
+            171
+          ],
+          "modeHex": "#6473ab",
+          "modeShare": 0.8796265514184397,
+          "topColours": [
+            {
+              "hex": "#6473ab",
+              "share": 0.8796265514184397
+            },
+            {
+              "hex": "#445287",
+              "share": 0.032247340425531915
+            },
+            {
+              "hex": "#3b487b",
+              "share": 0.03155474290780142
+            },
+            {
+              "hex": "#252c3d",
+              "share": 0.005125221631205674
+            },
+            {
+              "hex": "#3a4361",
+              "share": 0.004598847517730496
+            },
+            {
+              "hex": "#4f5b86",
+              "share": 0.003490691489361702
+            }
+          ],
+          "modeChroma": [
+            0.25906735751295334,
+            0.2979274611398964
+          ],
+          "meanChroma": [
+            0.2570960846413964,
+            0.29702398613114495
+          ],
+          "digest": "76d6e42c0afee036"
+        },
+        "unhealthy-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 37296,
+          "landShare": 0.03880149812734082,
+          "distinctColours": 126,
+          "modeRgb": [
+            104,
+            58,
+            40
+          ],
+          "modeHex": "#683a28",
+          "modeShare": 0.8513245388245388,
+          "topColours": [
+            {
+              "hex": "#683a28",
+              "share": 0.8513245388245388
+            },
+            {
+              "hex": "#2b3138",
+              "share": 0.032175032175032175
+            },
+            {
+              "hex": "#482518",
+              "share": 0.03142428142428142
+            },
+            {
+              "hex": "#3f2014",
+              "share": 0.030646718146718148
+            },
+            {
+              "hex": "#261d1c",
+              "share": 0.00496031746031746
+            },
+            {
+              "hex": "#3c2720",
+              "share": 0.0044508794508794506
+            }
+          ],
+          "modeChroma": [
+            0.5148514851485149,
+            0.2871287128712871
+          ],
+          "meanChroma": [
+            0.5081155408093482,
+            0.28813938886282414
+          ],
+          "digest": "3855fc58508b5ffb"
+        },
+        "unknown-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 37152,
+          "landShare": 0.038651685393258424,
+          "distinctColours": 73,
+          "modeRgb": [
+            126,
+            126,
+            126
+          ],
+          "modeHex": "#7e7e7e",
+          "modeShare": 0.8546242463393626,
+          "topColours": [
+            {
+              "hex": "#7e7e7e",
+              "share": 0.8546242463393626
+            },
+            {
+              "hex": "#5c5c5c",
+              "share": 0.03378014642549526
+            },
+            {
+              "hex": "#2b3138",
+              "share": 0.03229974160206718
+            },
+            {
+              "hex": "#515151",
+              "share": 0.03076550387596899
+            },
+            {
+              "hex": "#2b2e31",
+              "share": 0.004979543496985358
+            },
+            {
+              "hex": "#47494b",
+              "share": 0.004468130921619294
+            }
+          ],
+          "modeChroma": [
+            0.3333333333333333,
+            0.3333333333333333
+          ],
+          "meanChroma": [
+            0.3317205635402498,
+            0.3332605900246285
+          ],
+          "digest": "84783300754b4ba5"
+        }
+      }
+    },
+    "after": {
+      "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+      "vendor": "Google Inc. (NVIDIA Corporation)",
+      "sections": {
+        "overview": "after-overview.png",
+        "zoom": "after-zoom.png"
+      },
+      "panels": {
+        "healthy-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 480,
+          "h": 321,
+          "landPixels": 5874,
+          "landShare": 0.03812305295950156,
+          "distinctColours": 92,
+          "modeRgb": [
+            117,
+            154,
+            73
+          ],
+          "modeHex": "#759a49",
+          "modeShare": 0.8474633980251958,
+          "topColours": [
+            {
+              "hex": "#759a49",
+              "share": 0.8474633980251958
+            },
+            {
+              "hex": "#476a28",
+              "share": 0.022131426625808647
+            },
+            {
+              "hex": "#52752f",
+              "share": 0.02093973442288049
+            },
+            {
+              "hex": "#425730",
+              "share": 0.011235955056179775
+            },
+            {
+              "hex": "#293524",
+              "share": 0.010214504596527068
+            },
+            {
+              "hex": "#5c783d",
+              "share": 0.008001361933946204
+            }
+          ],
+          "modeChroma": [
+            0.34011627906976744,
+            0.4476744186046512
+          ],
+          "meanChroma": [
+            0.3338566160604044,
+            0.4521911348951713
+          ],
+          "digest": "bff5f4477c4ca78f"
+        },
+        "mapped-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5875,
+          "landShare": 0.03805027169513151,
+          "distinctColours": 90,
+          "modeRgb": [
+            150,
+            74,
+            51
+          ],
+          "modeHex": "#964a33",
+          "modeShare": 0.8473191489361702,
+          "topColours": [
+            {
+              "hex": "#964a33",
+              "share": 0.8473191489361702
+            },
+            {
+              "hex": "#6f3121",
+              "share": 0.023319148936170212
+            },
+            {
+              "hex": "#632a1b",
+              "share": 0.022127659574468085
+            },
+            {
+              "hex": "#532f25",
+              "share": 0.011234042553191489
+            },
+            {
+              "hex": "#31211f",
+              "share": 0.010212765957446808
+            },
+            {
+              "hex": "#743c2c",
+              "share": 0.008
+            }
+          ],
+          "modeChroma": [
+            0.5454545454545454,
+            0.2690909090909091
+          ],
+          "meanChroma": [
+            0.543319032190355,
+            0.26984521095942304
+          ],
+          "digest": "2f00b1eccc1882ce"
+        },
+        "proposed-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5875,
+          "landShare": 0.03805027169513151,
+          "distinctColours": 103,
+          "modeRgb": [
+            179,
+            162,
+            88
+          ],
+          "modeHex": "#b3a258",
+          "modeShare": 0.8473191489361702,
+          "topColours": [
+            {
+              "hex": "#b3a258",
+              "share": 0.8473191489361702
+            },
+            {
+              "hex": "#8f7e3b",
+              "share": 0.023829787234042554
+            },
+            {
+              "hex": "#837233",
+              "share": 0.01957446808510638
+            },
+            {
+              "hex": "#615b38",
+              "share": 0.011234042553191489
+            },
+            {
+              "hex": "#393728",
+              "share": 0.010212765957446808
+            },
+            {
+              "hex": "#8a7e48",
+              "share": 0.008
+            }
+          ],
+          "modeChroma": [
+            0.4172494172494173,
+            0.3776223776223776
+          ],
+          "meanChroma": [
+            0.4210554438034986,
+            0.37643534009964996
+          ],
+          "digest": "e994e958e54bfd33"
+        },
+        "building-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5872,
+          "landShare": 0.038030841769159524,
+          "distinctColours": 88,
+          "modeRgb": [
+            179,
+            162,
+            88
+          ],
+          "modeHex": "#b3a258",
+          "modeShare": 0.8477520435967303,
+          "topColours": [
+            {
+              "hex": "#b3a258",
+              "share": 0.8477520435967303
+            },
+            {
+              "hex": "#8f7e3b",
+              "share": 0.023841961852861037
+            },
+            {
+              "hex": "#837233",
+              "share": 0.019584468664850137
+            },
+            {
+              "hex": "#615b38",
+              "share": 0.011239782016348773
+            },
+            {
+              "hex": "#393728",
+              "share": 0.010217983651226158
+            },
+            {
+              "hex": "#8a7e48",
+              "share": 0.00800408719346049
+            }
+          ],
+          "modeChroma": [
+            0.4172494172494173,
+            0.3776223776223776
+          ],
+          "meanChroma": [
+            0.4153171823615914,
+            0.376713242291781
+          ],
+          "digest": "48eb3d9d69e69633"
+        },
+        "unhealthy-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 480,
+          "h": 321,
+          "landPixels": 5800,
+          "landShare": 0.037642782969885775,
+          "distinctColours": 96,
+          "modeRgb": [
+            54,
+            51,
+            43
+          ],
+          "modeHex": "#36332b",
+          "modeShare": 0.8582758620689656,
+          "topColours": [
+            {
+              "hex": "#36332b",
+              "share": 0.8582758620689656
+            },
+            {
+              "hex": "#1d1b16",
+              "share": 0.022413793103448276
+            },
+            {
+              "hex": "#22211a",
+              "share": 0.021206896551724138
+            },
+            {
+              "hex": "#232321",
+              "share": 0.011379310344827587
+            },
+            {
+              "hex": "#191c1d",
+              "share": 0.010344827586206896
+            },
+            {
+              "hex": "#2c2b26",
+              "share": 0.008103448275862069
+            }
+          ],
+          "modeChroma": [
+            0.36486486486486486,
+            0.34459459459459457
+          ],
+          "meanChroma": [
+            0.372615056682788,
+            0.3395463319231354
+          ],
+          "digest": "df5f5021a006481d"
+        },
+        "unknown-overview": {
+          "widthPx": 480,
+          "heightPx": 320,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 0.9387467056512833,
+          "scaleNear": 0.9387467056512833,
+          "scaleFar": 0.9387467056512833,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 481,
+          "h": 321,
+          "landPixels": 5815,
+          "landShare": 0.03766167317569187,
+          "distinctColours": 83,
+          "modeRgb": [
+            129,
+            135,
+            146
+          ],
+          "modeHex": "#818792",
+          "modeShare": 0.8560619088564059,
+          "topColours": [
+            {
+              "hex": "#818792",
+              "share": 0.8560619088564059
+            },
+            {
+              "hex": "#5e646e",
+              "share": 0.023559759243336198
+            },
+            {
+              "hex": "#545962",
+              "share": 0.02235597592433362
+            },
+            {
+              "hex": "#484d55",
+              "share": 0.011349957007738607
+            },
+            {
+              "hex": "#2c3136",
+              "share": 0.010318142734307825
+            },
+            {
+              "hex": "#656a73",
+              "share": 0.008082545141874462
+            }
+          ],
+          "modeChroma": [
+            0.3146341463414634,
+            0.32926829268292684
+          ],
+          "meanChroma": [
+            0.31352795896010716,
+            0.32915422315245996
+          ],
+          "digest": "82844a2c892e344e"
+        },
+        "healthy-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36087,
+          "landShare": 0.03754369538077403,
+          "distinctColours": 145,
+          "modeRgb": [
+            117,
+            154,
+            73
+          ],
+          "modeHex": "#759a49",
+          "modeShare": 0.8798459278964724,
+          "topColours": [
+            {
+              "hex": "#759a49",
+              "share": 0.8798459278964724
+            },
+            {
+              "hex": "#476a28",
+              "share": 0.03156261257516557
+            },
+            {
+              "hex": "#52752f",
+              "share": 0.028819242386454957
+            },
+            {
+              "hex": "#293524",
+              "share": 0.005126499847590545
+            },
+            {
+              "hex": "#425730",
+              "share": 0.004599994457838002
+            },
+            {
+              "hex": "#5c783d",
+              "share": 0.003491562058358966
+            }
+          ],
+          "modeChroma": [
+            0.34011627906976744,
+            0.4476744186046512
+          ],
+          "meanChroma": [
+            0.3342475615362596,
+            0.45308775056860595
+          ],
+          "digest": "be942d19fa84c0bb"
+        },
+        "mapped-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36096,
+          "landShare": 0.037553058676654184,
+          "distinctColours": 164,
+          "modeRgb": [
+            150,
+            74,
+            51
+          ],
+          "modeHex": "#964a33",
+          "modeShare": 0.8796265514184397,
+          "topColours": [
+            {
+              "hex": "#964a33",
+              "share": 0.8796265514184397
+            },
+            {
+              "hex": "#6f3121",
+              "share": 0.03202570921985816
+            },
+            {
+              "hex": "#632a1b",
+              "share": 0.03155474290780142
+            },
+            {
+              "hex": "#31211f",
+              "share": 0.005125221631205674
+            },
+            {
+              "hex": "#532f25",
+              "share": 0.004598847517730496
+            },
+            {
+              "hex": "#743c2c",
+              "share": 0.003490691489361702
+            }
+          ],
+          "modeChroma": [
+            0.5454545454545454,
+            0.2690909090909091
+          ],
+          "meanChroma": [
+            0.5456048731151041,
+            0.26938261290203314
+          ],
+          "digest": "b8c22e74ffaf1e01"
+        },
+        "proposed-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36096,
+          "landShare": 0.037553058676654184,
+          "distinctColours": 180,
+          "modeRgb": [
+            179,
+            162,
+            88
+          ],
+          "modeHex": "#b3a258",
+          "modeShare": 0.8796265514184397,
+          "topColours": [
+            {
+              "hex": "#b3a258",
+              "share": 0.8796265514184397
+            },
+            {
+              "hex": "#8f7e3b",
+              "share": 0.032191932624113476
+            },
+            {
+              "hex": "#837233",
+              "share": 0.028368794326241134
+            },
+            {
+              "hex": "#393728",
+              "share": 0.005125221631205674
+            },
+            {
+              "hex": "#615b38",
+              "share": 0.004598847517730496
+            },
+            {
+              "hex": "#8a7e48",
+              "share": 0.003490691489361702
+            }
+          ],
+          "modeChroma": [
+            0.4172494172494173,
+            0.3776223776223776
+          ],
+          "meanChroma": [
+            0.4219742092589631,
+            0.3766804394165452
+          ],
+          "digest": "6bb2da2a8373b446"
+        },
+        "building-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 36092,
+          "landShare": 0.03754889721181856,
+          "distinctColours": 166,
+          "modeRgb": [
+            179,
+            162,
+            88
+          ],
+          "modeHex": "#b3a258",
+          "modeShare": 0.8797240385681038,
+          "topColours": [
+            {
+              "hex": "#b3a258",
+              "share": 0.8797240385681038
+            },
+            {
+              "hex": "#8f7e3b",
+              "share": 0.0321955003878976
+            },
+            {
+              "hex": "#837233",
+              "share": 0.028371938379696333
+            },
+            {
+              "hex": "#393728",
+              "share": 0.005125789648675607
+            },
+            {
+              "hex": "#615b38",
+              "share": 0.004599357198271085
+            },
+            {
+              "hex": "#8a7e48",
+              "share": 0.0034910783553141972
+            }
+          ],
+          "modeChroma": [
+            0.4172494172494173,
+            0.3776223776223776
+          ],
+          "meanChroma": [
+            0.4160470064555058,
+            0.37694976991538576
+          ],
+          "digest": "d661f3186b631b97"
+        },
+        "unhealthy-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 37118,
+          "landShare": 0.03861631294215564,
+          "distinctColours": 164,
+          "modeRgb": [
+            54,
+            51,
+            43
+          ],
+          "modeHex": "#36332b",
+          "modeShare": 0.8554070801228515,
+          "topColours": [
+            {
+              "hex": "#36332b",
+              "share": 0.8554070801228515
+            },
+            {
+              "hex": "#2b3138",
+              "share": 0.03232932808879789
+            },
+            {
+              "hex": "#1d1b16",
+              "share": 0.030685920577617327
+            },
+            {
+              "hex": "#22211a",
+              "share": 0.028018751010291502
+            },
+            {
+              "hex": "#191c1d",
+              "share": 0.004984104747023007
+            },
+            {
+              "hex": "#232321",
+              "share": 0.004472223718950374
+            }
+          ],
+          "modeChroma": [
+            0.36486486486486486,
+            0.34459459459459457
+          ],
+          "meanChroma": [
+            0.3708065106243132,
+            0.3393328210948228
+          ],
+          "digest": "768810b4122df42b"
+        },
+        "unknown-zoom": {
+          "widthPx": 1200,
+          "heightPx": 800,
+          "devicePixelRatio": 1,
+          "frames": 3,
+          "scaleAtTarget": 2.346866764128208,
+          "scaleNear": 2.346866764128208,
+          "scaleFar": 2.346866764128208,
+          "projection": "orthographic",
+          "spreadPct": 0,
+          "w": 1200,
+          "h": 801,
+          "landPixels": 37149,
+          "landShare": 0.03864856429463171,
+          "distinctColours": 158,
+          "modeRgb": [
+            129,
+            135,
+            146
+          ],
+          "modeHex": "#818792",
+          "modeShare": 0.8546932622681633,
+          "topColours": [
+            {
+              "hex": "#818792",
+              "share": 0.8546932622681633
+            },
+            {
+              "hex": "#2b3138",
+              "share": 0.03230234999596221
+            },
+            {
+              "hex": "#5e646e",
+              "share": 0.03111793049611026
+            },
+            {
+              "hex": "#545962",
+              "share": 0.03066031387116746
+            },
+            {
+              "hex": "#2c3136",
+              "share": 0.004979945624377507
+            },
+            {
+              "hex": "#484d55",
+              "share": 0.004468491749441438
+            }
+          ],
+          "modeChroma": [
+            0.3146341463414634,
+            0.32926829268292684
+          ],
+          "meanChroma": [
+            0.31296795941449657,
+            0.3291980791707611
+          ],
+          "digest": "7d68db3b767fbfbf"
+        }
+      }
+    }
+  }
+}
