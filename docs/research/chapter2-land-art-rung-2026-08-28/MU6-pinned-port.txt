@@ -1,0 +1,10 @@
+
+> storytree@0.0.0 check:land-art /home/mickh/code/Storytree/.claude/worktrees/land-gate
+> pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-art-check.ts
+
+
+REFUSED: the land art rung.
+  the harness came up on 5184, which is the port `vite.config.ts` pins for EVERY
+  worktree. A sibling worktree may already be serving its own tree there, and photographing it
+  would report ITS art as this branch's. Free the port (or the ports below it) and re-run.
+ ELIFECYCLE  Command failed with exit code 1.

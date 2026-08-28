@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ground-space and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ground-space, land-art and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -188,6 +188,11 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // is NOT skip-capable, unlike its three neighbours: the parent's own surfaces are always
       // scannable, so an absent submodule narrows what it covers rather than excusing the run.
       "pnpm check:ground-space",
+      // The art rung. ADR-0418 D4's replacement for the lifted palette fence existed and was
+      // mutation-tested (PR #1673) but no build ever ran it, so nothing could red for the art
+      // being wrong. Browser-backed, but SwiftShader-only and ~29 s, so it sits in block A with
+      // the other own-work checks rather than beside the two expensive legs.
+      "pnpm check:land-art",
       "pnpm -r --no-bail typecheck",
       "pnpm -r --no-bail test",
       // ADR-0458's diff-scoped mutation rung. Own-work, but the third MINUTES-cost leg, and placed

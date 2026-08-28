@@ -1,0 +1,26 @@
+
+> storytree@0.0.0 check:land-art /home/mickh/code/Storytree/.claude/worktrees/land-gate
+> pnpm -C packages/forest-world-r3f exec node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-art-check.ts
+
+[land-art] harness on http://localhost:5174/  (ephemeral port — a sibling worktree cannot answer it)
+[land-art] XX grain.html        capture exit 1  5.9s
+[land-art] ok island.html       capture exit 0  18.2s
+[land-art] ok directions.html   capture exit 0  4.8s
+
+REFUSED: the land art rung.
+  ART — grain.html — capture.mjs exited 1:
+    | confusable : 0 (status, rung) pairs read foreign under the borrowed reader; this page DELIVERED 0 such px, all on the SHIPPED ladder
+    | OFF-PALETTE: 0 px
+    | props      : 0 islands verified (0 declarations resolved), floor 1 px/token, 0 short; 8 tagged canvases carry no declaration
+    | spread     : 4 continuous of 8 declared canvases, 2621312 px exempt from the palette closure
+    |    XX grain-colour-2px     bins90     3 vs bar     4 (grain-none-2px)
+    |    XX grain-both-2px       bins90     3 vs bar     4 (grain-none-2px)
+    |    XX grain-colour-8px     bins90     3 vs bar     4 (grain-none-8px)
+    |    XX grain-both-8px       bins90     3 vs bar     4 (grain-none-8px)
+    | holes      : 180 interior px across 8 canvases (REPORTED, not a rung — the flat control reads 0)
+    | frame p50  : 16.7 ms (RELATIVE — software rasteriser)
+    | REFUSED: COLOUR SPREAD — grain-colour-2px [collapsed] bins90 3 does not exceed its control's 4 delivered colours. This picture is expressible by the authored ladder beside it, so the continuous term did not reach delivered pixels.
+    |     grain-both-2px [collapsed] bins90 3 does not exceed its control's 4 delivered colours. This picture is expressible by the authored ladder beside it, so the continuous term did not reach delivered pixels.
+    |     grain-colour-8px [collapsed] bins90 3 does not exceed its control's 4 delivered colours. This picture is expressible by the authored ladder beside it, so the continuous term did not reach delivered pixels.
+    |     grain-both-8px [collapsed] bins90 3 does not exceed its control's 4 delivered colours. This picture is expressible by the authored ladder beside it, so the continuous term did not reach delivered pixels.
+ ELIFECYCLE  Command failed with exit code 1.
