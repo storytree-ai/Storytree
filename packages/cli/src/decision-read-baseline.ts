@@ -428,6 +428,155 @@ export function withinWindow(at: string, from: string | undefined, to: string | 
   return true;
 }
 
+// ---------------------------------------------------------------------------
+// The trailing fixed-COUNT window slice (`decision-discovery-kpi-arc-inc-02`)
+// ---------------------------------------------------------------------------
+
+/**
+ * A trailing fixed-COUNT slice of the read population — the N most recently active context windows
+ * that read a decision, and only their reads.
+ *
+ * Empty `reads` with `windowsAvailable < count` is the REFUSING shape, and it is a first-class
+ * answer rather than a failure: a slice that cannot be formed must not be silently shortened, or the
+ * figure it exists to make comparable is compared against a window it does not match.
+ */
+export interface TrailingWindowSlice {
+  /** How many context windows the input offered to slice from, before the trailing cut. */
+  readonly windowsAvailable: number;
+  /** How many the slice kept. EQUAL to `count` when one was formed, 0 when it could not be. */
+  readonly windowsKept: number;
+  /** The window ids kept, so a caller can audit the cut rather than take the counts on faith. */
+  readonly windowIds: readonly string[];
+  /** Every read belonging to a kept window. EMPTY when no slice could be formed. */
+  readonly reads: readonly DecisionReadObservation[];
+  /** The slice's own observed extent — never the declared window's, which it sits inside. */
+  readonly observedFrom: string | undefined;
+  readonly observedTo: string | undefined;
+}
+
+/**
+ * PURE: take the `count` most recently active context windows that read a decision the log holds,
+ * and every read belonging to them.
+ *
+ * ## WHY A COUNT AND NOT A SPAN — THE WHOLE POINT OF THE INCREMENT
+ *
+ * A CUMULATIVE figure (reach: "how many of the log's decisions did anybody read") is a function of
+ * how many windows looked, not of how long they took. Sliced by TIME it falls mechanically as the
+ * window shortens, with no change in discovery at all — which is why reach was reported-not-alarmed
+ * when `-inc-01` landed. Sliced by COUNT, two readings are over the same number of lookers and are
+ * comparable. A RATE (chain depth) needs none of this and is not sliced here.
+ *
+ * ## THE SLICE IS TAKEN INSIDE THE DECLARED WINDOW, NEVER ACROSS IT
+ *
+ * The caller filters by {@link withinWindow} FIRST and hands the survivors here. That ordering is
+ * load-bearing rather than incidental: the declared window starts where the frozen reference ENDS,
+ * so a slice free to reach further back would pull the reference's own windows into the arm being
+ * compared against it and measure the reference against itself.
+ *
+ * ## "MOST RECENT" IS A WINDOW'S LAST READ, TIEBROKEN DOWN TO ITS ID
+ *
+ * A context window is an interval, not an instant, so "recent" has to be chosen and the choice
+ * stated. Its LAST read is the one that answers "which windows were most recently doing this",
+ * which is what a trailing slice is for. First read and then id break ties, so the cut is total and
+ * deterministic — a frozen comparison must select the same windows on every run over the same input.
+ *
+ * ## IT COUNTS ONLY WINDOWS THAT READ A DECISION *THE LOG HOLDS*
+ *
+ * The same population `computeDecisionReadBaseline` counts in `sessionsWithAnyDecisionRead`, reached
+ * through the same single resolution door ({@link decisionNumberOfObservedId}) and the same
+ * known-decision filter. Counting windows on raw reads instead would let a window whose only read
+ * resolved to nothing occupy a slot in the slice, and the resulting baseline would then report FEWER
+ * windows than the slice claimed to take — a discrepancy no caller could see and every caller would
+ * quote. Pinned by a test asserting the two agree exactly.
+ */
+export function trailingWindowSlice(
+  input: {
+    readonly reads: readonly DecisionReadObservation[];
+    readonly support: DecisionSupportGraph;
+    readonly count: number;
+  },
+  resolve: DecisionIdResolver = decisionNumberOfObservedId,
+): TrailingWindowSlice {
+  const known = new Set(input.support.decisions);
+
+  // One pass: a window qualifies on its first read of a KNOWN decision, and its extent then grows
+  // over ALL its reads — a qualifying window's unresolved reads are still that window's reads.
+  const qualified = new Set<string>();
+  const firstAt = new Map<string, string>();
+  const lastAt = new Map<string, string>();
+  for (const read of input.reads) {
+    const windowId = read.windowId;
+    if (windowId === undefined) continue;
+    const decision = resolve(read.nodeId);
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — dropping `!== null` cannot be
+    // observed, because `known` is a Set of decision NUMBERS and `known.has(null)` is already false.
+    // The check is kept because it says which of the two exclusions is which: an id that resolved to
+    // nothing, and an id that resolved to a decision this log does not hold. Both are tested.
+    if (decision !== null && known.has(decision)) qualified.add(windowId);
+    const first = firstAt.get(windowId);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — this tracks a MINIMUM, and `<` and
+    // `<=` select the same minimum over the same input; the only difference is whether an equal
+    // value is re-stored over itself, which nothing downstream can observe.
+    if (first === undefined || read.at < first) firstAt.set(windowId, read.at);
+    const last = lastAt.get(windowId);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — a MAXIMUM, for the same reason.
+    if (last === undefined || read.at > last) lastAt.set(windowId, read.at);
+  }
+
+  const windowsAvailable = qualified.size;
+  const empty = {
+    windowsAvailable,
+    windowsKept: 0,
+    windowIds: [],
+    reads: [],
+    observedFrom: undefined,
+    observedTo: undefined,
+  } as const;
+
+  // REFUSE rather than shorten. A slice of 200 windows compared against a 401-window reference is
+  // the very comparison this function exists to prevent, and it would look like a reading.
+  //
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — `<= 0` and `< 0` differ only at a count
+  // of ZERO, and at zero the two paths produce the same value: this returns `empty`, while falling
+  // through would take `ordered.slice(0, 0)` and build the identical empty result. The guard is
+  // written `<= 0` because returning early SAYS what a zero-window slice means; a NEGATIVE count is
+  // where the two genuinely differ (`slice(0, -1)` drops one window instead of refusing), and that
+  // arm is not equivalent and is not disabled.
+  if (input.count <= 0 || windowsAvailable < input.count) return empty;
+
+  // Stryker disable StringLiteral: UNREACHABLE — every id in `qualified` was written to BOTH maps in
+  // the same loop above, so no `.get` here can miss. The fallbacks exist because the maps are typed
+  // `string | undefined` and `noUncheckedIndexedAccess` is on; substituting any other default cannot
+  // be observed, because the branch that would read it cannot be entered.
+  const ordered = [...qualified].sort((a, b) => {
+    const lastB = lastAt.get(b) ?? "";
+    const lastA = lastAt.get(a) ?? "";
+    if (lastA !== lastB) return lastB.localeCompare(lastA);
+    const firstB = firstAt.get(b) ?? "";
+    const firstA = firstAt.get(a) ?? "";
+    if (firstA !== firstB) return firstB.localeCompare(firstA);
+    return b.localeCompare(a);
+  });
+  // Stryker restore all
+
+  const kept = new Set(ordered.slice(0, input.count));
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — dropping `!== undefined` cannot be
+  // observed, because `kept` holds window ID STRINGS and `kept.has(undefined)` is already false. It
+  // is kept because it states the rule rather than relying on a Set lookup to imply it: a read with
+  // no window id belongs to no window and can neither occupy a slot nor ride along with one.
+  const reads = input.reads.filter((read) => read.windowId !== undefined && kept.has(read.windowId));
+  const timestamps = reads.map((read) => read.at).sort();
+
+  return {
+    windowsAvailable,
+    windowsKept: kept.size,
+    windowIds: [...kept].sort(),
+    reads,
+    observedFrom: timestamps[0],
+    observedTo: timestamps[timestamps.length - 1],
+  };
+}
+
 function countBy<T, K>(items: readonly T[], key: (item: T) => K): Map<K, number> {
   const counts = new Map<K, number>();
   for (const item of items) counts.set(key(item), (counts.get(key(item)) ?? 0) + 1);

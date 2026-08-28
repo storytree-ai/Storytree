@@ -26,10 +26,22 @@
  *
  *   1. COMPARABILITY — is this figure the same measurement over this window as it was over the
  *      reference window? A figure that is not rate-normalised against window LENGTH is not, and must
- *      refuse (ADR-0316 D2). See {@link REACH_NOT_COMPARABLE}.
+ *      refuse (ADR-0316 D2). Chain depth is a per-window rate and passes by construction; reach is
+ *      cumulative and passes only when both of its axes are pinned. See {@link reachComparability}.
  *   2. POWER — could this window have detected the smallest fall we declared worth detecting, at the
  *      floor set by the LEAST sensitive figure in the same report? See {@link reportWideFloor}.
  *   3. DIRECTION — only now may a figure say it fell, held or improved.
+ *
+ * ## THE FLOOR IS IN WINDOW UNITS, AND REACH'S ARM IS NOT — SO REACH IS FENCED SOMEWHERE ELSE
+ *
+ * `minimumArm` is a count of CONTEXT WINDOWS, and reach's arm is a count of DECISIONS. A maximum
+ * taken across those is not a floor, it is a number, so reach's comparison is handed no floor at all
+ * and its Bernoulli sizing (6 decisions to resolve a halving from 89.4%, against an arm fixed at
+ * 414) never binds. What fences reach instead is its COMPARABILITY gate, which demands the full 401
+ * context windows — 13.8x the 29 chain depth needs. That is why reach cannot speak over a thinner
+ * window than its sibling: whenever reach is comparable, chain depth is powered by construction,
+ * because both count the same population of windows. Pinned by a test rather than left as an
+ * argument in a comment.
  *
  * ## WHICH FIGURES ALARM TODAY, AND WHY THE OTHERS DO NOT
  *
@@ -39,37 +51,81 @@
  * byte-for-byte. It is the only one of the four that is both window-comparable and sitting on a
  * stable substrate, which is why it is the one the rail rests on today.
  *
- * REACH is REPORTED and does not alarm, because it is CUMULATIVE COVERAGE rather than a rate:
- * "how many of the log's decisions were read by at least one window in this window". Fewer windows
- * can only ever cover fewer decisions, so it falls mechanically as the window shortens, with no
- * change in discovery at all. Modelled against the reference's own shape, a 20-window sample reads
- * 11.4% against a reference of 89.4% — and the Bernoulli power check does NOT catch it, because
- * reach's denominator is the 414 decisions rather than the windows, so an arm of 414 clears every
- * floor while measuring something else entirely. Left in the alarm it would have printed a
- * catastrophic TRIPWIRE on every run for months, which is worse than silence: a red that measures
- * nothing teaches a reader to ignore the instrument. See {@link REACH_NOT_COMPARABLE} for the
- * condition under which it rejoins.
+ * REACH ALARMS TOO SINCE `-inc-02`, AND ONLY BECAUSE BOTH OF ITS AXES ARE NOW PINNED. It is
+ * CUMULATIVE COVERAGE rather than a rate — "how many of the log's decisions were read by at least
+ * one window in this window" — so it is comparable only against a reading matched on the two things
+ * coverage is a function of, and it refuses unless BOTH hold:
+ *
+ *   - **HOW MANY WINDOWS LOOKED.** Fewer windows can only ever cover fewer decisions, so a
+ *     time-sliced reach falls mechanically as the window shortens with no change in discovery at
+ *     all: modelled against the reference's own shape, a 20-window sample reads 11.4% against a
+ *     reference of 89.4%. The fix is the increment's own — slice by a trailing fixed COUNT of
+ *     context windows, N = the reference's own 401 ({@link trailingWindowSlice}) — and the reason it
+ *     had to be a refusal rather than a caveat is that the Bernoulli power check cannot catch this:
+ *     reach's arm is the 414 DECISIONS rather than the windows, so an arm of 414 clears every floor
+ *     while measuring something else entirely. Left unpinned it would have printed a catastrophic
+ *     TRIPWIRE on every run for months, and a red that measures nothing teaches a reader to ignore
+ *     the instrument.
+ *   - **HOW MANY DECISIONS THERE WERE TO COVER.** This one is NOT in the increment's body — it was
+ *     found while building it, and it is the same fault one axis over. Reach's denominator is the
+ *     decision log, and the log GROWS: 414 at the freeze, 464 on 2026-08-28. Read against a live
+ *     denominator, the same 370 decisions being found reads as 79.7% against a reference of 89.4%,
+ *     which is outside the reference's own interval and would have fired a TRIPWIRE on the day the
+ *     slice landed — a fall manufactured by DECIDING MORE THINGS. So the denominator is pinned to
+ *     the {@link reachCohort}: the {@link FROZEN_DECISIONS_IN_LOG} lowest-numbered decisions in the
+ *     current log, which are the oldest, because the store's allocator reserves numbers strictly
+ *     ascending (ADR-0050). Both arms are then over one fixed population of 414.
+ *
+ * WHAT THE PINNED COHORT COSTS, stated because it is a real blind spot and not a technicality: reach
+ * now says NOTHING about whether decisions made AFTER the freeze are being found, and it cannot tell
+ * "harder to find" apart from "deliberately consolidated away" (ADR-0139's consolidation pass exists
+ * to shrink the set worth reading, and would show here as a fall). The cohort's highest number is
+ * printed with every reading so the population it names is auditable rather than assumed.
+ *
+ * ⚠ WHAT THIS COSTS IN WALL CLOCK, AND THE ONE REPAIR THAT IS NOT ALLOWED. The slice needs 401
+ * context windows accumulated SINCE the freeze, on the machine doing the reading. On 2026-08-28 this
+ * machine carried 17, so reach refuses today and will keep refusing for months — a figure that is in
+ * the alarm and silent, not one that alarms. That is the honest state and it is why the refusal
+ * prints its own distance ("17 of 401") rather than a bare word: it is a condition a reader can
+ * watch, and it closes on its own.
+ *
+ * The tempting repair is to shorten the slice until the figure speaks. THAT IS THE FAULT THIS WHOLE
+ * INCREMENT EXISTS TO PREVENT — a shorter slice against a 401-window reference reports a fall it
+ * manufactured itself, which is the catastrophic false TRIPWIRE `-inc-01` found and refused to ship.
+ * If the wait proves too long to be useful, the legitimate move is a DELIBERATE RE-FREEZE of the
+ * reference at a smaller N, with its own increment and its own recorded reason (ADR-0444 D7) — both
+ * arms moving together, never one of them. A reference that is quietly re-cut to fit the window
+ * available can never show a regression, because the yardstick moves with the thing being measured.
  *
  * ALTITUDE is a NULL, not a rate. The frozen finding is that reads do NOT cluster by altitude, under
  * two independent classifiers. A null has no worse direction to move in, so it is reported with both
  * p-values and never alarmed. It is not recomputed either — its own probe needs a committed label
  * file and a prior baseline JSON, and re-deriving a null to print it unchanged would buy nothing.
  *
- * OFFER-TO-FOLLOW is DEFERRED, and the reason is substrate rather than preference: it is the only
- * figure joining against the TRAVERSAL TRACE STORE, keyed on worktree slot — the subsystem currently
- * being rebuilt. The trace instrument's identity semantics were repaired on 2026-08-22, ONE DAY
- * before this reference was frozen, and pre-repair traces are explicitly not retrofittable, so the
- * frozen 4.7% rests on a substrate that already moved once inside its own measurement window.
- * Re-freezing against a substrate still in motion is the failure D7 exists to forbid. It also never
- * reaches this file: the section computes no offer figure, so the trace store is never read at all.
+ * OFFER-TO-FOLLOW is RETIRED, and the distinction from DEFERRED is the whole point. It was deferred
+ * for a substrate reason — the only figure joining against the TRAVERSAL TRACE STORE, whose identity
+ * semantics were repaired ONE DAY before this reference was frozen. ADR-0464 then deleted the
+ * citation-derived offer surface itself (D1), so the figure lost its SUBJECT rather than its
+ * stability, and D7 removed it without re-freezing: there are no offers to follow, so there is
+ * nothing to re-baseline and nothing to compare across. It reaches this file by no path at all — the
+ * section computes no offer figure, and the trace store is never read.
  */
 import {
   compareAmendsReach,
   sessionsToDetect,
   type AmendsReachComparison,
 } from "./amends-reach.js";
+import {
+  computeDecisionReadBaseline,
+  trailingWindowSlice,
+  withinWindow,
+} from "./decision-read-baseline.js";
 
-import type { DecisionReadBaseline } from "./decision-read-baseline.js";
+import type {
+  DecisionReadBaseline,
+  DecisionReadObservation,
+  DecisionSupportGraph,
+} from "./decision-read-baseline.js";
 
 // ---------------------------------------------------------------------------
 // The frozen reference
@@ -130,13 +186,29 @@ export const BLINDNESS =
   'right ones. A read is not comprehension. A green reading means "this did not get worse", ' +
   'never "agents are fine".';
 
-/** The named condition under which REACH stops refusing — printed beside it, never inferred. */
-export const REACH_NOT_COMPARABLE =
-  "REACH is cumulative COVERAGE, not a rate: fewer context windows can only cover fewer decisions, " +
-  "so it falls as the window shortens with no change in discovery. It is comparable only against a " +
-  "window carrying at least as many context windows as the reference did " +
-  `(${String(FROZEN_WINDOWS_READING_A_DECISION)}). It rejoins the alarm when the reading is sliced ` +
-  "by a trailing fixed COUNT of windows rather than by a fixed span of time.";
+/**
+ * The standing explanation of what reach IS — printed with the figure whether it spoke or refused,
+ * because a coverage figure read as a rate is mis-read in the same way every time.
+ */
+export const REACH_IS_COVERAGE =
+  "REACH is cumulative COVERAGE, not a rate: it is a function of HOW MANY windows looked and HOW " +
+  "MANY decisions there were to cover, never of how long the window was. So it is read over a " +
+  `trailing fixed COUNT of ${String(FROZEN_WINDOWS_READING_A_DECISION)} context window(s) — the ` +
+  "reference's own — against a denominator pinned to the " +
+  `${String(FROZEN_DECISIONS_IN_LOG)} lowest-numbered (oldest) decisions in the log, so that neither ` +
+  "a shorter window nor a longer decision log can manufacture a fall.";
+
+/**
+ * What reach is BLIND to once its denominator is pinned — printed with the figure, never inferred.
+ *
+ * Separate from {@link BLINDNESS} because it is a property of THIS figure's construction rather than
+ * of the section, and a reader deciding whether to act on a reach tripwire needs it at the figure.
+ */
+export const REACH_COHORT_BLINDNESS =
+  "Pinning the denominator costs two things, stated rather than discovered: reach says NOTHING " +
+  "about whether decisions made AFTER the freeze are being found, and it cannot tell \"harder to " +
+  'find" apart from "deliberately consolidated away" — ADR-0139\'s consolidation pass exists to ' +
+  "shrink the set worth reading, and would show here as a fall.";
 
 /** Why altitude carries no verdict, printed beside it rather than left to be inferred. */
 export const ALTITUDE_IS_A_NULL =
@@ -144,18 +216,87 @@ export const ALTITUDE_IS_A_NULL =
   "strategic-vs-operational — under two independent classifiers. A null has no worse direction to " +
   "move in, so it is reported and never alarmed.";
 
-/** Why the fourth figure is absent, so its absence is a stated decision and not an oversight. */
-export const OFFER_TO_FOLLOW_DEFERRAL =
-  "OFFER-TO-FOLLOW is deferred, not missing. It is the only figure joining against the traversal " +
-  "trace store, whose identity semantics were repaired one day before this reference was frozen; " +
-  "re-freezing it against a substrate still in motion is the failure ADR-0444 D7 forbids. It " +
-  "rejoins as its own increment once the traversal work has settled.";
+/**
+ * Why the fourth figure is absent, so its absence is a stated decision and not an oversight.
+ *
+ * CORRECTED IN PLACE 2026-08-28 (`-inc-02`). This said the figure was DEFERRED and would "rejoin as
+ * its own increment once the traversal work has settled" — which ADR-0464 D7 has since made false in
+ * both halves. The figure is RETIRED, and its subject is gone rather than moving: ADR-0464 D1 deleted
+ * the citation-derived offer surface, so nothing records an offer to follow. A surface that kept
+ * advertising a rejoin would be sending a future session to wait for a substrate to settle that has
+ * instead been removed — which is how a worklist starts lying.
+ */
+export const OFFER_TO_FOLLOW_RETIRED =
+  "OFFER-TO-FOLLOW is RETIRED, not missing and no longer deferred (ADR-0464 D7). Its subject is " +
+  "gone: ADR-0464 D1 deleted the citation-derived offer surface — the follow-up block, the " +
+  "`--from-offer` flag and the candidate-set recording — so there are no offers to follow and " +
+  "nothing to re-freeze. It was NOT re-baselined first, deliberately, because re-freezing against a " +
+  "substrate in motion is the failure ADR-0444 D7 forbids. CHAIN DEPTH is the surviving falsifier " +
+  "for that deletion: it reads host transcripts, never the trace store, so if sessions stop finding " +
+  "decisions they needed now that the offer surface is gone, it shows there.";
 
 // ---------------------------------------------------------------------------
 // The reading
 // ---------------------------------------------------------------------------
 
 export type DecisionFigureKey = "chain-depth" | "reach";
+
+/**
+ * What a figure's arm COUNTS, carried so a refusal can name its own units.
+ *
+ * Not cosmetic: chain depth is short of CONTEXT WINDOWS and reach is short of DECISIONS, and a
+ * refusal that said "this window carries 14 context windows" under a figure whose arm is decisions
+ * would send a reader to accumulate the wrong thing.
+ */
+export type FigureArm = "context window" | "decision";
+
+/**
+ * What the reach figure is computed from — supplied by the caller, because every part of it needs
+ * the world (the live decision log, and a second pass over this machine's transcripts).
+ *
+ * Kept out of {@link DecisionReadBaseline} deliberately. The baseline is a reading of ONE population
+ * and knows nothing about references; reach needs a SECOND population (the trailing slice) held
+ * against a THIRD (the frozen cohort), and folding that into the baseline would make every other
+ * consumer of it carry this section's reference.
+ */
+export interface DecisionReachArm {
+  /**
+   * Every decision number the log holds. The cohort is the lowest {@link FROZEN_DECISIONS_IN_LOG} of
+   * them — NUMBERS rather than a count, because the cohort must be an identifiable population a
+   * reader can audit, not an arithmetic on two totals.
+   */
+  readonly decisionNumbers: readonly number[];
+  /**
+   * Context windows the declared window offered to slice from. Carried even when no slice was
+   * formed, so the output can print the DISTANCE to the gate — "14 of 401" is a condition a reader
+   * can watch, where a bare refusal is one they can only take on faith.
+   */
+  readonly windowsAvailable: number;
+  /**
+   * The trailing-count slice's own baseline, or NULL when this machine's history could not form one.
+   * A baseline rather than a read list, so the slice's reach rows come from the SAME arithmetic the
+   * unsliced reading uses and cannot drift from it.
+   */
+  readonly slice: DecisionReadBaseline | null;
+}
+
+/** The reach arm as it was actually read — every number the render needs, and no rate. */
+export interface ReachArmReading {
+  /** Context windows the reference carried; the count the slice must match EXACTLY. */
+  readonly windowsRequired: number;
+  /** Context windows available to slice from — printed either way. */
+  readonly windowsAvailable: number;
+  /** Windows the slice kept: `windowsRequired`, or 0 when none could be formed. */
+  readonly windowsKept: number;
+  /** The SLICE's own observed extent — never the declared window's, which it sits inside. */
+  readonly observedFrom: string | undefined;
+  readonly observedTo: string | undefined;
+  /** Decisions in the pinned cohort, and the highest number in it — the population, auditable. */
+  readonly cohortDecisions: number;
+  readonly cohortHighestNumber: number | null;
+  /** Of the cohort, how many the slice's windows read. NULL when the figure never spoke. */
+  readonly cohortReached: number | null;
+}
 
 /**
  * What one figure is entitled to say about this window.
@@ -169,6 +310,8 @@ export type FigureStatus = "tripwire" | "holds" | "improved" | "underpowered" | 
 export interface DecisionDiscoveryFigure {
   readonly key: DecisionFigureKey;
   readonly label: string;
+  /** What this figure's arm counts — so a refusal names the right units. */
+  readonly arm: FigureArm;
   /** Is this figure in the alarm at all? False means REPORTED-ONLY — see the header. */
   readonly alarmed: boolean;
   /**
@@ -214,6 +357,9 @@ export interface DecisionDiscoveryReading {
 
   readonly figures: readonly DecisionDiscoveryFigure[];
 
+  /** How the reach figure was read — its slice, its cohort, and the distance to its gate. */
+  readonly reachArm: ReachArmReading;
+
   /**
    * The floor every ALARMED figure had to clear before any of them could return a direction — the
    * largest per-figure sizing among them. See {@link reportWideFloor}.
@@ -231,6 +377,63 @@ export interface DecisionDiscoveryReading {
 
   readonly altitudePEditorial: number;
   readonly altitudePLexical: number;
+}
+
+/**
+ * PURE: the reach COHORT — the {@link FROZEN_DECISIONS_IN_LOG} lowest-numbered decisions the log
+ * holds, ascending.
+ *
+ * ## WHY THE LOWEST NUMBERS ARE THE RIGHT POPULATION, AND NOT MERELY A CONVENIENT ONE
+ *
+ * The store's ADR allocator reserves numbers STRICTLY ASCENDING and atomically (ADR-0050), so a
+ * decision's number is a total order on when it was decided. The 414 lowest-numbered decisions in
+ * today's log are therefore the 414 OLDEST — which is the population the reference measured, without
+ * needing a historical census nobody took. Verified on 2026-08-28: the 414th lowest is 0421 and the
+ * 415th is 0422, so the cohort is exactly "decisions numbered at or below 421", 414 of them, with
+ * the seven unallocated numbers in the range accounted for.
+ *
+ * ⚠ THE ONE ASSUMPTION, AND WHY IT IS AUDITABLE RATHER THAN HIDDEN: if a decision were ever REMOVED
+ * from the log, the cohort would silently extend past 421 and admit a post-freeze decision. Nothing
+ * here can detect that from today's log alone — so the cohort's highest number is REPORTED with
+ * every reading ({@link ReachArmReading.cohortHighestNumber}). A reader who sees it climb knows the
+ * population moved, which is the difference between a stated assumption and an unstated one.
+ *
+ * Returns SHORT of the frozen count when the log holds fewer — the caller refuses on that, rather
+ * than this silently returning a smaller cohort that would read as a full one.
+ */
+export function reachCohort(decisionNumbers: readonly number[]): readonly number[] {
+  return [...decisionNumbers].sort((a, b) => a - b).slice(0, FROZEN_DECISIONS_IN_LOG);
+}
+
+/**
+ * PURE: GATE 1 for reach — is this reading the same measurement the reference took?
+ *
+ * Returns NULL when it is, or the failed condition when it is not. Both axes are checked and the
+ * FIRST failure is named with its own numbers, because "not comparable" without the distance to the
+ * gate is a refusal a reader can only take on faith; "14 of 401" is one they can watch.
+ *
+ * Decided per MEASURE, here, and never per run: a figure that could declare itself incomparable when
+ * a window went against it would be a cherry-pick wearing a refusal's clothes.
+ */
+export function reachComparability(input: {
+  readonly windowsAvailable: number;
+  readonly windowsKept: number;
+  readonly cohortDecisions: number;
+}): string | null {
+  if (input.cohortDecisions < FROZEN_DECISIONS_IN_LOG) {
+    return (
+      `the decision log holds ${String(input.cohortDecisions)} decision(s); the frozen cohort needs ` +
+      `${String(FROZEN_DECISIONS_IN_LOG)}, so the population the reference measured cannot be formed`
+    );
+  }
+  if (input.windowsKept !== FROZEN_WINDOWS_READING_A_DECISION) {
+    return (
+      `this machine's history carries ${String(input.windowsAvailable)} context window(s) that read ` +
+      `a decision since the freeze; reach is read over a trailing ${String(FROZEN_WINDOWS_READING_A_DECISION)}, ` +
+      "the reference's own count, and a shorter slice would report a fall it manufactured itself"
+    );
+  }
+  return null;
 }
 
 /**
@@ -306,23 +509,42 @@ export function decisionDiscoveryRefusals(baseline: DecisionReadBaseline): reado
  * guard: comparability, then power over the whole report, then direction. A caller free to reorder
  * them could find a direction and then look for a reason to believe it.
  */
-export function computeDecisionDiscovery(baseline: DecisionReadBaseline): DecisionDiscoveryReading {
+export function computeDecisionDiscovery(
+  baseline: DecisionReadBaseline,
+  reach: DecisionReachArm,
+): DecisionDiscoveryReading {
   const refusals = decisionDiscoveryRefusals(baseline);
   const measuredNothing = refusals.length > 0;
   const chain = baseline.chainDepthByWindow;
 
-  // GATE 1 — COMPARABILITY. Decided per MEASURE, here, with its reason stated, and never per run:
-  // a figure that could declare itself incomparable when a window went against it would be a
-  // cherry-pick wearing a refusal's clothes.
-  const reachComparable = chain.sessionsWithAnyDecisionRead >= FROZEN_WINDOWS_READING_A_DECISION;
+  // GATE 1 — COMPARABILITY, per figure. Chain depth is a per-window RATE and passes by construction.
+  // Reach is cumulative and is checked on both of the axes coverage is a function of.
+  const cohort = reachCohort(reach.decisionNumbers);
+  const cohortSet = new Set(cohort);
+  const slice = reach.slice;
+  const windowsKept = slice?.chainDepthByWindow.sessionsWithAnyDecisionRead ?? 0;
+  const reachFailed = reachComparability({
+    windowsAvailable: reach.windowsAvailable,
+    windowsKept,
+    cohortDecisions: cohort.length,
+  });
 
-  // GATE 2 — POWER, over the ALARMED figures only. Chain depth alone today, so this is a one-element
-  // maximum; the machinery is what reach and offer-to-follow rejoin through, not scaffolding.
-  const minimumArm = reportWideFloor([FROZEN_WINDOWS_WALKING_A_CHAIN / FROZEN_WINDOWS_READING_A_DECISION]);
+  // GATE 2 — POWER, in CONTEXT WINDOWS, over the alarmed figures whose arm is counted in them.
+  //
+  // Reach contributes its COMPARABILITY requirement rather than a Bernoulli sizing, and the two
+  // terms are deliberately not mixed by `reportWideFloor`: one is derived from a base rate and one
+  // is the reference's own window count, and both are windows. When reach is not comparable it
+  // contributes nothing, so chain depth keeps the 29-window floor it alarms at today; when reach IS
+  // comparable there are at least 401 windows by construction, so nothing is silenced either way.
+  const minimumArm = Math.max(
+    reportWideFloor([FROZEN_WINDOWS_WALKING_A_CHAIN / FROZEN_WINDOWS_READING_A_DECISION]),
+    reachFailed === null ? FROZEN_WINDOWS_READING_A_DECISION : 0,
+  );
 
   const chainFigure = alarmedFigure({
     key: "chain-depth",
     label: "chain depth",
+    arm: "context window",
     beforeCount: FROZEN_WINDOWS_WALKING_A_CHAIN,
     beforeTotal: FROZEN_WINDOWS_READING_A_DECISION,
     afterCount: chain.sessionsWalkingAChain,
@@ -331,22 +553,45 @@ export function computeDecisionDiscovery(baseline: DecisionReadBaseline): Decisi
     measuredNothing,
   });
 
-  // REACH — reported, never alarmed. It is given a rate to print only when the window is comparable,
-  // because a number printed beside a reference it cannot be compared to WILL be compared to it.
-  const reachFigure: DecisionDiscoveryFigure = {
-    key: "reach",
-    label: "reach",
-    alarmed: false,
-    comparison: null,
-    currentRate:
-      reachComparable && !measuredNothing && baseline.decisionsInLog > 0
-        ? baseline.decisionsReachedByWindow / baseline.decisionsInLog
-        : null,
-    referenceRate: FROZEN_DECISIONS_REACHED / FROZEN_DECISIONS_IN_LOG,
-    movement: null,
-    status: "not-comparable",
-    condition: REACH_NOT_COMPARABLE,
-  };
+  // REACH — alarmed since `-inc-02`, over the trailing slice and the pinned cohort. It is handed NO
+  // floor: `minimumArm` counts context windows and this arm counts decisions (see the header), and
+  // its window requirement was already enforced at the comparability gate above.
+  const cohortReached =
+    slice === null ? null : slice.reachByWindow.filter((row) => cohortSet.has(row.decision)).length;
+
+  const reachFigure: DecisionDiscoveryFigure =
+    // Stryker disable next-line ConditionalExpression: the THIRD disjunct is unreachable on its own
+    // and is a TYPE NARROWING, not a runtime guard. `cohortReached` is null exactly when `slice` is
+    // null; a null slice makes `windowsKept` 0; and 0 is not 401, so `reachComparability` has
+    // already returned non-null and the FIRST disjunct fired. It stays because it is what proves to
+    // the compiler that `cohortReached` is a number in the else branch, which is a fence worth more
+    // than the mutant it costs.
+    reachFailed !== null || measuredNothing || cohortReached === null
+      ? {
+          key: "reach",
+          label: "reach",
+          arm: "decision",
+          alarmed: true,
+          comparison: null,
+          // NO RATE when the figure refused. A number printed beside a reference it cannot be
+          // compared to WILL be compared to it, whatever the next line says.
+          currentRate: null,
+          referenceRate: FROZEN_DECISIONS_REACHED / FROZEN_DECISIONS_IN_LOG,
+          movement: null,
+          status: measuredNothing && reachFailed === null ? "underpowered" : "not-comparable",
+          condition: reachFailed ?? "this reading measured nothing — see the refusals above",
+        }
+      : alarmedFigure({
+          key: "reach",
+          label: "reach",
+          arm: "decision",
+          beforeCount: FROZEN_DECISIONS_REACHED,
+          beforeTotal: FROZEN_DECISIONS_IN_LOG,
+          afterCount: cohortReached,
+          afterTotal: cohort.length,
+          minimumArm: 0,
+          measuredNothing,
+        });
 
   const figures = [chainFigure, reachFigure];
   return {
@@ -358,6 +603,22 @@ export function computeDecisionDiscovery(baseline: DecisionReadBaseline): Decisi
     readsResolved: baseline.readsResolved,
     decisionsInLog: baseline.decisionsInLog,
     figures,
+    reachArm: {
+      windowsRequired: FROZEN_WINDOWS_READING_A_DECISION,
+      windowsAvailable: reach.windowsAvailable,
+      windowsKept,
+      observedFrom: slice?.observedFrom,
+      observedTo: slice?.observedTo,
+      cohortDecisions: cohort.length,
+      // `?? null` alone, with no length check in front of it: `cohort[-1]` on an empty cohort is
+      // already `undefined`, so an emptiness branch here would be a second spelling of the same
+      // answer — and a branch whose two arms agree is a mutant no test can ever kill.
+      cohortHighestNumber: cohort[cohort.length - 1] ?? null,
+      // "the figure SPOKE" is exactly `movement !== null` (see `alarmedFigure`, and the refusing
+      // branch above which sets it null), so it is asked once rather than by listing the three
+      // speaking statuses — a list that has to be kept in sync with `FigureStatus` by hand.
+      cohortReached: reachFigure.movement === null ? null : cohortReached,
+    },
     minimumArm,
     powered: figures.some((f) => f.alarmed && f.movement !== null),
     refusals,
@@ -370,6 +631,7 @@ export function computeDecisionDiscovery(baseline: DecisionReadBaseline): Decisi
 function alarmedFigure(input: {
   readonly key: DecisionFigureKey;
   readonly label: string;
+  readonly arm: FigureArm;
   readonly beforeCount: number;
   readonly beforeTotal: number;
   readonly afterCount: number;
@@ -399,6 +661,7 @@ function alarmedFigure(input: {
   return {
     key: input.key,
     label: input.label,
+    arm: input.arm,
     alarmed: true,
     comparison,
     // A rate exists for any proportion, including one over an arm of zero — so it is reported only
@@ -411,6 +674,72 @@ function alarmedFigure(input: {
     status,
     condition: spoke
       ? null
-      : `this window carries ${String(input.afterTotal)} context window(s); ${String(input.minimumArm)} are needed to resolve a ${String(DETECTABLE_FALL * 100)}% relative fall from the reference`,
+      : `this window carries ${String(input.afterTotal)} ${input.arm}(s); ${String(Math.max(comparison.sessionsNeeded, input.minimumArm))} are needed to resolve a ${String(DETECTABLE_FALL * 100)}% relative fall from the reference`,
   };
+}
+
+// ---------------------------------------------------------------------------
+// The composition — pure, so the two-arm assembly is not a thing only a live run executes
+// ---------------------------------------------------------------------------
+
+/**
+ * PURE: assemble the whole reading from gathered reads and a support graph — BOTH arms, in one
+ * place, so the assembly is testable without a disk or a database.
+ *
+ * ## WHY THIS IS NOT LEFT IN THE GATHERER
+ *
+ * It was, for exactly one gate run. The diff-scoped mutation rung then reported the entire two-arm
+ * assembly as NO COVERAGE — no test reached it — because the gatherer sweeps this machine's
+ * transcripts and dials the live store, so nothing credential-free can execute it, and the section's
+ * own render tests stub the whole reader out. That is this repo's standing fault class arriving in
+ * the one place it must not: the composition that produces every real reading, executed by nothing.
+ * Splitting it out is the same pure/world line the rest of the section already draws.
+ *
+ * ## THE SLICE IS TAKEN INSIDE THE DECLARED WINDOW, AND THE FILTER ORDER IS WHAT MAKES THAT TRUE
+ *
+ * The declared window starts where the frozen reference ENDS, so a slice free to reach further back
+ * would pull the reference's own context windows into the arm being compared against it — measuring
+ * the reference against itself. `withinWindow` therefore runs FIRST and the trailing count is taken
+ * from the survivors, never from the whole read population.
+ *
+ * ONE READ POPULATION, TWO PURE COMPUTES: both arms go through `computeDecisionReadBaseline`, so the
+ * sliced arm cannot drift from the unsliced one — a second arithmetic would be a second experiment.
+ */
+export function composeDecisionDiscoveryReading(input: {
+  readonly reads: readonly DecisionReadObservation[];
+  readonly support: DecisionSupportGraph;
+  readonly declaredFrom: string | undefined;
+  readonly declaredTo: string | undefined;
+}): DecisionDiscoveryReading {
+  const { reads, support, declaredFrom, declaredTo } = input;
+  const baseline = computeDecisionReadBaseline({ reads, support, declaredFrom, declaredTo });
+
+  const inWindow = reads.filter((read) => withinWindow(read.at, declaredFrom, declaredTo));
+  const slice = trailingWindowSlice({
+    reads: inWindow,
+    support,
+    count: FROZEN_WINDOWS_READING_A_DECISION,
+  });
+
+  return computeDecisionDiscovery(baseline, {
+    decisionNumbers: support.decisions,
+    windowsAvailable: slice.windowsAvailable,
+    slice:
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT, and worth saying why rather
+      // than deleting. Computing the baseline anyway over a REFUSED slice produces a reading with
+      // zero windows and an empty reach list, which drives every downstream branch exactly as the
+      // null does — `windowsKept` is 0 either way, so the comparability gate refuses either way, and
+      // `reachArm.observedFrom` is undefined either way. Nothing a caller can read distinguishes
+      // them. The null is kept because it is the honest VALUE for "no slice was formed", and because
+      // `DecisionReachArm.slice` is public: a caller constructing this arm by hand needs the shape
+      // that says no slice exists, and the tests use it.
+      slice.windowsKept === 0
+        ? null
+        : computeDecisionReadBaseline({
+            reads: slice.reads,
+            support,
+            declaredFrom: slice.observedFrom,
+            declaredTo: slice.observedTo,
+          }),
+  });
 }
