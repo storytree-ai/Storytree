@@ -27,6 +27,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import {
   EXPERIENCE_ENTRY_MARKER,
+  collectEntrySeeds,
   findExperienceEntries,
   isWebGlSpecifier,
   walkStaticClosure,
@@ -49,6 +50,12 @@ export type ClosureCheckResult =
       readonly kind: "checked";
       readonly entries: readonly string[];
       readonly findings: readonly ClosureFinding[];
+      /**
+       * WebGL reached ONLY through build-time (Astro frontmatter) imports: rendered to markup, zero
+       * shipped bytes, so never a failure. Reported rather than dropped — a rung that silently
+       * ignores a whole region of the page cannot be told apart from one that never looked.
+       */
+      readonly buildTimeReaches: readonly ClosureFinding[];
     };
 
 // ── checkExperienceClosure ──────────────────────────────────────────────────────
@@ -72,13 +79,29 @@ export function checkExperienceClosure(files: ReadonlyMap<string, string>): Clos
 
   const read = withExtensionFallback((p) => files.get(p) ?? null);
   const findings: ClosureFinding[] = [];
+  const buildTimeReaches: ClosureFinding[] = [];
+
   for (const page of entries) {
-    const closure = walkStaticClosure(page, read);
-    for (const specifier of closure) {
-      if (isWebGlSpecifier(specifier)) findings.push({ page, specifier });
-    }
+    // Seeds are collected ACROSS `.astro` boundaries: a component reached from frontmatter still
+    // ships its own `<script>` block, so its scripts are client seeds even though it is build-time
+    // itself (see collectEntrySeeds). Paths come back already resolved.
+    const seeds = collectEntrySeeds(page, read);
+    const sweep = (paths: readonly string[], into: ClosureFinding[]): void => {
+      const seen = new Set<string>();
+      for (const seed of paths) {
+        for (const specifier of walkStaticClosure(seed, read)) {
+          if (isWebGlSpecifier(specifier) && !seen.has(specifier)) {
+            seen.add(specifier);
+            into.push({ page, specifier });
+          }
+        }
+      }
+    };
+    sweep(seeds.client, findings);
+    sweep(seeds.buildTime, buildTimeReaches);
   }
-  return { kind: "checked", entries, findings };
+
+  return { kind: "checked", entries, findings, buildTimeReaches };
 }
 
 // ── CLI shell (main) ──────────────────────────────────────────────────────────
@@ -163,9 +186,19 @@ function main(): void {
     process.exit(1);
   }
 
+  // Say what was NOT failed on. A build-time reach is a real edge in the page's file-level graph
+  // that this rung deliberately does not count, and printing it is what keeps the narrowing
+  // auditable — an unstated exclusion reads identically to never having looked.
+  for (const f of result.buildTimeReaches) {
+    console.log(
+      `check:web-experience-closure — note: web/${f.page} reaches "${f.specifier}" from BUILD-TIME ` +
+        "frontmatter only (rendered to markup, zero shipped bytes) — not a leak.",
+    );
+  }
+
   console.log(
     `check:web-experience-closure — OK: ${result.entries.length} experience entry page(s), Act 1's ` +
-      "static import closure is WebGL-free.",
+      "client import closure is WebGL-free.",
   );
 }
 

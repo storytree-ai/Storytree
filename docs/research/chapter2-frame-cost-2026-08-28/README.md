@@ -194,9 +194,20 @@ identical 0.0033 ms median, and prints a green PASS while saying it cannot state
 costs. Same run, same samples, same arithmetic; only the clock differs.
 
 **WHAT THIS INVALIDATES.** Any frame figure derived from the `gl.finish()` batch route — including
-`hardware-floor.mjs`'s committed "28x headroom at the island" and "one frame at ~6,044 plants" —
-is a submission-time figure and should not be quoted as GPU cost. Correcting those is not this
-increment's scope; naming them is.
+`hardware-floor.mjs`'s committed headroom-at-the-island and one-whole-frame plant count — is a
+submission-time figure and should not be quoted as GPU cost.
+
+> ⚠ **CORRECTED IN PLACE, 2026-08-28.** This paragraph originally named those two figures as
+> *"28x headroom at the island"* and *"one frame at ~6,044 plants"*. **Both numbers are wrong, and
+> not merely in the way this section says.** The committed run — `hardware-floor-report.json`, the
+> only one there has ever been — reports `headroomAtIslandVs60Hz: 40.73` and
+> `plantsAtWhichOneFrameIsSpent: 7600`. The 28x/6,044 pair was mis-transcribed in
+> `chapter2-frame-budget-2026-08-27/README.md` §6 and copied here without being checked against the
+> JSON, so the invalidation notice was itself citing figures that did not exist. The substantive
+> point stands unchanged and applies to the REAL pair: 40.73x and 7,600 are submission time. Both
+> are now corrected at their origin in `chapter2-live-render-2026-08-19/README.md`, which is where
+> the claim is actually made. The report JSON is deliberately NOT rewritten — it is the record of
+> what that run measured on that hardware, and `cadence-verdict.test.ts` asserts against it.
 
 ## 6. The two untried reductions, now costed
 

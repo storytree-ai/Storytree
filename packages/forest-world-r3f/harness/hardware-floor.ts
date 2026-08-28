@@ -92,7 +92,13 @@ export interface FloorReading extends FloorRunSpec {
   rafP50: number;
   rafP95: number;
   rafWorst: number;
-  /** GPU-bound cost of one render, ms. Not vsync-capped. */
+  /**
+   * SUBMISSION cost of one render, ms — not vsync-capped, and ⚠ **not GPU time**. This times a
+   * batch closed by `gl.finish()`, which PR #1683 showed returns before the GPU retires the work:
+   * 29x to 255x disagreement against `EXT_disjoint_timer_query_webgl2` over 12/12 configurations,
+   * and blind to an 8.7x change in real GPU work. The name is kept so the committed 2026-08-19
+   * report still reads against this type. For GPU-clock cost use `frame-cost.ts`.
+   */
   gpuMsPerFrame: number;
   /** Triangles submitted per frame, read from three.js's own counter. */
   triangles: number;
@@ -220,7 +226,9 @@ export async function runFloor(canvas: HTMLCanvasElement, spec: FloorRunSpec): P
     requestAnimationFrame(tick);
   });
 
-  // --- GPU-bound cost, NOT vsync-capped -----------------------------------------------------
+  // --- SUBMISSION cost, NOT vsync-capped and NOT GPU time ------------------------------------
+  // ⚠ `gl.finish()` does not block until the GPU has retired the work — measured, not suspected
+  // (PR #1683). Treat this as "how fast could we hand the work to the driver", never as frame cost.
   const t0 = performance.now();
   for (let i = 0; i < spec.batch; i++) renderer.render(scene, camera);
   gl.finish();

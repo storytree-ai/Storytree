@@ -109,8 +109,21 @@ below is for.
 Make `gpuMsPerFrame` genuinely GPU-bound before trusting any shader cost from it:
 `EXT_disjoint_timer_query_webgl2` measures GPU time on the GPU's own clock and reports a `disjoint`
 flag when the result is unreliable — which is the honest instrument for this question, and would
-also put the existing committed headroom figures ("28× headroom at the island", "one frame at ~6,044
-plants") on firmer ground, since those rest on the same batch timing. A fragment-bound A/B scene
+also put the existing committed headroom figures on firmer ground, since those rest on the same
+batch timing.
+
+> ⚠ **CORRECTED IN PLACE, 2026-08-28 — on both counts.** This sentence originally cited those
+> figures as *"28× headroom at the island"* and *"one frame at ~6,044 plants"*. **Neither number
+> appears anywhere in the committed record.** `hardware-floor-report.json` — the only run ever
+> committed, on the Adreno X1-85, 2026-08-19 — reports `headroomAtIslandVs60Hz: 40.73` and
+> `plantsAtWhichOneFrameIsSpent: 7600`, and the prose it came from says *"about 41x"* and
+> *"~7,600 plants"*. The 28×/6,044 pair was a mis-transcription, written here and then repeated
+> verbatim by `chapter2-frame-cost-2026-08-28`. And the follow-up this paragraph proposes has since
+> LANDED (PR #1683): `gl.finish()` really does return before the GPU retires the work — 29x to 255x
+> disagreement across 12/12 configurations — so the real figures, 40.73x and 7,600, are submission
+> time and do not survive as GPU cost either. Both are corrected in place at their origin in
+> `chapter2-live-render-2026-08-19/README.md`. The report JSON itself is left untouched: it records
+> what that run measured on that hardware, and `cadence-verdict.test.ts` asserts against it. A fragment-bound A/B scene
 (one draw call, ground filling the frame, plant count held at zero) is the other half.
 
 ## 7. Reproducing it
