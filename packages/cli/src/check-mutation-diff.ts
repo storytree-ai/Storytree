@@ -40,6 +40,7 @@ import {
   type MutationRunner,
   type MutationTarget,
   parseUnifiedDiffRanges,
+  changedLinesAreCodeFree,
   type ReportPart,
   runnerFor,
   selectMutationTargets,
@@ -542,6 +543,42 @@ function main(): void {
 
     const report = mergeMutationReports(parts);
     const verdict = adjudicateMutants(report, selection.changedTestFiles);
+
+    // A COMMENT-ONLY CHANGE TO A SOURCE FILE IS "NOTHING TO MUTATE", NOT A VACUOUS RUN.
+    //
+    // The selection is textual — `parseUnifiedDiffRanges` reads a diff, not a syntax tree — so a
+    // branch that only rewrites a header comment still selects the file, Stryker still instruments
+    // it, and it honestly reports zero mutation points. `adjudicateMutants` calls that `vacuous`,
+    // which is right for its input (it sees a report, never the diff) and wrong here: there was
+    // never anything this run could have proved. Left unhandled it reds every landing that
+    // documents a decision where the decision lives, which is this repo's dominant house style —
+    // an instrument that cannot PASS, the mirror of the ones it exists to catch.
+    //
+    // ⚠ TWO INDEPENDENT SIGNALS, AND NEITHER ALONE LICENSES THE SKIP. Stryker counted zero over
+    // these exact spans, AND every changed line reads as blank-or-comment. A run that silently did
+    // not happen fails the second test, because the diff still holds visible code; a changed line
+    // hiding inside a string literal fails the first, because Stryker mutates those. The remaining
+    // case both signals agree on is the one that is actually true.
+    if (verdict.verdict === "vacuous") {
+      const sources = new Map<string, string>();
+      for (const file of selection.targets.flatMap((t) => t.sourceFiles)) {
+        const abs = path.join(repoRoot, file);
+        if (existsSync(abs)) sources.set(file, readFileSync(abs, "utf8"));
+      }
+      if (changedLinesAreCodeFree(ranges, sources)) {
+        const disposition = skipDisposition({
+          inCi: process.env["CI"] === "true",
+          gateSkipExitCode: GATE_SKIP_EXIT_CODE,
+        });
+        console.log(
+          `${TAG} ${disposition.label} — every line this branch changed in ` +
+            `${[...sources.keys()].join(", ")} is blank or comment, and Stryker independently found ` +
+            `no mutation point in those spans. There was nothing here to prove.`,
+        );
+        process.exit(disposition.exitCode);
+      }
+    }
+
     const body = formatMutationVerdict(TAG, verdict, selection.targets);
 
     if (verdict.verdict === "pass") {

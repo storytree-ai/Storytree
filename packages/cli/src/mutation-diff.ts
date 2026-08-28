@@ -531,6 +531,63 @@ export function selectMutationTargets(args: {
   };
 }
 
+/**
+ * Can this ONE line carry a mutant on its own? Blank lines, `//` comments, a block-comment opener
+ * and a `*` / `*&#47;` continuation cannot.
+ *
+ * ⚠ IT FAILS TOWARD "CODE", ALWAYS. Anything this does not recognise is treated as code, so the
+ * only mistake it can make on its own is to claim a comment-only change contains code — which
+ * makes the rung ask MORE, never less. That direction is not a nicety here: the one caller uses
+ * this to decide whether a zero-mutant run may be reported as a SKIP, and a classifier that failed
+ * the other way would be a licence to skip a real change.
+ *
+ * It is deliberately NOT a lexer. A block comment whose interior lines do not begin with `*` reads
+ * as code and reds the rung — accepted, because it is the safe direction and because every block
+ * comment in this repo is written with `*` continuations. It also does not track string state, and
+ * does not need to: see {@link changedLinesAreCodeFree} for why the caller is safe regardless.
+ */
+export function isCodeFreeLine(line: string): boolean {
+  const t = line.trim();
+  return t === "" || t.startsWith("//") || t.startsWith("/*") || t.startsWith("*");
+}
+
+/**
+ * Is EVERY line this branch changed, in every file selected for mutation, incapable of carrying a
+ * mutant?
+ *
+ * ⚠ THIS IS THE SECOND OF TWO SIGNALS, AND IT NEVER SPEAKS ALONE. Its only caller reaches it after
+ * Stryker has already run over these exact spans and counted ZERO mutants, and both signals must
+ * say "nothing here" before a zero-mutant run may be reported as a skip rather than as the vacuous
+ * failure {@link adjudicateMutants} returns. That pairing is what makes the crude classifier above
+ * safe: Stryker's own count is the authority on what is mutable (it mutates string and template
+ * literals too, so a changed line hiding inside one produces a mutant and never reaches here), and
+ * this answers the different question of whether the run can be TRUSTED to have found nothing —
+ * a run that silently did not happen still leaves visible code in the diff, and that reds.
+ *
+ * An empty `sources` map returns false. "I could not read the files" is not "there was nothing in
+ * them", and the whole point of the vacuous verdict is that a run which proved nothing is not a
+ * pass.
+ */
+export function changedLinesAreCodeFree(
+  changed: readonly ChangedRanges[],
+  sources: ReadonlyMap<string, string>,
+): boolean {
+  if (sources.size === 0) return false;
+  for (const entry of changed) {
+    const source = sources.get(normalise(entry.file));
+    if (source === undefined) continue;
+    const lines = source.split("\n");
+    for (const range of entry.ranges) {
+      for (let line = range.start; line <= range.end; line += 1) {
+        // A range past end-of-file is not a blank line, it is a range this rung cannot account for.
+        const text = lines[line - 1];
+        if (text === undefined || !isCodeFreeLine(text)) return false;
+      }
+    }
+  }
+  return true;
+}
+
 /** How one mutant was accounted for. Only `"proven"` passes; `"excluded"` is not counted at all. */
 export type MutantOutcome =
   | "proven"
