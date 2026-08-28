@@ -20,9 +20,27 @@ const yOf = (seeds: Map<number, { x: number; y: number }>, ids: string[], id: st
   seeds.get(ids.indexOf(id))!.y;
 
 describe('stressSeeds — dependency-aware placement (ADR-0171)', () => {
-  it('is deterministic — same inputs, byte-identical positions', () => {
+  it('is deterministic — same inputs, the SAME byte-identical positions as always', () => {
     const nodes = [N('a', 0), N('b', 1), N('c', 2)];
     const edges = [E('a', 'b'), E('b', 'c')];
+
+    // ⚠ FROZEN. Read off `stressSeeds` once and pinned; do NOT regenerate these numbers to make a
+    // failure go away — a red here means the map's placement moved, which is the whole point of
+    // asserting byte-determinism (ADR-0169 §5).
+    //
+    // The previous form compared `stressSeeds(…)` against `stressSeeds(…)` — the same call on both
+    // sides, which is true of every possible implementation. Confirmed hollow 2026-08-29: it passed
+    // with the layout gutted to `out.set(i, { x: 0, y: 0 })`, i.e. with every node stacked on the
+    // origin. (`is ORDER-INDEPENDENT`, `produces finite coordinates` and `handles the degenerate
+    // sizes` in this file survive that gutting too; they are weak rather than hollow — each can
+    // fail on other mutations — but this is the test that is supposed to catch a stacked layout.)
+    expect([...stressSeeds(nodes, edges, 's').entries()]).toEqual([
+      [0, { x: 195.96, y: 0 }],
+      [1, { x: 0, y: -200 }],
+      [2, { x: -195.96, y: -400 }],
+    ]);
+
+    // Repeatability is still asserted — it is just no longer the ONLY thing asserted.
     expect(stressSeeds(nodes, edges, 's')).toEqual(stressSeeds(nodes, edges, 's'));
   });
 

@@ -59,9 +59,28 @@ describe('the baked kit', () => {
 });
 
 describe('which building an island gets', () => {
-  it('is deterministic', () => {
+  it('is deterministic — each id lands on the building it has always landed on', () => {
+    // ⚠ THIS TABLE IS FROZEN. Read off the baked kit once and pinned; do NOT regenerate it to make
+    // a failure go away. A red here means an island MOVED, which is exactly the regression the
+    // `factoryBuildingFor` contract forbids ("a reader who learned the map keeps their landmarks").
+    //
+    // The previous form of this test asserted
+    //   factoryBuildingFor(KIT, id).id === factoryBuildingFor(KIT, id).id
+    // which is `x === x` — true of every possible implementation. Confirmed hollow 2026-08-29:
+    // it passed with the whole bucket computation replaced by `const bucket = 0`, i.e. with every
+    // island collapsed onto one building.
+    const FROZEN = {
+      library: 'windmill-brick',
+      cli: 'windmill-timber',
+      studio: 'mushroom-tall',
+      'forest-world': 'pagoda-slate',
+      orchestrator: 'windmill-timber',
+      drive: 'windmill-timber',
+      agent: 'windmill-brick',
+      'notice-board': 'pagoda-temple',
+    } satisfies Record<string, string>;
     for (const id of SAMPLE) {
-      expect(factoryBuildingFor(FACTORY_KIT, id).id).toBe(factoryBuildingFor(FACTORY_KIT, id).id);
+      expect(factoryBuildingFor(FACTORY_KIT, id).id).toBe(FROZEN[id as keyof typeof FROZEN]);
     }
   });
 
@@ -74,14 +93,34 @@ describe('which building an island gets', () => {
     }
   });
 
-  it('resolves every shape bucket to a real building', () => {
-    // The bucket space (8) and the kit size need not match; the modulo must still land.
+  it('resolves every shape bucket to a real building — asked THROUGH the subject', () => {
+    // The bucket space (8) and the kit size (6) need not match; the modulo must still land, and
+    // every building in the kit must be reachable by some island.
+    //
+    // The previous form of this test never called `factoryBuildingFor` at all: it indexed
+    // `FACTORY_KIT[bucket % FACTORY_KIT.length]` itself and then asserted arithmetic over two
+    // constants it had imported, so both sides moved together. Confirmed hollow 2026-08-29 — it
+    // passed both with the kit index rotated by 3 and with the bucket pinned to 0.
+    //
+    // BUCKET_IDS is one real story id per shape bucket, so the loop below drives the subject
+    // across its whole input space rather than re-deriving its formula.
+    const BUCKET_IDS = [
+      'library', 'cli', 'art-authoring', 'studio',
+      'notice-board', 'forest-world', 'agent', 'drive',
+    ];
+    expect(BUCKET_IDS).toHaveLength(ICON_SHAPES);
+    expect(new Set(BUCKET_IDS.map((id) => storyIcon(id).shape)).size).toBe(ICON_SHAPES);
+
+    const kitIds = new Set(FACTORY_KIT.map((b) => b.id));
     const seen = new Set<string>();
-    for (let bucket = 0; bucket < ICON_SHAPES; bucket++) {
-      const b = FACTORY_KIT[bucket % FACTORY_KIT.length];
-      expect(b).toBeDefined();
-      seen.add(b!.id);
+    for (const id of BUCKET_IDS) {
+      const building = factoryBuildingFor(FACTORY_KIT, id);
+      // Every bucket lands on a building that is genuinely IN the kit.
+      expect(kitIds.has(building.id)).toBe(true);
+      seen.add(building.id);
     }
+    // …and the eight buckets between them reach every one of the six buildings, so no building is
+    // stranded and no bucket is starved. This is the assertion that dies when the mapping collapses.
     expect(seen.size).toBe(Math.min(ICON_SHAPES, FACTORY_KIT.length));
   });
 });

@@ -36,9 +36,25 @@ const departed = (over: Partial<DepartedClaim> = {}): DepartedClaim => ({
 });
 
 describe('sameRows — byte-identical activity payloads keep their array identity', () => {
-  it('the SAME reference is trivially equal (the fast path)', () => {
-    const rows = [build()];
+  it('the SAME reference short-circuits BEFORE any field is read (the fast path)', () => {
+    // The previous form was `sameRows(rows, rows)` toBe true, which cannot see the fast path at
+    // all: a correct field-by-field compare answers `true` for an array against itself too.
+    // Confirmed hollow 2026-08-29 — deleting `if (a === b) return true;` left it green, and all 8
+    // tests in this file passed.
+    //
+    // What DOES observe the short-circuit is that no property is ever read. The counting getter
+    // below is untouched when the reference check fires and is read once per field when it does not.
+    let reads = 0;
+    const counting = {
+      get id(): string {
+        reads += 1;
+        return 'x';
+      },
+    };
+    const rows = [counting];
+
     expect(sameRows(rows, rows)).toBe(true);
+    expect(reads).toBe(0);
   });
 
   it('two empty payloads are equal — the idle steady state', () => {

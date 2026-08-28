@@ -281,6 +281,11 @@ describe('the walk continues THROUGH a decision', () => {
 
   it('reports the decision denominators, so a resolver that sees nothing is not mistaken for a shallow log', () => {
     const model = buildKnowledgeDepth(DECISIONS_READY);
+    // ASSERT the precondition before narrowing on it — the sibling above already does. Without this
+    // line the early `return` makes the whole test VACUOUS whenever the model is not measured, which
+    // is silent: it reports a pass having asserted nothing. Confirmed 2026-08-29 — with the builder
+    // forced to measure nothing, 16 of this file's 19 tests failed and this one passed.
+    expect(model.status).toBe('measured');
     if (model.status !== 'measured') return;
     expect(model.verdict.decisionsScanned).toBe(2);
     // PRESENCE, not non-emptiness: ADR-0363 carries no `dependsOn` field at all, ADR-0403 does.
