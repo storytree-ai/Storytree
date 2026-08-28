@@ -81,6 +81,8 @@ import { arrivalGrowPlan } from '../lib/trailReveal.js';
 import { fullConnectionSet } from '../lib/connectionSet.js';
 import {
   fitWorld,
+  restingWorld,
+  limitsForResting,
   limitsForFit,
   clampScale,
   centerOn,
@@ -259,6 +261,15 @@ const MARGIN = 60;
 // per-panel recompute, so that invariant is untouched. Sized to the chrome's own COLLAPSED/folded
 // height plus a visible buffer (never flush against it): `FIT_PADDING_TOP` clears the drawer handle,
 // `FIT_PADDING_BOTTOM` the terminal bar.
+/** Every island's on-screen DIAMETER, the quantity the designed resting frame is pinned to
+ *  (ADR-0471). `Territory.radius` is already SCREEN-projected, which is the same space
+ *  `buildWorld`'s `width`/`height` are in — feeding the ground radius here instead would size the
+ *  composition in one space and the bounding box in another, which is the exact mismatch
+ *  `scene-territory-radius-states-its-space` split the two fields to make a type error. */
+function islandDiametersOf(world: { territories: readonly Territory[] }): number[] {
+  return world.territories.map((t) => 2 * t.radius);
+}
+
 const FIT_PADDING_TOP = 40;
 const FIT_PADDING_BOTTOM = 48;
 // `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out` (owner look verdict, 2026-08-16):
@@ -1473,6 +1484,20 @@ function readSpacingTuning(): Partial<SpacingTuning> {
   return out;
 }
 
+/** `?restingView=fit` restores the PRE-ADR-0471 fitted framing, for an in-app side-by-side against
+ *  the designed resting view — the same "let the owner dial the look in directly" pattern
+ *  `readSpacingTuning` above established for the previous resting-view owner look.
+ *
+ *  It exists because the composition is operator-attested (ADR-0070 stage 2) and a verdict on a
+ *  composition is only worth as much as the comparison it was made against: two screenshots taken
+ *  minutes apart from different builds are a weaker artefact than one running app the owner can
+ *  flip. It changes only the CAMERA — same corpus, same layout, same paint — so the flip isolates
+ *  the framing and nothing else. Absent ⇒ the designed view. */
+function readFittedRestingView(): boolean {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('restingView') === 'fit';
+}
+
 /** `?plants=scatter` disperses the capability garden off its rigid front arc. */
 function readPlantsScatter(): boolean {
   if (typeof window === 'undefined') return false;
@@ -2222,25 +2247,39 @@ export function TreeView({
       paddingBottom: FIT_PADDING_BOTTOM,
       maxScale: 980 / world.width, // the old .world-scene 980px width cap, as a scale ceiling
       align: 'bottom',
-      // show the WHOLE forest in the window-filling viewport, not a width-clipped slice
-      // (`resting-view-still-clips-five-islands`: the DAG lays out top-to-bottom, so its own bounds
-      // are portrait — a landscape frame's side margins are that shape's designed consequence of
-      // "see it all" under 'contain', not fit residue. The alternative, `fit: 'width'`, trades that
-      // guarantee for vertical overflow the operator would have to pan through on every load — a
-      // worse resting view for a forest whose whole point is to be surveyed at rest. Widening the
-      // DAG's own layout to use the sides is a story-author/layout-hierarchy call, out of scope here.)
+      // ⚠ THIS IS NO LONGER THE RESTING VIEW — it is the reference the resting view is measured
+      // against, and the floor the operator can zoom back out to. `restingWorld` below decides what
+      // the map OPENS on (ADR-0471).
+      //
+      // The paragraph that used to stand here argued that the landscape frame's side margins were
+      // "that shape's designed consequence of 'see it all' under 'contain', not fit residue". That
+      // is corrected in place rather than deleted, because it is the exact defence
+      // `the-resting-view-is-designed-not-fitted` exists to close: it is TRUE that 'contain'
+      // returns this framing for a portrait DAG, and it establishes only that the view is correctly
+      // COMPUTED, never that it is the view the surface should open on. Measured on the live corpus
+      // at 1600x900, "see it all" delivered a 44px island and left 55% of the frame empty.
       fit: 'contain',
     });
-    limitsRef.current = limitsForFit(fit.scale);
-    fitCameraRef.current = fit;
+    const resting = restingWorld(world.width, world.height, fw, fh, islandDiametersOf(world), {
+      padding: 16,
+      paddingTop: FIT_PADDING_TOP,
+      paddingBottom: FIT_PADDING_BOTTOM,
+      align: 'bottom',
+    });
+    const opening = readFittedRestingView() ? fit : resting;
+    limitsRef.current = limitsForResting(opening.scale, fit.scale);
+    fitCameraRef.current = opening;
     cameraFrameRef.current = { width: fw, height: fh };
     setAnimate(false);
     if (selectedStory) {
       const territory = world.territories.find((t) => t.story.id === selectedStory);
       if (territory) {
         const wc = { x: territory.centroid.x + world.offset.x, y: territory.centroid.y + world.offset.y };
+        // A deep link frames the story at least as tightly as the RESTING view — never at the fit,
+        // which since ADR-0471 is looser than what the map opens on, so a deep link would have
+        // arrived further out than an ordinary arrival at the same map.
         const focus = clampScale(
-          Math.max(fit.scale, (limitsRef.current.min / 0.4) * 1.6),
+          Math.max(opening.scale, (limitsRef.current.min / 0.4) * 1.6),
           limitsRef.current,
         );
         atFitRef.current = false; // a deep-linked territory view is not the plain fit — resize won't re-fit it
@@ -2249,7 +2288,7 @@ export function TreeView({
       }
     }
     atFitRef.current = true;
-    setCam(fit);
+    setCam(opening);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [world]);
 
@@ -2284,14 +2323,22 @@ export function TreeView({
       paddingBottom: FIT_PADDING_BOTTOM,
       maxScale: 980 / w.width,
       align: 'bottom',
+      // The reference framing and the zoom-out floor, not the resting view — see the mount effect.
       fit: 'contain',
     });
-    limitsRef.current = limitsForFit(fit.scale);
-    fitCameraRef.current = fit;
+    const resting = restingWorld(w.width, w.height, fw, fh, islandDiametersOf(w), {
+      padding: 16,
+      paddingTop: FIT_PADDING_TOP,
+      paddingBottom: FIT_PADDING_BOTTOM,
+      align: 'bottom',
+    });
+    const opening = readFittedRestingView() ? fit : resting;
+    limitsRef.current = limitsForResting(opening.scale, fit.scale);
+    fitCameraRef.current = opening;
     cameraFrameRef.current = { width: fw, height: fh };
     atFitRef.current = true;
     setAnimate(false);
-    setCam(fit);
+    setCam(opening);
   }, []);
 
   // Drag → pan (ADR-0272 decision 2, compositor-pan-transform: commit-on-release). The live

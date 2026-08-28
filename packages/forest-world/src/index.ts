@@ -21,6 +21,18 @@ export {
   spriteUprightScale,
 } from './camera.js';
 
+// The ONE place that decides how much forest a surface opens on (ADR-0471). Every shipped map
+// used to answer that with a fit of its own; they now all convert from the single `scale` this
+// returns.
+export {
+  RESTING_ISLAND_SPANS,
+  MAX_EXTENT_SHOWN,
+  type RestingBound,
+  type RestingFrameInput,
+  type RestingFrame,
+  restingFrame,
+} from './resting-view.js';
+
 export {
   type Pt,
   type Axial,
