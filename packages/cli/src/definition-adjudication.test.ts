@@ -151,9 +151,14 @@ test("definition-adjudication-tolerates-a-surprise-row: a malformed doc reads as
   rows.push({ id: "weirder", kind: "definition", doc: notArray });
   // Not an object at all — a row whose payload came back as a scalar.
   rows.push({ id: "weirdest", kind: "definition", doc: "a string, somehow" });
+  // ...and MISSING, which is the case the `typeof` half of the guard exists for and the only one
+  // that separates it from the `=== null` half. `null` is caught by either clause, and a scalar
+  // falls through harmlessly to an absent key — but a property read on `undefined` THROWS, and a
+  // fail-closed rung must never be taken down by the row it was meant to report.
+  rows.push({ id: "absent-payload", kind: "definition", doc: undefined });
   const verdict = evaluateDefinitionAdjudication(rows, new Set());
 
-  assert.deepEqual(verdict.unadjudicated, ["weird", "weirder", "weirdest"]);
+  assert.deepEqual(verdict.unadjudicated, ["absent-payload", "weird", "weirder", "weirdest"]);
 });
 
 test("definition-adjudication-filters-junk-entries: a non-string or empty pointer is not an edge", () => {
