@@ -127,8 +127,6 @@ export async function loadDecisionDiscoveryReading(
   try {
     const baseline = computeDecisionReadBaseline({
       reads: gathered.reads,
-      // Deliberately none — see the header. Not a degraded read: the absence of a question.
-      offers: [],
       support,
       declaredFrom,
       declaredTo: window.to,

@@ -1,5 +1,4 @@
 #!/usr/bin/env -S tsx
-import { randomUUID } from "node:crypto";
 import path from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -13,11 +12,7 @@ import {
 } from "@storytree/library/store";
 import {
   captureCliInvocation,
-  isTraversalCaptureEnabled,
-  parseOfferFollow,
-  planOfferIdentity,
   resolveAgentDescent,
-  resolveArtifactOffers,
   resolveTraceIdentity,
 } from "@storytree/context-traversal-capture";
 import type {
@@ -336,11 +331,9 @@ function registerThisInvocation(
 
 async function captureInvocation(
   argv: readonly string[],
-  readArgv: readonly string[],
   ok: boolean,
   store: Store,
   trace: TraceIdentity | null,
-  offerVisitId: string | undefined,
 ): Promise<void> {
   try {
     // An `agents <name>` essentials render resolves the agent's floor refs BY EXPLICIT ID, so each
@@ -348,16 +341,11 @@ async function captureInvocation(
     // read, and `captureCliInvocation` is contractually synchronous — so it happens here, inside the
     // existing try/catch and before `close()`. Every other dispatch shape resolves to [].
     //
-    // Both resolutions run against `readArgv` — this invocation's argv with any `--from-offer` flag
-    // stripped. A read that ANSWERS an offer is still a read, and still offers onward artifacts of
-    // its own; resolving against the raw argv would break the chain after exactly one hop.
-    const agentRefIds = await resolveAgentDescent(readArgv, store);
-    // A `library artifact <id>` render PRINTS its onward refs as a Sources block — that block IS the
-    // offer set (ADR-0260 D1), already computed by the renderer. Resolving it needs the same async
-    // store read `agentRefIds` does, so it is resolved HERE and passed in. It is recorded whether or
-    // not anything follows it (D2); which offer this read ANSWERED rides in its own argv (D3) and is
-    // parsed inside `captureCliInvocation`, from the raw argv passed below.
-    const offeredIds = await resolveArtifactOffers(readArgv, store);
+    // Resolved against this invocation's argv exactly as the shell handed it over. Until ADR-0464 D1
+    // there was a second, PRE-STRIPPED argv here, because a read answering an offer carried a
+    // `--from-offer` flag the observer's allowlist would have refused. With no flag to carry there is
+    // one argv again, and the two-argv seam that existed only to serve it is gone.
+    const agentRefIds = await resolveAgentDescent(argv, store);
     // Each optional field is added only when it is present — `CaptureCliInvocationInput`'s
     // properties are readonly, so every addition is a fresh literal rather than an assignment.
     let capture: CaptureCliInvocationInput = {
@@ -365,13 +353,11 @@ async function captureInvocation(
       ok,
       sessionId: trace?.sessionId ?? null,
       agentRefIds,
-      offeredIds,
     };
     // Stamped on every line this invocation writes: what the session id NAMES, and the worktree
     // slot it ran in as a grouping attribute beside it — so a later reader states the trace's
     // identity grade rather than inferring it from the id's shape.
     if (trace !== null) capture = { ...capture, grade: trace.grade, slot: trace.slot };
-    if (offerVisitId !== undefined) capture = { ...capture, offerVisitId };
     captureCliInvocation(capture);
   } catch {
     // Telemetry never breaks a command — the envelope is the payload, the trace is a courtesy.
@@ -394,28 +380,19 @@ export async function main(): Promise<void> {
   // ~/.storytree/secrets.json when the env doesn't already carry them — env always wins
   // (CURSOR_API_KEY hydration retired with the Cursor leaf — ADR-0198).
   loadLocalSecrets();
-  // ADR-0260 D3 — the offer's identity travels in ARGV, so the render has to know the id BEFORE it
-  // prints, and capture has to record that same id afterwards. The rendering visit's id is therefore
-  // pre-minted here and handed to both halves: `run` prints follow-up commands carrying
-  // `candidate-set:<visitId>`, and `captureCliInvocation` records the offer under that very id. A
-  // `candidate_set` event has no `visitId` field, so the id IS the join — mint it in two places and
-  // the printed id names a visit that never existed.
+  // ADR-0464 D1 REMOVED A WHOLE PRE-RENDER STEP HERE, and it is worth saying what it was, because the
+  // shape it created is the kind that grows back. ADR-0260 D3 made the offer's identity travel in
+  // ARGV, so the render had to know a visit id BEFORE it printed: an id was pre-minted here and handed
+  // to both halves — `run` printed follow-up commands carrying `candidate-set:<visitId>`, and
+  // `captureCliInvocation` recorded the offer under that very id. Nothing prints an offer now, so
+  // there is no id to agree about, no pre-mint, and no `--from-offer` to strip out of argv before the
+  // observer's allowlist sees it.
   //
-  // An id is planned ONLY where this invocation will really record the offer it names, so a render
-  // can never hand out a dangling id an agent could return: `planOfferIdentity` refuses every shape
-  // that records no offer (a `--pg` read, `artifact list`, any non-artifact area), and the two
-  // capture preconditions are checked alongside it. Those two also keep ADR-0241 **D2** intact for a
-  // run that captures nothing — with capture opted out, or no resolvable identity, the envelope is
-  // byte-identical to a capture-absent one, because nothing was recorded to point at. (D2 is the
-  // opt-out-clean envelope; D3's envelope clause is the narrower promise that no telemetry FAILURE
-  // may alter one. ADR-0241's own Consequences make that split explicitly — don't cite D3 here.)
-  const { argv: readArgv } = parseOfferFollow(argv);
+  // What that leaves is simply the identity resolution the rest of the entry point already needed.
+  // ADR-0241 **D2**'s opt-out-clean envelope is unaffected and in fact easier to hold: with nothing
+  // printed conditionally on capture being enabled, an opted-out run's envelope is byte-identical to a
+  // captured one for free, rather than by two call sites agreeing to stay silent together.
   const { registry: identity, trace } = resolveInvocationIdentities();
-  const captureSessionId = trace?.sessionId ?? null;
-  const offer =
-    captureSessionId !== null && isTraversalCaptureEnabled()
-      ? planOfferIdentity(readArgv, randomUUID)
-      : null;
   // `shared-box-session-ownership-arc` inc 1 — this invocation becomes visible to `storytree own`
   // for as long as it runs. Registered BEFORE the store is built, because a `--pg` command that
   // hangs on the connector handshake is precisely the one a session needs to be able to find.
@@ -456,7 +433,6 @@ export async function main(): Promise<void> {
       };
     }
     if (actor !== undefined) deps = { ...deps, actor };
-    if (offer !== null) deps = { ...deps, offerId: offer.candidateSetId };
     const env = await run(argv, deps);
     if (isRawEnvelope(env)) {
       // `library artifact <id> --raw <field>` — the ONE deliberate exception to the envelope
@@ -473,7 +449,7 @@ export async function main(): Promise<void> {
       // collapsing to 0/1 would destroy the gate's reserved 3 (SKIP) and 4 (PARTIAL RUN).
       process.exitCode = env.exitCode ?? (env.ok ? 0 : 1);
     }
-    await captureInvocation(argv, readArgv, env.ok, store, trace, offer?.visitId);
+    await captureInvocation(argv, env.ok, store, trace);
   } finally {
     await close();
     // LAST, and outside every other concern: the record must survive until the command genuinely

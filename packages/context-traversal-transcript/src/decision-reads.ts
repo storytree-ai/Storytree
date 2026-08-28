@@ -95,7 +95,7 @@
  * the decision reads on this disk are sidechain reads, so a scan that dropped them would return
  * roughly half the answer and look complete doing it.
  */
-import { adrDocId, adrNumberOfArtifactId } from "@storytree/library";
+import { adrDocId, adrNumberOfArtifactId, parseDecisionPointer } from "@storytree/library";
 import fs from "node:fs";
 
 /** Which tool shape a read was recovered from — its own surface, because they differ in strength. */
@@ -768,4 +768,55 @@ export function scanTranscriptDecisionReads(filePath: string): DecisionReadScan 
     redirectTargets,
     decisionMentions,
   };
+}
+
+// ---------------------------------------------------------------------------
+// DECISION-ID RESOLUTION
+//
+// Re-homed here by ADR-0464 D1, which deleted `decision-read-coverage.ts`. Nothing about these three
+// symbols was offer-specific — they reconcile the four live spellings of a decision id, which this
+// module's own extraction needs and which several probes outside this package import. They lived in
+// the coverage module only because it was the first caller. Deleting them with their old home would
+// have taken out `decision-read-baseline.ts`'s chain-depth and reach figures, which ADR-0464 D7
+// explicitly preserves.
+// ---------------------------------------------------------------------------
+
+/**
+ * How an id spells the decision it names. REPORTED rather than normalised away, on
+ * `DecisionPointerSpelling`'s own rule: an inconsistent spelling is itself the finding, and a reader
+ * that only ever saw the resolved number could not tell that one of the spellings had stopped
+ * joining.
+ *
+ * `row` is the fourth member and the one the other three lack a name for: the bare `adr-NNNN`
+ * ARTIFACT ID a live CLI read mints. It is not a pointer at all — no scheme, nothing to parse — so
+ * `parseDecisionPointer` correctly refuses it, and a reader that used that function alone would
+ * classify every post-migration read as "not a decision".
+ */
+export type DecisionIdSpelling = "row" | "asset" | "decisions" | "docs/decisions";
+
+/** One id resolved to the decision it names, keeping the spelling that named it. */
+export interface ResolvedDecisionId {
+  readonly number: number;
+  readonly spelling: DecisionIdSpelling;
+}
+
+/**
+ * PURE and TOTAL: the decision a TRAVERSAL NODE ID names, or null when it names something else.
+ *
+ * The reconciliation the header describes, and the only place the four live id forms are brought
+ * together. Both authorities are the corpus's own — `adrNumberOfArtifactId` for the row id and
+ * `parseDecisionPointer` for the three pointer spellings — so this function invents no rule of its
+ * own and cannot drift from what the rest of the corpus considers a decision.
+ *
+ * Null is an ordinary, expected answer: most traversal node ids name a Library artifact that is not
+ * a decision. It is returned as null and COUNTED by the caller, never coerced.
+ */
+export function resolveDecisionId(nodeId: string): ResolvedDecisionId | null {
+  const pointer = parseDecisionPointer(nodeId);
+  if (pointer !== null) return { number: pointer.number, spelling: pointer.spelling };
+
+  const row = adrNumberOfArtifactId(nodeId);
+  if (row !== null) return { number: row, spelling: "row" };
+
+  return null;
 }

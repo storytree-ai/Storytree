@@ -29,19 +29,14 @@ const CONTEXT: BaselineRenderContext = {
   transcriptFiles: 40,
   decisionMentions: 7,
   uncorrelatedReads: 3,
-  traceSessions: 11,
-  traceSessionsWithoutSlot: 1,
-  mixedIdentitySessions: 0,
 };
 
 function render(
   reads: Parameters<typeof computeDecisionReadBaseline>[0]["reads"],
-  offers: Parameters<typeof computeDecisionReadBaseline>[0]["offers"],
   context: Partial<BaselineRenderContext> = {},
 ): string {
   const baseline = computeDecisionReadBaseline({
     reads,
-    offers,
     support: SUPPORT,
     declaredFrom: undefined,
     declaredTo: undefined,
@@ -50,7 +45,7 @@ function render(
 }
 
 test("render-decision-baseline: the two support edge populations print APART and never as one figure", () => {
-  const text = render([], []);
+  const text = render([]);
   assert.match(text, /amends 2\s+dependsOn 1/);
   assert.ok(!/support edges: 3/.test(text), "a blended figure would hide the whole migration");
 });
@@ -64,11 +59,10 @@ test("render-decision-baseline: 'nobody walked a chain' prints with the populati
       { slotId: "s", windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w2", nodeId: "adr-0020", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", observable: true }],
   );
   assert.match(measured, /sessions that walked a chain \(depth >= 2\): 0 of 2 \(0\.0%\)/);
 
-  const blind = render([], []);
+  const blind = render([]);
   assert.match(blind, /sessions that walked a chain \(depth >= 2\): 0 of 0 \(n\/a \(denominator 0\)\)/);
   // ...and the blind run says so in its own words too, rather than leaving the reader to spot a zero.
   assert.match(blind, /VACUITY — one or more figures above measured NOTHING/);
@@ -80,7 +74,6 @@ test("render-decision-baseline: a healthy run says so explicitly instead of prin
       { slotId: "s", windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w1", nodeId: "adr-0011", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", observable: true }],
   );
   assert.match(text, /VACUITY — none\. Every figure above saw its subject\./);
 });
@@ -91,7 +84,6 @@ test("render-decision-baseline: both grains are printed, so the pooling gap cann
       { slotId: "s", windowId: "w1", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w2", nodeId: "adr-0011", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [{ slotId: "s", candidateSetId: "c", nodeId: "adr-0010", at: "2026-08-01T00:00:00.000Z", observable: true }],
   );
   assert.match(text, /WINDOW grain — one host context window, i\.e\. one sitting/);
   assert.match(text, /SLOT grain — the pooled worktree slot, which unions several sittings/);
@@ -106,7 +98,6 @@ test("render-decision-baseline: the deepest chain is named decision by decision,
       { slotId: "s", windowId: "w1", nodeId: "adr-0011", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w1", nodeId: "adr-0012", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [],
   );
   assert.match(text, /ADR-0010 -> ADR-0011 -> ADR-0012/);
 });
@@ -124,7 +115,6 @@ test("render-decision-baseline: the reach rank prints distinct sessions AND raw 
       { slotId: "s", windowId: "w2", nodeId: "adr-0011", at: "2026-08-01T00:00:00.000Z", surface: "x" },
       { slotId: "s", windowId: "w3", nodeId: "adr-0011", at: "2026-08-01T00:00:00.000Z", surface: "x" },
     ],
-    [],
   );
   // Two windows beat nine reads by one window, and the raw count is shown beside it so a reader can
   // see that the rank was NOT built on it.
@@ -134,36 +124,34 @@ test("render-decision-baseline: the reach rank prints distinct sessions AND raw 
   assert.match(ranked, /ADR-0010\s+1 window\s+\(9 raw reads\)/);
 });
 
-test("render-decision-baseline: an offered-and-never-followed decision is reported as its own figure", () => {
-  const text = render(
-    [],
-    Array.from({ length: 4 }, (_, i) => ({
-      slotId: "s",
-      candidateSetId: `c${i}`,
-      nodeId: "adr-0020",
-      at: "2026-08-01T00:00:00.000Z",
-      observable: true,
-    })),
-  );
-  assert.match(text, /decisions offered and NEVER followed: 1 of 1 \(100\.0%\)/);
-  assert.match(text, /ADR-0020\s+offered\s+4\s+followed\s+0/);
-});
-
 test("render-decision-baseline: the instrument's own blind spots print as numbers, not as prose alone", () => {
-  const text = render([], []);
+  const text = render([]);
   assert.match(text, /transcript files swept: 40/);
   assert.match(text, /tool calls that NAMED a decision and yielded no read: 7/);
   assert.match(text, /reads reached but attributable to no storytree session: 3/);
-  assert.match(text, /trace sessions holding the offer record: 11/);
-  assert.match(text, /with no single slot to join on: 1/);
+  // The two trace-session figures that stood here went with the offer-to-follow section (ADR-0464
+  // D7): they described the trace-store walk that existed only to gather offers, and this probe no
+  // longer opens that directory. Asserting their ABSENCE, not merely dropping the lines — a render
+  // still naming an input it has stopped reading is the failure this test exists to catch.
+  assert.doesNotMatch(text, /trace sessions holding the offer record/);
+  assert.doesNotMatch(text, /OFFER-TO-FOLLOW/);
 });
 
 test("render-decision-baseline: the floor and the two-sided bias are stated on every run", () => {
   // Never a footnote a reader might not reach: the direction of each bias is what makes a shallow
   // reading interpretable at all.
-  const text = render([], []);
+  const text = render([]);
   assert.match(text, /EVERY FIGURE IS A FLOOR, AND THE BIAS IS TWO-SIDED/);
   assert.match(text, /lost capture pushes chain depth DOWN/);
   assert.match(text, /pooling pushes the\nslot-grained figure UP/);
   assert.match(text, /A read is not comprehension/);
+});
+
+test("render-decision-baseline: the header names the two figures this report still carries", () => {
+  // The header used to read "reach, chain depth, offer-to-follow". ADR-0464 D7 retired the third, and
+  // a header still advertising it would promise a section the reader will never find — the same class
+  // of dishonesty as a coverage declaration claiming an event it cannot emit.
+  const text = render([]);
+  assert.match(text, /DECISION-READ BASELINE — reach and chain depth/);
+  assert.doesNotMatch(text, /offer-to-follow/);
 });

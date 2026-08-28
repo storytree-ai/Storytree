@@ -5,7 +5,7 @@ story: context-traversal-capture
 arc: context-decision-tree-arc
 title: "A decision point states how much of its own offer set the telemetry could not see"
 outcome: "Every recorded offer set renders the share of its candidates a follow could actually have landed on, and names why each of the rest could not be followed — so the followed counts beside it are read against the observable denominator rather than the offered one."
-status: proposed
+status: retired
 proof_mode: integration-test
 depends_on: [traversal-trace-sink, artifact-offer-candidate-sets, offer-follow-edges, decision-point-playback]
 decisions: [235, 464, 312]
@@ -16,19 +16,10 @@ proof:
   scope:
     testGlobs: ["packages/context-traversal-capture/src/offer-observability-share.test.ts"]
     sourceGlobs: ["packages/context-traversal-capture/src/offer-observability-share.ts"]
-  real:
-    testFile: "packages/context-traversal-capture/src/offer-observability-share.test.ts"
-    sourceFile: "packages/context-traversal-capture/src/offer-observability-share.ts"
-    scope:
-      testGlobs: ["packages/context-traversal-capture/src/offer-observability-share.test.ts"]
-      sourceGlobs: ["packages/context-traversal-capture/src/offer-observability-share.ts"]
-    install: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/context-traversal-capture", "typecheck"]
+  # THE `real:` ARM WAS REMOVED HERE, NOT MERELY LEFT BESIDE A RETIRED STATUS (ADR-0464 D1).
+  # `status: retired` alone does NOTHING: `sweepRealBuildCoverage` filters on `real === undefined`,
+  # never on status, so an arm naming the deleted `packages/context-traversal-capture/src/offer-observability-share.ts`
+  # would breach `contract-binding-drift` and the coverage drain at their ceiling of zero.
 ---
 
 # A decision point states how much of its own offer set the telemetry could not see

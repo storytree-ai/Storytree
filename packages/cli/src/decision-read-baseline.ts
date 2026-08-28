@@ -95,37 +95,6 @@ export interface DecisionReadObservation {
   readonly surface: string;
 }
 
-/** One decision pointer offered to an agent inside one rendered candidate set. */
-export interface DecisionOfferObservation {
-  /** The pooled worktree slot the offer was rendered in. */
-  readonly slotId: string;
-  /** The candidate set this pointer was offered in — the unit an offer is counted per. */
-  readonly candidateSetId: string;
-  /** The id exactly as offered, in whichever live spelling. */
-  readonly nodeId: string;
-  /** ISO-8601, verbatim. A follow can only be a read at or after this instant. */
-  readonly at: string;
-  /**
-   * Whether the CLI FOLLOW MACHINERY could ever have recorded a `followed_edge` for this offer —
-   * `classifyOfferObservability`'s verdict, computed by the caller from the REAL allowlist and
-   * injected, never restated here.
-   *
-   * IT IS A DENOMINATOR, NOT A DEFECT COUNT, and ADR-0312 settled that on 2026-08-05: a `doc:`-spelled
-   * decision offer is never printed as a followable line, and making it one would render every
-   * unanswered one `not-followed` — a declined branch nobody declined. ADR-0260's body records its own
-   * "closing it is a candidate increment" expectation as WITHDRAWN. So it is measured, never fixed.
-   *
-   * THIS BASELINE'S FOLLOW IS NOT A `followed_edge`, WHICH IS WHY BOTH RATES ARE REPORTED. A follow
-   * here is a READ of the offered decision in the same slot at or after the offer, recovered from the
-   * read record — a route that exists for every spelling now that decision reads are captured at all,
-   * and which therefore CAN see a follow of an offer the CLI machinery calls unobservable. Reporting
-   * only the all-offers rate would ignore `decision-read-measurement-arc-inc-01`'s finding; reporting
-   * only the observable-branch rate would discard most of what this instrument can genuinely see. Both
-   * are printed, with the population each is over.
-   */
-  readonly observable: boolean;
-}
-
 /**
  * The decision log's SUPPORT graph, with the two edge populations kept APART.
  *
@@ -154,7 +123,6 @@ export interface DecisionEdge {
 
 export interface DecisionReadBaselineInput {
   readonly reads: readonly DecisionReadObservation[];
-  readonly offers: readonly DecisionOfferObservation[];
   readonly support: DecisionSupportGraph;
   /** The declared observation window, inclusive, ISO-8601 — stated by the caller, never derived. */
   readonly declaredFrom: string | undefined;
@@ -284,29 +252,17 @@ export interface DecisionReadBaseline {
    */
   readonly poolingFactor: number | null;
 
-  // --- OFFER-TO-FOLLOW ---
-  /** Offer records handed in, before resolution. */
-  readonly offersObserved: number;
-  readonly offersResolved: number;
-  readonly offersUnresolved: number;
-  /** Offer id spellings — the other side of the join, censused the same way. */
-  readonly offerSpellings: readonly SpellingCount[];
-  /** Distinct decisions offered at least once. */
-  readonly decisionsOffered: number;
-  /** Resolved offers followed by a read in the same slot at or after the offer. */
-  readonly offersFollowed: number;
-  /**
-   * The SAME two figures restricted to the offers the CLI follow machinery could ever have recorded a
-   * follow for — ADR-0312's rule, which `decision-read-measurement-arc-inc-01` states as: a decision
-   * offer-to-follow rate must be reported over the OBSERVABLE branches, never over the offered ones.
-   * Reported ALONGSIDE the all-offers pair rather than instead of it — see
-   * {@link DecisionOfferObservation.observable} for why neither alone is honest here.
-   */
-  readonly offersObservable: number;
-  readonly offersObservableFollowed: number;
-  /** Decisions offered at least once and never read by any session — NOISE, not heat. */
-  readonly decisionsOfferedNeverFollowed: number;
-  readonly offerFollowRows: readonly OfferFollowRow[];
+  // THE OFFER-TO-FOLLOW FIELDS WERE HERE (ADR-0464 D7). They reported how many decision pointers a
+  // render offered, in which spelling, how many of those offers a follow could ever have been
+  // observed on, and how many were answered. Their whole input was the `candidate_set` record, which
+  // no longer exists.
+  //
+  // NOT RE-FROZEN FIRST, deliberately: ADR-0444 D7 forbids re-freezing a reference against a moving
+  // substrate, and the last measured value (4.7%) was already deferred from the alarm because the
+  // trace store it read was being rebuilt. So there was nothing to preserve and nothing to compare
+  // across. REACH and CHAIN DEPTH below are untouched — they read host transcripts, never the trace
+  // store, and ADR-0464 D7 names chain depth as the surviving falsifier: if sessions stop finding
+  // decisions they needed now that the offer surface is gone, that is where it shows.
 
   /** Empty means every number above measured its subject; each entry names one that did not. */
   readonly vacuity: readonly string[];
@@ -528,7 +484,6 @@ export function computeDecisionReadBaseline(
   const { support, declaredFrom, declaredTo } = input;
 
   const reads = input.reads.filter((read) => withinWindow(read.at, declaredFrom, declaredTo));
-  const offers = input.offers.filter((offer) => withinWindow(offer.at, declaredFrom, declaredTo));
 
   const known = new Set(support.decisions);
   const adjacency = supportAdjacency(support);
@@ -550,21 +505,6 @@ export function computeDecisionReadBaseline(
     // it is how a deleted or renumbered decision would show up, and silence would hide it.
     if (!known.has(decision)) readsOntoUnknownDecisions += 1;
     resolvedReads.push({ ...read, decision });
-  }
-
-  // --- resolve the offers the same way ---
-  interface ResolvedOffer extends DecisionOfferObservation {
-    readonly decision: number;
-  }
-  const resolvedOffers: ResolvedOffer[] = [];
-  let offersUnresolved = 0;
-  for (const offer of offers) {
-    const decision = resolve(offer.nodeId);
-    if (decision === null) {
-      offersUnresolved += 1;
-      continue;
-    }
-    resolvedOffers.push({ ...offer, decision });
   }
 
   // --- REACH, at both grains ---
@@ -618,38 +558,6 @@ export function computeDecisionReadBaseline(
       ? Number((windowSets.size / slotSets.size).toFixed(3))
       : null;
 
-  // --- OFFER-TO-FOLLOW ---
-  // A FOLLOW is a read of that decision, IN THE SAME SLOT, at or after the offer. The slot is the
-  // grain because that is the only grain BOTH sides carry: an offer is written by the live CLI
-  // observer and a read may have been recovered from a transcript, so a window-grained join would
-  // silently drop every crossing pair and report a follow rate far below the truth.
-  const readsBySlotDecision = new Map<string, string[]>();
-  for (const read of resolvedReads) {
-    const key = `${read.slotId}::${read.decision}`;
-    const list = readsBySlotDecision.get(key) ?? [];
-    list.push(read.at);
-    readsBySlotDecision.set(key, list);
-  }
-  const offeredPer = new Map<number, number>();
-  const followedPer = new Map<number, number>();
-  let offersFollowed = 0;
-  let offersObservable = 0;
-  let offersObservableFollowed = 0;
-  for (const offer of resolvedOffers) {
-    offeredPer.set(offer.decision, (offeredPer.get(offer.decision) ?? 0) + 1);
-    if (offer.observable) offersObservable += 1;
-    const reads_ = readsBySlotDecision.get(`${offer.slotId}::${offer.decision}`) ?? [];
-    if (reads_.some((at) => at >= offer.at)) {
-      followedPer.set(offer.decision, (followedPer.get(offer.decision) ?? 0) + 1);
-      offersFollowed += 1;
-      if (offer.observable) offersObservableFollowed += 1;
-    }
-  }
-  const offerFollowRows: OfferFollowRow[] = [...offeredPer.entries()]
-    .map(([decision, offered]) => ({ decision, offered, followed: followedPer.get(decision) ?? 0 }))
-    .sort((a, b) => b.offered - a.offered || a.decision - b.decision);
-  const decisionsOfferedNeverFollowed = offerFollowRows.filter((row) => row.followed === 0).length;
-
   // --- censuses ---
   const spellings = (ids: readonly string[]): SpellingCount[] => {
     const counts = countBy(
@@ -662,7 +570,7 @@ export function computeDecisionReadBaseline(
   };
   const surfaceCounts = countBy(reads, (read) => read.surface);
 
-  const timestamps = [...reads.map((r) => r.at), ...offers.map((o) => o.at)].sort();
+  const timestamps = reads.map((r) => r.at).sort();
 
   const baseline: DecisionReadBaseline = {
     declaredFrom,
@@ -697,17 +605,6 @@ export function computeDecisionReadBaseline(
     chainDepthByWindow,
     chainDepthBySlot,
     poolingFactor,
-
-    offersObserved: offers.length,
-    offersResolved: resolvedOffers.length,
-    offersUnresolved,
-    offerSpellings: spellings(offers.map((offer) => offer.nodeId)),
-    decisionsOffered: offeredPer.size,
-    offersFollowed,
-    offersObservable,
-    offersObservableFollowed,
-    decisionsOfferedNeverFollowed,
-    offerFollowRows,
 
     vacuity: [],
   };
@@ -768,17 +665,18 @@ export function decisionReadBaselineVacuity(baseline: DecisionReadBaseline): rea
     );
   }
 
-  if (baseline.offersObserved === 0) {
-    reasons.push(
-      "0 decision offers were recorded, so OFFER-TO-FOLLOW measured nothing — a follow rate of 0 here " +
-        "means the offer record was empty, never that agents ignore what they are offered",
-    );
-  } else if (baseline.offersResolved === 0) {
-    reasons.push(
-      `${baseline.offersObserved} offers were recorded and NONE resolved to a decision number, so the ` +
-        "offer side of the join is blind and any follow rate computed from it is meaningless",
-    );
-  }
+  // THE TWO OFFER-SIDE VACUITY REASONS WERE HERE, and went with the figure (ADR-0464 D7). They said
+  // "0 offers were recorded, so OFFER-TO-FOLLOW measured nothing" and "offers were recorded but none
+  // resolved". Keeping either would have made this function report every future run as vacuous
+  // forever, on a figure that is no longer computed — which is the inverse of what a vacuity check is
+  // for. The surviving reasons all concern reads, and reads are still gathered.
+  //
+  // ⚠ `decisionDiscoveryRefusals` in `decision-discovery.ts` exists BECAUSE of the two reasons removed
+  // here: that section never computed an offer figure, so it reimplemented the non-offer checks rather
+  // than reuse this function and report itself vacuous on every run. That divergence is now
+  // unnecessary — this function no longer carries an offer-side reason for it to avoid — but the two
+  // are left separate deliberately, because merging them is a behaviour change to the factory-health
+  // surface and belongs to whoever owns that reading, not to this deletion.
 
   return reasons;
 }

@@ -5,7 +5,7 @@ story: context-traversal-transcript
 arc: linked-session-context-arc
 title: "The traversal record is read back, and it reports what it can and cannot see of a decision read"
 outcome: "The traversal record's own account of decision reads is reported back — the two recorders counted apart, the decision offers no read shape could ever record a follow for sized as a denominator, and the raw-id join printed beside the resolved one so a ratio that silently drops a spelling cannot pass for a measurement."
-status: mapped
+status: retired
 proof_mode: integration-test
 depends_on: [transcript-decision-read-extraction]
 decisions: [260, 312, 403]
