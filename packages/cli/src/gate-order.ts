@@ -296,6 +296,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     why: "reds when this diff moves one mirrored surface and not its twin",
   },
   {
+    command: "pnpm check:desktop-route-coverage",
+    check: "check:desktop-route-coverage",
+    subject: "own-work",
+    cost: "seconds",
+    why: "reds when this diff leaves the desktop backend serving no route for a path the shared frontend calls — the ABSENCE half its `check:mirror-conformance` neighbour is structurally blind to, since a route the desktop never mirrored has no payload to be unequal. Three surfaces shipped broken that way (`/api/arcs` #1191, `/api/floor-health` #1228, the Traversal tab's three reads), each found by a human opening the app while the gate stayed green. Disk and source text only, so it sits beside the mirror pair it completes",
+  },
+  {
     command: "pnpm check:web-engine",
     check: "check:web-engine",
     subject: "own-work",
@@ -903,6 +910,7 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
   "check:hierarchy-camps",
   "check:contract-grammar",
   "check:mirror-conformance",
+  "check:desktop-route-coverage",
   // `check:web-grounding` left this set for `SHARED_ENVIRONMENT_CHECKS` (ADR-0403 dec 1): it reads
   // the DECISION LOG, which is shared live state now, so it can red on a sibling's status flip. Its
   // two web/ neighbours stay — they compare this diff's submodule pin against this repo's source.

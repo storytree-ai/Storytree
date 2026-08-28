@@ -157,7 +157,7 @@ test("the REAL gate plan still runs both expensive legs (the wall the axes are m
   }
 });
 
-test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ground-space, land-art, palette-transcription and anti-slop additions, in order", () => {
+test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-0336, ADR-0454, ADR-0223, ADR-0317, ADR-0403, ADR-0445, ADR-0458, ADR-0459, ground-space, land-art, palette-transcription, desktop-route-coverage and anti-slop additions, in order", () => {
   assert.deepEqual(
     GATE_PLAN.map((step) => step.command),
     [
@@ -177,6 +177,12 @@ test("the REAL gate plan is exactly the nine ADR-0311 survivors plus the ADR-033
       // neighbour, whose `chooseBaseRef` anchor it reuses.
       "pnpm check:contract-grammar",
       "pnpm check:mirror-conformance",
+      // The ABSENCE half of the line above (`traversal-panel-arc`, increment
+      // `desktop-route-coverage-is-unasked`, 2026-08-29): conformance compares the payloads of
+      // routes the desktop ALREADY serves, so a route it never mirrored has no payload to be
+      // unequal and the rung is vacuously green on it. Placed immediately after its neighbour
+      // because it completes that neighbour's question and costs the same order of nothing.
+      "pnpm check:desktop-route-coverage",
       "pnpm check:web-engine",
       "pnpm check:web-experience-closure",
       // ADR-0454, added 2026-08-26: the marker-presence third of the retired check:web-experience,

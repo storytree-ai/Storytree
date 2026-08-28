@@ -243,6 +243,19 @@ jobs:
       - name: Cross-surface mirror conformance
         run: pnpm check:mirror-conformance
 
+      # Desktop route COVERAGE (traversal-panel-arc, increment `desktop-route-coverage-is-unasked`) —
+      # the ABSENCE half of the step above, which asks only whether two payloads AGREE. A studio route
+      # the desktop never mirrored has no desktop payload, so nothing can be unequal and conformance
+      # is vacuously green on exactly the case that bites: the desktop ships the SAME compiled studio
+      # SPA, so every fetch the frontend gains 404s there until the route is mirrored. Three shipped
+      # that way (/api/arcs #1191, /api/floor-health #1228, the Traversal tab's three reads), each
+      # found by a human opening the app. Both route sets are DERIVED from source — a hand-kept list
+      # would be the same defect one level up — and every derivation refuses rather than answering
+      # empty, since an empty called-set has an empty difference against any route table. A ROOT step
+      # for its neighbour's reason: the gap is opened by editing EITHER surface.
+      - name: Desktop route coverage
+        run: pnpm check:desktop-route-coverage
+
       # Clone the PINNED web submodule so the grounding check validates the exact vendored site.
       # storytree-web is PUBLIC, so this needs no creds (unlike the private legacy/Agentic, which is
       # why the checkout above takes no submodules). ADR-0056.
