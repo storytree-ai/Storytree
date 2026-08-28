@@ -24,7 +24,7 @@ import { test } from "node:test";
 
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
-import { captureCliInvocation } from "./terminal-capture.js";
+import { captureCliInvocation, showTraversalSession } from "./terminal-capture.js";
 import { readTraversalSession } from "./sink.js";
 
 function freshDir(prefix: string): string {
@@ -115,4 +115,52 @@ test("captureCliInvocation: capture disabled writes no trace at all (ADR-0241 D2
     now: () => AT,
   });
   assert.deepEqual(fs.readdirSync(dir), []);
+});
+
+test("showTraversalSession: the render declares the SURVIVING outermost coverage, not a retired outer layer", () => {
+  // THE HAZARD THIS PINS, stated in this module's own header: every increment before ADR-0464 D1
+  // moved the coverage import OUTWARD, and each time the seam failed by declaring an INNER layer —
+  // printing a field under `omitted` on a trace that visibly carried it. D1 moved it INWARD for the
+  // first time, so the seam now has a second direction to fail in, and it is the easier one: both
+  // retired constants (`OFFER_CANDIDATE_SET_COVERAGE`, `FOLLOW_OFFER_EDGE_COVERAGE`) are still
+  // recoverable from git and read as the more complete ones. Re-wiring either would make this render
+  // claim two event kinds nothing can produce.
+  const dir = freshDir("render-coverage");
+  captureCliInvocation({
+    argv: ["library", "artifact", "plan"],
+    ok: true,
+    sessionId: "session-unit-6",
+    dir,
+    enabled: true,
+    nextId: () => "visit-6",
+    now: () => AT,
+  });
+
+  const rendered = showTraversalSession("session-unit-6", { dir });
+  const coverageLine = rendered.body
+    .split("\n")
+    .find((line) => line.includes("coverage: adapter=terminal-cli-dispatch"));
+  assert.notEqual(coverageLine, undefined, "the terminal adapter's coverage must render");
+  const [supported, omitted] = (coverageLine ?? "").split(" omitted=");
+
+  // What this composition genuinely writes stays SUPPORTED — without this half, the omission
+  // assertions below would be satisfied by a declaration that simply claimed nothing.
+  assert.ok(supported?.includes("field:parent_visit_id"));
+  assert.ok(supported?.includes("field:prior_visit_id"));
+
+  for (const retired of ["event:candidate_set", "event:followed_edge", "field:candidate_follow_causality"]) {
+    assert.ok(omitted?.includes(retired), `${retired} has no producer, so the render must OMIT it`);
+    assert.equal(
+      supported?.includes(retired),
+      false,
+      `${retired} must not render as supported — declaring an event this adapter cannot write is the ` +
+        "mirror of the self-denial ADR-0235 clause 6 forbids",
+    );
+  }
+
+  // The caveats ride with the declaration (ADR-0235 clause 6): a render that states no gap at all
+  // satisfies that clause vacuously, which is what deleting the three retired offer caveats would
+  // have left behind.
+  assert.ok(rendered.body.includes("coverage-caveats:"));
+  assert.ok(rendered.body.includes("offers-and-follows-are-no-longer-recorded"));
 });
