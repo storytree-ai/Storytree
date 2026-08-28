@@ -18,6 +18,7 @@ capabilities:
     terminal-capture-activation,
     revisit-link-metadata,
     agent-ref-descent,
+    decision-point-playback,
   ]
 proof:
   command:
@@ -91,18 +92,30 @@ zod-only because the studio bundles it.
 | 4 | [`terminal-capture-activation`](terminal-capture-activation.md) | The real terminal CLI process captures its own reads additively and replays them on demand. | `traversal-trace-sink`, `terminal-boundary-observations`, `traversal-session-query` |
 | 5 | [`revisit-link-metadata`](revisit-link-metadata.md) | A visit to a node this session already read carries the earlier visit's id, and carries none when it does not. | `traversal-trace-sink`, `terminal-boundary-observations` |
 | 6 | [`agent-ref-descent`](agent-ref-descent.md) | Each floor ref the agents render resolves becomes a child visit naming the agent's visit as its parent, and no other CLI shape descends anything. | `traversal-trace-sink`, `terminal-boundary-observations` |
+| 7 | [`decision-point-playback`](decision-point-playback.md) | A replay renders each recorded offer's every candidate with what the trace deterministically says happened to it, and surfaces every follow it could not resolve rather than dropping it. | `traversal-trace-sink` |
 
 The graph is acyclic: the sink and the observation table consume only increment 1's vocabulary; the
 query consumes the sink's reader; the activation composes all three.
 
-**FIVE CAPABILITIES WERE RETIRED FROM THIS STORY BY ADR-0464 D1** — `artifact-offer-candidate-sets`,
-`offer-follow-edges`, `decision-point-playback`, `offer-observability-share` and
-`offer-set-render-agreement`. They built and read the citation-derived OFFER surface: what a
-`library artifact <id>` render offered in its Sources block, which offer a later read answered, and
-two derived readings over the join. The surface is retired (search and the authored `depends_on` edge
-are the discovery route now), so all five lost their subject at once and their modules were deleted.
-The six above are unaffected: none depended on any of the five, and the capture pipeline — sink,
-allowlist, replay, activation, revisit links, agent-ref descent — is untouched.
+**FOUR CAPABILITIES WERE RETIRED FROM THIS STORY BY ADR-0464 D1** — `artifact-offer-candidate-sets`,
+`offer-follow-edges`, `offer-observability-share` and `offer-set-render-agreement`. Two BUILT the
+citation-derived OFFER surface (what a `library artifact <id>` render offered in its Sources block,
+and which offer a later read answered) and two were instruments over it that can never verify
+anything again: the observability denominator ADR-0312 D1 rendered into `traversal show`, and the
+agreement check that compared a recorded offer set against the CLI's own printed Sources block —
+both halves of that comparison are gone.
+
+**`decision-point-playback` DELIBERATELY SURVIVES, and the distinction is worth stating** because
+this file is where a later reader will look for it. It is not a producer and not an instrument over a
+live population: it is a READER that joins `candidate_set` to `followed_edge` for a session being
+replayed. Traces captured before the retirement still hold both kinds, the studio's traversal panel
+still draws its offer fan from it, and it renders the EMPTY STRING for a replay holding no offer — so
+a post-retirement trace grows no block announcing an absence, rather than printing a misleading zero.
+Deleting it would have made every historical trace unreadable and silently removed a shipped UI
+surface belonging to another arc.
+
+The capture pipeline — sink, allowlist, replay, activation, revisit links, agent-ref descent — is
+untouched, and none of the survivors depended on any of the four.
 
 ⚠ The EVENT VOCABULARY is deliberately kept. `candidate_set` and `followed_edge` remain valid
 `ContextTraversalEvent` kinds and still replay from traces captured before that landing; what was

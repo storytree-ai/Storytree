@@ -558,6 +558,7 @@
       "packages/model-uat-pilot/src/index.ts": "model-uat-pilot",
 
       "$section_traversal": "The four context-traversal organisms — every non-barrel file is a named capability.",
+      "packages/context-traversal-capture/src/decision-point-playback.ts": "decision-point-playback",
       "packages/context-traversal-capture/src/descend-agent-refs.ts": "agent-ref-descent",
       "packages/context-traversal-capture/src/observe-cli.ts": "terminal-boundary-observations",
       "packages/context-traversal-capture/src/query-render.ts": "traversal-session-query",

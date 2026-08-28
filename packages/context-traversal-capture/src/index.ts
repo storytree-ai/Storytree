@@ -49,6 +49,20 @@ export {
 export type { AgentDescentDeps, AgentDocStore, CoverageCaveat } from "./descend-agent-refs.js";
 
 export {
+  computeDecisionPoints,
+  isFollowableOfferId,
+  renderDecisionPoints,
+} from "./decision-point-playback.js";
+export type {
+  CandidateOutcome,
+  DecisionCandidate,
+  DecisionPoint,
+  DecisionPointReport,
+  UnresolvedFollow,
+  UnresolvedReason,
+} from "./decision-point-playback.js";
+
+export {
   renderTraversalSessions,
   renderTraversalSession,
   type TraversalRenderEnvelope,

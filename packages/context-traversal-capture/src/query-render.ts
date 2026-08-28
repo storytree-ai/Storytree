@@ -15,6 +15,7 @@ import type {
   ContextVisitEvent,
 } from "@storytree/context-traversal-telemetry";
 
+import { computeDecisionPoints, renderDecisionPoints } from "./decision-point-playback.js";
 import { describeTraceIdentity } from "./session-identity.js";
 import type { TraceIdentityKind } from "./session-identity.js";
 import type { TraversalSessionSummary } from "./sink.js";
@@ -300,24 +301,32 @@ export function renderTraversalSession(
     }
   }
 
-  // TWO DERIVED BLOCKS USED TO BE APPENDED HERE, and ADR-0464 D1 deleted both with their subject.
-  // The DECISION-POINT view (capability `decision-point-playback`, ADR-0260) named every offer a
-  // render made and what became of it; the OBSERVABILITY denominator beneath it (capability
-  // `offer-observability-share`, ADR-0312 D1) said how much of that offer set a follow could ever
-  // have been observed on. Both read `candidate_set` and `followed_edge`, and nothing emits either
-  // kind any more.
+  // The DECISION-POINT view, APPENDED — the chronological lines above are left exactly as they were
+  // (capability `decision-point-playback`, ADR-0260). This block is a derived read over the same
+  // events: it emits nothing and infers nothing, and it renders the empty string for a replay that
+  // recorded no offer, so a trace holding none grows no section announcing an absence.
   //
-  // They are DELETED rather than left in place, and that is the point rather than tidiness. Each
-  // rendered the empty string for a replay holding no offers — so left standing they would have gone
-  // on running forever over a population that is now empty by construction, printing nothing and
-  // reporting no error. A reader of `traversal show` would have seen a clean render and had no way to
-  // tell "this session followed nothing" from "this instrument stopped having a subject". That is the
-  // vacuous-green shape, and the honest repair for an instrument whose subject is retired is to
-  // retire the instrument in the same landing.
+  // IT SURVIVES ADR-0464 D1 DELIBERATELY, and the reason is the empty-string behaviour just
+  // described. The decision retired the RECORDING of offers, not the ability to read what was already
+  // recorded: traces captured before that landing still carry `candidate_set` and `followed_edge`,
+  // the event vocabulary is deliberately kept, and the studio's traversal panel draws its offer fan
+  // from this same computation. A reader that returns nothing for an absent population is not the
+  // vacuous-green shape — that shape is an instrument printing a ZERO it presents as a finding.
+  const decisions = renderDecisionPoints(computeDecisionPoints(replay.events));
+  if (decisions !== "") {
+    lines.push("");
+    lines.push(decisions);
+  }
+
+  // THE OBSERVABILITY DENOMINATOR THAT SAT BENEATH IT IS GONE (capability
+  // `offer-observability-share`, ADR-0312 D1, retired by ADR-0464 D1 which names it). It stated how
+  // much of each offer set a follow could ever have been observed on — "followed 1 of 12" versus
+  // "followed 1 of 4 observable" being different claims, only the second supported.
   //
-  // The chronological `visits:` lines above are UNCHANGED and still carry the whole raw record. A
-  // trace captured BEFORE this landing still replays its `[candidate-set]` and `[followed-edge]`
-  // lines verbatim — the event vocabulary is deliberately kept (ADR-0464 D1 retires the RECORDING,
-  // not the ability to read what was already recorded), so no historical trace becomes unreadable.
+  // Losing it costs the CLI render nothing it still needs, because the block above already carries
+  // the same distinction per candidate: an offer no read shape could follow renders `unobservable`,
+  // which is never a declined branch. What the retired module added was the SUMMARY over that, and it
+  // computed the verdict by running the live CLI allowlist — machinery that only made sense while
+  // something was still recording offers to run it against.
   return { ok: true, body: lines.join("\n") };
 }
