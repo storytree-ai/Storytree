@@ -28,6 +28,7 @@
     "check:agents": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/build-agents.ts --check",
     "check:verification-decay": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-verification-decay.ts",
     "check:adr-health": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-adr-health.ts",
+    "check:definition-adjudication": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-definition-adjudication.ts",
     "check:library-dag-acyclic": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-library-dag-acyclic.ts",
     "hierarchy:load": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/load-hierarchy.ts",
     "check:hierarchy-drift": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-hierarchy-drift.ts",

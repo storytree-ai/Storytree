@@ -651,25 +651,51 @@ export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["inc
  * `increment` itself is IN the DAG: it is the successor of ADR-0223's tier-6 `plan`, which that ADR
  * placed as standing on its arc.
  *
- * `definition` joins the set for a DIFFERENT reason than the signal tier, and ADR-0363 D1 is the
- * decision (it amends ADR-0223 dec 3, which had placed `definition` in tier 1 beside `techstack`).
- * Definitions are durable, not transient — they are excluded because the depth they would contribute
- * buys nothing a reader uses: a separate mechanism already injects definitions into an agent's
- * context, so nobody consults their position in a dependency ranking. That matters because the
- * definition tier is the corpus's densest citation core and is mutually constitutive BY MEANING
- * (`story ↔ capability`, `dag ↔ node`) — orienting those pairs would record an arbitrary curator
- * choice, and this is the tier where that cost would have been paid for nothing.
+ * `definition` USED TO SIT HERE and no longer does (ADR-0468 D1, narrowing ADR-0363 D1's
+ * enforcement clause). ADR-0363 D1 excluded definitions for a reason that was entirely about DEPTH:
+ * a separate mechanism already injects definitions into an agent's context (ADR-0201), so nobody
+ * consults their position in a dependency ranking, which made the arbitrary-winner cost of orienting
+ * the mutually-constitutive pairs (`story` and `capability`, `dag` and `node`) a cost paid for
+ * nothing. That reason SURVIVES in full and is enforced by {@link DAG_EXCLUDED_KINDS} below.
+ *
+ * What changed is that the field acquired a SECOND consumer that is not depth. ADR-0464 D2 makes
+ * `dependsOn` the rendered onward discovery edge and D1 deletes the citation-derived offer surface,
+ * so D4 requires the definition tier — the orientation reads — to carry authored edges before that
+ * deletion. A schema that refuses the field outright makes the backfill the owner ordered
+ * impossible, so the refusal narrows to the transient signal tier alone.
  *
  * This enforces only the OUTGOING half. A per-doc zod schema cannot see target kinds, so nothing here
- * stops another artifact naming a definition in its own `dependsOn`. That is left legal deliberately:
- * a kind that carries no outgoing edge is a sink and cannot close a cycle, so a stray inbound edge is
- * harmless. The bootstrap projection declines to create them (`standson-bootstrap.ts`).
+ * stops another artifact naming a friction or an open question in its own `dependsOn`. That is left
+ * legal deliberately: a kind that carries no outgoing edge is a sink and cannot close a cycle, so a
+ * stray inbound edge is harmless. The bootstrap projection declines to create them
+ * (`standson-bootstrap.ts`).
  */
 export const EDGE_FREE_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>([
   "friction",
   "open-question",
-  "definition",
 ]);
+
+/**
+ * The kinds that CARRY `dependsOn` but sit OUTSIDE the ranked knowledge DAG — admitted by the schema,
+ * deliberately absent from `KNOWLEDGE_TIERS` (`standson-bootstrap.ts`). `definition` is the only
+ * member, and ADR-0468 D2 is the decision.
+ *
+ * WHY THE TWO SETS ARE NOW SEPARATE, when ADR-0365 D1 had just made them agree. That agreement was
+ * the right repair for `uat-criterion`, whose split state was an ACCIDENT — the kind arrived and
+ * nobody placed it, so it was outside the graph for the seed and inside it for the schema with
+ * nothing recording which was meant. `definition` is the opposite: both halves are chosen, and each
+ * has its own decision behind it. It carries the field because ADR-0464 D4 needs the orientation
+ * reads to offer something after the offer surface is deleted; it stays out of the tier order
+ * because ADR-0363 D1's finding — that the depth would buy a reader nothing, and that orienting the
+ * mutually-constitutive pairs records a curator's choice rather than a fact — is untouched by that.
+ *
+ * DECLARING IT IS THE POINT. `knowledge-standson.test.ts` asserts that every kind is accounted for
+ * by EXACTLY ONE of three places — the tier map, {@link EDGE_FREE_KINDS}, or this set — so a future
+ * kind cannot repeat `uat-criterion`'s silent omission. That totality check is strictly stronger
+ * than the agreement it replaces: the old invariant could only be stated once every out-of-DAG kind
+ * happened to be edge-free, and it said nothing at all about a kind left out of both.
+ */
+export const DAG_EXCLUDED_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["definition"]);
 
 /**
  * One authored `dependsOn` target: an `asset:<id>` Library artifact or a `doc:<relpath>` ADR.

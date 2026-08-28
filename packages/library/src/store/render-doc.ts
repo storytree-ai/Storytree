@@ -114,7 +114,8 @@ export interface RenderedAsset {
    * Present only when the stored doc carries it — never an empty array, so a doc with no authored
    * edge is indistinguishable on the wire from one predating the field (`dependsOn` is `.optional()`,
    * never `.default([])`; ADR-0223's zero-migration rule). Absent for every EDGE_FREE_KINDS doc
-   * (`friction` / `open-question` / `definition`) by construction. Unlike the navigation edges above
+   * (`friction` / `open-question`) by construction — `definition` left that set in ADR-0468 D1 and
+   * now crosses the wire like any other kind. Unlike the navigation edges above
    * this crosses on the PASS-THROUGH branch as well — see the comment at that branch.
    */
   dependsOn?: string[];

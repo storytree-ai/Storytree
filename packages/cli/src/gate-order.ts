@@ -383,6 +383,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     why: "a dependsOn cycle is authored by a live artifact write, so ANY session's edit can red it — the corpus it judges is shared even when this branch touched none of it (ADR-0223 D3)",
   },
   {
+    command: "pnpm check:definition-adjudication",
+    check: "check:definition-adjudication",
+    subject: "shared-environment",
+    cost: "seconds",
+    why: "reds when a `definition` row is neither carrying an authored dependsOn edge nor named as deliberately carrying none (ADR-0468 D3). It sits beside check:library-dag-acyclic for the same reason: the tier it judges is live state, so ANY session's artifact edit can red it even on a branch that touched no corpus. Deliberately NOT the weaker `every definition carries an edge` — that shape prices the tier toward padding, which is the failure ADR-0464's candidate-D refusal names",
+  },
+  {
     command: "pnpm check:hierarchy-drift",
     check: "check:hierarchy-drift",
     subject: "shared-environment",
@@ -890,6 +897,7 @@ export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
   "check:agents",
   "check:verification-decay",
   "check:library-dag-acyclic",
+  "check:definition-adjudication",
   "check:hierarchy-drift",
 ]);
 

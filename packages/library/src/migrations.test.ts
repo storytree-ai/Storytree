@@ -556,15 +556,44 @@ test("upcast: migration #7 preserves ABSENCE — it never stamps an empty edge (
 });
 
 test("upcast: migration #7 tests the KEY not the kind, so an edge-free kind stays fail-closed", () => {
-  // A stray edge authored on an edge-free kind (`friction` / `open-question` / `definition` —
-  // ADR-0223 D1, ADR-0363 D1) is carried across under the NEW name and refused by the SAME validator
-  // that refused it before, rather than being silently left behind under a key nothing reads.
-  const { seeAlso: _seeAlso, ...definition } = v0DefinitionWithSeeAlso();
-  const stray = { ...definition, schemaVersion: 6, standsOn: ["asset:proof-mode"] };
+  // A stray edge authored on an edge-free kind (`friction` / `open-question` — ADR-0223 D1) is
+  // carried across under the NEW name and refused by the SAME validator that refused it before,
+  // rather than being silently left behind under a key nothing reads.
+  //
+  // `definition` WAS the exemplar here and is not one any more: ADR-0468 D1 removed it from
+  // `EDGE_FREE_KINDS` so ADR-0464 D4's backfill of the tier could happen at all. The next test
+  // asserts that side, which is why this one had to move to a kind that is still refused — an
+  // exemplar that stopped being an example is how a fail-closed assertion goes vacuously green.
+  const stray = {
+    kind: "open-question",
+    id: "test-oq-stray-edge",
+    title: "Test OQ",
+    description: "fixture",
+    schemaVersion: 6,
+    stakes: "None.",
+    statement: "Is the fixture fine?",
+    options: "A vs B.",
+    references: [],
+    standsOn: ["asset:proof-mode"],
+    createdAt: "2026-06-11T00:00:00.000Z",
+    updatedAt: "2026-06-11T00:00:00.000Z",
+  };
   const out = upcast(stray);
   assert.equal("standsOn" in out, false);
   assert.deepEqual(out["dependsOn"], ["asset:proof-mode"]);
   assert.throws(() => validateLibraryDoc(out), "an edge on an edge-free kind is still refused");
+});
+
+test("upcast: migration #7 carries a definition's edge across, and the validator now ACCEPTS it", () => {
+  // The other side of the same rule, and the one that changed. ADR-0468 D1 admits `dependsOn` on a
+  // `definition` — the tier's 49 authored edges (ADR-0464 D4) are unreachable otherwise — so a row
+  // written under the old key must forward-migrate into a VALID doc rather than into a refused one.
+  const { seeAlso: _seeAlso, ...definition } = v0DefinitionWithSeeAlso();
+  const stray = { ...definition, schemaVersion: 6, standsOn: ["asset:adr-0017"] };
+  const out = upcast(stray);
+  assert.equal("standsOn" in out, false);
+  assert.deepEqual(out["dependsOn"], ["asset:adr-0017"]);
+  assert.doesNotThrow(() => validateLibraryDoc(out));
 });
 
 test("upcast: migration #7 drops a stray legacy `standsOn` sitting beside a `dependsOn`", () => {

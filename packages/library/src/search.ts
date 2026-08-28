@@ -215,10 +215,11 @@ const MIN_TOKEN_LENGTH = 2;
  * DELIBERATELY THE TWO ADR-0464 NAMES AND NOTHING ELSE. `arc` (an initiative overlay),
  * `open-question` (a live ask) and `uat-criterion` are all durable and all things a session
  * legitimately orients on, so widening this set is a decision, not a tidy-up. It is neither
- * {@link EPHEMERAL_KINDS} (`increment` alone) nor `EDGE_FREE_KINDS` (`friction`, `open-question`,
- * `definition`) — both exist to answer different questions, and reusing either would silently
- * withhold `definition`, the tier orientation needs most. (Named in prose rather than imported:
- * this module is deliberately zod-free, and `knowledge.ts` is not.)
+ * {@link EPHEMERAL_KINDS} (`increment` alone) nor `EDGE_FREE_KINDS` (`friction` and `open-question`
+ * — `definition` left that set in ADR-0468 D1, and `DAG_EXCLUDED_KINDS` now carries it) — those
+ * exist to answer different questions, and reusing any of them would silently withhold `definition`,
+ * the tier orientation needs most. (Named in prose rather than imported: this module is deliberately
+ * zod-free, and `knowledge.ts` is not.)
  */
 export const TRANSIENT_KINDS: ReadonlySet<string> = new Set(["increment", "friction"]);
 
