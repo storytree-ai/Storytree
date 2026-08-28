@@ -40,64 +40,13 @@ export {
 
 export { linkRevisits, REVISIT_LINK_COVERAGE } from "./revisit-links.js";
 export {
+  AGENT_DESCENT_CAVEATS,
   AGENT_DESCENT_COVERAGE,
   descendAgentRefs,
+  renderCoverageCaveats,
   resolveAgentDescent,
 } from "./descend-agent-refs.js";
-export type { AgentDescentDeps, AgentDocStore } from "./descend-agent-refs.js";
-
-export {
-  candidateSetIdOf,
-  emitCandidateSet,
-  isOfferableArtifactRead,
-  offerIdOf,
-  renderCoverageCaveats,
-  resolveArtifactOffers,
-  CANDIDATE_SET_PREFIX,
-  LIBRARY_ARTIFACT_SURFACE,
-  OFFER_CANDIDATE_SET_CAVEATS,
-  OFFER_CANDIDATE_SET_COVERAGE,
-} from "./offer-candidate-sets.js";
-export type { CoverageCaveat, OfferDeps, OfferDocStore } from "./offer-candidate-sets.js";
-
-export {
-  emitFollowedEdge,
-  parseOfferFollow,
-  planOfferIdentity,
-  renderOfferFollowUps,
-  FOLLOW_OFFER_EDGE_CAVEATS,
-  FOLLOW_OFFER_EDGE_COVERAGE,
-  OFFER_FLAG,
-  OFFER_FOLLOW_NOTE,
-} from "./follow-offer-edges.js";
-export type { FollowDeps, FollowedOffer, OfferIdentity } from "./follow-offer-edges.js";
-
-export {
-  computeDecisionPoints,
-  isFollowableOfferId,
-  renderDecisionPoints,
-} from "./decision-point-playback.js";
-export type {
-  CandidateOutcome,
-  DecisionCandidate,
-  DecisionPoint,
-  DecisionPointReport,
-  UnresolvedFollow,
-  UnresolvedReason,
-} from "./decision-point-playback.js";
-
-export {
-  classifyOfferObservability,
-  computeOfferObservability,
-  followArgvFor,
-  renderOfferObservability,
-} from "./offer-observability-share.js";
-export type {
-  ObservabilityReport,
-  OfferObservability,
-  PointObservability,
-  UnobservableReason,
-} from "./offer-observability-share.js";
+export type { AgentDescentDeps, AgentDocStore, CoverageCaveat } from "./descend-agent-refs.js";
 
 export {
   renderTraversalSessions,
