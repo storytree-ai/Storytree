@@ -15,15 +15,53 @@ import type {
   ContextVisitEvent,
 } from "@storytree/context-traversal-telemetry";
 
-import { computeDecisionPoints, renderDecisionPoints } from "./decision-point-playback.js";
-import {
-  computeOfferObservability,
-  renderOfferObservability,
-  REPLAY_PATHWAY_NOTE,
-} from "./offer-observability-share.js";
 import { describeTraceIdentity } from "./session-identity.js";
 import type { TraceIdentityKind } from "./session-identity.js";
 import type { TraversalSessionSummary } from "./sink.js";
+
+/**
+ * The one place this codebase admits that a FILE read is unobserved. Shared so the surfaces that
+ * state it cannot drift apart in wording.
+ *
+ * Re-homed here by ADR-0464 D1, which deleted `offer-observability-share.ts`. It arrived there
+ * because the offer-observability block was the first surface to need it; it was never about offers.
+ * Its sibling `PATHWAY_CAVEAT` — which scoped the same clause to the offer block's ratio — DID die
+ * with that block, and the difference is the reason this one had to be kept: that caveat qualified a
+ * DENOMINATOR, this note qualifies the WHOLE REPLAY.
+ */
+export const FILE_READS_OBSERVE_NOTHING = "file reads observe nothing";
+
+/**
+ * What the REPLAY AS A WHOLE observes and does not — `adrs-into-the-dag-arc-inc-03`.
+ *
+ * Printed UNCONDITIONALLY on every replay, and that is the property that had to survive ADR-0464 D1.
+ * The offer-observability block that used to carry the same admission rendered the empty string when
+ * a replay recorded no offer — so on exactly the sparse traces most likely to be misread as "this
+ * session read lightly", the admission was not printed at all. After the offer surface's retirement
+ * EVERY trace is such a trace, so had this note gone with its old home the replay would have lost its
+ * only statement of what it cannot see, on every session, permanently. The replay's worst property is
+ * not that it under-reports; it is that it under-reports SILENTLY while looking complete.
+ *
+ * NO STATISTIC IS CARRIED HERE, deliberately. Dated corpus measurements start rotting the day they
+ * ship; the FACT is durable and belongs here, the NUMBERS belong on the arc where they carry their
+ * date and population.
+ *
+ * Under-reporting is the accepted failure mode for this capture — acceptable only while it is
+ * declared, and declaring it is this constant's whole job.
+ *
+ * THE EXAMPLE MOVED ON 2026-08-22, AND THE FACT DID NOT (`decision-log-readers-arc-inc-04`). It read
+ * "a decision record opened from `docs/decisions/`", chosen because decision pointers were the
+ * largest unobserved class. ADR-0403 dec 1 deleted that directory and made a decision an ordinary
+ * Library row, so the sentence became false twice over: the path no longer exists, and a decision is
+ * now reached by `storytree library artifact adr-NNNN`, which the allowlist DOES observe. A caveat
+ * illustrating its own opposite is worse than none, because a reader trusts the concrete half. The
+ * shared clause it composes is untouched and still true, so only the EXAMPLE changed: a story spec
+ * opened straight from `stories/` still leaves no trace.
+ */
+export const REPLAY_PATHWAY_NOTE =
+  "observes: storytree CLI reads only, by an allowlist whose default answer is no event; " +
+  `${FILE_READS_OBSERVE_NOTHING}, so a story spec opened straight from stories/ leaves no trace ` +
+  "here — this replay covers one pathway, not all of this session's navigation";
 
 /** The local envelope shape (ADR-0023): a body plus optional `next:` pointers. */
 export interface TraversalRenderEnvelope {
@@ -262,31 +300,24 @@ export function renderTraversalSession(
     }
   }
 
-  // The DECISION-POINT view, APPENDED — the chronological lines above are left exactly as they were
-  // (capability `decision-point-playback`, ADR-0260). Those lines are the raw record and two signed
-  // UAT legs pin `[candidate-set] … candidates=N` and `[followed-edge] …` VERBATIM, so making the
-  // offered ids legible by rewriting them would redden a signed proof to no purpose. This block is a
-  // derived read over the same events: it emits nothing and infers nothing, and it renders the empty
-  // string for a replay that recorded no offer, so a pre-offer trace grows no section announcing an
-  // absence.
-  const decisions = renderDecisionPoints(computeDecisionPoints(replay.events));
-  if (decisions !== "") {
-    lines.push("");
-    lines.push(decisions);
-  }
-
-  // The DENOMINATOR for the block above (capability `offer-observability-share`, ADR-0312). The
-  // decision view names every offer and what happened to it, but a reader takes its offered count as
-  // the denominator — and on this corpus 36.7% of all references are `doc:` refs no CLI read can
-  // reach, ranging 0–100% by artifact. "Followed 1 of 12" and "followed 1 of 4 observable" are
-  // different claims about a session, and only the second is supported. Appended for the same reason
-  // the decision block is: the chronological lines and the decision block are each pinned verbatim by
-  // signed UAT legs, so this states what they cannot rather than rewriting them.
-  const observability = renderOfferObservability(computeOfferObservability(replay.events));
-  if (observability !== "") {
-    lines.push("");
-    lines.push(observability);
-  }
-
+  // TWO DERIVED BLOCKS USED TO BE APPENDED HERE, and ADR-0464 D1 deleted both with their subject.
+  // The DECISION-POINT view (capability `decision-point-playback`, ADR-0260) named every offer a
+  // render made and what became of it; the OBSERVABILITY denominator beneath it (capability
+  // `offer-observability-share`, ADR-0312 D1) said how much of that offer set a follow could ever
+  // have been observed on. Both read `candidate_set` and `followed_edge`, and nothing emits either
+  // kind any more.
+  //
+  // They are DELETED rather than left in place, and that is the point rather than tidiness. Each
+  // rendered the empty string for a replay holding no offers — so left standing they would have gone
+  // on running forever over a population that is now empty by construction, printing nothing and
+  // reporting no error. A reader of `traversal show` would have seen a clean render and had no way to
+  // tell "this session followed nothing" from "this instrument stopped having a subject". That is the
+  // vacuous-green shape, and the honest repair for an instrument whose subject is retired is to
+  // retire the instrument in the same landing.
+  //
+  // The chronological `visits:` lines above are UNCHANGED and still carry the whole raw record. A
+  // trace captured BEFORE this landing still replays its `[candidate-set]` and `[followed-edge]`
+  // lines verbatim — the event vocabulary is deliberately kept (ADR-0464 D1 retires the RECORDING,
+  // not the ability to read what was already recorded), so no historical trace becomes unreadable.
   return { ok: true, body: lines.join("\n") };
 }

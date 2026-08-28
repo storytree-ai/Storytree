@@ -20,7 +20,7 @@ import { test } from "node:test";
 import { createContextTraversalTrace, CoverageFeature } from "@storytree/context-traversal-telemetry";
 
 import type { TraversalSessionSummary } from "./sink.js";
-import { REPLAY_PATHWAY_NOTE } from "./offer-observability-share.js";
+import { REPLAY_PATHWAY_NOTE } from "./query-render.js";
 import { renderTraversalSessions, renderTraversalSession } from "./query-render.js";
 
 test("session-list-is-newest-first-with-counts: the session index orders newest-observed first with counts, and an empty index renders without error", () => {

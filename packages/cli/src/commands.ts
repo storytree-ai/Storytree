@@ -231,7 +231,6 @@ import { loadWorkHierarchyIndex } from "@storytree/drive";
 import { orchestrate, type OrchestrateArgs } from "@storytree/drive";
 import type { SdkQueryFn } from "@storytree/agent";
 import { deriveIdentity, noticeboardCommand } from "@storytree/drive";
-import { renderOfferFollowUps, OFFER_FOLLOW_NOTE } from "@storytree/context-traversal-capture";
 import { captureBuildSpawn } from "@storytree/context-traversal-spawn";
 import type { LeafSliceRun } from "@storytree/context-traversal-spawn";
 // The graded claim-ledger verbs (ADR-0200 D2): claim / upgrade / downgrade / release / claims.
@@ -573,13 +572,14 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
 /**
  * `storytree library artifact <id>` — print one artifact to stdout.
  *
- * `offerId` is the identity of the offer this render is about to record (ADR-0260 D3). When present,
- * every followable ref in the Sources block also gets a `next:` command CARRYING that id, so an agent
- * that takes one of those branches hands the offer's identity back on its own command line and the
- * answering read can declare the edge. Absent, the nav is exactly what it always was — and the
- * resulting reads record no edges, which is D4's accepted under-report rather than a defect.
+ * ADR-0464 D1 removed this render's `offerId` parameter and the block it drove. Every followable ref
+ * in the Sources block used to get a SECOND `next:` line carrying that id, so an agent taking one of
+ * those branches handed the offer's identity back on its own command line. The onward nav is now the
+ * AUTHORED `depends_on` edge alone (D2, spliced in below), which is a narrower list a person chose
+ * rather than "whatever happened to cite this" — and it keeps the titles and kind grouping the offer
+ * block stripped off, so the surviving block is strictly more informative than the one deleted.
  */
-export async function viewArtifact(store: Store, id: string, offerId?: string): Promise<Envelope> {
+export async function viewArtifact(store: Store, id: string): Promise<Envelope> {
   const stored = await store.getDoc(id);
   if (!stored) {
     return {
@@ -685,21 +685,16 @@ export async function viewArtifact(store: Store, id: string, offerId?: string): 
     const authored = dependsOnEdges(readDependsOnPointers(stored.doc), resolveAsset);
     next = [...emitNodeEnvelope({ id: a.id, headline: a.title, edges: authored }).next, ...next];
   }
-  // The Sources block IS the offer (ADR-0260 D1), and D3 makes the offer's identity travel: one
-  // pasteable follow-up per FOLLOWABLE ref, each naming the candidate set it came from. A `doc:` ref
-  // gets none — it resolves to a file, not to a CLI read — which is the declared coverage caveat
-  // rather than a hole to paper over with a command that could not run.
+  // NOTHING IS APPENDED HERE ANY MORE (ADR-0464 D1). The Sources block above used to be printed a
+  // SECOND time as navigation — one pasteable `--from-offer` follow-up per followable ref, plus an
+  // ASK stanza in the envelope's `note:` telling the agent to run the line as printed (ADR-0320).
+  // Measured on `session-orchestrator`, that second block was 3,537 chars against the first's 2,155
+  // and carried strictly LESS: same targets, same order, titles and type grouping stripped, and 51%
+  // of it was one 45-char candidate-set id repeated 28 times.
   //
-  // ADR-0320: the form alone was measured insufficient (5048 offers, zero edges), so it now travels
-  // with the ASK. The note is attached only when follow-ups were ACTUALLY produced — an artifact
-  // whose refs are all `doc:` offers nothing followable, and a note pointing at commands that are
-  // not there would be noise on the exact reads the caveats already call unobservable.
-  if (offerId !== undefined) {
-    const followUps = renderOfferFollowUps(offerId, a.references);
-    if (followUps.length > 0) {
-      return { ok: true, body: lines.join("\n"), next: [...next, ...followUps], note: OFFER_FOLLOW_NOTE };
-    }
-  }
+  // The replacement is not this block ranked or capped — it is the authored `depends_on` edge spliced
+  // in above, which is a list a person chose rather than a provenance list read forwards. `references`
+  // is what an artifact was WRITTEN FROM; using it to say where to go NEXT was the whole defect.
   return { ok: true, body: lines.join("\n"), next };
 }
 
@@ -1968,16 +1963,6 @@ export interface RunDeps {
   /** Recorded as the event `actor` on writes (per-session attribution). Defaults to "cli". */
   readonly actor?: string;
   /**
-   * The offer id THIS invocation's `library artifact <id>` render will record (ADR-0260 D3), so the
-   * follow-up commands it prints can name it and a later read can answer it. Pre-minted in `main.ts`
-   * — the render has to print the id before capture writes it, and both must be the SAME id.
-   *
-   * Absent for every shape that will record no offer, so a printed follow-up never carries an id
-   * naming a candidate set nothing recorded. Absent in tests too, which is why `viewArtifact` renders
-   * its ordinary nav unchanged when it is missing.
-   */
-  readonly offerId?: string;
-  /**
    * The session seam (ADR-0033, presence RETIRED by ADR-0200 D7): `identity` is injectable for
    * tests — when ABSENT it is derived from the enclosing worktree. `claims` (ADR-0142) is the
    * write-claim store: `declare --node` takes the work-time claim (the wisp), `done` bulk-releases
@@ -2941,10 +2926,6 @@ export const CLI_OPTIONS = {
   "threshold-hours": { type: "string" },
   // `storytree desktop install-shortcut --runtime <path>` — the pinned-main runtime worktree (ADR-0181).
   runtime: { type: "string" },
-  // `storytree library artifact <id> --from-offer <candidateSetId>` — the offer an answering
-  // read is declaring it followed (ADR-0260 D3). Registered so the flag parses; the VALUE is
-  // read from argv by the capture boundary in `main.ts`, never from here.
-  "from-offer": { type: "string" },
   // `storytree factory health` — the window and the dispatch-rate reference (ADR-0316 D2). A
   // rate-sensitive figure is refused where `--from`/`--to` bound a window whose landings/day falls
   // below the comparability floor against `--landings-per-day`.
@@ -4702,7 +4683,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // The bare-bytes read: ONE field's exact stored value on stdout — or, with `--out <path>`, into
     // a file this process opens, which is the channel the documented round trip uses (ADR-0361 D1).
     if (values.raw !== undefined) return rawField(deps.store, third, values.raw, values.out);
-    return viewArtifact(deps.store, third, deps.offerId);
+    return viewArtifact(deps.store, third);
   }
 
   return {
