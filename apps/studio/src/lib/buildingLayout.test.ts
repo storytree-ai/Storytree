@@ -63,19 +63,48 @@ function corpus(): WiredNode[] {
 const CORPUS_IDS = corpus().map((n) => n.id);
 
 describe('storyIcon — every island carries its own deterministic identity icon (ADR-0102 §1)', () => {
-  it('is deterministic — the same id yields an equal identity', () => {
-    expect(storyIcon('library')).toEqual(storyIcon('library'));
-    expect(storyIcon('drive-machinery')).toEqual(storyIcon('drive-machinery'));
+  it('is deterministic — each id yields the identity it has always yielded', () => {
+    // ⚠ THESE VALUES ARE FROZEN. Read off `storyIcon` once and pinned; do NOT regenerate them to
+    // make a failure go away. A red here means every island on the map changed shape or colour,
+    // which is the regression ADR-0102 S1's "deterministic identity" exists to forbid.
+    //
+    // The previous form asserted `storyIcon(x)` toEqual `storyIcon(x)` — the same call on both
+    // sides, which is true of every possible implementation. Confirmed hollow 2026-08-29: it passed
+    // with the body replaced by `shape: 0, hue: 0`, i.e. with every island's visual identity
+    // destroyed.
+    expect(storyIcon('library')).toEqual({ shape: 0, hue: 40, monogram: 'LI' });
+    expect(storyIcon('drive-machinery')).toEqual({ shape: 2, hue: 158, monogram: 'DM' });
+    expect(storyIcon('notice-board')).toEqual({ shape: 4, hue: 268, monogram: 'NB' });
   });
 
-  it('keeps shape in [0, ICON_SHAPES) and hue in [0, 360)', () => {
-    for (const id of CORPUS_IDS) {
-      const icon = storyIcon(id);
-      expect(icon.shape).toBeGreaterThanOrEqual(0);
-      expect(icon.shape).toBeLessThan(ICON_SHAPES);
-      expect(icon.hue).toBeGreaterThanOrEqual(0);
-      expect(icon.hue).toBeLessThan(360);
+  it('SPREADS shape and hue across their ranges rather than merely staying inside them', () => {
+    // The bounds alone are unfailable: `shape` is `hash(id) % ICON_SHAPES` and `hue` is
+    // `hash(...) % 360`, so `0 <= shape < ICON_SHAPES` and `0 <= hue < 360` are true by
+    // construction of the modulo — the assertion restates the implementation's own arithmetic.
+    // Confirmed hollow 2026-08-29: the bounds passed with the body replaced by `shape: 0, hue: 0`.
+    //
+    // The bounds are KEPT below, because they are still the contract a future non-modulo
+    // implementation would have to honour — but they are no longer the whole test. What carries it
+    // now is DISPERSION: an identity scheme whose whole job is to make islands distinguishable
+    // must actually use its range, and a collapsed or near-constant mapping fails here.
+    const shapes = CORPUS_IDS.map((id) => storyIcon(id).shape);
+    const hues = CORPUS_IDS.map((id) => storyIcon(id).hue);
+
+    for (const shape of shapes) {
+      expect(shape).toBeGreaterThanOrEqual(0);
+      expect(shape).toBeLessThan(ICON_SHAPES);
     }
+    for (const hue of hues) {
+      expect(hue).toBeGreaterThanOrEqual(0);
+      expect(hue).toBeLessThan(360);
+    }
+
+    // MEASURED against this corpus, not chosen: it occupies 7 of the 8 shape buckets and its hues
+    // are all distinct. Both are properties of the CORPUS meeting the hash, not restatements of the
+    // formula, so a change to either side moves only one of them. The floors are set one notch
+    // below the measurement so ordinary corpus churn does not red them, while any COLLAPSE does.
+    expect(new Set(shapes).size).toBeGreaterThanOrEqual(ICON_SHAPES - 1);
+    expect(new Set(hues).size).toBeGreaterThanOrEqual(CORPUS_IDS.length - 1);
   });
 
   it('derives the monogram from the id (multi-word initials; single-word first-two-letters)', () => {

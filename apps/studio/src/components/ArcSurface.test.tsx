@@ -756,8 +756,30 @@ describe('ArcSurface — the floor-health reading is NOT here any more (ADR-0349
   it('takes no floor-health prop at all — the fence is structural, not a convention', async () => {
     // A surface that still ACCEPTED the band would invite the re-mount the test above forbids, and
     // would put the one undecided call (the loud/quiet threshold) within reach of a second place.
-    const props = Object.keys({ arcs: undefined, now: NOW, onOpen: undefined });
-    expect(props).not.toContain('floorHealth');
+    //
+    // THE FENCE IS A TYPE, SO THE TYPECHECK IS WHAT ENFORCES IT. The previous form of this test ran
+    // `Object.keys` over an object literal THE TEST ITSELF WROTE and asserted `floorHealth` was not
+    // among its keys — it never touched `ArcSurface`, and the literal was not even the real prop
+    // list (the surface also takes `claims` and `readArc`). Confirmed hollow 2026-08-29: adding
+    // `floorHealth` to `ArcSurfaceProps`, destructuring it and referencing it in the body left this
+    // green, and the whole file still passed 55/55 — nothing anywhere caught it.
+    //
+    // `@ts-expect-error` is the assertion. It REDS `pnpm --filter studio typecheck` the moment
+    // `floorHealth` becomes a legal prop, because an unused expect-error is itself an error. That is
+    // a claim about the type, checked by the thing that can see types — which `Object.keys` cannot.
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[ORIENTATION_ARC]}
+        now={NOW}
+        // @ts-expect-error — ArcSurface must NOT accept a floor-health prop (see above).
+        floorHealth={{ bottlenecks: [], collapsingRule: null, window: '7d' }}
+      />,
+    );
+    await settle();
+    // …and passing it changes nothing that renders: the band is still absent.
+    expect(screen.queryByTestId('floor-health-strip')).toBeNull();
+    expect(screen.queryByTestId('floor-lamp')).toBeNull();
   });
 });
 

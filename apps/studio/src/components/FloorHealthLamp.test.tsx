@@ -27,6 +27,7 @@ import {
   FloorHealthLamp,
   floorLampState,
   LOUD_AT_RECURRENCES,
+  type FloorBottleneck,
   type FloorHealthBand,
   type FloorHealthSignal,
   type FloorLampState,
@@ -143,11 +144,33 @@ describe('FloorHealthLamp — lit on a recurring DISTINCT bottleneck, never on v
     // The structural half of the fence: ADR-0314 D7's "never filing volume" is enforced by the type
     // having nowhere to put one, not by a comment. A hundred reports of ONE bottleneck must not
     // score like a hundred reports of a hundred.
-    const keys = Object.keys(loud).sort();
-    expect(keys).toEqual(['bottlenecks', 'collapsingRule', 'window']);
-    for (const bottleneck of loud.bottlenecks) {
-      expect(Object.keys(bottleneck).sort()).toEqual(['cause', 'id', 'recurrences']);
-    }
+    //
+    // ⚠ THE TYPE IS THE FENCE, SO THE TYPECHECK IS WHAT ENFORCES IT. This test used to run
+    // `Object.keys` over `loud` — a TEST-LOCAL OBJECT LITERAL declared 30 lines above — and assert
+    // its key list. That inspects a fixture, not a type, so only editing the fixture could redden
+    // it. Confirmed hollow 2026-08-29: adding `filingVolume?: number` to `FloorHealthSignal` — the
+    // exact field this test says is impossible — left it green and the file passed 17/17.
+    //
+    // The two `@ts-expect-error`s below ARE the assertion. An unused expect-error is itself a
+    // compile error, so each reds `pnpm --filter studio typecheck` the moment the field it names
+    // becomes legal — on the signal and on a single bottleneck respectively.
+    const withVolume: FloorHealthSignal = {
+      ...loud,
+      // @ts-expect-error — FloorHealthSignal must have nowhere to put a filing/report volume.
+      filingVolume: 100,
+    };
+    const withPerCauseVolume: FloorBottleneck = {
+      ...loud.bottlenecks[0]!,
+      // @ts-expect-error — nor may a single bottleneck carry one.
+      reportCount: 100,
+    };
+
+    // The runtime half is kept, and it now asks the question the type cannot: that a volume field
+    // smuggled in at runtime reaches NOTHING the lamp renders. It stays quiet about the 100.
+    render(<FloorHealthLamp signal={withVolume} />);
+    expect(state()).toBe('loud');
+    expect(openDetail().textContent ?? '').not.toContain('100');
+    expect(withPerCauseVolume.recurrences).toBe(8);
   });
 
   it('offers no affordance to discharge, route or dismiss — it reports, it does not adjudicate', () => {
