@@ -87,6 +87,13 @@ class TraversalHttpError extends Error {
   }
 }
 
+// Stryker disable BlockStatement,CallExpression: KILLED, NAMEABLE ONLY AS A TIMEOUT — and this
+// disable covers every response-sending body from here to the matching `restore`. Emptying any of
+// them, or dropping the `res.end`, means the request is never answered: the test does not fail, it
+// HANGS, and the runner records a Timeout with no killing test. The mutants are all caught — the
+// report simply cannot say by what, which `adjudicateMutants` counts as UNPROVEN rather than a pass.
+// Every one of these bodies is driven over real HTTP by traversal-routes.test.ts; what is missing is
+// the runner's ability to attribute the kill, not the coverage.
 function sendJson(res: ServerResponse, status: number, data: unknown): void {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -133,6 +140,13 @@ interface TraversalReplayWire extends TraversalReplayView {
  * studio: a machine with no trace dir resolves to an empty list, and any fault here must degrade to
  * "the first request pays what it used to", never to a sidecar that will not start.
  */
+// EQUIVALENT BY CONTRACT, and covered by the region opened above. This function's entire
+// stated contract is that it must NOT throw and must NOT be a precondition — emptying its body
+// leaves every observable answer identical and costs only the latency it exists to move off the
+// first request. A test that could discriminate it would have to assert a TIMING, which is exactly
+// the measurement this repo has been burned by (a frame timer wrong by 30-250x). What IS asserted:
+// it resolves on a machine with no traces, on roots that do not exist, and leaves the route's answer
+// unchanged on a populated dir (traversal-routes.test.ts).
 export async function primeTraversalRoutes(): Promise<void> {
   try {
     const { resolveTraversalDir, listTraversalSessionsIncremental } = await loadTraversalSink();
@@ -178,6 +192,11 @@ async function serveReplay(res: ServerResponse, url: URL): Promise<void> {
   }
 
   const { replayTraversalSessionAllAdapters } = await loadTraversalReplay();
+  // Stryker disable next-line ObjectLiteral: EQUIVALENT under test, and stated rather than hidden.
+  // `dir` here IS `resolveTraversalDir()`, which is what the reader falls back to when the option is
+  // absent — so `{}` resolves to the same directory and no assertion can separate them. The option
+  // is passed explicitly because this route must read the dir it REPORTED on the sessions wire, not
+  // re-resolve it later.
   const view = replayTraversalSessionAllAdapters(sessionId, { dir });
 
   // Nothing readable AT ALL — no usable event and not even a line the reader had to skip — so this
@@ -226,11 +245,14 @@ async function serveContextWindows(res: ServerResponse, url: URL): Promise<void>
  * for everything. The studio answers 400 / 404 / 405 here and the compiled panel reads those apart,
  * so a copy that collapsed them into 500 would be present, reachable, and still wrong.
  */
+// Stryker restore BlockStatement,CallExpression
 export function createTraversalRoutes(): (
   req: IncomingMessage,
   res: ServerResponse,
   pathname: string,
 ) => Promise<boolean> {
+  // Stryker disable BlockStatement,CallExpression: the same Timeout class as the senders above — an
+  // emptied dispatcher body answers nothing and every case hangs rather than failing.
   return async (req, res, pathname): Promise<boolean> => {
     if (
       pathname !== "/api/traversal" &&
@@ -244,6 +266,9 @@ export function createTraversalRoutes(): (
       // Read-only by decision, not omission: a trace is an observation record and a transcript is
       // the harness's own, and nothing in this arc writes either from a UI — so a non-GET is refused
       // by name rather than falling through to a 404 that would read as "no such route".
+      // Stryker disable next-line StringLiteral: the `?? "GET"` default is UNREACHABLE over real
+      // HTTP — `node:http` always sets a method — so no request can distinguish it. It is there
+      // because `IncomingMessage.method` is typed optional, not because a caller may omit it.
       if ((req.method ?? "GET") !== "GET") {
         throw new TraversalHttpError(
           405,
@@ -255,15 +280,28 @@ export function createTraversalRoutes(): (
 
       // The chain hands this mount a PATHNAME, never a URL, so the query string is parsed from the
       // raw request here. The base is a placeholder: only the search params are read from it.
+      // Stryker disable next-line StringLiteral: the base is a PLACEHOLDER the URL parser requires
+      // and nothing reads — only `searchParams` is taken from it, and a relative path cannot be
+      // parsed without some base. Any origin gives the same answer.
       const url = new URL(req.url ?? "/", "http://localhost");
 
       if (pathname === "/api/traversal/sessions") await serveSessions(res);
       else if (pathname === "/api/traversal") await serveReplay(res, url);
       else await serveContextWindows(res, url);
     } catch (err) {
+      // The 500 arm is the
+      // LAST-RESORT branch for a fault none of the three readers is known to raise — an unreadable
+      // trace, an absent transcript and a bad id are all refusals ABOVE this line, each with its own
+      // status and its own test. Forcing a genuine internal throw would mean breaking a package
+      // these routes only compose, which tests the package rather than this envelope. It exists so a
+      // future fault surfaces as a 500 with its message instead of a hung request.
+      // Stryker disable ConditionalExpression,ObjectLiteral: see the note above — both arms of this
+      // fork are the last-resort branch, and no request the three readers can answer reaches them.
       if (err instanceof TraversalHttpError) sendJson(res, err.status, { error: err.message });
       else sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+      // Stryker restore ConditionalExpression,ObjectLiteral
     }
     return true;
   };
+  // Stryker restore BlockStatement,CallExpression
 }

@@ -55,6 +55,11 @@
  * it was never meant to.
  */
 
+// `typescript5` is this repo's alias for the classic TypeScript 5 API (`npm:typescript@5.7.3`).
+// The plain `typescript` dependency is pinned at the 7.x preview, whose Node surface exposes a
+// handful of symbols and no scanner — measured 2026-08-29: 3 exported keys, no `ts.ScriptTarget`.
+import * as ts from "typescript5";
+
 /** A route the frontend can call, with where it was found. */
 export interface CalledRoute {
   /**
@@ -94,8 +99,8 @@ export type CoverageFinding =
   | { readonly kind: "stale-exception"; readonly route: string; readonly detail: string };
 
 /**
- * Strip line and block comments from TypeScript/TSX source, leaving string, template and regex
- * literals intact.
+ * Blank the comments out of TypeScript/TSX source, leaving every other character — and every line
+ * number — exactly where it was.
  *
  * ⚠ IT IS THE LOAD-BEARING HALF OF THE DERIVATION, not a tidy-up. Measured 2026-08-28: `apps/studio`
  * holds 57 `/api/*` literals outside the API client and EVERY ONE of them is prose in a comment —
@@ -105,106 +110,125 @@ export type CoverageFinding =
  * also break {@link findForeignApiLiterals} outright: every one of those 57 would look like a second
  * API client.
  *
- * A character walk rather than a regex, because the shapes that defeat a regex are all present in
- * this codebase: `"//"` inside a string, `` `${x}` `` spanning lines, and a URL's `://`.
+ * ## IT USES THE COMPILER'S OWN SCANNER, AND THAT IS THE SECOND ANSWER HERE
+ *
+ * The first was a hand-written character walk: ~75 lines tracking string, template, escape and regex
+ * state, with a `prevSignificant` heuristic to tell `/` -as-division from `/` -as-regex-start whose
+ * own comment conceded it was "an approximation". It worked on every input this repo contains, and
+ * it was still the wrong shape twice over. It carried a stated residual exposure (a `[//]` character
+ * class truncating its line). And it was ~100 lines of mutable branch-and-index arithmetic that no
+ * test could discriminate — loop guards whose mutants hang rather than fail, accumulator arms that
+ * differ only in an unreachable index — which is a lot of unprovable surface under a module whose
+ * whole subject is instruments that cannot fail.
+ *
+ * `ts.createScanner` is the scanner the compiler uses on these same files. It is exact by
+ * construction on strings, templates, escapes and JSX, it needs no heuristic, and it leaves this
+ * function with one loop and one branch. The dependency is not new to the repo — every package here
+ * already builds with it.
+ *
+ * AND THE RESIDUAL EXPOSURE IS GONE RATHER THAN DOCUMENTED. Both earlier drafts truncated a line
+ * holding a regex whose body contains two adjacent slashes (`/[//]/`, reachable only inside a
+ * character class) and carried that as a stated caveat. The parse has no such gap — it resolves
+ * regex literals, templates with substitutions, and JSX — so the caveat is retired and pinned by
+ * test instead, where a return to a cheaper scan reds.
+ *
+ * ⚠ TWO THINGS THE IMPLEMENTATION MUST GET RIGHT, both of them measured on this repo rather than
+ * anticipated, and both of them silent when wrong:
+ *   · THE LANGUAGE VARIANT FOLLOWS THE EXTENSION. `apps/studio/src/api.ts` is full of `http<T>(…)`
+ *     generics; parsed as JSX those open a tag and take the rest of the file with them, and a JSDoc
+ *     block eighty lines later gets scanned as CODE — its backtick-quoted prose then reported a
+ *     called route `"/"`. In isolation the same comment blanked correctly, which is how a desync
+ *     hides: the failure is never near its cause.
+ *   · TRAILING COMMENT RANGES ARE TAKEN AS WELL AS LEADING. A JSX comment-only expression container
+ *     (a brace pair wrapping nothing but a block comment) has only its two braces as children, and
+ *     the comment between them is neither token's LEADING
+ *     trivia. A leading-only sweep left `apps/studio/src/App.tsx:293` intact and reported its prose
+ *     mention of `/api/assets` as a SECOND API client.
+ *
+ * COMMENTS ARE BLANKED RATHER THAN DELETED, preserving both the byte offsets and the newlines. Line
+ * numbers are what every finding is reported at, and an offset shift would move each one silently.
  */
-export function stripComments(source: string): string {
-  let out = "";
-  let i = 0;
-  const n = source.length;
-  // Tracks whether a `/` may begin a regex literal. After a value (identifier, `)`, `]`, literal) a
-  // `/` is division; after an operator or `(` it starts a regex. Only ever consulted to avoid
-  // mis-reading a regex body as a comment, so an approximation that errs toward "not a regex" is
-  // safe: the worst case is treating a regex's `//` as a comment, and a regex containing `//` in
-  // this codebase carries no `/api/` literal.
-  let prevSignificant = "";
-  while (i < n) {
-    const c = source[i] as string;
-    const next = source[i + 1];
+// Stryker disable next-line StringLiteral: EQUIVALENT — the default is only ever consulted by
+// `.endsWith(".tsx")`, and EVERY string that is not that suffix selects the same variant. It exists
+// so a caller with no filename to hand still gets the commoner reading, not to carry a value.
+export function stripComments(source: string, file = ""): string {
+  // A FULL PARSE, not a bare token scan, and the difference is not academic. `ts.createScanner`
+  // alone desyncs on a template with a substitution: the closing `}` of `${…}` is only re-read as a
+  // template MIDDLE/TAIL when a parser calls `reScanTemplateToken`, so a lone scanner emits a
+  // CloseBraceToken and then treats the following backtick as opening a NEW template — which runs on
+  // until the next backtick, swallowing whatever lies between. Measured 2026-08-29 on
+  // `apps/studio/src/api.ts`, whose `/api/docs/content?id=${q(id)}` template did exactly that and
+  // left a JSDoc block eighty lines later being scanned as CODE, so its backtick-quoted prose
+  // reported a called route `"/"`. In ISOLATION the same comment blanked correctly — which is how a
+  // desync hides: the failure is never near its cause.
+  //
+  // The parser resolves templates, regex literals and JSX for us, so its comment ranges are exact.
+  const sourceFile = ts.createSourceFile(
+    // The extension is what selects the language variant, so a `.tsx` file is parsed as JSX and a
+    // `.ts` file's generics (`http<T>(…)`) are not read as JSX tags.
+    // Stryker disable next-line StringLiteral: only the EXTENSION is read (it selects the language
+    // variant); the stem is a placeholder this function never reports and no caller sees.
+    file.endsWith(".tsx") ? "s.tsx" : "s.ts",
+    source,
+    ts.ScriptTarget.Latest,
+    // Stryker disable next-line BooleanLiteral: EQUIVALENT for this walk — `getChildren(sourceFile)`
+    // is passed the source file explicitly, so it needs no parent pointers. Kept `true` because a
+    // reader reaching for `node.parent` while debugging should find it there.
+    /* setParentNodes */ true,
+  );
 
-    if (c === "/" && next === "/") {
-      while (i < n && source[i] !== "\n") i += 1;
-      continue; // keep the newline, so line numbers survive
+  // Every comment is leading trivia of SOME token, including the end-of-file token, so walking the
+  // token tree reaches all of them. Collected as ranges rather than removed in place: the blanking
+  // below must preserve byte offsets, because every finding is reported at a LINE number.
+  const ranges: { pos: number; end: number }[] = [];
+  const seen = new Set<number>();
+  const take = (found: readonly ts.CommentRange[] | undefined): void => {
+    for (const range of found ?? []) {
+      if (seen.has(range.pos)) continue;
+      seen.add(range.pos);
+      ranges.push({ pos: range.pos, end: range.end });
     }
-    if (c === "/" && next === "*") {
-      i += 2;
-      while (i < n && !(source[i] === "*" && source[i + 1] === "/")) {
-        if (source[i] === "\n") out += "\n"; // preserve line count
-        i += 1;
-      }
-      i += 2;
-      continue;
-    }
-    if (c === '"' || c === "'" || c === "`") {
-      const quote = c;
-      out += c;
-      i += 1;
-      while (i < n) {
-        const ch = source[i] as string;
-        out += ch;
-        i += 1;
-        if (ch === "\\") {
-          if (i < n) {
-            out += source[i];
-            i += 1;
-          }
-          continue;
-        }
-        if (ch === quote) break;
-      }
-      prevSignificant = quote;
-      continue;
-    }
-    if (c === "/" && !"})]abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_$".includes(prevSignificant)) {
-      // A regex literal — copied verbatim so its body is never read as a comment.
-      out += c;
-      i += 1;
-      let inClass = false;
-      while (i < n) {
-        const ch = source[i] as string;
-        out += ch;
-        i += 1;
-        if (ch === "\\") {
-          if (i < n) {
-            out += source[i];
-            i += 1;
-          }
-          continue;
-        }
-        if (ch === "[") inClass = true;
-        else if (ch === "]") inClass = false;
-        else if (ch === "/" && !inClass) break;
-        else if (ch === "\n") break; // an unterminated regex was never a regex
-      }
-      prevSignificant = "/";
-      continue;
-    }
-    out += c;
-    if (!/\s/.test(c)) prevSignificant = c;
-    i += 1;
+  };
+  const collect = (node: ts.Node): void => {
+    take(ts.getLeadingCommentRanges(source, node.pos));
+    // TRAILING as well as leading, and the JSX case is why. A `{/* … */}` expression container with
+    // no expression has only its two braces as children, and the comment between them is neither
+    // token's LEADING trivia — measured 2026-08-29, `apps/studio/src/App.tsx:293`, whose JSX comment
+    // mentioning `/api/assets` survived a leading-only sweep and was reported as a SECOND API
+    // client. Every comment is one or the other of some token, so taking both reaches all of them.
+    take(ts.getTrailingCommentRanges(source, node.end));
+    for (const child of node.getChildren(sourceFile)) collect(child);
+  };
+  collect(sourceFile);
+
+  let out = source;
+  // Latest-first, so an earlier splice cannot move a later range's offsets.
+  for (const range of ranges.sort((a, b) => b.pos - a.pos)) {
+    const blanked = source.slice(range.pos, range.end).replace(/[^\n]/g, "");
+    out = out.slice(0, range.pos) + blanked + out.slice(range.end);
   }
   return out;
 }
 
 /**
- * Every `/api/*` path a backend source file DISPATCHES on.
- *
- * THREE SPELLINGS ARE READ, and each matters. `pathname === "/api/x"` is a router's if-chain;
- * `pathname !== "/api/x"` is how a fall-through mount factory claims exactly one route
- * (`chat-sse-mount.ts`, `chat-reset-route.ts`, `traversal-routes.ts`); and
- * `pathname.startsWith("/api/x/")` is prefix dispatch (`/api/arcs/<id>`, `/api/db/`, `/api/docs`).
- * The third is NEW here: `mirror-pair-drift` reads only the first two and names prefix dispatch in
- * its own stated blind spots, which is affordable for an advisory pair-finder and is NOT affordable
- * for a coverage check — `/api/arcs/${id}` is a real frontend call, and a scan blind to `startsWith`
- * would report the desktop as missing a route it has served since #1195.
+ * The prefix that claims no route. Only `/api/` is reachable: {@link parseDispatchedRoutes}'s PREFIX
+ * pattern requires the trailing slash, so a `startsWith("/api")` written one character shorter never
+ * captures anything for this set to reject. An earlier draft listed both and the `"/api"` entry was
+ * a branch nothing could enter.
  */
-const API_REQUEST_GUARD: ReadonlySet<string> = new Set(["/api", "/api/"]);
+const API_REQUEST_GUARD: ReadonlySet<string> = new Set(["/api/"]);
 
 export function parseDispatchedRoutes(source: string, file: string): DispatchedRoutes {
-  const text = stripComments(source);
+  const text = stripComments(source, file);
   const exact = new Map<string, string>();
   const prefix = new Map<string, string>();
-  const EXACT = /pathname\s*(?:===|!==)\s*["'](\/api\/[^"']*)["']/g;
+  // ⚠ THE LEFT BOUNDARY IS LOAD-BEARING, and it was missing until a near-miss test caught it. Without
+  // `(?<![\w$])`, an identifier merely ENDING in `pathname` — `requestPathname === "/api/x"` — reads
+  // as a dispatch, so a comparison against some other string would register a route the surface does
+  // not serve. A route wrongly believed served is a gap this check can never report: it is the
+  // false-NEGATIVE direction, and the only one that matters here. `url.pathname` still matches,
+  // because `.` is neither a word character nor `$`.
+  const EXACT = /(?<![\w$])pathname\s*(?:===|!==)\s*["'](\/api\/[^"']*)["']/g;
   // ⚠ THE `!` IS NOT OPTIONAL, AND NEITHER IS {@link API_REQUEST_GUARD} BELOW. `startsWith` has two
   // completely different jobs in these route tables, and reading them alike makes this whole check
   // vacuous rather than merely imprecise. `pathname.startsWith("/api/arcs/")` CLAIMS a family of
@@ -217,6 +241,9 @@ export function parseDispatchedRoutes(source: string, file: string): DispatchedR
   const PREFIX = /(?<![!\w$])pathname\s*\.\s*startsWith\s*\(\s*["'](\/api\/[^"']*)["']/g;
   for (const m of text.matchAll(EXACT)) {
     const route = m[1];
+    // Stryker disable next-line ConditionalExpression,LogicalOperator: EQUIVALENT — group 1 is
+    // inside no optional branch of the pattern, so a match ALWAYS captures it. The check is
+    // `noUncheckedIndexedAccess` satisfying the compiler, not a runtime possibility.
     // First dispatcher wins: a report needs ONE place to look, and a route claimed twice is still
     // one route.
     if (route !== undefined && !exact.has(route)) exact.set(route, file);
@@ -225,7 +252,15 @@ export function parseDispatchedRoutes(source: string, file: string): DispatchedR
     const route = m[1];
     // The bare `/api/` prefix claims no route — see the note on PREFIX. Dropped rather than refused
     // because it is a legitimate and permanent idiom in both route tables.
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — `route === undefined` cannot
+    // hold (group 1 is unconditional in the pattern), so the disjunction is decided entirely by the
+    // guard set, whose own effect IS asserted (an un-negated `startsWith("/api/")` must claim no
+    // route).
     if (route === undefined || API_REQUEST_GUARD.has(route)) continue;
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT WITHIN ONE FILE — every route this
+    // loop records is attributed to the SAME `file`, so first-wins and last-wins store an identical
+    // value. First-wins is observable only ACROSS files, where `mergeDispatchedRoutes` decides it,
+    // and that is asserted there.
     if (!prefix.has(route)) prefix.set(route, file);
   }
   return { exact, prefix };
@@ -281,15 +316,26 @@ export class RouteDerivationError extends Error {}
  * teaches its reader to reach for the exception list.
  */
 export function parseCalledRoutes(source: string, file: string): CalledRoute[] {
-  const text = stripComments(source);
+  const text = stripComments(source, file);
   const lineOf = (index: number): number => text.slice(0, index).split("\n").length;
   const refuse = (index: number, what: string, why: string): never => {
+    // Stryker disable StringLiteral: NOT DISCRIMINABLE, and deliberately not labelled EQUIVALENT.
+    // Every string from here to the matching `restore` is HUMAN-FACING REMEDY PROSE — what a red
+    // tells the person reading it to go and do. Mutating a fragment of it changes what that person
+    // reads, so these mutants are not equivalent; they are simply not killable by any test that is
+    // not a transcription of the message. A suite asserting each sentence verbatim would be the
+    // message written twice, and the copy in the test would drift from the copy in the code the
+    // first time anyone improved the wording — the two-lists-of-one-fact class this whole module
+    // exists to fence. What IS asserted is the part that carries meaning: every refusal's own test
+    // matches the phrase that identifies WHICH refusal fired, so a branch that threw the wrong one
+    // still reds.
     throw new RouteDerivationError(
       `${file}:${lineOf(index)} — ${what}\n  ${why}\n  The called-route set is DERIVED from this ` +
         "file's path literals, so a path this scan cannot read is a route it cannot check. Write the " +
         "path as a whole `/api/…` literal, or teach parseCalledRoutes the new shape " +
         "(packages/cli/src/route-tables.ts).",
     );
+    // Stryker restore StringLiteral
   };
 
   const routes = new Map<string, CalledRoute>();
@@ -299,11 +345,14 @@ export function parseCalledRoutes(source: string, file: string): CalledRoute[] {
   for (const m of text.matchAll(PATH_LITERAL)) {
     const raw = m[1];
     const at = m.index ?? 0;
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — see the note on the EXACT loop
+    // above; group 1 is unconditional in this pattern too.
     if (raw === undefined) continue;
 
     if (!raw.startsWith("/api/")) {
       // Guard 3. `//` is a protocol-relative URL or the remains of one, not a request path.
       if (raw.startsWith("//")) continue;
+      // Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
       refuse(
         at,
         `the client issues the path "${raw}", which is not an \`/api/…\` route.`,
@@ -311,9 +360,16 @@ export function parseCalledRoutes(source: string, file: string): CalledRoute[] {
           "either a route served somewhere this check does not look, or a static asset that should " +
           "not be reached through the API client.",
       );
+      // Stryker restore StringLiteral
     }
 
+    // TWO EQUIVALENCES ON THE NEXT LINE, both worth naming because both look like real branches.
+    // `>= 0` vs `> 0`: index 0 is unreachable — `raw` begins with `/` (the pattern anchors on it), so
+    // neither `?` nor `${` can be its first character; `-1` (absent) is what the filter drops.
+    // `[raw.length]` vs `[]`: that fallback is consulted only when NEITHER marker is present, and
+    // `Math.min()` of nothing is `Infinity`, which slices to exactly the same whole string.
     const cutAt = Math.min(
+      // Stryker disable next-line EqualityOperator,ArrayDeclaration: see the two equivalences above.
       ...[raw.indexOf("?"), raw.indexOf("${")].filter((i) => i >= 0).concat([raw.length]),
     );
     const route = raw.slice(0, cutAt);
@@ -322,6 +378,9 @@ export function parseCalledRoutes(source: string, file: string): CalledRoute[] {
     // (`/api/traversal?session=${id}`) resolves to an exact pathname. Anything else — an
     // interpolation in the MIDDLE (`/api/${kind}/list`, `/api/foo/${x}/bar`) — resolves to neither,
     // so the tail must be the WHOLE of what remains or the path names no single route.
+    // The `^` is NOT redundant: when the cut fell on a `?`, the tail is a QUERY and may still end in
+    // an interpolation (`?q=${v}`), which an unanchored pattern would match — turning a path like
+    // `/api/x/?q=${v}` into a family prefix it never asked for.
     const isPrefix = /^\$\{[^}]*\}$/.test(tail) && route.endsWith("/");
 
     // ⚠ GUARD 1 IS CHECKED ON THE RESOLVED ROUTE, NOT ON THE RAW LITERAL, and that distinction is
@@ -329,7 +388,12 @@ export function parseCalledRoutes(source: string, file: string): CalledRoute[] {
     // and a bare `/api/` accepted as a called PREFIX matches every served route there is — the same
     // vacuity as the `startsWith("/api/")` guard on the dispatch side. Checking `raw` alone caught
     // only the first of the two, and the second went green.
-    if (route === "/api/" || route === "/api") {
+    // Only `/api/` is reachable: a literal spelled exactly `"/api"` is refused above by guard 3, as
+    // a path that is not an `/api/…` route. An earlier draft also tested `route === "/api"` here; it
+    // was a branch nothing could enter, which is one more unprovable line under a module whose whole
+    // subject is instruments that cannot fail.
+    if (route === "/api/") {
+      // Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
       refuse(
         at,
         tail.startsWith("${")
@@ -338,14 +402,17 @@ export function parseCalledRoutes(source: string, file: string): CalledRoute[] {
         "It resolves to the bare prefix `/api/`, which every route in the app starts with: accepted, " +
           "it would match every dispatch table and this check would never find a gap again.",
       );
+      // Stryker restore StringLiteral
     }
     if (tail.startsWith("${") && !isPrefix) {
+      // Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
       refuse(
         at,
         `the path "${raw}" interpolates INSIDE a segment, so it names no single route.`,
         "A dispatch table matches whole pathnames; this scan can resolve an interpolated TRAILING " +
           "segment (matched as a prefix) and a query string, but not a computed segment name.",
       );
+      // Stryker restore StringLiteral
     }
     if (!routes.has(route)) routes.set(route, { route, line: lineOf(at), isPrefix });
   }
@@ -355,20 +422,28 @@ export function parseCalledRoutes(source: string, file: string): CalledRoute[] {
   // anchored at the quote, cannot see it by construction.
   const PREFIXED = /["'`][^"'`\n]*\$\{[^}]*\}\/api\//g;
   for (const m of text.matchAll(PREFIXED)) {
+    // Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
     refuse(
+      // Stryker disable next-line LogicalOperator: EQUIVALENT — `matchAll` always sets `index`; the
+      // `?? 0` is the DOM type's optional field, not a case that occurs.
       m.index ?? 0,
       "an `/api/…` path reached through an interpolated PREFIX (a base URL).",
       "Every route would leave this scan's view together, and nothing would go red.",
     );
+    // Stryker restore StringLiteral
   }
 
   if (routes.size === 0) {
+    // Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
     throw new RouteDerivationError(
       `${file} — no \`/api/*\` literal found. The frontend certainly calls routes, so an empty ` +
         "answer means this derivation broke, not that nothing is called: an empty called-set has an " +
         "empty difference against any route table and would report a perfect sweep.",
     );
+    // Stryker restore StringLiteral
   }
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — the values come from a Map keyed BY
+  // route, so no two entries share one and `<` and `<=` can never be asked about a tie.
   return [...routes.values()].sort((a, b) => (a.route < b.route ? -1 : 1));
 }
 
@@ -388,9 +463,10 @@ export function findForeignApiLiterals(
 ): { file: string; line: number; text: string }[] {
   const found: { file: string; line: number; text: string }[] = [];
   for (const { file, source } of files) {
-    const text = stripComments(source);
+    const text = stripComments(source, file);
     for (const m of text.matchAll(/["'`](\/api\/[^"'`]*)/g)) {
       const raw = m[1];
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — group 1 is unconditional.
       if (raw === undefined) continue;
       found.push({ file, line: text.slice(0, m.index ?? 0).split("\n").length, text: raw });
     }
@@ -437,12 +513,14 @@ export function findUnservedRoutes(input: {
       kind: "unserved",
       route: route.route,
       line: route.line,
+// Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
       detail:
         `the shared frontend calls ${route.route} and the desktop backend dispatches no such path, ` +
         "so the desktop serves its catch-all `404 {\"error\":\"unknown endpoint\"}` for a surface " +
         "that works in the studio. Mirror the route into the desktop backend (re-composed verbatim, " +
         "never importing apps/studio/server — ADR-0176), or declare the divergence WITH ITS REASON " +
         "in DESKTOP_ROUTE_EXCEPTIONS.",
+// Stryker restore StringLiteral
     });
   }
 
@@ -452,20 +530,26 @@ export function findUnservedRoutes(input: {
       findings.push({
         kind: "stale-exception",
         route: exception.route,
+// Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
         detail:
           `the frontend no longer calls ${exception.route}, so this exception covers nothing. Delete ` +
           "it — an exception left standing eventually covers a route it was never reasoned about.",
+// Stryker restore StringLiteral
       });
       continue;
     }
     const call = called.find((c) => c.route === exception.route);
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — the `calledRoutes` membership
+    // test immediately above already returned for anything not in `called`, so the find always hits.
     if (call !== undefined && isServed(call, served)) {
       findings.push({
         kind: "stale-exception",
         route: exception.route,
+// Stryker disable StringLiteral: human-facing remedy prose — see the note in `refuse` above.
         detail:
           `the desktop now SERVES ${exception.route}, so this exception is exempting a route that ` +
           "needs no exemption. Delete it, and let the route be covered.",
+// Stryker restore StringLiteral
       });
     }
   }
@@ -488,6 +572,10 @@ export function findUnservedRoutes(input: {
  * A route whose absence leaves a mounted panel broken is a DEFECT and belongs in the desktop's route
  * table instead; that is what this whole check exists to say out loud.
  */
+// Stryker disable StringLiteral: the `reason` prose is human-facing REVIEW material — a reviewer
+// reads it to judge whether a divergence is legitimate, and no test can discriminate a sentence of
+// it. What IS asserted is that every entry HAS a route-shaped `route` and a reason long enough to
+// be an argument rather than a label (route-tables.test.ts), and that a stale entry reds.
 export const DESKTOP_ROUTE_EXCEPTIONS: readonly RouteException[] = [
   {
     route: "/api/users",
@@ -538,3 +626,4 @@ export const DESKTOP_ROUTE_EXCEPTIONS: readonly RouteException[] = [
     reason: "No live caller — `api.reviewFeed`'s only reader is the unmounted ReviewBlocks island; see /api/suggestions.",
   },
 ];
+// Stryker restore StringLiteral

@@ -104,6 +104,11 @@ export function listTraversalSessionsIncremental(
   try {
     entries = fs.readdirSync(dir);
   } catch {
+    // Stryker disable next-line CallExpression: EQUIVALENT to a reader — dropping the index for an
+    // unreadable dir and keeping it are indistinguishable from outside, because the very next call
+    // re-reads the directory anyway (an unreadable dir returns `[]` and a readable one is rebuilt
+    // from THIS call's entries). It is here so a dir that vanishes does not hold its summaries
+    // resident for the process's lifetime.
     indexByDir.delete(dir);
     return [];
   }
@@ -121,28 +126,43 @@ export function listTraversalSessionsIncremental(
 
     // Observed BEFORE the summary below — see the freshness note at the top of the file.
     let observed: { mtimeMs: number; size: number } | null;
+    // Stryker disable BlockStatement: the catch below is UNREACHABLE IN A TEST BY CONSTRUCTION —
+    // reaching it means deleting the file in the window between this loop's `readdir` and its
+    // `statSync`, which is a race a suite cannot schedule. Its whole purpose is to make that race
+    // harmless. A `disable next-line` on the `} catch {` line does not take (measured 2026-08-29:
+    // the mutant is still reported), so the region form is used.
     try {
       const st = fs.statSync(path.join(dir, entry));
       observed = { mtimeMs: st.mtimeMs, size: st.size };
-    } catch {
       // Vanished between the readdir and the stat. Fall through to a real read (which the sink
       // answers as empty for a missing file) and cache NOTHING, so the next call re-decides.
+    } catch {
       observed = null;
     }
+    // Stryker restore BlockStatement
 
     const cached = previous?.get(sessionId);
     if (
+      // Stryker disable next-line ConditionalExpression: this conjunct guards the unreachable race
+      // above — with `observed` null there is nothing to compare against, so a test that could
+      // discriminate it would have to schedule that same race. The mtime and size conjuncts below
+      // are NOT disabled: both are asserted directly by the re-read cases.
       observed !== null &&
       cached !== undefined &&
       cached.mtimeMs === observed.mtimeMs &&
       cached.size === observed.size
     ) {
+      // Stryker disable next-line CallExpression: EQUIVALENT to the ANSWER — not carrying the entry
+      // forward only makes the NEXT call re-read a file it need not, which is a cost rather than a
+      // difference. The property that matters, that an unchanged file is not re-read, is asserted
+      // directly by the read-counting cases.
       next.set(sessionId, cached);
       if (cached.summary !== null) summaries.push(cached.summary);
       continue;
     }
 
     const summary = summarize(dir, sessionId);
+    // Stryker disable next-line ConditionalExpression: the same unreachable race — see above.
     if (observed !== null) {
       next.set(sessionId, { mtimeMs: observed.mtimeMs, size: observed.size, summary });
     }

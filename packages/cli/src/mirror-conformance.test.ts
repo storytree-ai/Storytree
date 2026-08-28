@@ -5,6 +5,9 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   ACTIVITY_KEY,
@@ -16,8 +19,10 @@ import {
   projectActivityPayload,
   projectArcsPayload,
   projectFloorHealthPayload,
+  projectTraversalPayload,
   registeredMirrorRoutes,
   REPORT_LIMIT,
+  TRAVERSAL_KEY,
   type Entry,
   type MirrorSpec,
 } from "./mirror-conformance.js";
@@ -184,6 +189,180 @@ test("the registry exposes its routes as DATA, so a second reader never scrapes 
   for (const extra of extras) {
     assert.ok(!primaries.has(extra), `${extra} is already another row's primary route`);
   }
+});
+
+/**
+ * The registry's rows are DATA, and until this test existed nothing in `pnpm -r test` read most of
+ * it: the probe paths, the `key`, the `inputs` set and the two surface names are consumed only by
+ * `check:mirror-conformance`, which is a gate script rather than a suite. A row could therefore name
+ * a probe that does not exist, or an `inputs` set with no fixture builder, and every unit test would
+ * still pass — the harness would simply fail at gate time with a probe-not-found, which is fail-
+ * closed but is not the same as being checked.
+ */
+test("every MIRRORS row names probes that EXIST, under the app dir it declares", () => {
+  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
+  for (const target of MIRRORS) {
+    for (const [side, probe] of [
+      ["reference", target.reference],
+      ["mirror", target.mirror],
+    ] as const) {
+      assert.ok(
+        probe.file.startsWith(`${probe.appDir}/`),
+        `${target.spec.surface}: the ${side} probe ${probe.file} must live under its declared appDir ${probe.appDir} — the harness spawns it with that dir as cwd, so its bare specifiers resolve through THAT app's node_modules`,
+      );
+      assert.ok(
+        existsSync(join(repoRoot, probe.file)),
+        `${target.spec.surface}: the ${side} probe ${probe.file} does not exist`,
+      );
+      assert.ok(
+        existsSync(join(repoRoot, probe.appDir, "package.json")),
+        `${target.spec.surface}: the ${side} appDir ${probe.appDir} is not a workspace app`,
+      );
+    }
+    assert.notEqual(
+      target.reference.appDir,
+      target.mirror.appDir,
+      `${target.spec.surface}: both probes run in the same app — the whole point is that neither imports the other (ADR-0176)`,
+    );
+  }
+});
+
+test("every MIRRORS row declares a usable comparison key, input set and surface pair", () => {
+  // The set `check-mirror-conformance.ts` builds a fixture for. A row naming anything else spawns
+  // its probes with no arguments, which they answer by exiting 2.
+  const inputSets = new Set(["docs-trees", "activity-fixtures", "arc-fixtures", "floor-health-fixtures", "traversal-fixtures"]);
+  for (const { spec, inputs } of MIRRORS) {
+    assert.ok(inputSets.has(inputs), `${spec.surface}: unknown input set "${inputs}"`);
+    assert.ok(spec.key.length > 0, `${spec.surface}: an empty key compares every entry against every other`);
+    assert.equal(spec.reference, "studio", `${spec.surface}: the reference surface is the studio's router`);
+    assert.equal(spec.mirror, "desktop", `${spec.surface}: the mirror is the desktop backend`);
+    // EVERY ROW'S ALLOWLIST IS EMPTY, and each says so in its own "EMPTY BY DESIGN" note: both
+    // surfaces serve these wires to the SAME compiled bundle, which reads every field from either,
+    // so a difference is a defect rather than a narrowing. Asserted rather than left to the notes —
+    // an entry appearing here exempts a real field from comparison, which is the one edit that can
+    // quietly shrink what this gate proves.
+    assert.deepEqual(
+      spec.referenceOnlyFields,
+      [],
+      `${spec.surface}: a referenceOnlyFields entry exempts a field from the comparison — if that is genuinely deliberate, say so in the row's note and change this assertion deliberately too`,
+    );
+  }
+});
+
+// ---------- projectTraversalPayload: the `/api/traversal*` projection ----------
+
+/**
+ * The projection is the only reader of these three routes' payloads, and it is the one that decides
+ * what a divergence LOOKS like. Nothing exercised it until this suite: `check:mirror-conformance` is
+ * a gate script, so a projection that silently dropped half the body would have compared less and
+ * still printed a tick.
+ */
+test("projectTraversalPayload: the STATUS is a first-class entry, because half the envelope IS the status", () => {
+  const entries = projectTraversalPayload({
+    "replay-absent": { status: 404, body: { error: "no readable trace" } },
+  });
+  const response = entries.find((e) => e[TRAVERSAL_KEY] === "response:replay-absent");
+  assert.equal(response?.["status"], 404);
+  // A mirror answering 500 for every refusal must diverge here, not merely in the message.
+  const other = projectTraversalPayload({
+    "replay-absent": { status: 500, body: { error: "no readable trace" } },
+  });
+  assert.notDeepEqual(entries, other);
+});
+
+test("projectTraversalPayload: a DEEP body is flattened to one entry per JSON leaf, so a divergence names its path", () => {
+  const entries = projectTraversalPayload({
+    replay: { status: 200, body: { events: [{ nodeId: "a" }, { nodeId: "b" }], skipped: 0 } },
+  });
+  const keys = entries.map((e) => e[TRAVERSAL_KEY]);
+  assert.ok(keys.includes("replay#.events[0].nodeId"), `expected a leaf for the first event's nodeId, got ${keys.join(", ")}`);
+  assert.ok(keys.includes("replay#.events[1].nodeId"));
+  assert.ok(keys.includes("replay#.skipped"));
+  const nodeId = entries.find((e) => e[TRAVERSAL_KEY] === "replay#.events[0].nodeId");
+  assert.equal(nodeId?.["value"], "a");
+});
+
+test("projectTraversalPayload: an array's LENGTH and an object's KEY SET ride the flattening", () => {
+  // Without these, a mirror emitting a shorter list or an extra field would compare equal on every
+  // leaf they happen to share.
+  const shortList = projectTraversalPayload({ s: { status: 200, body: { sessions: [{ id: "a" }] } } });
+  const longList = projectTraversalPayload({ s: { status: 200, body: { sessions: [{ id: "a" }, { id: "b" }] } } });
+  assert.notDeepEqual(shortList, longList);
+
+  const lean = projectTraversalPayload({ s: { status: 200, body: { a: 1 } } });
+  const fat = projectTraversalPayload({ s: { status: 200, body: { a: 1, b: 2 } } });
+  assert.notDeepEqual(lean, fat);
+});
+
+test("projectTraversalPayload: array ORDER is a divergence — the replay's event order is the time axis", () => {
+  const forward = projectTraversalPayload({ r: { status: 200, body: { events: ["a", "b"] } } });
+  const backward = projectTraversalPayload({ r: { status: 200, body: { events: ["b", "a"] } } });
+  assert.notDeepEqual(forward, backward);
+});
+
+test("projectTraversalPayload: entries come out in request-label order, never the probe's iteration order", () => {
+  const one = projectTraversalPayload({ zebra: { status: 200, body: null }, alpha: { status: 400, body: null } });
+  const two = projectTraversalPayload({ alpha: { status: 400, body: null }, zebra: { status: 200, body: null } });
+  assert.deepEqual(one, two);
+  assert.deepEqual(
+    one.map((e) => e[TRAVERSAL_KEY]),
+    ["response:alpha", "alpha#", "response:zebra", "zebra#"],
+  );
+});
+
+test("projectTraversalPayload: null and undefined leaves are kept apart from a missing key", () => {
+  const withNull = projectTraversalPayload({ r: { status: 200, body: { absence: null } } });
+  const withValue = projectTraversalPayload({ r: { status: 200, body: { absence: "no-window-transcript" } } });
+  assert.notDeepEqual(withNull, withValue);
+  assert.equal(withNull.find((e) => e[TRAVERSAL_KEY] === "r#.absence")?.["value"], null);
+});
+
+test("projectTraversalPayload: an object's KEY SET is order-independent — two spellings of one body agree", () => {
+  // The key marker is sorted before it is joined. Unsorted, two probes that happened to build the
+  // same object in a different key order would report a divergence that is not one — a FALSE red on
+  // a pair that agrees, which is the failure mode that teaches a reader to distrust the rung.
+  const a = projectTraversalPayload({ r: { status: 200, body: { beta: 1, alpha: 2 } } });
+  const b = projectTraversalPayload({ r: { status: 200, body: { alpha: 2, beta: 1 } } });
+  assert.deepEqual(a, b);
+  assert.equal(a.find((e) => e[TRAVERSAL_KEY] === "r#.{}")?.["value"], undefined);
+  assert.ok(a.some((e) => String(e["value"]) === "alpha,beta"), "the key set rides the flattening, sorted");
+});
+
+test("projectTraversalPayload: the ARRAY and OBJECT markers are distinct, so a list never reads as a map", () => {
+  const list = projectTraversalPayload({ r: { status: 200, body: { x: [] } } });
+  const map = projectTraversalPayload({ r: { status: 200, body: { x: {} } } });
+  assert.notDeepEqual(list, map);
+  assert.ok(list.some((e) => e[TRAVERSAL_KEY] === "r#.x[]" && e["value"] === "length:0"));
+  assert.ok(map.some((e) => e[TRAVERSAL_KEY] === "r#.x{}" && e["value"] === ""));
+});
+
+test("projectTraversalPayload: the response SHAPE names what the body is, apart from its content", () => {
+  const shapeOf = (body: unknown): unknown =>
+    projectTraversalPayload({ r: { status: 200, body } }).find((e) => e[TRAVERSAL_KEY] === "response:r")?.["shape"];
+  // A mirror answering `[]` where its reference answers `null` — the advisory-absence conflation the
+  // whole harness exists to catch — differs HERE even before any leaf is compared.
+  assert.equal(shapeOf(null), "null");
+  assert.equal(shapeOf([]), "array");
+  assert.equal(shapeOf({}), "object");
+  assert.equal(shapeOf("text"), "string");
+  assert.equal(shapeOf(7), "number");
+});
+
+test("projectTraversalPayload: an ABSENT status is null rather than dropped", () => {
+  // A probe that failed to record a status must not compare equal to one that recorded 200.
+  const missing = projectTraversalPayload({ r: { body: null } });
+  assert.equal(missing.find((e) => e[TRAVERSAL_KEY] === "response:r")?.["status"], null);
+  assert.notDeepEqual(missing, projectTraversalPayload({ r: { status: 200, body: null } }));
+});
+
+test("projectTraversalPayload: a payload that is not keyed by request label is REFUSED, never silently empty", () => {
+  for (const bad of [null, 42, ["a"], "text"]) {
+    assert.throws(() => projectTraversalPayload(bad), /keyed by request label/);
+  }
+  assert.throws(
+    () => projectTraversalPayload({ label: "not an answer object" }),
+    /must be a \{ status, body \} object/,
+  );
 });
 
 // ---------- projectActivityPayload: the `/api/activity` projection ----------

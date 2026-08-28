@@ -39,7 +39,7 @@ import path from "node:path";
 
 import { appendTraversalEvents } from "@storytree/context-traversal-capture";
 
-import { createTraversalRoutes } from "./traversal-routes.js";
+import { createTraversalRoutes, primeTraversalRoutes } from "./traversal-routes.js";
 
 const TRACE_DIR_ENV = "STORYTREE_TRAVERSAL_DIR";
 const TRANSCRIPT_DIR_ENV = "STORYTREE_TRANSCRIPT_DIR";
@@ -195,16 +195,15 @@ test("traversal-routes: GET /api/context-windows?session= answers one window's o
 
     const res = await fetch(`${h.base}/api/context-windows?session=window-alpha`);
     assert.equal(res.status, 200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = (await res.json()) as { windowId?: string; observations?: unknown[]; peakTokens?: number };
     // The fold's own shape is @storytree/context-traversal-transcript's business and is proven
-    // there. What this asserts is that the route REACHED it — an object came back rather than the
-    // chain's `unknown endpoint`.
-    assert.equal(typeof body, "object");
-    assert.notEqual(body, null);
-    assert.ok(
-      !("error" in body) || body["error"] !== "unknown endpoint",
-      "the occupancy read must not fall through to the catch-all",
-    );
+    // there. What this asserts is that the route reached it FOR THE WINDOW THAT WAS ASKED FOR — the
+    // id must be echoed and the reading must be this window's. A route that forwarded no id at all
+    // would still answer 200 with an honest-looking absence, which is indistinguishable from a real
+    // one unless the echo is checked.
+    assert.equal(body.windowId, "window-alpha");
+    assert.equal(body.observations?.length, 1);
+    assert.equal(body.peakTokens, 110_300);
   } finally {
     await h.close();
   }
@@ -304,11 +303,90 @@ test("traversal-routes: a missing or non-flat id is refused BY NAME with 400, ne
 test("traversal-routes: a non-GET is refused 405 BY NAME on all three paths, never a 404", async () => {
   const h = await harness();
   try {
-    for (const p of ["/api/traversal", "/api/traversal/sessions", "/api/context-windows"]) {
+    // Each path gets the reason that belongs to IT — a trace is an observation record, a transcript
+    // is the harness's own. Asserting only the shared phrase `read-only` would pass a mount that
+    // handed the transcript's reason to the replay and vice versa.
+    for (const [p, reason] of [
+      ["/api/traversal", /a trace is an observation record/],
+      ["/api/traversal/sessions", /a trace is an observation record/],
+      ["/api/context-windows", /a transcript is the harness/],
+    ] as const) {
       const res = await fetch(`${h.base}${p}`, { method: "POST" });
       assert.equal(res.status, 405, p);
-      assert.match(((await res.json()) as { error: string }).error, /read-only/);
+      const { error } = (await res.json()) as { error: string };
+      assert.match(error, /method not allowed/, p);
+      assert.match(error, reason, p);
     }
+  } finally {
+    await h.close();
+  }
+});
+
+test("traversal-routes: every answer is sent as JSON, so the compiled panel can parse it", async () => {
+  const h = await harness();
+  try {
+    writeTrace(h.traceDir, "session-alpha", "2026-08-28T10:00:00.000Z");
+    for (const p of [
+      "/api/traversal/sessions",
+      "/api/traversal?session=session-alpha",
+      "/api/traversal?session=never-captured",
+      "/api/context-windows?session=never-opened",
+      "/api/context-windows",
+    ]) {
+      const res = await fetch(`${h.base}${p}`);
+      assert.equal(res.headers.get("content-type"), "application/json; charset=utf-8", p);
+    }
+  } finally {
+    await h.close();
+  }
+});
+
+// ---------- 3. PRIMING: an optimisation, and never a precondition ----------
+
+/**
+ * `primeTraversalRoutes` runs fire-and-forget on the sidecar's start path, before any window is
+ * open. Its contract is entirely about what it must NOT do: a machine with no trace dir, no
+ * transcript root, or an unreadable one must still get a sidecar. A throw here would take the whole
+ * backend down at launch over a cache warm-up, and nothing downstream would explain why.
+ */
+test("traversal-routes: priming a machine that has captured NOTHING resolves rather than throwing", async () => {
+  const h = await harness();
+  try {
+    // Both roots exist and are empty — the ordinary state of a fresh machine.
+    await primeTraversalRoutes();
+  } finally {
+    await h.close();
+  }
+});
+
+test("traversal-routes: priming with the trace dir POINTED AT NOTHING still resolves", async () => {
+  const priorTrace = process.env[TRACE_DIR_ENV];
+  const priorTranscript = process.env[TRANSCRIPT_DIR_ENV];
+  process.env[TRACE_DIR_ENV] = path.join(os.tmpdir(), "desktop-traversal-does-not-exist-98765");
+  process.env[TRANSCRIPT_DIR_ENV] = path.join(os.tmpdir(), "desktop-transcripts-does-not-exist-98765");
+  try {
+    await primeTraversalRoutes();
+  } finally {
+    if (priorTrace === undefined) delete process.env[TRACE_DIR_ENV];
+    else process.env[TRACE_DIR_ENV] = priorTrace;
+    if (priorTranscript === undefined) delete process.env[TRANSCRIPT_DIR_ENV];
+    else process.env[TRANSCRIPT_DIR_ENV] = priorTranscript;
+  }
+});
+
+test("traversal-routes: priming a POPULATED trace dir warms it, and the route still answers the same", async () => {
+  const h = await harness();
+  try {
+    writeTrace(h.traceDir, "session-primed", "2026-08-28T10:00:00.000Z");
+    await primeTraversalRoutes();
+
+    // The warm answer must equal what a cold one would say. A prime that populated the index with a
+    // different shape — or with a different directory's contents — would be worse than no prime.
+    const res = await fetch(`${h.base}/api/traversal/sessions`);
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { dir: string; sessions: { sessionId: string }[] };
+    assert.equal(body.dir, h.traceDir);
+    assert.deepEqual(body.sessions.map((s) => s.sessionId), ["session-primed"]);
   } finally {
     await h.close();
   }

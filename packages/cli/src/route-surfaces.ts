@@ -24,6 +24,11 @@ export interface RouteSurface {
  * scan is a second thing somebody must keep in step, and a new route file nobody added to it would
  * be invisible to a sweep that still reported full coverage.
  */
+// Stryker disable StringLiteral,ArrayDeclaration,ObjectLiteral: the SURFACE NAMES are report labels,
+// asserted non-empty rather than spelled (route-tables.test.ts). The DIRECTORIES are asserted to
+// exist and to yield a non-empty dispatch table there, which is the property that matters — a
+// mutant that blanks one is caught by that test, and a mutant that only changes how a surface is
+// LABELLED in a failure message is the human-facing-prose class, not a defect a suite can name.
 export const REFERENCE_SURFACE: RouteSurface = { surface: "studio", dirs: ["apps/studio/server"] };
 
 /**
@@ -38,6 +43,7 @@ export const MIRROR_SURFACE: RouteSurface = {
   surface: "desktop",
   dirs: ["apps/desktop/src/backend", "apps/desktop/electron"],
 };
+// Stryker restore StringLiteral,ArrayDeclaration,ObjectLiteral
 
 /**
  * The shared frontend's ONE API client — the file every `/api/*` call in the studio SPA goes through,

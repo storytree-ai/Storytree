@@ -291,3 +291,75 @@ test("traversal index: forgets a directory that has become unreadable, and rebui
   assert.deepEqual(listTraversalSessionsIncremental(dir, summarize), listTraversalSessions({ dir }));
   assert.deepEqual(reads, ["session-a"]);
 });
+
+// ---------- 3. the memo's own machinery, driven rather than assumed ----------
+
+test("traversal index: resetTraversalIndexMemo actually forces a re-read", () => {
+  // The reset exists so a suite sharing module state can start clean. Nothing asserted that it did
+  // anything — a no-op reset would leave every later case reading a previous case's index, which is
+  // a suite that agrees with itself rather than with the sink.
+  const dir = freshDir();
+  appendVisit(dir, "session-a", "2026-08-12T10:00:00.000Z");
+
+  const { summarize, reads } = counting();
+  listTraversalSessionsIncremental(dir, summarize);
+  assert.deepEqual(reads, ["session-a"]);
+
+  reads.length = 0;
+  listTraversalSessionsIncremental(dir, summarize);
+  assert.deepEqual(reads, [], "warm: nothing re-read");
+
+  resetTraversalIndexMemo();
+  reads.length = 0;
+  listTraversalSessionsIncremental(dir, summarize);
+  assert.deepEqual(reads, ["session-a"], "after a reset the index is cold again");
+});
+
+test("traversal index: a non-.jsonl entry is never summarized, not merely omitted from the answer", () => {
+  // Omitting it from the ANSWER and never READING it are different properties, and only the second
+  // is what keeps a directory of unrelated files free.
+  const dir = freshDir();
+  appendVisit(dir, "session-a", "2026-08-12T10:00:00.000Z");
+  fs.writeFileSync(path.join(dir, "notes.md"), "not a trace", "utf8");
+  fs.writeFileSync(path.join(dir, "session-b.jsonl.bak"), "not a trace", "utf8");
+
+  const { summarize, reads } = counting();
+  listTraversalSessionsIncremental(dir, summarize);
+  assert.deepEqual(reads, ["session-a"]);
+});
+
+test("traversal index: a trace whose SIZE moved is re-read even at an unchanged mtime", () => {
+  // The pair is (mtime, size) and both halves must be live. Appending changes both, so a suite that
+  // only ever appends proves the mtime half and leaves the size half unexercised.
+  const dir = freshDir();
+  appendVisit(dir, "session-a", "2026-08-12T10:00:00.000Z");
+
+  const { summarize, reads } = counting();
+  listTraversalSessionsIncremental(dir, summarize);
+
+  const file = path.join(dir, "session-a.jsonl");
+  const before = fs.statSync(file);
+  appendVisit(dir, "session-a", "2026-08-12T10:00:01.000Z");
+  // Put the mtime back exactly where it was, so ONLY the size differs. Restored from `mtimeMs`
+  // rather than from the `Date`, because the index compares `mtimeMs` and a Date round-trip can lose
+  // the sub-millisecond part — which would leave the mtime differing too and let this case pass
+  // without ever exercising the size half.
+  fs.utimesSync(file, before.atimeMs / 1000, before.mtimeMs / 1000);
+  const restored = fs.statSync(file);
+  assert.equal(restored.mtimeMs, before.mtimeMs, "the mtime must be identical for this to be a SIZE test");
+  assert.notEqual(restored.size, before.size);
+
+  reads.length = 0;
+  const after = listTraversalSessionsIncremental(dir, summarize);
+  assert.deepEqual(reads, ["session-a"], "a size change alone must invalidate the entry");
+  assert.equal(after.find((s) => s.sessionId === "session-a")?.eventCount, 2);
+});
+
+test("traversal index: a CACHED entry is served verbatim, not re-derived", () => {
+  const dir = freshDir();
+  appendVisit(dir, "session-a", "2026-08-12T10:00:00.000Z");
+  const first = listTraversalSessionsIncremental(dir);
+  const second = listTraversalSessionsIncremental(dir);
+  assert.deepEqual(second, first);
+  assert.deepEqual(second, listTraversalSessions({ dir }));
+});

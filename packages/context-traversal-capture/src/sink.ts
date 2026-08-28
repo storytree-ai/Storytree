@@ -256,6 +256,9 @@ export function summarizeTraversalSession(
   return {
     sessionId,
     eventCount: replay.events.length,
+    // Stryker disable next-line OptionalChaining: EQUIVALENT — the zero-event case returned above,
+    // so `events.length - 1` is a valid index and `lastEvent` is never undefined here. The `?.` is
+    // `noUncheckedIndexedAccess` satisfying the compiler, not a runtime guard.
     lastObservedAt: lastEvent?.at,
     identity,
     slots,
@@ -277,6 +280,11 @@ export function listTraversalSessions(location: TraversalListLocation): Traversa
 
   const summaries: TraversalSessionSummary[] = [];
   for (const entry of entries) {
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT for this list's ANSWER — a
+    // non-trace entry that slipped past the filter is read by `summarizeTraversalSession`, which
+    // returns null for a file it cannot replay, so the list is identical either way. The filter is
+    // there to avoid the read, not to change the result; the incremental index beside it asserts the
+    // no-read property directly, by counting.
     if (!entry.endsWith(TRAVERSAL_TRACE_EXT)) continue;
     const sessionId = entry.slice(0, -TRAVERSAL_TRACE_EXT.length);
     const summary = summarizeTraversalSession(location.dir, sessionId);

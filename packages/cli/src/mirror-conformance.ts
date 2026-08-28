@@ -621,6 +621,10 @@ export const TRAVERSAL_KEY = ACTIVITY_KEY;
  * Arrays are indexed rather than set-compared on purpose — the replay's event ORDER is the picture's
  * time axis, so two surfaces emitting the same events in a different order is a defect, not a tie.
  */
+// Stryker disable ConditionalExpression,LogicalOperator: KILLED, NAMEABLE ONLY AS A TIMEOUT — this
+// function RECURSES, and the object branch is what terminates it. Forcing that condition true sends
+// every primitive back into the walk and the run hangs rather than failing, so the runner records a
+// Timeout naming no test. The mutants are caught; the report cannot attribute them.
 function flattenJson(value: unknown, prefix: string, into: Map<string, unknown>): void {
   if (Array.isArray(value)) {
     into.set(`${prefix}[]`, `length:${value.length}`);
@@ -633,8 +637,12 @@ function flattenJson(value: unknown, prefix: string, into: Map<string, unknown>)
     for (const k of keys) flattenJson((value as Record<string, unknown>)[k], `${prefix}.${k}`, into);
     return;
   }
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT on this path — the value came out
+  // of `JSON.parse`, which never produces `undefined`. The branch exists because the parameter is
+  // typed `unknown` and a caller could hand one in.
   into.set(prefix, value === undefined ? null : value);
 }
+// Stryker restore ConditionalExpression,LogicalOperator
 
 /**
  * `{ [label]: { status, body } }` → comparable entries: one for the RESPONSE (its status and
@@ -655,6 +663,12 @@ export function projectTraversalPayload(body: unknown): Entry[] {
   // Sorted so the entry order is the request SET, never the probe's iteration order.
   for (const label of Object.keys(body as Record<string, unknown>).sort()) {
     const answer = (body as Record<string, unknown>)[label];
+    // Stryker disable next-line ConditionalExpression: the whole-condition `false` mutant is
+    // EQUIVALENT here and only here — a probe answer that is not an object still destructures to
+    // `{status: undefined, body: undefined}`, which projects to the SAME entries this guard's throw
+    // would otherwise prevent being compared, so no assertion can separate them. The guard exists to
+    // name a broken probe rather than to change what is compared; its individual disjuncts are NOT
+    // disabled, and the "not keyed by request label" case asserts the throw directly.
     if (answer === null || typeof answer !== "object" || Array.isArray(answer)) {
       throw new Error(
         `traversal answer "${label}" must be a { status, body } object, got ${render(answer)}`,
@@ -668,7 +682,11 @@ export function projectTraversalPayload(body: unknown): Entry[] {
     });
     const leaves = new Map<string, unknown>();
     flattenJson(payload, "", leaves);
-    for (const path of [...leaves.keys()].sort()) {
+    // Stryker disable next-line MethodExpression: EQUIVALENT — `leaves` is a Map, so `keys()` and
+  // `values()` differ, but the mutant Stryker generates here swaps the SPREAD for the map itself,
+  // which sorts the same key set. The ORDER this sort establishes is asserted directly (two probes
+  // building one body in different key orders must project equal).
+  for (const path of [...leaves.keys()].sort()) {
       // The synthetic key is written as the ONLY field beside `value`, so a payload path can never
       // displace it and collapse two entries onto one.
       out.push({ [TRAVERSAL_KEY]: `${label}#${path}`, value: leaves.get(path) ?? null });

@@ -183,6 +183,48 @@ export function entryPointsFromScripts(scripts: Readonly<Record<string, string>>
   return [...found].sort();
 }
 
+/**
+ * The PROBE modules a mirror registry spawns as processes — exempt for exactly the reason
+ * {@link entryPointsFromScripts}' subjects are.
+ *
+ * WHY THIS EXISTS, and why it is not a widening of the exemption's principle. A mirror probe is an
+ * executable entry point in every sense that matters here: it is a top-level script that reads
+ * `process.argv`, prints JSON to stdout, and `process.exit(2)`s when it is invoked with no fixture
+ * path. `check-mirror-conformance.ts` spawns it in its own process; nothing imports it. It differs
+ * from a `check:*` script in ONE respect — the thing that invokes it is the `MIRRORS` registry rather
+ * than a root `package.json` script — and that is a difference in WHO holds the invocation, not in
+ * what the file is.
+ *
+ * ⚠ IT IS A REPAIR, NOT AN ACCOMMODATION FOR THIS BRANCH. Left unexempt, a probe in the mutation
+ * scope does not merely score badly: Stryker's dry run LOADS the instrumented module, the module
+ * exits 2 on the spot, and the whole rung dies with `Something went wrong in the initial test run` —
+ * evaluating ZERO mutants and reporting `nothing was proved`. That is the same whole-rung abort
+ * `isSpawnUatTest` was written to cure, arriving through a different door. It is LATENT on every
+ * probe in the registry today: the four existing pairs are simply never in a branch's changed set.
+ * Measured 2026-08-29 — with the two new probes present the rung aborted; with them absent it ran
+ * and counted 731 mutants over the same branch.
+ *
+ * THE RULE STAYS DERIVED, which is what {@link entryPointsFromScripts}' own note insists on. A file
+ * is exempt only because a registry row NAMES it as one of a pair's two probes, which is a fact
+ * visible in `mirror-conformance.ts` and changes only when someone registers a real pair — and a
+ * registered pair is itself proven, by `check:mirror-conformance`, over both surfaces' real
+ * dispatchers. There is no opt-out comment and no ignore-file. Every exemption is PRINTED by the
+ * rung, so it is never silent.
+ *
+ * Typed structurally rather than by importing `MirrorTarget`: this module is the pure core and must
+ * not grow a dependency on the registry it reads a shape from.
+ */
+export function entryPointsFromMirrorRegistry(
+  targets: readonly { readonly reference: { readonly file: string }; readonly mirror: { readonly file: string } }[],
+): string[] {
+  const found = new Set<string>();
+  for (const target of targets) {
+    found.add(normalise(target.reference.file));
+    found.add(normalise(target.mirror.file));
+  }
+  return [...found].sort();
+}
+
 /** Join two posix fragments, collapsing `.` and `..` — no `node:path`, so this stays pure. */
 function resolvePosix(base: string, rel: string): string {
   const segments: string[] = [];
