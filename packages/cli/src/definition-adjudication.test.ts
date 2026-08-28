@@ -117,6 +117,30 @@ test("definition-adjudication-is-blind-below-the-floor: a thin read reports UNVE
   assert.equal(isVacuousDefinitionRead(full), false);
 });
 
+test("definition-adjudication-sorts-every-list: the output is a worklist a human reads, not a bag", () => {
+  // Each list names ids for someone to go and fix, so ORDER is part of the output. Asserted from
+  // inputs that arrive DELIBERATELY out of order — a fixture that happens to be sorted already
+  // proves nothing about the sort, which is how a sortedness claim goes vacuously green.
+  const rows = healthyCorpus();
+  for (const id of ["zulu", "alpha", "mike"]) rows.push(row(id, "definition", null));
+  for (const id of ["zeta-exempt", "alpha-exempt"]) rows.push(row(id, "definition", null));
+  for (const id of ["zed-stale", "abe-stale"]) rows.push(row(id, "definition", ["asset:adr-0010"]));
+  rows.push(row("zz-dangler", "definition", ["asset:adr-9999", "asset:adr-8888"]));
+  const verdict = evaluateDefinitionAdjudication(
+    rows,
+    new Set(["zeta-exempt", "alpha-exempt", "zed-stale", "abe-stale", "zz-phantom", "aa-phantom"]),
+  );
+
+  assert.deepEqual(verdict.unadjudicated, ["alpha", "mike", "zulu"]);
+  assert.deepEqual(verdict.exempt, ["alpha-exempt", "zeta-exempt"]);
+  assert.deepEqual(verdict.staleExemptions, ["abe-stale", "zed-stale"]);
+  assert.deepEqual(verdict.phantomExemptions, ["aa-phantom", "zz-phantom"]);
+  assert.deepEqual(verdict.danglingTargets, [
+    "zz-dangler -> asset:adr-8888",
+    "zz-dangler -> asset:adr-9999",
+  ]);
+});
+
 test("definition-adjudication-tolerates-a-surprise-row: a malformed doc reads as no edges, never a throw", () => {
   // The read side of a fail-closed gate must never be where an unexpected row takes the gate down —
   // that failure looks identical to a real red. A row written by another branch's schema projects as
@@ -125,9 +149,30 @@ test("definition-adjudication-tolerates-a-surprise-row: a malformed doc reads as
   rows.push({ id: "weird", kind: "definition", doc: null });
   const notArray = { kind: "definition", dependsOn: "not-an-array" };
   rows.push({ id: "weirder", kind: "definition", doc: notArray });
+  // Not an object at all — a row whose payload came back as a scalar.
+  rows.push({ id: "weirdest", kind: "definition", doc: "a string, somehow" });
   const verdict = evaluateDefinitionAdjudication(rows, new Set());
 
-  assert.deepEqual(verdict.unadjudicated, ["weird", "weirder"]);
+  assert.deepEqual(verdict.unadjudicated, ["weird", "weirder", "weirdest"]);
+});
+
+test("definition-adjudication-filters-junk-entries: a non-string or empty pointer is not an edge", () => {
+  // The defensive read's inner half. A row carrying `[null, 42, ""]` has authored NOTHING, so it
+  // must count as unadjudicated rather than as a definition with three edges — and an empty string
+  // in particular would otherwise sail through as a pointer, then reach the dangling check as
+  // `-> ` with nothing after it.
+  const rows = healthyCorpus();
+  const junkOnly = { kind: "definition", dependsOn: [null, 42, "", { x: 1 }] };
+  rows.push({ id: "all-junk", kind: "definition", doc: junkOnly });
+  const mixed = { kind: "definition", dependsOn: ["", "asset:adr-0010", 7] };
+  rows.push({ id: "part-junk", kind: "definition", doc: mixed });
+  const verdict = evaluateDefinitionAdjudication(rows, new Set());
+
+  assert.deepEqual(verdict.unadjudicated, ["all-junk"], "a row of junk authored no edge");
+  assert.equal(verdict.withEdges, VACUOUS_DEFINITION_READ_FLOOR + 1);
+  // `part-junk` contributes exactly ONE edge — the junk is dropped, not counted and not resolved.
+  assert.equal(verdict.edges, VACUOUS_DEFINITION_READ_FLOOR + 1);
+  assert.deepEqual(verdict.danglingTargets, []);
 });
 
 test("definition-adjudication-exemptions-are-pinned: the live list is four ids and changing it is visible", () => {
