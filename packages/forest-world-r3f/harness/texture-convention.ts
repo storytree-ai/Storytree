@@ -293,7 +293,10 @@ export const ASSET_MATERIALS = {
 
 /** Refuse an asset whose materials are not exactly the declared ones. */
 export function checkAssetMaterials(url: string, found: readonly string[]): string | null {
-  const declared: readonly string[] | undefined = (ASSET_MATERIALS as Record<string, readonly string[]>)[url];
+  // Looked up through `Object.entries` rather than by index, so the manifest can keep its
+  // literal type: widening it to an open dictionary to index it would throw away the very
+  // evidence that makes a typo in an asset url a compile error rather than an empty check.
+  const declared = Object.entries(ASSET_MATERIALS).find(([key]) => key === url)?.[1];
   if (!declared) {
     return `texture-convention: ${url} is not declared in ASSET_MATERIALS — an undeclared asset is an unchecked one`;
   }
