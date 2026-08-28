@@ -130,19 +130,19 @@ sheet(
 sheet(
     [
         (
-            "The owner's three names, and three proposed here — six states, six lands.",
+            "Three names he gave, three the build proposed and he accepted — six states, six lands.",
             [
-                ("terrain-healthy-on-8px", "healthy — forest", "his name · closed canopy, undisturbed"),
-                ("terrain-mapped-on-8px", "mapped — heath", "PROPOSED HERE · walked and marked, not worked"),
-                ("terrain-proposed-on-8px", "proposed — fallow", "PROPOSED HERE · ploughed, nothing grown yet"),
+                ("terrain-healthy-on-8px", "healthy — forest", "he named it · closed canopy, undisturbed"),
+                ("terrain-mapped-on-8px", "mapped — heath", "he accepted it · walked and marked, not worked"),
+                ("terrain-proposed-on-8px", "proposed — fallow", "he accepted it · ploughed, nothing grown yet"),
             ],
         ),
         (
             "",
             [
-                ("terrain-building-on-8px", "building — wheatfield", "his name · the crop standing, work in flight"),
-                ("terrain-unhealthy-on-8px", "unhealthy — swamp", "his name · standing water in broad pools"),
-                ("terrain-unknown-on-8px", "unknown — scree", "PROPOSED HERE · broken stone, nothing growing"),
+                ("terrain-building-on-8px", "building — wheatfield", "he named it · the crop standing, work in flight"),
+                ("terrain-unhealthy-on-8px", "unhealthy — swamp", "he named it · standing water in broad pools"),
+                ("terrain-unknown-on-8px", "unknown — scree", "he accepted it · broken stone, nothing growing"),
             ],
         ),
     ],
@@ -151,6 +151,6 @@ sheet(
     "The six states as six terrains",
     "Whole islands at 8 px per ground unit, bare land, one state each. A terrain is a rotation and "
     "a squeeze of the grain octave's sample space — no second noise, no new texture, no new vertex "
-    "attribute, no new dependency. Three of the six names are the owner's; three are proposed here "
-    "and are his call.",
+    "attribute, no new dependency. Three of the six names are his own; three were proposed here and "
+    "he accepted them on 2026-08-28 — the vocabulary is settled in full.",
 )

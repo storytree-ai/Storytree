@@ -28,7 +28,8 @@ import { buildContactField, mergeOcclusion } from './contact-shade.js';
 import { coverTokenFor, type GroundCover } from './ground-cover.js';
 import { variantAt } from './ground-variation.js';
 import { buildShadowField, type ShadowCaster, type ShadowField } from './land-shadow.js';
-import { terrainOf } from './terrain-vocabulary.js';
+import { terrainOf, type Terrain } from './terrain-vocabulary.js';
+import { resolveTheme, type LandTheme } from './land-theme.js';
 import {
   groundBounds,
   groundCellsFrom,
@@ -146,13 +147,40 @@ export type GroundVariation = 'single' | 'regional' | 'regional-deep';
  */
 export type LandPaletteChoice = 'live' | 'legacy' | 'pre-clay';
 
-/** The authored families for a palette choice. Not exported: nothing outside this file should be
- *  resolving a token table, because a caller holding one could hand it to a page that then
- *  reports its pixels as the shipped palette's. */
-function familiesFor(choice: LandPaletteChoice | undefined): ReadonlyMap<string, StatusFamily> {
+/** The authored families for a palette choice, or for a THEME. Not exported: nothing outside this
+ *  file should be resolving a token table, because a caller holding one could hand it to a page
+ *  that then reports its pixels as the shipped palette's.
+ *
+ *  ⚠ A THEME OUTRANKS A PALETTE CHOICE, and a panel asking for both is an author error rather than
+ *  a blend — `theme` names a whole vocabulary and `palette` names a frozen historical one, so
+ *  honouring both would deliver a picture that is neither. The refusal is loud for the same reason
+ *  every refusal in this harness is: a silently-resolved conflict produces a NUMBER, and a number
+ *  from the wrong palette is indistinguishable from a number from the right one. */
+function familiesFor(
+  choice: LandPaletteChoice | undefined,
+  theme: LandTheme | undefined,
+): ReadonlyMap<string, StatusFamily> {
+  if (theme) {
+    if (choice !== undefined && choice !== 'live') {
+      throw new Error(
+        `IslandView: a panel asked for theme '${theme.id}' AND the '${choice}' palette. A theme is a ` +
+          'whole vocabulary; pick one.',
+      );
+    }
+    return resolveTheme(theme).tokens;
+  }
   if (choice === 'legacy') return LEGACY_STATUS_TOKENS;
   if (choice === 'pre-clay') return ADR0462_STATUS_TOKENS;
   return STATUS_TOKENS;
+}
+
+/** The terrain a state wears under a theme, or under the shipped vocabulary when there is none.
+ *  ⚠ THIS IS "the resolution layer ADR-0461 D2 implies": source names a TERRAIN and a theme
+ *  resolves the name to delivered colour and land. Note what it does NOT do — it never lets a
+ *  panel choose which terrain a state gets. A theme substitutes what a terrain LOOKS LIKE; which
+ *  terrain a state wears is ADR-0461 D1's binding and is not a theme's to move. */
+function terrainsFor(theme: LandTheme | undefined): ReadonlyMap<string, Terrain> | undefined {
+  return theme ? resolveTheme(theme).terrainByState : undefined;
 }
 
 export interface IslandViewProps {
@@ -161,6 +189,17 @@ export interface IslandViewProps {
   /** Which authored status palette the land wears. Defaults to `live` — see
    *  {@link LandPaletteChoice} for why `legacy` exists and what it may not be used for. */
   palette?: LandPaletteChoice;
+  /**
+   * WHICH THEME THE LAND WEARS (ADR-0461 D3). A theme resolves all six terrain names to delivered
+   * colour and land at once; absent, the panel draws the shipped vocabulary exactly as it always
+   * did, so every panel predating themes delivers the pixels it delivered before.
+   *
+   * ⚠ IT DOES NOT EXEMPT A PANEL FROM THE FLOOR. A theme may move every hue on the map and may
+   * not let one state read as another (ADR-0461 D3) — `themeSeparation` is what says whether it
+   * does, and `theme-measure.mjs` is what says whether the delivered pixels agree. Rendering a
+   * theme here proves nothing about it; it only shows it.
+   */
+  theme?: LandTheme;
   /** Present at this many CSS pixels per ground unit. */
   displayPxPerUnit: number;
   /** Plant silhouette style — the owner's "circular swirls" fork. */
@@ -208,6 +247,20 @@ export interface IslandViewProps {
    * a flag can only vary a quantity. A dressing varies what the place IS, which is the axis a
    * direction has to differ along to constitute a choice.
    */
+  /**
+   * Objects to add to the scene as-is, before it is framed — the seam a page uses to stand
+   * something this module does not know how to build on the island.
+   *
+   * ⚠ IT IS A SEAM, NOT A BACK DOOR. Everything this file builds wears `createBandedMaterial`
+   * and is merged per authored token, which is what keeps "every delivered pixel is an authored
+   * (token x level) entry" true. An object handed in here is NOT under that guarantee, so a page
+   * using it is off the audited palette by construction — which is why `capture.mjs`'s pages do
+   * not use it and the pages that do have their own.
+   *
+   * The framing box is measured AFTER these are added, so a prop taller than the land cannot be
+   * cropped.
+   */
+  extra?: readonly THREE.Object3D[];
   dressing?: DressingName;
   /**
    * Keep this FRACTION of the scene's plants (0..1). Defaults to 1 — every plant, as before.
@@ -286,7 +339,12 @@ export interface IslandViewProps {
  *  can never FAIL a palette check and can only make one pass for the wrong reason. */
 let shared: { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } | null = null;
 
-function sharedRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } {
+/**
+ * ⚠ EXPORTED so a bought asset can be CALIBRATED against the very renderer that will draw it.
+ * `calibrateLights` reads a white control back out of a live context; handing it a second
+ * renderer would calibrate for a context nothing renders in.
+ */
+export function sharedRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } {
   if (shared) return shared;
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({
@@ -418,6 +476,7 @@ function groundMeshes(
   cover: GroundCover | undefined,
   terrain: boolean | undefined,
   families: ReadonlyMap<string, StatusFamily>,
+  terrains: ReadonlyMap<string, Terrain> | undefined,
 ): THREE.Mesh[] {
   const relief = land === 'relief' || land === 'full' ? amplitude : 0;
   const bevel = land === 'bevel' || land === 'full';
@@ -672,7 +731,9 @@ function groundMeshes(
     // the right ground character per parcel for free, rather than one terrain smeared over an
     // island whose cells disagree about what they are.
     if (terrain && status) {
-      const t = terrainOf(status);
+      // Under a theme the land comes from the theme's own resolution; with no theme it is the
+      // shipped vocabulary's. Either way it is looked up FROM THE STATUS and never passed in.
+      const t = terrains?.get(status) ?? terrainOf(status);
       if (t) groundMaterial.terrain = t;
     }
     meshes.push(new THREE.Mesh(geom, createBandedMaterial(groundMaterial)));
@@ -901,7 +962,28 @@ function plantMesh(
   return meshes;
 }
 
-function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
+/** A built island: the scene, the camera that frames it, and the buffer it wants. */
+export interface ComposedIsland {
+  scene3: THREE.Scene;
+  camera: THREE.OrthographicCamera;
+  bufW: number;
+  bufH: number;
+  /** The island's on-screen extent INCLUDING the frame padding, in ground units — what a
+   *  caller multiplies by `displayPxPerUnit` to size the element. */
+  paddedW: number;
+  paddedH: number;
+}
+
+/**
+ * BUILD THE ISLAND without drawing it.
+ *
+ * ⚠ SPLIT OUT SO A FRAME CAN BE TIMED. Composition dominates a single call by orders of
+ * magnitude — meshes are merged, an occlusion field is built — so an instrument that timed
+ * `renderIsland` would be timing the BUILD and reporting it as the frame cost. That is the same
+ * class of error PR #1683 found in this project's previous frame instrument, which timed
+ * submission rather than execution and was wrong by 30-250x.
+ */
+export function composeIsland(props: IslandViewProps): ComposedIsland {
   const scene3 = new THREE.Scene();
   const scene = islandScene(props.island ?? {});
   const cells = groundCellsFrom(scene);
@@ -1016,12 +1098,13 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     props.grain,
     props.cover,
     props.terrain,
-    familiesFor(props.palette),
+    familiesFor(props.palette, props.theme),
+    terrainsFor(props.theme),
   )) {
     scene3.add(m);
   }
   if (props.plants !== false) {
-    for (const m of plantMesh(plants, props.style ?? 'mound', relief, familiesFor(props.palette)))
+    for (const m of plantMesh(plants, props.style ?? 'mound', relief, familiesFor(props.palette, props.theme)))
       scene3.add(m);
   }
   if (props.flowers !== false) for (const m of flowerMeshes(scene, relief)) scene3.add(m);
@@ -1032,6 +1115,8 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   // authored (token x level) entry" true of props without a second argument.
   if (dressing) for (const m of mergeParts(dressing.groups)) scene3.add(m);
   if (dressing) for (const m of canopyMeshes(dressing.canopy, relief)) scene3.add(m);
+  // Before the framing box, so anything handed in is inside the frame by construction.
+  if (props.extra) for (const object of props.extra) scene3.add(object);
 
   // The island's on-screen size at this camera: the ground's depth foreshortens by
   // sin(RENDER_ELEV), and its width does not.
@@ -1060,9 +1145,6 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   const bufW = Math.max(1, Math.round((screenW + pad * 2) * props.pxPerUnit));
   const bufH = Math.max(1, Math.round((screenH + pad * 2) * props.pxPerUnit));
 
-  const { renderer, canvas: glCanvas } = sharedRenderer();
-  renderer.setSize(bufW, bufH, false);
-
   const cx = (box.min.x + box.max.x) / 2;
   const cz = (bounds.minY + bounds.maxY) / 2;
   // Vertical centring follows the SCENE's screen extent, so a tall crown pushes the island down
@@ -1090,6 +1172,14 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   camera.lookAt(cx, 0, cz);
   camera.updateProjectionMatrix();
 
+  return { scene3, camera, bufW, bufH, paddedW: screenW + pad * 2, paddedH: screenH + pad * 2 };
+}
+
+/** Compose the island, draw it once, and blit it into the panel's own canvas. */
+function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
+  const { scene3, camera, bufW, bufH, paddedW, paddedH } = composeIsland(props);
+  const { renderer, canvas: glCanvas } = sharedRenderer();
+  renderer.setSize(bufW, bufH, false);
   renderer.render(scene3, camera);
 
   canvas.width = bufW;
@@ -1100,8 +1190,8 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     ctx.clearRect(0, 0, bufW, bufH);
     ctx.drawImage(glCanvas, 0, 0, bufW, bufH, 0, 0, bufW, bufH);
   }
-  canvas.style.width = `${(screenW + pad * 2) * props.displayPxPerUnit}px`;
-  canvas.style.height = `${(screenH + pad * 2) * props.displayPxPerUnit}px`;
+  canvas.style.width = `${paddedW * props.displayPxPerUnit}px`;
+  canvas.style.height = `${paddedH * props.displayPxPerUnit}px`;
   canvas.style.imageRendering = 'pixelated';
 }
 
@@ -1135,6 +1225,7 @@ export function IslandPanel({
     props.cover,
     props.terrain,
     props.palette,
+    props.theme,
   ]);
   return (
     <figure className="panel">

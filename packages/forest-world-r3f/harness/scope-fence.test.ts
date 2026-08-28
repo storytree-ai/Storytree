@@ -89,6 +89,13 @@ const EXPERIMENT = [
   // browser half (`colour-convention-scene.ts`) is deliberately NOT listed, exactly as
   // `pine-scene.ts` is not — it imports three because reading delivered pixels needs a renderer.
   'texture-convention.ts',
+  // The bought kit's PROP VOCABULARY (`dress-a-whole-island-from-the-bought-kit`) — what each
+  // prop MEANS, how many of it a capability's facts put on its parcel, and where each one
+  // stands. Pure, and it must stay so: the vocabulary is the claim the island makes about the
+  // work, and a claim only a GPU can reproduce is one nobody can audit. Its browser half
+  // (`kit-scene.ts`) and its page (`kit-island-scene.ts`) are deliberately NOT listed — both
+  // import three, exactly as `pine-scene.ts` does.
+  'kit-vocabulary.ts',
 ];
 
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];

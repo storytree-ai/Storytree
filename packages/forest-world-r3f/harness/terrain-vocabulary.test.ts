@@ -83,13 +83,17 @@ test('every token is an authored status token — a terrain invents no colour', 
   }
 });
 
-test('provenance is recorded per row, and exactly the three the owner named are his', () => {
-  // ADR-0461 D5: which terrain maps to which state BEYOND the three the owner named is not
-  // decided. A later reader must be able to tell his three from this increment's proposal
-  // without reading a commit message.
-  const owned = TERRAINS.filter((t) => t.provenance === 'owner').map((t) => t.name).sort();
-  assert.deepEqual(owned, ['forest', 'swamp', 'wheatfield']);
-  assert.equal(TERRAINS.filter((t) => t.provenance === 'proposed-here').length, 3);
+test('all six mappings are the owner’s, and the row still says which three he originated', () => {
+  // ADR-0461 D5 left "which terrain maps to which state beyond the three the owner named"
+  // undecided, and the other three carried `proposed-here` until he answered on 2026-08-28
+  // ("All three are fine"). The vocabulary is now settled in full — so this asserts BOTH halves:
+  // that nothing is still a guess, and that a later reader can still tell his three from the
+  // three he accepted, without reading a commit message.
+  const named = TERRAINS.filter((t) => t.provenance === 'owner-named').map((t) => t.name).sort();
+  assert.deepEqual(named, ['forest', 'swamp', 'wheatfield']);
+  const accepted = TERRAINS.filter((t) => t.provenance === 'owner-accepted').map((t) => t.name).sort();
+  assert.deepEqual(accepted, ['fallow', 'heath', 'scree']);
+  assert.equal(named.length + accepted.length, TERRAINS.length, 'every row must be settled');
   for (const t of TERRAINS) assert.ok(t.character.length > 20, `${t.name} must say what it IS`);
 });
 

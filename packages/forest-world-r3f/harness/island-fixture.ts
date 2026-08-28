@@ -101,6 +101,18 @@ export interface IslandOptions {
   status?: SceneStatus;
   /** Give ONE capability a foreign status, to show a mixed island. Index into CAP_TESTS. */
   oddOneOut?: { index: number; status: SceneStatus };
+  /**
+   * Give SEVERAL capabilities foreign statuses. Applied after `oddOneOut`, so the two compose
+   * and every existing caller is unchanged.
+   *
+   * ⚠ IT EXISTS BECAUSE ONE DEVIATION CANNOT SHOW A VOCABULARY. A dressing whose props are
+   * chosen BY status needs more than one status on the island to be visible at all — with a
+   * single odd one out, the arms for the other states are tested and never seen. Like
+   * `oddOneOut` it is a LABELLED deviation and never a default: an island that shipped mixed
+   * statuses as its resting state would be the art asserting a proof state the work does not
+   * hold (ADR-0367 D5).
+   */
+  oddOnesOut?: ReadonlyArray<{ index: number; status: SceneStatus }>;
   /** Override the UAT criteria's proof states, positionally. Short arrays fill from the front
    *  and the rest stay `proven`. The MIXED panel's control — a labelled deviation, never the
    *  default, because a default that showed unsigned criteria as failing would be the art
@@ -111,6 +123,41 @@ export interface IslandOptions {
   flowers?: boolean;
 }
 
+/**
+ * ONE CAPABILITY'S FACTS, as the fixture holds them.
+ *
+ * ⚠ EXPORTED BECAUSE `buildScene`'s OUTPUT CANNOT ANSWER THIS. `SceneG` is a drawing — groups,
+ * paths and circles — so a consumer that needs to know how many contracts a capability holds
+ * cannot read it back off the scene, and counting the parcel's ground CELLS would be a measure
+ * of AREA wearing a contract count's name. `islandScene` builds its parcels from this list, so
+ * the two cannot drift.
+ */
+export interface FixtureCapability {
+  capId: string;
+  status: SceneStatus;
+  testCount: number;
+  theme: SurfaceTheme;
+}
+
+/** The island's eleven capabilities, with whatever status the options put them in. */
+export function islandCapabilities(opts: IslandOptions = {}): FixtureCapability[] {
+  return CAP_TESTS.map((tests, i) => ({
+    capId: `cap-${i}`,
+    status:
+      opts.oddOnesOut?.find((o) => o.index === i)?.status ??
+      (opts.oddOneOut?.index === i
+        ? opts.oddOneOut.status
+        : (opts.status ?? ('healthy' as SceneStatus))),
+    testCount: tests,
+    theme: THEMES[i % THEMES.length]!,
+  }));
+}
+
+/** The story's ten UAT criteria and their proof states — the same list the flowers ride on. */
+export function islandCriteria(opts: IslandOptions = {}): Array<{ id: string; state: CriterionState }> {
+  return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? ('proven' as CriterionState) }));
+}
+
 export function islandScene(opts: IslandOptions = {}): SceneG {
   const centres = ISLAND_TILES.map((h) => hexCenter(h));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
@@ -119,11 +166,8 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
   // 'mesh' is the shipped studio substrate — the relaxed decomposition the parcels ride on.
   const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()], 'mesh');
 
-  const parcels: SceneParcelInput[] = CAP_TESTS.map((tests, i) => ({
-    capId: `cap-${i}`,
-    status: opts.oddOneOut?.index === i ? opts.oddOneOut.status : (opts.status ?? ('healthy' as SceneStatus)),
-    testCount: tests,
-    theme: THEMES[i % THEMES.length]!,
+  const parcels: SceneParcelInput[] = islandCapabilities(opts).map((cap, i) => ({
+    ...cap,
     // Seeds spread over the tiles so the Voronoi sub-partition gives every capability a
     // real parcel rather than slivers.
     seed: hexCenter(ISLAND_TILES[i % ISLAND_TILES.length]!),
@@ -158,10 +202,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
   // ADR-0226 D4: one flower per UAT criterion, 1:1, verdict read from the FORM. `flowers: false`
   // leaves `uatCriteria` ABSENT, which is what suppresses the markers entirely.
   if (opts.flowers !== false) {
-    territory.uatCriteria = CRITERIA.map((id, i) => ({
-      id,
-      state: opts.criteriaStates?.[i] ?? ('proven' as CriterionState),
-    }));
+    territory.uatCriteria = islandCriteria(opts);
   }
 
   const input: SceneInput = {

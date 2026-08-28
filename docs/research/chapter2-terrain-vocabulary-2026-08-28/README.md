@@ -94,21 +94,38 @@ The failing case is kept as a test so nobody deletes the second channel as redun
 
 ![the six states as six terrains](terrain-vocabulary-2026-08-28.png)
 
-| state | terrain | what it is | colour | feature (along × across) | whose name |
+| state | terrain | what it is | colour | feature (along × across) | how it was settled |
 |---|---|---|---|---|---|
-| `healthy` | **forest** | closed canopy over undisturbed ground | `#8cb85e` | 6.7 × 6.7 | **the owner's** |
-| `mapped` | **heath** | open scrub over surveyed ground — walked, marked, not worked | `#b3946a` | 14.2 × 8.4 | proposed here |
-| `proposed` | **fallow** | ploughed and set out, nothing grown in it yet | `#d8c069` | 104.4 × 17.4 | proposed here |
-| `building` | **wheatfield** | the crop standing while the work is in flight | `#d8c069` | 14.7 × 3.7 | **the owner's** |
-| `unhealthy` | **swamp** | standing water in broad pools | `#57544a` | 12.7 × 12.7 | **the owner's** |
-| `unknown` | **scree** | broken stone with nothing growing | `#9ca3af` | 2.8 × 2.8 | proposed here |
+| `healthy` | **forest** | closed canopy over undisturbed ground | `#8cb85e` | 6.7 × 6.7 | **he named it** |
+| `mapped` | **heath** | open scrub over surveyed ground — walked, marked, not worked | `#b7684e` | 14.2 × 8.4 | proposed here, **he accepted it** |
+| `proposed` | **fallow** | ploughed and set out, nothing grown in it yet | `#d8c069` | 104.4 × 17.4 | proposed here, **he accepted it** |
+| `building` | **wheatfield** | the crop standing while the work is in flight | `#d8c069` | 14.7 × 3.7 | **he named it** |
+| `unhealthy` | **swamp** | standing water in broad pools | `#57544a` | 12.7 × 12.7 | **he named it** |
+| `unknown` | **scree** | broken stone with nothing growing | `#9ca3af` | 2.8 × 2.8 | proposed here, **he accepted it** |
 
-⚠⚠ **ONLY THREE OF THE SIX MAPPINGS ARE THE OWNER'S, AND THAT IS FLAGGED ON EVERY ROW,
-IN THE TABLE, IN THE PICTURE AND IN THE TYPE.** He named `forest`, `swamp` and `wheatfield` on
-2026-08-27. ADR-0461 D5 says in terms that *"which terrain maps to which state beyond the three
-the owner named"* is **not decided**. `fallow`, `heath` and `scree` are authored here as a
-proposal, carry `provenance: 'proposed-here'` in `terrain-vocabulary.ts`, and are his to accept
-or move. A test asserts that exactly three rows claim to be his.
+⚠ **THE PANELS WERE RE-RENDERED ON 2026-08-28 AFTER THE SETTLEMENT, and one colour moved in
+between.** `mapped` wore the warm tan `#b3946a` when this sheet was first made and now wears the
+tilled clay `#b7684e` (ADR-0470, PR #1687). **Every terrain figure on this page reproduced exactly**
+across the two runs — the BEFORE pair still byte-identical over 1,233,579 opaque pixels, the pair
+still 1.43 octaves apart against a 0.88 bar, 13 of 14 colour-separated pairs also separated as land
+— which is the expected result, since a token change moves colour and the terrain channels are
+token-invariant by construction. The colour column above is the live table.
+
+⚠⚠ **ALL SIX MAPPINGS ARE SETTLED — UPDATED 2026-08-28.** He named `forest`, `swamp` and
+`wheatfield` on 2026-08-27, and on 2026-08-28 he was shown the sheet above and accepted the other
+three verbatim: *"All three are fine."* ADR-0461 D5's *"which terrain maps to which state beyond
+the three the owner named is not decided"* is therefore **discharged**, and
+`oq-three-of-the-six-land-names-are-mine-not-yours-accept-the` is settled.
+
+The rows carried `provenance: 'proposed-here'` until then, and the picture above printed
+**PROPOSED HERE** under three of six panels. **That flagging was right** — it is what stopped a
+guess quietly becoming a decision nobody made — and keeping it after the answer would have
+inverted its own purpose, making a settled vocabulary read as unsettled. It came off in the
+landing that built the theme layer (`themes-clear-the-separation-floor`), which is the first
+landing after the settlement to touch the vocabulary. The **origin** distinction is kept in the
+type (`owner-named` / `owner-accepted`) and in the table above, because "he named it" and "he
+accepted it when asked" are different facts a later reader may need; what is gone is the claim
+that anything here is still open. A test asserts the 3/3 split and that no row is unsettled.
 
 ⚠ **SIX TERRAINS, NOT FIVE, AND THE COUNT IS BY STATE.** ADR-0461 D4: *"an increment scoped off
 the colour count will author one treatment too few and will not notice."* A test counts them.

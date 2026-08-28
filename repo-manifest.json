@@ -202,6 +202,7 @@
 
       "$section_drive": "packages/drive — the shared build/orchestrate drivers (ADR-0112). Nearly every module is a named drive-machinery capability or the driver half of another story's capability; the residue is composition glue.",
       "packages/drive/src/adopt.ts": "uat-bound-command-adoption",
+      "packages/drive/src/adopt-capability.ts": "drive-machinery",
       "packages/drive/src/adr-*.ts": "cli-resident-corpus-tools",
       "packages/drive/src/ambient-presence.ts": "ambient-integration",
       "packages/drive/src/build.ts": "build-drive-cli",
@@ -607,6 +608,7 @@
       "$comment_map_freshness_render": "ELEVENTH BLOCK — the RENDERING readers (ADR-0445 D1, `map-freshness-arc` inc-03), the half that actually closes the incident. Capability grain per rule (1): all three capabilities state their own proof and are claimable. The split follows ROLE, exactly as the tenth block does: the pure FOLD that turns stored raw facts into a map read is the library's own shape work and homes with `work-hierarchy-store-projection` beside the projection it is the inverse of — one package, one pair, and neither app owns a rule the other also compiles. The two SOURCE SELECTORS are each their app's own: they decide which clock that surface asks, they degrade differently (the studio falls back to disk, the desktop to a runtime cache because for an installed app a disk read IS the incident), and they announce different consequences.",
       "packages/library/src/work-hierarchy-tree.ts": "work-hierarchy-store-projection",
       "apps/studio/server/hierarchySource.ts": "map-live-hierarchy-read",
+      "apps/studio/server/forestSnapshot*.ts": "web-experience-sync",
       "apps/desktop/src/backend/hierarchy-live.ts": "desktop-live-hierarchy-read"
     }
   },
@@ -857,6 +859,13 @@
           "checkout"
         ],
         "because": "stamps a new worktree's story and arc from the tree it is cut from."
+      },
+      "packages/cli/src/adopt-capability.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "capability-grain adoption signs against the unit as the commit under test declares it (ADR-0465 D4), exactly like its story-grain sibling."
       },
       "packages/drive/src/adopt.ts": {
         "camp": "prove",
