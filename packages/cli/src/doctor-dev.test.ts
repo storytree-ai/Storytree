@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import process from "node:process";
 
+import { isChatGptManagedLogin, type CodexCommandResult } from "@storytree/agent";
 import { lobbyDenyRules, type ManifestRootSlice } from "@storytree/drive";
 
 import {
@@ -10,6 +14,14 @@ import {
   classifyToolchainShell,
   MACHINE_GUIDE,
   adcCredentialsPath,
+  CODEX_GUIDE,
+  PINNED_CODEX_WRAPPER,
+  classifyCodexCli,
+  classifyCodexLogin,
+  codexCommand,
+  codexReading,
+  gatherCodexReading,
+  repoRootFromHere,
   classifyDbReachability,
   classifySecretsFile,
   classifyWorktreeIdentity,
@@ -21,6 +33,7 @@ import {
 import {
   DEV_SCOPE_NOT_RUN,
   NODE_MAJOR_FLOOR,
+  doctorHelp,
   formatDoctorReport,
   runDoctor,
   type DoctorObservations,
@@ -68,6 +81,13 @@ const DEV_HEALTHY: DevObservations = {
   toolchainShellReadings: { login: ["node", "pnpm", "bun"], plain: ["node", "pnpm", "bun"], unavailable: null },
   bun: "present",
   bunVersion: "1.4.0",
+  // A box set up for BOTH Codex journeys: the product on PATH (the interactive driver) and a
+  // ChatGPT-managed login (the only credential ADR-0232 accepts, and the one the prove-it leaf
+  // requires). `workspace-only` — what `pnpm install` alone leaves — is a WARN below, not part of
+  // this fixture, because a box that cannot start a Codex session is not a fully provisioned one.
+  codexCli: "path",
+  codexVersion: "codex-cli 0.145.0",
+  codexLogin: "chatgpt",
   writeAuthority: "installed",
   worktreeIdentity: "linked",
 };
@@ -97,21 +117,24 @@ const probeNamed = (obs: DevObservations, name: string) =>
 
 test("GREEN: a fully provisioned dev machine passes every dev probe, with no fix hints", () => {
   const probes = devProbes(DEV_HEALTHY);
-  assert.ok(probes.length >= 8, "the group is eight probes");
+  assert.ok(probes.length >= 10, "the group is ten probes");
   for (const p of probes) {
     assert.equal(p.level, "PASS", `${p.name} should pass on a healthy dev machine`);
     assert.equal(p.fixHint, undefined, `${p.name} must carry no fix hint while it passes`);
   }
 });
 
-test("the group covers exactly the eight invariants the explorer set says nothing about", () => {
+test("the group covers exactly the ten invariants the explorer set says nothing about", () => {
   // ORDER IS ASSERTED, not just membership, because these read as a report and a reader scans them
-  // top to bottom. `bun` and `toolchain-shell` sit after `gh-auth` and before the two advisory
-  // probes: they are the last of the hard invariants — the things whose absence stops the machine
-  // doing work — and the two below them are WARNs about isolation and about where you are standing.
-  // `toolchain-shell` follows `bun` deliberately: `bun` answers "is this tool reachable from HERE?"
-  // and `toolchain-shell` answers "is anything reachable from a shell that is not ours?", so reading
-  // them in that order is reading outward from doctor's own process.
+  // top to bottom. The middle band is the INVOCATION probes — `bun`, then the two Codex rows — every
+  // one of which answers "does this tool actually answer when we run it?", and they are read in
+  // order of how much of the machine's work they gate. `toolchain-shell` closes that band by asking
+  // the same question of a shell that is NOT doctor's own, so the band reads outward from doctor's
+  // own process. The two below it are WARNs about isolation and about where you are standing.
+  //
+  // `codex-login` MUST follow `codex-cli`: when no Codex binary answers, the login is undetermined
+  // BECAUSE of the row above it, and a reader scanning top to bottom meets the cause before the
+  // consequence.
   assert.deepEqual(
     devProbes(DEV_HEALTHY).map((p) => p.name),
     [
@@ -120,6 +143,8 @@ test("the group covers exactly the eight invariants the explorer set says nothin
       "secrets-file",
       "gh-auth",
       "bun",
+      "codex-cli",
+      "codex-login",
       "toolchain-shell",
       "write-authority",
       "worktree-identity",
@@ -186,6 +211,52 @@ const MUTATIONS: ReadonlyArray<{
     broken: { bun: "absent", bunVersion: null },
     expected: "FAIL",
     detail: /not resolvable on PATH/,
+  },
+  {
+    // THE MEASURED FALSE HEALTHY this arc exists to remove. On the owner's Linux box, 2026-08-28:
+    // `codex` was not on PATH, `~/.codex/auth.json` did not exist, and `storytree doctor --dev`
+    // printed "0 failing, 3 warning, 16 passing - dev setup is healthy" without a single row about
+    // Codex. This mutation is that box.
+    probe: "codex-cli",
+    why: "no Codex binary answers at all, so NEITHER Codex journey can run here",
+    broken: { codexCli: "absent", codexVersion: null, codexLogin: "undetermined" },
+    expected: "WARN",
+    detail: /neither on PATH nor the pinned wrapper/,
+  },
+  {
+    // The commonest reading in the fleet, and deliberately NOT the same row as `absent`: `pnpm
+    // install` leaves EVERY provisioned box here. The leaf can run; an interactive Codex session
+    // cannot be started. Collapsing the two would report a box that can prove work as one that
+    // cannot, or the reverse.
+    probe: "codex-cli",
+    why: "only the pinned leaf wrapper answers, so `--runtime codex` works and no session can start",
+    broken: { codexCli: "workspace-only", codexVersion: "codex-cli 0.145.0" },
+    expected: "WARN",
+    detail: /only the pinned leaf wrapper/,
+  },
+  {
+    probe: "codex-login",
+    why: "no ChatGPT sign-in has been done, so `--runtime codex` refuses however installed Codex is",
+    broken: { codexLogin: "logged-out" },
+    expected: "WARN",
+    detail: /reports no login/,
+  },
+  {
+    // ADR-0232's forbidden shape. It is a LOGIN — `codex login status` exits 0 — so a probe keyed on
+    // the exit code alone would call this healthy while every `--runtime codex` build refused.
+    probe: "codex-login",
+    why: "a login exists but is not ChatGPT-managed, which is the one kind the leaf refuses",
+    broken: { codexLogin: "other" },
+    expected: "WARN",
+    detail: /NOT ChatGPT-managed/,
+  },
+  {
+    // A question that could not be put has not been answered — `toolchain-shell`'s `no-shell` rule.
+    probe: "codex-login",
+    why: "no Codex binary could be invoked to ask, so the credential state is unknown, not absent",
+    broken: { codexCli: "absent", codexVersion: null, codexLogin: "undetermined" },
+    expected: "WARN",
+    detail: /not determined/,
   },
   {
     probe: "write-authority",
@@ -418,13 +489,16 @@ test("every non-PASS dev probe points at a REAL guide anchor (no drift, no dead 
     ghAuth: "absent",
     bun: "absent",
     bunVersion: null,
+    codexCli: "absent",
+    codexVersion: null,
+    codexLogin: "undetermined",
     toolchainShell: "unresolvable",
     toolchainShellReadings: { login: [], plain: [], unavailable: null },
     writeAuthority: "absent",
     worktreeIdentity: "no-identity",
   };
   const probes = devProbes(broken);
-  assert.equal(probes.filter((p) => p.level === "PASS").length, 0, "the fixture must break all seven");
+  assert.equal(probes.filter((p) => p.level === "PASS").length, 0, "the fixture must break all ten");
   for (const p of probes) {
     const hint = p.fixHint ?? "";
     const m = new RegExp(`${MACHINE_GUIDE.replace(/[.]/g, "\\.")}(#[a-z0-9-]+)`).exec(hint);
@@ -433,10 +507,15 @@ test("every non-PASS dev probe points at a REAL guide anchor (no drift, no dead 
   }
 });
 
-test("only the two probes an installer step genuinely repairs carry a fixStep", () => {
+test("only the probes an installer step genuinely repairs carry a fixStep", () => {
   // ADR-0207 D6's repair vocabulary: a fixStep names an idempotent `install.ps1 @step:` re-run. The
   // rest of this group repairs through a guide step or a storytree verb, and naming an installer
   // step that would NOT repair them would be a false entry (the dependencies-current precedent).
+  //
+  // `codex-login` is the load-bearing exclusion and the reason this test is worth its lines: a Codex
+  // sign-in is a browser action only the operator can take, so NO installer step can produce it —
+  // exactly the boundary `claude-credential` holds on the explorer side (ADR-0207 D3 / ADR-0430 D6).
+  // Its neighbour `codex-cli` DOES carry one, because installing a CLI is precisely what a step does.
   const broken = devProbes({
     ...DEV_HEALTHY,
     gcloudAdc: "absent",
@@ -444,6 +523,9 @@ test("only the two probes an installer step genuinely repairs carry a fixStep", 
     ghAuth: "absent",
     bun: "absent",
     bunVersion: null,
+    codexCli: "absent",
+    codexVersion: null,
+    codexLogin: "logged-out",
     toolchainShell: "unresolvable",
     toolchainShellReadings: { login: [], plain: [], unavailable: null },
     writeAuthority: "absent",
@@ -451,14 +533,398 @@ test("only the two probes an installer step genuinely repairs carry a fixStep", 
   });
   assert.deepEqual(
     broken.filter((p) => p.fixStep !== undefined).map((p) => p.name),
-    ["gh-auth"],
-    "only gh-auth's remedy IS an installer step",
+    ["gh-auth", "codex-cli"],
+    "an install IS an installer step; a sign-in never is",
   );
+  // The VALUE, not just the presence: a fixStep naming a marker `install.ps1` does not declare is a
+  // dead entry in the repair vocabulary, and `-Step <name>` fails loudly rather than repairing.
+  // Asserted on BOTH non-PASS shapes, because they are separate object literals in the source.
+  for (const codexCli of ["workspace-only", "absent"] as const) {
+    assert.equal(
+      probeNamed({ ...DEV_HEALTHY, codexCli, codexVersion: null }, "codex-cli")!.fixStep,
+      "codex-cli",
+      `${codexCli} must name the installer step that genuinely repairs it`,
+    );
+  }
+  assert.equal(probeNamed(DEV_HEALTHY, "codex-cli")!.fixStep, undefined, "a PASSing probe carries no fix at all");
 });
 
 // ---------------------------------------------------------------------------
 // PURE classifiers — the platform-sensitive and parse-sensitive halves.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// The Codex group — `codex-onboarding-journey-arc`.
+// ---------------------------------------------------------------------------
+
+/** `codex login status` results, as the two binaries actually emit them. */
+const CHATGPT_ON_STDOUT: CodexCommandResult = { code: 0, stdout: "Logged in using ChatGPT", stderr: "" };
+const CHATGPT_ON_STDERR: CodexCommandResult = { code: 0, stdout: "", stderr: "Logged in using ChatGPT" };
+/** MEASURED on the owner's Linux box 2026-08-28 against the pinned wrapper 0.145.0. */
+const NOT_LOGGED_IN: CodexCommandResult = { code: 1, stdout: "", stderr: "Not logged in" };
+const API_KEY_LOGIN: CodexCommandResult = { code: 0, stdout: "Logged in using an API key", stderr: "" };
+const ANSWERED: CodexCommandResult = { code: 0, stdout: "codex-cli 0.145.0", stderr: "" };
+const REFUSED: CodexCommandResult = { code: 1, stdout: "", stderr: "boom" };
+
+test("classifyCodexLogin agrees with the LEAF's own predicate on every shape — no second definition", () => {
+  // THE ANTI-DRIFT ASSERTION, and the reason `isChatGptManagedLogin` is imported rather than
+  // restated. The probe's whole claim is "this machine can run `--runtime codex`", which is only
+  // true while its PASS condition is the leaf's refusal condition inverted. A re-implementation that
+  // merely looked right — matching the phrase anywhere in either channel, say — would pass over a
+  // machine whose builds all refuse, which is this arc's false healthy in a subtler mask.
+  const shapes: readonly CodexCommandResult[] = [
+    CHATGPT_ON_STDOUT,
+    CHATGPT_ON_STDERR,
+    NOT_LOGGED_IN,
+    API_KEY_LOGIN,
+    REFUSED,
+    // The leaf's strictness itself: the right line on one channel plus ANY other output is refused,
+    // and so is the right line at a non-zero exit.
+    { code: 0, stdout: "Logged in using ChatGPT", stderr: "warning: update available" },
+    { code: 1, stdout: "Logged in using ChatGPT", stderr: "" },
+  ];
+  for (const shape of shapes) {
+    assert.equal(
+      classifyCodexLogin(shape) === "chatgpt",
+      isChatGptManagedLogin(shape),
+      `the probe and the leaf must agree on ${JSON.stringify(shape)}`,
+    );
+  }
+});
+
+test("classifyCodexLogin: an API-key login is NOT logged-out — ADR-0232 refuses it, and says so", () => {
+  // Both are non-PASS, so a probe could get away with conflating them — and then the fix hint would
+  // tell an operator holding a working API key to "run codex login", omitting the one fact that
+  // matters: the key is stripped before every run and cannot be made to work (ADR-0232).
+  assert.equal(classifyCodexLogin(API_KEY_LOGIN), "other");
+  assert.equal(classifyCodexLogin(NOT_LOGGED_IN), "logged-out");
+  assert.notEqual(
+    probeNamed({ ...DEV_HEALTHY, codexLogin: "other" }, "codex-login")!.detail,
+    probeNamed({ ...DEV_HEALTHY, codexLogin: "logged-out" }, "codex-login")!.detail,
+  );
+});
+
+test("classifyCodexLogin: a question that could not be put is undetermined, never a pass", () => {
+  assert.equal(classifyCodexLogin(null), "undetermined");
+});
+
+test("classifyCodexCli: the PRODUCT wins, the wrapper is the fallback, a non-zero exit is no answer", () => {
+  assert.equal(classifyCodexCli(ANSWERED, ANSWERED), "path");
+  assert.equal(classifyCodexCli(null, ANSWERED), "workspace-only");
+  assert.equal(classifyCodexCli(REFUSED, ANSWERED), "workspace-only", "a refusal is not an answer");
+  assert.equal(classifyCodexCli(null, null), "absent");
+  assert.equal(classifyCodexCli(REFUSED, REFUSED), "absent");
+});
+
+test("codexReading: the PRODUCT is asked first, and the login is asked of the binary that answered", () => {
+  // The RESOLUTION ORDER is the logic here, and it is not cosmetic: the two binaries read the SAME
+  // `~/.codex/auth.json`, so either is a valid login witness — but only one of them exists on a box
+  // that never installed the product, and asking a binary that is not there would report `logged-out`
+  // for a machine whose credential is fine. Recording the calls is what pins that.
+  const calls: string[][] = [];
+  const runner = (answers: Record<string, CodexCommandResult | null>) =>
+    (file: string, args: readonly string[]) => {
+      calls.push([file, ...args]);
+      // `login` is matched anywhere in the argv, not at [0]: the wrapper is invoked as
+      // `node <wrapper> login status`, so its verb is never the first argument.
+      return answers[args.includes("login") ? "login" : file === "codex" ? "path" : "wrapper"] ?? null;
+    };
+
+  calls.length = 0;
+  const both = codexReading(runner({ path: ANSWERED, wrapper: ANSWERED, login: CHATGPT_ON_STDOUT }), "/w/codex.js");
+  assert.deepEqual(both, { cli: "path", version: "codex-cli 0.145.0", login: "chatgpt" });
+  assert.deepEqual(calls.at(-1), ["codex", "login", "status"], "the PRODUCT is the login witness when present");
+
+  assert.deepEqual(
+    calls,
+    [["codex", "--version"], [process.execPath, "/w/codex.js", "--version"], ["codex", "login", "status"]],
+    "both binaries are asked their version, each with its own argv",
+  );
+
+  calls.length = 0;
+  const leafOnly = codexReading(runner({ path: null, wrapper: ANSWERED, login: NOT_LOGGED_IN }), "/w/codex.js");
+  assert.deepEqual(leafOnly, { cli: "workspace-only", version: "codex-cli 0.145.0", login: "logged-out" });
+  assert.deepEqual(
+    calls.at(-1),
+    [process.execPath, "/w/codex.js", "login", "status"],
+    "with no product, the pinned WRAPPER answers the login — the credential is not asked of nothing",
+  );
+});
+
+test("codexReading: with no wrapper on disk it is never invoked, and nothing is asked about the login", () => {
+  // `wrapper: null` is "the pinned wrapper is not on this disk", which is what an unprovisioned
+  // checkout looks like. Spawning a path that does not exist would be harmless but would also make
+  // the reading depend on spawn-error shapes rather than on the fact we already know.
+  const calls: string[][] = [];
+  const reading = codexReading((file, args) => {
+    calls.push([file, ...args]);
+    return null;
+  }, null);
+  assert.deepEqual(reading, { cli: "absent", version: null, login: "undetermined" });
+  assert.deepEqual(calls, [["codex", "--version"]], "exactly one question was asked, and it was the product's");
+});
+
+test("codexReading: a wrapper that REFUSED --version is not then asked for a version or a login", () => {
+  // THE `absent`-WITH-A-WRAPPER-ON-DISK SHAPE, which the two tests above cannot reach: they reach
+  // `absent` only by having no wrapper at all, so nothing there distinguishes "the wrapper answered
+  // null" from "the wrapper answered badly". A broken or half-installed `@openai/codex` — present on
+  // disk, exiting non-zero — is that second thing, and it is what makes both ternaries in
+  // `codexReading` load-bearing rather than decorative.
+  //
+  // Two ways it goes wrong if the `workspace-only` arms stop being guarded: the report grows a
+  // VERSION scraped off a refusal ("boom"), and the login is asked of a binary that just proved it
+  // cannot answer — turning an honest `undetermined` into a confident `logged-out`, which is the
+  // false-certainty half of this arc's own failure. (Both were live mutants: doctor-dev.ts:1163 and
+  // :1170, surviving because nothing exercised this shape.)
+  const calls: string[][] = [];
+  const reading = codexReading((file, args) => {
+    calls.push([file, ...args]);
+    // The wrapper refuses `--version` and WOULD answer the login — so a probe that asked anyway
+    // gets a real, wrong answer rather than a null that hides the bug.
+    return args.includes("login") ? NOT_LOGGED_IN : file === "codex" ? null : REFUSED;
+  }, "/w/codex.js");
+  assert.deepEqual(reading, { cli: "absent", version: null, login: "undetermined" });
+  assert.deepEqual(
+    calls,
+    [["codex", "--version"], [process.execPath, "/w/codex.js", "--version"]],
+    "both were asked their version, and NEITHER was asked about the login",
+  );
+});
+
+test("codexReading: the version comes off whichever channel answered, and blank is null not empty", () => {
+  const onStderr: CodexCommandResult = { code: 0, stdout: "", stderr: "  codex-cli 0.145.0  " };
+  assert.equal(codexReading(() => onStderr, null).version, "codex-cli 0.145.0", "stderr is read AND trimmed");
+  const onStdout: CodexCommandResult = { code: 0, stdout: "  codex-cli 0.145.0  ", stderr: "noise" };
+  assert.equal(codexReading(() => onStdout, null).version, "codex-cli 0.145.0", "stdout wins, and is trimmed");
+  const silent: CodexCommandResult = { code: 0, stdout: "  ", stderr: "" };
+  assert.equal(codexReading(() => silent, null).version, null, "a blank version is an absent one, never ''");
+});
+
+test("codexReading: the version is read off the binary that DECIDED the state, not whichever answered", () => {
+  // Both can answer with DIFFERENT versions — a globally-installed product beside the pinned leaf
+  // wrapper is the ordinary case. The row says "the Codex CLI answered on PATH (<v>)", so `<v>` has
+  // to be the PRODUCT's; reporting the wrapper's there would be a true number against a false claim.
+  const run = (file: string): CodexCommandResult => ({
+    code: 0,
+    stdout: file === "codex" ? "codex-cli 9.9.9" : "codex-cli 0.145.0",
+    stderr: "",
+  });
+  assert.equal(codexReading(run, "/w/codex.js").version, "codex-cli 9.9.9", "the product decided `path`");
+  assert.equal(
+    codexReading((file) => (file === "codex" ? null : run(file)), "/w/codex.js").version,
+    "codex-cli 0.145.0",
+    "with no product, the wrapper decided `workspace-only` and its version is the honest one",
+  );
+});
+
+test("gatherCodexReading: the impure shell composes without throwing, and finds no wrapper where none is", () => {
+  // The one line the injected seam cannot reach: finding the wrapper on disk. Asserted against a
+  // root that provably has none, so the verdict does not depend on whether the CI box happens to
+  // have Codex installed — only that a missing wrapper can never be reported as a present one.
+  const reading = gatherCodexReading("/storytree-no-such-root-9f2a");
+  assert.notEqual(reading.cli, "workspace-only", "no wrapper on that disk, so that state is unreachable");
+  assert.ok(["path", "absent"].includes(reading.cli), "and the reading is still well-formed");
+});
+
+test("codexCommand: it INVOKES, keeps both channels apart, and returns null when nothing can be run", () => {
+  // The plumbing under the seam, exercised for real rather than mocked — because the two things it
+  // must get right are exactly the two a mock would assume. (1) Both channels survive SEPARATELY:
+  // `isChatGptManagedLogin` decides on stdout and stderr independently, so a collapsed reading would
+  // silently reclassify a healthy login. (2) A binary that cannot be spawned is `null` — "could not
+  // ask" — never a zero-exit answer.
+  const both = codexCommand(process.execPath, [
+    "-e",
+    "process.stdout.write('OUT'); process.stderr.write('ERR')",
+  ]);
+  assert.deepEqual(both, { code: 0, stdout: "OUT", stderr: "ERR" }, "text, not Buffers, and not merged");
+
+  const failed = codexCommand(process.execPath, ["-e", "process.exit(3)"]);
+  assert.deepEqual(failed, { code: 3, stdout: "", stderr: "" }, "a non-zero exit is an ANSWER, not a null");
+
+  assert.equal(
+    codexCommand("storytree-no-such-binary-a7f3", ["--version"]),
+    null,
+    "an unspawnable binary could not be asked — that is null, never a result",
+  );
+
+  // (3) THE SECOND HALF OF THE GUARD, which the three cases above never reach: a child killed by a
+  // SIGNAL sets no `error` at all and reports `status: null`. Without the `status === null` operand
+  // the reading would leave here as `{ code: null }` and every downstream `code === 0` comparison
+  // would quietly be false-by-accident rather than false-by-decision. (It was a live mutant —
+  // doctor-dev.ts:1092 — because nothing produced a signalled child.)
+  //
+  // Asserted BY PLATFORM rather than skipped, because the two platforms genuinely differ and a
+  // skipped test is one that proves nothing (ADR-0211/0249): POSIX delivers the signal, while
+  // Windows has no signals and Node emulates SIGKILL as a TerminateProcess, so the same child exits
+  // with a CODE there and is a perfectly ordinary answer.
+  const signalled = codexCommand(process.execPath, ["-e", "process.kill(process.pid, 'SIGKILL')"]);
+  if (process.platform === "win32") {
+    assert.notEqual(signalled, null, "Windows has no signals — that child exited with a code");
+  } else {
+    assert.equal(signalled, null, "a signal-killed child never answered — null, never `{ code: null }`");
+  }
+});
+
+test("PINNED_CODEX_WRAPPER names the leaf's real bin path, and the repo root resolves to this workspace", () => {
+  // The one place this module reaches into another package's private node_modules layout. Asserted
+  // rather than assumed: a rename upstream would otherwise demote every box from `workspace-only` to
+  // `absent` at once, and the report would read as "Codex was uninstalled" on a machine nothing
+  // happened to.
+  assert.deepEqual(PINNED_CODEX_WRAPPER.split(/[/\\]/), [
+    "packages",
+    "agent",
+    "node_modules",
+    "@openai",
+    "codex",
+    "bin",
+    "codex.js",
+  ]);
+  assert.ok(
+    existsSync(join(repoRootFromHere(), "pnpm-workspace.yaml")),
+    "repoRootFromHere must resolve to the workspace root, or the wrapper is looked for in the wrong place",
+  );
+});
+
+test("the Codex fix hints INSTRUCT — each names the action, and the credential hints name ADR-0232's one route", () => {
+  // These hints are the "instruct" half of detect-and-instruct, so their CONTENT is the deliverable,
+  // not decoration. Pinned phrase by phrase because a hint that lost its middle sentence would still
+  // be a non-empty string pointing at a real anchor, and every weaker assertion would pass over it.
+  const hint = (o: Partial<DevObservations>, name: string) => probeNamed({ ...DEV_HEALTHY, ...o }, name)!.fixHint ?? "";
+
+  const workspaceOnly = hint({ codexCli: "workspace-only" }, "codex-cli");
+  assert.match(workspaceOnly, /`pnpm install` alone leaves/, "it says what this state IS");
+  assert.match(workspaceOnly, /--runtime codex.*NOT for an interactive Codex session/s, "…which half works");
+  assert.match(workspaceOnly, /npm install -g @openai\/codex/, "…the action, if you want the other half");
+  assert.match(workspaceOnly, /only ever drives Claude.*nothing is wrong/s, "…and that this may be no defect at all");
+
+  const absent = hint({ codexCli: "absent", codexVersion: null }, "codex-cli");
+  assert.match(absent, /NEITHER Codex journey/, "both halves are down");
+  assert.match(absent, /pinned by packages\/agent/, "…the leaf's binary has a known source");
+  assert.match(absent, /check `checkout-provisioned` first/, "…so the likely cause is a neighbouring probe");
+  assert.match(absent, /no root needed/, "…and the remedy needs no escalation to a human with a password");
+
+  const apiKey = hint({ codexLogin: "other" }, "codex-login");
+  assert.match(apiKey, /ADR-0232 accepts subscription \(ChatGPT-managed\) auth ONLY/, "the rule");
+  assert.match(apiKey, /OPENAI_API_KEY \/ CODEX_API_KEY \/ CODEX_ACCESS_TOKEN are stripped/, "why the key cannot work");
+  assert.match(apiKey, /Codex subscription auth required/, "the refusal the reader will actually see");
+  assert.match(apiKey, /never mints or handles the credential/, "and the boundary storytree keeps");
+
+  const loggedOut = hint({ codexLogin: "logged-out" }, "codex-login");
+  assert.match(loggedOut, /run `codex login`/, "the action");
+  assert.match(loggedOut, /BINARY and never/, "THE COUPLING — install gives the binary, not the credential");
+  // The middle clause names WHICH work the sign-in unblocks, and it is the only sentence in the
+  // report that connects a missing credential to a failing `--runtime codex` build. Pinned because
+  // it was a live mutant (doctor-dev.ts:635): emptied, the hint still matched every other assertion
+  // here and still ended at a real guide anchor — it just stopped saying what the step is FOR.
+  assert.match(loggedOut, /makes `--runtime codex` builds — and an interactive/, "…which work it unblocks");
+  assert.match(loggedOut, /actually work/, "and what the step buys");
+
+  const undetermined = hint({ codexCli: "absent", codexVersion: null, codexLogin: "undetermined" }, "codex-login");
+  assert.match(undetermined, /the `codex-cli` finding, not a credential one/, "it routes to the row that owns it");
+  assert.match(undetermined, /never reads as a pass/, "and says why it is not silence");
+
+  // Every one of them ENDS by sending the reader somewhere, in the exact `See <guide>#<anchor>.`
+  // form the anchor test keys on. Asserted as the whole phrase rather than just the anchor: a hint
+  // that lost its "See " and its full stop still contains a valid-looking path, and the anchor test
+  // would keep passing over a sentence that had come apart.
+  const tail = `See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`;
+  for (const [label, text] of [
+    ["codex-cli/workspace-only", workspaceOnly],
+    ["codex-cli/absent", absent],
+    ["codex-login/other", apiKey],
+    ["codex-login/logged-out", loggedOut],
+    ["codex-login/undetermined", undetermined],
+  ] as const) {
+    assert.ok(text.endsWith(tail), `${label} must end with "${tail}", got: …${text.slice(-60)}`);
+  }
+});
+
+test("every Codex hint names the journey document, and that document EXISTS on disk", () => {
+  // A pointer is only worth its line while the thing it points at is there. The machine guide's
+  // anchors are frozen by agreement rather than read off the file (see GUIDE_ANCHORS) because that
+  // guide and this module were authored in parallel branches — but `docs/codex-onboarding.md` was
+  // authored in the SAME landing as this pointer, so there is no reason to accept a weaker check
+  // here: the file is asserted to exist. A hint that sends a reader to a document nobody wrote is
+  // the dead-pointer failure this arc spent an increment clearing off four other surfaces.
+  // The VALUE, then the file. Existence alone is not enough to pin this: an empty path resolves to
+  // the repo root, which exists, and an empty pattern matches every hint — so a check that asked
+  // only "does it exist and is it mentioned" would keep passing over a constant that had lost its
+  // content entirely.
+  assert.equal(CODEX_GUIDE, "docs/codex-onboarding.md", "the journey document is named, not implied");
+  assert.ok(
+    existsSync(join(repoRootFromHere(), CODEX_GUIDE)),
+    `${CODEX_GUIDE} must exist — every Codex fix hint sends the reader there`,
+  );
+  for (const [codexCli, codexLogin] of [
+    ["workspace-only", "chatgpt"],
+    ["absent", "undetermined"],
+    ["path", "other"],
+    ["path", "logged-out"],
+  ] as const) {
+    for (const name of ["codex-cli", "codex-login"]) {
+      const probe = probeNamed({ ...DEV_HEALTHY, codexCli, codexVersion: null, codexLogin }, name)!;
+      if (probe.level === "PASS") continue;
+      assert.match(probe.fixHint ?? "", new RegExp(CODEX_GUIDE.replace(/[.]/g, "\\.")), `${name}/${codexCli}/${codexLogin}`);
+    }
+  }
+});
+
+test("the Codex details report the VERSION when one was read, and say so plainly when none was", () => {
+  // The `??` fallback, both ways. A mutated `??` leaves the PASS row reading `(...)` with an empty
+  // parenthesis on a box that answered — plausible enough to scan past.
+  assert.match(probeNamed({ ...DEV_HEALTHY }, "codex-cli")!.detail, /answered on PATH \(codex-cli 0\.145\.0\)/);
+  assert.match(probeNamed({ ...DEV_HEALTHY, codexVersion: null }, "codex-cli")!.detail, /\(version unreported\)/);
+  assert.match(
+    probeNamed({ ...DEV_HEALTHY, codexCli: "workspace-only" }, "codex-cli")!.detail,
+    /wrapper in packages\/agent\/node_modules answered \(codex-cli 0\.145\.0\)/,
+  );
+  assert.match(
+    probeNamed({ ...DEV_HEALTHY, codexCli: "workspace-only", codexVersion: null }, "codex-cli")!.detail,
+    /answered \(version unreported\)/,
+  );
+});
+
+test("the PASS details assert exactly what was observed and never a stronger neighbour", () => {
+  assert.match(probeNamed(DEV_HEALTHY, "codex-login")!.detail, /no value is read/, "presence by name only (D3)");
+  assert.match(probeNamed(DEV_HEALTHY, "codex-login")!.detail, /ChatGPT-managed/, "…and WHICH login it is");
+});
+
+test("neither Codex probe can FAIL — Codex is opt-in, so a Claude-only box is not broken", () => {
+  // ADR-0030 makes the Claude Agent SDK the default and Codex opt-in, so a box with no Codex is a
+  // complete configuration that simply cannot do Codex work. A FAIL would red the whole fleet
+  // permanently, and a permanently-red doctor teaches readers to ignore doctor — the vacuous green
+  // wearing the other mask. Asserted over EVERY non-healthy state, not one, so a later edit cannot
+  // promote a single arm quietly.
+  for (const codexCli of ["workspace-only", "absent"] as const) {
+    for (const codexLogin of ["other", "logged-out", "undetermined"] as const) {
+      const obs = { ...DEV_HEALTHY, codexCli, codexVersion: null, codexLogin };
+      const report = runDoctor(EXPLORER_HEALTHY, obs);
+      for (const name of ["codex-cli", "codex-login"]) {
+        assert.equal(report.probes.find((p) => p.name === name)!.level, "WARN", `${name}/${codexCli}/${codexLogin}`);
+      }
+      assert.equal(report.ok, true, "a Codex-less box must not break an otherwise-healthy dev sweep");
+    }
+  }
+});
+
+test("REGRESSION: the measured box can no longer be reported over in silence", () => {
+  // The exact machine state this arc was chartered on, and the exact failure. Before these two rows
+  // existed, `storytree doctor --dev` on the owner's Linux box printed "0 failing, 3 warning, 16
+  // passing - dev setup is healthy" and did not mention Codex ANYWHERE — no `codex` on PATH, no
+  // `~/.codex/auth.json`, and a reader looking for the answer found no row to read. The report may
+  // still say the box is healthy (it is, for Claude work); what it may never do again is say nothing.
+  const measuredBox: DevObservations = {
+    ...DEV_HEALTHY,
+    codexCli: "workspace-only",
+    codexVersion: "codex-cli 0.145.0",
+    codexLogin: "logged-out",
+  };
+  const text = formatDoctorReport(runDoctor(EXPLORER_HEALTHY, measuredBox));
+  assert.match(text, /codex-cli/, "the report must carry a row about the Codex CLI");
+  assert.match(text, /codex-login/, "…and one about the Codex credential");
+  assert.match(text, /only the pinned leaf wrapper/, "and it must name what IS present, not just what is not");
+  assert.match(text, /reports no login/, "and that the credential is the binding gap");
+});
 
 test("adcCredentialsPath: Windows uses %APPDATA%\\gcloud, POSIX uses ~/.config/gcloud", () => {
   // AUTHORED ON WINDOWS, ASSERTED FOR BOTH. Hard-coding either location would silently report
@@ -615,7 +1081,7 @@ test("classifyDbReachability: no credential short-circuits to not-attempted, wit
 test("scope: a bare sweep is byte-for-byte the explorer set — the dev group is opt-in", () => {
   const bare = runDoctor(EXPLORER_HEALTHY);
   assert.equal(bare.scope, "explorer");
-  for (const name of ["gcloud-adc", "db-reachable", "secrets-file", "gh-auth", "write-authority", "worktree-identity", "toolchain-shell"]) {
+  for (const name of ["gcloud-adc", "db-reachable", "secrets-file", "gh-auth", "write-authority", "worktree-identity", "toolchain-shell", "codex-cli", "codex-login"]) {
     assert.equal(bare.probes.find((p) => p.name === name), undefined, `${name} must not run unasked`);
   }
 });
@@ -623,7 +1089,7 @@ test("scope: a bare sweep is byte-for-byte the explorer set — the dev group is
 test("scope: supplying dev observations IS asking for the group — no second flag to drift", () => {
   const dev = runDoctor(EXPLORER_HEALTHY, DEV_HEALTHY);
   assert.equal(dev.scope, "dev");
-  assert.equal(dev.probes.length, runDoctor(EXPLORER_HEALTHY).probes.length + 8);
+  assert.equal(dev.probes.length, runDoctor(EXPLORER_HEALTHY).probes.length + 10);
   assert.equal(dev.ok, true);
 });
 
@@ -634,6 +1100,11 @@ test("a bare sweep NEVER prints an unqualified green — it names the group it d
   const text = formatDoctorReport(runDoctor(EXPLORER_HEALTHY));
   assert.match(text, /explorer setup is healthy/);
   assert.ok(text.includes(DEV_SCOPE_NOT_RUN), "the skipped group must be named in the summary");
+  // The line has to name what it did not check, or it is a disclaimer with no content. `Codex
+  // runtime` is asserted by name because it is the newest member and the one a reader is most
+  // likely to be hunting for — the arc that added it exists because the report used to be silent.
+  assert.match(DEV_SCOPE_NOT_RUN, /the Codex runtime/, "the skipped group must SAY it includes Codex");
+  assert.match(DEV_SCOPE_NOT_RUN, /worktree identity/, "…and still name the rest of the group");
   assert.match(text, /--dev/, "…and the flag that runs it");
 });
 
@@ -642,6 +1113,17 @@ test("a dev-scoped sweep drops the not-run line and says which persona it cleare
   assert.match(text, /dev setup is healthy/);
   assert.ok(!text.includes(DEV_SCOPE_NOT_RUN), "nothing was skipped, so nothing may be reported as skipped");
   assert.match(text, /explorer \+ dev setup check/, "the header states the scope it actually ran");
+});
+
+test("the --dev help says what the group covers, and a reader looking for Codex finds it there", () => {
+  // The help is where someone decides whether to pay for the slower sweep, so an omission from it is
+  // the same failure one rung up: a capability the machine has and nobody knows to ask for.
+  const body = doctorHelp().body;
+  assert.match(body, /storytree doctor --dev/, "the flag itself");
+  assert.match(body, /whether Codex is installed and\s+logged in/, "…and that the group answers the Codex question");
+  assert.match(body, /Bun/, "…and Bun, the other machine dependency pnpm cannot supply");
+  assert.match(body, /SELECT 1/, "…and why it is the slower one");
+  assert.match(body, /`pnpm db:probe` runs/, "…named as the verb a reader already knows");
 });
 
 test("a dev FAIL breaks the whole report's ok — the sweep is not advisory", () => {
@@ -666,6 +1148,9 @@ test("a fully-broken dev machine with a green explorer half is REPORTED broken, 
     ghAuth: "absent",
     bun: "absent",
     bunVersion: null,
+    codexCli: "absent",
+    codexVersion: null,
+    codexLogin: "undetermined",
     toolchainShell: "unresolvable",
     toolchainShellReadings: { login: [], plain: [], unavailable: null },
     writeAuthority: "absent",

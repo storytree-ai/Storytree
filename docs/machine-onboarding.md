@@ -194,6 +194,23 @@ summary. If you are here to compare this machine against another, the plans must
 `legacy/Agentic` is a second submodule: a read-only vendored copy of the V1 Rust project, reference
 only. You do not need it initialised and you must never edit it.
 
+### Codex — the opt-in second runtime
+
+**Skip this if the box only ever drives Claude.** ADR-0030 makes the Claude Agent SDK the default
+and Codex the opt-in alternative, so a box with no Codex is a *complete* configuration —
+`storytree doctor --dev` reports it as two warnings and never a failure.
+
+If you do want it, **the whole journey is `docs/codex-onboarding.md`** — both what Codex means here
+(a session driver, and a build tool, with different binaries), the three steps only you can perform,
+and what proves each one took. Two things worth knowing before you go there:
+
+- **`pnpm install` gives the Codex binary and never the Codex credential.** Unlike the Claude leaf,
+  the Codex leaf hydrates no secrets, deliberately. Only a ChatGPT sign-in writes `~/.codex/auth.json`,
+  and ADR-0232 accepts that kind of login *only* — an API key cannot be made to work here however
+  valid it is.
+- **Ask the box rather than guessing:** `pnpm storytree doctor --dev` carries a `codex-cli` row and a
+  `codex-login` row, both of which **invoke** the binary rather than checking a path.
+
 ---
 
 ## 2. The three sign-ins

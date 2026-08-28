@@ -48,6 +48,15 @@
  * present once sent an empty string to the Cloud SQL connector and made a perfectly healthy database
  * report itself unreachable for ~25 minutes.
  *
+ * WHAT THIS GROUP OWNS THAT THE EXPLORER SET DOES NOT, ADDED BY `codex-onboarding-journey-arc`: the
+ * OPT-IN SECOND RUNTIME. `codex-cli` and `codex-login` sit here rather than beside `claude-cli` /
+ * `claude-credential` on the explorer side, and the symmetry is deliberately not the argument. The
+ * Claude CLI is the EXPLORER'S OWN HARNESS — it is what they are reading storytree through — whereas
+ * Codex is a way of doing WORK: driving a session, or running the `--runtime codex` prove-it leaf.
+ * An ADR-0207 explorer needs neither, so putting them in the explorer set would hand every explorer
+ * two permanent warnings about a runtime they will never use, in the group most sensitive to noise.
+ * Both are WARN-only for a stated reason (see the probes); neither can ever break a sweep.
+ *
  * THE REPAIR VOCABULARY. ADR-0207 D6's rule is that a probe never invents machinery — it points at
  * the ONE idempotent step that repairs it. Two of these probes repair through a real `install.ps1`
  * `# @step:` marker and carry a {@link Probe.fixStep} accordingly; the rest repair through a step of
@@ -55,12 +64,18 @@
  * the session writing that guide in parallel. The hints name those anchors; the test asserts every
  * hint names one, so a renamed anchor cannot silently rot into a dead pointer.
  */
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import process from "node:process";
+import { fileURLToPath } from "node:url";
 
+import {
+  isChatGptManagedLogin,
+  scrubMeteredCodexAuth,
+  type CodexCommandResult,
+} from "@storytree/agent";
 import {
   DB_PROBE_TIMEOUT_MS,
   SECRET_KEYS,
@@ -80,6 +95,16 @@ import { defaultWallInstallIo, protectedRoot, userSettingsPath } from "./write-a
 
 /** The machine-onboarding guide, repo-relative. The dev group's repair vocabulary lives in it. */
 export const MACHINE_GUIDE = "docs/machine-onboarding.md";
+
+/**
+ * The Codex journey document — the ONE place both Codex journeys are written down
+ * (`codex-onboarding-journey-arc`). Named separately from {@link MACHINE_GUIDE} rather than added to
+ * {@link GUIDE_ANCHORS}, because it is a different document and not an anchor within that one: the
+ * machine guide covers what EVERY runtime needs, and this covers the opt-in one. The Codex hints
+ * name it FIRST and the machine guide second, so a reader following a Codex row lands on the
+ * document that answers instead of on a signpost that redirects.
+ */
+export const CODEX_GUIDE = "docs/codex-onboarding.md";
 
 /**
  * The guide's step anchors. FROZEN BY AGREEMENT, not by observation: this module and the guide were
@@ -139,6 +164,64 @@ export type GhAuthState = "authenticated" | "unauthenticated" | "absent";
  * is an invocation rather than a file stat.
  */
 export type BunState = "present" | "absent";
+
+/**
+ * Which Codex binary, if any, ANSWERED when invoked — the observation behind the `codex-cli` probe
+ * (`codex-onboarding-journey-arc`).
+ *
+ * THREE STATES BECAUSE THERE ARE TWO CODEX JOURNEYS AND THEY HAVE DIFFERENT BINARIES. Journey A is
+ * Codex as the interactive session driver: a person opens Codex Desktop or the `codex` CLI on this
+ * repository and it runs the session loop. Journey B is Codex as the PROVE-IT LEAF (`--runtime
+ * codex`, ADR-0232/ADR-0356), where the spine drives one `codex exec` turn per phase through the
+ * wrapper `@openai/codex` pins into `packages/agent/node_modules`. A boolean would have to pick one
+ * of them and would then report the other as healthy or as broken, both wrongly:
+ *   • `path`           — the PRODUCT answered on PATH. Both journeys have their binary.
+ *   • `workspace-only` — ONLY the pinned leaf wrapper answered. This is the state `pnpm install`
+ *                        leaves on EVERY provisioned box, so it is the commonest reading in the
+ *                        fleet and it means exactly: the leaf can run, an interactive Codex session
+ *                        cannot be started here.
+ *   • `absent`         — neither answered. Not even the leaf can run.
+ *
+ * ⚠ `absent` means "did not answer when invoked", NOT "not on disk" — {@link BunState}'s rule, and
+ * for the same measured reason: an installed binary nothing can reach is indistinguishable from an
+ * absent one to every caller that matters. So this is an INVOCATION, never a file stat, on both
+ * routes. The wrapper is invoked THROUGH `node` rather than through its `.bin` shim, so the reading
+ * does not depend on a shim shape that differs by platform (a symlink here, a `.CMD` on Windows).
+ *
+ * ⚠ KNOWN BLINDNESS, stated rather than papered over: like every probe in this group except
+ * {@link ToolchainShellState}, this one runs in DOCTOR'S OWN environment. A machine where `codex`
+ * resolves for the operator's interactive shell but not for an ssh-driven or hook-driven one reads
+ * `path` here and still fails that work. `toolchain-shell` is the probe that asks that question, and
+ * `codex` is deliberately NOT added to {@link TOOLCHAIN_COMMANDS} — Codex is opt-in (ADR-0030), so
+ * requiring it there would turn an existing probe permanently red on every Claude-only box.
+ */
+export type CodexCliState = "path" | "workspace-only" | "absent";
+
+/**
+ * Whether a Codex credential of the ONE kind ADR-0232 accepts is present.
+ *
+ * THE PREDICATE IS THE LEAF'S OWN. `isChatGptManagedLogin` is imported from `@storytree/agent` — the
+ * exact function `CodexPhaseAuthor` calls before every phase — rather than re-implemented here, on
+ * the `db-reachable`/`probeLiveDbDetailed` precedent: a probe that PASSED where the leaf REFUSES
+ * would be the false healthy this arc exists to remove, wearing a subtler mask. The environment is
+ * scrubbed with the leaf's own `scrubMeteredCodexAuth` first, for the same reason — the leaf strips
+ * `OPENAI_API_KEY` / `CODEX_API_KEY` / `CODEX_ACCESS_TOKEN` before it asks, so a probe that left
+ * them in place could observe a login the leaf will never see.
+ *
+ *   • `chatgpt`      — `codex login status` exited 0 emitting exactly the ChatGPT-managed line on
+ *                      one channel and nothing on the other. The only state the leaf accepts.
+ *   • `other`        — it exited 0 but did NOT emit that line: a login exists and is not the one
+ *                      ADR-0232 permits (an API-key login is the shape to expect). The leaf refuses.
+ *   • `logged-out`   — it answered non-zero. No credential; `~/.codex/auth.json` is not there.
+ *   • `undetermined` — no Codex binary could be invoked to ask. A question that could not be put has
+ *                      not been answered, so this is never a PASS ({@link ToolchainShellUnavailable}'s
+ *                      rule) — and never a FAIL either, since it is the CLI that is missing, not the
+ *                      credential, and `codex-cli` is the row that owns that finding.
+ *
+ * D3 BOUNDARY: this is a bounded enum and the classifier is where the CLI's raw output dies. No
+ * status text, path or token ever reaches an observation, a detail or a hint.
+ */
+export type CodexLoginState = "chatgpt" | "other" | "logged-out" | "undetermined";
 
 /**
  * The commands automation on this machine must be able to resolve. One list, shared by the probe
@@ -261,6 +344,19 @@ export interface DevObservations {
    * rather than restating it here.
    */
   readonly bunVersion: string | null;
+  /** Which Codex binary answered when invoked — see {@link CodexCliState}. Never a file stat. */
+  readonly codexCli: CodexCliState;
+  /**
+   * The version string whichever Codex binary answered reported, or null when none did. Carried as
+   * its own field on the `bun`/`bunVersion` precedent: the STATE picks the level, the datum makes
+   * the detail line say something a reader can act on. Deliberately NOT compared against the
+   * `@openai/codex` pin in `packages/agent/package.json` — the leaf runs the pinned wrapper it
+   * resolves itself, so a PATH product at a different version is not a defect, and a floor invented
+   * ahead of its evidence is a second source of truth (the `bunVersion` reasoning, verbatim).
+   */
+  readonly codexVersion: string | null;
+  /** Whether a ChatGPT-managed Codex login is present — see {@link CodexLoginState}. */
+  readonly codexLogin: CodexLoginState;
   readonly writeAuthority: WriteAuthorityState;
   readonly worktreeIdentity: WorktreeIdentityState;
   /** Whether a shell OTHER than doctor's own resolves the toolchain — see {@link ToolchainShellState}. */
@@ -444,6 +540,122 @@ export function devProbes(obs: DevObservations): Probe[] {
             `(bun is a test RUNTIME only). See ${guideStep("bootstrap")}.`,
         },
   );
+
+  // --- codex-cli ---------------------------------------------------------------------------------
+  // THE ROW WHOSE ABSENCE WAS THE FINDING (`codex-onboarding-journey-arc`). Until this landed, doctor
+  // probed `claude-cli` and `claude-credential` and had NO Codex counterpart at all, so it printed
+  // "setup is healthy" on a host where Codex had never been installed — measured on the owner's Linux
+  // box 2026-08-28: `0 failing, 3 warning, 16 passing - dev setup is healthy`, with no `codex` on PATH
+  // and no `~/.codex/auth.json`. A missing probe reads as reassurance, which is worse than a red.
+  //
+  // WARN AND NEVER FAIL, on this file's own stated bar. FAIL is reserved for an invariant whose
+  // absence stops THE MACHINE doing work. Codex is opt-in (ADR-0030: Claude Agent SDK by default,
+  // Codex opt-in), so a Claude-only box with no Codex is a complete and correct configuration, not a
+  // broken one — it simply cannot drive Codex sessions or run `--runtime codex` builds, which is what
+  // these details say. A FAIL here would red every box in the fleet permanently, and a permanently-red
+  // doctor teaches readers to ignore doctor: the vacuous green wearing the other mask, exactly the
+  // reasoning `toolchain-shell`'s `login-only` WARN already applies. Promote to FAIL only if Codex
+  // stops being opt-in, or against a box that has DECLARED itself Codex-primary — a state that does
+  // not exist today and should not be invented ahead of a machine that needs it.
+  //
+  // It DOES carry a fixStep: the remedy is an install, which is exactly what the D6 repair vocabulary
+  // is for. Its sibling `codex-login` deliberately carries none (see there).
+  if (obs.codexCli === "path") {
+    probes.push({
+      name: "codex-cli",
+      level: "PASS",
+      detail: `the Codex CLI answered on PATH (${obs.codexVersion ?? "version unreported"})`,
+    });
+  } else if (obs.codexCli === "workspace-only") {
+    probes.push({
+      name: "codex-cli",
+      level: "WARN",
+      detail:
+        "no Codex CLI on PATH — only the pinned leaf wrapper in packages/agent/node_modules answered " +
+        `(${obs.codexVersion ?? "version unreported"})`,
+      fixStep: "codex-cli",
+      fixHint:
+        "this is what `pnpm install` alone leaves, and it is enough for the prove-it leaf " +
+        "(`--runtime codex`) but NOT for an interactive Codex session on this repo. If you want one, " +
+        "install the product (`npm install -g @openai/codex`, or Codex Desktop) and re-run. If this " +
+        "box only ever drives Claude, this row is informational and nothing is wrong. " +
+        `See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
+    });
+  } else {
+    probes.push({
+      name: "codex-cli",
+      level: "WARN",
+      detail:
+        "no Codex CLI answered — neither on PATH nor the pinned wrapper in packages/agent/node_modules",
+      fixStep: "codex-cli",
+      fixHint:
+        "NEITHER Codex journey can run here. The leaf's binary comes from `pnpm install` " +
+        "(`@openai/codex` is pinned by packages/agent), so its absence usually means the workspace " +
+        "is not provisioned — check `checkout-provisioned` first. For an interactive Codex session " +
+        `install the product: \`npm install -g @openai/codex\` (no root needed). See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
+    });
+  }
+
+  // --- codex-login -------------------------------------------------------------------------------
+  // DETECT AND INSTRUCT, NEVER REPAIR — ADR-0207 D3's surviving half, applied exactly as
+  // `claude-credential` applies it: NO fixStep, because storytree never mints, captures or discloses
+  // a credential and a Codex sign-in is a browser action only the operator can take. Naming an
+  // installer step here would be a false entry in the D6 repair vocabulary (the `dependencies-current`
+  // precedent), because no installer step can produce a login.
+  //
+  // THE ASYMMETRY WITH `claude-credential` IS THE RULE BEING APPLIED, NOT BROKEN — do not "fix" it.
+  // `claude-credential` is named for its SUBJECT because ADR-0430 gave Claude TWO disjoint routes to
+  // one credential (a browser login, or a vault-fetched token) and neither is the subject. ADR-0232
+  // gives the Codex leaf saved ChatGPT-managed auth ONLY: the API-key fallback is forbidden and the
+  // three key variables are stripped before every run. Codex therefore has exactly ONE route and it
+  // IS a login, so `codex-login` beside `claude-credential` is two probes each asserting exactly what
+  // it observes. If Codex ever gains a vault route it renames then, on the same rule.
+  //
+  // WHY IT IS A SEPARATE PROBE FROM `codex-cli`, AND THE COUPLING IT EXISTS TO STATE. `pnpm install`
+  // gives the leaf its BINARY and never its CREDENTIAL: the leaf hydrates no secrets, deliberately,
+  // unlike the Claude leaf. So the credential is a side effect of the INTERACTIVE product's ChatGPT
+  // sign-in, a coupling nothing in the repository stated before this row existed. Folding the two
+  // into one probe would hide precisely the state that costs an afternoon — binary present, work
+  // still impossible.
+  if (obs.codexLogin === "chatgpt") {
+    probes.push({
+      name: "codex-login",
+      level: "PASS",
+      detail: "a ChatGPT-managed Codex login is present (status read by name only — no value is read)",
+    });
+  } else if (obs.codexLogin === "other") {
+    probes.push({
+      name: "codex-login",
+      level: "WARN",
+      detail: "the Codex CLI reports a login that is NOT ChatGPT-managed — the leaf will refuse it",
+      fixHint:
+        "ADR-0232 accepts subscription (ChatGPT-managed) auth ONLY; an API-key login is forbidden and " +
+        "OPENAI_API_KEY / CODEX_API_KEY / CODEX_ACCESS_TOKEN are stripped before every run, so " +
+        "`--runtime codex` will refuse with `Codex subscription auth required`. Run `codex login` and " +
+        `sign in with your ChatGPT account. storytree never mints or handles the credential. See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
+    });
+  } else if (obs.codexLogin === "logged-out") {
+    probes.push({
+      name: "codex-login",
+      level: "WARN",
+      detail: "the Codex CLI reports no login — `~/.codex/auth.json` has not been written",
+      fixHint:
+        "run `codex login` and sign in with your ChatGPT account (a browser action; storytree never " +
+        "mints or handles the credential). `pnpm install` gives the prove-it leaf its BINARY and never " +
+        "its credential, so this is the step that makes `--runtime codex` builds — and an interactive " +
+        `Codex session — actually work. See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
+    });
+  } else {
+    probes.push({
+      name: "codex-login",
+      level: "WARN",
+      detail: "Codex login not determined — no Codex CLI could be invoked to ask",
+      fixHint:
+        "this is the `codex-cli` finding, not a credential one: fix that row first and re-run. A " +
+        "question that could not be put has not been answered, so this never reads as a pass. " +
+        `See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
+    });
+  }
 
   // --- toolchain-shell -------------------------------------------------------------------------
   // THE PROBE THAT ASKS A SHELL THAT IS NOT DOCTOR'S OWN. Every other probe in this group is an
@@ -831,6 +1043,153 @@ function bunState(): BunReading {
   }
 }
 
+/** How long either Codex invocation may take before it counts as no answer. */
+const CODEX_PROBE_TIMEOUT_MS = 15_000;
+
+/**
+ * The pinned prove-it-leaf wrapper `@openai/codex` installs, repo-root-relative. EXPORTED so the path
+ * is asserted rather than assumed: it is the one place this module names another package's private
+ * `node_modules` layout, so a rename there would otherwise surface as a silent `workspace-only` ->
+ * `absent` demotion on every box at once. Invoked through
+ * `node` rather than through `packages/agent/node_modules/.bin/codex`, so the reading does not
+ * depend on a shim shape that differs by platform (a symlink on POSIX, a `.CMD`/`.ps1` on Windows —
+ * neither of which `spawnSync` runs uniformly without a shell).
+ */
+export const PINNED_CODEX_WRAPPER = path.join(
+  "packages",
+  "agent",
+  "node_modules",
+  "@openai",
+  "codex",
+  "bin",
+  "codex.js",
+);
+
+/** Repo root: packages/cli/src/doctor-dev.ts -> four dirs up (the doctor.ts repoRoot pattern). */
+export function repoRootFromHere(): string {
+  return path.resolve(fileURLToPath(import.meta.url), "..", "..", "..", "..");
+}
+
+/**
+ * Run one Codex command and return BOTH channels plus the exit code, or null when the binary could
+ * not be invoked at all (ENOENT, a spawn error, or a hang past the budget).
+ *
+ * `spawnSync`, not `execFileSync`, for a load-bearing reason: {@link isChatGptManagedLogin} decides
+ * on the two channels SEPARATELY — the npm-pinned Windows wrapper forwards the native binary's status
+ * line on stderr while the direct binary emits it on stdout — and `execFileSync` throws away the
+ * distinction (and the exit code) by throwing on non-zero. A probe that collapsed them would have to
+ * re-implement the leaf's predicate loosely, which is the drift this reuse exists to prevent.
+ *
+ * The environment is the LEAF'S: `scrubMeteredCodexAuth` strips every metered auth variable first, so
+ * the probe asks the question in the same environment the leaf will ask it in.
+ */
+export function codexCommand(file: string, args: readonly string[]): CodexCommandResult | null {
+  const result = spawnSync(file, [...args], {
+    encoding: "utf8",
+    timeout: CODEX_PROBE_TIMEOUT_MS,
+    env: scrubMeteredCodexAuth(process.env),
+    // Stryker disable next-line BooleanLiteral: windowsHide suppresses a flashed console window on
+    // Windows and has no effect at all on the Linux CI this rung runs on — and the Windows behaviour
+    // it does change is not observable from any assertion a test can make. Not equivalent in the
+    // strict sense; untestable from here, and recorded as such rather than left as a silent survivor.
+    windowsHide: true,
+  });
+  // Both nullable shapes are returned as `null` HERE, which is what makes the two reads below
+  // total: a spawn error or a timeout sets `error`, and a signal-killed child has a null `status`.
+  // (There were `?? ""` fallbacks on the two channels. They were unreachable past this line — with
+  // `encoding: "utf8"` both are strings — so they were mutants no test could ever kill. An
+  // unreachable branch is removed, not excused.)
+  if (result.error !== undefined || result.status === null) return null;
+  return { code: result.status, stdout: result.stdout, stderr: result.stderr };
+}
+
+/** The process seam {@link codexReading} runs through. Injected in tests; {@link codexCommand} live. */
+export type CodexProbeRunner = (file: string, args: readonly string[]) => CodexCommandResult | null;
+
+/** What one Codex sweep observed. Two states plus one datum, on the {@link BunReading} shape. */
+export interface CodexReading {
+  readonly cli: CodexCliState;
+  /** The version string whichever binary answered reported, or null when none did. */
+  readonly version: string | null;
+  readonly login: CodexLoginState;
+}
+
+/**
+ * PURE: the `codex-cli` verdict from the two invocation results.
+ *
+ * ORDER IS THE ARGUMENT, as in {@link classifyToolchainShell}. The PRODUCT on PATH is checked first
+ * because it is the stronger reading: a box that has it can run BOTH journeys, so nothing further
+ * needs asking. `workspace-only` is therefore literally "the product did not answer and the pinned
+ * leaf wrapper did", which is what makes that WARN a precise statement rather than a hedge.
+ *
+ * A non-zero exit counts as no answer on both routes: `--version` is the universal liveness question,
+ * and a binary that cannot answer it is not one any caller can use.
+ */
+export function classifyCodexCli(
+  onPath: CodexCommandResult | null,
+  inWorkspace: CodexCommandResult | null,
+): CodexCliState {
+  if (onPath !== null && onPath.code === 0) return "path";
+  if (inWorkspace !== null && inWorkspace.code === 0) return "workspace-only";
+  return "absent";
+}
+
+/**
+ * PURE: the `codex-login` verdict from `codex login status`.
+ *
+ * THIS IS WHERE THE CLI'S RAW OUTPUT DIES (the D3 boundary): a bounded enum leaves, never text. The
+ * PASS arm is the leaf's own {@link isChatGptManagedLogin}, imported rather than restated, so the
+ * probe cannot pass over a state the leaf refuses. The two non-PASS arms are told apart by the EXIT
+ * CODE alone rather than by matching status strings, because a string this module has not measured is
+ * a guess, and a mis-parse would silently reclassify one honest state as the other.
+ */
+export function classifyCodexLogin(status: CodexCommandResult | null): CodexLoginState {
+  if (status === null) return "undetermined";
+  if (isChatGptManagedLogin(status)) return "chatgpt";
+  return status.code === 0 ? "other" : "logged-out";
+}
+
+/**
+ * Take the whole Codex reading: invoke the product on PATH, invoke the pinned leaf wrapper, then ask
+ * whichever answered for the login status.
+ *
+ * The login is a property of `~/.codex/auth.json`, which BOTH binaries read, so either is a valid
+ * witness; the product is preferred only because it is the one an operator would run by hand. When
+ * neither answered, the login is `undetermined` rather than absent — the CLI is what is missing, and
+ * `codex-cli` is the row that owns that finding.
+ */
+export function codexReading(run: CodexProbeRunner, wrapper: string | null): CodexReading {
+  // ONE null-guard, not two. It used to be repeated on the login branch as
+  // `cli === "workspace-only" && wrapper !== null` — which can never be false there, since `cli`
+  // only reaches `workspace-only` because the wrapper answered. A condition that cannot go both
+  // ways is a mutant no test can kill, so the guard lives here and nowhere else.
+  const askWrapper = (verb: readonly string[]): CodexCommandResult | null =>
+    wrapper === null ? null : run(process.execPath, [wrapper, ...verb]);
+
+  const onPath = run("codex", ["--version"]);
+  const inWorkspace = askWrapper(["--version"]);
+
+  const cli = classifyCodexCli(onPath, inWorkspace);
+  const answered = cli === "path" ? onPath : cli === "workspace-only" ? inWorkspace : null;
+  const version =
+    answered === null ? null : (answered.stdout.trim() || answered.stderr.trim() || null);
+
+  const status =
+    cli === "path"
+      ? run("codex", ["login", "status"])
+      : cli === "workspace-only"
+        ? askWrapper(["login", "status"])
+        : null;
+
+  return { cli, version, login: classifyCodexLogin(status) };
+}
+
+/** The impure half: find the pinned wrapper on disk, then run the reading through the real seam. */
+export function gatherCodexReading(repoRoot: string = repoRootFromHere()): CodexReading {
+  const wrapper = path.join(repoRoot, PINNED_CODEX_WRAPPER);
+  return codexReading(codexCommand, existsSync(wrapper) ? wrapper : null);
+}
+
 /**
  * PURE: the shell-shape verdict from two readings and the platform. Injectable so every state —
  * including the two `no-shell` producers — is reachable in a test without spawning anything.
@@ -964,6 +1323,7 @@ export async function gatherDevObservations(): Promise<DevObservations> {
 
   const { gitDir, commonDir } = gitDirs();
   const bun = bunState();
+  const codex = gatherCodexReading();
   const shellReadings = toolchainShellReadings(process.platform, home);
 
   return {
@@ -974,6 +1334,9 @@ export async function gatherDevObservations(): Promise<DevObservations> {
     ghAuth: ghAuthState(),
     bun: bun.state,
     bunVersion: bun.version,
+    codexCli: codex.cli,
+    codexVersion: codex.version,
+    codexLogin: codex.login,
     toolchainShell: classifyToolchainShell(process.platform, shellReadings),
     toolchainShellReadings: shellReadings,
     writeAuthority: writeAuthorityState(),

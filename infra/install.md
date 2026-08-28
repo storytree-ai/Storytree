@@ -43,6 +43,14 @@ In dependency order, each step no-ops when already satisfied (see *Idempotency* 
 6. **clone** — clones the read-only checkout (`storytree-ai/Storytree`) to `%USERPROFILE%\storytree`.
 7. **provision** — `pnpm install` (no-op once `node_modules/.modules.yaml` exists).
 8. **claude-cli** — installs the Claude Code CLI (`irm https://claude.ai/install.ps1 | iex`).
+9. **codex-cli** — installs the Codex CLI (`npm install -g @openai/codex`). **OPT-IN**: skipped
+   unless you pass `-WithCodex`, because ADR-0030 makes Codex the opt-in second runtime and it needs
+   a ChatGPT subscription the explorer may not have. The step still exists by name, so
+   `-Step codex-cli` repairs it — which is what `storytree doctor --dev`'s `codex-cli` probe points
+   at. Installing the CLI does **not** sign you in: `codex login` is the dev's own browser action
+   (ADR-0232 accepts saved ChatGPT-managed auth only), and doctor reports the two separately.
+   The whole Codex journey — both of them, and what proves each step took — is
+   `docs/codex-onboarding.md`.
 
 Then it runs **`storytree doctor`** (D6) to verify the setup, detects whether the dev's Claude CLI
 is logged in (the `~/.claude/.credentials.json` existence probe — **never** the contents), and,

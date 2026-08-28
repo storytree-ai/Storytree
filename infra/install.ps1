@@ -47,6 +47,12 @@ param(
   [string]$RepoUrl = 'https://github.com/storytree-ai/Storytree.git',
   # Skip the final desktop-app launch (provision only) - used by re-run/repair flows.
   [switch]$SkipLaunch,
+  # Also install the Codex CLI (the 'codex-cli' step). OPT-IN, deliberately: ADR-0030 makes the Claude
+  # Agent SDK the default runtime and Codex the opt-in one, and Codex needs a ChatGPT subscription
+  # this installer's explorer may not have. A default run must not install a product the dev did not
+  # ask for - but the step still EXISTS, so `-Step codex-cli` repairs it (the D6 repair vocabulary,
+  # which is what `storytree doctor`'s codex-cli fixStep names).
+  [switch]$WithCodex,
   # Run ONLY the named `# @step:<name>` and stop - the D6 targeted repair (ADR-0207). The guide's
   # repair loop names the exact step to re-invoke (doctor's fixStep -> planRepairs' InstallerStepAction
   # -> the run-installer-step directive), so a repair re-runs ONE idempotent step rather than
@@ -186,6 +192,20 @@ Invoke-Step -Name 'claude-cli' `
   -Check  { Test-Have claude } `
   -Install { irm https://claude.ai/install.ps1 | iex; Update-SessionPath }
 
+# @step:codex-cli - the OPT-IN second runtime (ADR-0030 / ADR-0232). Skipped unless -WithCodex, but
+# always reachable by name so `-Step codex-cli` is a real repair - that is what doctor's `codex-cli`
+# fixStep points at. Same D3 trust invariant as claude-cli, and MORE binding: ADR-0232 accepts saved
+# ChatGPT-managed auth ONLY (an API-key fallback is forbidden), so `codex login` is the dev's own
+# browser action and never something this script performs. Installing the CLI does NOT produce a
+# credential - `storytree doctor --dev` reports the two separately for exactly that reason.
+if ($WithCodex -or $Step -eq 'codex-cli') {
+  Invoke-Step -Name 'codex-cli' `
+    -Check  { Test-Have codex } `
+    -Install { npm install -g @openai/codex; Update-SessionPath }
+} else {
+  Write-Info "codex-cli - skipped (opt in with -WithCodex, or repair with -Step codex-cli)"
+}
+
 # --- targeted repair (-Step) stops here ----------------------------------------------------------
 # A -Step run is the D6 repair loop enacting ONE idempotent step; the guide re-doctors afterwards,
 # so the installer skips the trailing verify/login-notice/launch entirely. An unknown step name is a
@@ -214,6 +234,18 @@ if (Test-Path $claudeCreds) {
   Write-Ok "Claude login - detected (guide seat will light in the app)"
 } else {
   Write-Warn "Claude login - not yet done. Run 'claude' and complete sign-in in your browser (your own subscription)."
+}
+
+# Codex is the opt-in runtime, so this notice is only shown when the dev asked for it. Detect and
+# instruct, never capture (ADR-0207 D3): a Codex sign-in writes ~/.codex/auth.json in the dev's own
+# browser session, and ADR-0232 accepts nothing else. Reported as a NOTICE and never a failure - a
+# box with no Codex is a complete configuration, it simply cannot drive the opt-in runtime.
+if ($WithCodex) {
+  if (Test-Have codex) {
+    Write-Info "Codex login - run 'codex login' and sign in with your ChatGPT account. Installing the CLI does NOT sign you in, and 'storytree doctor --dev' reports the two separately."
+  } else {
+    Write-Warn "Codex CLI - not resolvable after the step. Open a NEW shell (PATH is broadcast to new processes only) before concluding it failed."
+  }
 }
 
 # Desktop app: pre-D5 there is no packaged binary, so launch from the provisioned checkout. When

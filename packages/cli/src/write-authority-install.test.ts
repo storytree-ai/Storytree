@@ -210,7 +210,52 @@ test("no subcommand prints help, and help never writes", () => {
   assert.match(got.body, /STATIC ONLY/);
   assert.match(got.body, /Shell writes and Codex are uncontained/);
   assert.doesNotMatch(got.body, /STORYTREE_WRITE_AUTHORITY/);
+  // The help is read as a wrapped column, so it is matched flat — a phrase that spans a line break
+  // is still one sentence to the reader, and pinning it per-line would pin the WRAPPING instead.
+  const flat = got.body.replace(/\s+/g, " ");
+  assert.match(flat, /also strips any PreToolUse registration left by an earlier version/);
+  // WHAT THE CODEX SENTENCE HAS TO SAY, and why it is asserted rather than left as prose: it used to
+  // read "ADR-0355's separate Codex generator never installs its administrator-owned
+  // requirements/profile/hooks", describing machinery that ADR-0390 withdrew and that was deleted on
+  // 2026-08-20 — a live-sounding account of something that is not there
+  // (codex-onboarding-journey-arc). A superseded ADR number in a help surface is worse than silence,
+  // because a reader who looks it up finds a real decision and believes it is the current one.
+  assert.match(flat, /There is no Codex generator to run: ADR-0390 withdrew the managed containment boundary/);
+  assert.match(flat, /deleted on 2026-08-20, so Codex now runs at Claude parity/);
+  assert.match(flat, /this command has nothing to say about it/);
+  assert.doesNotMatch(flat, /ADR-0355/, "the superseded decision must not be cited as live");
   assert.deepEqual(h.writes, []);
+});
+
+test("every verb the help and the `next:` offers advertise is one the command actually accepts", () => {
+  // THE CLASS, not the instance. The help and `HELP_NEXT` used to offer `write-authority codex --pg`
+  // — the Codex containment generator — for two days after ADR-0390 withdrew the boundary and its
+  // machinery was deleted. Running it was refused with `unknown write-authority command "codex"`,
+  // and the refusal RE-PRINTED the dead verb in its own `next:` offers, so a reader following the
+  // printed offer went in a circle. The remedy is not deleting one line; it is asking the command
+  // whether it means what it advertises, so no future retirement can leave an offer behind
+  // (codex-onboarding-journey-arc).
+  const helped = writeAuthorityCommand(undefined, {}, harness().io);
+  const offered = new Set<string>();
+  for (const line of helped.next ?? []) {
+    const verb = line.split(/\s+/)[2];
+    if (verb !== undefined) offered.add(verb);
+  }
+  // The help BODY lists verbs in its own two-space-indented column; both surfaces are read, because
+  // the stale entry lived in both and either alone would have kept passing.
+  for (const line of helped.body.split("\n")) {
+    const m = /^ {2}(\S+)\s{2,}\S/.exec(line);
+    if (m?.[1] !== undefined) offered.add(m[1]);
+  }
+  assert.ok(offered.size >= 2, `the help must offer some verbs, got ${[...offered].join(", ")}`);
+  for (const verb of offered) {
+    assert.notEqual(
+      writeAuthorityCommand(verb, {}, harness().io).body.startsWith(`unknown write-authority command`),
+      true,
+      `the help offers \`${verb}\`, but the command refuses it as unknown`,
+    );
+  }
+  assert.ok(!offered.has("codex"), "the Codex containment generator was deleted 2026-08-20 (ADR-0390)");
 });
 
 test("re-installing is a no-op diff — the command is safe to re-run after any manifest change", () => {
