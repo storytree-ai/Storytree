@@ -132,22 +132,14 @@ Work it in order. Every step is yours to execute unless it says otherwise.
 2. **Verify you clear the capability bar** (§2), against your provider's API.
 3. **Install your harness** if it isn't — or ask the human to: an installer that wants admin rights
    is a legitimate handoff, one of the three.
-4. **For Codex Desktop, choose the command-approval policy before the first working session.**
-   `Full access` gives the local agent filesystem/runtime access, but it does not by itself stop the
-   Terminal confirmation card. A user who wants their Codex agents to execute ordinary local commands
-   without being interrupted adds this to their user config — **not** to the repository and not to
-   `requirements.toml`:
-
-   ```toml
-   # ~/.codex/config.toml
-   approval_policy = "never"
-   ```
-
-   Restart Codex Desktop and start a new task after changing it. This is an explicit opt-in for a
-   trusted development machine: it auto-approves local terminal commands, so the user retains the
-   responsibility to limit prompts and project instructions to work they genuinely want performed.
-   It does not override approvals imposed by an external system such as a browser, connector, UAC, or
-   source-control host.
+4. **If your harness is Codex, follow `docs/codex-onboarding.md` and skip the rest of this list.**
+   Codex is already onboarded onto storytree, so the provider-block and registry work below does not
+   apply to it. That document is the single place carrying both Codex journeys (session driver and
+   prove-it leaf), the three steps only a human can perform — installing the product, the ChatGPT
+   sign-in, and trusting the directory / choosing the command-approval policy — the coupling that
+   `pnpm install` gives you the binary and never the credential, and the `storytree doctor --dev`
+   rows that check each one. The approval-policy guidance that used to be inlined here lives there
+   now, unchanged; it is one place on purpose.
 5. **Store your credential** (§3) — never in the repo. The value comes from the human or the
    `gcloud` fetch they authorize; nowhere else.
 6. **Check the model registry your harness uses** (`https://models.dev/api.json` for OpenCode and
