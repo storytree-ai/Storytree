@@ -27,11 +27,14 @@ const EDGES: readonly ForestRegrowTrailEdge[] = [
 ];
 
 /**
- * A hand-cranked rAF. `advance(ms)` delivers ONE frame that far ahead; `elapse(ms)` delivers as
- * many frames as it takes to cover that span.
+ * A hand-cranked rAF over a hand-cranked wall clock. `advance(ms)` moves time on and delivers ONE
+ * frame there; `elapse(ms)` delivers as many frames as it takes to cover that span; `idle(ms)`
+ * moves time on and delivers NO frame at all.
  *
- * `elapse` exists because the player clamps a single frame's delta to 500 ms — a backstop against a
- * pathological gap. A test that hands it one enormous frame measures the clamp, not the dial.
+ * `idle` is what an unwatched run looks like: a hidden or occluded window keeps accruing wall-clock
+ * time while the browser delivers no frames to it, and so does a map route that has been parked.
+ * Both are the ADR-0469 case, and neither is reproducible with `advance` — a test that only ever
+ * moves time by delivering frames can never observe a cursor that stopped because the frames did.
  */
 const MAX_FRAME_MS = 250;
 
@@ -39,6 +42,7 @@ interface ManualClockResult {
   clock: Act2IntroClock;
   advance: (ms: number) => void;
   elapse: (ms: number) => void;
+  idle: (ms: number) => void;
 }
 
 function manualClock(): ManualClockResult {
@@ -59,6 +63,7 @@ function manualClock(): ManualClockResult {
       cancelFrame: () => {
         next = null;
       },
+      now: () => now,
     },
     advance,
     elapse: (ms: number) => {
@@ -68,6 +73,9 @@ function manualClock(): ManualClockResult {
         advance(step);
         left -= step;
       }
+    },
+    idle: (ms: number) => {
+      now += ms;
     },
   };
 }
@@ -226,5 +234,153 @@ describe('the plan survives a re-fetch of the same graph', () => {
     rerender({ stories: [...GRAPH, { id: 'd', dependsOn: ['c'] }] });
     expect(result.current.progress).toBe(1);
     expect(result.current.playing).toBe(false);
+  });
+});
+
+// ── ADR-0469: a run survives being unwatched ──
+//
+// The cursor is a function of elapsed wall-clock time since the run's anchor, not a sum of the
+// deltas between frames that happened to be delivered. Everything below is one claim seen from
+// four sides: a gap in frame delivery is not a gap in the run.
+//
+// Both defects this replaces were measured at this hook. An occluded window used to `setPlaying`
+// false on `visibilitychange` and nothing ever set it back — a run at 25.4% read 25.4% forever.
+// A parked map route used to drop the plan, which reset the cursor to the settled forest — the
+// same run came back at 1.0, having never been seen to finish.
+
+/** Flip `document.hidden` and fire the event a browser fires with it. */
+function occlude(hidden: boolean): void {
+  Object.defineProperty(document, 'hidden', { configurable: true, get: () => hidden });
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => (hidden ? 'hidden' : 'visible'),
+  });
+  act(() => {
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+}
+
+describe('a run survives being unwatched (ADR-0469)', () => {
+  afterEach(() => occlude(false));
+
+  it('keeps growing behind an occluded window — the first frame back reports where it really is', () => {
+    const { clock, advance, elapse, idle } = manualClock();
+    const { result } = renderHook(() =>
+      useAct2Intro({ enabled: true, stories: GRAPH, edges: EDGES, speed: 1, clock }),
+    );
+    const duration = result.current.plan!.durationMs;
+    act(() => result.current.replay());
+    advance(0);
+    elapse(duration / 4);
+    const midRun = result.current.progress;
+    expect(midRun).toBeGreaterThan(0.2);
+
+    // Another window covers the desktop app. Chrome stops delivering frames to it — and on Windows
+    // native occlusion is enough, so this is a click away, not a minimise. Time does not stop.
+    occlude(true);
+    idle(duration / 2);
+    occlude(false);
+
+    advance(0);
+    expect(result.current.progress, 'half a run of real time passed').toBeGreaterThan(midRun + 0.4);
+    expect(result.current.playing, 'nothing paused it, so nothing has to resume it').toBe(true);
+  });
+
+  it('keeps growing behind a parked map route — and coming back never rewinds it', () => {
+    const { clock, advance, elapse, idle } = manualClock();
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useAct2Intro({ enabled, stories: GRAPH, edges: EDGES, speed: 1, clock }),
+      { initialProps: { enabled: true } },
+    );
+    const plan = result.current.plan!;
+    const duration = plan.durationMs;
+    act(() => result.current.replay());
+    advance(0);
+    elapse(duration / 4);
+    const midRun = result.current.progress;
+    expect(midRun).toBeGreaterThan(0.2);
+
+    // The owner opens a Library artifact, a doc, or Members: `App` parks the forest and `TreeView`
+    // passes `active: false`, so the player is handed `enabled: false`.
+    rerender({ enabled: false });
+    idle(duration / 2);
+    rerender({ enabled: true });
+
+    expect(result.current.plan, 'parking is not a new graph, so it is not a new plan').toBe(plan);
+    expect(result.current.progress, 'half a run of real time passed').toBeGreaterThan(midRun + 0.4);
+    expect(result.current.progress, 'and it has not finished').toBeLessThan(1);
+    expect(result.current.playing).toBe(true);
+
+    // Still running, not merely correct once.
+    const onReturn = result.current.progress;
+    elapse(duration / 8);
+    expect(result.current.progress).toBeGreaterThan(onReturn);
+  });
+
+  it('is simply settled when the run finished while nobody was watching', () => {
+    const { clock, advance, elapse, idle } = manualClock();
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useAct2Intro({ enabled, stories: GRAPH, edges: EDGES, speed: 1, clock }),
+      { initialProps: { enabled: true } },
+    );
+    const duration = result.current.plan!.durationMs;
+    act(() => result.current.replay());
+    advance(0);
+    elapse(duration / 4);
+
+    rerender({ enabled: false });
+    idle(duration * 2);
+    rerender({ enabled: true });
+
+    // The honest answer: it grew while you were away, and it finished. Not a frozen half-forest,
+    // and not a run that starts over because someone came back.
+    expect(result.current.progress).toBe(1);
+    expect(result.current.regrowing).toBe(false);
+    expect(result.current.playing).toBe(false);
+  });
+
+  it('a deliberate pause is not an absence — time spent paused does not bank', () => {
+    const { clock, advance, elapse, idle } = manualClock();
+    const { result } = renderHook(() =>
+      useAct2Intro({ enabled: true, stories: GRAPH, edges: EDGES, speed: 1, clock }),
+    );
+    const duration = result.current.plan!.durationMs;
+    act(() => result.current.replay());
+    advance(0);
+    elapse(duration / 4);
+    const midRun = result.current.progress;
+
+    act(() => result.current.pause());
+    idle(duration / 2);
+    act(() => result.current.play());
+    advance(0);
+
+    // Pause is the one case where the owner asked for the cursor to stop, so it resumes from where
+    // it stopped. Only an absence catches up.
+    expect(result.current.progress).toBeCloseTo(midRun, 6);
+    expect(result.current.playing).toBe(true);
+  });
+
+  it('moving the speed dial mid-run changes the pace, never the position', () => {
+    const { clock, advance, elapse } = manualClock();
+    const { result, rerender } = renderHook(
+      ({ speed }: { speed: number }) =>
+        useAct2Intro({ enabled: true, stories: GRAPH, edges: EDGES, speed, clock }),
+      { initialProps: { speed: 1 } },
+    );
+    const duration = result.current.plan!.durationMs;
+    act(() => result.current.replay());
+    advance(0);
+    elapse(duration / 4);
+    const midRun = result.current.progress;
+
+    // A cursor derived from elapsed-since-anchor would re-scale the whole elapsed span if the dial
+    // moved without re-anchoring, and the forest would jump. It re-anchors.
+    rerender({ speed: 2 });
+    expect(result.current.progress).toBeCloseTo(midRun, 6);
+    elapse(duration / 4);
+    expect(result.current.progress - midRun, 'twice the pace from here on').toBeCloseTo(0.5, 2);
   });
 });

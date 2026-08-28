@@ -126,6 +126,45 @@ export const LEGACY_STATUS_TOKENS: ReadonlyMap<string, StatusFamily> = new Map([
   ['unknown', { top: ['#a9c87f', '#9fc174', '#b2cf8b'], wheat: '#d6b271', side: '#87985f' }],
 ]);
 
+/**
+ * THE PALETTE AS IT STOOD AFTER ADR-0462 AND BEFORE THE CLAY — the SECOND frozen table, and it is
+ * frozen for a different job from {@link LEGACY_STATUS_TOKENS}'s.
+ *
+ * `LEGACY_STATUS_TOKENS` is the pre-ADR-0462 palette and anchors `shadow-ladder.ts`'s PORT
+ * PROVENANCE. This one is the palette ADR-0462 shipped, and it has two jobs of its own:
+ *
+ * FIRST, IT IS WHERE THE SEARCH WAS RUN. `hue-frontier.ts` swept `mapped`'s family and picked the
+ * clay by a stated rule; every figure that search published — the 0.395 ratio it started from, the
+ * 207 clearing candidates, the ratchet's measured inertness — is a statement about THIS table.
+ * Point the sweep at the live palette after the pick lands and it sweeps outward from the clay
+ * instead, so the recorded search silently becomes a different search that happens to be green.
+ * That is the same trap ADR-0462 named for the port and it arrives here by a different road.
+ *
+ * SECOND, IT IS HOW THE SEPARATION CHECK PROVES IT CAN FAIL. {@link vocabularySeparation} run
+ * against this table REFUSES — two foreign colour reads, tightest ratio 0.395 — and run against
+ * the live one passes. An instrument with no input that makes it say no is not an instrument.
+ *
+ * Transcribed 2026-08-28 from `palette-band.ts` at commit 1693f33e. HISTORY: never reconciled,
+ * never updated, and a later palette change must not touch it.
+ */
+export const ADR0462_STATUS_TOKENS: ReadonlyMap<string, StatusFamily> = (() => {
+  // `proposed` and `building` shared ONE OBJECT in the live table and the freeze keeps that,
+  // because a frozen copy that split them into two equal literals would quietly stop being a
+  // record of the decision it froze — ADR-0462 D2's "two states, one token" is the fact, not the
+  // hexes being equal.
+  const yellow: StatusFamily = { top: ['#d8c069', '#ccb258', '#e2cf7e'], wheat: '#d6b271', side: '#a8914a' };
+  return new Map([
+    ['proposed', yellow],
+    ['building', yellow],
+    ['healthy', { top: ['#8cb85e', '#7dab50', '#9ac570'], wheat: '#d6b271', side: '#648244' }],
+    // The tan this increment replaced. It is the ONLY family that moves between this table and
+    // the live one, and a test asserts that.
+    ['mapped', { top: ['#b3946a', '#a68557', '#bda278'], wheat: '#d6b271', side: '#85683f' }],
+    ['unhealthy', { top: ['#57544a', '#4a473e', '#635f52'], wheat: '#6f6852', side: '#37352c' }],
+    ['unknown', { top: ['#9ca3af', '#9198a3', '#a7aebb'], wheat: '#d6b271', side: '#70757e' }],
+  ]);
+})();
+
 // ---------------------------------------------------------------------------
 // The separation instrument
 // ---------------------------------------------------------------------------
@@ -296,4 +335,79 @@ export function foreignColourReads(
     }
   }
   return out.sort();
+}
+
+// ---------------------------------------------------------------------------
+// The verdict: does a candidate vocabulary clear the floor at all?
+// ---------------------------------------------------------------------------
+
+/** One pair's standing against its own bar. `ratio` below 1 is a collision. */
+export interface PairStanding {
+  pair: string;
+  distance: number;
+  bar: number;
+  ratio: number;
+  at: string;
+}
+
+export interface SeparationVerdict {
+  /** No pair under its bar AND no delivered pixel reading as the wrong colour. */
+  pass: boolean;
+  /** The binding pair — the one with the LOWEST RATIO, which is not the same as the smallest
+   *  distance and is the ordering the bar makes meaningful. */
+  tightest: PairStanding;
+  /** Every pair whose distance falls under its own bar, tightest first. Empty on a pass. */
+  under: PairStanding[];
+  /** Delivered pixels that read as another colour — the ported reader model's verdict. */
+  foreignReads: readonly string[];
+}
+
+/**
+ * THE SEPARATION FLOOR AS A VERDICT — the one call a caller makes to ask *can a reader tell this
+ * vocabulary's colours apart across the whole lighting ladder?*
+ *
+ * ⚠ IT RANKS BY RATIO, NEVER BY DISTANCE, and that correction is the reason this exists as a
+ * function rather than as `colourPairs(...)[0]` at each call site. `colourPairs` sorts by DISTANCE,
+ * so its first row reads like "the worst pair" and is not: every pair is read against ITS OWN bar
+ * (one lighting step on the families being compared), and a large distance under a large bar is
+ * tighter than a small distance under a small one. Ranking by distance once produced 1,196
+ * "clearing" candidates in `hue-frontier.ts`'s sweep, every one of them scored on a pair that was
+ * not the binding one.
+ *
+ * ⚠ TWO CONDITIONS, NOT ONE, AND NEITHER IMPLIES THE OTHER. `under` is the separation table's
+ * question — could lighting bring these two colours close enough to confuse. `foreignReads` is the
+ * reader model's verdict — does a delivered pixel actually get READ as another colour. A
+ * vocabulary can carry zero foreign reads while sitting just under a bar (a near miss the reader's
+ * argmin happens to resolve the right way), and reporting only one of them would hide that case in
+ * whichever direction the reporter preferred. A pass requires both to be empty.
+ *
+ * ⚠ IT MUST BE ABLE TO SAY NO, and it is held to that rather than trusted: run against
+ * {@link ADR0462_STATUS_TOKENS} — the palette that shipped before the clay — it REFUSES, naming
+ * `yellow/brown` at ratio 0.395 with two foreign reads. `status-vocabulary.test.ts` asserts the
+ * refusal beside the live pass, so a change that made this function structurally incapable of
+ * failing would take that test with it.
+ *
+ * It takes the token table as an argument because that is the shape ADR-0461 D3's per-theme floor
+ * needs: a theme is another table over the same six states, and the floor is this same call.
+ */
+export function vocabularySeparation(
+  tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
+  vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
+  flatGroundLevel: number = FLAT_GROUND_LEVEL,
+): SeparationVerdict {
+  const standings: PairStanding[] = colourPairs(tokens, vocab).map((p) => ({
+    pair: `${p.a}/${p.b}`,
+    distance: p.distance,
+    bar: p.step,
+    ratio: p.step === 0 ? Infinity : p.distance / p.step,
+    at: p.at,
+  }));
+  const byRatio = [...standings].sort((a, b) => a.ratio - b.ratio);
+  const tightest = byRatio[0];
+  if (tightest === undefined) {
+    throw new Error('status-vocabulary: a vocabulary with no pairs to compare cannot be judged separated');
+  }
+  const under = byRatio.filter((s) => s.ratio < 1);
+  const foreignReads = foreignColourReads(tokens, vocab, flatGroundLevel);
+  return { pass: under.length === 0 && foreignReads.length === 0, tightest, under, foreignReads };
 }

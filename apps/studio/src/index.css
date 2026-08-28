@@ -1640,10 +1640,25 @@ a.stat:hover {
   --hex-side: #648244;
 }
 .hex-territory.st-mapped {
-  --hex-top-0: #b3946a; /* warm tilled brown — kin to the dirt-lane --trail-bed family */
-  --hex-top-1: #a68557;
-  --hex-top-2: #bda278;
-  --hex-side: #85683f;
+  /* Tilled clay, not the warm tan it was until 2026-08-28. Picked by rule, not by eye: the
+     smallest move from the old `#b3946a` at which brown stops being the weakest link in the
+     vocabulary — i.e. the two closest status colours are no longer brown and something. It ended
+     the last remaining confusion on the land, where `proposed`'s two darkest lighting steps
+     delivered a pixel a reader took for `mapped`.
+
+     ⚠ IT IS NO LONGER KIN TO THE DIRT-LANE --trail-bed FAMILY, which the tan's own comment here
+     used to claim. Measured in the land's luma-weighted space, --trail-bed #c2a677 sat 16.7 from
+     the tan and sits 49.9 from the clay. That is a GAIN rather than a loss: a trail crossing
+     `mapped` ground used to be nearly the colour of the ground it crossed. What the clay IS kin to
+     is the same status's own tree crown — --crown-mapped-lo #7d5f3b was 52.7 from the tan and is
+     33.1 from the clay, so the land and the crown of a mapped story read as one family for the
+     first time.
+
+     Canonical here; `packages/forest-world-r3f/harness/palette-band.ts` transcribes it. */
+  --hex-top-0: #b7684e;
+  --hex-top-1: #a95539;
+  --hex-top-2: #c1795e;
+  --hex-side: #883d24;
 }
 .hex-territory.st-unhealthy {
   --hex-top-0: #57544a; /* blackened, charred — dark but still shaped by the cell seams */
