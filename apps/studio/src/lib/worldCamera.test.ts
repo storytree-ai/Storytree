@@ -8,6 +8,8 @@ import {
   centerOn,
   fitWorld,
   limitsForFit,
+  restingWorld,
+  limitsForResting,
   act2RegrowCamera,
   ACT2_REGROW_OPENING_SCALE,
   type Camera,
@@ -282,5 +284,149 @@ describe('act2RegrowCamera', () => {
     expect(act2RegrowCamera(fitted, frame, 1)).toEqual(fitted);
     expect(act2RegrowCamera(fitted, frame, 9)).toEqual(fitted);
     expect(act2RegrowCamera(fitted, frame, 0.25, true)).toEqual(fitted);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The DESIGNED resting camera (ADR-0471). The composition arithmetic itself lives in
+// `@storytree/forest-world`'s `restingFrame` and is proven there; what these assert is the part
+// that is this module's own — that the studio's placement rules, its chrome padding and its zoom
+// limits survive a scale that is deliberately tighter than the fit.
+// ---------------------------------------------------------------------------
+
+/** A portrait forest in a landscape frame — the shape of the live corpus, which is what makes the
+ *  fitted view waste the frame. Island diameters are separate from the bounding box on purpose:
+ *  the composition is pinned to the former and merely measured against the latter. */
+const PORTRAIT_WORLD = { w: 3238, h: 4005, islands: [154.4, 196, 196, 196, 196, 366.2] };
+
+describe('restingWorld', () => {
+  it('opens TIGHTER than the fit on a world larger than the designed frame', () => {
+    const fit = fitWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, { fit: 'contain' });
+    const resting = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands);
+    expect(resting.scale).toBeGreaterThan(fit.scale);
+  });
+
+  it('runs the canopy off the TOP of the frame while the foundation stays on the bottom edge', () => {
+    // The crop IS the composition: bottom-aligned at a scale tighter than the fit means the world's
+    // top edge sits above the frame (negative ty) and its bottom edge sits on the frame's bottom.
+    const resting = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands, {
+      padding: 16,
+      paddingBottom: 48,
+    });
+    expect(resting.ty).toBeLessThan(0);
+    const groundScreenY = worldToScreen(resting, 0, PORTRAIT_WORLD.h).y;
+    expect(groundScreenY).toBeCloseTo(900 - 48, 9);
+  });
+
+  it('reserves the docked chrome, so the stated island size is DELIVERED and not merely computed', () => {
+    // An island half-covered by the terminal dock is not on screen. Sizing against the raw frame
+    // would quietly hand back a smaller island than the composition claims, and nothing downstream
+    // would notice — the number would still be self-consistent.
+    const bare = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands);
+    const chromed = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands, {
+      padding: 16,
+      paddingTop: 40,
+      paddingBottom: 48,
+    });
+    expect(chromed.scale).toBeLessThan(bare.scale);
+  });
+
+  it('centres horizontally, exactly as the fit does', () => {
+    const resting = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands);
+    expect(resting.tx).toBeCloseTo((1600 - PORTRAIT_WORLD.w * resting.scale) / 2, 9);
+  });
+
+  it('records the ground point, so the Act 2 pull-back can still anchor to it', () => {
+    const resting = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands);
+    expect(resting.groundWorldY).toBe(PORTRAIT_WORLD.h);
+    const centred = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands, {
+      align: 'center',
+    });
+    expect(centred.groundWorldY).toBeUndefined();
+  });
+
+  it('returns a safe camera on a degenerate frame or world rather than NaN', () => {
+    for (const cam of [
+      restingWorld(0, 0, 1600, 900, PORTRAIT_WORLD.islands),
+      restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 0, 0, PORTRAIT_WORLD.islands),
+      restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, []),
+    ]) {
+      expect(Number.isFinite(cam.scale)).toBe(true);
+      expect(cam.scale).toBeGreaterThan(0);
+      expect(Number.isFinite(cam.tx)).toBe(true);
+      expect(Number.isFinite(cam.ty)).toBe(true);
+    }
+  });
+});
+
+describe('limitsForResting', () => {
+  it('KEEPS THE WHOLE FOREST REACHABLE — the zoom-out floor comes from the fit, never the crop', () => {
+    // A resting view short of the whole world is only honest if the rest stays reachable. Deriving
+    // the floor from the crop instead of the fit is what would take that away, and it degrades
+    // silently: it never throws, it just quietly shortens how far out a reader can go.
+    const fit = fitWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, { fit: 'contain' });
+    const resting = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands);
+    const good = limitsForResting(resting.scale, fit.scale);
+
+    // The property that matters: the zoom-out floor is EXACTLY the one the surface had before the
+    // resting composition moved. Changing what the map opens on changes nothing about how far out
+    // the reader may go.
+    expect(good.min).toBeCloseTo(limitsForFit(fit.scale).min, 12);
+    expect(good.min).toBeLessThan(fit.scale);
+
+    // And the mistake, stated so it cannot be reintroduced. On THIS corpus the naive floor still
+    // just clears the fitted scale (the crop is ~2.3x the fit, and 0.4 * 2.3 < 1), so the trap is
+    // not that the whole forest becomes unreachable here — it is that the headroom below it
+    // collapses, and would vanish entirely on any corpus cropped harder than 2.5x.
+    const naive = limitsForFit(resting.scale);
+    expect(naive.min).toBeGreaterThan(good.min);
+    expect(naive.min / fit.scale).toBeLessThan(1.0);
+    expect(naive.min / fit.scale).toBeGreaterThan(0.9);
+  });
+
+  it('still allows zooming in past the resting scale', () => {
+    const l = limitsForResting(2, 1);
+    expect(l.max).toBeGreaterThan(2);
+  });
+});
+
+describe('act2RegrowCamera under a DESIGNED (cropped) settled camera', () => {
+  const frame = { width: 1600, height: 900 };
+  const resting = restingWorld(PORTRAIT_WORLD.w, PORTRAIT_WORLD.h, 1600, 900, PORTRAIT_WORLD.islands, {
+    padding: 16,
+    paddingTop: 40,
+    paddingBottom: 48,
+  });
+
+  it('still pulls back monotonically instead of flattening to a constant', () => {
+    // The regression this pins: the containment clamp assumes the settled camera contains the
+    // world's top. A designed resting view deliberately does not, and applying the clamp anyway
+    // drove the scale below `fitted.scale` for most of the cursor range, where the floor pinned it
+    // back up — the growth then played with NO camera movement at all. Measured as exact equality
+    // between the scripted and settled scales at cursor 0.4.
+    const samples = [0, 0.2, 0.4, 0.6, 0.8, 1].map((c) => act2RegrowCamera(resting, frame, c).scale);
+    for (let i = 1; i < samples.length; i++) {
+      expect(samples[i]!).toBeLessThan(samples[i - 1]!);
+    }
+    expect(samples.at(-1)).toBeCloseTo(resting.scale, 9);
+    expect(samples[0]).toBeCloseTo(resting.scale * ACT2_REGROW_OPENING_SCALE, 9);
+  });
+
+  it('settles at the designed frame, not at the fitted one', () => {
+    // The endpoint moved; the choreography did not. Cursor 1 is exact identity with whatever
+    // settled camera it was handed.
+    expect(act2RegrowCamera(resting, frame, 1)).toEqual(resting);
+  });
+
+  it('leaves the CONTAINED case with its containment clamp intact', () => {
+    // A small forest still settles inside the frame, so the clamp's premise holds and it must keep
+    // applying — the skip is conditional on the premise, not a removal.
+    const contained = fitWorld(400, 300, 1600, 900, { fit: 'contain', paddingBottom: 48 });
+    expect(contained.ty).toBeGreaterThanOrEqual(0);
+    // The clamp only binds late in the pull-back under a height-bound contain fit (it is what stops
+    // the envelope's top escaping the frame as the world finishes growing), so sample there.
+    const mid = act2RegrowCamera(contained, frame, 0.8);
+    const unclamped = contained.scale * (1 + (ACT2_REGROW_OPENING_SCALE - 1) * 0.2);
+    expect(mid.scale).toBeLessThan(unclamped);
   });
 });
