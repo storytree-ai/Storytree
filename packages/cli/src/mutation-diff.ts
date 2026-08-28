@@ -39,6 +39,9 @@ export interface ChangedRanges {
   readonly ranges: readonly LineRange[];
 }
 
+/** A test runner this rung can drive mutants through. See {@link runnerFor}. */
+export type MutationRunner = "bun" | "vitest";
+
 /** One workspace project, in the shape `ci-affected.ts` already discovers them. */
 export interface ProjectDir {
   readonly name: string;
@@ -258,6 +261,52 @@ export function runsUnderBun(testScript: string | undefined): boolean {
   return /(^|[\s&|;])bun\s+test(\s|$)/.test(testScript);
 }
 
+/**
+ * A test runner Stryker can actually drive here, or `null` for a project out of this rung's reach.
+ *
+ * TWO, AND THE SECOND IS WHY THIS FUNCTION EXISTS. Until 2026-08-29 the rung asked only
+ * {@link runsUnderBun}, so the three workspace projects that do NOT run under Bun were dropped —
+ * and the two of them that run `vitest run` are `apps/studio` and `packages/app-surface`, i.e. the
+ * repo's entire browser-facing surface. The drop was REPORTED (the driver prints `NARROWED:` for a
+ * touched project it cannot reach), so it was never a silent hole; it was an honest hole, and this
+ * closes it rather than merely re-describing it.
+ *
+ * `packages/orchestrator` remains `null` and that exclusion is a DECISION rather than a gap. It runs
+ * `node --test`, for which no Stryker runner with per-test attribution exists, and it stays on Node
+ * deliberately: `docs/research/bun-runtime-probe-2026-08-22.md` records two measured reasons (Bun
+ * makes it slower, 29 s → 57 s, and its `shell-test-executor` suite asserts `NODE_TEST_CONTEXT` as a
+ * precondition, which Bun does not set by design). Converting it to reach this rung would be the tail
+ * wagging the dog. The driver names it whenever a branch touches it, so the exclusion is visible at
+ * the moment it costs something.
+ *
+ * ORDER MATTERS AND IS NOT ALPHABETICAL. `packages/cli`'s test script is
+ * `node … validate-corpus.ts && bun test …` — a compound command. Bun is asked first because a
+ * project whose script chains BOTH runners must be driven by the one that owns its `src/` suites,
+ * and every compound script in this repo puts the real suite on the Bun leg.
+ */
+export function runnerFor(testScript: string | undefined): MutationRunner | null {
+  if (runsUnderBun(testScript)) return "bun";
+  if (runsUnderVitest(testScript)) return "vitest";
+  return null;
+}
+
+/**
+ * Does this project's `test` script run `vitest run`?
+ *
+ * Deliberately the same SHAPE as {@link runsUnderBun} — a word-boundaried match on the invocation
+ * rather than a substring — so `vitest-runner` in some unrelated flag cannot be mistaken for the
+ * runner itself. `run` is required: `vitest` alone is watch mode, which would never terminate under
+ * Stryker, and a project declaring that is not one this rung can drive.
+ */
+export function runsUnderVitest(testScript: string | undefined): boolean {
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — this guard is a TYPE narrowing,
+  // not a behavioural branch, exactly as in `runsUnderBun` above: with it removed, `undefined`
+  // reaches `RegExp.test`, which coerces to the string "undefined", contains no `vitest run`, and
+  // yields the same `false`. No input can distinguish the two.
+  if (testScript === undefined) return false;
+  return /(^|[\s&|;])vitest\s+run(\s|$)/.test(testScript);
+}
+
 export function isTestFile(file: string): boolean {
   return file.endsWith(".test.ts") || file.endsWith(".test.tsx");
 }
@@ -470,6 +519,78 @@ export interface ReportMutant {
 export interface ReportTest {
   readonly id?: string;
   readonly name?: string;
+}
+
+/** One Stryker run's report, with the namespace its test ids are rewritten into. */
+export interface ReportPart {
+  /**
+   * A key unique across the parts of one rung run — e.g. `bun` or `vitest:apps/studio`. It is
+   * PREFIXED onto every test id, so it only has to be unique, never meaningful.
+   */
+  readonly key: string;
+  readonly report: MutationReport;
+}
+
+/**
+ * Fold several Stryker runs into one report the adjudicator can read as if it were a single run.
+ *
+ * WHY THIS IS NOT `Object.assign`, AND WHY GETTING IT WRONG WOULD READ AS A PASS. Stryker numbers
+ * test ids from zero WITHIN EACH RUN. Two runs therefore both contain a test with id `"0"`, and they
+ * are different tests in different files. {@link resolveTestFiles} builds ONE `id -> file` map from
+ * the merged `testFiles`, so a naive merge silently overwrites the first run's `"0"` with the
+ * second's — and every mutant the first run recorded as `killedBy: ["0"]` is then attributed to a
+ * file in the OTHER project. The failure is not a crash: the mutant still resolves to *a* test file,
+ * so it is scored `proven` or `killed-by-others` against the wrong branch-ownership question. A
+ * mutant killed only by an unchanged test in project A could be credited to a changed test in
+ * project B and pass. That is this repo's standing fault class — a green check that verified
+ * something other than what it claimed — so the ids are NAMESPACED here rather than trusted.
+ *
+ * Every id is rewritten to `<key>::<id>`, in `testFiles[].tests[].id` and in each mutant's
+ * `killedBy`, so an id from one part can never collide with, or be resolved against, another's.
+ *
+ * FILE ENTRIES ARE CONCATENATED, NEVER REPLACED. The driver partitions projects across runs, so the
+ * same source file should not appear twice — but "should not" is an assumption, and a merge that
+ * dropped the earlier entry would lose real mutants while still producing a well-formed report.
+ * Concatenating keeps every mutant that was actually evaluated; if the partition ever breaks, the
+ * result is a duplicated mutant (visible, and red in the safe direction) rather than a vanished one.
+ *
+ * A part whose `killedBy` names an id its own `testFiles` does not declare stays unresolvable after
+ * the rewrite, exactly as it was before it — constraint 4 still calls that `unproven`, and this
+ * function deliberately does not repair it.
+ */
+export function mergeMutationReports(parts: readonly ReportPart[]): MutationReport {
+  const files: Record<string, { mutants: ReportMutant[] }> = {};
+  const testFiles: Record<string, { tests: ReportTest[] }> = {};
+
+  for (const part of parts) {
+    const brand = (id: string) => `${part.key}::${id}`;
+
+    for (const [path, entry] of Object.entries(part.report.files ?? {})) {
+      const mutants = (entry?.mutants ?? []).map((m) => {
+        // A mutant with no `killedBy` is carried through untouched rather than given an empty one:
+        // `undefined` and `[]` are the same to `classify`, but only the first is what the runner said.
+        if (m.killedBy === undefined) return m;
+        return { ...m, killedBy: m.killedBy.map(brand) };
+      });
+      const existing = files[path];
+      if (existing === undefined) files[path] = { mutants };
+      else existing.mutants.push(...mutants);
+    }
+
+    for (const [path, entry] of Object.entries(part.report.testFiles ?? {})) {
+      const tests = (entry?.tests ?? []).map((t) => {
+        // An id-less test cannot be branded — `brand(undefined)` would enter the registry as the
+        // real-looking key "<group>::undefined", which a mutant's killedBy could then match.
+        if (t.id === undefined) return t;
+        return { ...t, id: brand(t.id) };
+      });
+      const existing = testFiles[path];
+      if (existing === undefined) testFiles[path] = { tests };
+      else existing.tests.push(...tests);
+    }
+  }
+
+  return { files, testFiles };
 }
 
 /** One adjudicated mutant, carrying enough to explain the verdict without re-reading the report. */
