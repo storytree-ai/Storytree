@@ -7,7 +7,7 @@ outcome: "The Act 2 forest regrow is driven end to end by one app-owned cursor t
 status: proposed
 proof_mode: integration-test
 depends_on: []
-decisions: [282, 286, 292, 313]
+decisions: [282, 286, 292, 313, 469]
 # A greenfield capability registered retrospectively by capability-layer-coverage-arc increment 4
 # (2026-08-07). It resolves TWO story-grain
 # `repo-manifest.json` declarations that existed only because no capability covered this organ —
