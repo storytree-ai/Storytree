@@ -1,0 +1,373 @@
+{
+ "url": "http://localhost:5212/kit-island.html",
+ "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+ "vendor": "Google Inc. (NVIDIA Corporation)",
+ "timerQuery": true,
+ "repeats": 7,
+ "batch": 300,
+ "disjointDiscarded": 0,
+ "committedRung": 128,
+ "payload": {
+  "asset": "/assets/dressing-webp90-128.glb",
+  "wireBytes": 351416,
+  "gpuBytes": 1572858,
+  "distinctObjects": 13,
+  "materials": [
+   "Logs",
+   "Pine_Branches",
+   "Pine_Foliage_02",
+   "Pine_Forest_Foliage",
+   "Pine_Rocks_01",
+   "Pine_Trunks"
+  ],
+  "triangles": 9400,
+  "textures": [
+   {
+    "name": "map:Pine_Forest_Foliage",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Forest_Foliage",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Forest_Foliage",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "map:Pine_Foliage_02",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Foliage_02",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Foliage_02",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "map:Logs",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Logs",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Logs",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "map:Pine_Branches",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Branches",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Branches",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "map:Pine_Trunks",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Trunks",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Trunks",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "map:Pine_Rocks_01",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Rocks_01",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Rocks_01",
+    "width": 128,
+    "height": 128
+   }
+  ],
+  "roles": [
+   {
+    "role": "tree",
+    "signal": "SCENE — one standing pine per contract proven under this capability",
+    "count": 49,
+    "sizedBy": "height",
+    "worldHeight": 18,
+    "worldWidth": 9.348699317446496,
+    "deliveredPx": {
+     "2px": 23.14035394871542,
+     "8px": 92.56141579486167
+    },
+    "clearsFloor": true
+   },
+   {
+    "role": "deadTree",
+    "signal": "SCENE — this capability is unhealthy: its contracts stand, and they are standing dead wood",
+    "count": 5,
+    "sizedBy": "height",
+    "worldHeight": 15,
+    "worldWidth": 7.334207116289015,
+    "deliveredPx": {
+     "2px": 19.28362829059618,
+     "8px": 77.13451316238472
+    },
+    "clearsFloor": true
+   },
+   {
+    "role": "undergrowth",
+    "signal": "SCENE — this capability is proposed or building: growth that has not become a tree yet",
+    "count": 3,
+    "sizedBy": "width",
+    "worldHeight": 2.0675067804324856,
+    "worldWidth": 6,
+    "deliveredPx": {
+     "2px": 12,
+     "8px": 48
+    },
+    "clearsFloor": true
+   },
+   {
+    "role": "rock",
+    "signal": "INPUT — drift: evidence gone stale beneath this capability (ADR-0463 D4, check:verification-decay)",
+    "count": 6,
+    "sizedBy": "width",
+    "worldHeight": 4.352915284250032,
+    "worldWidth": 7,
+    "deliveredPx": {
+     "2px": 14,
+     "8px": 56
+    },
+    "clearsFloor": true
+   },
+   {
+    "role": "log",
+    "signal": "INPUT — a retired contract, cut and left where it fell",
+    "count": 4,
+    "sizedBy": "width",
+    "worldHeight": 2.5140071623536326,
+    "worldWidth": 9,
+    "deliveredPx": {
+     "2px": 18,
+     "8px": 72
+    },
+    "clearsFloor": true
+   },
+   {
+    "role": "bloom",
+    "signal": "SCENE — a UAT criterion the owner has signed (ADR-0226 D4, one flower per criterion)",
+    "count": 10,
+    "sizedBy": "width",
+    "worldHeight": 2.4448918396979624,
+    "worldWidth": 4,
+    "deliveredPx": {
+     "2px": 8,
+     "8px": 32
+    },
+    "clearsFloor": false
+   }
+  ],
+  "totalProps": 77
+ },
+ "presence": [
+  {
+   "zoom": 2,
+   "bare": 42,
+   "today": 113,
+   "kit": 1604,
+   "bar": 452,
+   "ok": true
+  },
+  {
+   "zoom": 8,
+   "bare": 42,
+   "today": 113,
+   "kit": 7703,
+   "bar": 452,
+   "ok": true
+  }
+ ],
+ "frame": [
+  {
+   "arm": "bare",
+   "pxPerUnit": 2,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.060846080000000004,
+   "spreadMs": 0.03731242666666666,
+   "pctOf60Hz": 0.36507648,
+   "drawCalls": 19,
+   "triangles": 1224,
+   "width": 480,
+   "height": 240
+  },
+  {
+   "arm": "today",
+   "pxPerUnit": 2,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.10004277333333333,
+   "spreadMs": 0.04823157333333333,
+   "pctOf60Hz": 0.6002566399999999,
+   "drawCalls": 38,
+   "triangles": 89067,
+   "width": 487,
+   "height": 285
+  },
+  {
+   "arm": "kit",
+   "pxPerUnit": 2,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.08769184,
+   "spreadMs": 0.07918784,
+   "pctOf60Hz": 0.5261510399999999,
+   "drawCalls": 25,
+   "triangles": 71350,
+   "width": 480,
+   "height": 263
+  },
+  {
+   "arm": "bare",
+   "pxPerUnit": 8,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.22852778666666665,
+   "spreadMs": 0.030421119999999968,
+   "pctOf60Hz": 1.3711667199999997,
+   "drawCalls": 19,
+   "triangles": 1224,
+   "width": 1918,
+   "height": 959
+  },
+  {
+   "arm": "today",
+   "pxPerUnit": 8,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.36159594666666667,
+   "spreadMs": 0.04440842666666661,
+   "pctOf60Hz": 2.16957568,
+   "drawCalls": 38,
+   "triangles": 89067,
+   "width": 1947,
+   "height": 1140
+  },
+  {
+   "arm": "kit",
+   "pxPerUnit": 8,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.35874837333333337,
+   "spreadMs": 0.04827583999999996,
+   "pctOf60Hz": 2.15249024,
+   "drawCalls": 25,
+   "triangles": 71350,
+   "width": 1918,
+   "height": 1052
+  }
+ ],
+ "budget": {
+  "2": {
+   "status": "PASS",
+   "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"today\" at 0.10 ms (0.6% of the budget). ⚠ 2 configuration(s) — \"today\", \"kit\" — moved the frame by LESS than the 0.05 ms run-to-run noise, so their cost is UNRESOLVED rather than zero: this run fits the budget but does not say what they cost.",
+   "failures": [],
+   "unverified": []
+  },
+  "8": {
+   "status": "PASS",
+   "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"today\" at 0.36 ms (2.2% of the budget), and the costliest RESOLVED addition over \"bare\" is \"today\" at +0.13 ms (0.8 percentage points of the frame, 1.58x the control).",
+   "failures": [],
+   "unverified": []
+  }
+ },
+ "rungs": [
+  {
+   "rung": 512,
+   "wireBytes": 728180,
+   "gpuBytes": 25165818
+  },
+  {
+   "rung": 256,
+   "wireBytes": 457908,
+   "gpuBytes": 6291450
+  },
+  {
+   "rung": 128,
+   "wireBytes": 351416,
+   "gpuBytes": 1572858
+  }
+ ],
+ "rungDiffs": [
+  {
+   "from": 512,
+   "to": 256,
+   "zoom": 2,
+   "differingPct": 6.692807351077314,
+   "meanDeltaOverDiffering": 0.8088531187122563,
+   "maxDelta": 30,
+   "overLadderStepPct": 0.058618504435994936,
+   "savedWireBytes": 270272,
+   "savedGpuBytes": 18874368
+  },
+  {
+   "from": 512,
+   "to": 256,
+   "zoom": 8,
+   "differingPct": 7.953815563582153,
+   "meanDeltaOverDiffering": 0.8271988800753776,
+   "maxDelta": 133,
+   "overLadderStepPct": 0.021360574425990316,
+   "savedWireBytes": 270272,
+   "savedGpuBytes": 18874368
+  },
+  {
+   "from": 256,
+   "to": 128,
+   "zoom": 2,
+   "differingPct": 6.977978453738911,
+   "meanDeltaOverDiffering": 0.7658076966738437,
+   "maxDelta": 56,
+   "overLadderStepPct": 0.013466413181242079,
+   "savedWireBytes": 106492,
+   "savedGpuBytes": 4718592
+  },
+  {
+   "from": 256,
+   "to": 128,
+   "zoom": 8,
+   "differingPct": 8.489961025624758,
+   "meanDeltaOverDiffering": 1.0864053394043727,
+   "maxDelta": 128,
+   "overLadderStepPct": 0.04435664526974788,
+   "savedWireBytes": 106492,
+   "savedGpuBytes": 4718592
+  }
+ ]
+}

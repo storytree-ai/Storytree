@@ -247,6 +247,20 @@ export interface IslandViewProps {
    * a flag can only vary a quantity. A dressing varies what the place IS, which is the axis a
    * direction has to differ along to constitute a choice.
    */
+  /**
+   * Objects to add to the scene as-is, before it is framed — the seam a page uses to stand
+   * something this module does not know how to build on the island.
+   *
+   * ⚠ IT IS A SEAM, NOT A BACK DOOR. Everything this file builds wears `createBandedMaterial`
+   * and is merged per authored token, which is what keeps "every delivered pixel is an authored
+   * (token x level) entry" true. An object handed in here is NOT under that guarantee, so a page
+   * using it is off the audited palette by construction — which is why `capture.mjs`'s pages do
+   * not use it and the pages that do have their own.
+   *
+   * The framing box is measured AFTER these are added, so a prop taller than the land cannot be
+   * cropped.
+   */
+  extra?: readonly THREE.Object3D[];
   dressing?: DressingName;
   /**
    * Keep this FRACTION of the scene's plants (0..1). Defaults to 1 — every plant, as before.
@@ -325,7 +339,12 @@ export interface IslandViewProps {
  *  can never FAIL a palette check and can only make one pass for the wrong reason. */
 let shared: { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } | null = null;
 
-function sharedRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } {
+/**
+ * ⚠ EXPORTED so a bought asset can be CALIBRATED against the very renderer that will draw it.
+ * `calibrateLights` reads a white control back out of a live context; handing it a second
+ * renderer would calibrate for a context nothing renders in.
+ */
+export function sharedRenderer(): { renderer: THREE.WebGLRenderer; canvas: HTMLCanvasElement } {
   if (shared) return shared;
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({
@@ -943,7 +962,28 @@ function plantMesh(
   return meshes;
 }
 
-function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
+/** A built island: the scene, the camera that frames it, and the buffer it wants. */
+export interface ComposedIsland {
+  scene3: THREE.Scene;
+  camera: THREE.OrthographicCamera;
+  bufW: number;
+  bufH: number;
+  /** The island's on-screen extent INCLUDING the frame padding, in ground units — what a
+   *  caller multiplies by `displayPxPerUnit` to size the element. */
+  paddedW: number;
+  paddedH: number;
+}
+
+/**
+ * BUILD THE ISLAND without drawing it.
+ *
+ * ⚠ SPLIT OUT SO A FRAME CAN BE TIMED. Composition dominates a single call by orders of
+ * magnitude — meshes are merged, an occlusion field is built — so an instrument that timed
+ * `renderIsland` would be timing the BUILD and reporting it as the frame cost. That is the same
+ * class of error PR #1683 found in this project's previous frame instrument, which timed
+ * submission rather than execution and was wrong by 30-250x.
+ */
+export function composeIsland(props: IslandViewProps): ComposedIsland {
   const scene3 = new THREE.Scene();
   const scene = islandScene(props.island ?? {});
   const cells = groundCellsFrom(scene);
@@ -1075,6 +1115,8 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   // authored (token x level) entry" true of props without a second argument.
   if (dressing) for (const m of mergeParts(dressing.groups)) scene3.add(m);
   if (dressing) for (const m of canopyMeshes(dressing.canopy, relief)) scene3.add(m);
+  // Before the framing box, so anything handed in is inside the frame by construction.
+  if (props.extra) for (const object of props.extra) scene3.add(object);
 
   // The island's on-screen size at this camera: the ground's depth foreshortens by
   // sin(RENDER_ELEV), and its width does not.
@@ -1103,9 +1145,6 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   const bufW = Math.max(1, Math.round((screenW + pad * 2) * props.pxPerUnit));
   const bufH = Math.max(1, Math.round((screenH + pad * 2) * props.pxPerUnit));
 
-  const { renderer, canvas: glCanvas } = sharedRenderer();
-  renderer.setSize(bufW, bufH, false);
-
   const cx = (box.min.x + box.max.x) / 2;
   const cz = (bounds.minY + bounds.maxY) / 2;
   // Vertical centring follows the SCENE's screen extent, so a tall crown pushes the island down
@@ -1133,6 +1172,14 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
   camera.lookAt(cx, 0, cz);
   camera.updateProjectionMatrix();
 
+  return { scene3, camera, bufW, bufH, paddedW: screenW + pad * 2, paddedH: screenH + pad * 2 };
+}
+
+/** Compose the island, draw it once, and blit it into the panel's own canvas. */
+function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
+  const { scene3, camera, bufW, bufH, paddedW, paddedH } = composeIsland(props);
+  const { renderer, canvas: glCanvas } = sharedRenderer();
+  renderer.setSize(bufW, bufH, false);
   renderer.render(scene3, camera);
 
   canvas.width = bufW;
@@ -1143,8 +1190,8 @@ function renderIsland(canvas: HTMLCanvasElement, props: IslandViewProps): void {
     ctx.clearRect(0, 0, bufW, bufH);
     ctx.drawImage(glCanvas, 0, 0, bufW, bufH, 0, 0, bufW, bufH);
   }
-  canvas.style.width = `${(screenW + pad * 2) * props.displayPxPerUnit}px`;
-  canvas.style.height = `${(screenH + pad * 2) * props.displayPxPerUnit}px`;
+  canvas.style.width = `${paddedW * props.displayPxPerUnit}px`;
+  canvas.style.height = `${paddedH * props.displayPxPerUnit}px`;
   canvas.style.imageRendering = 'pixelated';
 }
 
