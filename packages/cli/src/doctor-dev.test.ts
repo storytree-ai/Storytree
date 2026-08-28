@@ -14,6 +14,7 @@ import {
   classifyToolchainShell,
   MACHINE_GUIDE,
   adcCredentialsPath,
+  CODEX_GUIDE,
   PINNED_CODEX_WRAPPER,
   classifyCodexCli,
   classifyCodexLogin,
@@ -826,7 +827,7 @@ test("the Codex fix hints INSTRUCT — each names the action, and the credential
   // form the anchor test keys on. Asserted as the whole phrase rather than just the anchor: a hint
   // that lost its "See " and its full stop still contains a valid-looking path, and the anchor test
   // would keep passing over a sentence that had come apart.
-  const tail = `See ${guideStep("bootstrap")}.`;
+  const tail = `See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`;
   for (const [label, text] of [
     ["codex-cli/workspace-only", workspaceOnly],
     ["codex-cli/absent", absent],
@@ -835,6 +836,36 @@ test("the Codex fix hints INSTRUCT — each names the action, and the credential
     ["codex-login/undetermined", undetermined],
   ] as const) {
     assert.ok(text.endsWith(tail), `${label} must end with "${tail}", got: …${text.slice(-60)}`);
+  }
+});
+
+test("every Codex hint names the journey document, and that document EXISTS on disk", () => {
+  // A pointer is only worth its line while the thing it points at is there. The machine guide's
+  // anchors are frozen by agreement rather than read off the file (see GUIDE_ANCHORS) because that
+  // guide and this module were authored in parallel branches — but `docs/codex-onboarding.md` was
+  // authored in the SAME landing as this pointer, so there is no reason to accept a weaker check
+  // here: the file is asserted to exist. A hint that sends a reader to a document nobody wrote is
+  // the dead-pointer failure this arc spent an increment clearing off four other surfaces.
+  // The VALUE, then the file. Existence alone is not enough to pin this: an empty path resolves to
+  // the repo root, which exists, and an empty pattern matches every hint — so a check that asked
+  // only "does it exist and is it mentioned" would keep passing over a constant that had lost its
+  // content entirely.
+  assert.equal(CODEX_GUIDE, "docs/codex-onboarding.md", "the journey document is named, not implied");
+  assert.ok(
+    existsSync(join(repoRootFromHere(), CODEX_GUIDE)),
+    `${CODEX_GUIDE} must exist — every Codex fix hint sends the reader there`,
+  );
+  for (const [codexCli, codexLogin] of [
+    ["workspace-only", "chatgpt"],
+    ["absent", "undetermined"],
+    ["path", "other"],
+    ["path", "logged-out"],
+  ] as const) {
+    for (const name of ["codex-cli", "codex-login"]) {
+      const probe = probeNamed({ ...DEV_HEALTHY, codexCli, codexVersion: null, codexLogin }, name)!;
+      if (probe.level === "PASS") continue;
+      assert.match(probe.fixHint ?? "", new RegExp(CODEX_GUIDE.replace(/[.]/g, "\\.")), `${name}/${codexCli}/${codexLogin}`);
+    }
   }
 });
 

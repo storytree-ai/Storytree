@@ -97,6 +97,16 @@ import { defaultWallInstallIo, protectedRoot, userSettingsPath } from "./write-a
 export const MACHINE_GUIDE = "docs/machine-onboarding.md";
 
 /**
+ * The Codex journey document — the ONE place both Codex journeys are written down
+ * (`codex-onboarding-journey-arc`). Named separately from {@link MACHINE_GUIDE} rather than added to
+ * {@link GUIDE_ANCHORS}, because it is a different document and not an anchor within that one: the
+ * machine guide covers what EVERY runtime needs, and this covers the opt-in one. The Codex hints
+ * name it FIRST and the machine guide second, so a reader following a Codex row lands on the
+ * document that answers instead of on a signpost that redirects.
+ */
+export const CODEX_GUIDE = "docs/codex-onboarding.md";
+
+/**
  * The guide's step anchors. FROZEN BY AGREEMENT, not by observation: this module and the guide were
  * written in parallel branches, so the anchors are a contract fixed up front rather than something
  * either side reads off the other. Asserting them as a literal set is what keeps a later rename from
@@ -569,7 +579,7 @@ export function devProbes(obs: DevObservations): Probe[] {
         "(`--runtime codex`) but NOT for an interactive Codex session on this repo. If you want one, " +
         "install the product (`npm install -g @openai/codex`, or Codex Desktop) and re-run. If this " +
         "box only ever drives Claude, this row is informational and nothing is wrong. " +
-        `See ${guideStep("bootstrap")}.`,
+        `See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
     });
   } else {
     probes.push({
@@ -582,7 +592,7 @@ export function devProbes(obs: DevObservations): Probe[] {
         "NEITHER Codex journey can run here. The leaf's binary comes from `pnpm install` " +
         "(`@openai/codex` is pinned by packages/agent), so its absence usually means the workspace " +
         "is not provisioned — check `checkout-provisioned` first. For an interactive Codex session " +
-        `install the product: \`npm install -g @openai/codex\` (no root needed). See ${guideStep("bootstrap")}.`,
+        `install the product: \`npm install -g @openai/codex\` (no root needed). See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
     });
   }
 
@@ -622,7 +632,7 @@ export function devProbes(obs: DevObservations): Probe[] {
         "ADR-0232 accepts subscription (ChatGPT-managed) auth ONLY; an API-key login is forbidden and " +
         "OPENAI_API_KEY / CODEX_API_KEY / CODEX_ACCESS_TOKEN are stripped before every run, so " +
         "`--runtime codex` will refuse with `Codex subscription auth required`. Run `codex login` and " +
-        `sign in with your ChatGPT account. storytree never mints or handles the credential. See ${guideStep("bootstrap")}.`,
+        `sign in with your ChatGPT account. storytree never mints or handles the credential. See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
     });
   } else if (obs.codexLogin === "logged-out") {
     probes.push({
@@ -633,7 +643,7 @@ export function devProbes(obs: DevObservations): Probe[] {
         "run `codex login` and sign in with your ChatGPT account (a browser action; storytree never " +
         "mints or handles the credential). `pnpm install` gives the prove-it leaf its BINARY and never " +
         "its credential, so this is the step that makes `--runtime codex` builds — and an interactive " +
-        `Codex session — actually work. See ${guideStep("bootstrap")}.`,
+        `Codex session — actually work. See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
     });
   } else {
     probes.push({
@@ -643,7 +653,7 @@ export function devProbes(obs: DevObservations): Probe[] {
       fixHint:
         "this is the `codex-cli` finding, not a credential one: fix that row first and re-run. A " +
         "question that could not be put has not been answered, so this never reads as a pass. " +
-        `See ${guideStep("bootstrap")}.`,
+        `See ${CODEX_GUIDE}, and ${guideStep("bootstrap")}.`,
     });
   }
 

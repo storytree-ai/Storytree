@@ -49,6 +49,8 @@ In dependency order, each step no-ops when already satisfied (see *Idempotency* 
    `-Step codex-cli` repairs it — which is what `storytree doctor --dev`'s `codex-cli` probe points
    at. Installing the CLI does **not** sign you in: `codex login` is the dev's own browser action
    (ADR-0232 accepts saved ChatGPT-managed auth only), and doctor reports the two separately.
+   The whole Codex journey — both of them, and what proves each step took — is
+   `docs/codex-onboarding.md`.
 
 Then it runs **`storytree doctor`** (D6) to verify the setup, detects whether the dev's Claude CLI
 is logged in (the `~/.claude/.credentials.json` existence probe — **never** the contents), and,

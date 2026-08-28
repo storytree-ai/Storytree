@@ -194,45 +194,22 @@ summary. If you are here to compare this machine against another, the plans must
 `legacy/Agentic` is a second submodule: a read-only vendored copy of the V1 Rust project, reference
 only. You do not need it initialised and you must never edit it.
 
-### Codex — the opt-in second runtime, and the one thing `pnpm install` will not give you
+### Codex — the opt-in second runtime
 
-**Skip this whole subsection if the box only ever drives Claude.** ADR-0030 makes the Claude Agent
-SDK the default and Codex the opt-in alternative, so a box with no Codex is a *complete*
-configuration — `storytree doctor --dev` reports it as two warnings and never a failure.
+**Skip this if the box only ever drives Claude.** ADR-0030 makes the Claude Agent SDK the default
+and Codex the opt-in alternative, so a box with no Codex is a *complete* configuration —
+`storytree doctor --dev` reports it as two warnings and never a failure.
 
-If you do want Codex, there are **two different things** called Codex here and they need different
-setup:
+If you do want it, **the whole journey is `docs/codex-onboarding.md`** — both what Codex means here
+(a session driver, and a build tool, with different binaries), the three steps only you can perform,
+and what proves each one took. Two things worth knowing before you go there:
 
-| | What it is | Where its binary comes from | What else it needs |
-|---|---|---|---|
-| **The session driver** | A person opens Codex Desktop or the `codex` CLI on this repo and it runs the session loop | you install it: `npm install -g @openai/codex` (**no root**) | a ChatGPT sign-in |
-| **The prove-it leaf** (`--runtime codex`) | The spine drives one `codex exec` turn per phase | `pnpm install` — `@openai/codex` is pinned by `packages/agent` | the **same** ChatGPT sign-in |
-
-**The coupling that costs people an afternoon: `pnpm install` gives the leaf its BINARY and never its
-CREDENTIAL.** Unlike the Claude leaf, the Codex leaf hydrates no secrets — deliberately. ADR-0232
-accepts saved ChatGPT-managed auth *only*, and strips `OPENAI_API_KEY` / `CODEX_API_KEY` /
-`CODEX_ACCESS_TOKEN` before every run, so an API key cannot be made to work here however valid it is.
-The credential is `~/.codex/auth.json` and only a sign-in writes it:
-
-```bash
-npm install -g @openai/codex      # optional — only for an interactive Codex session
-codex login                       # your own ChatGPT account, in your own browser
-codex login status                # must print exactly: Logged in using ChatGPT
-```
-
-storytree never mints, captures or discloses that credential — it only observes whether one exists.
-Ask the box rather than guessing: **`pnpm storytree doctor --dev`** carries a `codex-cli` probe (which
-tells the two binaries apart, so "the leaf can run but no session can start" is a state you can read
-off the report) and a `codex-login` probe (which uses the leaf's own predicate, so it cannot pass over
-a machine whose `--runtime codex` builds would refuse). Both **invoke** rather than stat, because an
-installed binary nothing can reach is indistinguishable from an absent one.
-
-Finally, trust the directory. In `~/.codex/config.toml`:
-
-```toml
-[projects.'/absolute/path/to/your/checkout']
-trust_level = "trusted"
-```
+- **`pnpm install` gives the Codex binary and never the Codex credential.** Unlike the Claude leaf,
+  the Codex leaf hydrates no secrets, deliberately. Only a ChatGPT sign-in writes `~/.codex/auth.json`,
+  and ADR-0232 accepts that kind of login *only* — an API key cannot be made to work here however
+  valid it is.
+- **Ask the box rather than guessing:** `pnpm storytree doctor --dev` carries a `codex-cli` row and a
+  `codex-login` row, both of which **invoke** the binary rather than checking a path.
 
 ---
 

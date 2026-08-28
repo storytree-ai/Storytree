@@ -5,7 +5,9 @@
  * Authentication and promotion controls are intentionally redundant:
  * - `codex login status` must report the exact ChatGPT-managed method before a model can run;
  * - metered credential environment variables are removed from both child processes;
- * - the CLI runs from a disposable replica, never the real workspace, with network disabled;
+ * - the CLI runs from a disposable replica, never the real workspace — and the replica is the
+ *   WHOLE of the isolation: since ADR-0390 the phase runs `--sandbox danger-full-access`, so
+ *   nothing is fenced at the OS level and the network is NOT disabled;
  * - the spine observes the replica and alone promotes an explicit target set.
  *
  * ADR-0390 withdrew Storytree's managed Codex permission profiles and hook boundary. The retained
@@ -462,7 +464,16 @@ const REPLICA_EXCLUDED_PARTS = new Set([
   "node_modules",
 ]);
 
-/** Ignored, managed-profile-writable parent for real Codex phase replicas. */
+/**
+ * The gitignored parent directory real Codex phase replicas are cut into, resolved from the
+ * nearest enclosing checkout: `<repo>/.gate-logs/codex-replicas`.
+ *
+ * It used to be described as "managed-profile-writable", back when a Codex permission profile
+ * decided which paths the CLI could write. ADR-0390 withdrew those profiles and the machinery was
+ * deleted on 2026-08-20, so there is no profile to be writable under: the phase now runs
+ * `--sandbox danger-full-access`, and this location is chosen because it is gitignored and inside
+ * the checkout, not because anything grants it.
+ */
 export function codexProductionReplicaRoot(cwd: string): string {
   let candidate = path.resolve(cwd);
   const filesystemRoot = path.parse(candidate).root;
