@@ -1,0 +1,1936 @@
+{
+  "measuredAt": "2026-08-28T09:26:22.224Z",
+  "renderer": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false,
+    "timerQuery": true
+  },
+  "batch": 700,
+  "repeats": 15,
+  "shape": {
+    "islands": 35,
+    "proven": 21,
+    "landFraction": 0.028500000000000004,
+    "screenW": 3996.4268926556747,
+    "screenH": 4920.834047732572,
+    "islandW": 233.8000030517578,
+    "islandScreenH": 113.86946054551926,
+    "visitor": {
+      "cssPxPerUnit": 0.08185970544527271,
+      "devicePxPerUnit": 0.16371941089054542,
+      "halfHeight": 4886.408982590585
+    },
+    "fitPxPerUnit": 0.3187726787297747,
+    "zoomPxPerUnit": {
+      "forest": 0.3187726787297747,
+      "neighbourhood": 0.7586789753768638,
+      "island": 2
+    },
+    "viewport": {
+      "w": 2560,
+      "h": 1600,
+      "dpr": 2
+    },
+    "coarserThanIslandOverview": 6.274063410859029,
+    "props": {
+      "total": 2706,
+      "byStatus": {
+        "healthy": 1659,
+        "proposed": 632,
+        "unhealthy": 79,
+        "building": 158,
+        "mapped": 158,
+        "unknown": 20
+      }
+    },
+    "real": {
+      "islands": 35,
+      "proven": 21,
+      "source": "docs/research/forest-snapshot-2026-08-28/forest-map.png",
+      "imagePx": {
+        "w": 2280,
+        "h": 2822
+      },
+      "forestBoxPx": {
+        "w": 2140,
+        "h": 2635
+      },
+      "medianIslandPx": 100,
+      "widestIslandPx": 231,
+      "landFractionOfBox": 0.0285,
+      "islandBoxFill": 0.6015
+    }
+  },
+  "pictures": [
+    {
+      "arm": "bare",
+      "zoom": "forest",
+      "file": "crowd-bare-forest.png"
+    },
+    {
+      "arm": "today",
+      "zoom": "forest",
+      "file": "crowd-today-forest.png"
+    },
+    {
+      "arm": "kit",
+      "zoom": "forest",
+      "file": "crowd-kit-forest.png"
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "forest",
+      "file": "crowd-kit-merged-forest.png"
+    },
+    {
+      "arm": "bare",
+      "zoom": "neighbourhood",
+      "file": "crowd-bare-neighbourhood.png"
+    },
+    {
+      "arm": "today",
+      "zoom": "neighbourhood",
+      "file": "crowd-today-neighbourhood.png"
+    },
+    {
+      "arm": "kit",
+      "zoom": "neighbourhood",
+      "file": "crowd-kit-neighbourhood.png"
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "neighbourhood",
+      "file": "crowd-kit-merged-neighbourhood.png"
+    },
+    {
+      "arm": "bare",
+      "zoom": "island",
+      "file": "crowd-bare-island.png"
+    },
+    {
+      "arm": "today",
+      "zoom": "island",
+      "file": "crowd-today-island.png"
+    },
+    {
+      "arm": "kit",
+      "zoom": "island",
+      "file": "crowd-kit-island.png"
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "island",
+      "file": "crowd-kit-merged-island.png"
+    }
+  ],
+  "legibility": {
+    "forest": [
+      {
+        "role": "tree",
+        "worldSize": 18,
+        "axis": "height",
+        "deliveredPx": 3.688256307493567,
+        "clears": false
+      },
+      {
+        "role": "deadTree",
+        "worldSize": 15,
+        "axis": "height",
+        "deliveredPx": 3.0735469229113055,
+        "clears": false
+      },
+      {
+        "role": "undergrowth",
+        "worldSize": 6,
+        "axis": "width",
+        "deliveredPx": 1.9126360723786484,
+        "clears": false
+      },
+      {
+        "role": "rock",
+        "worldSize": 7,
+        "axis": "width",
+        "deliveredPx": 2.231408751108423,
+        "clears": false
+      },
+      {
+        "role": "log",
+        "worldSize": 9,
+        "axis": "width",
+        "deliveredPx": 2.8689541085679724,
+        "clears": false
+      },
+      {
+        "role": "bloom",
+        "worldSize": 4,
+        "axis": "width",
+        "deliveredPx": 1.2750907149190989,
+        "clears": false
+      }
+    ],
+    "neighbourhood": [
+      {
+        "role": "tree",
+        "worldSize": 18,
+        "axis": "height",
+        "deliveredPx": 8.778050011834688,
+        "clears": false
+      },
+      {
+        "role": "deadTree",
+        "worldSize": 15,
+        "axis": "height",
+        "deliveredPx": 7.315041676528907,
+        "clears": false
+      },
+      {
+        "role": "undergrowth",
+        "worldSize": 6,
+        "axis": "width",
+        "deliveredPx": 4.5520738522611826,
+        "clears": false
+      },
+      {
+        "role": "rock",
+        "worldSize": 7,
+        "axis": "width",
+        "deliveredPx": 5.310752827638047,
+        "clears": false
+      },
+      {
+        "role": "log",
+        "worldSize": 9,
+        "axis": "width",
+        "deliveredPx": 6.828110778391774,
+        "clears": false
+      },
+      {
+        "role": "bloom",
+        "worldSize": 4,
+        "axis": "width",
+        "deliveredPx": 3.034715901507455,
+        "clears": false
+      }
+    ],
+    "island": [
+      {
+        "role": "tree",
+        "worldSize": 18,
+        "axis": "height",
+        "deliveredPx": 23.14035394871542,
+        "clears": true
+      },
+      {
+        "role": "deadTree",
+        "worldSize": 15,
+        "axis": "height",
+        "deliveredPx": 19.28362829059618,
+        "clears": true
+      },
+      {
+        "role": "undergrowth",
+        "worldSize": 6,
+        "axis": "width",
+        "deliveredPx": 12,
+        "clears": true
+      },
+      {
+        "role": "rock",
+        "worldSize": 7,
+        "axis": "width",
+        "deliveredPx": 14,
+        "clears": true
+      },
+      {
+        "role": "log",
+        "worldSize": 9,
+        "axis": "width",
+        "deliveredPx": 18,
+        "clears": true
+      },
+      {
+        "role": "bloom",
+        "worldSize": 4,
+        "axis": "width",
+        "deliveredPx": 8,
+        "clears": false
+      }
+    ]
+  },
+  "blobs": [
+    {
+      "arm": "bare",
+      "zoom": "forest",
+      "blobs": 35,
+      "largest": 2060,
+      "expected": 35
+    },
+    {
+      "arm": "today",
+      "zoom": "forest",
+      "blobs": 35,
+      "largest": 2114,
+      "expected": 35
+    },
+    {
+      "arm": "kit",
+      "zoom": "forest",
+      "blobs": 35,
+      "largest": 2066,
+      "expected": 35
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "forest",
+      "blobs": 35,
+      "largest": 2066,
+      "expected": 35
+    },
+    {
+      "arm": "bare",
+      "zoom": "neighbourhood",
+      "blobs": 8,
+      "largest": 11623,
+      "expected": 35
+    },
+    {
+      "arm": "today",
+      "zoom": "neighbourhood",
+      "blobs": 8,
+      "largest": 11949,
+      "expected": 35
+    },
+    {
+      "arm": "kit",
+      "zoom": "neighbourhood",
+      "blobs": 8,
+      "largest": 11673,
+      "expected": 35
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "neighbourhood",
+      "blobs": 8,
+      "largest": 11673,
+      "expected": 35
+    },
+    {
+      "arm": "bare",
+      "zoom": "island",
+      "blobs": 4,
+      "largest": 80631,
+      "expected": 35
+    },
+    {
+      "arm": "today",
+      "zoom": "island",
+      "blobs": 4,
+      "largest": 82925,
+      "expected": 35
+    },
+    {
+      "arm": "kit",
+      "zoom": "island",
+      "blobs": 4,
+      "largest": 80727,
+      "expected": 35
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "island",
+      "blobs": 4,
+      "largest": 80727,
+      "expected": 35
+    }
+  ],
+  "truth": [
+    {
+      "arm": "bare",
+      "zoom": "forest",
+      "real": {
+        "arm": "bare",
+        "zoom": "forest",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 35 in frame, 43.89 dE clear of the worst healthy one",
+        "needleRank": 3,
+        "needleDE": 44.17897770690402,
+        "healthyMaxDE": 0.2910080619096062,
+        "margin": 43.88796964499441,
+        "marginSigma": 658.1900978110963,
+        "healthyCount": 21,
+        "outrankedBy": [
+          {
+            "index": 21,
+            "status": "mapped",
+            "de": 49.48672209397923
+          },
+          {
+            "index": 16,
+            "status": "mapped",
+            "de": 49.47745187547173
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "bare",
+        "zoom": "forest",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.20 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 16,
+        "needleDE": 0.06950463666861874,
+        "healthyMaxDE": 0.26604856656409415,
+        "margin": -0.19654392989547542,
+        "marginSigma": -3.4656303908567643,
+        "healthyCount": 35,
+        "outrankedBy": [
+          {
+            "index": 12,
+            "status": "healthy",
+            "de": 0.26604856656409415
+          },
+          {
+            "index": 20,
+            "status": "healthy",
+            "de": 0.20873183061348205
+          },
+          {
+            "index": 13,
+            "status": "healthy",
+            "de": 0.17110417789180546
+          },
+          {
+            "index": 17,
+            "status": "healthy",
+            "de": 0.16687783710210227
+          },
+          {
+            "index": 23,
+            "status": "healthy",
+            "de": 0.13816173143642818
+          },
+          {
+            "index": 24,
+            "status": "healthy",
+            "de": 0.1305033980072506
+          },
+          {
+            "index": 21,
+            "status": "healthy",
+            "de": 0.1280032794510306
+          },
+          {
+            "index": 11,
+            "status": "healthy",
+            "de": 0.11436735526896989
+          },
+          {
+            "index": 30,
+            "status": "healthy",
+            "de": 0.10144197601800044
+          },
+          {
+            "index": 5,
+            "status": "healthy",
+            "de": 0.09745206896733977
+          },
+          {
+            "index": 34,
+            "status": "healthy",
+            "de": 0.0949433642833737
+          },
+          {
+            "index": 27,
+            "status": "healthy",
+            "de": 0.08392810451455769
+          },
+          {
+            "index": 10,
+            "status": "healthy",
+            "de": 0.08181656053427726
+          },
+          {
+            "index": 0,
+            "status": "healthy",
+            "de": 0.07659406887281801
+          },
+          {
+            "index": 22,
+            "status": "healthy",
+            "de": 0.07505703528052056
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "today",
+      "zoom": "forest",
+      "real": {
+        "arm": "today",
+        "zoom": "forest",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 35 in frame, 21.40 dE clear of the worst healthy one",
+        "needleRank": 3,
+        "needleDE": 21.73977901832883,
+        "healthyMaxDE": 0.3413926112677731,
+        "margin": 21.398386407061057,
+        "marginSigma": 305.6029983719779,
+        "healthyCount": 21,
+        "outrankedBy": [
+          {
+            "index": 16,
+            "status": "mapped",
+            "de": 24.488667522616723
+          },
+          {
+            "index": 21,
+            "status": "mapped",
+            "de": 24.21402232016352
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "today",
+        "zoom": "forest",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.28 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 28,
+        "needleDE": 0.10911508635937031,
+        "healthyMaxDE": 0.38769160926041984,
+        "margin": -0.2785765229010495,
+        "marginSigma": -3.4361570698680217,
+        "healthyCount": 35,
+        "outrankedBy": [
+          {
+            "index": 27,
+            "status": "healthy",
+            "de": 0.38769160926041984
+          },
+          {
+            "index": 1,
+            "status": "healthy",
+            "de": 0.34055350287589814
+          },
+          {
+            "index": 11,
+            "status": "healthy",
+            "de": 0.31706240052675577
+          },
+          {
+            "index": 13,
+            "status": "healthy",
+            "de": 0.30386872438471313
+          },
+          {
+            "index": 23,
+            "status": "healthy",
+            "de": 0.30272945171807414
+          },
+          {
+            "index": 20,
+            "status": "healthy",
+            "de": 0.2718080668074534
+          },
+          {
+            "index": 21,
+            "status": "healthy",
+            "de": 0.249460219489188
+          },
+          {
+            "index": 6,
+            "status": "healthy",
+            "de": 0.24630650146056401
+          },
+          {
+            "index": 14,
+            "status": "healthy",
+            "de": 0.22651615778306883
+          },
+          {
+            "index": 4,
+            "status": "healthy",
+            "de": 0.21524592237554618
+          },
+          {
+            "index": 0,
+            "status": "healthy",
+            "de": 0.20770625990142438
+          },
+          {
+            "index": 18,
+            "status": "healthy",
+            "de": 0.20437546647694543
+          },
+          {
+            "index": 34,
+            "status": "healthy",
+            "de": 0.19424031630489547
+          },
+          {
+            "index": 26,
+            "status": "healthy",
+            "de": 0.18468012885879664
+          },
+          {
+            "index": 33,
+            "status": "healthy",
+            "de": 0.18179362106858213
+          },
+          {
+            "index": 2,
+            "status": "healthy",
+            "de": 0.18004003164173787
+          },
+          {
+            "index": 10,
+            "status": "healthy",
+            "de": 0.17968613838124015
+          },
+          {
+            "index": 9,
+            "status": "healthy",
+            "de": 0.17882412390128455
+          },
+          {
+            "index": 32,
+            "status": "healthy",
+            "de": 0.16983174224798
+          },
+          {
+            "index": 7,
+            "status": "healthy",
+            "de": 0.16898802922073675
+          },
+          {
+            "index": 5,
+            "status": "healthy",
+            "de": 0.16223120163457233
+          },
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 0.15886237184167296
+          },
+          {
+            "index": 25,
+            "status": "healthy",
+            "de": 0.14044461296565772
+          },
+          {
+            "index": 17,
+            "status": "healthy",
+            "de": 0.13885730488696807
+          },
+          {
+            "index": 24,
+            "status": "healthy",
+            "de": 0.13157586314722788
+          },
+          {
+            "index": 19,
+            "status": "healthy",
+            "de": 0.12320940729884955
+          },
+          {
+            "index": 12,
+            "status": "healthy",
+            "de": 0.11303180859817716
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "kit",
+      "zoom": "forest",
+      "real": {
+        "arm": "kit",
+        "zoom": "forest",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 35 in frame, 41.20 dE clear of the worst healthy one",
+        "needleRank": 4,
+        "needleDE": 41.954082169382396,
+        "healthyMaxDE": 0.7563148815777977,
+        "margin": 41.197767287804595,
+        "marginSigma": 177.70790926337966,
+        "healthyCount": 21,
+        "outrankedBy": [
+          {
+            "index": 21,
+            "status": "mapped",
+            "de": 46.92563228520946
+          },
+          {
+            "index": 16,
+            "status": "mapped",
+            "de": 46.859821061976255
+          },
+          {
+            "index": 27,
+            "status": "unknown",
+            "de": 42.09959538735108
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "kit",
+        "zoom": "forest",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.58 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 16,
+        "needleDE": 0.2552397424697036,
+        "healthyMaxDE": 0.8365786152714507,
+        "margin": -0.5813388728017471,
+        "marginSigma": -2.2231583502422434,
+        "healthyCount": 35,
+        "outrankedBy": [
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 0.8365786152714507
+          },
+          {
+            "index": 11,
+            "status": "healthy",
+            "de": 0.8190565173491768
+          },
+          {
+            "index": 23,
+            "status": "healthy",
+            "de": 0.8012546068158563
+          },
+          {
+            "index": 9,
+            "status": "healthy",
+            "de": 0.7763831501999947
+          },
+          {
+            "index": 7,
+            "status": "healthy",
+            "de": 0.7527317291776494
+          },
+          {
+            "index": 5,
+            "status": "healthy",
+            "de": 0.7494975160794389
+          },
+          {
+            "index": 0,
+            "status": "healthy",
+            "de": 0.6400636277154038
+          },
+          {
+            "index": 18,
+            "status": "healthy",
+            "de": 0.6062293219806695
+          },
+          {
+            "index": 26,
+            "status": "healthy",
+            "de": 0.512879086109048
+          },
+          {
+            "index": 34,
+            "status": "healthy",
+            "de": 0.45549709309057085
+          },
+          {
+            "index": 22,
+            "status": "healthy",
+            "de": 0.40753304038840404
+          },
+          {
+            "index": 19,
+            "status": "healthy",
+            "de": 0.3625673847700221
+          },
+          {
+            "index": 12,
+            "status": "healthy",
+            "de": 0.3419052818592901
+          },
+          {
+            "index": 27,
+            "status": "healthy",
+            "de": 0.29765835399718765
+          },
+          {
+            "index": 13,
+            "status": "healthy",
+            "de": 0.2584038749040584
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "forest",
+      "real": {
+        "arm": "kit-merged",
+        "zoom": "forest",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 35 in frame, 41.20 dE clear of the worst healthy one",
+        "needleRank": 4,
+        "needleDE": 41.95581133156522,
+        "healthyMaxDE": 0.7561377344624239,
+        "margin": 41.1996735971028,
+        "marginSigma": 177.72239137999892,
+        "healthyCount": 21,
+        "outrankedBy": [
+          {
+            "index": 21,
+            "status": "mapped",
+            "de": 46.92530803664652
+          },
+          {
+            "index": 16,
+            "status": "mapped",
+            "de": 46.859821061976255
+          },
+          {
+            "index": 27,
+            "status": "unknown",
+            "de": 42.09959538735108
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "kit-merged",
+        "zoom": "forest",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.58 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 16,
+        "needleDE": 0.2553003205327075,
+        "healthyMaxDE": 0.8365786152714507,
+        "margin": -0.5812782947387432,
+        "marginSigma": -2.2229919662750453,
+        "healthyCount": 35,
+        "outrankedBy": [
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 0.8365786152714507
+          },
+          {
+            "index": 11,
+            "status": "healthy",
+            "de": 0.8188756735464435
+          },
+          {
+            "index": 23,
+            "status": "healthy",
+            "de": 0.8012546068158563
+          },
+          {
+            "index": 9,
+            "status": "healthy",
+            "de": 0.7763831501999947
+          },
+          {
+            "index": 7,
+            "status": "healthy",
+            "de": 0.7527317291776494
+          },
+          {
+            "index": 5,
+            "status": "healthy",
+            "de": 0.7495572886287118
+          },
+          {
+            "index": 0,
+            "status": "healthy",
+            "de": 0.6400636277154038
+          },
+          {
+            "index": 18,
+            "status": "healthy",
+            "de": 0.6062293219806695
+          },
+          {
+            "index": 26,
+            "status": "healthy",
+            "de": 0.512879086109048
+          },
+          {
+            "index": 34,
+            "status": "healthy",
+            "de": 0.45549709309057085
+          },
+          {
+            "index": 22,
+            "status": "healthy",
+            "de": 0.40753304038840404
+          },
+          {
+            "index": 19,
+            "status": "healthy",
+            "de": 0.36276747283584787
+          },
+          {
+            "index": 12,
+            "status": "healthy",
+            "de": 0.3419052818592901
+          },
+          {
+            "index": 27,
+            "status": "healthy",
+            "de": 0.29765835399718765
+          },
+          {
+            "index": 13,
+            "status": "healthy",
+            "de": 0.2584038749040584
+          }
+        ],
+        "visibleCount": 35,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "bare",
+      "zoom": "neighbourhood",
+      "real": {
+        "arm": "bare",
+        "zoom": "neighbourhood",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 8 in frame, 43.89 dE clear of the worst healthy one",
+        "needleRank": 1,
+        "needleDE": 44.200428520158056,
+        "healthyMaxDE": 0.31389182063292914,
+        "margin": 43.886536699525124,
+        "marginSigma": 318.7803851208049,
+        "healthyCount": 5,
+        "outrankedBy": [],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "bare",
+        "zoom": "neighbourhood",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.25 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 4,
+        "needleDE": 0.04017146952121902,
+        "healthyMaxDE": 0.29266712987563087,
+        "margin": -0.25249566035441184,
+        "marginSigma": -2.373497458928195,
+        "healthyCount": 8,
+        "outrankedBy": [
+          {
+            "index": 1,
+            "status": "healthy",
+            "de": 0.29266712987563087
+          },
+          {
+            "index": 6,
+            "status": "healthy",
+            "de": 0.2637920138779967
+          },
+          {
+            "index": 4,
+            "status": "healthy",
+            "de": 0.05708313410109544
+          }
+        ],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "today",
+      "zoom": "neighbourhood",
+      "real": {
+        "arm": "today",
+        "zoom": "neighbourhood",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 8 in frame, 20.93 dE clear of the worst healthy one",
+        "needleRank": 1,
+        "needleDE": 21.936452540299353,
+        "healthyMaxDE": 1.0030695565568557,
+        "margin": 20.933382983742497,
+        "marginSigma": 46.16432285782284,
+        "healthyCount": 5,
+        "outrankedBy": [],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "today",
+        "zoom": "neighbourhood",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.99 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 7,
+        "needleDE": 0.042527652765013045,
+        "healthyMaxDE": 1.0368076739284287,
+        "margin": -0.9942800211634156,
+        "marginSigma": -2.3567166553748207,
+        "healthyCount": 8,
+        "outrankedBy": [
+          {
+            "index": 1,
+            "status": "healthy",
+            "de": 1.0368076739284287
+          },
+          {
+            "index": 6,
+            "status": "healthy",
+            "de": 1.0171516316737816
+          },
+          {
+            "index": 9,
+            "status": "healthy",
+            "de": 0.08598868093227854
+          },
+          {
+            "index": 7,
+            "status": "healthy",
+            "de": 0.061115436713283705
+          },
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 0.05628067000211796
+          },
+          {
+            "index": 2,
+            "status": "healthy",
+            "de": 0.05067685930465768
+          }
+        ],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "kit",
+      "zoom": "neighbourhood",
+      "real": {
+        "arm": "kit",
+        "zoom": "neighbourhood",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 8 in frame, 39.28 dE clear of the worst healthy one",
+        "needleRank": 1,
+        "needleDE": 40.08968235350782,
+        "healthyMaxDE": 0.8127715377923337,
+        "margin": 39.27691081571548,
+        "marginSigma": 120.38569645036752,
+        "healthyCount": 5,
+        "outrankedBy": [],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "kit",
+        "zoom": "neighbourhood",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.67 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 3,
+        "needleDE": 0.0995174237304736,
+        "healthyMaxDE": 0.769593443635498,
+        "margin": -0.6700760199050244,
+        "marginSigma": -2.6612618578490816,
+        "healthyCount": 8,
+        "outrankedBy": [
+          {
+            "index": 1,
+            "status": "healthy",
+            "de": 0.769593443635498
+          },
+          {
+            "index": 6,
+            "status": "healthy",
+            "de": 0.4456103517801461
+          }
+        ],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "neighbourhood",
+      "real": {
+        "arm": "kit-merged",
+        "zoom": "neighbourhood",
+        "verdict": "FOUND",
+        "reason": "the failing island is the most anomalous of the 8 in frame, 39.28 dE clear of the worst healthy one",
+        "needleRank": 1,
+        "needleDE": 40.09019019422171,
+        "healthyMaxDE": 0.8128803988085413,
+        "margin": 39.277309795413174,
+        "marginSigma": 120.58621395471498,
+        "healthyCount": 5,
+        "outrankedBy": [],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "kit-merged",
+        "zoom": "neighbourhood",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (0.67 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 3,
+        "needleDE": 0.0959965501948111,
+        "healthyMaxDE": 0.7686739586338491,
+        "margin": -0.672677408439038,
+        "marginSigma": -2.6808985555557494,
+        "healthyCount": 8,
+        "outrankedBy": [
+          {
+            "index": 1,
+            "status": "healthy",
+            "de": 0.7686739586338491
+          },
+          {
+            "index": 6,
+            "status": "healthy",
+            "de": 0.444371762783976
+          }
+        ],
+        "visibleCount": 8,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "bare",
+      "zoom": "island",
+      "real": {
+        "arm": "bare",
+        "zoom": "island",
+        "verdict": "UNVERIFIED",
+        "reason": "only 1 healthy island(s) in frame — a bar cannot be read off a population this small",
+        "needleRank": 0,
+        "needleDE": 0,
+        "healthyMaxDE": 0,
+        "margin": 0,
+        "marginSigma": 0,
+        "healthyCount": 1,
+        "outrankedBy": [],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "bare",
+        "zoom": "island",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (8.44 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 3,
+        "needleDE": 0.2268034190977441,
+        "healthyMaxDE": 8.662694377498974,
+        "margin": -8.435890958401231,
+        "marginSigma": -2.4221152224532276,
+        "healthyCount": 4,
+        "outrankedBy": [
+          {
+            "index": 2,
+            "status": "healthy",
+            "de": 8.662694377498974
+          },
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 1.8400626751834555
+          }
+        ],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "today",
+      "zoom": "island",
+      "real": {
+        "arm": "today",
+        "zoom": "island",
+        "verdict": "UNVERIFIED",
+        "reason": "only 1 healthy island(s) in frame — a bar cannot be read off a population this small",
+        "needleRank": 0,
+        "needleDE": 0,
+        "healthyMaxDE": 0,
+        "margin": 0,
+        "marginSigma": 0,
+        "healthyCount": 1,
+        "outrankedBy": [],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "today",
+        "zoom": "island",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (2.59 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 4,
+        "needleDE": 2.270940238577889,
+        "healthyMaxDE": 4.8628387529055335,
+        "margin": -2.5918985143276445,
+        "marginSigma": -2.560502517287215,
+        "healthyCount": 4,
+        "outrankedBy": [
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 4.8628387529055335
+          },
+          {
+            "index": 2,
+            "status": "healthy",
+            "de": 4.441899144312412
+          },
+          {
+            "index": 4,
+            "status": "healthy",
+            "de": 3.305630509808757
+          }
+        ],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "kit",
+      "zoom": "island",
+      "real": {
+        "arm": "kit",
+        "zoom": "island",
+        "verdict": "UNVERIFIED",
+        "reason": "only 1 healthy island(s) in frame — a bar cannot be read off a population this small",
+        "needleRank": 0,
+        "needleDE": 0,
+        "healthyMaxDE": 0,
+        "margin": 0,
+        "marginSigma": 0,
+        "healthyCount": 1,
+        "outrankedBy": [],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "kit",
+        "zoom": "island",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (4.69 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 4,
+        "needleDE": 0.18724581965874054,
+        "healthyMaxDE": 4.877618991317652,
+        "margin": -4.690373171658911,
+        "marginSigma": -2.4414057369097364,
+        "healthyCount": 4,
+        "outrankedBy": [
+          {
+            "index": 2,
+            "status": "healthy",
+            "de": 4.877618991317652
+          },
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 1.389583229681707
+          },
+          {
+            "index": 4,
+            "status": "healthy",
+            "de": 0.1874216578447202
+          }
+        ],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "island",
+      "real": {
+        "arm": "kit-merged",
+        "zoom": "island",
+        "verdict": "UNVERIFIED",
+        "reason": "only 1 healthy island(s) in frame — a bar cannot be read off a population this small",
+        "needleRank": 0,
+        "needleDE": 0,
+        "healthyMaxDE": 0,
+        "margin": 0,
+        "marginSigma": 0,
+        "healthyCount": 1,
+        "outrankedBy": [],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsified": {
+        "arm": "kit-merged",
+        "zoom": "island",
+        "verdict": "LOST",
+        "reason": "a HEALTHY island reads as more anomalous than the failing one (4.69 dE the wrong way) — a reader hunting for the failure lands on a green island first",
+        "needleRank": 4,
+        "needleDE": 0.18697637680234627,
+        "healthyMaxDE": 4.877654231371986,
+        "margin": -4.69067785456964,
+        "marginSigma": -2.441477637802658,
+        "healthyCount": 4,
+        "outrankedBy": [
+          {
+            "index": 2,
+            "status": "healthy",
+            "de": 4.877654231371986
+          },
+          {
+            "index": 8,
+            "status": "healthy",
+            "de": 1.391004108690167
+          },
+          {
+            "index": 4,
+            "status": "healthy",
+            "de": 0.18715158757038544
+          }
+        ],
+        "visibleCount": 4,
+        "totalCount": 35,
+        "islandCount": 35
+      },
+      "falsificationHeld": true
+    }
+  ],
+  "cost": [
+    {
+      "arm": "bare",
+      "zoom": "forest",
+      "pxPerUnit": 0.3187726787297747,
+      "drawCalls": 210,
+      "triangles": 42840,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.5674715428571429,
+        0.5743181714285714,
+        0.5482414171428571,
+        0.5379335314285715,
+        0.5521754514285715,
+        0.5543587657142857,
+        0.5327403885714286,
+        0.5503063771428571,
+        0.5508446628571428,
+        0.5557377828571428,
+        0.5542606628571428,
+        0.5580567771428571,
+        0.5532524799999999,
+        0.585972342857143,
+        0.5412717714285714
+      ],
+      "medianMs": 0.5532524799999999,
+      "spreadMs": 0.05323195428571437,
+      "frameSharePct": 3.319514879999999
+    },
+    {
+      "arm": "today",
+      "zoom": "forest",
+      "pxPerUnit": 0.3187726787297747,
+      "drawCalls": 770,
+      "triangles": 3112737,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        1.6157581257142857,
+        1.59592064,
+        1.6805824457142857,
+        1.8251922742857143,
+        1.5802836114285714,
+        1.6774904685714287,
+        1.620626102857143,
+        2.1794288457142854,
+        1.7116178742857142,
+        1.8971268114285713,
+        1.7354781257142857,
+        1.6037068799999998,
+        1.9034141257142858,
+        1.7299134171428572,
+        1.7086162285714286
+      ],
+      "medianMs": 1.7086162285714286,
+      "spreadMs": 0.599145234285714,
+      "frameSharePct": 10.251697371428572
+    },
+    {
+      "arm": "kit",
+      "zoom": "forest",
+      "pxPerUnit": 0.3187726787297747,
+      "drawCalls": 373,
+      "triangles": 2179684,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.8537958857142857,
+        0.8372286171428571,
+        0.8578040228571429,
+        0.8664125714285715,
+        0.9412549485714286,
+        0.8653008914285715,
+        0.8424498742857143,
+        0.8609967542857142,
+        0.83662848,
+        0.8724318171428571,
+        0.8654630400000001,
+        0.836615222857143,
+        0.8945364571428571,
+        0.8399023542857144,
+        0.8456327314285714
+      ],
+      "medianMs": 0.8578040228571429,
+      "spreadMs": 0.10463972571428559,
+      "frameSharePct": 5.146824137142857
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "forest",
+      "pxPerUnit": 0.3187726787297747,
+      "drawCalls": 216,
+      "triangles": 2179684,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.8321481142857143,
+        0.8315914971428572,
+        0.8316372114285714,
+        0.8316589257142857,
+        0.8316474057142856,
+        0.8316676571428571,
+        0.8320240914285714,
+        0.8316096,
+        0.8316457142857143,
+        0.8316283885714286,
+        0.8316074514285715,
+        0.8316545371428571,
+        0.8316109714285714,
+        0.8315777828571429,
+        0.8316518399999999
+      ],
+      "medianMs": 0.8316457142857143,
+      "spreadMs": 0.0005703314285714356,
+      "frameSharePct": 4.9898742857142855
+    },
+    {
+      "arm": "bare",
+      "zoom": "neighbourhood",
+      "pxPerUnit": 0.7586789753768638,
+      "drawCalls": 54,
+      "triangles": 11016,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.16728361142857143,
+        0.21060498285714285,
+        0.15813193142857143,
+        0.1610722742857143,
+        0.16703346285714285,
+        0.21357129142857142,
+        0.15423328,
+        0.1682461257142857,
+        0.17005517714285714,
+        0.1691234742857143,
+        0.17870217142857142,
+        0.16641641142857141,
+        0.16826134857142858,
+        0.16751341714285717,
+        0.19527551999999998
+      ],
+      "medianMs": 0.1682461257142857,
+      "spreadMs": 0.059338011428571424,
+      "frameSharePct": 1.0094767542857142
+    },
+    {
+      "arm": "today",
+      "zoom": "neighbourhood",
+      "pxPerUnit": 0.7586789753768638,
+      "drawCalls": 181,
+      "triangles": 813581,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.49303872,
+        0.6173774171428571,
+        0.4760704,
+        0.48536429714285717,
+        0.5079005257142857,
+        0.5317368685714285,
+        0.45594523428571426,
+        0.50277248,
+        0.5133626971428571,
+        0.5037670399999999,
+        0.48890733714285717,
+        0.46656562285714287,
+        0.4862244571428571,
+        0.5062782171428571,
+        0.5271493485714286
+      ],
+      "medianMs": 0.50277248,
+      "spreadMs": 0.16143218285714284,
+      "frameSharePct": 3.01663488
+    },
+    {
+      "arm": "kit",
+      "zoom": "neighbourhood",
+      "pxPerUnit": 0.7586789753768638,
+      "drawCalls": 95,
+      "triangles": 607042,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.26143597714285716,
+        0.3499333942857143,
+        0.27294432,
+        0.29219744,
+        0.29018093714285714,
+        0.3265625142857143,
+        0.26506464,
+        0.3355794285714286,
+        0.30041728,
+        0.2947824457142857,
+        0.27323817142857143,
+        0.27380708571428575,
+        0.27702624,
+        0.2926133028571429,
+        0.30363053714285715
+      ],
+      "medianMs": 0.29219744,
+      "spreadMs": 0.08849741714285714,
+      "frameSharePct": 1.75318464
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "neighbourhood",
+      "pxPerUnit": 0.7586789753768638,
+      "drawCalls": 60,
+      "triangles": 2147860,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.6319221942857143,
+        0.6400664228571429,
+        0.64004064,
+        0.6319334857142858,
+        0.6319534628571429,
+        0.6319225142857142,
+        0.6320116114285714,
+        0.63195136,
+        0.6401034057142857,
+        0.6319776914285715,
+        0.6319095771428571,
+        0.6320274742857144,
+        0.6328144457142857,
+        0.6320274285714286,
+        0.6320274285714286
+      ],
+      "medianMs": 0.6320116114285714,
+      "spreadMs": 0.008193828571428585,
+      "frameSharePct": 3.792069668571428
+    },
+    {
+      "arm": "bare",
+      "zoom": "island",
+      "pxPerUnit": 2,
+      "drawCalls": 22,
+      "triangles": 4542,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.09814326857142858,
+        0.09963396571428572,
+        0.09070601142857142,
+        0.09431958857142857,
+        0.09010496000000001,
+        0.12125110857142857,
+        0.08992790857142857,
+        0.10553933714285714,
+        0.09077595428571428,
+        0.08867254857142857,
+        0.08962614857142856,
+        0.09363570285714286,
+        0.08952822857142857,
+        0.09052420571428571,
+        0.08911725714285713
+      ],
+      "medianMs": 0.09070601142857142,
+      "spreadMs": 0.03257855999999999,
+      "frameSharePct": 0.5442360685714285
+    },
+    {
+      "arm": "today",
+      "zoom": "island",
+      "pxPerUnit": 2,
+      "drawCalls": 64,
+      "triangles": 288552,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.2830160457142857,
+        0.31051122285714283,
+        0.29753426285714285,
+        0.27012790857142854,
+        0.2717792,
+        0.2507805714285714,
+        0.2723601371428571,
+        0.3006626285714286,
+        0.27286230857142857,
+        0.2673517714285714,
+        0.28288438857142856,
+        0.28365385142857147,
+        0.30204717714285717,
+        0.28016265142857144,
+        0.27710066285714285
+      ],
+      "medianMs": 0.28016265142857144,
+      "spreadMs": 0.059730651428571424,
+      "frameSharePct": 1.6809759085714286
+    },
+    {
+      "arm": "kit",
+      "zoom": "island",
+      "pxPerUnit": 2,
+      "drawCalls": 36,
+      "triangles": 212238,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.16561508571428574,
+        0.1865232,
+        0.17132219428571427,
+        0.15647209142857144,
+        0.16214601142857143,
+        0.16024429714285712,
+        0.16126262857142856,
+        0.17975858285714283,
+        0.16201727999999999,
+        0.16253197714285716,
+        0.17031305142857142,
+        0.16996086857142859,
+        0.20216973714285713,
+        0.16578797714285715,
+        0.16602253714285714
+      ],
+      "medianMs": 0.16578797714285715,
+      "spreadMs": 0.045697645714285695,
+      "frameSharePct": 0.9947278628571428
+    },
+    {
+      "arm": "kit-merged",
+      "zoom": "island",
+      "pxPerUnit": 2,
+      "drawCalls": 28,
+      "triangles": 2141386,
+      "width": 2560,
+      "height": 1600,
+      "resolvedSamples": 15,
+      "samplesMs": [
+        0.5957456457142857,
+        0.5958102857142856,
+        0.5958906971428571,
+        0.5959728000000001,
+        0.5959475200000001,
+        0.5958274742857144,
+        0.5960407771428571,
+        0.5958661485714286,
+        0.5959212342857143,
+        0.5959562971428571,
+        0.5958480457142857,
+        0.5958686171428572,
+        0.5958475428571428,
+        0.5958895085714286,
+        0.5960001371428572
+      ],
+      "medianMs": 0.5958895085714286,
+      "spreadMs": 0.0002951314285714046,
+      "frameSharePct": 3.575337051428572
+    }
+  ],
+  "budget": {
+    "forest": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "bare",
+      "rows": [
+        {
+          "label": "bare",
+          "gpuMsPerFrame": 0.5532524799999999,
+          "spreadMs": 0.05323195428571437,
+          "samples": 15,
+          "sharePct": 3.319514879999999,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.05323195428571437
+        },
+        {
+          "label": "today",
+          "gpuMsPerFrame": 1.7086162285714286,
+          "spreadMs": 0.599145234285714,
+          "samples": 15,
+          "sharePct": 10.251697371428572,
+          "deltaVsBaselineMs": 1.1553637485714288,
+          "factorVsBaseline": 3.088311919670796,
+          "deltaSharePct": 6.932182491428572,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.599145234285714
+        },
+        {
+          "label": "kit",
+          "gpuMsPerFrame": 0.8578040228571429,
+          "spreadMs": 0.10463972571428559,
+          "samples": 15,
+          "sharePct": 5.146824137142857,
+          "deltaVsBaselineMs": 0.3045515428571429,
+          "factorVsBaseline": 1.5504747902027352,
+          "deltaSharePct": 1.8273092571428573,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.10463972571428559
+        },
+        {
+          "label": "kit-merged",
+          "gpuMsPerFrame": 0.8316457142857143,
+          "spreadMs": 0.0005703314285714356,
+          "samples": 15,
+          "sharePct": 4.9898742857142855,
+          "deltaVsBaselineMs": 0.2783932342857144,
+          "factorVsBaseline": 1.5031938298509109,
+          "deltaSharePct": 1.670359405714286,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.05323195428571437
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"today\" at 1.71 ms (10.3% of the budget), and the costliest RESOLVED addition over \"bare\" is \"today\" at +1.16 ms (6.9 percentage points of the frame, 3.09x the control)."
+    },
+    "neighbourhood": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "bare",
+      "rows": [
+        {
+          "label": "bare",
+          "gpuMsPerFrame": 0.1682461257142857,
+          "spreadMs": 0.059338011428571424,
+          "samples": 15,
+          "sharePct": 1.0094767542857142,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.059338011428571424
+        },
+        {
+          "label": "today",
+          "gpuMsPerFrame": 0.50277248,
+          "spreadMs": 0.16143218285714284,
+          "samples": 15,
+          "sharePct": 3.01663488,
+          "deltaVsBaselineMs": 0.33452635428571426,
+          "factorVsBaseline": 2.98831534970264,
+          "deltaSharePct": 2.007158125714285,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.16143218285714284
+        },
+        {
+          "label": "kit",
+          "gpuMsPerFrame": 0.29219744,
+          "spreadMs": 0.08849741714285714,
+          "samples": 15,
+          "sharePct": 1.75318464,
+          "deltaVsBaselineMs": 0.12395131428571426,
+          "factorVsBaseline": 1.736726113362084,
+          "deltaSharePct": 0.7437078857142856,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.08849741714285714
+        },
+        {
+          "label": "kit-merged",
+          "gpuMsPerFrame": 0.6320116114285714,
+          "spreadMs": 0.008193828571428585,
+          "samples": 15,
+          "sharePct": 3.792069668571428,
+          "deltaVsBaselineMs": 0.4637654857142857,
+          "factorVsBaseline": 3.75647052046743,
+          "deltaSharePct": 2.782592914285714,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.059338011428571424
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"kit-merged\" at 0.63 ms (3.8% of the budget), and the costliest RESOLVED addition over \"bare\" is \"kit-merged\" at +0.46 ms (2.8 percentage points of the frame, 3.76x the control)."
+    },
+    "island": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "bare",
+      "rows": [
+        {
+          "label": "bare",
+          "gpuMsPerFrame": 0.09070601142857142,
+          "spreadMs": 0.03257855999999999,
+          "samples": 15,
+          "sharePct": 0.5442360685714285,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.03257855999999999
+        },
+        {
+          "label": "today",
+          "gpuMsPerFrame": 0.28016265142857144,
+          "spreadMs": 0.059730651428571424,
+          "samples": 15,
+          "sharePct": 1.6809759085714286,
+          "deltaVsBaselineMs": 0.18945664,
+          "factorVsBaseline": 3.088688908443429,
+          "deltaSharePct": 1.13673984,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.059730651428571424
+        },
+        {
+          "label": "kit",
+          "gpuMsPerFrame": 0.16578797714285715,
+          "spreadMs": 0.045697645714285695,
+          "samples": 15,
+          "sharePct": 0.9947278628571428,
+          "deltaVsBaselineMs": 0.07508196571428573,
+          "factorVsBaseline": 1.8277507138918878,
+          "deltaSharePct": 0.4504917942857144,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.045697645714285695
+        },
+        {
+          "label": "kit-merged",
+          "gpuMsPerFrame": 0.5958895085714286,
+          "spreadMs": 0.0002951314285714046,
+          "samples": 15,
+          "sharePct": 3.575337051428572,
+          "deltaVsBaselineMs": 0.5051834971428573,
+          "factorVsBaseline": 6.569459941921004,
+          "deltaSharePct": 3.0311009828571436,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.03257855999999999
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"kit-merged\" at 0.60 ms (3.6% of the budget), and the costliest RESOLVED addition over \"bare\" is \"kit-merged\" at +0.51 ms (3.0 percentage points of the frame, 6.57x the control)."
+    }
+  },
+  "merge": [
+    {
+      "a": "kit",
+      "b": "kit-merged",
+      "zoom": "forest",
+      "differing": 0.000001708984375,
+      "differingBeyondLadderStep": 2.44140625e-7,
+      "maxChannelDelta": 18,
+      "pixels": 4096000
+    },
+    {
+      "a": "kit",
+      "b": "kit-merged",
+      "zoom": "neighbourhood",
+      "differing": 0.000010986328125,
+      "differingBeyondLadderStep": 9.765625e-7,
+      "maxChannelDelta": 122,
+      "pixels": 4096000
+    },
+    {
+      "a": "kit",
+      "b": "kit-merged",
+      "zoom": "island",
+      "differing": 0.00002099609375,
+      "differingBeyondLadderStep": 0.000001708984375,
+      "maxChannelDelta": 63,
+      "pixels": 4096000
+    }
+  ],
+  "culling": [
+    {
+      "zoom": "forest",
+      "perIslandTriangles": 2179684,
+      "forestWideTriangles": 2179684,
+      "submittedRatio": 1,
+      "perIslandDrawCalls": 373,
+      "forestWideDrawCalls": 216,
+      "drawCallRatio": 1.7268518518518519
+    },
+    {
+      "zoom": "neighbourhood",
+      "perIslandTriangles": 607042,
+      "forestWideTriangles": 2147860,
+      "submittedRatio": 3.538239528731126,
+      "perIslandDrawCalls": 95,
+      "forestWideDrawCalls": 60,
+      "drawCallRatio": 1.5833333333333333
+    },
+    {
+      "zoom": "island",
+      "perIslandTriangles": 212238,
+      "forestWideTriangles": 2141386,
+      "submittedRatio": 10.089550410388338,
+      "perIslandDrawCalls": 36,
+      "forestWideDrawCalls": 28,
+      "drawCallRatio": 1.2857142857142858
+    }
+  ],
+  "consoleErrors": []
+}

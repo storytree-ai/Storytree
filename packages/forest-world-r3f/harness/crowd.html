@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>does the dressed island hold up as a forest? — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 1900px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 16px; margin: 30px 0 10px; color: #b0bec5; font-weight: 600; }
+      p { max-width: 82ch; color: #b0bec5; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; text-transform: uppercase; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Thirty-five islands &mdash; does the bought dressing still read as a forest?</h1>
+      <p>
+        PR #1693 dressed <em>one</em> island from the kit and it read as a pine forest. It attached
+        a caveat to its own recommendation: &ldquo;nobody has seen a <strong>crowd</strong> of these
+        islands together, and that&rsquo;s exactly the kind of thing that looks fine on one and turns
+        to soup on four hundred.&rdquo; This page is that measurement, at the crowd size that
+        actually exists &mdash; the real forest&rsquo;s <strong>35</strong>.
+      </p>
+      <p>
+        Four arms, one variable: <strong>bare</strong> (the control), <strong>today</strong> (the
+        <code>wild</code> composition), <strong>kit</strong> (dressed from <code>dressing-kit.glb</code>,
+        merged per island) and <strong>kit-merged</strong> (the same props and the same pixels, merged
+        across the whole forest &mdash; the draw-call remedy, measured rather than suggested).
+        A driveable surface, not a gallery: <code>crowd-measure.mjs</code> reads the pictures, the
+        two readings and the frame cost off <code>window</code>.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountCrowd } from './crowd-page.ts';
+      mountCrowd(document.getElementById('root')).catch((e) => {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e}</pre>`);
+      });
+    </script>
+  </body>
+</html>
