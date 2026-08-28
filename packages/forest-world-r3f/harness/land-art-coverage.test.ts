@@ -35,8 +35,14 @@ import {
   readCoverage,
 } from './land-art-coverage.js';
 
-/** The three pages as they actually measured on this branch. */
-const MEASURED: Readonly<Record<string, CaptureCoverage>> = {
+/**
+ * The three pages as they actually measured on this branch.
+ *
+ * `satisfies` rather than an annotation: the annotation widened the key type to `string`, which
+ * throws away the fact that these are exactly the three pages the rung drives — so a page renamed in
+ * `LAND_ART_PAGES` but not here would have type-checked cleanly and asserted nothing.
+ */
+const MEASURED = {
   'grain.html': {
     opaquePixels: 5_242_624,
     exemptFromPaletteOpaquePixels: 2_621_312,
@@ -55,7 +61,12 @@ const MEASURED: Readonly<Record<string, CaptureCoverage>> = {
     continuousChecked: 0,
     propIslandsWithProps: 10,
   },
-};
+} satisfies Record<string, CaptureCoverage>;
+
+/** Exactly the pages this fixture carries — see `MEASURED`. */
+type MeasuredPage = keyof typeof MEASURED;
+
+const MEASURED_PAGES = Object.keys(MEASURED) as MeasuredPage[];
 
 function declared(page: string): PageCoverage {
   const d = LAND_ART_PAGES.find((p) => p.page === page);
@@ -66,8 +77,8 @@ function declared(page: string): PageCoverage {
 // ── THE REAL RUN CLEARS THE REAL DECLARATION ────────────────────────────────────────────────
 
 test('every declared page is satisfied by what it actually delivered', () => {
-  for (const page of Object.keys(MEASURED)) {
-    const faults = checkPageCoverage(declared(page), MEASURED[page]!);
+  for (const page of MEASURED_PAGES) {
+    const faults = checkPageCoverage(declared(page), MEASURED[page]);
     assert.deepEqual(faults, [], `${page} should clear its own measured delivery`);
   }
 });
@@ -83,7 +94,7 @@ test('the declared set covers all three parts of ADR-0418 D4', () => {
 
 test('a page whose colour-spread band judged fewer continuous canvases is refused', () => {
   const faults = checkPageCoverage(declared('grain.html'), {
-    ...MEASURED['grain.html']!,
+    ...MEASURED['grain.html'],
     continuousChecked: 3,
   });
   assert.equal(faults.length, 1);
@@ -97,7 +108,7 @@ test('a page whose continuous canvases vanished entirely is refused, not skipped
   // band checked nothing" and exits 0. Zero is the value a lost declaration produces, so it must be
   // the loudest failure here, never the quietest.
   const faults = checkPageCoverage(declared('grain.html'), {
-    ...MEASURED['grain.html']!,
+    ...MEASURED['grain.html'],
     continuousChecked: 0,
   });
   assert.equal(faults.length, 1);
@@ -106,7 +117,7 @@ test('a page whose continuous canvases vanished entirely is refused, not skipped
 
 test('a page that verified fewer prop islands than it declares is refused', () => {
   const faults = checkPageCoverage(declared('island.html'), {
-    ...MEASURED['island.html']!,
+    ...MEASURED['island.html'],
     propIslandsWithProps: 6,
   });
   assert.equal(faults.length, 1);
@@ -118,9 +129,9 @@ test('a page whose pixels were all exempted from the palette closure is refused'
   // else, which is right and is proved by PR #1673's mutation M4. But nothing downstream floors what
   // is LEFT. Exempt the whole page and capture prints "PALETTE CLOSED ON THE GPU (…N px exempt by
   // declaration)" and exits 0, having closed a palette over zero pixels.
-  const all = MEASURED['island.html']!.opaquePixels;
+  const all = MEASURED['island.html'].opaquePixels;
   const faults = checkPageCoverage(declared('island.html'), {
-    ...MEASURED['island.html']!,
+    ...MEASURED['island.html'],
     exemptFromPaletteOpaquePixels: all,
   });
   assert.equal(faults.length, 1);
@@ -220,9 +231,9 @@ test('no floor is set above what its page actually delivers', () => {
   // The failure this catches is a floor nudged up to "just under the measured value", which is the
   // picked-number fault wearing a coverage hat: it reds on the first legitimate variation and gets
   // lowered again until it means nothing. A floor must be what the page is BUILT to contain.
-  for (const page of Object.keys(MEASURED)) {
+  for (const page of MEASURED_PAGES) {
     const d = declared(page);
-    const m = MEASURED[page]!;
+    const m = MEASURED[page];
     assert.ok(d.minContinuousChecked <= m.continuousChecked);
     assert.ok(d.minPropIslands <= m.propIslandsWithProps);
     assert.ok(d.minPaletteHeldPixels <= m.opaquePixels - m.exemptFromPaletteOpaquePixels);
