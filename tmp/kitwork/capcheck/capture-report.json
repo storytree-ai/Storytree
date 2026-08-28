@@ -1,0 +1,1164 @@
+{
+  "capturedFrom": "http://localhost:5212/island.html",
+  "webgl": {
+    "version": "WebGL 2.0 (OpenGL ES 3.0 Chromium)",
+    "renderer": "ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)",
+    "isSoftware": true,
+    "note": "Headless Chromium on this box rasterises WebGL through SwiftShader (software). Delivered COLOURS are therefore trustworthy and frame COSTS are not — the ADR-0380 D2 hardware-floor question is NOT answered by this run and needs the owner on real hardware."
+  },
+  "perPanel": [
+    {
+      "i": 0,
+      "w": 240,
+      "h": 171,
+      "opaque": 21158,
+      "holes": 2
+    },
+    {
+      "i": 1,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 2,
+      "w": 240,
+      "h": 171,
+      "opaque": 21158,
+      "holes": 2
+    },
+    {
+      "i": 3,
+      "w": 959,
+      "h": 685,
+      "opaque": 337955,
+      "holes": 4
+    },
+    {
+      "i": 4,
+      "w": 240,
+      "h": 171,
+      "opaque": 21158,
+      "holes": 2
+    },
+    {
+      "i": 5,
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "holes": 27
+    },
+    {
+      "i": 6,
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "holes": 27
+    },
+    {
+      "i": 7,
+      "w": 1918,
+      "h": 1384,
+      "opaque": 1351887,
+      "holes": 32
+    },
+    {
+      "i": 8,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 9,
+      "w": 480,
+      "h": 346,
+      "opaque": 84550,
+      "holes": 4
+    },
+    {
+      "i": 10,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1228458,
+      "holes": 0
+    },
+    {
+      "i": 11,
+      "w": 1918,
+      "h": 1377,
+      "opaque": 1348523,
+      "holes": 0
+    },
+    {
+      "i": 12,
+      "w": 1918,
+      "h": 887,
+      "opaque": 1228458,
+      "holes": 0
+    },
+    {
+      "i": 13,
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233595,
+      "holes": 41
+    },
+    {
+      "i": 14,
+      "w": 1918,
+      "h": 923,
+      "opaque": 1233571,
+      "holes": 0
+    },
+    {
+      "i": 15,
+      "w": 1918,
+      "h": 893,
+      "opaque": 1228575,
+      "holes": 30
+    },
+    {
+      "i": 16,
+      "w": 480,
+      "h": 222,
+      "opaque": 76920,
+      "holes": 0
+    },
+    {
+      "i": 17,
+      "w": 480,
+      "h": 232,
+      "opaque": 77061,
+      "holes": 4
+    },
+    {
+      "i": 18,
+      "w": 480,
+      "h": 340,
+      "opaque": 84358,
+      "holes": 0
+    },
+    {
+      "i": 19,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 20,
+      "w": 480,
+      "h": 222,
+      "opaque": 76920,
+      "holes": 0
+    },
+    {
+      "i": 21,
+      "w": 480,
+      "h": 227,
+      "opaque": 77115,
+      "holes": 0
+    },
+    {
+      "i": 22,
+      "w": 480,
+      "h": 231,
+      "opaque": 77232,
+      "holes": 0
+    },
+    {
+      "i": 23,
+      "w": 480,
+      "h": 235,
+      "opaque": 77343,
+      "holes": 0
+    },
+    {
+      "i": 24,
+      "w": 1918,
+      "h": 1385,
+      "opaque": 1349979,
+      "holes": 19
+    },
+    {
+      "i": 25,
+      "w": 1918,
+      "h": 929,
+      "opaque": 1233595,
+      "holes": 41
+    },
+    {
+      "i": 26,
+      "w": 480,
+      "h": 247,
+      "opaque": 77402,
+      "holes": 1
+    },
+    {
+      "i": 27,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 28,
+      "w": 480,
+      "h": 255,
+      "opaque": 77654,
+      "holes": 3
+    },
+    {
+      "i": 29,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 30,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 31,
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "holes": 27
+    },
+    {
+      "i": 32,
+      "w": 1439,
+      "h": 1027,
+      "opaque": 760810,
+      "holes": 15
+    },
+    {
+      "i": 33,
+      "w": 1439,
+      "h": 1027,
+      "opaque": 760810,
+      "holes": 15
+    },
+    {
+      "i": 34,
+      "w": 1439,
+      "h": 1027,
+      "opaque": 760810,
+      "holes": 15
+    },
+    {
+      "i": 35,
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "holes": 27
+    },
+    {
+      "i": 36,
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "holes": 27
+    },
+    {
+      "i": 37,
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "holes": 27
+    },
+    {
+      "i": 38,
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348019,
+      "holes": 38
+    },
+    {
+      "i": 39,
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348019,
+      "holes": 38
+    },
+    {
+      "i": 40,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 41,
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "holes": 2
+    },
+    {
+      "i": 42,
+      "w": 1918,
+      "h": 1385,
+      "opaque": 1349954,
+      "holes": 38
+    },
+    {
+      "i": 43,
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348019,
+      "holes": 38
+    }
+  ],
+  "panelFiles": [
+    {
+      "file": "panel-delivered.png",
+      "id": "delivered",
+      "sectionIndex": 0
+    },
+    {
+      "file": "panel-zoom.png",
+      "id": "zoom",
+      "sectionIndex": 1
+    },
+    {
+      "file": "panel-swirls-fork.png",
+      "id": "swirls-fork",
+      "sectionIndex": 2
+    },
+    {
+      "file": "panel-bare-before.png",
+      "id": "bare-before",
+      "sectionIndex": 3
+    },
+    {
+      "file": "panel-definition.png",
+      "id": "definition",
+      "sectionIndex": 4
+    },
+    {
+      "file": "panel-definition-delivered.png",
+      "id": "definition-delivered",
+      "sectionIndex": 5
+    },
+    {
+      "file": "panel-amplitude.png",
+      "id": "amplitude",
+      "sectionIndex": 6
+    },
+    {
+      "file": "panel-mixed.png",
+      "id": "mixed",
+      "sectionIndex": 7
+    },
+    {
+      "file": "panel-what-they-add.png",
+      "id": "what-they-add",
+      "sectionIndex": 8
+    },
+    {
+      "file": "panel-verdict-forms.png",
+      "id": "verdict-forms",
+      "sectionIndex": 9
+    },
+    {
+      "file": "panel-shadow-casters.png",
+      "id": "shadow-casters",
+      "sectionIndex": 10
+    },
+    {
+      "file": "panel-shadow-delivered.png",
+      "id": "shadow-delivered",
+      "sectionIndex": 11
+    },
+    {
+      "file": "panel-shadow-ladder.png",
+      "id": "shadow-ladder",
+      "sectionIndex": 12
+    }
+  ],
+  "perIsland": [
+    {
+      "tag": "zoom-lit",
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "distinctColours": 27,
+      "occludedPixels": 0,
+      "occludedShare": 0,
+      "luma": {
+        "p2": 65.5,
+        "p50": 145.1,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "zoom-terrain",
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "distinctColours": 27,
+      "occludedPixels": 0,
+      "occludedShare": 0,
+      "luma": {
+        "p2": 65.5,
+        "p50": 145.1,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "zoom-shadow",
+      "w": 1918,
+      "h": 1369,
+      "opaque": 1351520,
+      "distinctColours": 28,
+      "occludedPixels": 138554,
+      "occludedShare": 10.3,
+      "luma": {
+        "p2": 65.5,
+        "p50": 128.6,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "bare-lit",
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348019,
+      "distinctColours": 23,
+      "occludedPixels": 0,
+      "occludedShare": 0,
+      "luma": {
+        "p2": 65.5,
+        "p50": 145.1,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "bare-shadow",
+      "w": 1918,
+      "h": 1360,
+      "opaque": 1348019,
+      "distinctColours": 24,
+      "occludedPixels": 114779,
+      "occludedShare": 8.5,
+      "luma": {
+        "p2": 65.5,
+        "p50": 145.1,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "delivered-lit",
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "distinctColours": 27,
+      "occludedPixels": 0,
+      "occludedShare": 0,
+      "luma": {
+        "p2": 65.5,
+        "p50": 145.1,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    },
+    {
+      "tag": "delivered-shadow",
+      "w": 480,
+      "h": 342,
+      "opaque": 84465,
+      "distinctColours": 28,
+      "occludedPixels": 8664,
+      "occludedShare": 10.3,
+      "luma": {
+        "p2": 65.5,
+        "p50": 128.6,
+        "p98": 160.9
+      },
+      "lumaSpread": 95.4
+    }
+  ],
+  "propPresence": {
+    "floor": 1,
+    "islandsChecked": 7,
+    "islandsWithProps": 7,
+    "islandsExpected": 7,
+    "unresolvedTags": [],
+    "ok": true,
+    "islands": [
+      {
+        "tag": "zoom-lit",
+        "opaque": 1351520,
+        "missing": [],
+        "unprovable": [],
+        "tokens": [
+          {
+            "name": "stem",
+            "token": "#6f9257",
+            "provableBy": 5,
+            "deliveredPx": 2844,
+            "present": true
+          },
+          {
+            "name": "leaf",
+            "token": "#7ea363",
+            "provableBy": 5,
+            "deliveredPx": 2502,
+            "present": true
+          },
+          {
+            "name": "petalProven",
+            "token": "#fbf3e0",
+            "provableBy": 5,
+            "deliveredPx": 16821,
+            "present": true
+          },
+          {
+            "name": "centreProven",
+            "token": "#eab94e",
+            "provableBy": 5,
+            "deliveredPx": 2418,
+            "present": true
+          },
+          {
+            "name": "crown:healthy",
+            "token": "#2f6b3f",
+            "provableBy": 5,
+            "deliveredPx": 227430,
+            "present": true
+          },
+          {
+            "name": "storyTrunk",
+            "token": "#6e533d",
+            "provableBy": 5,
+            "deliveredPx": 1832,
+            "present": true
+          }
+        ]
+      },
+      {
+        "tag": "zoom-terrain",
+        "opaque": 1351520,
+        "missing": [],
+        "unprovable": [],
+        "tokens": [
+          {
+            "name": "stem",
+            "token": "#6f9257",
+            "provableBy": 5,
+            "deliveredPx": 2844,
+            "present": true
+          },
+          {
+            "name": "leaf",
+            "token": "#7ea363",
+            "provableBy": 5,
+            "deliveredPx": 2502,
+            "present": true
+          },
+          {
+            "name": "petalProven",
+            "token": "#fbf3e0",
+            "provableBy": 5,
+            "deliveredPx": 16821,
+            "present": true
+          },
+          {
+            "name": "centreProven",
+            "token": "#eab94e",
+            "provableBy": 5,
+            "deliveredPx": 2418,
+            "present": true
+          },
+          {
+            "name": "crown:healthy",
+            "token": "#2f6b3f",
+            "provableBy": 5,
+            "deliveredPx": 227430,
+            "present": true
+          },
+          {
+            "name": "storyTrunk",
+            "token": "#6e533d",
+            "provableBy": 5,
+            "deliveredPx": 1832,
+            "present": true
+          }
+        ]
+      },
+      {
+        "tag": "zoom-shadow",
+        "opaque": 1351520,
+        "missing": [],
+        "unprovable": [],
+        "tokens": [
+          {
+            "name": "stem",
+            "token": "#6f9257",
+            "provableBy": 5,
+            "deliveredPx": 2844,
+            "present": true
+          },
+          {
+            "name": "leaf",
+            "token": "#7ea363",
+            "provableBy": 5,
+            "deliveredPx": 2502,
+            "present": true
+          },
+          {
+            "name": "petalProven",
+            "token": "#fbf3e0",
+            "provableBy": 5,
+            "deliveredPx": 16821,
+            "present": true
+          },
+          {
+            "name": "centreProven",
+            "token": "#eab94e",
+            "provableBy": 5,
+            "deliveredPx": 2418,
+            "present": true
+          },
+          {
+            "name": "crown:healthy",
+            "token": "#2f6b3f",
+            "provableBy": 5,
+            "deliveredPx": 227430,
+            "present": true
+          },
+          {
+            "name": "storyTrunk",
+            "token": "#6e533d",
+            "provableBy": 5,
+            "deliveredPx": 1832,
+            "present": true
+          }
+        ]
+      },
+      {
+        "tag": "bare-lit",
+        "opaque": 1348019,
+        "missing": [],
+        "unprovable": [],
+        "tokens": [
+          {
+            "name": "stem",
+            "token": "#6f9257",
+            "provableBy": 5,
+            "deliveredPx": 2878,
+            "present": true
+          },
+          {
+            "name": "leaf",
+            "token": "#7ea363",
+            "provableBy": 5,
+            "deliveredPx": 2517,
+            "present": true
+          },
+          {
+            "name": "petalProven",
+            "token": "#fbf3e0",
+            "provableBy": 5,
+            "deliveredPx": 16819,
+            "present": true
+          },
+          {
+            "name": "centreProven",
+            "token": "#eab94e",
+            "provableBy": 5,
+            "deliveredPx": 2432,
+            "present": true
+          },
+          {
+            "name": "crown:healthy",
+            "token": "#2f6b3f",
+            "provableBy": 5,
+            "deliveredPx": 227483,
+            "present": true
+          },
+          {
+            "name": "storyTrunk",
+            "token": "#6e533d",
+            "provableBy": 5,
+            "deliveredPx": 2748,
+            "present": true
+          }
+        ]
+      },
+      {
+        "tag": "bare-shadow",
+        "opaque": 1348019,
+        "missing": [],
+        "unprovable": [],
+        "tokens": [
+          {
+            "name": "stem",
+            "token": "#6f9257",
+            "provableBy": 5,
+            "deliveredPx": 2878,
+            "present": true
+          },
+          {
+            "name": "leaf",
+            "token": "#7ea363",
+            "provableBy": 5,
+            "deliveredPx": 2517,
+            "present": true
+          },
+          {
+            "name": "petalProven",
+            "token": "#fbf3e0",
+            "provableBy": 5,
+            "deliveredPx": 16819,
+            "present": true
+          },
+          {
+            "name": "centreProven",
+            "token": "#eab94e",
+            "provableBy": 5,
+            "deliveredPx": 2432,
+            "present": true
+          },
+          {
+            "name": "crown:healthy",
+            "token": "#2f6b3f",
+            "provableBy": 5,
+            "deliveredPx": 227483,
+            "present": true
+          },
+          {
+            "name": "storyTrunk",
+            "token": "#6e533d",
+            "provableBy": 5,
+            "deliveredPx": 2748,
+            "present": true
+          }
+        ]
+      },
+      {
+        "tag": "delivered-lit",
+        "opaque": 84465,
+        "missing": [],
+        "unprovable": [],
+        "tokens": [
+          {
+            "name": "stem",
+            "token": "#6f9257",
+            "provableBy": 5,
+            "deliveredPx": 176,
+            "present": true
+          },
+          {
+            "name": "leaf",
+            "token": "#7ea363",
+            "provableBy": 5,
+            "deliveredPx": 158,
+            "present": true
+          },
+          {
+            "name": "petalProven",
+            "token": "#fbf3e0",
+            "provableBy": 5,
+            "deliveredPx": 1045,
+            "present": true
+          },
+          {
+            "name": "centreProven",
+            "token": "#eab94e",
+            "provableBy": 5,
+            "deliveredPx": 154,
+            "present": true
+          },
+          {
+            "name": "crown:healthy",
+            "token": "#2f6b3f",
+            "provableBy": 5,
+            "deliveredPx": 14216,
+            "present": true
+          },
+          {
+            "name": "storyTrunk",
+            "token": "#6e533d",
+            "provableBy": 5,
+            "deliveredPx": 116,
+            "present": true
+          }
+        ]
+      },
+      {
+        "tag": "delivered-shadow",
+        "opaque": 84465,
+        "missing": [],
+        "unprovable": [],
+        "tokens": [
+          {
+            "name": "stem",
+            "token": "#6f9257",
+            "provableBy": 5,
+            "deliveredPx": 176,
+            "present": true
+          },
+          {
+            "name": "leaf",
+            "token": "#7ea363",
+            "provableBy": 5,
+            "deliveredPx": 158,
+            "present": true
+          },
+          {
+            "name": "petalProven",
+            "token": "#fbf3e0",
+            "provableBy": 5,
+            "deliveredPx": 1045,
+            "present": true
+          },
+          {
+            "name": "centreProven",
+            "token": "#eab94e",
+            "provableBy": 5,
+            "deliveredPx": 154,
+            "present": true
+          },
+          {
+            "name": "crown:healthy",
+            "token": "#2f6b3f",
+            "provableBy": 5,
+            "deliveredPx": 14216,
+            "present": true
+          },
+          {
+            "name": "storyTrunk",
+            "token": "#6e533d",
+            "provableBy": 5,
+            "deliveredPx": 116,
+            "present": true
+          }
+        ]
+      }
+    ]
+  },
+  "colourSpread": {
+    "ok": true,
+    "checked": 7,
+    "continuousChecked": 0,
+    "unresolvedTags": [],
+    "exemptFromPaletteOpaquePixels": 0,
+    "canvases": [
+      {
+        "tag": "zoom-lit",
+        "regime": "banded",
+        "opaque": 1351520,
+        "distinct": 27,
+        "bins90": 9,
+        "control": null,
+        "bar": null,
+        "fault": null
+      },
+      {
+        "tag": "zoom-terrain",
+        "regime": "banded",
+        "opaque": 1351520,
+        "distinct": 27,
+        "bins90": 9,
+        "control": null,
+        "bar": null,
+        "fault": null
+      },
+      {
+        "tag": "zoom-shadow",
+        "regime": "banded",
+        "opaque": 1351520,
+        "distinct": 28,
+        "bins90": 10,
+        "control": null,
+        "bar": null,
+        "fault": null
+      },
+      {
+        "tag": "bare-lit",
+        "regime": "banded",
+        "opaque": 1348019,
+        "distinct": 23,
+        "bins90": 6,
+        "control": null,
+        "bar": null,
+        "fault": null
+      },
+      {
+        "tag": "bare-shadow",
+        "regime": "banded",
+        "opaque": 1348019,
+        "distinct": 24,
+        "bins90": 7,
+        "control": null,
+        "bar": null,
+        "fault": null
+      },
+      {
+        "tag": "delivered-lit",
+        "regime": "banded",
+        "opaque": 84465,
+        "distinct": 27,
+        "bins90": 9,
+        "control": null,
+        "bar": null,
+        "fault": null
+      },
+      {
+        "tag": "delivered-shadow",
+        "regime": "banded",
+        "opaque": 84465,
+        "distinct": 28,
+        "bins90": 10,
+        "control": null,
+        "bar": null,
+        "fault": null
+      }
+    ]
+  },
+  "watertight": {
+    "totalInteriorHoles": 560,
+    "worstPanels": [
+      {
+        "i": 13,
+        "holes": 41,
+        "opaque": 1233595
+      },
+      {
+        "i": 25,
+        "holes": 41,
+        "opaque": 1233595
+      },
+      {
+        "i": 38,
+        "holes": 38,
+        "opaque": 1348019
+      },
+      {
+        "i": 39,
+        "holes": 38,
+        "opaque": 1348019
+      },
+      {
+        "i": 42,
+        "holes": 38,
+        "opaque": 1349954
+      },
+      {
+        "i": 43,
+        "holes": 38,
+        "opaque": 1348019
+      }
+    ]
+  },
+  "palette": {
+    "authoredEntries": 279,
+    "canvases": 44,
+    "opaquePixels": 29085906,
+    "distinctDeliveredColours": 59,
+    "offPalettePixels": 0,
+    "offPaletteColours": [],
+    "foreignStatusReads": 0,
+    "familylessDeliveredColours": 29,
+    "shadowRung": 0.77,
+    "shadowRungPixels": 516360,
+    "shadowRungColoursDelivered": 3,
+    "shadowRungColoursAuthored": 56,
+    "shadowLadder": [
+      0.77,
+      0.78,
+      0.8,
+      0.9,
+      1
+    ],
+    "entriesWithoutShadow": 224,
+    "shadowPaletteCost": 55,
+    "everyPreShadowEntrySurvives": true
+  },
+  "confusability": {
+    "reader": "port of shadow.py's reader_status_table/nearest_status/safe_depth, re-based to the level flat ground is actually delivered at (0.90) rather than to full light",
+    "ceilings": [
+      {
+        "status": "healthy",
+        "relative": 0.7,
+        "absolute": 0.63,
+        "readsAs": "healthy"
+      },
+      {
+        "status": "mapped",
+        "relative": 0.3,
+        "absolute": 0.27,
+        "readsAs": "mapped"
+      },
+      {
+        "status": "proposed",
+        "relative": 0.86,
+        "absolute": 0.774,
+        "readsAs": "proposed"
+      },
+      {
+        "status": "unknown",
+        "relative": 0.74,
+        "absolute": 0.666,
+        "readsAs": "unknown"
+      }
+    ],
+    "inadmissible": [],
+    "statuses": [
+      "healthy",
+      "mapped",
+      "proposed",
+      "unknown"
+    ],
+    "robust": [],
+    "luminanceOverlap": {
+      "ranges": [
+        {
+          "status": "healthy",
+          "min": 125.69,
+          "max": 160.9
+        },
+        {
+          "status": "mapped",
+          "min": 97.39999999999999,
+          "max": 124.83999999999999
+        },
+        {
+          "status": "proposed",
+          "min": 147.92000000000002,
+          "max": 189.63
+        },
+        {
+          "status": "unknown",
+          "min": 126.6,
+          "max": 162.22
+        }
+      ],
+      "overlaps": [
+        {
+          "a": "healthy",
+          "b": "proposed",
+          "luma": 13
+        },
+        {
+          "a": "healthy",
+          "b": "unknown",
+          "luma": 34.3
+        },
+        {
+          "a": "proposed",
+          "b": "unknown",
+          "luma": 14.3
+        }
+      ]
+    },
+    "deliveredForeignPixels": {
+      "total": 0,
+      "byColour": []
+    }
+  },
+  "whatTheShadowBuys": {
+    "atDeliveredSize": {
+      "lit": {
+        "tag": "delivered-lit",
+        "bodyPx": 84465,
+        "distinctColours": 27,
+        "distinctLumaLevels": 27,
+        "lumaP2": 65.5,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 0
+      },
+      "shadowed": {
+        "tag": "delivered-shadow",
+        "bodyPx": 84465,
+        "distinctColours": 28,
+        "distinctLumaLevels": 28,
+        "lumaP2": 65.5,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 8664
+      }
+    },
+    "atEightPxPerUnit": {
+      "lit": {
+        "tag": "zoom-lit",
+        "bodyPx": 1351520,
+        "distinctColours": 27,
+        "distinctLumaLevels": 27,
+        "lumaP2": 65.5,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 0
+      },
+      "terrainOnly": {
+        "tag": "zoom-terrain",
+        "bodyPx": 1351520,
+        "distinctColours": 27,
+        "distinctLumaLevels": 27,
+        "lumaP2": 65.5,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 0
+      },
+      "canopy": {
+        "tag": "zoom-shadow",
+        "bodyPx": 1351520,
+        "distinctColours": 28,
+        "distinctLumaLevels": 28,
+        "lumaP2": 65.5,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 138554
+      }
+    },
+    "plantsRemoved": {
+      "lit": {
+        "tag": "bare-lit",
+        "bodyPx": 1348019,
+        "distinctColours": 23,
+        "distinctLumaLevels": 23,
+        "lumaP2": 65.5,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 0
+      },
+      "shadowed": {
+        "tag": "bare-shadow",
+        "bodyPx": 1348019,
+        "distinctColours": 24,
+        "distinctLumaLevels": 24,
+        "lumaP2": 65.5,
+        "lumaP98": 160.9,
+        "lumaRangeP2toP98": 95.4,
+        "shadowRungPx": 114779
+      }
+    },
+    "pctOfIslandReached": 10.26,
+    "pctOfGroundReached": {
+      "groundPx": 881672,
+      "shadowPx": 138554,
+      "pct": 15.71
+    },
+    "terrainCastIsIdenticallyZero": true
+  },
+  "frameTiming": {
+    "samples": 39,
+    "p50Ms": 16.7,
+    "meanMs": 16.67,
+    "interpretation": "RELATIVE ONLY. Software rasteriser, static scene — this is the headless compositor present cadence, not a GPU-bound frame cost. Do not quote it as a D2 verdict."
+  }
+}

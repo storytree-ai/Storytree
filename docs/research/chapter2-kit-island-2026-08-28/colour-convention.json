@@ -1,0 +1,335 @@
+{
+ "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+ "vendor": "Google Inc. (NVIDIA Corporation)",
+ "software": false,
+ "calibration": {
+  "probe": 0.3176470588235294,
+  "scale": 3.1481481481481484,
+  "target": 1,
+  "floor": 0.78
+ },
+ "materials": [
+  {
+   "material": "Pine_Branches",
+   "verdict": "RAW",
+   "rawError": 0.005390702122882983,
+   "managedError": 3.36167873980152,
+   "separation": 3.7868852459016398,
+   "ok": true,
+   "detail": "delivered within 0.5% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 0.35440826416015625,
+   "coveredFraction": 0.35440826416015625,
+   "sourceMeanRaw": {
+    "r": 69.37741373000668,
+    "g": 89.79430822551826,
+    "b": 68.78685983682432
+   },
+   "sourceMeanLinear": {
+    "r": 16.520814143457503,
+    "g": 26.097146396343533,
+    "b": 15.166768720281683
+   },
+   "delivered": {
+    "r": 70.37734914860181,
+    "g": 90.79430822551826,
+    "b": 69.78685983682432
+   },
+   "rawControl": {
+    "r": 70,
+    "g": 91,
+    "b": 70
+   },
+   "managedControl": {
+    "r": 18,
+    "g": 27,
+    "b": 16
+   }
+  },
+  {
+   "material": "Pine_Trunks",
+   "verdict": "RAW",
+   "rawError": 0.006593598259819878,
+   "managedError": 3.207368289723116,
+   "separation": 3.2439024390243905,
+   "ok": true,
+   "detail": "delivered within 0.7% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 1,
+   "coveredFraction": 1,
+   "sourceMeanRaw": {
+    "r": 111.21719360351562,
+    "g": 81.19778060913086,
+    "b": 70.52526092529297
+   },
+   "sourceMeanLinear": {
+    "r": 41.491459580799564,
+    "g": 21.52873632998355,
+    "b": 16.062277295501303
+   },
+   "delivered": {
+    "r": 112.21719360351562,
+    "g": 82.19778060913086,
+    "b": 71.52526092529297
+   },
+   "rawControl": {
+    "r": 112,
+    "g": 82,
+    "b": 72
+   },
+   "managedControl": {
+    "r": 42,
+    "g": 23,
+    "b": 17
+   }
+  },
+  {
+   "material": "Pine_Trunks",
+   "verdict": "RAW",
+   "rawError": 0.006317138671875,
+   "managedError": 3.208539177389706,
+   "separation": 3.283950617283951,
+   "ok": true,
+   "detail": "delivered within 0.6% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 1,
+   "coveredFraction": 1,
+   "sourceMeanRaw": {
+    "r": 111.18072509765625,
+    "g": 81.1373291015625,
+    "b": 70.545166015625
+   },
+   "sourceMeanLinear": {
+    "r": 41.403692016785506,
+    "g": 21.48286615913485,
+    "b": 16.080023980355858
+   },
+   "delivered": {
+    "r": 112.18072509765625,
+    "g": 82.1373291015625,
+    "b": 71.545166015625
+   },
+   "rawControl": {
+    "r": 112,
+    "g": 82,
+    "b": 72
+   },
+   "managedControl": {
+    "r": 42,
+    "g": 22,
+    "b": 17
+   }
+  },
+  {
+   "material": "Pine_Branches",
+   "verdict": "RAW",
+   "rawError": 0.006414571874960352,
+   "managedError": 3.3385202979917947,
+   "separation": 3.847457627118644,
+   "ok": true,
+   "detail": "delivered within 0.6% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.28265380859375,
+   "coveredFraction": 0.28265380859375,
+   "sourceMeanRaw": {
+    "r": 67.4361908874973,
+    "g": 89.24811055927445,
+    "b": 68.41632476786872
+   },
+   "sourceMeanLinear": {
+    "r": 15.356928196019814,
+    "g": 25.711859602471726,
+    "b": 14.984294159930673
+   },
+   "delivered": {
+    "r": 68.4361908874973,
+    "g": 90.24811055927445,
+    "b": 69.41632476786872
+   },
+   "rawControl": {
+    "r": 68,
+    "g": 90,
+    "b": 69
+   },
+   "managedControl": {
+    "r": 16,
+    "g": 27,
+    "b": 16
+   }
+  },
+  {
+   "material": "Pine_Forest_Foliage",
+   "verdict": "RAW",
+   "rawError": 0.006332593133220584,
+   "managedError": 2.713178204607439,
+   "separation": 3.0470588235294116,
+   "ok": true,
+   "detail": "delivered within 0.6% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.27679443359375,
+   "coveredFraction": 0.27679443359375,
+   "sourceMeanRaw": {
+    "r": 80.05071664829107,
+    "g": 105.55192943770673,
+    "b": 69.55038588754134
+   },
+   "sourceMeanLinear": {
+    "r": 24.600079194645115,
+    "g": 38.86324893692297,
+    "b": 17.680396909950215
+   },
+   "delivered": {
+    "r": 81.05071664829107,
+    "g": 106.55192943770673,
+    "b": 70.55038588754134
+   },
+   "rawControl": {
+    "r": 81,
+    "g": 107,
+    "b": 71
+   },
+   "managedControl": {
+    "r": 26,
+    "g": 40,
+    "b": 19
+   }
+  },
+  {
+   "material": "Pine_Foliage_02",
+   "verdict": "RAW",
+   "rawError": 0.008630085409111624,
+   "managedError": 4.446602461209203,
+   "separation": 3.1794871794871797,
+   "ok": true,
+   "detail": "delivered within 0.9% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.11407470703125,
+   "coveredFraction": 0.11407470703125,
+   "sourceMeanRaw": {
+    "r": 82.48796147672552,
+    "g": 110.13483146067416,
+    "b": 53.46602461209203
+   },
+   "sourceMeanLinear": {
+    "r": 25.007728311352285,
+    "g": 41.205705716137615,
+    "b": 9.474773228154119
+   },
+   "delivered": {
+    "r": 83.48796147672552,
+    "g": 111.13483146067416,
+    "b": 54.46602461209203
+   },
+   "rawControl": {
+    "r": 83,
+    "g": 111,
+    "b": 54
+   },
+   "managedControl": {
+    "r": 26,
+    "g": 42,
+    "b": 10
+   }
+  },
+  {
+   "material": "Pine_Rocks_01",
+   "verdict": "RAW",
+   "rawError": 0.0015616783728966345,
+   "managedError": 1.9409336635044643,
+   "separation": 2.898148148148148,
+   "ok": true,
+   "detail": "delivered within 0.2% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 1,
+   "coveredFraction": 1,
+   "sourceMeanRaw": {
+    "r": 104.16229248046875,
+    "g": 102.93267822265625,
+    "b": 105.85406494140625
+   },
+   "sourceMeanLinear": {
+    "r": 36.134693869557,
+    "g": 35.21795438082205,
+    "b": 37.24781606245816
+   },
+   "delivered": {
+    "r": 104.16241455078125,
+    "g": 102.93267822265625,
+    "b": 105.8541259765625
+   },
+   "rawControl": {
+    "r": 104,
+    "g": 103,
+    "b": 106
+   },
+   "managedControl": {
+    "r": 36,
+    "g": 35,
+    "b": 37
+   }
+  },
+  {
+   "material": "Logs",
+   "verdict": "RAW",
+   "rawError": 0.0065093994140625,
+   "managedError": 3.9674530029296875,
+   "separation": 3.847457627118644,
+   "ok": true,
+   "detail": "delivered within 0.7% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 1,
+   "coveredFraction": 1,
+   "sourceMeanRaw": {
+    "r": 92.9163818359375,
+    "g": 72.2852783203125,
+    "b": 58.60943603515625
+   },
+   "sourceMeanLinear": {
+    "r": 28.04053918661506,
+    "g": 16.8133380084072,
+    "b": 11.060396528861393
+   },
+   "delivered": {
+    "r": 93.9163818359375,
+    "g": 73.2852783203125,
+    "b": 59.60943603515625
+   },
+   "rawControl": {
+    "r": 94,
+    "g": 73,
+    "b": 60
+   },
+   "managedControl": {
+    "r": 29,
+    "g": 18,
+    "b": 12
+   }
+  }
+ ],
+ "refusals": [],
+ "ok": true
+}
