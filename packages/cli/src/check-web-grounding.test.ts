@@ -18,6 +18,64 @@ test("extractGroundingRefs pulls and splits data-grounds id-lists", () => {
   ]);
 });
 
+test("extractGroundingRefs reads the SCRIPT-authored form too (TELL's beats)", () => {
+  // chapter 2's overlay holds its copy as data and writes `data-grounds` at runtime, so the
+  // attribute exists in the browser and in no source file. Before this shape was recognised the
+  // rung reported a confident OK over a page whose claims it had never seen.
+  const ts = `
+    export const TELL_SCRIPT = [
+      { id: 'proven', lines: ['{proven} are green.'], grounds: ['ADR-0040'] },
+      { id: 'turn', lines: ['This one is real.'], grounds: ["ADR-0453", 'ADR-0040'] },
+      { id: 'plain', lines: ['no claim here'] },
+    ];
+  `;
+  assert.deepEqual(extractGroundingRefs("src/scripts/act2-tell.ts", ts), [
+    { file: "src/scripts/act2-tell.ts", ids: ["ADR-0040"] },
+    { file: "src/scripts/act2-tell.ts", ids: ["ADR-0453", "ADR-0040"] },
+  ]);
+});
+
+test("a script-authored citation is validated exactly like an attribute one", () => {
+  // The point of widening the extractor was to put both forms through the SAME judge. Assert that
+  // rather than trusting it: a superseded decision cited from a script must be a problem.
+  const refs: GroundingRef[] = [
+    { file: "src/scripts/act2-tell.ts", ids: ["ADR-0040", "ADR-0014"] },
+  ];
+  const problems = validateGrounding(refs, new Map([[40, "accepted"], [14, "superseded"]]));
+  assert.equal(problems.length, 1);
+  assert.equal(problems[0]?.id, "ADR-0014");
+  assert.match(problems[0]?.reason ?? "", /SUPERSEDED/);
+});
+
+test("an empty or comment-only grounds array contributes nothing rather than a phantom claim", () => {
+  assert.deepEqual(extractGroundingRefs("src/scripts/x.ts", "grounds: []"), []);
+  assert.deepEqual(extractGroundingRefs("src/scripts/x.ts", "grounds: [ ]"), []);
+});
+
+test("a comment that DOCUMENTS the mechanism is not a claim (the measured false block)", () => {
+  // The defect: a source comment reading `the \`data-grounds="…"\` attribute form` was extracted as
+  // a citation of an id called "…" and BLOCKED the gate over copy that was perfectly fine. Both
+  // forms must be ignored inside comments, and both must still be seen in real code.
+  const ts = [
+    '// this rung matches the `data-grounds="…"` attribute form',
+    '/* and also grounds: ["ADR-9999"] written in prose */',
+    'const real = { grounds: ["ADR-0040"] };',
+    '<p data-grounds="ADR-0453">live claim</p>',
+  ].join("\n");
+  assert.deepEqual(extractGroundingRefs("src/scripts/x.ts", ts), [
+    { file: "src/scripts/x.ts", ids: ["ADR-0453"] },
+    { file: "src/scripts/x.ts", ids: ["ADR-0040"] },
+  ]);
+});
+
+test("a commented-OUT claim is no longer validated — a claim nobody can read is not a claim", () => {
+  assert.deepEqual(extractGroundingRefs("src/pages/x.astro", '<!-- kept for later -->'), []);
+  assert.deepEqual(
+    extractGroundingRefs("src/scripts/x.ts", '// <p data-grounds="ADR-0001">retired copy</p>'),
+    [],
+  );
+});
+
 test("extractGroundingRefs returns nothing when there are no refs", () => {
   assert.deepEqual(extractGroundingRefs("src/pages/y.astro", "<p>plain prose</p>"), []);
 });
