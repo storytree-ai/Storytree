@@ -19,16 +19,17 @@ import {
 import {
   ALTITUDE_IS_A_NULL,
   BLINDNESS,
-  DETECTABLE_FALL,
   FROZEN_ALTITUDE_P_EDITORIAL,
   FROZEN_ALTITUDE_P_LEXICAL,
   FROZEN_WINDOWS_READING_A_DECISION,
-  OFFER_TO_FOLLOW_DEFERRAL,
+  OFFER_TO_FOLLOW_RETIRED,
+  REACH_COHORT_BLINDNESS,
+  REACH_IS_COVERAGE,
   REFERENCE_DECLARED_TO,
 } from "./decision-discovery.js";
 import { loadDecisionDiscoveryReading } from "./decision-discovery-gather.js";
 
-import type { DecisionDiscoveryFigure } from "./decision-discovery.js";
+import type { DecisionDiscoveryFigure, DecisionDiscoveryReading } from "./decision-discovery.js";
 import type { DecisionDiscoveryOutcome, DecisionDiscoveryWindow } from "./decision-discovery-gather.js";
 import type { Envelope } from "./envelope.js";
 
@@ -340,14 +341,14 @@ function renderDecisionDiscovery(outcome: DecisionDiscoveryOutcome): string[] {
     lines.push("");
   }
 
-  for (const figure of reading.figures) lines.push(...renderFigure(figure));
+  for (const figure of reading.figures) lines.push(...renderFigure(figure, reading));
 
   lines.push(
     `  altitude          [null]  p = ${FROZEN_ALTITUDE_P_EDITORIAL.toFixed(4)} (editorial) / ${FROZEN_ALTITUDE_P_LEXICAL.toFixed(4)} (lexical)`,
     ...wrap(ALTITUDE_IS_A_NULL, 96, "                    "),
     "",
-    "  offer-to-follow   [deferred]",
-    ...wrap(OFFER_TO_FOLLOW_DEFERRAL, 96, "                    "),
+    "  offer-to-follow   [retired]",
+    ...wrap(OFFER_TO_FOLLOW_RETIRED, 96, "                    "),
     "",
     ...wrap(BLINDNESS),
     "",
@@ -355,17 +356,46 @@ function renderDecisionDiscovery(outcome: DecisionDiscoveryOutcome): string[] {
   return lines;
 }
 
+/**
+ * The REACH arm's own population, printed whether the figure spoke or refused.
+ *
+ * Two things a reader cannot get from the status word alone, and both are why a refusal here is
+ * watchable rather than something to take on faith: the DISTANCE to the gate ("14 of 401"), and the
+ * COHORT this figure is pinned to, named by its highest decision number so a population that quietly
+ * moved is visible rather than assumed away.
+ */
+function renderReachArm(reading: DecisionDiscoveryReading): string[] {
+  const arm = reading.reachArm;
+  const indent = "                    ";
+  const slice =
+    arm.windowsKept === 0
+      ? `${String(arm.windowsAvailable)} of the ${String(arm.windowsRequired)} context window(s) the trailing slice needs`
+      : `the trailing ${String(arm.windowsKept)} context window(s), ${arm.observedFrom ?? "(nothing)"} -> ${arm.observedTo ?? "(nothing)"}`;
+  const cohort =
+    arm.cohortHighestNumber === null
+      ? `${String(arm.cohortDecisions)} decision(s) — SHORT of the frozen cohort`
+      : `the ${String(arm.cohortDecisions)} lowest-numbered decision(s), up to ADR-${String(arm.cohortHighestNumber).padStart(4, "0")}` +
+        (arm.cohortReached === null ? "" : `, of which ${String(arm.cohortReached)} were read`);
+  return [
+    `${indent}slice:  ${slice}`,
+    `${indent}cohort: ${cohort}`,
+    ...wrap(REACH_IS_COVERAGE, 96, indent),
+    ...wrap(REACH_COHORT_BLINDNESS, 96, indent),
+  ];
+}
+
 /** One figure: status, then a number only where the figure earned one. */
-function renderFigure(figure: DecisionDiscoveryFigure): string[] {
+function renderFigure(figure: DecisionDiscoveryFigure, reading: DecisionDiscoveryReading): string[] {
   const name = figure.label.padEnd(17);
   const reference = `ref ${pct(figure.referenceRate)}`;
   const indent = "                    ";
+  const detail = figure.key === "reach" ? renderReachArm(reading) : [];
 
   if (figure.status === "not-comparable") {
-    return [`  ${name} [not comparable]  ${reference}`, ...wrap(figure.condition ?? "", 96, indent), ""];
+    return [`  ${name} [not comparable]  ${reference}`, ...wrap(figure.condition ?? "", 96, indent), ...detail, ""];
   }
   if (figure.status === "underpowered") {
-    return [`  ${name} [UNDERPOWERED]  ${reference}`, ...wrap(figure.condition ?? "", 96, indent), ""];
+    return [`  ${name} [UNDERPOWERED]  ${reference}`, ...wrap(figure.condition ?? "", 96, indent), ...detail, ""];
   }
 
   const mark = figure.status === "tripwire" ? "[TRIPWIRE]" : figure.status === "improved" ? "[improved]" : "[holds]";
@@ -383,7 +413,7 @@ function renderFigure(figure: DecisionDiscoveryFigure): string[] {
       ),
     );
   }
-  lines.push("");
+  lines.push(...detail, "");
   return lines;
 }
 

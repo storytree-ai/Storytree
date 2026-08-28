@@ -32,6 +32,15 @@
  * and keeps that wrapper's EMPTY-IS-AN-ERROR rule, because zero decisions means an unmigrated,
  * wrong or unreachable store and never a decision log that happens to hold none.
  *
+ * ## ONE SWEEP, TWO READINGS — AND THE SECOND IS NOT A SECOND EXPERIMENT
+ *
+ * Reach is read over a TRAILING FIXED COUNT of context windows rather than the declared span
+ * (`decision-discovery-kpi-arc-inc-02`), so this composes a second baseline from a subset of the
+ * SAME gathered reads. It is not a second gather and never a second arithmetic: the slice is a pure
+ * filter ({@link trailingWindowSlice}) and the sliced arm goes through the same
+ * `computeDecisionReadBaseline` the unsliced one does, so the two cannot drift. The expensive part —
+ * the transcript sweep — happens exactly once.
+ *
  * ## COST, STATED RATHER THAN DISCOVERED
  *
  * The transcript sweep is the expensive part: 3,990 files in ~14s when this was written, and it
@@ -43,8 +52,8 @@
 import { resolveTranscriptDir } from "@storytree/context-traversal-transcript";
 import { loadTitledAdrMetasFromStore } from "@storytree/drive";
 
-import { computeDecisionDiscovery, REFERENCE_DECLARED_TO } from "./decision-discovery.js";
-import { computeDecisionReadBaseline, SupportGraphCycleError } from "./decision-read-baseline.js";
+import { composeDecisionDiscoveryReading, REFERENCE_DECLARED_TO } from "./decision-discovery.js";
+import { SupportGraphCycleError } from "./decision-read-baseline.js";
 import { buildSupportGraph, frozenAmendsEdges, gatherReads } from "./probe-decision-gather.js";
 
 import type { DecisionDiscoveryReading } from "./decision-discovery.js";
@@ -125,14 +134,23 @@ export async function loadDecisionDiscoveryReading(
 
   const declaredFrom = window.from ?? REFERENCE_DECLARED_TO;
   try {
-    const baseline = computeDecisionReadBaseline({
-      reads: gathered.reads,
-      support,
-      declaredFrom,
-      declaredTo: window.to,
-    });
+    // The two-arm assembly is PURE and lives with the rest of the pure half, so it is executed by
+    // tests rather than only by a live run — see `composeDecisionDiscoveryReading` for why.
+    //
+    // The argument object below is NOT MUTATION-COVERABLE HERE, and the boundary is the point. This
+    // function sweeps this machine's host transcripts and dials the live decision log, so nothing
+    // credential-free can execute it (ADR-0302 D3) — which is exactly WHY the assembly it calls was
+    // extracted. What is left on this line is the hand-off itself: four values read from the world
+    // and passed straight through. Everything downstream of it is mutation-covered, and the live
+    // `factory health` run is what exercises this line.
     return {
-      reading: computeDecisionDiscovery(baseline),
+      // Stryker disable next-line ObjectLiteral: see the note above — the world-facing hand-off.
+      reading: composeDecisionDiscoveryReading({
+        reads: gathered.reads,
+        support,
+        declaredFrom,
+        declaredTo: window.to,
+      }),
       unavailable: null,
       scannedFiles: gathered.scannedFiles,
     };
