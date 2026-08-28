@@ -9,8 +9,8 @@
 ## The one sentence
 
 > ADR-0418 D4's replacement for the lifted palette fence was built and mutation-tested the day
-> before — and **no build ever ran it**. It is now the gate's `check:land-art`, and five
-> hand-run mutations across four different halves of it each turn the gate red.
+> before — and **no build ever ran it**. It is now the gate's `check:land-art`, and six hand-run
+> mutations — across five different halves of it — each turn the gate red.
 
 ---
 
@@ -131,6 +131,7 @@ beside this README.
 | **MU3** | the `colour` variant removed from `grain.tsx`'s `VARIANTS` | `COVERAGE [continuous]` — delivered 2, declared 4 | **0 on every page** | **1** |
 | **MU4** | `colourSpread.continuousChecked` renamed in capture's report | `COVERAGE` — report unreadable, ×3 | **0 on every page** | **1** |
 | **MU5** | `PLAYWRIGHT_BROWSERS_PATH` pointed at an empty directory | `SKIP`, loudly | (never launched) | **3** |
+| **MU6** | the dev server forced onto the pinned `strictPort: 5184` | `REFUSED` — a sibling worktree may be serving that port | (never launched) | **1** |
 
 **Each one breaks a different half, and that was the requirement.** If two deliberately-wrong cases
 broke the same half, a rung that had quietly lost the other half would still refuse both and look
@@ -146,6 +147,12 @@ healthy.
   every rung that existed before this one.
 - **MU4 is the vacuous-green guard.** The reader throws on a missing field rather than defaulting it.
   Under a `?? 0` this mutation would have been a **silent pass** — and would have stayed one forever.
+- **MU6 is the one this README was wrong about first.** The initial draft claimed the rung took an
+  OS-assigned ephemeral port and that a sibling therefore "cannot" answer it. Measuring the actual
+  allocation showed vite scanning upward from its default instead, so the guarantee did not exist —
+  it was a plausible sentence about a mechanism nobody had checked. The remedy was to make the claim
+  true rather than to soften it: read the pinned port off `vite.config.ts` and refuse if the server
+  landed there.
 - **MU5 proves the skip is narrow and not a pass.** Exit **3**, never 0, with
   `⚠ SKIP IS NOT A PASS` printed. A Playwright browser that was never downloaded is the *only*
   skippable condition; vite failing, a page 404ing and capture crashing are all reds. Deliberately
@@ -176,11 +183,19 @@ same reason PR #1673 stated it about its own `vacuous` fault.
 Cheaper than several rungs already in the plan, so the contention hazard that would ordinarily argue
 against a browser rung does not bite at this size.
 
-**It also removes a recorded friction by construction.** `vite.config.ts` pins `strictPort: 5184` for
-every worktree, so a sibling worktree's harness left running on the default port means you measure
-*its* tree and report the number as yours
-(`capture-default-url-is-a-port-a-sibling-worktree-may-own`, measured 2026-08-22). The rung asks the
-OS for a free port, which cannot collide with a sibling.
+**It also addresses a recorded friction — and the first draft of this README got the mechanism
+wrong, which is worth recording.** `vite.config.ts` pins `strictPort: 5184` for every worktree, so a
+sibling worktree's harness left running on the default port means you measure *its* tree and report
+the number as yours (`capture-default-url-is-a-port-a-sibling-worktree-may-own`, measured
+2026-08-22). This rung passes vite `port: 0` — and **`port: 0` does not mean an OS-assigned ephemeral
+port here.** Measured: vite scans upward from its own default and takes the first free one, giving
+5174 and then 5175 on two back-to-back servers. That is fine for concurrency — two land-art runs get
+different ports, which is what a sibling gate needs — and it is *not* a guarantee, because with
+5173–5183 occupied the scan reaches 5184 and photographs the sibling's tree.
+
+So the guarantee is **asserted, not assumed**: the rung reads the pinned port off `vite.config.ts`
+itself (never a restated constant, which would go stale silently) and refuses if it landed there.
+That is mutation MU6.
 
 **And it writes to scratch, never to the committed evidence.** Pointed at its default output,
 `capture.mjs` rewrites 22 committed files under `docs/research/chapter2-live-render-2026-08-19/`. A
@@ -219,5 +234,5 @@ carries for exactly this purpose.
 - `packages/forest-world-r3f/harness/land-art-coverage.test.ts` — 14 unit tests over the real
   measured run.
 - `packages/cli/src/gate-order.ts` — the plan entry and the `SKIP_CAPABLE_CHECKS` reason.
-- `MU1-…` … `MU5-browser-absent.txt` — the committed refusals, plus `PASS-baseline.txt` for contrast.
+- `MU1-…` … `MU6-pinned-port.txt` — the committed refusals, plus `PASS-baseline.txt` for contrast.
   (`.txt`, not `.log`: the repo gitignores `*.log` globally, so committing the refusals as logs would have silently committed nothing — which is the same fault class one more level up.)

@@ -18,13 +18,20 @@
 //
 // It adds THREE things and re-implements nothing:
 //
-//  1. IT STARTS ITS OWN SERVER, on an OS-assigned ephemeral port. Every existing driver in this
-//     harness requires a human to run `vite harness --port <free>` first, which is the structural
-//     reason none of them could ever be a rung. It also removes a recorded friction by
-//     construction: `vite.config.ts` pins `strictPort: 5184` for EVERY worktree, so a sibling
-//     worktree's harness left running on the default port means you measure ITS tree and report the
-//     number as yours (`capture-default-url-is-a-port-a-sibling-worktree-may-own`, measured
-//     2026-08-22). A port the OS hands out cannot collide with a sibling.
+//  1. IT STARTS ITS OWN SERVER, on a port it did not pick. Every existing driver in this harness
+//     requires a human to run `vite harness --port <free>` first, which is the structural reason
+//     none of them could ever be a rung. It also addresses a recorded friction: `vite.config.ts`
+//     pins `strictPort: 5184` for EVERY worktree, so a sibling worktree's harness left running on
+//     the default port means you measure ITS tree and report the number as yours
+//     (`capture-default-url-is-a-port-a-sibling-worktree-may-own`, measured 2026-08-22).
+//
+//     ⚠ AND `port: 0` DOES NOT MEAN WHAT IT MEANS EVERYWHERE ELSE — measured, because the first
+//     draft of this file asserted otherwise in its own comment. Vite does not hand `0` to the OS
+//     for an ephemeral port; it SCANS UPWARD from its default and takes the first free one. Two
+//     back-to-back servers came up on 5174 and 5175, not on anything ephemeral. That is fine for
+//     concurrency (two land-art runs get different ports, which is what a sibling gate needs) and
+//     it is NOT fine as a guarantee: with 5173-5183 occupied the scan reaches 5184 and photographs
+//     the sibling's tree. So the guarantee is asserted rather than assumed — see `PINNED_PORT`.
 //
 //  2. IT DRIVES THE WHOLE SET, because no single page proves all three parts of D4 — see the
 //     measured table in `land-art-coverage.ts`. Three of the four candidate pages print, in terms,
@@ -82,7 +89,7 @@ function refuse(lines: readonly string[]): never {
 // unguarded for a month. So the ONLY skippable condition is a Playwright browser that was never
 // downloaded, which is a fresh-checkout fact with an exact remedy printed beside it. Everything
 // else — vite failing, a page 404ing, capture crashing — is a RED. In particular this does NOT skip
-// when the branch "looks like it did not touch the art": the whole run is ~14 s, and a
+// when the branch "looks like it did not touch the art": the whole run is ~27 s measured, and a
 // diff-conditional skip would be a second vacuity path bought for no meaningful saving.
 async function preflight(): Promise<string | null> {
   let chromium: { executablePath(): string };
@@ -115,8 +122,10 @@ if (missing !== null) {
 // ── THE SERVER ──────────────────────────────────────────────────────────────────────────────
 
 const { createServer } = await import('vite');
-// `port: 0` asks the OS for a free port. It overrides the config file's pinned `strictPort: 5184`,
-// which is what makes this safe to run while a sibling worktree's harness is up.
+// This overrides the config file's pinned `strictPort: 5184`. ⚠ `port: 0` here does NOT mean an
+// OS-assigned ephemeral port — vite scans upward from its own default and takes the first free one
+// (measured: 5174, then 5175). `strictPort: false` is what lets it move at all. The guarantee that
+// it never lands on the pinned port is the assertion below, not this option.
 const server = await createServer({
   configFile: join(HERE, 'vite.config.ts'),
   root: HERE,
@@ -129,7 +138,24 @@ if (base === undefined) {
   await server.close();
   refuse(['the harness dev server started but reported no local URL, so no page could be driven.']);
 }
-console.log(`[land-art] harness on ${base}  (ephemeral port — a sibling worktree cannot answer it)`);
+
+// THE ONE PORT THIS RUNG MAY NEVER LAND ON, asserted rather than hoped for. Read off the config
+// rather than restated, so a change to the pin cannot leave this guard checking a stale number —
+// which is the whole `moving-a-write-target-makes-old-readers-vacuously-green` shape.
+const PINNED_PORT: unknown = (await import('./vite.config.js')).default?.server?.port;
+const resolvedPort = Number(new URL(base).port);
+if (typeof PINNED_PORT === 'number' && resolvedPort === PINNED_PORT) {
+  await server.close();
+  refuse([
+    `the harness came up on ${resolvedPort}, which is the port \`vite.config.ts\` pins for EVERY`,
+    'worktree. A sibling worktree may already be serving its own tree there, and photographing it',
+    'would report ITS art as this branch\'s. Free the port (or the ports below it) and re-run.',
+  ]);
+}
+console.log(
+  `[land-art] harness on ${base}  (scanned free port, not the pinned ${String(PINNED_PORT)} — a ` +
+    "sibling worktree's harness cannot answer this run)",
+);
 
 // ── DRIVE EACH PAGE ─────────────────────────────────────────────────────────────────────────
 
