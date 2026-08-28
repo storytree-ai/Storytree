@@ -32,6 +32,7 @@ import {
   entryPointsFromScripts,
   formatMutationVerdict,
   isTestFile,
+  isSpawnUatTest,
   type MutationReport,
   type MutationTarget,
   parseUnifiedDiffRanges,
@@ -190,15 +191,17 @@ function testFilesFor(
   targets: readonly MutationTarget[],
   changedTestFiles: readonly string[],
 ): string[] {
-  const files = new Set<string>(changedTestFiles.filter(isTestFile));
+  const files = new Set<string>(changedTestFiles.filter(isTestFile).filter((f) => !isSpawnUatTest(f)));
   for (const target of targets) {
     for (const source of target.sourceFiles) {
       const sibling = siblingTestFor(source);
+      if (isSpawnUatTest(sibling)) continue;
       if (existsSync(path.join(repoRoot, sibling))) files.add(sibling);
     }
   }
   return [...files].sort();
 }
+
 
 /** A workspace project's own `test` script, or `undefined` when it declares none. */
 function testScriptOf(dir: string): string | undefined {
@@ -282,6 +285,34 @@ function main(): void {
   console.log(
     `${TAG} mutating ${spans} changed line span(s) across ${selection.targets.flatMap((t) => t.sourceFiles).length} file(s) in ${selection.targets.length} project(s)`,
   );
+
+  // NEVER SILENT: an excluded acceptance leg is named, on the same rule every other exemption here
+  // follows. See {@link isSpawnUatTest} for the measured reason and the cost being accepted.
+  const excludedUat = selection.changedTestFiles.filter(isSpawnUatTest);
+  if (excludedUat.length > 0) {
+    console.log(
+      `${TAG} excluding ${excludedUat.length} spawn-based acceptance leg(s) from the mutation ` +
+        `runner — they spawn a real binary and a real fixture server, which cannot survive Stryker's ` +
+        `re-runs and abort the whole rung: ${excludedUat.join(", ")}`,
+    );
+  }
+
+  // Every changed test was an acceptance leg and no sibling unit suite exists — there is no witness
+  // to attribute a kill to, so running Stryker would prove nothing about this branch. Reported as a
+  // SKIP through the same disposition every other "nothing to mutate" branch uses, so CI (which must
+  // never see the reserved skip code) gets a plain 0 and a named reason.
+  if (testFiles.length === 0) {
+    const disposition = skipDisposition({
+      inCi: process.env["CI"] === "true",
+      gateSkipExitCode: GATE_SKIP_EXIT_CODE,
+    });
+    console.log(
+      `${TAG} ${disposition.label} — this branch's only changed tests are spawn-based acceptance ` +
+        `legs, which are excluded above, and no sibling unit suite covers the changed source. ` +
+        `Nothing would be proved by mutating.`,
+    );
+    process.exit(disposition.exitCode);
+  }
 
   mkdirSync(path.join(repoRoot, "reports"), { recursive: true });
   rmSync(path.join(repoRoot, REPORT_FILE), { force: true });

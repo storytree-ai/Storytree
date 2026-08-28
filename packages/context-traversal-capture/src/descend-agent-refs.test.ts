@@ -38,8 +38,10 @@ import type { ContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
 import { REVISIT_LINK_COVERAGE } from "./revisit-links.js";
 import {
+  AGENT_DESCENT_CAVEATS,
   AGENT_DESCENT_COVERAGE,
   descendAgentRefs,
+  renderCoverageCaveats,
   resolveAgentDescent,
 } from "./descend-agent-refs.js";
 import type { AgentDescentDeps, AgentDocStore } from "./descend-agent-refs.js";
@@ -368,4 +370,79 @@ test("composed-coverage-declares-parent-visit-links-and-stays-exhaustive", () =>
   }
 
   assert.equal(parsed.supported.length + parsed.omitted.length, CoverageFeature.options.length);
+});
+
+// ---------------------------------------------------------------------------
+// Coverage caveats — re-homed here by ADR-0464 D1
+// ---------------------------------------------------------------------------
+//
+// ⚠ SAME RESCUE AS `resolveDecisionId`, and the same reason. `CoverageCaveat` and
+// `renderCoverageCaveats` MOVED here from `offer-candidate-sets.ts`, which was deleted whole — and
+// the tests that covered them went with it. The renderer kept working, every suite stayed green, and
+// its coverage silently became zero; a deleted test reds nothing, so the red list could not point at
+// it. `check:mutation-diff` is what found it, returning NO-COVERAGE on these lines.
+
+test("renderCoverageCaveats: each caveat renders as one `<id>: <note>` line, in order", () => {
+  const rendered = renderCoverageCaveats([
+    { id: "first-gap", note: "what this adapter cannot see" },
+    { id: "second-gap", note: "and the other thing" },
+  ]);
+  assert.equal(rendered, "first-gap: what this adapter cannot see\nsecond-gap: and the other thing");
+});
+
+test("renderCoverageCaveats: an empty list renders the empty string, never a heading over nothing", () => {
+  // The caller appends this under a `coverage-caveats:` heading it writes itself, so a renderer that
+  // emitted a placeholder here would put a heading over an absence and read as a declared gap.
+  assert.equal(renderCoverageCaveats([]), "");
+});
+
+test("AGENT_DESCENT_CAVEATS: the terminal adapter still DECLARES a gap, and it is the successor one", () => {
+  // ADR-0235 clause 6 is satisfied vacuously by a declaration that names no gap at all, which is
+  // exactly what deleting the three retired offer caveats would have left behind. So the successor
+  // caveat is asserted to EXIST and to say the two things that matter: that offers and follows are no
+  // longer recorded, and that the lost causality must not be reconstructed by inference.
+  assert.ok(AGENT_DESCENT_CAVEATS.length > 0, "a coverage declaration that states no gap declares nothing");
+
+  const offerGap = AGENT_DESCENT_CAVEATS.find(
+    (caveat) => caveat.id === "offers-and-follows-are-no-longer-recorded",
+  );
+  assert.notEqual(offerGap, undefined, "the retirement's own gap must be declared");
+  assert.match(offerGap?.note ?? "", /candidate_set/);
+  assert.match(offerGap?.note ?? "", /followed_edge/);
+  assert.match(
+    offerGap?.note ?? "",
+    /never repaired by inference|ADR-0260 D4/,
+    "ADR-0260 D4's refusal outlives the mechanism it was written for, and the caveat must carry it",
+  );
+
+  // The three RETIRED caveats described gaps in a mechanism that no longer exists. Carrying one
+  // forward would describe the thinness of a picture this adapter no longer draws at all.
+  for (const retired of [
+    "doc-refs-are-offered-but-follows-are-unobservable",
+    "follow-completeness-depends-on-the-offered-command-form",
+    "an-unanswered-visit-and-a-bypassed-mechanism-are-indistinguishable",
+  ]) {
+    assert.equal(
+      AGENT_DESCENT_CAVEATS.some((caveat) => caveat.id === retired),
+      false,
+      `${retired} describes the retired offer mechanism and must not survive it`,
+    );
+  }
+});
+
+test("AGENT_DESCENT_COVERAGE: both retired event kinds are declared OMITTED, never supported", () => {
+  // The composition moved INWARD for the first time here (every earlier increment moved it out), so
+  // the seam has a second direction to fail in: claiming an event this adapter can no longer write.
+  // Both retired constants are still recoverable from git and read as the more complete ones.
+  for (const kind of ["event:candidate_set", "event:followed_edge", "field:candidate_follow_causality"]) {
+    assert.ok(AGENT_DESCENT_COVERAGE.omitted.includes(kind), `${kind} has no producer, so it must be OMITTED`);
+    assert.equal(
+      AGENT_DESCENT_COVERAGE.supported.includes(kind),
+      false,
+      `${kind} must not render as supported — nothing emits it`,
+    );
+  }
+  // ...and what this composition DOES emit is still claimed, so the assertion above cannot be
+  // satisfied by a declaration that simply omits everything.
+  assert.ok(AGENT_DESCENT_COVERAGE.supported.includes("field:parent_visit_id"));
 });
