@@ -337,11 +337,12 @@ export function evaluateSurfaceDepth(
   const remaining = new Map(indegree);
   const queue = [...surfaceIds];
   for (const id of queue) depthById.set(id, 0);
-  // The HARD CAP is what bounds this loop, and it is deliberately a cap rather than a second
-  // "already queued?" guard: `left === 0` already fires exactly once per node, so such a guard
-  // would be a line no input could take. A cap cannot be mutated into a hang — the worst any
-  // mutant does is stop early, which an assertion catches.
-  let admitted = 0;
+  // NO CAP AND NO "already queued?" GUARD, and that is deliberate rather than an omission.
+  // `left === 0` fires exactly once per node — its inbound edges are decremented once each — so
+  // both would be lines no input can take. VERIFIED, not assumed: a cap was written here and then
+  // removed after hand-applying the mutation the rung reported (`admitted += 1` -> `-= 1`), which
+  // all 37 tests passed. A bound that never binds cannot be observed, and an unobservable line is
+  // worse than none: it reads as care while proving nothing.
   for (const id of queue) {
     const depth = depthById.get(id) ?? 0;
     for (const target of outbound.get(id) ?? []) {
@@ -353,10 +354,7 @@ export function evaluateSurfaceDepth(
       // Admitted only once every inbound edge has been consumed — that is what makes this a
       // topological order, and what makes the accumulated maximum final when it is read. The
       // `queued` guard is the loop's BOUND, not a duplicate of that rule.
-      if (left === 0 && admitted < allIds.length) {
-        admitted += 1;
-        queue.push(target);
-      }
+      if (left === 0) queue.push(target);
     }
   }
 
