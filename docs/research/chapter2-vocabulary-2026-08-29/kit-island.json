@@ -1,0 +1,322 @@
+{
+ "url": "http://localhost:5231/kit-island.html",
+ "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+ "vendor": "Google Inc. (NVIDIA Corporation)",
+ "timerQuery": true,
+ "repeats": 7,
+ "batch": 300,
+ "disjointDiscarded": 0,
+ "committedRung": 128,
+ "payload": {
+  "asset": "/assets/dressing-kit.glb",
+  "wireBytes": 162748,
+  "gpuBytes": 786429,
+  "distinctObjects": 4,
+  "materials": [
+   "Pine_Branches",
+   "Pine_Forest_Foliage",
+   "Pine_Trunks"
+  ],
+  "triangles": 4052,
+  "textures": [
+   {
+    "name": "map:Pine_Branches",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Branches",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Branches",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "map:Pine_Trunks",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Trunks",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Trunks",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "map:Pine_Forest_Foliage",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "normalMap:Pine_Forest_Foliage",
+    "width": 128,
+    "height": 128
+   },
+   {
+    "name": "metalnessMap:Pine_Forest_Foliage",
+    "width": 128,
+    "height": 128
+   }
+  ],
+  "roles": [
+   {
+    "role": "tree",
+    "signal": "SCENE — one tree per capability; its leaf tint is that capability's own state",
+    "count": 9,
+    "sizedBy": "height",
+    "worldHeight": 18,
+    "worldWidth": 9.348699317446496,
+    "deliveredPx": {
+     "2px": 23.14035394871542,
+     "8px": 92.56141579486167
+    },
+    "clearsFloor": true
+   },
+   {
+    "role": "deadTree",
+    "signal": "SCENE — this capability is unhealthy: the work stands, and it is standing dead wood",
+    "count": 1,
+    "sizedBy": "height",
+    "worldHeight": 15,
+    "worldWidth": 7.334207116289015,
+    "deliveredPx": {
+     "2px": 19.28362829059618,
+     "8px": 77.13451316238472
+    },
+    "clearsFloor": true
+   },
+   {
+    "role": "bloom",
+    "signal": "SCENE — a UAT criterion the owner has signed (ADR-0226 D4, one flower per criterion)",
+    "count": 10,
+    "sizedBy": "width",
+    "worldHeight": 2.4448918396979624,
+    "worldWidth": 4,
+    "deliveredPx": {
+     "2px": 8,
+     "8px": 32
+    },
+    "clearsFloor": false
+   }
+  ],
+  "totalProps": 20,
+  "census": {
+   "tree": 8,
+   "deadTree": 1,
+   "tree:building": 1,
+   "bloom": 10
+  },
+  "overlaps": [],
+  "footprints": {
+   "tree": 10.130603640714183,
+   "deadTree": 7.334207116289015,
+   "bloom": 4
+  },
+  "footprintDrift": [],
+  "tintsByMaterial": {
+   "Pine_Branches": [
+    {
+     "status": "proposed",
+     "token": "#d8c069",
+     "gain": {
+      "r": 1.3913485830392285,
+      "g": 0.9374614629438067,
+      "b": 0.6687002485538895
+     },
+     "delivered": {
+      "r": 93.99302631556854,
+      "g": 83.54935672494982,
+      "b": 45.691054458956934
+     },
+     "lumaRatio": 1
+    },
+    {
+     "status": "building",
+     "token": "#d8c069",
+     "gain": {
+      "r": 1.3913485830392285,
+      "g": 0.9374614629438067,
+      "b": 0.6687002485538895
+     },
+     "delivered": {
+      "r": 93.99302631556854,
+      "g": 83.54935672494982,
+      "b": 45.691054458956934
+     },
+     "lumaRatio": 1
+    },
+    {
+     "status": "mapped",
+     "token": "#7d5f3b",
+     "gain": {
+      "r": 1.5554449078215429,
+      "g": 0.8960623336844765,
+      "b": 0.7258662749138964
+     },
+     "delivered": {
+      "r": 105.07860929712484,
+      "g": 79.85974306581488,
+      "b": 49.59710358824292
+     },
+     "lumaRatio": 1.0000000000000002
+    }
+   ]
+  },
+  "leafMeans": {
+   "Pine_Branches": {
+    "r": 67.55533980582524,
+    "g": 89.12297734627832,
+    "b": 68.32815533980583
+   }
+  }
+ },
+ "presence": [
+  {
+   "zoom": 2,
+   "bare": 42,
+   "today": 113,
+   "land": 13,
+   "kit": 723,
+   "bar": 452,
+   "ok": true
+  },
+  {
+   "zoom": 8,
+   "bare": 42,
+   "today": 113,
+   "land": 13,
+   "kit": 4788,
+   "bar": 452,
+   "ok": true
+  }
+ ],
+ "frame": [
+  {
+   "arm": "bare",
+   "pxPerUnit": 2,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.04048832,
+   "spreadMs": 0.02520032,
+   "pctOf60Hz": 0.24292992,
+   "drawCalls": 19,
+   "triangles": 1224,
+   "width": 480,
+   "height": 240
+  },
+  {
+   "arm": "today",
+   "pxPerUnit": 2,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.06622517333333335,
+   "spreadMs": 0.01926890666666667,
+   "pctOf60Hz": 0.39735104000000004,
+   "drawCalls": 38,
+   "triangles": 89067,
+   "width": 487,
+   "height": 285
+  },
+  {
+   "arm": "land",
+   "pxPerUnit": 2,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.021866453333333334,
+   "spreadMs": 0.0033325866666666683,
+   "pctOf60Hz": 0.13119872,
+   "drawCalls": 6,
+   "triangles": 1224,
+   "width": 480,
+   "height": 240
+  },
+  {
+   "arm": "kit",
+   "pxPerUnit": 2,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.031209386666666665,
+   "spreadMs": 0.012818560000000003,
+   "pctOf60Hz": 0.18725631999999998,
+   "drawCalls": 10,
+   "triangles": 17150,
+   "width": 484,
+   "height": 260
+  },
+  {
+   "arm": "bare",
+   "pxPerUnit": 8,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.23850656,
+   "spreadMs": 0.029535680000000036,
+   "pctOf60Hz": 1.4310393599999998,
+   "drawCalls": 19,
+   "triangles": 1224,
+   "width": 1918,
+   "height": 959
+  },
+  {
+   "arm": "today",
+   "pxPerUnit": 8,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.34163904,
+   "spreadMs": 0.044242879999999984,
+   "pctOf60Hz": 2.0498342399999996,
+   "drawCalls": 38,
+   "triangles": 89067,
+   "width": 1947,
+   "height": 1140
+  },
+  {
+   "arm": "land",
+   "pxPerUnit": 8,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.2527981866666667,
+   "spreadMs": 0.04033002666666671,
+   "pctOf60Hz": 1.51678912,
+   "drawCalls": 6,
+   "triangles": 1224,
+   "width": 1918,
+   "height": 959
+  },
+  {
+   "arm": "kit",
+   "pxPerUnit": 8,
+   "kept": 7,
+   "of": 7,
+   "medianMs": 0.27318752,
+   "spreadMs": 0.03448650666666664,
+   "pctOf60Hz": 1.6391251199999999,
+   "drawCalls": 10,
+   "triangles": 17150,
+   "width": 1936,
+   "height": 1042
+  }
+ ],
+ "budget": {
+  "2": {
+   "status": "PASS",
+   "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"today\" at 0.07 ms (0.4% of the budget), and the costliest RESOLVED addition over \"bare\" is \"today\" at +0.03 ms (0.2 percentage points of the frame, 1.64x the control). ⚠ 2 configuration(s) — \"land\", \"kit\" — moved the frame by LESS than the 0.03 ms run-to-run noise, so their cost is UNRESOLVED rather than zero: this run fits the budget but does not say what they cost.",
+   "failures": [],
+   "unverified": []
+  },
+  "8": {
+   "status": "PASS",
+   "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"today\" at 0.34 ms (2.0% of the budget), and the costliest RESOLVED addition over \"bare\" is \"today\" at +0.10 ms (0.6 percentage points of the frame, 1.43x the control). ⚠ 1 configuration(s) — \"land\" — moved the frame by LESS than the 0.04 ms run-to-run noise, so their cost is UNRESOLVED rather than zero: this run fits the budget but does not say what they cost.",
+   "failures": [],
+   "unverified": []
+  }
+ },
+ "rungs": [],
+ "rungDiffs": []
+}

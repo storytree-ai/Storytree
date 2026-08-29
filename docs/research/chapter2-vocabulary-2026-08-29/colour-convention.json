@@ -1,0 +1,477 @@
+{
+ "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+ "vendor": "Google Inc. (NVIDIA Corporation)",
+ "software": false,
+ "calibration": {
+  "probe": 0.3176470588235294,
+  "scale": 3.1481481481481484,
+  "target": 1,
+  "floor": 0.78
+ },
+ "materials": [
+  {
+   "material": "Pine_Branches",
+   "verdict": "RAW",
+   "rawError": 0.005390702122882983,
+   "managedError": 3.36167873980152,
+   "separation": 3.7868852459016398,
+   "ok": true,
+   "detail": "delivered within 0.5% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "tint": null,
+   "lumaVsUntinted": null,
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 0.35440826416015625,
+   "coveredFraction": 0.35440826416015625,
+   "sourceMeanRaw": {
+    "r": 69.37741373000668,
+    "g": 89.79430822551826,
+    "b": 68.78685983682432
+   },
+   "sourceMeanLinear": {
+    "r": 16.520814143457503,
+    "g": 26.097146396343533,
+    "b": 15.166768720281683
+   },
+   "delivered": {
+    "r": 70.37734914860181,
+    "g": 90.79430822551826,
+    "b": 69.78685983682432
+   },
+   "rawControl": {
+    "r": 70,
+    "g": 91,
+    "b": 70
+   },
+   "managedControl": {
+    "r": 18,
+    "g": 27,
+    "b": 16
+   }
+  },
+  {
+   "material": "Pine_Branches (proposed crown)",
+   "verdict": "RAW",
+   "rawError": 0.007737078903747674,
+   "managedError": 3.2597248832152927,
+   "separation": 3.7833333333333337,
+   "ok": true,
+   "detail": "delivered within 0.8% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "tint": "proposed",
+   "lumaVsUntinted": 0.9965539320157796,
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 0.35440826416015625,
+   "coveredFraction": 0.35440826416015625,
+   "sourceMeanRaw": {
+    "r": 69.37741373000668,
+    "g": 89.79430822551826,
+    "b": 68.78685983682432
+   },
+   "sourceMeanLinear": {
+    "r": 16.520814143457503,
+    "g": 26.097146396343533,
+    "b": 15.166768720281683
+   },
+   "delivered": {
+    "r": 95.73502249585603,
+    "g": 85.16203474479582,
+    "b": 46.85697371536822
+   },
+   "rawControl": {
+    "r": 95,
+    "g": 85,
+    "b": 47
+   },
+   "managedControl": {
+    "r": 24,
+    "g": 25,
+    "b": 11
+   }
+  },
+  {
+   "material": "Pine_Branches (building crown)",
+   "verdict": "RAW",
+   "rawError": 0.007737078903747674,
+   "managedError": 3.2597248832152927,
+   "separation": 3.7833333333333337,
+   "ok": true,
+   "detail": "delivered within 0.8% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "tint": "building",
+   "lumaVsUntinted": 0.9965539320157796,
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 0.35440826416015625,
+   "coveredFraction": 0.35440826416015625,
+   "sourceMeanRaw": {
+    "r": 69.37741373000668,
+    "g": 89.79430822551826,
+    "b": 68.78685983682432
+   },
+   "sourceMeanLinear": {
+    "r": 16.520814143457503,
+    "g": 26.097146396343533,
+    "b": 15.166768720281683
+   },
+   "delivered": {
+    "r": 95.73502249585603,
+    "g": 85.16203474479582,
+    "b": 46.85697371536822
+   },
+   "rawControl": {
+    "r": 95,
+    "g": 85,
+    "b": 47
+   },
+   "managedControl": {
+    "r": 24,
+    "g": 25,
+    "b": 11
+   }
+  },
+  {
+   "material": "Pine_Branches (mapped crown)",
+   "verdict": "RAW",
+   "rawError": 0.009514079761690546,
+   "managedError": 3.230238987076543,
+   "separation": 3.793650793650794,
+   "ok": true,
+   "detail": "delivered within 1.0% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "tint": "mapped",
+   "lumaVsUntinted": 0.9965180144116522,
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 0.35440826416015625,
+   "coveredFraction": 0.35440826416015625,
+   "sourceMeanRaw": {
+    "r": 69.37741373000668,
+    "g": 89.79430822551826,
+    "b": 68.78685983682432
+   },
+   "sourceMeanLinear": {
+    "r": 16.520814143457503,
+    "g": 26.097146396343533,
+    "b": 15.166768720281683
+   },
+   "delivered": {
+    "r": 107.0084924547392,
+    "g": 81.41231997933394,
+    "b": 50.76286784491852
+   },
+   "rawControl": {
+    "r": 106,
+    "g": 82,
+    "b": 51
+   },
+   "managedControl": {
+    "r": 27,
+    "g": 24,
+    "b": 12
+   }
+  },
+  {
+   "material": "Pine_Trunks",
+   "verdict": "RAW",
+   "rawError": 0.006593598259819878,
+   "managedError": 3.207368289723116,
+   "separation": 3.2439024390243905,
+   "ok": true,
+   "detail": "delivered within 0.7% of the raw control",
+   "asset": "/assets/pine-01.glb",
+   "tint": null,
+   "lumaVsUntinted": null,
+   "mapWidth": 512,
+   "mapHeight": 512,
+   "swatchPx": 512,
+   "opaqueFraction": 1,
+   "coveredFraction": 1,
+   "sourceMeanRaw": {
+    "r": 111.21719360351562,
+    "g": 81.19778060913086,
+    "b": 70.52526092529297
+   },
+   "sourceMeanLinear": {
+    "r": 41.491459580799564,
+    "g": 21.52873632998355,
+    "b": 16.062277295501303
+   },
+   "delivered": {
+    "r": 112.21719360351562,
+    "g": 82.19778060913086,
+    "b": 71.52526092529297
+   },
+   "rawControl": {
+    "r": 112,
+    "g": 82,
+    "b": 72
+   },
+   "managedControl": {
+    "r": 42,
+    "g": 23,
+    "b": 17
+   }
+  },
+  {
+   "material": "Pine_Trunks",
+   "verdict": "RAW",
+   "rawError": 0.006140814887152778,
+   "managedError": 3.209285960477941,
+   "separation": 3.283950617283951,
+   "ok": true,
+   "detail": "delivered within 0.6% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "tint": null,
+   "lumaVsUntinted": null,
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 1,
+   "coveredFraction": 1,
+   "sourceMeanRaw": {
+    "r": 111.2047119140625,
+    "g": 81.1580810546875,
+    "b": 70.557861328125
+   },
+   "sourceMeanLinear": {
+    "r": 41.41176408242842,
+    "g": 21.496571326536056,
+    "b": 16.08075684180405
+   },
+   "delivered": {
+    "r": 112.2047119140625,
+    "g": 82.1580810546875,
+    "b": 71.557861328125
+   },
+   "rawControl": {
+    "r": 112,
+    "g": 82,
+    "b": 72
+   },
+   "managedControl": {
+    "r": 42,
+    "g": 22,
+    "b": 17
+   }
+  },
+  {
+   "material": "Pine_Branches",
+   "verdict": "RAW",
+   "rawError": 0.0064443506402138955,
+   "managedError": 3.3330097087378645,
+   "separation": 3.864406779661017,
+   "ok": true,
+   "detail": "delivered within 0.6% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "tint": null,
+   "lumaVsUntinted": null,
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.28289794921875,
+   "coveredFraction": 0.28289794921875,
+   "sourceMeanRaw": {
+    "r": 67.55533980582524,
+    "g": 89.12297734627832,
+    "b": 68.32815533980583
+   },
+   "sourceMeanLinear": {
+    "r": 15.42214902513501,
+    "g": 25.63803862530728,
+    "b": 14.946668558334725
+   },
+   "delivered": {
+    "r": 68.55533980582524,
+    "g": 90.12297734627832,
+    "b": 69.32815533980583
+   },
+   "rawControl": {
+    "r": 69,
+    "g": 90,
+    "b": 69
+   },
+   "managedControl": {
+    "r": 16,
+    "g": 27,
+    "b": 16
+   }
+  },
+  {
+   "material": "Pine_Branches (proposed crown)",
+   "verdict": "RAW",
+   "rawError": 0.004685521317011474,
+   "managedError": 3.512097395592541,
+   "separation": 3.9473684210526314,
+   "ok": true,
+   "detail": "delivered within 0.5% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "tint": "proposed",
+   "lumaVsUntinted": 0.996228460378322,
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.28289794921875,
+   "coveredFraction": 0.28289794921875,
+   "sourceMeanRaw": {
+    "r": 67.55533980582524,
+    "g": 89.12297734627832,
+    "b": 68.32815533980583
+   },
+   "sourceMeanLinear": {
+    "r": 15.42214902513501,
+    "g": 25.63803862530728,
+    "b": 14.946668558334725
+   },
+   "delivered": {
+    "r": 94.75404530744336,
+    "g": 84.22524271844661,
+    "b": 46.21553398058253
+   },
+   "rawControl": {
+    "r": 95,
+    "g": 84,
+    "b": 46
+   },
+   "managedControl": {
+    "r": 21,
+    "g": 25,
+    "b": 11
+   }
+  },
+  {
+   "material": "Pine_Branches (building crown)",
+   "verdict": "RAW",
+   "rawError": 0.004685521317011474,
+   "managedError": 3.512097395592541,
+   "separation": 3.9473684210526314,
+   "ok": true,
+   "detail": "delivered within 0.5% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "tint": "building",
+   "lumaVsUntinted": 0.996228460378322,
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.28289794921875,
+   "coveredFraction": 0.28289794921875,
+   "sourceMeanRaw": {
+    "r": 67.55533980582524,
+    "g": 89.12297734627832,
+    "b": 68.32815533980583
+   },
+   "sourceMeanLinear": {
+    "r": 15.42214902513501,
+    "g": 25.63803862530728,
+    "b": 14.946668558334725
+   },
+   "delivered": {
+    "r": 94.75404530744336,
+    "g": 84.22524271844661,
+    "b": 46.21553398058253
+   },
+   "rawControl": {
+    "r": 95,
+    "g": 84,
+    "b": 46
+   },
+   "managedControl": {
+    "r": 21,
+    "g": 25,
+    "b": 11
+   }
+  },
+  {
+   "material": "Pine_Branches (mapped crown)",
+   "verdict": "RAW",
+   "rawError": 0.010813699099698586,
+   "managedError": 3.567676767676768,
+   "separation": 4.016949152542373,
+   "ok": true,
+   "detail": "delivered within 1.1% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "tint": "mapped",
+   "lumaVsUntinted": 0.9966239728708058,
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.28289794921875,
+   "coveredFraction": 0.28289794921875,
+   "sourceMeanRaw": {
+    "r": 67.55533980582524,
+    "g": 89.12297734627832,
+    "b": 68.32815533980583
+   },
+   "sourceMeanLinear": {
+    "r": 15.42214902513501,
+    "g": 25.63803862530728,
+    "b": 14.946668558334725
+   },
+   "delivered": {
+    "r": 105.84293419633225,
+    "g": 80.56871628910464,
+    "b": 50.24444444444445
+   },
+   "rawControl": {
+    "r": 107,
+    "g": 80,
+    "b": 50
+   },
+   "managedControl": {
+    "r": 24,
+    "g": 24,
+    "b": 11
+   }
+  },
+  {
+   "material": "Pine_Forest_Foliage",
+   "verdict": "RAW",
+   "rawError": 0.0038059949180854875,
+   "managedError": 2.723504442021758,
+   "separation": 3.0470588235294116,
+   "ok": true,
+   "detail": "delivered within 0.4% of the raw control",
+   "asset": "/assets/dressing-kit.glb",
+   "tint": null,
+   "lumaVsUntinted": null,
+   "mapWidth": 128,
+   "mapHeight": 128,
+   "swatchPx": 128,
+   "opaqueFraction": 0.2769775390625,
+   "coveredFraction": 0.2769775390625,
+   "sourceMeanRaw": {
+    "r": 80.30828558836492,
+    "g": 105.65954164830322,
+    "b": 69.7465843984134
+   },
+   "sourceMeanLinear": {
+    "r": 24.739393310313265,
+    "g": 38.95733885162159,
+    "b": 17.805432623972873
+   },
+   "delivered": {
+    "r": 81.30828558836492,
+    "g": 106.65954164830322,
+    "b": 70.7465843984134
+   },
+   "rawControl": {
+    "r": 81,
+    "g": 107,
+    "b": 71
+   },
+   "managedControl": {
+    "r": 26,
+    "g": 40,
+    "b": 19
+   }
+  }
+ ],
+ "refusals": [],
+ "ok": true
+}

@@ -1,5 +1,15 @@
 // terrain-vocabulary.ts — ADR-0461 D1's TERRAIN VOCABULARY, as data.
 //
+// ⚠⚠ ADR-0461 IS SUPERSEDED BY ADR-0475 (2026-08-29) AND THIS FILE IS POCKETED, NOT DELETED.
+// The decision it builds — a capability's state IS a named terrain — is withdrawn: the state
+// moved onto the OBJECT standing on a parcel, and the island's ground now wears the STORY's own
+// colour, uniformly (ADR-0475 D1/D2). The owner rejected a terrain per state on sight:
+// *"changing the land type looks rather ugly ... so we dont have a mix of wheat field and
+// wasteland on the same island."* What survives is everything below the decision — the warp
+// mechanism, `terrain-separation.ts`'s two-channel instrument, and the measured finding that an
+// orientation-only metric is blind to feature scale. Read the rest of this header as the record
+// of a direction that was built and measured, not as a live rule.
+//
 // THE DECISION THIS BUILDS. ADR-0461 D1: *"A capability's state is carried by a NAMED TERRAIN,
 // not by a tint. Each rendered state gets a named land character — `forest`, `swamp`,
 // `wheatfield`, … — carrying ground cover, texture, treatment and colour TOGETHER. Colour
