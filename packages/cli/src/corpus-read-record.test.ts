@@ -1,0 +1,140 @@
+import { test } from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  foldReadObservations,
+  readFloorNotes,
+  scrapeArtifactReads,
+} from "./corpus-read-record.js";
+
+/** Just the ids a command yielded, sorted — the shape most cases here assert on. */
+function idsOf(command: string): string[] {
+  return scrapeArtifactReads(command).reads.map((read) => read.id).sort();
+}
+
+test("a read is minted for the argv shape, through every launcher spelling", () => {
+  assert.deepEqual(idsOf("storytree library artifact merge-ceremony"), ["merge-ceremony"]);
+  assert.deepEqual(idsOf("pnpm storytree library artifact merge-ceremony"), ["merge-ceremony"]);
+  assert.deepEqual(idsOf("npx tsx packages/cli/src/main.ts library artifact adr-0403"), ["adr-0403"]);
+  assert.deepEqual(idsOf("node packages/cli/launch.mjs library artifact adr-0403"), ["adr-0403"]);
+});
+
+test("shell noise around a real read does not lose it", () => {
+  // Six of eight real store reads measured on this disk carried exactly this noise, which is why
+  // the rule reads the shape POSITIVELY rather than refusing unrecognised trailing tokens.
+  assert.deepEqual(idsOf("storytree library artifact merge-ceremony 2>&1 | head -30"), ["merge-ceremony"]);
+  assert.deepEqual(idsOf("cd /repo && storytree library artifact merge-ceremony; echo done"), ["merge-ceremony"]);
+});
+
+test("AN ID APPEARING ANYWHERE ELSE IS A MENTION, NEVER A READ", () => {
+  // The 66:1 measurement: matching an id token loosely rather than by argv shape was wrong sixty-six
+  // times for every time it was right.
+  assert.deepEqual(idsOf('echo "=== merge-ceremony ==="'), []);
+  assert.deepEqual(idsOf('git commit -m "cite merge-ceremony"'), []);
+  assert.deepEqual(idsOf("storytree arc increment close x --note 'per merge-ceremony'"), []);
+});
+
+test("a SHELL VARIABLE is declined, never minted as an artifact", () => {
+  // Measured before the guard existed: `$id`, `"$id"` and `$a` were being recorded as artifacts read
+  // 108 times, because a sweep loop is how a sweep is written.
+  for (const command of [
+    'for id in a b; do storytree library artifact "$id"; done',
+    "storytree library artifact $id",
+    "storytree library artifact ${id}",
+  ]) {
+    assert.deepEqual(idsOf(command), [], command);
+    assert.ok(
+      scrapeArtifactReads(command).declinedVerbs.length > 0,
+      "the decline must be COUNTED, not swallowed",
+    );
+  }
+});
+
+test("a FLAG is declined — `--help` names no artifact", () => {
+  const scrape = scrapeArtifactReads("storytree library artifact --help");
+  assert.deepEqual(scrape.reads, []);
+  assert.deepEqual(scrape.declinedVerbs, ["library artifact (a flag, no id)"]);
+});
+
+test("a WRITE wearing a read's shape is declined", () => {
+  for (const command of [
+    "storytree library artifact merge-ceremony --set body=@x.txt --pg",
+    "storytree library artifact merge-ceremony --file doc.json --pg",
+  ]) {
+    assert.deepEqual(idsOf(command), [], command);
+  }
+  assert.deepEqual(idsOf("storytree library artifact edit merge-ceremony --pg"), []);
+  assert.deepEqual(idsOf("storytree library artifact new --file doc.json --pg"), []);
+});
+
+test("a read of the CHANGE LOG or a SEARCH is not a read of the document", () => {
+  assert.deepEqual(idsOf("storytree library artifact history adr-0403"), []);
+  assert.deepEqual(idsOf("storytree library artifact list principle"), []);
+  assert.deepEqual(idsOf("storytree library artifact retire x --reason y --pg"), []);
+});
+
+test("`--raw` is the WEAKER read, and the weakest wins on a repeat", () => {
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact x --raw body").reads, [
+    { id: "x", strength: "front_matter_read" },
+  ]);
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact x --raw=body").reads, [
+    { id: "x", strength: "front_matter_read" },
+  ]);
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact x").reads, [
+    { id: "x", strength: "full_payload_read" },
+  ]);
+  assert.deepEqual(
+    scrapeArtifactReads("storytree library artifact x | storytree library artifact x --raw body").reads,
+    [{ id: "x", strength: "front_matter_read" }],
+    "the weaker reading of the same artifact wins, matching the live observer",
+  );
+});
+
+test("a command with no read shape at all costs nothing and yields nothing", () => {
+  assert.deepEqual(scrapeArtifactReads("pnpm gate"), { reads: [], declinedVerbs: [] });
+  assert.deepEqual(scrapeArtifactReads("storytree arc show my-arc"), { reads: [], declinedVerbs: [] });
+  assert.deepEqual(scrapeArtifactReads(""), { reads: [], declinedVerbs: [] });
+});
+
+test("a `<story>#uat-N` criterion id is a legal id shape", () => {
+  assert.deepEqual(idsOf("storytree library artifact library-review#uat-1"), ["library-review#uat-1"]);
+});
+
+test("several reads in one command are all recovered", () => {
+  assert.deepEqual(
+    idsOf("storytree library artifact a && storytree library artifact b; storytree library artifact c"),
+    ["a", "b", "c"],
+  );
+});
+
+test("foldReadObservations keeps the session SET, so a caller can union it", () => {
+  const folded = foldReadObservations([
+    { id: "a", at: "2026-08-02T00:00:00.000Z", sessionId: "s1" },
+    { id: "a", at: "2026-08-01T00:00:00.000Z", sessionId: "s1" },
+    { id: "a", at: "2026-08-03T00:00:00.000Z", sessionId: "s2" },
+    { id: "b", at: "2026-07-01T00:00:00.000Z", sessionId: "s1" },
+  ]);
+  const a = folded.get("a")!;
+  assert.equal(a.reads, 3, "every observation counts");
+  assert.deepEqual([...a.sessions].sort(), ["s1", "s2"], "sessions deduplicate");
+  assert.equal(a.firstAt, "2026-08-01T00:00:00.000Z", "earliest wins, whatever the input order");
+  assert.equal(a.lastAt, "2026-08-03T00:00:00.000Z");
+  assert.equal(folded.get("b")!.reads, 1);
+  assert.equal(folded.size, 2);
+});
+
+test("folding nothing yields nothing — never a row of zeros", () => {
+  assert.equal(foldReadObservations([]).size, 0);
+});
+
+test("the floor notes name the manifest-injection floor, which is the one that bites", () => {
+  const notes = readFloorNotes();
+  assert.ok(notes.length >= 4);
+  assert.ok(
+    notes.some((note) => note.includes("AGENT MANIFEST")),
+    "a zero for an artifact assembled into a prompt every run must be explained, not printed bare",
+  );
+  assert.ok(notes.some((note) => note.includes("ALLOWLISTED")));
+  assert.ok(notes.some((note) => note.includes("PRIMARY CHECKOUT")));
+  assert.ok(notes.some((note) => note.includes("CODEX")));
+});
