@@ -254,7 +254,12 @@ import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
 import { findDependents } from "./retire.js";
 import { typeMismatchRefusal } from "./set-value.js";
-import { bannerRefusal, strayPositionalRefusal, truncationRefusal } from "./write-fidelity.js";
+import {
+  bannerRefusal,
+  setVerbRefusal,
+  strayPositionalRefusal,
+  truncationRefusal,
+} from "./write-fidelity.js";
 import { foldHistory, renderHistory } from "./artifact-history.js";
 import { foldWorkLog, renderWorkLog, type WorkLogReaderLike } from "./work-log.js";
 import { foldScopeSlices, renderScopeReading } from "./scope-reading.js";
@@ -827,6 +832,13 @@ export function isRawEnvelope(e: Envelope): e is RawEnvelope {
  * ({@link rawUnsupported}), which is what stops the next id-addressed read verb from re-acquiring the
  * bug by simply not thinking about the flag. Add the pair here when you add such a verb; the refusal
  * is what will tell you that you have to.
+ *
+ * THE FLAG HAS A TWIN, AND IT IS THE SAME FAULT POINTED THE OTHER WAY: `SET_WRITE_VERBS` /
+ * `setVerbRefusal` in `write-fidelity.ts` do this for `--set`, which every command but `library
+ * artifact edit` used to parse and drop — so `library artifact <id> --set field=value` ran as the
+ * READ it always was and exited 0 over the artifact's full render, which is byte-for-byte what a
+ * SUCCESSFUL write prints. An id-addressed verb usually needs a decision about BOTH lists; the two
+ * refusals are what will tell you which.
  */
 const RAW_READ_VERBS: ReadonlyArray<readonly [area: string, sub: string]> = [
   ["library", "artifact"],
@@ -891,9 +903,9 @@ async function rawFieldToFile(raw: string, out: string, id: string, field: strin
       `wrote ${raw.length.toLocaleString("en-US")} characters of "${id}".${field} to ${out}`,
       "",
       "written by the CLI itself, so no wrapper's banner is in it. write it back with:",
-      `  storytree library artifact ${id} --set ${field}=@${out} --pg`,
+      `  storytree library artifact edit ${id} --set ${field}=@${out} --pg`,
     ].join("\n"),
-    next: [`storytree library artifact ${id} --set ${field}=@${out} --pg`],
+    next: [`storytree library artifact edit ${id} --set ${field}=@${out} --pg`],
   };
 }
 
@@ -1289,7 +1301,7 @@ export async function editArtifact(
           body: banner,
           next: [
             `storytree library artifact ${id} --raw ${field} --out ${field}.txt --pg`,
-            `storytree library artifact ${id} --set ${field}=@${field}.txt --pg`,
+            `storytree library artifact edit ${id} --set ${field}=@${field}.txt --pg`,
           ],
         };
       }
@@ -1308,7 +1320,7 @@ export async function editArtifact(
           body: truncated,
           next: [
             `storytree library artifact ${id} --raw ${field} --out ${field}.txt --pg`,
-            `storytree library artifact ${id} --set ${field}=@${field}.txt --pg`,
+            `storytree library artifact edit ${id} --set ${field}=@${field}.txt --pg`,
             `storytree library artifact history ${id} --field ${field} --pg`,
           ],
         };
@@ -1394,7 +1406,7 @@ export async function editArtifact(
             ok: false,
             body: parsed,
             next: [
-              `storytree library artifact ${id} --set anchor=$(git rev-parse HEAD) --pg`,
+              `storytree library artifact edit ${id} --set anchor=$(git rev-parse HEAD) --pg`,
               `storytree increment check ${id} --pg`,
             ],
           };
@@ -1947,7 +1959,7 @@ function artifactHelp(): Envelope {
       "THE LONG-PROSE ROUND TRIP (ADR-0361). Capture with `--out <path>`, not with a `>` redirect:",
       "",
       "  storytree library artifact <id> --raw <field> --out field.txt --pg   # edit field.txt, then",
-      "  storytree library artifact <id> --set <field>=@field.txt --pg",
+      "  storytree library artifact edit <id> --set <field>=@field.txt --pg",
       "",
       "`--out` is written by the CLI itself, so a wrapper's own output cannot enter it — `pnpm",
       "storytree … --raw <field> > field.txt` captures pnpm's two-line run banner as the field's first",
@@ -3025,6 +3037,22 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       body: `bad arguments: ${(err as Error).message}`,
       next: ["storytree library"],
     };
+  }
+
+  // `--set` is REFUSED where it is not written, never ignored — the twin of the `--raw` guard below
+  // and of {@link SET_WRITE_VERBS}, which carries the two measured incidents. It runs FIRST, ahead
+  // of the `@path` expansion, on both of its own merits: a command that cannot write reads no files,
+  // and `values.set` still holds the literal `@path` the caller typed, so the refusal's corrected
+  // command echoes what they wrote instead of the file's contents.
+  {
+    const wrongVerb = setVerbRefusal({ positionals, sets: values.set ?? [] });
+    if (wrongVerb !== null && !help) {
+      return {
+        ok: false,
+        body: wrongVerb,
+        next: ["storytree library artifact edit <id> --set <field>=<value> --pg"],
+      };
+    }
   }
 
   // The `@path` boundary (cli-write-fidelity-arc): every long-prose flag is expanded from its file

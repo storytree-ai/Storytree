@@ -105,7 +105,7 @@ export function bannerRefusal(input: {
     "Capture the field on a channel the banner cannot reach, then write that file back:",
     "",
     "    storytree library artifact <id> --raw <field> --out field.txt --pg",
-    "    storytree library artifact <id> --set <field>=@field.txt --pg",
+    "    storytree library artifact edit <id> --set <field>=@field.txt --pg",
     "",
     "`--out` is written by the CLI itself, so nothing a wrapper prints to stdout can enter it.",
     "If the banner really is the value you meant to store, there is no escape today — say so rather",
@@ -170,7 +170,7 @@ export function truncationRefusal(input: {
     "",
     "Send it from a file, which reaches this process whole:",
     "",
-    `    storytree library artifact <id> --set ${field}=@field.txt --pg`,
+    `    storytree library artifact edit <id> --set ${field}=@field.txt --pg`,
     "",
     "If you did mean to delete the tail, the same command records it — the file is the channel, not",
     "a ceremony to get past this message.",
@@ -241,9 +241,148 @@ export function strayPositionalRefusal(input: {
     "",
     "Send the value from a file, which no shell can split:",
     "",
-    "    storytree library artifact <id> --set <field>=@field.txt --pg",
+    "    storytree library artifact edit <id> --set <field>=@field.txt --pg",
     "",
     "If the extra words are a typo'd command rather than a cut value, the fix is the same shape —",
     "check the verb's own --help for the arguments it takes.",
+  ].join("\n");
+}
+
+/**
+ * Every `<area> <sub> <verb>` that READS `--set` and writes the fields it names.
+ *
+ * THIS LIST EXISTS BECAUSE THE FLAG USED TO BE DROPPED IN SILENCE, and it is the exact twin of
+ * `RAW_READ_VERBS` in `commands.ts` — same fault, opposite direction. `--set` is parsed once for the
+ * whole CLI, but only `library artifact edit` ever consulted it. Every other command carrying it —
+ * `library artifact <id> --set …` above all — parsed the flag, ignored it, and ran as the READ it
+ * always was: exit 0, and the artifact's full render on stdout, which is byte-for-byte what a
+ * SUCCESSFUL write prints. Exit code and output both said the write landed.
+ *
+ * Two measured incidents, both silent:
+ *
+ *  - A scripted batch of six field writes no-op'd in full while the script printed its own `WROTE`
+ *    line six times, because it keyed on exit 0.
+ *  - 2026-08-29 (`seeded-defect-qualification-arc`): a measurement seeded a `dependsOn` cycle into
+ *    the live store to test whether `check:library-dag-acyclic` catches one. The write was verbless,
+ *    so nothing was seeded, and the rung then reported `PASS — no dependsOn cycle across 2631
+ *    artifacts` — a correct verdict about a state that was never created. The error points the
+ *    FLATTERING way: the instrument under test appears not to fire, so a rung would have shipped
+ *    UNQUALIFIED had a read-back not caught it.
+ *
+ * The aggravating factor was that the CLI emitted the broken form itself: the `--raw … --out <path>`
+ * footer closed by telling the caller to write the file back with a verbless `--set`, so the
+ * documented round trip for the LONGEST prose edits was the one that dropped on the floor. That is
+ * how the second incident happened — the command was copied from the tool's own footer.
+ *
+ * So the fix is not only "route the id-addressed read too". A verb that does not read `--set`
+ * REFUSES it, which is what stops the next write-shaped verb from re-acquiring the bug by simply not
+ * thinking about the flag. Add the triple here when you add such a verb; the refusal is what will
+ * tell you that you have to.
+ */
+export const SET_WRITE_VERBS: ReadonlyArray<readonly [area: string, sub: string, verb: string]> = [
+  ["library", "artifact", "edit"],
+];
+
+/**
+ * The `library artifact` subcommands that are VERBS rather than an artifact id.
+ *
+ * The distinction is what lets the refusal print the caller's own corrected command: with a verb in
+ * the third slot the command names no artifact (`artifact list --set …`), while anything else there
+ * IS the id, and splicing `edit` before it produces the line the caller meant to run.
+ */
+const ARTIFACT_VERBS: ReadonlySet<string> = new Set([
+  "list",
+  "new",
+  "edit",
+  "retire",
+  "comment",
+  "history",
+]);
+
+/**
+ * Characters a POSIX shell and PowerShell both pass through untouched, so a `--set` argument made
+ * only of these can be echoed into a pasteable corrected command with no quoting at all.
+ *
+ * Deliberately narrow. An argument outside it is elided rather than re-quoted, because the two
+ * shells this repo runs on disagree about escaping inside double quotes — emitting a line that is
+ * correct for one and cuts the value on the other would re-create ADR-0361 D4's truncation on the
+ * very message that exists to prevent a silent write failure.
+ */
+const SHELL_SAFE = /^[A-Za-z0-9_@./:=,+-]+$/;
+
+/** One `--set` argument as it can be re-typed, or `null` when quoting it is not portable. */
+function pasteable(arg: string): string | null {
+  return SHELL_SAFE.test(arg) ? arg : null;
+}
+
+/** `<field>=<value>` -> `<field>`, for the elided form; `null` when the argument names no field. */
+function fieldOfSet(arg: string): string | null {
+  const eq = arg.indexOf("=");
+  return eq === -1 ? null : arg.slice(0, eq);
+}
+
+/**
+ * `--set` on a command that will not write it — refused by name, never dropped.
+ *
+ * Fires BEFORE the `@path` expansion in `run`, which is deliberate on both counts: a doomed command
+ * reads no files, and `values.set` still holds the literal `@path` the caller typed, so the
+ * corrected command below echoes what they wrote rather than the file's contents.
+ */
+export function setVerbRefusal(input: {
+  readonly positionals: readonly string[];
+  readonly sets: readonly string[];
+}): string | null {
+  const { positionals, sets } = input;
+  if (sets.length === 0) return null;
+  const [area, sub, third] = positionals;
+  if (SET_WRITE_VERBS.some(([a, s, v]) => a === area && s === sub && v === third)) return null;
+
+  const honoured = SET_WRITE_VERBS.map(
+    ([a, s, v]) => `    storytree ${a} ${s} ${v} <id> --set <field>=<value> --pg`,
+  );
+  // The id-addressed READ (`library artifact <id> --set …`) — the shape both incidents took, and the
+  // only one where the corrected command can be printed in full, because the id is right there.
+  const isIdRead =
+    area === "library" && sub === "artifact" && third !== undefined && !ARTIFACT_VERBS.has(third);
+  if (!isIdRead) {
+    const spelled = [area, sub].filter((p) => p !== undefined).join(" ");
+    return [
+      `\`--set <field>=<value>\` WRITES an artifact's fields, and \`${spelled}\` is not that write.`,
+      "",
+      "Nothing was written. It is refused rather than ignored because an ignored `--set` runs the",
+      "command it was attached to and exits 0, which is indistinguishable from the write landing.",
+      "",
+      "the verbs that honour it:",
+      "",
+      ...honoured,
+    ].join("\n");
+  }
+
+  const args = sets.map(pasteable);
+  const elided = args.some((a) => a === null);
+  const rendered = sets
+    .map((s, i) => `--set ${args[i] ?? `${fieldOfSet(s) ?? "<field>"}=<value>`}`)
+    .join(" ");
+  return [
+    `\`--set <field>=<value>\` WRITES, and \`storytree library artifact <id>\` is a READ.`,
+    "",
+    "NOTHING WAS WRITTEN. This is refused rather than ignored because ignoring it is the whole",
+    "defect: the read exits 0 and prints the artifact's full render, which is also what a successful",
+    "write prints, so a dropped `--set` is indistinguishable from a landed one. Measured twice — a",
+    "six-field batch that wrote nothing while its script logged WROTE six times, and a seeded",
+    "`dependsOn` cycle that never entered the store, after which the rung under test reported PASS",
+    "over a state nobody had created.",
+    "",
+    "THE FIX IS ONE WORD — the `edit` verb, between `artifact` and the id:",
+    "",
+    `    storytree library artifact edit ${third} ${rendered} --pg`,
+    ...(elided
+      ? [
+          "",
+          "(a value above is shown as `<value>`: it needs shell quoting, and the quoting differs",
+          "between the shells this repo runs on. Re-run YOUR command with `edit` added — or send the",
+          "value from a file, which no shell can cut: `--set <field>=@field.txt`.)",
+        ]
+      : []),
   ].join("\n");
 }

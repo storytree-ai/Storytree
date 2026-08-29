@@ -549,8 +549,11 @@ kind owes a seed export any more.
   message (naming the bad field + the editable ones), not the opaque `.strict()` union dump.
   **Changing part of a LONG prose field? Capture it with `--out`, never with a `>` redirect**
   (ADR-0361): `library artifact <id> --raw <field> --out field.txt --pg`, edit the file, then
-  `--set <field>=@field.txt --pg`. `--out` is written by the CLI itself, so a wrapper's own output
-  cannot enter it — a `>` redirect under `pnpm storytree …` captures pnpm's two-line run banner as
+  `library artifact edit <id> --set <field>=@field.txt --pg` — spell the `edit` verb on the write
+  leg. A verbless `--set` is a READ that writes nothing; it now REFUSES rather than exiting 0 over
+  the artifact's render, which is what a landed write also prints. `--out` is written by the CLI
+  itself, so a wrapper's own output cannot enter it — a `>` redirect under `pnpm storytree …`
+  captures pnpm's two-line run banner as
   the field's first bytes, and 175 bytes of exactly that once reached CLAUDE.md and AGENTS.md
   through the live `session-orchestrator` artifact. The WRITE now refuses the three damage shapes
   rather than storing them at exit 0 — a banner-headed value, a prose-carrying command with
@@ -709,7 +712,7 @@ captures pnpm's run banner as the document's first bytes (ADR-0361). A no-op rou
 byte-identical, which is what keeps `status` a projection of the `## Status` prose (ADR-0139) rather
 than something that can drift from it inside one edit. A push is a whole-document REPLACE, so two
 sessions pushing the SAME decision are last-write-wins with no detector; for a targeted change
-prefer the field-scoped `library artifact adr-NNNN --set <field>=<value> --pg` (ADR-0352).
+prefer the field-scoped `library artifact edit adr-NNNN --set <field>=<value> --pg` (ADR-0352).
 
 ## Your operating discipline — the `session-orchestrator` agent (generated)
 
