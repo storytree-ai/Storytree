@@ -290,6 +290,34 @@ jobs:
       - name: ground-space markers
         run: pnpm check:ground-space
 
+      # THE ART RUNG (`the-art-instrument-becomes-a-build-rung`, ADR-0418 D4). The local gate has
+      # run this since PR #1699; it runs HERE for the one class of breakage a local gate structurally
+      # cannot see — two branches each green alone whose MERGE breaks the art. CI is the only thing
+      # that builds that merge, and this art is assembled from a SHARED palette and shared land code,
+      # so that class is not hypothetical. It sits between its two gate-order neighbours
+      # (`check:ground-space` above, `check:palette-transcription` below) so the CI order and
+      # `packages/cli/src/gate-order.ts` cannot drift apart.
+      #
+      # ⚠ THE INSTALL IS WHY THE SKIP CANNOT FIRE HERE, AND THAT IS THE POINT. `check:land-art` is in
+      # SKIP_CAPABLE_CHECKS with exactly one skippable condition — a Playwright browser that was never
+      # downloaded — and the reserved exit 3 is LOCAL only, so in CI any non-zero is a failure. The
+      # tempting fix is to make the rung print-and-exit-0 here, which is the vacuous-green shape: a
+      # rung that passes forever because the browser never arrived. Installing the browser is the
+      # opposite fix. If the install fails, the INSTALL step fails, which is loud and diagnosable.
+      #
+      # ⚠ FULL `chromium`, never `chromium-headless-shell` alone: the rung's preflight resolves
+      # `chromium.executablePath()`, which is the full browser. A shell-only install leaves that path
+      # absent and the rung would SKIP in CI while looking installed.
+      #
+      # Cost measured 2026-08-28 on the rung itself: 29.1 s on 12 cores and 29.0 s restricted to 2
+      # (`taskset -c 0,1`). It is not CPU-parallel-bound — SwiftShader rasterises each canvas serially
+      # — so a small runner costs what a large one does.
+      - name: Install Chromium for the art rung
+        run: pnpm -C packages/forest-world-r3f exec playwright install --with-deps chromium
+
+      - name: Land art (an instrument can fail a build for the art being wrong)
+        run: pnpm check:land-art
+
       # The status palette says ONE thing across all three places it is written down:
       # `apps/studio/src/index.css` (canonical — where ADR-0462 and ADR-0470 were authored),
       # `forest-world-r3f/harness/palette-band.ts` (a declared transcription) and

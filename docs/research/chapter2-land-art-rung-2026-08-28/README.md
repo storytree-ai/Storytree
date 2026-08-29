@@ -207,11 +207,31 @@ carries for exactly this purpose.
 
 ## 6. ⚠ What this does NOT do
 
-- **It does not run in CI.** `.github/workflows/ci.yml` is `ubuntu-latest` with no Playwright browser
-  installed, so a CI leg is a browser download plus a real per-PR cost on a two-core runner
-  rasterising 29 M pixels in software. That is a separate, costed decision and is left parked rather
-  than silently skipped. Note the local gate is where every session must pass before opening a PR, so
-  the rung binds every landing today regardless.
+- ~~**It does not run in CI.**~~ **IT DOES NOW — and the number that was missing is what changed the
+  answer.** This section originally parked the CI leg on the grounds that it meant "a browser download
+  plus a real per-PR cost on a two-core runner rasterising 29 M pixels in software". Nobody had
+  measured that cost. Measured on the rung itself, same box, same branch:
+
+  | cores | wall clock |
+  |---|---|
+  | 12 (unrestricted) | 29.1 s |
+  | 2 (`taskset -c 0,1`) | **29.0 s** |
+
+  **The rung is not CPU-parallel-bound.** SwiftShader rasterises each canvas serially and the wall
+  clock is dominated by page render, so a small runner costs what a large one does — the two-core
+  worry was the whole objection and it was unfounded. Landed as two steps in
+  `.github/workflows/ci.yml` (`the-art-rung-runs-in-ci`), for the one class of breakage a local gate
+  structurally cannot see: two branches each green alone whose MERGE breaks the art. CI is the only
+  thing that builds that merge.
+
+  ⚠ **The CI step INSTALLS the browser rather than tolerating its absence, and that is load-bearing.**
+  The rung's only skippable condition is a Playwright browser that was never downloaded, and the
+  reserved exit 3 is local-only. The tempting CI fix — print and exit 0 — is the vacuous-green shape:
+  a rung that passes forever because the browser never arrived. Installing it means the skip branch
+  cannot fire there at all, and an install that fails fails loudly as its own step. It installs FULL
+  `chromium`, never `chromium-headless-shell` alone: the preflight resolves
+  `chromium.executablePath()`, and a shell-only install would leave that path absent and the rung
+  would SKIP in CI while looking installed.
 - **It does not make the band catch DEGRADATION.** The 24× margin stands. ADR-0418 D4 named that
   trade ("roughly in range" vs "exactly right or not") and tightening the bar is explicitly refused
   in `colour-spread.ts` — a number placed near the measured value is the picked number the design
