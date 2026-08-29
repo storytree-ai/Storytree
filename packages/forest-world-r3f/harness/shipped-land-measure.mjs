@@ -1,8 +1,10 @@
-// shipped-land-measure.mjs — DRIVER for the shipped map's ground, flat against relieved.
+// shipped-land-measure.mjs — DRIVER for the shipped map's ground: a four-arm ladder in which each
+// rung differs from the one before it in exactly one thing (flat · + relief · + the banded ladder ·
+// + the grain octave, that last one as a REFERENCE ceiling rather than a shipped arm).
 //
 // Reproduce (⚠ needs a real GPU — see the refusals below):
-//   pnpm --filter @storytree/forest-world-r3f exec vite harness --port 5231 --strictPort
-//   DISPLAY=:0 ST_LAND_URL=http://localhost:5231/shipped-land.html \
+//   pnpm --filter @storytree/forest-world-r3f exec vite harness --port 5252 --strictPort
+//   DISPLAY=:0 ST_LAND_URL=http://localhost:5252/shipped-land.html \
 //     pnpm --filter @storytree/forest-world-r3f measure-shipped-land
 //
 // ⚠ A SHELL ON PURPOSE. This is `.mjs`, so it is NOT typechecked — `tsconfig.json` covers only
@@ -14,9 +16,11 @@
 // back to SwiftShader SILENTLY and every frame figure is a software rasteriser's.
 //
 // ⚠ IT REFUSES rather than reporting on: a software renderer · the pinned default port every
-// worktree shares · a console error or an HTTP >= 400 · the two arms disagreeing about triangle
-// count, parcel count or framing (which would mean they differ in more than the one thing) · a
-// flat arm whose buffer is not flat, or a relieved arm whose buffer is · a non-interleaved sweep.
+// worktree shares · a console error or an HTTP >= 400 · any arm disagreeing with the control about
+// triangle count, parcel count or framing (which would mean they differ in more than the one
+// thing) · a flat arm whose buffer is not flat, or a relieved arm whose buffer is · a rung that
+// changes no pixel at all · the BANDED arm delivering a colour that is not an authored
+// `(token x level)` entry · a non-interleaved sweep.
 
 import { Buffer } from 'node:buffer';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -243,20 +247,63 @@ for (const zoom of LAND_ZOOMS) {
   }
 }
 
-// ── THE VERDICT.
-const rows = [];
-for (const zoom of LAND_ZOOMS) {
-  for (const arm of LAND_ARMS) {
-    const r = readings.get(`${arm}|${zoom}`);
-    rows.push({
-      label: `${arm} @ ${zoom}px`,
-      samples: r.samples,
-      software: identity.software,
-      hidden: false,
-    });
+// ── THE VERDICT — ⚠⚠ TWO OF THEM, and the reason is a finding rather than a complication.
+//
+// `frameBudgetVerdict` is built on ONE premise about its caller's arms: every non-baseline row
+// does strictly MORE fragment work than the baseline, so an arm that measures FASTER than the
+// control is the instrument contradicting itself and the honest answer is UNVERIFIED. That premise
+// held for every comparison this arc has run — until this one, because `relief -> banded` REPLACES
+// the material rather than adding to it, and a locked palette (one dot product, one four-way
+// compare, one table read) is genuinely cheaper than a PBR model over two lights. The banded arm
+// measures ~2x FASTER than the ground it replaces, which is a real result and would be reported as
+// a broken instrument by a single whole-ladder verdict.
+//
+// ⚠ THE FIRST RUN OF THIS SWEEP RETURNED PASS, AND THAT WAS LUCK RATHER THAN AGREEMENT: the flat
+// arm happened to carry a wide spread that run, the derived noise floor absorbed the difference,
+// and the contradiction did not fire. Split, both halves answer the question they can answer.
+//
+// So the ladder is verdicted in the two segments that ARE work-monotone, and the step BETWEEN them
+// is reported as what it is — a straight cost comparison of two materials, in the table above.
+const rowsFor = (arms) => {
+  const out = [];
+  for (const zoom of LAND_ZOOMS) {
+    for (const arm of arms) {
+      const r = readings.get(`${arm}|${zoom}`);
+      out.push({
+        label: `${arm} @ ${zoom}px`,
+        samples: r.samples,
+        software: identity.software,
+        hidden: false,
+      });
+    }
   }
-}
-const verdict = frameBudgetVerdict({ rows, baselineLabel: `flat @ ${LAND_ZOOMS[0]}px` });
+  return out;
+};
+// (a) THE GEOMETRY SEGMENT — one material, and the relief adds no fragment work at all, so the
+//     premise holds as equality. This is the verdict the relief increment ran, unchanged.
+const geometryVerdict = frameBudgetVerdict({
+  rows: rowsFor(['flat', 'relief']),
+  baselineLabel: `flat @ ${LAND_ZOOMS[0]}px`,
+});
+// (b) THE MATERIAL SEGMENT — one material family, and the grain octave genuinely adds fragment
+//     work on top of the banded ladder, which is exactly what the premise wants.
+const materialVerdict = frameBudgetVerdict({
+  rows: rowsFor(['banded', 'treated']),
+  baselineLabel: `banded @ ${LAND_ZOOMS[0]}px`,
+});
+const verdict = {
+  geometry: geometryVerdict,
+  material: materialVerdict,
+  // The worst of the two, in the vocabulary the callers of this driver already read. UNVERIFIED
+  // outranks FAIL: it is a verdict about the MEASUREMENT, and a measurement that cannot be
+  // believed cannot fail anything either (`frame-budget.ts`).
+  status:
+    geometryVerdict.status === 'UNVERIFIED' || materialVerdict.status === 'UNVERIFIED'
+      ? 'UNVERIFIED'
+      : geometryVerdict.status === 'FAIL' || materialVerdict.status === 'FAIL'
+        ? 'FAIL'
+        : 'PASS',
+};
 
 console.log('');
 console.log('arm        zoom   median ms   spread ms   % of 60Hz   draws   triangles   y span   colours   land px');
@@ -291,8 +338,21 @@ for (const zoom of LAND_ZOOMS) {
   );
 }
 console.log('');
+for (const zoom of LAND_ZOOMS) {
+  const flat = median(readings.get(`flat|${zoom}`).samples);
+  const banded = median(readings.get(`banded|${zoom}`).samples);
+  const pct = flat === 0 ? Number.NaN : ((banded - flat) / flat) * 100;
+  console.log(
+    `at ${zoom} px/unit the BANDED ground costs ${banded.toFixed(4)} ms against the material it ` +
+      `replaces at ${flat.toFixed(4)} ms — ${pct.toFixed(1)}%`,
+  );
+}
+console.log('');
+console.log(`frame budget (geometry: flat -> relief): ${verdict.geometry.status}`);
+for (const reason of verdict.geometry.reasons ?? []) console.log(`  ${reason}`);
+console.log(`frame budget (material: banded -> treated): ${verdict.material.status}`);
+for (const reason of verdict.material.reasons ?? []) console.log(`  ${reason}`);
 console.log(`frame budget: ${verdict.status}`);
-for (const reason of verdict.reasons ?? []) console.log(`  ${reason}`);
 
 writeFileSync(
   join(OUT, 'shipped-banded.json'),
