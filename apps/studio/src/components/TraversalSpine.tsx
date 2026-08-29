@@ -46,7 +46,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  anchorSummary,
+  linkageSummary,
   markKnowledgeDepth,
   reportKnowledgeDepth,
   type KnowledgeDepthModel,
@@ -409,12 +409,19 @@ export function TraversalSpine({
  * NOT a restored note: it sits ABOVE the picture, on the line that already states counts, and it
  * states counts.
  *
- * THE ANCHOR FIGURE TRAVELS WITH IT — that is the whole reason the chip is worth its width. `3/52`
- * alone reads as an indictment of the session that was looked at. `3/52 on-chain` beside
- * `44/1620 anchored` reads as what it is: a fact about how little of the corpus names any work.
+ * THE LINKAGE FIGURE TRAVELS WITH IT — that is the whole reason the chip is worth its width. `3/52`
+ * alone reads as an indictment of the session that was looked at. `3/52 placed` beside
+ * `1034/1208 linked` reads as what it is: a fact about how much of the corpus is wired at all.
  *
- * The three readings stay three (`lib/knowledgeDepth.ts`): an artifact NOTHING reaches is never
- * rendered as a deep one, and an UNMEASURED corpus says so rather than reporting nothing reached.
+ * ⚠ WHAT IT MEASURES CHANGED IN ADR-0476, AND THE WORDS CHANGED WITH IT. It used to read
+ * `N/M on-chain … K/L anchored`: distance from a WORK ANCHOR, over a denominator that included 1,880
+ * record rows. It now reads `N/M placed … K/L linked`: distance from the graph's own SURFACE, over
+ * the knowledge tiers only. The words are not decoration — `on-chain` and `anchored` named the old
+ * quantity, and leaving them on the new one would have been the most quotable wrong number here.
+ *
+ * The four readings stay four (`lib/knowledgeDepth.ts`): an artifact NOTHING links to is never
+ * rendered as a surface, a cycle is never rendered as a depth, and an UNMEASURED corpus says so
+ * rather than reporting nothing placed.
  */
 function KnowledgeChip({
   replay,
@@ -433,24 +440,27 @@ function KnowledgeChip({
   }
   const report = reportKnowledgeDepth(replay.events, knowledge);
   if (report === null || report.visited === 0) return null;
-  const anchors = anchorSummary(knowledge);
+  const linkage = linkageSummary(knowledge);
   return (
     <span
       className="traversal-axis-note small muted"
       data-testid="traversal-knowledge-chip"
-      data-reached={report.reached}
+      data-placed={report.placed}
       data-visited={report.visited}
-      data-unreachable={report.unreachable}
+      data-unlinked={report.unlinked}
+      data-cyclic={report.cyclic}
       data-absent={report.absent}
-      title={`${report.reached} of ${report.visited} artifacts read here sit on an authored chain from a work anchor${
-        report.reached > 0 ? `, deepest ${report.maxDepth}` : ''
-      }; ${report.unreachable} in the corpus with no chain reaching them — unmeasured, NOT deep; ${
+      title={`${report.placed} of ${report.visited} artifacts read here sit in the dependency graph${
+        report.placed > 0 ? `, the deepest ${report.maxDepth} hop(s) below a surface` : ''
+      }; ${report.unlinked} carry no edge either way — unmeasured, NOT at the surface; ${
         report.absent
-      } not Library artifacts. ${anchors ?? ''}. Nothing enforces this join, so the two graphs can drift — a derived reading, never a guarantee.`}
+      } not Library artifacts${
+        report.cyclic > 0 ? `; ${report.cyclic} sit under a dependency cycle` : ''
+      }. ${linkage ?? ''} Nothing enforces this join, so the two graphs can drift — a derived reading, never a guarantee.`}
     >
-      knowledge {report.reached}/{report.visited} on-chain
-      {report.reached > 0 ? ` · deepest ${report.maxDepth}` : ''} · {knowledge.verdict.anchors}/
-      {knowledge.verdict.artifactsScanned} anchored
+      knowledge {report.placed}/{report.visited} placed
+      {report.placed > 0 ? ` · deepest ${report.maxDepth}` : ''} · {knowledge.verdict.knowledgeLinked}
+      /{knowledge.verdict.knowledgeScanned} linked
     </span>
   );
 }
