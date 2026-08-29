@@ -4,15 +4,15 @@ import assert from "node:assert/strict";
 import {
   evaluateSurfaceDepth,
   kindOfDoc,
-  surfaceDepthNodes,
   surfaceDepthOf,
   surfaceWalkVacuity,
   RECORD_KINDS,
   VACUOUS_SURFACE_WALK_FLOOR,
+  type SurfaceDepthNode,
   type SurfaceDepthVerdict,
 } from "./surface-depth.js";
 import { decisionSupportResolver } from "./decision-support-seam.js";
-import { type DepthFromWorkSource } from "./knowledge-depth.js";
+import { depthFromWorkNodes, type DepthFromWorkSource } from "./knowledge-depth.js";
 
 /**
  * ADR-0476's surface-depth reading, as a pure function over stored rows.
@@ -32,8 +32,17 @@ function row(
   return { id, doc: { kind, id, ...rest } };
 }
 
+/**
+ * The projection a real caller performs — the studio from `GuidanceAsset.category`, the probe from
+ * the stored row — done here the same way rather than through a test-only helper.
+ */
+function nodesOf(rows: readonly DepthFromWorkSource[]): SurfaceDepthNode[] {
+  const kinds = new Map(rows.map((r) => [r.id, kindOfDoc(r.doc)] as const));
+  return depthFromWorkNodes(rows).map((node) => ({ ...node, kind: kinds.get(node.id) ?? "" }));
+}
+
 function verdictOf(rows: readonly DepthFromWorkSource[]): SurfaceDepthVerdict {
-  return evaluateSurfaceDepth(surfaceDepthNodes(rows));
+  return evaluateSurfaceDepth(nodesOf(rows));
 }
 
 test("surface-is-a-node-that-points-at-something: an edge-free row is UNLINKED, never a surface at depth 0", () => {
@@ -97,7 +106,7 @@ test("surface-depth-counts-decisions-as-nodes: a decision may BE a surface and m
     row("guidance", { dependsOn: ["asset:adr-0002"] }),
   ];
   const verdict = evaluateSurfaceDepth(
-    surfaceDepthNodes(rows),
+    nodesOf(rows),
     decisionSupportResolver([
       { number: 1, dependsOn: [] },
       { number: 2, dependsOn: ["doc:decisions/0001-first.md"] },
@@ -124,7 +133,7 @@ test("surface-depth-counts-decisions-as-nodes: a decision may BE a surface and m
 
 test("surface-decisions-are-counted: a decision nothing points at is reported as a surface", () => {
   const verdict = evaluateSurfaceDepth(
-    surfaceDepthNodes([row("adr-0009", { kind: "adr" }), row("adr-0008", { kind: "adr" })]),
+    nodesOf([row("adr-0009", { kind: "adr" }), row("adr-0008", { kind: "adr" })]),
     decisionSupportResolver([
       { number: 9, dependsOn: ["doc:decisions/0008-x.md"] },
       { number: 8, dependsOn: [] },
@@ -272,7 +281,7 @@ test("kind-of-doc-is-total: kind wins over category, and anything unusable reads
 
 test("an-unusable-kind-lands-on-the-knowledge-side: it never silently improves the score", () => {
   const verdict = evaluateSurfaceDepth(
-    surfaceDepthNodes([
+    nodesOf([
       { id: "a", doc: { dependsOn: ["asset:b"] } }, // no kind at all
       { id: "b", doc: { kind: 42 } }, // a kind this reader cannot use
     ]),
@@ -302,7 +311,7 @@ test("a-decision-node-counts-as-knowledge-whatever-its-twin-said", () => {
   const verdict = evaluateSurfaceDepth(
     // The twin row is deliberately mislabelled a record kind. The decision is still knowledge: the
     // node that survives the collapse is a DECISION, and `adr` is a knowledge tier.
-    surfaceDepthNodes([{ id: "adr-0007", doc: { kind: "increment" } }]),
+    nodesOf([{ id: "adr-0007", doc: { kind: "increment" } }]),
     decisionSupportResolver([{ number: 7, dependsOn: [] }]),
   );
   assert.equal(verdict.knowledgeScanned, 1);
@@ -324,7 +333,7 @@ test("edges-are-counted-and-a-target-outside-the-node-set-is-not", () => {
 
 test("the-collapse-drops-a-self-edge-and-deduplicates: a twin pointing at its own decision is not a hop", () => {
   const verdict = evaluateSurfaceDepth(
-    surfaceDepthNodes([
+    nodesOf([
       // The twin points AT ITS OWN DECISION. After collapsing, that is a self-edge.
       { id: "adr-0005", doc: { kind: "adr", dependsOn: ["doc:decisions/0005-self.md"] } },
       // And two pointers at the same decision, one through each live spelling: ONE edge, not two.
@@ -353,7 +362,7 @@ test("a-duplicate-row-does-not-relabel-the-node: first id wins, matching the gra
 
 test("the-collapse-only-fires-for-a-decision-the-resolver-HOLDS", () => {
   const verdict = evaluateSurfaceDepth(
-    surfaceDepthNodes([
+    nodesOf([
       row("adr-0404", { kind: "adr", dependsOn: ["asset:plain"] }),
       row("plain", { kind: "principle" }),
     ]),
@@ -373,7 +382,7 @@ test("the-collapse-only-fires-for-a-decision-the-resolver-HOLDS", () => {
 
 test("surface-decisions-counts-only-the-decisions-among-the-surfaces", () => {
   const verdict = evaluateSurfaceDepth(
-    surfaceDepthNodes([
+    nodesOf([
       row("an-artifact-surface", { dependsOn: ["asset:floor"] }),
       row("floor"),
       row("adr-0011", { kind: "adr", dependsOn: ["doc:decisions/0012-x.md"] }),
@@ -536,4 +545,82 @@ test("the-vacuity-reasons-say-what-to-suspect, not merely that something is wron
   ).join(" ");
   assert.match(cyclic, /sit under a cycle and have no longest chain/);
   assert.match(cyclic, /`probe:combined-dag` proves this graph acyclic, so this is a regression/);
+});
+
+test("a-duplicate-id-is-classified-once, from the FIRST row the walk was built from", () => {
+  const verdict = evaluateSurfaceDepth([
+    { id: "dup", kind: "definition", dependsOn: ["asset:target"], cites: [] },
+    { id: "dup", kind: "increment", dependsOn: [], cites: [] },
+    { id: "target", kind: "definition", dependsOn: [], cites: [] },
+  ]);
+  // Taking the LAST row's kind would move `dup` to the record tier and shrink the denominator the
+  // panel prints — silently, since both readings are internally consistent.
+  assert.equal(verdict.knowledgeScanned, 2);
+  assert.equal(verdict.recordScanned, 0);
+});
+
+test("a-node-whose-kind-is-EMPTY-lands-on-the-knowledge-side", () => {
+  // `""` is what `kindOfDoc` returns for a row declaring no usable kind, and it is a real value the
+  // walk receives rather than a missing field. It must not fall to the record side.
+  const verdict = evaluateSurfaceDepth([
+    { id: "no-kind-declared", kind: "", dependsOn: ["asset:target"], cites: [] },
+    { id: "target", kind: "definition", dependsOn: [], cites: [] },
+  ]);
+  assert.equal(verdict.knowledgeScanned, 2);
+  assert.equal(verdict.recordScanned, 0);
+  assert.equal(verdict.knowledgeLinked, 2);
+});
+
+test("a-SINK-carries-no-edges: the edge count is exact, not merely non-zero", () => {
+  // Three nodes, two of them sinks, and exactly two edges. An adjacency that gave every node a
+  // phantom target would inflate this — which is the shape a fallback for the sinks invites.
+  const verdict = verdictOf([
+    row("opening", { dependsOn: ["asset:sink-one", "asset:sink-two"] }),
+    row("sink-one"),
+    row("sink-two"),
+  ]);
+  assert.equal(verdict.edgesScanned, 2);
+  assert.equal(verdict.surfaces, 1);
+  assert.equal(verdict.placed, 3);
+  assert.equal(verdict.maxDepth, 1);
+});
+
+test("a-node-is-processed-only-AFTER-every-predecessor: an early admission shortens what is below it", () => {
+  //   top ──> quick ─────────────┐
+  //    └───> slow-a ─> slow-b ─> bottom ──> sink
+  //
+  // `bottom` is REACHED from the short side first. If it were admitted to the queue then — rather
+  // than once its last inbound edge is consumed — it would propagate depth 2 to `sink` and never be
+  // revisited, so `sink` would read 3 instead of 4. The diamond alone cannot catch this, because
+  // `bottom` has nothing below it to carry the error into.
+  const verdict = verdictOf([
+    row("top", { dependsOn: ["asset:quick", "asset:slow-a"] }),
+    row("quick", { dependsOn: ["asset:bottom"] }),
+    row("slow-a", { dependsOn: ["asset:slow-b"] }),
+    row("slow-b", { dependsOn: ["asset:bottom"] }),
+    row("bottom", { dependsOn: ["asset:sink"] }),
+    row("sink"),
+  ]);
+  assert.deepEqual(surfaceDepthOf(verdict, "bottom"), { state: "placed", depth: 3 });
+  assert.deepEqual(surfaceDepthOf(verdict, "sink"), { state: "placed", depth: 4 });
+  assert.equal(verdict.maxDepth, 4);
+});
+
+test("nothing-is-admitted-to-the-queue-twice: the walk terminates and each node is placed once", () => {
+  // A node with several inbound edges reaches `left === 0` once, and the bound holds even if that
+  // ever stopped being true. Counting the placed nodes is what would catch a double admission.
+  const verdict = verdictOf([
+    row("one", { dependsOn: ["asset:shared"] }),
+    row("two", { dependsOn: ["asset:shared"] }),
+    row("three", { dependsOn: ["asset:shared"] }),
+    row("shared", { dependsOn: ["asset:below"] }),
+    row("below"),
+  ]);
+  assert.equal(verdict.placed, 5);
+  assert.equal(verdict.histogram.reduce((total, bucket) => total + bucket.count, 0), 5);
+  assert.deepEqual(verdict.histogram, [
+    { depth: 0, count: 3 },
+    { depth: 1, count: 1 },
+    { depth: 2, count: 1 },
+  ]);
 });

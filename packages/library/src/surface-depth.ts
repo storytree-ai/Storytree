@@ -111,8 +111,15 @@ export const RECORD_KINDS: ReadonlySet<string> = new Set([
 
 /** The walk's input: the depth-from-work node plus the kind the denominator splits on. */
 export interface SurfaceDepthNode extends DepthFromWorkNode {
-  /** The artifact's kind / category. ABSENT counts as knowledge — see the header. */
-  readonly kind?: string | undefined;
+  /**
+   * The artifact's kind / category, as {@link kindOfDoc} reads it. REQUIRED, and `""` is the honest
+   * value for a row that declares none — an unknown kind counts as knowledge (see the header).
+   *
+   * Required rather than optional on purpose: every caller already knows the kind (the studio has
+   * `category` on the wire, the probe has the stored row), and an optional field here bought only a
+   * default that no input could reach and no test could ever pin.
+   */
+  readonly kind: string;
 }
 
 /**
@@ -200,22 +207,6 @@ export interface SurfaceDepthVerdict {
 }
 
 /**
- * PURE: project stored corpus docs onto the {@link SurfaceDepthNode} graph this walk reads.
- *
- * TOTAL over untrusted input, for {@link depthFromWorkNodes}' reason: a row written by an older
- * schema, or by a branch carrying a field this checkout lacks, must project as "no edges, no kind"
- * rather than throw. A read-side projection is not where a surprise row takes a surface down.
- */
-export function surfaceDepthNodes(docs: readonly DepthFromWorkSource[]): SurfaceDepthNode[] {
-  // Joined BY ID rather than by position. `depthFromWorkNodes` maps 1:1 today, so a positional zip
-  // would work — and would break silently the day it stops, which is the class of coupling this
-  // file's own header warns about. FIRST ROW WINS on a duplicate id, matching the graph builder.
-  const kinds = new Map<string, string>();
-  for (const row of docs) if (!kinds.has(row.id)) kinds.set(row.id, kindOfDoc(row.doc));
-  return depthFromWorkNodes(docs).map((node) => ({ ...node, kind: kinds.get(node.id) ?? "" }));
-}
-
-/**
  * The kind a stored row declares, or `""` when it declares none this reader can use.
  *
  * `""` rather than `undefined`, so the denominator split has exactly one shape to handle and an
@@ -268,8 +259,17 @@ export function evaluateSurfaceDepth(
 
   // FIRST ID WINS on a duplicate, matching `buildDependencyGraph` — a second row for the same id
   // must not silently re-label the node the graph was built from.
-  const kindById = new Map<string, string>();
-  for (const node of nodes) if (!kindById.has(node.id)) kindById.set(node.id, node.kind ?? "");
+  // FIRST ID WINS on a duplicate, matching `buildDependencyGraph` — a second row for the same id
+  // must not silently re-label the node the graph was built from. Held as the ANSWER (is this a
+  // record tier?) rather than as the kind, so the denominator split below is a set membership and
+  // not a lookup with a default nothing can reach.
+  const recordIds = new Set<string>();
+  const seenIds = new Set<string>();
+  for (const node of nodes) {
+    if (seenIds.has(node.id)) continue;
+    seenIds.add(node.id);
+    if (RECORD_KINDS.has(node.kind)) recordIds.add(node.id);
+  }
 
   // COLLAPSE THE DECISION TWINS FIRST — see the header. `adr-0012` and `decision:0012` are one
   // decision, and leaving them apart inverts the reading rather than merely coarsening it.
@@ -284,28 +284,31 @@ export function evaluateSurfaceDepth(
   }
   const canonical = (id: string): string => canonicalIds.get(id) ?? id;
 
+  // `outbound` holds ONLY the nodes that point at something, and `allIds` is tracked apart. A map
+  // keyed by every node with an empty array for the sinks would make `get(id) ?? []` a fallback no
+  // input can take — a line nobody can test, on the hottest path in the walk.
+  const allIds: string[] = [];
   const outbound = new Map<string, string[]>();
   for (const [id, targets] of graph.outbound) {
     const from = canonical(id);
+    if (!allIds.includes(from)) allIds.push(from);
     const merged = outbound.get(from) ?? [];
     for (const target of targets) {
       const to = canonical(target);
       // A self-edge is what a twin's own pointer at its decision becomes; it is not a hop.
       if (to !== from && !merged.includes(to)) merged.push(to);
     }
-    outbound.set(from, merged);
+    if (merged.length > 0) outbound.set(from, merged);
   }
 
-  const allIds = [...outbound.keys()];
   const indegree = new Map<string, number>();
-  for (const id of allIds) indegree.set(id, 0);
   let edgesScanned = 0;
   // EVERY TARGET IS A NODE OF THIS GRAPH, so there is no "unknown target" branch here to test or to
   // rot: `buildDependencyGraph` already drops an `asset:` pointer naming no artifact (it counts it
   // as `danglingTargets`) and a decision pointer the resolver does not hold, and it adds every
   // decision it DOES hold as a key. `canonical()` only ever rewrites one node id to another.
-  for (const id of allIds) {
-    for (const target of outbound.get(id) ?? []) {
+  for (const [, targets] of outbound) {
+    for (const target of targets) {
       indegree.set(target, (indegree.get(target) ?? 0) + 1);
       edgesScanned += 1;
     }
@@ -316,32 +319,45 @@ export function evaluateSurfaceDepth(
   const surfaceIds: string[] = [];
   const unlinkedIds = new Set<string>();
   for (const id of allIds) {
-    const hasOut = (outbound.get(id) ?? []).length > 0;
+    const hasOut = outbound.has(id);
     const hasIn = (indegree.get(id) ?? 0) > 0;
     if (!hasIn && hasOut) surfaceIds.push(id);
     else if (!hasIn && !hasOut) unlinkedIds.add(id);
   }
 
+  // KAHN'S ORDER, AS ONE PASS OVER A QUEUE THAT GROWS BEHIND THE CURSOR.
+  //
+  // `for…of` over an array reads the live length, so a node appended here is visited later in this
+  // same loop. That is deliberate and it is not merely style: the obvious `while (frontier.length)`
+  // shape cannot be proved, because mutating its exit test to `>= 0` hangs the suite instead of
+  // failing an assertion — a hang names no test and so can never be credited to this branch.
+  // A queue whose every entry is admitted at most once is bounded by the node count no matter what
+  // any single condition does, so every mutant here terminates and is answerable by an assertion.
   const depthById = new Map<string, number>();
   const remaining = new Map(indegree);
-  let frontier = [...surfaceIds];
-  for (const id of frontier) depthById.set(id, 0);
-  while (frontier.length > 0) {
-    const next: string[] = [];
-    for (const id of frontier) {
-      const depth = depthById.get(id) ?? 0;
-      for (const target of outbound.get(id) ?? []) {
-        // MAX, not assignment: a node accumulates from every predecessor before it is queued, and
-        // the LONGEST of those chains is its depth (ADR-0476 D2).
-        depthById.set(target, Math.max(depthById.get(target) ?? 0, depth + 1));
-        const left = (remaining.get(target) ?? 0) - 1;
-        remaining.set(target, left);
-        // Queued only once every inbound edge has been consumed — that is what makes this a
-        // topological order, and what makes the accumulated maximum final when it is read.
-        if (left === 0) next.push(target);
+  const queue = [...surfaceIds];
+  for (const id of queue) depthById.set(id, 0);
+  // The HARD CAP is what bounds this loop, and it is deliberately a cap rather than a second
+  // "already queued?" guard: `left === 0` already fires exactly once per node, so such a guard
+  // would be a line no input could take. A cap cannot be mutated into a hang — the worst any
+  // mutant does is stop early, which an assertion catches.
+  let admitted = 0;
+  for (const id of queue) {
+    const depth = depthById.get(id) ?? 0;
+    for (const target of outbound.get(id) ?? []) {
+      // MAX, not assignment: a node accumulates from every predecessor before it is queued, and the
+      // LONGEST of those chains is its depth (ADR-0476 D2).
+      depthById.set(target, Math.max(depthById.get(target) ?? 0, depth + 1));
+      const left = (remaining.get(target) ?? 0) - 1;
+      remaining.set(target, left);
+      // Admitted only once every inbound edge has been consumed — that is what makes this a
+      // topological order, and what makes the accumulated maximum final when it is read. The
+      // `queued` guard is the loop's BOUND, not a duplicate of that rule.
+      if (left === 0 && admitted < allIds.length) {
+        admitted += 1;
+        queue.push(target);
       }
     }
-    frontier = next;
   }
 
   // Every node with an edge that Kahn could not emit still carries inbound edges it never consumed,
@@ -375,10 +391,10 @@ export function evaluateSurfaceDepth(
   let recordScanned = 0;
   let recordLinked = 0;
   for (const id of allIds) {
-    // A DECISION IS NEVER A RECORD TIER, whatever the artifact twin's kind field says — the twin is
-    // collapsed away and the surviving node is a decision. Asserted as a fact about the node rather
-    // than by handing the lookup a literal kind, which would read the same and mean less.
-    const isRecord = isDecisionNode(id) ? false : RECORD_KINDS.has(kindById.get(id) ?? "");
+    // A DECISION IS NEVER A RECORD TIER, whatever the artifact twin's kind field said — the twin is
+    // collapsed away and the surviving node is a decision, which no decision id can be a member of
+    // `recordIds` to contradict.
+    const isRecord = recordIds.has(id);
     const placed = depthById.has(id);
     if (isRecord) {
       recordScanned += 1;
