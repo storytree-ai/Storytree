@@ -153,9 +153,46 @@ export function islandCapabilities(opts: IslandOptions = {}): FixtureCapability[
   }));
 }
 
-/** The story's ten UAT criteria and their proof states — the same list the flowers ride on. */
+/**
+ * THE ISLAND'S OWN STATE — the STORY's, not a roll-up of its capabilities.
+ *
+ * ⚠ THIS IS THE RULE, NOT A HARNESS SHORTCUT, and it is worth knowing which. On the shipped map a
+ * story's status is its OWN UAT node's signed verdict and never a child roll-up (ADR-0033 d.4,
+ * restated in `apps/studio/src/lib/worldStatus.ts`: green derives from the signed verdict, and a
+ * story's verdict is its own). So "the island as a whole is tinted by its rolled-up state"
+ * (ADR-0475 D2) already has an answer in this codebase and does not need one invented: it is the
+ * territory's status, which is exactly what `islandScene` stamps on the territory below.
+ *
+ * It is a function rather than an inlined `?? 'healthy'` in two places because it now has two
+ * callers — the scene builder and the ground's uniform tint — and two copies of a default is how
+ * a land and the story it draws come to disagree.
+ */
+export function islandStatus(opts: IslandOptions = {}): SceneStatus {
+  return opts.status ?? 'healthy';
+}
+
+/**
+ * The story's ten UAT criteria and their proof states — the same list the flowers ride on.
+ *
+ * ⚠⚠ THE DEFAULT FOLLOWS THE ISLAND'S OWN STATE, and that is a correctness fix rather than a
+ * tidy-up. It used to default every criterion to `proven` whatever the island was, which is
+ * coherent for the all-healthy research surface this fixture is shaped after and INCOHERENT for
+ * any other: a story's status IS its own signed UAT verdict (ADR-0033 d.4, and
+ * `apps/studio/src/lib/worldStatus.ts` — a signed pass renders the unit healthy), so a story
+ * carrying ten signed criteria cannot be `unknown`.
+ *
+ * Measured on the 2026-08-29 crowd before this changed: all 35 islands drew ten blooms each,
+ * INCLUDING the `unknown` one and the `unhealthy` one — the picture asserting the owner had
+ * signed ten criteria on a story nobody has checked. That is the one way this arc can do real
+ * harm (ADR-0392 D5 / ADR-0398 D7), arriving through the fixture rather than through the
+ * vocabulary.
+ *
+ * `criteriaStates` still overrides positionally, so the MIXED panel — a labelled deviation — is
+ * unchanged, and so is every panel that does not name a status (the default island is healthy).
+ */
 export function islandCriteria(opts: IslandOptions = {}): Array<{ id: string; state: CriterionState }> {
-  return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? ('proven' as CriterionState) }));
+  const fallback: CriterionState = islandStatus(opts) === 'healthy' ? 'proven' : 'pending';
+  return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? fallback }));
 }
 
 export function islandScene(opts: IslandOptions = {}): SceneG {
@@ -175,7 +212,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
 
   const territory: SceneTerritoryInput = {
     id: 'context-traversal-capture',
-    status: opts.status ?? 'healthy',
+    status: islandStatus(opts),
     caps: parcels.length,
     centroid: { x: cx, y: cy },
     groundRadius: 70,

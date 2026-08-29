@@ -36,10 +36,10 @@ import { ELEV_RAD, crowdLayout, fitZoom, neighbourhoodZoom } from './crowd-layou
 import type { CrowdIsland, CrowdLayout } from './crowd-layout.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-definition.js';
 import { islandScene } from './island-fixture.js';
-import { kitLights, kitMeshes } from './kit-scene.js';
+import { kitLights, kitMeshes, roleFootprints } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
-import { dressIslandFromKit } from './kit-vocabulary.js';
-import type { KitPlacement } from './kit-vocabulary.js';
+import { dressIslandFromKit, dressingOverlaps } from './kit-vocabulary.js';
+import type { KitPlacement, PropOverlap } from './kit-vocabulary.js';
 import type { LightCalibration } from './pine-scene.js';
 
 export type CrowdArm = 'bare' | 'today' | 'kit' | 'kit-merged';
@@ -79,16 +79,11 @@ const BASE: Omit<IslandViewProps, 'pxPerUnit' | 'displayPxPerUnit' | 'island'> =
 };
 
 /**
- * THE SIGNALS THE FIXTURE DOES NOT CARRY, supplied rather than invented — the same two, in the
- * same shape, as `kit-island-scene.ts`'s `DEMONSTRATED_SIGNALS`, and named here for the same
- * reason: `check:verification-decay` computes drift for real and ADR-0438's anchors know what has
- * been retired, and neither reaches a harness fixture that renders with no database. A prop drawn
- * from a number nobody supplied is decoration wearing a signal's name (ADR-0414 D1).
+ * ✅ NOTHING IS SUPPLIED TO THIS DRESSING ANY MORE. The two roles that read from numbers a
+ * database-less fixture cannot compute — rocks for drift, logs for retired contracts — were
+ * withdrawn by the owner on 2026-08-29, so every prop in this crowd is read off each island's own
+ * scene. The constant that used to sit here is gone with them.
  */
-const DEMONSTRATED_SIGNALS = {
-  drift: { 'cap-1': 4, 'cap-5': 2 },
-  retired: { 'cap-0': 3, 'cap-2': 1 },
-} as const;
 
 /** One island's fixture options: the whole island in its own status. */
 interface IslandOptions {
@@ -137,7 +132,7 @@ function offsetIsland(scene3: THREE.Scene, offset: { x: number; z: number }): TH
 }
 
 /** Where every prop on one island stands, in that island's OWN space. */
-function islandPlacements(island: CrowdIsland): KitPlacement[] {
+function islandPlacements(island: CrowdIsland, kit: LoadedKit): KitPlacement[] {
   const opts = islandOptions(island);
   return dressIslandFromKit({
     scene: islandScene(opts),
@@ -147,13 +142,27 @@ function islandPlacements(island: CrowdIsland): KitPlacement[] {
     // samples a landscape the island does not have and every prop floats or sinks by the
     // difference.
     relief: LAND_RELIEF_AMPLITUDE,
-    supplied: DEMONSTRATED_SIGNALS,
+    // Measured off the loaded kit, never restated — see `placements` in `kit-island-scene.ts`.
+    footprint: roleFootprints(kit),
   });
 }
 
+/**
+ * EVERY OVERLAPPING PAIR ACROSS THE WHOLE FOREST, in forest space.
+ *
+ * ⚠ IT IS CHECKED IN FOREST SPACE ON PURPOSE, and this is the one thing the single-island page
+ * cannot ask. Each island is dressed in its own coordinates and then offset; two islands whose
+ * layout put them close enough together could stand a tree of one inside a tree of another
+ * without either island's own dressing ever seeing a conflict.
+ */
+export function crowdOverlaps(layout: CrowdLayout, kit: LoadedKit): PropOverlap[] {
+  const all = layout.islands.flatMap((island) => placementsAt(island, kit));
+  return dressingOverlaps(all, roleFootprints(kit));
+}
+
 /** The same placements, moved into FOREST space — what the whole-forest merge consumes. */
-function placementsAt(island: CrowdIsland): KitPlacement[] {
-  return islandPlacements(island).map((p) => ({
+function placementsAt(island: CrowdIsland, kit: LoadedKit): KitPlacement[] {
+  return islandPlacements(island, kit).map((p) => ({
     ...p,
     at: { x: p.at.x + island.offset.x, z: p.at.z + island.offset.z },
   }));
@@ -233,11 +242,17 @@ export function composeCrowd(opts: CrowdOptions): ComposedCrowd {
     if (arm === 'today') props = { ...base, dressing: 'wild' };
     else props = { ...base, plants: false, flowers: false };
 
+    // ⚠ THE LAND CHANGE RIDES THE KIT ARMS ONLY. An island wears ONE colour, its story's own
+    // state (ADR-0475 D2), and the crowd is where that claim is actually tested — 35 islands in
+    // five states, read at the zoom the map opens at. `bare` and `today` keep the per-capability
+    // ground so the comparison has a control that is the map as it is.
+    if (wantKit) props = { ...props, landState: 'island' };
+
     // The per-island merge: this island's own props become this island's own draw calls.
     if (arm === 'kit') {
-      props = { ...props, extra: kitMeshes(opts.kit!, islandPlacements(island)) };
+      props = { ...props, extra: kitMeshes(opts.kit!, islandPlacements(island, opts.kit!)) };
     }
-    if (arm === 'kit-merged') merged.push(...placementsAt(island));
+    if (arm === 'kit-merged') merged.push(...placementsAt(island, opts.kit!));
 
     scene3.add(offsetIsland(composeIsland(props).scene3, island.offset));
   }
@@ -362,11 +377,11 @@ export interface CrowdPropCount {
   byStatus: Record<string, number>;
 }
 
-export function crowdPropCount(layout: CrowdLayout): CrowdPropCount {
+export function crowdPropCount(layout: CrowdLayout, kit: LoadedKit): CrowdPropCount {
   const byStatus: Record<string, number> = {};
   let total = 0;
   for (const island of layout.islands) {
-    const n = islandPlacements(island).length;
+    const n = islandPlacements(island, kit).length;
     byStatus[island.status] = (byStatus[island.status] ?? 0) + n;
     total += n;
   }

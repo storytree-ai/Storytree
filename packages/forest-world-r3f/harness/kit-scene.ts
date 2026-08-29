@@ -19,10 +19,19 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 import { LIGHT_DIRECTION } from './palette-band.js';
-import { KIT_ASSEMBLIES, KIT_ROLE_SIZE, kitObjectNames } from './kit-vocabulary.js';
-import type { KitAssembly, KitPlacement } from './kit-vocabulary.js';
+import {
+  KIT_ASSEMBLIES,
+  KIT_ROLES,
+  KIT_ROLE_ASSEMBLIES,
+  KIT_ROLE_SIZE,
+  kitObjectNames,
+} from './kit-vocabulary.js';
+import type { KitAssembly, KitPlacement, KitRole, RoleFootprints } from './kit-vocabulary.js';
+import { leafTintGainFor } from './leaf-tint.js';
+import { mapMeans } from './map-texels.js';
+import type { DecodedMap } from './map-texels.js';
 import { applyRawColourConvention } from './texture-convention.js';
-import type { ConventionMaterial } from './texture-convention.js';
+import type { ConventionMaterial, Rgb } from './texture-convention.js';
 import type { LightCalibration } from './pine-scene.js';
 
 /** Vite serves `harness/` as its root, so `harness/assets/x.glb` is `/assets/x.glb`. */
@@ -47,9 +56,23 @@ export interface KitAssemblyGeometry {
   width: number;
 }
 
+/** The materials whose texels are LEAVES, and therefore the ones a state's tint rotates.
+ *
+ *  ⚠ HAND-AUTHORED, UPSTREAM OF THE ASSET, and this is what keeps the dead trunk bare. The kit
+ *  gives `Pine_Trunk_No_Leaves_01` BOTH `Pine_Trunks` and `Pine_Branches` — its dead branches
+ *  wear the same material as a live crown's needles. Tinting by MATERIAL alone would therefore
+ *  paint a dead tree's branches yellow for a state it does not hold; the tint is a property of
+ *  the PLACEMENT (`KitPlacement.tint`, `null` for the dead form) and this set only says which of
+ *  that placement's parts the tint reaches. */
+export const LEAF_MATERIALS: ReadonlySet<string> = new Set(['Pine_Branches']);
+
 export interface LoadedKit {
   assemblies: Map<KitAssembly, KitAssemblyGeometry>;
   materials: string[];
+  /** Each leaf material's own base-colour mean over its solid texels — what a tint is rotated
+   *  from. Read off the asset rather than declared, because a footprint or a mean restated here
+   *  would be a second copy that drifts the first time the kit is re-exported. */
+  leafMeans: Map<string, Rgb>;
   triangles: number;
   /** Bytes of the `.glb` as fetched, read off the response rather than transcribed. */
   wireBytes: number;
@@ -173,14 +196,110 @@ export async function loadKit(url: string = KIT_ASSET_URL): Promise<LoadedKit> {
     gpuBytes += Math.round(t.width * t.height * 4 * (4 / 3));
   }
 
+  // ⚠ THE LEAF MEANS ARE READ HERE, ONCE, FROM THE ASSET'S OWN DECODED TEXELS — not declared and
+  // not derived from the delivered frame. A tint rotates a map onto a token's chromaticity at the
+  // MAP's own luminance (`leaf-tint.ts`), so it needs the map's mean and nothing else; taking it
+  // from the picture instead would be an expectation derived from its own subject.
+  const leafMeans = new Map<string, Rgb>();
+  for (const parts of objects.values()) {
+    for (const part of parts) {
+      if (!LEAF_MATERIALS.has(part.materialName)) continue;
+      if (leafMeans.has(part.materialName)) continue;
+      const image = part.material.map?.image as DecodedMap | undefined;
+      if (!image) {
+        throw new Error(
+          `kit-scene: the leaf material ${part.materialName} carries no base-colour map, so a ` +
+            'state tint has nothing to rotate — a crown would silently wear the token as a flat ' +
+            'colour instead of the asset it was bought for',
+        );
+      }
+      leafMeans.set(part.materialName, mapMeans(image).raw);
+    }
+  }
+  const missingLeaf = [...LEAF_MATERIALS].filter((m) => !leafMeans.has(m));
+  if (missingLeaf.length > 0) {
+    throw new Error(
+      `kit-scene: ${url} carries none of the declared leaf materials [${missingLeaf.join(', ')}] — ` +
+        "every tinted state would fall back to the kit's own green and the island would report " +
+        'every capability as proven',
+    );
+  }
+
   return {
     assemblies,
     materials: [...materials].sort(),
+    leafMeans,
     triangles,
     wireBytes: bytes.byteLength,
     textures: [...textures.values()],
     gpuBytes,
   };
+}
+
+/**
+ * THE GROUND WIDTH EACH ROLE OCCUPIES, measured off the kit's own geometry at its role's scale.
+ *
+ * This is what keeps two props apart (`dressIslandFromKit`'s `footprint`), and it is measured
+ * rather than declared for one reason: a pine's canopy is as wide as ITS OWN geometry says once
+ * scaled to 18 ground units of height, and a number restated in the vocabulary would drift the
+ * first time the asset is re-exported at a different rung or with a different tree.
+ *
+ * The widest assembly serving a role wins, so a role's clearance is enough for any of its arms.
+ */
+export function roleFootprints(kit: LoadedKit): RoleFootprints {
+  const out = {} as Record<KitRole, number>;
+  for (const role of KIT_ROLES) {
+    let widest = 0;
+    for (const name of KIT_ROLE_ASSEMBLIES[role]) {
+      const assembly = kit.assemblies.get(name);
+      if (!assembly) throw new Error(`kit-scene: no assembly ${name} for role ${role}`);
+      const size = KIT_ROLE_SIZE[role];
+      const own = size.axis === 'height' ? assembly.height : assembly.width;
+      if (!(own > 0)) throw new Error(`kit-scene: assembly ${name} has no ${size.axis}`);
+      widest = Math.max(widest, (assembly.width * size.units) / own);
+    }
+    out[role] = widest;
+  }
+  return out;
+}
+
+/**
+ * THE MATERIAL A PLACEMENT'S PART WEARS — the kit's own, or a tinted clone of it.
+ *
+ * ⚠ ONE CLONE PER (MATERIAL, TINT), CACHED. `MeshStandardMaterial` compiles a program per
+ * material, and this renderer is draw-call bound, so a clone per PLACEMENT would trade the merge
+ * this file exists to do for one draw call per tree. Three tints over one leaf material is three
+ * extra draw calls on a whole island.
+ */
+export function tintedMaterial(
+  kit: LoadedKit,
+  base: THREE.MeshStandardMaterial,
+  materialName: string,
+  tint: string | null,
+  cache: Map<string, THREE.MeshStandardMaterial>,
+): THREE.MeshStandardMaterial {
+  if (tint === null || !LEAF_MATERIALS.has(materialName)) return base;
+  const key = `${materialName}::${tint}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const mean = kit.leafMeans.get(materialName);
+  if (!mean) throw new Error(`kit-scene: no base-colour mean for the leaf material ${materialName}`);
+  const gain = leafTintGainFor(tint, mean);
+  if (!gain) {
+    throw new Error(
+      `kit-scene: the state ${tint} has no declared leaf tint, so a placement asking for one is ` +
+        'asking the crown to carry a state the vocabulary does not name',
+    );
+  }
+  const clone = base.clone();
+  // ⚠ The gain is applied to `color`, which three multiplies into the sampled texel — so the
+  // map's own variation survives and only its chromaticity moves. `ColorManagement` is off on
+  // this surface (`configureExactColour`), so the three numbers reach the shader unconverted,
+  // which is the whole basis of `leaf-tint.ts`'s arithmetic being predictive at all.
+  clone.color.setRGB(gain.r, gain.g, gain.b);
+  clone.needsUpdate = true;
+  cache.set(key, clone);
+  return clone;
 }
 
 /** What one placement's geometry is multiplied by to stand at its role's height. */
@@ -209,14 +328,26 @@ export function placementExtent(kit: LoadedKit, placement: KitPlacement): Placem
   return { width: assembly.width * scale, height: assembly.height * scale };
 }
 
+/** One merge bucket: everything sharing a material AND a tint becomes one mesh. */
+interface MergeBucket {
+  material: THREE.MeshStandardMaterial;
+  parts: THREE.BufferGeometry[];
+}
+
 /**
- * BUILD THE DRESSING: one merged mesh per material, however many props there are.
+ * BUILD THE DRESSING: one merged mesh per (material, tint), however many props there are.
  *
  * The transform is `translate * rotateY * scale`, applied to a CLONE of the kit's geometry, so
  * the kit itself is never mutated and two placements of one assembly cannot interfere.
+ *
+ * ⚠ THE TINT IS PART OF THE BUCKET KEY, and it has to be: a merged mesh wears ONE material, so
+ * merging a yellow-crowned tree with a green one by material alone would silently paint both
+ * whichever colour arrived first — an island reporting a state that half its capabilities do not
+ * hold, drawn with no error anywhere. The cost is one extra draw call per tint actually used.
  */
 export function kitMeshes(kit: LoadedKit, placements: readonly KitPlacement[]): THREE.Mesh[] {
-  const byMaterial = new Map<string, { material: THREE.MeshStandardMaterial; parts: THREE.BufferGeometry[] }>();
+  const byMaterial = new Map<string, MergeBucket>();
+  const tints = new Map<string, THREE.MeshStandardMaterial>();
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const up = new THREE.Vector3(0, 1, 0);
@@ -233,9 +364,11 @@ export function kitMeshes(kit: LoadedKit, placements: readonly KitPlacement[]): 
     );
     for (const part of assembly.objects) {
       const geometry = part.geometry.clone().applyMatrix4(m);
-      const bucket = byMaterial.get(part.materialName);
+      const material = tintedMaterial(kit, part.material, part.materialName, placement.tint, tints);
+      const key = material === part.material ? part.materialName : `${part.materialName}::${placement.tint}`;
+      const bucket = byMaterial.get(key);
       if (bucket) bucket.parts.push(geometry);
-      else byMaterial.set(part.materialName, { material: part.material, parts: [geometry] });
+      else byMaterial.set(key, { material, parts: [geometry] });
     }
   }
 

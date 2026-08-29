@@ -99,12 +99,16 @@ console.log(
 );
 console.log('');
 console.log(
-  `${pad('material', 22)}${pad('verdict', 17)}${pad('delivered', 16)}${pad('raw ctl', 16)}${pad('managed ctl', 16)}${pad('sep', 8)}map`,
+  `${pad('material', 34)}${pad('verdict', 17)}${pad('delivered', 16)}${pad('raw ctl', 16)}${pad('managed ctl', 16)}${pad('sep', 8)}${pad('value', 9)}map`,
 );
 for (const m of report.materials) {
+  // `value` is a TINTED row's delivered luminance over its untinted sibling's, in the same run.
+  // A leaf tint rotates hue and may not change value (ADR-0475 D1), so every tinted row reads
+  // x1.000 — that column is what tells a deliberate yellow crown from a broken black-green one.
+  const value = m.lumaVsUntinted === null || m.lumaVsUntinted === undefined ? '-' : `x${m.lumaVsUntinted.toFixed(3)}`;
   console.log(
-    `${pad(m.material, 22)}${pad(m.verdict, 17)}${pad(rgb(m.delivered), 16)}${pad(rgb(m.rawControl), 16)}` +
-      `${pad(rgb(m.managedControl), 16)}${pad(m.separation.toFixed(2) + 'x', 8)}${m.mapWidth}x${m.mapHeight}`,
+    `${pad(m.material, 34)}${pad(m.verdict, 17)}${pad(rgb(m.delivered), 16)}${pad(rgb(m.rawControl), 16)}` +
+      `${pad(rgb(m.managedControl), 16)}${pad(m.separation.toFixed(2) + 'x', 8)}${pad(value, 9)}${m.mapWidth}x${m.mapHeight}`,
   );
   if (!m.ok) console.log(`  -> ${m.detail}`);
 }
@@ -122,7 +126,10 @@ if (!report.ok) {
   fail(
     'the textured-asset colour convention is BROKEN on this surface. A base-colour map decoded ' +
       'as sRGB renders about 3.5x dark and reads as a deliberate art choice — route the loader ' +
-      'through applyRawColourConvention() in texture-convention.ts.',
+      'through applyRawColourConvention() in texture-convention.ts. If the failing row is a ' +
+      'TINTED crown, read its `value` column first: a leaf tint may rotate hue and may not ' +
+      'change value (ADR-0475 D1), and a tint that darkens is indistinguishable by eye from the ' +
+      'convention failing.',
   );
 }
 
