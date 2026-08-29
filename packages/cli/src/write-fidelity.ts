@@ -289,11 +289,15 @@ export const SET_WRITE_VERBS: ReadonlyArray<readonly [area: string, sub: string,
  * The distinction is what lets the refusal print the caller's own corrected command: with a verb in
  * the third slot the command names no artifact (`artifact list --set …`), while anything else there
  * IS the id, and splicing `edit` before it produces the line the caller meant to run.
+ *
+ * `edit` IS ABSENT ON PURPOSE, and adding it back is dead code: {@link SET_WRITE_VERBS} matches
+ * `library artifact edit` and returns before this set is ever consulted, so no input can reach it
+ * with `edit` in the third slot. The mutation rung is what proved that — the entry survived every
+ * test because nothing could observe it.
  */
 const ARTIFACT_VERBS: ReadonlySet<string> = new Set([
   "list",
   "new",
-  "edit",
   "retire",
   "comment",
   "history",
@@ -335,6 +339,10 @@ export function setVerbRefusal(input: {
   const { positionals, sets } = input;
   if (sets.length === 0) return null;
   const [area, sub, third] = positionals;
+  // Stryker disable next-line MethodExpression: EQUIVALENT — SET_WRITE_VERBS holds exactly one
+  // triple today, and over a one-element list `some` and `every` agree on every input. The mutant
+  // becomes killable the moment a second write verb is added, which is the point at which the
+  // difference starts to matter; until then no test can observe it.
   if (SET_WRITE_VERBS.some(([a, s, v]) => a === area && s === sub && v === third)) return null;
 
   const honoured = SET_WRITE_VERBS.map(

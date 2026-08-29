@@ -639,3 +639,37 @@ test("the banner and truncation refusals point their next: lines at the edit for
     "storytree library artifact history an-agent --field whatItIs --pg",
   ]);
 });
+
+test("the anchor refusal's next: line spells the edit verb", async () => {
+  // The last `--set` command the CLI emits from the edit path itself. It lives in commands.ts,
+  // which has no sibling test file, so the mutation rung only ever sees it through a test that
+  // drives `run` — and this section is where those live.
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "inc-unanchored",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "inc-unanchored",
+      title: "An unanchored proposal",
+      description: "d",
+      objective: "Do the thing.",
+      body: "touch `packages/cli/src`.",
+      arcRef: "asset:some-arc",
+      status: "proposal",
+      parked: "2026-08-13",
+      references: [],
+      createdAt: "2026-08-13",
+      updatedAt: "2026-08-13",
+    },
+  });
+  const env = await run(
+    ["library", "artifact", "edit", "inc-unanchored", "--set", "anchor=nonsense"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, false);
+  assert.deepEqual(env.next, [
+    "storytree library artifact edit inc-unanchored --set anchor=$(git rev-parse HEAD) --pg",
+    "storytree increment check inc-unanchored --pg",
+  ]);
+});
