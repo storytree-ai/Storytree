@@ -73,12 +73,11 @@ test("artifact <id> offers the AUTHORED edge and NOT the citation that is only a
     "storytree library artifact edit resting-thing   (coming soon)",
   ]);
 
-  // The citation is still RECORDED — `Sources:` was never the defect and ADR-0464 keeps it. What is
-  // gone is printing it a second time as navigation, with its title and type grouping stripped off.
-  assert.ok(
-    env.body.includes("    - Consolidate the load-bearing set  (asset:adr-0139)"),
-    "the citation stays in the Sources block, where it says what this was WRITTEN FROM",
-  );
+  // ADR-0464 kept the `Sources:` block; ADR-0477 D1 retires it, so the citation is now printed
+  // NOWHERE. The fixture still CARRIES `asset:adr-0139` in `references` (the data is untouched until
+  // step 4), which is what makes this an assertion about the RENDER rather than about the data.
+  assert.ok(!env.body.includes("Sources:"), "no Sources block");
+  assert.ok(!env.body.includes("adr-0139"), "and the citation is not printed anywhere else");
   assert.equal(env.note, undefined, "the ADR-0320 ask stanza went with the surface it asked about");
 });
 
@@ -187,13 +186,16 @@ test("artifact <id> derives its onward block from the AUTHORED dependsOn field, 
     store: await withAuthoredEdges(["asset:never-bypass-the-gate", "asset:adr-0139"]),
   });
   assert.equal(env.ok, true);
-  assert.ok(env.body.includes("  Decisions (ADRs):"), "a resolved citation lands under its type heading");
-  assert.ok(
-    env.body.includes("    - Consolidate the load-bearing set  (asset:adr-0139)"),
-    "and keeps the title the onward block resolves through the same table",
-  );
-  assert.ok(env.body.includes("    - asset:no-such-reference (unknown asset)  (asset:no-such-reference)"));
-  // The authored edges lead, ordered by the Sources grouping (guardrails before decisions), each
+  // The `Sources:` block that used to print these citations under type headings is retired
+  // (ADR-0477 D1). The fixture still carries them in `references`, including the deliberately
+  // unresolvable one, so their absence from the body is the render stopping, not the data moving.
+  assert.ok(!env.body.includes("Sources:"), "no Sources block");
+  assert.ok(!env.body.includes("no-such-reference"), "not even the unresolvable citation prints");
+  // ⚠ The onward block below is the SURVIVOR and the surface this whole direction moves toward
+  // (ADR-0464 D2). It resolves its titles through `sourceGroupOf`, the grouping table the retired
+  // block also used — which is why ADR-0477 D7 keeps that table alive. Weakening this assertion
+  // while removing citations would undo ADR-0464 while appearing to implement ADR-0477.
+  // The authored edges lead, ordered by that same grouping (guardrails before decisions), each
   // carrying the title and kind the bare command used to throw away. The nav verbs about THIS row
   // follow — losing the terminal verb is the miss `terminalVerbFor`'s header already paid to close.
   assert.deepEqual(env.next, [
@@ -472,12 +474,16 @@ test("a node: ref renders as a Story node through the REAL binary, on both artif
     },
   });
 
-  // `library artifact <id>` — the Sources block groups it, rather than dumping it under "Other".
+  // `library artifact <id>` — the Sources block that grouped this under "Story nodes" is retired
+  // (ADR-0477 D1), so the artifact read prints no citation at all. The fixture still carries
+  // `node:cli` in `references`, so this is the render stopping rather than the token changing.
   const view = await run(["library", "artifact", "cites-a-node"], { store });
   assert.equal(view.ok, true, view.body);
-  assert.match(view.body, /Story nodes:\r?\n\s+- cli {2}\(node:cli\)/);
+  assert.ok(!view.body.includes("Story nodes:"), "no Sources grouping on the artifact read");
+  assert.ok(!view.body.includes("node:cli"), "and the node: token is not printed there");
 
-  // `library tree focus <id>` — an outbound edge labelled a story node, NOT a "source".
+  // `library tree focus <id>` — the surface that SURVIVES: an outbound edge labelled a story
+  // node, NOT a "source". Untouched by ADR-0477; still proves the token renders honestly.
   const focus = await run(["library", "tree", "focus", "cites-a-node"], { store });
   assert.equal(focus.ok, true, focus.body);
   assert.match(focus.body, /→ cli {3}\(story node — storytree tree cli\)/);

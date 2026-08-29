@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The ADR-0123 THIRD forest-world mapper (owned by the website-experience story): React Three Fiber / three.js. Two layers behind the provability firewall: the pure world-to-3D descriptor mapping (world-to-3d.ts \u2014 semantic scene layer in, typed 3D instance descriptors out; node:test-provable, no React/three imports) and the thin R3F canvas shell + drei MapControls dev harness that draws the descriptors (browser-bound by design \u2014 that is strategy C's point). Consumes @storytree/forest-world's semantic layer (buildScene / SceneKind / SceneStatus / variants), SUPPLIES its own 3D geometry \u2014 the deterministic world computation is reused, never re-derived. Synced into the public site as an artifact (ADR-0093 \u00a73, extended by web-experience-sync).",
+  "description": "The ADR-0123 THIRD forest-world mapper (owned by the website-experience story): React Three Fiber / three.js. Two layers behind the provability firewall: the pure world-to-3D descriptor mapping (world-to-3d.ts — semantic scene layer in, typed 3D instance descriptors out; node:test-provable, no React/three imports) and the thin R3F canvas shell + drei MapControls dev harness that draws the descriptors (browser-bound by design — that is strategy C's point). Consumes @storytree/forest-world's semantic layer (buildScene / SceneKind / SceneStatus / variants), SUPPLIES its own 3D geometry — the deterministic world computation is reused, never re-derived. Synced into the public site as an artifact (ADR-0093 §3, extended by web-experience-sync).",
   "exports": {
     ".": "./src/index.ts",
     "./canvas": "./src/ForestWorldCanvas.tsx"
@@ -27,7 +27,8 @@
     "measure-kit-island": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/kit-island-measure.mjs",
     "measure-crowd": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/crowd-measure.mjs",
     "measure-palette": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/palette-measure.ts",
-    "measure-real-map": "node harness/crowd-real-map.mjs"
+    "measure-real-map": "node harness/crowd-real-map.mjs",
+    "measure-shipped-land": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-land-measure.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",

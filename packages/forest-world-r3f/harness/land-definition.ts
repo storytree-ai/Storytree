@@ -48,104 +48,29 @@ export interface GroundPoint {
 }
 
 // ---------------------------------------------------------------------------
-// 1. THE RELIEF FIELD
+// 1. THE RELIEF FIELD — ADOPTED, AND NOW LIVES IN `src/`
 // ---------------------------------------------------------------------------
 //
-// A sum of three sine waves at long wavelengths relative to a cell. THE WAVELENGTHS ARE
-// THE ART CALL, and they are chosen against a measured cell size rather than by taste:
-// the fixture's cells average 16.5 ground units across, so the shortest component here
-// (27 units) is still wider than a cell and the longest (62) spans about four of them.
-// Anything at or below the cell pitch would land back on exactly what was rejected — a
-// per-cell pattern — while wearing relief's clothes.
+// ⚠ IT MOVED RATHER THAN BEING COPIED, and this re-export is what keeps that true. The
+// relief field crossed onto the SHIPPED side on 2026-08-30 (`src/land-relief.ts`), because
+// the owner authorised adoption on 2026-08-29 — "This looks better, stamp it". Every symbol
+// below is the same function object the shipped canvas draws with, so the harness and the
+// product can no longer disagree about what the land's shape is. Twenty-odd harness modules
+// import these from here and none of them had to change.
 //
-// It is a CONTINUOUS function of position, and that is load-bearing rather than tidy. The
-// relaxed substrate interns its vertices, so neighbouring cells share vertex coordinates
-// exactly; sampling a continuous field at those coordinates makes the displaced ground
-// watertight across every interior seam for free. A per-cell offset would tear it open and
-// re-draw the very seams the owner removed.
+// The reasoning that used to live here — why three sine waves, why none may go below the
+// 16.5-unit mean cell pitch, why the field is continuous, why the normal is analytic and
+// per-vertex — moved with the code and is in `src/land-relief.ts`.
+export {
+  LAND_RELIEF_AMPLITUDE,
+  landGradient,
+  landHeight,
+  landHeightRange,
+  landNormal,
+  type LandGradientResult,
+  type LandNormalResult,
+} from '../src/land-relief.js';
 
-/** The three components: `[kx, kz, weight, phase]`. Wavelengths 62 / 41 / 27 ground units
- *  against a 16.5-unit mean cell — see the note above for why none may go below it. */
-const WAVES: readonly (readonly [number, number, number, number])[] = [
-  [0.0811, 0.0608, 1.0, 0.0],
-  [0.0536, -0.1439, 0.6, 1.7],
-  [-0.1396, 0.1862, 0.32, 4.1],
-];
-
-/**
- * The relief amplitude, in ground units, at the island page's default.
- *
- * PICKED BY LOOKING, WHICH IS THIS SESSION'S CALL UNDER ADR-0392 D2, and the reason is
- * recorded on the increment rather than left in a constant. The number that actually
- * matters is not the height — it is the SLOPE, because the shader quantises `dot(n, L)`
- * onto a four-rung ladder and only slope moves a pixel between rungs. At the authored
- * light the flat ground sits at rung 0.9; reaching rung 1.0 needs the normal tilted about
- * 9 degrees toward the light and reaching rung 0.8 about 11 degrees away from it. The
- * gradient of the wave sum above peaks at `0.26 * amplitude`, so an amplitude near 2.2
- * puts peak slope around 30 degrees — comfortably across both thresholds, so all three
- * visually distinct rungs appear, while the total height range stays under +/-5 units on a
- * 234-unit island. That is a swell, not terrain.
- */
-export const LAND_RELIEF_AMPLITUDE = 2.2;
-
-/** Ground height at a point, in ground units. Deterministic, continuous, C-infinity, and a
- *  function of POSITION ONLY — see the semantics note at the top of this file. */
-export function landHeight(x: number, z: number, amplitude = LAND_RELIEF_AMPLITUDE): number {
-  let h = 0;
-  for (const [kx, kz, weight, phase] of WAVES) h += Math.sin(x * kx + z * kz + phase) * weight;
-  return h * amplitude;
-}
-
-/** The largest height the field can reach at this amplitude — the sum of the wave weights,
- *  which every component hits together only in principle but which bounds the field exactly.
- *  A camera framing the island needs it: relief is an UPRIGHT extent, so it grows the
- *  island's on-screen height and would otherwise crop. */
-export function landHeightRange(amplitude = LAND_RELIEF_AMPLITUDE): number {
-  return WAVES.reduce((s, [, , weight]) => s + Math.abs(weight), 0) * Math.abs(amplitude);
-}
-
-export interface LandGradientResult { dx: number; dz: number }
-
-/** The field's gradient `[dh/dx, dh/dz]`. Analytic rather than sampled: a finite-difference
- *  normal is a function of the step you happened to pick, and on a banded material a
- *  slightly-wrong normal is not a slightly-wrong colour — it is a different rung. */
-export function landGradient(
-  x: number,
-  z: number,
-  amplitude = LAND_RELIEF_AMPLITUDE,
-): LandGradientResult {
-  let dx = 0;
-  let dz = 0;
-  for (const [kx, kz, weight, phase] of WAVES) {
-    const c = Math.cos(x * kx + z * kz + phase) * weight;
-    dx += c * kx;
-    dz += c * kz;
-  }
-  return { dx: dx * amplitude, dz: dz * amplitude };
-}
-
-export interface LandNormalResult { x: number; y: number; z: number }
-
-/**
- * The unit surface normal of the relief field at a point.
- *
- * SUPPLIED PER VERTEX, NOT PER FACE, AND THE DIFFERENCE IS THE WHOLE LOOK. A face normal
- * would make every triangle of the ground a flat facet, the ladder would quantise each one
- * whole, and the land would come out as a mosaic of hard triangles — which is the rejected
- * per-cell noise arriving by another route. Interpolating an analytic vertex normal and
- * quantising in the FRAGMENT stage instead puts the rung boundary wherever the surface
- * actually crosses it, so the land reads as broad soft zones with clean edges: the same
- * language a shadow speaks, which is what "makes room for shadow" means in practice.
- */
-export function landNormal(
-  x: number,
-  z: number,
-  amplitude = LAND_RELIEF_AMPLITUDE,
-): LandNormalResult {
-  const { dx, dz } = landGradient(x, z, amplitude);
-  const len = Math.hypot(dx, 1, dz);
-  return { x: -dx / len, y: 1 / len, z: -dz / len };
-}
 
 // ---------------------------------------------------------------------------
 // 2. THE EDGE CLASSIFICATION — which seams are worth drawing at all

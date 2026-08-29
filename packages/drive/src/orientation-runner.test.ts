@@ -189,7 +189,7 @@ test("orientation runner: [tree spec <unknown>] misses with guidance, never a th
   assert.ok((env.next ?? []).length > 0, "a miss still ships next: guidance");
 });
 
-test("orientation runner: [library artifact <id>] renders the artifact body with references", async () => {
+test("orientation runner: [library artifact <id>] renders the body and offers no citation doors", async () => {
   const runner = await makeRunner();
   const env = await runner(["library", "artifact", "live-shaped-artifact"], {
     store: null,
@@ -197,10 +197,11 @@ test("orientation runner: [library artifact <id>] renders the artifact body with
   });
   assert.equal(env.ok, true);
   assert.match(env.body, /THE PRINCIPLE BODY TEXT/, "the artifact's body renders");
-  assert.ok(
-    (env.next ?? []).some((n) => n.includes("another-artifact")),
-    "asset: references become next: pulls",
-  );
+  // ADR-0477 D1 retires the citation tier: neither the `references:` block nor the onward doors it
+  // derived survive. The fixture artifact still CARRIES the citations (the data is untouched until
+  // step 4), so asserting their absence here proves the render stopped rather than the data moving.
+  assert.doesNotMatch(env.body, /references:/, "no `references:` block");
+  assert.deepEqual(env.next ?? [], [], "no citation-derived doors");
 });
 
 test("orientation runner: [library artifact list <category>] lists ids; unknown category lists categories", async () => {

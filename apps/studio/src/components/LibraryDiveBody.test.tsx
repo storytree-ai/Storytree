@@ -154,7 +154,12 @@ describe('LibraryDiveBody — empty/prompt state', () => {
 });
 
 describe('LibraryDiveBody — asset selection reuses AssetView', () => {
-  it('ldb-asset-selection-renders-assetview-body-and-sources: an asset selection mounts AssetView, rendering its full body + Sources from the loaded corpus, with no docContent fetch', () => {
+  // The contract id is UNCHANGED on purpose: it is a stable handle bound from
+  // `stories/library-tech-tree-overlay/`, not a description, and renaming it would break that
+  // binding for a wording change. What it proves has narrowed — ADR-0477 D1 retired the `Sources`
+  // block — and the story's prose is corrected in the same landing rather than left asserting a
+  // render that no longer happens.
+  it('ldb-asset-selection-renders-assetview-body-and-sources: an asset selection mounts AssetView, rendering its full body from the loaded corpus with no docContent fetch — and no Sources block, retired by ADR-0477 D1', () => {
     const target = asset({
       id: 'dive-sources-target',
       title: 'Dive Sources Target',
@@ -180,9 +185,12 @@ describe('LibraryDiveBody — asset selection reuses AssetView', () => {
     // The full body renders (AssetView's own body renderer) …
     expect(screen.getByText(referencer.title)).toBeTruthy();
     expect(screen.getByText(/the referencing asset body prose/)).toBeTruthy();
-    // … and Sources, resolved against the already-loaded corpus.
-    expect(screen.getByText('Sources')).toBeTruthy();
-    expect(screen.getByText(target.title)).toBeTruthy();
+    // … and NO Sources block. The referencing asset still carries `asset:dive-sources-target` in
+    // its `references` (the data is untouched until ADR-0477's step 4), and the target artifact is
+    // still in the loaded corpus — so both would resolve if the block were still rendered. That is
+    // what makes this an assertion about the render rather than about an empty fixture.
+    expect(screen.queryByText('Sources')).toBeNull();
+    expect(screen.queryByText(target.title)).toBeNull();
 
     // The asset dive path is fetch-free (AssetView reads only the loaded corpus).
     expect(http.countTo(DOC_CONTENT)).toBe(0);

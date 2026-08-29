@@ -69,7 +69,8 @@
     "studio:up": "node scripts/studio.mjs up",
     "studio:down": "node scripts/studio.mjs down",
     "studio:status": "node scripts/studio.mjs status",
-    "desktop:start": "pnpm --filter desktop start"
+    "desktop:start": "pnpm --filter desktop start",
+    "probe:corpus-linkage": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-corpus-linkage.ts"
   },
   "pnpm": {
     "patchedDependencies": {
