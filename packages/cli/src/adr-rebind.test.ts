@@ -190,6 +190,11 @@ test("adr rebind NEVER freezes a span it cannot locate, and freezes its siblings
   assert.equal(env.ok, true, env.body);
   assert.match(env.body, /UNLOCATABLE/);
   assert.match(env.body, /were NOT frozen/);
+  // Same rule on the other route out of a drift finding: the fix-the-anchor leg is a WRITE.
+  assert.ok(
+    env.body.includes("    storytree library artifact edit adr-0904 --set sources=@anchors.json --pg, then rebind"),
+    env.body,
+  );
 
   const anchors = await anchorsOf(store, id);
   assert.equal(Object.hasOwn(anchors[0] ?? {}, "boundHash"), false, "the missing span is not frozen");
@@ -210,6 +215,12 @@ test("adr rebind on a decision carrying NO anchors refuses, and points at the au
   assert.equal(env.ok, false);
   assert.match(env.body, /no code anchors/);
   assert.match(env.body, /NEVER auto-anchor/);
+  // The authoring route it points at is a WRITE, so it carries the `edit` verb. Without it the
+  // command is a read that exits 0 over the render and stores nothing.
+  assert.ok(
+    env.body.includes("  storytree library artifact edit adr-0905 --set sources=@anchors.json --pg"),
+    env.body,
+  );
 });
 
 // ---------------------------------------------------------------------------

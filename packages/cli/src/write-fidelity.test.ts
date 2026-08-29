@@ -10,6 +10,7 @@ import { run } from "./commands.js";
 import {
   bannerRefusal,
   runScriptBannerOf,
+  setVerbRefusal,
   strayPositionalRefusal,
   truncationRefusal,
   TRUNCATION_FLOOR,
@@ -295,4 +296,380 @@ test("the documented round trip is byte-exact: --out then --set field=@path leav
   } finally {
     t.cleanup();
   }
+});
+
+// -------------------------------------------------------- the verb that writes
+
+/**
+ * `--set` on a command that will not write it.
+ *
+ * THE TEST THAT MATTERS IS THE `run` ONE BELOW, AND IT ASSERTS TWO THINGS TOGETHER: non-zero exit
+ * AND an unchanged store. Either alone stays green against the defect it exists to catch — the old
+ * behaviour returned `ok: true` over the artifact's full render while writing nothing, so a test
+ * that only asserted the `edit` form WRITES never saw it, and a test that only asserted the store
+ * was unchanged would pass on a command refused for some entirely different reason.
+ *
+ * THE BODIES ARE ASSERTED WHOLE, and that is not belt-and-braces. Asserting a FRAGMENT of this
+ * message is vacuous: every one of these bodies opens by QUOTING the shapes it is about, so a
+ * `match(body, /--set <field>=<value>/)` is satisfied by the header line and says nothing about the
+ * corrected command eleven lines below it. Measured while writing these tests — a deliberately
+ * broken `fieldOfSet` emitted `--set not a field assignmen=<value>` and the fragment assertion
+ * passed. The message IS the deliverable here (a caller reads it to recover a write that did not
+ * happen), so it is pinned line by line.
+ */
+
+/** Everything above the corrected command in the id-addressed refusal. */
+const ID_READ_HEAD = [
+  "`--set <field>=<value>` WRITES, and `storytree library artifact <id>` is a READ.",
+  "",
+  "NOTHING WAS WRITTEN. This is refused rather than ignored because ignoring it is the whole",
+  "defect: the read exits 0 and prints the artifact's full render, which is also what a successful",
+  "write prints, so a dropped `--set` is indistinguishable from a landed one. Measured twice — a",
+  "six-field batch that wrote nothing while its script logged WROTE six times, and a seeded",
+  "`dependsOn` cycle that never entered the store, after which the rung under test reported PASS",
+  "over a state nobody had created.",
+  "",
+  "THE FIX IS ONE WORD — the `edit` verb, between `artifact` and the id:",
+  "",
+];
+
+/** The tail appended only when a value could not be re-typed portably. */
+const ELISION_NOTE = [
+  "",
+  "(a value above is shown as `<value>`: it needs shell quoting, and the quoting differs",
+  "between the shells this repo runs on. Re-run YOUR command with `edit` added — or send the",
+  "value from a file, which no shell can cut: `--set <field>=@field.txt`.)",
+];
+
+/** The whole id-addressed refusal, for a corrected command line and an optional elision note. */
+function idReadRefusal(corrected: string, note: readonly string[] = []): string {
+  return [...ID_READ_HEAD, `    ${corrected}`, ...note].join("\n");
+}
+
+/** The whole refusal for a command that names no artifact to correct. */
+function genericRefusal(spelled: string): string {
+  return [
+    `\`--set <field>=<value>\` WRITES an artifact's fields, and \`${spelled}\` is not that write.`,
+    "",
+    "Nothing was written. It is refused rather than ignored because an ignored `--set` runs the",
+    "command it was attached to and exits 0, which is indistinguishable from the write landing.",
+    "",
+    "the verbs that honour it:",
+    "",
+    "    storytree library artifact edit <id> --set <field>=<value> --pg",
+  ].join("\n");
+}
+
+test("setVerbRefusal passes the verb that writes, and any command carrying no --set", () => {
+  assert.equal(
+    setVerbRefusal({
+      positionals: ["library", "artifact", "edit", "an-agent"],
+      sets: ["whatItIs=x"],
+    }),
+    null,
+  );
+  assert.equal(setVerbRefusal({ positionals: ["library", "artifact", "an-agent"], sets: [] }), null);
+});
+
+test("setVerbRefusal prints the caller's own corrected command, values and order preserved", () => {
+  assert.equal(
+    setVerbRefusal({
+      positionals: ["library", "artifact", "adr-0403"],
+      sets: ["status=accepted", "number=403"],
+    }),
+    idReadRefusal(
+      "storytree library artifact edit adr-0403 --set status=accepted --set number=403 --pg",
+    ),
+  );
+});
+
+test("setVerbRefusal elides a value no shell quoting would survive, rather than mis-quoting it", () => {
+  const body = setVerbRefusal({
+    positionals: ["library", "artifact", "an-agent"],
+    sets: ['whatItIs=prose with "quotes" and spaces'],
+  });
+  assert.equal(
+    body,
+    idReadRefusal(
+      "storytree library artifact edit an-agent --set whatItIs=<value> --pg",
+      ELISION_NOTE,
+    ),
+  );
+  // The elided form must not smuggle the raw value out anyway — that is the mis-quoting it avoids.
+  assert.doesNotMatch(body ?? "", /prose with/);
+});
+
+test("setVerbRefusal renders `<field>` for a --set argument that names no field at all", () => {
+  assert.equal(
+    setVerbRefusal({
+      positionals: ["library", "artifact", "an-agent"],
+      sets: ["not a field assignment"],
+    }),
+    idReadRefusal(
+      "storytree library artifact edit an-agent --set <field>=<value> --pg",
+      ELISION_NOTE,
+    ),
+  );
+});
+
+test("setVerbRefusal keeps one pasteable value beside one it had to elide", () => {
+  // Both branches of the per-argument choice in ONE render, so neither can be mutated into the
+  // other without a visible difference.
+  assert.equal(
+    setVerbRefusal({
+      positionals: ["library", "artifact", "an-agent"],
+      sets: ["status=accepted", "whatItIs=two words"],
+    }),
+    idReadRefusal(
+      "storytree library artifact edit an-agent --set status=accepted --set whatItIs=<value> --pg",
+      ELISION_NOTE,
+    ),
+  );
+});
+
+test("setVerbRefusal refuses --set on a verb that is not the id-addressed read either", () => {
+  // `library artifact new` takes a whole doc; `arc edit` takes named prose flags. Both PARSED
+  // `--set` and dropped it, which is the same silence in a different place.
+  assert.equal(
+    setVerbRefusal({ positionals: ["library", "artifact", "new"], sets: ["title=x"] }),
+    genericRefusal("library artifact"),
+  );
+  assert.equal(
+    setVerbRefusal({ positionals: ["arc", "edit", "an-arc"], sets: ["title=x"] }),
+    genericRefusal("arc edit"),
+  );
+  // A command that reached only its area: the absent sub is DROPPED, not joined as a blank.
+  assert.equal(
+    setVerbRefusal({ positionals: ["arc"], sets: ["title=x"] }),
+    genericRefusal("arc"),
+  );
+});
+
+/**
+ * The allowlist match and the id-read test are CONJUNCTIONS, and a conjunction is only proven by
+ * falsifying each term on its own — otherwise a mutant that drops one term is invisible, because
+ * some other term is false in every case the suite happens to exercise.
+ */
+test("setVerbRefusal's allowlist match needs area AND sub AND verb, each falsifiable alone", () => {
+  const sets = ["title=x"];
+  // Right verb, right area, WRONG sub — `library tree edit` is not the write.
+  assert.equal(
+    setVerbRefusal({ positionals: ["library", "tree", "edit"], sets }),
+    genericRefusal("library tree"),
+  );
+  // Right verb, right sub, WRONG area.
+  assert.equal(
+    setVerbRefusal({ positionals: ["arc", "artifact", "edit"], sets }),
+    genericRefusal("arc artifact"),
+  );
+  // Right area, right sub, WRONG verb — this one is the id-addressed read, so it gets the
+  // corrected command rather than the generic list.
+  assert.equal(
+    setVerbRefusal({ positionals: ["library", "artifact", "an-agent"], sets }),
+    idReadRefusal("storytree library artifact edit an-agent --set title=x --pg"),
+  );
+});
+
+test("the id-read test needs area AND sub AND a present, non-verb third, each falsifiable alone", () => {
+  const sets = ["title=x"];
+  // area is library but sub is not artifact -> names no artifact, so no corrected command.
+  assert.equal(
+    setVerbRefusal({ positionals: ["library", "tree", "focus"], sets }),
+    genericRefusal("library tree"),
+  );
+  // sub is artifact but area is not library.
+  assert.equal(
+    setVerbRefusal({ positionals: ["arc", "artifact", "some-id"], sets }),
+    genericRefusal("arc artifact"),
+  );
+  // third is ABSENT: `library artifact --set …` names no id, so there is nothing to splice `edit`
+  // in front of. Forcing this term true would print the id as `undefined`.
+  assert.equal(
+    setVerbRefusal({ positionals: ["library", "artifact"], sets }),
+    genericRefusal("library artifact"),
+  );
+  // third is a VERB rather than an id — every one of them, so none can be dropped from the set.
+  for (const verb of ["list", "new", "edit", "retire", "comment", "history"]) {
+    const body = setVerbRefusal({ positionals: ["library", "artifact", verb], sets });
+    // `edit` is the write and returns null; the other five are reads that refuse generically.
+    assert.equal(body, verb === "edit" ? null : genericRefusal("library artifact"), verb);
+  }
+});
+
+test("a verbless --set REFUSES through run, and the store is untouched (the silent no-op)", async () => {
+  const store = await withProse("the original prose");
+  const env = await run(
+    ["library", "artifact", "an-agent", "--set", "whatItIs=rewritten", "--pg"],
+    { store, writable: true },
+  );
+  // Non-zero exit: `main` maps `ok: false` to 1. Before this guard the same command returned
+  // `ok: true` with the artifact's full render as its body — exit 0, and nothing written.
+  assert.equal(env.ok, false);
+  assert.equal(await stored(store), "the original prose");
+  assert.equal(
+    env.body,
+    idReadRefusal("storytree library artifact edit an-agent --set whatItIs=rewritten --pg"),
+  );
+  assert.deepEqual(env.next, ["storytree library artifact edit <id> --set <field>=<value> --pg"]);
+});
+
+test("the same command WITH the edit verb writes — so the refusal is about the verb, not the flag", async () => {
+  const store = await withProse("the original prose");
+  const env = await run(
+    ["library", "artifact", "edit", "an-agent", "--set", "whatItIs=rewritten", "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true);
+  assert.equal(await stored(store), "rewritten");
+});
+
+test("the verbless refusal fires BEFORE @path expansion, so a doomed command reads no file", async () => {
+  const store = await withProse("the original prose");
+  const env = await run(
+    ["library", "artifact", "an-agent", "--set", "whatItIs=@/definitely/not/here.txt", "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, false);
+  // The SET-VERB refusal, not the unreadable-path one: the ordering is what lets the corrected
+  // command echo the `@path` the caller typed rather than the contents it never read.
+  assert.equal(
+    env.body,
+    idReadRefusal(
+      "storytree library artifact edit an-agent --set whatItIs=@/definitely/not/here.txt --pg",
+    ),
+  );
+});
+
+test("--help still wins over the verbless --set refusal", async () => {
+  const env = await run(["library", "artifact", "--set", "whatItIs=x", "--help"], {
+    store: await withProse("prose"),
+  });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /storytree library artifact —/);
+});
+
+// ------------------------------------------- the emissions that taught the broken form
+
+/**
+ * THE CLI USED TO EMIT THE BROKEN SHAPE ITSELF, and that is how the second incident happened: the
+ * verbless command was copied from this tool's own footer one command earlier. So each surface that
+ * prints a `--set` command is pinned to the `edit` form here — a fix in the dispatch alone would
+ * leave the tool still teaching the shape it now refuses.
+ */
+
+test("the --out footer and its next: line both spell the edit verb", async () => {
+  const store = await withProse("prose");
+  const t = tmp();
+  try {
+    const file = path.join(t.dir, "field.txt");
+    const env = await run(["library", "artifact", "an-agent", "--raw", "whatItIs", "--out", file], {
+      store,
+    });
+    assert.equal(env.ok, true);
+    const write = `storytree library artifact edit an-agent --set whatItIs=@${file} --pg`;
+    assert.ok(env.body.includes(`  ${write}`), env.body);
+    assert.deepEqual(env.next, [write]);
+  } finally {
+    t.cleanup();
+  }
+});
+
+test("artifact --help teaches the long-prose round trip with the edit verb on the write leg", async () => {
+  const env = await run(["library", "artifact", "--help"], { store: await withProse("prose") });
+  assert.ok(
+    env.body.includes("  storytree library artifact edit <id> --set <field>=@field.txt --pg"),
+    env.body,
+  );
+});
+
+test("the three write-fidelity refusals all name the edit form as the way to say it on purpose", () => {
+  const banner = bannerRefusal({ what: "the value", value: PNPM_BANNER + "prose" });
+  assert.ok(banner !== null);
+  assert.ok(
+    banner.includes("    storytree library artifact edit <id> --set <field>=@field.txt --pg"),
+    banner,
+  );
+
+  const stale = "x".repeat(TRUNCATION_FLOOR * 4);
+  const truncated = truncationRefusal({
+    field: "whatItIs",
+    submitted: stale.slice(0, TRUNCATION_FLOOR),
+    stored: stale,
+    inline: true,
+  });
+  assert.ok(truncated !== null);
+  assert.ok(
+    truncated.includes("    storytree library artifact edit <id> --set whatItIs=@field.txt --pg"),
+    truncated,
+  );
+
+  const stray = strayPositionalRefusal({
+    positionals: ["library", "artifact", "edit", "an-agent", "stray", "words"],
+    hasProseValue: true,
+  });
+  assert.ok(stray !== null);
+  assert.ok(
+    stray.includes("    storytree library artifact edit <id> --set <field>=@field.txt --pg"),
+    stray,
+  );
+});
+
+test("the banner and truncation refusals point their next: lines at the edit form too", async () => {
+  const store = await withProse("the original prose that is quite long and will be prefixed away");
+  const banner = await run(
+    ["library", "artifact", "edit", "an-agent", "--set", `whatItIs=${PNPM_BANNER}new`, "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(banner.ok, false);
+  assert.deepEqual(banner.next, [
+    "storytree library artifact an-agent --raw whatItIs --out whatItIs.txt --pg",
+    "storytree library artifact edit an-agent --set whatItIs=@whatItIs.txt --pg",
+  ]);
+
+  const long = "y".repeat(TRUNCATION_FLOOR * 4);
+  const store2 = await withProse(long);
+  const cut = await run(
+    ["library", "artifact", "edit", "an-agent", "--set", `whatItIs=${long.slice(0, TRUNCATION_FLOOR)}`, "--pg"],
+    { store: store2, writable: true },
+  );
+  assert.equal(cut.ok, false);
+  assert.deepEqual(cut.next, [
+    "storytree library artifact an-agent --raw whatItIs --out whatItIs.txt --pg",
+    "storytree library artifact edit an-agent --set whatItIs=@whatItIs.txt --pg",
+    "storytree library artifact history an-agent --field whatItIs --pg",
+  ]);
+});
+
+test("the anchor refusal's next: line spells the edit verb", async () => {
+  // The last `--set` command the CLI emits from the edit path itself. It lives in commands.ts,
+  // which has no sibling test file, so the mutation rung only ever sees it through a test that
+  // drives `run` — and this section is where those live.
+  const store = new InMemoryStore();
+  await store.upsertDoc({
+    id: "inc-unanchored",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "inc-unanchored",
+      title: "An unanchored proposal",
+      description: "d",
+      objective: "Do the thing.",
+      body: "touch `packages/cli/src`.",
+      arcRef: "asset:some-arc",
+      status: "proposal",
+      parked: "2026-08-13",
+      references: [],
+      createdAt: "2026-08-13",
+      updatedAt: "2026-08-13",
+    },
+  });
+  const env = await run(
+    ["library", "artifact", "edit", "inc-unanchored", "--set", "anchor=nonsense"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, false);
+  assert.deepEqual(env.next, [
+    "storytree library artifact edit inc-unanchored --set anchor=$(git rev-parse HEAD) --pg",
+    "storytree increment check inc-unanchored --pg",
+  ]);
 });
