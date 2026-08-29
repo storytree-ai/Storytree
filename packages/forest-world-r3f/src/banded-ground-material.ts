@@ -84,9 +84,17 @@ export function groundRamp(tokens: readonly string[]): number[][] {
  *  past the cut-off with row 0's colour, which is a foreign-status read on the surface whose whole
  *  job is to report status. */
 export function rampSelectGlsl(entries: number): string {
-  const lines = ['vec3 c = uRamp[0];'];
-  for (let i = 1; i < entries; i += 1) lines.push(`if (idx == ${i}) c = uRamp[${i}];`);
-  return lines.join('\n        ');
+  // ⚠ BUILT WITH `Array.from` RATHER THAN AN INDEXED `for`, and that is a mutation-rung finding
+  // rather than a style preference. The loop's `i < entries` and `i += 1` came back UNPROVEN —
+  // killed, but with no test named — which the rung treats as neither a pass nor a survivor, and
+  // which the `bun` runner's coverage attribution does to inline single-statement loop bodies
+  // (`mutation-rung-misreports-inline-chains`). With the counter gone there is nothing left to
+  // mis-attribute, and every remaining mutant lands on arithmetic a test names directly.
+  const rest = Array.from(
+    { length: Math.max(0, entries - 1) },
+    (_, i) => `if (idx == ${i + 1}) c = uRamp[${i + 1}];`,
+  );
+  return ['vec3 c = uRamp[0];', ...rest].join('\n        ');
 }
 
 /**

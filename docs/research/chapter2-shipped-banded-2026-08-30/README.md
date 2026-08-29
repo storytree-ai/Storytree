@@ -32,6 +32,11 @@ DISPLAY=:0 ST_LAND_URL=http://localhost:5252/shipped-land.html \
 
 Raw: [`shipped-banded.json`](shipped-banded.json).
 
+**It reproduces.** The whole sweep was run three times on the Mint box, twice across a commit that
+changed the shader's comments and the quantiser's shape. Every one of the eight medians came back
+within **0.0002 ms** of the figures below, with the same colour counts, the same off-palette count
+and the same verdicts.
+
 ---
 
 ## 1. THE PICTURES — four arms, each differing from the one before it in ONE thing
@@ -65,19 +70,38 @@ four pictures imply otherwise.
 | relief | 2 px | 0.0039 | 0.02% | 1 | 1,640 |
 | **banded** | 2 px | **0.0023** | **0.01%** | 1 | 1,640 |
 | treated | 2 px | 0.0092 | 0.06% | 1 | 1,640 |
-| flat | 8 px | 0.0448 | 0.27% | 1 | 1,640 |
-| relief | 8 px | 0.0448 | 0.27% | 1 | 1,640 |
+| flat | 8 px | 0.0449 | 0.27% | 1 | 1,640 |
+| relief | 8 px | 0.0447 | 0.27% | 1 | 1,640 |
 | **banded** | 8 px | **0.0218** | **0.13%** | 1 | 1,640 |
-| treated | 8 px | 0.1069 | 0.64% | 1 | 1,640 |
+| treated | 8 px | 0.1070 | 0.64% | 1 | 1,640 |
 
 7 interleaved repeats, 300 renders per timed batch, GPU clock rather than submission time. Spread
-0.0000–0.0124 ms. `frame budget: PASS`.
+0.0000–0.0001 ms.
 
-**The banded ground costs 51% LESS per frame than the smooth one at the zoomed read**, and the
-reason is structural rather than lucky: `MeshStandardMaterial` runs a physically-based lighting
-model over an ambient and a directional light per fragment, while this material does one dot
-product, one four-way compare and a table read. Nothing was optimised — the cheaper thing is
-simply what a locked palette *is*.
+**The banded ground costs 38.4% less per frame at the overview and 51.3% less at the zoomed read
+than the material it replaces**, and the reason is structural rather than lucky:
+`MeshStandardMaterial` runs a physically-based lighting model over an ambient and a directional
+light per fragment, while this material does one dot product, one four-way compare and a table
+read. Nothing was optimised — the cheaper thing is simply what a locked palette *is*.
+
+⚠⚠ **AND THAT RESULT BROKE THE INSTRUMENT'S OWN PREMISE, which is worth recording because it is
+the kind of thing that reads as a bug.** `frameBudgetVerdict` rests on one assumption about the
+arms it is handed: every non-baseline row does strictly MORE fragment work than the baseline, so an
+arm measuring FASTER than the control is the instrument contradicting itself and the honest answer
+is `UNVERIFIED`. That premise had held for every comparison on this arc. It does not hold across
+`relief → banded`, because that rung REPLACES the material rather than adding to it.
+
+⚠ **The first sweep returned `PASS`, and that was luck rather than agreement.** The flat arm
+happened to carry a wide spread that run (0.0124 ms), the derived noise floor absorbed the
+difference, and the contradiction did not fire. The second run — reproducing every median to
+0.0001 ms — returned `UNVERIFIED`, naming exactly the right reason. So the ladder is now verdicted
+in the two segments that ARE work-monotone, and the step between them is reported as what it is:
+
+| verdict | segment | result |
+|---|---|---|
+| geometry | `flat → relief` — one material, relief adds no fragment work | **PASS** |
+| material | `banded → treated` — one material family, the grain adds work | **PASS** |
+| (not a verdict) | `relief → banded` — a material REPLACEMENT | **−38.4%** at 2 px, **−51.3%** at 8 px |
 
 ⚠ **DO NOT GENERALISE THAT TO THE TREATMENT AS A WHOLE.** The grain arm costs 4.9x the banded one
 and 2.4x the material it would replace. That is still 0.64% of a 60 Hz frame on this island, and
@@ -94,7 +118,7 @@ COVERAGE, and a whole forest of islands covers far more of the frame than one do
 | 2 px | **banded** | **4** | **0** | **58.2%** |
 | 2 px | treated | 186 | (not asked) | 58.2% |
 | 8 px | relief | 38 | (not asked) | 55.3% |
-| 8 px | **banded** | **5** | **0** | **58.2%** |
+| 8 px | **banded** | **4** | **0** | **58.2%** |
 | 8 px | treated | 186 | (not asked) | 58.2% |
 
 ⚠ **THE COLOUR COUNT GOES DOWN AND THAT IS THE POINT, WHICH IS WHY IT IS NOT THE MEASURE.** The
