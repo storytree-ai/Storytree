@@ -221,6 +221,26 @@ test('one bloom per SIGNED criterion, and none at all when the criteria are supp
   assert.equal(dress({ flowers: false }).filter((p) => p.role === 'bloom').length, 0);
 });
 
+test('A STORY THAT IS NOT PROVEN DOES NOT BLOOM — the fixture default follows the island', () => {
+  // ⚠⚠ Measured on the 2026-08-29 crowd before this was fixed: all 35 islands drew ten blooms
+  // each, INCLUDING the `unknown` one and the `unhealthy` one, because the fixture defaulted
+  // every criterion to `proven` whatever the island was. That is the picture asserting the owner
+  // signed ten criteria on a story nobody has checked — the one way this arc can do real harm
+  // (ADR-0392 D5), arriving through the fixture rather than through the vocabulary. A story's
+  // status IS its own signed UAT verdict (ADR-0033 d.4), so the two cannot disagree.
+  assert.equal(dress({ status: 'healthy' }).filter((p) => p.role === 'bloom').length, 10);
+  for (const status of ['unknown', 'unhealthy', 'proposed', 'building', 'mapped'] as const) {
+    assert.equal(
+      dress({ status }).filter((p) => p.role === 'bloom').length,
+      0,
+      `an ${status} story bloomed`,
+    );
+  }
+  // And an explicit `criteriaStates` still overrides — the labelled deviation is unchanged.
+  const forced = { status: 'unknown' as const, criteriaStates: ['proven' as const] };
+  assert.equal(dress(forced).filter((p) => p.role === 'bloom').length, 1);
+});
+
 test('the dressing is deterministic — two builds of one island are identical', () => {
   // `Math.random` is forbidden on this surface (ADR-0380 D6 fence 2). Two islands that differed
   // in WHICH props were drawn would present that difference as the direction.

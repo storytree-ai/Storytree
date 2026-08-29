@@ -171,9 +171,28 @@ export function islandStatus(opts: IslandOptions = {}): SceneStatus {
   return opts.status ?? 'healthy';
 }
 
-/** The story's ten UAT criteria and their proof states — the same list the flowers ride on. */
+/**
+ * The story's ten UAT criteria and their proof states — the same list the flowers ride on.
+ *
+ * ⚠⚠ THE DEFAULT FOLLOWS THE ISLAND'S OWN STATE, and that is a correctness fix rather than a
+ * tidy-up. It used to default every criterion to `proven` whatever the island was, which is
+ * coherent for the all-healthy research surface this fixture is shaped after and INCOHERENT for
+ * any other: a story's status IS its own signed UAT verdict (ADR-0033 d.4, and
+ * `apps/studio/src/lib/worldStatus.ts` — a signed pass renders the unit healthy), so a story
+ * carrying ten signed criteria cannot be `unknown`.
+ *
+ * Measured on the 2026-08-29 crowd before this changed: all 35 islands drew ten blooms each,
+ * INCLUDING the `unknown` one and the `unhealthy` one — the picture asserting the owner had
+ * signed ten criteria on a story nobody has checked. That is the one way this arc can do real
+ * harm (ADR-0392 D5 / ADR-0398 D7), arriving through the fixture rather than through the
+ * vocabulary.
+ *
+ * `criteriaStates` still overrides positionally, so the MIXED panel — a labelled deviation — is
+ * unchanged, and so is every panel that does not name a status (the default island is healthy).
+ */
 export function islandCriteria(opts: IslandOptions = {}): Array<{ id: string; state: CriterionState }> {
-  return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? ('proven' as CriterionState) }));
+  const fallback: CriterionState = islandStatus(opts) === 'healthy' ? 'proven' : 'pending';
+  return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? fallback }));
 }
 
 export function islandScene(opts: IslandOptions = {}): SceneG {
