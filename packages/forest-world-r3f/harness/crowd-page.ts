@@ -33,8 +33,7 @@ import { configureExactColour } from './banded-material.js';
 import { SHADE_LEVELS } from './palette-band.js';
 import { KIT_ASSET_URL, loadKit } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
-import { KIT_ROLE_SIZE } from './kit-vocabulary.js';
-import type { KitRole } from './kit-vocabulary.js';
+import { KIT_ROLES, KIT_ROLE_SIZE } from './kit-vocabulary.js';
 import { calibrateLights } from './pine-scene.js';
 import type { LightCalibration } from './pine-scene.js';
 
@@ -291,9 +290,14 @@ export function createCrowdRunner(layout: CrowdLayout, kit: LoadedKit, cal: Ligh
       const pxPerUnit = crowdPxPerUnit(layout, zoom);
       // The AUTHORED size each role is scaled to, and the axis it is sized by — `kit-vocabulary.ts`
       // owns both, so this asks it rather than re-deriving a prop's size from the asset.
-      const roles = (['tree', 'deadTree', 'undergrowth', 'rock', 'log', 'bloom'] as KitRole[]).map(
-        (role) => ({ role, worldSize: KIT_ROLE_SIZE[role].units, axis: KIT_ROLE_SIZE[role].axis }),
-      );
+      // ⚠ `KIT_ROLES`, NOT A LIST WRITTEN OUT HERE. The hand-written one outlived the vocabulary
+      // it was copied from: `undergrowth`, `rock` and `log` were withdrawn on 2026-08-29 and this
+      // kept asking for their sizes, which is an undefined lookup rather than a smaller table.
+      const roles = KIT_ROLES.map((role) => ({
+        role,
+        worldSize: KIT_ROLE_SIZE[role].units,
+        axis: KIT_ROLE_SIZE[role].axis,
+      }));
       return propLegibility(roles, pxPerUnit, ELEV_RAD);
     },
 
