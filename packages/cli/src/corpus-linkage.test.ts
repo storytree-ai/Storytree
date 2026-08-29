@@ -514,3 +514,28 @@ test("EACH off-graph term can carry the sum on its own, against a cancelling par
   assert.equal(anchorAndSuperseded.anchorOut, 1);
   assert.equal(anchorAndSuperseded.supersedesIn, 1);
 });
+
+test("ADR-0477 TRIPWIRE: a citation ALONE keeps a node out of the isolated bucket", () => {
+  // THIS TEST EXISTS TO FAIL, once, on purpose.
+  //
+  // ADR-0477 retires the `references` field. D5 requires every instrument that folded citations into
+  // a count to be corrected in the SAME landing as the removal, and this classifier is one — it will
+  // NOT break when the field goes. `referenceCount` will simply read zero, and every node whose only
+  // off-graph signal was a citation moves from `linkedOnlyOffGraph` to `isolated`: the cohort table
+  // shifts, and it reads as a corpus that got worse rather than an instrument that changed.
+  //
+  // So the coupling is pinned here rather than left to be noticed. When this test fails, the field
+  // is gone and the fix is in `evaluateCorpusLinkage`: drop `node.referenceCount` from the isolation
+  // sum, and drop the `references` bullet from this module's header. Then delete this test — its
+  // whole job is to make that moment loud.
+  const verdict = evaluateCorpusLinkage([row("cited-only", "principle", { references: ["asset:x"] })]);
+  const principles = verdict.byKind.find((kindRow) => kindRow.kind === "principle")!;
+  assert.equal(
+    principles.linkedOnlyOffGraph,
+    1,
+    "a citation is still an off-graph signal — if this fails, `references` is gone: see ADR-0477 D5 " +
+      "and remove `referenceCount` from the isolation sum rather than accepting the new number",
+  );
+  assert.equal(principles.isolated, 0);
+  assert.equal(verdict.nodes[0]!.referenceCount, 1);
+});
