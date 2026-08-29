@@ -68,7 +68,44 @@ export interface CellGroundGeometryInput {
   resolve: (material: string | undefined) => LinearRgb;
   /** Prism depth below the ground plane. Defaults to {@link CELL_GROUND_DEPTH}. */
   depth?: number;
+  /** The ground's RELIEF — how high the land stands at a point, and which way it faces there.
+   *
+   *  ⚠ OPTIONAL, AND OMITTING IT IS THE FLAT GROUND VERBATIM. That is what makes the shipped
+   *  map's before/after a controlled comparison rather than a claim: the same function, the
+   *  same parcels, the same colours, differing in exactly this one input. `ForestWorldCanvas`
+   *  passes {@link landRelief} unconditionally — there is no flag on the shipped surface, and
+   *  a flag nobody flips is not adoption (the arc's end-state item 6).
+   *
+   *  ⚠ THE NORMAL IS SUPPLIED, NOT DERIVED, AND ONLY FOR THE TOP FACE. Everything else in this
+   *  module takes its normal from the winding of the very vertices being written, which makes a
+   *  positions/normals disagreement unrepresentable. That guard is kept for the walls. The top
+   *  face gives it up deliberately: a face normal would quantise each triangle whole and the
+   *  land would read as a mosaic of hard facets — the rejected per-cell noise arriving by
+   *  another route — where an interpolated ANALYTIC vertex normal puts the shading gradient
+   *  where the surface actually turns. `landNormal` has `y = 1/hypot(dx,1,dz)`, which is
+   *  positive for every finite gradient, so an upward-facing top face stays unrepresentable
+   *  too: this trades one guarantee for the same guarantee reached a different way. */
+  relief?: GroundRelief | undefined;
 }
+
+/** The ground's shape, as the two functions a mesh needs: a height and a unit normal, both of
+ *  POSITION ONLY. `src/land-relief.ts` supplies the pair the shipped map draws with, and the
+ *  seam is an interface rather than a direct import so this module stays arithmetic a test can
+ *  drive with a field of its own choosing — including the constant-zero one that proves the
+ *  flat path is the relief path's own special case. */
+export interface GroundRelief {
+  height: (x: number, z: number) => number;
+  normal: (x: number, z: number) => { x: number; y: number; z: number };
+}
+
+/** The FLAT ground, as a relief field — what a caller supplying none gets, written out rather
+ *  than branched around so there is exactly one code path through the builder. The old flat
+ *  behaviour is now a special case of the general one rather than a sibling of it, which is
+ *  what lets the before/after comparison be the same function twice. */
+export const FLAT_GROUND: GroundRelief = {
+  height: () => 0,
+  normal: () => ({ x: 0, y: 1, z: 0 }),
+};
 
 /** One merged, non-indexed ground buffer: three floats per vertex, three vertices per
  *  triangle, flat-shaded (each face's three vertices share that face's own normal). */
@@ -251,6 +288,12 @@ function earIndex(rest: readonly P2[]): number | null {
  */
 export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGeometry {
   const depth = input.depth ?? CELL_GROUND_DEPTH;
+  const relief = input.relief ?? FLAT_GROUND;
+  /** A ring vertex raised onto the field. */
+  const lift = (p: P2): P3 => ({ x: p.x, y: relief.height(p.x, p.z), z: p.z });
+  /** The field's unit normal there — analytic, so it is the surface's own answer rather than a
+   *  finite difference over whatever step someone happened to pick. */
+  const facing = (p: P2): P3 => relief.normal(p.x, p.z);
   // ⚠ Mapped from the descriptors THEMSELVES, never re-indexed alongside a parallel array: an
   // index lookup here would be a second way to get the material wrong, and the parcel's colour is
   // what the map reports a capability's state with.
@@ -266,21 +309,47 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   const colors = new Float32Array(triangles * 9);
   let w = 0;
 
-  /** Write one triangle, deriving its normal from the very vertices being written.
+  /** Write one triangle with an EXPLICIT normal per vertex — the top face's route, because the
+   *  relief's normal is analytic and belongs to the point rather than to the facet.
    *
    *  ⚠ The colour is a PARAMETER rather than a mutable variable this closure reads. It was the
    *  latter until a mutation sweep showed its initial value could be anything at all without a
    *  test noticing — true, because every parcel overwrites it first, which is exactly the
    *  argument for not having one. */
+  const pushTriangleWithNormals = (
+    vertices: readonly [P3, P3, P3],
+    vertexNormals: readonly [P3, P3, P3],
+    colour: LinearRgb,
+  ): void => {
+    for (let i = 0; i < 3; i += 1) {
+      const p = vertices[i]!;
+      const n = vertexNormals[i]!;
+      positions[w] = p.x;
+      positions[w + 1] = p.y;
+      positions[w + 2] = p.z;
+      normals[w] = n.x;
+      normals[w + 1] = n.y;
+      normals[w + 2] = n.z;
+      colors[w] = colour.r;
+      colors[w + 1] = colour.g;
+      colors[w + 2] = colour.b;
+      w += 3;
+    }
+  };
+
+  /** Write one triangle, deriving its normal from the very vertices being written — the WALLS'
+   *  route, and the reason a positions/normals disagreement stays unrepresentable there. */
   const pushTriangle = (a: P3, b: P3, c: P3, colour: LinearRgb): void => {
     const ux = b.x - a.x;
     const uy = b.y - a.y;
     const uz = b.z - a.z;
     const vx = c.x - a.x;
-    // Stryker disable next-line ArithmeticOperator: EQUIVALENT — every face here is either a top
-    // (a.y = c.y = 0, so both forms are 0) or a wall whose `a` and `c` share a height, so `-`
-    // gives 0 and `+` gives -2·depth. That scales the cross product by 3 along one axis and the
-    // result is NORMALISED two lines down, so the emitted unit normal is identical either way.
+    // ⚠ THIS USED TO CARRY A `Stryker disable … EQUIVALENT` ANNOTATION AND NO LONGER MAY. The
+    // argument was that every face reaching here is either a top (a.y = c.y = 0) or a wall whose
+    // `a` and `c` share a height, so `-` and `+` differ only by a scale the normalisation below
+    // removes. Relief falsifies both halves: tops leave this function entirely now, and a wall's
+    // corners stand at whatever heights the field gives them. A stale equivalence claim is worse
+    // than no claim — it suppresses a mutant that a test can and does now kill.
     const vy = c.y - a.y;
     const vz = c.z - a.z;
     let nx = uy * vz - uz * vy;
@@ -292,18 +361,8 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       ny /= len;
       nz /= len;
     }
-    for (const p of [a, b, c]) {
-      positions[w] = p.x;
-      positions[w + 1] = p.y;
-      positions[w + 2] = p.z;
-      normals[w] = nx;
-      normals[w + 1] = ny;
-      normals[w + 2] = nz;
-      colors[w] = colour.r;
-      colors[w + 1] = colour.g;
-      colors[w + 2] = colour.b;
-      w += 3;
-    }
+    const n: P3 = { x: nx, y: ny, z: nz };
+    pushTriangleWithNormals([a, b, c], [n, n, n], colour);
   };
 
   for (const ring of rings) {
@@ -311,9 +370,14 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     const pts = normalisedRing(ring.pts.map((p) => ({ x: p.x, z: p.z })));
     const n = pts.length;
 
-    // The top face, at the ground plane.
+    // The top face, standing on the relief field. `lift` and `facing` are the identity for a
+    // caller that supplies none, so this line is the flat ground verbatim when relief is absent.
     for (const [a, b, c] of triangulateRing(pts)) {
-      pushTriangle({ x: a.x, y: 0, z: a.z }, { x: b.x, y: 0, z: b.z }, { x: c.x, y: 0, z: c.z }, colour);
+      pushTriangleWithNormals(
+        [lift(a), lift(b), lift(c)],
+        [facing(a), facing(b), facing(c)],
+        colour,
+      );
     }
 
     // The walls. ⚠ THE OUTWARD DIRECTION IS READ OFF THE RING'S OWN WINDING, not off the parcel's
@@ -321,13 +385,20 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     // about the edge. A centroid test would be wrong for exactly the parcels ear clipping exists
     // for — on an L-shaped parcel the centroid sits in the notch, outside the shape, so "away
     // from the centre" points INTO the parcel along the notch edges.
+    //
+    // ⚠ THE UNDERSIDE FOLLOWS THE RELIEF RATHER THAN STAYING FLAT, and that is a correctness
+    // requirement, not a preference. The field reaches ±4.22 units at the authored amplitude
+    // while the prism is 3 deep, so a bottom pinned at `-depth` would sit ABOVE the top face
+    // wherever the land dips — every wall there inside out, and the parcel gone from above.
+    // A constant-thickness slab also keeps the two substrates telling the same story: the
+    // classic hex prism is `TILE_HEIGHT` thick and so is this, everywhere.
     for (let i = 0; i < n; i += 1) {
       const a = pts[i]!;
       const b = pts[(i + 1) % n]!;
-      const top: P3 = { x: a.x, y: 0, z: a.z };
-      const topNext: P3 = { x: b.x, y: 0, z: b.z };
-      const bot: P3 = { x: a.x, y: -depth, z: a.z };
-      const botNext: P3 = { x: b.x, y: -depth, z: b.z };
+      const top = lift(a);
+      const topNext = lift(b);
+      const bot: P3 = { x: top.x, y: top.y - depth, z: top.z };
+      const botNext: P3 = { x: topNext.x, y: topNext.y - depth, z: topNext.z };
       pushTriangle(topNext, top, botNext, colour);
       pushTriangle(botNext, top, bot, colour);
     }

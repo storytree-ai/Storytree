@@ -20,8 +20,11 @@ import {
   signedRingArea2,
   signedTriangleArea2,
   triangulateRing,
+  FLAT_GROUND,
+  type GroundRelief,
   type LinearRgb,
 } from './cell-ground-geometry.js';
+import { landNormal, landRelief } from './land-relief.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from './world-to-3d.js';
 
 const WHITE: LinearRgb = { r: 1, g: 1, b: 1 };
@@ -703,4 +706,255 @@ test('a descriptor with NO ring at all is dropped, and does not become an empty 
   const geo = cellGroundGeometry({ cells: [noPoints, cellOf(SQUARE_CCW)], resolve: resolveWhite });
   assert.equal(geo.cells, 1, 'a ringless descriptor was counted as a parcel');
   assert.equal(geo.triangles, cellGroundTriangles(4));
+});
+
+/* ── THE RELIEF FIELD ON THE SHIPPED GROUND ────────────────────────────────────────────────
+   `adopt-the-land-into-the-shipped-map-arc` / `put-the-treatment-on-the-shipped-map`. The owner
+   authorised adoption on 2026-08-29 ("This looks better, stamp it") and the first component
+   across is the land's own relief. Every claim below is read off the BUFFER, because each
+   failure mode here is invisible in the source: a parcel that vanishes from above, a seam that
+   tears open between two parcels, or a surface lit for a shape it does not have.
+   ────────────────────────────────────────────────────────────────────────────────────────── */
+
+/** A relief field with a big, fast slope — deliberately far more aggressive than the shipped
+ *  one, because a fixture at the real amplitude would be asserting against displacements small
+ *  enough to survive most of the mutations these tests exist to catch. */
+const RAMP: GroundRelief = {
+  height: (x, z) => x * 0.5 + z * 0.25,
+  normal: () => {
+    const len = Math.hypot(-0.5, 1, -0.25);
+    return { x: -0.5 / len, y: 1 / len, z: -0.25 / len };
+  },
+};
+
+/** Every vertex's y, in buffer order. */
+function vertexHeights(positions: Float32Array): number[] {
+  const out: number[] = [];
+  for (let i = 1; i < positions.length; i += 3) out.push(positions[i]!);
+  return out;
+}
+
+test('FLAT_GROUND is the flat ground verbatim — the old behaviour is the new one as a special case', () => {
+  // The control that makes every comparison below a controlled one, and the reason the owner's
+  // before/after picture is honest: if supplying the identity field changed a single byte, "the
+  // same function with and without relief" would be measuring two different builders.
+  const cells = [cellOf(SQUARE_CCW), cellOf(L_SHAPE)];
+  const bare = cellGroundGeometry({ cells, resolve: resolveWhite });
+  const flat = cellGroundGeometry({ cells, resolve: resolveWhite, relief: FLAT_GROUND });
+  assert.deepEqual([...flat.positions], [...bare.positions]);
+  assert.deepEqual([...flat.normals], [...bare.normals]);
+  assert.deepEqual([...flat.colors], [...bare.colors]);
+  assert.equal(flat.triangles, bare.triangles);
+});
+
+test('the top face STANDS ON the field — every vertex at exactly the height there', () => {
+  const geo = cellGroundGeometry({ cells: [cellOf(SQUARE_CCW)], resolve: resolveWhite, relief: RAMP });
+  // Read the top face off the buffer rather than trusting an offset: a top vertex is one sitting
+  // at its own field height, and the walls carry a second copy exactly `depth` lower.
+  let onTheField = 0;
+  for (let v = 0; v < geo.positions.length / 3; v += 1) {
+    const x = geo.positions[v * 3]!;
+    const y = geo.positions[v * 3 + 1]!;
+    const z = geo.positions[v * 3 + 2]!;
+    const h = RAMP.height(x, z);
+    assert.ok(
+      Math.abs(y - h) < 1e-4 || Math.abs(y - (h - CELL_GROUND_DEPTH)) < 1e-4,
+      `vertex at (${x}, ${z}) stands at y=${y}, neither on the field (${h}) nor depth below it`,
+    );
+    if (Math.abs(y - h) < 1e-4) onTheField += 1;
+  }
+  // NON-VACUITY: the loop above is satisfied by an empty buffer, and by one that is entirely
+  // underside. A square parcel emits 2 top triangles (6 vertices, all on the field) and 4 wall
+  // quads; each quad is written as `(topNext, top, botNext)` and `(botNext, top, bot)`, so 3 of
+  // its 6 vertices are upper corners standing on the field too.
+  assert.equal(onTheField, 6 + 4 * 3, 'top-face vertices, plus every wall quad upper corners');
+});
+
+test('the ground really moved — a relief field displaces the buffer it is given', () => {
+  // The control for the test above, which a builder ignoring `relief` entirely would also pass
+  // on any field that happened to be zero at every vertex it was asked about.
+  const cells = [cellOf(SQUARE_CCW)];
+  const flat = cellGroundGeometry({ cells, resolve: resolveWhite });
+  const relieved = cellGroundGeometry({ cells, resolve: resolveWhite, relief: RAMP });
+  assert.notDeepEqual([...relieved.positions], [...flat.positions]);
+  assert.notDeepEqual([...relieved.normals], [...flat.normals]);
+  assert.ok(
+    Math.max(...vertexHeights(relieved.positions)) > Math.max(...vertexHeights(flat.positions)),
+  );
+});
+
+test('the top face wears the field ANALYTIC normal, never the facet one', () => {
+  // ⚠ THE WHOLE LOOK RESTS ON THIS. A face normal would quantise each triangle whole and the land
+  // would read as a mosaic of hard facets — the per-cell noise the owner removed in 2026-08-16,
+  // arriving by another route. A planar ramp cannot test it, because there the analytic normal
+  // and the facet normal agree; this fixture is a CURVED field, where they cannot.
+  const bumpy: GroundRelief = {
+    height: (x, z) => Math.sin(x * 0.3) * 3 + Math.cos(z * 0.21) * 2,
+    normal: (x, z) => {
+      const dx = Math.cos(x * 0.3) * 0.9;
+      const dz = -Math.sin(z * 0.21) * 0.42;
+      const len = Math.hypot(dx, 1, dz);
+      return { x: -dx / len, y: 1 / len, z: -dz / len };
+    },
+  };
+  const ring = [
+    [0, 0],
+    [0, 12],
+    [12, 12],
+    [12, 0],
+  ] as const;
+  const geo = cellGroundGeometry({ cells: [cellOf(ring)], resolve: resolveWhite, relief: bumpy });
+  // ⚠ A TOP FACE IS A TRIANGLE ALL THREE OF WHOSE VERTICES STAND ON THE FIELD, never a vertex
+  // that happens to. A wall quad's UPPER corners stand on the field too and correctly wear the
+  // wall's own horizontal normal — filtering by vertex height alone sweeps those in and fails a
+  // module that is behaving exactly as designed.
+  const onField = (v: number): boolean =>
+    Math.abs(geo.positions[v * 3 + 1]! - bumpy.height(geo.positions[v * 3]!, geo.positions[v * 3 + 2]!)) < 1e-4;
+  let tilted = 0;
+  let topFaces = 0;
+  for (let t = 0; t < geo.triangles; t += 1) {
+    const vs = [t * 3, t * 3 + 1, t * 3 + 2];
+    if (!vs.every(onField)) continue;
+    topFaces += 1;
+    for (const v of vs) {
+      const x = geo.positions[v * 3]!;
+      const z = geo.positions[v * 3 + 2]!;
+      const n = bumpy.normal(x, z);
+      assert.ok(Math.abs(geo.normals[v * 3]! - n.x) < 1e-5, `normal.x at (${x}, ${z})`);
+      assert.ok(Math.abs(geo.normals[v * 3 + 1]! - n.y) < 1e-5, `normal.y at (${x}, ${z})`);
+      assert.ok(Math.abs(geo.normals[v * 3 + 2]! - n.z) < 1e-5, `normal.z at (${x}, ${z})`);
+      if (Math.abs(n.x) > 1e-3 || Math.abs(n.z) > 1e-3) tilted += 1;
+    }
+  }
+  // NON-VACUITY, both halves. On a flat field every normal is (0,1,0) and the assertions above
+  // are met by a builder that never read the field at all; and a filter that matched no triangle
+  // would assert nothing whatsoever.
+  assert.equal(topFaces, 2, 'a quad parcel has exactly two top-face triangles');
+  assert.ok(tilted >= 5, `only ${tilted} top vertices carry a tilted normal — the field is not being read`);
+});
+
+test('NO TOP FACE CAN EVER FACE DOWN — what stands in for the derived normal', () => {
+  // Everything else in this module takes a face's normal from the winding of the very vertices
+  // being written, which makes a positions/normals disagreement unrepresentable. The top face
+  // gives that up in order to carry an analytic normal, and this is the guarantee that replaces
+  // it: `landNormal` is `y = 1/hypot(dx, 1, dz)`, positive for every finite gradient, so no
+  // parcel can be lit as though seen from underneath however violent the land gets.
+  const violent: GroundRelief = {
+    height: (x, z) => x * 40 - z * 33,
+    normal: (x, z) => landNormal(x, z, 500),
+  };
+  const geo = cellGroundGeometry({
+    cells: [cellOf(SQUARE_CCW), cellOf(L_SHAPE)],
+    resolve: resolveWhite,
+    relief: violent,
+  });
+  for (let v = 0; v < geo.normals.length / 3; v += 1) {
+    const ny = geo.normals[v * 3 + 1]!;
+    // A wall's normal is horizontal (ny = 0); a top face's must never point below the horizon.
+    assert.ok(ny >= 0, `vertex ${v} faces downward (ny = ${ny})`);
+  }
+  assert.ok(geo.triangles > 0);
+});
+
+test('the underside FOLLOWS the relief — the slab keeps its thickness everywhere', () => {
+  // ⚠ NOT COSMETIC. The shipped field reaches ±4.22 units and the prism is 3 deep, so a bottom
+  // pinned at `-depth` would sit ABOVE the top face wherever the land dips: every wall there
+  // inside out and the parcel gone from above — the exact defect this substrate was added to
+  // fix, reintroduced by the treatment meant to improve it.
+  const dip: GroundRelief = { height: () => -9, normal: () => ({ x: 0, y: 1, z: 0 }) };
+  const geo = cellGroundGeometry({ cells: [cellOf(SQUARE_CCW)], resolve: resolveWhite, relief: dip });
+  const ys = [...new Set(vertexHeights(geo.positions).map((y) => Math.round(y * 1e4) / 1e4))];
+  assert.deepEqual(ys.sort((a, b) => a - b), [-9 - CELL_GROUND_DEPTH, -9]);
+});
+
+test('a shared boundary vertex gets ONE height — the seam cannot tear open', () => {
+  // The property that makes a CONTINUOUS field watertight for free, and the reason the field may
+  // not be per-parcel: the relaxed substrate interns its vertices, so 185 of the shipped island's
+  // 191 distinct ring vertices belong to more than one parcel. Two parcels sharing a coordinate
+  // must stand at the same height there, or the ground splits open along the seam.
+  const left = cellOf([
+    [0, 0],
+    [0, 10],
+    [10, 10],
+    [10, 0],
+  ]);
+  const right = cellOf([
+    [10, 0],
+    [10, 10],
+    [20, 10],
+    [20, 0],
+  ]);
+  const geo = cellGroundGeometry({ cells: [left, right], resolve: resolveWhite, relief: RAMP });
+  const seam = new Map<string, Set<number>>();
+  for (let v = 0; v < geo.positions.length / 3; v += 1) {
+    const x = geo.positions[v * 3]!;
+    const y = geo.positions[v * 3 + 1]!;
+    const z = geo.positions[v * 3 + 2]!;
+    if (Math.abs(x - 10) > 1e-4) continue;
+    const at = seam.get(`${z}`) ?? new Set<number>();
+    at.add(Math.round(y * 1e3));
+    seam.set(`${z}`, at);
+  }
+  assert.ok(seam.size >= 2, 'the two parcels must actually share boundary vertices');
+  for (const [z, ys] of seam) {
+    assert.equal(ys.size, 2, `the seam at z=${z} carries ${ys.size} heights, not one top and one bottom`);
+  }
+});
+
+test('the shipped relief pairs a height with the normal OF THAT height', () => {
+  // ⚠ A SURFACE LIT FOR A SHAPE IT DOES NOT HAVE is the one failure here that looks like art
+  // rather than like a bug. `landHeight` and `landNormal` each take an amplitude and each
+  // default it, so a caller passing one and not the other gets normals belonging to a different
+  // land; `landRelief` binds it once for both. Checked as a GRADIENT rather than by
+  // transcription: the normal has to be perpendicular to the surface the height function
+  // actually describes, which is a claim about the pair rather than about either half.
+  for (const [x, z] of [
+    [0, 0],
+    [37, -12],
+    [-88, 41],
+    [201, 19],
+  ] as const) {
+    const h = 1e-3;
+    const dx = (landRelief.height(x + h, z) - landRelief.height(x - h, z)) / (2 * h);
+    const dz = (landRelief.height(x, z + h) - landRelief.height(x, z - h)) / (2 * h);
+    const n = landRelief.normal(x, z);
+    // The surface tangents are (1, dx, 0) and (0, dz, 1); a true normal is orthogonal to both.
+    assert.ok(Math.abs(n.x + n.y * dx) < 1e-6, `normal not perpendicular along x at (${x}, ${z})`);
+    assert.ok(Math.abs(n.y * dz + n.z) < 1e-6, `normal not perpendicular along z at (${x}, ${z})`);
+    assert.ok(Math.abs(Math.hypot(n.x, n.y, n.z) - 1) < 1e-9, 'the normal must be a unit vector');
+  }
+});
+
+test('relief costs no triangles — the ground stands up for free', () => {
+  // The arc's end-state item 2 asks what the treatment COSTS. This component's answer is
+  // structural rather than measured: it moves vertices the buffer already emits, so the triangle
+  // count, the draw call and the attribute channels are all untouched.
+  const cells = [cellOf(SQUARE_CCW), cellOf(L_SHAPE), cellOf(SQUARE_CW)];
+  const flat = cellGroundGeometry({ cells, resolve: resolveWhite });
+  const relieved = cellGroundGeometry({ cells, resolve: resolveWhite, relief: landRelief });
+  assert.equal(relieved.triangles, flat.triangles);
+  assert.equal(relieved.cells, flat.cells);
+  assert.equal(relieved.positions.length, flat.positions.length);
+  assert.equal(relieved.normals.length, flat.normals.length);
+  assert.equal(relieved.colors.length, flat.colors.length);
+});
+
+test('relief moves no COLOUR — the map still reports exactly what it did', () => {
+  // ⚠ ADR-0392 D5 / ADR-0398 D7: a prettier map that misreports is a REGRESSION, and it is the
+  // one way this arc can do real harm. The relief field is a function of POSITION ONLY, so a
+  // parcel's status colour must come out byte-identical with and without it. This is the
+  // assertion that says the art change asserted nothing.
+  const cells = [
+    cellOf(SQUARE_CCW, 'healthy'),
+    cellOf(L_SHAPE, 'unhealthy'),
+    cellOf(SQUARE_CW, 'unknown'),
+  ];
+  const resolve = (m: string | undefined): LinearRgb => {
+    if (m === 'healthy') return { r: 0.1, g: 0.9, b: 0.2 };
+    if (m === 'unhealthy') return { r: 0.4, g: 0.1, b: 0.1 };
+    return { r: 0.5, g: 0.5, b: 0.6 };
+  };
+  const flat = cellGroundGeometry({ cells, resolve });
+  const relieved = cellGroundGeometry({ cells, resolve, relief: landRelief });
+  assert.deepEqual([...relieved.colors], [...flat.colors]);
 });

@@ -33,6 +33,7 @@ import { Color, OrthographicCamera } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 import { frameWorld, orthographicZoomFor } from './camera-framing.js';
 import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry.js';
+import { landRelief } from './land-relief.js';
 
 /** THE DECIDED GROUND VOCABULARY — five colours over six states.
  *
@@ -167,9 +168,19 @@ const linearColourOf = (material: string | undefined): LinearRgb => {
  *  ⚠ ONE MESH, NOT ONE PER PARCEL. Parcels are arbitrary polygons, so they cannot share a
  *  geometry and `<Instances>` is unavailable; 164 separate meshes would cost 164 draw calls to
  *  draw ground the classic substrate drew in one. The merge keeps it at one, and per-parcel status
- *  colour survives as a vertex attribute. */
+ *  colour survives as a vertex attribute.
+ *
+ *  ⚠ IT STANDS ON THE RELIEF FIELD, UNCONDITIONALLY AND WITH NO FLAG (2026-08-30). The owner
+ *  authorised adoption on 2026-08-29 and the arc's end-state item 6 is explicit that a flag
+ *  nobody flips is not adoption. `landRelief` costs no triangles, no draw call and no attribute
+ *  channel — the vertices this mesh already emits simply stand where the land is and face the way
+ *  it turns. The before/after is taken by calling `cellGroundGeometry` with and without it, which
+ *  is why the field is an INPUT rather than something this file reaches for internally. */
 function CellGround({ cells }: { cells: InstanceDescriptor[] }) {
-  const geo = useMemo(() => cellGroundGeometry({ cells, resolve: linearColourOf }), [cells]);
+  const geo = useMemo(
+    () => cellGroundGeometry({ cells, resolve: linearColourOf, relief: landRelief }),
+    [cells],
+  );
   if (geo.triangles === 0) return null;
   return (
     <mesh>

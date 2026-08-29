@@ -28,6 +28,7 @@ import type { BufferGeometry } from 'three';
 
 import {
   SHIPPED_HEX_RADIUS,
+  SHIPPED_LIGHTING,
   SHIPPED_PRIMITIVES,
   SHIPPED_STATUSES,
   SHIPPED_GROUND_COLOUR,
@@ -149,6 +150,37 @@ test('the shipped size constants are what the shipped canvas holds', () => {
   const src = readFileSync(SHIPPED, 'utf8');
   assert.match(src, new RegExp(`HEX_RADIUS\\s*=\\s*${SHIPPED_HEX_RADIUS}\\b`));
   assert.match(src, new RegExp(`TILE_HEIGHT\\s*=\\s*${SHIPPED_TILE_HEIGHT}\\b`));
+});
+
+test('the transcribed LIGHT is the light the shipped canvas actually hangs', () => {
+  // ⚠ THE ONE TRANSCRIPTION RELIEF DEPENDS ON. Relief moves no colour and adds no mark — the
+  // whole visible difference between the flat map and the relieved one is `dot(n, L)` against
+  // this direction, so a comparison lit from anywhere else is a picture of a land the product
+  // does not draw. Every unpinned transcription in this package has drifted from its source at
+  // least once; this one is read off the file rather than remembered.
+  const src = readFileSync(SHIPPED, 'utf8');
+  const [dx, dy, dz] = SHIPPED_LIGHTING.directionalPosition;
+  assert.match(src, new RegExp(`<ambientLight intensity=\\{${SHIPPED_LIGHTING.ambientIntensity}\\}`));
+  assert.match(
+    src,
+    new RegExp(
+      `<directionalLight position=\\{\\[${dx}, ${dy}, ${dz}\\]\\} intensity=\\{${SHIPPED_LIGHTING.directionalIntensity}\\}`,
+    ),
+  );
+  assert.ok(src.includes(`args={['${SHIPPED_LIGHTING.background}']}`), 'the background colour');
+});
+
+test('the shipped ground STANDS ON the relief field — the adoption, read off the file', () => {
+  // ⚠ END-STATE ITEM 6: "the old path goes, it is not left beside the new one. A flag nobody
+  // flips is not adoption." So the assertion is that the shipped canvas passes the relief
+  // UNCONDITIONALLY — no prop, no default-off, nothing a caller has to opt into. A later session
+  // that reintroduces a flag here has re-opened a decision the owner closed on 2026-08-29.
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(src, /relief:\s*landRelief/, 'CellGround must build its geometry on the field');
+  assert.ok(
+    !/relief\??\s*[:=][^,;)]*\?\?/.test(src),
+    'the relief must not be behind a caller-supplied fallback — that is the flag item 6 forbids',
+  );
 });
 
 test('trails are UNDRAWN by default, and the shipped file says so', () => {
