@@ -20,6 +20,10 @@ It scans every tracked source file for a code-position occurrence of the field, 
 result against the table below, and **exits 1 if the tree contains a production reader this table
 does not name**. Once the arc closes, every row should report `resolved`.
 
+The frozen provenance record this arc's step 2 committed is
+`docs/research/citation-snapshot-2026-08-30.md` — every citation as it stood before the removal.
+This census says WHO READ the field; that snapshot says WHAT IT HELD.
+
 ## What the scan can and cannot establish
 
 It is a **lexical** scan: it finds the field name in a code position. It is a FLOOR on this census,
