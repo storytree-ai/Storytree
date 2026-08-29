@@ -1,0 +1,400 @@
+{
+  "measuredOn": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false,
+    "timerQuery": true
+  },
+  "repeats": 7,
+  "batch": 300,
+  "zooms": [
+    2,
+    8
+  ],
+  "colours": {
+    "flat|2": {
+      "arm": "flat",
+      "pxPerUnit": 2,
+      "distinct": 4,
+      "landPixels": 25814
+    },
+    "relief|2": {
+      "arm": "relief",
+      "pxPerUnit": 2,
+      "distinct": 36,
+      "landPixels": 25630
+    },
+    "banded|2": {
+      "arm": "banded",
+      "pxPerUnit": 2,
+      "distinct": 5,
+      "landPixels": 25630
+    },
+    "treated|2": {
+      "arm": "treated",
+      "pxPerUnit": 2,
+      "distinct": 186,
+      "landPixels": 25630
+    },
+    "flat|8": {
+      "arm": "flat",
+      "pxPerUnit": 8,
+      "distinct": 6,
+      "landPixels": 412980
+    },
+    "relief|8": {
+      "arm": "relief",
+      "pxPerUnit": 8,
+      "distinct": 38,
+      "landPixels": 410396
+    },
+    "banded|8": {
+      "arm": "banded",
+      "pxPerUnit": 8,
+      "distinct": 5,
+      "landPixels": 410396
+    },
+    "treated|8": {
+      "arm": "treated",
+      "pxPerUnit": 8,
+      "distinct": 186,
+      "landPixels": 410396
+    }
+  },
+  "changedPct": {
+    "flat->relief|2": 55.36963036963037,
+    "relief->banded|2": 58.19180819180819,
+    "banded->treated|2": 58.19180819180819,
+    "flat->relief|8": 55.30199934224702,
+    "relief->banded|8": 58.17654997221561,
+    "banded->treated|8": 58.17654997221561
+  },
+  "offPalette": {
+    "2": {
+      "arm": "banded",
+      "pxPerUnit": 2,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 4,
+      "authored": 20,
+      "landPixels": 25630
+    },
+    "8": {
+      "arm": "banded",
+      "pxPerUnit": 8,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 4,
+      "authored": 20,
+      "landPixels": 410396
+    }
+  },
+  "softwareRun": false,
+  "arms": {
+    "flat|2": {
+      "arm": "flat",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 3,
+      "drawCalls": 1,
+      "gpuNs": 3794.4533333333334,
+      "samples": [
+        0.0037944533333333333,
+        0.0037938133333333336,
+        0.00379744,
+        0.00379584,
+        0.0037954133333333332,
+        0.0037924266666666665,
+        0.0037956266666666666
+      ],
+      "median": 0.0037954133333333332,
+      "spread": 0.000005013333333333484
+    },
+    "relief|2": {
+      "arm": "relief",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 3936.4266666666667,
+      "samples": [
+        0.003936426666666667,
+        0.0039322666666666665,
+        0.003939413333333333,
+        0.003941653333333333,
+        0.003938666666666667,
+        0.003933546666666667,
+        0.003935893333333333
+      ],
+      "median": 0.003936426666666667,
+      "spread": 0.000009386666666666432
+    },
+    "banded|2": {
+      "arm": "banded",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 2341.12,
+      "samples": [
+        0.00234112,
+        0.002337066666666667,
+        0.00233952,
+        0.0023386666666666664,
+        0.002336533333333333,
+        0.00233984,
+        0.00233952
+      ],
+      "median": 0.00233952,
+      "spread": 0.000004586666666666749
+    },
+    "treated|2": {
+      "arm": "treated",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 9229.653333333334,
+      "samples": [
+        0.009229653333333334,
+        0.009222826666666666,
+        0.009219413333333334,
+        0.009216533333333332,
+        0.009217600000000001,
+        0.009227946666666667,
+        0.009221973333333333
+      ],
+      "median": 0.009221973333333333,
+      "spread": 0.00001312000000000188
+    },
+    "flat|8": {
+      "arm": "flat",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 3,
+      "drawCalls": 1,
+      "gpuNs": 44861.333333333336,
+      "samples": [
+        0.044861333333333336,
+        0.04481525333333333,
+        0.044851199999999994,
+        0.044803946666666664,
+        0.04485504,
+        0.044852053333333336,
+        0.044860373333333335
+      ],
+      "median": 0.044852053333333336,
+      "spread": 0.0000573866666666728
+    },
+    "relief|8": {
+      "arm": "relief",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 44796.58666666667,
+      "samples": [
+        0.04479658666666667,
+        0.04473941333333333,
+        0.044739839999999996,
+        0.04473546666666667,
+        0.04476864,
+        0.044748800000000005,
+        0.04476021333333333
+      ],
+      "median": 0.044748800000000005,
+      "spread": 0.00006112000000000478
+    },
+    "banded|8": {
+      "arm": "banded",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 21856.746666666666,
+      "samples": [
+        0.021856746666666666,
+        0.02183168,
+        0.021826453333333336,
+        0.021851306666666667,
+        0.021826773333333334,
+        0.02183317333333333,
+        0.02184768
+      ],
+      "median": 0.02183317333333333,
+      "spread": 0.00003029333333333037
+    },
+    "treated|8": {
+      "arm": "treated",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 106952.10666666667,
+      "samples": [
+        0.10695210666666667,
+        0.10695477333333334,
+        0.10694709333333334,
+        0.1069056,
+        0.10687104,
+        0.10701941333333333,
+        0.10697664
+      ],
+      "median": 0.10695210666666667,
+      "spread": 0.00014837333333332647
+    }
+  },
+  "verdict": {
+    "geometry": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "flat @ 2px",
+      "rows": [
+        {
+          "label": "flat @ 2px",
+          "gpuMsPerFrame": 0.0037954133333333332,
+          "spreadMs": 0.000005013333333333484,
+          "samples": 7,
+          "sharePct": 0.022772479999999998,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.000005013333333333484
+        },
+        {
+          "label": "relief @ 2px",
+          "gpuMsPerFrame": 0.003936426666666667,
+          "spreadMs": 0.000009386666666666432,
+          "samples": 7,
+          "sharePct": 0.02361856,
+          "deltaVsBaselineMs": 0.00014101333333333375,
+          "factorVsBaseline": 1.0371536169973583,
+          "deltaSharePct": 0.0008460800000000024,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.000009386666666666432
+        },
+        {
+          "label": "flat @ 8px",
+          "gpuMsPerFrame": 0.044852053333333336,
+          "spreadMs": 0.0000573866666666728,
+          "samples": 7,
+          "sharePct": 0.26911231999999996,
+          "deltaVsBaselineMs": 0.041056640000000005,
+          "factorVsBaseline": 11.817435782137036,
+          "deltaSharePct": 0.24633984,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.0000573866666666728
+        },
+        {
+          "label": "relief @ 8px",
+          "gpuMsPerFrame": 0.044748800000000005,
+          "spreadMs": 0.00006112000000000478,
+          "samples": 7,
+          "sharePct": 0.26849280000000003,
+          "deltaVsBaselineMs": 0.040953386666666675,
+          "factorVsBaseline": 11.790231015682089,
+          "deltaSharePct": 0.24572032000000002,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.00006112000000000478
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"flat @ 8px\" at 0.04 ms (0.3% of the budget), and the costliest RESOLVED addition over \"flat @ 2px\" is \"flat @ 8px\" at +0.04 ms (0.2 percentage points of the frame, 11.82x the control)."
+    },
+    "material": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "banded @ 2px",
+      "rows": [
+        {
+          "label": "banded @ 2px",
+          "gpuMsPerFrame": 0.00233952,
+          "spreadMs": 0.000004586666666666749,
+          "samples": 7,
+          "sharePct": 0.014037119999999998,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.000004586666666666749
+        },
+        {
+          "label": "treated @ 2px",
+          "gpuMsPerFrame": 0.009221973333333333,
+          "spreadMs": 0.00001312000000000188,
+          "samples": 7,
+          "sharePct": 0.05533183999999999,
+          "deltaVsBaselineMs": 0.006882453333333333,
+          "factorVsBaseline": 3.941822824055077,
+          "deltaSharePct": 0.04129471999999999,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.00001312000000000188
+        },
+        {
+          "label": "banded @ 8px",
+          "gpuMsPerFrame": 0.02183317333333333,
+          "spreadMs": 0.00003029333333333037,
+          "samples": 7,
+          "sharePct": 0.13099903999999998,
+          "deltaVsBaselineMs": 0.01949365333333333,
+          "factorVsBaseline": 9.332330278575661,
+          "deltaSharePct": 0.11696191999999997,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.00003029333333333037
+        },
+        {
+          "label": "treated @ 8px",
+          "gpuMsPerFrame": 0.10695210666666667,
+          "spreadMs": 0.00014837333333332647,
+          "samples": 7,
+          "sharePct": 0.64171264,
+          "deltaVsBaselineMs": 0.10461258666666667,
+          "factorVsBaseline": 45.71540600920987,
+          "deltaSharePct": 0.62767552,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.00014837333333332647
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"treated @ 8px\" at 0.11 ms (0.6% of the budget), and the costliest RESOLVED addition over \"banded @ 2px\" is \"treated @ 8px\" at +0.10 ms (0.6 percentage points of the frame, 45.72x the control)."
+    },
+    "status": "PASS"
+  },
+  "pictures": [
+    "shipped-flat-2px.png",
+    "shipped-relief-2px.png",
+    "shipped-banded-2px.png",
+    "shipped-treated-2px.png",
+    "shipped-flat-8px.png",
+    "shipped-relief-8px.png",
+    "shipped-banded-8px.png",
+    "shipped-treated-8px.png"
+  ]
+}

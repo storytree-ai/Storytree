@@ -1,0 +1,318 @@
+// shade-ladder.test.ts — the ladder's own witnesses, in the ladder's own home.
+//
+// ⚠⚠ IT IS HERE RATHER THAN IN `harness/palette-band.test.ts` FOR A MEASURED REASON.
+// `check:mutation-diff` mutates a project's `src/` only. When `land-relief.ts` crossed on
+// 2026-08-30 its tests stayed in `harness/`, and the rung found 3 survivors and 4 uncovered
+// lines on a module the harness suite exercises thoroughly — the sharpest being that the wave
+// table could be EMPTIED, giving a perfectly flat land, without a test noticing. Tests reached
+// through a re-export are witnesses to a reader and to nothing else.
+//
+// The harness suite still covers these symbols through `palette-band.ts`'s re-export, which is
+// deliberate and is not duplication: that is what proves the re-export is live rather than a
+// second copy.
+
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  LIGHT_DIRECTION,
+  lambertOfNormal,
+  nearestLevelIndex,
+  SHADE_KEYS,
+  SHADE_KEY_FLOOR,
+  SHADE_LEVELS,
+  bandGlsl,
+  bandLevelIndex,
+  bandShade,
+  bandedColour,
+  deliveredForLevel,
+  paletteImageOfToken,
+  parseHex,
+  rungOfNormal,
+  toHex,
+  tokenRamp,
+} from './shade-ladder.js';
+
+test('the ladder is SORTED ASCENDING — bandShade relies on it and must not merely hope', () => {
+  // `bandShade` walks the array and keeps the FIRST closest level on a tie, which resolves ties
+  // toward the DARKER rung only while the array ascends. A resorted literal would silently
+  // reverse the tie rule.
+  const sorted = [...SHADE_LEVELS].sort((a, b) => a - b);
+  assert.deepEqual([...SHADE_LEVELS], sorted);
+  assert.ok(SHADE_LEVELS.length >= 2, 'a one-rung ladder quantises nothing');
+  assert.equal(new Set(SHADE_LEVELS).size, SHADE_LEVELS.length, 'no duplicate rungs');
+});
+
+test('the ladder floors at 0.78 and tops at 1.0 — the authored range, not an arbitrary one', () => {
+  // The FLOOR is the ambient floor of a locked palette: nothing may be darker than
+  // `token x 0.78`. On the shipped map that is also the fence that stops a shaded `healthy`
+  // parcel walking into a darker status's territory, so it is a semantic constant and not a
+  // taste one (ADR-0392 D5 / ADR-0398 D7).
+  assert.equal(SHADE_LEVELS[0], 0.78);
+  assert.equal(SHADE_LEVELS[SHADE_LEVELS.length - 1], 1);
+});
+
+test('bandShade CLAMPS rather than extrapolating, in both directions', () => {
+  const lo = SHADE_LEVELS[0]!;
+  const hi = SHADE_LEVELS[SHADE_LEVELS.length - 1]!;
+  assert.equal(bandShade(-99), lo);
+  assert.equal(bandShade(0), lo);
+  assert.equal(bandShade(lo), lo);
+  assert.equal(bandShade(hi), hi);
+  assert.equal(bandShade(99), hi);
+  // ⚠ A NON-FINITE INPUT FAILS DARK, IN BOTH DIRECTIONS, AND THAT IS THE DESIGN RATHER THAN AN
+  // OVERSIGHT. `NaN` and both infinities land on the DARKEST rung, not on the nearer end: a
+  // lighting term that has gone non-finite is a bug, and a bug that paints a parcel at full
+  // brightness reads as a confidently lit healthy island. The darkest rung is still an authored
+  // entry, so the closure holds either way; what differs is which way the mistake reads.
+  assert.equal(bandShade(Number.NaN), lo);
+  assert.equal(bandShade(Number.POSITIVE_INFINITY), lo);
+  assert.equal(bandShade(Number.NEGATIVE_INFINITY), lo);
+});
+
+test('bandShade takes the NEAREST rung', () => {
+  assert.equal(bandShade(0.85), 0.8, '0.85 is nearer 0.8 than 0.9 in binary floating point');
+  assert.equal(bandShade(0.8499), 0.8);
+  assert.equal(bandShade(0.8501), 0.9);
+  // ...and every rung is reachable, which a nearest-rule that collapsed would not give.
+  for (const level of SHADE_LEVELS) assert.equal(bandShade(level), level);
+});
+
+test('AN EXACT TIE RESOLVES DOWN — provable only over an injected ladder', () => {
+  // ⚠⚠ THE AUTHORED LADDER CANNOT PROVE THIS, AND THAT IS WHY THE LADDER IS A PARAMETER. Swept at
+  // two million points across [-0.2, 1.4], [0.78, 0.8, 0.9, 1.0] produces ZERO exact ties: 0.85
+  // looks like the midpoint of 0.8 and 0.9 and is not one in binary floating point (0.04999…
+  // against 0.05000…). So over the authored ladder the `<` in `nearestLevelIndex` is
+  // indistinguishable from `<=` and its mutant is EQUIVALENT — a rule that is documented, relied
+  // on by the shader, and unobservable.
+  //
+  // Over `[0, 1]`, 0.5 is a genuine tie and the rule decides in one assertion.
+  assert.equal(nearestLevelIndex([0, 1], 0.5), 0, 'a tie must take the DARKER rung');
+  assert.equal(nearestLevelIndex([0, 1], 0.4999), 0);
+  assert.equal(nearestLevelIndex([0, 1], 0.5001), 1);
+  assert.equal(nearestLevelIndex([0, 0.5, 1], 0.25), 0, 'and again on a three-rung ladder');
+  assert.equal(nearestLevelIndex([0, 0.5, 1], 0.75), 1);
+  // NON-VACUITY: it really is a tie, not a near miss the way 0.85 is on the authored ladder.
+  assert.equal(Math.abs(0 - 0.5), Math.abs(1 - 0.5));
+});
+
+test('nearestLevelIndex CLAMPS to an end for anything outside the ladder, with no guard to do it', () => {
+  // The property the deleted range guards used to claim: the nearest member of a bounded set to a
+  // point outside it IS an end, so the loop clamps by itself. Asserted over an injected ladder so
+  // the claim is about the FUNCTION rather than about one ladder's numbers.
+  assert.equal(nearestLevelIndex([2, 5, 9], -1000), 0);
+  assert.equal(nearestLevelIndex([2, 5, 9], 1000), 2);
+  assert.equal(nearestLevelIndex([2, 5, 9], Number.NaN), 0, 'NaN fails DARK, via the initial index');
+  assert.equal(nearestLevelIndex([2, 5, 9], Number.POSITIVE_INFINITY), 0);
+  assert.equal(nearestLevelIndex([2, 5, 9], Number.NEGATIVE_INFINITY), 0);
+  // A one-rung ladder has one answer for every input — the degenerate case the loop must not
+  // special-case its way out of.
+  for (const x of [-1, 0, 0.5, 1, 99]) assert.equal(nearestLevelIndex([0.42], x), 0);
+});
+
+test('bandLevelIndex is bandShade in index form — the same decision, never a second one', () => {
+  for (let x = -0.2; x <= 1.2; x += 0.001) {
+    const i = bandLevelIndex(x);
+    assert.equal(SHADE_LEVELS[i], bandShade(x), `disagreement at lambert ${x}`);
+  }
+});
+
+test('parseHex round-trips through toHex, and REFUSES anything that is not #rrggbb', () => {
+  assert.deepEqual(parseHex('#8cb85e'), { r: 140, g: 184, b: 94 });
+  assert.equal(toHex({ r: 140, g: 184, b: 94 }), '#8cb85e');
+  assert.equal(toHex(parseHex('#000000')), '#000000');
+  assert.equal(toHex(parseHex('#ffffff')), '#ffffff');
+  // Padding: a channel below 16 must not lose its leading zero, or the round trip shortens the
+  // string and every downstream set-membership test misses.
+  assert.equal(toHex({ r: 1, g: 2, b: 3 }), '#010203');
+  // ⚠ BOTH ANCHORS ARE EXERCISED. Without `^` a token could carry a prefix, without `$` a
+  // suffix — and either would let a malformed corpus entry through as a plausible colour, which
+  // is the failure this function exists to refuse. Neither is reachable by a test that only
+  // supplies too-short and too-long strings.
+  for (const bad of ['8cb85e', '#8cb85', '#8cb85ee', '#gggggg', '', '#abc', 'x#8cb85e', '#8cb85ex', ' #8cb85e']) {
+    assert.throws(() => parseHex(bad), /shade-ladder/, `${JSON.stringify(bad)} should refuse`);
+  }
+});
+
+test('LIGHT_DIRECTION is NORMALISED, and points from the authored quadrant', () => {
+  const len = Math.hypot(LIGHT_DIRECTION.x, LIGHT_DIRECTION.y, LIGHT_DIRECTION.z);
+  assert.ok(Math.abs(len - 1) < 1e-12, `light direction length ${len}`);
+  // It points DOWN onto the land from above and to one side: a light with y <= 0 would leave
+  // every upward-facing top face on the darkest rung and the whole ground one colour.
+  assert.ok(LIGHT_DIRECTION.y > 0.5, 'the sun is above the island');
+  assert.ok(LIGHT_DIRECTION.x !== 0 || LIGHT_DIRECTION.z !== 0, 'a straight-down sun shades nothing');
+  // ⚠ THE SIGNS ARE ASSERTED, not just the magnitudes. Flipping x mirrors every shadow on the
+  // island — which way the ridges face is the whole readable content of a banded relief — and it
+  // moves NO rung for a normal anyone tests from, so nothing else here would notice.
+  assert.ok(LIGHT_DIRECTION.x < 0, 'the sun is on the -x side');
+  assert.ok(LIGHT_DIRECTION.z > 0, 'and the +z side');
+});
+
+test('lambertOfNormal is the half-lambert itself, not a rung — arithmetic a rung would hide', () => {
+  // ⚠ THESE ARE ASSERTED AS SCALARS ON PURPOSE. On a four-rung ladder a sign flip or a product
+  // turned into a quotient lands on the same rung as the correct answer for every normal anyone
+  // would think to test, so a rung-level assertion cannot see it — measured, two operator mutants
+  // in this expression survived a suite that drove `rungOfNormal` from six directions.
+  const near = (got: number, want: number): void =>
+    assert.ok(Math.abs(got - want) < 1e-12, `${got} != ${want}`);
+  near(lambertOfNormal({ x: 0, y: 1, z: 0 }), LIGHT_DIRECTION.y * 0.5 + 0.5);
+  near(lambertOfNormal({ x: 1, y: 0, z: 0 }), LIGHT_DIRECTION.x * 0.5 + 0.5);
+  near(lambertOfNormal({ x: 0, y: 0, z: 1 }), LIGHT_DIRECTION.z * 0.5 + 0.5);
+  // Independently: the exact wrapped values, so a change to the authored direction is a decision
+  // someone has to make rather than a number that drifts.
+  near(lambertOfNormal({ x: 0, y: 1, z: 0 }), 0.9105340416070602);
+  near(lambertOfNormal({ x: 1, y: 0, z: 0 }), 0.27470692838636945);
+  near(lambertOfNormal({ x: 0, y: 0, z: 1 }), 0.6752279445883793);
+  // Facing the light square on wraps to exactly 1; facing away, to exactly 0.
+  near(lambertOfNormal(LIGHT_DIRECTION), 1);
+  near(lambertOfNormal({ x: -LIGHT_DIRECTION.x, y: -LIGHT_DIRECTION.y, z: -LIGHT_DIRECTION.z }), 0);
+  // A normal perpendicular to the light sits exactly at the wrap point.
+  near(lambertOfNormal({ x: LIGHT_DIRECTION.y, y: -LIGHT_DIRECTION.x, z: 0 }), 0.5);
+});
+
+test('rungOfNormal reads the ladder off a surface, and a flat top is NOT the brightest rung', () => {
+  const flat = rungOfNormal({ x: 0, y: 1, z: 0 });
+  assert.equal(flat, bandLevelIndex(LIGHT_DIRECTION.y * 0.5 + 0.5));
+  // ⚠ The land is lit from a slant, so flat ground sits BELOW the top rung and relief can
+  // therefore brighten as well as darken. A test asserting `flat === last` would pass on a
+  // straight-down light that made every relief invisible.
+  assert.ok(flat < SHADE_LEVELS.length - 1, 'flat ground leaves headroom above it');
+  // Facing the light square on is the top rung; facing away is the bottom one.
+  assert.equal(rungOfNormal(LIGHT_DIRECTION), SHADE_LEVELS.length - 1);
+  assert.equal(rungOfNormal({ x: -LIGHT_DIRECTION.x, y: -LIGHT_DIRECTION.y, z: -LIGHT_DIRECTION.z }), 0);
+});
+
+test('deliveredForLevel is token x level, ROUNDED ONCE, for an unkeyed token', () => {
+  assert.deepEqual(deliveredForLevel('#8cb85e', 1), { r: 140, g: 184, b: 94 });
+  // 216 x 0.9 = 194.4 -> 194; 192 x 0.9 = 172.8 -> 173; 105 x 0.9 = 94.5 -> 95 (ties UP).
+  assert.deepEqual(deliveredForLevel('#d8c069', 0.9), { r: 194, g: 173, b: 95 });
+  assert.deepEqual(deliveredForLevel('#ffffff', 0), { r: 0, g: 0, b: 0 });
+});
+
+test('deliveredForLevel MIXES toward a shade key, and clamps rather than extrapolating', () => {
+  const [token, key] = [...SHADE_KEYS.entries()][0]!;
+  // At the floor the delivered colour IS the key, unmixed — that is what the floor means.
+  assert.deepEqual(deliveredForLevel(token, SHADE_KEY_FLOOR), parseHex(key));
+  // At 1.0 it is the token itself, so a keyed token still delivers its own colour in full light.
+  assert.deepEqual(deliveredForLevel(token, 1), parseHex(token));
+  // Below the floor it CLAMPS to the key rather than passing through it into a colour neither
+  // entry names. Both ladders sit strictly inside, so this never fires today — it exists so a
+  // rung added below the floor later fails safe.
+  assert.deepEqual(deliveredForLevel(token, SHADE_KEY_FLOOR - 0.3), parseHex(key));
+  assert.deepEqual(deliveredForLevel(token, 1.5), parseHex(token));
+  // And it is a genuine ROTATION rather than a darkening: `token x level` cannot change the
+  // channel ratios, so a keyed token whose mix agreed with the multiply would buy nothing.
+  const mixed = deliveredForLevel(token, SHADE_LEVELS[0]!);
+  const multiplied = { r: 0, g: 0, b: 0 };
+  const t = parseHex(token);
+  multiplied.r = Math.round(t.r * SHADE_LEVELS[0]!);
+  multiplied.g = Math.round(t.g * SHADE_LEVELS[0]!);
+  multiplied.b = Math.round(t.b * SHADE_LEVELS[0]!);
+  assert.notDeepEqual(mixed, multiplied, 'a shade key that multiplies is not a key');
+});
+
+test('SHADE_KEYS is EMPTY for every status family — a semantic question art may not settle', () => {
+  // ADR-0392 D5 / ADR-0398 D7: the land's colour is a capability's proof state, so rotating a
+  // shaded ground's hue would change what the map ASSERTS. The keys are on family-less prop
+  // tokens only (ADR-0406 D4). The shipped ground therefore never takes the mix branch, which is
+  // what makes `banded-ground-material`'s ramp a plain `token x level` table.
+  const groundTokens = ['#8cb85e', '#b7684e', '#d8c069', '#57544a', '#9ca3af'];
+  for (const token of groundTokens) {
+    assert.equal(SHADE_KEYS.get(token), undefined, `${token} must not carry a shade key`);
+  }
+  assert.ok(SHADE_KEYS.size > 0, 'NON-VACUITY: the mix branch above is reachable by something');
+});
+
+test('tokenRamp is one entry per rung, in ladder order, and bandedColour agrees with it', () => {
+  const ramp = tokenRamp('#8cb85e');
+  assert.equal(ramp.length, SHADE_LEVELS.length);
+  SHADE_LEVELS.forEach((level, i) => {
+    assert.deepEqual(ramp[i], deliveredForLevel('#8cb85e', level));
+    assert.deepEqual(bandedColour('#8cb85e', level), ramp[i]);
+  });
+  // Darkest first, because the ladder ascends — a reversed ramp would light the island upside
+  // down while every count and closure test still passed.
+  assert.ok(ramp[0]!.g < ramp[ramp.length - 1]!.g);
+});
+
+test('paletteImageOfToken DEDUPES — the token\'s own closed image, not its ramp again', () => {
+  // 0.78 and 0.8 are close enough that some channels collide, so the image is genuinely smaller
+  // than the ramp for some tokens and never larger for any.
+  for (const token of ['#8cb85e', '#b7684e', '#d8c069', '#57544a', '#9ca3af', '#ffffff']) {
+    const image = paletteImageOfToken(token);
+    const hexes = image.map(toHex);
+    assert.equal(new Set(hexes).size, hexes.length, `${token}: image is not deduped`);
+    assert.ok(image.length <= SHADE_LEVELS.length);
+    for (const c of tokenRamp(token)) assert.ok(hexes.includes(toHex(c)), `${token}: ramp entry missing`);
+  }
+  // Black is the degenerate case: every level delivers `#000000`, so the image is ONE entry.
+  assert.equal(paletteImageOfToken('#000000').length, 1);
+});
+
+test('bandGlsl emits EXACTLY this shader — every line of it, derived from the ladder', () => {
+  // ⚠⚠ A WHOLE-SOURCE COMPARISON RATHER THAN A SET OF `includes` CHECKS, and the reason is that
+  // this string is COMPILED SOMEWHERE ELSE. No node test can run it, so a line silently emptied
+  // here fails at shader-link time in a browser, on a page nothing in the gate opens — which is
+  // exactly the shape that ships. A mutation sweep put a number on it: twenty separate string
+  // mutants in this generator survived a suite that asserted the ladder's digits were present
+  // and that the two function signatures existed.
+  //
+  // The expectation is BUILT HERE from `SHADE_LEVELS`, not pasted from the output, so the shared
+  // thing is the ladder (which is the point) and the source TEXT is written independently.
+  const n = SHADE_LEVELS.length;
+  const expected = [
+    '// GENERATED from shade-ladder.ts SHADE_LEVELS — do not hand-edit this ladder.',
+    `const int ST_N_LEVELS = ${n};`,
+    'float st_level(int i) {',
+    ...SHADE_LEVELS.map((l, i) => `  if (i == ${i}) return ${l.toFixed(6)};`),
+    `  return ${SHADE_LEVELS[n - 1]!.toFixed(6)};`,
+    '}',
+    '',
+    '// The ladder rung a lighting scalar falls on. Nearest, ties DOWN, ends clamped —',
+    '// the same decision as nearestLevelIndex in shade-ladder.ts. ⚠ The two range guards below',
+    '// are REDUNDANT with the loop, exactly as they were in the TypeScript before a mutation',
+    '// sweep showed nothing could reach them and they were deleted there. They stay here because',
+    '// this source is what was measured on a GPU, and they cost a shader nothing.',
+    'int st_bandIndex(float lambert) {',
+    '  if (lambert <= st_level(0)) return 0;',
+    '  if (lambert >= st_level(ST_N_LEVELS - 1)) return ST_N_LEVELS - 1;',
+    '  int best = 0;',
+    '  float bestD = 1e9;',
+    '  for (int i = 0; i < ST_N_LEVELS; i++) {',
+    '    float d = abs(st_level(i) - lambert);',
+    '    if (d < bestD) { bestD = d; best = i; }',
+    '  }',
+    '  return best;',
+    '}',
+    '',
+    `// ladder, for a reader and for the test that asserts this string carries it: ${SHADE_LEVELS.map((l) => l.toFixed(6)).join(', ')}`,
+  ].join('\n');
+  assert.equal(bandGlsl(), expected);
+});
+
+test('the GLSL quantiser AGREES WITH the TypeScript one, rung for rung', () => {
+  // The comparison above proves the text; this proves the two implementations decide alike, which
+  // is the property the text exists for. The GLSL is not runnable here, so its algorithm is
+  // re-executed from the source's own numbers — including the two redundant range guards, so a
+  // guard that stopped being redundant would show up as a disagreement rather than as a picture.
+  const glsl = bandGlsl();
+  const levels = SHADE_LEVELS.map((l) => Number(l.toFixed(6)));
+  for (const level of levels) assert.ok(glsl.includes(level.toFixed(6)));
+  const stBandIndex = (lambert: number): number => {
+    if (lambert <= levels[0]!) return 0;
+    if (lambert >= levels[levels.length - 1]!) return levels.length - 1;
+    let best = 0;
+    let bestD = 1e9;
+    levels.forEach((l, i) => {
+      const d = Math.abs(l - lambert);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    return best;
+  };
+  for (let x = -0.2; x <= 1.2; x += 0.0005) {
+    assert.equal(stBandIndex(x), bandLevelIndex(x), `the two quantisers disagree at ${x}`);
+  }
+});

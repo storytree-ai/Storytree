@@ -183,6 +183,43 @@ test('the shipped ground STANDS ON the relief field — the adoption, read off t
   );
 });
 
+test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also item 6', () => {
+  // The second component of the approved treatment to cross (2026-08-30). Relief alone reaches a
+  // `meshStandardMaterial` as a SMOOTH gradient; the ladder is what turns it into the authored
+  // zones the research renders show. Same fence as the relief above: no prop, no default-off.
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(src, /index:\s*groundRowOf/, 'CellGround must hand the builder its parcel rows');
+  assert.match(src, /<mesh material=\{BANDED_GROUND\}>/, 'and draw them with the banded material');
+  // ⚠ AND THE SMOOTH MATERIAL IS GONE FROM THE CELL GROUND RATHER THAN LEFT BESIDE IT. Two land
+  // materials is the outcome item 6 calls worse than either — and here it would be worse still,
+  // because the two disagree about what a status colour looks like.
+  const cellGround = src.slice(src.indexOf('function CellGround'), src.indexOf('function StoryTree'));
+  assert.ok(!/meshStandardMaterial/.test(cellGround), 'the cell ground keeps ONE material');
+  assert.ok(!/attributes-color/.test(cellGround), 'and uploads no attribute its material cannot read');
+  assert.match(cellGround, /attributes-\$\{GROUND_STATUS_ATTRIBUTE\}/, 'the row attribute is uploaded');
+  // The classic hex prisms are NOT banded, and that is deliberate rather than an omission: a
+  // scene carries one substrate or the other (`scene.ts:658`), the relaxed mesh is what the
+  // studio ships, and rewriting the legacy path would be a second untested crossing. It is
+  // asserted so that the asymmetry is a recorded fact rather than something a reader discovers.
+  const hexGround = src.slice(src.indexOf('function HexGround'), src.indexOf('/** Status variant'));
+  assert.match(hexGround, /meshStandardMaterial/, 'the classic substrate still wears the placeholder');
+});
+
+test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
+  // ⚠ THE FAILURE THIS FORBIDS IS THE WORST ONE THIS SURFACE HAS. A geometry indexing one order
+  // and a material uploading another paints every parcel with a DIFFERENT status's colour —
+  // wrong, plausible, and undetectable by eye. Both are derived from `GROUND_COLOUR` here, so
+  // the two orders are the same object rather than two lists that agree today.
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(src, /GROUND_TOKENS[^=]*=\s*\[\.\.\.GROUND_COLOUR\.values\(\)\]/);
+  assert.match(src, /GROUND_ROWS[^=]*=[\s\S]{0,120}\[\.\.\.GROUND_COLOUR\.keys\(\)\]/);
+  assert.match(src, /createBandedGroundMaterial\(\{ tokens: GROUND_TOKENS \}\)/);
+  // An unrecognised material falls back to `unknown`'s ROW exactly as it falls back to
+  // `unknown`'s COLOUR — the one state that means "no data". Any other fallback would have the
+  // map assert something about work it could not classify, in the form hardest to notice.
+  assert.match(src, /GROUND_ROWS\.get\(material \?\? UNKNOWN_STATUS\) \?\? GROUND_ROWS\.get\(UNKNOWN_STATUS\)!/);
+});
+
 test('trails are UNDRAWN by default, and the shipped file says so', () => {
   const src = readFileSync(SHIPPED, 'utf8');
   assert.match(src, /showTrails\s*=\s*false/, 'the default that makes trail-strip undrawn');
