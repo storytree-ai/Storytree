@@ -280,7 +280,7 @@ export async function adrRebind(
         "",
         "This verb re-reads anchors somebody has already authored; it never invents them. Anchors are",
         "hand-attested against the decision's own prose and authored with",
-        `  storytree library artifact ${id} --set sources=@anchors.json --pg`,
+        `  storytree library artifact edit ${id} --set sources=@anchors.json --pg`,
         "",
         "NEVER auto-anchor. Matching a decision's backticked identifiers against the files it cites was",
         "measured at 795 candidates across 200 decisions, mostly coincidental collisions",
@@ -318,7 +318,7 @@ export async function adrRebind(
       "checkout, and a hash taken over a span nobody found would assert a look that never happened.",
       "Each keeps whatever it had, so the sweep goes on reporting it. Two honest routes:",
       "  - the anchor's IDENTITY moved (renamed symbol, moved file) → fix `file`/`symbol`/`quote` with",
-      `    storytree library artifact ${id} --set sources=@anchors.json --pg, then rebind`,
+      `    storytree library artifact edit ${id} --set sources=@anchors.json --pg, then rebind`,
       "  - the anchor was the ERROR and the prose was always true → refute it, with the reason:",
       `    storytree adr rebind ${String(number)} --refute "<key>" --reason "<why>" --pg`,
     );
