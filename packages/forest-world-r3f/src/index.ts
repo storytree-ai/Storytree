@@ -29,8 +29,25 @@ export {
   type P2,
   type CellGroundGeometry,
   type CellGroundGeometryInput,
+  type GroundRelief,
   type LinearRgb,
+  FLAT_GROUND,
 } from './cell-ground-geometry.js';
+
+// The ground's RELIEF field — the first component of the approved land treatment to cross onto
+// the shipped side (`adopt-the-land-into-the-shipped-map-arc`, owner-authorised 2026-08-29).
+// Pure arithmetic, a function of POSITION ONLY, so it asserts nothing about any unit's proof
+// state and stays on this side of the provability firewall with everything else here.
+export {
+  LAND_RELIEF_AMPLITUDE,
+  landGradient,
+  landHeight,
+  landHeightRange,
+  landNormal,
+  landRelief,
+  type LandGradientResult,
+  type LandNormalResult,
+} from './land-relief.js';
 
 // The Act 2 beat director (the act2-beat-director capability): pure, visitor-paced
 // choreography — zod contracts + a pure state machine, no React/three imports.

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the shipped map's ground, flat and relieved — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 100ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The shipped map&rsquo;s ground &mdash; flat, and standing on the land&rsquo;s relief</h1>
+      <p>
+        Two arms on the island the studio actually ships (164 parcels), differing in
+        <strong>exactly one thing</strong>: which relief field
+        <code>src/cell-ground-geometry.ts</code> is handed. <code>flat</code> is the identity
+        field, which is the shipped buffer byte for byte as it drew before 2026-08-30;
+        <code>relief</code> is <code>landRelief</code>, which
+        <code>&lt;ForestWorldCanvas&gt;</code> now passes unconditionally. Same parcels, same
+        status colours, same framing, same light &mdash; the light and the framing are imported
+        from the shipped files rather than transcribed, so this is the product&rsquo;s land and
+        not a plausible one.
+      </p>
+      <p>
+        The relief adds <strong>no triangles, no draw call and no attribute channel</strong>: the
+        vertices this ground already emitted simply stand where the land is and face the way it
+        turns. <code>shipped-land-measure.mjs</code> reads the pictures and the GPU clock off
+        <code>window.landRunner</code>.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedLand } from './shipped-land-scene.ts';
+      try {
+        mountShippedLand(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

@@ -16,6 +16,21 @@
 // That makes "the experiment publishes nothing" a property of WHERE THE FILES ARE, which is
 // exactly the kind of property that decays silently when someone later moves a file for a
 // good-looking local reason. Hence a test.
+//
+// ⚠⚠ THE FENCE IS NO LONGER ABSOLUTE — THE OWNER LIFTED IT ON 2026-08-29, and this file said in
+// as many words that it is where that gets recorded. On the pictures in
+// `docs/research/chapter2-vocabulary-2026-08-29/` he wrote: "This looks better, stamp it, i'm
+// still hoping for future iterations to improve the ground texture and add shadows. Cut self
+// perpetuating session to continue the drive." That settles ADR-0406 D2 / ADR-0380 D6's
+// separate-and-deliberate event in the affirmative, and
+// `oq-the-island-is-re-dressed-and-thirty-five-of-them-stand-to` carries the answer.
+//
+// SO THE LIST BELOW IS NOW A WORKLIST RATHER THAN A WALL, and it must stay one: a module leaves
+// it only by ACTUALLY CROSSING — moving into `src/`, being drawn by the shipped canvas, and
+// leaving a re-export behind so the harness keeps drawing the same thing the product does.
+// {@link ADOPTED} is the other half of that ledger, and the test below refuses a name that has
+// silently vanished from both. Deleting a line from `EXPERIMENT` is not adoption; it is how a
+// fence stops meaning anything.
 
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -98,6 +113,23 @@ const EXPERIMENT = [
   'kit-vocabulary.ts',
 ];
 
+/** WHAT HAS CROSSED, and what the shipped canvas therefore publishes — the adoption ledger.
+ *
+ *  Each entry names the module now living in `src/`, and the harness file that re-exports it so
+ *  the experiment and the product cannot drift apart. The test below holds BOTH halves: the
+ *  file is really in `src/`, and the harness really re-exports from it. A crossing that dropped
+ *  the re-export would leave two relief fields, which is how this package acquired three
+ *  disagreeing status palettes and spent an increment putting them back together. */
+const ADOPTED: readonly { src: string; reExportedBy: string; because: string }[] = [
+  {
+    src: 'land-relief.ts',
+    reExportedBy: 'land-definition.ts',
+    because:
+      "the ground's relief field — the first component of the approved land treatment to reach " +
+      'the shipped map (owner-authorised 2026-08-29)',
+  },
+];
+
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];
 
 test('the experiment lives in harness/, which the web sync does not copy', () => {
@@ -111,6 +143,39 @@ test('the experiment lives in harness/, which the web sync does not copy', () =>
         'Moving it there publishes an unadopted experiment. If this is a deliberate adoption, ' +
         'that is an owner decision and this test is the place it gets recorded.',
     );
+  }
+});
+
+test('an ADOPTED module really crossed — it is in src/, and the harness re-exports it', () => {
+  // ⚠ BOTH HALVES, because either alone is satisfied by the failure it is meant to catch. "It is
+  // in src/" alone passes for a COPY, which leaves the experiment and the product free to drift.
+  // "The harness re-exports it" alone passes for a file that never moved at all.
+  const inSrc = new Set(readdirSync(SRC));
+  for (const entry of ADOPTED) {
+    assert.ok(
+      inSrc.has(entry.src),
+      `src/${entry.src} is recorded as adopted but is not in src/ — ${entry.because}`,
+    );
+    const specifier = `../src/${entry.src.replace(/\.tsx?$/, '.js')}`;
+    const harnessSrc = readFileSync(join(HARNESS, entry.reExportedBy), 'utf8');
+    assert.ok(
+      harnessSrc.includes(specifier),
+      `harness/${entry.reExportedBy} must re-export from ${specifier}, or the experiment and ` +
+        'the shipped map are running two different copies of it',
+    );
+    assert.ok(entry.because.length > 0, `${entry.src} must say why it crossed`);
+  }
+});
+
+test('nothing has left the fence by simply being deleted from the list', () => {
+  // The one way this file could stop meaning anything: a session that wanted a module in `src/`
+  // deletes its EXPERIMENT line, and every sweep above then passes over a file that is now
+  // published. Adoption goes THROUGH the ledger, so every harness module that is neither fenced
+  // nor adopted has to be one this file never claimed to cover — and the assertion is that the
+  // two lists together still account for the land treatment's own modules.
+  const accounted = new Set([...EXPERIMENT, ...ADOPTED.map((a) => a.src)]);
+  for (const owed of ['land-definition.ts', 'land-relief.ts', 'banded-material.ts', 'land-grain.ts']) {
+    assert.ok(accounted.has(owed), `${owed} is in neither EXPERIMENT nor ADOPTED — unaccounted for`);
   }
 });
 

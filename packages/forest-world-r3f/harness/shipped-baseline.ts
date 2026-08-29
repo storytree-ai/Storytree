@@ -288,6 +288,29 @@ export const SHIPPED_CROWN_COLOUR: ReadonlyMap<string, string> = new Map([
   ['unknown', '#6b7280'],
 ]);
 
+/** THE SHIPPED CANVAS'S LIGHT AND GROUND, as authored numbers — so a comparison drawn in raw
+ *  three is lit the way the product is rather than the way its author remembered.
+ *
+ *  ⚠ IT IS A TRANSCRIPTION AND IT IS PINNED, exactly as the palette above is. Every previous
+ *  transcription in this package that nobody checked ended up disagreeing with its source — the
+ *  three status palettes, and `frameWorld` quoted against line numbers that had already moved.
+ *  `shipped-baseline.test.ts` parses `ForestWorldCanvas.tsx` and refuses any drift from these.
+ *
+ *  ⚠ AND IT MATTERS MORE FOR RELIEF THAN FOR ANYTHING BEFORE IT. Relief is a LIGHTING operation:
+ *  it moves no colour and adds no mark, so the entire visible difference is `dot(n, L)` against
+ *  THIS light direction. A comparison lit from somewhere else would be a picture of a land the
+ *  map does not draw. */
+export const SHIPPED_LIGHTING = {
+  /** `<ambientLight intensity={…} />` */
+  ambientIntensity: 0.7,
+  /** `<directionalLight position={…} />`, in world units. */
+  directionalPosition: [120, 300, 80] as readonly [number, number, number],
+  /** `<directionalLight intensity={…} />` */
+  directionalIntensity: 1.1,
+  /** `<color attach="background" args={[…]} />` */
+  background: '#101418',
+} as const;
+
 /** The six `SceneStatus` values, in the order this arc's reports print them. */
 export const SHIPPED_STATUSES: readonly string[] = [
   'healthy',
