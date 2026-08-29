@@ -1,10 +1,22 @@
-// KNOWLEDGE DEPTH FROM THE WORK, joined onto a traversal at render time
-// (`traversal-panel-arc`, increment `standson-depth-from-work-join`; ADR-0363 D2).
+// KNOWLEDGE DEPTH FROM THE SURFACE, joined onto a traversal at render time
+// (`traversal-panel-arc`, increment `traversal-panel-depth-from-surface`; ADR-0476, inside
+// ADR-0363 D2's fence).
 //
-// The rule lives one floor down, in `@storytree/library`'s `evaluateDepthFromWork` — the same pure
-// judge the `probe:depth-from-work` diagnostic runs, so the panel and the probe can never describe
-// the same corpus differently. What is HERE is the studio's half: adapting the wire's
-// `GuidanceAsset[]` onto that judge, and counting what one trace's visits came to.
+// The rule lives one floor down, in `@storytree/library`'s `evaluateSurfaceDepth` — the same pure
+// judge the `probe:surface-depth` diagnostic runs, so the panel and the probe can never describe the
+// same corpus differently. What is HERE is the studio's half: adapting the wire's `GuidanceAsset[]`
+// onto that judge, and counting what one trace's visits came to.
+//
+// ## WHY THIS READING AND NOT `evaluateDepthFromWork` (ADR-0476)
+//
+// The panel used to render depth from the WORK ANCHOR — an artifact whose `cites` names a `story:`
+// or `capability:`. 135 of 2,633 artifacts do, so 258 of 3,101 joined nodes had any reading at all
+// and this chip printed `deepest 1` on essentially every real trace. That was the instrument being
+// honest about a place it could see almost nothing from, not a shallow corpus: seeded from the
+// graph's own surface the same corpus runs 17 levels deep.
+//
+// `evaluateDepthFromWork` is NOT retired — it answers a different question and the probes read it.
+// The two are siblings and are never summed or collapsed.
 //
 // ## TWO DEPTHS SHARE THE WORD ON THIS PANEL AND THEY ARE UNRELATED QUANTITIES
 //
@@ -22,13 +34,18 @@
 //
 // ## THE THREE READINGS, AND WHY COLLAPSING ANY TWO IS THE BUG
 //
-//   • REACHED — a chain of authored edges connects it to a work anchor, `depth` hops long;
-//   • UNREACHABLE — it is in the corpus, and no chain does. NOT "very deep": rendering an unmeasured
-//     artifact as a deep one reports the exact opposite of the health signal this exists to give;
-//   • ABSENT — the visited id is not a Library artifact at all. Measured across this machine's whole
-//     trace index on 2026-08-20: 96 of 402 distinct visited ids, which are story/capability ids,
-//     retired artifacts and CLI tokens. A panel that filed those under "unreachable" would blame the
-//     corpus for ids the corpus was never asked to hold.
+//   • PLACED — it sits in the linked graph, `depth` hops below the nearest surface opening;
+//   • UNLINKED — it is in the corpus and carries no edge in either direction. NOT "at the surface"
+//     and NOT "very deep": 1,945 of 3,101 nodes are in this state, and rendering them as depth 0
+//     would report "everything is at the surface", which reads as health and is the exact opposite
+//     of the signal this exists to give;
+//   • CYCLIC — it has edges but a loop sits above it, so no longest chain exists. Provably empty
+//     today (`probe:combined-dag`); a state rather than an assertion so a regression reads as an
+//     absence of measurement rather than as a depth;
+//   • ABSENT — the visited id is not a graph node at all. Measured across this machine's whole trace
+//     index on 2026-08-20: 96 of 402 distinct visited ids, which are story/capability ids, retired
+//     artifacts and CLI tokens. A panel that filed those under "unlinked" would blame the corpus for
+//     ids the corpus was never asked to hold.
 //
 // And a fourth state that is NOT a reading at all: UNMEASURED, when `/api/assets` has not resolved or
 // failed. It renders as its own sentence and never as "0 annotated" — the same trap
@@ -40,11 +57,11 @@ import {
   type SupportOnlyDecision,
 } from '@storytree/library/decision-support';
 import {
-  depthFromWorkOf,
-  evaluateDepthFromWork,
-  type DepthFromWorkReading,
-  type DepthFromWorkVerdict,
-} from '@storytree/library/knowledge-depth';
+  evaluateSurfaceDepth,
+  surfaceDepthOf,
+  type SurfaceDepthReading,
+  type SurfaceDepthVerdict,
+} from '@storytree/library/surface-depth';
 import type { GuidanceAsset, TraversalEventEnvelope } from '../types';
 
 /**
@@ -80,7 +97,7 @@ function decisionRowsOf(assets: readonly GuidanceAsset[]): SupportOnlyDecision[]
 
 export type KnowledgeDepthModel =
   /** The corpus was read: `verdict` carries the depths AND the denominators that make them readable. */
-  | { readonly status: 'measured'; readonly verdict: DepthFromWorkVerdict }
+  | { readonly status: 'measured'; readonly verdict: SurfaceDepthVerdict }
   /** The corpus was NOT read. `reason` is rendered verbatim — never smoothed into an empty result. */
   | { readonly status: 'unmeasured'; readonly reason: string };
 
@@ -107,15 +124,18 @@ export function buildKnowledgeDepth(input: {
   }
   return {
     status: 'measured',
-    verdict: evaluateDepthFromWork(
+    verdict: evaluateSurfaceDepth(
       input.assets.map((asset) => ({
         id: asset.id,
         dependsOn: asset.dependsOn ?? [],
         cites: asset.cites ?? [],
+        // The kind the record-tier denominator splits on (ADR-0476 D3). `category` is the wire's
+        // name for it and is present on every row.
+        kind: asset.category,
       })),
-      // THE SECOND ARGUMENT IS THE WHOLE INCREMENT. Without it every `doc:` decision pointer is
-      // bedrock, and half the corpus's dependency pointers terminate at a decision — so the panel
-      // reported a ceiling of 2 over a corpus whose join reaches 9.
+      // THE SECOND ARGUMENT IS LOAD-BEARING TWICE OVER. Without it every `doc:` decision pointer is
+      // bedrock — half the corpus's dependency pointers terminate at a decision — AND the decision
+      // twins never collapse, so every ADR would read as its own surface at depth 0.
       decisionSupportResolver(decisionRowsOf(input.assets)),
     ),
   };
@@ -123,8 +143,8 @@ export function buildKnowledgeDepth(input: {
 
 /** What one visited node's depth reading came to, ready for a hover label and a test hook. */
 export interface MarkKnowledgeDepth {
-  readonly state: DepthFromWorkReading['state'];
-  /** The hop count, and `null` for both non-reached states — never a stand-in large number. */
+  readonly state: SurfaceDepthReading['state'];
+  /** The hop count, and `null` for every non-placed state — never a stand-in large number. */
   readonly depth: number | null;
   /** The `data-knowledge-depth` value: a number, or the state's own word. Never blank. */
   readonly attr: string;
@@ -143,26 +163,36 @@ export function markKnowledgeDepth(
   nodeId: string | null,
 ): MarkKnowledgeDepth | null {
   if (model.status !== 'measured' || nodeId === null) return null;
-  const reading = depthFromWorkOf(model.verdict, nodeId);
-  if (reading.state === 'reached') {
+  const reading = surfaceDepthOf(model.verdict, nodeId);
+  if (reading.state === 'placed') {
     return {
-      state: 'reached',
+      state: 'placed',
       depth: reading.depth,
       attr: String(reading.depth),
       label:
         reading.depth === 0
-          ? 'knowledge depth 0 — this artifact names the work itself'
-          : `knowledge depth ${reading.depth} from the work`,
+          ? 'knowledge depth 0 — this artifact sits at the surface, nothing points at it'
+          : `knowledge depth ${reading.depth} — ${reading.depth} hop${
+              reading.depth === 1 ? '' : 's'
+            } below the surface`,
     };
   }
-  if (reading.state === 'unreachable') {
+  if (reading.state === 'unlinked') {
     return {
-      state: 'unreachable',
+      state: 'unlinked',
       depth: null,
-      attr: 'unreachable',
-      // Deliberately not "very deep" and not a number: no authored chain reaches it, which is an
-      // absence of measurement rather than a measurement of distance.
-      label: 'knowledge depth unmeasured — no authored chain reaches this from the work',
+      attr: 'unlinked',
+      // Deliberately not a 0 and not "very deep": it carries no edge in either direction, which is
+      // an absence of measurement rather than a measurement of distance.
+      label: 'knowledge depth unmeasured — nothing links to this artifact and it links to nothing',
+    };
+  }
+  if (reading.state === 'cyclic') {
+    return {
+      state: 'cyclic',
+      depth: null,
+      attr: 'cyclic',
+      label: 'knowledge depth unmeasured — a dependency cycle sits above this artifact',
     };
   }
   return {
@@ -177,12 +207,13 @@ export function markKnowledgeDepth(
 export interface KnowledgeDepthReport {
   /** Distinct node ids this trace read. The denominator every other count sits over. */
   readonly visited: number;
-  readonly reached: number;
-  readonly unreachable: number;
+  readonly placed: number;
+  readonly unlinked: number;
+  readonly cyclic: number;
   readonly absent: number;
-  /** The deepest READ artifact — `null` when nothing was reached, never a 0 that reads as shallow. */
+  /** The deepest READ artifact — `null` when nothing was placed, never a 0 that reads as shallow. */
   readonly maxDepth: number | null;
-  /** The reached distribution, ascending. Empty iff `reached` is 0. */
+  /** The placed distribution, ascending. Empty iff `placed` is 0. */
   readonly buckets: readonly { readonly depth: number; readonly count: number }[];
 }
 
@@ -206,20 +237,23 @@ export function reportKnowledgeDepth(
     }
   }
 
-  let reached = 0;
-  let unreachable = 0;
+  let placed = 0;
+  let unlinked = 0;
+  let cyclic = 0;
   let absent = 0;
   let maxDepth: number | null = null;
   const counts = new Map<number, number>();
 
   for (const nodeId of nodeIds) {
-    const reading = depthFromWorkOf(model.verdict, nodeId);
-    if (reading.state === 'reached') {
-      reached += 1;
+    const reading = surfaceDepthOf(model.verdict, nodeId);
+    if (reading.state === 'placed') {
+      placed += 1;
       counts.set(reading.depth, (counts.get(reading.depth) ?? 0) + 1);
       if (maxDepth === null || reading.depth > maxDepth) maxDepth = reading.depth;
-    } else if (reading.state === 'unreachable') {
-      unreachable += 1;
+    } else if (reading.state === 'unlinked') {
+      unlinked += 1;
+    } else if (reading.state === 'cyclic') {
+      cyclic += 1;
     } else {
       absent += 1;
     }
@@ -227,8 +261,9 @@ export function reportKnowledgeDepth(
 
   return {
     visited: nodeIds.size,
-    reached,
-    unreachable,
+    placed,
+    unlinked,
+    cyclic,
     absent,
     maxDepth,
     buckets: [...counts.entries()]
@@ -238,18 +273,32 @@ export function reportKnowledgeDepth(
 }
 
 /**
- * The corpus-wide anchor line — how much of the corpus the join can see AT ALL.
+ * The corpus-wide linkage line — how much of the KNOWLEDGE corpus sits in the graph at all.
  *
- * It is printed beside every per-trace count on purpose. A trace annotating 3 of its 306 reads is not
- * evidence about that session: measured on the live corpus, only 42 of 1,612 artifacts anchor the
- * walk in the first place, so a thin per-trace figure is a fact about the CORPUS's wiring. Without
- * this line a reader would draw the wrong conclusion from the right number.
+ * It is printed beside every per-trace count on purpose. A trace placing 3 of its 306 reads is not
+ * evidence about that session, it is a fact about the corpus's wiring, and without this line a reader
+ * draws the wrong conclusion from the right number.
+ *
+ * ⚠ THE DENOMINATOR IS THE KNOWLEDGE TIERS ONLY (ADR-0476 D3). The figure this replaced —
+ * `135/2623 anchored` — divided by 1,880 record rows (increments, friction, arcs, open questions,
+ * templates) that were never candidates for an edge, which stated a fact about our record-keeping as
+ * though it were a fact about our knowledge. `recordScanned` travels in the hover so the exclusion is
+ * visible rather than silently applied.
  */
-export function anchorSummary(model: KnowledgeDepthModel): string | null {
+export function linkageSummary(model: KnowledgeDepthModel): string | null {
   if (model.status !== 'measured') return null;
-  const { anchors, artifactsScanned, reached } = model.verdict;
+  const { knowledgeLinked, knowledgeScanned, recordScanned, surfaces, surfaceDecisions, unlinked } =
+    model.verdict;
+  const pick = (count: number, one: string, many: string): string => (count === 1 ? one : many);
   return (
-    `${anchors} of ${artifactsScanned} artifact${artifactsScanned === 1 ? '' : 's'} name a story or ` +
-    `capability and anchor the walk; ${reached} artifact${reached === 1 ? '' : 's'} have a depth at all`
+    `${knowledgeLinked} of ${knowledgeScanned} knowledge ` +
+    `${pick(knowledgeScanned, 'artifact sits', 'artifacts sit')} in the dependency graph; ` +
+    `${surfaces} ${pick(surfaces, 'surface opens', 'surfaces open')} a chain ` +
+    `(${surfaceDecisions} of them decisions); ` +
+    `${unlinked} ${pick(unlinked, 'node carries', 'nodes carry')} no edge either way and ` +
+    `${pick(unlinked, 'has', 'have')} no depth at all. ` +
+    `${recordScanned} record ${pick(recordScanned, 'row', 'rows')} ` +
+    `(increments, friction, arcs, questions, templates) ` +
+    `${pick(recordScanned, 'is', 'are')} excluded from that denominator.`
   );
 }

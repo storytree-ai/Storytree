@@ -897,7 +897,7 @@ describe('the transport', () => {
  * Nothing here touches the SIGNED GRAMMAR: the reading rides the hover label and a data attribute,
  * never a drawn readout on the mark (ADR-0354 clause 5 keeps marks plain, with no per-node gauge).
  */
-describe('knowledge depth from the work is a SECOND axis, joined read-only at render time', () => {
+describe('knowledge depth from the surface is a SECOND axis, joined read-only at render time', () => {
   const CORPUS: GuidanceAsset[] = [
     {
       id: 'inc-one',
@@ -962,48 +962,51 @@ describe('knowledge depth from the work is a SECOND axis, joined read-only at re
     ).toBe(true);
   });
 
-  it('annotates each reached artifact with its hop count, on the hover label and never as a gauge', () => {
+  it('annotates each placed artifact with its hop count, on the hover label and never as a gauge', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
     const attrs = screen
       .getAllByTestId('traversal-mark')
       .map((mark) => mark.getAttribute('data-knowledge-depth'));
-    expect(attrs).toEqual(['1', '2', 'unreachable', 'absent']);
+    expect(attrs).toEqual(['1', '2', 'unlinked', 'absent']);
 
     const titles = screen.getAllByTestId('traversal-mark').map((mark) => mark.querySelector('title')?.textContent);
-    expect(titles[0]).toBe('ceremony · full payload · knowledge depth 1 from the work');
+    expect(titles[0]).toBe('ceremony · full payload · knowledge depth 1 — 1 hop below the surface');
     // The grammar clause survives every trim: the mark itself stays plain. Identity and read
     // strength are all it draws.
     expect(screen.getAllByTestId('traversal-mark')[0]?.querySelectorAll('text')).toHaveLength(0);
   });
 
-  it('never renders an UNREACHABLE artifact as a deep one', () => {
+  it('never renders an UNLINKED artifact as one sitting at the surface', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
     const orphan = screen.getAllByTestId('traversal-mark')[2];
-    expect(orphan?.getAttribute('data-knowledge-depth')).toBe('unreachable');
-    // Not a number, and the word "unmeasured" rather than "deep": no chain reaches it, which is an
-    // absence of measurement, not a measurement of distance.
+    expect(orphan?.getAttribute('data-knowledge-depth')).toBe('unlinked');
+    // Not a number — and specifically not the 0 that a naive indegree-0 seeding would hand it, which
+    // would say "at the surface" about an artifact nothing links to. Absence of measurement, not a
+    // measurement of distance (ADR-0476 D5).
     expect(orphan?.querySelector('title')?.textContent).toContain('unmeasured');
     // The reading moved to the counts chip above the picture when the prose went (ADR-0393 D1); the
-    // three-state distinction it protects did NOT move.
-    expect(screen.getByTestId('traversal-knowledge-chip').getAttribute('data-unreachable')).toBe('1');
-    expect(screen.getByTestId('traversal-knowledge-chip').getAttribute('title')).toContain('unmeasured, NOT deep');
+    // state distinction it protects did NOT move.
+    expect(screen.getByTestId('traversal-knowledge-chip').getAttribute('data-unlinked')).toBe('1');
+    expect(screen.getByTestId('traversal-knowledge-chip').getAttribute('title')).toContain(
+      'unmeasured, NOT at the surface',
+    );
   });
 
-  it('counts the trace and carries the corpus-wide anchor figure beside it', () => {
+  it('counts the trace and carries the corpus-wide linkage figure beside it', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
     const chip = screen.getByTestId('traversal-knowledge-chip');
-    expect(chip.textContent).toContain('knowledge 2/4 on-chain');
+    expect(chip.textContent).toContain('knowledge 2/4 placed');
     expect(chip.textContent).toContain('deepest 2');
-    // WITHOUT THE ANCHOR FIGURE a reader blames the SESSION for a thin count that is really a fact
-    // about how little of the corpus names any work. It is the reason the chip is worth its width.
-    expect(chip.textContent).toContain('1/4 anchored');
-    expect(chip.getAttribute('data-unreachable')).toBe('1');
+    // WITHOUT THE LINKAGE FIGURE a reader blames the SESSION for a thin count that is really a fact
+    // about how much of the corpus is wired. It is the reason the chip is worth its width.
+    expect(chip.textContent).toContain('3/4 linked');
+    expect(chip.getAttribute('data-unlinked')).toBe('1');
     expect(chip.getAttribute('data-absent')).toBe('1');
     // The accepted risk stays on the surface, not only in a comment (ADR-0363 D2).
     expect(chip.getAttribute('title')).toContain('never a guarantee');
   });
 
-  it('says an unread corpus was NOT MEASURED rather than reporting nothing reached', () => {
+  it('says an unread corpus was NOT MEASURED rather than reporting nothing placed', () => {
     const loading = buildKnowledgeDepth({ assets: [], assetsStatus: 'loading', assetsError: '' });
     render(<TraversalSpine replay={WALK} knowledge={loading} />);
 
@@ -1018,14 +1021,16 @@ describe('knowledge depth from the work is a SECOND axis, joined read-only at re
 
   it('keeps the two depths apart — the drawn indentation and the counted knowledge depth', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
-    // The picture's indentation is depth from `parentVisitId`; the chip is depth from the work. Both
-    // paragraphs that used to name the difference are deleted (ADR-0393 D1), so the separation now
-    // rests on their being two different SURFACES carrying two different numbers — which is exactly
-    // why the chip must never be labelled "depth" alone.
+    // The picture's indentation is depth from `parentVisitId` — the route this session actually
+    // walked. The chip is depth from the graph's own surface — a property of the CORPUS that is the
+    // same for every session that reads the artifact. Both paragraphs that used to name the
+    // difference are deleted (ADR-0393 D1), so the separation now rests on their being two different
+    // SURFACES carrying two different numbers — which is exactly why the chip must never be labelled
+    // "depth" alone.
     expect(screen.getByTestId('traversal-knowledge-chip').textContent).toContain('knowledge');
     const drawnDepths = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-depth'));
     expect(new Set(drawnDepths)).toEqual(new Set(['0']));
     const knowledge = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-knowledge-depth'));
-    expect(knowledge).toEqual(['1', '2', 'unreachable', 'absent']);
+    expect(knowledge).toEqual(['1', '2', 'unlinked', 'absent']);
   });
 });
