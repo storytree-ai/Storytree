@@ -255,7 +255,7 @@ export function parallelAllocationNote(missing: readonly number[]): ParallelAllo
  * `dependsOn` is numbers here and POINTERS on the row, and the conversion happens in
  * {@link scaffold}. The flag names decisions because that is the ADR-0419 case: decision rests on
  * decision. A `dependsOn` naming a non-decision artifact is authored with
- * `library artifact adr-NNNN --set dependsOn=…` instead, which is the ordinary Library edge surface
+ * `library artifact edit adr-NNNN --set dependsOn=…` instead, which is the ordinary Library edge surface
  * and needs no second copy of it here.
  */
 export interface AdrScaffoldEdges {
@@ -928,7 +928,7 @@ export function adrHelp(): Envelope {
       "  the only route that empties the backlog without repairing anything, the reason is stored on the",
       "  anchor rather than in a commit message, and every later sweep prints it.",
       "  Anchors themselves are authored by hand against the decision's prose —",
-      "  `library artifact adr-NNNN --set sources=@anchors.json --pg`. NEVER auto-anchor.",
+      "  `library artifact edit adr-NNNN --set sources=@anchors.json --pg`. NEVER auto-anchor.",
       "",
       "  storytree adr compose                              every composed statement + what has moved beneath",
       "  storytree adr compose <n>                          one record's statement + its staleness marker",
@@ -955,7 +955,7 @@ export function adrHelp(): Envelope {
       "  which captures pnpm's run banner as the document's first bytes (ADR-0361).",
       "  A push is a REPLACE of the whole document, so two sessions pushing the SAME decision are",
       "  last-write-wins with no detector. For a targeted change prefer the field-scoped",
-      "  `storytree library artifact adr-NNNN --set <field>=<value> --pg` (ADR-0352); reach for the round",
+      "  `storytree library artifact edit adr-NNNN --set <field>=<value> --pg` (ADR-0352); reach for the round",
       "  trip when you are genuinely rewriting the prose.",
       "",
       "THE ONE SUPPORT EDGE (ADR-0431 D1) — there is no second edge to choose between:",
@@ -973,7 +973,7 @@ export function adrHelp(): Envelope {
       "",
       "  A `dependsOn` naming something other than a decision (a Library artifact, a repository file)",
       "  is the ordinary Library edge — author it with",
-      "  `storytree library artifact adr-NNNN --set dependsOn='[\"asset:…\"]' --pg`.",
+      "  `storytree library artifact edit adr-NNNN --set dependsOn='[\"asset:…\"]' --pg`.",
       "",
       "  --decided   the owner DIRECTED this in conversation → scaffold born `accepted` + `decided: <today>`",
       "              (design-time alignment IS ratification, no second end-of-flow ask; ADR-0110). Omit it",

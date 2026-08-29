@@ -927,3 +927,20 @@ test("adr new --amends is GONE from the surface: the retirement reached the auth
   assert.match(help, /THE ONE SUPPORT EDGE/);
   assert.match(help, /`--amends` is\n?\s*RETIRED/, "but it says plainly that the flag is retired");
 });
+
+test("every `--set` command adr --help prints carries the `edit` verb", async () => {
+  // The help text is a teaching surface, and it used to teach the shape the CLI now refuses: a
+  // verbless `library artifact <id> --set …` is a READ that exits 0 over the artifact's render and
+  // writes nothing. Each of these three lines is a command a reader copies.
+  const store = new InMemoryStore();
+  const help = (await run(["adr", "--help"], { store })).body;
+  for (const line of [
+    "  `library artifact edit adr-NNNN --set sources=@anchors.json --pg`. NEVER auto-anchor.",
+    "  `storytree library artifact edit adr-NNNN --set <field>=<value> --pg` (ADR-0352); reach for the round",
+    "  `storytree library artifact edit adr-NNNN --set dependsOn='[\"asset:…\"]' --pg`.",
+  ]) {
+    assert.ok(help.includes(line), `help does not carry: ${line}`);
+  }
+  // And no line teaches the verbless form it would land on.
+  assert.doesNotMatch(help, /artifact adr-NNNN --set/);
+});
