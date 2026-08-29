@@ -224,6 +224,21 @@ carries for exactly this purpose.
   structurally cannot see: two branches each green alone whose MERGE breaks the art. CI is the only
   thing that builds that merge.
 
+  ✅ **AND THE PREDICTION HELD ON THE REAL RUNNER.** Measured on this increment's own PR (#1720, run
+  `33258037039`, `ubuntu-latest`) — which is the point of landing it this way: the PR that adds the
+  step is the one that measures it.
+
+  | step | wall clock |
+  |---|---|
+  | `Install Chromium for the art rung` | 22 s |
+  | `Land art` | **34 s** |
+  | added to `verify` | **56 s** |
+
+  34 s against 29.0 s predicted from the two-core restriction — close enough that the extrapolation
+  is vindicated rather than merely lucky, and the residual is ordinary cold-cache and runner
+  variance. The install came in at the low end of the 20–30 s estimate. One minute added to a job
+  that already runs several.
+
   ⚠ **The CI step INSTALLS the browser rather than tolerating its absence, and that is load-bearing.**
   The rung's only skippable condition is a Playwright browser that was never downloaded, and the
   reserved exit 3 is local-only. The tempting CI fix — print and exit 0 — is the vacuous-green shape:
