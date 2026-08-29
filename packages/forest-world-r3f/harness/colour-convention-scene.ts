@@ -24,7 +24,11 @@
 import * as THREE from 'three';
 
 import { configureExactColour } from './banded-material.js';
-import { loadKit } from './kit-scene.js';
+import { LEAF_MATERIALS, loadKit } from './kit-scene.js';
+import { LEAF_TINT_TOKEN, TINT_LUMA_TOLERANCE, leafTintGain, luma } from './leaf-tint.js';
+import { mapMeans } from './map-texels.js';
+import type { DecodedMap } from './map-texels.js';
+import { parseHex } from './palette-band.js';
 import { calibrateLights, loadPine } from './pine-scene.js';
 import type { LightCalibration } from './pine-scene.js';
 import {
@@ -35,9 +39,6 @@ import {
   srgbToLinearUnit,
 } from './texture-convention.js';
 import type { ConventionJudgement, Rgb } from './texture-convention.js';
-
-/** A decoded texture image, in the one shape both the 2D canvas and three's loaders answer. */
-type DecodedMap = CanvasImageSource & { width?: number; height?: number };
 
 /**
  * EVERY COMMITTED ASSET THIS PAGE JUDGES, EACH THROUGH THE LOADER THAT ACTUALLY LOADS IT.
@@ -64,6 +65,29 @@ const MAX_SWATCH_PX = 1024;
 
 export interface MaterialReport extends ConventionJudgement {
   asset: string;
+  /**
+   * WHICH DECLARED LEAF TINT THIS ROW IS ABOUT, or `null` for the material as the kit ships it.
+   *
+   * ⚠ A TINTED ROW EXISTS BECAUSE THE PICTURE DRAWS ONE. The island stands a yellow-crowned tree
+   * for a `proposed` capability, and that crown is `color x map` — the same arithmetic as the
+   * 3.5x-dark failure this whole guard was built for. Judging only the material as LOADED would
+   * be judging a code path no picture is drawn by, which is the exact hole PR #1693 found and
+   * closed for the loader.
+   *
+   * The tint carries into all three arms — the swatch material is cloned from the tinted one —
+   * so it cancels between the two hypotheses and the verdict stays about the CONVENTION. What
+   * the tint is judged on separately is `lumaVsUntinted`.
+   */
+  tint: string | null;
+  /**
+   * A TINTED CROWN'S DELIVERED LUMINANCE OVER ITS UNTINTED SIBLING'S, in the same run.
+   *
+   * This is the number that says a yellow crown is intentional and a black-green one is not.
+   * `leaf-tint.ts` rotates hue at constant value, so this must be 1; a tint that darkened would
+   * be indistinguishable by eye from the convention failing, and this is what refuses it.
+   * `null` on an untinted row, which is its own control.
+   */
+  lumaVsUntinted: number | null;
   /** The decoded map's own dimensions — reported so a run says what it looked at. */
   mapWidth: number;
   mapHeight: number;
@@ -91,67 +115,9 @@ export interface ConventionReport {
   ok: boolean;
 }
 
-// ------------------------------------------------------------------ reading a map's own texels
-
-/** Draw a decoded texture image into a 2D canvas and answer its raw and linearised means.
- *
- *  ⚠ BOTH MEANS ARE COMPUTED HERE, FROM THE SAME TEXELS, IN THE SAME RUN. The linearised one is
- *  `mean(srgb_to_linear(texel))` and NOT `srgb_to_linear(mean(texel))` — the curve is convex, so
- *  those differ, and predicting with the wrong one leaves a systematic error that the tolerance
- *  would then have to absorb. A tolerance absorbing a modelling error has stopped discriminating.
- */
-/** What one decoded base-colour map is, measured over its solid texels only. */
-interface MapMeans {
-  raw: Rgb;
-  linear: Rgb;
-  width: number;
-  height: number;
-  opaqueFraction: number;
-}
-
-function meansOf(image: DecodedMap): MapMeans {
-  const width = Number(image.width ?? 0);
-  const height = Number(image.height ?? 0);
-  if (!(width > 0 && height > 0)) throw new Error('colour-convention: a map has no decoded pixels');
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  if (!ctx) throw new Error('colour-convention: no 2d context to read a map with');
-  ctx.drawImage(image, 0, 0);
-  const data = ctx.getImageData(0, 0, width, height).data;
-
-  let rr = 0;
-  let gg = 0;
-  let bb = 0;
-  let lr = 0;
-  let lg = 0;
-  let lb = 0;
-  let n = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    // Only solid texels — see `OPAQUE_TEXEL_CUT`. The render discards exactly the same ones.
-    if (data[i + 3]! < OPAQUE_TEXEL_CUT) continue;
-    const r = data[i]!;
-    const g = data[i + 1]!;
-    const b = data[i + 2]!;
-    rr += r;
-    gg += g;
-    bb += b;
-    lr += srgbToLinearUnit(r / 255) * 255;
-    lg += srgbToLinearUnit(g / 255) * 255;
-    lb += srgbToLinearUnit(b / 255) * 255;
-    n++;
-  }
-  if (n === 0) throw new Error('colour-convention: a map has no solid texels at all');
-  return {
-    raw: { r: rr / n, g: gg / n, b: bb / n },
-    linear: { r: lr / n, g: lg / n, b: lb / n },
-    width,
-    height,
-    opaqueFraction: n / (width * height),
-  };
-}
+// The map-reading half lives in `map-texels.ts` — two callers now need the same numbers, and two
+// copies of an opaque-texel loop is how a source mean and a delivered mean come to be means of
+// different sets.
 
 // ------------------------------------------------------------------ the swatch rig
 
@@ -350,7 +316,7 @@ export async function runColourConvention(
     for (const [name, material] of found) {
       const map = material.map!;
       const image = map.image as DecodedMap;
-      const source = meansOf(image);
+      const source = mapMeans(image);
 
       if (source.opaqueFraction < MIN_OPAQUE_FRACTION) {
         refusals.push(
@@ -374,34 +340,89 @@ export async function runColourConvention(
 
       const rawTex = flatTexture(source.raw);
       const managedTex = flatTexture(source.linear);
-      const armTextured = swatchMaterial(material, probeMap);
-      const armRaw = swatchMaterial(material, rawTex);
-      const armManaged = swatchMaterial(material, managedTex);
 
-      const deliveredSwatch = renderSwatch(renderer, armTextured, calibration, swatchPx);
-      const delivered = deliveredSwatch.mean;
-      const rawControl = renderSwatch(renderer, armRaw, calibration, swatchPx).mean;
-      const managedControl = renderSwatch(renderer, armManaged, calibration, swatchPx).mean;
+      /**
+       * JUDGE ONE MATERIAL — the kit's own, or a tinted clone of it — and answer what it
+       * delivered, so a tinted row can be compared against its untinted sibling.
+       *
+       * ⚠ ALL THREE ARMS ARE CLONED FROM THE SAME `base`, so a tint carries into the controls
+       * as well as into the textured arm and cancels between the two hypotheses. That is what
+       * makes an intentionally yellow crown judged on its CONVENTION rather than failed for
+       * being yellow — and it is also why the separation ratio, being a ratio of two means,
+       * is untouched by the tint.
+       */
+      const judge = (base: THREE.MeshStandardMaterial, tint: string | null): Rgb => {
+        const label = tint === null ? name : `${name} (${tint} crown)`;
+        const armTextured = swatchMaterial(base, probeMap);
+        const armRaw = swatchMaterial(base, rawTex);
+        const armManaged = swatchMaterial(base, managedTex);
 
-      const judgement = judgeColourConvention({ material: name, delivered, rawControl, managedControl });
-      materials.push({
-        ...judgement,
-        asset: url,
-        mapWidth: source.width,
-        mapHeight: source.height,
-        swatchPx,
-        opaqueFraction: source.opaqueFraction,
-        coveredFraction: deliveredSwatch.covered / (swatchPx * swatchPx),
-        sourceMeanRaw: source.raw,
-        sourceMeanLinear: source.linear,
-        delivered,
-        rawControl,
-        managedControl,
-      });
+        const deliveredSwatch = renderSwatch(renderer, armTextured, calibration, swatchPx);
+        const delivered = deliveredSwatch.mean;
+        const rawControl = renderSwatch(renderer, armRaw, calibration, swatchPx).mean;
+        const managedControl = renderSwatch(renderer, armManaged, calibration, swatchPx).mean;
 
-      armTextured.dispose();
-      armRaw.dispose();
-      armManaged.dispose();
+        const judgement = judgeColourConvention({
+          material: label,
+          delivered,
+          rawControl,
+          managedControl,
+        });
+        materials.push({
+          ...judgement,
+          asset: url,
+          tint,
+          lumaVsUntinted: null,
+          mapWidth: source.width,
+          mapHeight: source.height,
+          swatchPx,
+          opaqueFraction: source.opaqueFraction,
+          coveredFraction: deliveredSwatch.covered / (swatchPx * swatchPx),
+          sourceMeanRaw: source.raw,
+          sourceMeanLinear: source.linear,
+          delivered,
+          rawControl,
+          managedControl,
+        });
+
+        armTextured.dispose();
+        armRaw.dispose();
+        armManaged.dispose();
+        return delivered;
+      };
+
+      const untinted = judge(material, null);
+
+      // ⚠⚠ THE TINTED ARMS, AND WHY THE GUARD HAD TO GROW THEM. Since 2026-08-29 a capability's
+      // state reaches the island as a LEAF TINT (ADR-0475 D1), which is `color x map` — the same
+      // multiply as the failure this guard exists to catch. Two things are checked here that
+      // could not be before: that a tinted crown is still sampled in the raw convention, and
+      // that the tint held the map's own VALUE. The second is what tells a deliberate yellow
+      // crown from a broken black-green one, and it is fail-closed: the tolerance is a
+      // floating-point allowance, not a margin, so anything a reader could see clears it by
+      // orders of magnitude.
+      if (LEAF_MATERIALS.has(name)) {
+        for (const [status, token] of LEAF_TINT_TOKEN) {
+          const gain = leafTintGain(parseHex(token), source.raw);
+          const tinted = material.clone();
+          tinted.color.setRGB(gain.r, gain.g, gain.b);
+          tinted.needsUpdate = true;
+          const delivered = judge(tinted, status);
+          const ratio = luma(delivered) / Math.max(luma(untinted), 1e-9);
+          const row = materials[materials.length - 1]!;
+          row.lumaVsUntinted = ratio;
+          if (Math.abs(ratio - 1) > TINT_LUMA_TOLERANCE) {
+            row.ok = false;
+            row.detail =
+              `the ${status} crown delivers ${ratio.toFixed(3)}x the untinted material's ` +
+              'luminance — a leaf tint rotates hue and may not change value (ADR-0475 D1), ' +
+              'because a crown darkened by a tint is the same picture as one darkened by the ' +
+              'colour convention breaking, and the two must stay distinguishable';
+          }
+          tinted.dispose();
+        }
+      }
+
       probeMap.dispose();
       rawTex.dispose();
       managedTex.dispose();
@@ -447,9 +468,10 @@ export async function mountColourConvention(root: HTMLElement): Promise<void> {
       ...report.refusals.map((r) => `REFUSED  ${r}`),
       ...report.materials.map(
         (m) =>
-          `${m.ok ? 'OK  ' : 'FAIL'} ${m.material.padEnd(20)} ${m.verdict.padEnd(16)} ` +
+          `${m.ok ? 'OK  ' : 'FAIL'} ${m.material.padEnd(32)} ${m.verdict.padEnd(16)} ` +
           `delivered ${fmt(m.delivered)}  raw ${fmt(m.rawControl)}  managed ${fmt(m.managedControl)}  ` +
-          `sep ${m.separation.toFixed(2)}x  ${m.detail}`,
+          `sep ${m.separation.toFixed(2)}x  ` +
+          `${m.lumaVsUntinted === null ? '' : `value x${m.lumaVsUntinted.toFixed(3)}  `}${m.detail}`,
       ),
       report.ok ? 'CONVENTION HELD' : 'CONVENTION BROKEN',
     ].join('\n');

@@ -153,6 +153,24 @@ export function islandCapabilities(opts: IslandOptions = {}): FixtureCapability[
   }));
 }
 
+/**
+ * THE ISLAND'S OWN STATE — the STORY's, not a roll-up of its capabilities.
+ *
+ * ⚠ THIS IS THE RULE, NOT A HARNESS SHORTCUT, and it is worth knowing which. On the shipped map a
+ * story's status is its OWN UAT node's signed verdict and never a child roll-up (ADR-0033 d.4,
+ * restated in `apps/studio/src/lib/worldStatus.ts`: green derives from the signed verdict, and a
+ * story's verdict is its own). So "the island as a whole is tinted by its rolled-up state"
+ * (ADR-0475 D2) already has an answer in this codebase and does not need one invented: it is the
+ * territory's status, which is exactly what `islandScene` stamps on the territory below.
+ *
+ * It is a function rather than an inlined `?? 'healthy'` in two places because it now has two
+ * callers — the scene builder and the ground's uniform tint — and two copies of a default is how
+ * a land and the story it draws come to disagree.
+ */
+export function islandStatus(opts: IslandOptions = {}): SceneStatus {
+  return opts.status ?? 'healthy';
+}
+
 /** The story's ten UAT criteria and their proof states — the same list the flowers ride on. */
 export function islandCriteria(opts: IslandOptions = {}): Array<{ id: string; state: CriterionState }> {
   return CRITERIA.map((id, i) => ({ id, state: opts.criteriaStates?.[i] ?? ('proven' as CriterionState) }));
@@ -175,7 +193,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
 
   const territory: SceneTerritoryInput = {
     id: 'context-traversal-capture',
-    status: opts.status ?? 'healthy',
+    status: islandStatus(opts),
     caps: parcels.length,
     centroid: { x: cx, y: cy },
     groundRadius: 70,

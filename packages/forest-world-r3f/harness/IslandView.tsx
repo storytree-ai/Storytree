@@ -33,6 +33,7 @@ import { resolveTheme, type LandTheme } from './land-theme.js';
 import {
   groundBounds,
   groundCellsFrom,
+  uniformIslandStatus,
   type GroundCell,
 } from './island-descriptors.js';
 import { flowersFrom } from './flower-descriptors.js';
@@ -47,7 +48,7 @@ import {
   signedArea2,
   wallFootY,
 } from './land-definition.js';
-import { islandScene, type IslandOptions } from './island-fixture.js';
+import { islandScene, islandStatus, type IslandOptions } from './island-fixture.js';
 import { growCanopy } from './canopy-geometry.js';
 import { buildDressing, type CanopyPlacement, type DressingName } from './island-dressing.js';
 import type { GeneratedMesh } from './mesh-kit.js';
@@ -213,6 +214,26 @@ export interface IslandViewProps {
   tree?: boolean;
   /** Give one capability a foreign status, for the mixed-island panel. */
   island?: IslandOptions;
+  /**
+   * WHOSE STATE THE LAND CARRIES (ADR-0475 D2).
+   *
+   *   `parcel` — the default and every panel predating 2026-08-29: each capability's own parcel
+   *              wears its own status colour, which is what the map has always done.
+   *   `island` — the whole island wears ONE colour, the STORY's own state, and per-capability
+   *              state is carried by the object standing on each parcel instead.
+   *
+   * ⚠ IT DOES NOT REMOVE THE PARCELS. The bevel keys on `cell.parcel`, never on `cell.status`
+   * (`land-definition.ts`), so a uniform island still reads as a set of capabilities in relief —
+   * the boundary a reader follows is unchanged and only the tint moves.
+   *
+   * ⚠ AND IT IS NOT A THEME. Owner-directed 2026-08-29, on being shown a terrain-per-state
+   * island: *"changing the land type looks rather ugly ... so we dont have a mix of wheat field
+   * and wasteland on the same island."* The reason the ground has to keep carrying SOMETHING is
+   * measured rather than assumed — at the opening zoom a pine is 3.7 device pixels, so the props
+   * are ABSENT up there, not merely small, and a props-only map would report nothing at all in
+   * the view it opens at.
+   */
+  landState?: 'parcel' | 'island';
   /** How much interior definition the land carries. Defaults to `full`. */
   land?: LandDefinition;
   /** Relief amplitude override, for the amplitude ladder panel. */
@@ -986,7 +1007,10 @@ export interface ComposedIsland {
 export function composeIsland(props: IslandViewProps): ComposedIsland {
   const scene3 = new THREE.Scene();
   const scene = islandScene(props.island ?? {});
-  const cells = groundCellsFrom(scene);
+  const cells =
+    props.landState === 'island'
+      ? uniformIslandStatus(groundCellsFrom(scene), islandStatus(props.island ?? {}))
+      : groundCellsFrom(scene);
   const bounds = groundBounds(cells);
   const land = props.land ?? 'full';
   const amplitude = props.amplitude ?? LAND_RELIEF_AMPLITUDE;

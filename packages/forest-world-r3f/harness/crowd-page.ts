@@ -16,10 +16,12 @@ import {
   buildCrowdLayout,
   composeCrowd,
   crowdPxPerUnit,
+  crowdOverlaps,
   crowdPropCount,
   sharedRenderer,
 } from './crowd-scene.js';
 import type { CrowdArm, CrowdOptions, CrowdZoom } from './crowd-scene.js';
+import type { PropOverlap } from './kit-vocabulary.js';
 import {
   countIslandBlobs,
   meanColour,
@@ -101,6 +103,11 @@ export interface CrowdShape {
   /** How much coarser the whole-forest view is than the arc's one-island "overview". */
   coarserThanIslandOverview: number;
   props: { total: number; byStatus: Record<string, number> };
+  /** Props standing closer than their footprints allow, ACROSS the whole forest — empty is the
+   *  claim, and it is a claim only this page can make: each island is dressed in its own
+   *  coordinates and then offset, so only the layout can put one island's tree inside
+   *  another's. */
+  overlaps: PropOverlap[];
   real: typeof REAL_FOREST;
 }
 
@@ -197,7 +204,10 @@ export function createCrowdRunner(layout: CrowdLayout, kit: LoadedKit, cal: Ligh
         zoomPxPerUnit: Object.fromEntries(CROWD_ZOOMS.map((z) => [z, crowdPxPerUnit(layout, z)])),
         viewport: { ...CROWD_VIEWPORT },
         coarserThanIslandOverview: ISLAND_ZOOM_PX_PER_UNIT / fit,
-        props: crowdPropCount(layout),
+        props: crowdPropCount(layout, kit),
+        // Overlaps checked in FOREST space: two islands' own dressings each see a clear
+        // arrangement, and only the offset layout can put one island's tree inside another's.
+        overlaps: crowdOverlaps(layout, kit),
         real: REAL_FOREST,
       };
     },
