@@ -16,7 +16,7 @@ import path from "node:path";
 
 import { findNodeSpecFile } from "@storytree/orchestrator";
 import type { Store } from "@storytree/storage-protocol";
-import { KIND_SPECS, NODE_REF_PREFIX } from "@storytree/library";
+import { KIND_SPECS } from "@storytree/library";
 import { renderStoredDoc, renderAgentEssentials, renderAgentStep } from "@storytree/library/store";
 
 import { emitNodeEnvelope, type Envelope } from "./envelope.js";
@@ -56,8 +56,8 @@ export function specView(storiesDir: string, id: string | undefined): Envelope {
 
 /**
  * `library artifact <id>` — one Library artifact's rendered body (title, category, description,
- * body, references). Uses `renderStoredDoc`, which degrades rather than throws on a doc newer than
- * this code — the fail-soft contract every orientation surface holds.
+ * body). Uses `renderStoredDoc`, which degrades rather than throws on a doc newer than this code —
+ * the fail-soft contract every orientation surface holds.
  */
 export async function artifactView(store: Store, id: string | undefined): Promise<Envelope> {
   if (id === undefined || id.trim() === "") {
@@ -79,22 +79,20 @@ export async function artifactView(store: Store, id: string | undefined): Promis
   const lines = [`# ${a.title}    [${a.category}]`, `id: ${a.id}`, ""];
   if (a.description) lines.push(a.description, "");
   lines.push(a.body);
-  const refs = a.references ?? [];
-  if (refs.length > 0) {
-    lines.push("", "references:", ...refs.map((r) => `  - ${r}`));
-  }
-  // The `next:` doors this artifact's citations open. `asset:` refs stay inside the Library;
-  // `node:<id>` refs (ADR-0107 D2) open the work tree instead — an artifact attached to a story's
-  // proving process could name that story but never offer a way to reach it.
-  const doors: string[] = [];
-  for (const r of refs) {
-    if (r.startsWith("asset:")) doors.push(`storytree library artifact ${r.slice("asset:".length)}`);
-    else if (r.startsWith(NODE_REF_PREFIX)) doors.push(`storytree tree ${r.slice(NODE_REF_PREFIX.length)}`);
-  }
+  // The `references:` block and the `next:` doors it opened are BOTH gone (ADR-0477 D1: the
+  // citation tier is retired). They were the same surface twice — a list of what this artifact was
+  // written from, and onward commands derived from that list — and ADR-0464 already established
+  // that a backward-looking provenance list is the wrong source for a forward-looking offer.
+  //
+  // This leaves the orientation read with no onward doors, which is a real gap and not a tidy one:
+  // ADR-0464 D2 wired the authored `depends_on` edges into the CLI's own artifact read through the
+  // shared `emitNodeEnvelope` seam, but never into this surface. Offering them here is ADDING a
+  // door, not removing one, so it is out of this increment's scope and left for the arc's owner to
+  // pick up rather than smuggled in under a removal.
   return {
     ok: true,
     body: lines.join("\n"),
-    next: doors.slice(0, 5),
+    next: [],
   };
 }
 
