@@ -86,10 +86,14 @@ function linearColourOf(material: string | undefined): LinearRgb {
  *  Computed off the buffer rather than off the ring coordinates, because the relief moves the
  *  vertices AND relief is an upright extent: a frame sized from the flat footprint would crop the
  *  land where it rises, which under a 45° view is the near edge. */
-function projectedBounds(
-  positions: Float32Array,
-  viewMatrix: THREE.Matrix4,
-): { minX: number; maxX: number; minY: number; maxY: number } {
+interface CameraBounds {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+}
+
+function projectedBounds(positions: Float32Array, viewMatrix: THREE.Matrix4): CameraBounds {
   const p = new THREE.Vector3();
   let minX = Infinity;
   let maxX = -Infinity;
