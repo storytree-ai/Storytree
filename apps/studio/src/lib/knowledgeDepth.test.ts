@@ -361,3 +361,132 @@ describe('a visited decision reads its own depth, not its artifact twin`s', () =
     expect(markKnowledgeDepth(model, 'adr-health-notes')).toMatchObject({ state: 'unlinked' });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE CASES `check:mutation-diff` NAMED. Each block covers a line whose mutant survived the first
+// version of this adapter — behaviour that was real but unpinned. The `cyclic` reading in
+// particular had NO COVERAGE at all: it is provably empty over the live corpus, so nothing
+// exercised it, and a state nothing exercises is a state that can be deleted in silence.
+
+/** Two artifacts pointing at each other — the one shape that produces a `cyclic` reading. */
+const CYCLIC_CORPUS: GuidanceAsset[] = [
+  asset('loop-a', { dependsOn: ['asset:loop-b'] }),
+  asset('loop-b', { dependsOn: ['asset:loop-a'] }),
+  asset('opening', { dependsOn: ['asset:loop-a'] }),
+];
+
+describe('the CYCLIC reading is rendered, not silently folded into another state', () => {
+  const model = buildKnowledgeDepth({
+    assets: CYCLIC_CORPUS,
+    assetsStatus: 'ready',
+    assetsError: '',
+  });
+
+  it('marks a node under a cycle as cyclic — not placed, not unlinked', () => {
+    const reading = markKnowledgeDepth(model, 'loop-a');
+    expect(reading?.state).toBe('cyclic');
+    // No number. A cycle has no longest chain, so any depth here would be a fabrication — and
+    // folding it into `unlinked` would report "nothing links to this" about an artifact two
+    // pointers reach.
+    expect(reading?.depth).toBeNull();
+    expect(reading?.attr).toBe('cyclic');
+    expect(reading?.label).toContain('cycle');
+    expect(reading?.label).toContain('unmeasured');
+  });
+
+  it('counts cyclic reads in their own column of the per-trace report', () => {
+    const report = reportKnowledgeDepth(
+      [visit('opening', 0), visit('loop-a', 10), visit('loop-b', 20), visit('forest-world', 30)],
+      model,
+    );
+    expect(report).toEqual({
+      visited: 4,
+      placed: 1,
+      unlinked: 0,
+      cyclic: 2,
+      absent: 1,
+      maxDepth: 0,
+      buckets: [{ depth: 0, count: 1 }],
+    });
+  });
+});
+
+describe('the per-trace states are counted into the RIGHT columns', () => {
+  it('keeps unlinked, cyclic and absent in three separate columns', () => {
+    // One of each, plus a placed one. A single mis-routed branch shows up as a 2 in one column and
+    // a 0 in another, which every aggregate assertion would still pass.
+    const model = buildKnowledgeDepth({
+      assets: [...CYCLIC_CORPUS, asset('floater'), asset('floor')],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+    const report = reportKnowledgeDepth(
+      [visit('opening', 0), visit('floater', 10), visit('loop-a', 20), visit('not-an-artifact', 30)],
+      model,
+    );
+    expect(report?.placed).toBe(1);
+    expect(report?.unlinked).toBe(1);
+    expect(report?.cyclic).toBe(1);
+    expect(report?.absent).toBe(1);
+  });
+});
+
+describe('the hover label agrees in number with the depth it reports', () => {
+  const model = buildKnowledgeDepth(READY);
+
+  it('says one hop for depth 1 and hops for anything else', () => {
+    expect(markKnowledgeDepth(model, 'ceremony')?.label).toBe(
+      'knowledge depth 1 — 1 hop below the surface',
+    );
+    expect(markKnowledgeDepth(model, 'principle')?.label).toBe(
+      'knowledge depth 2 — 2 hops below the surface',
+    );
+  });
+});
+
+describe('the linkage line agrees in number with the counts it reports', () => {
+  it('reads in the singular when every count is one', () => {
+    // One knowledge artifact linked of one, one surface, one unlinked node, one record row.
+    const model = buildKnowledgeDepth({
+      assets: [
+        // The record row sits INSIDE the chain — pointed at, and pointing on — so it is neither a
+        // surface nor unlinked, and each count below isolates exactly one node.
+        asset('opening', { dependsOn: ['asset:inc-1'] }),
+        { ...asset('inc-1', { dependsOn: ['asset:floor'] }), category: 'increment' as const },
+        asset('floor'),
+        asset('lonely'),
+      ],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+    const summary = linkageSummary(model) ?? '';
+    expect(summary).toContain('2 of 3 knowledge artifacts sit in');
+    expect(summary).toContain('1 surface opens a chain');
+    expect(summary).toContain('1 node carries no edge either way and has no depth at all');
+    expect(summary).toContain('1 record row');
+    expect(summary).toContain('is excluded from that denominator');
+  });
+
+  it('reads in the plural when the counts are not one', () => {
+    const model = buildKnowledgeDepth({
+      assets: [
+        asset('opening-a', { dependsOn: ['asset:inc-1'] }),
+        { ...asset('inc-1', { dependsOn: ['asset:floor-a'] }), category: 'increment' as const },
+        asset('floor-a'),
+        asset('opening-b', { dependsOn: ['asset:inc-2'] }),
+        { ...asset('inc-2', { dependsOn: ['asset:floor-b'] }), category: 'increment' as const },
+        asset('floor-b'),
+        asset('lonely-one'),
+        asset('lonely-two'),
+      ],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+    const summary = linkageSummary(model) ?? '';
+    expect(summary).toContain('4 of 6 knowledge artifacts sit in');
+    expect(summary).toContain('2 surfaces open a chain');
+    expect(summary).toContain('2 nodes carry no edge either way and have no depth at all');
+    expect(summary).toContain('2 record rows');
+    expect(summary).toContain('are excluded from that denominator');
+  });
+});

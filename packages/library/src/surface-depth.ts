@@ -208,16 +208,22 @@ export interface SurfaceDepthVerdict {
  * rather than throw. A read-side projection is not where a surprise row takes a surface down.
  */
 export function surfaceDepthNodes(docs: readonly DepthFromWorkSource[]): SurfaceDepthNode[] {
-  const kinds = new Map<string, string>();
-  for (const row of docs) {
-    const payload = row.doc as { kind?: unknown; category?: unknown } | null | undefined;
-    const kind = payload?.kind ?? payload?.category;
-    if (typeof kind === "string" && kind !== "") kinds.set(row.id, kind);
-  }
-  return depthFromWorkNodes(docs).map((node) => {
-    const kind = kinds.get(node.id);
-    return kind === undefined ? node : { ...node, kind };
-  });
+  const base = depthFromWorkNodes(docs);
+  return base.map((node, index) => ({ ...node, kind: kindOfDoc(docs[index]?.doc) }));
+}
+
+/**
+ * The kind a stored row declares, or `""` when it declares none this reader can use.
+ *
+ * `""` rather than `undefined`, so the denominator split has exactly one shape to handle and an
+ * unknown kind always lands on the knowledge side (see the header) rather than on a branch.
+ * `kind` wins over `category`: both spellings are live on the wire and the row's own field is the
+ * authority when it has one.
+ */
+export function kindOfDoc(doc: unknown): string {
+  const payload = doc as { kind?: unknown; category?: unknown } | null | undefined;
+  const declared = payload?.kind ?? payload?.category;
+  return typeof declared === "string" ? declared : "";
 }
 
 /** A decision node id carries a colon; an artifact id cannot. The two id spaces are disjoint. */
@@ -247,6 +253,8 @@ export function evaluateSurfaceDepth(
   const graph: DependencyGraph = buildDependencyGraph(nodes, decisions);
   const { byId, decisionIds } = graph;
 
+  // FIRST ID WINS on a duplicate, matching `buildDependencyGraph` — a second row for the same id
+  // must not silently re-label the node the graph was built from.
   const kindById = new Map<string, string>();
   for (const node of nodes) if (!kindById.has(node.id)) kindById.set(node.id, node.kind ?? "");
 
@@ -301,26 +309,30 @@ export function evaluateSurfaceDepth(
   const remaining = new Map(indegree);
   let frontier = [...surfaceIds];
   for (const id of frontier) depthById.set(id, 0);
-  let ordered = 0;
   while (frontier.length > 0) {
     const next: string[] = [];
     for (const id of frontier) {
-      ordered += 1;
       const depth = depthById.get(id) ?? 0;
       for (const target of outbound.get(id) ?? []) {
+        // A target outside the node set cannot be relaxed and must not be queued — its indegree was
+        // never counted, so decrementing here would push it at the wrong time or never.
         if (!remaining.has(target)) continue;
-        const known = depthById.get(target);
-        if (known === undefined || depth + 1 > known) depthById.set(target, depth + 1);
+        // MAX, not assignment: a node accumulates from every predecessor before it is queued, and
+        // the LONGEST of those chains is its depth (ADR-0476 D2).
+        depthById.set(target, Math.max(depthById.get(target) ?? 0, depth + 1));
         const left = (remaining.get(target) ?? 0) - 1;
         remaining.set(target, left);
+        // Queued only once every inbound edge has been consumed — that is what makes this a
+        // topological order, and what makes the accumulated maximum final when it is read.
         if (left === 0) next.push(target);
       }
     }
     frontier = next;
   }
 
-  // Kahn emitted `ordered` nodes; every node with an edge that it could not emit sits under a cycle.
-  // Their partial depths are DISCARDED — a partial longest-chain is not a longest chain.
+  // Every node with an edge that Kahn could not emit still carries inbound edges it never consumed,
+  // which means a cycle sits above it. Its partial depth is DISCARDED — a partial longest chain is
+  // not a longest chain, and reporting one would be a confident number nobody could audit.
   const cyclic = new Set<string>();
   for (const id of allIds) {
     if (unlinkedIds.has(id)) continue;
@@ -432,7 +444,8 @@ export function surfaceWalkVacuity(verdict: SurfaceDepthVerdict): readonly strin
   if (verdict.surfaces === 0 && verdict.edgesScanned > 0) {
     reasons.push(
       `${verdict.edgesScanned} edges resolved but no node has indegree 0 — every node is pointed at, ` +
-        "which over an acyclic graph is impossible and means the adjacency is wrong",
+        "which is impossible over an acyclic graph, so either every node is in a cycle or the " +
+        "adjacency is wrong",
     );
   }
   if (verdict.cyclicNodes > 0) {

@@ -3,9 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   evaluateSurfaceDepth,
+  kindOfDoc,
   surfaceDepthNodes,
   surfaceDepthOf,
   surfaceWalkVacuity,
+  RECORD_KINDS,
+  VACUOUS_SURFACE_WALK_FLOOR,
   type SurfaceDepthVerdict,
 } from "./surface-depth.js";
 import { decisionSupportResolver } from "./decision-support-seam.js";
@@ -247,4 +250,210 @@ test("the-histogram-is-the-placed-distribution: unlinked rows appear in no bucke
   ]);
   const placed = verdict.histogram.reduce((total, bucket) => total + bucket.count, 0);
   assert.equal(placed, verdict.placed);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// THE CASES `check:mutation-diff` NAMED. Each block below exists because a mutant of the line it
+// covers SURVIVED the first version of this file — i.e. the behaviour was real but unpinned, and a
+// later edit could have removed it in silence. They are grouped by what they protect, not by line.
+
+test("kind-of-doc-is-total: kind wins over category, and anything unusable reads as the empty kind", () => {
+  assert.equal(kindOfDoc({ kind: "pattern" }), "pattern");
+  assert.equal(kindOfDoc({ category: "increment" }), "increment");
+  // `kind` is the row's own field and wins; `category` is the wire's name for the same thing.
+  assert.equal(kindOfDoc({ kind: "pattern", category: "increment" }), "pattern");
+  // TOTAL over untrusted input — a read-side projection is not where a surprise row throws.
+  assert.equal(kindOfDoc(null), "");
+  assert.equal(kindOfDoc(undefined), "");
+  assert.equal(kindOfDoc({}), "");
+  assert.equal(kindOfDoc({ kind: 7 }), "");
+  assert.equal(kindOfDoc("not-an-object"), "");
+});
+
+test("an-unusable-kind-lands-on-the-knowledge-side: it never silently improves the score", () => {
+  const verdict = evaluateSurfaceDepth(
+    surfaceDepthNodes([
+      { id: "a", doc: { dependsOn: ["asset:b"] } }, // no kind at all
+      { id: "b", doc: { kind: 42 } }, // a kind this reader cannot use
+    ]),
+  );
+  // Both fall to the KNOWLEDGE denominator. Falling to the record side would let an unreadable row
+  // quietly leave the population the panel divides by.
+  assert.equal(verdict.knowledgeScanned, 2);
+  assert.equal(verdict.recordScanned, 0);
+});
+
+test("every-record-kind-is-excluded: the list is asserted member by member, not in aggregate", () => {
+  // An aggregate count passes if the SET is right and any one member is wrong. This walks it.
+  for (const kind of RECORD_KINDS) {
+    const verdict = verdictOf([
+      row("record-row", { kind, dependsOn: ["asset:knowledge-row"] }),
+      row("knowledge-row", { kind: "definition" }),
+    ]);
+    assert.equal(verdict.recordScanned, 1, `${kind} should be a record tier`);
+    assert.equal(verdict.knowledgeScanned, 1, `${kind} should not count as knowledge`);
+    // Excluded from the denominator, still walked: the edge is real and gives its target a depth.
+    assert.equal(verdict.recordLinked, 1, `${kind} should still be walked`);
+    assert.deepEqual(surfaceDepthOf(verdict, "knowledge-row"), { state: "placed", depth: 1 });
+  }
+});
+
+test("a-decision-node-counts-as-knowledge-whatever-its-twin-said", () => {
+  const verdict = evaluateSurfaceDepth(
+    // The twin row is deliberately mislabelled a record kind. The decision is still knowledge: the
+    // node that survives the collapse is a DECISION, and `adr` is a knowledge tier.
+    surfaceDepthNodes([{ id: "adr-0007", doc: { kind: "increment" } }]),
+    decisionSupportResolver([{ number: 7, dependsOn: [] }]),
+  );
+  assert.equal(verdict.knowledgeScanned, 1);
+  assert.equal(verdict.recordScanned, 0);
+});
+
+test("edges-are-counted-and-a-target-outside-the-node-set-is-not", () => {
+  const verdict = verdictOf([
+    row("a", { dependsOn: ["asset:b", "asset:nowhere"] }),
+    row("b", { dependsOn: ["asset:c"] }),
+    row("c"),
+  ]);
+  // TWO edges, not three: `asset:nowhere` names no node, so it is not walked and not counted.
+  // Asserting a POSITIVE count is what stops the counter being removed or inverted in silence.
+  assert.equal(verdict.edgesScanned, 2);
+  assert.equal(verdict.placed, 3);
+  assert.deepEqual(surfaceDepthOf(verdict, "nowhere"), { state: "absent" });
+});
+
+test("the-collapse-drops-a-self-edge-and-deduplicates: a twin pointing at its own decision is not a hop", () => {
+  const verdict = evaluateSurfaceDepth(
+    surfaceDepthNodes([
+      // The twin points AT ITS OWN DECISION. After collapsing, that is a self-edge.
+      { id: "adr-0005", doc: { kind: "adr", dependsOn: ["doc:decisions/0005-self.md"] } },
+      // And two pointers at the same decision, one through each live spelling: ONE edge, not two.
+      { id: "guidance", doc: { kind: "principle", dependsOn: ["asset:adr-0005", "doc:decisions/0005-self.md"] } },
+    ]),
+    decisionSupportResolver([{ number: 5, dependsOn: [] }]),
+  );
+  // Without the self-edge drop, `decision:0005` points at itself, its own indegree is 1, and it is
+  // neither a surface nor reachable — the whole chain disappears into a phantom cycle.
+  assert.equal(verdict.cyclicNodes, 0);
+  assert.equal(verdict.edgesScanned, 1);
+  assert.deepEqual(surfaceDepthOf(verdict, "guidance"), { state: "placed", depth: 0 });
+  assert.deepEqual(surfaceDepthOf(verdict, "adr-0005"), { state: "placed", depth: 1 });
+});
+
+test("a-duplicate-row-does-not-relabel-the-node: first id wins, matching the graph builder", () => {
+  const verdict = evaluateSurfaceDepth([
+    { id: "dup", kind: "definition", dependsOn: ["asset:target"], cites: [] },
+    // A second row for the same id, claiming a record kind. The graph was built from the first.
+    { id: "dup", kind: "increment", dependsOn: [], cites: [] },
+    { id: "target", kind: "definition", dependsOn: [], cites: [] },
+  ]);
+  assert.equal(verdict.knowledgeScanned, 2);
+  assert.equal(verdict.recordScanned, 0);
+});
+
+test("the-collapse-only-fires-for-a-decision-the-resolver-HOLDS", () => {
+  const verdict = evaluateSurfaceDepth(
+    surfaceDepthNodes([
+      row("adr-0404", { kind: "adr", dependsOn: ["asset:plain"] }),
+      row("plain", { kind: "principle" }),
+    ]),
+    // The resolver holds a DIFFERENT decision. `adr-0404` has a well-formed decision id and is still
+    // not collapsed, because no `decision:0404` node exists to collapse it onto.
+    decisionSupportResolver([{ number: 1, dependsOn: [] }]),
+  );
+  assert.equal(verdict.canonicalIds.size, 0);
+  assert.deepEqual(surfaceDepthOf(verdict, "adr-0404"), { state: "placed", depth: 0 });
+  // And an id that is not decision-shaped is never a collapse candidate at all.
+  const notADecision = verdictOf([
+    row("adr-health-notes", { dependsOn: ["asset:plain"] }),
+    row("plain"),
+  ]);
+  assert.equal(notADecision.canonicalIds.size, 0);
+});
+
+test("surface-decisions-counts-only-the-decisions-among-the-surfaces", () => {
+  const verdict = evaluateSurfaceDepth(
+    surfaceDepthNodes([
+      row("an-artifact-surface", { dependsOn: ["asset:floor"] }),
+      row("floor"),
+      row("adr-0011", { kind: "adr", dependsOn: ["doc:decisions/0012-x.md"] }),
+      row("adr-0012", { kind: "adr" }),
+    ]),
+    decisionSupportResolver([
+      { number: 11, dependsOn: ["doc:decisions/0012-x.md"] },
+      { number: 12, dependsOn: [] },
+    ]),
+  );
+  // TWO surfaces, ONE of them a decision. Dropping the filter reports 2 and reads as "every opening
+  // is a decision", which is the claim the owner's model turns on.
+  assert.equal(verdict.surfaces, 2);
+  assert.equal(verdict.surfaceDecisions, 1);
+});
+
+test("the-histogram-is-SORTED-ascending-however-the-depths-were-discovered", () => {
+  // The deep chain is authored FIRST, so depth 3 is recorded before depth 1. An unsorted histogram
+  // passes every count assertion and prints the buckets in discovery order.
+  const verdict = verdictOf([
+    row("deep-top", { dependsOn: ["asset:deep-mid"] }),
+    row("deep-mid", { dependsOn: ["asset:deep-low"] }),
+    row("deep-low", { dependsOn: ["asset:deep-floor"] }),
+    row("deep-floor"),
+    row("shallow-top", { dependsOn: ["asset:shallow-floor"] }),
+    row("shallow-floor"),
+  ]);
+  assert.deepEqual(
+    verdict.histogram.map((bucket) => bucket.depth),
+    [0, 1, 2, 3],
+  );
+  assert.deepEqual(verdict.histogram, [
+    { depth: 0, count: 2 },
+    { depth: 1, count: 2 },
+    { depth: 2, count: 1 },
+    { depth: 3, count: 1 },
+  ]);
+});
+
+test("vacuity-blindness-fires-AT-the-floor-and-not-below-it", () => {
+  const blind = (count: number): readonly string[] =>
+    surfaceWalkVacuity(
+      verdictOf(
+        Array.from({ length: count }, (unused, index) =>
+          row(`row-${index}`, { dependsOn: ["doc:some/other/file.md"] }),
+        ),
+      ),
+    );
+  // BELOW the floor a corpus with no resolvable edge is an ordinary small corpus, not a blind read.
+  assert.deepEqual(blind(VACUOUS_SURFACE_WALK_FLOOR - 1), []);
+  // AT the floor it is a finding. `>` rather than `>=` here would move the boundary by one silently.
+  assert.match(blind(VACUOUS_SURFACE_WALK_FLOOR).join(" "), /the reader is blind/);
+});
+
+test("vacuity-names-an-all-cycle-graph: edges resolved but nothing has indegree 0", () => {
+  // EVERY node is in the cycle, so there is no surface at all — the one shape that reaches this
+  // branch. It is unreachable over an acyclic graph, which is why nothing else covers it.
+  const verdict = verdictOf([
+    row("a", { dependsOn: ["asset:b"] }),
+    row("b", { dependsOn: ["asset:a"] }),
+  ]);
+  assert.equal(verdict.surfaces, 0);
+  assert.equal(verdict.edgesScanned, 2);
+  assert.equal(verdict.placed, 0);
+  const reasons = surfaceWalkVacuity(verdict).join(" ");
+  assert.match(reasons, /no node has indegree 0/);
+  assert.match(reasons, /every node is in a cycle or the adjacency is wrong/);
+  // And the cycle reason travels with it — two different things went wrong and both are named.
+  assert.match(reasons, /sit under a cycle/);
+});
+
+test("an-unlinked-node-is-never-swept-into-the-cyclic-population", () => {
+  const verdict = verdictOf([
+    row("cycle-a", { dependsOn: ["asset:cycle-b"] }),
+    row("cycle-b", { dependsOn: ["asset:cycle-a"] }),
+    row("floating"),
+  ]);
+  // `floating` has no inbound edge left unconsumed because it has none at all. Sweeping it into
+  // `cyclic` would report a dependency cycle above an artifact with no dependencies.
+  assert.deepEqual(surfaceDepthOf(verdict, "floating"), { state: "unlinked" });
+  assert.equal(verdict.cyclicNodes, 2);
+  assert.equal(verdict.unlinked, 1);
 });
