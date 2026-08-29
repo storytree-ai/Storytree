@@ -974,8 +974,12 @@ test('the status row is ONE float per vertex, and every vertex of a parcel carri
     cellOf(L_SHAPE, 'unhealthy'),
     cellOf(SQUARE_CW, 'unknown'),
   ];
-  const rows: Record<string, number> = { healthy: 0, unhealthy: 4, unknown: 5 };
-  const index = (m: string | undefined): number => rows[m ?? 'unknown'] ?? 5;
+  const rows = new Map([
+    ['healthy', 0],
+    ['unhealthy', 4],
+    ['unknown', 5],
+  ]);
+  const index = (m: string | undefined): number => rows.get(m ?? 'unknown') ?? 5;
   const built = cellGroundGeometry({ cells, resolve: resolveWhite, index });
 
   // ONE per vertex, not three: it is a row number, and sizing it like a colour would leave two
@@ -993,7 +997,7 @@ test('the status row is ONE float per vertex, and every vertex of a parcel carri
   ] as const) {
     const vertices = cellGroundTriangles(ring.length) * 3;
     for (let v = at; v < at + vertices; v += 1) {
-      assert.equal(built.statuses[v], rows[material], `vertex ${v} of the ${material} parcel`);
+      assert.equal(built.statuses[v], rows.get(material), `vertex ${v} of the ${material} parcel`);
     }
     at += vertices;
   }
@@ -1006,21 +1010,21 @@ test('the row and the COLOUR agree parcel for parcel — two attributes, one sta
   // one parcel would wear another parcel's status colour under a banded material while looking
   // correct under a smooth one — visible only on the surface that ships.
   const cells = [cellOf(SQUARE_CCW, 'a'), cellOf(L_SHAPE, 'b'), cellOf(ngon(7, 5).map((p) => [p.x, p.z] as const), 'c')];
-  const tint: Record<string, LinearRgb> = {
-    a: { r: 1, g: 0, b: 0 },
-    b: { r: 0, g: 1, b: 0 },
-    c: { r: 0, g: 0, b: 1 },
-  };
+  const tint = new Map<string, LinearRgb>([
+    ['a', { r: 1, g: 0, b: 0 }],
+    ['b', { r: 0, g: 1, b: 0 }],
+    ['c', { r: 0, g: 0, b: 1 }],
+  ]);
   const order = ['a', 'b', 'c'];
   const built = cellGroundGeometry({
     cells,
-    resolve: (m) => tint[m ?? 'a']!,
+    resolve: (m) => tint.get(m ?? 'a')!,
     index: (m) => order.indexOf(m ?? 'a'),
     relief: landRelief,
   });
   for (let v = 0; v < built.statuses.length; v += 1) {
     const row = built.statuses[v]!;
-    const want = tint[order[row]!]!;
+    const want = tint.get(order[row]!)!;
     assert.deepEqual(
       [built.colors[v * 3], built.colors[v * 3 + 1], built.colors[v * 3 + 2]],
       [want.r, want.g, want.b],

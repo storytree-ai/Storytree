@@ -352,6 +352,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     vertices: readonly [P3, P3, P3],
     vertexNormals: readonly [P3, P3, P3],
     colour: LinearRgb,
+    row: number,
   ): void => {
     for (let i = 0; i < 3; i += 1) {
       const p = vertices[i]!;
@@ -365,13 +366,24 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       colors[w] = colour.r;
       colors[w + 1] = colour.g;
       colors[w + 2] = colour.b;
+      // ⚠ THE ROW IS WRITTEN HERE, BESIDE THE COLOUR, RATHER THAN AS A SPAN AFTERWARDS. The span
+      // form — remember `w` before the parcel, fill up to `w` after — was the first shape and it
+      // was UNPROVABLE: because parcels are written in order, an off-by-one at either end is
+      // immediately overwritten by the next parcel, so both boundary mutants survived the whole
+      // suite. Writing it per vertex removes the arithmetic that could be off by one at all, and
+      // makes "the row and the colour describe the same parcel" true by construction rather than
+      // by two pieces of bookkeeping agreeing.
+      //
+      // With no `index` resolver `statuses` is zero-length and every one of these is a silent
+      // no-op on a typed array — which is the honest outcome: the caller asked for no rows.
+      statuses[w / 3] = row;
       w += 3;
     }
   };
 
   /** Write one triangle, deriving its normal from the very vertices being written — the WALLS'
    *  route, and the reason a positions/normals disagreement stays unrepresentable there. */
-  const pushTriangle = (a: P3, b: P3, c: P3, colour: LinearRgb): void => {
+  const pushTriangle = (a: P3, b: P3, c: P3, colour: LinearRgb, row: number): void => {
     const ux = b.x - a.x;
     const uy = b.y - a.y;
     const uz = b.z - a.z;
@@ -394,16 +406,14 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       nz /= len;
     }
     const n: P3 = { x: nx, y: ny, z: nz };
-    pushTriangleWithNormals([a, b, c], [n, n, n], colour);
+    pushTriangleWithNormals([a, b, c], [n, n, n], colour, row);
   };
 
   for (const ring of rings) {
     const colour = input.resolve(ring.material);
-    // ⚠ READ OFF `w` BEFORE AND AFTER, never re-derived from the ring's own vertex arithmetic.
-    // The top face and the walls emit different counts and a second formula for "how many
-    // vertices did this parcel write" is a second way to get the answer wrong — which here means
-    // one parcel's row bleeding onto the next parcel's triangles, i.e. a foreign-status read.
-    const vertexStart = w / 3;
+    // ⚠ RESOLVED FROM THE DESCRIPTOR'S OWN MATERIAL, exactly as the colour beside it is, and
+    // 0 when the caller asked for no rows — a value that reaches only a zero-length array.
+    const row = input.index?.(ring.material) ?? 0;
     const pts = normalisedRing(ring.pts.map((p) => ({ x: p.x, z: p.z })));
     const n = pts.length;
 
@@ -414,6 +424,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
         [lift(a), lift(b), lift(c)],
         [facing(a), facing(b), facing(c)],
         colour,
+        row,
       );
     }
 
@@ -436,13 +447,8 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       const topNext = lift(b);
       const bot: P3 = { x: top.x, y: top.y - depth, z: top.z };
       const botNext: P3 = { x: topNext.x, y: topNext.y - depth, z: topNext.z };
-      pushTriangle(topNext, top, botNext, colour);
-      pushTriangle(botNext, top, bot, colour);
-    }
-
-    if (input.index !== undefined) {
-      const row = input.index(ring.material);
-      for (let v = vertexStart; v < w / 3; v += 1) statuses[v] = row;
+      pushTriangle(topNext, top, botNext, colour, row);
+      pushTriangle(botNext, top, bot, colour, row);
     }
   }
 

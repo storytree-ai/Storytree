@@ -16,6 +16,8 @@ import test from 'node:test';
 
 import {
   LIGHT_DIRECTION,
+  lambertOfNormal,
+  nearestLevelIndex,
   SHADE_KEYS,
   SHADE_KEY_FLOOR,
   SHADE_LEVELS,
@@ -68,13 +70,44 @@ test('bandShade CLAMPS rather than extrapolating, in both directions', () => {
   assert.equal(bandShade(Number.NEGATIVE_INFINITY), lo);
 });
 
-test('bandShade takes the NEAREST rung, and resolves an exact tie DOWN', () => {
-  // Between 0.8 and 0.9 the midpoint is 0.85: a tie, and it must go to the darker rung.
-  assert.equal(bandShade(0.85), 0.8);
+test('bandShade takes the NEAREST rung', () => {
+  assert.equal(bandShade(0.85), 0.8, '0.85 is nearer 0.8 than 0.9 in binary floating point');
   assert.equal(bandShade(0.8499), 0.8);
   assert.equal(bandShade(0.8501), 0.9);
   // ...and every rung is reachable, which a nearest-rule that collapsed would not give.
   for (const level of SHADE_LEVELS) assert.equal(bandShade(level), level);
+});
+
+test('AN EXACT TIE RESOLVES DOWN — provable only over an injected ladder', () => {
+  // ⚠⚠ THE AUTHORED LADDER CANNOT PROVE THIS, AND THAT IS WHY THE LADDER IS A PARAMETER. Swept at
+  // two million points across [-0.2, 1.4], [0.78, 0.8, 0.9, 1.0] produces ZERO exact ties: 0.85
+  // looks like the midpoint of 0.8 and 0.9 and is not one in binary floating point (0.04999…
+  // against 0.05000…). So over the authored ladder the `<` in `nearestLevelIndex` is
+  // indistinguishable from `<=` and its mutant is EQUIVALENT — a rule that is documented, relied
+  // on by the shader, and unobservable.
+  //
+  // Over `[0, 1]`, 0.5 is a genuine tie and the rule decides in one assertion.
+  assert.equal(nearestLevelIndex([0, 1], 0.5), 0, 'a tie must take the DARKER rung');
+  assert.equal(nearestLevelIndex([0, 1], 0.4999), 0);
+  assert.equal(nearestLevelIndex([0, 1], 0.5001), 1);
+  assert.equal(nearestLevelIndex([0, 0.5, 1], 0.25), 0, 'and again on a three-rung ladder');
+  assert.equal(nearestLevelIndex([0, 0.5, 1], 0.75), 1);
+  // NON-VACUITY: it really is a tie, not a near miss the way 0.85 is on the authored ladder.
+  assert.equal(Math.abs(0 - 0.5), Math.abs(1 - 0.5));
+});
+
+test('nearestLevelIndex CLAMPS to an end for anything outside the ladder, with no guard to do it', () => {
+  // The property the deleted range guards used to claim: the nearest member of a bounded set to a
+  // point outside it IS an end, so the loop clamps by itself. Asserted over an injected ladder so
+  // the claim is about the FUNCTION rather than about one ladder's numbers.
+  assert.equal(nearestLevelIndex([2, 5, 9], -1000), 0);
+  assert.equal(nearestLevelIndex([2, 5, 9], 1000), 2);
+  assert.equal(nearestLevelIndex([2, 5, 9], Number.NaN), 0, 'NaN fails DARK, via the initial index');
+  assert.equal(nearestLevelIndex([2, 5, 9], Number.POSITIVE_INFINITY), 0);
+  assert.equal(nearestLevelIndex([2, 5, 9], Number.NEGATIVE_INFINITY), 0);
+  // A one-rung ladder has one answer for every input — the degenerate case the loop must not
+  // special-case its way out of.
+  for (const x of [-1, 0, 0.5, 1, 99]) assert.equal(nearestLevelIndex([0.42], x), 0);
 });
 
 test('bandLevelIndex is bandShade in index form — the same decision, never a second one', () => {
@@ -92,18 +125,49 @@ test('parseHex round-trips through toHex, and REFUSES anything that is not #rrgg
   // Padding: a channel below 16 must not lose its leading zero, or the round trip shortens the
   // string and every downstream set-membership test misses.
   assert.equal(toHex({ r: 1, g: 2, b: 3 }), '#010203');
-  for (const bad of ['8cb85e', '#8cb85', '#8cb85ee', '#gggggg', '', '#abc']) {
+  // ⚠ BOTH ANCHORS ARE EXERCISED. Without `^` a token could carry a prefix, without `$` a
+  // suffix — and either would let a malformed corpus entry through as a plausible colour, which
+  // is the failure this function exists to refuse. Neither is reachable by a test that only
+  // supplies too-short and too-long strings.
+  for (const bad of ['8cb85e', '#8cb85', '#8cb85ee', '#gggggg', '', '#abc', 'x#8cb85e', '#8cb85ex', ' #8cb85e']) {
     assert.throws(() => parseHex(bad), /shade-ladder/, `${JSON.stringify(bad)} should refuse`);
   }
 });
 
-test('LIGHT_DIRECTION is NORMALISED — a lambert term with no further arithmetic', () => {
+test('LIGHT_DIRECTION is NORMALISED, and points from the authored quadrant', () => {
   const len = Math.hypot(LIGHT_DIRECTION.x, LIGHT_DIRECTION.y, LIGHT_DIRECTION.z);
   assert.ok(Math.abs(len - 1) < 1e-12, `light direction length ${len}`);
   // It points DOWN onto the land from above and to one side: a light with y <= 0 would leave
   // every upward-facing top face on the darkest rung and the whole ground one colour.
   assert.ok(LIGHT_DIRECTION.y > 0.5, 'the sun is above the island');
   assert.ok(LIGHT_DIRECTION.x !== 0 || LIGHT_DIRECTION.z !== 0, 'a straight-down sun shades nothing');
+  // ⚠ THE SIGNS ARE ASSERTED, not just the magnitudes. Flipping x mirrors every shadow on the
+  // island — which way the ridges face is the whole readable content of a banded relief — and it
+  // moves NO rung for a normal anyone tests from, so nothing else here would notice.
+  assert.ok(LIGHT_DIRECTION.x < 0, 'the sun is on the -x side');
+  assert.ok(LIGHT_DIRECTION.z > 0, 'and the +z side');
+});
+
+test('lambertOfNormal is the half-lambert itself, not a rung — arithmetic a rung would hide', () => {
+  // ⚠ THESE ARE ASSERTED AS SCALARS ON PURPOSE. On a four-rung ladder a sign flip or a product
+  // turned into a quotient lands on the same rung as the correct answer for every normal anyone
+  // would think to test, so a rung-level assertion cannot see it — measured, two operator mutants
+  // in this expression survived a suite that drove `rungOfNormal` from six directions.
+  const near = (got: number, want: number): void =>
+    assert.ok(Math.abs(got - want) < 1e-12, `${got} != ${want}`);
+  near(lambertOfNormal({ x: 0, y: 1, z: 0 }), LIGHT_DIRECTION.y * 0.5 + 0.5);
+  near(lambertOfNormal({ x: 1, y: 0, z: 0 }), LIGHT_DIRECTION.x * 0.5 + 0.5);
+  near(lambertOfNormal({ x: 0, y: 0, z: 1 }), LIGHT_DIRECTION.z * 0.5 + 0.5);
+  // Independently: the exact wrapped values, so a change to the authored direction is a decision
+  // someone has to make rather than a number that drifts.
+  near(lambertOfNormal({ x: 0, y: 1, z: 0 }), 0.9105340416070602);
+  near(lambertOfNormal({ x: 1, y: 0, z: 0 }), 0.27470692838636945);
+  near(lambertOfNormal({ x: 0, y: 0, z: 1 }), 0.6752279445883793);
+  // Facing the light square on wraps to exactly 1; facing away, to exactly 0.
+  near(lambertOfNormal(LIGHT_DIRECTION), 1);
+  near(lambertOfNormal({ x: -LIGHT_DIRECTION.x, y: -LIGHT_DIRECTION.y, z: -LIGHT_DIRECTION.z }), 0);
+  // A normal perpendicular to the light sits exactly at the wrap point.
+  near(lambertOfNormal({ x: LIGHT_DIRECTION.y, y: -LIGHT_DIRECTION.x, z: 0 }), 0.5);
 });
 
 test('rungOfNormal reads the ladder off a surface, and a flat top is NOT the brightest rung', () => {
@@ -185,19 +249,70 @@ test('paletteImageOfToken DEDUPES — the token\'s own closed image, not its ram
   assert.equal(paletteImageOfToken('#000000').length, 1);
 });
 
-test('bandGlsl INTERPOLATES the ladder — the shader and this file share one set of numbers', () => {
+test('bandGlsl emits EXACTLY this shader — every line of it, derived from the ladder', () => {
+  // ⚠⚠ A WHOLE-SOURCE COMPARISON RATHER THAN A SET OF `includes` CHECKS, and the reason is that
+  // this string is COMPILED SOMEWHERE ELSE. No node test can run it, so a line silently emptied
+  // here fails at shader-link time in a browser, on a page nothing in the gate opens — which is
+  // exactly the shape that ships. A mutation sweep put a number on it: twenty separate string
+  // mutants in this generator survived a suite that asserted the ladder's digits were present
+  // and that the two function signatures existed.
+  //
+  // The expectation is BUILT HERE from `SHADE_LEVELS`, not pasted from the output, so the shared
+  // thing is the ladder (which is the point) and the source TEXT is written independently.
+  const n = SHADE_LEVELS.length;
+  const expected = [
+    '// GENERATED from shade-ladder.ts SHADE_LEVELS — do not hand-edit this ladder.',
+    `const int ST_N_LEVELS = ${n};`,
+    'float st_level(int i) {',
+    ...SHADE_LEVELS.map((l, i) => `  if (i == ${i}) return ${l.toFixed(6)};`),
+    `  return ${SHADE_LEVELS[n - 1]!.toFixed(6)};`,
+    '}',
+    '',
+    '// The ladder rung a lighting scalar falls on. Nearest, ties DOWN, ends clamped —',
+    '// the same decision as nearestLevelIndex in shade-ladder.ts. ⚠ The two range guards below',
+    '// are REDUNDANT with the loop, exactly as they were in the TypeScript before a mutation',
+    '// sweep showed nothing could reach them and they were deleted there. They stay here because',
+    '// this source is what was measured on a GPU, and they cost a shader nothing.',
+    'int st_bandIndex(float lambert) {',
+    '  if (lambert <= st_level(0)) return 0;',
+    '  if (lambert >= st_level(ST_N_LEVELS - 1)) return ST_N_LEVELS - 1;',
+    '  int best = 0;',
+    '  float bestD = 1e9;',
+    '  for (int i = 0; i < ST_N_LEVELS; i++) {',
+    '    float d = abs(st_level(i) - lambert);',
+    '    if (d < bestD) { bestD = d; best = i; }',
+    '  }',
+    '  return best;',
+    '}',
+    '',
+    `// ladder, for a reader and for the test that asserts this string carries it: ${SHADE_LEVELS.map((l) => l.toFixed(6)).join(', ')}`,
+  ].join('\n');
+  assert.equal(bandGlsl(), expected);
+});
+
+test('the GLSL quantiser AGREES WITH the TypeScript one, rung for rung', () => {
+  // The comparison above proves the text; this proves the two implementations decide alike, which
+  // is the property the text exists for. The GLSL is not runnable here, so its algorithm is
+  // re-executed from the source's own numbers — including the two redundant range guards, so a
+  // guard that stopped being redundant would show up as a disagreement rather than as a picture.
   const glsl = bandGlsl();
-  assert.match(glsl, new RegExp(`const int ST_N_LEVELS = ${SHADE_LEVELS.length};`));
-  for (const level of SHADE_LEVELS) {
-    assert.ok(glsl.includes(level.toFixed(6)), `the ladder rung ${level} is not in the source`);
+  const levels = SHADE_LEVELS.map((l) => Number(l.toFixed(6)));
+  for (const level of levels) assert.ok(glsl.includes(level.toFixed(6)));
+  const stBandIndex = (lambert: number): number => {
+    if (lambert <= levels[0]!) return 0;
+    if (lambert >= levels[levels.length - 1]!) return levels.length - 1;
+    let best = 0;
+    let bestD = 1e9;
+    levels.forEach((l, i) => {
+      const d = Math.abs(l - lambert);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    });
+    return best;
+  };
+  for (let x = -0.2; x <= 1.2; x += 0.0005) {
+    assert.equal(stBandIndex(x), bandLevelIndex(x), `the two quantisers disagree at ${x}`);
   }
-  // The quantiser it declares is the one the material calls; a rename here is a link error there.
-  assert.match(glsl, /int st_bandIndex\(float lambert\)/);
-  assert.match(glsl, /float st_level\(int i\)/);
-  // ⚠ NON-VACUITY: a generator that emitted an empty string would satisfy every "includes" above
-  // if the ladder were empty, and a hand-typed constant string would satisfy them all today and
-  // drift tomorrow. The proof that it is DERIVED is that a rung's own digits appear once per
-  // `st_level` branch plus once in the trailing reader comment.
-  const first = SHADE_LEVELS[0]!.toFixed(6);
-  assert.ok(glsl.split(first).length - 1 >= 2, 'the ladder is written in, not described');
 });

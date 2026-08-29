@@ -17,7 +17,7 @@ import {
   groundRamp,
   rampSelectGlsl,
 } from './banded-ground-material.js';
-import { SHADE_LEVELS, deliveredForLevel, toHex } from './shade-ladder.js';
+import { LIGHT_DIRECTION, SHADE_LEVELS, deliveredForLevel, toHex } from './shade-ladder.js';
 
 /** The six shipped ground statuses' tokens, in `ForestWorldCanvas`'s own `GROUND_COLOUR` order.
  *  ⚠ Transcribed rather than imported: importing the canvas would drag React and three into a
@@ -85,6 +85,15 @@ test('a ramp of zero tokens is REFUSED — an empty palette is a black island, n
   assert.throws(() => createBandedGroundMaterial({ tokens: [] }), /no tokens/);
 });
 
+test('the attribute NAME is `statusIndex` — the one string two files must agree on', () => {
+  // ⚠ ASSERTED AS A LITERAL, which every other test here deliberately avoids. The constant exists
+  // so the shader's declaration and the canvas's `attach` cannot disagree, and every test that
+  // USES the constant is satisfied by any value at all, including an empty string. The failure it
+  // would hide is silent: the attribute never arrives, every fragment reads row 0, and the island
+  // paints itself one status while looking like it is working.
+  assert.equal(GROUND_STATUS_ATTRIBUTE, 'statusIndex');
+});
+
 test('rampSelectGlsl covers EVERY entry, and its first is the fallthrough', () => {
   // A chain that stopped short would paint every status past the cut-off with row 0's colour —
   // a foreign-status read, and the quietest possible one: a plausible colour on a real parcel.
@@ -95,6 +104,12 @@ test('rampSelectGlsl covers EVERY entry, and its first is the fallthrough', () =
       assert.ok(glsl.includes(`if (idx == ${i}) c = uRamp[${i}];`), `entry ${i} of ${n} unreachable`);
     }
     assert.ok(!glsl.includes(`uRamp[${n}]`), 'the chain must not index past the ramp');
+    // ⚠ ONE STATEMENT PER LINE. The chain is spliced into the fragment source as text, so a lost
+    // separator collapses `vec3 c = uRamp[0];if (idx == 1) …` onto one line — which still
+    // compiles and reads fine, until the day a `//` comment is added to any of them and the rest
+    // of the shader is commented out. `includes` cannot see it; the line count can.
+    assert.equal(glsl.split('\n').length, n, `${n} entries should emit ${n} lines`);
+    for (const line of glsl.split('\n')) assert.match(line, /^\s*(vec3 c|if \(idx)/);
   }
 });
 
@@ -150,6 +165,41 @@ test('the material is UNLIT — no scene light may multiply on top of an authore
   assert.equal(material.lights, false);
   assert.deepEqual(Object.keys(material.uniforms).sort(), ['uLightDir', 'uRamp']);
   assert.equal(material.uniforms['uRamp']!.value.length, SHIPPED_TOKENS.length * SHADE_LEVELS.length);
+});
+
+test('the UNIFORMS carry the values, not merely the right number of slots', () => {
+  // ⚠ A LENGTH IS NOT A VALUE, and on this material the difference is the whole picture: a ramp
+  // of the right length full of zeroes draws a black island, and a light direction of `undefined`
+  // draws an unlit one. Both were mutation survivors against a suite that checked the shapes.
+  const material = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS });
+  const ramp = groundRamp(SHIPPED_TOKENS);
+  const uploaded = material.uniforms['uRamp']!.value as { x: number; y: number; z: number }[];
+  uploaded.forEach((v, i) => {
+    const want = ramp[i]!;
+    assert.ok(Math.abs(v.x - want[0]!) < 1e-12, `ramp[${i}].r`);
+    assert.ok(Math.abs(v.y - want[1]!) < 1e-12, `ramp[${i}].g`);
+    assert.ok(Math.abs(v.z - want[2]!) < 1e-12, `ramp[${i}].b`);
+  });
+  // NON-VACUITY: the ramp is not all one colour, so "every entry matches" says something.
+  assert.ok(new Set(uploaded.map((v) => `${v.x},${v.y},${v.z}`)).size > 1);
+
+  const light = material.uniforms['uLightDir']!.value as { x: number; y: number; z: number };
+  assert.equal(light.x, LIGHT_DIRECTION.x);
+  assert.equal(light.y, LIGHT_DIRECTION.y);
+  assert.equal(light.z, LIGHT_DIRECTION.z);
+  // ...and it is a COPY, so a material cannot mutate the module's authored constant through it.
+  assert.notEqual(light, LIGHT_DIRECTION);
+});
+
+test('the fragment source is MULTI-LINE — the quantiser is spliced in, not collapsed', () => {
+  // The ladder GLSL is indented into the fragment source line by line. Losing that join would
+  // put `// GENERATED from …` and the entire quantiser on ONE line, commenting the shader out.
+  const src = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS }).fragmentShader;
+  const commentLines = src.split('\n').filter((l) => l.trim().startsWith('//'));
+  assert.ok(commentLines.length >= 5, `only ${commentLines.length} comment lines — the join is lost`);
+  for (const line of commentLines) {
+    assert.ok(!line.includes('return'), `a comment line swallowed code: ${line.trim().slice(0, 60)}`);
+  }
 });
 
 test('two statuses sharing a token share a ROW VALUE but not a row — proposed and building', () => {

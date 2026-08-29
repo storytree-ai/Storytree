@@ -110,11 +110,16 @@ const RELIEF_OF = {
 /** The ramp ROWS the shipped canvas uses, in its own `GROUND_COLOUR` order - transcribed here off
  *  `SHIPPED_GROUND_COLOUR`, which `shipped-baseline.test.ts` parses out of `ForestWorldCanvas.tsx`
  *  and refuses on drift. So the arm below wears the rows and the tokens the map itself wears. */
-const GROUND_TOKENS: readonly string[] = [...SHIPPED_GROUND_COLOUR.values()];
-const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
+export const GROUND_TOKENS: readonly string[] = [...SHIPPED_GROUND_COLOUR.values()];
+export const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
   [...SHIPPED_GROUND_COLOUR.keys()].map((status, i) => [status, i]),
 );
-const groundRowOf = (material: string | undefined): number =>
+/** A status variant's ramp ROW, `unknown`'s when the status is unrecognised — the same fallback
+ *  the shipped canvas takes, and the same reason: `unknown` is the one state that means "no
+ *  data", so any other fallback would have the picture assert something about a status it could
+ *  not classify. Exported so a test can drive it; it is the pair to {@link GROUND_TOKENS} and a
+ *  disagreement between the two paints every parcel a different status's colour. */
+export const groundRowOf = (material: string | undefined): number =>
   GROUND_ROWS.get(material ?? 'unknown') ?? GROUND_ROWS.get('unknown')!;
 
 /**

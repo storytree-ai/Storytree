@@ -12,7 +12,16 @@ import test from 'node:test';
 
 import { groundRamp } from '../src/banded-ground-material.js';
 import { SHADE_LEVELS, toHex, tokenRamp } from '../src/shade-ladder.js';
-import { LAND_ARMS, LAND_STEPS, LAND_ZOOMS, shippedParcels, soleIslandToken } from './shipped-land-scene.js';
+import {
+  GROUND_ROWS,
+  GROUND_TOKENS,
+  LAND_ARMS,
+  LAND_STEPS,
+  LAND_ZOOMS,
+  groundRowOf,
+  shippedParcels,
+  soleIslandToken,
+} from './shipped-land-scene.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
 
 test('the ladder is a LADDER — every step changes exactly one rung, in order', () => {
@@ -66,4 +75,26 @@ test('every parcel of the fixture resolves to a token the shipped canvas actuall
     const status = cell.material ?? 'unknown';
     assert.ok(SHIPPED_GROUND_COLOUR.has(status), `no shipped ground colour for status ${status}`);
   }
+});
+
+test('the ramp ROWS and the ramp TOKENS agree, status for status', () => {
+  // ⚠ THE WORST FAILURE THIS SURFACE CAN HAVE, asked of the comparison page's own copy of the
+  // tables. If the row a parcel is given does not index the token that parcel should wear, every
+  // arm below `relief` paints each parcel with a DIFFERENT status's colour — wrong, plausible,
+  // and undetectable by eye. `shipped-baseline.test.ts` asks the same question of the shipped
+  // canvas; this asks it of the instrument, which is a second, independent copy of the ordering.
+  for (const [status, token] of SHIPPED_GROUND_COLOUR) {
+    const row = GROUND_ROWS.get(status);
+    assert.ok(row !== undefined, `no ramp row for status ${status}`);
+    assert.equal(GROUND_TOKENS[row], token, `row ${row} is not ${status}'s token`);
+    assert.equal(groundRowOf(status), row);
+  }
+  assert.equal(GROUND_TOKENS.length, GROUND_ROWS.size, 'one row per status, no gaps');
+  // An unrecognised status takes `unknown`'s row — the one state that means "no data". Any other
+  // fallback would have the picture assert something about work it could not classify.
+  assert.equal(groundRowOf('not-a-status'), GROUND_ROWS.get('unknown'));
+  assert.equal(groundRowOf(undefined), GROUND_ROWS.get('unknown'));
+  // NON-VACUITY: `unknown` is not row 0, so falling back to it is a real choice rather than the
+  // default a zero-filled buffer would give.
+  assert.notEqual(GROUND_ROWS.get('unknown'), 0);
 });

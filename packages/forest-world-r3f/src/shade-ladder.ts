@@ -141,11 +141,30 @@ export const LIGHT_DIRECTION: { readonly x: number; readonly y: number; readonly
     return { x: x / len, y: y / len, z: z / len };
   })();
 
-/** The rung a surface normal lands on under the authored light — the shader's own decision,
- *  available to a node test. Half-lambert, exactly as `createBandedMaterial` computes it. */
-export function rungOfNormal(n: { x: number; y: number; z: number }): number {
+/**
+ * THE HALF-LAMBERT A SURFACE NORMAL SEES under the authored light — the exact scalar every
+ * banded material computes in its fragment stage, available to a node test.
+ *
+ * ⚠ IT IS A NAMED FUNCTION RATHER THAN THREE LINES INSIDE {@link rungOfNormal}, and the reason is
+ * that a rung is a LOSSY view of it. On a four-rung ladder most arithmetic errors here — a sign
+ * flipped, a product turned into a quotient — land on the same rung as the correct answer for
+ * every normal anyone would think to test, so a test that can only see rungs cannot see them.
+ * A mutation sweep found exactly that: two operator mutants in this expression survived a suite
+ * that exercised the rung from six directions.
+ *
+ * WRAPPED (`* 0.5 + 0.5`) so the terminator lands inside the ladder's range instead of collapsing
+ * every back-facing surface onto the darkest rung. Still a single scalar, so nothing about the
+ * palette closure changes.
+ */
+export function lambertOfNormal(n: { x: number; y: number; z: number }): number {
   const dot = n.x * LIGHT_DIRECTION.x + n.y * LIGHT_DIRECTION.y + n.z * LIGHT_DIRECTION.z;
-  return bandLevelIndex(dot * 0.5 + 0.5);
+  return dot * 0.5 + 0.5;
+}
+
+/** The rung a surface normal lands on under the authored light — the shader's own decision,
+ *  available to a node test. */
+export function rungOfNormal(n: { x: number; y: number; z: number }): number {
+  return bandLevelIndex(lambertOfNormal(n));
 }
 
 /** Parse `#rrggbb` to integer channels. Throws on a malformed token — an authored palette
@@ -164,28 +183,47 @@ export function toHex(c: Rgb255): string {
 }
 
 /**
- * Quantise a continuous lighting scalar onto the authored ladder — the ONE operation the
- * GLSL below duplicates. Nearest level, ties resolved DOWN (toward the darker rung) so the
- * mapping is total and single-valued for every finite input; out-of-range inputs clamp to
- * the ladder's ends rather than extrapolating, because an extrapolated level is exactly the
- * off-palette colour this module exists to make unrepresentable.
+ * THE QUANTISER, over an INJECTED ladder — the ONE operation the GLSL below duplicates, and the
+ * only place in this module that decides anything about lighting.
+ *
+ * Nearest rung; an exact tie resolves DOWN, toward the darker one; and an out-of-range input
+ * lands on the nearest END rather than extrapolating, because an extrapolated level is exactly
+ * the off-palette colour this module exists to make unrepresentable.
+ *
+ * ⚠⚠ ALL THREE OF THOSE ARE THE LOOP'S OWN BEHAVIOUR, AND THERE ARE DELIBERATELY NO GUARDS
+ * AROUND IT. An earlier shape opened with `if (!Number.isFinite(lambert) || lambert <= lo)
+ * return lo;` and `if (lambert >= hi) return hi;`. Both were DEAD: the loop already returns the
+ * darkest rung for `NaN` and for either infinity (`Math.abs(level - NaN)` is `NaN`, and
+ * `NaN < bestD` is false for every rung, so the initial index survives), and it already returns
+ * the nearest end for any finite out-of-range input, because the nearest member of a bounded set
+ * to a point outside it IS the end. A mutation sweep is what established that rather than an
+ * argument: every mutant of both guards survived the whole suite, which is what an unreachable
+ * branch looks like from outside. Deleting them is the same move `cell-ground-geometry.ts` made
+ * with its empty-input guard.
+ *
+ * ⚠ THE LADDER IS A PARAMETER, and that is also a mutation-sweep finding rather than a taste
+ * one. The tie rule is `<` and not `<=`, and on the authored ladder [0.78, 0.8, 0.9, 1.0] there
+ * is NO reachable exact tie at all — swept at 2 million points across [-0.2, 1.4], zero. So over
+ * the authored ladder the tie rule is unobservable and its mutant is equivalent. Over an
+ * injected `[0, 1]`, `0.5` is a genuine tie and the rule is decidable in one assertion.
  */
-export function bandShade(lambert: number): number {
-  const lo = SHADE_LEVELS[0]!;
-  const hi = SHADE_LEVELS[SHADE_LEVELS.length - 1]!;
-  if (!Number.isFinite(lambert) || lambert <= lo) return lo;
-  if (lambert >= hi) return hi;
-  let best = lo;
-  let bestD = Infinity;
-  for (const level of SHADE_LEVELS) {
+export function nearestLevelIndex(ladder: readonly number[], lambert: number): number {
+  let bestIndex = 0;
+  let bestD = Number.POSITIVE_INFINITY;
+  ladder.forEach((level, i) => {
     const d = Math.abs(level - lambert);
-    // strict `<` keeps the FIRST (darker) level on an exact tie — the ladder is ascending
+    // strict `<` keeps the FIRST (darker) rung on an exact tie — the ladder is ascending
     if (d < bestD) {
       bestD = d;
-      best = level;
+      bestIndex = i;
     }
-  }
-  return best;
+  });
+  return bestIndex;
+}
+
+/** Quantise a continuous lighting scalar onto the AUTHORED ladder, as a multiplier. */
+export function bandShade(lambert: number): number {
+  return SHADE_LEVELS[bandLevelIndex(lambert)]!;
 }
 
 /** The delivered colour for one authored token under one lighting scalar: `token x
@@ -228,8 +266,10 @@ export function deliveredForLevel(token: string, level: number): Rgb255 {
   };
 }
 
-/** The ladder INDEX a lighting scalar falls on — the same decision as `bandShade`, returned
- *  as a position rather than a multiplier.
+/** The ladder INDEX a lighting scalar falls on — THE decision, of which `bandShade` is the
+ *  multiplier-shaped view. It is the primary of the two rather than a search over the other's
+ *  answer: an `indexOf` over a returned level needed a `< 0` guard that no input could reach,
+ *  and an unreachable guard is a line no test can ever hold.
  *
  *  THIS IS THE FORM THE SHADER USES, AND THE REASON IS MEASURED, NOT STYLISTIC. A first
  *  version had the GPU compute `token * level` in normalised floats and let the framebuffer
@@ -242,12 +282,7 @@ export function deliveredForLevel(token: string, level: number): Rgb255 {
  *  (a shader still only ever reaches its own token's entries); what changes is that
  *  "on-palette" now means bit-identical rather than within-one-LSB. */
 export function bandLevelIndex(lambert: number): number {
-  const banded = bandShade(lambert);
-  const i = SHADE_LEVELS.indexOf(banded);
-  // `bandShade` only ever returns a member of the ladder, so this cannot miss; the guard
-  // exists so that if it ever could, it fails loudly instead of silently indexing -1.
-  if (i < 0) throw new Error(`shade-ladder: bandShade returned ${banded}, not a ladder member`);
-  return i;
+  return nearestLevelIndex(SHADE_LEVELS, lambert);
 }
 
 /** The token's RAMP: its delivered colour at every ladder rung, in ladder order. This is
@@ -289,7 +324,7 @@ export function bandGlsl(): string {
   const n = SHADE_LEVELS.length;
   const levels = SHADE_LEVELS.map((l) => l.toFixed(6)).join(', ');
   const lines = [
-    '// GENERATED from palette-band.ts SHADE_LEVELS — do not hand-edit this ladder.',
+    '// GENERATED from shade-ladder.ts SHADE_LEVELS — do not hand-edit this ladder.',
     `const int ST_N_LEVELS = ${n};`,
     'float st_level(int i) {',
     ...SHADE_LEVELS.map((l, i) => `  if (i == ${i}) return ${l.toFixed(6)};`),
@@ -297,7 +332,10 @@ export function bandGlsl(): string {
     '}',
     '',
     '// The ladder rung a lighting scalar falls on. Nearest, ties DOWN, ends clamped —',
-    '// identical to bandShade/bandLevelIndex in palette-band.ts.',
+    '// the same decision as nearestLevelIndex in shade-ladder.ts. ⚠ The two range guards below',
+    '// are REDUNDANT with the loop, exactly as they were in the TypeScript before a mutation',
+    '// sweep showed nothing could reach them and they were deleted there. They stay here because',
+    '// this source is what was measured on a GPU, and they cost a shader nothing.',
     'int st_bandIndex(float lambert) {',
     '  if (lambert <= st_level(0)) return 0;',
     '  if (lambert >= st_level(ST_N_LEVELS - 1)) return ST_N_LEVELS - 1;',

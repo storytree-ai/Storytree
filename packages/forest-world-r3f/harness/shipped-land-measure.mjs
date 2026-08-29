@@ -314,7 +314,7 @@ writeFileSync(
     2,
   )}\n`,
 );
-console.log(`\nwrote ${join(OUT, 'shipped-relief.json')}`);
+console.log(`\nwrote ${join(OUT, 'shipped-banded.json')}`);
 
 await browser.close();
 process.exit(verdict.status === 'FAIL' ? 1 : 0);
