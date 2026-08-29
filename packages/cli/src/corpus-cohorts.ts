@@ -49,8 +49,6 @@ export interface CohortReadRecord {
   readonly lastAt: string;
 }
 
-const NO_READS: CohortReadRecord = { readNodes: 0, reads: 0, sessions: 0, lastAt: "" };
-
 /** One named cohort, its membership and everything measured about it. */
 export interface Cohort {
   readonly key: string;
@@ -83,9 +81,14 @@ function foldSource(
     readNodes += 1;
     reads += hit.reads;
     for (const session of hit.sessions) sessions.add(session);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — on two EQUAL timestamps the strict and
+    // the non-strict comparison both leave the same string in `lastAt`.
     if (hit.lastAt > lastAt) lastAt = hit.lastAt;
   }
-  return readNodes === 0 ? NO_READS : { readNodes, reads, sessions: sessions.size, lastAt };
+  // No empty-case branch: with nothing read, every counter is already zero and `lastAt` is already
+  // the empty string a caller prints as NEVER OBSERVED. A separate constant for that case would be
+  // a branch indistinguishable from this one.
+  return { readNodes, reads, sessions: sessions.size, lastAt };
 }
 
 /**
@@ -138,7 +141,18 @@ export function buildCohorts(
         inAgentManifest: members.filter((node) => agentManifest.has(node.rowId)).length,
       };
     })
-    .sort((a, b) => b.nodes.length - a.nodes.length || a.key.localeCompare(b.key));
+    .sort(bySizeThenKey);
+}
+
+/**
+ * Order the cohorts: the biggest population first, ties by key.
+ *
+ * Named for `byUnlinkedThenKind`'s reason — SIZE is the reading a reader acts on, and the key is
+ * only there to keep two equal cohorts in a stable order.
+ */
+function bySizeThenKey(a: Cohort, b: Cohort): number {
+  const bySize = b.nodes.length - a.nodes.length;
+  return bySize === 0 ? a.key.localeCompare(b.key) : bySize;
 }
 
 /**

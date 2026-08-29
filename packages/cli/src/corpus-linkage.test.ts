@@ -462,3 +462,55 @@ test("the byKind sort puts the larger unlinked count first even when it was adde
   ]);
   assert.deepEqual(verdict.byKind.map((kindRow) => kindRow.kind), ["middle", "alpha", "zebra"]);
 });
+
+test("SIZE beats the alphabet in the per-kind roll-up too", () => {
+  // The large kind is named to sort LAST alphabetically, so a comparator that lost its primary term
+  // and fell back to the kind name alone reverses this.
+  const verdict = evaluateCorpusLinkage([
+    row("a1", "alpha", {}),
+    row("z1", "zebra", {}),
+    row("z2", "zebra", {}),
+  ]);
+  assert.deepEqual(verdict.byKind.map((kindRow) => kindRow.kind), ["zebra", "alpha"]);
+});
+
+test("EACH off-graph term can carry the sum on its own, against a cancelling partner", () => {
+  // The isolation test is a five-term sum of non-negative counts, so flipping one `+` to `-` is
+  // invisible unless that term EQUALS the rest — which is what each case below arranges. Without
+  // this, a dropped term still yields a non-zero total and the node lands in the same bucket.
+  const anchorAndReference = evaluateCorpusLinkage([
+    row("a", "increment", { cites: ["story:s"], references: ["asset:x"] }),
+  ]).byKind[0]!;
+  assert.equal(anchorAndReference.linkedOnlyOffGraph, 1);
+  assert.equal(anchorAndReference.isolated, 0);
+
+  const referenceAndRepoFile = evaluateCorpusLinkage([
+    row("a", "principle", { references: ["asset:x"], dependsOn: ["doc:docs/research/x.md"] }),
+  ]).byKind[0]!;
+  assert.equal(referenceAndRepoFile.linkedOnlyOffGraph, 1);
+  assert.equal(referenceAndRepoFile.isolated, 0);
+
+  // A decision that supersedes one AND is superseded by another: out and in are both 1.
+  const bothEnds = evaluateCorpusLinkage([
+    row("adr-0100", "adr", {}),
+    row("adr-0200", "adr", { supersedes: [100] }),
+    row("adr-0300", "adr", { supersedes: [200] }),
+  ]).nodes.find((node) => node.nodeId === "decision:0200")!;
+  assert.equal(bothEnds.supersedesOut, 1);
+  assert.equal(bothEnds.supersedesIn, 1);
+  const decisions = evaluateCorpusLinkage([
+    row("adr-0100", "adr", {}),
+    row("adr-0200", "adr", { supersedes: [100] }),
+    row("adr-0300", "adr", { supersedes: [200] }),
+  ]).byKind.find((kindRow) => kindRow.kind === "adr")!;
+  assert.equal(decisions.linkedOnlyOffGraph, 3, "all three ends of the chain are off-graph");
+  assert.equal(decisions.isolated, 0);
+
+  // A decision carrying an anchor AND a supersedes-in: the two cancel if either term flips sign.
+  const anchorAndSuperseded = evaluateCorpusLinkage([
+    row("adr-0100", "adr", { cites: ["story:s"] }),
+    row("adr-0200", "adr", { supersedes: [100] }),
+  ]).nodes.find((node) => node.nodeId === "decision:0100")!;
+  assert.equal(anchorAndSuperseded.anchorOut, 1);
+  assert.equal(anchorAndSuperseded.supersedesIn, 1);
+});

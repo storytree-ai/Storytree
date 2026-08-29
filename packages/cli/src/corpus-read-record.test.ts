@@ -227,3 +227,54 @@ test("a single observation makes firstAt and lastAt the same instant", () => {
 test("the floor notes are real prose, not blank placeholders", () => {
   for (const note of readFloorNotes()) assert.ok(note.trim().length > 20, JSON.stringify(note));
 });
+
+test("a wrong-shaped invocation BESIDE a real one is still declined", () => {
+  // The cheap prefilter asks for `library artifact` ANYWHERE in the command, so a command whose only
+  // invocation has the wrong area never reaches the argv check at all. Only a COMPOUND command puts
+  // a wrong-shaped segment past the prefilter — which is exactly how these appear in a transcript.
+  assert.deepEqual(idsOf("storytree library artifact a | storytree adr artifact b"), ["a"]);
+  assert.deepEqual(idsOf("storytree library artifact a && storytree library tree b"), ["a"]);
+  assert.deepEqual(idsOf("storytree library artifact a; storytree library artifact"), ["a"]);
+});
+
+test("a bare sub-verb with no id after it mints nothing, even past the prefilter", () => {
+  // `library artifact new` / `rename` name a WRITE, and the id slot holds the verb rather than an
+  // artifact — so a set that stopped recognising either would mint a read of an artifact called
+  // "new".
+  assert.deepEqual(idsOf("storytree library artifact a | storytree library artifact new"), ["a"]);
+  assert.deepEqual(idsOf("storytree library artifact a | storytree library artifact rename"), ["a"]);
+  assert.deepEqual(idsOf("storytree library artifact a | storytree library artifact edit"), ["a"]);
+  assert.deepEqual(idsOf("storytree library artifact a | storytree library artifact retire"), ["a"]);
+});
+
+test("EACH write flag is refused on its own", () => {
+  // Three flags mark a write, and a test that only ever exercises one of them cannot tell a working
+  // guard from one that lost the other two.
+  assert.deepEqual(idsOf("storytree library artifact x --set body=y"), []);
+  assert.deepEqual(idsOf("storytree library artifact x --file doc.json"), []);
+  assert.deepEqual(idsOf("storytree library artifact x --json"), []);
+  assert.deepEqual(idsOf("storytree library artifact x --pg"), ["x"], "not every flag is a write");
+});
+
+test("a FULL read after a RAW one does not upgrade the strength", () => {
+  // The weakest reading of one artifact wins, matching the live observer — so the order the two
+  // appear in must not change the answer.
+  assert.deepEqual(
+    scrapeArtifactReads("storytree library artifact x --raw body | storytree library artifact x").reads,
+    [{ id: "x", strength: "front_matter_read" }],
+  );
+  assert.deepEqual(
+    scrapeArtifactReads("storytree library artifact x | storytree library artifact x --raw body").reads,
+    [{ id: "x", strength: "front_matter_read" }],
+  );
+});
+
+test("the floor notes each say what they are about, not just name a subject", () => {
+  const notes = readFloorNotes();
+  assert.ok(
+    notes.some((note) => note.includes("AGENT MANIFEST") && note.includes("produces a zero")),
+    "the manifest note must state the CONSEQUENCE — that consumption evidence reads as a zero",
+  );
+  assert.ok(notes.some((note) => note.includes("bounded set of command shapes")));
+  assert.ok(notes.some((note) => note.includes("lobby work records nothing")));
+});

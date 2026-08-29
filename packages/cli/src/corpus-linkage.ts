@@ -236,6 +236,9 @@ function bucket(edges: Map<string, Set<string>>, key: string): Set<string> {
 }
 
 function bagOf(doc: unknown): Record<string, unknown> {
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — `doc !== null` alone decides every
+  // case the other clause could. A scalar passed through reads back `undefined` on every field, and
+  // `null` is the one value that would throw; dropping the `typeof` test changes neither.
   return typeof doc === "object" && doc !== null ? (doc as Record<string, unknown>) : {};
 }
 
@@ -245,9 +248,21 @@ function stringsOf(value: unknown): string[] {
   return value.filter((entry): entry is string => typeof entry === "string" && entry !== "");
 }
 
-/** PURE: the numbers of an array-shaped field — `supersedes` is a decision-number array. */
+/**
+ * PURE: the integers of an array-shaped field — `supersedes` is a decision-NUMBER array.
+ *
+ * Both guards are unobservable on their own and both are kept anyway, because what makes them
+ * unobservable is a property of the DOWNSTREAM id format rather than of this function: a fabricated
+ * or fractional entry becomes a node id like `decision:100.5`, and no row can ever carry that id
+ * (a decision row is `adr-` plus exactly four digits), so the bad entry is dropped one step later
+ * instead of here. That is a coincidence of the id shape, not a reason to rely on it.
+ */
 function numbersOf(value: unknown): number[] {
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — a fabricated entry cannot pad into a
+  // four-digit decision id, so it resolves to no held node and is dropped downstream.
   if (!Array.isArray(value)) return [];
+  // Stryker disable next-line LogicalOperator,ConditionalExpression: EQUIVALENT — `Number.isInteger`
+  // already implies `typeof === "number"`, and a non-integer number's node id can never exist.
   return value.filter((entry): entry is number => typeof entry === "number" && Number.isInteger(entry));
 }
 
@@ -274,6 +289,18 @@ export function edgeFreeReasonFor(
 }
 
 /**
+ * Order the per-kind roll-up: the biggest unlinked population first, ties by kind name.
+ *
+ * A named comparator rather than an inline arrow, so the two terms are separately visible: SIZE is
+ * the reading (which tier is the problem), and the name is only there to make the order stable when
+ * two tiers tie.
+ */
+function byUnlinkedThenKind(a: LinkageKindRow, b: LinkageKindRow): number {
+  const bySize = b.unlinked - a.unlinked;
+  return bySize === 0 ? a.kind.localeCompare(b.kind) : bySize;
+}
+
+/**
  * PURE: classify every stored row's position in the joined dependency graph.
  *
  * TOTAL over untrusted input, for `depthFromWorkNodes`' reason: this runs over the LIVE corpus, so a
@@ -295,7 +322,7 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
   const inNeighbours = new Map<string, Set<string>>();
   const supersedesOut = new Map<string, Set<string>>();
   const supersedesIn = new Map<string, Set<string>>();
-  const perRow = new Map<string, readonly PointerTarget[]>();
+  const perRow = new Map<string, { source: LinkageSource; outward: readonly PointerTarget[] }>();
   let danglingPointers = 0;
   let repoFilePointers = 0;
   let unparseablePointers = 0;
@@ -306,7 +333,7 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
     const outward = [...readDependsOnPointers(source.doc), ...stringsOf(bag["cites"])].map(
       (pointer) => resolvePointer(pointer, nodeIds),
     );
-    perRow.set(nodeId, outward);
+    perRow.set(nodeId, { source, outward });
     for (const target of outward) {
       if (target.sort === "node") {
         // A self-pointer is not a link to anything else and must not rescue a node from the
@@ -328,8 +355,10 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
   }
 
   const nodes: LinkageNode[] = [];
-  for (const [nodeId, source] of rows) {
-    const outward = perRow.get(nodeId) ?? [];
+  // Iterating what the first pass WROTE, rather than re-walking `rows` and defaulting a miss to an
+  // empty list: the default would be unreachable, and an unreachable default is a branch no reader
+  // can evaluate and no test can pin.
+  for (const [nodeId, { source, outward }] of perRow) {
     const outDegree = outNeighbours.get(nodeId)?.size ?? 0;
     const inDegree = inNeighbours.get(nodeId)?.size ?? 0;
     nodes.push({
@@ -380,7 +409,7 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
       linkedOnlyOffGraph: row.offGraph,
       reasons: row.reasons as ReadonlyMap<EdgeFreeReason, number>,
     }))
-    .sort((a, b) => b.unlinked - a.unlinked || a.kind.localeCompare(b.kind));
+    .sort(byUnlinkedThenKind);
 
   let walkableEdges = 0;
   for (const targets of outNeighbours.values()) walkableEdges += targets.size;

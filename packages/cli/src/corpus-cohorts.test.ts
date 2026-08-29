@@ -271,3 +271,22 @@ test("a transcript-only read still counts, so neither source is privileged", () 
   assert.equal(cohort.transcript.sessions, 1);
   assert.equal(cohort.transcript.lastAt, "2026-08-07T00:00:00.000Z");
 });
+
+test("SIZE beats the alphabet: the biggest cohort leads even when its key sorts last", () => {
+  // A comparator that lost its primary term and fell back to the key alone would order these
+  // alphabetically, which is why the large cohort here is deliberately named to sort LAST.
+  const cohorts = buildCohorts(
+    [
+      node("a1", "alpha", "field-never-authored"),
+      node("z1", "zebra", "field-never-authored"),
+      node("z2", "zebra", "field-never-authored"),
+    ],
+    new Map(),
+    new Map(),
+    NO_MANIFEST,
+  );
+  assert.deepEqual(cohorts.map((cohort) => cohort.key), [
+    "knowledge/zebra/field-never-authored",
+    "knowledge/alpha/field-never-authored",
+  ]);
+});

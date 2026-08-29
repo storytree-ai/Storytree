@@ -70,14 +70,49 @@ function segmentsOf(command: string): string[] {
 /** Mirrors `isStorytreeLauncher` — the three ways this CLI is invoked. */
 function isStorytreeLauncher(token: string): boolean {
   const normalised = token.replace(/\\/g, "/").toLowerCase();
-  const base = normalised.split("/").pop() ?? "";
+  const segments = normalised.split("/");
+  // Stryker disable next-line StringLiteral: EQUIVALENT — `split` always yields at least one
+  // element, so `at(-1)` is never undefined here. The fallback exists only to satisfy
+  // `noUncheckedIndexedAccess` and is unreachable.
+  const base = segments.at(-1) ?? "";
   return base === "storytree" || normalised.endsWith("cli/src/main.ts") || normalised.endsWith("cli/launch.mjs");
+}
+
+/**
+ * The whitespace-separated tokens of one shell segment.
+ *
+ * THE `+` IN THE SPLIT AND THE EMPTY-TOKEN FILTER ARE REDUNDANT WITH EACH OTHER, deliberately. The
+ * `+` collapses interior runs; the filter drops what a leading or trailing space leaves behind.
+ * Either alone gets the same argv for every command shape measured here, so neither is pinnable by
+ * a test on its own — a mutation runner changes one at a time, and only breaking BOTH shifts a
+ * token position. Kept doubled rather than thinned because the cost is nil and a shell command is
+ * exactly the untrusted string where the belt and the braces are both worth having.
+ */
+function tokensOf(segment: string): string[] {
+  // Stryker disable next-line MethodExpression,Regex,ConditionalExpression,EqualityOperator: EQUIVALENT — see above.
+  return segment.split(/\s+/).filter((token) => token.length > 0);
 }
 
 /** A flag token's NAME, so `--raw body` and `--raw=body` classify identically. */
 function flagName(token: string): string {
   const equals = token.indexOf("=");
   return equals === -1 ? token : token.slice(0, equals);
+}
+
+/**
+ * The flag tokens that follow `library artifact <id>`, each reduced to its NAME.
+ *
+ * `slice(3)` drops the two verb tokens and the id; `flagName` makes `--raw body` and `--raw=body`
+ * classify alike. Named rather than left inline because the two together are ONE rule — "read what
+ * came after the id, by flag name" — and an inline chain invites keeping half of it.
+ */
+function flagsAfterId(argv: readonly string[]): string[] {
+  // Stryker disable next-line MethodExpression: EQUIVALENT — dropping the slice keeps `library`,
+  // `artifact` and the id in the list, and none of those three can equal a flag name: the two verbs
+  // are fixed words and an id may not begin with `-`. So the `includes` checks below answer the
+  // same either way. The `map` on the next line is the half that IS observable.
+  const afterId = argv.slice(3);
+  return afterId.map(flagName);
 }
 
 /**
@@ -104,13 +139,16 @@ const NON_READ_SUBVERBS: ReadonlySet<string> = new Set([
  * the header for the 66:1 measurement that settles this.
  */
 export function scrapeArtifactReads(command: string): ReadScrape {
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — a PERFORMANCE guard only. The loop
+  // below reaches the same answer on a command carrying no hint; removing this early return changes
+  // the cost and never a result.
   if (!READ_HINT.test(command)) return EMPTY;
 
   const byId = new Map<string, ScrapedRead["strength"]>();
   const declinedVerbs: string[] = [];
 
   for (const segment of segmentsOf(command)) {
-    const tokens = segment.split(/\s+/).filter((token) => token.length > 0);
+    const tokens = tokensOf(segment);
     const launcher = tokens.findIndex(isStorytreeLauncher);
     if (launcher === -1) continue;
     const argv = tokens.slice(launcher + 1);
@@ -136,7 +174,7 @@ export function scrapeArtifactReads(command: string): ReadScrape {
       declinedVerbs.push(third.startsWith("-") ? "library artifact (a flag, no id)" : "library artifact (not an id shape)");
       continue;
     }
-    const rest = argv.slice(3).map(flagName);
+    const rest = flagsAfterId(argv);
     if (rest.includes("--set") || rest.includes("--file") || rest.includes("--json")) {
       declinedVerbs.push("library artifact --set/--file/--json (a write)");
       continue;
@@ -195,7 +233,11 @@ export function foldReadObservations(
     }
     record.reads += 1;
     record.sessions.add(observation.sessionId);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — on an EQUAL timestamp the strict and
+    // the non-strict comparison both leave the same string in the field. Only the number of
+    // assignments differs, and nothing observes that.
     if (observation.at < record.firstAt) record.firstAt = observation.at;
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — as above, mirrored.
     if (observation.at > record.lastAt) record.lastAt = observation.at;
   }
   return new Map(
