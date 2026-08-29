@@ -80,9 +80,7 @@
 
 import {
   buildDependencyGraph,
-  depthFromWorkNodes,
   type DepthFromWorkNode,
-  type DepthFromWorkSource,
   type DependencyGraph,
 } from "./knowledge-depth.js";
 import { type DecisionSupportResolver } from "./decision-support-seam.js";
@@ -327,22 +325,28 @@ export function evaluateSurfaceDepth(
 
   // KAHN'S ORDER, AS ONE PASS OVER A QUEUE THAT GROWS BEHIND THE CURSOR.
   //
-  // `for…of` over an array reads the live length, so a node appended here is visited later in this
-  // same loop. That is deliberate and it is not merely style: the obvious `while (frontier.length)`
-  // shape cannot be proved, because mutating its exit test to `>= 0` hangs the suite instead of
-  // failing an assertion — a hang names no test and so can never be credited to this branch.
-  // A queue whose every entry is admitted at most once is bounded by the node count no matter what
-  // any single condition does, so every mutant here terminates and is answerable by an assertion.
+  // `for…of` over a Set reads it live, so a node added here is visited later in this same loop.
+  // That is deliberate and it is not merely style: the obvious `while (frontier.length)` shape
+  // cannot be proved, because mutating its exit test to `>= 0` hangs the suite instead of failing an
+  // assertion — a hang names no test and so can never be credited to this branch. A queue whose
+  // every entry is admitted at most once is bounded by the node count no matter what any single
+  // condition does, so every mutant here terminates and is answerable by an assertion — and the SET
+  // is what makes that sentence true rather than merely intended (see below).
   const depthById = new Map<string, number>();
   const remaining = new Map(indegree);
-  const queue = [...surfaceIds];
-  for (const id of queue) depthById.set(id, 0);
-  // NO CAP AND NO "already queued?" GUARD, and that is deliberate rather than an omission.
-  // `left === 0` fires exactly once per node — its inbound edges are decremented once each — so
-  // both would be lines no input can take. VERIFIED, not assumed: a cap was written here and then
-  // removed after hand-applying the mutation the rung reported (`admitted += 1` -> `-= 1`), which
-  // all 37 tests passed. A bound that never binds cannot be observed, and an unobservable line is
-  // worse than none: it reads as care while proving nothing.
+  // A SET, NOT AN ARRAY, AND THAT IS WHAT MAKES THE ADMISSION RULE PROVABLE RATHER THAN MERELY
+  // ASSERTED. Both hold the same entries in the same order under the correct rule, because
+  // `left === 0` fires exactly once per node — so this is not a behaviour change. What it changes
+  // is what a BROKEN admission rule can do: `Set.add` is idempotent and a set of node ids can never
+  // hold more than `allIds.length` of them, so the walk terminates on ANY condition here, including
+  // one mutated to a constant. Over an array the same mutation re-admits a node once per inbound
+  // traversal and spins forever on the first cycle it meets — a HANG, which names no test and can
+  // therefore never be credited to this branch. The bound must be structural for the rule above it
+  // to be testable at all; a cap or an `already queued?` guard cannot supply it, because both are
+  // lines the correct run never takes (VERIFIED: a cap was written here, its counter mutated by
+  // hand, and all 37 tests passed).
+  const queue = new Set(surfaceIds);
+  for (const id of surfaceIds) depthById.set(id, 0);
   for (const id of queue) {
     const depth = depthById.get(id) ?? 0;
     for (const target of outbound.get(id) ?? []) {
@@ -352,9 +356,11 @@ export function evaluateSurfaceDepth(
       const left = (remaining.get(target) ?? 0) - 1;
       remaining.set(target, left);
       // Admitted only once every inbound edge has been consumed — that is what makes this a
-      // topological order, and what makes the accumulated maximum final when it is read. The
-      // `queued` guard is the loop's BOUND, not a duplicate of that rule.
-      if (left === 0) queue.push(target);
+      // topological order, and what makes the accumulated maximum final when it is read. Admitting
+      // a node EARLY does not merely reorder the walk: the set visits it once, so the depth its own
+      // successors read is whatever partial maximum it had at that moment, and a longer chain
+      // arriving afterwards raises the node and never reaches past it.
+      if (left === 0) queue.add(target);
     }
   }
 
