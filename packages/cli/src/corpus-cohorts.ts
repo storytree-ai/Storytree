@@ -113,7 +113,12 @@ export function buildCohorts(
     // drawn wrong. Raised by the `traversal-panel-arc` session holding the instrument.
     const suffix = agentManifest.has(node.rowId) ? "/IN-AGENT-MANIFEST" : "";
     const key = `${tierClass}/${node.kind}/${node.edgeFreeReason}${suffix}`;
-    (groups.get(key) ?? groups.set(key, []).get(key)!).push(node);
+    let members = groups.get(key);
+    if (members === undefined) {
+      members = [];
+      groups.set(key, members);
+    }
+    members.push(node);
   }
 
   return [...groups.entries()]

@@ -210,10 +210,10 @@ test("the per-kind roll-up separates ISOLATED from linked-only-off-graph", () =>
 test("an untrusted row projects as no edges rather than throwing", () => {
   // This runs over the LIVE corpus, so a row from an older schema must not take the probe down.
   const verdict = evaluateCorpusLinkage([
-    row("a", "principle", { dependsOn: "not-an-array" as unknown as string[] }),
+    row("a", "principle", { dependsOn: "not-an-array" }),
     { id: "b", kind: "principle", doc: null, createdAt: "x", updatedAt: "y" },
     { id: "c", kind: "principle", doc: 42, createdAt: "x", updatedAt: "y" },
-    row("d", "adr", { supersedes: ["not-a-number"] as unknown as number[] }),
+    row("d", "adr", { supersedes: ["not-a-number"] }),
   ]);
   assert.equal(verdict.population, 4);
   assert.equal(verdict.unlinked, 4);
@@ -227,4 +227,110 @@ test("an empty corpus reports zero MEASURED, never a clean bill of health", () =
   assert.equal(verdict.linked, 0);
   assert.equal(verdict.unlinked, 0);
   assert.deepEqual(verdict.byKind, []);
+});
+
+test("an array field's NON-STRING and EMPTY entries are dropped, and the rest survive", () => {
+  // `stringsOf` runs over untrusted rows, so every branch of its filter is reachable from the live
+  // corpus: a null left by an older schema, a number, and the empty string a bad `--set` can write.
+  const verdict = evaluateCorpusLinkage([
+    row("a", "increment", { cites: ["", "asset:b", 42, null, "asset:c"] }),
+    row("b", "principle", {}),
+    row("c", "principle", {}),
+  ]);
+  const source = verdict.nodes.find((node) => node.nodeId === "a")!;
+  assert.equal(source.outDegree, 2, "only the two real pointers are edges");
+  assert.equal(verdict.unparseablePointers, 0, "an empty string is dropped, never counted a pointer");
+  assert.equal(verdict.walkableEdges, 2);
+});
+
+test("`supersedes` admits only INTEGERS, so a string or a fraction is dropped", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("adr-0100", "adr", {}),
+    row("adr-0200", "adr", { supersedes: [100, "100", 100.5, null] }),
+  ]);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "decision:0200")!.supersedesOut, 1);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "decision:0100")!.supersedesIn, 1);
+});
+
+test("`supersedes` naming a decision this corpus does not hold is dropped, not counted", () => {
+  const verdict = evaluateCorpusLinkage([row("adr-0200", "adr", { supersedes: [999] })]);
+  assert.equal(verdict.nodes[0]!.supersedesOut, 0);
+});
+
+test("`references` is counted and is NEVER an edge", () => {
+  // Provenance, not dependency (ADR-0464 D1 retires the surface built on exactly that conflation).
+  const verdict = evaluateCorpusLinkage([
+    row("a", "principle", { references: ["asset:b", "asset:c", 7] }),
+    row("b", "principle", {}),
+    row("c", "principle", {}),
+  ]);
+  const source = verdict.nodes.find((node) => node.nodeId === "a")!;
+  assert.equal(source.referenceCount, 2, "the non-string is dropped");
+  assert.equal(source.outDegree, 0, "a reference is not a dependency");
+  assert.equal(verdict.unlinked, 3);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "b")!.inDegree, 0);
+});
+
+test("per-node dangling and repo-file counts are reported beside the corpus-wide totals", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("a", "principle", { dependsOn: ["asset:gone", "asset:also-gone", "doc:docs/research/x.md"] }),
+    row("b", "principle", { dependsOn: ["asset:gone"] }),
+  ]);
+  const first = verdict.nodes.find((node) => node.nodeId === "a")!;
+  assert.equal(first.danglingOut, 2);
+  assert.equal(first.repoFileOut, 1);
+  assert.equal(verdict.danglingPointers, 3, "corpus-wide, across both rows");
+  assert.equal(verdict.repoFilePointers, 1);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "b")!.repoFileOut, 0);
+});
+
+test("walkableEdges sums across sources rather than reporting one row's", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("a", "principle", { dependsOn: ["asset:c"] }),
+    row("b", "principle", { dependsOn: ["asset:c"] }),
+    row("c", "principle", {}),
+  ]);
+  assert.equal(verdict.walkableEdges, 2);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "c")!.inDegree, 2);
+  assert.equal(verdict.linked, 3);
+  assert.equal(verdict.unlinked, 0);
+});
+
+test("the per-kind roll-up sorts by unlinked DESCENDING, then by kind", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("z1", "zebra", {}),
+    row("a1", "alpha", {}),
+    row("f1", "friction", {}),
+    row("f2", "friction", {}),
+  ]);
+  assert.deepEqual(verdict.byKind.map((kindRow) => kindRow.kind), ["friction", "alpha", "zebra"]);
+});
+
+test("a duplicate row id keeps the FIRST, matching evaluateDepthFromWork", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("a", "principle", { dependsOn: ["asset:b"] }),
+    row("a", "principle", { dependsOn: [] }),
+    row("b", "principle", {}),
+  ]);
+  assert.equal(verdict.population, 2);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "a")!.outDegree, 1);
+});
+
+test("decisionRows counts the ROWS that collapsed, not the nodes", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("adr-0001", "adr", {}),
+    row("adr-0002", "adr", {}),
+    row("not-a-decision", "principle", {}),
+  ]);
+  assert.equal(verdict.decisionRows, 2);
+  assert.equal(verdict.population, 3);
+});
+
+test("an unparseable pointer is counted apart from a dangling one", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("a", "principle", { dependsOn: ["nonsense", "node:x", "asset:gone"] }),
+  ]);
+  assert.equal(verdict.unparseablePointers, 2);
+  assert.equal(verdict.danglingPointers, 1);
+  assert.equal(verdict.nodes[0]!.edgeFreeReason, "pointers-resolve-nowhere");
 });

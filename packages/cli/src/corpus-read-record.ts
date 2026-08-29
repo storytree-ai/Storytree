@@ -188,16 +188,11 @@ export function foldReadObservations(
 ): ReadonlyMap<string, ReadRecord> {
   const draft = new Map<string, { reads: number; sessions: Set<string>; firstAt: string; lastAt: string }>();
   for (const observation of observations) {
-    const record =
-      draft.get(observation.id) ??
-      draft
-        .set(observation.id, {
-          reads: 0,
-          sessions: new Set(),
-          firstAt: observation.at,
-          lastAt: observation.at,
-        })
-        .get(observation.id)!;
+    let record = draft.get(observation.id);
+    if (record === undefined) {
+      record = { reads: 0, sessions: new Set(), firstAt: observation.at, lastAt: observation.at };
+      draft.set(observation.id, record);
+    }
     record.reads += 1;
     record.sessions.add(observation.sessionId);
     if (observation.at < record.firstAt) record.firstAt = observation.at;

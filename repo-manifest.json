@@ -145,6 +145,8 @@
       "packages/cli/src/check-node-version.ts": "cli",
       "packages/cli/src/lint-panel*.ts": "cli",
       "packages/cli/src/probe-depth-from-work.ts": "cli",
+      "packages/cli/src/corpus-*.ts": "cli",
+      "packages/cli/src/probe-corpus-linkage.ts": "cli",
       "packages/cli/src/verify-panel-decision-depth.ts": "cli",
       "packages/cli/src/probe-adr-graph.ts": "cli",
       "packages/cli/src/probe-combined-dag.ts": "cli",

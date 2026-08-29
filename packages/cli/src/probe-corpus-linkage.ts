@@ -58,6 +58,14 @@ import { loadProbeDecisions } from "./probe-decisions.js";
 
 const TAG = "probe:corpus-linkage";
 
+/** What the agent tier injects, and the denominator that says whether any agent was read at all. */
+interface AgentManifest {
+  /** Artifact id → the agents whose assembled manifest names it. */
+  readonly targets: ReadonlyMap<string, ReadonlySet<string>>;
+  /** How many agent rows were seen. Zero here means the manifest read found nothing to read. */
+  readonly agents: number;
+}
+
 /** One gathered read population, plus the denominators that say whether it read anything. */
 interface GatheredReads {
   readonly observations: readonly ReadObservation[];
@@ -209,10 +217,9 @@ function gatherTranscriptReads(): GatheredReads {
  * finds none of them and reports a confident, plausible zero. Measured here first — the wire read
  * found 24 manifest targets where the raw row holds 116.
  */
-function agentManifestTargets(stored: readonly { id: string; kind: string; doc: unknown }[]): {
-  readonly targets: ReadonlyMap<string, ReadonlySet<string>>;
-  readonly agents: number;
-} {
+function agentManifestTargets(
+  stored: readonly { id: string; kind: string; doc: unknown }[],
+): AgentManifest {
   const targets = new Map<string, Set<string>>();
   let agents = 0;
   const add = (raw: unknown, agent: string): void => {
@@ -225,7 +232,7 @@ function agentManifestTargets(stored: readonly { id: string; kind: string; doc: 
     agents += 1;
     const top = (typeof row.doc === "object" && row.doc !== null ? row.doc : {}) as Record<string, unknown>;
     const nested = (top["fields"] ?? {}) as Record<string, unknown>;
-    const bag: Record<string, unknown> = { ...nested, ...top };
+    const bag = { ...nested, ...top };
     for (const field of ["context", "rules", "antiPatterns"]) {
       const value = bag[field];
       if (Array.isArray(value)) for (const entry of value) add(entry, row.id);

@@ -64,7 +64,6 @@
  */
 
 import {
-  DAG_EXCLUDED_KINDS,
   EDGE_FREE_KINDS,
   KIND_SPECS,
   adrNumberOfArtifactId,
@@ -221,6 +220,21 @@ export interface LinkageVerdict {
   readonly anchorPointers: number;
 }
 
+/**
+ * Get-or-create one adjacency bucket.
+ *
+ * ONE helper rather than the `map.get(k) ?? map.set(k, new Set()).get(k)!` idiom inline at five
+ * call sites: five copies of a rule are a drift surface, and the idiom's non-null assertion is the
+ * kind of thing that gets "simplified" into a bug.
+ */
+function bucket(edges: Map<string, Set<string>>, key: string): Set<string> {
+  const existing = edges.get(key);
+  if (existing !== undefined) return existing;
+  const created = new Set<string>();
+  edges.set(key, created);
+  return created;
+}
+
 function bagOf(doc: unknown): Record<string, unknown> {
   return typeof doc === "object" && doc !== null ? (doc as Record<string, unknown>) : {};
 }
@@ -298,8 +312,8 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
         // A self-pointer is not a link to anything else and must not rescue a node from the
         // unlinked population by pointing at itself.
         if (target.nodeId === nodeId) continue;
-        (outNeighbours.get(nodeId) ?? outNeighbours.set(nodeId, new Set()).get(nodeId)!).add(target.nodeId);
-        (inNeighbours.get(target.nodeId) ?? inNeighbours.set(target.nodeId, new Set()).get(target.nodeId)!).add(nodeId);
+        bucket(outNeighbours, nodeId).add(target.nodeId);
+        bucket(inNeighbours, target.nodeId).add(nodeId);
       } else if (target.sort === "anchor") anchorPointers += 1;
       else if (target.sort === "repo-file") repoFilePointers += 1;
       else if (target.sort === "dangling") danglingPointers += 1;
@@ -308,8 +322,8 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
     for (const number of numbersOf(bag["supersedes"])) {
       const target = decisionNodeId(number);
       if (!nodeIds.has(target) || target === nodeId) continue;
-      (supersedesOut.get(nodeId) ?? supersedesOut.set(nodeId, new Set()).get(nodeId)!).add(target);
-      (supersedesIn.get(target) ?? supersedesIn.set(target, new Set()).get(target)!).add(nodeId);
+      bucket(supersedesOut, nodeId).add(target);
+      bucket(supersedesIn, target).add(nodeId);
     }
   }
 
@@ -342,9 +356,11 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
     { total: number; unlinked: number; isolated: number; offGraph: number; reasons: Map<EdgeFreeReason, number> }
   >();
   for (const node of nodes) {
-    const row =
-      byKindDraft.get(node.kind) ??
-      byKindDraft.set(node.kind, { total: 0, unlinked: 0, isolated: 0, offGraph: 0, reasons: new Map() }).get(node.kind)!;
+    let row = byKindDraft.get(node.kind);
+    if (row === undefined) {
+      row = { total: 0, unlinked: 0, isolated: 0, offGraph: 0, reasons: new Map() };
+      byKindDraft.set(node.kind, row);
+    }
     row.total += 1;
     if (node.edgeFreeReason === null) continue;
     row.unlinked += 1;
