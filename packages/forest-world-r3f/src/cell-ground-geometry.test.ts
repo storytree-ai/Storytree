@@ -958,3 +958,82 @@ test('relief moves no COLOUR — the map still reports exactly what it did', () 
   const relieved = cellGroundGeometry({ cells, resolve, relief: landRelief });
   assert.deepEqual([...relieved.colors], [...flat.colors]);
 });
+
+test('NO `index` resolver means an EMPTY statuses buffer — not a zero-filled one', () => {
+  // ⚠ The distinction is the whole point. A zero-filled buffer says "every parcel is row 0",
+  // and row 0 is a REAL status, so a banded material handed it would paint the entire island
+  // one state and look exactly like working code. Empty is unusable and therefore honest.
+  const built = cellGroundGeometry({ cells: [cellOf(SQUARE_CCW, 'healthy')], resolve: resolveWhite });
+  assert.equal(built.statuses.length, 0);
+  assert.ok(built.colors.length > 0, 'the colour attribute is unaffected by the new one');
+});
+
+test('the status row is ONE float per vertex, and every vertex of a parcel carries its own', () => {
+  const cells = [
+    cellOf(SQUARE_CCW, 'healthy'),
+    cellOf(L_SHAPE, 'unhealthy'),
+    cellOf(SQUARE_CW, 'unknown'),
+  ];
+  const rows: Record<string, number> = { healthy: 0, unhealthy: 4, unknown: 5 };
+  const index = (m: string | undefined): number => rows[m ?? 'unknown'] ?? 5;
+  const built = cellGroundGeometry({ cells, resolve: resolveWhite, index });
+
+  // ONE per vertex, not three: it is a row number, and sizing it like a colour would leave two
+  // thirds of it as zeros — which is row 0, a real status, on two thirds of every parcel.
+  assert.equal(built.statuses.length, built.triangles * 3);
+  assert.equal(built.colors.length, built.triangles * 9);
+
+  // Each parcel's own vertices, contiguous and complete. The counts come from the module's own
+  // published formula rather than from a hand-count, so a change to the wall topology moves both.
+  let at = 0;
+  for (const [ring, material] of [
+    [SQUARE_CCW, 'healthy'],
+    [L_SHAPE, 'unhealthy'],
+    [SQUARE_CW, 'unknown'],
+  ] as const) {
+    const vertices = cellGroundTriangles(ring.length) * 3;
+    for (let v = at; v < at + vertices; v += 1) {
+      assert.equal(built.statuses[v], rows[material], `vertex ${v} of the ${material} parcel`);
+    }
+    at += vertices;
+  }
+  assert.equal(at, built.statuses.length, 'every vertex belongs to some parcel');
+});
+
+test('the row and the COLOUR agree parcel for parcel — two attributes, one status', () => {
+  // The failure this catches is an off-by-one between the two writers: the colour written per
+  // TRIANGLE-vertex and the row written over a [start, end) span. If those spans ever disagreed,
+  // one parcel would wear another parcel's status colour under a banded material while looking
+  // correct under a smooth one — visible only on the surface that ships.
+  const cells = [cellOf(SQUARE_CCW, 'a'), cellOf(L_SHAPE, 'b'), cellOf(ngon(7, 5).map((p) => [p.x, p.z] as const), 'c')];
+  const tint: Record<string, LinearRgb> = {
+    a: { r: 1, g: 0, b: 0 },
+    b: { r: 0, g: 1, b: 0 },
+    c: { r: 0, g: 0, b: 1 },
+  };
+  const order = ['a', 'b', 'c'];
+  const built = cellGroundGeometry({
+    cells,
+    resolve: (m) => tint[m ?? 'a']!,
+    index: (m) => order.indexOf(m ?? 'a'),
+    relief: landRelief,
+  });
+  for (let v = 0; v < built.statuses.length; v += 1) {
+    const row = built.statuses[v]!;
+    const want = tint[order[row]!]!;
+    assert.deepEqual(
+      [built.colors[v * 3], built.colors[v * 3 + 1], built.colors[v * 3 + 2]],
+      [want.r, want.g, want.b],
+      `vertex ${v} carries row ${row} but not row ${row}'s colour`,
+    );
+  }
+});
+
+test('relief moves no ROW either — the field is position-only, so it cannot restate a status', () => {
+  const cells = [cellOf(SQUARE_CCW, 'healthy'), cellOf(L_SHAPE, 'unknown')];
+  const index = (m: string | undefined): number => (m === 'healthy' ? 0 : 5);
+  const flat = cellGroundGeometry({ cells, resolve: resolveWhite, index });
+  const relieved = cellGroundGeometry({ cells, resolve: resolveWhite, index, relief: landRelief });
+  assert.deepEqual([...relieved.statuses], [...flat.statuses]);
+  assert.ok(flat.statuses.length > 0, 'NON-VACUITY: there are rows for the relief to have moved');
+});

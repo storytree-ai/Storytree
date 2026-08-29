@@ -34,6 +34,10 @@ import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 import { frameWorld, orthographicZoomFor } from './camera-framing.js';
 import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry.js';
 import { landRelief } from './land-relief.js';
+import {
+  GROUND_STATUS_ATTRIBUTE,
+  createBandedGroundMaterial,
+} from './banded-ground-material.js';
 
 /** THE DECIDED GROUND VOCABULARY — five colours over six states.
  *
@@ -152,11 +156,38 @@ function HexGround({ tiles }: { tiles: InstanceDescriptor[] }) {
  *  way into the instanced attribute, so a vertex-colour buffer built any other way would draw the
  *  same status token at a visibly different lightness from the classic prisms — the two substrates
  *  would stop agreeing about what a colour MEANS, which on this surface is what the map reports
- *  (ADR-0392 D5 / ADR-0398 D7). Going through the same class is what makes that unrepresentable. */
+ *  (ADR-0392 D5 / ADR-0398 D7). Going through the same class is what makes that unrepresentable.
+ *
+ *  ⚠ THE BANDED GROUND NO LONGER READS THIS, and it is kept because the comparison instrument
+ *  does: `harness/shipped-land-scene.ts` builds the pre-adoption arms — the map as it drew on
+ *  2026-08-29 and again on 2026-08-30 — from the same function with the same resolver, which is
+ *  what makes those arms the shipped map rather than a reconstruction of it. */
 const linearColourOf = (material: string | undefined): LinearRgb => {
   const c = new Color(groundColourOf(material));
   return { r: c.r, g: c.g, b: c.b };
 };
+
+/** THE RAMP ROWS, IN ONE ORDER, DERIVED FROM ONE MAP. `GROUND_TOKENS[i]` is the authored token a
+ *  vertex carrying `statusIndex === i` wears, and {@link groundRowOf} is the inverse. Both come
+ *  off {@link GROUND_COLOUR}'s own insertion order rather than from two hand-kept lists that
+ *  agree today: a geometry indexing one order and a material uploading another would paint every
+ *  parcel a DIFFERENT status's colour — the one failure this surface may never have. */
+const GROUND_TOKENS: readonly string[] = [...GROUND_COLOUR.values()];
+const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
+  [...GROUND_COLOUR.keys()].map((status, i) => [status, i]),
+);
+
+/** The ramp ROW for a status variant. An unrecognised material is `unknown`'s row, exactly as
+ *  {@link groundColourOf} falls back to `unknown`'s colour — the one state that means "no data".
+ *  Falling back to any other row would have the map assert something about work it could not
+ *  classify, and it would do it in the form hardest to notice: a plausible colour. */
+const groundRowOf = (material: string | undefined): number =>
+  GROUND_ROWS.get(material ?? UNKNOWN_STATUS) ?? GROUND_ROWS.get(UNKNOWN_STATUS)!;
+
+/** The ONE banded ground material, built once for the module rather than per canvas: it holds
+ *  only the authored ramp and the authored light, both of which are constants, so a second
+ *  instance would be a second copy of the same 24 colours with a second chance to disagree. */
+const BANDED_GROUND = createBandedGroundMaterial({ tokens: GROUND_TOKENS });
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
  *
@@ -175,23 +206,39 @@ const linearColourOf = (material: string | undefined): LinearRgb => {
  *  nobody flips is not adoption. `landRelief` costs no triangles, no draw call and no attribute
  *  channel — the vertices this mesh already emits simply stand where the land is and face the way
  *  it turns. The before/after is taken by calling `cellGroundGeometry` with and without it, which
- *  is why the field is an INPUT rather than something this file reaches for internally. */
+ *  is why the field is an INPUT rather than something this file reaches for internally.
+ *
+ *  ⚠ AND IT WEARS THE BANDED LADDER, ALSO UNCONDITIONALLY AND FOR THE SAME REASON (2026-08-30).
+ *  Relief alone arrives through `meshStandardMaterial` as a SMOOTH lambert gradient, which is not
+ *  what the approved research renders show — they show four authored zones. Relief was the
+ *  precondition (a ladder over a flat plane has one rung to quantise onto); this is the ladder.
+ *  What changes for the map's honesty is a TIGHTENING rather than a risk: the smooth material
+ *  could deliver any lightness the scene lights produced, where every pixel this one can emit is
+ *  one of the 24 authored `(token x level)` products, floored at 0.78 of the token.
+ *
+ *  ⚠ SO THE COLOUR ATTRIBUTE IS GONE FROM THE UPLOAD, and `statusIndex` is what replaces it. The
+ *  buffer still CARRIES `colors` — the comparison instrument builds the pre-adoption arms out of
+ *  it — but uploading an attribute no material reads would be payload the map draws nothing
+ *  with. */
 function CellGround({ cells }: { cells: InstanceDescriptor[] }) {
   const geo = useMemo(
-    () => cellGroundGeometry({ cells, resolve: linearColourOf, relief: landRelief }),
+    () =>
+      cellGroundGeometry({
+        cells,
+        resolve: linearColourOf,
+        index: groundRowOf,
+        relief: landRelief,
+      }),
     [cells],
   );
   if (geo.triangles === 0) return null;
   return (
-    <mesh>
+    <mesh material={BANDED_GROUND}>
       <bufferGeometry>
         <bufferAttribute attach="attributes-position" args={[geo.positions, 3]} />
         <bufferAttribute attach="attributes-normal" args={[geo.normals, 3]} />
-        <bufferAttribute attach="attributes-color" args={[geo.colors, 3]} />
+        <bufferAttribute attach={`attributes-${GROUND_STATUS_ATTRIBUTE}`} args={[geo.statuses, 1]} />
       </bufferGeometry>
-      {/* `vertexColors` is what carries the per-parcel status through the merge; the material is
-          otherwise the same placeholder `meshStandardMaterial` the classic prisms wear. */}
-      <meshStandardMaterial vertexColors />
     </mesh>
   );
 }

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>the shipped map's ground, flat and relieved — chapter2 (dev-only)</title>
+    <title>the shipped map's ground — four arms, one thing each — chapter2 (dev-only)</title>
     <style>
       :root { color-scheme: dark; }
       html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
@@ -22,23 +22,46 @@
   </head>
   <body>
     <main>
-      <h1>The shipped map&rsquo;s ground &mdash; flat, and standing on the land&rsquo;s relief</h1>
+      <h1>The shipped map&rsquo;s ground &mdash; four arms, one thing each</h1>
       <p>
-        Two arms on the island the studio actually ships (164 parcels), differing in
-        <strong>exactly one thing</strong>: which relief field
-        <code>src/cell-ground-geometry.ts</code> is handed. <code>flat</code> is the identity
-        field, which is the shipped buffer byte for byte as it drew before 2026-08-30;
-        <code>relief</code> is <code>landRelief</code>, which
-        <code>&lt;ForestWorldCanvas&gt;</code> now passes unconditionally. Same parcels, same
-        status colours, same framing, same light &mdash; the light and the framing are imported
-        from the shipped files rather than transcribed, so this is the product&rsquo;s land and
-        not a plausible one.
+        The island the studio actually ships (164 parcels), drawn four times. Each arm differs
+        from the one before it in <strong>exactly one thing</strong>, so the ladder reads left to
+        right as the adoption itself:
+      </p>
+      <p class="numbers">
+        flat&nbsp;&nbsp;&nbsp;&nbsp;the shipped map on 2026-08-29<br />
+        relief&nbsp;&nbsp;+ the land&rsquo;s relief field &mdash; crossed 2026-08-30<br />
+        banded&nbsp;&nbsp;+ the authored shade ladder &mdash; crossed 2026-08-30, and what ships now<br />
+        treated&nbsp;+ the grain octave &mdash; REFERENCE ONLY, see below
       </p>
       <p>
-        The relief adds <strong>no triangles, no draw call and no attribute channel</strong>: the
+        Same parcels, same status colours, same framing, same view direction. The light and the
+        framing direction are <em>imported from the shipped files</em> rather than transcribed, so
+        this is the product&rsquo;s land and not a plausible one.
+      </p>
+      <h2>What each rung actually does</h2>
+      <p>
+        <strong>relief</strong> adds no triangles, no draw call and no attribute channel: the
         vertices this ground already emitted simply stand where the land is and face the way it
-        turns. <code>shipped-land-measure.mjs</code> reads the pictures and the GPU clock off
-        <code>window.landRunner</code>.
+        turns. Under <code>MeshStandardMaterial</code> that arrives as a <em>smooth</em> lambert
+        gradient.
+      </p>
+      <p>
+        <strong>banded</strong> replaces that material with
+        <code>src/banded-ground-material.ts</code>, which quantises the lighting onto the four
+        authored rungs and selects an already-rounded <code>token &times; level</code> colour. It
+        is unlit &mdash; the scene lights do not reach it &mdash; because the ladder computes its
+        own lambert against the authored <code>LIGHT_DIRECTION</code>. Every pixel it can deliver
+        is one of 24 authored entries; the driver <em>refuses</em> a run in which it delivers
+        anything else.
+      </p>
+      <p>
+        <strong>treated</strong> is the experiment&rsquo;s own material
+        (<code>harness/banded-material.ts</code>) wearing the grain octave the approved Cycles
+        render used. It is here because a component that crosses correctly has not thereby
+        delivered the look, and the honest way to report a crossing is beside the ceiling it is
+        reaching for. It is <em>not</em> adoptable as it stands: its colour half mixes a noise ramp
+        into the delivered colour, which is off-palette by construction.
       </p>
       <div id="root"></div>
     </main>

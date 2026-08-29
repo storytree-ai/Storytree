@@ -128,6 +128,15 @@ const ADOPTED: readonly { src: string; reExportedBy: string; because: string }[]
       "the ground's relief field — the first component of the approved land treatment to reach " +
       'the shipped map (owner-authorised 2026-08-29)',
   },
+  {
+    src: 'shade-ladder.ts',
+    reExportedBy: 'palette-band.ts',
+    because:
+      'the authored shade ladder and the `token x level` arithmetic — the shipped ground now ' +
+      'quantises its lighting onto it (`src/banded-ground-material.ts`), so the experiment and ' +
+      'the product cannot band differently. The token VOCABULARY stayed in palette-band.ts: it ' +
+      'is the props, flowers and covers of the harness island, and none of that ships.',
+  },
 ];
 
 const BROWSER_IMPORTS = [/from ['"]three['"]/, /from ['"]react/, /from ['"]@react-three\//];
@@ -174,7 +183,15 @@ test('nothing has left the fence by simply being deleted from the list', () => {
   // nor adopted has to be one this file never claimed to cover — and the assertion is that the
   // two lists together still account for the land treatment's own modules.
   const accounted = new Set([...EXPERIMENT, ...ADOPTED.map((a) => a.src)]);
-  for (const owed of ['land-definition.ts', 'land-relief.ts', 'banded-material.ts', 'land-grain.ts']) {
+  const owedModules = [
+    'land-definition.ts',
+    'land-relief.ts',
+    'banded-material.ts',
+    'land-grain.ts',
+    'palette-band.ts',
+    'shade-ladder.ts',
+  ];
+  for (const owed of owedModules) {
     assert.ok(accounted.has(owed), `${owed} is in neither EXPERIMENT nor ADOPTED — unaccounted for`);
   }
 });

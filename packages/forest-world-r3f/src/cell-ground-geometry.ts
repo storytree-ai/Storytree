@@ -20,11 +20,14 @@
 // that can actually be got wrong, and whose failure mode (a parcel invisible from above
 // under backface culling) looks exactly like the bug this whole module exists to fix.
 //
-// ⚠ THIS IS THE PLACEHOLDER GROUND, AT THE FIDELITY THE CLASSIC SUBSTRATE ALREADY HAD — a
-// flat prism wearing the parcel's folded status colour. It is deliberately NOT the land
-// treatment `adopt-the-land-into-the-shipped-map-arc` is carrying toward this surface: no
-// relief, no grain, no coast, no skirt, no terrain. Adoption is a separate, deliberate event
-// (ADR-0380 D6 / ADR-0406 D2) gated on the ADR-0418 D4 replacement check.
+// ⚠ ADOPTION HAS BEGUN AND THIS FILE IS WHERE IT LANDS. The owner authorised it on 2026-08-29
+// ("This looks better, stamp it"), settling ADR-0380 D6 / ADR-0406 D2's separate-and-deliberate
+// event. Two components of the approved treatment now reach this buffer, both as INPUTS rather
+// than as things this module reaches for — which is what keeps every before/after on this arc
+// the same function called twice: `relief` (the land's shape, crossed 2026-08-30) and `index`
+// (the parcel's ramp ROW, which a banded material selects an authored colour with). Still NOT
+// here: the coast clip, the stepped skirt, and the grain octave — the last of which is a
+// fragment-stage field and belongs to the material, not to a vertex buffer.
 
 import type { InstanceDescriptor } from './world-to-3d.js';
 
@@ -66,6 +69,23 @@ export interface CellGroundGeometryInput {
   /** Status variant → LINEAR colour. The canvas supplies `new THREE.Color(hex)` so the sRGB
    *  transfer function is three's own rather than a transcription of it. */
   resolve: (material: string | undefined) => LinearRgb;
+  /** Status variant → its RAMP ROW, an index into a material's authored `(token x level)` table.
+   *
+   *  ⚠ OPTIONAL, AND ITS ABSENCE MEANS AN EMPTY {@link CellGroundGeometry.statuses}, so a caller
+   *  that predates it gets the buffer it always got. Supplying it is what a BANDED material
+   *  needs and a smooth one does not: `resolve` hands the GPU a colour to light continuously,
+   *  while this hands it a ROW to select a finished, already-rounded authored colour out of.
+   *
+   *  ⚠ THE TWO ARE NOT ALTERNATIVE SPELLINGS OF ONE THING, and the reason is measured rather
+   *  than stylistic. A shader given a colour has to MULTIPLY it by the rung's level, and the
+   *  GPU's float-to-unorm8 conversion resolves an exact half DOWN where `Math.round` takes it
+   *  UP — which delivered 929 px of `#c2ad5e` against the authored `#c2ad5f` the first time
+   *  this package tried it (see `bandLevelIndex` in `shade-ladder.ts`). THREE of this map's own
+   *  authored products land on exactly that knife edge — `#d8c069`'s blue at 0.9 (94.5) and
+   *  `#9ca3af`'s at 0.9 (157.5) and 0.78 (136.5) — so the arithmetic is done ONCE in TypeScript
+   *  and the GPU is handed a row and a rung to look up. `banded-ground-material.test.ts`
+   *  ENUMERATES that class rather than sampling it. */
+  index?: ((material: string | undefined) => number) | undefined;
   /** Prism depth below the ground plane. Defaults to {@link CELL_GROUND_DEPTH}. */
   depth?: number;
   /** The ground's RELIEF — how high the land stands at a point, and which way it faces there.
@@ -114,6 +134,14 @@ export interface CellGroundGeometry {
   normals: Float32Array;
   /** Per-vertex LINEAR colour — the parcel's folded status, surviving the merge. */
   colors: Float32Array;
+  /** Per-vertex RAMP ROW — the same parcel status as {@link colors}, in the form a banded
+   *  material selects with. ONE float per vertex, not three: it is a row number.
+   *
+   *  ⚠ EMPTY when the caller supplied no `index`, rather than absent or zero-filled. Empty is
+   *  the honest report — a zero-filled buffer would say every parcel is row 0, which is a real
+   *  status, and a material handed it would paint the whole island one colour while looking
+   *  like it was working. */
+  statuses: Float32Array;
   /** Parcels actually built (rings of fewer than three vertices bound no area and are dropped). */
   cells: number;
   /** Triangles in the merged buffer — the authored count `harness/baseline-measure.mjs`
@@ -307,6 +335,10 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   const positions = new Float32Array(triangles * 9);
   const normals = new Float32Array(triangles * 9);
   const colors = new Float32Array(triangles * 9);
+  // ⚠ ONE float per VERTEX, where the three above carry three. It is a row number, not a colour,
+  // and sizing it like a colour would silently leave two thirds of it as zeros — row 0, a real
+  // status — which is the failure mode that looks exactly like working code.
+  const statuses = input.index === undefined ? new Float32Array(0) : new Float32Array(triangles * 3);
   let w = 0;
 
   /** Write one triangle with an EXPLICIT normal per vertex — the top face's route, because the
@@ -367,6 +399,11 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
 
   for (const ring of rings) {
     const colour = input.resolve(ring.material);
+    // ⚠ READ OFF `w` BEFORE AND AFTER, never re-derived from the ring's own vertex arithmetic.
+    // The top face and the walls emit different counts and a second formula for "how many
+    // vertices did this parcel write" is a second way to get the answer wrong — which here means
+    // one parcel's row bleeding onto the next parcel's triangles, i.e. a foreign-status read.
+    const vertexStart = w / 3;
     const pts = normalisedRing(ring.pts.map((p) => ({ x: p.x, z: p.z })));
     const n = pts.length;
 
@@ -402,7 +439,12 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       pushTriangle(topNext, top, botNext, colour);
       pushTriangle(botNext, top, bot, colour);
     }
+
+    if (input.index !== undefined) {
+      const row = input.index(ring.material);
+      for (let v = vertexStart; v < w / 3; v += 1) statuses[v] = row;
+    }
   }
 
-  return { positions, normals, colors, cells: rings.length, triangles };
+  return { positions, normals, colors, statuses, cells: rings.length, triangles };
 }

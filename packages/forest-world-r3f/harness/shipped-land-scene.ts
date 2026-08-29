@@ -1,17 +1,20 @@
-// shipped-land-scene.ts — THE SHIPPED MAP'S GROUND, FLAT AND RELIEVED, ON ONE SCREEN.
+// shipped-land-scene.ts — THE SHIPPED MAP'S GROUND, AS A LADDER OF FOUR ARMS ON ONE SCREEN.
 //
-// THE INCREMENT: `put-the-treatment-on-the-shipped-map` on `adopt-the-land-into-the-shipped-map-arc`.
-// The owner authorised adoption on 2026-08-29 and asked, on this arc specifically, that every
-// increment land a comparison he can LOOK at — "variants that differ in exactly ONE thing,
-// rendered at both zooms, measured on the same instrument, with the pictures committed beside the
-// numbers". This is that page for the first component across: the land's relief.
+// THE INCREMENT: `improve-the-ground-texture` / `put-the-treatment-on-the-shipped-map` on
+// `adopt-the-land-into-the-shipped-map-arc`. The owner authorised adoption on 2026-08-29 and asked,
+// on this arc specifically, that every increment land a comparison he can LOOK at — "variants that
+// differ in exactly ONE thing, rendered at both zooms, measured on the same instrument, with the
+// pictures committed beside the numbers". This is that page, and it GREW A RUNG rather than being
+// replaced: the relief comparison it was built for on 2026-08-30 is still its first two arms.
 //
-// ⚠⚠ THE TWO ARMS ARE THE SAME FUNCTION CALLED TWICE, and that is what makes this a controlled
-// comparison rather than an assertion. Both arms are `src/cell-ground-geometry.ts` over the same
-// parcels, the same status colours and the same framing; the ONLY difference is which relief field
-// is handed in — `FLAT_GROUND` (the identity, which `cell-ground-geometry.test.ts` proves is the
-// old buffer byte for byte) or `landRelief` (what the shipped canvas now passes). Nothing here
-// re-implements the ground.
+// ⚠⚠ THE ARMS ARE THE SAME FUNCTION CALLED FOUR TIMES, and that is what makes this a controlled
+// comparison rather than an assertion. Every arm is `src/cell-ground-geometry.ts` over the same
+// parcels, the same status rows and the same framing. Between `flat` and `relief` the only
+// difference is which relief field is handed in — `FLAT_GROUND` (the identity, which
+// `cell-ground-geometry.test.ts` proves is the old buffer byte for byte) or `landRelief`. Between
+// `relief` and `banded` the only difference is the MATERIAL. Nothing here re-implements the ground.
+//
+// ⚠ THE FOURTH ARM IS THE ONE EXCEPTION AND IT SAYS SO — see {@link LAND_ARMS}.
 //
 // ⚠ THE LIGHT AND THE VIEW DIRECTION ARE THE SHIPPED ONES, NOT PLAUSIBLE ONES, AND THAT MATTERS
 // MORE HERE THAN ANYWHERE ELSE ON THIS ARC. Relief moves no colour and adds no mark: the whole
@@ -41,16 +44,55 @@ import {
   type GroundRelief,
   type LinearRgb,
 } from '../src/cell-ground-geometry.js';
+import {
+  GROUND_STATUS_ATTRIBUTE,
+  createBandedGroundMaterial,
+  groundRamp,
+} from '../src/banded-ground-material.js';
 import { frameWorld } from '../src/camera-framing.js';
 import { landHeightRange, landRelief } from '../src/land-relief.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
+import { createBandedMaterial } from './banded-material.js';
 import { islandScene } from './island-fixture.js';
 import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 
-/** The two arms. `flat` is the shipped map as it drew on 2026-08-29; `relief` is as it draws now. */
-export type LandArm = 'flat' | 'relief';
-export const LAND_ARMS: readonly LandArm[] = ['flat', 'relief'];
+/**
+ * THE FOUR ARMS — a ladder in which each rung differs from the one before it in ONE thing.
+ *
+ *   flat     the shipped map as it drew on 2026-08-29
+ *   relief   + the land's relief field           (crossed 2026-08-30, PR #1725)
+ *   banded   + the authored shade ladder         (crossed 2026-08-30, THIS increment)
+ *   treated  + the grain octave                  (REFERENCE ONLY - see below)
+ *
+ * THE `treated` ARM IS A REFERENCE AND NOT A SHIPPED ONE, and saying so is the point of it. The
+ * owner reframed the standard on 2026-08-30: "the image that I stamped as looking awesome was
+ * done in isolation and now we trying to do the same with the app constraints in place." So a
+ * component that crosses correctly has not thereby delivered the look, and the honest way to
+ * report a crossing is beside the ceiling it is reaching for. `treated` is the EXPERIMENT's own
+ * material (`harness/banded-material.ts`) wearing the grain the approved Cycles render used, on
+ * the same island, in the same frame, on the same GPU.
+ *
+ * It is drawn by a DIFFERENT IMPLEMENTATION from `banded`, which the other three rungs are not -
+ * those are one function called with one input changed. The gap is closed by arithmetic rather
+ * than by hope: `shipped-land-scene.test.ts` proves the two materials' ramps are IDENTICAL for
+ * this island's token, so the only thing that can differ between `banded` and `treated` is the
+ * grain. When `land-grain.ts` crosses, `treated` becomes an ordinary controlled arm.
+ *
+ * And its colour half is OFF-PALETTE BY CONSTRUCTION (`land-grain.ts`), so it could not be
+ * adopted today whatever it looks like: it mixes a noise ramp INTO the delivered colour, and the
+ * shipped ground's whole guarantee is that every pixel is an authored `(token x level)` entry.
+ * That is a fence question for `improve-the-ground-texture`, not something a picture settles.
+ */
+export type LandArm = 'flat' | 'relief' | 'banded' | 'treated';
+export const LAND_ARMS: readonly LandArm[] = ['flat', 'relief', 'banded', 'treated'];
+
+/** Consecutive pairs of the ladder - what `changedPct` is asked for, and what the report tables.
+ *  Derived from {@link LAND_ARMS} rather than written out, so an arm added in the middle cannot
+ *  leave the pair list quietly describing the old ladder. */
+export const LAND_STEPS: readonly (readonly [LandArm, LandArm])[] = LAND_ARMS.slice(1).map(
+  (arm, i) => [LAND_ARMS[i]!, arm] as const,
+);
 
 /** Delivered CSS pixels per ground unit. The same two zooms every other comparison on this arc is
  *  taken at: 2 is roughly the overview a laptop opens on, 8 is the zoomed-in read. On an
@@ -61,7 +103,39 @@ export const LAND_ZOOMS: readonly number[] = [2, 8];
 const RELIEF_OF = {
   flat: FLAT_GROUND,
   relief: landRelief,
+  banded: landRelief,
+  treated: landRelief,
 } satisfies Record<LandArm, GroundRelief>;
+
+/** The ramp ROWS the shipped canvas uses, in its own `GROUND_COLOUR` order - transcribed here off
+ *  `SHIPPED_GROUND_COLOUR`, which `shipped-baseline.test.ts` parses out of `ForestWorldCanvas.tsx`
+ *  and refuses on drift. So the arm below wears the rows and the tokens the map itself wears. */
+const GROUND_TOKENS: readonly string[] = [...SHIPPED_GROUND_COLOUR.values()];
+const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
+  [...SHIPPED_GROUND_COLOUR.keys()].map((status, i) => [status, i]),
+);
+const groundRowOf = (material: string | undefined): number =>
+  GROUND_ROWS.get(material ?? 'unknown') ?? GROUND_ROWS.get('unknown')!;
+
+/**
+ * THE ISLAND'S ONE STATUS - and the refusal that keeps the reference arm honest.
+ *
+ * `treated` wears `harness/banded-material.ts`, which takes ONE authored token per material,
+ * because the experiment island builds a mesh per prop role. That is only a truthful picture of
+ * THIS island while the island wears one status. It does today; if it ever stops, a single-token
+ * reference arm would paint every parcel the same state and the picture would be a lie about the
+ * map's whole job (ADR-0392 D5 / ADR-0398 D7). So it is checked rather than assumed.
+ */
+export function soleIslandToken(cells: readonly InstanceDescriptor[]): string {
+  const statuses = [...new Set(cells.map((c) => c.material ?? 'unknown'))];
+  if (statuses.length !== 1) {
+    throw new Error(
+      `shipped-land-scene: the reference arm needs a single-status island, found ${statuses.length}` +
+        ` (${statuses.join(', ')}). Cross land-grain.ts and drop the reference arm instead.`,
+    );
+  }
+  return SHIPPED_GROUND_COLOUR.get(statuses[0]!) ?? SHIPPED_GROUND_COLOUR.get('unknown')!;
+}
 
 /** The parcels of the island the studio actually ships — 164 of them, mean diameter 16.57 ground
  *  units, 191 distinct ring vertices of which 185 belong to more than one parcel. That last figure
@@ -132,13 +206,31 @@ export interface LandScene {
  */
 export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
   const cells = shippedParcels();
-  const geo = cellGroundGeometry({ cells, resolve: linearColourOf, relief: RELIEF_OF[arm] });
+  const geo = cellGroundGeometry({
+    cells,
+    resolve: linearColourOf,
+    index: groundRowOf,
+    relief: RELIEF_OF[arm],
+  });
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(geo.positions, 3));
   geometry.setAttribute('normal', new THREE.BufferAttribute(geo.normals, 3));
   geometry.setAttribute('color', new THREE.BufferAttribute(geo.colors, 3));
-  const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ vertexColors: true }));
+  geometry.setAttribute(GROUND_STATUS_ATTRIBUTE, new THREE.BufferAttribute(geo.statuses, 1));
+  // THE PRE-BANDED ARMS KEEP `MeshStandardMaterial` AND THEREFORE THE SCENE LIGHTS. That is not
+  // an inconsistency to tidy up: it is what those arms ARE. `flat` and `relief` are the map as it
+  // drew on 2026-08-29 and 2026-08-30, lit by the ambient-plus-directional pair
+  // `shipped-baseline.ts` reads out of the canvas. `banded` is unlit because the ladder computes
+  // its own lambert against the authored `LIGHT_DIRECTION` - which is exactly the change being
+  // pictured, so hiding it under a common material would be a comparison of nothing.
+  const material =
+    arm === 'flat' || arm === 'relief'
+      ? new THREE.MeshStandardMaterial({ vertexColors: true })
+      : arm === 'banded'
+        ? createBandedGroundMaterial({ tokens: GROUND_TOKENS })
+        : createBandedMaterial({ token: soleIslandToken(cells), grain: { mode: 'both' } });
+  const mesh = new THREE.Mesh(geometry, material);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
@@ -236,13 +328,34 @@ export interface LandColourReading {
   landPixels: number;
 }
 
+/** WHAT AN ARM DELIVERED THAT THE AUTHORED PALETTE DOES NOT CONTAIN.
+ *
+ *  ⚠ THE POINT IS `count === 0`, AND EVERY OTHER FIELD IS THERE TO STOP THAT READING VACUOUSLY.
+ *  An arm that drew nothing at all delivers zero off-palette pixels too, so `landPixels` and
+ *  `distinctLand` are reported beside it: the honest claim is "it drew an island, and every pixel
+ *  of that island is an authored entry", which no single number states. */
+export interface LandPaletteReading {
+  arm: LandArm;
+  pxPerUnit: number;
+  /** Non-background pixels whose colour is not an authored `(token x level)` entry. */
+  count: number;
+  /** Those colours, as `#rrggbb`, deduped and sorted — so a failure names what it saw. */
+  colours: string[];
+  /** Distinct non-background colours delivered, and how many authored entries exist to hit. */
+  distinctLand: number;
+  authored: number;
+  landPixels: number;
+}
+
 export interface LandRunner {
   identity(): RendererIdentity;
   warm(): void;
   snapshot(arm: LandArm, pxPerUnit: number): string;
   colours(arm: LandArm, pxPerUnit: number): LandColourReading;
-  /** Percentage of pixels that differ between the two arms at this zoom, on identical frames. */
-  changedPct(pxPerUnit: number): number;
+  /** Percentage of pixels that differ between two arms at this zoom, on identical frames. */
+  changedPct(a: LandArm, b: LandArm, pxPerUnit: number): number;
+  /** Delivered pixels that are not authored ladder entries — see {@link LandPaletteReading}. */
+  offPalette(arm: LandArm, pxPerUnit: number): LandPaletteReading;
   time(arm: LandArm, pxPerUnit: number, batch: number): Promise<LandArmReading>;
   dispose(): void;
 }
@@ -328,21 +441,63 @@ export function createLandRunner(): LandRunner {
       return { arm, pxPerUnit, distinct: seen.size, landPixels };
     },
 
-    changedPct(pxPerUnit) {
-      // ⚠ READ IN ONE PASS EACH, AND ONLY BECAUSE THE FRAMES ARE IDENTICAL BY CONSTRUCTION. Both
-      // arms are fitted to the same bounds and sized from the same numbers, so a pixel index means
-      // the same place in both. An earlier instrument on this arc compared two differently-sized
-      // frames and reported 100% of pixels differing — in every arm, whatever it drew.
-      const flat = readFrame(render('flat', pxPerUnit));
-      const relief = readFrame(render('relief', pxPerUnit));
-      if (flat.length !== relief.length) return Number.NaN;
+    changedPct(a, b, pxPerUnit) {
+      // ⚠ READ IN ONE PASS EACH, AND ONLY BECAUSE THE FRAMES ARE IDENTICAL BY CONSTRUCTION. Every
+      // arm is fitted to the same bounds and sized from the same numbers, so a pixel index means
+      // the same place in all of them. An earlier instrument on this arc compared two
+      // differently-sized frames and reported 100% of pixels differing — in every arm, whatever
+      // it drew.
+      const first = readFrame(render(a, pxPerUnit));
+      const second = readFrame(render(b, pxPerUnit));
+      if (first.length !== second.length) return Number.NaN;
       let changed = 0;
-      for (let i = 0; i < flat.length; i += 4) {
-        if (flat[i] !== relief[i] || flat[i + 1] !== relief[i + 1] || flat[i + 2] !== relief[i + 2]) {
-          changed += 1;
-        }
+      for (let i = 0; i < first.length; i += 4) {
+        const same =
+          first[i] === second[i] &&
+          first[i + 1] === second[i + 1] &&
+          first[i + 2] === second[i + 2];
+        if (!same) changed += 1;
       }
-      return (changed / (flat.length / 4)) * 100;
+      return (changed / (first.length / 4)) * 100;
+    },
+
+    offPalette(arm, pxPerUnit) {
+      // THE AUTHORED CLOSURE, packed the same way the frame is read. `groundRamp` is the very
+      // array the material uploads, so this compares delivered pixels against the material's own
+      // table rather than against a transcription of it — the argument `bandGlsl` makes about the
+      // ladder, applied to the pixels.
+      const authored = new Set(
+        groundRamp(GROUND_TOKENS).map(
+          (entry) =>
+            (Math.round(entry[0]! * 255) << 16) |
+            (Math.round(entry[1]! * 255) << 8) |
+            Math.round(entry[2]! * 255),
+        ),
+      );
+      const s = render(arm, pxPerUnit);
+      const px = readFrame(s);
+      const strays = new Map<number, number>();
+      const land = new Set<number>();
+      let landPixels = 0;
+      for (let i = 0; i < px.length; i += 4) {
+        const key = (px[i]! << 16) | (px[i + 1]! << 8) | px[i + 2]!;
+        if (key === BACKGROUND_KEY) continue;
+        landPixels += 1;
+        land.add(key);
+        if (!authored.has(key)) strays.set(key, (strays.get(key) ?? 0) + 1);
+      }
+      let count = 0;
+      for (const n of strays.values()) count += n;
+      const hex = (k: number): string => `#${k.toString(16).padStart(6, '0')}`;
+      return {
+        arm,
+        pxPerUnit,
+        count,
+        colours: [...strays.keys()].map(hex).sort(),
+        distinctLand: land.size,
+        authored: authored.size,
+        landPixels,
+      };
     },
 
     snapshot(arm, pxPerUnit) {
@@ -385,7 +540,16 @@ export function createLandRunner(): LandRunner {
   };
 }
 
-/** Mount the page: both arms at both zooms, side by side, with the runner on `window` for the
+/** What each rung of the ladder ADDED, for the caption under its picture. Kept beside the arms
+ *  rather than in the HTML so a rung cannot be added without a reader being told what it is. */
+const ARM_CAPTION = {
+  flat: 'the shipped map on 2026-08-29',
+  relief: '+ the land relief field',
+  banded: '+ the authored shade ladder (SHIPPED)',
+  treated: '+ the grain octave (REFERENCE — off-palette, not adopted)',
+} satisfies Record<LandArm, string>;
+
+/** Mount the page: every arm at both zooms, side by side, with the runner on `window` for the
  *  driver to reach. */
 export function mountShippedLand(root: HTMLElement): void {
   const runner = createLandRunner();
@@ -409,10 +573,7 @@ export function mountShippedLand(root: HTMLElement): void {
       img.src = runner.snapshot(arm, zoom);
       img.width = Math.min(s.width, 900);
       const cap = document.createElement('figcaption');
-      cap.textContent =
-        arm === 'flat'
-          ? 'flat — the shipped map before 2026-08-30'
-          : `relief — ${s.triangles} triangles, the same as flat`;
+      cap.textContent = `${arm} — ${ARM_CAPTION[arm]} · ${s.triangles} triangles`;
       fig.append(img, cap);
       row.appendChild(fig);
     }
