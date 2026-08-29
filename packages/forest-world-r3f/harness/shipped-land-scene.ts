@@ -217,10 +217,32 @@ export interface LandArmReading {
   gpuNs: number | null;
 }
 
+/** How much SHADING an arm delivered, and how much of the frame it changed.
+ *
+ *  ⚠ THE COLOUR COUNT IS THE POINT AND THE PIXEL COUNT IS ITS CONTROL. Relief is a lighting
+ *  operation: it authors no colour, so what it can only do is spread each status token across
+ *  more of the range between its lit and unlit ends. A flat island delivers a handful of colours
+ *  — one per status per face orientation — and a relieved one delivers a gradient, so the count
+ *  is the direct measure of whether the land gained any shading at all rather than merely moving.
+ *  On its own it would be satisfied by an arm that changed colour everywhere and shape nowhere,
+ *  which is why `changedPct` (against the SAME arm's flat sibling, same frame, same size) is
+ *  reported beside it. */
+export interface LandColourReading {
+  arm: LandArm;
+  pxPerUnit: number;
+  /** Distinct RGB triples delivered over the whole frame, background included. */
+  distinct: number;
+  /** Pixels that are not the background — the island's own delivered area. */
+  landPixels: number;
+}
+
 export interface LandRunner {
   identity(): RendererIdentity;
   warm(): void;
   snapshot(arm: LandArm, pxPerUnit: number): string;
+  colours(arm: LandArm, pxPerUnit: number): LandColourReading;
+  /** Percentage of pixels that differ between the two arms at this zoom, on identical frames. */
+  changedPct(pxPerUnit: number): number;
   time(arm: LandArm, pxPerUnit: number, batch: number): Promise<LandArmReading>;
   dispose(): void;
 }
@@ -240,11 +262,27 @@ async function elapsedNs(gl: WebGL2RenderingContext, query: WebGLQuery): Promise
   return null;
 }
 
+/** The background packed the way {@link LandRunner.colours} keys pixels, so "not the island" is a
+ *  comparison against the colour the shipped canvas actually clears to rather than against black. */
+const BACKGROUND_KEY = (() => {
+  const c = new THREE.Color(SHIPPED_LIGHTING.background);
+  const to8 = (v: number): number => Math.round(Math.min(1, Math.max(0, v)) * 255);
+  const s = c.clone().convertLinearToSRGB();
+  return (to8(s.r) << 16) | (to8(s.g) << 8) | to8(s.b);
+})();
+
 export function createLandRunner(): LandRunner {
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
   const gl = renderer.getContext() as WebGL2RenderingContext;
+
+  /** The delivered frame, straight out of the renderer's own buffer. */
+  const readFrame = (s: LandScene): Uint8Array => {
+    const px = new Uint8Array(s.width * s.height * 4);
+    gl.readPixels(0, 0, s.width, s.height, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return px;
+  };
   const timer = gl.getExtension(GPU_TIMER) as { TIME_ELAPSED_EXT: number } | null;
   const identity = readIdentity(gl);
 
@@ -277,6 +315,36 @@ export function createLandRunner(): LandRunner {
       for (const zoom of LAND_ZOOMS) for (const arm of LAND_ARMS) render(arm, zoom);
       gl.finish();
     },
+    colours(arm, pxPerUnit) {
+      const s = render(arm, pxPerUnit);
+      const px = readFrame(s);
+      const seen = new Set<number>();
+      let landPixels = 0;
+      for (let i = 0; i < px.length; i += 4) {
+        const key = (px[i]! << 16) | (px[i + 1]! << 8) | px[i + 2]!;
+        seen.add(key);
+        if (key !== BACKGROUND_KEY) landPixels += 1;
+      }
+      return { arm, pxPerUnit, distinct: seen.size, landPixels };
+    },
+
+    changedPct(pxPerUnit) {
+      // ⚠ READ IN ONE PASS EACH, AND ONLY BECAUSE THE FRAMES ARE IDENTICAL BY CONSTRUCTION. Both
+      // arms are fitted to the same bounds and sized from the same numbers, so a pixel index means
+      // the same place in both. An earlier instrument on this arc compared two differently-sized
+      // frames and reported 100% of pixels differing — in every arm, whatever it drew.
+      const flat = readFrame(render('flat', pxPerUnit));
+      const relief = readFrame(render('relief', pxPerUnit));
+      if (flat.length !== relief.length) return Number.NaN;
+      let changed = 0;
+      for (let i = 0; i < flat.length; i += 4) {
+        if (flat[i] !== relief[i] || flat[i + 1] !== relief[i + 1] || flat[i + 2] !== relief[i + 2]) {
+          changed += 1;
+        }
+      }
+      return (changed / (flat.length / 4)) * 100;
+    },
+
     snapshot(arm, pxPerUnit) {
       render(arm, pxPerUnit);
       // ⚠ The renderer's OWN buffer, not an element screenshot — an element screenshot composites

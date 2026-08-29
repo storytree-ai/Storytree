@@ -144,6 +144,36 @@ for (const zoom of LAND_ZOOMS) {
   }
 }
 
+// ── DID THE LAND GAIN ANY SHADING? Relief authors no colour, so all it can do is spread each
+//    status token across more of the range between its lit and unlit ends. A flat island delivers
+//    a handful of colours; a relieved one delivers a gradient.
+const colours = new Map();
+for (const zoom of LAND_ZOOMS) {
+  for (const arm of LAND_ARMS) {
+    colours.set(
+      `${arm}|${zoom}`,
+      await page.evaluate(([a, z]) => window.landRunner.colours(a, z), [arm, zoom]),
+    );
+  }
+}
+const changed = new Map();
+for (const zoom of LAND_ZOOMS) {
+  changed.set(zoom, await page.evaluate((z) => window.landRunner.changedPct(z), zoom));
+}
+for (const zoom of LAND_ZOOMS) {
+  const flat = colours.get(`flat|${zoom}`);
+  const relief = colours.get(`relief|${zoom}`);
+  // ⚠ NON-VACUITY. If the relieved arm delivered no more colours than the flat one, the treatment
+  // reached the buffer (the y-span control above says so) and reached NO PIXEL — which is a real
+  // finding and not something to publish four pictures over in silence.
+  if (relief.distinct <= flat.distinct) {
+    fail(
+      `at zoom ${zoom} the relieved arm delivers ${relief.distinct} distinct colours against the ` +
+        `flat arm's ${flat.distinct} — the relief is in the geometry but not in the picture`,
+    );
+  }
+}
+
 // ── THE PICTURES.
 mkdirSync(OUT, { recursive: true });
 const pictures = [];
@@ -173,19 +203,25 @@ for (const zoom of LAND_ZOOMS) {
 const verdict = frameBudgetVerdict({ rows, baselineLabel: `flat @ ${LAND_ZOOMS[0]}px` });
 
 console.log('');
-console.log('arm            zoom   median ms   spread ms   % of 60Hz   draw calls   triangles   y span');
+console.log('arm        zoom   median ms   spread ms   % of 60Hz   draws   triangles   y span   colours   land px');
 for (const zoom of LAND_ZOOMS) {
   for (const arm of LAND_ARMS) {
     const r = readings.get(`${arm}|${zoom}`);
+    const c = colours.get(`${arm}|${zoom}`);
     const m = median(r.samples);
     console.log(
-      `${arm.padEnd(8)}   ${String(zoom).padStart(4)}   ${m.toFixed(4).padStart(9)}   ` +
+      `${arm.padEnd(6)}   ${String(zoom).padStart(4)}   ${m.toFixed(4).padStart(9)}   ` +
         `${spread(r.samples).toFixed(4).padStart(9)}   ` +
         `${((m / FRAME_BUDGET_60HZ_MS) * 100).toFixed(2).padStart(9)}   ` +
-        `${String(r.drawCalls).padStart(10)}   ${String(r.triangles).padStart(9)}   ` +
-        `${r.heightSpan.toFixed(2).padStart(6)}`,
+        `${String(r.drawCalls).padStart(5)}   ${String(r.triangles).padStart(9)}   ` +
+        `${r.heightSpan.toFixed(2).padStart(6)}   ${String(c.distinct).padStart(7)}   ` +
+        `${String(c.landPixels).padStart(7)}`,
     );
   }
+}
+console.log('');
+for (const zoom of LAND_ZOOMS) {
+  console.log(`at ${zoom} px/unit the relief changes ${changed.get(zoom).toFixed(1)}% of the frame`);
 }
 console.log('');
 console.log(`frame budget: ${verdict.status}`);
@@ -199,6 +235,8 @@ writeFileSync(
       repeats: REPEATS,
       batch: BATCH,
       zooms: LAND_ZOOMS,
+      colours: Object.fromEntries(colours),
+      changedPct: Object.fromEntries(changed),
       arms: Object.fromEntries([...readings.entries()].map(([k, v]) => [k, { ...v, median: median(v.samples), spread: spread(v.samples) }])),
       verdict,
       pictures,
