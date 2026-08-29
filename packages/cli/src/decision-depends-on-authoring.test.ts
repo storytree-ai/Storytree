@@ -7,7 +7,7 @@
  * leaves exactly one link of the real chain unexercised: **the write**.
  *
  * `decision-read-measurement-arc-inc-07` will rehome ~446 edges from `amends` onto `dependsOn`
- * through `storytree library artifact adr-NNNN --set dependsOn=…`. If that command refuses the
+ * through `storytree library artifact edit adr-NNNN --set dependsOn=…`. If that command refuses the
  * field, or accepts it and stores a shape `readDependsOnPointers` does not read, the drain either
  * cannot start or lands hundreds of edges that are invisible to the very measurement this arc
  * exists to take. Both failures are silent at the read side — an unwritten edge and an unwalked one

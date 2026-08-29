@@ -377,6 +377,17 @@ console.log(
     '50-degree camera then foreshortens.',
 );
 console.log(`props standing in the whole crowd: ${shape.props.total}`);
+// ⚠ CHECKED IN FOREST SPACE, which is the one thing the single-island page cannot ask: each
+// island is dressed in its OWN coordinates and then offset, so only the layout can put one
+// island's tree inside another's. Empty is the claim.
+if (shape.overlaps.length > 0) {
+  const worst = shape.overlaps
+    .slice(0, 6)
+    .map((o) => `${o.a} / ${o.b} by ${(-o.gap).toFixed(2)} units`)
+    .join('\n  ');
+  fail(`${shape.overlaps.length} pair(s) of props overlap ACROSS the forest:\n  ${worst}`);
+}
+console.log('props overlapping across the whole forest: 0');
 
 console.log('\nLEGIBILITY — does a prop still read as an object?');
 for (const zoom of ZOOMS) {

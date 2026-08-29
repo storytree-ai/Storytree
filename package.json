@@ -45,6 +45,7 @@
     "probe:decision-control-set": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-control-set.ts",
     "probe:decision-composition-trial": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-composition-trial.ts",
     "probe:re-reads": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-re-reads.ts",
+    "probe:citation-readers": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-citation-readers.ts",
     "standson:bootstrap": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/standson-bootstrap.ts",
     "check:web-grounding": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-grounding.ts",
     "check:web-experience-closure": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-web-experience-closure.ts",

@@ -65,10 +65,14 @@ const BATCH = Number(process.env['ST_KIT_BATCH'] ?? 300);
 // Only the COMMITTED rung by default: the others are not in the repo (the kit is ~900 MB and
 // lives on the owner's box), so a default sweep would fail on any fresh checkout. Regenerate them
 // with `export-dressing.py` and pass ST_KIT_RUNGS=512,256,128 to re-run the comparison.
-const RUNGS = (process.env['ST_KIT_RUNGS'] ?? String(process.env['ST_KIT_COMMITTED_RUNG'] ?? 256))
-  .split(',')
-  .map(Number);
+const RUNGS = (process.env['ST_KIT_RUNGS'] ?? '').split(',').map(Number).filter((n) => n > 0);
 const COMMITTED_RUNG = Number(process.env['ST_KIT_COMMITTED_RUNG'] ?? 128);
+// ⚠ THE MAIN RUN LOADS THE COMMITTED ASSET BY ITS COMMITTED NAME. It used to load
+// `dressing-webp90-<rung>.glb`, which is the EXPORT's filename and is not in the repo — so the
+// driver could only run on a box that had just re-exported the kit, and a fresh checkout got a
+// 404 dressed up as an empty island. The rung sweep still opens rung files by name, and is now
+// opt-in (`ST_KIT_RUNGS`) because which rung is right was settled by measurement in PR #1693.
+const KIT_ASSET = process.env['ST_KIT_ASSET'] ?? '/assets/dressing-kit.glb';
 
 function fail(msg) {
   console.error(`\nREFUSED: ${msg}\n`);
@@ -131,7 +135,7 @@ function pngOf(dataUrl) {
 
 // ------------------------------------------------------------------ the committed rung's run
 
-const main = await openPage(`/assets/dressing-webp90-${COMMITTED_RUNG}.glb`);
+const main = await openPage(KIT_ASSET);
 const identity = await main.page.evaluate(() => window.__stKitIdentity());
 if (identity.software || /swiftshader|llvmpipe|software/i.test(identity.renderer)) {
   await browser.close();
@@ -178,15 +182,52 @@ for (const zoom of ZOOMS) {
   // bound (PR #1686's surviving mutation), so a modest multiple is reachable without texturing.
   // What settles that question properly is the colour-convention probe on the same asset; this
   // floor only refuses an arm that drew nothing at all.
-  const bar = Math.max(readings.today.distinct, readings.bare.distinct) * 4;
+  // Over EVERY banded arm, not two named ones: `land` joined them on 2026-08-29 and a bar that
+  // named its siblings by hand would have silently stopped covering the richest of them.
+  const banded = KIT_ARMS.filter((a) => a !== 'kit');
+  const bar = Math.max(...banded.map((a) => readings[a].distinct)) * 4;
   presence.push({
     zoom,
     bare: readings.bare.distinct,
     today: readings.today.distinct,
+    land: readings.land.distinct,
     kit: readings.kit.distinct,
     bar,
     ok: readings.kit.distinct >= bar,
   });
+}
+
+// ---- THE PLACEMENT'S OWN VERDICT, and the asset the pure tests placed against.
+//
+// ⚠ BOTH OF THESE ARE REFUSALS RATHER THAN NUMBERS IN A TABLE. The overlap is the defect the
+// owner reported by eye ("the rocks are appearing where the trees are"); a run that photographed
+// an island with props inside each other and printed a count would be handing him the same
+// picture again with a footnote. And the footprint check is what ties the pure tests to the
+// asset: they place at a frozen table because they have no GPU to load a kit with, so a
+// re-export that changed a tree's proportions would move every placement while every node test
+// kept passing.
+if (payload.overlaps.length > 0) {
+  const worst = payload.overlaps
+    .slice(0, 6)
+    .map((o) => `${o.a} / ${o.b} by ${(-o.gap).toFixed(2)} units`)
+    .join('\n  ');
+  fail(
+    `${payload.overlaps.length} pair(s) of props stand closer than their own footprints allow:\n  ${worst}`,
+  );
+}
+if (payload.footprintDrift.length > 0) {
+  fail(`the loaded kit disagrees with the frozen footprints:\n  ${payload.footprintDrift.join('\n  ')}`);
+}
+// ⚠ A LEAF TINT ROTATES HUE AND MAY NOT CHANGE VALUE (ADR-0475 D1). The delivered-pixel half of
+// that is the colour guard's; this is the arithmetic half, checked here so a picture is never
+// taken through a tint that darkens — which is the one thing indistinguishable by eye from the
+// colour convention breaking.
+for (const [material, tints] of Object.entries(payload.tintsByMaterial)) {
+  for (const t of tints) {
+    if (Math.abs(t.lumaRatio - 1) > 0.01) {
+      fail(`${material}'s ${t.status} tint delivers ${t.lumaRatio.toFixed(3)}x the map's own value`);
+    }
+  }
 }
 
 // ---- the frame cost, interleaved. The cold start is paid once, outside the sweep.
@@ -379,6 +420,26 @@ for (const r of payload.roles) {
   );
 }
 console.log('');
+console.log(`census     ${Object.entries(payload.census).map(([k, v]) => `${k} x${v}`).join(' · ')}`);
+console.log(
+  `placement  ${payload.overlaps.length} overlapping pair(s) · footprints ` +
+    Object.entries(payload.footprints).map(([k, v]) => `${k} ${v.toFixed(2)}u`).join(' · '),
+);
+for (const [material, tints] of Object.entries(payload.tintsByMaterial)) {
+  const mean = payload.leafMeans[material];
+  console.log(
+    `tints      ${material} mean (${mean.r.toFixed(0)},${mean.g.toFixed(0)},${mean.b.toFixed(0)}) -> ` +
+      tints
+        .map(
+          (t) =>
+            `${t.status} ${t.token} delivers (${t.delivered.r.toFixed(0)},${t.delivered.g.toFixed(0)},` +
+            `${t.delivered.b.toFixed(0)}) at value x${t.lumaRatio.toFixed(3)}`,
+        )
+        .join(' · '),
+  );
+}
+
+console.log('');
 console.log(`${pad('arm', 10)}${pad('zoom', 8)}${pad('median ms', 12)}${pad('spread', 10)}${pad('% 60Hz', 10)}${pad('calls', 8)}${pad('tris', 10)}kept`);
 for (const f of frame.sort((a, b) => a.pxPerUnit - b.pxPerUnit || a.arm.localeCompare(b.arm))) {
   console.log(
@@ -395,7 +456,7 @@ for (const zoom of ZOOMS) {
 console.log('');
 for (const p of presence) {
   console.log(
-    `presence @${p.zoom}px  distinct colours: bare ${p.bare} · today ${p.today} · ` +
+    `presence @${p.zoom}px  distinct colours: bare ${p.bare} · today ${p.today} · land ${p.land} · ` +
       `kit ${p.kit} (bar ${p.bar})  ${p.ok ? 'OK' : 'REFUSED'}`,
   );
 }
