@@ -21,9 +21,6 @@
 //
 // ⚠ AND IT ADOPTS NOTHING. `harness/` only; ADR-0406 D2 and ADR-0380 D6 stand in full.
 
-import * as THREE from 'three';
-
-
 import { composeIsland, sharedRenderer } from './IslandView.js';
 import type { IslandViewProps } from './IslandView.js';
 import { configureExactColour } from './banded-material.js';
@@ -32,11 +29,10 @@ import { awaitQuery, readIdentity } from './frame-cost-scene.js';
 import type { DisjointTimerQuery, RendererIdentity } from './frame-cost-scene.js';
 import { GPU_TIMER_EXTENSION } from './frame-cost.js';
 import { islandScene } from './island-fixture.js';
-import { leafTintGainFor, tintDeliveries } from './leaf-tint.js';
+import { tintDeliveries } from './leaf-tint.js';
 import type { TintDelivery } from './leaf-tint.js';
 import {
   KIT_ASSET_URL,
-  LEAF_MATERIALS,
   kitLights,
   kitMeshes,
   loadKit,
@@ -413,7 +409,7 @@ export function createKitRunner(kit: LoadedKit, cal: LightCalibration, assetUrl:
         asset: assetUrl,
         wireBytes: kit.wireBytes,
         gpuBytes: kit.gpuBytes,
-        distinctObjects: [...new Set(all.map((p) => p.assembly))].length,
+        distinctObjects: new Set(all.map((p) => p.assembly)).size,
         materials: kit.materials,
         triangles: kit.triangles,
         textures: kit.textures,

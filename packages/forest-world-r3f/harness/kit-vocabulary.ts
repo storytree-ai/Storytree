@@ -64,8 +64,8 @@ export const KIT_ROLE_SIGNAL = {
 } as const satisfies Record<KitRole, string>;
 
 /**
- * THE TWO SIGNALS THAT HAD PROPS AND NO LONGER DO — recorded here so the withdrawal is a
- * decision a reader can find rather than an absence they have to infer.
+ * THE TWO PROPS THAT ARE WITHDRAWN — recorded here so the withdrawal is a decision a reader can
+ * find rather than an absence they have to infer.
  *
  * Owner, 2026-08-29: *"we keep it in the pocket to show something once we more mature and can
  * decide what that is, same with logs"*. So the shapes are not wrong, the SIGNALS are not
@@ -73,9 +73,19 @@ export const KIT_ROLE_SIGNAL = {
  * and `Log_*` objects were dropped from the committed `.glb` with them, because an object
  * nothing places is pure wire cost (`kit-vocabulary.test.ts` refuses one); restoring either is
  * one edit to `export-dressing.py`'s KEEP argument and one entry here.
+ *
+ * ⚠⚠ AND THE ROCK'S ENTRY CORRECTS THE VOCABULARY IT REPLACES, WHICH HAD IT WRONG AGAINST THE
+ * DECISION LOG. PR #1693 built the rock as DRIFT, citing ADR-0463 D4's delegation. ADR-0463
+ * records that exact proposal being put to the owner on 2026-08-27 and REFUSED, on two grounds
+ * that still bind: it duplicated an axis the map already draws (the tall-flower markers carry
+ * per-criterion proof state, by FORM), and a rock is a durable thing and must not be an action
+ * item — *"i like rocks as durable items, so i dislike the idea that its an action to clear
+ * them"*. D6 then decided what a rock DOES carry: the declared shared seams a capability's code
+ * actually rests against. So the meaning below is D6's, not the built vocabulary's, and anyone
+ * bringing rocks back reads ADR-0463 D6 rather than restoring what was here.
  */
 export const POCKETED_SIGNALS = {
-  rock: 'drift — evidence gone stale beneath a capability (check:verification-decay computes it)',
+  rock: 'foundations — the declared shared seams a capability rests against (ADR-0463 D6, and NOT drift, which that ADR records as refused)',
   log: 'a retired contract, cut and left where it fell (ADR-0438 anchors know what was retired)',
 } as const;
 
@@ -344,11 +354,11 @@ export type RoleFootprints = Readonly<Record<KitRole, number>>;
  * scales by `units / assembly.width`, so its footprint is its declared width exactly. `tree`
  * takes the WIDER of its two pines, because a role's clearance has to be enough for any arm.
  */
-export const KIT_FOOTPRINTS_2026_08_29: RoleFootprints = {
+export const KIT_FOOTPRINTS_2026_08_29 = {
   tree: 10.13,
   deadTree: 7.33,
   bloom: 4,
-};
+} as const satisfies RoleFootprints;
 
 /** How far the loaded kit's own footprints may sit from the frozen literal, as a fraction. */
 export const FOOTPRINT_TOLERANCE = 0.01;
@@ -533,9 +543,19 @@ export function dressingOverlaps(
   return out.sort((x, y) => x.gap - y.gap);
 }
 
-/** How many props of each role a dressing put on the island — the census a report prints. */
-export function dressingCensus(placements: readonly KitPlacement[]): Record<string, number> {
-  const out: Record<string, number> = {};
+/**
+ * How many props of each (role, tint) a dressing put on the island — the census a report prints.
+ *
+ * A named contract rather than an open dictionary because the KEY is a composite the vocabulary
+ * builds (`tree`, `tree:mapped`), so the shape has an owner and saying so is what stops it being
+ * read as an arbitrary bag (`anti-slop(no-known-value-widening)`).
+ */
+export interface DressingCensus {
+  [roleAndTint: string]: number;
+}
+
+export function dressingCensus(placements: readonly KitPlacement[]): DressingCensus {
+  const out: DressingCensus = {};
   for (const p of placements) {
     const key = p.tint ? `${p.role}:${p.tint}` : p.role;
     out[key] = (out[key] ?? 0) + 1;

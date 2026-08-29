@@ -362,7 +362,11 @@ test('props ride the relief rather than floating over it', () => {
 test('a wider footprint pushes the props apart rather than being ignored', () => {
   // The footprint is an ARGUMENT, so a placement that ignored it would look correct in every
   // test above — they all pass the same table. Doubling it must move the arrangement.
-  const wide: Record<KitRole, number> = { tree: FOOT.tree * 2, deadTree: FOOT.deadTree * 2, bloom: FOOT.bloom * 2 };
+  const wide = {
+    tree: FOOT.tree * 2,
+    deadTree: FOOT.deadTree * 2,
+    bloom: FOOT.bloom * 2,
+  } satisfies Record<KitRole, number>;
   const narrow = dress();
   const spread = dressIslandFromKit({
     scene: islandScene(),

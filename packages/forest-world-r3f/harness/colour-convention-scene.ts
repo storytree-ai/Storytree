@@ -36,7 +36,6 @@ import {
   OPAQUE_TEXEL_CUT,
   checkAssetMaterials,
   judgeColourConvention,
-  srgbToLinearUnit,
 } from './texture-convention.js';
 import type { ConventionJudgement, Rgb } from './texture-convention.js';
 

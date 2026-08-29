@@ -329,8 +329,16 @@ export interface IslandViewProps {
    */
   cover?: GroundCover;
   /**
-   * WEAR THE TERRAIN VOCABULARY (ADR-0461 D1) — each cell's ground character is chosen by the
-   * STATE it carries, not passed in per panel. `forest` for `healthy`, `wheatfield` for
+   * ⚠ POCKETED SINCE 2026-08-29 (ADR-0475 supersedes ADR-0461). The vocabulary below is a
+   * measured, working instrument and is kept; what it no longer is, is how the map carries
+   * state. A capability's state is the OBJECT standing on its parcel and the island's ground
+   * wears the STORY's own colour (ADR-0475 D1/D2) — the owner rejected a terrain per state
+   * outright: *"changing the land type looks rather ugly ... so we dont have a mix of wheat
+   * field and wasteland on the same island."* Leave this off unless a panel is deliberately
+   * showing the superseded direction.
+   *
+   * WEAR THE TERRAIN VOCABULARY (ADR-0461 D1, superseded) — each cell's ground character is
+   * chosen by the STATE it carries, not passed in per panel. `forest` for `healthy`, `wheatfield` for
    * `building`, `fallow` for `proposed`, and so on (`terrain-vocabulary.ts`).
    *
    * ⚠ IT IS A SWITCH, NOT A CHOICE, AND THAT IS THE POINT. A panel cannot ask for a terrain

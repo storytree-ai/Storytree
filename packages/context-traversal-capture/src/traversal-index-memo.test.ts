@@ -338,13 +338,21 @@ test("traversal index: a trace whose SIZE moved is re-read even at an unchanged 
   listTraversalSessionsIncremental(dir, summarize);
 
   const file = path.join(dir, "session-a.jsonl");
+  // ⚠⚠ THE MTIME IS PINNED BEFORE THE BASELINE IS TAKEN, NOT RESTORED FROM IT, and that is what
+  // makes this test's own precondition reliable. Restoring meant `utimesSync(file, stat.mtimeMs /
+  // 1000, …)`: the filesystem's timestamp goes out through a double and back, and a real NTFS
+  // mtime carries more significant digits than that round trip preserves — measured on Windows,
+  // 1788008957767.0315 ms came back as 1788008957767.032, so the precondition assertion below
+  // failed on a file NOBODY HAD TOUCHED. Intermittently, because whether it survives depends on
+  // the fractional part the clock happened to hand out. Setting both stats from the SAME exact
+  // input removes the round trip instead of hoping it is lossless; the assertion still fires if a
+  // platform cannot hold the value at all, which is the thing it was written to protect.
+  const PINNED_TIME_S = 1_760_000_000;
+  fs.utimesSync(file, PINNED_TIME_S, PINNED_TIME_S);
   const before = fs.statSync(file);
   appendVisit(dir, "session-a", "2026-08-12T10:00:01.000Z");
-  // Put the mtime back exactly where it was, so ONLY the size differs. Restored from `mtimeMs`
-  // rather than from the `Date`, because the index compares `mtimeMs` and a Date round-trip can lose
-  // the sub-millisecond part — which would leave the mtime differing too and let this case pass
-  // without ever exercising the size half.
-  fs.utimesSync(file, before.atimeMs / 1000, before.mtimeMs / 1000);
+  // Put the mtime back exactly where it was, so ONLY the size differs.
+  fs.utimesSync(file, PINNED_TIME_S, PINNED_TIME_S);
   const restored = fs.statSync(file);
   assert.equal(restored.mtimeMs, before.mtimeMs, "the mtime must be identical for this to be a SIZE test");
   assert.notEqual(restored.size, before.size);
