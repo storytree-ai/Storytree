@@ -56,7 +56,7 @@
 import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import {
   LAND_ART_PAGES,
@@ -172,8 +172,15 @@ function runCapture(page: string, outRel: string, expectPropCanvases: number): P
     const child = spawn(
       process.execPath,
       [
+        // ⚠ A `file://` URL, NOT A PATH, AND ON WINDOWS THAT IS THE DIFFERENCE BETWEEN A RUNG
+        // THAT RUNS AND ONE THAT CANNOT. `--import` takes an ESM specifier, and an absolute
+        // Windows path begins `C:\`, which Node's loader reads as an unknown URL SCHEME — every
+        // capture died instantly with `ERR_UNSUPPORTED_ESM_URL_SCHEME` and a stack trace that
+        // names only Node's own loader, so the rung reported three art failures that were
+        // nothing to do with the art. `--import 'tsx'` is a bare specifier and was always fine;
+        // it is the joined path that has to be converted.
         '--import',
-        join(REPO, 'scripts/tsx-cache-off.mjs'),
+        pathToFileURL(join(REPO, 'scripts/tsx-cache-off.mjs')).href,
         '--import',
         'tsx',
         join(HERE, 'capture.mjs'),

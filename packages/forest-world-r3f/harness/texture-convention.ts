@@ -289,14 +289,12 @@ export function judgeColourConvention(obs: ConventionObservation): ConventionJud
  */
 export const ASSET_MATERIALS = {
   '/assets/pine-01.glb': ['Pine_Trunks', 'Pine_Branches'],
-  '/assets/dressing-kit.glb': [
-    'Logs',
-    'Pine_Branches',
-    'Pine_Foliage_02',
-    'Pine_Forest_Foliage',
-    'Pine_Rocks_01',
-    'Pine_Trunks',
-  ],
+  // ⚠ THREE, NOT SIX, SINCE 2026-08-29. The kit was re-exported for the owner's settled
+  // vocabulary — rocks and logs withdrawn, the undergrowth gone with the density rule — so
+  // `Logs`, `Pine_Rocks_01` and `Pine_Foliage_02` left the asset with the objects that wore
+  // them. That is a two-place edit on purpose: an asset losing a material silently would take
+  // this check's whole subject with it.
+  '/assets/dressing-kit.glb': ['Pine_Branches', 'Pine_Forest_Foliage', 'Pine_Trunks'],
 } as const satisfies Record<string, readonly string[]>;
 
 /** Refuse an asset whose materials are not exactly the declared ones. */

@@ -21,9 +21,6 @@
 //
 // ⚠ AND IT ADOPTS NOTHING. `harness/` only; ADR-0406 D2 and ADR-0380 D6 stand in full.
 
-import * as THREE from 'three';
-
-
 import { composeIsland, sharedRenderer } from './IslandView.js';
 import type { IslandViewProps } from './IslandView.js';
 import { configureExactColour } from './banded-material.js';
@@ -32,40 +29,63 @@ import { awaitQuery, readIdentity } from './frame-cost-scene.js';
 import type { DisjointTimerQuery, RendererIdentity } from './frame-cost-scene.js';
 import { GPU_TIMER_EXTENSION } from './frame-cost.js';
 import { islandScene } from './island-fixture.js';
-import { KIT_ASSET_URL, kitLights, kitMeshes, loadKit, placementExtent } from './kit-scene.js';
+import { tintDeliveries } from './leaf-tint.js';
+import type { TintDelivery } from './leaf-tint.js';
+import {
+  KIT_ASSET_URL,
+  kitLights,
+  kitMeshes,
+  loadKit,
+  placementExtent,
+  roleFootprints,
+} from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
 import {
+  FOOTPRINT_TOLERANCE,
+  KIT_FOOTPRINTS_2026_08_29,
+  KIT_ROLES,
   KIT_ROLE_SIZE,
   KIT_ROLE_SIGNAL,
   clearsObjectFloor,
   deliveredRolePx,
   dressIslandFromKit,
+  dressingCensus,
+  dressingOverlaps,
 } from './kit-vocabulary.js';
-import type { KitPlacement, KitRole } from './kit-vocabulary.js';
+import type { KitPlacement, KitRole, PropOverlap, RoleFootprints } from './kit-vocabulary.js';
 import { calibrateLights } from './pine-scene.js';
 import type { LightCalibration } from './pine-scene.js';
 
-export type KitArm = 'bare' | 'today' | 'kit';
-export const KIT_ARMS: readonly KitArm[] = ['bare', 'today', 'kit'];
+/**
+ * THE FOUR ARMS, and the reason there are four rather than three.
+ *
+ * The owner's 2026-08-29 answer moved TWO things at once — what stands on a parcel, and whose
+ * state the ground carries — so a single before/after would show both moving together and settle
+ * neither. Each step below differs from its neighbour in exactly one thing (ADR-0392 D1's own
+ * standard, and the shape PR #1665 landed that the owner endorsed):
+ *
+ *   bare   per-capability land, nothing standing on it — the control the map has always had
+ *   today  per-capability land + the island's own procedural props — WHAT THE MAP DOES TODAY
+ *   land   ISLAND-UNIFORM land, nothing standing on it — the land change, alone
+ *   kit    island-uniform land + one tinted bought object per capability — THE PROPOSAL
+ *
+ * `bare` -> `land` is the ground moving. `land` -> `kit` is the props arriving. `today` is the
+ * incumbent both are read against.
+ */
+export type KitArm = 'bare' | 'today' | 'land' | 'kit';
+export const KIT_ARMS: readonly KitArm[] = ['bare', 'today', 'land', 'kit'];
 
 /** The two zooms every land measurement on this arc is taken at. */
 export const ZOOMS: readonly number[] = [2, 8];
 
 /**
- * THE SIGNALS THE FIXTURE DOES NOT CARRY, supplied here rather than invented inside the
- * vocabulary.
- *
- * ⚠ THESE ARE A DEMONSTRATION, AND SAYING SO IS THE POINT. `check:verification-decay` computes
- * drift for real and ADR-0438's anchors know what has been retired; neither reaches this
- * harness fixture, which renders with no database. A dressing that quietly defaulted them to
- * plausible-looking numbers would put marks on the map that assert something nobody measured —
- * which is exactly what ADR-0414 D1 forbids. They are named here, in one place, so a reader can
- * see that two of the six roles are being SHOWN rather than reported.
+ * ✅ THERE ARE NO SUPPLIED SIGNALS ANY MORE, and the absence is worth a line because it used to
+ * be a constant here. PR #1693's dressing had two roles — rocks for drift, logs for retired
+ * contracts — reading from numbers this database-less fixture cannot compute, so they were
+ * handed in explicitly rather than defaulted to something plausible. Both roles were WITHDRAWN
+ * by the owner on 2026-08-29. Every prop on this island is now read off the scene's own data,
+ * so there is nothing left to demonstrate and `kit-vocabulary.test.ts` asserts it stays that way.
  */
-export const DEMONSTRATED_SIGNALS = {
-  drift: { 'cap-1': 4, 'cap-5': 2 },
-  retired: { 'cap-0': 3, 'cap-2': 1 },
-} as const;
 
 /**
  * The island every arm is drawn on. One capability is deliberately unhealthy and one is
@@ -111,13 +131,12 @@ function armProps(
   if (!grain) delete base.grain;
   if (arm === 'bare') return { ...base, plants: false, flowers: false };
   if (arm === 'today') return { ...base, dressing: 'wild' };
+  // The two new arms share the land change; only `kit` also stands anything on it, which is what
+  // makes the pair isolate the ground from the props.
+  const uniform: IslandViewProps = { ...base, landState: 'island', plants: false, flowers: false };
+  if (arm === 'land') return uniform;
   if (!kit || !cal) throw new Error('kit-island: the kit arm was asked for before the kit loaded');
-  return {
-    ...base,
-    plants: false,
-    flowers: false,
-    extra: [...kitMeshes(kit, placements()), ...kitLights(cal)],
-  };
+  return { ...uniform, extra: [...kitMeshes(kit, placements(kit)), ...kitLights(cal)] };
 }
 
 let cachedPlacements: KitPlacement[] | null = null;
@@ -129,15 +148,46 @@ let cachedPlacements: KitPlacement[] | null = null;
  * `composeIsland` reads that as `amplitude ?? LAND_RELIEF_AMPLITUDE` — so a dressing computed
  * at any other amplitude would sample a landscape the island does not have and every prop would
  * float or sink by the difference.
+ *
+ * ⚠ THE FOOTPRINTS COME FROM THE LOADED KIT, not from the frozen literal. A pine's canopy is as
+ * wide as its own geometry says once scaled to its role's height, and the placement search keeps
+ * props apart BY those widths — so a kit re-exported with a different tree would silently place
+ * against the wrong clearances if this restated a number. `footprintDrift` below is what checks
+ * the two against each other.
  */
-export function placements(): KitPlacement[] {
+export function placements(kit: LoadedKit): KitPlacement[] {
   cachedPlacements ??= dressIslandFromKit({
     scene: islandScene(ISLAND),
     island: ISLAND,
     relief: LAND_RELIEF_AMPLITUDE,
-    supplied: DEMONSTRATED_SIGNALS,
+    footprint: roleFootprints(kit),
   });
   return cachedPlacements;
+}
+
+/**
+ * WHERE THE LOADED KIT'S OWN FOOTPRINTS DISAGREE WITH THE FROZEN LITERAL, beyond tolerance.
+ *
+ * The pure tests dress at `KIT_FOOTPRINTS_2026_08_29` because they have no GPU to load an asset
+ * with, so every placement assertion in `kit-vocabulary.test.ts` is made against that table. This
+ * is the leg that ties it to the asset: a re-export that changed a tree's proportions would move
+ * every placement on every island, and the node tests would keep passing against the old numbers.
+ */
+export function footprintDrift(kit: LoadedKit): string[] {
+  const measured = roleFootprints(kit);
+  const out: string[] = [];
+  for (const role of KIT_ROLES) {
+    const want = KIT_FOOTPRINTS_2026_08_29[role];
+    const got = measured[role];
+    if (Math.abs(got - want) / want > FOOTPRINT_TOLERANCE) {
+      out.push(
+        `${role}: the loaded kit occupies ${got.toFixed(3)} ground units, ` +
+          `KIT_FOOTPRINTS_2026_08_29 declares ${want} — the pure tests placed against the wrong ` +
+          'clearances, so re-measure and update the literal',
+      );
+    }
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ what the page reports
@@ -167,6 +217,27 @@ export interface KitPayload {
     clearsFloor: boolean;
   }>;
   totalProps: number;
+  /** How many props of each (role, tint) the island grew — the census the vocabulary produces. */
+  census: Record<string, number>;
+  /**
+   * PROPS STANDING CLOSER THAN THEIR OWN FOOTPRINTS ALLOW — the defect the owner reported,
+   * reported by the picture's own driver rather than by eye. Empty is the claim.
+   */
+  overlaps: PropOverlap[];
+  /** The kit's own footprints, and where they disagree with the frozen literal. */
+  footprints: RoleFootprints;
+  footprintDrift: string[];
+  /**
+   * WHAT EACH DECLARED TINT DELIVERS over the leaf material's own base-colour mean.
+   *
+   * ⚠ `lumaRatio` IS THE ONE TO READ. A leaf tint rotates a map's hue and may NOT change its
+   * value (`leaf-tint.ts`), because the failure the colour guard exists to catch is a map coming
+   * out about 3.5x dark and looking deliberate — and a tint is a second multiplier on exactly
+   * those pixels. Every row must sit at 1.
+   */
+  tintsByMaterial: Record<string, TintDelivery[]>;
+  /** Each leaf material's own base-colour mean — what those tints were rotated FROM. */
+  leafMeans: Record<string, { r: number; g: number; b: number }>;
 }
 
 export interface ArmReading {
@@ -313,9 +384,10 @@ export function createKitRunner(kit: LoadedKit, cal: LightCalibration, assetUrl:
     identity: () => readIdentity(gl),
 
     payload(): KitPayload {
-      const all = placements();
+      const all = placements(kit);
+      const footprints = roleFootprints(kit);
       const roles: KitPayload['roles'] = [];
-      for (const role of ['tree', 'deadTree', 'undergrowth', 'rock', 'log', 'bloom'] as KitRole[]) {
+      for (const role of KIT_ROLES) {
         const mine = all.filter((p) => p.role === role);
         if (mine.length === 0) continue;
         const first = mine[0]!;
@@ -337,12 +409,20 @@ export function createKitRunner(kit: LoadedKit, cal: LightCalibration, assetUrl:
         asset: assetUrl,
         wireBytes: kit.wireBytes,
         gpuBytes: kit.gpuBytes,
-        distinctObjects: [...new Set(all.map((p) => p.assembly))].length,
+        distinctObjects: new Set(all.map((p) => p.assembly)).size,
         materials: kit.materials,
         triangles: kit.triangles,
         textures: kit.textures,
         roles,
         totalProps: all.length,
+        census: dressingCensus(all),
+        overlaps: dressingOverlaps(all, footprints),
+        footprints,
+        footprintDrift: footprintDrift(kit),
+        tintsByMaterial: Object.fromEntries(
+          [...kit.leafMeans].map(([name, mean]) => [name, tintDeliveries(mean)]),
+        ),
+        leafMeans: Object.fromEntries(kit.leafMeans),
       };
     },
   };

@@ -178,3 +178,25 @@ export function triangulateFan(points: readonly { x: number; y: number }[]): num
   }
   return tris;
 }
+
+
+/**
+ * PUT EVERY GROUND CELL IN ONE STATUS — the island's own, not each parcel's (ADR-0475 D2).
+ *
+ * ⚠ THE PARCEL KEY IS UNTOUCHED, and that is the whole reason this is a status rewrite rather
+ * than a merge. `land-definition.ts` decides which edges bevel by comparing `cell.parcel`, so a
+ * uniform island keeps every capability boundary in relief; only the colour stops being
+ * per-capability. Rewriting `parcel` too would flatten the island into one undivided field and
+ * lose the boundary a reader follows on zoom.
+ *
+ * ⚠ IT IS A REWRITE, NOT A DEFAULT. Cells whose own status was `unknown` because nothing said
+ * otherwise are moved along with the rest — which is correct here, because the claim the ground
+ * is making has changed from "this capability is X" to "this story is X", and the story's state
+ * is one fact for the whole island.
+ */
+export function uniformIslandStatus(
+  cells: readonly GroundCell[],
+  status: string,
+): GroundCell[] {
+  return cells.map((cell) => ({ ...cell, status }));
+}
