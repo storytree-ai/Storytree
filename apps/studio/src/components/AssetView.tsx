@@ -1,12 +1,8 @@
-import { useMemo } from 'react';
-import { NODE_REF_PREFIX } from '@storytree/library';
-import { groupSources } from '@storytree/library/sources';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
-import { unresolvedDocReason } from '../lib/docsIndex';
 import { formatDateTime } from '../lib/format';
 import { kindLabel, useArcDisplay } from '../lib/kindDisplay';
-import { assetEditHref, assetHref, docHref, libraryHref, navigate, treeFocusHref } from '../lib/route';
+import { assetEditHref, libraryHref, navigate } from '../lib/route';
 import { ASSET_CATEGORY_GLOSS } from '../types';
 import { Markdown } from './Markdown';
 import { ReviewEditor } from './ReviewEditor';
@@ -16,17 +12,6 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
   const { assets, assetsStatus, assetsError, refreshAssets } = useAppData();
   const arcDisplay = useArcDisplay(); // the `arc` kind chip shows "epic" by default (ADR-0183 D1)
   const asset = assets.find((a) => a.id === id);
-  // "Sources": the unit's `references` grouped by the type of thing each points at, resolved live
-  // against the loaded corpus (asset:<id> -> its category). A view, never stored.
-  const sources = useMemo(
-    () =>
-      groupSources(asset?.references ?? [], (refId) => {
-        const target = assets.find((a) => a.id === refId);
-        return target ? { kind: target.category, title: target.title } : null;
-      }),
-    [asset?.references, assets],
-  );
-
   if (!asset) {
     // map-boot-independence: a Library route mounts before `/api/assets` resolves — while it's
     // still pending, the initial empty `assets` array must never be presented as the honest
@@ -84,26 +69,15 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
           <ReviewEditor asset={asset} />
         </div>
 
-        {(sources.length > 0 || asset.provenance) && (
+        {/* The `Sources` pane — this unit's `references` grouped by target type — is GONE
+            (ADR-0477 D1: the citation tier is retired, and `depends_on` is the library's only
+            edge). `provenance` is a DIFFERENT field (the attribution line, ADR-0095 D8) and keeps
+            its home here rather than going with the block that happened to host it. */}
+        {asset.provenance && (
           <div className="asset-refs">
-            <h4>Sources</h4>
-            {sources.map((group) => (
-              <div className="asset-refs-group" key={group.group}>
-                <h5>{group.group}</h5>
-                <ul>
-                  {group.items.map((item) => (
-                    <li key={item.ref}>
-                      <RefLink refStr={item.ref} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
-            {asset.provenance && (
-              <div className="asset-provenance muted small">
-                <Markdown>{asset.provenance}</Markdown>
-              </div>
-            )}
+            <div className="asset-provenance muted small">
+              <Markdown>{asset.provenance}</Markdown>
+            </div>
           </div>
         )}
 
@@ -127,49 +101,4 @@ export function AssetView({ id }: { id: string }): React.JSX.Element {
       </div>
     </ReviewToggle>
   );
-}
-
-/**
- * One "Sources" citation, rendered as a link into whatever it points at. Exported for direct
- * testing: the three reference tokens (`doc:` / `asset:` / ADR-0107 D2's `node:`) each resolve to a
- * different surface, and only `node:` leaves the Library for the map.
- */
-export function RefLink({ refStr }: { refStr: string }): React.JSX.Element {
-  const { docIds, docTitles, docsStatus, docsError, assets } = useAppData();
-  if (refStr.startsWith('doc:')) {
-    const docId = refStr.slice('doc:'.length);
-    if (docIds.has(docId)) return <a href={docHref(docId)}>{docTitles.get(docId) ?? docId}</a>;
-    // "(unknown doc)" is an assertion about the corpus, and the doc INDEX is what backs it — so it
-    // holds only once `/api/docs` has resolved. While the index is pending or failed, this
-    // reference is unresolved, not unknown (lib/docsIndex.ts).
-    const unresolvedReason = unresolvedDocReason(docsStatus);
-    if (unresolvedReason) {
-      return (
-        <span
-          className="muted doc-unresolved"
-          data-docs-status={docsStatus}
-          {...(docsError ? { title: docsError } : {})}
-        >
-          {refStr} (unresolved — {unresolvedReason})
-        </span>
-      );
-    }
-    return <span className="muted">{refStr} (unknown doc)</span>;
-  }
-  if (refStr.startsWith('asset:')) {
-    const assetId = refStr.slice('asset:'.length);
-    const found = assets.find((a) => a.id === assetId);
-    return found ? (
-      <a href={assetHref(assetId)}>{found.title}</a>
-    ) : (
-      <span className="muted">{refStr} (unknown asset)</span>
-    );
-  }
-  // ADR-0107 D2's `node:<id>` — the proving-process anchor. It points at the work tree, not the
-  // Library, so it deep-links to that node on the map (the gap ADR-0107's own Consequences named).
-  if (refStr.startsWith(NODE_REF_PREFIX)) {
-    const nodeId = refStr.slice(NODE_REF_PREFIX.length);
-    return <a href={treeFocusHref(nodeId)}>{nodeId}</a>;
-  }
-  return <span>{refStr}</span>;
 }

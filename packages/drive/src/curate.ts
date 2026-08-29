@@ -480,7 +480,6 @@ export function serializeCurationContext(ctx: CurationContext): string {
       `context: ${bodyField(oq.doc, "context")}`,
       `options: ${bodyField(oq.doc, "options")}`,
       `recommendation: ${bodyField(oq.doc, "recommendation")}`,
-      `references: ${(Array.isArray((oq.doc as Record<string, unknown>)?.references) ? ((oq.doc as Record<string, unknown>).references as unknown[]) : []).join(", ")}`,
       "",
     );
   }

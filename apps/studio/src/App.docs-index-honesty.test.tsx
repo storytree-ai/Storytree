@@ -253,63 +253,18 @@ describe('a failed doc index is reported, and never blanks the map', () => {
   });
 });
 
-describe('a doc reference is only called unknown once the index can answer', () => {
-  it('reports the index failure instead of calling a cited doc unknown', async () => {
-    navigate('#/asset/pattern-x');
-    armFastDefaults();
-    http.get(ASSETS, () => [assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
-    http.get(DOCS, () => errorReply('docs unavailable'));
-
-    render(<App surfaces={SURFACES} />);
-
-    const route = await screen.findByTestId('library-route');
-    await waitFor(() => {
-      expect(within(route).getByText(/the document index failed to load/i)).toBeTruthy();
-    });
-    // The lie this replaces: "(unknown doc)" asserts the corpus does not hold it.
-    expect(within(route).queryByText(/unknown doc/i)).toBeNull();
-  });
-
-  it('reports the index as still loading while /api/docs is in flight', async () => {
-    navigate('#/asset/pattern-x');
-    const docsDeferred = deferred<DocMeta[]>();
-    armFastDefaults();
-    http.get(ASSETS, () => [assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
-    http.get(DOCS, () => docsDeferred.promise);
-
-    render(<App surfaces={SURFACES} />);
-
-    const route = await screen.findByTestId('library-route');
-    await waitFor(() => {
-      expect(within(route).getByText(/the document index is still loading/i)).toBeTruthy();
-    });
-    expect(within(route).queryByText(/unknown doc/i)).toBeNull();
-
-    // Resolving with an index that genuinely lacks it restores the honest "unknown" answer — the
-    // point is the DISTINCTION, not suppressing the absent case.
-    await act(async () => {
-      docsDeferred.resolve(makeDocs(['decisions/0139-other.md']));
-      await Promise.resolve();
-    });
-    await waitFor(() => {
-      expect(within(route).getByText(/unknown doc/i)).toBeTruthy();
-    });
-    expect(within(route).queryByText(/the document index/i)).toBeNull();
-  });
-
-  it('links a cited doc normally once the index resolves and holds it', async () => {
-    navigate('#/asset/pattern-x');
-    armFastDefaults();
-    http.get(ASSETS, () => [assetCiting('pattern-x', ['doc:decisions/0240-map.md'])]);
-    http.get(DOCS, () => makeDocs(['decisions/0240-map.md']));
-
-    render(<App surfaces={SURFACES} />);
-
-    const route = await screen.findByTestId('library-route');
-    await waitFor(() => {
-      expect(within(route).getByText('decisions/0240-map.md').closest('a')).toBeTruthy();
-    });
-    expect(within(route).queryByText(/unknown doc/i)).toBeNull();
-    expect(within(route).queryByText(/the document index/i)).toBeNull();
-  });
-});
+// The third describe block that stood here — "a doc reference is only called unknown once the index
+// can answer" — is RETIRED with its surface. It drove the whole App to an asset route and read the
+// honesty off `RefLink`, the component that rendered each item of AssetView's `Sources` block.
+// ADR-0477 D1 retires that block and `RefLink` with it, so those tests had no subject left.
+//
+// NOTHING IS LOST, and that was checked rather than assumed. The property — an in-corpus doc link is
+// "unresolved", never "unknown", until the index can actually answer — lives in `unresolvedDocReason`
+// (lib/docsIndex.ts), whose surviving production consumers are `Markdown` (doc links inside artifact
+// bodies) and `RelevantAdrs`. Both are covered: Markdown.test.tsx asserts the `.doc-unresolved`
+// marking across the loading / failed / resolved cases, and relevantAdrs.test.tsx asserts the
+// failure title. What went is the third mounting of one property, not the property.
+//
+// The two blocks above are UNTOUCHED — a failed doc index must still never blank the map, and
+// `docsStatus`/`docsError` must still be required context fields. That is this file's primary guard
+// and it has nothing to do with citations.

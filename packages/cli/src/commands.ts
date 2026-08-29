@@ -30,7 +30,6 @@ import {
   upcastAndValidate,
   explainDocValidationError,
   dependsOnEdges,
-  groupSources,
   readDependsOnPointers,
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
@@ -614,23 +613,15 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   const banner = stored.kind === "adr" ? composedBannerFor(stored.doc, decisionRowsOf(allDocs)) : [];
   if (banner.length > 0) lines.push(...banner);
   lines.push(a.body);
-  // "Sources": references grouped by target type, resolved against the corpus (asset:<id> -> kind).
   const byId = new Map(allDocs.map((d) => [d.id, d] as const));
-  // ONE corpus view, resolved once and used twice: the Sources block labels each citation with it,
-  // and ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds through the
-  // same callback. Two resolvers over one map is how the two blocks would drift apart.
+  // The corpus view ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds
+  // through. It used to serve the `Sources:` block as well — that block is gone (ADR-0477 D1, the
+  // citation tier is retired), and this resolver stays because the `depends_on` edges are what
+  // replaced it and are the surface this direction moves TOWARD.
   const resolveAsset = (refId: string): { kind: string; title: string } | null => {
     const t = byId.get(refId);
     return t ? { kind: t.kind, title: fieldOf(t, "title") } : null;
   };
-  const sources = groupSources(a.references, resolveAsset);
-  if (sources.length > 0) {
-    lines.push("", "Sources:");
-    for (const group of sources) {
-      lines.push(`  ${group.group}:`);
-      for (const item of group.items) lines.push(`    - ${item.label}  (${item.ref})`);
-    }
-  }
   // An increment's `cites` (ADR-0306 D2), rendered as its OWN block rather than folded into Sources.
   // This view is the narrow read `arc show` points every increment row at ("read/edit it: storytree
   // library artifact <id>"), so a citation edge invisible here would be unreachable from the one
