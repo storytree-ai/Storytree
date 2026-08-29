@@ -490,3 +490,19 @@ describe('the linkage line agrees in number with the counts it reports', () => {
     expect(summary).toContain('are excluded from that denominator');
   });
 });
+
+describe('the linkage line agrees in number with a ONE-artifact knowledge corpus', () => {
+  it('says "artifact sits" when the knowledge denominator itself is one', () => {
+    // Every earlier case has two or more knowledge rows, so the singular half of THIS clause — the
+    // denominator's own noun — was never rendered. One knowledge artifact, one record row.
+    const model = buildKnowledgeDepth({
+      assets: [
+        { ...asset('inc-1', { dependsOn: ['asset:only-one'] }), category: 'increment' as const },
+        asset('only-one'),
+      ],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+    expect(linkageSummary(model)).toContain('1 of 1 knowledge artifact sits in the dependency graph');
+  });
+});

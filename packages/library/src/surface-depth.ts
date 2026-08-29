@@ -78,7 +78,6 @@
 // as knowledge — failing toward the larger denominator, so a new tier can never silently improve the
 // score.
 
-import { adrNumberOfArtifactId, decisionNodeId } from "./decision-pointer.js";
 import {
   buildDependencyGraph,
   depthFromWorkNodes,
@@ -208,8 +207,12 @@ export interface SurfaceDepthVerdict {
  * rather than throw. A read-side projection is not where a surprise row takes a surface down.
  */
 export function surfaceDepthNodes(docs: readonly DepthFromWorkSource[]): SurfaceDepthNode[] {
-  const base = depthFromWorkNodes(docs);
-  return base.map((node, index) => ({ ...node, kind: kindOfDoc(docs[index]?.doc) }));
+  // Joined BY ID rather than by position. `depthFromWorkNodes` maps 1:1 today, so a positional zip
+  // would work — and would break silently the day it stops, which is the class of coupling this
+  // file's own header warns about. FIRST ROW WINS on a duplicate id, matching the graph builder.
+  const kinds = new Map<string, string>();
+  for (const row of docs) if (!kinds.has(row.id)) kinds.set(row.id, kindOfDoc(row.doc));
+  return depthFromWorkNodes(docs).map((node) => ({ ...node, kind: kinds.get(node.id) ?? "" }));
 }
 
 /**
@@ -229,6 +232,16 @@ export function kindOfDoc(doc: unknown): string {
 /** A decision node id carries a colon; an artifact id cannot. The two id spaces are disjoint. */
 function isDecisionNode(id: string): boolean {
   return id.includes(":");
+}
+
+/**
+ * The artifact id of the row a decision node was ALSO stored as — `decision:0012` -> `adr-0012`.
+ *
+ * Both halves go through `decision-pointer.ts` rather than through string surgery here, so the one
+ * place that knows how a decision is spelled stays the one place.
+ */
+function artifactIdOfDecisionNode(node: string): string {
+  return `adr-${node.slice(node.indexOf(":") + 1)}`;
 }
 
 /**
@@ -260,13 +273,14 @@ export function evaluateSurfaceDepth(
 
   // COLLAPSE THE DECISION TWINS FIRST — see the header. `adr-0012` and `decision:0012` are one
   // decision, and leaving them apart inverts the reading rather than merely coarsening it.
-  const heldDecisions = new Set(decisionIds);
+  //
+  // Driven from the DECISIONS the graph holds rather than from every artifact id: a decision node id
+  // is always well formed, so there is no "is this decision-shaped?" branch to get wrong, and an
+  // artifact whose id merely BEGINS `adr-` is never a candidate because no decision names it.
   const canonicalIds = new Map<string, string>();
-  for (const id of graph.outbound.keys()) {
-    const number = adrNumberOfArtifactId(id);
-    if (number === null) continue;
-    const node = decisionNodeId(number);
-    if (heldDecisions.has(node)) canonicalIds.set(id, node);
+  for (const node of decisionIds) {
+    const twin = artifactIdOfDecisionNode(node);
+    if (graph.outbound.has(twin)) canonicalIds.set(twin, node);
   }
   const canonical = (id: string): string => canonicalIds.get(id) ?? id;
 
@@ -286,9 +300,12 @@ export function evaluateSurfaceDepth(
   const indegree = new Map<string, number>();
   for (const id of allIds) indegree.set(id, 0);
   let edgesScanned = 0;
+  // EVERY TARGET IS A NODE OF THIS GRAPH, so there is no "unknown target" branch here to test or to
+  // rot: `buildDependencyGraph` already drops an `asset:` pointer naming no artifact (it counts it
+  // as `danglingTargets`) and a decision pointer the resolver does not hold, and it adds every
+  // decision it DOES hold as a key. `canonical()` only ever rewrites one node id to another.
   for (const id of allIds) {
     for (const target of outbound.get(id) ?? []) {
-      if (!indegree.has(target)) continue;
       indegree.set(target, (indegree.get(target) ?? 0) + 1);
       edgesScanned += 1;
     }
@@ -314,9 +331,6 @@ export function evaluateSurfaceDepth(
     for (const id of frontier) {
       const depth = depthById.get(id) ?? 0;
       for (const target of outbound.get(id) ?? []) {
-        // A target outside the node set cannot be relaxed and must not be queued — its indegree was
-        // never counted, so decrementing here would push it at the wrong time or never.
-        if (!remaining.has(target)) continue;
         // MAX, not assignment: a node accumulates from every predecessor before it is queued, and
         // the LONGEST of those chains is its depth (ADR-0476 D2).
         depthById.set(target, Math.max(depthById.get(target) ?? 0, depth + 1));
@@ -333,9 +347,11 @@ export function evaluateSurfaceDepth(
   // Every node with an edge that Kahn could not emit still carries inbound edges it never consumed,
   // which means a cycle sits above it. Its partial depth is DISCARDED — a partial longest chain is
   // not a longest chain, and reporting one would be a confident number nobody could audit.
+  // An UNLINKED node needs no exclusion here: it has no inbound edge to leave unconsumed, so its
+  // remainder is 0 and it cannot be swept in. Excluding it explicitly would be a branch no input
+  // can take, which reads as care and is a line nobody can ever test.
   const cyclic = new Set<string>();
   for (const id of allIds) {
-    if (unlinkedIds.has(id)) continue;
     if ((remaining.get(id) ?? 0) > 0) {
       cyclic.add(id);
       depthById.delete(id);
@@ -359,9 +375,10 @@ export function evaluateSurfaceDepth(
   let recordScanned = 0;
   let recordLinked = 0;
   for (const id of allIds) {
-    // A decision node is a decision, whatever the artifact twin's kind says: `adr` is knowledge.
-    const kind = isDecisionNode(id) ? "adr" : (kindById.get(id) ?? "");
-    const isRecord = RECORD_KINDS.has(kind);
+    // A DECISION IS NEVER A RECORD TIER, whatever the artifact twin's kind field says — the twin is
+    // collapsed away and the surviving node is a decision. Asserted as a fact about the node rather
+    // than by handing the lookup a literal kind, which would read the same and mean less.
+    const isRecord = isDecisionNode(id) ? false : RECORD_KINDS.has(kindById.get(id) ?? "");
     const placed = depthById.has(id);
     if (isRecord) {
       recordScanned += 1;

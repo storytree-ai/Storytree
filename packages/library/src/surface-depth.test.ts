@@ -457,3 +457,83 @@ test("an-unlinked-node-is-never-swept-into-the-cyclic-population", () => {
   assert.equal(verdict.cyclicNodes, 2);
   assert.equal(verdict.unlinked, 1);
 });
+
+test("the-histogram-is-sorted-even-when-DISCOVERY-order-is-not: the diamond is the case", () => {
+  // `depthById` records a node the FIRST time it is relaxed, not at its final depth — so on a
+  // diamond `bottom` is inserted at 2 (from the short side) and later raised to 3. Iterating the
+  // map therefore yields depths 0, 1, 3, 2, and an UNSORTED histogram prints them in that order
+  // while every count assertion still passes. This is the shape that makes the sort observable.
+  const verdict = verdictOf([
+    row("top", { dependsOn: ["asset:quick", "asset:slow-a"] }),
+    row("quick", { dependsOn: ["asset:bottom"] }),
+    row("slow-a", { dependsOn: ["asset:slow-b"] }),
+    row("slow-b", { dependsOn: ["asset:bottom"] }),
+    row("bottom"),
+  ]);
+  assert.deepEqual([...verdict.depthById.values()], [0, 1, 1, 3, 2], "discovery order is not sorted");
+  assert.deepEqual(verdict.histogram, [
+    { depth: 0, count: 1 },
+    { depth: 1, count: 2 },
+    { depth: 2, count: 1 },
+    { depth: 3, count: 1 },
+  ]);
+});
+
+test("the-deepest-witness-breaks-ties-toward-the-FIRST-id-seen: it is stable run to run", () => {
+  // Two nodes at the same maximum depth. Whichever is named must not depend on iteration luck, or
+  // the same corpus reports a different witness on two runs and nobody can reproduce a reading.
+  const verdict = verdictOf([
+    row("top", { dependsOn: ["asset:first-floor", "asset:second-floor"] }),
+    row("first-floor"),
+    row("second-floor"),
+  ]);
+  assert.equal(verdict.maxDepth, 1);
+  assert.equal(verdict.deepestId, "first-floor");
+});
+
+test("knowledge-linked-counts-only-the-PLACED-knowledge: an unlinked one is scanned, not linked", () => {
+  const verdict = verdictOf([
+    row("opening", { kind: "pattern", dependsOn: ["asset:floor"] }),
+    row("floor", { kind: "definition" }),
+    row("floating", { kind: "principle" }),
+  ]);
+  // 3 scanned, 2 linked. Counting every scanned node as linked reports a fully-wired corpus, which
+  // is the number the panel prints and the one it would be most damaging to overstate.
+  assert.equal(verdict.knowledgeScanned, 3);
+  assert.equal(verdict.knowledgeLinked, 2);
+});
+
+test("vacuity-does-NOT-cry-blind-over-a-large-corpus-that-does-have-edges", () => {
+  // Above the floor AND wired. The blindness reason must turn on the edge count, not on size —
+  // firing here would red the honest case, which is the failure mode that gets a rung disabled.
+  const rows = [
+    row("opening", { dependsOn: ["asset:floor"] }),
+    row("floor"),
+    ...Array.from({ length: VACUOUS_SURFACE_WALK_FLOOR, }, (unused, index) => row(`spare-${index}`)),
+  ];
+  const verdict = verdictOf(rows);
+  assert.ok(verdict.nodesScanned > VACUOUS_SURFACE_WALK_FLOOR);
+  assert.equal(verdict.edgesScanned, 1);
+  assert.deepEqual(surfaceWalkVacuity(verdict), []);
+});
+
+test("the-vacuity-reasons-say-what-to-suspect, not merely that something is wrong", () => {
+  // The whole point of a reason string is the remedy it names. Asserted in full because an empty
+  // second half still matches a loose regex on the first, and reads as a complete finding.
+  const blind = surfaceWalkVacuity(
+    verdictOf(
+      Array.from({ length: VACUOUS_SURFACE_WALK_FLOOR }, (unused, index) =>
+        row(`row-${index}`, { dependsOn: ["doc:some/other/file.md"] }),
+      ),
+    ),
+  ).join(" ");
+  assert.match(blind, /nodes carried 0 resolvable edges between them/);
+  assert.match(blind, /the reader is blind, not the corpus flat/);
+  assert.match(blind, /suspect a pointer-spelling regression in `decision-pointer\.ts`/);
+
+  const cyclic = surfaceWalkVacuity(
+    verdictOf([row("a", { dependsOn: ["asset:b"] }), row("b", { dependsOn: ["asset:a"] })]),
+  ).join(" ");
+  assert.match(cyclic, /sit under a cycle and have no longest chain/);
+  assert.match(cyclic, /`probe:combined-dag` proves this graph acyclic, so this is a regression/);
+});

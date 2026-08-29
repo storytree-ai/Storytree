@@ -290,3 +290,21 @@ test("depth-from-work-reads-a-decision-through-its-artifact-twin: an id that mer
   // reads as "not a decision" instead of resolving to NaN and answering for some other row.
   assert.deepEqual(depthFromWorkOf(verdict, "adr-health-notes"), { state: "unreachable" });
 });
+
+test("depth-from-work-carries-the-decision-blindness-denominator: 0 means blind OR unwired, never both silently", () => {
+  // `decisionsCarryingDependsOn` is PRESENCE, not non-emptiness. It is the only thing separating a
+  // reader that cannot see the support field from a decision log that has none — and on 2026-08-23
+  // both were true at once, which is why a count that could not be quoted was worse than useless.
+  const verdict = evaluateDepthFromWork(
+    depthFromWorkNodes([
+      { id: "inc", doc: { kind: "increment", cites: ["story:studio", "asset:adr-0403"] } },
+    ]),
+    decisionSupportResolver([
+      { number: 403, dependsOn: ["doc:decisions/0363-x.md"] },
+      { number: 363, dependsOn: [] },
+      { number: 1 }, // no field at all — present-ness is what is counted
+    ]),
+  );
+  assert.equal(verdict.decisionsScanned, 3);
+  assert.equal(verdict.decisionsCarryingDependsOn, 2);
+});
