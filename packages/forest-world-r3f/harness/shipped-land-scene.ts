@@ -13,12 +13,15 @@
 // old buffer byte for byte) or `landRelief` (what the shipped canvas now passes). Nothing here
 // re-implements the ground.
 //
-// ⚠ THE LIGHT AND THE FRAMING ARE THE SHIPPED ONES, NOT PLAUSIBLE ONES, AND THIS MATTERS MORE
-// HERE THAN ANYWHERE ELSE ON THIS ARC. Relief moves no colour and adds no mark: the whole visible
-// difference is `dot(n, L)`. Lit from somewhere else, this page would be a picture of a land the
-// product does not draw. `frameWorld` / `orthographicZoomFor` are IMPORTED from `src/`, and the
-// lighting comes from `SHIPPED_LIGHTING`, which `shipped-baseline.test.ts` parses out of
+// ⚠ THE LIGHT AND THE VIEW DIRECTION ARE THE SHIPPED ONES, NOT PLAUSIBLE ONES, AND THAT MATTERS
+// MORE HERE THAN ANYWHERE ELSE ON THIS ARC. Relief moves no colour and adds no mark: the whole
+// visible difference is `dot(n, L)`. Lit from somewhere else, this page would be a picture of a
+// land the product does not draw. The direction comes from `frameWorld`, IMPORTED from `src/`, and
+// the lighting from `SHIPPED_LIGHTING`, which `shipped-baseline.test.ts` parses out of
 // `ForestWorldCanvas.tsx` and refuses on drift.
+//
+// ⚠ THE FRAME, THOUGH, IS THE ISLAND'S OWN AND NOT THE SHIPPED RULE'S — see `buildLandScene` for
+// why, and note it is a deliberate refusal to answer a question that belongs to another increment.
 //
 // ⚠ IT IS RAW THREE RATHER THAN THE R3F COMPONENT, and the reason is a fence rather than
 // convenience. `<ForestWorldCanvas>` passes the relief UNCONDITIONALLY — the arc's end-state item
@@ -38,7 +41,7 @@ import {
   type GroundRelief,
   type LinearRgb,
 } from '../src/cell-ground-geometry.js';
-import { frameWorld, orthographicZoomFor } from '../src/camera-framing.js';
+import { frameWorld } from '../src/camera-framing.js';
 import { landHeightRange, landRelief } from '../src/land-relief.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { islandScene } from './island-fixture.js';
@@ -78,6 +81,30 @@ function linearColourOf(material: string | undefined): LinearRgb {
   return { r: c.r, g: c.g, b: c.b };
 }
 
+/** A ground buffer's extent in CAMERA space — what a fitted orthographic frustum needs.
+ *
+ *  Computed off the buffer rather than off the ring coordinates, because the relief moves the
+ *  vertices AND relief is an upright extent: a frame sized from the flat footprint would crop the
+ *  land where it rises, which under a 45° view is the near edge. */
+function projectedBounds(
+  positions: Float32Array,
+  viewMatrix: THREE.Matrix4,
+): { minX: number; maxX: number; minY: number; maxY: number } {
+  const p = new THREE.Vector3();
+  let minX = Infinity;
+  let maxX = -Infinity;
+  let minY = Infinity;
+  let maxY = -Infinity;
+  for (let i = 0; i < positions.length; i += 3) {
+    p.set(positions[i]!, positions[i + 1]!, positions[i + 2]!).applyMatrix4(viewMatrix);
+    minX = Math.min(minX, p.x);
+    maxX = Math.max(maxX, p.x);
+    minY = Math.min(minY, p.y);
+    maxY = Math.max(maxY, p.y);
+  }
+  return { minX, maxX, minY, maxY };
+}
+
 export interface LandScene {
   scene: THREE.Scene;
   camera: THREE.OrthographicCamera;
@@ -94,11 +121,10 @@ export interface LandScene {
 /**
  * Build one arm at one zoom.
  *
- * ⚠ THE VIEWPORT IS SIZED FROM THE ISLAND, NOT FIXED, so both arms frame the same world at the
- * same delivered scale and the two PNGs are directly comparable pixel for pixel. The height range
- * is added to the framed extent rather than ignored: relief is an UPRIGHT extent and would
- * otherwise crop against a frame sized for a flat plane — a difference that would show up as the
- * relieved arm being subtly larger, which is a framing artefact and not the thing being compared.
+ * ⚠ BOTH ARMS ARE FITTED TO THE SAME BOUNDS, measured on the RELIEVED buffer whichever arm this
+ * is, so the two PNGs are directly comparable pixel for pixel. Fitting each arm to its own bounds
+ * would make the relieved island come out subtly SMALLER for being subtly taller — a framing
+ * artefact, and one that would read as the treatment having changed the island's size.
  */
 export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
   const cells = shippedParcels();
@@ -119,17 +145,40 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
   sun.position.set(lx, ly, lz);
   scene.add(sun);
 
+  // ⚠ THE VIEW DIRECTION IS THE SHIPPED ONE; THE FRAME IS THE ISLAND'S OWN, AND THE SPLIT IS
+  // DELIBERATE. `frameWorld` supplies the 45°-elevation direction the map looks from, and that is
+  // what has to be the product's. Its FRAMING is a different matter: the shipped rule backs off
+  // `max(260, spread * 2.6)`, which on this island — 234 units wide and 46 deep — reserves a frame
+  // the land occupies a few percent of. Framed that way both comparison pictures would be a green
+  // smear in a black field, and whether that rule wastes a third of the screen is its OWN open
+  // increment (`does-the-shipped-framing-waste-a-third-of-the-screen`) — not a question to answer
+  // by accident here. So the frustum is fitted to the island's own projected bounds, in world
+  // units, and the canvas is sized at `pxPerUnit` per unit: the delivered scale is exactly the
+  // stated one, and both arms are fitted to the SAME bounds so the two PNGs stay comparable pixel
+  // for pixel.
   const frame = frameWorld(cells);
-  // The island's own on-screen extent, plus the relief's upright range so neither arm crops.
-  const halfHeight = frame.halfHeight + landHeightRange();
-  const height = Math.round(halfHeight * 2 * pxPerUnit);
-  const width = Math.round(height * 1.9);
-
-  const camera = new THREE.OrthographicCamera(-width / 2, width / 2, height / 2, -height / 2, 1, 4000);
+  const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 4000);
   camera.position.set(...frame.position);
   camera.lookAt(...frame.target);
-  camera.zoom = orthographicZoomFor(halfHeight, height);
+  camera.updateMatrixWorld(true);
+
+  // The island in CAMERA space (x right, y up), measured on the RELIEVED buffer whatever arm this
+  // is — a frame fitted per-arm would be a different frame per arm, and the relieved island would
+  // come out subtly smaller for being subtly taller. That is a framing artefact, not the thing
+  // being compared.
+  const bounds = projectedBounds(
+    cellGroundGeometry({ cells, resolve: linearColourOf, relief: landRelief }).positions,
+    camera.matrixWorldInverse,
+  );
+  const pad = landHeightRange();
+  camera.left = bounds.minX - pad;
+  camera.right = bounds.maxX + pad;
+  camera.bottom = bounds.minY - pad;
+  camera.top = bounds.maxY + pad;
   camera.updateProjectionMatrix();
+
+  const width = Math.round((camera.right - camera.left) * pxPerUnit);
+  const height = Math.round((camera.top - camera.bottom) * pxPerUnit);
 
   let lo = Infinity;
   let hi = -Infinity;
