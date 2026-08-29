@@ -41,6 +41,19 @@
  *     retires the offer surface built on exactly that conflation). Counted so a cohort that is
  *     richly cited but edge-free is visible as such.
  *
+ * ## ⚠ THIS IS AN ADR-0477 D5 READER — IT FOLDS CITATIONS INTO A COUNT
+ *
+ * ADR-0477 (accepted 2026-08-29) retires the `references` field outright, and D5 requires every
+ * instrument that folded citations into a count to be corrected IN THE SAME LANDING as the removal.
+ * This is one of them, and it is the dangerous shape that decision names: it will NOT break when the
+ * field goes. {@link LinkageNode.referenceCount} simply reads zero, and every node whose only
+ * off-graph signal was a citation silently moves from the "linked only off-graph" bucket to
+ * "isolated" — a change in the instrument that reads as a corpus that got worse.
+ *
+ * So whoever lands that removal: `referenceCount` comes out of the isolation sum in
+ * `evaluateCorpusLinkage`, and the `references` term goes from this list. The cohort figures move,
+ * and the move is the instrument's, not the corpus's.
+ *
  * ## THIS COMPUTES DEGREE, NOT DEPTH — AND IT MUST CONVERGE ON THE SHARED WALKER
  *
  * `evaluateDepthFromWork` answers "how far from the work is this", a shortest-path walk. This
