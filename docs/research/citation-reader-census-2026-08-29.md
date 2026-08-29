@@ -32,9 +32,9 @@ never a proof of it.
   (`packages/cli/src/retire.ts` recurses over every string value in a doc), found by reading rather
   than by grepping.
 
-**Test files are counted, not classified.** 72 carry a hit. A test that reads a removed field FAILS
+**Test files are counted, not classified.** 73 carry a hit. A test that reads a removed field FAILS
 loudly at the moment of removal, which is the honest signal this census exists to manufacture for
-production code that would instead go quiet. Enumerating them would bury the 39 rows that need a
+production code that would instead go quiet. Enumerating them would bury the 41 rows that need a
 decision.
 
 ## What was measured in the live store
@@ -121,7 +121,9 @@ nothing to notice here and no `pnpm sync:web-engine` is owed by this arc.
 
 ## The census
 
-39 production readers. `disposition` is what step 4 must do.
+41 rows. 40 carry a code-position hit today; `retire.ts` carries none and is listed anyway
+because it reaches the field by recursing over every string value — the lexical blind spot
+named above. `disposition` is what step 4 must do.
 
 | file | what it does with the field | disposition |
 | --- | --- | --- |
@@ -163,6 +165,7 @@ nothing to notice here and no `pnpm sync:web-engine` is owed by this arc.
 | `apps/desktop/src/backend/local-backend.ts` | feeds the ADR-0107 OQ green-gate from the asset list | retire with `oq-gating.ts` |
 | `docs/research/library-doctor-prototype.mjs` | a dead prototype: reads `apps/studio/data/knowledge.json`, deleted by ADR-0302 D1 | not-live |
 | `docs/research/sources-grouping-prototype.mjs` | a dead prototype: same deleted seed file | not-live |
+| `packages/cli/src/citation-readers.ts` | the census scanner itself — its match pattern spells the field name, so the scan finds its own source | retire with the verb when the arc closes |
 | `tools/oxlint/anti-slop/rules/no-widen-then-assert.ts` | the ESLint scope API's `variable.references` | not-the-field |
 | `tools/oxlint/anti-slop/rules/no-known-value-widening.ts` | the ESLint scope API's `variable.references` | not-the-field |
 

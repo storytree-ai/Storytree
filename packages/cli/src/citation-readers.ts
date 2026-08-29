@@ -35,8 +35,8 @@
  *
  * Test files are reported as a count and deliberately not enumerated in the census. A test that
  * reads a removed field FAILS — loudly, at the moment of removal — which is the honest signal the
- * census exists to manufacture for production code that would instead go quiet. Classifying ~120
- * test files would bury the ~40 readers that actually need a disposition.
+ * census exists to manufacture for production code that would instead go quiet. Classifying the ~70
+ * test files that carry a hit would bury the ~40 readers that actually need a disposition.
  */
 
 /** A code-position occurrence of the field name — not a mention in prose. */
