@@ -334,3 +334,131 @@ test("an unparseable pointer is counted apart from a dangling one", () => {
   assert.equal(verdict.danglingPointers, 1);
   assert.equal(verdict.nodes[0]!.edgeFreeReason, "pointers-resolve-nowhere");
 });
+
+test("edgeFreeReasonFor with a RESOLVED pointer is authored-empty, not resolve-nowhere", () => {
+  // The `dangling` and `anchor` probes are `.some()` over the outward list, so a list holding ONLY
+  // resolved nodes is the case that tells a working predicate from one stuck on true.
+  assert.equal(
+    edgeFreeReasonFor("principle", { dependsOn: ["asset:x"] }, [{ sort: "node", nodeId: "x" }]),
+    "field-authored-empty",
+  );
+  assert.equal(
+    edgeFreeReasonFor("principle", {}, [{ sort: "node", nodeId: "x" }]),
+    "field-never-authored",
+  );
+});
+
+test("a decision superseding ITSELF records nothing", () => {
+  const verdict = evaluateCorpusLinkage([row("adr-0100", "adr", { supersedes: [100] })]);
+  assert.equal(verdict.nodes[0]!.supersedesOut, 0);
+  assert.equal(verdict.nodes[0]!.supersedesIn, 0);
+});
+
+test("`supersedes` given a STRING that would pad into a real id still records nothing", () => {
+  // `String(x).padStart(4, "0")` turns "200" into `decision:0200`, so a filter that admitted strings
+  // would forge a REAL edge rather than a harmless one — which is why the integer test is not enough.
+  const verdict = evaluateCorpusLinkage([
+    row("adr-0100", "adr", {}),
+    row("adr-0200", "adr", {}),
+    row("adr-0300", "adr", { supersedes: [100, "200"] }),
+  ]);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "decision:0300")!.supersedesOut, 1);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "decision:0200")!.supersedesIn, 0);
+  assert.equal(verdict.nodes.find((node) => node.nodeId === "decision:0100")!.supersedesIn, 1);
+});
+
+test("anchorOut counts ONLY the anchors, not every pointer beside them", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("a", "increment", { cites: ["story:s"], dependsOn: ["asset:gone", "doc:docs/research/x.md"] }),
+  ]);
+  assert.equal(verdict.nodes[0]!.anchorOut, 1);
+  assert.equal(verdict.nodes[0]!.danglingOut, 1);
+  assert.equal(verdict.nodes[0]!.repoFileOut, 1);
+});
+
+test("the per-kind roll-up counts only the UNLINKED, with a linked sibling present", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("p1", "principle", { dependsOn: ["asset:p2"] }),
+    row("p2", "principle", {}),
+    row("p3", "principle", {}),
+  ]);
+  const principles = verdict.byKind.find((kindRow) => kindRow.kind === "principle")!;
+  assert.equal(principles.total, 3);
+  assert.equal(principles.unlinked, 1, "p1 and p2 are linked to each other");
+  assert.equal(principles.isolated, 1);
+});
+
+test("EACH off-graph signal on its own is enough to be linked-only-off-graph", () => {
+  // The isolation test sums five counters. Each case leaves exactly ONE of them non-zero, so a sum
+  // that dropped or negated any single term puts that case in the wrong bucket.
+  const cases: readonly { readonly label: string; readonly rows: readonly LinkageSource[] }[] = [
+    { label: "references", rows: [row("a", "principle", { references: ["asset:x"] })] },
+    { label: "anchorOut", rows: [row("a", "increment", { cites: ["story:s"] })] },
+    { label: "repoFileOut", rows: [row("a", "principle", { dependsOn: ["doc:docs/research/x.md"] })] },
+  ];
+  for (const { label, rows } of cases) {
+    const verdict = evaluateCorpusLinkage(rows);
+    const offGraph = verdict.byKind.reduce((sum, kindRow) => sum + kindRow.linkedOnlyOffGraph, 0);
+    const isolated = verdict.byKind.reduce((sum, kindRow) => sum + kindRow.isolated, 0);
+    assert.equal(offGraph, 1, `${label} alone must put its node in the off-graph bucket`);
+    assert.equal(isolated, 0, `${label} alone must leave the isolated bucket empty`);
+  }
+});
+
+test("BOTH ends of a supersedes edge are off-graph, never isolated", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("adr-0100", "adr", {}),
+    row("adr-0200", "adr", { supersedes: [100] }),
+  ]);
+  const decisions = verdict.byKind.find((kindRow) => kindRow.kind === "adr")!;
+  assert.equal(decisions.linkedOnlyOffGraph, 2, "the superseder by its out, the superseded by its in");
+  assert.equal(decisions.isolated, 0);
+});
+
+test("isolated and off-graph are counted separately, with UNEQUAL populations", () => {
+  // Deliberately 2 vs 1: an equal split cannot tell a correct classifier from one that swapped the
+  // two branches.
+  const verdict = evaluateCorpusLinkage([
+    row("p1", "principle", {}),
+    row("p2", "principle", {}),
+    row("p3", "principle", { references: ["asset:x"] }),
+  ]);
+  const principles = verdict.byKind.find((kindRow) => kindRow.kind === "principle")!;
+  assert.equal(principles.isolated, 2);
+  assert.equal(principles.linkedOnlyOffGraph, 1);
+});
+
+test("linked and unlinked partition the population, and neither is the other", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("a", "principle", { dependsOn: ["asset:b"] }),
+    row("b", "principle", {}),
+    row("c", "principle", {}),
+  ]);
+  assert.equal(verdict.linked, 2);
+  assert.equal(verdict.unlinked, 1);
+  assert.equal(verdict.linked + verdict.unlinked, verdict.population);
+});
+
+test("a row whose whole document is null or a scalar still yields a usable node", () => {
+  const verdict = evaluateCorpusLinkage([
+    { id: "n", kind: "principle", doc: null, createdAt: "x", updatedAt: "y" },
+    { id: "s", kind: "principle", doc: "a string", createdAt: "x", updatedAt: "y" },
+    { id: "z", kind: "principle", doc: 0, createdAt: "x", updatedAt: "y" },
+  ]);
+  assert.equal(verdict.population, 3);
+  for (const node of verdict.nodes) {
+    assert.equal(node.referenceCount, 0);
+    assert.equal(node.anchorOut, 0);
+    assert.equal(node.edgeFreeReason, "field-never-authored");
+  }
+});
+
+test("the byKind sort puts the larger unlinked count first even when it was added LAST", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("z1", "zebra", {}),
+    row("a1", "alpha", {}),
+    row("m1", "middle", {}),
+    row("m2", "middle", {}),
+  ]);
+  assert.deepEqual(verdict.byKind.map((kindRow) => kindRow.kind), ["middle", "alpha", "zebra"]);
+});

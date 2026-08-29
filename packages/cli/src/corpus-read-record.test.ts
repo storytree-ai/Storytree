@@ -138,3 +138,92 @@ test("the floor notes name the manifest-injection floor, which is the one that b
   assert.ok(notes.some((note) => note.includes("PRIMARY CHECKOUT")));
   assert.ok(notes.some((note) => note.includes("CODEX")));
 });
+
+test("`library artifact <id>` with NO launcher in front of it is not a read", () => {
+  // The launcher index is what anchors the argv. Without that anchor the same three tokens appear in
+  // prose and in other commands, and minting a read for them is the loose-match failure.
+  assert.deepEqual(idsOf("library artifact merge-ceremony"), []);
+  assert.deepEqual(idsOf("echo library artifact merge-ceremony"), []);
+  assert.deepEqual(idsOf("rg library artifact ."), []);
+});
+
+test("the argv shape must match in ALL THREE positions", () => {
+  assert.deepEqual(idsOf("storytree adr artifact merge-ceremony"), [], "wrong area");
+  assert.deepEqual(idsOf("storytree library tree merge-ceremony"), [], "wrong sub-verb");
+  assert.deepEqual(idsOf("storytree library artifact"), [], "no id at all");
+  assert.deepEqual(idsOf("storytree library artifact merge-ceremony"), ["merge-ceremony"]);
+});
+
+test("a NEWLINE separates segments, exactly as `&&` and `|` do", () => {
+  assert.deepEqual(idsOf("storytree library artifact a\nstorytree library artifact b"), ["a", "b"]);
+  assert.deepEqual(idsOf("storytree library artifact a\r\nstorytree library artifact b"), ["a", "b"]);
+});
+
+test("a WINDOWS-SPELLED launcher path is recognised", () => {
+  // The launcher token is normalised backslash-to-slash before its basename is taken; on this box
+  // the command is routinely written either way.
+  assert.deepEqual(idsOf("node packages\\cli\\launch.mjs library artifact x"), ["x"]);
+  assert.deepEqual(idsOf("npx tsx packages\\cli\\src\\main.ts library artifact x"), ["x"]);
+});
+
+test("leading and repeated whitespace does not shift the argv", () => {
+  assert.deepEqual(idsOf("   storytree library artifact x"), ["x"]);
+  assert.deepEqual(idsOf("storytree  library   artifact    x"), ["x"]);
+});
+
+test("the id must match END TO END, so a trailing illegal character is declined", () => {
+  assert.deepEqual(idsOf("storytree library artifact abc)"), []);
+  assert.deepEqual(idsOf("storytree library artifact abc.md"), []);
+  assert.deepEqual(idsOf("storytree library artifact abc"), ["abc"]);
+});
+
+test("every decline names WHICH verb it declined", () => {
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact history adr-0403").declinedVerbs, [
+    "library artifact history",
+  ]);
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact list principle").declinedVerbs, [
+    "library artifact list",
+  ]);
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact $id").declinedVerbs, [
+    "library artifact (not an id shape)",
+  ]);
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact --help").declinedVerbs, [
+    "library artifact (a flag, no id)",
+  ]);
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact x --set body=y").declinedVerbs, [
+    "library artifact --set/--file/--json (a write)",
+  ]);
+});
+
+test("only the tokens AFTER the id are read as flags", () => {
+  // `argv.slice(3)` is what stops the verb tokens themselves being scanned, and `flagName` is what
+  // makes `--raw body` and `--raw=body` classify alike. An id spelled like a flag name proves both.
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact raw --raw=body").reads, [
+    { id: "raw", strength: "front_matter_read" },
+  ]);
+  assert.deepEqual(scrapeArtifactReads("storytree library artifact set").reads, [
+    { id: "set", strength: "full_payload_read" },
+  ]);
+});
+
+test("firstAt and lastAt each move only in their own direction", () => {
+  const folded = foldReadObservations([
+    { id: "a", at: "2026-08-05T00:00:00.000Z", sessionId: "s" },
+    { id: "a", at: "2026-08-09T00:00:00.000Z", sessionId: "s" },
+    { id: "a", at: "2026-08-01T00:00:00.000Z", sessionId: "s" },
+    { id: "a", at: "2026-08-03T00:00:00.000Z", sessionId: "s" },
+  ]);
+  const a = folded.get("a")!;
+  assert.equal(a.firstAt, "2026-08-01T00:00:00.000Z");
+  assert.equal(a.lastAt, "2026-08-09T00:00:00.000Z");
+});
+
+test("a single observation makes firstAt and lastAt the same instant", () => {
+  const folded = foldReadObservations([{ id: "a", at: "2026-08-05T00:00:00.000Z", sessionId: "s" }]);
+  assert.equal(folded.get("a")!.firstAt, "2026-08-05T00:00:00.000Z");
+  assert.equal(folded.get("a")!.lastAt, "2026-08-05T00:00:00.000Z");
+});
+
+test("the floor notes are real prose, not blank placeholders", () => {
+  for (const note of readFloorNotes()) assert.ok(note.trim().length > 20, JSON.stringify(note));
+});

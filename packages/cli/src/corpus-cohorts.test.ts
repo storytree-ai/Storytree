@@ -203,3 +203,71 @@ test("a cohort nobody co-read yields no neighbours rather than a spurious one", 
   const sessionReads = new Map<string, ReadonlySet<string>>([["s1", new Set(["unrelated"])]]);
   assert.deepEqual(coReadNeighbours(new Set(["target"]), sessionReads, 5), []);
 });
+
+test("lastAt takes the LATEST across members, whatever order they arrive in", () => {
+  const reads = new Map<string, ReadRecord>([
+    ["a", record(1, ["s1"], "2026-08-09T00:00:00.000Z")],
+    ["b", record(1, ["s2"], "2026-08-02T00:00:00.000Z")],
+  ]);
+  const forward = buildCohorts(
+    [node("a", "principle", "field-never-authored"), node("b", "principle", "field-never-authored")],
+    reads,
+    new Map(),
+    NO_MANIFEST,
+  );
+  const reversed = buildCohorts(
+    [node("b", "principle", "field-never-authored"), node("a", "principle", "field-never-authored")],
+    reads,
+    new Map(),
+    NO_MANIFEST,
+  );
+  assert.equal(forward[0]!.trace.lastAt, "2026-08-09T00:00:00.000Z");
+  assert.equal(reversed[0]!.trace.lastAt, "2026-08-09T00:00:00.000Z", "member order must not matter");
+});
+
+test("a cohort with SOME members read keeps both numbers apart", () => {
+  const reads = new Map<string, ReadRecord>([["a", record(4, ["s1"], "2026-08-09T00:00:00.000Z")]]);
+  const cohorts = buildCohorts(
+    [node("a", "principle", "field-never-authored"), node("b", "principle", "field-never-authored")],
+    reads,
+    new Map(),
+    NO_MANIFEST,
+  );
+  const cohort = cohorts[0]!;
+  assert.equal(cohort.nodes.length, 2);
+  assert.equal(cohort.trace.readNodes, 1);
+  assert.equal(cohort.trace.reads, 4);
+  assert.equal(cohort.observedNodes, 1);
+  assert.equal(cohort.trace.lastAt, "2026-08-09T00:00:00.000Z");
+});
+
+test("cohorts of EQUAL size break their tie by key, not by input order", () => {
+  const cohorts = buildCohorts(
+    [node("z", "zebra", "field-never-authored"), node("a", "alpha", "field-never-authored")],
+    new Map(),
+    new Map(),
+    NO_MANIFEST,
+  );
+  assert.deepEqual(cohorts.map((cohort) => cohort.key), [
+    "knowledge/alpha/field-never-authored",
+    "knowledge/zebra/field-never-authored",
+  ]);
+});
+
+test("a transcript-only read still counts, so neither source is privileged", () => {
+  const transcript = new Map<string, ReadRecord>([
+    ["a", record(2, ["w1"], "2026-08-07T00:00:00.000Z")],
+  ]);
+  const cohort = buildCohorts(
+    [node("a", "principle", "field-never-authored")],
+    new Map(),
+    transcript,
+    NO_MANIFEST,
+  )[0]!;
+  assert.equal(cohort.observedNodes, 1);
+  assert.equal(cohort.trace.reads, 0);
+  assert.equal(cohort.trace.lastAt, "");
+  assert.equal(cohort.transcript.reads, 2);
+  assert.equal(cohort.transcript.sessions, 1);
+  assert.equal(cohort.transcript.lastAt, "2026-08-07T00:00:00.000Z");
+});
