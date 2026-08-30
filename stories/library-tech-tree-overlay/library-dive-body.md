@@ -2,8 +2,8 @@
 id: "library-dive-body"
 tier: capability
 story: library-tech-tree-overlay
-title: "The dive body panel — an artifact's full body + Sources over the map, reusing AssetView / DocView"
-outcome: "Opening an artifact renders its FULL body + Sources over the map into the shell's reserved dive slot, REUSING the existing body renderers — AssetView for assets (body + Sources from the already-loaded corpus, NO fetch) and DocView for ADRs (body via the FIRST on-demand api.docContent fetch this arc allows) — routed off the finder's centred librarySelection on the SearchResult.source discriminant (never category) and opened via the drawer bar's existing Dive button; its routing and behaviour machine-witnessed, its appearance operator-attested."
+title: "The dive body panel — an artifact's full body over the map, reusing AssetView / DocView"
+outcome: "Opening an artifact renders its FULL body over the map into the shell's reserved dive slot, REUSING the existing body renderers — AssetView for assets (body from the already-loaded corpus, NO fetch) and DocView for ADRs (body via the FIRST on-demand api.docContent fetch this arc allows) — routed off the finder's centred librarySelection on the SearchResult.source discriminant (never category) and opened via the drawer bar's existing Dive button; its routing and behaviour machine-witnessed, its appearance operator-attested."
 status: proposed
 proof_mode: integration-test
 depends_on: [library-finder]
@@ -17,7 +17,7 @@ decisions: [185, 70, 122, 23]
 # routes on the SearchResult.source discriminant ('asset' | 'doc'), NEVER category (an ADR is source:'doc'
 # but category:'adr' — trap): null → empty, source:'asset' → asset, source:'doc' → doc; the component
 # renders the empty/prompt state with no selection (mounting NEITHER AssetView NOR DocView, no fetch), an
-# asset selection through AssetView (body + Sources from the loaded corpus, NO docContent fetch), a doc
+# asset selection through AssetView (body from the loaded corpus, NO docContent fetch), a doc
 # selection through DocView (which calls the STUBBED api.docContent(id) and renders its markdown), and a
 # rejected api.docContent surfaces DocView's error state without crashing the panel (the inc-3-crash-class
 # guard at the data boundary). The dive body's APPEARANCE (does the full-body reading pane read as one
@@ -68,11 +68,11 @@ proof:
         - "src/components/LibraryDiveBody.test.tsx"
 ---
 
-# The dive body panel — an artifact's full body + Sources over the map, reusing AssetView / DocView
+# The dive body panel — an artifact's full body over the map, reusing AssetView / DocView
 
-**Outcome —** Opening an artifact renders its FULL body + Sources over the map into the shell's reserved
+**Outcome —** Opening an artifact renders its FULL body over the map into the shell's reserved
 `library-drawer-dive-slot` (ADR-0185 dec 1), REUSING the existing body renderers: `AssetView` for assets
-(body + Sources from the already-loaded corpus, NO fetch) and `DocView` for ADRs (body via
+(body from the already-loaded corpus, NO fetch) and `DocView` for ADRs (body via
 `api.docContent(id)` — the FIRST on-demand fetch this arc allows, ADR-0185 dec 3/4). It is routed off the
 finder's centred `librarySelection` on the `SearchResult.source` discriminant (never `category`) and opened
 via the drawer bar's EXISTING "Dive" button; its routing and behaviour machine-witnessed, its appearance
@@ -122,6 +122,24 @@ deterministically drivable in jsdom.
 > **What is UNCHANGED is the instruction:** do NOT author a visual / colour / layout assertion in this
 > capability's tests.
 
+> **ADR-0477 D1 correction, 2026-08-30 (ADR-0139) — the `Sources` half of this panel is GONE.** Every
+> sentence in this file that described the dive as rendering an artifact's "body + Sources" has been
+> corrected in place to describe the BODY alone, including this capability's `title` and `outcome`.
+> **The panel did once render it and no longer does** — that is a change, not a mis-description: an
+> artifact's `references` list rendered as a grouped `Sources:` block at the foot of `AssetView`, and
+> ADR-0477 D1 retired the citation tier outright, leaving the authored `depends_on` edge as the
+> library's only edge. The render came off in `stop-rendering-the-sources-block` (PR #1724) and the
+> field itself went in PR #1727. `AssetView` today renders the asset's body and its `provenance` line
+> (a DIFFERENT field, ADR-0095 D8) and no Sources pane at all.
+> ⚠ **The contract id `ldb-asset-selection-renders-assetview-body-and-sources` KEEPS its name, and
+> that disagreement with its own description is deliberate.** A contract id is a stable handle bound
+> from [`story.md`](story.md) in five places, not a description; renaming it for a wording change
+> would break those bindings. Its test already carries the corrected description and asserts the
+> block is ABSENT (`expect(screen.queryByText('Sources')).toBeNull()`), so what NARROWED is what the
+> contract proves, not what it is called.
+> **What is UNCHANGED:** the reuse instruction. The dive is still a THIN router around the EXISTING
+> `AssetView` / `DocView` renderers and must not hand-roll a body renderer of its own.
+
 
 ## Guidance
 
@@ -134,11 +152,11 @@ single selection into a full-body dive over the map; the wire extension and the 
 increments' jobs, gated on this dive.
 
 REUSE, DON'T HAND-ROLL — the dive is a ROUTER around two EXISTING renderers. `AssetView` and `DocView`
-already exist and already render an artifact's full body — `AssetView` renders an asset's body + its
-Sources from the already-loaded corpus (no fetch), and `DocView` renders an ADR's body via its own
+already exist and already render an artifact's full body — `AssetView` renders an asset's body from the
+already-loaded corpus (no fetch), and `DocView` renders an ADR's body via its own
 `api.docContent(id)` fetch (with its own loading/error states). The dive body is a THIN layer that picks
-which of the two to mount for the current selection; it is NOT a new markdown renderer, a new Sources
-renderer, or a new fetch. Do NOT reimplement body rendering here — the whole point is that the reading pane
+which of the two to mount for the current selection; it is NOT a new markdown renderer and NOT a new
+fetch. Do NOT reimplement body rendering here — the whole point is that the reading pane
 is the studio's existing, already-styled artifact view, now surfaced over the map.
 
 THE PURE HEART — `planDive(selection)` (the clean red→green core, unit-testable without jsdom). A pure
@@ -173,7 +191,7 @@ THE `docContent` FETCH IS DocView's — AND IT IS THE FIRST ONE THIS ARC ALLOWS 
 1–3 read only the already-loaded corpus (no fetch beyond the wire). This increment is where an ADR's body is
 fetched ON DEMAND, through DocView's own `api.docContent(id)` call, exactly when the operator dives an ADR —
 the "bodies fetched on demand" of ADR-0185 dec 3. The asset path stays fetch-free: `AssetView` renders the
-asset body + Sources from the already-loaded corpus. So the dive fetches ONLY for a doc dive, and only
+asset body from the already-loaded corpus. So the dive fetches ONLY for a doc dive, and only
 through DocView. In the jsdom test, STUB `api.docContent` for the doc path (assert the stub is called with
 the id and its returned `markdown` renders); assert the asset path calls NO `docContent`. Pin the routing in
 `ldb-asset-selection-renders-assetview-body-and-sources` (asset → AssetView, no fetch) and
@@ -224,7 +242,7 @@ agent/drive/model (the `modelPathBoundary.test.ts` wall stays green).
 **Goal —** Prove the dive body: `planDive(selection)` routes on the `SearchResult.source` discriminant
 (`null → empty`, `source:'asset' → asset`, `source:'doc' → doc`, an ADR routing to `doc` never `asset`);
 and the `<LibraryDiveBody selection={…}>` component renders the empty/prompt state with no selection
-(mounting neither renderer, no fetch), mounts `AssetView` for an asset selection (body + Sources from the
+(mounting neither renderer, no fetch), mounts `AssetView` for an asset selection (body from the
 loaded corpus, no `docContent` fetch), mounts `DocView` for a doc selection (which calls the STUBBED
 `api.docContent(id)` and renders its markdown), and surfaces DocView's error state without crashing when
 `api.docContent` rejects — entirely in jsdom, driven by props, the only fetch the stubbed `docContent`.
@@ -240,8 +258,8 @@ is stubbed). It would:
 2. Render `<LibraryDiveBody selection={null} />` in jsdom. Assert the panel renders the empty/prompt state,
    mounts NEITHER `AssetView` NOR `DocView`, and calls no fetch.
 3. Render `<LibraryDiveBody selection={assetResult} />` wrapped in the AppData provider over a loaded corpus.
-   Assert the asset's body + its Sources render (through `AssetView`) and that `api.docContent`/fetch is NOT
-   called (assets read the loaded corpus).
+   Assert the asset's body renders (through `AssetView`), that NO `Sources` block renders (ADR-0477 D1
+   retired it), and that `api.docContent`/fetch is NOT called (assets read the loaded corpus).
 4. Render `<LibraryDiveBody selection={docResult} />` wrapped in the AppData provider with `api.docContent`
    STUBBED to resolve a known `markdown`. Assert `DocView` mounts, the stubbed `api.docContent(id)` is
    called with the doc id, and the returned `markdown` renders.
@@ -274,10 +292,15 @@ palette, the empty/prompt state styling) is the story's recorded LOOK INTENT (de
      NEITHER `AssetView` NOR `DocView`, and calls no fetch. The rich empty-state overview is increment 5.
    - **covers —** `apps/studio/src/components/LibraryDiveBody.tsx` (the empty/prompt render branch)
    - **proven by —** `apps/studio/src/components/LibraryDiveBody.test.tsx`.
-4. **`ldb-asset-selection-renders-assetview-body-and-sources`** — an asset selection renders AssetView's body + Sources, with no fetch
+4. **`ldb-asset-selection-renders-assetview-body-and-sources`** — an asset selection renders AssetView's body, with no fetch and no Sources block
+   - ⚠ **The id keeps `-and-sources` deliberately (ADR-0477 D1, 2026-08-30).** It is a stable handle
+     bound from [`story.md`](story.md), not a description; renaming it for a wording change would break
+     that binding. What the contract PROVES narrowed when the `Sources` block was retired — the test
+     now asserts the block is ABSENT — and only the description moved.
    - **asserts —** rendering `<LibraryDiveBody selection={assetResult} />` (in the AppData provider over a
-     loaded corpus) mounts `AssetView` and renders the asset's body + its Sources from the loaded corpus,
-     with NO `api.docContent`/fetch call (assets are already on the wire — trap g carries over).
+     loaded corpus) mounts `AssetView` and renders the asset's body from the loaded corpus, with NO
+     `Sources` block rendered and NO `api.docContent`/fetch call (assets are already on the wire — trap
+     g carries over).
    - **covers —** `apps/studio/src/components/LibraryDiveBody.tsx` (the asset → `AssetView` branch)
    - **proven by —** `apps/studio/src/components/LibraryDiveBody.test.tsx`.
 5. **`ldb-doc-selection-fetches-and-renders-markdown`** — a doc selection mounts DocView, which calls the stubbed `docContent` and renders its markdown
@@ -331,7 +354,7 @@ Rules:
   (`ldb-plandive-empty-on-null`, `ldb-plandive-routes-on-source-not-category`). A `category`-based switch
   would break every ADR dive.
 - **Reuse AssetView / DocView, don't hand-roll a renderer** — the dive is a router around the EXISTING body
-  renderers; do NOT reimplement markdown/Sources rendering
+  renderers; do NOT reimplement markdown rendering
   (`ldb-asset-selection-renders-assetview-body-and-sources`,
   `ldb-doc-selection-fetches-and-renders-markdown`).
 - **The `docContent` fetch is DocView's, and it is stubbed in the test** — the doc path is the first

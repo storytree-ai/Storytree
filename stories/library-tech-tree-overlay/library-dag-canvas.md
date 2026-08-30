@@ -3,7 +3,7 @@ id: "library-dag-canvas"
 tier: capability
 story: library-tech-tree-overlay
 title: "The focus canvas is a true layered dependency DAG: dagre rankdir-LR ranks over the authored standsOn edge BOTH ways to ONE level upstream + ONE level downstream (the full transitive walk retired, ADR-0193 dec 3; the references[] citation substrate retired, ADR-0223), DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders taming breadth (the global depth stepper retired), NO ← Back / breadcrumb and NO pan/zoom controls — search-first plus click-through re-centre is the whole navigation — and a machine-asserted fit-to-view viewBox containing every laid-out node — the brownfield rework of library-focus-subgraph (source files keep their names)"
-outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus's authored standsOn dependency edge BOTH ways (upstream stands-on left, downstream stood-on-by right — literally the edge and its reverse) walked ONE level upstream + ONE level downstream only (the full transitive walk retired, ADR-0193 dec 3 reversing ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), NO ← Back button and NO breadcrumb trail and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS one-level neighbourhood — is the whole navigation), and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested. Citations are demoted out of the DAG, not deleted: they keep the artifact view's grouped Sources pane."
+outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus's authored standsOn dependency edge BOTH ways (upstream stands-on left, downstream stood-on-by right — literally the edge and its reverse) walked ONE level upstream + ONE level downstream only (the full transitive walk retired, ADR-0193 dec 3 reversing ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), NO ← Back button and NO breadcrumb trail and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS one-level neighbourhood — is the whole navigation), and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested. Citations are demoted out of the DAG — this walk never reads them (and since ADR-0477 D1 they no longer exist to read)."
 status: proposed
 proof_mode: integration-test
 depends_on: [library-finder]
@@ -85,9 +85,17 @@ proof:
 constitutive definition pairs like `story ↔ capability` are not a defect in it — so it could never be
 topologically oriented, and "stands on" / "stood on by" were two readings of one undirected "see also". The DAG
 substrate is now the authored `standsOn` dependency edge, held acyclic by the fail-closed
-`check:library-dag-acyclic` rung. Citations are DEMOTED OUT of the DAG, not deleted: they keep their home in the
-artifact view's grouped "Sources" pane. Definitions carry no `standsOn` at all (ADR-0363 D1 excluded the tier),
-so a definition centre draws no fan — expected, not a gap.
+`check:library-dag-acyclic` rung. Citations are DEMOTED OUT of the DAG. Definitions carry no `standsOn` at all
+(ADR-0363 D1 excluded the tier), so a definition centre draws no fan — expected, not a gap.
+
+⚠ **"Demoted, not deleted" has EXPIRED — corrected in place 2026-08-30 (ADR-0139).** When this capability
+was authored, the demotion came with a reassurance: the citations kept their own home in the artifact view's
+grouped `Sources` pane. **That pane no longer exists and neither do the citations.** ADR-0477 D1 retired the
+citation tier outright — the `Sources:` block came off every read surface in `stop-rendering-the-sources-block`
+(PR #1724) and the `references` field left the schema in PR #1727 — so citations are now deleted as well as
+demoted, and provenance survives only as the frozen `docs/research/citation-snapshot-2026-08-30.md`. **Nothing
+about THIS canvas changes:** it walks the authored `standsOn` edge and never read `references` in the first
+place, which is precisely why the retirement passed it by. What changed is the fate of what it demoted.
 
 **Outcome —** The finder's lifted selection centres a `@dagrejs/dagre` rankdir-LR layered DAG built from the
 corpus's authored `standsOn` edge BOTH ways (upstream "stands on" fanned left, downstream "stood on by" fanned
@@ -404,8 +412,10 @@ a plausible — and cyclic — graph.
       mutually-constitutive definition-pair shape that forced ADR-0223, and which the retired `references[]` walk
       drew as an unorientable 2-cycle), and separately STANDS ON one bedrock artifact: neither cited artifact
       appears as a node, the ONLY edge returned is the authored `standsOn` one, and no edge touches either member
-      of the citation pair in either direction. Citations are DEMOTED OUT of the DAG, not deleted — they keep
-      their home in the artifact view's grouped "Sources" pane, which this walk never touched.
+      of the citation pair in either direction. Citations are DEMOTED OUT of the DAG — a substrate this walk
+      never touched, and since ADR-0477 D1 retired the citation tier there is nothing left to touch (the
+      "they keep their home in the artifact view's grouped `Sources` pane" half of this rationale expired
+      with it; see the substrate note above).
     - **covers —** `apps/studio/src/lib/focusGraph.ts` (the substrate switch — `references` reaches neither the node set nor the edge list)
     - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
 14. **`ldag-stood-on-by-is-the-literal-reverse-edge`** — the downstream fan is exactly the reverse `standsOn` edge, and a citer of the centre is not in it
