@@ -204,3 +204,25 @@ test('luma is the Rec709 weighting the rest of the harness measures with', () =>
   assert.ok(Math.abs(luma({ r: 0, g: 0, b: 255 }) - 0.0722 * 255) < 1e-9);
   assert.ok(Math.abs(luma({ r: 255, g: 255, b: 255 }) - 255) < 1e-9);
 });
+
+test('⚠ a base-colour channel too dark to tint is REFUSED, and the floor binds exactly', () => {
+  // ⚠⚠ THE GAIN IS `token * scale / mapMean`, so a mapMean near zero answers an enormous gain and
+  // the delivered channel CLIPS at 255 — a crown wearing a blown primary instead of the token,
+  // which looks like a colour choice. `MIN_TINTABLE_CHANNEL` is where the run refuses instead, and
+  // the boundary is asserted on both sides because a floor nothing tests is a floor that can move.
+  const at = (b: number): Rgb => ({ r: 70, g: 90, b });
+  assert.throws(
+    () => leafTintGain(parseHex('#d8c069'), at(MIN_TINTABLE_CHANNEL - 0.01)),
+    /below/,
+    'a channel below the floor was tinted anyway',
+  );
+  assert.ok(leafTintGain(parseHex('#d8c069'), at(MIN_TINTABLE_CHANNEL)), 'the floor itself refused');
+  // And the refusal names the number, so the failure says what to fix.
+  assert.throws(() => leafTintGain(parseHex('#d8c069'), at(0)), /0\.00/);
+});
+
+test('a map with no luminance at all is refused before any per-channel gain', () => {
+  // A black map has no hue to rotate. Dividing by its luminance answers Infinity for every
+  // channel, and three would render that as pure white.
+  assert.throws(() => leafTintGain(parseHex('#d8c069'), { r: 0, g: 0, b: 0 }), /no luminance/);
+});

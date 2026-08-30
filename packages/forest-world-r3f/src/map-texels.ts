@@ -33,12 +33,66 @@ export interface MapMeans {
 }
 
 /**
- * Draw a decoded texture image into a 2D canvas and answer its raw and linearised means.
- *
- * ⚠ BOTH MEANS ARE COMPUTED HERE, FROM THE SAME TEXELS, IN THE SAME PASS. The linearised one is
+ * ⚠ BOTH MEANS ARE COMPUTED FROM THE SAME TEXELS IN THE SAME PASS. The linearised one is
  * `mean(srgb_to_linear(texel))` and NOT `srgb_to_linear(mean(texel))` — the curve is convex, so
  * those differ, and predicting with the wrong one leaves a systematic error that a tolerance
  * would then have to absorb. A tolerance absorbing a modelling error has stopped discriminating.
+ */
+/**
+ * THE MEANS THEMSELVES — the arithmetic, over raw RGBA bytes, with no canvas anywhere.
+ *
+ * ⚠⚠ EXTRACTED FROM {@link mapMeans} SO IT CAN BE PROVED. Reading a texture's texels needs a 2D
+ * canvas and therefore a browser; the arithmetic over them does not, and it is where every claim
+ * lives — which mean is which, that only solid texels count, and what "no solid texels at all"
+ * does. Left inside the canvas read it was 65 mutants nothing could reach, and
+ * `check:mutation-diff` said so. The remedy is not a better browser fixture: it is that the
+ * subject of the assertions was never the canvas.
+ *
+ * ⚠ IT ITERATES `data.keys()` RATHER THAN A COUNTER. A `for (let i = 0; i < n; i += 4)` carries
+ * mutants that flip `+=` to `-=` and `<` to `>`; neither fails an assertion, both run forever, and
+ * the rung scores a hang UNPROVEN — credited to nobody. A typed array's own key iterator has
+ * nothing to mutate into one.
+ */
+export function texelMeans(data: ArrayLike<number> & { keys(): IterableIterator<number> }): {
+  raw: Rgb;
+  linear: Rgb;
+  opaque: number;
+} {
+  let rr = 0;
+  let gg = 0;
+  let bb = 0;
+  let lr = 0;
+  let lg = 0;
+  let lb = 0;
+  let n = 0;
+  for (const i of data.keys()) {
+    if (i % 4 !== 0) continue;
+    if (data[i + 3]! < OPAQUE_TEXEL_CUT) continue;
+    const r = data[i]!;
+    const g = data[i + 1]!;
+    const b = data[i + 2]!;
+    rr += r;
+    gg += g;
+    bb += b;
+    lr += srgbToLinearUnit(r / 255) * 255;
+    lg += srgbToLinearUnit(g / 255) * 255;
+    lb += srgbToLinearUnit(b / 255) * 255;
+    n += 1;
+  }
+  if (n === 0) throw new Error('map-texels: a map has no solid texels at all');
+  return {
+    raw: { r: rr / n, g: gg / n, b: bb / n },
+    linear: { r: lr / n, g: lg / n, b: lb / n },
+    opaque: n,
+  };
+}
+
+/**
+ * Draw a decoded texture image into a 2D canvas and answer its raw and linearised means.
+ *
+ * ⚠ THE ARITHMETIC IS {@link texelMeans}'S. What is left here is the browser-bound half — get the
+ * texels out of a decoded image — and it is deliberately the only part that cannot be proved
+ * without one.
  */
 export function mapMeans(image: DecodedMap): MapMeans {
   const width = Number(image.width ?? 0);
@@ -51,34 +105,12 @@ export function mapMeans(image: DecodedMap): MapMeans {
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   if (!ctx) throw new Error('map-texels: no 2d context to read a map with');
   ctx.drawImage(image, 0, 0);
-  const data = ctx.getImageData(0, 0, width, height).data;
-
-  let rr = 0;
-  let gg = 0;
-  let bb = 0;
-  let lr = 0;
-  let lg = 0;
-  let lb = 0;
-  let n = 0;
-  for (let i = 0; i < data.length; i += 4) {
-    if (data[i + 3]! < OPAQUE_TEXEL_CUT) continue;
-    const r = data[i]!;
-    const g = data[i + 1]!;
-    const b = data[i + 2]!;
-    rr += r;
-    gg += g;
-    bb += b;
-    lr += srgbToLinearUnit(r / 255) * 255;
-    lg += srgbToLinearUnit(g / 255) * 255;
-    lb += srgbToLinearUnit(b / 255) * 255;
-    n++;
-  }
-  if (n === 0) throw new Error('map-texels: a map has no solid texels at all');
+  const means = texelMeans(ctx.getImageData(0, 0, width, height).data);
   return {
-    raw: { r: rr / n, g: gg / n, b: bb / n },
-    linear: { r: lr / n, g: lg / n, b: lb / n },
+    raw: means.raw,
+    linear: means.linear,
     width,
     height,
-    opaqueFraction: n / (width * height),
+    opaqueFraction: means.opaque / (width * height),
   };
 }
