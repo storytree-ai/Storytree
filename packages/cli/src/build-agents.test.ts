@@ -168,7 +168,6 @@ test("build:agents checks Codex TOML content for essentials prompt violations", 
       context: [],
       tools: "none",
       workflow: "orient, then stop.",
-      references: [],
     },
   });
 

@@ -24,7 +24,6 @@ async function seeded(): Promise<InMemoryStore> {
       statement: "Always assemble from the library.",
       why: "one source of truth beats hand-copy drift.",
       howToApply: "render, never restate.",
-      references: [],
     },
   });
   await store.upsertDoc({
@@ -41,7 +40,6 @@ async function seeded(): Promise<InMemoryStore> {
       tools: "none",
       workflow: "orient, then stop.",
       rules: ["asset:test-principle"],
-      references: [],
     },
   });
   await store.upsertDoc({
@@ -58,7 +56,6 @@ async function seeded(): Promise<InMemoryStore> {
       tools: "none",
       workflow: "orient, then stop.",
       antiPatterns: ["asset:ghost-ref"],
-      references: [],
     },
   });
   return store;
@@ -89,7 +86,6 @@ test("agentsCommand resolves a discovery ALIAS to the canonical agent (ADR-0325 
       tools: "none",
       workflow: "sweep, then stop.",
       aliases: ["scout", "probe"],
-      references: [],
     },
   });
 
@@ -133,7 +129,6 @@ async function seededWithSteps(): Promise<InMemoryStore> {
       context: ["asset:test-principle"],
       tools: "t",
       workflow: "session_start, then 1.",
-      references: [],
       stepRefs: [
         { step: "session_start", refs: ["asset:test-principle"] },
         { step: "1", refs: [] },

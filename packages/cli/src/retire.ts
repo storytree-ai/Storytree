@@ -9,9 +9,9 @@ import type { StoredDoc } from "@storytree/storage-protocol";
  * `store.deleteDoc` rationale primitive, but a reference wall instead of the open-question fence.
  *
  * "Depends on" = an intra-library `asset:<id>` EDGE — a string value that IS a ref, which is exactly
- * what every ref-bearing field in knowledge.ts declares via `AssetRef`: the shared `references:
- * string[]` citation list, the agent kind's refList fields (`context` / `rules` / `antiPatterns`),
- * an agent's `stepRefs[].refs`, a process's `branchEdges[].ref`, and the single `arcRef` pointer on
+ * what every ref-bearing field in knowledge.ts declares via `AssetRef`: the authored `dependsOn`
+ * edge, the agent kind's refList fields (`context` / `rules` / `antiPatterns`), an agent's
+ * `stepRefs[].refs`, a process's `branchEdges[].ref`, and the `arcRef` / `settledByRef` pointers on
  * an increment / open question. This still walks every string in the body — so a new ref-bearing
  * field is covered the day it is added, with no per-kind list to keep — but it counts a value only
  * when the WHOLE value is a ref.
@@ -27,7 +27,13 @@ import type { StoredDoc } from "@storytree/storage-protocol";
  * mentions it, leaving a dangling name in a sentence. A name in a paragraph was never an edge in the
  * graph sense, nothing resolves it, and no render breaks — whereas a declared ref that dangles is a
  * broken pull. The gate keeps the guarantee it exists to give and stops charging for the other.
- * (`tree focus`'s inbound view reads only `references[]`, so it is still the narrower of the two.)
+ * (`tree focus`'s inbound view reads only `dependsOn`, so it is still the narrower of the two.)
+ *
+ * ADR-0477 D1 NARROWED THIS WALL WITHOUT AN EDIT, which is the point of walking every string rather
+ * than a per-kind list: the retired `references` citation list simply stopped being present, so the
+ * wall now guards the authored edges alone. It guards LESS than it did — an artifact whose only
+ * inbound pointer was a citation is now retirable — and that is the retirement's intent, not a
+ * regression: a citation was never a dependency.
  */
 
 /** The `asset:<id>` shape — mirrors `AssetRef` in @storytree/library (knowledge.ts). Anchored. */

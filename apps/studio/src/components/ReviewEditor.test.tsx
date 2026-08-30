@@ -56,7 +56,6 @@ function renderEditor(
             title: 'T',
             description: 'D',
             body,
-            references: [],
           }}
         />
         </SetReviewModeContext.Provider>

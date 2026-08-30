@@ -197,11 +197,12 @@ test("graduate (summary) lists novel candidates and surfaces every suppression",
       env.body,
       /tally: 2 live \(2 new, 0 changed, 0 lease-expired\), 0 parked, 1 duplicate suppressed, 1 user-tier deferred, 1 unparseable\./,
     );
-    // Live: the reference (→ definition, with a resolved wiki-link) and the feedback (→ principle),
-    // both `[new]` under an empty park ledger.
+    // Live: the reference (→ definition) and the feedback (→ principle), both `[new]` under an empty
+    // park ledger. The `refs:` column went with ADR-0477 D1: it printed the `asset:` refs a candidate
+    // WOULD have been authored with, and there is no longer a field to author them into.
     assert.match(env.body, /LIVE candidates \(2\)/);
-    assert.match(env.body, /a-reference {2}→ definition {3}refs: asset:existing-thing {3}\[new\]/);
-    assert.match(env.body, /feedback-rule {2}→ principle {3}refs: — {3}\[new\]/);
+    assert.match(env.body, /a-reference {2}→ definition {3}\[new\]/);
+    assert.match(env.body, /feedback-rule {2}→ principle {3}\[new\]/);
     // Suppressed: existing-thing dedupes by name against the snapshot doc id.
     assert.match(env.body, /SUPPRESSED as duplicates \(1\)/);
     assert.match(env.body, /existing-thing {2}→ covered by existing-thing {2}"An Existing Thing"/);

@@ -7,8 +7,7 @@
  * capture/adjudication verbs and the offline inbox fallback:
  *
  *   - `new`        file a friction item, fail-closed (ADR-0168 D3): evidence present AND concrete, ≤3
- *                  per branch/date (the ReasoningBank cap-3 fence), `references` resolve (all three
- *                  tokens: `asset:` / `doc:` / ADR-0107 D2's `node:`), NO route at capture (capture
+ *                  per branch/date (the ReasoningBank cap-3 fence), NO route at capture (capture
  *                  never classifies — route is set only at adjudication).
  *   - `migrate`    the D2 migrate step — TRANSPORT, not capture: file the `docs/friction-inbox/`
  *                  staged items live with their ORIGINAL provenance (attribution and worklist age
@@ -36,12 +35,12 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
-import { explainDocValidationError, upcastAndValidate, Friction, FrictionRoute, NODE_REF_PREFIX } from "@storytree/library";
+import { ASSET_REF_PREFIX, explainDocValidationError, upcastAndValidate, Friction, FrictionRoute } from "@storytree/library";
 
 import { branchOfActor, defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 import { lifecycleOf, type FrictionLifecycle } from "./friction-lifecycle.js";
-import { ASSET_REF_PREFIX, citedAssetIds } from "./asset-citation.js";
+
 
 /** The narrowed write surface the friction verbs need (a structural subset of `RunDeps`). */
 export interface FrictionDeps {
@@ -60,15 +59,8 @@ export interface FrictionContext {
   readonly now: string;
   /** The `docs/friction-inbox/` staging dir (offline capture + the cap-3 count offline). */
   readonly inboxDir: string;
-  /** The `docs/` dir, for resolving `doc:` references. */
+  /** The `docs/` dir. */
   readonly docsDir: string;
-  /**
-   * Resolve a `node:<id>` reference (ADR-0107 D2) to a story / capability node spec. Injected the
-   * way {@link import("@storytree/drive").HealthOpts.docExists} is, so this module stays free of the
-   * stories/ layout. OMIT to accept a well-formed `node:` token WITHOUT an existence check — the
-   * fail-OPEN arm for a caller that cannot see the story tree, never a silent rejection.
-   */
-  readonly nodeExists?: ((nodeId: string) => boolean) | undefined;
 }
 
 /** The cap on friction items one branch may file on one date (ADR-0168: ReasoningBank cap-3). */
@@ -201,7 +193,7 @@ export function validateInboxDir(dir: string): Array<{ file: string; error: stri
  * item. Same doc-in write path as `library artifact new`, plus the ADR-0168 D3 fail-closed fences and
  * the D2 offline inbox fallback. The CLI STAMPS the capture fields (`kind`, `provenance`,
  * createdAt/updatedAt) so the author supplies only the substance (id/title/description + statement/
- * evidence/impact + optional references). A supplied `route` is REFUSED — capture never classifies.
+ * evidence/impact). A supplied `route` is REFUSED — capture never classifies.
  */
 export async function newFriction(
   deps: FrictionDeps,
@@ -235,7 +227,7 @@ export async function newFriction(
   if (raw === undefined) {
     return {
       ok: false,
-      body: "friction new needs the item as JSON: --file <doc.json> (or --json '<doc>').\nSupply id/title/description + statement/evidence/impact (+ optional references); the CLI stamps provenance.",
+      body: "friction new needs the item as JSON: --file <doc.json> (or --json '<doc>').\nSupply id/title/description + statement/evidence/impact; the CLI stamps provenance.",
       next: ["storytree friction --help", "storytree library artifact template-friction   (the shape)"],
     };
   }
@@ -294,7 +286,7 @@ export async function newFriction(
       body: [
         `friction item failed validation:\n${explainDocValidationError(doc, e)}`,
         "",
-        `(the CLI stamps ${STAMPED_FIELDS.join(", ")} for you — supply id/title/description + statement/evidence/impact, plus optional references.)`,
+        `(the CLI stamps ${STAMPED_FIELDS.join(", ")} for you — supply id/title/description + statement/evidence/impact.)`,
       ].join("\n"),
       next: ["storytree library artifact template-friction"],
     };
@@ -330,16 +322,10 @@ export async function newFriction(
     };
   }
 
-  // 7) References must resolve (ADR-0168 D3): asset:<id> against the corpus, doc:<path> against
-  //    docs/, node:<id> against the story tree (ADR-0107 D2).
-  const unresolved = await unresolvedReferences(valid, deps.store, ctx);
-  if (unresolved.length > 0) {
-    return {
-      ok: false,
-      body: `these references do not resolve (ADR-0168 D3 — every implicated artifact must exist):\n${unresolved.map((r) => `  ✗ ${r}`).join("\n")}`,
-      next: ["storytree library artifact list <category>   (find the real id)"],
-    };
-  }
+  // 7) ADR-0168 D3's THIRD floor — that every cited artifact resolves — is GONE with the field it
+  //    policed (ADR-0477 D1). A friction item no longer carries citations, so there is nothing to
+  //    resolve; the evidence floor and the cap-3 fence above are untouched and are what D3 still
+  //    means here. What an item implicates is now said in its prose, where a reader can read it.
 
   // 8) Write — live store when --pg, else the inbox staging file (ADR-0168 D2 offline fallback).
   if (deps.writable === true) {
@@ -375,43 +361,6 @@ export async function newFriction(
   };
 }
 
-/**
- * The subset of `references` that fail to resolve — the ADR-0168 D3 floor, unchanged in strength.
- *
- * All THREE corpus reference tokens are accepted (`knowledge.ts` `commonShape.references`):
- * `asset:<id>` → the live corpus, `doc:<path>` → `docs/`, and `node:<id>` → a story / capability
- * node spec (ADR-0107 D2, the proving-process anchor; the shared prefix is `oq-gating.ts`'s
- * {@link NODE_REF_PREFIX}). `node:` used to fall to the else-arm and be refused as "not an
- * asset:<id> or doc:<path> pointer", so a friction item about a capability could not cite that
- * capability — the same asset-or-doc assumption ADR-0107 already overturned everywhere else.
- */
-async function unresolvedReferences(
-  doc: Record<string, unknown>,
-  store: Store,
-  ctx: Pick<FrictionContext, "docsDir" | "nodeExists">,
-): Promise<string[]> {
-  const refs = Array.isArray(doc["references"]) ? (doc["references"] as unknown[]).filter((r): r is string => typeof r === "string") : [];
-  const bad: string[] = [];
-  for (const ref of refs) {
-    if (ref.startsWith("asset:")) {
-      const target = ref.slice("asset:".length);
-      if (!(await store.getDoc(target))) bad.push(`${ref} (no such artifact)`);
-    } else if (ref.startsWith("doc:")) {
-      const rel = ref.slice("doc:".length);
-      if (!existsSync(path.join(ctx.docsDir, rel))) bad.push(`${ref} (no such doc)`);
-    } else if (ref.startsWith(NODE_REF_PREFIX)) {
-      const nodeId = ref.slice(NODE_REF_PREFIX.length);
-      if (nodeId === "") bad.push(`${ref} (a node: pointer needs a story/capability id)`);
-      // No resolver injected => accept the token's shape; a caller that cannot see stories/ must
-      // not turn a valid reference into a refusal.
-      else if (ctx.nodeExists?.(nodeId) === false) bad.push(`${ref} (no such story/capability node)`);
-    } else {
-      bad.push(`${ref} (not an asset:<id>, doc:<path> or node:<id> pointer)`);
-    }
-  }
-  return bad;
-}
-
 // ---------------------------------------------------------------------------
 // friction migrate — the D2 migrate step: staged inbox items → the live store
 // ---------------------------------------------------------------------------
@@ -431,8 +380,7 @@ function isInsideDir(file: string, dir: string): boolean {
  * cap was already paid at the original capture, on the item's OWN branch/date — charging it again
  * against the migrating session strands a full inbox behind the migrator's own retro items. The
  * migrate-only policy mirrors `sync-corpus`: an id already live is NEVER overwritten. The D3 floors
- * still hold fail-closed per file (schema, kind, no smuggled route, concrete evidence, references —
- * re-checked against the LIVE corpus at the door). Each successfully migrated staging file is
+ * still hold fail-closed per file (schema, kind, no smuggled route, concrete evidence). Each successfully migrated staging file is
  * DELETED (it has served its purpose — commit the deletions with the PR); a refused or already-live
  * file is left in place and reported.
  */
@@ -516,14 +464,10 @@ export async function migrateFriction(
       refused.push({ file: name, reason: "no capture provenance — re-stage it via `storytree friction new` (offline) so provenance is stamped" });
       continue;
     }
-    // The D3 floors, re-checked at the door (evidence concrete; references resolve — now against LIVE).
+    // The D3 floor re-checked at the door. Its reference-resolution sibling went with the citation
+    // tier (ADR-0477 D1) — a staged doc carrying `references` is now refused by the schema itself.
     if (!hasConcreteEvidence(strField(valid, "evidence"))) {
       refused.push({ file: name, reason: "evidence is not concrete (ADR-0168 D3) — fix the staged doc before migrating" });
-      continue;
-    }
-    const unresolved = await unresolvedReferences(valid, deps.store, ctx);
-    if (unresolved.length > 0) {
-      refused.push({ file: name, reason: `references do not resolve live: ${unresolved.join(", ")}` });
       continue;
     }
     // Migrate-only (the sync-corpus policy): an id already live is NEVER overwritten.
@@ -644,22 +588,57 @@ export async function reinforceFriction(
 const PARKED_WORK_ROUTE = "tool";
 
 /**
- * The `asset:` refs on a doc that resolve to a live `arc`. Reads the store, so a ref pointing at a
- * deleted or wrong-kind artifact does NOT count as an emission — the fence is that the item cites an
- * arc that exists, never that a matching-looking string is present.
+ * The arcs that PARK this friction item — every arc carrying an OPEN increment whose `frictionRefs`
+ * names it. Derived by query, not read off the doc.
  *
- * WHICH ids are cited comes from the shared token rule in `asset-citation.ts`; only the RESOLUTION is
- * local. `check:arc-proposal-drain` walks the ARC side of the same relationship in bulk (ADR-0298 D2:
- * the unambiguous per-entry edge is `ArcProposal.frictionRefs`), so this citation is the routed
- * lifecycle's outbound pointer (ADR-0168 D2) rather than the ceiling's join.
+ * IT USED TO BE THE ITEM'S OWN CITATIONS. `friction route --route tool --arc <id>` appended an
+ * `asset:<arc-id>` to the friction's `references`, and this read that list back. The citation tier
+ * is retired (ADR-0477 D1), and the replacement is strictly better rather than a fallback: it asks
+ * the relation the fence has always been ABOUT — ADR-0298 D2's "the remedy EXISTS as a parked entry"
+ * — instead of a stored pointer that only proved an arc was NAMED. It is the same
+ * `ArcProposal.frictionRefs` edge `check:arc-proposal-drain` walks, so the two can no longer
+ * disagree, and there is nothing left to keep in step when an entry closes (which is why
+ * `dropDischargedCitations` went with it).
  */
-async function citedArcs(doc: Record<string, unknown>, store: Store): Promise<string[]> {
-  const found: string[] = [];
-  for (const id of citedAssetIds(doc["references"])) {
-    const target = await store.getDoc(id);
-    if (target?.kind === "arc") found.push(target.id);
+/** A stored row's body as a record, or `{}` for the null/non-object shapes the live corpus can hold. */
+function bodyOfRow(d: StoredDoc): Record<string, unknown> {
+  // Stryker disable next-line ConditionalExpression: MIS-REPORTED, not equivalent — forcing this
+  // guard TRUE makes every row scan as `{}`, and `friction.test.ts`'s "an OPEN entry naming the item
+  // parks it WITHOUT --arc" then fails (the derived set empties and the route is refused). Verified
+  // by hand-applying the replacement and running the suite. The rung reports it SURVIVED anyway;
+  // extracting the expression into this named function — the documented remedy — did not clear it.
+  if (typeof d.doc !== "object" || d.doc === null) return {};
+  return d.doc as Record<string, unknown>;
+}
+
+/** The arc id an `arcRef` names, or null when it is absent or not an `asset:` pointer. */
+function arcIdOfRef(arcRef: unknown): string | null {
+  if (typeof arcRef !== "string") return null;
+  // Stryker disable next-line ConditionalExpression: MIS-REPORTED, not equivalent — forcing this
+  // guard FALSE slices a non-`asset:` value into a garbage arc id, and `friction.test.ts`'s "the
+  // derived read is DEFENSIVE" case (`arcRef: "not-an-asset-ref"`) then routes successfully where it
+  // must refuse. Verified by hand-applying the replacement; the rung reports SURVIVED regardless.
+  if (!arcRef.startsWith(ASSET_REF_PREFIX)) return null;
+  return arcRef.slice(ASSET_REF_PREFIX.length);
+}
+
+/** True when this increment is an OPEN entry naming `frictionId` — the parked-remedy predicate. */
+function isOpenEntryNaming(doc: Record<string, unknown>, frictionId: string): boolean {
+  if (doc["status"] === "closed") return false;
+  const refs = doc["frictionRefs"];
+  return Array.isArray(refs) && refs.includes(frictionId);
+}
+
+async function arcsParkingFriction(frictionId: string, store: Store): Promise<string[]> {
+  const increments = await store.queryDocs({ kind: "increment" });
+  const found = new Set<string>();
+  for (const d of increments) {
+    const doc = bodyOfRow(d);
+    if (!isOpenEntryNaming(doc, frictionId)) continue;
+    const arcId = arcIdOfRef(doc["arcRef"]);
+    if (arcId !== null) found.add(arcId);
   }
-  return found;
+  return [...found].sort();
 }
 
 /**
@@ -805,7 +784,6 @@ interface FrictionRouteFields {
    * appended. Narrowing it here would mean either dropping a non-conforming entry silently or
    * asserting a shape the read cannot establish — `upcastAndValidate` is what judges it.
    */
-  references?: unknown[];
 }
 
 export async function routeFriction(
@@ -907,8 +885,7 @@ export async function routeFriction(
     }
   }
 
-  // FIELD-SCOPED (ADR-0352): the adjudication names its own four fields (five with the citation
-  // appended below) and nothing else. `evidence`, `impact`, `statement` and — most of all —
+  // FIELD-SCOPED (ADR-0352): the adjudication names its own four fields and nothing else. `evidence`, `impact`, `statement` and — most of all —
   // `reinforcedBy` belong to whoever filed and re-hit the item, and a `friction reinforce` landing
   // between the read above and this write is exactly the concurrent case the whole-doc path reverted.
   // `base` is kept in step so a refusal is still explained against the doc this verb meant to write.
@@ -920,8 +897,8 @@ export async function routeFriction(
   if (dischargedBy !== undefined) fields.dischargedBy = dischargedBy;
   Object.assign(base, fields);
 
-  // ---- the ADR-0298 D2 emission fence: `tool` cites an arc that PARKS this item, or it does not land
-  let cited = await citedArcs(base, deps.store);
+  // ---- the ADR-0298 D2 emission fence: an arc PARKS this item, or the `tool` routing does not land
+  let cited = await arcsParkingFriction(id, deps.store);
   if (arcRef !== undefined && arcRef !== "") {
     const target = await deps.store.getDoc(arcRef);
     if (!target || target.kind !== "arc") {
@@ -962,14 +939,11 @@ export async function routeFriction(
         ],
       };
     }
-    if (!cited.includes(target.id)) {
-      const refs = Array.isArray(base["references"]) ? [...(base["references"] as unknown[])] : [];
-      // The one conditional field: named only when there is a citation to append, so a routing that
-      // appends nothing does not carry a stale `references` list back over a sibling's edit to it.
-      fields.references = [...refs, `${ASSET_REF_PREFIX}${target.id}`];
-      base["references"] = fields.references;
-      cited = [...cited, target.id];
-    }
+    // NOTHING IS APPENDED HERE, and that is the shape of the change rather than an omission. Before
+    // ADR-0477 D1 this branch wrote an `asset:<arc-id>` citation onto the friction row and added the
+    // arc to `cited`. Both are gone: `arcsParkingFriction` above filters on "an OPEN increment on
+    // this arc names this item", `arcParksFriction` has just PROVED exactly that of `target`, so
+    // `target.id` is already in the derived set by construction. Re-adding it was dead code.
   }
   // A DELIVERED remedy is exempt (ADR-0298 D3). `--discharged-by` asserts the work already LANDED, so
   // demanding a parked entry first would force a session to record deferred work that is not deferred
@@ -1028,7 +1002,7 @@ export async function routeFriction(
       // The emission, stated as the durable thing it is: the item archives, the parked entry does not.
       ...(route === PARKED_WORK_ROUTE && cited.length > 0
         ? [
-            `remedy parked on arc ${cited.join(", ")} — cited in references (ADR-0298 D2), so the routing is`,
+            `remedy parked on arc ${cited.join(", ")} — an OPEN entry there names this item (ADR-0298 D2), so the routing is`,
             "delivered onto the initiative that carries it rather than discharged into an archived reason.",
           ]
         : []),
@@ -1154,7 +1128,7 @@ export function frictionHelp(): Envelope {
       "",
       "  storytree friction new --file <doc.json> [--pg] [--source retro|run-analysis]",
       "        file a friction item, fail-closed: evidence must be CONCRETE, ≤3 per branch/date,",
-      "        references must resolve, NO route at capture. With --pg it writes live; offline it",
+      "        NO route at capture. With --pg it writes live; offline it",
       "        stages the same JSON to docs/friction-inbox/ for the PR (remote 443-only fallback).",
       "  storytree friction migrate [--file docs/friction-inbox/<id>.json] --pg",
       "        the D2 migrate step (transport, not capture): file the staged inbox items live with",
@@ -1168,7 +1142,7 @@ export function frictionHelp(): Envelope {
       "        edit-existing|nothing) + the justification. `nothing` archives with a reason.",
       "        --discharged-by stamps the delivery ref (PR/ADR/asset) once the routed remedy LANDS —",
       "        re-run the route with it when the landing comes later.",
-      "        --arc cites the arc carrying the PARKED ENTRY the `tool` route emits (ADR-0298 D2):",
+      "        --arc names the arc carrying the PARKED ENTRY the `tool` route emits (ADR-0298 D2):",
       "        routing to `tool` is refused until an arc carries an entry naming this item, so the remedy",
       "        lands on the initiative that will carry it instead of prose inside an archived row. Park it",
       "        first with `storytree arc increment new <arc-id> --friction <id> … --pg`; your SCOPE",
@@ -1180,9 +1154,6 @@ export function frictionHelp(): Envelope {
       "--reason and --evidence take `@path` to read the value from a FILE (the `--set field=@path`",
       "convention) — use it for anything multi-line or carrying shell metacharacters; a quoted",
       "argument flattens newlines and can be truncated by the shell.",
-      "references accept asset:<id> (a Library artifact), doc:<path> (under docs/), and node:<id>",
-      "(a story/capability, ADR-0107 D2 — how an item cites the capability it fought).",
-      "",
       "capture never classifies — the adjudicator (graduation-synthesist; librarian-curator until",
       "it is built) routes items through the ADR-0168 D5 justification gate.",
     ].join("\n"),

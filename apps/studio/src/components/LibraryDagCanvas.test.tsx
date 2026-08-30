@@ -35,7 +35,6 @@ function asset(
   return {
     description: 'unrelated description text',
     body: 'unrelated body text',
-    references: [],
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -134,13 +133,11 @@ describe('buildFocusGraph — one level each way, over the authored dependsOn ed
       id: 'demote-left',
       category: 'definition',
       title: 'Demote Left',
-      references: ['asset:demote-right'],
     });
     const right = asset({
       id: 'demote-right',
       category: 'definition',
       title: 'Demote Right',
-      references: ['asset:demote-left'],
     });
     // A third artifact the centre genuinely stands on — the ONLY thing that should be drawn.
     const bedrock = asset({ id: 'demote-bedrock', category: 'principle', title: 'Demote Bedrock' });
@@ -148,7 +145,6 @@ describe('buildFocusGraph — one level each way, over the authored dependsOn ed
       id: 'demote-centre',
       category: 'pattern',
       title: 'Demote Centre',
-      references: ['asset:demote-left', 'asset:demote-right'],
       dependsOn: ['asset:demote-bedrock'],
     });
 
@@ -198,7 +194,6 @@ describe('buildFocusGraph — one level each way, over the authored dependsOn ed
       id: 'rev-citer',
       category: 'pattern',
       title: 'Rev Citer',
-      references: ['asset:rev-centre'],
     });
 
     const graph = buildFocusGraph({

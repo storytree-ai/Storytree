@@ -55,35 +55,37 @@ function asset(overrides: Partial<GuidanceAsset> & Pick<GuidanceAsset, 'id' | 'c
   return {
     description: 'unrelated description text',
     body: 'unrelated body text',
-    references: [],
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
   };
 }
 
-// A shared small fixed corpus:
-//   - hubAsset:    a `principle` referenced by leafA and leafB (in-degree 2, out-degree 0).
-//   - leafA/leafB: `pattern` assets that each reference the hub (out-degree 1 apiece).
-//   - leafC:       a `definition` asset with no references in or out (degree 0, isolated).
+// A shared small fixed corpus. THE EDGE IS `dependsOn` (ADR-0477 D5): `importanceOf` scored degree
+// over the `references` citation web until that field was retired, and it now scores the same degree
+// over the corpus's one authored edge. The shape of every case below is unchanged — only the field
+// carrying it moved.
+//   - hubAsset:    a `principle` depended on by leafA and leafB (in-degree 2, out-degree 0).
+//   - leafA/leafB: `pattern` assets that each depend on the hub (out-degree 1 apiece).
+//   - leafC:       a `definition` asset with no edges in or out (degree 0, isolated).
 //   - arcAsset:    an `arc` asset (for the CLOSE-band kindLabel "epic" trap).
-//   - leafD:       a `pattern` asset referencing the hub decision (contributes to its in-degree).
-//   - hubAdr:      a DECISION referenced by leafD (in-degree 1). It is an `adr` ARTIFACT, so —
-//                  unlike the retired DocMeta fixture — its own `references` ARE traversed, and
-//                  its out-degree is a real count rather than a structural 0.
-//   - quietAdr:    a decision referenced by nobody, referencing nobody (degree 0).
+//   - leafD:       a `pattern` asset depending on the hub decision (contributes to its in-degree).
+//   - hubAdr:      a DECISION depended on by leafD (in-degree 1). It is an `adr` ARTIFACT, so —
+//                  unlike the retired DocMeta fixture — its own edges ARE traversed, and its
+//                  out-degree is a real count rather than a structural 0.
+//   - quietAdr:    a decision nobody depends on, depending on nothing (degree 0).
 const hubAsset = asset({ id: 'hub-asset', category: 'principle', title: 'The Hub Principle' });
 const leafA = asset({
   id: 'leaf-a',
   category: 'pattern',
   title: 'Leaf A',
-  references: ['asset:hub-asset'],
+  dependsOn: ['asset:hub-asset'],
 });
 const leafB = asset({
   id: 'leaf-b',
   category: 'pattern',
   title: 'Leaf B',
-  references: ['asset:hub-asset'],
+  dependsOn: ['asset:hub-asset'],
 });
 const leafC = asset({ id: 'leaf-c', category: 'definition', title: 'Leaf C' });
 const arcAsset = asset({ id: 'epic-initiative', category: 'arc', title: 'The Great Migration' });
@@ -91,7 +93,7 @@ const leafD = asset({
   id: 'leaf-d',
   category: 'pattern',
   title: 'Leaf D',
-  references: ['asset:adr-0001'],
+  dependsOn: ['asset:adr-0001'],
 });
 const hubAdr = asset({
   id: 'adr-0001',
@@ -115,7 +117,7 @@ afterEach(() => {
 
 describe('importanceOf', () => {
   // ── lov-importance-degree-over-references ───────────────────────────────────────
-  it('lov-importance-degree-over-references: importance is the in+out DEGREE over references[] — a hub referenced by two leaves outranks an isolated node, and a referencing leaf\'s OUT-degree also counts', () => {
+  it('lov-importance-degree-over-references: importance is the in+out DEGREE over the authored edge — a hub two leaves depend on outranks an isolated node, and a depending leaf\'s OUT-degree also counts', () => {
     const importance = importanceOf([hubAsset, leafA, leafB, leafC]);
     expect(importance.get('hub-asset')).toBe(2);
     expect(importance.get('leaf-a')).toBe(1);
@@ -126,7 +128,7 @@ describe('importanceOf', () => {
   // v2 (ADR-0403 dec 1): a decision is an artifact, so its degree is scored like any other node's.
   // The old contract pinned out-degree at a STRUCTURAL 0 — `DocMeta` had no traversed `references`
   // — which is no longer a property of the corpus, only of the retired producer.
-  it('lov-importance-degree-over-references: a decision is scored like any other node — in-degree from its referrers, out-degree from its own references', () => {
+  it('lov-importance-degree-over-references: a decision is scored like any other node — in-degree from its dependents, out-degree from its own edges', () => {
     const importance = importanceOf([leafD, hubAdr, quietAdr]);
     expect(importance.get(hubAdr.id)).toBe(1);
     expect(importance.get(quietAdr.id)).toBe(0);
@@ -194,18 +196,27 @@ describe('constellationLayout', () => {
     }
   });
 
+  it('lov-layout-total-and-deterministic: a node carrying NO dependsOn key is still placed, not dropped', () => {
+    // `dependsOn` is optional and absent-by-default (never `[]`), so MOST corpus nodes carry no key
+    // at all. The `?? []` in the layout's edge read is what keeps them in the field: without it the
+    // walk throws on the first edgeless node, which is to say on nearly every node.
+    const edgeless = asset({ id: 'no-edges-at-all', category: 'principle', title: 'Edgeless' });
+    expect(edgeless.dependsOn).toBeUndefined();
+    const layout = constellationLayout([edgeless, hubAsset, leafA], 'overview-seed');
+    expect(layout.size).toBe(3);
+    expect(layout.has('no-edges-at-all')).toBe(true);
+  });
+
   it('lov-layout-total-and-deterministic: is cycle-tolerant — a reference cycle neither throws nor drops a node', () => {
     const cycleA = asset({
       id: 'cycle-a',
       category: 'pattern',
       title: 'Cycle A',
-      references: ['asset:cycle-b'],
     });
     const cycleB = asset({
       id: 'cycle-b',
       category: 'pattern',
       title: 'Cycle B',
-      references: ['asset:cycle-a'],
     });
     expect(() => constellationLayout([cycleA, cycleB], 'seed')).not.toThrow();
     const layout = constellationLayout([cycleA, cycleB], 'seed');

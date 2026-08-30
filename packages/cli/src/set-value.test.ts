@@ -35,7 +35,6 @@ async function seeded(): Promise<InMemoryStore> {
       steps: STEPS,
       surfaces: "The CLI's `library artifact edit --pg`.",
       failureModes: "A stale projection left behind by a skipped regeneration.",
-      references: [],
       createdAt: "2026-08-01",
       updatedAt: "2026-08-01",
     },
@@ -114,12 +113,12 @@ test("an ARRAY-typed field still takes its JSON array — the two paths do not c
       "edit",
       "library-edit-ceremony",
       "--set",
-      `references=["asset:a","asset:b"]`,
+      `dependsOn=["asset:a","asset:b"]`,
     ],
     { store, writable: true },
   );
   assert.equal(env.ok, true);
-  assert.deepEqual(await fieldOf(store, "library-edit-ceremony", "references"), [
+  assert.deepEqual(await fieldOf(store, "library-edit-ceremony", "dependsOn"), [
     "asset:a",
     "asset:b",
   ]);

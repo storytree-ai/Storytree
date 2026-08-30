@@ -63,10 +63,10 @@ test("library-dag-rejects-standson-cycle-with-path — self, two-node, and longe
   for (const cycle of cycles) assertClosedAuthoredPath(nodes, cycle);
 });
 
-test("library-dag-references-are-not-dependencies — citation cycles are ignored unless authored in dependsOn", () => {
+test("library-dag-references-are-not-dependencies — only an AUTHORED dependsOn edge can close a cycle", () => {
   const citationCycle = [
-    { id: "alpha", dependsOn: [] as string[], references: ["beta"] },
-    { id: "beta", dependsOn: [] as string[], references: ["alpha"] },
+    { id: "alpha", dependsOn: [] as string[] },
+    { id: "beta", dependsOn: [] as string[] },
   ];
 
   assert.deepEqual(findDependsOnCycles(citationCycle), []);

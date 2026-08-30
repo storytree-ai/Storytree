@@ -37,7 +37,6 @@ async function seeded(): Promise<InMemoryStore> {
       statement: "Always assemble from the library.",
       why: "one source of truth beats hand-copy drift.",
       howToApply: "render, never restate.",
-      references: [],
     },
   });
   await store.upsertDoc({
@@ -54,7 +53,6 @@ async function seeded(): Promise<InMemoryStore> {
       tools: "none",
       workflow: "orient, then stop.",
       rules: ["asset:test-principle"],
-      references: [],
     },
   });
   await store.upsertDoc({
@@ -71,7 +69,6 @@ async function seeded(): Promise<InMemoryStore> {
       tools: "none",
       workflow: "orient, then stop.",
       antiPatterns: ["asset:ghost-ref"],
-      references: [],
     },
   });
   return store;
@@ -408,7 +405,6 @@ test("Codex adapts Claude-only tool vocabulary and memory assumptions without ch
       tools:
         "Read / Grep / Glob plus `Glob` / `Grep`, Write / Edit and Bash; inspect `~/.claude/projects/<project>/memory/` for the agent-memory pass.",
       workflow: "Read the inputs, then run the agent-memory pass and stop.",
-      references: [],
     },
   });
 
@@ -452,7 +448,6 @@ test("renderCodexAgentFile escapes a multiline prompt that contains TOML delimit
       context: ["asset:test-principle"],
       tools: "t",
       workflow: "w",
-      references: [],
     },
   });
   const res = await renderCodexAgentFile(store, "toml-agent");
@@ -495,7 +490,6 @@ test("a pinned Claude model tier is not translated into a foreign Gemini model i
       tools: "none",
       workflow: "orient, then stop.",
       model: "sonnet",
-      references: [],
     },
   });
   const claude = await renderAgentFile(store, "sonnet-agent");
@@ -544,7 +538,6 @@ test("a pinned Claude model tier is not translated into an OpenCode model id", a
       tools: "none",
       workflow: "orient, then stop.",
       model: "sonnet",
-      references: [],
     },
   });
   const res = await renderOpencodeAgentFile(store, "sonnet-agent");
@@ -577,7 +570,6 @@ test("renderAgentFile escapes quotes in the description for valid YAML frontmatt
       context: ["asset:test-principle"],
       tools: "t",
       workflow: "w",
-      references: [],
     },
   });
   const res = await renderAgentFile(store, "quoty");
@@ -604,7 +596,6 @@ async function stepped(): Promise<InMemoryStore> {
       context: ["asset:test-principle"],
       tools: "t",
       workflow: "session_start, then 1.",
-      references: [],
       stepRefs: [
         { step: "session_start", refs: ["asset:merge-ceremony", "asset:pull-based-context"] },
         { step: "1", refs: [] },
@@ -670,7 +661,6 @@ test("renderAgentStep: an agent with NO stepRefs authored treats every step as u
       context: ["asset:x"],
       tools: "t",
       workflow: "w",
-      references: [],
     },
   });
   const res = await renderAgentStep(store, "bare", "session_start");
@@ -694,7 +684,6 @@ test("delegatableAgentIds excludes agents that own a dedicated root or SDK-leaf 
       context: ["asset:test-principle"],
       tools: "t",
       workflow: "w",
-      references: [],
     },
   });
   const ids = await delegatableAgentIds(store);
@@ -754,7 +743,7 @@ test("essentials gate: a stepRefs step that names no real workflow step REDS", a
     doc: {
       kind: "agent", title: "Bad Step", description: "a step key that isn't a workflow step",
       oneLine: "o", role: "r", outcome: "o", context: [], tools: "t",
-      workflow: "orient, then stop.", references: [],
+      workflow: "orient, then stop.",
       stepRefs: [{ step: "deploy", refs: [] }], // "deploy" is not named in the workflow prose
     },
   });
@@ -771,7 +760,7 @@ test("essentials gate: a dangling stepRefs ref key REDS (the integrity fence ove
     doc: {
       kind: "agent", title: "Dangling Step", description: "a step ref that resolves to nothing",
       oneLine: "o", role: "r", outcome: "o", context: [], tools: "t",
-      workflow: "orient, then stop.", references: [],
+      workflow: "orient, then stop.",
       stepRefs: [{ step: "orient", refs: ["asset:ghost-ref"] }], // step is valid; the ref resolves to nothing
     },
   });
@@ -789,7 +778,7 @@ test("essentials gate: with a step map, a context ref attached to NO step REDS â
     doc: {
       kind: "agent", title: "Rider", description: "context attached to no step",
       oneLine: "o", role: "r", outcome: "o", context: ["asset:test-principle"], tools: "t",
-      workflow: "orient, then stop.", references: [],
+      workflow: "orient, then stop.",
       stepRefs: [{ step: "orient", refs: [] }], // non-empty step map, but test-principle is attached nowhere
     },
   });
@@ -812,7 +801,7 @@ test("essentials gate: a valid step map with attached context passes (the inc-5 
     doc: {
       kind: "agent", title: "Good Step", description: "a well-formed step map",
       oneLine: "o", role: "r", outcome: "o", context: ["asset:test-principle"], tools: "t",
-      workflow: "session_start: orient. then stop.", references: [],
+      workflow: "session_start: orient. then stop.",
       stepRefs: [{ step: "session_start", refs: ["asset:test-principle"] }],
     },
   });
@@ -855,7 +844,6 @@ async function seededDedicated(): Promise<InMemoryStore> {
         tools: "t",
         workflow: "session_start: orient. then stop.",
         stepRefs: [{ step: "session_start", refs: ["asset:test-principle"] }],
-        references: [],
       },
     });
   }
@@ -890,7 +878,6 @@ test("dedicatedSurfaceAgentGateViolations: an unattached context ref on session-
       tools: "t",
       workflow: "session_start: orient. then stop.",
       stepRefs: [{ step: "session_start", refs: [] }], // ...but no longer attached to any step
-      references: [],
     },
   });
   const violations = await dedicatedSurfaceAgentGateViolations(store);
@@ -944,7 +931,6 @@ async function seededWithSkew(): Promise<InMemoryStore> {
       context: ["asset:test-principle"],
       tools: "none",
       workflow: "orient, then stop.",
-      references: [],
       createdAt: "2026-08-08T00:00:00.000Z",
       updatedAt: "2026-08-08T00:00:00.000Z",
       // The field the older generator has no schema for â€” `aliases` in the real incident.
@@ -1043,7 +1029,7 @@ test("fail-closed read: a KNOWN field whose SHAPE moved is refused too, not just
     doc: {
       kind: "agent", id: "reshaped-agent", title: "Reshaped", description: "a known field, a newer shape",
       oneLine: "o", role: "r", outcome: "o", tools: "t", workflow: "orient, then stop.",
-      context: ["asset:test-principle"], references: [],
+      context: ["asset:test-principle"],
       createdAt: "2026-08-08T00:00:00.000Z", updatedAt: "2026-08-08T00:00:00.000Z",
       aliases: [{ name: "scout", scope: "repo" }], // string[] in this checkout
     },
@@ -1078,7 +1064,6 @@ test("fail-closed read: a doc LAGGING this checkout is upcast, not refused (the 
     doc: {
       kind: "agent", title: "Lagging Agent", description: "authored before the version pin",
       oneLine: "o", role: "r", outcome: "o", tools: "t", workflow: "orient, then stop.",
-      references: [],
       schemaVersion: 0, // the pre-pin world
     },
   });

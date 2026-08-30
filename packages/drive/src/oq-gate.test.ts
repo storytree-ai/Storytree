@@ -111,18 +111,6 @@ test("an OQ citing a deciding ADR repo-relatively is classified, not skipped", (
   assert.equal(rows[0]?.state, "unprocessed-answer");
 });
 
-test("live + an unprocessed answer on a repo-relatively-cited OQ still REFUSES", async () => {
-  const out = await oqHygieneGate(story([17]), true, {
-    load: () =>
-      Promise.resolve({
-        openQuestions: [oq("oq-x", [REF_17_REPO_RELATIVE])],
-        comments: [comment("oq-x", "operator", false, "2026-06-12T01:00:00.000Z")],
-      }),
-  });
-  assert.notEqual(out.refusal, null, "the gate must not fail open on the other live spelling");
-  assert.match(out.refusal!.body, /oq-x/);
-});
-
 test("no operator comment -> awaiting-answer", () => {
   const rows = classifyOpenQuestions([oq("a", [REF_17])], [], [17]);
   assert.equal(rows.length, 1);
@@ -190,45 +178,34 @@ test("a dry-run is unchecked and never refuses", async () => {
   assert.match(out.lines.join("\n"), /unchecked/);
 });
 
-test("live + an unprocessed answer -> REFUSED, naming the OQ and the three paths", async () => {
-  const out = await oqHygieneGate(story([17]), true, {
-    load: () =>
-      Promise.resolve({
-        openQuestions: [oq("oq-x", [REF_17])],
-        comments: [comment("oq-x", "operator", false, "2026-06-12T01:00:00.000Z")],
-      }),
-  });
-  assert.notEqual(out.refusal, null);
-  assert.match(out.refusal!.body, /REFUSED/);
-  assert.match(out.refusal!.body, /oq-x/);
-  assert.match(out.refusal!.body, /post a follow-up comment/);
-});
+// ADR-0477 D1 RETIRED THE ATTACHMENT, so the live path no longer classifies anything.
+//
+// The gate found its subject through a `doc:decisions/NNNN` pointer in an open-question's
+// `references`. That field is gone and `open-question` is an EDGE_FREE_KIND, so there is nowhere in
+// the schema left to say "this question is about that decision". The three live-path tests that
+// stood here — REFUSED on an unprocessed answer, WARN on an awaiting one, clean otherwise — asserted
+// behaviour that is now unreachable, and keeping them alive against an injected `load` would have
+// certified a path production can never take.
+//
+// `classifyOpenQuestions` above is UNCHANGED and still fully covered: its logic is intact, its input
+// is what went. That is the distinction this file now records.
 
-test("live + only awaiting answers -> WARN lines, no refusal", async () => {
+test("live -> RETIRED: it reports that it cannot check, rather than a clean answer it cannot stand behind", async () => {
+  // The one thing that must NOT happen is the ADR-0477 D5 silent shrink: an empty intersection
+  // printing `clean — 0 linked open question(s)` on every live story build, forever.
   const out = await oqHygieneGate(story([17]), true, {
-    load: () => Promise.resolve({ openQuestions: [oq("oq-x", [REF_17])], comments: [] }),
+    load: () => Promise.reject(new Error("must not be called — the gate short-circuits")),
   });
-  assert.equal(out.refusal, null);
-  assert.match(out.lines.join("\n"), /WARN/);
-  assert.match(out.lines.join("\n"), /oq-x/);
-});
-
-test("live + an unreachable store -> UNCHECKED line, never refuses blind", async () => {
-  const out = await oqHygieneGate(story([17]), true, {
-    load: () => Promise.reject(new Error("connect ECONNREFUSED")),
-  });
-  assert.equal(out.refusal, null);
-  assert.match(out.lines.join("\n"), /UNCHECKED/);
-});
-
-test("live + clean state -> a clean line", async () => {
-  const out = await oqHygieneGate(story([17]), true, {
-    load: () =>
-      Promise.resolve({
-        openQuestions: [oq("oq-x", [REF_17])],
-        comments: [comment("oq-x", "operator", true, "2026-06-12T01:00:00.000Z")],
-      }),
-  });
-  assert.equal(out.refusal, null);
-  assert.match(out.lines.join("\n"), /clean/);
+  assert.equal(out.refusal, null, "it refuses nothing");
+  const lines = out.lines.join("\n");
+  assert.match(lines, /RETIRED — the open-question → deciding-ADR link was a `references` citation/);
+  assert.match(lines, /ADR-0477 D1 retired that field. This gate checks nothing and refuses nothing/);
+  assert.match(lines, /it reports so rather than printing a clean answer it cannot stand behind/);
+  // The exact shape of the vacuous pass, not the bare word "clean" — the RETIRED line says the word
+  // itself ("a clean answer it cannot stand behind"), so a substring test would pass on a message
+  // that claimed the opposite of what it means.
+  assert.ok(
+    !/clean — \d+ linked open question/.test(lines),
+    `it must never print the clean VERDICT over an empty intersection:\n${lines}`,
+  );
 });

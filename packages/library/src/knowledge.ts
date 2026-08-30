@@ -734,9 +734,12 @@ export const DependsOnRef = z.string().regex(/^(?:asset:[A-Za-z0-9_-]+|doc:[A-Za
  * Fields shared by every knowledge kind. Mirrors the runtime-store JSON shape (the `kind`
  * discriminator maps from the source `category` key elsewhere; here it is `kind`).
  *
- * `references` are `doc:<relpath>` / `asset:<id>` pointers — the SINGLE citation source, rendered
- * grouped-by-type as "Sources" ({@link groupSources}). `provenance` is the optional attribution
- * line (markdown) shown under Sources for prose a bare pointer can't carry.
+ * `provenance` is the optional attribution line (markdown) for prose a bare pointer can't carry.
+ *
+ * THERE IS NO `references` FIELD (ADR-0477 D1, migration #9). The citation tier is retired: the
+ * corpus carries ONE edge, the deliberately authored `dependsOn`, and provenance survives only as
+ * the frozen `docs/research/citation-snapshot-2026-08-30.md`. `provenance` is a DIFFERENT field
+ * (ADR-0095 D8) and deliberately survives.
  */
 const commonShape = {
   id: z.string(),
@@ -749,7 +752,6 @@ const commonShape = {
    * ({@link upcast} in migrations.ts) stamps it to `CURRENT_SCHEMA_VERSION`.
    */
   schemaVersion: z.number().int().nonnegative().default(0),
-  references: z.array(z.string()).default([]),
   provenance: Markdown.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
@@ -1176,6 +1178,28 @@ export const OpenQuestion = buildKindSchema("open-question").extend({
   lifecycle: z.enum(["open", "settled"]).optional(),
   /** When the settlement was recorded. Absent while open; stamped by `question settle`. */
   settledAt: z.string().optional(),
+  // ADR-0434's machine-readable half, rehomed by ADR-0477 D1: WHICH decision carried the answer.
+  //
+  // `question settle --adr <n>` used to append `asset:adr-NNNN` to the envelope `references`. That
+  // field is retired, and the census's proposed landing spot — `dependsOn` — is unreachable here:
+  // `open-question` is an {@link EDGE_FREE_KINDS} member, so `buildKindSchema` gives it no such
+  // field, and admitting one would undo ADR-0223 D1's transient-signal exclusion to carry a pointer
+  // that is not a dependency. Dropping `--adr` instead would destroy a capability the owner decided
+  // six days before the retirement.
+  //
+  // So it becomes what `arcRef` already is on this same kind: a typed, optional `AssetRef` naming
+  // one artifact, schema-level and never a KIND_SPECS body section. It adds NO edge to the knowledge
+  // DAG, which is what keeps it inside ADR-0477 D6 (that fence is on judging linkage, not on a verb
+  // recording a settlement that has just happened).
+  //
+  // OPTIONAL, absent-by-default — the `arcRef` / `verifiedAt` / `lifecycle` shape, so every existing
+  // question validates unchanged and this field contributes NO `CURRENT_SCHEMA_VERSION` bump of its
+  // own (the bump in this landing is `references`' removal, migration #9).
+  //
+  // FORWARD-ONLY. The 15 pointers the old field held are frozen in
+  // `docs/research/citation-snapshot-2026-08-30.md` and are NOT backfilled: backfilling is precisely
+  // what ADR-0477 D6 fences.
+  settledByRef: AssetRef.optional(),
 });
 // The `agent` kind carries one structured field OUTSIDE its KIND_SPECS body table: `stepRefs`, the
 // workflow-step → refs association (ADR-0156 §4 / ADR-0161). It is metadata, not a rendered body

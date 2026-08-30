@@ -114,9 +114,9 @@ export type AssetCategory =
 /**
  * A modular, injectable Library artifact — the seed of the injectable guidance
  * library (open-questions §9, resolved by ADR-0017 / ADR-0019). Named `GuidanceAsset`, NOT bare
- * `asset`: the glossary reserves `asset` for tree/game art. ADRs are *not*
- * artifacts (they are history); a principle/guideline synthesized from an ADR
- * cites it via `references`.
+ * `asset`: the glossary reserves `asset` for tree/game art. Decisions ARE artifacts now (ADR-0403
+ * dec 1, `category: 'adr'`); a principle standing on one names it in {@link
+ * GuidanceAsset.dependsOn}, the corpus's only edge since ADR-0477 D1.
  */
 export interface GuidanceAsset {
   /** kebab-case slug; unique; the v1 `name`. */
@@ -141,14 +141,9 @@ export interface GuidanceAsset {
    */
   fields?: Record<string, string>;
   /**
-   * Topic refs this artifact points at: "doc:<relpath>" (e.g. its source ADR) or
-   * "asset:<id>". The SINGLE citation source — rendered grouped-by-type as "Sources"
-   * (no body `## See also`). The seed of v1's reciprocity-checked `current_consumers`.
-   */
-  references: string[];
-  /**
-   * Optional attribution prose shown under Sources that a bare pointer can't carry —
-   * origin ("Imported from v1"), deferral, or "still open" caveats. Markdown.
+   * Optional attribution prose a bare pointer can't carry — origin ("Imported from v1"), deferral,
+   * or "still open" caveats. Markdown. NOT the retired `references` field (ADR-0477 D1): this is
+   * ADR-0095 D8's attribution line and it deliberately survives the citation tier.
    */
   provenance?: string;
   /**
@@ -210,11 +205,11 @@ export interface GuidanceAsset {
    * The authored `dependsOn` dependency edge (ADR-0223) — a prefixed pointer list (`asset:<id>` /
    * `doc:<relpath>`), crossing the wire by the same {@link GuidanceAsset.stepRefs} idiom.
    *
-   * This is the DAG substrate, and it is deliberately NOT {@link GuidanceAsset.references}: the
-   * citation web is many-to-many and legitimately cyclic (a definition pair like story ↔ capability
-   * is mutually constitutive by meaning), so it can never be topologically oriented. `dependsOn` is
-   * authored, acyclic, and gated closed by `check:library-dag-acyclic`. `buildFocusGraph`
-   * (`./lib/focusGraph`) walks THIS; citations survive as the free "see also" affordance.
+   * This is the DAG substrate, and since ADR-0477 D1 it is the corpus's ONLY edge. It replaced a
+   * `references` citation web that was many-to-many and legitimately cyclic (a definition pair like
+   * story ↔ capability is mutually constitutive by meaning) and so could never be topologically
+   * oriented. `dependsOn` is authored, acyclic, and gated closed by `check:library-dag-acyclic`.
+   * `buildFocusGraph` (`./lib/focusGraph`) and `overviewConstellation` both walk THIS.
    *
    * Optional / absent-by-default, never an empty array — so a doc with no authored edge and a doc
    * predating the field read identically, and every existing reader keeps validating with no
@@ -251,7 +246,6 @@ export interface AssetInput {
   body: string;
   /** Per-kind structured fields when the category is a structured Knowledge kind (option C). */
   fields?: Record<string, string>;
-  references: string[];
   provenance?: string;
 }
 

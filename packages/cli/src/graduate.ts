@@ -2,7 +2,7 @@
  * `storytree library graduate` — the agent-memory → Library graduation worklist (ADR-0095).
  *
  * The node SEAM around the pure engine (`@storytree/library` `graduation/`): the engine classifies,
- * resolves references, and flags duplicates but never touches the filesystem (browser-safe, no clock);
+ * classifies and flags duplicates but never touches the filesystem (browser-safe, no clock);
  * this module reads the harness agent-memory files off disk, takes a {@link LibrarySnapshot} of the
  * LIVE corpus from its caller (ADR-0302 D1 — the seed it used to read is gone), runs the engine, and
  * renders the worklist.
@@ -328,11 +328,6 @@ export interface GraduateDeps {
   readonly inFlightBranches?: ReadonlySet<string> | undefined;
 }
 
-/** `refs` summary for one candidate: the resolved `asset:` ids, or an em dash when none resolved. */
-function refsLabel(c: GraduationCandidate): string {
-  return c.references.length > 0 ? c.references.join(", ") : "—";
-}
-
 /** Indent a (possibly multi-line) block under a label, for the --review body dump. */
 function indentBlock(text: string, pad = "      "): string {
   return text
@@ -538,7 +533,7 @@ function formatSummary(deps: GraduateDeps, read: MemoryReadResult, snapshot: Lib
   if (w.live.length === 0) lines.push("  (none)");
   else
     for (const { candidate: c, status } of w.live)
-      lines.push(`  ${c.source}  → ${c.target}   refs: ${refsLabel(c)}   ${liveLabel(status)}`);
+      lines.push(`  ${c.source}  → ${c.target}   ${liveLabel(status)}`);
   lines.push(...suppressedSections(w));
   return lines.join("\n");
 }
@@ -556,7 +551,6 @@ function formatReview(deps: GraduateDeps, read: MemoryReadResult, snapshot: Libr
       `    target:     ${c.target}`,
       `    rationale:  ${c.rationale}`,
       `    provenance: ${c.provenance}`,
-      `    references: ${refsLabel(c)}`,
       "    body:",
       indentBlock(c.body),
     );

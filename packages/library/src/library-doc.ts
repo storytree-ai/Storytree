@@ -24,7 +24,6 @@ export const LibraryAsset = z
     title: z.string(),
     description: z.string(),
     body: z.string(),
-    references: z.array(z.string()).default([]),
     createdAt: z.string().optional(),
     updatedAt: z.string().optional(),
   })

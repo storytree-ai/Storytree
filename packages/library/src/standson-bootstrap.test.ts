@@ -16,8 +16,23 @@ import {
  * do not.
  */
 
-function row(id: string, kind: string, references: unknown[], extra?: Record<string, unknown>): CitationSource {
-  return { id, doc: { kind, id, references, ...extra } };
+/**
+ * A citation source: `cites` lands in the kind's OWN citation refList, which is the only input the
+ * seed still reads.
+ *
+ * IT USED TO BE THE ENVELOPE `references` LIST. ADR-0477 D1 retired that field, so `CITATION_REFLISTS`
+ * is the whole of `citationsOf` now - `agent` (via `rules` here) and `uat-criterion` (via `refs`) are
+ * the only kinds that can seed at all. A row of any other kind carries its citations NOWHERE, which is
+ * this helper telling the truth rather than hiding it: such a row contributes no edge, and several
+ * tests below assert exactly that.
+ */
+function row(id: string, kind: string, cites: unknown[], extra?: Record<string, unknown>): CitationSource {
+  // One branch per seeding kind rather than a computed key, so each row's shape is inferred and
+  // visible: `agent` seeds through `rules`, `uat-criterion` through `refs`, and every other kind
+  // carries its citations nowhere at all.
+  if (kind === "agent") return { id, doc: { kind, id, rules: cites, ...extra } };
+  if (kind === "uat-criterion") return { id, doc: { kind, id, refs: cites, ...extra } };
+  return { id, doc: { kind, id, ...extra } };
 }
 
 /** Feed a plan back through the SHIPPED projection the gate uses, so the two cannot disagree. */
@@ -38,11 +53,12 @@ test("library-standson-bootstrap-seeds-only-down-tier-citations: strictly-more-f
       "asset:a-definition",
       "asset:a-friction",
     ]),
-    // principle (tier 2) -> pattern (tier 2): SAME tier. This is the curation tail ADR-0223 dec 5
-    // hands to a human; inferring it is the arbitrary-winner problem ADR-0363 D1 refused.
-    // principle -> agent (tier 4): UP-tier, a "used by" rather than a dependency.
-    row("a-principle", "principle", ["asset:a-pattern", "asset:an-agent"]),
-    row("a-pattern", "pattern", []),
+    // agent (tier 4) -> agent (tier 4): SAME tier. This is the curation tail ADR-0223 dec 5 hands to
+    // a human; inferring it is the arbitrary-winner problem ADR-0363 D1 refused.
+    // agent -> arc (tier 5): UP-tier, a "used by" rather than a dependency.
+    row("other-agent", "agent", ["asset:an-agent", "asset:an-arc"]),
+    row("a-principle", "principle", []),
+    row("an-arc", "arc", []),
     row("a-definition", "definition", []),
     row("a-friction", "friction", []),
   ]);
@@ -70,26 +86,26 @@ test("library-standson-bootstrap-seeds-only-down-tier-citations: a target cited 
 test("library-standson-bootstrap-is-acyclic-by-construction: a deliberately cyclic citation web projects clean", () => {
   // Every one of these citation rings is real in the live corpus's `references` web, which is
   // unconstrained and legitimately cyclic (ADR-0223 dec 2). None may survive into `dependsOn`.
+  // The seeding kinds are `agent` (tier 4) and `uat-criterion` (tier 6) since ADR-0477 D1 left them
+  // as the only citation sources, so the rings below are built from those - the ONE ascending leg in
+  // each is what a total order drops, which is how a cycle breaks without choosing a winner.
   const cyclicWeb: CitationSource[] = [
-    // A mutual SAME-TIER pair — the commonest ring in the corpus (57 such pairs were measured).
-    row("principle-a", "principle", ["asset:principle-b"]),
-    row("principle-b", "principle", ["asset:principle-a"]),
-    // A ring spanning EVERY tier: agent(4) -> process(3) -> guardrail(2) -> techstack(1) -> agent(4).
-    // Three legs descend and seed; the single ascending leg that closes the ring is what gets
-    // dropped, which is precisely how a total order breaks a cycle without choosing a winner.
-    row("an-agent", "agent", ["asset:a-process"]),
-    row("a-process", "process", ["asset:a-guardrail"]),
-    row("a-guardrail", "guardrail", ["asset:a-techstack"]),
-    row("a-techstack", "techstack", ["asset:an-agent"]),
+    // A mutual SAME-TIER pair - the commonest ring shape in the corpus (57 such pairs were measured).
+    row("agent-a", "agent", ["asset:agent-b"]),
+    row("agent-b", "agent", ["asset:agent-a"]),
+    // A cross-tier ring: uat-criterion(6) -> agent(4) descends and seeds; agent(4) -> uat-criterion(6)
+    // ascends and is dropped, breaking the ring.
+    row("a-criterion", "uat-criterion", ["asset:an-agent"]),
+    row("an-agent", "agent", ["asset:a-criterion"]),
     // A self-citation.
-    row("self-citer", "pattern", ["asset:self-citer"]),
+    row("self-citer", "agent", ["asset:self-citer"]),
   ];
 
   const web = dependsOnNodes(
-    cyclicWeb.map((r) => ({
-      id: r.id,
-      doc: { dependsOn: (r.doc as { references: unknown[] }).references },
-    })),
+    cyclicWeb.map((r) => {
+      const bag = r.doc as { rules?: unknown[]; refs?: unknown[] };
+      return { id: r.id, doc: { dependsOn: bag.rules ?? bag.refs ?? [] } };
+    }),
   );
   // Guard the guard: the INPUT really is cyclic, so a clean output proves the projection and not a
   // vacuously acyclic fixture.
@@ -98,12 +114,9 @@ test("library-standson-bootstrap-is-acyclic-by-construction: a deliberately cycl
   const plan = projectDependsOnFromCitations(cyclicWeb);
   assert.deepEqual(cyclesInPlan(plan), []);
 
-  // ...and it is not clean merely by being empty: the descending legs DID seed.
-  assert.equal(plan.edgesPlanned, 3);
-  assert.deepEqual(
-    plan.edges.map((e) => e.id).sort(),
-    ["a-guardrail", "a-process", "an-agent"],
-  );
+  // ...and it is not clean merely by being empty: the descending leg DID seed.
+  assert.equal(plan.edgesPlanned, 1);
+  assert.deepEqual(plan.edges.map((e) => e.id).sort(), ["a-criterion"]);
 });
 
 test("library-standson-bootstrap-is-acyclic-by-construction: every seeded edge strictly descends the tier order", () => {
@@ -159,17 +172,15 @@ test("ADR-0365 D2: an increment's arc containment is NOT a dependsOn edge — on
   // The ~689-edge question. Containment lives on `arcRef`, which the seed must never read as a
   // citation: it is a provenance overlay, not a dependency (ADR-0223 dec 4, adjudicated by 0365 D2).
   const plan = projectDependsOnFromCitations([
-    { id: "an-increment", doc: { kind: "increment", arcRef: "asset:an-arc", references: ["asset:a-process"] } },
+    { id: "an-increment", doc: { kind: "increment", arcRef: "asset:an-arc" } },
     row("an-arc", "arc", []),
     row("a-process", "process", []),
   ]);
 
-  assert.deepEqual(plan.edges.map((e) => e.id), ["an-increment"]);
-  assert.deepEqual(
-    plan.edges[0]?.dependsOn,
-    ["asset:a-process"],
-    "the arc it belongs to is absent — containment never becomes a dependency edge",
-  );
+  // Since ADR-0477 D1 an increment has no citation field the seed reads at all, so the assertion is
+  // now the STRONGER one: it emits nothing whatever, and `arcRef` is emphatically not the exception
+  // that would make it emit something.
+  assert.deepEqual(plan.edges, [], "containment never becomes a dependency edge");
 });
 
 test("library-standson-bootstrap-never-overwrites-authored-edges: an authored edge survives an EXTENDING pass, first and in order", () => {
@@ -210,18 +221,17 @@ test("library-standson-bootstrap-never-overwrites-authored-edges: an artifact wi
   assert.equal(plan.skipped.alreadyAuthored, 1);
 });
 
-test("ADR-0373: an agent's injected refList fields seed edges, not just its envelope references", () => {
+test("ADR-0373: an agent's injected refList fields seed edges - the only seed input left", () => {
   // The decision this test carries: `context` / `rules` / `antiPatterns` are STRONGER than a
   // see-also citation, because the agent renderer injects the cited unit's text into the system
   // prompt — change the target and the agent changes with no edit to the agent. The seed was
   // recording the weakest relation in the corpus and ignoring the strongest.
   const plan = projectDependsOnFromCitations([
-    row("an-agent", "agent", ["asset:cited-principle"], {
+    row("an-agent", "agent", [], {
       context: ["asset:a-process", "asset:a-definition"],
       rules: ["asset:a-principle", "asset:a-pattern"],
       antiPatterns: ["asset:a-guardrail"],
     }),
-    row("cited-principle", "principle", []),
     row("a-principle", "principle", []),
     row("a-pattern", "pattern", []),
     row("a-guardrail", "guardrail", []),
@@ -233,7 +243,6 @@ test("ADR-0373: an agent's injected refList fields seed edges, not just its enve
     {
       id: "an-agent",
       dependsOn: [
-        "asset:cited-principle", // envelope references first
         "asset:a-process", // context
         "asset:a-principle", // rules
         "asset:a-pattern",
@@ -273,9 +282,9 @@ test("ADR-0373: a refList field on a kind that does not declare one is ignored",
   assert.deepEqual(plan.edges, []);
 });
 
-test("ADR-0373: a target named in BOTH references and a refList seeds one edge", () => {
+test("ADR-0373: a target named in TWO refList fields seeds one edge", () => {
   const plan = projectDependsOnFromCitations([
-    row("an-agent", "agent", ["asset:a-principle"], { rules: ["asset:a-principle"] }),
+    row("an-agent", "agent", [], { context: ["asset:a-principle"], rules: ["asset:a-principle"] }),
     row("a-principle", "principle", []),
   ]);
 
@@ -292,15 +301,17 @@ test("library-standson-bootstrap-reports-what-it-skipped: the plan carries its d
       "doc:0241", // malformed: satisfies DependsOnRef but names no path
       "doc:0235-record-context-traversal.md", // malformed: a filename, still not a relpath
     ]),
-    row("a-principle", "principle", ["asset:a-pattern"]), // same tier
-    row("a-pattern", "pattern", ["asset:an-agent"]), // up tier
+    row("peer-agent", "agent", ["asset:an-agent"]), // same tier
+    row("low-agent", "agent", ["asset:an-arc"]), // up tier
+    row("a-principle", "principle", []),
+    row("an-arc", "arc", []),
     row("a-definition", "definition", ["asset:a-principle"]), // outside the DAG: not even scanned
     row("a-friction", "friction", ["asset:a-principle"]), // outside the DAG: not even scanned
   ]);
 
   // The denominator counts only artifacts the DAG orients — the two excluded kinds are not
   // "zero-edge documents", they are not documents of this graph at all.
-  assert.equal(plan.docsScanned, 3);
+  assert.equal(plan.docsScanned, 5);
   assert.equal(plan.edgesPlanned, 1);
   assert.deepEqual(plan.skipped, {
     sameTier: 1,

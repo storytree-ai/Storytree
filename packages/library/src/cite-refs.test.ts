@@ -2,7 +2,6 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 
 import { CiteRef, Increment, parseCiteRef } from "./knowledge.js";
-import { groupSources } from "./knowledge-sources.js";
 import { validateLibraryDoc } from "./library-doc.js";
 import { CURRENT_SCHEMA_VERSION } from "./migrations.js";
 
@@ -27,7 +26,6 @@ const INCREMENT_BASE = {
   status: "proposal" as const,
   parked: "2026-08-08T00:00:00Z",
   schemaVersion: CURRENT_SCHEMA_VERSION,
-  references: [],
   createdAt: "2026-08-08T00:00:00Z",
   updatedAt: "2026-08-08T00:00:00Z",
 };
@@ -88,21 +86,4 @@ test("parseCiteRef splits the three schemes and refuses everything else", () => 
   for (const bad of ["node:library", "doc:decisions/x.md", "library", "story:", ":library", ""]) {
     assert.equal(parseCiteRef(bad), null, `${bad} should not parse as a citation pointer`);
   }
-});
-
-test("story:/capability: group under Story nodes, and the label carries the tier", () => {
-  // They share the group with `node:` because they point at the same place — the work tree, not at
-  // knowledge — and SOURCE_GROUP_ORDER's tail is a pinned invariant. The TIER is what these tokens
-  // add over `node:`, so the label is what has to carry it: without it a reader could not tell a
-  // cited story from a cited capability, which is the whole reason the schemes are typed.
-  const groups = groupSources(["story:library", "capability:library-cli", "node:agent"], () => null);
-  assert.deepEqual(
-    groups.map((g) => g.group),
-    ["Story nodes"],
-  );
-  assert.deepEqual(groups[0]?.items, [
-    { ref: "story:library", label: "library (story)" },
-    { ref: "capability:library-cli", label: "library-cli (capability)" },
-    { ref: "node:agent", label: "agent" },
-  ]);
 });

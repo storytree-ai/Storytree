@@ -34,7 +34,6 @@ interface FormState {
   body: string;
   /** Per-kind structured field values (keyed by KIND_SPECS field name) for a structured Knowledge kind. */
   fields: Record<string, string>;
-  references: string;
   provenance: string;
 }
 
@@ -45,16 +44,8 @@ const EMPTY: FormState = {
   description: '',
   body: '',
   fields: {},
-  references: '',
   provenance: '',
 };
-
-function splitList(value: string): string[] {
-  return value
-    .split(',')
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
 
 /** A clean UI label from a KIND_SPECS heading (drop the bold markers and trailing period). */
 function labelFor(spec: EditorFieldSpec): string {
@@ -79,7 +70,6 @@ export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
         description: existing.description,
         body: existing.body,
         fields: { ...(existing.fields ?? {}) },
-        references: existing.references.join(', '),
         provenance: existing.provenance ?? '',
       });
       setIdTouched(true);
@@ -142,7 +132,6 @@ export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
       category: form.category,
       title: form.title.trim(),
       description: form.description.trim(),
-      references: splitList(form.references),
     };
     if (provenance) common.provenance = provenance;
 
@@ -329,17 +318,6 @@ export function AssetEditor({ mode, id }: AssetEditorProps): React.JSX.Element {
               )}
             </div>
           )}
-
-          <label className="field">
-            <span>
-              Sources{' '}
-              <small className="muted">
-                (comma-separated; <code>doc:&lt;relpath&gt;</code> or <code>asset:&lt;id&gt;</code> —
-                grouped by type when shown)
-              </small>
-            </span>
-            <input value={form.references} onChange={(e) => set('references', e.target.value)} />
-          </label>
 
           <label className="field">
             <span>

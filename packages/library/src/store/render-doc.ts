@@ -45,7 +45,6 @@ export interface RenderedAsset {
   title: string;
   description: string;
   body: string;
-  references: string[];
   provenance?: string;
   /**
    * Per-kind structured fields (KIND_SPECS), present only for a structured Knowledge unit. The
@@ -146,7 +145,6 @@ interface AssetDocLike {
   title?: unknown;
   description?: unknown;
   body?: unknown;
-  references?: unknown;
   provenance?: unknown;
   /** ADR-0223's authored dependency edge. Declared here — rather than reached by a cast — because
    *  the `increment` kind is body-bearing AND in the DAG, so this branch genuinely carries it. */
@@ -207,7 +205,6 @@ const ENVELOPE_FIELDS = new Set([
   "category",
   "title",
   "description",
-  "references",
   "provenance",
   "schemaVersion",
   "createdAt",
@@ -295,7 +292,6 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       title: asString(doc.title),
       description: asString(doc.description),
       body: doc.body,
-      references: asStringArray(doc.references),
       createdAt: stored.createdAt,
       updatedAt: stored.updatedAt,
     };
@@ -326,7 +322,6 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
       title: asString(bag["title"]),
       description: asString(bag["description"]),
       body: renderDegradedBody(bag, reason),
-      references: asStringArray(bag["references"]),
       degraded: reason,
       createdAt: stored.createdAt,
       updatedAt: stored.updatedAt,
@@ -355,7 +350,6 @@ export function renderStoredDoc(stored: StoredDoc): RenderedAsset {
     title: asString(knowledge.title),
     description: asString(knowledge.description),
     body: renderBody(knowledge),
-    references: asStringArray(knowledge.references),
     fields: extractFields(knowledge),
     createdAt: stored.createdAt,
     updatedAt: stored.updatedAt,
@@ -391,7 +385,6 @@ export interface AssetWriteInput {
   title: string;
   description: string;
   body: string;
-  references: string[];
   provenance?: string;
   /** Per-kind structured fields (KIND_SPECS); present when editing a structured Knowledge unit. */
   fields?: Record<string, string>;
@@ -432,7 +425,11 @@ export function buildLibraryDoc(
     doc["id"] = input.id;
     doc["title"] = input.title;
     doc["description"] = input.description;
-    doc["references"] = input.references;
+    // ADR-0477 D1: the citation tier is retired. The structured branch starts from `{...existingDoc}`,
+    // so a stored row that still carries the key would otherwise ride through into a `.strict()`
+    // schema that no longer declares it. Migration #9 strips it at the write boundary; deleting it
+    // here as well keeps this branch's own field set honest, the way `body`/`category` already are.
+    delete doc["references"];
     if (input.provenance && input.provenance.trim() !== "") doc["provenance"] = input.provenance;
     else delete doc["provenance"];
 
@@ -461,7 +458,6 @@ export function buildLibraryDoc(
   doc["title"] = input.title;
   doc["description"] = input.description;
   doc["body"] = input.body;
-  doc["references"] = input.references;
   if (input.provenance && input.provenance.trim() !== "") doc["provenance"] = input.provenance;
   if (typeof existingDoc["createdAt"] === "string") doc["createdAt"] = existingDoc["createdAt"];
   // Carry the authored dependency edge across a body-bearing write (ADR-0223). Unlike the

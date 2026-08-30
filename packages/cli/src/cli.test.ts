@@ -94,7 +94,6 @@ test("artifact <id> for a process DERIVES its next: from branch-edges (ADR-0161 
       title: "Demo Process",
       description: "a process with a branch-edge graph",
       body: "The ceremony.",
-      references: [],
       branchEdges: [
         { ref: "asset:merge-ceremony", label: "when green" },
         { ref: "asset:pull-based-context" },
@@ -123,7 +122,6 @@ test("artifact <id> for a process with NO branch-edges keeps the hand-authored n
       title: "Bare",
       description: "no graph",
       body: "b",
-      references: [],
     },
   });
   const env = await run(["library", "artifact", "bare-process"], { store });
@@ -159,7 +157,6 @@ async function withAuthoredEdges(dependsOn: readonly string[]): Promise<InMemory
         title: target.title,
         description: "d",
         body: "b",
-        references: [],
       },
     });
   }
@@ -174,7 +171,6 @@ async function withAuthoredEdges(dependsOn: readonly string[]): Promise<InMemory
       body: "b",
       // One resolvable citation and one that names nothing: the Sources block reads the same
       // target-type table the onward block orders by, and degrades honestly on a miss.
-      references: ["asset:adr-0139", "asset:no-such-reference"],
       dependsOn: [...dependsOn],
     },
   });
@@ -247,7 +243,6 @@ test("a process's branch-edge nav is NOT joined by its authored dependsOn (ADR-0
       title: "Merge ceremony",
       description: "d",
       body: "b",
-      references: [],
     },
   });
   await store.upsertDoc({
@@ -259,7 +254,6 @@ test("a process's branch-edge nav is NOT joined by its authored dependsOn (ADR-0
       title: "Consolidate the load-bearing set",
       description: "d",
       body: "b",
-      references: [],
     },
   });
   await store.upsertDoc({
@@ -271,7 +265,6 @@ test("a process's branch-edge nav is NOT joined by its authored dependsOn (ADR-0
       title: "Graphed Process",
       description: "carries BOTH a branch-edge graph and an authored dependency edge",
       body: "b",
-      references: [],
       branchEdges: [{ ref: "asset:merge-ceremony", label: "when green" }],
       dependsOn: ["asset:adr-0139"],
     },
@@ -434,63 +427,34 @@ test("the CLI refuses --store memory for a build — there is no run-without-per
   }
 });
 
-test("tree focus <id> renders the node's outbound source refs", async () => {
-  // glossary-wins references doc: pointers (ADRs) — outbound 'source' edges.
+test("tree focus <id> renders the node's outbound decision edges", async () => {
+  // glossary-wins `dependsOn`s two `doc:` decision pointers — outbound edges. It walked `references`
+  // until ADR-0477 D1 retired that field; the surface is the same, the substrate is the authored one.
   const env = await run(["library", "tree", "focus", "glossary-wins"], { store: await seeded() });
   assert.equal(env.ok, true);
   assert.match(env.body, /— tree focus/);
   assert.match(env.body, /outbound/);
-  assert.match(env.body, /source — surfaced on demand/);
+  // The POINTERS, not just the label: an outbound row that printed an empty ref would still carry
+  // the label, so matching the label alone cannot tell a resolved edge from a lost one.
+  assert.match(env.body, /doc:decisions\/0135-retire-docs-glossary-md[^\s]*\.md {3}\(decision — surfaced on demand\)/);
+  assert.match(env.body, /doc:decisions\/0002-work-hierarchy-story-capability-contract\.md {3}\(decision — surfaced on demand\)/);
+  // The heading carries the focused artifact's own title — the header is how a reader knows WHICH
+  // node's edges these are, so an empty one makes the whole view ambiguous.
+  assert.match(env.body, /# When a term is in question, the definition artifact wins {4}\[pattern\]/);
 });
 
 test("tree focus shows inbound intra-library edges (back-edge scan)", async () => {
-  // the `trunk` definition has `asset:approval-gated-trunk`, so focusing the target sees it inbound.
+  // the `trunk` definition `dependsOn`s `asset:approval-gated-trunk`, so focusing the target sees it
+  // inbound. The back-edge scan reads the authored edge since ADR-0477 D1 (it read `references`).
   const env = await run(["library", "tree", "focus", "approval-gated-trunk"], {
     store: await seeded(),
   });
   assert.equal(env.ok, true);
   assert.match(env.body, /inbound/);
   assert.match(env.body, /← trunk/);
-});
-
-test("a node: ref renders as a Story node through the REAL binary, on both artifact surfaces", async () => {
-  // Composed OUTWARD deliberately: `groupSources` and `treeFocus` are each unit-tested, but the
-  // render an operator actually sees is the CLI dispatch composing them, and a green package suite
-  // can hide a dishonest live render. This drives `run(...)` — the same entry the binary calls.
-  const store = await seeded();
-  await store.upsertDoc({
-    id: "cites-a-node",
-    kind: "definition",
-    doc: {
-      id: "cites-a-node",
-      kind: "definition",
-      title: "Cites a node",
-      description: "an artifact attached to a story's proving process (ADR-0107 D2)",
-      whatItIs: "A definition that carries a node: reference.",
-      whyItMatters: "It proves the token survives the render.",
-      references: ["node:cli", "asset:edit-first-curation"],
-      createdAt: "2026-07-29T00:00:00.000Z",
-      updatedAt: "2026-07-29T00:00:00.000Z",
-    },
-  });
-
-  // `library artifact <id>` — the Sources block that grouped this under "Story nodes" is retired
-  // (ADR-0477 D1), so the artifact read prints no citation at all. The fixture still carries
-  // `node:cli` in `references`, so this is the render stopping rather than the token changing.
-  const view = await run(["library", "artifact", "cites-a-node"], { store });
-  assert.equal(view.ok, true, view.body);
-  assert.ok(!view.body.includes("Story nodes:"), "no Sources grouping on the artifact read");
-  assert.ok(!view.body.includes("node:cli"), "and the node: token is not printed there");
-
-  // `library tree focus <id>` — the surface that SURVIVES: an outbound edge labelled a story
-  // node, NOT a "source". Untouched by ADR-0477; still proves the token renders honestly.
-  const focus = await run(["library", "tree", "focus", "cites-a-node"], { store });
-  assert.equal(focus.ok, true, focus.body);
-  assert.match(focus.body, /→ cli {3}\(story node — storytree tree cli\)/);
-  assert.ok(
-    !/node:cli {3}\(source — surfaced on demand\)/.test(focus.body),
-    `a node: ref must not be labelled a source:\n${focus.body}`,
-  );
+  // The back-edge is DERIVED by scanning every doc's `dependsOn` for `asset:<this id>`, so the
+  // pointer's exact spelling in the fixture is what makes the scan find it.
+  assert.match(env.body, /← trunk {2}trunk {2}\[definition\]/);
 });
 
 test("tree focus on a missing id is guidance, not a throw", async () => {
@@ -505,7 +469,6 @@ const NEW_DOC = JSON.stringify({
   title: "CLI test note",
   description: "a throwaway artifact created by a test",
   body: "## What it is\n\nA test.",
-  references: [],
 });
 
 test("a write without --pg is refused with guidance (not an ephemeral write)", async () => {
@@ -538,7 +501,6 @@ test("artifact new refuses to overwrite an existing id (edit-first)", async () =
     title: "dupe",
     description: "d",
     body: "b",
-    references: [],
   });
   const env = await run(["library", "artifact", "new", "--json", dup], { store, writable: true });
   assert.equal(env.ok, false);
@@ -635,7 +597,6 @@ async function seededForStamping(): Promise<InMemoryStore> {
       id: "surface-arc",
       title: "The arc surface",
       description: "d",
-      references: [],
       createdAt: "2026-07-29",
       updatedAt: "2026-07-29",
     },
@@ -652,7 +613,6 @@ async function seededForStamping(): Promise<InMemoryStore> {
       statement: "s",
       context: "c",
       options: "a | b",
-      references: [],
       createdAt: "2026-07-30",
       updatedAt: "2026-07-30",
     },
@@ -745,8 +705,9 @@ test("artifact edit --set field=@path reads the value from a file (no shell-mang
 
 // ---------------------------------------------------------------------------
 // ARRAY fields through --set (the librarian's typed-reference gap): an array-typed schema field
-// (`references`, a uat-criterion's `stepRefs`, …) takes a JSON array — inline or @file — instead
+// (`dependsOn`, a uat-criterion's `stepRefs`, …) takes a JSON array — inline or @file — instead
 // of failing "Expected array, received string" with no way to write the field at all.
+// (These drove `references` until ADR-0477 D1 retired it; the mechanism under test is the same.)
 // ---------------------------------------------------------------------------
 
 test("artifact edit --set writes an ARRAY field from inline JSON", async () => {
@@ -758,13 +719,13 @@ test("artifact edit --set writes an ARRAY field from inline JSON", async () => {
       "edit",
       "edit-first-curation",
       "--set",
-      'references=["asset:merge-ceremony","doc:decisions/0270-claims-land-at-capability-grain.md"]',
+      'dependsOn=["asset:merge-ceremony","doc:decisions/0270-claims-land-at-capability-grain.md"]',
     ],
     { store, writable: true },
   );
   assert.equal(env.ok, true, env.body);
-  const got = (await store.getDoc("edit-first-curation"))?.doc as { references?: string[] };
-  assert.deepEqual(got.references, [
+  const got = (await store.getDoc("edit-first-curation"))?.doc as { dependsOn?: string[] };
+  assert.deepEqual(got.dependsOn, [
     "asset:merge-ceremony",
     "doc:decisions/0270-claims-land-at-capability-grain.md",
   ]);
@@ -777,12 +738,12 @@ test("artifact edit --set writes an ARRAY field from a @file JSON array", async 
     const file = path.join(dir, "refs.json");
     writeFileSync(file, '["asset:library-edit-ceremony", "asset:merge-ceremony"]', "utf8");
     const env = await run(
-      ["library", "artifact", "edit", "edit-first-curation", "--set", `references=@${file}`],
+      ["library", "artifact", "edit", "edit-first-curation", "--set", `dependsOn=@${file}`],
       { store, writable: true },
     );
     assert.equal(env.ok, true, env.body);
-    const got = (await store.getDoc("edit-first-curation"))?.doc as { references?: string[] };
-    assert.deepEqual(got.references, ["asset:library-edit-ceremony", "asset:merge-ceremony"]);
+    const got = (await store.getDoc("edit-first-curation"))?.doc as { dependsOn?: string[] };
+    assert.deepEqual(got.dependsOn, ["asset:library-edit-ceremony", "asset:merge-ceremony"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -792,7 +753,7 @@ test("artifact edit --set on an ARRAY field refuses a non-array value NAMING the
   const store = await seeded();
   // Not JSON at all…
   const notJson = await run(
-    ["library", "artifact", "edit", "edit-first-curation", "--set", "references=asset:merge-ceremony"],
+    ["library", "artifact", "edit", "edit-first-curation", "--set", "dependsOn=asset:merge-ceremony"],
     { store, writable: true },
   );
   assert.equal(notJson.ok, false);
@@ -801,7 +762,7 @@ test("artifact edit --set on an ARRAY field refuses a non-array value NAMING the
   assert.doesNotMatch(notJson.body, /Expected array, received string/, "never the opaque schema dump");
   // …and valid JSON that is not an array.
   const notArray = await run(
-    ["library", "artifact", "edit", "edit-first-curation", "--set", 'references="asset:x"'],
+    ["library", "artifact", "edit", "edit-first-curation", "--set", 'dependsOn="asset:x"'],
     { store, writable: true },
   );
   assert.equal(notArray.ok, false);
@@ -841,7 +802,6 @@ async function seedArc(store: InMemoryStore): Promise<void> {
       description: "d",
       intent: "old intent",
       endState: "old end state",
-      references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-01",
     },
@@ -920,7 +880,6 @@ test("artifact edit --set lifecycle on an arc is REFUSED — closure is not a fr
       description: "d",
       intent: "Deliver it.",
       endState: "It is delivered.",
-      references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-01",
     },
@@ -961,7 +920,6 @@ test("arc close through the dispatcher writes the terminal increment and the fli
       description: "d",
       intent: "Deliver it.",
       endState: "It is delivered.",
-      references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-01",
     },
@@ -1009,7 +967,6 @@ test("arc list --all / --closed parse as flags and widen the default worklist (A
       endState: "Shipped.",
       lifecycle: "closed",
       increments: [{ date: "2026-07-25", outcome: "shipped; the end state is met" }],
-      references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-25",
     },
@@ -1025,7 +982,6 @@ test("arc list --all / --closed parse as flags and widen the default worklist (A
       description: "d",
       intent: "Keep shipping.",
       endState: "Not yet.",
-      references: [],
       createdAt: "2026-07-01",
       updatedAt: "2026-07-01",
     },
@@ -1201,7 +1157,7 @@ async function storeWithRawDoc(): Promise<InMemoryStore> {
       oneLine: ROUND_TRIP_VALUE,
       whatItIs: "x",
       whatItIsNot: "y",
-      references: ["asset:merge-ceremony", "asset:arc"],
+      dependsOn: ["asset:merge-ceremony", "asset:arc"],
       createdAt: "2026-08-03T00:00:00.000Z",
       updatedAt: "2026-08-03T00:00:00.000Z",
     },
@@ -1233,7 +1189,7 @@ test("artifact <id> --raw <absent field> exits non-zero, names the field, and li
 });
 
 test("artifact <id> --raw <non-string field> emits its JSON", async () => {
-  const env = await run(["library", "artifact", "raw-read-subject", "--raw", "references"], {
+  const env = await run(["library", "artifact", "raw-read-subject", "--raw", "dependsOn"], {
     store: await storeWithRawDoc(),
   });
   assert.equal(env.ok, true, env.body);
@@ -1368,7 +1324,6 @@ async function storeWithOneDefinition(): Promise<InMemoryStore> {
       oneLine: "o",
       whatItIs: "x",
       whatItIsNot: "y",
-      references: [],
       createdAt: "2026-08-03T00:00:00.000Z",
       updatedAt: "2026-08-03T00:00:00.000Z",
     },
@@ -1442,7 +1397,6 @@ async function seededForAnchoring(): Promise<InMemoryStore> {
       arcRef: "asset:some-arc",
       status: "proposal",
       parked: "2026-08-13",
-      references: [],
       createdAt: "2026-08-13",
       updatedAt: "2026-08-13",
     },

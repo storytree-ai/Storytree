@@ -1,5 +1,5 @@
 // Tree verdict-overlay — the desktop's re-composition of the studio's GET /api/tree proof fold
-// (apps/studio/server/apiRouter.ts: readTree + applyUatCrowns/applyCapCoverage/applyOpenQuestionGate).
+// (apps/studio/server/apiRouter.ts: readTree + applyUatCrowns/applyCapCoverage).
 // It turns the bare authored tree into the SAME verdict-enriched payload the studio frontend folds into
 // island/plant hue (apps/studio/src/lib/worldStatus.ts `provenStatus`): a story/cap goes GREEN only when
 // it carries a signed `verdict.outcome === 'pass'`. Without this fold every island falls back to its
@@ -8,8 +8,7 @@
 // THE BOUNDARY CALL (the desktop story's "Local-backend boundary call" + ADR-0119): this does NOT import
 // apps/studio/server — that is a forbidden surface→surface coupling. It RE-COMPOSES the same algorithm
 // over the SAME shared organism primitives the studio handler is built from — `@storytree/orchestrator`'s
-// `loadNodeSpec`/`rollupStoryGreen`/`rollupCapStatus`/`gateStoryGreenOnOpenQuestions` and
-// `@storytree/library`'s `openQuestionsGatingNode` — exactly as local-backend.ts / boot-read-routes.ts
+// `loadNodeSpec`/`rollupStoryGreen`/`rollupCapStatus` — exactly as local-backend.ts / boot-read-routes.ts
 // reproduce the studio's HTTP helpers + docs walk rather than importing them. Extracting a SHARED
 // read-route organism both surfaces mount is the clean consolidation ADR-0119 names as the follow-on
 // (it touches the `studio` story); the duplication here is its accepted cost, kept pg-free so the
@@ -107,8 +106,6 @@ export interface VerdictOverlay {
   latestVerdicts: Record<string, DTVerdict> | null;
   /** The RAW signed-verdict event stream (events.verdict ORDER BY seq) for the per-test crown roll-up. */
   verdictEvents: readonly DTVerdictEvent[] | null;
-  /** Open-question artifacts (category 'open-question') — the OQ green-gate reads their `references`. */
-  openQuestions: readonly { id: string; references?: readonly string[] }[];
 }
 
 const isWorkStatus = (s: string): boolean =>
@@ -201,8 +198,8 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
     return { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory };
 
   const { loadNodeSpec, effectiveUatWitness } = await loadOrchestrator();
-  // ADR-0436: the retired-gate filter. Pulled through the same lazy library seam this file already
-  // uses for `openQuestionsGatingNode`, so the pg-free / electron-free boundary in the header holds.
+  // ADR-0436: the retired-gate filter. Pulled through this file's lazy library seam, so the pg-free
+  // / electron-free boundary in the header holds.
   const { activeReliabilityGates, crownObligations } = await loadLibrary();
 
   for (const ent of await fs.readdir(storiesDir, { withFileTypes: true })) {
@@ -434,39 +431,13 @@ export function applyUatCrowns(
 }
 
 /**
- * Apply the ADR-0107 proving-process OQ gate: an OPEN question attached to a story's proving process
- * (a `node:<storyId>` reference) WITHHOLDS that story's green until resolved. STRICTLY a withholding — it
- * only ever drops a would-be `pass` crown to no-verdict, never paints red. Mirrors `applyOpenQuestionGate`.
- */
-export function applyOpenQuestionGate(
-  stories: DTStory[],
-  gatingCountByStory: ReadonlyMap<string, number>,
-  gate: (base: "healthy" | "unhealthy" | null, count: number) => string | null,
-): void {
-  for (const story of stories) {
-    const count = gatingCountByStory.get(story.id) ?? 0;
-    if (count === 0) continue;
-    const base =
-      story.verdict?.outcome === "pass"
-        ? "healthy"
-        : story.verdict?.outcome === "fail"
-          ? "unhealthy"
-          : null;
-    if (base === "healthy" && gate(base, count) !== "healthy") {
-      delete story.verdict;
-    }
-  }
-}
-
-/**
  * Fold the signed-verdict overlay into the bare authored tree — the desktop's re-composition of the
  * studio tree-handler's enrichment block (apiRouter.ts ~1659-1707), in the SAME order so the desktop
  * forest paints proof-health identically and never over-claims relative to hosted:
  *   1. attach each unit's OWN latest verdict (`latestVerdicts[id]` → story/cap `.verdict`),
  *   2. ADR-0097 cap coverage (a covered brownfield plant greens via its gate),
  *   3. ADR-0083 per-test crown roll-up (a UAT story's island greens from the AND of its per-test verdicts),
- *   4. clear a stale Build/Adopt affordance after the crown proves the story green,
- *   5. ADR-0107 OQ gate (an open fork WITHHOLDS a would-be green).
+ *   4. clear a stale Build/Adopt affordance after the crown proves the story green.
  * Every leg is advisory: a `null` verdict source leaves the authored hue and file-derived affordance
  * (under-claims), per the presence-block discipline (ADR-0033). Mutates `stories`.
  */
@@ -513,25 +484,12 @@ export async function foldVerdicts(
   // backend / a down DB), so the tree renders the own-verdict layer alone rather than failing.
   const events = overlay.verdictEvents;
   if (events) {
-    const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } =
-      await loadOrchestrator();
+    const { rollupStoryGreen, rollupCapStatus } = await loadOrchestrator();
 
     // ADR-0097: covered brownfield plants greens BEFORE the crown so plants and crown agree.
     applyCapCoverage(stories, coverageByStory, events, rollupCapStatus);
     if (uatTestCriteriaByStory.size > 0) {
       applyUatCrowns(stories, uatTestCriteriaByStory, coverageByStory, events, rollupStoryGreen);
-    }
-    // ADR-0107: an open gating question WITHHOLDS a would-be green crown — run AFTER the crown.
-    if (overlay.openQuestions.length > 0) {
-      const { openQuestionsGatingNode } = await loadLibrary();
-      const gatingCountByStory = new Map<string, number>();
-      for (const story of stories) {
-        const n = openQuestionsGatingNode(overlay.openQuestions, story.id).length;
-        if (n > 0) gatingCountByStory.set(story.id, n);
-      }
-      if (gatingCountByStory.size > 0) {
-        applyOpenQuestionGate(stories, gatingCountByStory, gateStoryGreenOnOpenQuestions);
-      }
     }
   }
 }

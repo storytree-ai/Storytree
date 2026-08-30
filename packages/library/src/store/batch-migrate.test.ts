@@ -19,8 +19,8 @@ function v0Definition() {
     id: "test-term",
     title: "Test term",
     description: "A test definition for batch-migrate coverage.",
-    references: ["doc:decisions/0017-knowledge-tier.md"],
     seeAlso: ["asset:proof-mode"], // retired field — migration #1 must drop it
+    references: ["doc:decisions/0017-knowledge-tier.md"], // retired field — migration #9 must drop it
     oneLine: "A throwaway definition used only by the batch-migrate test suite.",
     whatItIs: "The exact meaning, stated precisely for the test.",
     createdAt: "2026-06-05T00:00:00.000Z",
@@ -46,9 +46,10 @@ test("batchMigrate: upgrades a v0 structured doc to CURRENT_SCHEMA_VERSION in pl
   const doc = after?.doc as Record<string, unknown>;
   assert.equal(doc["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to current version");
   assert.equal("seeAlso" in doc, false, "retired seeAlso dropped");
+  assert.equal("references" in doc, false, "retired references dropped (ADR-0477 D1, migration #9)");
   // Other content preserved.
   assert.equal(doc["title"], "Test term");
-  assert.deepEqual(doc["references"], ["doc:decisions/0017-knowledge-tier.md"]);
+  assert.equal(doc["whatItIs"], "The exact meaning, stated precisely for the test.");
 });
 
 test("batchMigrate: re-running is a no-op (0 upgraded)", async () => {
@@ -72,7 +73,6 @@ test("batchMigrate: leaves a non-structured asset untouched", async () => {
     title: "Definition template",
     description: "The blank definition template.",
     body: "**In one line.** _What this term means._",
-    references: [],
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:00:00.000Z",
   };

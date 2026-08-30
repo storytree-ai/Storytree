@@ -190,7 +190,6 @@ export {
   rollupStoryGreen,
   rollupCapStatus,
   isUndertakenCapability,
-  gateStoryGreenOnOpenQuestions,
 } from "./proof/uat-proof.js";
 // ADR-0416 D6: the story-BASELINE fold — what a proven whole-story pass covered, and what has been
 // declared beyond it since (the EXPANSION signal D2 requires a surface to show beside the green).

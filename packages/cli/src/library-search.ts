@@ -46,7 +46,7 @@ const DEFAULT_LIMIT = 20;
  * is the safe direction to be wrong — a false "unlinked" costs a reader one redundant look, while a
  * false "linked" hides the very neighbour this verb exists to surface.
  */
-const STRING_REF_FIELDS = ["dependsOn", "cites", "references"] as const;
+const STRING_REF_FIELDS = ["dependsOn", "cites"] as const;
 
 /**
  * The decision-number fields on the `adr` kind, rendered into the pointer spelling everything else

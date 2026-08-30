@@ -34,7 +34,6 @@ function minimalDoc(kind: KnowledgeKind) {
   doc["id"] = `standson-${kind}`;
   doc["title"] = `dependsOn ${kind}`;
   doc["description"] = "dependsOn admission fixture";
-  doc["references"] = [];
   doc["createdAt"] = "2026-08-14T00:00:00.000Z";
   doc["updatedAt"] = "2026-08-14T00:00:00.000Z";
   for (const spec of KIND_SPECS[kind]) {
@@ -76,14 +75,13 @@ test("library-standson-admitted-on-dag-kinds: every kind outside the transient s
     );
   }
 
-  // The `references` web is UNTOUCHED by the admission (ADR-0223 D2): both fields coexist on the
-  // same doc, carrying different targets, neither constraining the other.
+  // ADR-0223 D2's coexistence clause is MOOT since ADR-0477 D1: the `references` web it promised not
+  // to disturb is retired, and `dependsOn` is the corpus's only edge. What survives to assert is that
+  // the authored edge round-trips as authored.
   const both = Knowledge.parse({
     ...minimalDoc("principle"),
-    references: ["asset:cites-me", "asset:red-green"],
     dependsOn: ["asset:red-green"],
-  }) as { references: readonly string[]; dependsOn?: readonly string[] };
-  assert.deepEqual(both.references, ["asset:cites-me", "asset:red-green"]);
+  }) as { dependsOn?: readonly string[] };
   assert.deepEqual(both.dependsOn, ["asset:red-green"]);
 });
 
