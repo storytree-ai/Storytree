@@ -215,7 +215,25 @@ Both are recorded from the `amends` retirement, and both were checked here:
 
 ## STEP 4 OUTCOME — landed 2026-08-30
 
-Every row above is `resolved` except the three noted below. `pnpm probe:citation-readers` exits 0.
+`pnpm probe:citation-readers` exits 0 — **UNCENSUSED: 0**, which is the claim that matters. 33 of
+the 42 rows report `resolved`.
+
+⚠ **The nine that still carry a hit are DELIBERATE, so do not read "every row should report
+`resolved`" (above) as a target.** That sentence was written before the dispositions were worked
+out; this is the corrected list:
+
+| still carries a hit | why it should |
+| --- | --- |
+| `library/migrations.ts` | migrations #1, #2 and #9 all name the field. The registry is APPEND-ONLY — a migration that stopped naming what it transforms would be dead on the documents it was written for |
+| `library/store/render-doc.ts` | `delete doc["references"]` — the structured write branch strips the key a stored row may still carry |
+| `cli/corpus-linkage.ts` | still REPORTS `referenceCount` per node (a live row keeps the key until its next write drains it); what it no longer does is count it toward isolation |
+| `cli/retire.ts` | prose only — the dependency wall walks every string and names the field in its docblock |
+| `drive/oq-gate.ts` | prose only — the `RETIRED` message names the field it can no longer read |
+| `cli/citation-readers.ts` | the scanner's own match pattern spells the field. Retires with the verb when the arc closes |
+| the two `tools/oxlint/anti-slop/` rules | `not-the-field` — the ESLint scope API's `variable.references` |
+| the two `docs/research/*.mjs` prototypes | `not-live` — both read `apps/studio/data/knowledge.json`, deleted by ADR-0302 D1 |
+
+Three census dispositions were also wrong; they are corrected below.
 
 ### The row this census MISSED, and how it was caught
 
