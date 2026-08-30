@@ -7,7 +7,32 @@ outcome: "On the live home page, one visitor gesture breeds the storm: a single 
 status: proposed
 proof_mode: operator-attested
 depends_on: [experience-rollout-guardrails]
-decisions: [216]
+decisions: [216, 466]
+# ⚠ CORRECTED 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — THIS CAPABILITY IS SPLIT, AND ONLY
+# ONE HALF WAS EVER A JUDGMENT GAP. Swept into ADR-0465 D1's second pile as "not capability-shaped"; that
+# filing collapsed two unrelated reasons into one label, and the increment's own premise correction
+# withdraws it. Read the two halves separately:
+#   • THE FELT HALF stays PERMANENTLY HUMAN. Whether the storm actually OVERWHELMS, whether the CRT
+#     surface reads retro, whether the chatter reads plausible-but-opaque, whether the pacing and the
+#     audio mix land — these have no compiler at any tier, now or as models improve (ADR-0410 D5). They
+#     are `human-witness-is-a-judgment-gap-not-cost`'s genuine case and nothing here changes them.
+#   • THE CHECKABLE HALF is CROSS-REPO, and its route is now SETTLED. That the send unlocks audio, that
+#     sub-agents spawn AS terminals, that the count tiles to the ~10-12 cap under `AGENTS: n ▲`, that no
+#     further visitor input is required, that a reduced-motion visitor is never played the storm — every
+#     one is a byte-level observable a headless browser can decide. The only reason our gate cannot sign
+#     it is that the acts live in `storytree-web`, a separate repo that is not a pnpm workspace member,
+#     which is a COST rather than a judgment gap. ADR-0466 (accepted 2026-08-27, owner-answered *"just
+#     trust its result"*) settles it: the outside system publishes its own pass/fail where our build can
+#     read it, and a FRESH GREEN published result earns a signed verdict (D1); D2 applies it to exactly
+#     this cross-repo shape, D3 refuses standing a live site preview up inside every build run. The six
+#     `website-experience` machine legs ADR-0466 names by number (1, 4, 6, 8, 10, 13) are what this half
+#     of the capability feeds.
+# ⚠ NOTHING IMPLEMENTS ADR-0466 YET AND NO ARC OWNS IT (searched 2026-08-31). The route is POLICY, not a
+# mechanism — publishing format, transport and provenance are all explicitly undecided (D5). So NOTHING
+# HERE CHANGES TIER, MODE OR STATUS: `proof_mode` stays `operator-attested`, there is still NO `proof:`
+# block and NO `real:` arm, and none may be authored. THIS IS NOT A RETIREMENT: the built Act 1
+# experience is live and owner-attested, and retiring it would discard an answer the owner has given.
+# Only the recording is the work.
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The storm lands in storytree-web (a separate public
 # repo, its own CD; branch off ITS origin/main), which is NOT a pnpm workspace member, so the parent
 # spine cannot observe a red→green inside it — and the storm's real risk is FEEL (pacing, overwhelm,
@@ -87,6 +112,42 @@ owner call on "presentable" (a HALT point, story open call 5).
 > (CD green; all three markers verified on the live site). The parent pins `web/` @ `3e53f14`,
 > arming `check:web-experience` in CI — witnessed ARMED + OK against the pinned tree. The feel was
 > human-judged end to end; nothing here is self-signed (ADR-0070).
+
+> **⚠ CORRECTION 2026-08-31 — THE CAPABILITY IS TWO HALVES, AND THE CHECKABLE HALF'S PROOF ROUTE IS NOW
+> SETTLED AND UNBUILT (`prove-unproven-capabilities-arc-inc-25`; noted in place per ADR-0139).** The
+> record above reads as though `operator-attested` were the whole and permanent answer for this
+> capability. It is the right answer for only one of the two things this node claims, and the other's
+> route has since been decided.
+>
+> - **FELT HALF — permanently human, unchanged.** The overwhelm, the retro CRT read, the
+>   plausible-but-opaque chatter, the pacing, the audio mix. No compiler exists for any of them at any
+>   tier and none is coming: ADR-0410 D5 keeps taste permanently human, licensing no machine to judge
+>   whether something looks or feels right "now or as models improve". UAT legs 1–4 below are this half
+>   and stay exactly as written, witnessed by a person on the live site. The story's own
+>   [`## The felt thesis`](story.md) items 1 and 2 hold the same claims at story tier.
+> - **CHECKABLE HALF — cross-repo, and ADR-0466 settles how it reaches our proof.** Audio silent before
+>   the send and an audio context running after it; sub-agents spawning AS terminals rather than the
+>   visitor opening them; the tile to the ~10–12 seeded cap with `AGENTS: n ▲` tracking it; every
+>   terminal parked on a demand; zero further visitor input between the send and the peak; the
+>   reduced-motion / no-JS visitor never being played the storm. Every one is a byte-level observable a
+>   headless browser decides, and the web repo's OWN Playwright suite has already exercised most of them
+>   (23/23 at `796d65a`). The only obstacle was ever the boundary: `storytree-web` is not a pnpm
+>   workspace member, so the parent prove-it-gate cannot run red→green inside it — a COST, not a judgment
+>   gap (`human-witness-is-a-judgment-gap-not-cost`). **ADR-0466 (accepted 2026-08-27) decides the
+>   carry:** the outside system publishes its own pass/fail where our build can read it, and a FRESH
+>   GREEN published result earns a signed verdict (D1); D2 applies it to this cross-repo shape; D3
+>   refuses the alternative of standing a live preview up inside every build run. The owner's answer was
+>   verbatim *"just trust its result."* This closes the story's open modeling call 6.
+>
+> **⚠ NOTHING IMPLEMENTS ADR-0466 AND NO ARC OWNS IT** (searched 2026-08-31). It is POLICY, not a
+> mechanism: publishing format, transport, and which of the site's remaining legs are in scope beyond the
+> six named are all left undecided (D5), and D4's three fences — the result must NAME THE COMMIT it
+> observed, ABSENCE FAILS CLOSED, PROVENANCE RIDES THE VERDICT — must be built, not assumed. **So nothing
+> here changes today:** `proof_mode` stays `operator-attested`, this capability still carries NO `proof:`
+> block and NO `real:` arm, and none may be authored on the strength of a route that does not exist.
+> Chartering that build lane is real work nobody has taken. **AND THIS IS NOT A RETIREMENT** — the built
+> experience is live and owner-attested; the "not capability-shaped" filing this node briefly carried is
+> withdrawn.
 
 ## As built (web main `3e53f14`)
 

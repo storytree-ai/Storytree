@@ -136,6 +136,12 @@ representation is plain files).
    `resolve-comment → read-corpus` edge: edges track code coupling (ADR-0010 §3) and a test
    may exercise any real in-story collaborator as scaffolding (ADR-0010 §5). The wider
    test-collaborator surface is correct, not a missing edge.
+   **⚠ OVERTAKEN 2026-08-31 (`prove-unproven-capabilities-arc` inc-25):** `resolve-comment` is now
+   `status: retired` and off the `studio` story's capability list. ADR-0425 dec 1 retired studio
+   commenting deliberately, MULTIPLAYER named as the revival trigger, and every surface this entry's
+   propagation walk names — `CommentPanel`, `useAnnotations`, `annotate.ts` — is deleted. The
+   2026-06-06 call above was right when it was made and is kept as the record of it; the
+   keep-separate/no-edge reasoning is still the reusable part.
 
 3. **`seed-library-corpus` — capability, or a contract-cluster?** Its honest proof is
    largely one observable effect (the written `assets.json` — since retired, ADR-0210), which smells contract-ish,
@@ -144,6 +150,13 @@ representation is plain files).
    tree). *Recommendation:* **keep as a capability** — it has a genuine build-time
    walkthrough that needs no app running, and it is the data-provenance root the two
    Library capabilities depend on.
+   **⚠ OVERTAKEN 2026-08-31 (`prove-unproven-capabilities-arc` inc-25):** `seed-library-corpus` is
+   now `status: retired` and off the `studio` story's capability list — so the recommendation above
+   no longer describes a live unit. Not because the tier call was wrong, but because the SUBJECT is
+   gone: the seeder, both of its inputs (`docs/glossary.md` at ADR-0135, `docs/decisions/` at
+   ADR-0403 dec 1) and its output file are all deleted, and artifacts are written straight to the
+   live store, so there is no build-time derivation step left to be a capability OR a
+   contract-cluster. The `browse-library` data-provenance edge went with it.
 
 4. **Client platform substrate — promote to a capability?** The app bootstrap +
    `AppDataContext` + hash router (`App.tsx`, `lib/appData.ts`, `lib/route.ts`) is

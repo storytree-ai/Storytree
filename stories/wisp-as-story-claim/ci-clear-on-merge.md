@@ -7,7 +7,28 @@ outcome: "CI releases `events.node_claim` rows (every grade) for the merged bran
 status: proposed
 proof_mode: operator-attested
 depends_on: [claim-store-work-time]
-decisions: [138, 33, 121]
+decisions: [138, 33, 121, 466]
+# ⚠ CORRECTED 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — THE PROOF ROUTE IS SETTLED AND
+# UNBUILT, AND THIS IS NOT A RETIREMENT. This capability was swept into ADR-0465 D1's second pile as
+# "not capability-shaped". That classification is WRONG and the increment's own premise correction says
+# so: it is capability-SHAPED with a SETTLED but UNBUILT proof route. What it claims — every
+# `events.node_claim` row for a merged branch gone, one `released` audit row per cleared claim, the
+# oldest live waiter promoted — is a fully MECHANICAL, byte-level checkable fact. The only reason the
+# prove-it-gate cannot sign it is that the fact happens inside a GitHub Actions step our build cannot run
+# and watch, which is a COST rather than a judgment gap
+# (`human-witness-is-a-judgment-gap-not-cost`). ADR-0466 (accepted 2026-08-27, owner-answered *"just
+# trust its result"*) settles exactly that boundary: an outside system publishes its own pass/fail where
+# our build can read it, and a FRESH GREEN published result earns a signed verdict — D2 applying it to
+# BOTH the cross-repo and the CI-workflow shape, D3 refusing to bring the world inside. Adjudicating this
+# node as a retirement would DISCARD an answer the owner has already given.
+# ⚠ NOTHING IMPLEMENTS ADR-0466 YET AND NO ARC OWNS IT (searched 2026-08-31). So the route exists as
+# POLICY and not as a mechanism: there is no publishing format, no transport, no verdict provenance field
+# and no revision-binding today (ADR-0466 D5 leaves all of that undecided). `proof_mode` therefore stays
+# `operator-attested` — the honest reading of THIS repo TODAY — and this capability still carries NO
+# `proof:` block and NO `real:` arm. Do not author one, do not name a command that only looks like it
+# exercises the workflow, and do not record the route as available. The end-state recorded here is:
+# capability-shaped · proof route SETTLED by ADR-0466 · UNBUILT · needs a chartered build lane that does
+# not exist.
 # SUPPLEMENT / GLUE: this capability has NO isolatable red→green of its own — the released function
 # (releaseClaimsByBranch) is PROVEN in capability A; what lives here is the YAML wiring in
 # .github/workflows/ci.yml (extend the merge job's presence sweep to also call it for the merged/closed
@@ -45,6 +66,39 @@ function this wiring calls).
 > WIRE the merge job to call it. The clear is **CI/operator-observed** — the merge job runs and the merged
 > branch's claim-wisp disappears (witnessed by the appearance UAT, capability F). Built by the
 > orchestrator's own subagent, not the red→green leaf.
+
+> **⚠ CORRECTION 2026-08-31 — THE PROOF ROUTE IS SETTLED BY ADR-0466 AND IS UNBUILT
+> (`prove-unproven-capabilities-arc-inc-25`; noted in place per ADR-0139).** The paragraph above ends at
+> "operator/CI-observed" because, when it was written, *how* a CI-observed effect could ever reach the
+> proof spine was an open question. **It is no longer open.** ADR-0466 (accepted 2026-08-27) settles it:
+> where a check's honest execution lives outside the prove-it-gate's reach, that system PUBLISHES a
+> pass/fail our build can read, and a **fresh green published result earns a signed verdict** (D1). D2
+> applies this to both shapes of boundary — a separate repository AND a CI workflow step — and names
+> `ci-clear-on-merge` as one of the two things it discharges. D3 refuses the alternative of standing the
+> live database up inside every build run. The owner's answer was verbatim *"just trust its result."*
+>
+> **Three consequences, stated so a later sweep cannot re-derive them wrongly:**
+>
+> 1. **THIS CAPABILITY IS NOT A RETIREMENT CANDIDATE, and the "not capability-shaped" filing it once
+>    carried is withdrawn.** What it claims is mechanically true or false — a row disappears, an audit
+>    entry appears, a waiter is promoted — and the gate's authority never rested on the observation being
+>    OURS, only on it being real and fail-closed (ADR-0466's through-line with ADR-0465 D7). Retiring
+>    this node would discard an answer the owner has already given.
+> 2. **NOTHING IMPLEMENTS ADR-0466 AND NO ARC OWNS IT** (searched 2026-08-31; the nearest neighbours are
+>    ADR-0440's read-nothing CI identity and the `website-release` process). The route is POLICY, not a
+>    mechanism: the publishing format, the transport, and whether one mechanism serves both boundaries
+>    are all explicitly undecided (D5). Chartering that build lane is somebody's work and it is not this
+>    capability's, not this spec's, and not the adjudication pass that wrote this note.
+> 3. **SO NOTHING HERE CHANGES TIER, STATUS OR MODE TODAY.** `proof_mode` stays `operator-attested`,
+>    there is still NO `proof:` block and NO `real:` arm, and `status` stays `proposed`. Manufacturing a
+>    red, or naming a command that only looks like it exercises the workflow, is the exact failure this
+>    lane exists to avoid. **When the route IS built, D4's three fences are load-bearing and not
+>    hygiene:** the published result must NAME THE COMMIT it observed (freshness is bound to a revision,
+>    never a timestamp — a green that outlives the code it watched is how this option fails); ABSENCE
+>    FAILS CLOSED (no result, an unreadable one, or one naming an unknown revision is never a pass); and
+>    PROVENANCE RIDES THE VERDICT, so a reader can always see whose observation a green rests on
+>    (ADR-0085's never-silently-equated property). Without all three this is strictly worse than the
+>    honest "never verified by us" state it replaces, because it would look green.
 
 ## Guidance
 
@@ -111,7 +165,11 @@ operator/CI-observed:
 > deliberately UNCHANGED at `operator-attested`:** the witness kind states what kind of observer is right
 > for the leg (released rows are byte-level observables, and an un-harnessed workflow is a cost, not a
 > judgment gap), while the proof mode states how the prove-it-gate can reach this capability — and a
-> `.github/workflows/ci.yml` edit still has no isolatable red→green. How a CI-observed effect reaches the
-> parent proof spine is an open owner call on the story (`## Open modeling calls`, call 4). Detail
-> contract for leg 9, including why re-running A's own live spec is a FALSE pass here:
-> `wisp-as-story-claim#uat-9`.
+> `.github/workflows/ci.yml` edit still has no isolatable red→green. Detail contract for leg 9,
+> including why re-running A's own live spec is a FALSE pass here: `wisp-as-story-claim#uat-9`.
+> *(This read: "How a CI-observed effect reaches the parent proof spine is an open owner call on the
+> story (`## Open modeling calls`, call 4)." **That call is CLOSED** — the owner answered it 2026-08-27
+> and it is recorded as ADR-0466; the route is SETTLED and UNBUILT, see the correction block above.
+> Corrected in place 2026-08-31 per ADR-0139. Nothing else in this paragraph moves: the witness kind is
+> still `machine`, the proof mode is still `operator-attested`, and they answer two different
+> questions.)*

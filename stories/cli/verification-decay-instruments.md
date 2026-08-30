@@ -2,41 +2,45 @@
 id: "verification-decay-instruments"
 tier: capability
 story: cli
-title: "The repo-reading decay instruments — located, charged to their author, held to a per-instrument ceiling"
-outcome: "Each of the five repo-reading chartered instruments reports the decay it locates as a finding charged to the branch that authored it."
+title: "The chartered decay instruments — located, charged to their author, held to a per-instrument ceiling"
+outcome: "Each of the six chartered instruments reports the decay it locates as a finding charged to the branch that authored it."
 status: proposed
 proof_mode: integration-test
 depends_on: []
 # Deciding ADRs (ADR-0037 §2): ADR-0252 D1 charters the instrument roster and D3 is why this is a
 # drain obligation on the session rather than a merge barrier; ADR-0278 adds the fifth instrument
-# (`unproven-seam-default`); ADR-0301 is the attribution half — a breach resting entirely on signals
-# this branch did not author is `inherited` and does not block the landing.
-decisions: [252, 278, 301]
-# ⚠ THE ROSTER IS SIX AND THIS CAPABILITY COVERS FIVE — narrowed in place 2026-08-31
-# (`prove-unproven-capabilities-arc` inc-23, on the inc-22 reading pass). Until then the title and
-# outcome said "every chartered instrument", which stopped being true when ADR-0424 D5 chartered
-# `decision-source-drift`: `CHARTERED_INSTRUMENTS` (verification-decay.ts:211-226) has SIX members,
-# and this unit's `scope` below binds neither `decision-source-decay.ts` nor its 28-test suite. An
-# adoption verdict recorded against the old wording would have attached to a claim the proof cannot
-# make — which is why it was corrected before adopting rather than after.
+# (`unproven-seam-default`); ADR-0424 D5 adds the sixth (`decision-source-drift`) into this family
+# rather than behind a rung of its own; ADR-0301 is the attribution half — a breach resting entirely
+# on signals this branch did not author is `inherited` and does not block the landing.
+decisions: [252, 278, 301, 424]
+# ⚠ WIDENED FROM FIVE TO SIX — the roster and this unit's scope agree again as of 2026-08-31
+# (`prove-unproven-capabilities-arc` inc-25, FINDING 2). `CHARTERED_INSTRUMENTS`
+# (verification-decay.ts:211-226) has SIX members. inc-23 narrowed this unit's title and outcome to
+# the five its `scope` bound, and recorded the sixth as an ownership hole it deliberately would not
+# close unilaterally: no spec under `stories/**` named `decision-source-decay` or
+# `decision-source-drift` at all, so 34.6 KB of source and a 28-test suite were bound by no
+# capability's proof block. That hole is what this edit closes — the sixth joins as contract 7 and
+# the scope below now binds its source/test pair.
 #
-# THE BOUNDARY IS PRINCIPLED, NOT AN ARBITRARY FIVE, and the source states it at the sixth member's
-# own declaration: the five here take their facts from the REPO (story specs, route tables, test
-# files, check sources, package sources), while `decision-source-drift` is "the first member whose
-# subject is the LIBRARY tier instead of the repo's source — and therefore the first that dials the
-# store". A judge over injected repo facts and a judge that opens a database connection are not one
-# proof, and this unit's suite is fixture-only by design (see the honest limit below).
+# ⚠ AND INC-23's STATED REASON FOR THE BOUNDARY DOES NOT SURVIVE READING THE FILE — recorded plainly,
+# because it is the argument a later reader would otherwise re-apply. It held that "a judge over
+# injected repo facts and a judge that opens a database connection are not one proof", quoting the
+# source's own charter comment that `decision-source-drift` is "the first that dials the store".
+# The judge dials nothing. `decision-source-decay.ts`'s header says so in its own words — "Pure and
+# browser-safe apart from the parser: no filesystem, no store, no clock. The disk read and the store
+# dial live in the thin check-verification-decay.ts entrypoint, which hands this module file TEXT and
+# gets findings back" — and the bytes agree: `createPool`/`PgLibraryStore` are imported at
+# check-verification-decay.ts:94 and used at :805-807, and neither `decision-source-decay.ts` nor its
+# suite contains `node:fs`, `readFileSync`, `createPool`, `PgLibraryStore` or `execFileSync` at all.
+# The charter comment was describing what changed for the GATHERER, and it says so in its own next
+# clause ("see check-verification-decay.ts's header for what that changed"). The gatherer is glue and
+# is excluded from this scope for the five as well, so the sixth judge is SYMMETRIC with them, not a
+# second kind of thing. Why that makes it one organ rather than two is argued in `## Guidance`.
 #
-# ADR-0424 IS DELIBERATELY ABSENT FROM `decisions:` ABOVE. It charters the instrument this unit does
-# NOT cover, so listing it would re-assert the overclaim in the field a reader trusts most.
-#
-# ⚠ AND THE SIXTH IS OWNED BY NOBODY — a stated gap, not a hidden one. Verified 2026-08-31: no spec
-# under `stories/**` names `decision-source-decay` or `decision-source-drift` at all, so its 34.6 KB
-# of source and 28 tests are bound by no capability's proof block. Narrowing this unit is what makes
-# that gap VISIBLE; it does not create it, and closing it is a separate authoring call for
-# `story-author` (a sixth contract here, or a unit of its own) rather than something this correction
-# should decide unilaterally. The story-grain `repo-manifest.json` key `packages/cli/src/*decay*.ts`
-# does match the file, so ownership at STORY grain is intact — it is the capability grain that is empty.
+# THE MANIFEST AND THE PROOF BLOCK NOW AGREE. `repo-manifest.json`'s `packages/cli/src/*decay*.ts`
+# key already homed all four decay modules to this unit; the capability-grain gap was that the proof
+# block bound only two of the three judges. It binds all three now, and the key stays coarser than
+# the scope by exactly one file (`check-verification-decay.ts` — see the note below).
 # A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 5, 2026-08-08). It resolves ONE story-grain
 # `repo-manifest.json` declaration (`packages/cli/src/*decay*.ts`).
@@ -56,7 +60,11 @@ decisions: [252, 278, 301]
 #      `packages/cli/src/node-build.test.ts` (verified: this id appears there zero times).
 #   2. `readUnitSourceFiles` (packages/cli/src/check-boundaries.ts:210-234) `continue`s on an absent
 #      `real` (`:226`), so this unit contributes nothing to `unitSourceFiles` and the ADR-0192
-#      landlord rule does not fire. Both files are in `packages/cli`, this story's OWN building.
+#      landlord rule does not fire. All three files are in `packages/cli`, this story's OWN building.
+# THE COMMAND DOES NOT CHANGE WHEN THE SCOPE WIDENS, and that is the point: the sixth suite
+# (`decision-source-decay.test.ts`) was already being RUN by `pnpm --filter @storytree/cli test` — it
+# was simply not BOUND by any spec, which is what made it invisible at the capability rung while
+# passing on every gate.
 proof:
   command:
     file: pnpm
@@ -65,46 +73,59 @@ proof:
     testGlobs:
       - "packages/cli/src/verification-decay.test.ts"
       - "packages/cli/src/decay-attribution.test.ts"
+      - "packages/cli/src/decision-source-decay.test.ts"
     sourceGlobs:
       - "packages/cli/src/verification-decay.ts"
       - "packages/cli/src/decay-attribution.ts"
+      - "packages/cli/src/decision-source-decay.ts"
 ---
 
-# The repo-reading decay instruments — located, charged to their author, held to a per-instrument ceiling
+# The chartered decay instruments — located, charged to their author, held to a per-instrument ceiling
 
-**Outcome —** Each of the five repo-reading chartered instruments reports the decay it locates as a
-finding charged to the branch that authored it.
+**Outcome —** Each of the six chartered instruments reports the decay it locates as a finding charged
+to the branch that authored it.
 
-**Five of six, and the sixth is nobody's —** `CHARTERED_INSTRUMENTS` holds SIX members; this unit
-binds the five whose facts come from the repo. The sixth, `decision-source-drift` (ADR-0424 D5),
-judges the LIBRARY tier and dials the store, and no spec under `stories/**` names it or its 34.6 KB
-of source at all. The frontmatter carries the full note; it is recorded here too because a reader
-who takes only the outcome away is the reader the old wording misled.
+**Six of six —** `CHARTERED_INSTRUMENTS` holds SIX members and this unit now binds all six. Until
+2026-08-31 it bound five and said so, with the sixth — `decision-source-drift` (ADR-0424 D5) — named
+as an ownership hole: no spec under `stories/**` mentioned `decision-source-decay` or
+`decision-source-drift` at all, so 34.6 KB of source and a 28-test suite had no capability owner. The
+sixth joins here rather than forking into a unit of its own; the frontmatter records what was checked
+and `## Guidance` argues why. It is recorded in the body too because a reader who takes only the
+outcome away is the reader the previous wording misled.
 
-**Depends on —** nothing within this story. `verification-decay.ts` reaches outside itself for
-exactly two things: the TypeScript compiler API, and `readTestCallTitle` from
+**Depends on —** nothing within this story. It is a root: the three modules reach outside themselves
+only for shared PARSERS and PURE RULES, never for another in-story unit's delivered outcome.
+`verification-decay.ts` takes the TypeScript compiler API and `readTestCallTitle` from
 `@storytree/orchestrator` (`:70`) — the same title reader ADR-0126's classifier uses, imported so the
-`vacuous-proof` join is spelled identically on both sides rather than re-derived. That is a shared
-parser, not a consumed outcome. It is a root.
+`vacuous-proof` join is spelled identically on both sides rather than re-derived.
+`decision-source-decay.ts` takes the same compiler API plus `classifySourceDrift` and `hashSpan` from
+`@storytree/orchestrator`, `isBoundSource` / `isRefutedSource` / `readDecisionSources` from
+`@storytree/library`, and the `ChangeEvent` / `TextQuote` shapes from `@storytree/proof-protocol` —
+and the composition is the point rather than a convenience: both proof-tier rules had ZERO non-test
+callers when measured on 2026-08-23, and a second copy of either here would open the very drift seam
+ADR-0016 exists to prevent. Shared rules, not consumed outcomes.
 
 > **Proof status (honest) — `proposed` (a real, standing, passing suite; observational; NOT
 > `healthy`).** Storytree's prove-it-gate did not drive this red→green, but the code was built inside
 > Storytree, so ADR-0395 keeps its unsigned authored baseline at `proposed`.
 >
-> **The proof — 123 tests.** `verification-decay.test.ts` (110 `it()` across 25 `describe` blocks)
-> and `decay-attribution.test.ts` (13). Each of the five instruments IN THIS SCOPE is held on BOTH
-> sides — what it locates AND its false-positive guards, as separate `describe` blocks — and the
-> ceiling, the attribution, the report and the escalation backstop each have their own.
+> **The proof — 151 tests.** `verification-decay.test.ts` (110 `it()` across 25 `describe` blocks),
+> `decay-attribution.test.ts` (13) and `decision-source-decay.test.ts` (28 flat `test()` calls, no
+> `describe` blocks). Each of the six instruments is held on BOTH sides — what it locates AND its
+> false-positive guards — and the ceiling, the attribution, the report and the escalation backstop
+> each have their own.
 >
 > *(Counts re-measured 2026-08-31 by `grep -cE "^\s*(it|test)\(" ` and `grep -cE "^\s*describe\("`
-> over the two files; the figures they replace — 116 / 103 / 24 — had drifted as the suite grew.
-> They exclude `decision-source-decay.test.ts` (28 tests), which this unit does not bind: see the
-> six-versus-five note in the frontmatter.)*
+> over the three files. The 123 they replace was the same measurement over two of them, taken on the
+> same day by inc-23 while the sixth suite was still unbound.)*
 >
 > **THE HONEST LIMIT, STATED FIRST BECAUSE IT IS THE THING A READER WILL ASSUME OTHERWISE.** This
-> suite is **fixture-only**: zero of the 123 cases read the real repo tree. It builds its inputs from
-> literal factories (`workspace()` `:39-46`, `binding()` `:48-50`, `surface()` `:161-164`,
-> `finding()` / `measured()` in `decay-attribution.test.ts:15-33`). So **`pnpm --filter
+> suite is **fixture-only**: zero of the 151 cases read the real repo tree, and widening to the sixth
+> instrument did not change that — `decision-source-decay.test.ts` contains no `node:fs`,
+> `readFileSync`, `createPool`, `PgLibraryStore` or `execFileSync` either. Every case builds its
+> inputs from literal factories (`workspace()` `:39-46`, `binding()` `:48-50`, `surface()`
+> `:161-164`, `finding()` / `measured()` in `decay-attribution.test.ts:15-33`, and `FROZEN` /
+> `MOVED` / `BOGUS_HASH` in `decision-source-decay.test.ts:64-`). So **`pnpm --filter
 > @storytree/cli test` reds when the JUDGE breaks, and never when the repo decays.** The command that
 > reds on real decay is `pnpm check:verification-decay` — `GATE_PLAN` step 9
 > (`gate-order.ts:228-233`), whose gatherer walks `stories/`, every workspace `package.json`, every
@@ -113,11 +134,21 @@ parser, not a consumed outcome. It is a root.
 > **THAT SPLIT IS WHY THE OUTCOME ABOVE IS A JUDGING OUTCOME, AND THE WORDING IS DELIBERATE.** This
 > unit does NOT claim "the repo's verification apparatus is free of decay"; nothing here could red on
 > that, and binding such an outcome to this suite would be the rubber stamp ADR-0085 / ADR-0097 §2
-> forbid. It claims that each of the five repo-reading instruments LOCATES and CHARGES correctly —
-> which is a fact about this code, and which 123 tests observe directly. The module says the same of itself
+> forbid. It claims that each of the six instruments LOCATES and CHARGES correctly — which is a fact
+> about this code, and which 151 tests observe directly. Both modules say the same of themselves
 > (`verification-decay.ts:59-62`, *"Pure and injectable — every instrument judges FACTS handed to it,
-> never disk"*), and every instrument's own contract below is a locating claim, never an adjudicating
-> one.
+> never disk"*; `decision-source-decay.ts`'s header, *"Pure and browser-safe apart from the parser: no
+> filesystem, no store, no clock"*), and every instrument's own contract below is a locating claim,
+> never an adjudicating one.
+>
+> **AND FIXTURE-ONLY IS NOT VACUOUS HERE — the sixth suite is the one that proves it.** Its own header
+> records the trap it is built around, the shape this repo hits most: an expectation derived from its
+> own subject. Every drift case supplies a span that GENUINELY MOVED (a `FROZEN` declaration, a
+> `MOVED` edit of it, and a `BOGUS_HASH` that was never any span's fingerprint) and pairs it with the
+> same fixture UNMOVED asserting nothing is reported — the pair is the proof, either half alone is
+> not. It also records two reverted blinding probes against the real implementation: deleting the
+> `status !== ACCEPTED` guard fails 1 case, and setting the current hash to the anchor's own
+> `boundHash` fails 8. That is a measured red, not an assertion that the suite passes.
 >
 > **AND `pnpm check:verification-decay` COULD NOT SERVE AS THE `proof.command` EVEN THOUGH IT IS THE
 > ADR-0057 D3 stage B form increment 3 used for `mirrored-route-conformance`.** Its exit code is
@@ -135,16 +166,49 @@ parser, not a consumed outcome. It is a root.
 
 ## Guidance
 
-**WHY THIS IS ONE ORGAN AND NOT TWO.** The two files could be cut apart — a judge and an attributor —
-and they are not, because a finding without its charge is not actionable and the code says so
-structurally: the two are MUTUALLY type-dependent (`verification-decay.ts:75` imports
-`DecayAttribution`/`DecayOwner`; `decay-attribution.ts:71` imports `DecayFinding`), and
-`evaluateDecayCeiling` (`:1160-1208`) cannot reach a verdict without the attribution, because
-`red` versus `inherited` IS the attribution. Split them and the attributor is a pure function with
-one consumer and no outcome of its own. Both splitting-rule triggers pass for the fused unit: the
-outcome states in one sentence without a conjunction (the charge is a property of the finding, not a
-second job), and the proof shares one precondition (the instrument's injected facts) and one
-observable (the finding set and its verdict level).
+**WHY THIS IS ONE ORGAN AND NOT TWO.** The judge and the attributor could be cut apart, and they are
+not, because a finding without its charge is not actionable and the code says so structurally: the
+two are MUTUALLY type-dependent (`verification-decay.ts:75` imports `DecayAttribution`/`DecayOwner`;
+`decay-attribution.ts:71` imports `DecayFinding`), and `evaluateDecayCeiling` (`:1160-1208`) cannot
+reach a verdict without the attribution, because `red` versus `inherited` IS the attribution. Split
+them and the attributor is a pure function with one consumer and no outcome of its own. Both
+splitting-rule triggers pass for the fused unit: the outcome states in one sentence without a
+conjunction (the charge is a property of the finding, not a second job), and the proof shares one
+precondition (the instrument's injected facts) and one observable (the finding set and its verdict
+level).
+
+**WHY THE SIXTH INSTRUMENT JOINS RATHER THAN FORKING — the call made on 2026-08-31, and the evidence
+that decided it.** `decision-source-drift` could have been a capability of its own. The splitting
+rule says it is not, because NEITHER of its two triggers fires:
+
+- **The outcome still states in one sentence, with no conjunction.** "Each of the six chartered
+  instruments reports the decay it locates as a finding charged to the branch that authored it" is
+  the same sentence the five carried, with a different numeral. Nothing about the sixth adds a second
+  job to it; the roster's SIZE is not an outcome.
+- **The proof shares one precondition and one observable with the other five.** The precondition is
+  injected facts — `decision-source-decay.ts` is pure (`no filesystem, no store, no clock`, its own
+  header) and its suite hands it `DecisionRow` payloads and file TEXT exactly as
+  `verification-decay.test.ts` hands its instruments workspaces and bindings. The observable is the
+  same finding set and verdict level, and the sixth's suite does not merely resemble the others' —
+  it DRIVES THE SAME MACHINERY, importing `runDecaySweep`, `evaluateDecayCeiling` and
+  `CHARTERED_INSTRUMENTS` from `verification-decay.js` and `attributeDecayFindings` from
+  `decay-attribution.js`, and asserting its own membership on the chartered roster
+  (`decision-source-decay.test.ts:461`, `:469`, `:485`, `:506`). A `DecayFinding` is a `DecayFinding`
+  whichever instrument emitted it, and the ceiling that counts it is one object.
+
+**THE ARGUMENT FOR FORKING RESTED ON A FACT THAT TURNED OUT NOT TO HOLD.** inc-23's reason for
+excluding the sixth was that it "dials the store" while the five read the repo, so a fixture-only
+suite and a store-dialing judge could not be one proof. Read at the file, the judge dials nothing:
+`createPool`/`PgLibraryStore` are imported and used only in `check-verification-decay.ts` (`:94`,
+`:805-807`), the shared GATHERER, which is excluded from this scope for the five as well under the
+rule (6) fence-2 reading below. What genuinely distinguishes the sixth is its SUBJECT — an accepted
+decision's anchored code rather than a repo artefact — and a subject is not a proof boundary. Had the
+distinction been where inc-23 placed it, the fork would have been right; it is not, so it is not.
+
+**WHAT WOULD REOPEN THE CALL.** If `decision-source-decay.ts` ever acquires its own I/O — a store
+connection, a disk read, a clock — it stops sharing this unit's precondition and the second
+splitting-rule trigger fires. That is a real and reachable state, not a hedge, which is why the fence
+is written down rather than left to be re-derived.
 
 **WHY THIS IS A `cli` CAPABILITY — and the reading of rule (6) that decides it.** This case looks
 exactly like the one rule (6) was written for, and applied at face value the rule would REFUSE it.
@@ -197,7 +261,7 @@ refusal, because fence 1 only bars an instrument whose drift NO command observes
    organ was built on that arc.** Its outcome is *"A reader inspecting any real machine UAT leg
    receives its exact runnable observe-gate chain, or an explicit refusal"*, and its three
    capabilities are all the evidence-or-refusal contract for machine UAT legs. That does not name or
-   plainly cover a five-instrument decay sweep. Only `contract-binding-drift` is even adjacent, and
+   plainly cover a chartered decay sweep. Only `contract-binding-drift` is even adjacent, and
    it judges whether a `pnpm --filter` names a live package — not whether a leg has an observe-gate
    chain. Rule (1)'s test fails; sharing an arc is not sharing an outcome.
 2. **A new story for verification integrity — not authored, and not this unit's call.** No such story
@@ -207,38 +271,42 @@ refusal, because fence 1 only bars an instrument whose drift NO command observes
 
 **WHAT THIS DOES NOT RE-DERIVE.** [`story.md`](story.md)'s design floor fences the hub against
 re-deriving per-domain command surfaces owned by another organism. Nothing is re-derived: no
-organism owns "verification decay", and the five surfaces the findings land on are the instrument's
-SUBJECTS, not its home — the same relationship `check:boundaries` has with the 24 packages it judges.
+organism owns "verification decay", and the surfaces the findings land on are the instruments'
+SUBJECTS, not their home — the same relationship `check:boundaries` has with the 24 packages it
+judges, and the reason the sixth's LIBRARY-tier subject does not re-home it either.
 Open modeling call 1 in `story.md` remains the live question about whether CLI-resident judges belong
 to the hub at all; this unit enters on the footing `organism-boundary-tooling` already holds under
 that unresolved call and does not widen it.
 
 ## Integration test
 
-**Goal —** Prove that each of the five repo-reading instruments returns exactly the findings its
-charter describes and no others — the located set AND the false-positive guards — that a finding is
-charged to the branch that authored it, that each instrument is held to its OWN ceiling with no
-fungibility between them, and that an instrument which sweeps nothing escalates instead of reporting
-a clean run.
+**Goal —** Prove that each of the six chartered instruments returns exactly the findings its charter
+describes and no others — the located set AND the false-positive guards — that a finding is charged
+to the branch that authored it, that each instrument is held to its OWN ceiling with no fungibility
+between them, and that an instrument which sweeps nothing escalates instead of reporting a clean run.
 
 The ceiling, attribution, report and escalation contracts below are written over the sweep as a
-whole, so they hold for any registered instrument including the sixth; it is the five per-instrument
-locating contracts (2-6) that bound this unit's scope.
+whole, so they hold for any registered instrument; the six per-instrument locating contracts (2-7)
+are the ones that bound this unit's scope, one per member of `CHARTERED_INSTRUMENTS`.
 
-The integration-flavoured proof is `packages/cli/src/verification-decay.test.ts` plus
-`packages/cli/src/decay-attribution.test.ts`, run by `pnpm --filter @storytree/cli test`. Real
-collaborators where they exist: the sweep runner drives the real instruments through the real ceiling
-and the real attributor end to end (`verification-decay.test.ts:708-766`, `:1290-1406`), and the
-`vacuous-proof` join is asserted against the REAL `extractVouchingTestNames` from
-`@storytree/orchestrator` (`:322`, `:336`) rather than a re-spelling of it — which is the one place
-this judge could silently disagree with the classifier it is joining against.
+The integration-flavoured proof is `packages/cli/src/verification-decay.test.ts`,
+`packages/cli/src/decay-attribution.test.ts` and `packages/cli/src/decision-source-decay.test.ts`,
+all run by the one command `pnpm --filter @storytree/cli test`. Real collaborators where they exist:
+the sweep runner drives the real instruments through the real ceiling and the real attributor end to
+end (`verification-decay.test.ts:708-766`, `:1290-1406`); the `vacuous-proof` join is asserted against
+the REAL `extractVouchingTestNames` from `@storytree/orchestrator` (`:322`, `:336`) rather than a
+re-spelling of it — the one place that judge could silently disagree with the classifier it joins
+against; and the sixth instrument is driven through the same real `runDecaySweep`,
+`evaluateDecayCeiling` and `attributeDecayFindings` (`decision-source-decay.test.ts:461-530`) against
+the real `classifySourceDrift`/`hashSpan`, which is the equivalent join for the proof tier.
 
-Facts are injected rather than read, which is the design (`verification-decay.ts:59-62`) and the
-stated limit above; nothing in this scope walks the repo.
+Facts are injected rather than read, which is the design (`verification-decay.ts:59-62` and
+`decision-source-decay.ts`'s header) and the stated limit above; nothing in this scope walks the repo
+or opens a connection.
 
 `proposed` (greenfield, observationally tested, without a current signed pass).
 
-## Contracts (9)
+## Contracts (10)
 
 The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
 (ADR-0002). Every contract here has a REAL passing test (`proven by`).
@@ -317,7 +385,30 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **proven by —** `packages/cli/src/verification-decay.test.ts:980`, `:992`, `:1003`, `:1013`,
      `:1025`, `:1034`, `:1062`, `:1081`, `:1088`, `:1095`, `:1104`, `:1114`, `:1126`, `:1144`,
      `:1149` (REAL, passing)
-7. **`the-ceiling-is-per-instrument-and-backlogs-are-not-fungible`** — the property that stops one
+7. **`decision-source-drift-locates-a-moved-anchor-and-never-adjudicates-the-claim`** — the sixth
+   member (ADR-0424 D5), whose subject is the decision log rather than the repo's own source
+   - **asserts —** for every `accepted` decision carrying a bound anchor,
+     `findDecisionSourceDrift` emits one finding per anchor identity whose current span no longer
+     matches its frozen `boundHash` — composing the existing `classifySourceDrift` and `hashSpan`
+     rather than re-deriving either — with a `DecayFinding.id` stable run to run so the shared
+     ceiling counts one thing and not a moving target, and two claims resting on ONE span collapse
+     to ONE finding rather than two. Each finding says the anchored code MOVED and never that the
+     decision is now false. The guards are the whole aperture: a `superseded` or `proposed` decision
+     is excluded (ADR-0424 D3/D8); a decision carrying NO anchors yields no finding, no note and no
+     denominator (ADR-0424 D4); an anchor DECLARED but never frozen (`findDeclaredUnfrozenSources`)
+     and a REFUTED anchor (`findRefutedSources`) are each their own visible category rather than a
+     finding, and a refuted anchor carrying a stale hash is still never swept; an ambiguous quote is
+     refused rather than guessed; a missing FILE is reported rather than folded into "nothing
+     changed"; a missing SYMBOL does not widen to the whole file and answer a different question; a
+     malformed row does not take the sweep down; and `measureDecisionSweep` reports the APERTURE at
+     zero as well as above it, with no grounded-share denominator derivable from its output. An
+     unreachable decision log ESCALATES through the shared backstop rather than banking a clean sweep.
+   - **covers —** `packages/cli/src/decision-source-decay.ts:424-517`, `:542-558`, `:581-599`,
+     `:609-637`
+   - **proven by —** `packages/cli/src/decision-source-decay.test.ts:121`, `:141`, `:151`, `:163`,
+     `:182`, `:199`, `:219`, `:257`, `:277`, `:290`, `:306`, `:313`, `:353`, `:364`, `:408`, `:418`,
+     `:428`, `:461`, `:469`, `:506` (REAL, passing)
+8. **`the-ceiling-is-per-instrument-and-backlogs-are-not-fungible`** — the property that stops one
    easy drain from buying budget for a hard one
    - **asserts —** each instrument is held to its OWN ceiling and only the one that GREW reds;
      repairing one instrument's signal buys NO budget for another; a clean instrument still reports
@@ -329,7 +420,7 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **covers —** `packages/cli/src/verification-decay.ts:1160-1208`
    - **proven by —** `packages/cli/src/verification-decay.test.ts:615`, `:619`, `:625`, `:630`,
      `:642`, `:655`, `:672`, `:688`, `:694` (REAL, passing)
-8. **`an-inherited-breach-does-not-block-the-landing-and-a-failed-attribution-is-never-silent`** —
+9. **`an-inherited-breach-does-not-block-the-landing-and-a-failed-attribution-is-never-silent`** —
    ADR-0301, and the fail-closed behaviour around it
    - **asserts —** a breach resting entirely on files identical to the merge base is `inherited`, not
      red; ONE authored signal in an over-ceiling backlog REDS; below the ceiling stays OK however the
@@ -347,7 +438,7 @@ The test-proven leaf behaviours — each **one isolated automated test** with co
    - **proven by —** `packages/cli/src/verification-decay.test.ts:1197`, `:1215`, `:1229`, `:1245`,
      `:1253`, `:1269`, `:1312`, `:1328`, `:1339`, `:1359`, `:1379` (REAL, passing);
      `packages/cli/src/decay-attribution.test.ts` (13 tests, REAL, passing)
-9. **`an-instrument-that-swept-nothing-escalates-instead-of-reporting-clean`** — the backstop that
+10. **`an-instrument-that-swept-nothing-escalates-instead-of-reporting-clean`** — the backstop that
    stops the whole mechanism from failing silently open
    - **asserts —** a loader that enumerated NOTHING is a BLIND instrument and escalates rather than
      banking a clean sweep, carrying the empty enumeration's own message so the report says WHAT went

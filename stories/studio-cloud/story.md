@@ -5,7 +5,10 @@ title: "Studio cloud — the trusted circle interacts with a served studio"
 outcome: "A small circle of trusted devs opens a URL, signs in with their Google account, and interacts with the live studio — world, library, docs — leaving comments under their verified identity; nothing else about the system is exposed."
 status: proposed
 proof_mode: UAT
-capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, circle-onboarding, hosted-db-wake, write-broker, deploy-health-signal]
+# `circle-onboarding` was REMOVED from this list 2026-08-31 (retired — its IAM-allowlist mechanism was
+# superseded by ADR-0043, and invite/enumerate/revoke are delivered by studio-members' invite-ui,
+# user-directory and app-authorization). The spec is kept at `status: retired` as a browsable row.
+capabilities: [serve-mode, guest-scope, container-image, cloud-run-iap, hosted-db-wake, write-broker, deploy-health-signal]
 # Story-level edges: the studio UI being served, the library story's store seam (ADR-0010 §4), and —
 # ADR-0117 — studio-members, whose `builder` role + `resolveAccess` the write-broker gate consumes (the
 # real code edge already exists: guestPolicy.ts imports @storytree/studio-members, and studio-members'
@@ -77,15 +80,16 @@ CONSUMED BY the desktop over HTTP ([`shared-forest-connection`](../desktop/share
 ## Capabilities (8)
 
 Listed roots-first (1–7 serve + gate the studio; 8 watches this story's own post-merge CD from the repo
-side, so a silently-failed deploy is loud at the gate tail — ADR-0194).
+side, so a silently-failed deploy is loud at the gate tail — ADR-0194). Row 5 is retired (2026-08-31)
+and kept struck-through so the surviving rows are not renumbered; six capabilities remain live.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
 | 1 | [`serve-mode`](serve-mode.md) | A standalone node server serves the built SPA and the same /api route table the dev plugin uses — no Vite at runtime. | proposed | — |
 | 2 | [`guest-scope`](guest-scope.md) | In guarded mode every API request carries a verified identity; guests read everything, comment as themselves, and touch only their own comments; admins keep asset writes; db control is refused. | proposed | `serve-mode` |
 | 3 | [`container-image`](container-image.md) | The studio builds into a container image carrying dist/, the server, and the docs/stories snapshot — runnable anywhere with only env + ADC. | proposed | `serve-mode` |
-| 4 | [`cloud-run-iap`](cloud-run-iap.md) | Terraform stands up the Cloud Run service behind IAP with a least-privilege runtime service account reaching Cloud SQL keylessly. | proposed | `container-image`, `guest-scope` |
-| 5 | [`circle-onboarding`](circle-onboarding.md) | Adding a trusted dev is one IAM grant plus a runbook link; removing them is one revoke; the circle's access is enumerable at a glance. | proposed | `cloud-run-iap` |
+| 4 | [`cloud-run-iap`](cloud-run-iap.md) | Terraform codifies the deployed Cloud Run service and its least-privilege runtime SA — IAP authenticates at the edge, the app authorizes, and the SA reaches Cloud SQL keylessly. | proposed | `container-image`, `guest-scope` |
+| ~~5~~ | ~~[`circle-onboarding`](circle-onboarding.md)~~ | **RETIRED 2026-08-31** — the IAM-allowlist circle. ADR-0043 made identity app-owned; invite / enumerate / revoke are delivered by `studio-members`' `invite-ui`, `user-directory` and `app-authorization`, and the per-user IAP grant it asserted is inert against the `allAuthenticatedUsers` binding. Off the `capabilities:` list; the spec stays browsable. | retired | — |
 | 6 | [`hosted-db-wake`](hosted-db-wake.md) | When the shared DB idle-stops, an admin wakes it from the site — keyless, container-native, no gcloud; the page self-recovers, non-admins are refused. | proposed | `serve-mode`, `guest-scope` |
 | 7 | [`write-broker`](write-broker.md) | A members-gated POST endpoint persists a builder's locally-signed verdict / presence — validating shape + attribution, refusing a non-builder (403) / malformed (400) / mismatched signer — holding no signing key, never re-signing. | proposed | `guest-scope` |
 | 8 | [`deploy-health-signal`](deploy-health-signal.md) | A pure classifier turns the deploy-studio CD run list into an ok / red / unknown health signal, so a red post-merge deploy is loud at the gate tail (best-effort, WARN-only, ADR-0194). | proposed | — |

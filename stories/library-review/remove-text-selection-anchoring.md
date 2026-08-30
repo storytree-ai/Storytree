@@ -4,7 +4,17 @@ tier: capability
 story: library-review
 title: "The old text-selection / quote anchoring is removed — a clean swap"
 outcome: "The text-selection / quote anchoring is gone: `annotate.ts` quote-matching, the select-to-highlight popover in `useAnnotations.tsx`, the `kind:'text'` comment anchor, and the range `<mark>` highlights are deleted; the studio suite + typecheck stay green and no text-anchor path remains — a clean swap to block-position placement, not two systems side by side."
-status: accepted
+# status was `accepted` until 2026-08-31 — an ILLEGAL value that made this whole spec unparseable.
+# `Status` is `proposed | building | healthy | unhealthy | mapped | retired`
+# (`packages/library/src/schema.ts`); `accepted` is the DECISION-LOG's vocabulary, not the work
+# hierarchy's. The body below still cites "ADR-0084 lets an agent flip `proposed → accepted`" as the
+# licence for it — that rule governs an ADR's status, and applying its word to a work unit is what
+# broke this file. `loadNodeSpec` threw on the enum, so `storytree tree library-review` rendered this
+# capability as `(spec missing)` with no error surfaced anywhere. Set to `proposed`, matching every
+# sibling in this story: the work IS landed (see the Proof status note below, which is preserved
+# verbatim and is the record of that), but no signed verdict exists, and `healthy` is not an agent's
+# to grant. Sole instance in the corpus — no other spec under `stories/**` carried an illegal status.
+status: proposed
 proof_mode: integration-test
 # GLUE — no `--real` arm. This capability has NO isolatable red→green test of its own: deleting dead
 # code does not introduce a behaviour to drive from RED to GREEN. Its proof is "the suite stays green
@@ -43,6 +53,40 @@ the last cap in the story's build order for exactly that reason (the dependency 
 > `proposed → accepted` once the work is done and the prose supports it — it is, so this cap is
 > `accepted`. (The `studio`-story text-anchor CONTRACT reconciliation is the follow-on — see open call
 > #3 / the story's open call #3, flagged for the `librarian-curator`, not done in this removal.)
+
+> **RE-VERIFIED 2026-08-31, unchanged (`prove-unproven-capabilities-arc-inc-25`).** That increment
+> carries this capability as its own proof instance of the decline-a-`real:`-arm rule and asks for
+> re-verification, explicitly **not** re-adjudication. Both halves hold:
+>
+> **(1) The spec still declines the arm honestly, in three independent places** — the frontmatter
+> comment ("GLUE — no `--real` arm … this file carries NO `proof:` block … not inner-loop
+> `--real`-buildable by design"), the "Contracts (0 — GLUE)" section, and the "Green is preserved, not
+> newly earned" rule. The declining is reasoned from the deletion's own shape (a removal introduces no
+> behaviour to drive RED→GREEN), not merely asserted, and it names what stands in its place: the suite
+> staying green plus a grep-absence.
+>
+> **(2) The deletion actually happened.** Re-run at source rather than taken from the spec's
+> self-report: `apps/studio/src/lib/annotate.ts`, `apps/studio/src/lib/useAnnotations.tsx` and
+> `apps/studio/src/CommentPanel.tsx` are all absent, and a grep of `apps/studio/src` for
+> `computeTextAnchor` / `findQuoteRange` / `applyHighlights` / `clearHighlights` / `textAnchorFrom` /
+> `mark.st-hl` / `st-hl` returns **zero** hits. The one apparent `kind: 'text'` survivor is a FALSE
+> POSITIVE and was checked rather than waved off: it is `criticmarkup.ts`'s markdown SEGMENT union
+> (`{ kind: 'text'; text: string }` alongside `insert` / `delete` / `highlight` / `substitute`),
+> entirely unrelated to `CommentAnchor`.
+>
+> **(3) ONE change was made, and it was not an adjudication — this spec did not PARSE.** The
+> re-verification turned up a defect the reading pass could not have seen: the frontmatter carried
+> `status: accepted`, which is not a member of `Status` (`proposed | building | healthy | unhealthy |
+> mapped | retired`). `loadNodeSpec` threw on the enum, so `storytree tree library-review` rendered
+> this capability as **`(spec missing)`** — silently, with the error surfaced nowhere. Confirmed
+> pre-existing: the same render happens with this file at `HEAD`. It is the SOLE instance under
+> `stories/**`. The word came from the decision log — the note above cites *"ADR-0084 lets an agent
+> flip `proposed → accepted`"*, which governs an ADR's status and not a work unit's. Set to
+> `proposed` (every sibling's value): the work is landed and the note above is the record of that,
+> but no signed verdict exists and `healthy` is never an agent's to grant.
+>
+> **Nothing else changed.** The absent `proof:` block stands, the declining stands, and no prose was
+> rewritten merely to have acted.
 
 ## Guidance
 

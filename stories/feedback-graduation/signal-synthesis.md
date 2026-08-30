@@ -2,66 +2,90 @@
 id: "signal-synthesis"
 tier: capability
 story: feedback-graduation
-title: "A synthesis agent graduates accumulated signal into open-questions / proposals (deferred)"
+title: "A synthesis agent graduates accumulated signal into open-questions / proposals (RETIRED — the agent was built)"
 outcome: "A future synthesis agent reads the signal-graph and proposes open-questions / proposals for operator review."
-status: proposed
+status: retired
 proof_mode: integration-test
+# KEPT DELIBERATELY, and both edges point at RETIRED nodes. The lineage is the point: all three
+# retire together in one adjudication, and clearing these edges would erase why they travel as one.
+# Nothing LIVE depends on this node or on either of those.
 depends_on: [cite-event, archive-with-reason]
+decisions: [32, 168, 287, 298, 477]
+# RETIRED 2026-08-31, and deliberately carrying NO `proof:` block. The AGENT this node describes was
+# built (`graduation-synthesist`) but it is a live Library artifact, not code under a capability's
+# proof arm — there is no test file this node could honestly name.
 ---
 
-# A synthesis agent graduates accumulated signal into open-questions / proposals (deferred)
+# A synthesis agent graduates accumulated signal into open-questions / proposals (RETIRED — the agent was built)
 
 **Outcome —** A future synthesis agent reads the signal-graph and proposes open-questions /
 proposals for operator review.
 
-**Depends on —** [`cite-event`](cite-event.md), [`archive-with-reason`](archive-with-reason.md)
+> **RETIRED 2026-08-31 — because the thing it describes as FUTURE already exists.** This spec is
+> written in the future tense about "a future synthesis agent". That agent is live:
+> **`graduation-synthesist`**, un-parked and BUILT by **ADR-0168 D5** on the owner's direction
+> (*"I shouldn't need to be included in this loop unless a dedicated subagent says so"*). Its own
+> body calls it "the un-parked dedicated adjudicator ADR-0032 §3 named and ADR-0168 D5 BUILT". Read
+> it with `storytree library artifact graduation-synthesist --pg`.
+>
+> **Its stated reason for being DEFERRED was resolved, not merely overtaken.** The original body
+> said this node was "deferred, not merely unbuilt: its trust model waits on identity §1". ADR-0168
+> D5 is exactly the owner fork it was parked awaiting, and the owner exercised it. There is no
+> remaining condition for this node to wait on.
 
-> **Proof status (honest) — `proposed`, DEFERRED.** This capability is named, not built, and is not
-> the next frontier. ADR-0032 §3 fixes the direction: **graduation is intelligence, not arithmetic**
-> — a synthesis agent reads the accumulated signal-graph and emits open-questions / proposals into
-> the existing ADR-0018 OQ→ADR flow. There is deliberately **no** deterministic cite-threshold scan
-> and **no** auto-promotion (ADR-0032 §3, §5). It is recorded so the design is legible and the build
-> order is honest, not so it is built now.
+## Why RETIRE and not RE-SCOPE
 
-## Guidance
+Re-scoping would mean rewriting this node to describe what is actually wanted now — but what is
+wanted now is **already delivered, and delivered as an AGENT rather than as a capability**. The
+adjudicator is a live Library artifact of kind `agent`; the mechanism it chairs is code owned at
+STORY grain (`repo-manifest.json` maps `packages/cli/src/*friction*.ts` to `feedback-graduation`);
+and the judgement it performs is this story's UAT leg 4, deliberately witnessed by a human. Every
+piece of the outcome therefore has a live owner already. A re-scoped capability here would own
+nothing that is not owned, and would re-introduce a node the prove-it gate could never discharge.
 
-This replaces ADR-0014's cite-threshold curation (the deterministic scan + operator-approved
-promotion that earlier drafts of this story specified). Per ADR-0032 the curation is an **agent**,
-not a function over a counter:
+## What was delivered, and in what different form — verified at source 2026-08-31
 
-- **Input — the signal-graph:** the agent traverses cites (`cite-event`) across comments and
-  artifacts, skipping archived signal (`archive-with-reason`), to find recurring or cross-cutting
-  friction — issues that span the tree, which a per-post tally could never see.
-- **Output — OQs / proposals through the front door:** what the agent emits is an **open-question or
-  proposal** authored through the Library's existing path (ADR-0018's OQ→ADR lifecycle), carrying
-  provenance back to the signal it synthesised. It does not write durable guidance directly; the
-  OQ→ADR flow (operator-adjudicated) remains the path to a decision.
-- **No anti-gaming machinery (ADR-0032 §5):** no cite-density math, no thresholds, no forge
-  defences. A capable agent judges the signal; cite-stuffing is an unobserved problem and is not
-  pre-solved. If it is ever observed, that becomes its own work item with evidence.
-- **Identity is the residual (ADR-0032 §6 / `open-questions.md` §1):** what an agent-session's
-  signal is *worth* to the synthesis agent is the genuinely open part — it ties to attestation/
-  identity §1. This is why the capability is deferred, not merely unbuilt: its trust model waits on
-  §1.
+- **The input is NOT a cite signal-graph.** The synthesist reads friction artifacts + comments +
+  agent-memory candidates + the decision log. The cite store this node's `depends_on` assumed was
+  never built and is now decided against (ADR-0477 D1 made the authored `depends_on` edge the only
+  edge the library carries) — see [`cite-event`](cite-event.md).
+- **The output is NOT an OQ-or-`proposal` pair.** The `proposal` KIND that ADR-0287 created was
+  RETIRED by **ADR-0298 D2**; deferred remedies are now PARKED as arc increments
+  (`storytree arc increment new … --friction <id> --pg`), and the owner escalation is a
+  born-`proposed` ADR. The `open-question` tier survives and is authored with
+  `storytree question new`.
+- **"Writes nothing durable directly" SURVIVED intact.** Least-authority is the synthesist's stated
+  design: it ROUTES and ESCALATES, and the per-route authors (guidance-curator, librarian-curator,
+  story-author) do the durable writes.
 
-## Integration test (would-be, when built)
+## Contracts (would-be) — all three retired with the node
 
-**Goal —** Against a real store seeded with a real signal-graph (cites across comments and
-artifacts, some archived), the agent emits exactly the open-questions / proposals the signal
-supports, with walkable provenance, and writes nothing durable directly.
-
-Seed cross-linked, partly-archived signal; run synthesis; assert each emitted OQ/proposal goes
-through the ADR-0018 authoring path, carries provenance to the cites/comments it synthesised,
-ignores archived signal, and that no path lets the agent write a Library guidance unit directly or
-self-adjudicate.
-
-## Contracts (would-be — specified when this leaves deferred)
+These were explicitly headed "would-be" and named no test file, so nothing here pointed at a
+dissolved package. Each is restated as its disposition.
 
 1. **`emits-through-oq-flow`** — synthesis output is an OQ / proposal via the ADR-0018 path, never a
    direct guidance write.
+   - **disposition —** SUPERSEDED as to the OBJECT, DELIVERED as to the RULE. The `proposal` kind no
+     longer exists (ADR-0298 D2), so the named emission is unbuildable; the never-a-direct-guidance-
+     write rule it protected is live in the synthesist's least-authority charter.
 2. **`provenance-is-walkable`** — each emitted artifact references the signal-graph it was
-   synthesised from (cites, comments, artifacts).
+   synthesised from.
+   - **disposition —** DELIVERED, in DERIVED form. The walk is arc-to-friction rather than
+     cite-to-cite: an arc's OPEN increment names the item in `frictionRefs`, `friction route` reads
+     that derivation, and `--discharged-by` stamps a landed remedy. Proven by
+     `packages/cli/src/friction.test.ts` — "an OPEN entry naming the item parks it WITHOUT --arc —
+     the derived read is what answers", "TWO arcs parking the same item are both reported, deduped
+     and in sorted order", and "list marks a discharged archived item so the two ends of a route are
+     tellable apart". This story's UAT leg 2 asserts it at story grain.
 3. **`ignores-archived-signal`** — archived posts and their cites do not feed synthesis.
+   - **disposition —** CONTRADICTED by the landed design, and deliberately so. ADR-0168 D2 requires
+     the OPPOSITE: an archived item is a RETAINED tombstone precisely because "recurrence of an
+     archived trap must be detectable and re-open it with the stronger evidence", pinned by
+     "reinforce records a recurrence on an ARCHIVED item". Building this contract would now be a
+     regression.
 
-*(Contracts are intentionally thin: the agent's trust model depends on identity `open-questions.md`
-§1, and the precise shape lands when this capability leaves deferred.)*
+## The original design (historical record — ADR-0032 §3)
+
+Kept so the retirement is legible, NOT as work to pick up: graduation is intelligence, not
+arithmetic — no deterministic cite-threshold scan, no auto-promotion, and no anti-gaming machinery
+(ADR-0032 §5). That posture is unchanged and is inherited in full by the built synthesist.

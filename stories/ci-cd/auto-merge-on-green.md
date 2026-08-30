@@ -16,6 +16,28 @@ merges a **non-draft, non-`hold`** PR the instant `verify` is green — `gh pr m
 --delete-branch`, never a manual merge (ADR-0022). Auto-merge runs inside free Actions because
 GitHub-native auto-merge is paywalled on private repos.
 
+> **Adjudicated 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — RECORDED AS CORRECT, no
+> hierarchy change. The premise that routed it here does not survive a check at source.** That
+> increment filed this capability under "the thing to prove is a deployment, a live runtime, or a
+> CI-side behaviour — not a unit a worktree red→green can drive", on the reading "live GitHub merge
+> semantics". **This spec has never claimed live merge semantics.** The proof-walkthrough below
+> scopes the unit to the `automerge` job **definition** — an in-repo file — and says so in terms:
+> *"The condition is the unit under test; the actual `gh` call is asserted by shape, since exercising
+> a real merge needs a live PR."* All three contracts are assertable against
+> `.github/workflows/ci.yml` with no PR, no network and no money.
+>
+> **The harness pattern is already built here, twice** — so this is not even a new technique:
+> `packages/notice-board/src/store/ingest-merge.test.ts` reads `.github/workflows/ci.yml` and
+> `claim-release.yml` as fixtures, and `packages/library/src/gate-command-file-audit.ts` audits the
+> same file. Verified against the live job the same day: `needs: verify`, the `if:` on
+> `pull_request` + `draft == false` + no `hold` label, and `gh pr merge --merge --delete-branch` are
+> all present exactly as the contracts describe.
+>
+> So the end-state is **capability-shaped, correctly tiered, correctly `integration-test`, and
+> UNBUILT** — it belongs in a build lane, not an adjudication lane. It is **not** an ADR-0466 case:
+> nothing outside this repo has to publish a result back, because the artifact under test is a file
+> in this repo.
+
 ## Guidance
 
 - **Proof-walkthrough first (integration test, against the real `automerge` job definition).** Drive
@@ -34,6 +56,15 @@ GitHub-native auto-merge is paywalled on private repos.
   `session-orchestrator` operating loop.
 - **No manual `gh pr merge`.** Humans approve by making the PR ready (non-draft, no `hold`), not by
   clicking merge. The single auto-merge path is what makes "approval-gated trunk" mean one thing.
+- **The merge step reads its outcome back, and a test must not mistake that for drift (added
+  2026-08-31).** Since ADR-0304 D3 the step does not assume the merge took: it reads `gh pr view …
+  --json state` and sets a `merged` output, because against a base branch requiring a merge queue
+  `gh pr merge` ENQUEUES rather than merges, and every step after it is post-MERGE work that must not
+  run on a merely-queued PR. `MERGED` and `OPEN` are the only two reachable states; anything else is
+  a loud failure rather than a default. ⚠ The queue itself is **DECLINED and will not be switched
+  on** (ADR-0362 D1, withdrawing ADR-0304 D3), so the guard is inert today — but it is kept
+  deliberately (ADR-0362 D2b) and is NOT dead code to strip. A contract test asserting the merge step
+  should pin `gh pr merge --merge --delete-branch` and tolerate the readback around it.
 
 ## Contracts (3)
 

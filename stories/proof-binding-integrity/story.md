@@ -63,6 +63,14 @@ landed.
 | 2 | [`machine-leg-binding-audit`](machine-leg-binding-audit.md) | Every parsed machine leg in a corpus scan produces one outcome row; no row is omitted or silently repaired. | `proof-binding-outcome-contract` |
 | 3 | [`runtime-proof-binding-projection`](runtime-proof-binding-projection.md) | The runtime exposes the shared outcome beside the machine leg, after the active UI source repair lands. | `proof-binding-outcome-contract` |
 
+**Capability 1's id ends in `-contract`, and it IS a capability.** Until 2026-08-31 it was authored
+`tier: contract` while sitting in this story's `capabilities:` array and being named by both other
+capabilities' `depends_on` — an incoherent tiering that `storytree tree` already resolved in favour of
+the capability rung. It was re-tiered in place (`prove-unproven-capabilities-arc` inc-25); the id is a
+join key `repo-manifest.json` holds outside `stories/**`, so it was deliberately not renamed, and the
+suffix now reads as the typed API contract that unit publishes. Its own spec records the reasoning.
+"The shared contract" below and in the paragraph above means that published result type, never a tier.
+
 ## Dependency graph
 
 `proof-binding-outcome-contract` is the root. `machine-leg-binding-audit` and
@@ -84,8 +92,8 @@ The three deleted criteria and the node that already proves each, for audit:
 
 | deleted criterion | claim | proven at |
 | --- | --- | --- |
-| `uatc_1ea8471e291f248a3cdf4075` | a valid machine binding exposes its exact chain — full gate id, `observe` kind, literal command argv, matching `gate run` invocation; declaration order cannot change it | [`proof-binding-outcome-contract`](proof-binding-outcome-contract.md) (contract) — `packages/library/src/proof-binding-outcome.test.ts`, *"evidence preserves the resolver's exact eligible gate and literal declared command"* |
-| `uatc_ca26fd1c2206e2727626070b` | every invalid machine binding (absent annotation, unknown gate, non-observe gate, commandless observe gate) yields one visible refusal with its specific reason and no inferred substitute | [`proof-binding-outcome-contract`](proof-binding-outcome-contract.md) (contract) — same suite, *"every resolver refusal remains non-runnable with its stable class"* and *"only an evidence branch is accepted by an evidence-only reader"* |
+| `uatc_1ea8471e291f248a3cdf4075` | a valid machine binding exposes its exact chain — full gate id, `observe` kind, literal command argv, matching `gate run` invocation; declaration order cannot change it | [`proof-binding-outcome-contract`](proof-binding-outcome-contract.md) (capability) — `packages/library/src/proof-binding-outcome.test.ts`, *"evidence preserves the resolver's exact eligible gate and literal declared command"* |
+| `uatc_ca26fd1c2206e2727626070b` | every invalid machine binding (absent annotation, unknown gate, non-observe gate, commandless observe gate) yields one visible refusal with its specific reason and no inferred substitute | [`proof-binding-outcome-contract`](proof-binding-outcome-contract.md) (capability) — same suite, *"every resolver refusal remains non-runnable with its stable class"* and *"only an evidence branch is accepted by an evidence-only reader"* |
 | `uatc_29e9d8fb7e84054c8abaf53e` | the corpus audit emits exactly one outcome per machine leg and none for other witnesses, a refused row staying present | [`machine-leg-binding-audit`](machine-leg-binding-audit.md) (capability) — `packages/library/src/machine-leg-binding-audit.test.ts`, *"emits one deterministic provenance-bearing row for every and only machine criterion"* + *"a newly parsed unbound machine leg grows the report by one refusal"* |
 
 Both proving nodes are BUILT and their suites run today (`packages/library/src/proof-binding-outcome.ts`,

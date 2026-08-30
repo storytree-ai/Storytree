@@ -5,7 +5,24 @@ title: "The studio"
 outcome: "An operator reviews the project record through one browsable forum studio."
 status: proposed
 proof_mode: UAT
-capabilities: [dev-server-persistence-backbone, seed-library-corpus, read-corpus, resolve-comment, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal, map-live-hierarchy-read]
+capabilities: [dev-server-persistence-backbone, read-corpus, annotate-topic, browse-library, author-library-artifact, chat-panel, hud-chrome, verified-attribution, coalesced-camera-pan, map-route-retention, map-payload-cache, map-server-memo, map-boot-independence, compositor-pan-transform, camera-rasterisation-probe, act2-regrow-camera-zoom-out, act2-regrow-camera-frame-delivery, arc-orientation-lens, act2-intro-cursor, store-connection-signal, map-live-hierarchy-read]
+# ⚠ TWO CAPABILITIES LEFT THIS LIST ON 2026-08-31 (`prove-unproven-capabilities-arc` inc-25, Group 2).
+# `seed-library-corpus` and `resolve-comment` are `status: retired` and are removed from the array so
+# the tree stops rendering them as live work — the `context-window-meter` precedent next door.
+# Their FILES are kept (each opens with a ⚠ RETIRED banner carrying the evidence), because a
+# retirement with a reason is recoverable and a deleted file is not:
+#   - `seed-library-corpus` — the seeder, BOTH its inputs (`docs/glossary.md`, ADR-0135;
+#     `docs/decisions/`, ADR-0403 dec 1) and its output file are all deleted. There is no surface to
+#     re-scope onto: artifacts are written straight to the live store, so the build-time derivation
+#     STEP is gone rather than moved.
+#   - `resolve-comment` — ADR-0425 dec 1 retired studio commenting deliberately, MULTIPLAYER named as
+#     the revival trigger. No operator-reachable resolve affordance exists. ⚠ This retires the
+#     CAPABILITY, never the code: dec 5 deliberately KEEPS the server-side comment store, its routes,
+#     the `api.createComment`/`updateComment`/`deleteComment` client methods and the proven
+#     `InlineCommentThread`/`ReviewBlocks` pair as the revival's foundation. A later session must not
+#     read this removal as licence to sweep them.
+# Nothing else in `stories/**` `depends_on` either id; `browse-library`'s edge onto
+# `seed-library-corpus` was dropped in the same pass.
 # Story-level edges: the "Cross-story boundary" section below, encoded (consumed seams,
 # ADR-0010 §4; code-import-evidenced — see that section for file:line). ADR-0036. As of ADR-0100
 # the studio app is a consuming SURFACE in the boundary scan (check:boundaries now walks apps/*),
@@ -105,11 +122,35 @@ apps/studio is a hand-built, single-process Vite dev app (run with `pnpm --filte
 > against the Library from Claude Code or Codex, so a collaboration surface has, for now, nobody to
 > collaborate with. The studio-side half-promise is removed; the SERVER-side comment store, its
 > routes, and the proven `InlineCommentThread` component are deliberately KEPT (dec 5) as the
-> revival's foundation, which is why the capabilities describing them are not retired here.
+> revival's foundation. *(One clause of this note is corrected in place, 2026-08-31: it went on to
+> say "which is why the capabilities describing them are not retired here." `resolve-comment` IS now
+> retired — see the note below. The correction is that dec 5 keeps the CODE, which was never the
+> same claim as keeping the CAPABILITY; a unit whose outcome is an operator act nobody can perform
+> is retired whatever survives beneath it.)*
 > **Decisions**: "read rendered ADRs" no longer means reading a file — ADR-0403 dec 1 made decisions
 > ordinary Library artifacts and deleted `docs/decisions/`, so a decision is browsed, cited and
 > opened exactly like any other artifact. The UAT below is rewritten onto both (dec 3/dec 4); no leg
 > is cut, and the step count is unchanged.
+
+> **Historical note (`prove-unproven-capabilities-arc` inc-25, 2026-08-31):** the retrospective
+> paragraph above still promises three things this studio does not do, and each has a different
+> answer. **"seed"** — "browse-author-seed a categorised Library" names a build-time seeder that is
+> deleted along with both of its inputs and its output file; `seed-library-corpus` is RETIRED and
+> there is nothing to re-scope it onto, because artifacts are now written straight to the live store
+> and no derivation step remains. **"resolve them"** — `resolve-comment` is RETIRED for the reason
+> the ADR-0425 note above gives; the story UAT already carries the standing proof, criterion 13's
+> byte-identical `comments.json`. **"browse"** — the chip-grid Library page and the `#/library` route
+> are gone, retired deliberately by `library-tech-tree-overlay`'s own
+> [`library-retire-standalone-page`](../library-tech-tree-overlay/library-retire-standalone-page.md)
+> on ADR-0185 dec 6 after the owner attested the lens on 2026-07-15. That replacement is a WHOLE
+> STORY of seventeen capabilities whose sources live under `apps/studio/src` on a declared
+> hosted-story edge (ADR-0192), so this story did NOT keep the browse outcome and must not re-author
+> it. What it kept is the artifact DETAIL render (`AssetView` at `#/asset/<id>`, which ADR-0185 dec 6
+> explicitly preserved and which `LibraryDiveBody` routes into "never a re-authored renderer"), and
+> `browse-library` is narrowed onto exactly that. `read-corpus` is narrowed the same way onto
+> `DocView`, its sibling. Neither narrowed unit is given a `proof:` block: real coverage exists
+> around them and does not reach their own outcomes, and that absence is the recorded finding rather
+> than an omission.
 
 ## What this is
 
@@ -139,36 +180,39 @@ build/secrets seam re-pointed off `cli` onto `@storytree/drive` by ADR-0112) —
 See [`../README.md`](../README.md) for the representation and how every field maps to
 ADR-0002 / `docs/glossary.md`.
 
-## Capabilities (22)
+## Capabilities (21)
 
-Listed roots-first (a capability appears after everything it depends on).
+Listed roots-first (a capability appears after everything it depends on). The count and the ordinals
+moved on 2026-08-31 (`prove-unproven-capabilities-arc` inc-25): `seed-library-corpus` and
+`resolve-comment` are RETIRED and left the list, `map-live-hierarchy-read` was in the frontmatter
+array but had never been given a row, and four surviving rows are re-worded onto what their
+capabilities now actually deliver.
 
 | # | capability | outcome | depends on |
 |---|---|---|---|
-| 1 | [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md) | Data written through the studio's API survives a dev-server restart. | — |
-| 2 | [`seed-library-corpus`](seed-library-corpus.md) | Running the seeder produces the categorised, ADR-cited starter corpus the Library serves. | — |
-| 3 | [`read-corpus`](read-corpus.md) | An operator reads any corpus document as rendered markdown in the studio. | `dev-server-persistence-backbone` |
-| 4 | [`resolve-comment`](resolve-comment.md) | An operator resolves a comment with the resolved state persisted across every surface. | `dev-server-persistence-backbone` |
-| 5 | [`annotate-topic`](annotate-topic.md) | An operator anchors a comment onto a precise place in a rendered topic. | `dev-server-persistence-backbone`, `read-corpus` |
-| 6 | [`browse-library`](browse-library.md) | An operator explores the seeded guidance Library down to a single rendered artifact. | `dev-server-persistence-backbone`, `seed-library-corpus`, `read-corpus` |
-| 7 | [`author-library-artifact`](author-library-artifact.md) | An operator durably changes the Library's contents through the editor form. | `dev-server-persistence-backbone`, `browse-library` |
-| 8 | [`chat-panel`](chat-panel.md) | The studio frontend renders a chat panel — a thin client that POSTs the operator's intent to `/api/chat`, streams the SSE response, and renders the `done` proposal / `error` / `refused` outcomes (and an honest disabled state where the route is absent), importing no agent/drive/model code. | — |
-| 9 | [`hud-chrome`](hud-chrome.md) | The forest map becomes the landing surface and the top banner + Overview page retire: the only global chrome is a single verified-identity avatar (top-right) — no brand chip and no navigation outside it — whose menu shows the read-only identity + role and ONLY the role-/posture-gated Members, Credentials, and Sign out account items, with no Library/Documents navigation (ADR-0204, re-tensed by ADR-0205). | `dev-server-persistence-backbone` |
-| 10 | [`verified-attribution`](verified-attribution.md) | Comment attribution derives from the verified `/api/me` identity everywhere: the composer presents the verified identity read-only (`operator` fallback in the open dev posture) and the post relies on the server stamp, and the localStorage operator store (`lib/operator.ts`) retires (ADR-0204 D4). | `dev-server-persistence-backbone` |
-| 11 | [`coalesced-camera-pan`](coalesced-camera-pan.md) | An operator's forest drag commits the latest camera position at most once per display frame. | — |
-| 12 | [`map-route-retention`](map-route-retention.md) | An operator returns to the same live forest map after a SPA hash-route transition. | — |
-| 13 | [`map-payload-cache`](map-payload-cache.md) | An operator who reloads the studio sees the forest paint from the last visit's persisted payloads instead of waiting on a cold server walk. | — |
-| 14 | [`map-server-memo`](map-server-memo.md) | An operator's repeated studio load is answered without re-reading a corpus that has not changed on disk. | — |
-| 15 | [`map-boot-independence`](map-boot-independence.md) | An operator's forest map begins fetching its own data as soon as membership resolves, instead of waiting on Library-corpus payloads the map never reads. | — |
-| 16 | [`compositor-pan-transform`](compositor-pan-transform.md) | A forest drag moves the already-rasterised map on the compositor, so the `.world-camera` `<g>` transform is written once at the end of a gesture rather than once per frame. | `coalesced-camera-pan` |
-| 17 | [`camera-rasterisation-probe`](camera-rasterisation-probe.md) | A repeatable Studio diagnostic reports the rasterisation-cost delta between the real 40-island regrow growth-only baseline and cursor-driven camera-transform variants under ADR-0286's bracketed idle-floor protocol. | — |
-| 18 | [`act2-regrow-camera-zoom-out`](act2-regrow-camera-zoom-out.md) | The existing Act 2 regrow carries the Studio camera from a close opening view to the ordinary fitted whole-forest view on its own cursor. | `camera-rasterisation-probe` |
-| 19 | [`act2-regrow-camera-frame-delivery`](act2-regrow-camera-frame-delivery.md) | The approved Act 2 bottom-anchored zoom-out preserves its exact choreography while its stable-picture frames reach the display within one refresh interval of the growth-only control. | `act2-regrow-camera-zoom-out`, `camera-rasterisation-probe` |
-| 20 | [`arc-orientation-lens`](arc-orientation-lens.md) | An owner arriving cold is oriented by the map's arc lens alone, without asking an agent to reconstruct the context. | — |
-| 21 | [`act2-intro-cursor`](act2-intro-cursor.md) | The Act 2 forest regrow is driven end to end by one app-owned cursor the operator can move. | — |
-| 22 | [`store-connection-signal`](store-connection-signal.md) | An operator reading the forest map can see at a glance whether the live store is connected, without opening anything. | — |
+| 1 | [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md) | Every studio surface reaches its data through one `/api/*` route table that claims the namespace before the SPA fallback, answers a failure as a typed JSON envelope rather than an HTML shell, and persists through a store seam whose writes survive the process that made them. | — |
+| 2 | [`read-corpus`](read-corpus.md) | An operator opens a reference document by deep link or in-corpus cross-link and reads it as rendered markdown, and a link the doc index cannot resolve says why instead of reading as absent. | `dev-server-persistence-backbone` |
+| 3 | [`annotate-topic`](annotate-topic.md) | An operator anchors a comment onto a precise place in a rendered topic. *(`status: retired` — superseded by `library-review`'s block-anchored surface; kept in this list, unlike the two retired above, because nothing in this pass adjudicated it.)* | `dev-server-persistence-backbone`, `read-corpus` |
+| 4 | [`browse-library`](browse-library.md) | An operator opens a single Library artifact and reads its rendered detail, and a corpus that has not loaded is never presented as an artifact that does not exist. *(Narrowed: the BROWSE half moved to the `library-tech-tree-overlay` story, ADR-0185 dec 6.)* | `dev-server-persistence-backbone` |
+| 5 | [`author-library-artifact`](author-library-artifact.md) | An admin durably changes the Library's contents through the structured editor form, and the store — not the form — is what refuses invalid or unauthorised writes. ⚠ EDIT and DELETE have no automated coverage of any era. | `dev-server-persistence-backbone`, `browse-library` |
+| 6 | [`chat-panel`](chat-panel.md) | The studio frontend renders a chat panel — a thin client that POSTs the operator's intent to `/api/chat`, streams the SSE response, and renders the `done` proposal / `error` / `refused` outcomes (and an honest disabled state where the route is absent), importing no agent/drive/model code. | — |
+| 7 | [`hud-chrome`](hud-chrome.md) | The forest map becomes the landing surface and the top banner + Overview page retire: the only global chrome is a single verified-identity avatar (top-right) — no brand chip and no navigation outside it — whose menu shows the read-only identity + role and ONLY the role-/posture-gated Members, Credentials, and Sign out account items, with no Library/Documents navigation (ADR-0204, re-tensed by ADR-0205). | `dev-server-persistence-backbone` |
+| 8 | [`verified-attribution`](verified-attribution.md) | Comment attribution derives from the verified `/api/me` identity everywhere: the composer presents the verified identity read-only (`operator` fallback in the open dev posture) and the post relies on the server stamp, and the localStorage operator store (`lib/operator.ts`) retires (ADR-0204 D4). | `dev-server-persistence-backbone` |
+| 9 | [`coalesced-camera-pan`](coalesced-camera-pan.md) | An operator's forest drag commits the latest camera position at most once per display frame. | — |
+| 10 | [`map-route-retention`](map-route-retention.md) | An operator returns to the same live forest map after a SPA hash-route transition. | — |
+| 11 | [`map-payload-cache`](map-payload-cache.md) | An operator who reloads the studio sees the forest paint from the last visit's persisted payloads instead of waiting on a cold server walk. | — |
+| 12 | [`map-server-memo`](map-server-memo.md) | An operator's repeated studio load is answered without re-reading a corpus that has not changed on disk. | — |
+| 13 | [`map-boot-independence`](map-boot-independence.md) | An operator's forest map begins fetching its own data as soon as membership resolves, instead of waiting on Library-corpus payloads the map never reads. | — |
+| 14 | [`compositor-pan-transform`](compositor-pan-transform.md) | A forest drag moves the already-rasterised map on the compositor, so the `.world-camera` `<g>` transform is written once at the end of a gesture rather than once per frame. | `coalesced-camera-pan` |
+| 15 | [`camera-rasterisation-probe`](camera-rasterisation-probe.md) | A repeatable Studio diagnostic reports the rasterisation-cost delta between the real 40-island regrow growth-only baseline and cursor-driven camera-transform variants under ADR-0286's bracketed idle-floor protocol. | — |
+| 16 | [`act2-regrow-camera-zoom-out`](act2-regrow-camera-zoom-out.md) | The existing Act 2 regrow carries the Studio camera from a close opening view to the ordinary fitted whole-forest view on its own cursor. | `camera-rasterisation-probe` |
+| 17 | [`act2-regrow-camera-frame-delivery`](act2-regrow-camera-frame-delivery.md) | The approved Act 2 bottom-anchored zoom-out preserves its exact choreography while its stable-picture frames reach the display within one refresh interval of the growth-only control. | `act2-regrow-camera-zoom-out`, `camera-rasterisation-probe` |
+| 18 | [`arc-orientation-lens`](arc-orientation-lens.md) | An owner arriving cold is oriented by the map's arc lens alone, without asking an agent to reconstruct the context. | — |
+| 19 | [`act2-intro-cursor`](act2-intro-cursor.md) | The Act 2 forest regrow is driven end to end by one app-owned cursor the operator can move. | — |
+| 20 | [`store-connection-signal`](store-connection-signal.md) | An operator reading the forest map can see at a glance whether the live store is connected, without opening anything. | — |
+| 21 | [`map-live-hierarchy-read`](map-live-hierarchy-read.md) | The forest map's question and its proof come from one clock, so a criterion re-worded since the app was built no longer reads as unproven. | — |
 
-Rows 20–21 are **greenfield `proposed` units registered retrospectively** by
+Rows 18–19 (`arc-orientation-lens`, `act2-intro-cursor` — rows 20–21 before the 2026-08-31 renumber) are **greenfield `proposed` units registered retrospectively** by
 `capability-layer-coverage-arc` increment 4 (2026-08-07). Their implementation and tests were built
 inside this initiative; registration order does not make them brownfield (ADR-0395).
 They close ADR-0317's grain residue: six `repo-manifest.json` subtrees whose declared owner was this
@@ -180,31 +224,54 @@ STORY only because no capability existed for that code. Both carry a spec-borne 
 These are **within-story** edges, **read off the real source** (static analysis of the
 imports / data-flow between capabilities), never hand-drawn from UAT need (ADR-0010 §3):
 A → B means A's code actually couples to B's code inside the one organism. The graph is
-acyclic; `dev-server-persistence-backbone`, `seed-library-corpus`, `chat-panel`,
+acyclic; `dev-server-persistence-backbone`, `chat-panel`,
 `coalesced-camera-pan`, `map-route-retention`, `map-payload-cache`, `map-server-memo`,
-`map-boot-independence`, `camera-rasterisation-probe`, `arc-orientation-lens` and
-`act2-intro-cursor` are the roots. (Cross-story edges are NOT in this graph — they are boundary
+`map-boot-independence`, `camera-rasterisation-probe`, `arc-orientation-lens`,
+`act2-intro-cursor`, `store-connection-signal` and `map-live-hierarchy-read` are the roots.
+(`seed-library-corpus` was a twelfth root until 2026-08-31; it is retired and its one outbound edge,
+onto `browse-library`, is dropped with it.) (Cross-story edges are NOT in this graph — they are boundary
 interfaces, declared in §"Cross-story boundary" below and encoded as frontmatter `depends_on` —
 ADR-0010 §4.)
 
 - `read-corpus` → `dev-server-persistence-backbone`
-  - read-corpus owns its doc handlers (listDocs, safeDocPath, handleDocs at devApi.ts:96-343) but **rides** the backbone's `/api/*` middleware registration — handleDocs is dispatched only because storytreeDataApi.configureServer mounted the namespace before Vite's SPA fallback (devApi.ts:358-377). The coupling is the shared connect-middleware seam, read straight off the code.
-- `annotate-topic` → `dev-server-persistence-backbone`
-  - The annotate UI calls api.createComment → POST /api/comments, whose handler runs readAnchor + writeStore (devApi.ts:199-223), and re-finds highlights from the GET → readStore round-trip — annotate's data path is literally the backbone's comment persistence handlers.
+  - read-corpus owns its doc handlers (`listDocs`, `safeDocPath`, `handleDocs` — in `server/apiRouter.ts` since the route table moved there under studio-cloud's `serve-mode`) but **rides** the backbone's `/api/*` dispatch: `handleDocs` is reached only because the middleware registered directly in `storytreeDataApi.configureServer` claims the namespace before Vite's SPA fallback, and because `handleApiRequest`'s table routes to it. The coupling is that shared dispatch seam, read straight off the code — unchanged in substance by the move, and re-cited 2026-08-31 (every `devApi.ts:NNN` in this bullet's previous wording pointed at code no longer in that file).
+- `annotate-topic` → `dev-server-persistence-backbone` *(both annotate bullets describe a RETIRED
+  capability — `annotate-topic` is `status: retired`, superseded by `library-review`'s block-anchored
+  surface. Kept as the record of what the edges WERE; noted 2026-08-31 that the code they cite is
+  deleted, so read no path in them as current.)*
+  - The annotate UI called api.createComment → POST /api/comments, whose handler runs readAnchor + the store write, and re-found highlights from the GET round-trip — annotate's data path was literally the backbone's comment persistence handlers. (The handler survives in `server/apiRouter.ts`; the caller does not.)
 - `annotate-topic` → `read-corpus`
-  - annotate-topic mutates the DOM read-corpus renders: useAnnotations injects `<mark>`s into the memoized markdown subtree (DocView.tsx:51-59) and reads slugged heading ids produced by read-corpus's slugify/parseHeadings (markdown.ts) — its anchors are computed against read-corpus's rendered output, a direct render-layer coupling.
-- `resolve-comment` → `dev-server-persistence-backbone`
-  - toggleResolved calls api.updateComment → PATCH /api/comments?id, whose handler stamps/clears resolvedAt and writeStore-persists it (devApi.ts:225-239), then refreshComments re-fetches GET /api/comments — resolve's only write and its read-back are both the backbone's handlers. (No edge to annotate-topic: resolve imports none of annotate's create path; the surfaces only share the Comment shape and the comments.json file.)
+  - annotate-topic mutated the DOM read-corpus renders: useAnnotations injected `<mark>`s into the memoized markdown subtree and read slugged heading ids produced by read-corpus's slugify/parseHeadings — its anchors were computed against read-corpus's rendered output, a direct render-layer coupling. (`src/lib/useAnnotations.tsx` and `src/lib/annotate.ts` are both DELETED; `DocView`'s memo survives, and `slugify` survives with a different second consumer — see `read-corpus.md`.)
+- ~~`resolve-comment` → `dev-server-persistence-backbone`~~ — **edge withdrawn 2026-08-31**, with the capability. `resolve-comment` is retired (ADR-0425 dec 1): `CommentPanel.tsx` is deleted, so `toggleResolved` and the `api.updateComment` call it made no longer exist. The PATCH ROUTE it rode is deliberately kept (dec 5) and is now the backbone's own business — `dev-server-persistence-backbone` carries the `resolvedAt` stamp/clear contract, which is what keeps that retention honest rather than dead.
 - `browse-library` → `dev-server-persistence-backbone`
-  - Library.tsx / AssetView render from AppData populated by GET /api/assets and the doc index GET /api/docs (App.tsx:58-59) — both served by the backbone's `/api/*` middleware over the on-disk JSON store; the read path is backbone code.
-- `browse-library` → `seed-library-corpus`
-  - browse-library consumes the **artifacts the seeder wrote**: the grid, chip counts (definition 54, pattern 11, guardrail 8, principle 5, techstack 4, template 6), and every doc: citation come from apps/studio/data/assets.json, which exists only because seed.assets.mjs produced it — a data-provenance coupling on the seeder's output file.
-- `browse-library` → `read-corpus`
-  - RefLink builds an in-app doc link via docHref(relpath) into #/doc/<relpath> (AssetView.tsx:106-113), and following it lands in read-corpus's DocView — resolving and rendering that cited doc is read-corpus's code, which browse-library calls into.
+  - `AssetView` renders from the `AppData` corpus populated by `GET /api/assets`, served by the backbone's route table over whichever store `selectedStore()` picked; the component itself never fetches — it looks the id up in the already-loaded array — so its entire data path is backbone code. Re-cited 2026-08-31: the previous wording named `Library.tsx` (deleted) and the on-disk JSON store (no longer the default), and paired the asset read with the doc index, which is `read-corpus`'s payload and not this unit's.
+- ~~`browse-library` → `seed-library-corpus`~~ — **edge withdrawn 2026-08-31**, with the upstream. The
+  data-provenance coupling was onto `apps/studio/data/assets.json`, which the seeder wrote; the
+  seeder, its inputs and that file are all deleted, and the corpus now arrives over
+  `GET /api/assets` from the live store (or, offline, from the JSON backend's derive-on-first-read
+  seed) — which is the backbone edge already declared above, not a second one.
+- ~~`browse-library` → `read-corpus`~~ — **edge withdrawn 2026-08-31**, and the reason is a deleted
+  FIELD rather than a deleted file. The edge was `RefLink`: an artifact's `doc:` citation rendered as
+  an in-app link into `read-corpus`'s `DocView`. ADR-0477 D1 retired the library's `references` field
+  entirely, `AssetView` renders no `Sources` block, and `RefLink` is gone — so this unit's code calls
+  nothing of `read-corpus`'s. Tested the other way it is equally absent. The two are now SIBLING
+  renderers that `library-tech-tree-overlay`'s `LibraryDiveBody` routes BETWEEN (`plan.kind ===
+  'asset'` vs `'doc'`); neither consumes the other, and a router above two leaves is not an edge
+  between them.
 - `author-library-artifact` → `dev-server-persistence-backbone`
-  - AssetEditor's save()/remove() call api.createAsset/updateAsset/deleteAsset → POST/PATCH/DELETE /api/assets, whose handlers run readAssetInput, the dup/relock guards, createdAt/updatedAt stamping and writeStore (devApi.ts:291-321) — author's durable mutations are the backbone's asset handlers.
+  - `AssetEditor.save()` and `AssetView.remove()` call `api.createAsset` / `updateAsset` /
+    `deleteAsset` → `POST` / `PATCH` / `DELETE /api/assets`, whose handler runs `readAssetInput`, the
+    query-string id re-lock, and the store write whose failures `assetWriteError` maps to 400/409 —
+    author's durable mutations are the backbone's asset handlers. Re-cited 2026-08-31: the handler is
+    in `server/apiRouter.ts` now, and the `createdAt`/`updatedAt` stamping and the duplicate-id
+    conflict moved down into the STORE, so the previous wording's `devApi.ts:291-321` named neither
+    the right file nor the right layer.
 - `author-library-artifact` → `browse-library`
-  - After every save/delete, AssetEditor/AssetView call refreshAssets() then navigate into browse-library's surfaces — create/edit land on AssetView (the detail render browse-library owns), delete routes to the Library list (AssetView.tsx:36-38); author's post-mutation render path is browse-library's components.
+  - After every save/delete, `AssetEditor`/`AssetView` call `refreshAssets()` and then navigate into
+    the surface `browse-library` owns: create and edit land on `AssetView` at `#/asset/<id>`, and
+    delete routes to `libraryHref()`. Author's post-mutation render path is that component. The edge
+    SURVIVES `browse-library`'s 2026-08-31 narrowing and is tighter for it — the detail render is
+    now the whole of what that capability is, and it is also where the delete confirm gate lives.
 - `chat-panel` → (no within-story edge — a THIRD root)
   - chat-panel is a self-contained behavioural component (the `BuildSection` precedent): its ONLY
     backend seam is the studio `api` streaming client (the chat method it adds to api.ts / a lib helper),

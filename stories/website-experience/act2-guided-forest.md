@@ -2,12 +2,33 @@
 id: "act2-guided-forest"
 tier: capability
 story: website-experience
-title: "Act 2 (increment H) — the ONE continuous walk grows UPSTREAM: the same walk keeps going into a proposed backend + database the website depends on, the dependency layers shown on the real map ARE the advantage, inspectable and walked green on demand"
-outcome: "The visitor who just grew the mock website green in increment G (act2-guided-walkthrough) KEEPS WALKING — the SAME continuous walk, not a separate CTA-gated phase — as the SESSION ORCHESTRATOR guides them into the DEPENDENCY STACK the website rests on: because the mock website's Cart / Payments / Receipts cannot truly work without a backend, the walk reveals a backend and a database as PROPOSED trees on real dependsOn edges pointing FROM the dependent TO its prerequisite, in the BaaS shape the owner confirmed at the H#2 gate (ADR-0157 — "the frontend would read directly from the database"): website.dependsOn=[backend, database], backend.dependsOn=[database], database.dependsOn=[] — a DIAMOND with the database as the shared foundation (the website READS the catalog directly from the database, as a real shopping app does, AND needs the backend to serve a working checkout/payment; the backend needs the database; ADR-0058 / cross-story-dependency; the refused first build encoded this BACKWARDS — ADR-0153 corrects the direction, ADR-0157 adds the direct read edge in that same direction), stories at EVERY LEVEL of the DAG (not just leaves). Rendered with the FRONTEND HIGH and the dependency foundation BELOW (owner spatial preference, a free render choice — ADR-0153). The DEPENDENCY LAYERS thus made visible on the real 2.5D map ARE the advantage storytree teaches — you SEE the layers, you build them in the right order, nothing is hidden (this POSITIVE teach replaces increment G's beat-4 wrong-way-flag antipattern). The walk uses the REAL app's UI components (not bespoke chrome) with progressive disclosure (hide what the visitor has not been walked through), offers NO escape to any deprecated page (a11y fallback only), and deepens into the drive-machinery diagrams (CI/CD, devops, gates, wiring) as temporary overlays. The visitor can INSPECT each proposed upstream story to understand WHAT it is and WHY it is proposed, and WALK them green PROGRESSIVELY on demand — complexity is SCAFFOLDED (revealed in the order a human can hold it, as the walk continues), never hidden and never dumped up front. On the real 2.5D map (ADR-0145), narrated by the same anchored callouts + scripted-orchestrator voice increment G established, over fictional data — a teaching diorama, never the operable studio. ADR-0157 sharpenings (owner-directed at the H#2 gate 2026-07-05): the deeper drive-machinery overlay that explains the AGENT LOOP is an HONEST TDD LOOP DIAGRAM (a loop, not a list — write a failing test → the SYSTEM checks it fails → write code → the SYSTEM checks it passes → repeat; the referee is storytree's deterministic spine, NOT the AI grading its own homework — the verification-gap thesis made a picture); ALL copy is plain, newcomer-legible, with NO 'storm' metaphor and no weird analogies/jargon; and the scripted-orchestrator voice reads as OUR actual session orchestrator (ADR-0030), not a generic coding agent."
+title: "Act 2 (increment H) — RE-SCOPED: the upstream fictional-dependency reveal is superseded; the real forest's trails are website-refresh-arc's ROAM"
+outcome: "RE-SCOPED 2026-08-31 against `website-refresh-arc` (open, owner-directed 2026-08-22) and ADR-0453 (accepted 2026-08-26), together with its upstream half `act2-guided-walkthrough`. The surface this capability specced — the SAME scripted walk continuing upstream into a PROPOSED backend and database on a fictional BaaS diamond, narrated by a re-creation of our own session orchestrator, closing on a Phase Z zoom-out into re-created studio chrome — is REDIRECTED AWAY FROM for the same three reasons its upstream half is: the forest was MADE UP (ADR-0453 D3: the public forest is our REAL corpus), the narrator was 'a Next button in a costume' (ADR-0453 D1: excitement, not teaching), and the opening was a fitted view (ADR-0471). THE TEACH SURVIVES AND HAS MOVED — the dependency layers ARE storytree's advantage, and a visitor now meets them as REAL dependency trails on the REAL 35-story corpus rather than as three invented stories: `website-refresh-arc`'s ROAM movement (landed 2026-08-28, web PR #60) answers a clicked trail with the dependencies running along it in the direction the arrow points, and TELL's beats point at the same trails. What is NOT yet built is the ARC DRAWER — the initiative layer above the code, ROAM's fifth target — parked as `website-refresh-arc-arc-drawer` because the published snapshot's exporter puts no arc in it. This node therefore carries NO live build obligation and is NOT a build, adopt, prove or retire target; the account below stands as TRUE HISTORY (copy-on-write). NOT RETIRED: the journey it names is being delivered elsewhere, not abandoned. PRIOR OUTCOME, superseded: The visitor who just grew the mock website green in increment G (act2-guided-walkthrough) KEEPS WALKING — the SAME continuous walk, not a separate CTA-gated phase — as the SESSION ORCHESTRATOR guides them into the DEPENDENCY STACK the website rests on: because the mock website's Cart / Payments / Receipts cannot truly work without a backend, the walk reveals a backend and a database as PROPOSED trees on real dependsOn edges pointing FROM the dependent TO its prerequisite, in the BaaS shape the owner confirmed at the H#2 gate (ADR-0157 — 'the frontend would read directly from the database'): website.dependsOn=[backend, database], backend.dependsOn=[database], database.dependsOn=[] — a DIAMOND with the database as the shared foundation (the website READS the catalog directly from the database, as a real shopping app does, AND needs the backend to serve a working checkout/payment; the backend needs the database; ADR-0058 / cross-story-dependency; the refused first build encoded this BACKWARDS — ADR-0153 corrects the direction, ADR-0157 adds the direct read edge in that same direction), stories at EVERY LEVEL of the DAG (not just leaves). Rendered with the FRONTEND HIGH and the dependency foundation BELOW (owner spatial preference, a free render choice — ADR-0153). The DEPENDENCY LAYERS thus made visible on the real 2.5D map ARE the advantage storytree teaches — you SEE the layers, you build them in the right order, nothing is hidden (this POSITIVE teach replaces increment G's beat-4 wrong-way-flag antipattern). The walk uses the REAL app's UI components (not bespoke chrome) with progressive disclosure (hide what the visitor has not been walked through), offers NO escape to any deprecated page (a11y fallback only), and deepens into the drive-machinery diagrams (CI/CD, devops, gates, wiring) as temporary overlays. The visitor can INSPECT each proposed upstream story to understand WHAT it is and WHY it is proposed, and WALK them green PROGRESSIVELY on demand — complexity is SCAFFOLDED (revealed in the order a human can hold it, as the walk continues), never hidden and never dumped up front. On the real 2.5D map (ADR-0145), narrated by the same anchored callouts + scripted-orchestrator voice increment G established, over fictional data — a teaching diorama, never the operable studio. ADR-0157 sharpenings (owner-directed at the H#2 gate 2026-07-05): the deeper drive-machinery overlay that explains the AGENT LOOP is an HONEST TDD LOOP DIAGRAM (a loop, not a list — write a failing test → the SYSTEM checks it fails → write code → the SYSTEM checks it passes → repeat; the referee is storytree's deterministic spine, NOT the AI grading its own homework — the verification-gap thesis made a picture); ALL copy is plain, newcomer-legible, with NO 'storm' metaphor and no weird analogies/jargon; and the scripted-orchestrator voice reads as OUR actual session orchestrator (ADR-0030), not a generic coding agent."
 status: proposed
 proof_mode: operator-attested
 depends_on: [act2-guided-walkthrough]
-decisions: [213, 215]
+decisions: [213, 215, 453]
+# ⚠ RE-SCOPED 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — READ THE BLOCK AT THE TOP OF THE
+# BODY BEFORE ANYTHING BELOW IT. Every comment and record from here to the end of this file describes a
+# design the owner has REDIRECTED AWAY FROM. It is kept as true history (copy-on-write) and is NOT a
+# brief. ⚠ THIS CAPABILITY LOOKS ADOPTABLE AND MUST NOT BE ADOPTED: it is extensively built and carries
+# owner attestations at `8f4e166c`, `d761eadc` and `a87e8ed2`, and adopting it under ADR-0465 would
+# record the owner accepting risk on a design he has already rejected. It is equally NOT a retirement —
+# the teach survives and moved to `website-refresh-arc`'s ROAM, over the REAL corpus. The replacement is
+# that arc's to design, not this spec's and not a later session's; six of its increments are still parked
+# and unbuilt, one of them (the ARC DRAWER) being the piece of this capability's teach that is genuinely
+# not yet delivered.
+# ⚠ PRE-EXISTING PARSE FAULT REPAIRED 2026-08-31, FOUND WHILE RE-SCOPING — worth knowing because it hid
+# this node from every tree reader and nothing anywhere said so. The `outcome:` scalar is DOUBLE-quoted
+# and carried an UNESCAPED pair of double quotes inside it (the ADR-0157 owner quote about the frontend
+# reading the database directly). YAML ends the scalar at the first inner quote, so `loadNodeSpec` threw
+# `Nested mappings are not allowed in compact mappings`, `packages/drive/src/tree.ts` caught it and
+# rendered this capability as `(spec missing)` with `depends_on=[]` — silently, with no error on any
+# surface and no gate rung asking. The fault is at HEAD and predates this pass (verified by parsing the
+# committed file directly); the inner quotes are now single. ⚠ THE CLASS, NOT THE INSTANCE, IS THE
+# FINDING: any capability whose double-quoted `title:`/`outcome:` acquires an inner double quote goes
+# invisible the same way, and the tolerate-and-placeholder branch is what makes it silent. Both story
+# directories touched by this pass were swept clean; the corpus was not.
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work, the extend-next half of the Act 2 re-scope (ADR-0148),
 # RE-SHAPED by ADR-0150 (owner-directed at the G attestation gate 2026-07-04): H is ONE
 # CONTINUOUS WALK growing UPSTREAM (not a CTA-gated separate phase), and the dependency-layer-as-
@@ -57,7 +78,72 @@ decisions: [213, 215]
 # for the driving session — this is the extend-next increment the owner sequenced AFTER G ships.
 ---
 
-# Act 2 (increment H) — the ONE continuous walk grows UPSTREAM: the dependency layers are the advantage
+# Act 2 (increment H) — RE-SCOPED: the upstream fictional-dependency reveal is superseded
+
+## ⚠ RE-SCOPED 2026-08-31 — THE DESIGN BELOW IS REJECTED, AND CHAPTER 2 BELONGS TO `website-refresh-arc`
+
+**Read this section before anything under it.** Everything from `## Outcome (PRIOR — superseded)`
+onward is a true, dated account of a surface the owner has since redirected away from. It is kept
+whole (copy-on-write, this file's long-standing convention) and it is **not a brief**.
+
+**What happened.** This capability is the downstream half of one walk, and it falls for exactly the
+reasons its upstream half does — see
+[`act2-guided-walkthrough`](act2-guided-walkthrough.md)'s matching block for the full account and the
+owner's own words. In short, `website-refresh-arc` (open, owner-directed 2026-08-22) names the built
+Act 2 design as the FAULT to be replaced on three separable grounds: **the forest is made up**
+(**ADR-0453 D3** — the public forest is our REAL corpus, and its illegibility is the mechanism rather
+than a defect), **the narrator is a Next button in a costume** (**ADR-0453 D1** — the site's job is
+excitement, not teaching; *"attempting both is what produced the narrator the arc already retired"*),
+and **it opens on a fitted view** (**ADR-0471**). This half was built entirely over invented data — a
+mock shopping website, a proposed backend, a proposed database, arranged as a BaaS diamond — so
+fault 1 is not incidental to it but constitutive of it.
+
+**THE TEACH SURVIVES, AND IT SURVIVES BETTER.** This capability's real claim was never the shopping
+fiction: it was that **the dependency LAYERS made visible ARE storytree's advantage — you SEE them,
+you build them in the right order, nothing is hidden.** That claim is intact and is now made on the
+real corpus instead of three invented stories, which is strictly stronger evidence for the same
+proposition. Where it lives:
+
+| landed | movement | what carries this capability's teach now |
+| --- | --- | --- |
+| 2026-08-28 (web PR #60) | **ROAM** — `website-refresh-arc-click-to-explain` | The visitor clicks a **TRAIL** on the real map and is told the dependencies running along it, **in the direction the arrow points** — the same direction rule (dependent → prerequisite, ADR-0058) this spec had to correct a refused build for, now read off real data rather than authored into a script. Clicking an island also opens what a story is, what its colour means from its OWN status, and what is inside it. |
+| 2026-08-28 (web PR #57) | **TELL** — `website-refresh-arc-pitch-overlays` | One beat points at the real dependency trails; the honest-TDD loop diagram survives as TELL's single figure, carrying the one thing the forest structurally cannot show — who does the checking. |
+| **PARKED, not built** | `website-refresh-arc-arc-drawer` | **ROAM's fifth target, the ARC DRAWER — the initiative layer above the code.** This is the genuinely undelivered piece of this capability's ambition, and the reason is structural rather than effort: the published snapshot's exporter puts no arc in it, so shipping it is an export change (ADR-0453 D12 read with D7). 32 of 35 islands were measured reachable. |
+
+**What is gone rather than moved.** The mock website, the proposed backend and database, the BaaS
+diamond, the progressive walk-them-green-on-demand mechanic, the drive-machinery overlays, and the
+Phase Z zoom-out into re-created studio chrome all went with the fictional dataset and the narrator.
+`act2-orchestrator`, `act2-guide`, `act2-diagram`, `act2-minimap` and `act2-studio` were **DELETED**
+(web PR #57); `act2-walkthrough` survives in the tree with **zero callers repo-wide** and its own
+hard-coded three-story fiction. *(Measured in `website-refresh-arc`'s increment log; the `web/`
+submodule is not checked out in this worktree, so nothing here was re-read from source.)*
+
+**What this capability IS now.**
+
+- **It carries NO live build obligation** — not a build, adopt, prove or retire target. ⚠ It LOOKS
+  adoptable and **must not be adopted**: adopting it under ADR-0465 would record the owner accepting
+  risk on a design he has already rejected, which is the specific failure this adjudication exists to
+  prevent.
+- **It is NOT retired.** Its teach survives in full under a different owner, so retirement would be
+  affirmatively wrong. `status` stays `proposed` and `proof_mode` stays `operator-attested`.
+- **The replacement is `website-refresh-arc`'s to design.** Six of its increments are parked and
+  unbuilt, the arc drawer among them. Nothing in this file may pre-empt them, and no session may
+  invent the replacement design here. The owner's standing verdict on what has landed is *"a first
+  step toward where we want to be"* — a floor, not a ceiling. **Remotion is NOT the runtime** (decided
+  against at the arc's charter — do not re-propose it), and **chapter 3 is dropped** (ADR-0453 D8:
+  the visitor is handed the desktop app, which onboards itself).
+- **⚠ NOT SETTLED BY THIS PASS: the parent-side LEAF.**
+  [`act2-beat-director`](act2-beat-director.md) holds this walk's multi-story `dependsOn` vocabulary
+  and its BaaS-diamond delta as typed, leaf-proven data with signed verdicts. It is a different tier
+  with a different proof mode and was NOT among this adjudication's seven ids. That it now encodes a
+  default script no shipped surface walks is recorded as a FINDING for whoever adjudicates it.
+
+---
+
+## Outcome (PRIOR — superseded 2026-08-31; kept as true history)
+
+> Everything below is the specification and delivery record of the design the section above retires.
+> It remains accurate as an account of what was built and attested. It is not current direction.
 
 **Outcome —** The visitor who just grew the mock website green in increment G
 ([`act2-guided-walkthrough`](act2-guided-walkthrough.md)) **keeps walking** — the **SAME continuous
