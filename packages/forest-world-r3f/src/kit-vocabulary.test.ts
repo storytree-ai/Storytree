@@ -1,0 +1,977 @@
+// kit-vocabulary.test.ts — the bought kit's vocabulary and placement, proved where they now live.
+//
+// ⚠⚠ WHY THIS FILE EXISTS RATHER THAN THE HARNESS'S SUITE COVERING IT. `check:mutation-diff`
+// mutates a project's `src/` only, so a `src/` module's tests in `harness/` buy the rung NOTHING —
+// the relief crossing learned that with 3 survivors and 4 uncovered lines, the sharpest of which
+// could have emptied the wave table and delivered a perfectly flat land in silence. So the tests
+// that are about THIS MODULE'S ARITHMETIC live here, and the ones that are about the harness
+// fixture — its capability list, its criteria, its unprojected cells — stayed with the fixture.
+//
+// ⚠ THE ISLAND HERE IS BUILT, NOT LOADED, and that is deliberate rather than a convenience. The
+// crossed placement takes cells and facts as ARGUMENTS precisely so it does not need a scene; a
+// test that reached for one would be proving the adapter instead of the thing.
+
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { decodeKitAsset } from './kit-asset.js';
+import {
+  KIT_ASSEMBLIES,
+  KIT_FOOTPRINTS_2026_08_29,
+  KIT_ROLES,
+  KIT_ROLE_ASSEMBLIES,
+  KIT_ROLE_SIGNAL,
+  KIT_ROLE_SIZE,
+  MIN_PROP_HEIGHT,
+  MIN_PROP_WIDTH,
+  POCKETED_SIGNALS,
+  RENDER_ELEV_DEG,
+  VOCABULARY_STATES,
+  bestCandidate,
+  candidatePoints,
+  capabilityFactsFrom,
+  clearsObjectFloor,
+  deliveredHeightPx,
+  deliveredRolePx,
+  dressIslandFromKit,
+  dressingCensus,
+  dressingOverlaps,
+  kitObjectNames,
+  propRadius,
+  sizeClearsObjectFloor,
+  propStream,
+  stateForm,
+  tintedStates,
+} from './kit-vocabulary.js';
+import type { CapabilityFacts, KitPlacement, KitRole } from './kit-vocabulary.js';
+import { LEAF_TINT_TOKEN } from './leaf-tint.js';
+import { landHeight } from './land-relief.js';
+import { cellsByParcel } from './parcel-cells.js';
+import type { GPoint, LayoutCell } from './parcel-cells.js';
+
+const FOOT = KIT_FOOTPRINTS_2026_08_29;
+
+// ---------------------------------------------------------------------------
+// a built island — hostile on purpose
+// ---------------------------------------------------------------------------
+//
+// ⚠ FOUR DIFFERENT EDGE NUMBERS AND AN ORIGIN NOWHERE NEAR ZERO. A fixture centred on the origin
+// makes `max - min` and `max + min` coincide on both axes, so a clamp or a bound that read the
+// wrong one survives every assertion. This one is at x ∈ [140, …] and z ∈ [-70, …] with unequal
+// cell spans, so no two spans agree and no sign error is invisible.
+
+const CELL_W = 34;
+const CELL_D = 26;
+const ORIGIN_X = 140;
+const ORIGIN_Z = -70;
+
+/** One parcel as a strip of `cols` quadrilateral cells, laid left to right in its own row. */
+function parcel(capId: string, status: string, row: number, cols: number): LayoutCell[] {
+  return Array.from({ length: cols }, (_, c) => {
+    const x0 = ORIGIN_X + c * CELL_W;
+    const z0 = ORIGIN_Z + row * CELL_D;
+    return {
+      points: [
+        { x: x0, z: z0 },
+        { x: x0 + CELL_W, z: z0 },
+        { x: x0 + CELL_W, z: z0 + CELL_D },
+        { x: x0, z: z0 + CELL_D },
+      ],
+      parcel: capId,
+      status,
+      cellId: `${capId}-${c}`,
+    } satisfies LayoutCell;
+  });
+}
+
+/** An island of `states.length` capabilities, one parcel-row each. The rows are wide enough that
+ *  a tree (footprint 10.13) has somewhere to stand that is not on top of its neighbour. */
+function island(states: readonly string[], cols = 4): LayoutCell[] {
+  return states.flatMap((status, row) => parcel(`cap-${row}`, status, row, cols));
+}
+
+const ALL_HEALTHY = island(Array.from({ length: 6 }, () => 'healthy'));
+
+function dress(
+  cells: readonly LayoutCell[],
+  over: { blooms?: number; relief?: number; seed?: number; footprint?: Record<KitRole, number> } = {},
+): KitPlacement[] {
+  const opts = {
+    cells,
+    facts: capabilityFactsFrom(cells),
+    blooms: over.blooms ?? 0,
+    relief: over.relief ?? 0,
+    footprint: over.footprint ?? FOOT,
+  };
+  return dressIslandFromKit(over.seed === undefined ? opts : { ...opts, seed: over.seed });
+}
+
+/** The OBJECT names inside the embedded kit, read out of its JSON chunk — a glb is a 12-byte
+ *  header and a length-prefixed JSON chunk, so this needs no loader and no browser.
+ *
+ *  ⚠ NODES, NOT MESHES. Blender exports a node per OBJECT and names the mesh after the MESH
+ *  DATA, so an object arrives as a node named for the object and a mesh named `Plane.054`.
+ *  `GLTFLoader` sets `Object3D.name` from the node, which is what the kit loader keys the
+ *  vocabulary on — reading meshes here would check the manifest against names the loader never
+ *  sees. */
+function kitObjectsInAsset(): string[] {
+  const buf = new Uint8Array(decodeKitAsset());
+  const view = new DataView(buf.buffer);
+  const jsonLength = view.getUint32(12, true);
+  const json = JSON.parse(new TextDecoder().decode(buf.subarray(20, 20 + jsonLength))) as {
+    nodes?: Array<{ name?: string; mesh?: number }>;
+  };
+  return (json.nodes ?? [])
+    .filter((n) => n.mesh !== undefined)
+    .map((n) => n.name ?? '')
+    .filter(Boolean);
+}
+
+// ---------------------------------------------------------------------------
+// the vocabulary itself
+// ---------------------------------------------------------------------------
+
+test('every role names a signal, and every signal is read off the SCENE', () => {
+  // ADR-0463 D5: delegation picks WHICH signal a prop carries, never WHETHER it carries one. A
+  // role whose entry did not say where its number comes from would be decoration wearing a
+  // signal's name — which ADR-0414 D1 forbids outright on the surface this now ships to.
+  for (const role of KIT_ROLES) {
+    const signal = KIT_ROLE_SIGNAL[role];
+    assert.ok(signal.length > 20, `${role} has no signal`);
+    assert.match(signal, /^SCENE — /, `${role}'s signal is not read off the scene`);
+  }
+});
+
+test('the withdrawn signals are recorded rather than forgotten', () => {
+  assert.deepEqual(Object.keys(POCKETED_SIGNALS).sort(), ['log', 'rock']);
+  for (const [prop, signal] of Object.entries(POCKETED_SIGNALS)) {
+    assert.ok(signal.length > 20, `${prop} was pocketed without saying what it carried`);
+  }
+  for (const role of KIT_ROLES) {
+    assert.ok(!(role in POCKETED_SIGNALS), `${role} is both live and pocketed`);
+  }
+});
+
+test('every role names at least one assembly, and every assembly at least one kit object', () => {
+  for (const role of KIT_ROLES) {
+    const assemblies = KIT_ROLE_ASSEMBLIES[role];
+    assert.ok(assemblies.length > 0, `${role} has no assembly to draw`);
+    for (const assembly of assemblies) {
+      assert.ok(KIT_ASSEMBLIES[assembly].length > 0, `${assembly} names no kit object`);
+    }
+  }
+});
+
+test('THE EMBEDDED ASSET CARRIES EVERY OBJECT THE VOCABULARY DECLARES', () => {
+  // ⚠ The floor that stops a quietly emptier island. Every placement is per assembly FOUND, so an
+  // asset that lost an object would draw fewer props and nothing else would say so. The manifest
+  // is hand-authored upstream of the export, so this is a genuine two-place mismatch — and it now
+  // asks the EMBEDDED bytes, which is what the shipped canvas will actually parse.
+  const inAsset = new Set(kitObjectsInAsset());
+  const missing = kitObjectNames().filter((n) => !inAsset.has(n));
+  assert.deepEqual(missing, [], `the embedded kit is missing: ${missing.join(', ')}`);
+});
+
+test('the asset carries nothing the vocabulary does not use — a paid-for byte draws something', () => {
+  // The payload scales with DISTINCT objects, not with how many are placed, so an object nobody
+  // places is pure wire cost — and now wire cost in a `.ts` module that crosses into the public
+  // engine copy. This is the direction the manifest check above cannot see.
+  const declared = new Set(kitObjectNames());
+  const unused = kitObjectsInAsset().filter((n) => !declared.has(n));
+  assert.deepEqual(unused, [], `the kit ships objects nothing places: ${unused.join(', ')}`);
+});
+
+test('the vocabulary covers all six states, and only unknown grows nothing', () => {
+  assert.deepEqual(stateForm('healthy'), { role: 'tree', tint: null });
+  assert.deepEqual(stateForm('mapped'), { role: 'tree', tint: 'mapped' });
+  assert.deepEqual(stateForm('proposed'), { role: 'tree', tint: 'proposed' });
+  assert.deepEqual(stateForm('building'), { role: 'tree', tint: 'building' });
+  assert.deepEqual(stateForm('unhealthy'), { role: 'deadTree', tint: null });
+  // ⚠ An island that drew a confident tree for a capability whose state is UNKNOWN would be the
+  // art asserting a proof state the work does not hold — the one way this arc can do real harm
+  // (ADR-0392 D5 / ADR-0398 D7), and now on the map that ships.
+  assert.equal(stateForm('unknown'), null);
+  assert.equal(stateForm('retired'), null);
+  assert.equal(stateForm(''), null);
+});
+
+test('proposed and building are ONE token under two keys, exactly as ADR-0462 holds them', () => {
+  assert.equal(LEAF_TINT_TOKEN.get('proposed'), LEAF_TINT_TOKEN.get('building'));
+  assert.equal(stateForm('proposed')?.role, stateForm('building')?.role);
+});
+
+test('every tint a state asks for is declared, and every declared tint is reachable', () => {
+  for (const state of VOCABULARY_STATES) {
+    const form = stateForm(state);
+    if (!form?.tint) continue;
+    assert.ok(LEAF_TINT_TOKEN.has(form.tint), `${state} asks for an undeclared tint`);
+  }
+  for (const state of LEAF_TINT_TOKEN.keys()) {
+    assert.equal(stateForm(state)?.tint, state, `the tint for ${state} is unreachable`);
+  }
+  assert.deepEqual(tintedStates().sort(), ['building', 'mapped', 'proposed']);
+});
+
+test('every role clears the object floor except the bloom, which is recorded as under it', () => {
+  assert.equal(clearsObjectFloor('tree'), true);
+  assert.equal(clearsObjectFloor('deadTree'), true);
+  // A criterion marker is deliberately below the floor at the overview: the procedural flower
+  // markers do not clear it either, and making one tree-sized so that it would is the art
+  // asserting an importance the signal does not have.
+  assert.equal(clearsObjectFloor('bloom'), false);
+  assert.equal(KIT_ROLE_SIZE.bloom.axis, 'width');
+});
+
+test('the object floor is read on the axis the role is SIZED by, not always the height', () => {
+  // ⚠ Height foreshortens at the render elevation and width does not, so one floor for both would
+  // be wrong for one of them. Asserting the two floors are different numbers AND that each role
+  // is judged against its own is what stops the pair collapsing into one.
+  assert.notEqual(MIN_PROP_HEIGHT, MIN_PROP_WIDTH);
+  assert.equal(KIT_ROLE_SIZE.tree.axis, 'height');
+  assert.ok(deliveredRolePx('tree', 1) < KIT_ROLE_SIZE.tree.units, 'height did not foreshorten');
+  assert.equal(deliveredRolePx('bloom', 1), KIT_ROLE_SIZE.bloom.units, 'width foreshortened');
+  assert.equal(deliveredHeightPx(10, 2), 20 * Math.cos((RENDER_ELEV_DEG * Math.PI) / 180));
+});
+
+// ---------------------------------------------------------------------------
+// reading the facts off the map's own parcels
+// ---------------------------------------------------------------------------
+
+test('each capability is counted once, with its own parcel’s status', () => {
+  const cells = island(['healthy', 'unhealthy', 'proposed']);
+  assert.deepEqual(capabilityFactsFrom(cells), [
+    { capId: 'cap-0', status: 'healthy' },
+    { capId: 'cap-1', status: 'unhealthy' },
+    { capId: 'cap-2', status: 'proposed' },
+  ] satisfies CapabilityFacts[]);
+});
+
+test('⚠ a cell with no parcel belongs to no capability, and is not a capability of its own', () => {
+  // The classic extruded-hex substrate carries no parcel groups at all, so every cell arrives
+  // this way. Inventing a capability for them would put objects on a map asserting work that no
+  // parcel names; dropping the cells instead would shrink the ground a whole-story bloom may
+  // stand on. Neither: they are ground with no capability.
+  const cells: LayoutCell[] = [
+    ...island(['healthy']),
+    ...parcel('cap-x', 'healthy', 3, 2).map((c) => ({ ...c, parcel: undefined })),
+  ];
+  assert.deepEqual(capabilityFactsFrom(cells), [{ capId: 'cap-0', status: 'healthy' }]);
+  assert.equal(cellsByParcel(cells).size, 1);
+  assert.equal(cells.filter((c) => c.parcel === undefined).length, 2, 'the fixture lost its point');
+});
+
+test('the status comes off the parcel, not off the island — six states reach six forms', () => {
+  const cells = island(['healthy', 'mapped', 'proposed', 'building', 'unhealthy', 'unknown']);
+  const placements = dress(cells);
+  const of = (capId: string): KitPlacement | undefined => placements.find((p) => p.capId === capId);
+  assert.equal(of('cap-0')?.tint, null, "a healthy capability wears the kit's own needles");
+  assert.equal(of('cap-1')?.tint, 'mapped');
+  assert.equal(of('cap-2')?.tint, 'proposed');
+  assert.equal(of('cap-3')?.tint, 'building');
+  assert.equal(of('cap-4')?.role, 'deadTree');
+  assert.equal(of('cap-4')?.tint, null, 'a bare dead trunk was given leaves to tint');
+  assert.equal(of('cap-5'), undefined, 'an unknown capability was dressed with something');
+});
+
+// ---------------------------------------------------------------------------
+// the dressing
+// ---------------------------------------------------------------------------
+
+test('ONE object per capability, whatever its parcel holds', () => {
+  // The whole of the owner's density answer, as an assertion (ADR-0475 D1). The previous
+  // vocabulary grew one pine per contract proven, so this is the test that would have failed then
+  // — and the parcels here deliberately differ in cell count, which under the old rule mattered.
+  const cells = [
+    ...parcel('cap-0', 'healthy', 0, 6),
+    ...parcel('cap-1', 'healthy', 1, 2),
+    ...parcel('cap-2', 'mapped', 2, 4),
+  ];
+  const placements = dress(cells);
+  for (const fact of capabilityFactsFrom(cells)) {
+    const own = placements.filter((p) => p.capId === fact.capId);
+    assert.equal(own.length, 1, `${fact.capId} grew ${own.length} objects`);
+  }
+});
+
+test('the two pine assemblies alternate — eleven capabilities are not eleven identical trees', () => {
+  const placements = dress(island(Array.from({ length: 6 }, () => 'healthy')));
+  const used = new Set(placements.map((p) => p.assembly));
+  assert.ok(used.size > 1, `every tree is the same silhouette (${[...used].join(', ')})`);
+});
+
+test('one bloom per SIGNED criterion, and none when there are none', () => {
+  assert.equal(dress(ALL_HEALTHY, { blooms: 4 }).filter((p) => p.role === 'bloom').length, 4);
+  assert.equal(dress(ALL_HEALTHY, { blooms: 0 }).filter((p) => p.role === 'bloom').length, 0);
+  // ⚠ Fail closed on a nonsense count rather than throwing or looping: a negative bloom count is
+  // a caller's arithmetic error, and an island that refused to draw at all over one would take
+  // the whole map down for a criterion tally.
+  assert.equal(dress(ALL_HEALTHY, { blooms: -3 }).filter((p) => p.role === 'bloom').length, 0);
+});
+
+test('a bloom belongs to the STORY and stands anywhere on the island', () => {
+  // ADR-0226 D4: one flower per criterion the owner signed, and the criteria are the STORY's.
+  // Filing them under a capability would be the map asserting who owns a signature.
+  const blooms = dress(ALL_HEALTHY, { blooms: 5 }).filter((p) => p.role === 'bloom');
+  assert.equal(blooms.length, 5);
+  for (const b of blooms) {
+    assert.equal(b.capId, 'story');
+    assert.equal(b.tint, null);
+  }
+});
+
+test('the dressing is deterministic, and the seed really reaches the scatter', () => {
+  // `Math.random` is forbidden on this surface (ADR-0380 D6 fence 2): two islands differing in
+  // WHICH props were drawn would present that difference as the direction.
+  assert.deepEqual(dress(ALL_HEALTHY, { blooms: 3 }), dress(ALL_HEALTHY, { blooms: 3 }));
+  assert.notDeepEqual(
+    dress(ALL_HEALTHY, { blooms: 3 }),
+    dress(ALL_HEALTHY, { blooms: 3, seed: 12 }),
+    'the seed does nothing, so the scatter is not seeded',
+  );
+});
+
+test('the census names each tinted arm separately', () => {
+  const census = dressingCensus(dress(island(['healthy', 'healthy', 'mapped']), { blooms: 2 }));
+  assert.equal(census['tree:mapped'], 1);
+  assert.equal(census['tree'], 2);
+  assert.equal(census['bloom'], 2);
+});
+
+test('a capability with no cells grows nothing rather than standing at the origin', () => {
+  // The facts and the cells are separate arguments now, so they can disagree — and the honest
+  // answer to "this capability has no ground" is no object, never one placed at (0, 0).
+  const cells = island(['healthy']);
+  const placements = dressIslandFromKit({
+    cells,
+    facts: [
+      { capId: 'cap-0', status: 'healthy' },
+      { capId: 'cap-ghost', status: 'healthy' },
+    ],
+    blooms: 0,
+    relief: 0,
+    footprint: FOOT,
+  });
+  assert.deepEqual(placements.map((p) => p.capId), ['cap-0']);
+});
+
+// ---------------------------------------------------------------------------
+// THE PLACEMENT
+// ---------------------------------------------------------------------------
+
+test('NO TWO PROPS OVERLAP on a dressed island', () => {
+  // ⚠⚠ THE DEFECT THE OWNER REPORTED: "the rocks are appearing where the trees are". Measured on
+  // the harness island on 2026-08-29 before the fix, 26 of 2,926 prop pairs overlapped — seven
+  // rock-on-tree, SIX TREE ON TREE — the worst putting a rock 8.57 ground units inside a pine.
+  // The cause was scattering one ROLE at a time with the gap rejection inside that one call, so
+  // no prop was ever tested against a prop of another role.
+  const cells = island(['healthy', 'unhealthy', 'building', 'unknown', 'mapped', 'proposed']);
+  const overlaps = dressingOverlaps(dress(cells, { blooms: 6 }), FOOT);
+  assert.deepEqual(
+    overlaps,
+    [],
+    `props overlap: ${overlaps.map((o) => `${o.a}/${o.b} by ${(-o.gap).toFixed(2)}`).join(', ')}`,
+  );
+});
+
+test('every single-state island is clear too', () => {
+  for (const status of ['healthy', 'mapped', 'proposed', 'building', 'unhealthy'] as const) {
+    const cells = island(Array.from({ length: 6 }, () => status));
+    const overlaps = dressingOverlaps(dress(cells, { blooms: 6 }), FOOT);
+    assert.deepEqual(overlaps, [], `an all-${status} island overlaps ${overlaps.length} pairs`);
+  }
+});
+
+test('THE OVERLAP DETECTOR CAN FIRE — it is not a check that passes on everything', () => {
+  // ⚠ Without this the two assertions above are satisfied by a detector that never returns
+  // anything, which is the commonest fault class in this repo.
+  const at = (x: number, z: number): KitPlacement => ({
+    role: 'tree',
+    assembly: 'pine-a',
+    capId: `c${x}`,
+    tint: null,
+    at: { x, z },
+    y: 0,
+    yaw: 0,
+  });
+  assert.equal(dressingOverlaps([at(0, 0), at(0, 0)], FOOT).length, 1);
+  assert.equal(dressingOverlaps([at(0, 0), at(FOOT.tree * 0.999, 0)], FOOT).length, 1);
+  assert.equal(dressingOverlaps([at(0, 0), at(FOOT.tree * 1.001, 0)], FOOT).length, 0);
+  // And it reports HOW FAR inside, not merely that something is.
+  assert.equal(dressingOverlaps([at(0, 0), at(0, 0)], FOOT)[0]?.gap, -FOOT.tree);
+});
+
+test('every prop stands inside the parcel whose state put it there', () => {
+  // A tree straddling a boundary belongs to neither capability, and the map's whole claim is that
+  // a capability's state is read off ITS OWN ground.
+  const cells = island(['healthy', 'unhealthy', 'mapped', 'proposed'], 5);
+  const byParcel = cellsByParcel(cells);
+  const inQuad = (pts: readonly { x: number; z: number }[], p: { x: number; z: number }): boolean => {
+    let inside = false;
+    for (const [i, a] of pts.entries()) {
+      const b = pts[(i + pts.length - 1) % pts.length]!;
+      if (a.z > p.z !== b.z > p.z && p.x < ((b.x - a.x) * (p.z - a.z)) / (b.z - a.z) + a.x) {
+        inside = !inside;
+      }
+    }
+    return inside;
+  };
+  for (const placement of dress(cells)) {
+    if (placement.capId === 'story') continue;
+    const parcelCells = byParcel.get(placement.capId) ?? [];
+    assert.ok(
+      parcelCells.some((cell) => inQuad(cell.points, placement.at)),
+      `a ${placement.role} for ${placement.capId} stands outside its parcel`,
+    );
+  }
+});
+
+test('props ride the relief rather than floating over it', () => {
+  const flat = dress(ALL_HEALTHY, { blooms: 3 });
+  const hilly = dress(ALL_HEALTHY, { blooms: 3, relief: 6 });
+  assert.equal(flat.length, hilly.length, 'the relief changed WHICH props are drawn');
+  assert.ok(flat.every((p) => p.y === 0), 'a flat island lifted a prop off the ground');
+  assert.ok(hilly.some((p) => p.y !== 0), 'the relief field did not reach the props at all');
+  // The horizontal placement must not move with the relief, or the two arms of any relief
+  // comparison would differ in two things at once.
+  assert.deepEqual(flat.map((p) => [p.at.x, p.at.z]), hilly.map((p) => [p.at.x, p.at.z]));
+  // And the height is the LAND'S OWN field at that point, not some other lift.
+  for (const p of hilly) assert.equal(p.y, landHeight(p.at.x, p.at.z, 6));
+});
+
+test('⚠ the relief AMPLITUDE reaches the props — not just "some relief"', () => {
+  // A placement that lifted by a hardcoded field would pass the test above. These two amplitudes
+  // must give different heights at the same points, and in proportion, because `landHeight` is
+  // exactly linear in its amplitude.
+  const low = dress(ALL_HEALTHY, { relief: 2 });
+  const high = dress(ALL_HEALTHY, { relief: 6 });
+  assert.deepEqual(low.map((p) => [p.at.x, p.at.z]), high.map((p) => [p.at.x, p.at.z]));
+  const moved = low.filter((p, i) => Math.abs(p.y - high[i]!.y) > 1e-9);
+  assert.ok(moved.length > 0, 'the amplitude reached no prop');
+  for (const [i, p] of low.entries()) {
+    assert.ok(Math.abs(high[i]!.y - p.y * 3) < 1e-9, 'the lift is not linear in the amplitude');
+  }
+});
+
+test('a wider footprint pushes the props apart rather than being ignored', () => {
+  // The footprint is an ARGUMENT, so a placement that ignored it would look correct in every test
+  // above — they all pass the same table. Widening it must move the arrangement.
+  //
+  // ⚠⚠ AND THE ISLAND HAS TO BE CROWDED FOR THIS TO ASK ANYTHING, which is a property of the
+  // search worth writing down rather than a fixture detail. The candidate chosen maximises
+  // `distance − (radius + other.radius)`; when ONE neighbour dominates, scaling every radius
+  // subtracts the same constant from every candidate and the argmax does not move. So on a roomy
+  // island the footprint genuinely changes nothing, and a fixture like that would report "the
+  // footprint is ignored" for a placement that honours it perfectly. Two capabilities on two
+  // small parcels with ten blooms competing for the same ground is where it bites.
+  const tight = island(['healthy', 'mapped'], 2);
+  const wide = {
+    tree: FOOT.tree * 2.5,
+    deadTree: FOOT.deadTree * 2.5,
+    bloom: FOOT.bloom * 2.5,
+  } satisfies Record<KitRole, number>;
+  assert.notDeepEqual(
+    dress(tight, { blooms: 10 }).map((p) => [p.at.x, p.at.z]),
+    dress(tight, { blooms: 10, footprint: wide }).map((p) => [p.at.x, p.at.z]),
+    'the footprint reached no placement decision at all',
+  );
+});
+
+test('a prop is pulled off the edges its cell shares with a neighbour', () => {
+  // A tree sitting exactly on a boundary reads as belonging to neither parcel. The candidate
+  // sampler pulls every point toward its cell's centroid for that reason, and the pull has to be
+  // real: with none, a bilinear sample would reach the corners.
+  const cells = parcel('cap-0', 'healthy', 0, 3);
+  const [placed] = dress(cells);
+  assert.ok(placed, 'the parcel grew nothing');
+  const xs = cells.flatMap((c) => c.points.map((p) => p.x));
+  const zs = cells.flatMap((c) => c.points.map((p) => p.z));
+  const margin = 0.5;
+  assert.ok(placed.at.x > Math.min(...xs) + margin && placed.at.x < Math.max(...xs) - margin);
+  assert.ok(placed.at.z > Math.min(...zs) + margin && placed.at.z < Math.max(...zs) - margin);
+});
+
+test('a degenerate cell is stepped over rather than sampled', () => {
+  // A ring of fewer than three vertices bounds no area, so a bilinear sample of it is a point on
+  // a line. `worldTo3D` already refuses to emit one, but the placement takes cells from any
+  // caller and must not depend on that.
+  const cells: LayoutCell[] = [
+    { points: [{ x: 200, z: 0 }, { x: 201, z: 0 }], parcel: 'cap-0', status: 'healthy', cellId: 'd' },
+    ...parcel('cap-0', 'healthy', 0, 2),
+  ];
+  const placements = dress(cells);
+  assert.equal(placements.length, 1);
+  assert.ok(placements[0]!.at.x >= ORIGIN_X, 'the placement came off the degenerate cell');
+});
+
+// ---------------------------------------------------------------------------
+// the placement's own arithmetic, asserted where it lives
+// ---------------------------------------------------------------------------
+//
+// ⚠⚠ WHY THESE ARE EXPORTED AT ALL. The stream, the candidate sampler and the best-candidate
+// search were private, so the only thing any assertion could see was where a prop ended up — and
+// where a prop ends up is stable under a great many wrong arithmetics, because the search's argmax
+// does not move when every candidate shifts by the same amount. `check:mutation-diff` charged
+// forty-odd mutants to code no test could address. The subject of these assertions was never the
+// finished island.
+
+/** The vocabulary's own golden-angle yaw for the i-th prop of a run. */
+const goldenYaw = (i: number): number => (i * 2.399963) % (Math.PI * 2);
+
+test('the placement stream is a deterministic LCG — same seed, same numbers, in [0, 1)', () => {
+  // ⚠ `Math.random` is forbidden on this surface (ADR-0380 D6 fence 2): a scatter that moved
+  // between runs would present that movement as the direction. The constants are Numerical
+  // Recipes' LCG and are asserted as ARITHMETIC rather than against a recorded sequence, so a
+  // fixture cannot agree with a mutated multiplier by having been recorded from it.
+  const first = propStream(7);
+  let s = 7 | 0 || 1;
+  for (const _ of Array.from({ length: 5 })) {
+    void _;
+    s = (s * 1664525 + 1013904223) | 0;
+    assert.equal(first(), ((s >>> 8) & 0xffffff) / 0x1000000);
+  }
+
+  const a = propStream(11);
+  const b = propStream(11);
+  const c = propStream(12);
+  const runA = Array.from({ length: 8 }, () => a());
+  assert.deepEqual(Array.from({ length: 8 }, () => b()), runA, 'the stream is not deterministic');
+  assert.notDeepEqual(Array.from({ length: 8 }, () => c()), runA, 'the seed does not reach it');
+  for (const n of runA) assert.ok(n >= 0 && n < 1, `${n} is outside [0, 1)`);
+
+  // ⚠ SEED 0 IS THE DEGENERATE ONE and is mapped to 1: an LCG at zero times any multiplier is
+  // still zero plus the increment, which is a fixed point for the low bits and a visibly poorer
+  // stream. `|| 1` is what stops a caller's honest `seed: 0` producing it.
+  assert.deepEqual(
+    Array.from({ length: 4 }, propStream(0)),
+    Array.from({ length: 4 }, propStream(1)),
+  );
+});
+
+test('candidates land INSIDE their cell, pulled off the edges it shares with a neighbour', () => {
+  // ⚠ A tree straddling a parcel boundary reads as belonging to neither, so the bilinear sample is
+  // pulled toward the cell's own centroid — between 18% and 30% of the way, jittered so a row of
+  // cells does not put every prop at the same relative spot.
+  const cells = parcel('cap-0', 'healthy', 0, 1);
+  const cell = cells[0]!;
+  const pts = candidatePoints(cells, 64, 5);
+  assert.equal(pts.length, 64);
+
+  const cx = cell.points.reduce((n, p) => n + p.x, 0) / 4;
+  const cz = cell.points.reduce((n, p) => n + p.z, 0) / 4;
+  const x0 = ORIGIN_X;
+  const z0 = ORIGIN_Z;
+  for (const p of pts) {
+    assert.ok(p.x > x0 && p.x < x0 + CELL_W, `${p.x} is outside the cell in x`);
+    assert.ok(p.z > z0 && p.z < z0 + CELL_D, `${p.z} is outside the cell in z`);
+    // The pull is toward the CENTROID, so every sample is strictly inside the inset box.
+    assert.ok(Math.abs(p.x - cx) <= (CELL_W / 2) * (1 - 0.18) + 1e-9, `${p.x} was not pulled in`);
+    assert.ok(Math.abs(p.z - cz) <= (CELL_D / 2) * (1 - 0.18) + 1e-9, `${p.z} was not pulled in`);
+  }
+  // NON-VACUITY: the cell is WIDER than it is deep, so the samples must spread further in x than
+  // in z — a sampler that had swapped its two axes would satisfy every bound above.
+  const spread = (ns: readonly number[]): number => Math.max(...ns) - Math.min(...ns);
+  assert.ok(
+    spread(pts.map((q) => q.x)) > spread(pts.map((q) => q.z)),
+    'the samples spread the same either way — the axes may be swapped',
+  );
+});
+
+test('a candidate is the cell’s own BILINEAR sample, at the pull the jitter asked for', () => {
+  // ⚠⚠ THE ARITHMETIC ITSELF, against a cell whose four corners are all different — a rectangle
+  // would let a sampler that interpolated the wrong pair of corners produce the same point.
+  const skew: LayoutCell = {
+    points: [
+      { x: 100, z: 200 },
+      { x: 140, z: 210 },
+      { x: 150, z: 260 },
+      { x: 90, z: 240 },
+    ],
+    parcel: 'cap-0',
+    status: 'healthy',
+    cellId: 'skew',
+  };
+  const rand = propStream(3);
+  // ⚠ THE CELL IS PICKED FIRST and consumes the stream before `u` does; a replay that started at
+  // `u` would compare against the wrong three numbers and look like an arithmetic error.
+  rand();
+  const u = rand();
+  const v = rand();
+  const jitter = rand();
+  const [a, b, c, d] = skew.points as [GPoint, GPoint, GPoint, GPoint];
+  const top = { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u };
+  const bot = { x: d.x + (c.x - d.x) * u, z: d.z + (c.z - d.z) * u };
+  const raw = { x: top.x + (bot.x - top.x) * v, z: top.z + (bot.z - top.z) * v };
+  const cx = skew.points.reduce((n, p) => n + p.x, 0) / 4;
+  const cz = skew.points.reduce((n, p) => n + p.z, 0) / 4;
+  const pull = 0.18 + jitter * 0.12;
+
+  // The first candidate of a one-cell set consumes the stream in exactly this order.
+  const [first] = candidatePoints([skew], 1, 3);
+  assert.ok(Math.abs(first!.x - (raw.x + (cx - raw.x) * pull)) < 1e-12, `x ${first!.x}`);
+  assert.ok(Math.abs(first!.z - (raw.z + (cz - raw.z) * pull)) < 1e-12, `z ${first!.z}`);
+});
+
+test('a TRIANGULAR cell closes on its first vertex rather than sampling undefined', () => {
+  // The substrate emits quadrilaterals, but `parcelCellsFrom` keeps any ring of three or more —
+  // and a missing fourth corner read as `undefined` puts a prop at NaN, which draws nowhere.
+  const tri: LayoutCell = {
+    points: [
+      { x: 10, z: 10 },
+      { x: 30, z: 12 },
+      { x: 20, z: 34 },
+    ],
+    parcel: 'cap-0',
+    status: 'healthy',
+    cellId: 'tri',
+  };
+  const pts = candidatePoints([tri], 16, 2);
+  assert.equal(pts.length, 16);
+  for (const p of pts) assert.ok(Number.isFinite(p.x) && Number.isFinite(p.z), 'a candidate is NaN');
+});
+
+test('a cell with fewer than three corners is stepped over, and so are no cells and no count', () => {
+  const degenerate: LayoutCell = {
+    points: [
+      { x: 0, z: 0 },
+      { x: 1, z: 0 },
+    ],
+    parcel: 'cap-0',
+    status: 'healthy',
+    cellId: 'line',
+  };
+  // ⚠ SKIPPED, NOT SAMPLED: a bilinear read of two points is a point on a line, which would put a
+  // prop on the seam between two parcels.
+  assert.deepEqual(candidatePoints([degenerate], 8, 1), []);
+  assert.deepEqual(candidatePoints([], 8, 1), []);
+  assert.deepEqual(candidatePoints(parcel('cap-0', 'healthy', 0, 1), 0, 1), []);
+  assert.deepEqual(candidatePoints(parcel('cap-0', 'healthy', 0, 1), -3, 1), []);
+  // NON-VACUITY: the same cells with a positive count do sample.
+  assert.equal(candidatePoints(parcel('cap-0', 'healthy', 0, 1), 3, 1).length, 3);
+});
+
+test('the search takes the candidate whose WORST clearance is largest', () => {
+  // ⚠⚠ THIS IS THE DEFECT THE OWNER REPORTED, AS ARITHMETIC. The old dressing scattered one role
+  // at a time and its rejection lived inside that call, so a rock was never tested against a tree.
+  // The clearance is `distance − (own radius + theirs)`, minimised over everything standing.
+  const occupied = [
+    { x: 0, z: 0, radius: 2 },
+    { x: 30, z: 0, radius: 8 },
+  ];
+  const candidates = [
+    { x: 10, z: 0 }, // 10 − (1+2) = 7 from the first, 20 − (1+8) = 11 from the second → 7
+    { x: 16, z: 0 }, // 16 − 3 = 13, 14 − 9 = 5 → 5
+    { x: 12, z: 0 }, // 12 − 3 = 9, 18 − 9 = 9 → 9  ← the widest worst case
+  ];
+  assert.deepEqual(bestCandidate(candidates, 1, occupied), { x: 12, z: 0 });
+
+  // ⚠ THE OTHER RADIUS IS ADDED, NOT SUBTRACTED, and the two occupants have DIFFERENT radii — with
+  // equal ones the sign error is a constant shift and the argmax does not move.
+  assert.deepEqual(bestCandidate(candidates, 6, occupied), { x: 12, z: 0 });
+
+  // With nothing standing yet every clearance is infinite, so the FIRST candidate wins — which is
+  // what makes a dressing's first prop the sampler's first point.
+  assert.deepEqual(bestCandidate(candidates, 1, []), { x: 10, z: 0 });
+  // A tie keeps the earlier candidate: strictly-greater, not greater-or-equal.
+  assert.deepEqual(bestCandidate([{ x: 5, z: 0 }, { x: -5, z: 0 }], 1, [{ x: 0, z: 0, radius: 1 }]), {
+    x: 5,
+    z: 0,
+  });
+  assert.equal(bestCandidate([], 1, occupied), null);
+});
+
+// ---------------------------------------------------------------------------
+// what the dressing composes out of them
+// ---------------------------------------------------------------------------
+
+test('a placement IS the search’s own answer over that parcel’s candidates', () => {
+  // ⚠ THE COMPOSITION, not the primitives — those are asserted above, and this holds that
+  // `dressIslandFromKit` feeds them the seed, the candidate count and the radius it says it does.
+  // A radius of `footprint` rather than `footprint / 2`, a seed that ignored the capability's
+  // index, or an occupancy list that started non-empty all move this point.
+  const cells = island(['healthy', 'healthy']);
+  const placements = dress(cells);
+  const byParcel = cellsByParcel(cells);
+
+  const firstExpected = bestCandidate(
+    candidatePoints(byParcel.get('cap-0')!, 96, 11 + 0 * 97),
+    FOOT.tree / 2,
+    [],
+  );
+  assert.deepEqual(placements[0]!.at, firstExpected);
+
+  const secondExpected = bestCandidate(
+    candidatePoints(byParcel.get('cap-1')!, 96, 11 + 1 * 97),
+    FOOT.tree / 2,
+    [{ x: placements[0]!.at.x, z: placements[0]!.at.z, radius: FOOT.tree / 2 }],
+  );
+  assert.deepEqual(placements[1]!.at, secondExpected);
+});
+
+test('the default seed is 11, and it is a default rather than a constant', () => {
+  const cells = island(['healthy', 'mapped']);
+  assert.deepEqual(dress(cells), dress(cells, { seed: 11 }));
+  assert.notDeepEqual(dress(cells), dress(cells, { seed: 12 }));
+});
+
+test('each capability’s yaw is the golden-angle turn for its own index', () => {
+  // ⚠ A yaw derived from the index is what stops eleven pines facing the same way, which reads as
+  // a repeated stamp rather than as a forest. It is asserted as the sequence rather than as
+  // "they differ", because two props differing is satisfied by any wrong turn.
+  const placements = dress(island(['healthy', 'mapped', 'building', 'unhealthy']));
+  assert.equal(placements.length, 4);
+  placements.forEach((p, i) => assert.ok(Math.abs(p.yaw - goldenYaw(i)) < 1e-12, `yaw ${i}`));
+  assert.ok(placements[1]!.yaw > 0, 'the second prop was not turned at all');
+});
+
+test('the two pine arms alternate BY INDEX — not "both appear somewhere"', () => {
+  // A set of two assemblies is satisfied by an index that lands out of range half the time, which
+  // is exactly what `fi * choices.length` does: every other capability gets `undefined`.
+  const placements = dress(island(Array.from({ length: 5 }, () => 'healthy')));
+  assert.deepEqual(
+    placements.map((p) => p.assembly),
+    ['pine-a', 'pine-b', 'pine-a', 'pine-b', 'pine-a'],
+  );
+});
+
+test('the blooms take the golden angle and their own seed run, off the WHOLE island', () => {
+  const placements = dress(ALL_HEALTHY, { blooms: 3 });
+  const blooms = placements.filter((p) => p.role === 'bloom');
+  assert.equal(blooms.length, 3);
+  blooms.forEach((p, i) => assert.ok(Math.abs(p.yaw - goldenYaw(i)) < 1e-12, `bloom yaw ${i}`));
+
+  const all = ALL_HEALTHY.filter((c) => c.parcel !== undefined);
+  const occupied = placements
+    .filter((p) => p.role !== 'bloom')
+    .map((p) => ({ x: p.at.x, z: p.at.z, radius: FOOT.tree / 2 }));
+  assert.deepEqual(
+    blooms[0]!.at,
+    bestCandidate(candidatePoints(all, 96, 11 + 7717 + 0 * 131), FOOT.bloom / 2, occupied),
+  );
+  // ⚠ THE SEED MOVES PER BLOOM, AND IT MOVES BY `+ i * 131`. Asserting only that two blooms differ
+  // is satisfied by any per-bloom seed at all, including one that walks the wrong way.
+  const occupiedThen = [
+    ...occupied,
+    { x: blooms[0]!.at.x, z: blooms[0]!.at.z, radius: FOOT.bloom / 2 },
+  ];
+  assert.deepEqual(
+    blooms[1]!.at,
+    bestCandidate(candidatePoints(all, 96, 11 + 7717 + 131), FOOT.bloom / 2, occupiedThen),
+  );
+  assert.notDeepEqual(blooms[0]!.at, blooms[1]!.at);
+  assert.notDeepEqual(blooms[1]!.at, blooms[2]!.at);
+
+  // ⚠ A BLOOM BELONGS TO THE STORY, and says so: it is the one placement whose `capId` names no
+  // capability, which is what stops a criterion marker being read as one capability's own signal.
+  for (const b of blooms) {
+    assert.equal(b.capId, 'story');
+    // ⚠ AND THE BLOOM'S OWN ASSEMBLY. `flower` is the only arm its role serves, so a bloom naming
+    // anything else is a placement the kit cannot draw — `kitMeshes` refuses it, which turns a
+    // signed criterion into a crashed canvas rather than a missing marker.
+    assert.equal(b.assembly, 'flower');
+    assert.equal(b.tint, null);
+  }
+  assert.deepEqual(KIT_ROLE_ASSEMBLIES.bloom, ['flower']);
+  assert.equal(new Set(placements.filter((p) => p.role !== 'bloom').map((p) => p.capId)).size, 6);
+});
+
+test('⚠ a bloom never stands on ground that belongs to no capability', () => {
+  // ⚠⚠ A bloom is a claim about the STORY, so it may stand anywhere a capability's parcel is —
+  // but a cell carrying no parcel is not part of any capability's ground, and the substrate emits
+  // some. A scatter over every cell would put a signed criterion on land the map does not
+  // attribute, which reads as a criterion belonging to something the island does not show.
+  const orphan: LayoutCell = {
+    points: [
+      { x: 900, z: 900 },
+      { x: 940, z: 900 },
+      { x: 940, z: 930 },
+      { x: 900, z: 930 },
+    ],
+    parcel: undefined,
+    status: 'healthy',
+    cellId: 'orphan',
+  };
+  const placements = dress([...island(['healthy']), orphan], { blooms: 4 });
+  const blooms = placements.filter((p) => p.role === 'bloom');
+  assert.equal(blooms.length, 4);
+  for (const b of blooms) {
+    assert.ok(b.at.x < 800, `a bloom stood on the unattributed cell at ${b.at.x}`);
+  }
+});
+
+test('a capability whose cells are ALL degenerate grows nothing, rather than standing at NaN', () => {
+  // ⚠ `bestCandidate` answers `null` when the sampler found nowhere to stand, and the placement
+  // must drop the prop rather than push it: `y` is read off the relief AT the point, so a null
+  // point is a crash on a good day and an island-wide NaN on a bad one.
+  const flat: LayoutCell[] = [0, 1].map((c) => ({
+    points: [
+      { x: 400 + c, z: 400 },
+      { x: 401 + c, z: 400 },
+    ],
+    parcel: 'cap-flat',
+    status: 'healthy',
+    cellId: `flat-${c}`,
+  }));
+  const placements = dressIslandFromKit({
+    cells: flat,
+    facts: [{ capId: 'cap-flat', status: 'healthy' }],
+    blooms: 0,
+    relief: 0,
+    footprint: FOOT,
+  });
+  assert.deepEqual(placements, []);
+});
+
+test('⚠ the radius the placement keeps is the radius the detector measures against', () => {
+  // ⚠⚠ WHY THIS IS A TWO-PLACE CLAIM RATHER THAN A GEOMETRIC ONE. `bestCandidate` scores
+  // `distance − (own radius + theirs)`, so scaling EVERY radius by a constant subtracts the same
+  // amount from every candidate and the argmax does not move: a radius twice too big places
+  // identically, and "nothing overlaps" is satisfied by any radius at least as large as the true
+  // one. Neither the placement nor the overlap count can see the number. What CAN be held is that
+  // both callers read the same one — the clearance a prop is given is the clearance it is judged
+  // by — and the detector's own arithmetic is pinned against exact gaps below.
+  assert.equal(propRadius(FOOT, 'tree'), FOOT.tree / 2);
+  assert.equal(propRadius(FOOT, 'bloom'), FOOT.bloom / 2);
+  assert.equal(propRadius(FOOT, 'deadTree'), FOOT.deadTree / 2);
+
+  // The placement's own occupancy: a second capability's tree is placed against the first at
+  // exactly this radius, so a dressing IS the search run with these numbers.
+  const cells = island(['healthy', 'healthy']);
+  const placements = dress(cells);
+  const byParcel = cellsByParcel(cells);
+  assert.deepEqual(
+    placements[1]!.at,
+    bestCandidate(
+      candidatePoints(byParcel.get('cap-1')!, 96, 11 + 97),
+      propRadius(FOOT, 'tree'),
+      [{ x: placements[0]!.at.x, z: placements[0]!.at.z, radius: propRadius(FOOT, 'tree') }],
+    ),
+  );
+});
+
+test('a dressed island has no overlapping pair at the footprint it was dressed with', () => {
+  const crowded = island(Array.from({ length: 4 }, () => 'healthy'), 2);
+  assert.deepEqual(dressingOverlaps(dress(crowded, { blooms: 6 }), FOOT), []);
+});
+
+// ---------------------------------------------------------------------------
+// the detector, and the tables a report prints
+// ---------------------------------------------------------------------------
+
+test('an overlap is named by role and capability, measured, and reported WORST FIRST', () => {
+  // ⚠ Away from the origin on both axes: `a.x - b.x` and `a.x + b.x` coincide for a pair
+  // straddling zero, which is how a sign error survives a tidy fixture.
+  const p = (role: KitRole, capId: string, x: number): KitPlacement => ({
+    role,
+    assembly: role === 'bloom' ? 'flower' : 'pine-a',
+    capId,
+    tint: null,
+    at: { x: 300 + x, z: -200 },
+    y: 0,
+    yaw: 0,
+  });
+  // ⚠⚠ A FOOTPRINT WHOSE HALVES SUM EXACTLY, and gaps whose INSERTION order is neither ascending
+  // nor descending. A comparator that returns the same sign for every pair does not leave an array
+  // alone — it reverses it — so a fixture whose pairs happen to arrive in descending order is
+  // sorted correctly by an arithmetic that compares nothing.
+  const exact = { tree: 8, deadTree: 6, bloom: 4 };
+  const overlaps = dressingOverlaps(
+    [p('tree', 'a', 0), p('tree', 'b', 1), p('tree', 'c', 7), p('tree', 'd', 7.5)],
+    exact,
+  );
+  assert.deepEqual(
+    overlaps.map((o) => [o.a, o.b, Number(o.gap.toFixed(6))]),
+    [
+      ['tree:c', 'tree:d', -7.5],
+      ['tree:a', 'tree:b', -7],
+      ['tree:b', 'tree:c', -2],
+      ['tree:b', 'tree:d', -1.5],
+      ['tree:a', 'tree:c', -1],
+      ['tree:a', 'tree:d', -0.5],
+    ],
+    'the overlaps are not worst-first, or are not named by role and capability',
+  );
+
+  // ⚠ TOUCHING IS NOT OVERLAPPING. Two props exactly their own footprints apart have a gap of
+  // zero, and reporting that would make the detector fire on a placement that did its job.
+  // `10.13 / 2 + 10.13 / 2` is 5e-15 short of `10.13`, so the DECLARED numbers cannot express a
+  // true touch at all — a fixture built on them measures the float, not the rule.
+  assert.deepEqual(dressingOverlaps([p('tree', 'a', 0), p('tree', 'b', 8)], exact), []);
+  assert.equal(dressingOverlaps([p('tree', 'a', 0), p('tree', 'b', 7.9)], exact).length, 1);
+
+  // A mixed pair takes half of EACH footprint, so the two roles' clearances are not interchangeable.
+  assert.equal(dressingOverlaps([p('tree', 'a', 0), p('bloom', 'story', 6)], exact).length, 0);
+  assert.equal(dressingOverlaps([p('tree', 'a', 0), p('bloom', 'story', 5.9)], exact).length, 1);
+  assert.deepEqual(dressingOverlaps([p('tree', 'a', 0)], exact), []);
+  assert.deepEqual(dressingOverlaps([], exact), []);
+});
+
+test('the vocabulary’s six states are the map’s six, in the order a report prints them', () => {
+  assert.deepEqual(VOCABULARY_STATES, [
+    'healthy',
+    'mapped',
+    'proposed',
+    'building',
+    'unhealthy',
+    'unknown',
+  ]);
+});
+
+test('the TINTED states are exactly the three a crown rotates for', () => {
+  // ⚠ `healthy` and `unhealthy` draw an UNTINTED form — the kit's own needles, and a bare dead
+  // trunk — and `unknown` draws NO form at all, so it has no tint to ask about. A list that
+  // included any of them would have a report claiming a tint that no crown wears.
+  assert.deepEqual(tintedStates(), ['mapped', 'proposed', 'building']);
+  assert.equal(stateForm('healthy')?.tint, null);
+  assert.equal(stateForm('unhealthy')?.tint, null);
+  assert.equal(stateForm('unknown'), null);
+
+  // ⚠⚠ THE TWO-PLACE CHECK LIVES HERE, and that is the point: as a second filter inside
+  // `tintedStates` it made the first one redundant, so the function agreed with the tint table by
+  // construction and could not disagree with it however wrong either got.
+  for (const s of tintedStates()) assert.ok(LEAF_TINT_TOKEN.has(s), `${s} has no declared tint`);
+  for (const s of LEAF_TINT_TOKEN.keys()) {
+    assert.ok(tintedStates().includes(s), `${s} declares a tint no form asks for`);
+  }
+});
+
+test('the declared object manifest is deduped AND sorted, so a report’s list is stable', () => {
+  // Two assemblies can name one object, and a manifest that changed order between runs would
+  // make every diff of a payload report unreadable.
+  const names = kitObjectNames();
+  assert.deepEqual(names, [...names].sort());
+  assert.deepEqual(names, [...new Set(names)]);
+  assert.ok(names.length > 1, 'the manifest has too few names to be ordered at all');
+});
+
+test('a role’s delivered pixels are read on the axis it is SIZED by', () => {
+  // ⚠ Width does not foreshorten at this camera and height does, by cos(50°). A bloom sized by
+  // width delivers its full width; a tree sized by height delivers less than its own units.
+  assert.equal(deliveredRolePx('bloom', 3), KIT_ROLE_SIZE.bloom.units * 3);
+  assert.equal(deliveredRolePx('tree', 3), deliveredHeightPx(KIT_ROLE_SIZE.tree.units, 3));
+  assert.ok(deliveredRolePx('tree', 1) < KIT_ROLE_SIZE.tree.units, 'height did not foreshorten');
+  assert.ok(deliveredRolePx('bloom', 2) > deliveredRolePx('bloom', 1), 'the zoom does not reach it');
+});
+
+test('the object floor is read against the size’s OWN axis, at its own threshold', () => {
+  // ⚠⚠ THE THREE DECLARED ROLES CANNOT SHOW THIS FORK — 18, 15 and 4 units all fall the same side
+  // of both thresholds, so a predicate reading the WRONG axis answers correctly for every role the
+  // vocabulary has. The discriminating sizes are the ones BETWEEN the two thresholds, which is
+  // exactly the band the fork exists for: width does not foreshorten at this camera and height
+  // does, by cos(50°).
+  assert.ok(MIN_PROP_WIDTH < MIN_PROP_HEIGHT, 'the two thresholds are not distinguishable');
+  const between = (MIN_PROP_WIDTH + MIN_PROP_HEIGHT) / 2;
+  assert.equal(sizeClearsObjectFloor({ axis: 'width', units: between }), true);
+  assert.equal(sizeClearsObjectFloor({ axis: 'height', units: between }), false);
+  // Inclusive at each threshold, and a hair under it is not.
+  assert.equal(sizeClearsObjectFloor({ axis: 'width', units: MIN_PROP_WIDTH }), true);
+  assert.equal(sizeClearsObjectFloor({ axis: 'width', units: MIN_PROP_WIDTH - 1e-9 }), false);
+  assert.equal(sizeClearsObjectFloor({ axis: 'height', units: MIN_PROP_HEIGHT }), true);
+  assert.equal(sizeClearsObjectFloor({ axis: 'height', units: MIN_PROP_HEIGHT - 1e-9 }), false);
+
+  // And each role is that predicate over its OWN declared size.
+  for (const role of KIT_ROLES) {
+    assert.equal(clearsObjectFloor(role), sizeClearsObjectFloor(KIT_ROLE_SIZE[role]), role);
+  }
+  assert.equal(clearsObjectFloor('tree'), true);
+  assert.equal(clearsObjectFloor('bloom'), false);
+});

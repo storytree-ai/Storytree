@@ -378,6 +378,39 @@ for (const arm of ['grain-normal', 'shadow', 'dense']) {
   console.log(`  wrote ${name}`);
 }
 
+// ⚠⚠ AND THE PAIR THIS INCREMENT LANDS: the shipped island WITHOUT and WITH one bought object per
+//    capability (ADR-0475), at both zooms, differing in exactly that one thing. Also measured by
+//    nothing above, and for the same reason as the treed pair — a textured crown's pixels are off
+//    the GROUND palette by construction, and every measured claim on this page is about the ground.
+//
+//    ⚠ THE PROP COUNT IS READ BACK AND REFUSED ON. A kit that failed to parse draws NO props and
+//    produces a picture PIXEL-IDENTICAL to the bare one — an ordinary-looking frame that would be
+//    filed as "this is what the bought kit looks like". So the run stops rather than writing a
+//    comparison of one thing with itself.
+const dressed = [];
+for (const zoom of LAND_ZOOMS) {
+  const bare = await page.evaluate(([a, z]) => window.landRunner.snapshotTreed(a, z), ['shadow', zoom]);
+  const bareName = `shipped-bare-${zoom}px.png`;
+  writeFileSync(join(OUT, bareName), Buffer.from(bare.split(',')[1], 'base64'));
+
+  const shot = await page.evaluate(
+    ([a, z]) => window.landRunner.snapshotDressed(a, z),
+    ['shadow', zoom],
+  );
+  if (!(shot.props > 0)) {
+    throw new Error(
+      `shipped-land: the dressed arm at ${zoom} px/unit drew ${shot.props} prop meshes, so the ` +
+        'bought kit never reached the frame. The picture would be the bare island under a name ' +
+        'claiming otherwise — check that the page awaited loadKit() and that /assets/ is served.',
+    );
+  }
+  const name = `shipped-dressed-${zoom}px.png`;
+  writeFileSync(join(OUT, name), Buffer.from(shot.png.split(',')[1], 'base64'));
+  pictures.push(bareName, name);
+  dressed.push({ pxPerUnit: zoom, propMeshes: shot.props, groundTriangles: shot.triangles });
+  console.log(`  wrote ${bareName} and ${name} (${shot.props} merged prop meshes)`);
+}
+
 // ── THE VERDICT — ⚠⚠ TWO OF THEM, and the reason is a finding rather than a complication.
 //
 // `frameBudgetVerdict` is built on ONE premise about its caller's arms: every non-baseline row
@@ -525,6 +558,7 @@ writeFileSync(
       changedPct: Object.fromEntries(changed),
       offPalette: Object.fromEntries(offPalette),
       grainReading,
+      dressed,
       shadowField: await page.evaluate(() => window.landRunner.occlusion('shadow', 8)),
       softwareRun: identity.software,
       arms: Object.fromEntries([...readings.entries()].map(([k, v]) => [k, { ...v, median: median(v.samples), spread: spread(v.samples) }])),

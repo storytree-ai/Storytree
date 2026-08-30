@@ -268,22 +268,54 @@ function codeLines(source: string): string[] {
     });
 }
 
-test('every module in harness/ that reaches for a texture loader routes through the convention', () => {
-  const files = readdirSync(HARNESS).filter(
-    (f) => (f.endsWith('.ts') || f.endsWith('.tsx') || f.endsWith('.mjs')) && !NOT_SUBJECTS.has(f),
+/** ⚠⚠ BOTH DIRECTORIES, SINCE 2026-08-30, AND THE REASON IS THIS SCAN'S OWN HEADER.
+ *
+ *  It says a page cannot opt out by not being on a list, because there is no list to be off. When
+ *  the bought kit's browser half crossed into `src/kit-mesh.ts`, a whole DIRECTORY opted out: the
+ *  sweep read `harness/` only, so the loader that the SHIPPED canvas runs — the one whose output
+ *  reaches a public map rather than a dev page — became the only loader nothing checked. The
+ *  scan stayed green for having lost its most important subject, which is the decay it was
+ *  written to refuse, arriving by relocation instead of by rename. */
+const SUBJECT_DIRS = [
+  { label: 'harness/', dir: HARNESS },
+  { label: 'src/', dir: fileURLToPath(new URL('../src/', import.meta.url)) },
+];
+
+test('every module that reaches for a texture loader routes through the convention', () => {
+  const files = SUBJECT_DIRS.flatMap(({ label, dir }) =>
+    readdirSync(dir)
+      .filter(
+        (f) => (f.endsWith('.ts') || f.endsWith('.tsx') || f.endsWith('.mjs')) && !NOT_SUBJECTS.has(f),
+      )
+      .map((f) => ({ name: `${label}${f}`, path: join(dir, f) })),
   );
-  assert.ok(files.length > 40, `only ${files.length} harness modules found — the scan lost its subject`);
+  assert.ok(files.length > 40, `only ${files.length} modules found — the scan lost its subject`);
+  // ⚠ AND BOTH DIRECTORIES REALLY CONTRIBUTED. A `readdirSync` that answered nothing for one of
+  // them would leave the sweep quietly half-sized, which reads exactly like a pass.
+  for (const { label } of SUBJECT_DIRS) {
+    assert.ok(
+      files.some((f) => f.name.startsWith(label)),
+      `the sweep found no modules under ${label} at all`,
+    );
+  }
 
   const loaders: string[] = [];
   const unrouted: string[] = [];
   for (const file of files) {
-    const source = readFileSync(join(HARNESS, file), 'utf8');
+    const source = readFileSync(file.path, 'utf8');
     const lines = codeLines(source);
     const loads = lines.some((l) => LOADER_IMPORT.test(l)) || lines.some((l) => LOADER_CALL.test(l));
     if (!loads) continue;
-    loaders.push(file);
-    if (!codeLines(source).some((l) => CONVENTION_CALL.test(l))) unrouted.push(file);
+    loaders.push(file.name);
+    if (!codeLines(source).some((l) => CONVENTION_CALL.test(l))) unrouted.push(file.name);
   }
+  // ⚠ AND THE SHIPPED LOADER IS AMONG THEM BY NAME. The sweep above is scraped rather than
+  // declared, which is right — but "at least one loader exists" is satisfied by the harness's own
+  // pine page, so it would stay green if `src/` stopped being swept for any reason.
+  assert.ok(
+    loaders.includes('src/kit-mesh.ts'),
+    `the shipped kit loader was not among the modules swept: ${loaders.join(', ')}`,
+  );
 
   // Non-vacuity: if the scan finds NO loader at all it has stopped matching anything, and it
   // would keep reporting green for every future page. There is at least one loader here today.

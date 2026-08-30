@@ -101,6 +101,27 @@ export interface InstanceDescriptor {
   bearing?: number;
   /** The island a cave portal sits on (`cave-arch` only). */
   island?: string;
+  /** THE OWNING CAPABILITY'S ID (`cell-ground` only) — which capability's parcel this
+   *  cell belongs to.
+   *
+   *  ⚠ IT IS NOT DERIVABLE FROM ANYTHING ELSE ON THE DESCRIPTOR, which is why it is carried.
+   *  `material` is the FOLDED status, so two capabilities in the same state are one value; the
+   *  ring is geometry. Without this field a consumer can draw the ground and cannot say which
+   *  capability any part of it reports on — so ADR-0475's ONE OBJECT PER CAPABILITY is not
+   *  expressible, and neither is anything else that has to be counted per capability.
+   *
+   *  ⚠ ONLY EVER TAKEN FROM A GROUP THAT SAYS IT IS A PARCEL (`kind === 'parcel'`), never from
+   *  any other `<g id=…>` — every group on an island carries an `id` for its own reasons (a
+   *  territory, a trail edge, a hit target), and inheriting one of those would partition the
+   *  land along lines that are not capability boundaries while looking entirely plausible. That
+   *  rule is `groundCellsFrom`'s (`harness/island-descriptors.ts`) and is restated rather than
+   *  re-derived; the two now read the same identity off the same place.
+   *
+   *  ABSENT on a substrate that has no parcel groups (the classic extruded-hex island, where a
+   *  tile IS a territory) and on every non-`cell-ground` family. Absent is a real answer here —
+   *  a consumer that needs per-capability identity must handle its absence rather than invent
+   *  one. */
+  parcel?: string;
 }
 
 /** A skip record: a scene node with no core 3D mapping. Never a throw, never a silent
@@ -190,15 +211,25 @@ function edgeKeys(edges: string | undefined): string[] {
  *  (ADR-0392 D5 / ADR-0398 D7) rather than one that merely looks wrong. The parcels-present
  *  shape DOES stamp per-cell status (`scene.ts:1718`, per-capability rather than
  *  per-territory) and must WIN over the inherited value — hence `node.status ?? parentStatus`
- *  at every level, never the other way round. */
+ *  at every level, never the other way round.
+ *
+ *  ⚠ `parentParcel` carries the OWNING CAPABILITY'S ID down the same way, and it is taken ONLY
+ *  from a group whose own `kind` is `parcel`. Every other `<g>` on an island carries an `id`
+ *  for its own reasons, so reading `node.id` generally would partition the land along lines
+ *  that are not capability boundaries — and it would do it invisibly, because the resulting
+ *  picture is a perfectly ordinary island. Unlike status there is no per-cell restatement to
+ *  prefer: a `cell` path carries no parcel of its own, so the inherited value is the only
+ *  value. */
 function walkNode(
   node: SceneNode,
   out: Descriptor3D[],
   parentXY: Pt,
   parentStatus?: string,
+  parentParcel?: string,
 ): void {
   const kind = node.kind;
   const status = node.status ?? parentStatus;
+  const parcel = kind === 'parcel' ? node.id ?? parentParcel : parentParcel;
 
   // Leaf nodes (path / circle / ellipse / polygon / rect / text) carry no children.
   // The trail FILL pass is the ribbon geometry source (ADR-0169 §4) — one strip per
@@ -246,13 +277,19 @@ function walkNode(
       // mapper deliberately does NOT normalise either: `cell-ground-geometry.ts` must be robust to
       // both anyway (it is exported on its own), and normalising in two places is how the two come
       // to disagree about which way is up. Winding is settled once, where it is tested.
-      out.push({
+      // ANNOTATED local, then one guarded assignment — the shape
+      // `anti-slop/no-conditional-empty-object-spread` requires. `parcel` is left OFF rather
+      // than set to a placeholder when the substrate has no parcel groups: a consumer must be
+      // able to tell "this cell belongs to capability X" from "this substrate does not say".
+      const cellDescriptor: InstanceDescriptor = {
         kind: 'cell-ground',
         transform: { x: c.x, y: 0, z: c.y },
         group: 'cell-ground',
         material: status ?? 'unknown',
         points: ring,
-      });
+      };
+      if (parcel !== undefined) cellDescriptor.parcel = parcel;
+      out.push(cellDescriptor);
       return;
     }
     if (kind) out.push({ kind: 'skipped', sceneKind: kind });
@@ -341,7 +378,7 @@ function walkNode(
   // Always recurse into children so every descendant gets its own descriptor
   // (core descendants emit instances; non-core descendants emit skips).
   for (const child of node.children) {
-    walkNode(child, out, childXY, status);
+    walkNode(child, out, childXY, status, parcel);
   }
 }
 

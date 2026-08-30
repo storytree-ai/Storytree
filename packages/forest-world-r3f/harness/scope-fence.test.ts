@@ -107,20 +107,18 @@ const EXPERIMENT = [
   // (`pine-scene.ts`) is deliberately NOT listed: it imports three by design.
   'asset-payload.ts',
   'pine-asset.ts',
-  // The textured-asset colour guard (`guard-the-textured-asset-colour-convention`). It is the
-  // convention every bought texture on this surface is sampled in, plus the arithmetic that
-  // judges a frame against it, and it must stay node-provable: the verdict is what refuses a
-  // build, and a verdict nobody can reproduce without a GPU is a verdict nobody can audit. Its
-  // browser half (`colour-convention-scene.ts`) is deliberately NOT listed, exactly as
-  // `pine-scene.ts` is not — it imports three because reading delivered pixels needs a renderer.
-  'texture-convention.ts',
-  // The bought kit's PROP VOCABULARY (`dress-a-whole-island-from-the-bought-kit`) — what each
-  // prop MEANS, how many of it a capability's facts put on its parcel, and where each one
-  // stands. Pure, and it must stay so: the vocabulary is the claim the island makes about the
-  // work, and a claim only a GPU can reproduce is one nobody can audit. Its browser half
-  // (`kit-scene.ts`) and its page (`kit-island-scene.ts`) are deliberately NOT listed — both
-  // import three, exactly as `pine-scene.ts` does.
-  'kit-vocabulary.ts',
+  // ⚠ `texture-convention.ts` SPLIT ON 2026-08-30 — see ADOPTED below. The CONVENTION half (the
+  // rule a bought texture is sampled under) crossed, because the shipped canvas draws bought
+  // objects and a map decoded the ordinary way comes out ~3.5x dark and looks deliberate. The
+  // VERDICT half — the two-hypothesis judgement over delivered pixels, its tolerances, and the
+  // per-asset material manifest — stayed: it MEASURES the convention rather than being part of
+  // it, which is the same line `grain-status-reading.ts` sits on. It must stay node-provable, and
+  // its browser half (`colour-convention-scene.ts`) is deliberately not listed here either.
+  // ⚠ `kit-vocabulary.ts` SPLIT ON 2026-08-30 — see ADOPTED below. The vocabulary and the
+  // placement crossed; the FIXTURE ADAPTER (`capabilityFacts(island)`, and the
+  // `{ scene, island }` call shape its two harness callers use) stayed, because the shipped
+  // canvas has no fixture and no `SceneG`. Its page (`kit-island-scene.ts`) is deliberately not
+  // listed — it imports three, exactly as `pine-scene.ts` does.
 ];
 
 /** WHAT HAS CROSSED, and what the shipped canvas therefore publishes — the adoption ledger.
@@ -180,6 +178,58 @@ const ADOPTED: readonly { src: string; reExportedBy: string; because: string }[]
       'shipped canvas draws rather than inherited from the experiment’s. The two agree at 0.77 ' +
       'today and that agreement is measured, not assumed. The reader model’s provenance argument ' +
       'and its status-keyed table stayed in shadow-ladder.ts.',
+  },
+  {
+    src: 'kit-vocabulary.ts',
+    reExportedBy: 'kit-vocabulary.ts',
+    because:
+      "the bought kit's PROP VOCABULARY — ADR-0475's one object per capability, its species and " +
+      'leaf tint carrying that capability’s state, and the placement search that stopped a prop ' +
+      'standing inside another. It is the first thing on this arc to cross that STANDS on the ' +
+      'ground rather than being the ground. ⚠ IT IS A SPLIT: the fixture adapter stayed, because ' +
+      'the shipped canvas has no fixture and no `SceneG` — it reads each capability’s state off ' +
+      'the map’s own parcels, which is why `worldTo3D` had to learn to carry the parcel identity ' +
+      'in the same landing.',
+  },
+  {
+    src: 'kit-mesh.ts',
+    reExportedBy: 'kit-scene.ts',
+    because:
+      "the bought kit's BROWSER half — parsing the asset, pairing a trunk with its own crown, " +
+      'measuring each role’s footprint off the loaded geometry, tinting a leaf material, and ' +
+      'merging every placement into one mesh per (material, tint) on a renderer measured ' +
+      'draw-call bound. ⚠ A SPLIT: the harness’s FETCH stayed (vite serves its `/assets/`; the ' +
+      'shipped canvas has none, and parses the embedded bytes instead), and so did the light ' +
+      'CALIBRATION, which probes a live renderer and is an instrument.',
+  },
+  {
+    src: 'texture-convention.ts',
+    reExportedBy: 'texture-convention.ts',
+    because:
+      'the colour CONVENTION a bought texture is sampled under — the shipped canvas cannot draw a ' +
+      'bought object without it: a base-colour map decoded the ordinary way renders about 3.5x ' +
+      'dark and reads as a deliberate art direction rather than as a fault. ⚠ A SPLIT: the ' +
+      'delivered-pixel VERDICT stayed, an instrument rather than part of the convention.',
+  },
+  {
+    src: 'leaf-tint.ts',
+    reExportedBy: 'leaf-tint.ts',
+    because:
+      "the rule that a crown's tint rotates a map’s hue and may never change its value. The kit " +
+      'is entirely pine, so species separates only LEAFED from BARE and the three leafed states ' +
+      'are separated by tint — which makes a crown’s colour a claim about a proof state, and ' +
+      'therefore not something the experiment may hold alone. ⚠ Its tokens are re-asked against ' +
+      "the SHIPPED canvas’s own `GROUND_COLOUR` / `CROWN_COLOUR` rather than the harness’s " +
+      'mirror of them (`leaf-tint.test.ts` parses the canvas); they agree today and that ' +
+      'agreement is measured.',
+  },
+  {
+    src: 'map-texels.ts',
+    reExportedBy: 'map-texels.ts',
+    because:
+      "a tinted crown is rotated onto a token’s chromaticity at THE MAP'S OWN luminance, so both " +
+      "surfaces need the asset’s decoded base-colour mean — read off the ASSET rather than off " +
+      'the delivered frame, since an expectation derived from its own subject cannot fail.',
   },
   {
     src: 'shade-ladder.ts',
@@ -247,6 +297,10 @@ test('nothing has left the fence by simply being deleted from the list', () => {
     'contact-shade.ts',
     'shadow-ladder.ts',
     'shadow-rung.ts',
+    // The bought kit (ADR-0475), crossed 2026-08-30 — the first components that STAND on the
+    // ground rather than being it.
+    'kit-vocabulary.ts',
+    'texture-convention.ts',
   ];
   for (const owed of owedModules) {
     assert.ok(accounted.has(owed), `${owed} is in neither EXPERIMENT nor ADOPTED — unaccounted for`);
