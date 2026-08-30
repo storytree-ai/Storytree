@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  SearchOperation,
   ContextTraversalEvent,
   FrontMatterReadEvent,
   FullPayloadReadEvent,
@@ -677,6 +678,81 @@ test("replay-does-not-infer-relationships: replay orders events by their own tim
 // Published-surface smoke: the remaining exported members compile and behave, so the two
 // downstream packages that import this package by name keep working.
 // ---------------------------------------------------------------------------
+
+test("SearchOperation names one word per corpus-search VERB — the set a reader groups by", () => {
+  // PINNED BY NAME, not by count. The enum is what a reader of the trace store groups by, so a word
+  // silently renamed re-buckets history without any reading failing; a word silently DROPPED makes a
+  // whole verb unrecordable. Both are invisible to a length check, which is why this is the list.
+  assert.deepEqual([...SearchOperation.options].sort(), [
+    "adr_list",
+    "arc_list",
+    "friction_list",
+    "library_artifact_list",
+    "library_dashboard",
+    "library_query",
+    "library_related",
+    "library_search",
+  ]);
+  // Each one parses on a real event — a word in the enum that no `SearchEvent` accepts would be a
+  // vocabulary entry nothing could ever write.
+  for (const operation of SearchOperation.options) {
+    const parsed = SearchEvent.parse({
+      kind: "search",
+      eventId: `event:search-${operation}`,
+      sessionId: "session-ops",
+      at: AT,
+      searchId: `search-${operation}`,
+      surfaceId: "library-search",
+      operation,
+      resultNodeIds: [],
+    });
+    assert.equal(parsed.operation, operation);
+  }
+});
+
+test("a SearchEvent may name the artifact it was ANCHORED on, and the key stays absent otherwise", () => {
+  const anchored = SearchEvent.parse({
+    kind: "search",
+    eventId: "event:search-anchored",
+    sessionId: "session-anchor",
+    at: AT,
+    searchId: "search-anchored",
+    surfaceId: "library-search",
+    operation: "library_related",
+    anchorNodeId: "adr-0139",
+    resultNodeIds: ["adr-0086"],
+  });
+  assert.equal(anchored.anchorNodeId, "adr-0139");
+
+  const unanchored = SearchEvent.parse({
+    kind: "search",
+    eventId: "event:search-plain",
+    sessionId: "session-anchor",
+    at: AT,
+    searchId: "search-plain",
+    surfaceId: "library-search",
+    operation: "library_search",
+    resultNodeIds: [],
+  });
+  assert.equal("anchorNodeId" in unanchored, false);
+
+  // A blank anchor is refused like every other identity: an anchor that names nothing would be
+  // indistinguishable from an unanchored search once written.
+  assert.equal(
+    SearchEvent.safeParse({
+      kind: "search",
+      eventId: "event:search-blank",
+      sessionId: "session-anchor",
+      at: AT,
+      searchId: "search-blank",
+      surfaceId: "library-search",
+      operation: "library_related",
+      anchorNodeId: "   ",
+      resultNodeIds: [],
+    }).success,
+    false,
+  );
+});
 
 test("published-surface-smoke: SearchEvent, CandidateSetEvent, FollowedEdgeEvent parse, and isContextVisitEvent narrows only the two visit kinds", () => {
   const search = SearchEvent.parse({

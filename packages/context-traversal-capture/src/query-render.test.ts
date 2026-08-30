@@ -406,3 +406,70 @@ test("REPLAY_PATHWAY_NOTE carries the shared file-reads clause, which is the adm
   assert.match(REPLAY_PATHWAY_NOTE, /storytree CLI reads only/);
   assert.match(REPLAY_PATHWAY_NOTE, /one pathway, not all of this session/);
 });
+
+test("a search line says what it FOUND, and names the artifact it was anchored on when it had one", () => {
+  // The whole point of recording a search is whether the agent found the thing (ADR-0484 D3), so a
+  // line that said only "a search fired" would be the render half of the empty `resultNodeIds` this
+  // landing removed. Anchored and unanchored are rendered together because the difference between
+  // them is exactly what a reader must be able to see: `library related <id>` ranked AGAINST an
+  // artifact, while `library search "<terms>"` matched free text nothing records.
+  const sessionId = "session-search";
+  const trace = createContextTraversalTrace();
+  trace.append({
+    kind: "search",
+    eventId: "event:search-1",
+    sessionId,
+    at: "2026-07-26T00:00:00.000Z",
+    searchId: "search:search-1",
+    surfaceId: "library-search",
+    operation: "library_search",
+    resultNodeIds: ["adr-0431", "adr-0139"],
+  });
+  trace.append({
+    kind: "search",
+    eventId: "event:search-2",
+    sessionId,
+    at: "2026-07-26T00:00:01.000Z",
+    searchId: "search:search-2",
+    surfaceId: "library-search",
+    operation: "library_related",
+    anchorNodeId: "adr-0139",
+    resultNodeIds: ["adr-0086"],
+  });
+  trace.append({
+    kind: "search",
+    eventId: "event:search-3",
+    sessionId,
+    at: "2026-07-26T00:00:02.000Z",
+    searchId: "search:search-3",
+    surfaceId: "adr",
+    operation: "adr_list",
+    resultNodeIds: [],
+  });
+
+  const result = renderTraversalSession(trace.replay(sessionId), { skipped: 0 });
+  assert.equal(result.ok, true);
+  const lines = result.body.split("\n");
+  const searchLines = lines.filter((line) => line.includes("[search]"));
+  assert.equal(searchLines.length, 3);
+
+  // EXACT lines, not `includes` probes: the anchor is appended conditionally, and a substring check
+  // cannot tell "nothing was appended" from "something else was". The whole line is the contract.
+  const [first, second, third] = searchLines;
+  assert.equal(
+    first,
+    "  [search] search=search:search-1 surface=library-search operation=library_search results=2",
+  );
+  assert.equal(
+    second,
+    "  [search] search=search:search-2 surface=library-search operation=library_related anchor=adr-0139 results=1",
+  );
+  // A REAL zero renders as one. `results=0` is the reading that distinguishes "this listing found
+  // nothing" from a line that never carried a count at all.
+  assert.equal(third, "  [search] search=search:search-3 surface=adr operation=adr_list results=0");
+
+  // Ids are COUNTED, never printed: the render is a metadata surface, and a result set spilled into
+  // it would put corpus content in a place ADR-0235 clause 6 keeps clear.
+  assert.equal(result.body.includes("adr-0431"), false);
+  assert.equal(result.body.includes("adr-0086"), false);
+});

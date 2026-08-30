@@ -173,3 +173,23 @@ test("the help page names every operator the parser accepts", async () => {
     assert.ok(env.body.includes(op), `help must document ${op}`);
   }
 });
+
+test("a query carries the ids it printed out to the traversal capture, and --count records a real zero", async () => {
+  // ADR-0484 D3: `library query` is a corpus SEARCH in the trace vocabulary, so it records what it
+  // returned rather than only that it fired. `--count` prints a number and names nothing, which is a
+  // recorded empty — the honest reading, because there were no ids to hand over.
+  const store = await seeded();
+
+  const rows = await libraryQuery(store, { ...base, kind: "arc" });
+  assert.equal(rows.ok, true);
+  assert.deepEqual([...(rows.observedResultIds ?? [])].sort(), ["alpha-arc", "beta-arc", "gamma-arc"]);
+
+  const counted = await libraryQuery(store, { ...base, kind: "arc", count: true });
+  assert.equal(counted.ok, true);
+  assert.deepEqual(counted.observedResultIds, []);
+
+  // The PAGE, not every match: --limit truncates the print, and the record follows the print.
+  const page = await libraryQuery(store, { ...base, kind: "arc", limit: "2" });
+  assert.equal(page.ok, true);
+  assert.equal((page.observedResultIds ?? []).length, 2);
+});

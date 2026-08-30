@@ -70,13 +70,58 @@ export type FullPayloadReadEvent = z.infer<typeof FullPayloadReadEvent>;
 // Search / candidate-set / followed-edge events
 // ---------------------------------------------------------------------------
 
+/**
+ * The named corpus-search operations an adapter may observe (ADR-0484 D3).
+ *
+ * ONE OPERATION PER VERB, and never a shared bucket. The enum is what a reader groups by, so two
+ * verbs folded onto one word are two verbs a reader can no longer tell apart — the same rule
+ * ADR-0484's deliverable 3 states for `surfaceId`. It grew from two words to eight when the
+ * allowlist widened past the five argv shapes it had recognised since ADR-0241; `library_search`
+ * and `library_related` are the two ADR-0464 D5 nominated as the discovery route and which nothing
+ * could see.
+ *
+ * A search operation is a corpus RANKING or LISTING — it returns a set of canonical node ids. It is
+ * not "any read that isn't a single artifact": a verb that reads ONE node is a visit event, whatever
+ * work it did to get there.
+ */
+export const SearchOperation = z.enum([
+  /** `storytree library artifact list <category>` — every artifact of one kind. */
+  "library_artifact_list",
+  /** The bare `storytree library` dashboard. */
+  "library_dashboard",
+  /** `storytree library search "<terms>"` — BM25 ranking over the whole corpus. */
+  "library_search",
+  /** `storytree library related <id> [--unlinked]` — ranked neighbours of one artifact. */
+  "library_related",
+  /** `storytree library query --kind <k> [--where …]` — the ad-hoc predicate read. */
+  "library_query",
+  /** `storytree adr list [--current|--load-bearing|--status <s>]` — the decision log. */
+  "adr_list",
+  /** `storytree arc list` — the initiative worklist. */
+  "arc_list",
+  /** `storytree friction list` — the friction worklist. */
+  "friction_list",
+]);
+export type SearchOperation = z.infer<typeof SearchOperation>;
+
 export const SearchEvent = z
   .object({
     kind: z.literal("search"),
     ...eventBase,
     searchId: identity,
     surfaceId: identity,
-    operation: z.enum(["library_artifact_list", "library_dashboard"]),
+    operation: SearchOperation,
+    /**
+     * The canonical node this search was ANCHORED on, when it had one — `library related <id>`
+     * ranks the corpus against one artifact, so the artifact is part of what the search WAS.
+     *
+     * A canonical identity, never the query itself: a free-text `library search "<terms>"` records
+     * no anchor and no query string, because ADR-0235 clause 6 forbids duplicating content into the
+     * traversal store and the terms an agent typed are content. What it searched for is therefore
+     * recorded exactly as far as it is an IDENTITY, and no further; what it FOUND is
+     * {@link resultNodeIds}, which is what answers "did the agent find the thing".
+     */
+    anchorNodeId: identity.optional(),
     resultNodeIds: z.array(identity),
   })
   .strict();

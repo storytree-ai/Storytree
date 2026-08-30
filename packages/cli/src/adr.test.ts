@@ -10,6 +10,7 @@ import {
   scaffold,
   extractAdrTitle,
   renderAdrList,
+  selectAdrListings,
   loadBearingReach,
   loadAdrListings,
   type AdrListing,
@@ -150,6 +151,40 @@ test("renderAdrList --load-bearing keeps exactly the tagged set", () => {
   // An unrelated superseder and a proposed ADR are neither tagged nor reached.
   assert.doesNotMatch(lines, /0027/);
   assert.doesNotMatch(lines, /0086/);
+});
+
+test("selectAdrListings IS the display filter — one definition, ascending by number", () => {
+  // Extracted so the rows a cut RENDERS and the ids `adr list` records for the traversal capture
+  // cannot disagree (ADR-0484 D3). Two copies of "which decisions this cut shows" would eventually
+  // differ, and a search event whose recorded results contradicted the printed page would be worse
+  // than one that recorded nothing.
+  const all = selectAdrListings(SAMPLE, {}).map((l) => l.meta.number);
+  assert.deepEqual(all, [11, 14, 19, 27, 86, 142, 271], "ascending by number, nothing dropped");
+
+  assert.deepEqual(
+    selectAdrListings(SAMPLE, { current: true }).map((l) => l.meta.number),
+    [11, 19, 27, 142, 271],
+  );
+  assert.deepEqual(
+    selectAdrListings(SAMPLE, { loadBearing: true }).map((l) => l.meta.number),
+    [11, 19, 142],
+  );
+  assert.deepEqual(
+    selectAdrListings(SAMPLE, { status: "superseded" }).map((l) => l.meta.number),
+    [14],
+  );
+
+  // The ORDER is load-bearing for the render: `renderAdrList` walks this selection and prints in its
+  // order, so an unsorted or reversed selection would silently re-order the decision log.
+  const shuffled = [...SAMPLE].reverse();
+  assert.deepEqual(
+    selectAdrListings(shuffled, {}).map((l) => l.meta.number),
+    [11, 14, 19, 27, 86, 142, 271],
+    "the selection sorts its input rather than trusting the caller's order",
+  );
+  // ...and the render agrees with it, which is the property the extraction exists to hold.
+  const rendered = renderAdrList(shuffled, {}).join("\n");
+  assert.ok(rendered.indexOf("0011") < rendered.indexOf("0142"));
 });
 
 test("renderAdrList --status filters to an exact status", () => {
@@ -636,6 +671,12 @@ test("adr list reads the decision ROWS and renders them (ADR-0403 dec 1)", async
   const lb = await adrCommand("list", { loadBearing: true }, depsFor(null, store));
   assert.match(lb.body, /0019/);
   assert.doesNotMatch(lb.body, /0086/); // proposed, not load-bearing
+
+  // ADR-0484 D3 — the decisions this cut LISTED, carried out to the traversal capture as canonical
+  // row ids (`adr-0019`), never the bare numbers the CLI takes. It follows the cut: `--load-bearing`
+  // records the tagged set alone, so the record describes the page the reader was shown.
+  assert.deepEqual(all.observedResultIds, ["adr-0019", "adr-0086"]);
+  assert.deepEqual(lb.observedResultIds, ["adr-0019"]);
 });
 
 test("adr list REFUSES without a store rather than reporting an empty decision log", async () => {

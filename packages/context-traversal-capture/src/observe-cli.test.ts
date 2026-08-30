@@ -3,7 +3,14 @@ import { test } from "node:test";
 
 import { ContextTraversalCoverage, ContextTraversalEvent, CoverageFeature } from "@storytree/context-traversal-telemetry";
 
-import { observeCliInvocation, TERMINAL_CLI_DISPATCH_COVERAGE } from "./observe-cli.js";
+import {
+  AREAS_WITHOUT_CORPUS_READS,
+  CLI_READ_VERBS,
+  KEY_LENGTHS,
+  observeCliInvocation,
+  TERMINAL_CLI_DISPATCH_COVERAGE,
+  verbSpecFor,
+} from "./observe-cli.js";
 
 const AT = "2026-07-26T00:00:00.000Z";
 
@@ -231,34 +238,314 @@ test("unlisted and write invocations observe nothing — the default is zero eve
   }
 });
 
-test("the whole `adr` AREA observes nothing — including `adr pull`, which is a genuine READ", () => {
-  // MEASURED LIVE 2026-08-23 (`decision-read-measurement-arc-inc-01`) and pinned here, because this
-  // is a blind spot rather than an omission: `adr pull <n> --out <path>` puts a whole decision
-  // document in front of the caller and records not one event, since `observeCliInvocation` has no
-  // `adr` branch at all and falls through to the closing `return []`.
-  //
-  // It is NOT a hole to plug by widening the allowlist. `adr list` is a SEARCH over the log that
-  // names no single decision, and `adr push` / `adr new` are writes — minting a read for any of them
-  // would manufacture history, which is the failure the allowlist's zero-by-default exists to
-  // prevent. `adr pull` is the one shape that would be legitimate to observe, and the transcript
-  // sweep already recovers it (`scrapeCliDecisionReads`), so the read survives by another route.
-  // What this test fixes is that the LIVE record's silence about it is deliberate and known.
+/**
+ * `adr pull <n>` — WAS the pinned blind spot, is now observed (ADR-0484 D3).
+ *
+ * Until 2026-08-30 this file asserted the opposite, and the reasoning it carried is worth keeping
+ * because half of it was right and half was the fault. Right: `adr push` / `adr new` are writes and
+ * minting a read for them would manufacture history. Wrong: it argued `adr list` "names no single
+ * decision" and so should stay silent, and that `adr pull` "survives by another route" through the
+ * transcript sweep. Both fell over. A LISTING is a search — the vocabulary has had a `search` kind
+ * with a `resultNodeIds` field the whole time — and the transcript sweep's subject
+ * (`docs/decisions/`) was deleted by ADR-0403 dec 1 three weeks before that claim was written, so
+ * the other route had already stopped returning anything.
+ */
+test("the `adr` area observes its READS — `pull` as a visit under the canonical row id, `list` as a search", () => {
   const { deps } = harness();
-  const adrArea: readonly (readonly string[])[] = [
-    ["adr", "pull", "419"],
-    ["adr", "pull", "419", "--out", "adr-0419.md"],
-    ["adr", "list"],
-    ["adr", "list", "--load-bearing"],
+  const pulled = observeCliInvocation(["adr", "pull", "419"], deps);
+  assert.equal(pulled.length, 1);
+  const [pull] = pulled;
+  assert.equal(pull?.kind, "full_payload_read");
+  // The CLI takes a NUMBER; the corpus keys the row `adr-0419`. Recording the raw token would file
+  // the read under an id no artifact has.
+  assert.equal(pull && "nodeId" in pull ? pull.nodeId : undefined, "adr-0419");
+  assert.equal(pull && "surfaceId" in pull ? pull.surfaceId : undefined, "adr");
+  assertValid(pull);
+
+  const listed = observeCliInvocation(["adr", "list", "--load-bearing"], harness().deps);
+  assert.equal(listed.length, 1);
+  const [list] = listed;
+  assert.equal(list?.kind, "search");
+  assert.equal(list && "operation" in list ? list.operation : undefined, "adr_list");
+  assertValid(list);
+});
+
+test("`adr pull` accepts the already-canonical id too, and refuses a token that names no decision", () => {
+  for (const token of ["adr-0419", "419", "0419"]) {
+    const events = observeCliInvocation(["adr", "pull", token], harness().deps);
+    assert.equal(events.length, 1, `expected one event for ${token}`);
+    const [event] = events;
+    assert.equal(event && "nodeId" in event ? event.nodeId : undefined, "adr-0419");
+  }
+  // Fail-closed: an unparseable token observes NOTHING rather than a visit to an invented id. The
+  // last two pin the canonical form's ANCHORS — `xadr-0419` is only refused because the pattern is
+  // anchored at the start, `adr-04199` only because it is anchored at the end, and an id recorded
+  // for either would name a row the corpus does not have.
+  for (const token of ["adr-419", "twelve", "12345", "xadr-0419", "adr-04199"]) {
+    assert.deepEqual(
+      observeCliInvocation(["adr", "pull", token], harness().deps),
+      [],
+      `expected zero events for ${token}`,
+    );
+  }
+});
+
+test("`adr`'s writes stay silent, and so does the one verb argv cannot classify", () => {
+  const { deps } = harness();
+  for (const argv of [
     ["adr", "push", "419", "--file", "adr-0419.md", "--pg"],
+    ["adr", "new", "--title", "A brand new decision", "--pg"],
     ["adr", "next", "--pg"],
+    ["adr", "rebind", "419", "--pg"],
+    // `compose` spans an index, a read and a write, told apart only by `--statement`. Unobserved
+    // rather than recorded as a read that might have been a write.
+    ["adr", "compose"],
+    ["adr", "compose", "278", "--statement", "@s.md", "--pg"],
+    // Not a verb at all — the dispatch answers `unknown adr command`.
     ["adr", "health"],
-  ];
-  for (const argv of adrArea) {
+  ]) {
     assert.deepEqual(
       observeCliInvocation(argv, deps),
       [],
       `expected zero events for ${JSON.stringify(argv)}`,
     );
+  }
+});
+
+/**
+ * THE HOLE ADR-0484 EXISTS TO CLOSE, proved live on 2026-08-30: a `library search` run mid-session
+ * left no event in that session's own trace, because the observer's `library` branch handled
+ * `sub === undefined` and `sub === "artifact"` and fell through to `return []` for everything else.
+ * Those are the two verbs ADR-0464 D5 nominated as the discovery route when it deleted the offer
+ * surface, so the instrument was blind to the replacement it had just been told to measure.
+ */
+test("`library search` observes a search — and records what it RETURNED, not merely that it fired", () => {
+  const { deps } = harness();
+  const events = observeCliInvocation(["library", "search", "amends annotation"], {
+    ...deps,
+    resultNodeIds: ["adr-0431", "adr-0139"],
+  });
+  assert.equal(events.length, 1);
+  const [event] = events;
+  assert.equal(event?.kind, "search");
+  assert.equal(event && "operation" in event ? event.operation : undefined, "library_search");
+  assert.equal(event && "surfaceId" in event ? event.surfaceId : undefined, "library-search");
+  assert.deepEqual(
+    event && "resultNodeIds" in event ? event.resultNodeIds : undefined,
+    ["adr-0431", "adr-0139"],
+  );
+  // ADR-0235 clause 6: the terms an agent typed are ITS OWN WORDS. A free-text search is never
+  // anchored, so nothing on the event can be read back to reconstruct the query.
+  assert.equal(event && "anchorNodeId" in event ? event.anchorNodeId : undefined, undefined);
+  assert.equal(JSON.stringify(event).includes("amends annotation"), false);
+  assertValid(event);
+});
+
+test("`library related <id>` records the artifact it ranked AGAINST — an identity, unlike a query", () => {
+  const { deps } = harness();
+  const events = observeCliInvocation(["library", "related", "adr-0139", "--unlinked"], {
+    ...deps,
+    resultNodeIds: ["adr-0086"],
+  });
+  assert.equal(events.length, 1);
+  const [event] = events;
+  assert.equal(event?.kind, "search");
+  assert.equal(event && "operation" in event ? event.operation : undefined, "library_related");
+  assert.equal(event && "anchorNodeId" in event ? event.anchorNodeId : undefined, "adr-0139");
+  assert.deepEqual(event && "resultNodeIds" in event ? event.resultNodeIds : undefined, ["adr-0086"]);
+  assertValid(event);
+});
+
+test("a search that matched nothing records an EMPTY result set, which is a real zero", () => {
+  const { deps } = harness();
+  const events = observeCliInvocation(["library", "search", "nothingmatchesthis"], {
+    ...deps,
+    resultNodeIds: [],
+  });
+  assert.equal(events.length, 1);
+  const [event] = events;
+  assert.deepEqual(event && "resultNodeIds" in event ? event.resultNodeIds : undefined, []);
+  // The ANCHOR KEY IS ABSENT, not present-and-undefined. `SearchEvent` is `.strict()` with an
+  // optional anchor, so a key carrying `undefined` still parses and still serialises away — which
+  // is exactly why asserting on the VALUE would not notice. A reader asking `"anchorNodeId" in
+  // event` would get the wrong answer, and this is where that is fenced.
+  assert.equal(event !== undefined && "anchorNodeId" in event, false);
+  assertValid(event);
+});
+
+test("an empty argv token is never an id — a visit to a node called \"\" is not minted", () => {
+  const { deps } = harness();
+  for (const argv of [
+    ["library", "artifact", ""],
+    ["tree", ""],
+    ["agents", ""],
+    ["arc", "show", ""],
+  ]) {
+    assert.deepEqual(
+      observeCliInvocation(argv, deps),
+      [],
+      `expected zero events for ${JSON.stringify(argv)}`,
+    );
+  }
+});
+
+test("the bare dashboard is the ONE shape that refuses trailing tokens, and a named verb is not", () => {
+  const { deps } = harness();
+  // `library` alone observes the dashboard...
+  assert.equal(observeCliInvocation(["library"], deps).length, 1);
+  // ...and anything after it is a different verb, so the dashboard must not claim the invocation.
+  assert.deepEqual(observeCliInvocation(["library", "--check"], deps), []);
+  assert.deepEqual(observeCliInvocation(["library", "search", "--help"], deps), []);
+  // A NAMED verb's flags cannot turn its read into something else, so EVERY read verb still observes
+  // with a trailing flag. This is the everyday shape — a session writes `--pg` on nearly everything —
+  // so a verb that quietly stopped observing once flagged would lose most of its real invocations.
+  for (const argv of [
+    ["tree", "story-a", "--pg"],
+    ["tree", "spec", "node-x", "--pg"],
+    ["agents", "session-orchestrator", "--step", "1"],
+    ["arc", "show", "arc-1", "--pg"],
+    ["adr", "pull", "419", "--out", "adr-0419.md"],
+    ["question", "check", "oq-a", "--pg"],
+    ["increment", "check", "inc-a", "--pg"],
+    ["library", "tree", "focus", "adr-0484", "--pg"],
+  ]) {
+    assert.equal(
+      observeCliInvocation(argv, deps).length,
+      1,
+      `expected one event for ${JSON.stringify(argv)}`,
+    );
+  }
+});
+
+test("every other read-shaped verb ADR-0484 D3 names is observed, on its OWN surface id", () => {
+  const cases: readonly {
+    readonly argv: readonly string[];
+    readonly kind: string;
+    readonly surfaceId: string;
+    readonly nodeId?: string;
+    readonly operation?: string;
+  }[] = [
+    { argv: ["arc", "show", "linked-session-context-arc", "--pg"], kind: "full_payload_read", surfaceId: "arc", nodeId: "linked-session-context-arc" },
+    { argv: ["arc", "list", "--pg"], kind: "search", surfaceId: "arc", operation: "arc_list" },
+    { argv: ["question", "check", "oq-a", "--pg"], kind: "front_matter_read", surfaceId: "open-question", nodeId: "oq-a" },
+    { argv: ["increment", "check", "inc-a", "--pg"], kind: "front_matter_read", surfaceId: "increment", nodeId: "inc-a" },
+    { argv: ["friction", "list"], kind: "search", surfaceId: "friction", operation: "friction_list" },
+    { argv: ["library", "query", "--kind", "adr"], kind: "search", surfaceId: "library-query", operation: "library_query" },
+    { argv: ["library", "tree", "focus", "adr-0484"], kind: "front_matter_read", surfaceId: "library-tree-focus", nodeId: "adr-0484" },
+  ];
+  for (const c of cases) {
+    const events = observeCliInvocation(c.argv, { ...harness().deps, resultNodeIds: [] });
+    assert.equal(events.length, 1, `expected one event for ${JSON.stringify(c.argv)}`);
+    const [event] = events;
+    assert.equal(event?.kind, c.kind, `kind for ${JSON.stringify(c.argv)}`);
+    assert.equal(
+      event && "surfaceId" in event ? event.surfaceId : undefined,
+      c.surfaceId,
+      // ADR-0484 D3 deliverable 3: a new verb never gets folded onto an existing surface id because
+      // it is convenient — `arc show` is not a `library-artifact` read.
+      `surfaceId for ${JSON.stringify(c.argv)}`,
+    );
+    if (c.nodeId !== undefined) {
+      assert.equal(event && "nodeId" in event ? event.nodeId : undefined, c.nodeId);
+    }
+    if (c.operation !== undefined) {
+      assert.equal(event && "operation" in event ? event.operation : undefined, c.operation);
+    }
+    assertValid(event);
+  }
+});
+
+test("a WRITE in a read-bearing area is still silent — the widened allowlist did not widen into writes", () => {
+  const { deps } = harness();
+  for (const argv of [
+    ["arc", "new", "--title", "An arc", "--pg"],
+    ["arc", "edit", "arc-1", "--intent", "@i.txt", "--pg"],
+    ["arc", "increment", "close", "inc-a", "--pr", "1", "--pg"],
+    ["arc", "close", "arc-1", "--pg"],
+    ["question", "new", "--arc", "arc-1", "--title", "why", "--pg"],
+    ["question", "settle", "oq-a", "--answer", "@a.txt", "--pg"],
+    ["friction", "new", "--file", "f.json", "--pg"],
+    ["friction", "route", "fr-1", "--route", "guidance", "--pg"],
+    ["library", "graduate", "park", "some-memory", "--reason", "it stays"],
+    // A verb word is never an id: these must not be read as artifacts called "focus" or "spec".
+    ["library", "tree"],
+    ["library", "tree", "focus"],
+    ["tree", "spec"],
+    // Flags are not ids either, so a help or bare-flag invocation observes nothing.
+    ["library", "search", "--help"],
+    ["library", "related", "--help"],
+    ["arc", "show"],
+    ["question", "check"],
+  ]) {
+    assert.deepEqual(
+      observeCliInvocation(argv, deps),
+      [],
+      `expected zero events for ${JSON.stringify(argv)}`,
+    );
+  }
+});
+
+test("an area declared to carry no corpus reads observes nothing, and says why", () => {
+  const { deps } = harness();
+  for (const [area, why] of Object.entries(AREAS_WITHOUT_CORPUS_READS)) {
+    assert.deepEqual(
+      observeCliInvocation([area], deps),
+      [],
+      `expected zero events for the bare ${area} area`,
+    );
+    assert.deepEqual(observeCliInvocation([area, "list"], deps), [], `expected zero events for ${area} list`);
+    // Subtractive safety: an EMPTY reason would let a whole area be silenced by accident and read as
+    // a decision. The reason is the record that somebody classified it.
+    assert.ok(why.trim().length > 10, `${area} needs a stated reason`);
+  }
+});
+
+test("the matcher probes deep enough for the deepest key the table holds", () => {
+  // A key longer than the probe would simply never match, and nothing else would say so — the
+  // verb would be classified, look classified, and observe nothing. `library tree focus *` is four
+  // segments today; a five-segment shape needs `KEY_LENGTHS` widened in the same landing.
+  const deepest = Math.max(...Object.keys(CLI_READ_VERBS).map((key) => key.split(" ").length));
+  assert.ok(deepest >= 1, "the table is empty");
+  assert.ok(
+    KEY_LENGTHS.includes(deepest as (typeof KEY_LENGTHS)[number]),
+    `the table holds a ${deepest}-segment key, which the matcher never probes for`,
+  );
+  // Descending, and down to 1: a longest-first probe is what keeps a LITERAL key beating a shorter
+  // wildcard, and stopping above 1 would lose the bare `library` dashboard.
+  assert.deepEqual([...KEY_LENGTHS], [...KEY_LENGTHS].sort((a, b) => b - a));
+  assert.equal(KEY_LENGTHS[KEY_LENGTHS.length - 1], 1);
+});
+
+test("every table entry is classified, and every silence carries its reason", () => {
+  const keys = Object.keys(CLI_READ_VERBS);
+  // Anti-vacuity: an emptied table would make every assertion above pass by finding nothing.
+  assert.ok(keys.length >= 30, `expected a populated verb table, got ${keys.length}`);
+  // Same floor on the other half — an emptied read-free map silences every area by omission, and
+  // the loop above it would then iterate nothing and agree.
+  assert.ok(
+    Object.keys(AREAS_WITHOUT_CORPUS_READS).length >= 25,
+    `expected the read-free areas to be enumerated, got ${Object.keys(AREAS_WITHOUT_CORPUS_READS).length}`,
+  );
+  for (const key of keys) {
+    const spec = verbSpecFor(key);
+    assert.ok(spec !== undefined, `${key} resolves to a spec`);
+    if (spec === undefined) continue;
+    // The TAG is what the observer branches on, so a row whose tag is not one of the three words
+    // falls through to whichever branch happens to be last — silently, and as a read.
+    assert.ok(
+      ["visit", "search", "nothing"].includes(spec.observes),
+      `${key} carries an unknown classification ${JSON.stringify(spec.observes)}`,
+    );
+    if (spec.observes === "nothing") {
+      assert.ok(spec.why.trim().length > 10, `${key} needs a stated reason for its silence`);
+      continue;
+    }
+    assert.ok(spec.surfaceId.length > 0, `${key} needs a surface id`);
+    // A search's anchor policy is a property of its WILDCARD: a key without one has no token to
+    // anchor on, so declaring a policy there would be a field that means nothing.
+    if (spec.observes === "search" && !key.endsWith("*")) {
+      assert.equal(spec.anchored, undefined, `${key} has no wildcard, so it declares no anchor`);
+    }
   }
 });
 

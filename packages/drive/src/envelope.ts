@@ -36,6 +36,24 @@ export interface Envelope {
    * than `ok: false`, that is a body-text problem, not an exit-code one.
    */
   readonly exitCode?: number;
+  /**
+   * The canonical artifact ids a SEARCH-shaped read actually returned — carried out to the
+   * traversal capture, never rendered (ADR-0484 D3).
+   *
+   * WHY IT RIDES THE ENVELOPE. The traversal observer is pure argv-in/events-out, so it cannot know
+   * what a ranking returned; and the alternative — re-running the search inside the capture — puts a
+   * second whole-corpus scan behind the read it is observing. The command already computed the
+   * answer, so it hands it over. `exitCode` is the precedent: a field `formatEnvelope` never prints,
+   * carried out to `main` because the process needs it and the render must not change.
+   *
+   * NORMALLY ABSENT, and the absence is load-bearing: `resultNodeIds: []` on a recorded search must
+   * mean "this search matched nothing", never "nobody plumbed the results through". Every verb
+   * classified as a search in `CLI_READ_VERBS` sets it — including on a zero-hit render — and
+   * `cli-read-verbs.test.ts` drives each one and reds if it does not.
+   *
+   * Ids only. It must never carry titles, bodies, scores or the query (ADR-0235 clause 6).
+   */
+  readonly observedResultIds?: readonly string[];
 }
 
 /** Render an {@link Envelope} to the text the agent reads on stdout. */

@@ -182,6 +182,10 @@ export async function librarySearch(store: Store, query: string | undefined, opt
         `  (${result.scanned} ${scope} were available to rank.)`,
       ].join("\n"),
       next: ['storytree library search "<a more specific term>"'],
+      // A REAL empty, recorded as one (ADR-0484 D3): nothing was ranked, so nothing was found. The
+      // field is set on every ok path of this verb, the two no-hit ones included, because an ABSENT
+      // `observedResultIds` is what a trace reads as "unplumbed" rather than as "zero".
+      observedResultIds: [],
     };
   }
   if (result.matchCount === 0) {
@@ -197,6 +201,7 @@ export async function librarySearch(store: Store, query: string | undefined, opt
         ...withheldNote(result.withheld),
       ].join("\n"),
       next: ['storytree library search "<other terms>"', "storytree library"],
+      observedResultIds: [],
     };
   }
 
@@ -218,6 +223,9 @@ export async function librarySearch(store: Store, query: string | undefined, opt
       `storytree library artifact ${result.hits[0]?.id ?? "<id>"}`,
       `storytree library related ${result.hits[0]?.id ?? "<id>"} --unlinked`,
     ],
+    // The PRINTED page, not `matchCount` — the trace records the set the agent was actually shown,
+    // which is the one a later read can be checked against. A truncated ranking says so in the body.
+    observedResultIds: result.hits.map((h) => h.id),
   };
 }
 
@@ -300,6 +308,7 @@ export async function libraryRelated(
       ok: true,
       body: [...header, ``, why].join("\n"),
       next: [`storytree library related ${id}`, "storytree library"],
+      observedResultIds: [],
     };
   }
 
@@ -317,6 +326,7 @@ export async function libraryRelated(
         ? `storytree library related ${id}   (show the linked ones too)`
         : `storytree library related ${id} --unlinked   (only what nothing points at)`,
     ],
+    observedResultIds: result.hits.map((h) => h.id),
   };
 }
 

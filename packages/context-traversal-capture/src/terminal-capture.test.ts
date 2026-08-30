@@ -164,3 +164,73 @@ test("showTraversalSession: the render declares the SURVIVING outermost coverage
   assert.ok(rendered.body.includes("coverage-caveats:"));
   assert.ok(rendered.body.includes("offers-and-follows-are-no-longer-recorded"));
 });
+
+test("captureCliInvocation: a search's RESULT IDS reach the trace, and their absence is not an empty set", () => {
+  // The composition owns the absent-vs-empty decision (ADR-0484 D3), which is why it is asserted
+  // here rather than in the CLI entry point: `resultNodeIds: []` on a written line must mean "this
+  // search matched nothing", never "the caller passed nothing through".
+  const dir = freshDir("search-results");
+  captureCliInvocation({
+    argv: ["library", "search", "amends"],
+    ok: true,
+    sessionId: "session-results",
+    dir,
+    enabled: true,
+    now: () => AT,
+    nextId: () => "search-with-results",
+    resultNodeIds: ["adr-0431", "adr-0139"],
+  });
+
+  const { replay } = readTraversalSession({ dir, sessionId: "session-results" });
+  assert.equal(replay.events.length, 1);
+  const [event] = replay.events;
+  assert.equal(event?.kind, "search");
+  assert.deepEqual(
+    event && "resultNodeIds" in event ? event.resultNodeIds : undefined,
+    ["adr-0431", "adr-0139"],
+  );
+});
+
+test("captureCliInvocation: a search captured with NO result ids still writes the event, with an empty set", () => {
+  const dir = freshDir("search-none");
+  captureCliInvocation({
+    argv: ["library", "search", "amends"],
+    ok: true,
+    sessionId: "session-none",
+    dir,
+    enabled: true,
+    now: () => AT,
+    nextId: () => "search-without-results",
+    // Deliberately omitted — the shape every non-search dispatch takes, and the shape the CLI passes
+    // when an envelope carried none.
+  });
+
+  const { replay } = readTraversalSession({ dir, sessionId: "session-none" });
+  assert.equal(replay.events.length, 1);
+  const [event] = replay.events;
+  assert.equal(event?.kind, "search");
+  assert.deepEqual(event && "resultNodeIds" in event ? event.resultNodeIds : undefined, []);
+});
+
+test("captureCliInvocation: a NON-search read is unaffected by result ids the caller happens to pass", () => {
+  // The observer reads `resultNodeIds` only on a search shape. Asserting it here keeps the plumbing
+  // from leaking into visit events, where a result set would mean nothing.
+  const dir = freshDir("visit-with-results");
+  captureCliInvocation({
+    argv: ["library", "artifact", "plan"],
+    ok: true,
+    sessionId: "session-visit",
+    dir,
+    enabled: true,
+    now: () => AT,
+    nextId: () => "visit-1",
+    resultNodeIds: ["ignored-1"],
+  });
+
+  const { replay } = readTraversalSession({ dir, sessionId: "session-visit" });
+  assert.equal(replay.events.length, 1);
+  const [event] = replay.events;
+  assert.ok(event !== undefined);
+  assert.equal(isContextVisitEvent(event) ? event.nodeId : undefined, "plan");
+  assert.equal(JSON.stringify(event).includes("ignored-1"), false);
+});
