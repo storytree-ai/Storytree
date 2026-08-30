@@ -241,6 +241,32 @@ for (const zoom of LAND_ZOOMS) {
   }
 }
 
+// ⚠ AND THE SHADOW ARM'S OWN NON-VACUITY, WHICH NO PIXEL SWEEP CAN SUPPLY. A frame with no
+//    shadow in it is a perfectly ordinary-looking frame; what says the field reached the material
+//    at all is that the field itself has something in it. The scene reports its own coverage, so
+//    an empty occlusion field is caught here rather than turning up as "the shadow step changes
+//    0% of the frame" — which reads as a broken material rather than as an empty field.
+{
+  const shadowScene = await page.evaluate(() => window.landRunner.occlusion('shadow', 8));
+  if (!(shadowScene.casters > 0)) {
+    fail(
+      'the shadow arm was built from ZERO casters — the island has nothing standing on it, so ' +
+        'every shadow figure below would be a figure about an empty field',
+    );
+  }
+  if (!(shadowScene.occlusionCoverage > 0)) {
+    fail(
+      `the shadow arm's occlusion field covers ${shadowScene.occlusionCoverage} of the ground ` +
+        'rect — the field is empty, and no material change could show a shadow that is not there',
+    );
+  }
+  console.log(
+    `  the occlusion field: ${shadowScene.casters} caster(s), ` +
+      `${(shadowScene.occlusionCoverage * 100).toFixed(2)}% of the padded ground rect past the ` +
+      "material's own 0.5 threshold",
+  );
+}
+
 const changed = new Map();
 for (const zoom of LAND_ZOOMS) {
   for (const [a, b] of LAND_STEPS) {
@@ -336,6 +362,22 @@ for (const zoom of LAND_ZOOMS) {
   }
 }
 
+// ⚠ AND THE TWO PICTURES WITH THE TREE IN THEM, which are for LOOKING at and are measured by
+//    nothing above. Every arm in the ladder is ground-only, because the palette closure is asked
+//    of delivered pixels and a `MeshStandardMaterial` crown puts thousands of them in the frame
+//    that are off the ground palette by construction. But a shadow with nothing casting it is not
+//    a picture anyone can judge, so the owner's pair is taken separately and labelled as such.
+for (const arm of ['grain-normal', 'shadow']) {
+  const dataUrl = await page.evaluate(
+    ([a, z]) => window.landRunner.snapshotTreed(a, z),
+    [arm, 8],
+  );
+  const name = `shipped-${arm}-treed-8px.png`;
+  writeFileSync(join(OUT, name), Buffer.from(dataUrl.split(',')[1], 'base64'));
+  pictures.push(name);
+  console.log(`  wrote ${name}`);
+}
+
 // ── THE VERDICT — ⚠⚠ TWO OF THEM, and the reason is a finding rather than a complication.
 //
 // `frameBudgetVerdict` is built on ONE premise about its caller's arms: every non-baseline row
@@ -379,8 +421,13 @@ const geometryVerdict = frameBudgetVerdict({
 //     premise wants, and it is a stronger version of the segment than the ladder crossing could
 //     run: its ceiling arm was a different material, so "more work" rested on the two being
 //     comparable at all. Here the three rows are the same shader plus a term.
+// ⚠ FOUR ROWS NOW, AND THE SEGMENT IS A FORK RATHER THAN A CHAIN. `shadow` and `grain-both` both
+//     extend `grain-normal` and neither extends the other, which is fine here and would not be
+//     fine in `LAND_STEPS`: this verdict's premise is that every non-baseline row does strictly
+//     more fragment work THAN THE BASELINE, not than the row above it. Both do — a texture fetch
+//     and a compare chain, or a second field evaluation and a mix — so both belong in the segment.
 const materialVerdict = frameBudgetVerdict({
-  rows: rowsFor(['banded', 'grain-normal', 'grain-both']),
+  rows: rowsFor(['banded', 'grain-normal', 'shadow', 'grain-both']),
   baselineLabel: `banded @ ${LAND_ZOOMS[0]}px`,
 });
 const verdict = {
@@ -442,7 +489,7 @@ console.log(
 console.log('');
 for (const zoom of LAND_ZOOMS) {
   const flat = median(readings.get(`flat|${zoom}`).samples);
-  for (const arm of ['banded', 'grain-normal']) {
+  for (const arm of ['banded', 'grain-normal', 'shadow']) {
     const m = median(readings.get(`${arm}|${zoom}`).samples);
     const pct = flat === 0 ? Number.NaN : ((m - flat) / flat) * 100;
     console.log(
@@ -454,7 +501,9 @@ for (const zoom of LAND_ZOOMS) {
 console.log('');
 console.log(`frame budget (geometry: flat -> relief): ${verdict.geometry.status}`);
 for (const reason of verdict.geometry.reasons ?? []) console.log(`  ${reason}`);
-console.log(`frame budget (material: banded -> grain-normal -> grain-both): ${verdict.material.status}`);
+console.log(
+  `frame budget (material: banded -> grain-normal -> {shadow, grain-both}): ${verdict.material.status}`,
+);
 for (const reason of verdict.material.reasons ?? []) console.log(`  ${reason}`);
 console.log(`frame budget: ${verdict.status}`);
 
@@ -470,6 +519,7 @@ writeFileSync(
       changedPct: Object.fromEntries(changed),
       offPalette: Object.fromEntries(offPalette),
       grainReading,
+      shadowField: await page.evaluate(() => window.landRunner.occlusion('shadow', 8)),
       softwareRun: identity.software,
       arms: Object.fromEntries([...readings.entries()].map(([k, v]) => [k, { ...v, median: median(v.samples), spread: spread(v.samples) }])),
       verdict,

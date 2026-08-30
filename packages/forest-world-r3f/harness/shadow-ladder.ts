@@ -43,26 +43,25 @@ import {
   familylessTokens,
   landTokens,
   parseHex,
-  rungOfNormal,
   toHex,
   type Rgb255,
 } from './palette-band.js';
+import { colourDistance2, flatGroundLevel, W_LUMA } from '../src/shadow-rung.js';
 
-/** The channel weighting the compositor's `snap` and `nearest_status` share, so "near"
- *  means the same thing to the quantiser and to the test. Verbatim from
- *  `chapter2-land-interior-fork-2026-08-15/compose.py:140` — NOT a new choice. */
-export const W_LUMA: readonly [number, number, number] = [0.3, 0.59, 0.11];
+// ⚠ THE WEIGHTING, THE DISTANCE AND THE REFERENCE RUNG ARE RE-EXPORTED RATHER THAN DEFINED HERE.
+// They crossed into `src/shadow-rung.ts` on 2026-08-30, because the SHIPPED material needs the
+// derived rung and cannot import an instrument out of `harness/`. Two copies of a channel
+// weighting is exactly how a judge and the thing it judges come to disagree about what "near"
+// means, so there is one. What did NOT cross is everything below: the reader model's provenance
+// argument, the three recorded configurations it reproduces, and the status-keyed table — all of
+// which are about the EXPERIMENT island's vocabulary and none of which publishes.
+export { colourDistance2, W_LUMA };
 
 /** The statuses `worldStatus` can actually put on an island: `unhealthy` folds to `mapped`
  *  (ADR-0296) and `building` to `proposed` (ADR-0038), so the admissible set is the four
  *  survivors rather than all six of `STATUS_TOKENS`. Both sets are measured in the test;
  *  this is the one the shipping question is about. */
 export const RENDERED_STATUSES: readonly string[] = ['healthy', 'mapped', 'proposed', 'unknown'];
-
-/** Weighted squared distance — the space `nearest_status` searches. */
-export function colourDistance2(a: Rgb255, b: Rgb255): number {
-  return W_LUMA[0] * (a.r - b.r) ** 2 + W_LUMA[1] * (a.g - b.g) ** 2 + W_LUMA[2] * (a.b - b.b) ** 2;
-}
 
 /** Luminance of a delivered colour under the same weighting. Reported for the INTUITION
  *  (why the ladder is tight), never used as the verdict — the statuses differ in hue as
@@ -205,7 +204,7 @@ export function safeDepth(
  * built at THIS level or the instrument compares a delivered colour against a reference the
  * renderer never draws.
  */
-export const FLAT_GROUND_LEVEL: number = SHADE_LEVELS[rungOfNormal({ x: 0, y: 1, z: 0 })]!;
+export const FLAT_GROUND_LEVEL: number = flatGroundLevel();
 
 /** The live renderer's own reader table: one token per status, at the level flat ground is
  *  actually delivered at. */

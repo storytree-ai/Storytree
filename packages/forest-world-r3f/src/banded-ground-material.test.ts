@@ -11,12 +11,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { DataTexture } from 'three';
+
 import {
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
   groundRamp,
+  groundShadowTexture,
+  litRemapGlsl,
   rampSelectGlsl,
+  shadowDarkenGlsl,
 } from './banded-ground-material.js';
+import { buildGroundOcclusion } from './contact-shade.js';
+import { shadowLadderFor } from './shadow-rung.js';
 import {
   GRAIN_COLOUR_MIX,
   GRAIN_NORMAL_STRENGTH,
@@ -304,6 +311,12 @@ test('AN ABSENT GRAIN CHANGES NOTHING — same source, same uniforms, byte for b
     ['fragment: the world varying', 'varying vec3 vNormal;\n\n      void main() {'],
     ['fragment: the normal stage', 'vec3 n = normalize(vNormal);\n        // Half-lambert'],
     ['fragment: the colour write', '\n        gl_FragColor = vec4(c, 1.0);\n      }'],
+    // The shadow's own interpolation site: the index stage. An unshadowed material must join
+    // straight from the half-lambert to the one `int idx` line it has always had.
+    [
+      'fragment: the index stage',
+      'float lambert = dot(n, normalize(uLightDir)) * 0.5 + 0.5;\n        // +0.5 then truncate',
+    ],
   ];
   for (const [what, expected] of joins) {
     assert.ok(bare.fragmentShader.includes(expected), `${what} left residue behind`);
@@ -432,4 +445,215 @@ test('a GRAINED material really emits every fragment the grain needs — positiv
   // ⚠ AND `normal` MUST NOT CARRY THE COLOUR HALF'S UNIFORM. A declared-but-unused uniform is a
   // reader taking the shipped material for the off-palette one.
   assert.ok(!g.fragmentShader.includes('uGrainColourMix'));
+});
+
+// ---------------------------------------------------------------------------
+// THE SHADOW — the fourth component of the approved treatment to reach this material.
+//
+// ⚠ THE CLAIM THAT MATTERS IS STILL THE CLOSURE, and the shadow is the first option that grows
+// the palette rather than merely moving within it. It grows it by exactly ONE authored level per
+// row: `token x SHADOW_RUNG`, a member of the same `(authored token x authored level)` closure
+// the palette is defined as. The shadow costs palette ENTRIES; it does not cost the closure, and
+// `the ramp grows by exactly one level per row` is what says so.
+// ---------------------------------------------------------------------------
+
+/** A field over a small rect with one caster in it — enough to build a real texture from. */
+const testShadow = () =>
+  groundShadowTexture(
+    buildGroundOcclusion({
+      bounds: { minX: -40, maxX: 40, minZ: -40, maxZ: 40 },
+      relief: 2.2,
+      casters: [{ x: 0, z: 0, radius: 7, height: 19 }],
+    }),
+  );
+
+test('AN ABSENT SHADOW CHANGES NOTHING — no uniform, no sampler, no varying', () => {
+  const bare = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS });
+  assert.ok(!/uShadow/.test(bare.fragmentShader), 'an unshadowed fragment stage names no shadow');
+  assert.ok(!/texture2D/.test(bare.fragmentShader), 'and samples no texture');
+  assert.ok(!/sampler2D/.test(bare.fragmentShader));
+  assert.deepEqual(Object.keys(bare.uniforms).sort(), ['uLightDir', 'uRamp']);
+  // The ramp stays the four authored rungs per row.
+  assert.equal((bare.uniforms['uRamp']!.value as unknown[]).length, SHIPPED_TOKENS.length * 4);
+  assert.ok(
+    bare.fragmentShader.includes('int idx = int(vStatus + 0.5) * ST_N_LEVELS + st_bandIndex(lambert);'),
+  );
+});
+
+test('NON-VACUITY: a shadowed material really does fill every one of those sites', () => {
+  // Without this, the absent-shadow test above is satisfied by a builder that ignores the option.
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
+  assert.ok(m.fragmentShader.includes('uniform sampler2D uShadowTex;'));
+  assert.ok(m.fragmentShader.includes('uniform vec4 uShadowRect;'));
+  assert.ok(m.fragmentShader.includes('texture2D(uShadowTex, shUv).r > 0.5'));
+  assert.deepEqual(Object.keys(m.uniforms).sort(), [
+    'uLightDir',
+    'uRamp',
+    'uShadowRect',
+    'uShadowTex',
+  ]);
+  assert.ok(
+    !m.fragmentShader.includes('int idx = int(vStatus + 0.5) * ST_N_LEVELS + st_bandIndex(lambert);'),
+  );
+});
+
+test('THE RAMP GROWS BY EXACTLY ONE LEVEL PER ROW, and every entry is still authored', () => {
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
+  const ladder = shadowLadderFor(SHIPPED_TOKENS);
+  const ramp = m.uniforms['uRamp']!.value as { x: number; y: number; z: number }[];
+  assert.equal(ramp.length, SHIPPED_TOKENS.length * (SHADE_LEVELS.length + 1));
+  assert.equal(ramp.length, SHIPPED_TOKENS.length * 5);
+  // ⚠ THE CLOSURE, ENUMERATED RATHER THAN SAMPLED: every uploaded colour must be exactly
+  // `deliveredForLevel(token, level)` for a level ON the shadow ladder.
+  SHIPPED_TOKENS.forEach((token, row) => {
+    ladder.levels.forEach((level, rung) => {
+      const c = deliveredForLevel(token, level);
+      const entry = ramp[row * ladder.levels.length + rung]!;
+      assert.equal(
+        toHex({
+          r: Math.round(entry.x * 255),
+          g: Math.round(entry.y * 255),
+          b: Math.round(entry.z * 255),
+        }),
+        toHex(c),
+        `row ${row} rung ${rung}`,
+      );
+    });
+  });
+});
+
+test('groundRamp over the shadow ladder is the same array the material uploads', () => {
+  const ladder = shadowLadderFor(SHIPPED_TOKENS);
+  assert.equal(groundRamp(SHIPPED_TOKENS, ladder.levels).length, 30);
+  // And the default is still the authored ladder, so every existing caller is unmoved.
+  assert.equal(groundRamp(SHIPPED_TOKENS).length, 24);
+});
+
+test('THE FRAGMENT SELECTS — the shadow adds no arithmetic to a delivered colour', () => {
+  // The whole closure argument in one assertion: the only expression reaching `gl_FragColor` is
+  // still a `uRamp` element. A shadow that multiplied, mixed or subtracted would break it.
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
+  const body = m.fragmentShader.slice(m.fragmentShader.indexOf('void main('));
+  assert.ok(body.includes('gl_FragColor = vec4(c, 1.0);'));
+  assert.ok(!/gl_FragColor = vec4\(c \*/.test(body), 'no multiply on the way out');
+  assert.ok(!/mix\(c,/.test(body), 'no mix on the way out');
+});
+
+test('THE STRIDE MOVES WITH THE LADDER — a shadowed row is five entries wide', () => {
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
+  assert.ok(
+    m.fragmentShader.includes('int idx = int(vStatus + 0.5) * 5 + lvl;'),
+    'the shadowed stride must be the shadow ladder’s length, not ST_N_LEVELS',
+  );
+  // ⚠ A stride left at 4 would select the NEXT ROW's colours for every status past the first —
+  // a foreign-status read on the surface whose whole job is to report status.
+  assert.ok(!m.fragmentShader.includes('* ST_N_LEVELS + lvl'));
+});
+
+test('the lit remap is emitted LINE FOR LINE, and it is a lookup rather than an offset', () => {
+  // ⚠ 44 of the grain crossing's 109 mutation survivors were BLANKED GLSL LITERALS. A generator's
+  // emitted source has to be pinned as source, not merely exercised.
+  assert.equal(
+    litRemapGlsl([1, 2, 3, 4]),
+    'if (rung == 0) lvl = 1;\n        if (rung == 1) lvl = 2;\n        ' +
+      'if (rung == 2) lvl = 3;\n        if (rung == 3) lvl = 4;',
+  );
+  // A rung landing MID-ladder produces a non-uniform remap, which an offset could not express.
+  assert.equal(
+    litRemapGlsl([0, 1, 3, 4]),
+    'if (rung == 0) lvl = 0;\n        if (rung == 1) lvl = 1;\n        ' +
+      'if (rung == 2) lvl = 3;\n        if (rung == 3) lvl = 4;',
+  );
+  assert.equal(litRemapGlsl([]), '');
+});
+
+test('the darken chain is emitted line for line, and sends every named rung to the shadow', () => {
+  assert.equal(
+    shadowDarkenGlsl([0, 1, 2, 3], 0),
+    'if (rung == 0) lvl = 0;\n            if (rung == 1) lvl = 0;\n            ' +
+      'if (rung == 2) lvl = 0;\n            if (rung == 3) lvl = 0;',
+  );
+  // A rung index other than 0, so the literal is not simply the loop counter wearing a name.
+  assert.equal(shadowDarkenGlsl([2], 7), 'if (rung == 2) lvl = 7;');
+  assert.equal(shadowDarkenGlsl([], 0), '');
+});
+
+test('the shipped material’s own remap and darken chains are in its source', () => {
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
+  const ladder = shadowLadderFor(SHIPPED_TOKENS);
+  assert.ok(m.fragmentShader.includes(litRemapGlsl(ladder.litIndex)));
+  assert.ok(m.fragmentShader.includes(shadowDarkenGlsl(ladder.darkenable, ladder.rungIndex)));
+});
+
+test('the shadow is sampled in GROUND space, through the rect the texture was built with', () => {
+  const shadow = testShadow();
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow });
+  assert.ok(
+    m.fragmentShader.includes('vec2 shUv = vec2((vWorld.x - uShadowRect.x) * uShadowRect.z,'),
+  );
+  assert.ok(m.fragmentShader.includes('(vWorld.z - uShadowRect.y) * uShadowRect.w);'));
+  assert.ok(m.vertexShader.includes('vWorld = (modelMatrix * vec4(position, 1.0)).xyz;'));
+  // The rect carries the RECIPROCAL spans, so the fragment multiplies rather than divides.
+  const rect = m.uniforms['uShadowRect']!.value as { x: number; y: number; z: number; w: number };
+  assert.equal(rect.x, shadow.minX);
+  assert.equal(rect.y, shadow.minZ);
+  assert.ok(Math.abs(rect.z - 1 / shadow.spanX) < 1e-12);
+  assert.ok(Math.abs(rect.w - 1 / shadow.spanZ) < 1e-12);
+});
+
+test('the uploaded texture covers the field’s own ground rect', () => {
+  const field = buildGroundOcclusion({
+    bounds: { minX: -40, maxX: 40, minZ: -40, maxZ: 40 },
+    relief: 2.2,
+    casters: [],
+  });
+  const shadow = groundShadowTexture(field);
+  assert.equal(shadow.minX, field.minX);
+  assert.equal(shadow.minZ, field.minZ);
+  assert.ok(Math.abs(shadow.spanX - field.w / field.gres) < 1e-12);
+  assert.ok(Math.abs(shadow.spanZ - field.h / field.gres) < 1e-12);
+  // The texture really carries the field's own samples, at the field's own dimensions — an
+  // `instanceof` rather than a cast, because a cast would discard exactly the evidence being
+  // asked for (the house TypeScript standard's `no-unsafe-cast`).
+  assert.ok(shadow.texture instanceof DataTexture);
+  assert.equal(shadow.texture.image.width, field.w);
+  assert.equal(shadow.texture.image.height, field.h);
+  assert.equal(shadow.texture.image.data, field.data);
+});
+
+test('a shadowed material still declares its GRAIN when it wears one, and both when both', () => {
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    shadow: testShadow(),
+  });
+  assert.ok(m.fragmentShader.includes('uniform float uGrainNormalStrength;'));
+  assert.ok(m.fragmentShader.includes('uniform sampler2D uShadowTex;'));
+  assert.ok(grainKeepsPaletteClosed(m.fragmentShader), 'the shipped combination stays closed');
+  // ONE world varying, not two: both riders share it.
+  assert.equal(m.vertexShader.split('varying vec3 vWorld;').length - 1, 1);
+  // And the GRAIN's own comment is the one that survives, so a grained material's source is
+  // unchanged at that site by the shadow's arrival.
+  assert.ok(
+    m.vertexShader.includes(
+      '// The grain is authored in GROUND coordinates, so it is sampled in them.',
+    ),
+  );
+});
+
+test('a shadowed material with NO grain says so at the world varying’s own site', () => {
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
+  assert.ok(
+    m.vertexShader.includes(
+      '// The occlusion field is authored in GROUND coordinates, so it is sampled in them.',
+    ),
+  );
+  assert.ok(!m.vertexShader.includes('// The grain is authored in GROUND coordinates'));
+});
+
+test('a palette that cannot carry a shadow REFUSES rather than shipping a lie', () => {
+  assert.throws(
+    () => createBandedGroundMaterial({ tokens: ['#808080', '#7f7f7f'], shadow: testShadow() }),
+    /cannot be drawn inside this closed palette/,
+  );
 });
