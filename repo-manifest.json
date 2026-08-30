@@ -379,6 +379,7 @@
       "apps/studio/server/deriveOfflineCorpus.ts": "seed-library-corpus",
       "apps/studio/server/libraryBackend.ts": "browse-library",
       "apps/studio/server/contextWindowsApi.ts": "studio",
+      "apps/studio/server/verifyLegacyDecisionReads.ts": "studio",
       "apps/studio/server/storeDoorApi.ts": "event-sourced-store-seam",
       "apps/studio/server/writeBroker.ts": "write-broker",
       "apps/studio/server/guestPolicy.ts": "member-suggest-write-policy",
