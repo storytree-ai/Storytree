@@ -26,6 +26,7 @@
  */
 
 import { renderStoredDoc } from "@storytree/library/store";
+import { agentManifestRefs } from "@storytree/library/agent-manifest";
 import {
   evaluateSurfaceDepth,
   surfaceDepthOf,
@@ -59,6 +60,10 @@ async function main(): Promise<void> {
         id: stored.id,
         dependsOn: strings(rendered.dependsOn),
         cites: strings(rendered.cites),
+        // READ OFF THE RENDERED WIRE, deliberately — this probe exists to mirror what the studio
+        // panel sees, and the panel is handed `renderStoredDoc` output. Reading `stored.doc` here
+        // would make the probe agree with itself and disagree with the surface it reports on.
+        manifest: agentManifestRefs(rendered),
         kind: kindOf(stored.doc),
       };
     });
@@ -76,6 +81,10 @@ async function main(): Promise<void> {
     console.log(
       `    ${verdict.nodesScanned} nodes (${verdict.artifactsScanned} artifacts + ` +
         `${verdict.decisionsScanned} decisions, counted ONCE each), ${verdict.edgesScanned} edges`,
+    );
+    console.log(
+      `    of those, ${verdict.manifestEdges} come from an AGENT MANIFEST — the ` +
+        `context/rules/antiPatterns/stepRefs an agent injects on every run (ADR-0481 D1)`,
     );
     console.log(
       `    ${verdict.surfaces} surfaces (${verdict.surfaceDecisions} of them decisions) · ` +

@@ -75,6 +75,7 @@ import {
   parseDecisionPointer,
   renderCombinedNodeId,
 } from "./decision-pointer.js";
+import { agentManifestRefs } from "./agent-manifest.js";
 import { readDependsOnPointers } from "./depends-on.js";
 import { findDependsOnCycles, type DependsOnSource } from "./knowledge-dag.js";
 
@@ -147,6 +148,17 @@ export interface CombinedDagVerdict {
 
   /** `asset:` edges from an artifact to an artifact this corpus holds. */
   readonly libraryEdges: number;
+  /**
+   * Edges resolved from an AGENT MANIFEST refList (ADR-0481 D1), part of the graph this proves.
+   *
+   * They are proved here rather than left out because ADR-0403 dec 5 rests on THIS verdict, and a
+   * proof over a narrower edge set than the one the depth walks traverse is the shape that keeps
+   * reporting ACYCLIC about a graph nobody walks. See {@link buildDependencyGraph}, which admits
+   * the same source.
+   */
+  readonly manifestEdges: number;
+  /** Manifest pointers naming no artifact this graph holds. */
+  readonly manifestDanglingEdges: number;
   /** `asset:` pointers naming no artifact here. Counted, never silently dropped. */
   readonly libraryDanglingEdges: number;
 
@@ -266,6 +278,8 @@ export function evaluateCombinedAcyclicity(
   const crossingBySpelling = new Map<string, number>();
   let libraryEdges = 0;
   let libraryDanglingEdges = 0;
+  let manifestEdges = 0;
+  let manifestDanglingEdges = 0;
   let crossingEdges = 0;
   let crossingDanglingEdges = 0;
   let nonDecisionDocPointers = 0;
@@ -303,6 +317,17 @@ export function evaluateCombinedAcyclicity(
       }
       crossingEdges += 1;
       targets.push(decisionNodeId(decision.number));
+    }
+    // THE AGENT MANIFEST (ADR-0481 D1) — the same source `buildDependencyGraph` admits, resolved
+    // here so this proof covers the graph the depth walks actually traverse. Bare ids already, so
+    // there is no pointer scheme to re-parse and no second copy of the rules to drift.
+    for (const target of agentManifestRefs(row.doc)) {
+      if (!artifactIds.has(target)) {
+        manifestDanglingEdges += 1;
+        continue;
+      }
+      manifestEdges += 1;
+      targets.push(target);
     }
     nodes.push({ id: row.id, dependsOn: targets });
   }
@@ -370,6 +395,8 @@ export function evaluateCombinedAcyclicity(
     decisionsScanned: decisionNumbers.size,
     libraryEdges,
     libraryDanglingEdges,
+    manifestEdges,
+    manifestDanglingEdges,
     crossingEdges,
     crossingDanglingEdges,
     crossingBySpelling,

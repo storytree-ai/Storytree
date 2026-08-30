@@ -51,6 +51,7 @@
 // failed. It renders as its own sentence and never as "0 annotated" — the same trap
 // `assetsStatus`/`assetsError` exist to prevent app-wide (ADR-0240 decision 3).
 
+import { agentManifestRefs } from '@storytree/library/agent-manifest';
 import { adrNumberOfArtifactId } from '@storytree/library/decision-pointer';
 import {
   decisionSupportResolver,
@@ -129,6 +130,12 @@ export function buildKnowledgeDepth(input: {
         id: asset.id,
         dependsOn: asset.dependsOn ?? [],
         cites: asset.cites ?? [],
+        // THE AGENT MANIFEST (ADR-0481 D1) — the `context` / `rules` / `antiPatterns` / `stepRefs`
+        // an agent injects into its own system prompt on every run. The whole asset is handed over,
+        // not `asset.fields`, because the reader has to find them on EITHER shape: they sit at the
+        // raw row's top level and under `fields` on this wire, and reading only one side is what
+        // returned a plausible zero before this landed. See `agent-manifest.ts`'s header.
+        manifest: agentManifestRefs(asset),
         // The kind the record-tier denominator splits on (ADR-0476 D3). `category` is the wire's
         // name for it and is present on every row.
         kind: asset.category,
@@ -284,6 +291,13 @@ export function reportKnowledgeDepth(
  * templates) that were never candidates for an edge, which stated a fact about our record-keeping as
  * though it were a fact about our knowledge. `recordScanned` travels in the hover so the exclusion is
  * visible rather than silently applied.
+ *
+ * WARNING: THE EDGE SET WIDENED ON 2026-08-30 (ADR-0481 D1), so this figure is NOT comparable to an
+ * older screenshot of it. The walk now also reads the AGENT MANIFEST — the `context` / `rules` /
+ * `antiPatterns` / `stepRefs` an agent injects into its own system prompt on every run — which
+ * un-orphaned ten artifacts, five of them the anti-slop guardrails. Measured in one corpus read:
+ * `682 of 744` becomes `692 of 744`, with only the edge source differing. The WORDING is unchanged
+ * because the sentence was already true of whatever edges the graph holds; the NUMBER moved.
  */
 export function linkageSummary(model: KnowledgeDepthModel): string | null {
   if (model.status !== 'measured') return null;

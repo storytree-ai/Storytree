@@ -69,6 +69,26 @@
 // than rendering blindness as health. That is the honest reading of a corpus where the near-work
 // layer is barely wired to the knowledge graph at all, and it is itself the finding.
 //
+// ## AND ON THE AGENT MANIFEST TOO, SINCE ADR-0481 D1
+//
+// `traversal-panel-arc` increment `traversal-depth-reads-the-agent-manifest`. `renderAgentDigest`
+// assembles an agent's system prompt from the agent row's `context` / `rules` / `antiPatterns`
+// refLists plus `stepRefs`, and NO walk read those four fields — so 116 artifacts injected into an
+// agent's prompt on every run of that agent read as orphans, ten of them reported `unlinked` by the
+// surface reading, including all five anti-slop guardrails. Delivery does not get more reliable than
+// a system prompt; a graph that cannot see that edge is describing a different corpus.
+//
+// The pointers are read by `agent-manifest.ts` — ONE reader, total over both the raw row and the
+// rendered wire, because the same fields wear two shapes across it (arrays at the top level; one
+// newline-joined string under `fields`) and a reader that knew only one returned a plausible zero.
+// Read that file's header before touching this edge.
+//
+// **THE DIRECTION IS THE SAME ONE EVERY OTHER EDGE HERE RUNS, and it is the clause to check first.**
+// An agent standing on a guardrail points from the stander to the stood-on, exactly as `dependsOn`
+// does. The inversion this file rejects two sections above is the REVERSE walk — following
+// `standsOn` upward, which would make an agent read as deeper than the work it sits above. Admitting
+// a down-tier edge is not that, and conflating the two is how this edge would get argued out again.
+//
 // ## THE WALK CONTINUES PAST A DECISION NOW — ON `amends` ONLY, BEHIND A SEAM (ADR-0403)
 //
 // `adrs-into-the-dag-arc` increment 09. Until 2026-08-22 every `doc:` pointer was a SINK: ADR-0223
@@ -146,6 +166,7 @@ import {
   parseDecisionPointer,
 } from "./decision-pointer.js";
 import { type DecisionSupportResolver } from "./decision-support-seam.js";
+import { agentManifestRefs } from "./agent-manifest.js";
 import { readDependsOnPointers } from "./depends-on.js";
 
 import { parseCiteRef } from "./knowledge.js";
@@ -157,6 +178,17 @@ export interface DepthFromWorkNode {
   readonly dependsOn: readonly string[];
   /** Authored `cites` pointers, exactly as stored (`story:` / `capability:` / `asset:`). */
   readonly cites: readonly string[];
+  /**
+   * The AGENT MANIFEST's targets, already resolved to bare artifact ids by `agentManifestRefs` —
+   * empty for every non-agent row (ADR-0481 D1).
+   *
+   * REQUIRED, not optional, and that is the whole point. This field exists because an edge source
+   * that no walk read left 116 injected artifacts reading as orphans; an optional field would let
+   * the next caller reproduce exactly that by forgetting it, silently and with no counter moving.
+   * The three real callers (the studio wire, both probes) all hold the doc these come from, and the
+   * tests build their nodes through {@link depthFromWorkNodes} rather than by hand.
+   */
+  readonly manifest: readonly string[];
 }
 
 /** The minimal stored-doc facts {@link depthFromWorkNodes} needs. Matches `StoredDoc` structurally. */
@@ -261,6 +293,16 @@ export interface DepthFromWorkVerdict {
    * naming a decision the resolver does not hold.
    */
   readonly decisionDanglingTargets: number;
+  /**
+   * Edges resolved from an AGENT MANIFEST refList (ADR-0481 D1) — part of {@link edgesScanned}.
+   *
+   * 0 over a corpus holding agent rows means THE MANIFEST READER IS BLIND, which is a different
+   * fact from a corpus whose agents inject nothing. That distinction is the entire reason this
+   * counter exists rather than the edges merely being added.
+   */
+  readonly manifestEdges: number;
+  /** Manifest pointers naming no artifact the corpus holds. A declared floor, never a silent drop. */
+  readonly manifestDanglingTargets: number;
   /** How many decisions have a depth — reachable from the work through some artifact. */
   readonly decisionsReached: number;
   /** The reached DECISION distribution, ascending by depth. */
@@ -295,6 +337,7 @@ export function depthFromWorkNodes(docs: readonly DepthFromWorkSource[]): DepthF
       id: row.id,
       dependsOn: readDependsOnPointers(row.doc),
       cites: stringsOf(payload?.cites),
+      manifest: agentManifestRefs(row.doc),
     };
   });
 }
@@ -347,6 +390,10 @@ export interface DependencyGraph {
   readonly decisionDanglingTargets: number;
   readonly decisionsScanned: number;
   readonly decisionsCarryingDependsOn: number;
+  /** Edges resolved from an AGENT MANIFEST refList (ADR-0481 D1). Part of `edgesScanned`. */
+  readonly manifestEdges: number;
+  /** Manifest pointers naming no artifact this graph holds. Counted, never silently dropped. */
+  readonly manifestDanglingTargets: number;
 }
 
 /** PURE: resolve the joined artifact + decision adjacency. See {@link DependencyGraph}. */
@@ -404,6 +451,8 @@ export function buildDependencyGraph(
   let decisionDependsOnEdges = 0;
   let decisionDependsOnUnwalkedTargets = 0;
   let decisionDanglingTargets = 0;
+  let manifestEdges = 0;
+  let manifestDanglingTargets = 0;
 
   // The outbound edge set per node, resolved once: `dependsOn` plus the `asset:` half of `cites`
   // (see the header — an increment's dependency edge lives in `cites`, and 0 of the anchors carry
@@ -486,6 +535,24 @@ export function buildDependencyGraph(
       isAnchor = true;
     }
 
+    // THE AGENT MANIFEST (ADR-0481 D1). Already resolved to bare ids by `agentManifestRefs`, so
+    // there is no pointer to parse here and no second copy of the scheme rules to drift — the
+    // failure this file's header exists to end. It runs AFTER `cites` deliberately: an agent is not
+    // made an anchor by its manifest, only by naming a work unit, which keeps the seed unmoved.
+    //
+    // The direction is the same one every other edge here runs, and it is the clause to check before
+    // touching this: `dependsOn` points from the stander to the stood-on, and an agent standing on a
+    // guardrail points the same way. Walking it in REVERSE is what would make an agent read as
+    // deeper than the work — the inversion the header rejects — and nothing here does that.
+    for (const target of node.manifest) {
+      if (!byId.has(target)) {
+        manifestDanglingTargets += 1;
+        continue;
+      }
+      manifestEdges += 1;
+      targets.push(target);
+    }
+
     outbound.set(node.id, targets);
     edgesScanned += targets.length;
     if (isAnchor) {
@@ -551,6 +618,8 @@ export function buildDependencyGraph(
     decisionDanglingTargets,
     decisionsScanned: heldDecisions.size,
     decisionsCarryingDependsOn: decisions?.decisionsCarryingDependsOn ?? 0,
+    manifestEdges,
+    manifestDanglingTargets,
   };
 }
 
@@ -585,6 +654,8 @@ export function evaluateDepthFromWork(
     decisionDanglingTargets,
     decisionsScanned,
     decisionsCarryingDependsOn,
+    manifestEdges,
+    manifestDanglingTargets,
   } = buildDependencyGraph(nodes, decisions);
 
   const depthById = new Map<string, number>();
@@ -667,6 +738,8 @@ export function evaluateDepthFromWork(
     decisionDependsOnUnwalkedTargets,
     decisionsCarryingDependsOn,
     decisionDanglingTargets,
+    manifestEdges,
+    manifestDanglingTargets,
     decisionsReached,
     decisionHistogram: ascending(decisionCounts),
   };

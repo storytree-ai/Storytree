@@ -165,6 +165,17 @@ export interface SurfaceDepthVerdict {
   readonly decisionsCarryingDependsOn: number;
   /** Resolved edges the walk traversed. 0 over a non-trivial corpus means the reader is blind. */
   readonly edgesScanned: number;
+  /**
+   * Edges resolved from an AGENT MANIFEST refList (ADR-0481 D1), as the SHARED BUILDER counted them.
+   *
+   * ⚠ Counted BEFORE the decision twins collapse, so it is not a strict subset of
+   * {@link edgesScanned} the way it is on `DepthFromWorkVerdict` — a manifest naming an `adr-NNNN`
+   * is re-pointed by the collapse rather than dropped. Reported anyway, and reported separately,
+   * because this reading is the one the manifest edge MOVES most: an artifact an agent injects
+   * stops being a surface and stops being `unlinked`, and folding the count anonymously into
+   * `edgesScanned` would make that shift unattributable.
+   */
+  readonly manifestEdges: number;
 
   /** Nodes nothing points at that point at something — the seed. */
   readonly surfaces: number;
@@ -419,6 +430,7 @@ export function evaluateSurfaceDepth(
     decisionsScanned: decisionIds.length,
     decisionsCarryingDependsOn: graph.decisionsCarryingDependsOn,
     edgesScanned,
+    manifestEdges: graph.manifestEdges,
     surfaces: surfaceIds.length,
     surfaceDecisions: surfaceIds.filter(isDecisionNode).length,
     placed: depthById.size,
