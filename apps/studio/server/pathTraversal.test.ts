@@ -13,7 +13,7 @@ import path from 'node:path';
 import { criterionRevisionId } from '@storytree/proof-protocol';
 import { canonicalUatCriterionContent } from '@storytree/library';
 
-import { containedPath, uatContextForStory } from './apiRouter.js';
+import { containedPath, safeDocPath, uatContextForStory } from './apiRouter.js';
 
 const PROSE = '**See it work** _(witness: human)_: the operator sees it. **Success —** seen.';
 const CRITERION_ID = 'uatc_000000000000000000000001';
@@ -49,9 +49,76 @@ describe('containedPath (the shared traversal guard)', () => {
     expect(containedPath(base, '../../../../etc/passwd')).toBeNull();
   });
 
-  it('rejects an absolute id (a sibling outside the base)', () => {
+  // NAMED for the absolute case, PROVED by the `..` arm — and that is not a defect in this
+  // assertion, it is a fact about the rule on this platform. `path.relative(base, <absolute id on
+  // the same root>)` returns a `..`-prefixed relpath, so the FIRST arm answers and
+  // `path.isAbsolute(rel)` is never consulted. Measured 2026-08-30: deleting `path.isAbsolute(rel)`
+  // from `containedPath` leaves the whole studio suite green, and deleting `rel.startsWith('..')`
+  // reds it — so this test does real work, just not the work its old name advertised.
+  it('rejects an absolute id pointing outside the base (answered by the `..` arm)', () => {
     const outside = path.resolve(base, '..', 'sibling-secret');
     expect(containedPath(base, outside)).toBeNull();
+    expect(path.relative(base, outside).startsWith('..')).toBe(true);
+  });
+
+  // The SECOND arm, driven through containedPath ITSELF on the injected win32 flavour — not by
+  // asserting `path.win32.isAbsolute` directly, which would restate Node's behaviour and survive
+  // the deletion of the arm it claims to pin. On posix there is one filesystem root, so an escape
+  // is always expressible as `..`-prefixed and this arm is unreachable; on win32 a cross-drive or
+  // UNC id resolves to an ABSOLUTE relpath that does not start with `..`, so this arm is the only
+  // refusal. The desktop backend reproduces this rule and ships on Windows, so it is live code
+  // there even though it is dead on the hosted Linux studio.
+  it('the `isAbsolute` arm refuses a cross-root id (win32: another drive, a UNC share)', () => {
+    const winBase = String.raw`C:\repo\docs`;
+    for (const id of [String.raw`D:\secret.md`, String.raw`\\server\share\secret.md`]) {
+      // The first arm provably does NOT answer here — so a green assertion below is this arm's.
+      const rel = path.win32.relative(winBase, path.win32.resolve(winBase, id));
+      expect(rel.startsWith('..'), `${id}: the \`..\` arm must NOT be what catches this`).toBe(false);
+      expect(containedPath(winBase, id, path.win32), `${id} must be refused`).toBeNull();
+    }
+  });
+
+  it('accepts a contained id under the injected win32 flavour (positive control for the arm above)', () => {
+    const winBase = String.raw`C:\repo\docs`;
+    expect(containedPath(winBase, 'research/notes.md', path.win32)).toBe(
+      path.win32.resolve(winBase, 'research/notes.md'),
+    );
+  });
+
+  // PINS THE SEAM ITSELF, and it needs BOTH flavours to do it. On a win32 host the ambient `path`
+  // IS `path.win32`, so every win32 assertion above passes just as well against an implementation
+  // that ignored `flavour` and used the ambient `path` — and symmetrically on posix. Measured: with
+  // only the win32 assertions, replacing `flavour.resolve` with `path.resolve` SURVIVED on Windows.
+  // Asserting the flavour that does NOT match the host is what makes the injection observable, so
+  // this pair is load-bearing on whichever platform CI happens to be.
+  it('uses the INJECTED flavour rather than the ambient one (asserted on the non-host flavour too)', () => {
+    expect(containedPath('/repo/docs', 'notes.md', path.posix)).toBe('/repo/docs/notes.md');
+    expect(containedPath('/repo/docs', '../secret.md', path.posix)).toBeNull();
+    expect(containedPath(String.raw`C:\repo\docs`, 'notes.md', path.win32)).toBe(
+      String.raw`C:\repo\docs\notes.md`,
+    );
+  });
+});
+
+// The `.md` refusal is safeDocPath's OWN contribution — containedPath does not make it — so the
+// containment tests above cannot prove it. Until 2026-08-30 nothing did: deleting
+// `!resolved.endsWith('.md')` left the whole studio suite green. `docs/` really does hold non-md
+// files (.json, .html, .png), so this is a reachable widening, not a hypothetical one.
+describe('safeDocPath refuses a contained NON-markdown target', () => {
+  const docsDir = path.resolve(os.tmpdir(), 'studio-safe-doc-base');
+
+  it('accepts a contained .md id', () => {
+    expect(safeDocPath(docsDir, 'research/notes.md')).toBe(path.resolve(docsDir, 'research/notes.md'));
+  });
+
+  it('refuses a contained id that is not .md, however ordinary it looks', () => {
+    for (const id of ['research/agent-artifacts-draft.json', 'design/mockup.html', 'design/shot.png', 'README']) {
+      expect(safeDocPath(docsDir, id), id).toBeNull();
+    }
+  });
+
+  it('refuses a traversal id even when it ends in .md', () => {
+    expect(safeDocPath(docsDir, '../../secret.md')).toBeNull();
   });
 });
 

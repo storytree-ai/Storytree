@@ -257,16 +257,36 @@ export async function listDocs(docsDir: string): Promise<DocMeta[]> {
  * shared by {@link safeDocPath} (docs) and {@link uatContextForStory} (stories): `path.join` /
  * `path.resolve` COLLAPSE `..` segments, so an id like `../../x` would otherwise reach outside the
  * base — this asserts the resolved path stays within it. Exported for the traversal unit test.
+ *
+ * THE TWO ARMS ANSWER ON DIFFERENT PLATFORMS, which is why `flavour` is injectable. Posix has ONE
+ * filesystem root, so `path.relative` can always express an escape as a `..`-prefixed relpath and
+ * `isAbsolute(rel)` is unreachable — on the hosted (Linux) studio the second arm is dead code.
+ * Win32 has MANY roots: an id on another drive (`D:\secret.md`) or a UNC share resolves to a relpath
+ * that is absolute and does NOT start with `..`, so there the second arm is the ONLY thing refusing
+ * it — and the desktop backend, which reproduces this rule, ships on Windows. Defaulting to the
+ * ambient `path` keeps every caller unchanged; the parameter exists so the test can prove BOTH arms
+ * on ONE platform's CI. Without it the win32 arm was provable only on a Windows runner, and the
+ * assertion standing in for it asserted Node's own behaviour rather than this function's — measured
+ * 2026-08-30: deleting `isAbsolute` left the whole studio suite green.
  */
-export function containedPath(baseDir: string, id: string): string | null {
-  const resolved = path.resolve(baseDir, id);
-  const rel = path.relative(baseDir, resolved);
-  if (rel.startsWith('..') || path.isAbsolute(rel)) return null;
+export function containedPath(
+  baseDir: string,
+  id: string,
+  flavour: path.PlatformPath = path,
+): string | null {
+  const resolved = flavour.resolve(baseDir, id);
+  const rel = flavour.relative(baseDir, resolved);
+  if (rel.startsWith('..') || flavour.isAbsolute(rel)) return null;
   return resolved;
 }
 
-/** Resolve a requested doc id to an absolute path, refusing traversal + a non-`.md` target. */
-function safeDocPath(docsDir: string, id: string): string | null {
+/**
+ * Resolve a requested doc id to an absolute path, refusing traversal + a non-`.md` target.
+ * Exported for the traversal unit test, like {@link containedPath}: the `.md` refusal is this
+ * function's own contribution — {@link containedPath} does not make it — so a test that only drives
+ * the containment rule leaves it unproved, which is the state it was in until 2026-08-30.
+ */
+export function safeDocPath(docsDir: string, id: string): string | null {
   const resolved = containedPath(docsDir, id);
   if (!resolved || !resolved.endsWith('.md')) return null;
   return resolved;
