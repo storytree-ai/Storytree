@@ -2185,16 +2185,38 @@ test("isNarrowedToNothing: a vacuous run with mutants but NO blind package stays
 
 // ── the span render degrades honestly rather than guessing ──
 
-/** One mutant with whatever parts of a span and a replacement the caller wants to supply. */
+/**
+ * A MUTABLE {@link ReportMutant} the partial-span fixtures assemble field by field.
+ *
+ * Named rather than written inline, because an anonymous object type on a binding discards the
+ * inference the house standard wants kept (`no-known-value-widening`), and mutable rather than
+ * `ReportMutant` because these fixtures exist to build a report with a field left OUT.
+ */
+interface DraftMutant {
+  id: string;
+  mutatorName: string;
+  status: string;
+  killedBy: string[];
+  replacement?: string;
+  location?: ReportMutant["location"];
+}
+
+/**
+ * One mutant with whatever parts of a span and a replacement the caller wants to supply.
+ *
+ * The two optional parts are ASSIGNED rather than conditionally spread: the whole point of these
+ * cases is a report that OMITS a field, and `never-hide-omission-in-an-empty-spread` exists because
+ * an empty-object spread makes the omission unreadable at the site that performs it.
+ */
 function partialSpanReport(location: ReportMutant["location"], replacement?: string): MutationReport {
-  const mutant: ReportMutant = {
+  const mutant: DraftMutant = {
     id: "m1",
     mutatorName: "ConditionalExpression",
     status: "Survived",
     killedBy: [],
-    ...(replacement === undefined ? {} : { replacement }),
-    ...(location === undefined ? {} : { location }),
   };
+  if (replacement !== undefined) mutant.replacement = replacement;
+  if (location !== undefined) mutant.location = location;
   return {
     files: { "packages/cli/src/a.ts": { mutants: [mutant] } },
     testFiles: { "packages/cli/src/a.test.ts": { tests: [{ id: "0", name: "a > case" }] } },
