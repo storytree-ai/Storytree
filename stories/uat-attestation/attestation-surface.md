@@ -8,6 +8,32 @@ status: proposed
 proof_mode: integration-test
 depends_on: [attestation-signals]
 decisions: [44, 82]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. This capability's surface is
+# genuinely TWO surfaces — the CLI tree/witness columns and the studio row — so the declared command
+# runs both packages' suites rather than under-declaring one of them.
+# `per-test-marks-distinct` — `packages/cli/src/tree.test.ts` + `uat.test.ts` prove the CLI's separate
+# PROVEN and vouch columns; `apps/studio/src/components/UatTestCriteriaSection.test.tsx` proves the
+# panel renders the witness glyph by shape and state and surfaces no vouch mark at all (the owner UX
+# call), so the two tiers cannot be conflated on the row.
+# `vouch-stays-in-detail` — `packages/cli/src/attest.test.ts` and
+# `apps/studio/server/uatAttestApi.integration.test.ts` prove a signed per-test verdict is what rolls
+# up, and that the sign-time guard refuses a machine-witness leg.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "--filter", "studio", "test"]
+  scope:
+    testGlobs:
+      - "packages/cli/src/tree.test.ts"
+      - "packages/cli/src/uat.test.ts"
+      - "packages/cli/src/attest.test.ts"
+      - "apps/studio/src/components/UatTestCriteriaSection.test.tsx"
+      - "apps/studio/server/uatAttestApi.integration.test.ts"
+    sourceGlobs:
+      - "packages/cli/src/attest.ts"
+      - "packages/cli/src/uat.ts"
+      - "apps/studio/src/components/TreeView.tsx"
 ---
 
 # The story detail shows each UAT test's proven verdict distinct from its lower-rigor vouch

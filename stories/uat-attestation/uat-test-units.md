@@ -7,6 +7,23 @@ outcome: "A story's UAT steps become stable, addressable test units, each declar
 status: proposed
 proof_mode: integration-test
 depends_on: []
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057.
+# `stable-addressable-tests` — `criterion-identity.test.ts` proves authored criterion ids (not
+# ordinals) own identity and that re-parsing is stable; `uat-test-criteria.test.ts` proves the parse
+# and the canonical content/revision-id derivation.
+# `witness-kind-validated` — the same suite's witness enum: human|machine|either, an invalid value
+# refused, an absent one defaulted conservatively.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/library", "test"]
+  scope:
+    testGlobs:
+      - "packages/library/src/uat-test-criteria.test.ts"
+      - "packages/library/src/criterion-identity.test.ts"
+    sourceGlobs:
+      - "packages/library/src/uat-test-criteria.ts"
 ---
 
 # A story's UAT becomes stable, addressable test units with a witness kind

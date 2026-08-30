@@ -26,6 +26,28 @@ depends_on: []
 > ADR-0302 D1 deleted the `knowledge.json` that seed used to read, and the fixture is a small sandbox
 > seed, not a copy of the Library). This stays a retrospective spec of the original JSON-store era —
 > kept as history, not current code.
+>
+> **Correction 2026-08-31 (`prove-unproven-capabilities-arc` inc-23) — one clause above is now false,
+> and the capability is ROUTED, not adopted.** "package.json defines only dev/build/preview/typecheck;
+> no vitest/jest; zero .test/.spec files" has not been true for a long time: `apps/studio` runs
+> `vitest run src/ server/` over dozens of suites. But **that does not make this capability
+> adopt-eligible**, and the reason is worth writing down rather than rediscovering. Every one of the
+> 15 contracts below cites a line range in `apps/studio/server/devApi.ts`, and that file no longer
+> holds any of the code they describe: the whole route table moved to `server/apiRouter.ts` under the
+> studio-cloud `serve-mode` capability (`devApi.ts` is now 123 lines of Vite wiring that re-exports
+> three handlers), and `readStore`/`writeStore` moved into `server/libraryBackend.ts` as private
+> functions of the JSON backend — which is itself no longer the default store. Some of the OUTCOME is
+> genuinely exercised today by the integration suites; several named contracts (the readStore
+> blank-file fallback, the writeStore round-trip, the /api-namespace-precedes-SPA-fallback middleware
+> ordering, and `api.ts`'s `http<T>` error-envelope unwrap) are exercised by nothing, and the
+> HttpError→JSON mapping the integration suites appear to cover is **re-implemented inline in each
+> suite** rather than driven through the real one.
+>
+> Adopting on that basis would attach a signed verdict to a claim that is false in the specific way
+> ADR-0465 D2 is least able to tolerate. So this goes to `story-author` for a re-scope against the
+> surface that actually exists — the decomposition into `apiRouter.ts` + `libraryBackend.ts`, and an
+> honest contract set for the store backbone as it is now — and it is deliberately given **no
+> `proof:` block** in the meantime. That absence is the finding, not an omission.
 
 ## Guidance
 
