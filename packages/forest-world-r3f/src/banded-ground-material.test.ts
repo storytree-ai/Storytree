@@ -17,6 +17,13 @@ import {
   groundRamp,
   rampSelectGlsl,
 } from './banded-ground-material.js';
+import {
+  GRAIN_COLOUR_MIX,
+  GRAIN_NORMAL_STRENGTH,
+  grainGlsl,
+  grainKeepsPaletteClosed,
+  grainStops,
+} from './land-grain.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, deliveredForLevel, toHex } from './shade-ladder.js';
 
 /** The six shipped ground statuses' tokens, in `ForestWorldCanvas`'s own `GROUND_COLOUR` order.
@@ -250,5 +257,126 @@ test('the LADDER FLOOR bounds the ground: nothing darker than 0.78 of its own to
         assert.ok(c[ch] <= t[ch], `${token} ${ch} above its own token`);
       }
     }
+  }
+});
+
+
+// ─────────────────────────────────────────────────────────────────────── THE GRAIN OPTION
+//
+// ⚠⚠ THE ONE THING THIS SECTION MUST ESTABLISH, and it is not "the grain works": an ABSENT grain
+// leaves this material EXACTLY as it was. Every figure the arc has published about the banded
+// ground — 0 off-palette pixels on two renderers, 38–51% cheaper per frame than the material it
+// replaced — is a figure about a specific shader. If adding an option moved that shader by even a
+// whitespace line, those numbers would silently become numbers about something else.
+
+test('AN ABSENT GRAIN CHANGES NOTHING — same source, same uniforms, byte for byte', () => {
+  const bare = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS });
+  // The `uGrain*` uniforms are added by statement, so an ungrained material must carry neither.
+  assert.deepEqual(Object.keys(bare.uniforms).sort(), ['uLightDir', 'uRamp']);
+  // And the source must mention nothing the grain brought with it.
+  assert.ok(!/st_grain/.test(bare.fragmentShader), 'no grain helper in an ungrained shader');
+  assert.ok(!/vWorld/.test(bare.fragmentShader), 'no world varying in an ungrained fragment stage');
+  assert.ok(!/vWorld/.test(bare.vertexShader), 'and none in the vertex stage either');
+  assert.ok(!/uGrain/.test(bare.fragmentShader));
+  // ⚠ AND NO RESIDUE AT THE SIX INTERPOLATION SITES, which is the half a "does it mention the
+  // grain" sweep cannot see. A `${cond ? x : ''}` sitting on its own line leaves that line's
+  // INDENTATION behind when the condition is false, so the shader stays correct and stops being
+  // byte-identical — silently, and in the direction that makes every published figure about it
+  // slightly untrue. That defect was real while this option was being written; it is caught here
+  // by naming what each site must join to when the grain is absent, rather than by sweeping for
+  // blank lines (the spliced-in ladder source legitimately carries some of its own).
+  const joins: readonly [string, string][] = [
+    ['fragment: the grain source', 'uniform vec3 uRamp['],
+    ['fragment: the grain uniforms', 'uniform vec3 uLightDir;\n      varying float vStatus;'],
+    ['fragment: the world varying', 'varying vec3 vNormal;\n\n      void main() {'],
+    ['fragment: the normal stage', 'vec3 n = normalize(vNormal);\n        // Half-lambert'],
+    ['fragment: the colour write', '\n        gl_FragColor = vec4(c, 1.0);\n      }'],
+  ];
+  for (const [what, expected] of joins) {
+    assert.ok(bare.fragmentShader.includes(expected), `${what} left residue behind`);
+  }
+  assert.ok(
+    bare.vertexShader.includes('varying vec3 vNormal;\n      void main() {'),
+    'vertex: the world varying left residue behind',
+  );
+  assert.ok(
+    bare.vertexShader.includes('mat3(modelMatrix) * normal);\n        gl_Position'),
+    'vertex: the world assignment left residue behind',
+  );
+});
+
+test('NON-VACUITY: the grain modes really do fill those sites, so the joins above mean something', () => {
+  // Without this, every `includes` in the test above would be satisfied by a builder that ignored
+  // its `grain` option entirely — the shape a byte-identity check degrades into.
+  const g = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal' });
+  assert.ok(!g.fragmentShader.includes('varying vec3 vNormal;\n\n      void main() {'));
+  assert.ok(!g.fragmentShader.includes('vec3 n = normalize(vNormal);\n        // Half-lambert'));
+  assert.ok(!g.vertexShader.includes('varying vec3 vNormal;\n      void main() {'));
+  assert.ok(!g.vertexShader.includes('mat3(modelMatrix) * normal);\n        gl_Position'));
+  const b = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'both' });
+  assert.ok(!b.fragmentShader.includes('\n        gl_FragColor = vec4(c, 1.0);\n      }'));
+});
+
+test("the NORMAL half keeps the closure — it perturbs the LAMBERT, never the colour", () => {
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal' });
+  // The property that makes this half adoptable at all, asked of the SOURCE rather than of a
+  // picture — a capture can only ever sample the pixels it photographed.
+  assert.ok(grainKeepsPaletteClosed(m.fragmentShader), 'the shipped grain must stay palette-closed');
+  // And it must actually be in there: a closed shader with no grain would pass the line above.
+  assert.ok(/st_grainGradient\(vWorld\.xz\)/.test(m.fragmentShader), 'the grain must sample the world');
+  assert.ok(/uGrainNormalStrength/.test(m.fragmentShader));
+  assert.equal(m.uniforms['uGrainNormalStrength']?.value, GRAIN_NORMAL_STRENGTH);
+  assert.equal(m.uniforms['uGrainColourMix'], undefined, 'the normal half uploads no mix factor');
+  // ⚠ THE ORDER IS THE WHOLE ARGUMENT. The perturbation has to happen BEFORE the lambert, or the
+  // fragment would be quantised off an unperturbed normal and the grain would be inert — a
+  // component that is in the code and not in the picture.
+  const body = m.fragmentShader.slice(m.fragmentShader.indexOf('void main('));
+  assert.ok(
+    body.indexOf('st_grainGradient') < body.indexOf('float lambert'),
+    'the grain must perturb the normal before the lambert is taken',
+  );
+  assert.ok(body.indexOf('float lambert') < body.indexOf('st_bandIndex'), 'and the lambert before the quantiser');
+});
+
+test('the COLOUR half BREAKS the closure, which is why the shipped canvas may not ask for it', () => {
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'both' });
+  assert.ok(!grainKeepsPaletteClosed(m.fragmentShader), 'mode `both` must be off-palette');
+  assert.equal(m.uniforms['uGrainColourMix']?.value, GRAIN_COLOUR_MIX);
+  assert.equal(m.uniforms['uGrainNormalStrength']?.value, GRAIN_NORMAL_STRENGTH, '`both` is both');
+  // The two grain stops are written into the source as literals from `grainStops()`, so the
+  // shader and the pure module cannot hold different colours (the `bandGlsl` argument).
+  const [dark, light] = grainStops();
+  for (const stop of [dark, light]) {
+    const literal = `vec3(${(stop.r / 255).toFixed(6)}, ${(stop.g / 255).toFixed(6)}, ${(stop.b / 255).toFixed(6)})`;
+    assert.ok(m.fragmentShader.includes(literal), `the grain stop ${literal} is not in the source`);
+  }
+});
+
+test('THE GRAIN NEVER MOVES THE RAMP — the palette is the same object in all three modes', () => {
+  // The map's honesty does not depend on which grain is on: the reachable colour set of the two
+  // palette-closed modes is the SAME 24 authored entries, and the ramp `both` mixes away from is
+  // that set too. Without this, "the grain is a shading change" would be an assertion.
+  const rampOf = (grain?: 'normal' | 'both'): string =>
+    JSON.stringify(
+      (grain === undefined
+        ? createBandedGroundMaterial({ tokens: SHIPPED_TOKENS })
+        : createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain })
+      ).uniforms['uRamp']!.value,
+    );
+  assert.equal(rampOf('normal'), rampOf());
+  assert.equal(rampOf('both'), rampOf());
+});
+
+test('the grain GLSL is spliced in from the module, not transcribed', () => {
+  // The same argument `bandGlsl` makes about the ladder, extended to the field: a shader and a
+  // test holding private copies of the lattice, the octave count or the ramp span would prove
+  // nothing about each other. Every line of the generated field has to be present verbatim.
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal' });
+  for (const line of grainGlsl().split('\n')) {
+    if (line.trim().length === 0) continue;
+    assert.ok(
+      m.fragmentShader.includes(line.trim()),
+      `the generated grain source is missing: ${line.trim()}`,
+    );
   }
 });

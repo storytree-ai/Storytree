@@ -72,13 +72,17 @@ const EXPERIMENT = [
   'prop-layout.ts',
   'island-dressing.ts',
   'banded-material.ts',
-  // The grain octave and the instrument that measures it (the adoption arc's crossing probe).
   // `pixel-metrics.ts` is the TypeScript twin of `measure_land.py`, which only runs inside
   // Blender — it exists so a number taken off a BROWSER can be read against that file's
-  // committed table. Both belong outside the synced tree for the same reason as everything
+  // committed table. It belongs outside the synced tree for the same reason as everything
   // above: adoption is a separate event (ADR-0380 D6 / ADR-0406 D2).
-  'land-grain.ts',
+  // ⚠ `land-grain.ts` USED TO SIT HERE and has CROSSED (2026-08-30) — see ADOPTED below.
   'pixel-metrics.ts',
+  // The instrument that gated the grain's crossing: does the grain's colour half move a ground
+  // pixel into a neighbouring status's family? It is an INSTRUMENT rather than a treatment
+  // component — it measures the shipped material, it is not part of it — so it stays fenced
+  // whatever the answer turns out to be.
+  'grain-status-reading.ts',
   // The scenery ground covers and the separation instrument that authorises one. It belongs out
   // here for a second reason on top of the usual one: it deliberately keeps its own palette
   // widening rather than growing `landTokens()`, so the shipped fence on the audited pages does
@@ -127,6 +131,18 @@ const ADOPTED: readonly { src: string; reExportedBy: string; because: string }[]
     because:
       "the ground's relief field — the first component of the approved land treatment to reach " +
       'the shipped map (owner-authorised 2026-08-29)',
+  },
+  {
+    src: 'land-grain.ts',
+    reExportedBy: 'land-grain.ts',
+    because:
+      'the high-frequency grain octave — the third component of the approved treatment to reach ' +
+      'the shipped map. ⚠ ONLY ITS NORMAL HALF IS DRAWN THERE, and that is a measurement rather ' +
+      'than a preference: `grain-status-reading.ts` drove all six shipped ground tokens through ' +
+      "the COLOUR half's mix and found its authored fac of 0.13 inadmissible (the yellow at the " +
+      "ladder's two darkest rungs walks into `healthy`'s green; the admissible ceiling is " +
+      '0.031). The normal half perturbs the lambert BEFORE quantisation, so the fragment still ' +
+      'writes an authored ramp entry and the palette closure is untouched.',
   },
   {
     src: 'shade-ladder.ts',

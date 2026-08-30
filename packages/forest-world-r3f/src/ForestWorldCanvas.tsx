@@ -185,9 +185,28 @@ const groundRowOf = (material: string | undefined): number =>
   GROUND_ROWS.get(material ?? UNKNOWN_STATUS) ?? GROUND_ROWS.get(UNKNOWN_STATUS)!;
 
 /** The ONE banded ground material, built once for the module rather than per canvas: it holds
- *  only the authored ramp and the authored light, both of which are constants, so a second
- *  instance would be a second copy of the same 24 colours with a second chance to disagree. */
-const BANDED_GROUND = createBandedGroundMaterial({ tokens: GROUND_TOKENS });
+ *  only the authored ramp, the authored light and the authored grain, all of which are constants,
+ *  so a second instance would be a second copy of the same 24 colours with a second chance to
+ *  disagree.
+ *
+ *  ⚠ IT WEARS THE GRAIN'S NORMAL HALF, UNCONDITIONALLY AND WITH NO FLAG (2026-08-30) — the third
+ *  component of the approved treatment to cross, and the rest of the owner's "improve the ground
+ *  texture". The ladder gave the land authored zones; the grain is what gives those zones an EDGE
+ *  at the zoomed read, which is the component the research measured as worth +54% of the bare
+ *  land's micro-contrast and the only lever that makes the ground survive being zoomed into.
+ *
+ *  ⚠⚠ AND IT IS THE NORMAL HALF ONLY, WHICH IS A MEASUREMENT RATHER THAN A CAUTION. The Cycles
+ *  grain is two mechanisms. The normal half perturbs the lambert BEFORE the quantiser, so the
+ *  fragment still writes an authored ramp entry and this material's whole guarantee — every
+ *  delivered land pixel is one of 20 authored `(token x level)` colours — is untouched. The
+ *  COLOUR half mixes a noise ramp into the delivered colour, and
+ *  `harness/grain-status-reading.ts` drove all six ground tokens through that mix and found its
+ *  authored fac of 0.13 INADMISSIBLE: the `proposed`/`building` yellow at the ladder's two
+ *  darkest rungs walks into `healthy`'s green under the house reader model, which is an
+ *  ADR-0392 D5 / ADR-0398 D7 failure rather than a matter of taste. The largest fac every reading
+ *  survives is 0.031. That fork is the owner's and is open;
+ *  `oq-the-grain-s-colour-half-is-inadmissible-on-the-shipped-p` carries it. */
+const BANDED_GROUND = createBandedGroundMaterial({ tokens: GROUND_TOKENS, grain: 'normal' });
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
  *
@@ -215,6 +234,9 @@ const BANDED_GROUND = createBandedGroundMaterial({ tokens: GROUND_TOKENS });
  *  What changes for the map's honesty is a TIGHTENING rather than a risk: the smooth material
  *  could deliver any lightness the scene lights produced, where every pixel this one can emit is
  *  one of the 24 authored `(token x level)` products, floored at 0.78 of the token.
+ *
+ *  ⚠ AND IT WEARS THE GRAIN'S NORMAL HALF, ALSO UNCONDITIONALLY AND FOR THE SAME REASON
+ *  (2026-08-30). See {@link BANDED_GROUND} for why only that half of the grain ships.
  *
  *  ⚠ SO THE COLOUR ATTRIBUTE IS GONE FROM THE UPLOAD, and `statusIndex` is what replaces it. The
  *  buffer still CARRIES `colors` — the comparison instrument builds the pre-adoption arms out of
