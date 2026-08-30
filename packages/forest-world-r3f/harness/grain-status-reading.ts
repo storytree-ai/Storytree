@@ -93,6 +93,12 @@ export function ownFamily(status: string): Set<string> {
   return new Set(SHIPPED_STATUSES.filter((s) => SHIPPED_GROUND_COLOUR.get(s) === token));
 }
 
+/** The two grain stops, converted ONCE. `grainStops()` runs six `Math.pow` calls through the
+ *  linear-to-sRGB transfer, and the walks below evaluate it ~48,000 times per verdict — hoisting it
+ *  is what keeps the exhaustive walk cheap enough to run inside a test. It is a function of
+ *  authored constants only, so there is nothing to invalidate. */
+const STOPS = grainStops();
+
 /**
  * The colour the grain's COLOUR half delivers for `base` at grain scalar `t` in [0, 1].
  *
@@ -102,7 +108,7 @@ export function ownFamily(status: string): Set<string> {
  * to visit.
  */
 export function grainMixed(base: Rgb255, t: number, fac: number = GRAIN_COLOUR_MIX): Rgb255 {
-  const [dark, light] = grainStops();
+  const [dark, light] = STOPS;
   const at = (lo: number, hi: number) => lo + (hi - lo) * t;
   const mix = (b: number, lo: number, hi: number) => Math.round(b + (at(lo, hi) - b) * fac);
   return {
@@ -131,7 +137,21 @@ export function readMargin(
   status: string,
   table: Record<string, Rgb255[]>,
 ): ReadMargin {
-  const family = ownFamily(status);
+  return marginAgainst(colour, ownFamily(status), table);
+}
+
+/** The same arithmetic with the family ALREADY RESOLVED — the form the walks call.
+ *
+ *  It exists for cost, not for taste: `ownFamily` builds a Set by filtering the status list, and a
+ *  walk evaluates the margin ~48,000 times per verdict, so resolving the family per sample made
+ *  `admissibleMixCeiling` take 6.4 s and time out inside the mutation rung's dry run — which is not
+ *  a slow test, it is a test the rung then cannot use for coverage at all. Exported so the hoist is
+ *  checkable rather than an internal detail a test has to reach through `readMargin` to reach. */
+export function marginAgainst(
+  colour: Rgb255,
+  family: ReadonlySet<string>,
+  table: Record<string, Rgb255[]>,
+): ReadMargin {
   let own = Infinity;
   let foreign = Infinity;
   for (const [st, entries] of Object.entries(table)) {
@@ -194,14 +214,14 @@ export function grainColourHalfReadings(
         const c = grainMixed(base, i / GRAIN_REACH_STEPS, fac);
         seen.add(toHex(c));
         reads.add(nearestStatus(c, table));
-        worst = Math.min(worst, readMargin(c, status, table).margin);
+        worst = Math.min(worst, marginAgainst(c, family, table).margin);
       }
       out.push({
         status,
         level,
         base: toHex(base),
         baseReadsAs: nearestStatus(base, table),
-        baseMargin: readMargin(base, status, table).margin,
+        baseMargin: marginAgainst(base, family, table).margin,
         reach: [toHex(grainMixed(base, 0, fac)), toHex(grainMixed(base, 1, fac))],
         reachSize: seen.size,
         grainedReadsAs: [...reads].sort(),
