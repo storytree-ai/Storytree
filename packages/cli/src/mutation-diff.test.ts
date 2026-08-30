@@ -7,6 +7,7 @@ import {
   isSpawnUatTest,
   adjudicateMutants,
   changedLinesAreCodeFree,
+  noChangedTestOutcome,
   isCodeFreeLine,
   isNarrowedToNothing,
   workspacePackageOf,
@@ -1164,6 +1165,63 @@ test("mutation-diff: the two dispositions never share a label — the runners mu
   const ci = skipDisposition({ inCi: true, gateSkipExitCode: 3 });
   assert.notEqual(local.label, ci.label);
   assert.notEqual(local.exitCode, ci.exitCode);
+});
+
+// ── noChangedTestOutcome ─────────────────────────────────────────────────────
+//
+// "This branch changed no test" is normally a RED, and must stay one — it is the rung's whole
+// question. The single exception is a diff that adds no CODE: a landing that deletes a module and
+// corrects the comment naming it selects its file (the selection is textual) while adding only
+// comment lines, so there is no mutant for a test to kill. Before this fork the rung exited 1 on
+// that state before it could ever reach the comment-only guard below, which made it unable to PASS
+// a whole class of correct landings.
+
+test("mutation-diff: no changed test with a CODE line changed is a hard fail", () => {
+  const outcome = noChangedTestOutcome({
+    changedLinesCodeFree: false,
+    inCi: false,
+    gateSkipExitCode: 3,
+  });
+  assert.deepEqual(outcome, { kind: "fail" });
+});
+
+test("mutation-diff: no changed test but a comment-only diff SKIPS — there is no mutant to kill", () => {
+  const outcome = noChangedTestOutcome({
+    changedLinesCodeFree: true,
+    inCi: false,
+    gateSkipExitCode: 3,
+  });
+  assert.deepEqual(outcome, { kind: "skip", exitCode: 3, label: "SKIP" });
+});
+
+test("mutation-diff: that skip obeys the SAME CI fork as every other — 0 and NOTHING TO MUTATE", () => {
+  const outcome = noChangedTestOutcome({
+    changedLinesCodeFree: true,
+    inCi: true,
+    gateSkipExitCode: 3,
+  });
+  assert.deepEqual(outcome, { kind: "skip", exitCode: 0, label: "NOTHING TO MUTATE" });
+});
+
+test("mutation-diff: the fail branch ignores CI and the skip code — a red is a red on both runners", () => {
+  const local = noChangedTestOutcome({
+    changedLinesCodeFree: false,
+    inCi: false,
+    gateSkipExitCode: 7,
+  });
+  const ci = noChangedTestOutcome({ changedLinesCodeFree: false, inCi: true, gateSkipExitCode: 7 });
+  assert.deepEqual(local, { kind: "fail" });
+  assert.deepEqual(ci, { kind: "fail" });
+});
+
+test("mutation-diff: the skip code is the caller's here too, never re-declared", () => {
+  const outcome = noChangedTestOutcome({
+    changedLinesCodeFree: true,
+    inCi: false,
+    gateSkipExitCode: 7,
+  });
+  assert.equal(outcome.kind, "skip");
+  assert.equal(outcome.kind === "skip" ? outcome.exitCode : null, 7);
 });
 
 // ── runsUnderBun ─────────────────────────────────────────────────────────────
