@@ -37,22 +37,21 @@
  *     absent from the dependency graph, and those are different findings.
  *   • `story:` / `capability:` cites. These leave the corpus for the work hierarchy — an artifact
  *     carrying one points at something real, but at nothing this graph holds.
- *   • `references`. Provenance ("what this was written FROM"), not a dependency (ADR-0464 D1
- *     retires the offer surface built on exactly that conflation). Counted so a cohort that is
- *     richly cited but edge-free is visible as such.
+ * ## ✅ THE FOURTH OFF-GRAPH SIGNAL IS GONE — CITATIONS (ADR-0477 D5, landed 2026-08-30)
  *
- * ## ⚠ THIS IS AN ADR-0477 D5 READER — IT FOLDS CITATIONS INTO A COUNT
+ * A `references` term used to sit in that list: provenance ("what this was written FROM"), never a
+ * dependency, counted so a cohort that was richly cited but edge-free was visible as such. ADR-0477
+ * D1 retired the field, and this module was one of the D5 readers that decision warned about — the
+ * dangerous shape, because it would NOT have broken. `referenceCount` would simply have read zero
+ * and every node whose only off-graph signal was a citation would have moved from "linked only
+ * off-graph" to "isolated", a change in the instrument reading as a corpus that got worse.
  *
- * ADR-0477 (accepted 2026-08-29) retires the `references` field outright, and D5 requires every
- * instrument that folded citations into a count to be corrected IN THE SAME LANDING as the removal.
- * This is one of them, and it is the dangerous shape that decision names: it will NOT break when the
- * field goes. {@link LinkageNode.referenceCount} simply reads zero, and every node whose only
- * off-graph signal was a citation silently moves from the "linked only off-graph" bucket to
- * "isolated" — a change in the instrument that reads as a corpus that got worse.
- *
- * So whoever lands that removal: `referenceCount` comes out of the isolation sum in
- * `evaluateCorpusLinkage`, and the `references` term goes from this list. The cohort figures move,
- * and the move is the instrument's, not the corpus's.
+ * It was corrected in the removal's own landing, as D5 requires: `referenceCount` is OUT of the
+ * isolation sum. **So the cohort figures moved on 2026-08-30, and the move is this instrument's, not
+ * the corpus's** — a comparison across that date is comparing two different measures. The field is
+ * still counted and reported per node, because a frozen record of what was cited exists
+ * (`docs/research/citation-snapshot-2026-08-30.md`) and a live row can still carry the key until its
+ * next write drains it; what changed is that it no longer buys a node its way out of `isolated`.
  *
  * ## THIS COMPUTES DEGREE, NOT DEPTH — AND IT MUST CONVERGE ON THE SHARED WALKER
  *
@@ -190,7 +189,12 @@ export interface LinkageNode {
   readonly supersedesIn: number;
   /** `story:` / `capability:` cites — a real pointer at something outside this graph. */
   readonly anchorOut: number;
-  /** `references` entries. Provenance, never a dependency — reported, never walked. */
+  /**
+   * `references` entries. Provenance, never a dependency — reported, never walked, and since
+   * ADR-0477 D5 no longer part of the isolation sum either. The field is retired; a live row keeps
+   * the key until its next write drains it (migration #9), so this reports what is still there
+   * rather than asserting zero.
+   */
   readonly referenceCount: number;
   /** Pointers that named nothing held, and repository files that are not decisions. */
   readonly danglingOut: number;
@@ -205,7 +209,8 @@ export interface LinkageKindRow {
   readonly total: number;
   /** No walkable edge in either direction. THE headline population. */
   readonly unlinked: number;
-  /** Of those, how many are also untouched by `supersedes`, anchors and references. */
+  /** Of those, how many are also untouched by `supersedes` and anchors (ADR-0477 D5 dropped the
+   *  citation term — see the header). */
   readonly isolated: number;
   /** Of those, how many are reachable only by a relation the walk does not follow. */
   readonly linkedOnlyOffGraph: number;
@@ -408,7 +413,7 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
     row.unlinked += 1;
     row.reasons.set(node.edgeFreeReason, (row.reasons.get(node.edgeFreeReason) ?? 0) + 1);
     const offGraph =
-      node.supersedesOut + node.supersedesIn + node.anchorOut + node.referenceCount + node.repoFileOut;
+      node.supersedesOut + node.supersedesIn + node.anchorOut + node.repoFileOut;
     if (offGraph === 0) row.isolated += 1;
     else row.offGraph += 1;
   }

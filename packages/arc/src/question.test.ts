@@ -41,7 +41,6 @@ async function storeWithArc(): Promise<InMemoryStore> {
       description: "d",
       intent: "Arcs are the map's primary orientation surface.",
       endState: "The owner arrives cold and knows where every arc is up to.",
-      references: [],
       createdAt: "2026-08-01",
       updatedAt: "2026-08-01",
     },
@@ -126,7 +125,6 @@ test("question new refuses an --arc that names a doc of some other kind", async 
       body: "b",
       arcRef: `asset:${ARC_ID}`,
       status: "proposal",
-      references: [],
       createdAt: "2026-08-01",
       updatedAt: "2026-08-01",
     },
@@ -349,7 +347,7 @@ test("question check: fresh, lease-expired, unverified, and unknown reports", as
   await store.upsertDoc({
     id: "oq-pre-0358",
     kind: "open-question",
-    doc: { kind: "open-question", id: "oq-pre-0358", ...BRIEFING, description: "d", arcRef: `asset:${ARC_ID}`, references: [], createdAt: "2026-01-01", updatedAt: "2026-01-01" },
+    doc: { kind: "open-question", id: "oq-pre-0358", ...BRIEFING, description: "d", arcRef: `asset:${ARC_ID}`, createdAt: "2026-01-01", updatedAt: "2026-01-01" },
   });
   const legacy = await questionCheck(writeDeps(store), "oq-pre-0358");
   assert.equal(legacy.ok, true);
@@ -476,7 +474,7 @@ test("question settle refuses an --adr that names no decision — a dangling poi
   assert.match(notANumber.body, /decision NUMBER/);
 });
 
-test("question settle records the deciding ADR as a reference, without dropping the ones already there", async () => {
+test("question settle records the deciding ADR on settledByRef", async () => {
   const store = await storeWithArc();
   const id = await raiseQuestion(store);
   await store.upsertDoc({
@@ -490,18 +488,37 @@ test("question settle records the deciding ADR as a reference, without dropping 
       description: "ADR-0434 — Questions end by recording their answer, not by deletion",
       status: "accepted",
       body: "# ADR-0434\n\n## Status\n\naccepted\n",
-      references: [],
       createdAt: "2026-08-24",
       updatedAt: "2026-08-24",
     },
   });
-  // A reference that landed BEFORE the settlement — the merge happens inside the write, so this
-  // survives rather than being reverted by an array computed from an earlier read.
-  await store.patchDoc({ id, fields: { references: ["asset:adr-0314"] } });
-
+  // ADR-0477 D1 rehomed this pointer. It used to be APPENDED to the envelope `references` array,
+  // which is why the write happened inside the patch's validate callback — a concurrent append had
+  // to survive. `settledByRef` is a scalar on the kind (the `arcRef` shape), so there is no array to
+  // lose an update on and it is written as a plain field.
   const env = await questionSettle(writeDeps(store), id, { answer: ANSWER, adr: "434" });
   assert.equal(env.ok, true, env.body);
-  assert.deepEqual(docOf((await store.getDoc(id))!)["references"], ["asset:adr-0314", "asset:adr-0434"]);
+  assert.equal(docOf((await store.getDoc(id))!)["settledByRef"], "asset:adr-0434");
+  assert.equal(
+    docOf((await store.getDoc(id))!)["references"],
+    undefined,
+    "the retired citation field is never re-created",
+  );
+});
+
+test("question settle WITHOUT --adr writes no settledByRef at all", async () => {
+  // The conditional on the field. `--adr` is OPTIONAL, so the common settlement names no decision —
+  // and naming the key unconditionally would write `undefined` over a pointer a sibling had just
+  // landed, which is the lost update the field-scoped patch exists to prevent (ADR-0352).
+  const store = await storeWithArc();
+  const id = await raiseQuestion(store);
+
+  const env = await questionSettle(writeDeps(store), id, { answer: ANSWER });
+  assert.equal(env.ok, true, env.body);
+  const doc = docOf((await store.getDoc(id))!);
+  assert.equal(doc["lifecycle"], "settled", "it still settles");
+  assert.equal(doc["answer"], ANSWER, "and the answer is still what it records");
+  assert.equal("settledByRef" in doc, false, "but no decision pointer is invented");
 });
 
 test("a settled question stops the arc WAITING and stays on it under its answer", async () => {

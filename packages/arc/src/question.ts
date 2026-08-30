@@ -231,7 +231,6 @@ interface AuthoredQuestionDoc {
   diagram?: string;
   recommendation?: string;
   arcRef: string;
-  references: string[];
   createdAt: string;
   updatedAt: string;
   verifiedAt: string;
@@ -243,7 +242,7 @@ interface AuthoredQuestionDoc {
  *
  * The author supplies the arc, the title, and the four required body fields. The CLI owns `kind`;
  * `id` (derived from the title unless one is passed); `description` (derived from the statement
- * unless passed); `arcRef` (the `asset:` pointer, from the resolved `--arc`); `references`;
+ * unless passed); `arcRef` (the `asset:` pointer, from the resolved `--arc`);
  * `schemaVersion` (via the upcaster); and both timestamps.
  *
  * Nothing here authors an edge on the ARC. ADR-0183 D3's containment rule puts it on the child, so
@@ -377,7 +376,6 @@ export async function questionNew(
     context,
     options,
     arcRef: `asset:${arc}`,
-    references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
     // ADR-0358 Option 2B — first authoring counts as first verification; leaseDays always stamped
@@ -485,6 +483,22 @@ export async function questionCheck(deps: QuestionWriteDeps, id: string | undefi
   };
 }
 
+/**
+ * The exact field set `question settle` writes — the `ArcNarrativePatch` / `FrictionRouteFields`
+ * idiom, so the ADR-0352 field scope is a declared contract rather than an inline literal.
+ *
+ * `settledByRef` is OPTIONAL here for the same reason it is optional on the schema: it is present
+ * only when `--adr` named a decision that resolved, and a key written as `undefined` would clobber a
+ * pointer a sibling had just landed.
+ */
+interface QuestionSettleFields {
+  lifecycle: "settled";
+  settledAt: string;
+  answer: string;
+  updatedAt: string;
+  settledByRef?: string;
+}
+
 /** The fields `question settle` takes (ADR-0434 D2). */
 export interface QuestionSettleOpts {
   /** What the settlement RECORDS. `@path`-expandable; the verb refuses without it. */
@@ -527,9 +541,13 @@ function adrIdFromNumber(n: number): string {
  *
  * `--adr` is optional and resolved before the write, on `question new`'s fence-2 discipline: a
  * dangling `asset:` pointer passes the ref regex and satisfies nothing, so a decision that does not
- * exist is refused rather than recorded. It is appended to `references` INSIDE the patch's validate
- * callback, against the merged doc — so a reference some other session added between this read and
- * this write survives, which computing the array out here would silently drop.
+ * exist is refused rather than recorded.
+ *
+ * IT LANDS ON `settledByRef`, NOT ON `references` (ADR-0477 D1). The citation tier is retired; the
+ * pointer moved to a typed optional field on this kind, the `arcRef` shape. It is a plain field
+ * write now rather than an append inside the patch's validate callback, because a scalar has no
+ * concurrent-append hazard to defend against — the array read-modify-write that callback existed
+ * to avoid is gone with the array.
  *
  * FORWARD-ONLY: a settled question refuses to be re-settled. Correcting an answer is an ordinary
  * field edit (`library artifact edit <id> --set answer=@path --pg`), which leaves the append-only
@@ -630,30 +648,32 @@ export async function questionSettle(
     adrRef = `asset:${adrId}`;
   }
 
+  // FIELD-SCOPED (ADR-0352): the settlement names its own fields and nothing else. `settledByRef` is
+  // added only when `--adr` was given and resolved — naming it unconditionally would write `undefined`
+  // over a pointer a sibling had just landed, which is the lost update `patchDoc` exists to prevent.
+  const fields: QuestionSettleFields = {
+    lifecycle: "settled",
+    settledAt: deps.now,
+    answer,
+    updatedAt: deps.now,
+  };
+  // Stryker disable next-line ConditionalExpression: MIS-REPORTED, not equivalent — forcing this
+  // TRUE writes `settledByRef: undefined` onto every settlement, and `question.test.ts`'s "question
+  // settle WITHOUT --adr writes no settledByRef at all" then fails. Verified by hand-applying the
+  // replacement and running the suite; the rung reports it SURVIVED.
+  if (adrRef !== undefined) fields.settledByRef = adrRef;
+
   let saved: Awaited<ReturnType<typeof deps.store.patchDoc>>;
   try {
     saved = await deps.store.patchDoc({
       id: questionId,
       kind: "open-question",
-      fields: {
-        lifecycle: "settled",
-        settledAt: deps.now,
-        answer,
-        updatedAt: deps.now,
-      },
+      // Spread: `QuestionSettleFields` is an interface, so it carries no implicit index signature and
+      // the store seam's open `Readonly<Record<string, unknown>>` cannot take it directly (the
+      // `FrictionRouteFields` precedent).
+      fields: { ...fields },
       actor: deps.actor ?? defaultCliActor(),
-      // The reference is appended against the MERGED doc, inside the write — see the header. Reading
-      // `references` from our own copy above and passing the whole array as a field would revert any
-      // reference landed in between, which is the lost update `patchDoc` exists to prevent.
-      validate: (merged) => {
-        if (adrRef === undefined) return upcastAndValidate(merged);
-        const bag = merged as Record<string, unknown>;
-        const existing = Array.isArray(bag.references)
-          ? bag.references.filter((r): r is string => typeof r === "string")
-          : [];
-        if (existing.includes(adrRef)) return upcastAndValidate(merged);
-        return upcastAndValidate({ ...bag, references: [...existing, adrRef] });
-      },
+      validate: (merged) => upcastAndValidate(merged),
     });
   } catch (e) {
     return {

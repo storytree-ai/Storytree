@@ -51,7 +51,6 @@ test("carries ONLY the four fields — never the whatItIs/whatItIsNot body (ADR-
       oneLine: "The top-level unit of work.",
       whatItIs: "A LONG BODY that must not travel",
       whatItIsNot: "ALSO LONG",
-      references: ["capability"],
     }),
   ]);
   assert.deepEqual(Object.keys(out[0]!).sort(), ["id", "kind", "oneLine", "title"]);

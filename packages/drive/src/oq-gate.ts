@@ -150,6 +150,35 @@ export async function oqHygieneGate(
     };
   }
 
+  // ADR-0477 D1 — THE ATTACHMENT IS UNREPRESENTABLE, SO THIS GATE STOPS CLAIMING.
+  //
+  // The link that pulled an open question into this gate was a `doc:decisions/NNNN` pointer in the
+  // question's `references`. That field is retired, and `open-question` is an EDGE_FREE_KIND
+  // (ADR-0223 D1) so it carries no `dependsOn` for the pointer to move to — there is nowhere in the
+  // schema left to say "this question is about that decision".
+  //
+  // The alternative was to run the classifier anyway. It would not have thrown: it would have
+  // intersected an empty set and printed `clean — 0 linked open question(s), no unprocessed answers`
+  // on every live story build, forever. That is the ADR-0477 D5 silent-shrink fault in its purest
+  // form — a permanently vacuous PASS wearing the words of an audit — and it is worse than a gate
+  // that says outright it can no longer check. So it says that.
+  //
+  // MEASURED BEFORE IT WAS TOUCHED, not assumed: on 2026-08-30 ZERO live open-questions carried a
+  // decisions pointer, so this gate had no input on the day it was retired and refuses nothing it
+  // would otherwise have refused. `classifyOpenQuestions` below is unchanged and still unit-true;
+  // what is gone is its live INPUT, not its logic. Deleting the module outright would retire
+  // `stories/drive-machinery/oq-hygiene-gate.md` and the eight contracts bound to it — a story-tier
+  // change that has no business riding inside a one-way schema landing — so that is parked as its
+  // own increment on `citation-tier-retirement-arc`.
+  return {
+    refusal: null,
+    lines: [
+      "oq-hygiene:  RETIRED — the open-question → deciding-ADR link was a `references` citation, and",
+      "             ADR-0477 D1 retired that field. This gate checks nothing and refuses nothing;",
+      "             it reports so rather than printing a clean answer it cannot stand behind.",
+    ],
+  };
+
   let rows: OqHygieneRow[];
   try {
     const { openQuestions, comments } = await (deps.load ?? loadLive)();

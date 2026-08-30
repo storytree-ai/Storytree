@@ -151,7 +151,6 @@ function sentinelAssets(): GuidanceAsset[] {
       title: 'sentinel asset',
       description: 'must never be persisted',
       body: 'must never be persisted',
-      references: [],
       createdAt: '2026-01-01T00:00:00.000Z',
       updatedAt: '2026-01-01T00:00:00.000Z',
     },

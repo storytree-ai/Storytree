@@ -39,7 +39,6 @@ function asset(overrides: Partial<GuidanceAsset> & Pick<GuidanceAsset, 'id' | 'c
   return {
     description: 'unrelated description text',
     body: 'unrelated body text',
-    references: [],
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,

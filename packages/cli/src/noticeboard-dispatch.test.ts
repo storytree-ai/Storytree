@@ -207,7 +207,6 @@ async function storeWithIncrement(status = "proposal"): Promise<InMemoryStore> {
       body: "b",
       arcRef: "asset:some-arc",
       status,
-      references: [],
       createdAt: "2026-08-19",
       updatedAt: "2026-08-19",
     },

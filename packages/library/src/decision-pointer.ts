@@ -80,12 +80,10 @@ export interface DecisionPointer {
 
 /**
  * The `asset:<id>` Library pointer — the third {@link import("./knowledge.js").CiteScheme}, the one
- * `references` uses, and the scheme a migrated decision is named by.
+ * `dependsOn` uses, and the scheme a migrated decision is named by.
  *
- * DEFINED ONCE, HERE, and re-exported by every consumer rather than copied: `@storytree/arc` mints
- * an `asset:` citation when a friction route parks an increment, and `@storytree/cli`'s
- * `asset-citation.ts` resolves one — two packages agreeing on a token by copying it is exactly the
- * drift seam `parseCiteRef` exists to prevent. It lives in this module rather than beside its
+ * DEFINED ONCE, HERE, and re-exported by every consumer rather than copied — two packages agreeing
+ * on a token by copying it is exactly the drift seam `parseCiteRef` exists to prevent. It lives in this module rather than beside its
  * `story:` / `capability:` siblings in `knowledge.ts` because {@link parseDecisionPointer} needs it
  * and this module is deliberately the zod-free bottom of the package.
  */

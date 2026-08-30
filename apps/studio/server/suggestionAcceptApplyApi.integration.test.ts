@@ -70,7 +70,6 @@ const bodyAsset = (): GuidanceAsset => ({
   title: 'A body-bearing unit',
   description: 'the asset the suggestion targets',
   body: ASSET_BODY,
-  references: ['doc:decisions/0140-review-mode.md'],
   createdAt: '2026-07-01T00:00:00.000Z',
   updatedAt: '2026-07-01T00:00:00.000Z',
 });
@@ -82,7 +81,6 @@ const structuredAsset = (): GuidanceAsset => ({
   description: 'its body is a derived render of its fields',
   body: ASSET_BODY, // the derived render a splice cannot honestly edit
   fields: { oneLine: 'the structured field content' },
-  references: [],
   createdAt: '2026-07-01T00:00:00.000Z',
   updatedAt: '2026-07-01T00:00:00.000Z',
 });
@@ -238,7 +236,6 @@ describe('accept-apply end-to-end — the block splice through the admin asset-w
     expect(call.input.title).toBe('A body-bearing unit');
     expect(call.input.category).toBe('template');
     expect(call.input.description).toBe('the asset the suggestion targets');
-    expect(call.input.references).toEqual(['doc:decisions/0140-review-mode.md']);
   });
 
   it('original drifted (block edited since the suggestion) → 409, suggestion stays OPEN, asset untouched', async () => {

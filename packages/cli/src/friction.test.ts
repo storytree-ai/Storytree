@@ -75,7 +75,6 @@ async function fileNew(
 }
 
 /** The injected `node:<id>` resolver (ADR-0107 D2) — only `cli` is a real node in these tests. */
-const NODE_RESOLVER = { nodeExists: (id: string) => id === "cli" };
 
 /**
  * Scaffold an ARC through the REAL dispatch — the initiative a `tool` routing's remedy parks on
@@ -214,23 +213,6 @@ test("new refuses a 4th item on the same branch/date (the cap-3 fence)", async (
   assert.equal(await s.getDoc("f-d"), null, "the 4th is not written");
 });
 
-test("new refuses an unresolvable reference; a resolvable one passes", async () => {
-  const s = store();
-  const dirs = tempDirs();
-  const bad = await fileNew(s, frictionDoc("f-badref", { references: ["asset:ghost"] }), dirs, { writable: true });
-  assert.equal(bad.ok, false);
-  assert.match(bad.body, /do not resolve/);
-
-  // Seed the referenced artifact, then it resolves.
-  await s.upsertDoc({ id: "real-principle", kind: "principle", doc: { id: "real-principle", kind: "principle", title: "R" } });
-  const good = await fileNew(s, frictionDoc("f-goodref", { references: ["asset:real-principle"] }), dirs, { writable: true });
-  assert.equal(good.ok, true, good.body);
-});
-
-// ---------------------------------------------------------------------------
-// the three `friction-capture-surface-is-itself-high-friction` defects (route `tool`)
-// ---------------------------------------------------------------------------
-
 test("defect 1: a validation refusal names the friction arm's real defect, not stamped keys", async () => {
   // The item's reproduction: `summary` where commonShape requires `description`. The raw LibraryDoc
   // union throw blamed [summary, statement, evidence, impact, kind, provenance, schemaVersion] —
@@ -255,41 +237,6 @@ test("defect 1: a validation refusal names the friction arm's real defect, not s
   // And it says which fields it stamps, so "just remove kind" is never the reader's conclusion.
   assert.match(env.body, /the CLI stamps kind, provenance, createdAt, updatedAt, schemaVersion for you/);
   assert.equal(await s.getDoc("f-summary"), null, "still fail-closed — nothing written");
-});
-
-test("defect 2: a node:<id> reference resolves (ADR-0107 D2), and a dangling one is still refused", async () => {
-  const s = store();
-  const dirs = tempDirs();
-
-  // Before this, `node:` fell to the else-arm and was rejected as "not an asset:/doc: pointer" —
-  // so a friction item about a capability could not cite that capability.
-  const good = await fileNew(s, frictionDoc("f-node", { references: ["node:cli"] }), dirs, {
-    writable: true,
-    over: NODE_RESOLVER,
-  });
-  assert.equal(good.ok, true, good.body);
-  const stored = (await s.getDoc("f-node"))?.doc as Record<string, unknown>;
-  assert.deepEqual(stored["references"], ["node:cli"], "the token round-trips unchanged");
-
-  // The ADR-0168 D3 floor is unchanged in strength: a node that does not exist is still refused.
-  const bad = await fileNew(s, frictionDoc("f-ghostnode", { references: ["node:no-such-story"] }), dirs, {
-    writable: true,
-    over: NODE_RESOLVER,
-  });
-  assert.equal(bad.ok, false);
-  assert.match(bad.body, /no such story\/capability node/);
-  assert.equal(await s.getDoc("f-ghostnode"), null);
-});
-
-test("defect 2: a genuinely bad token names all three accepted reference forms", async () => {
-  const s = store();
-  const dirs = tempDirs();
-  const env = await fileNew(s, frictionDoc("f-badtoken", { references: ["https://example.com/x"] }), dirs, {
-    writable: true,
-    over: NODE_RESOLVER,
-  });
-  assert.equal(env.ok, false);
-  assert.match(env.body, /not an asset:<id>, doc:<path> or node:<id> pointer/);
 });
 
 test("defect 3: route --reason and reinforce --evidence read a value from @path", async () => {
@@ -775,24 +722,210 @@ test("`tool` + --arc writes the route AND the asset: citation in one validated u
   assert.match(routed.body, /remedy parked on arc one-seed-sync-arc/);
 
   const parsed = Friction.safeParse((await s.getDoc("t-cite"))?.doc);
-  assert.ok(parsed.success, "the whole doc is re-validated, citation included");
+  assert.ok(parsed.success, "the whole doc is re-validated");
   assert.equal(parsed.data.route, "tool");
-  assert.deepEqual(parsed.data.references, ["asset:one-seed-sync-arc"]);
+  // ADR-0477 D1: NOTHING is written onto the friction row to record the arc. The relation is derived
+  // from the arc's own parked entry (`frictionRefs`), which is the edge the fence has always been
+  // about — so what the report says above is the whole of the observable outcome.
 
-  // Re-routing is idempotent on the citation — a second pass must not stack duplicate refs.
+  // Re-routing stays idempotent — a second pass reports the same arc, once.
   const again = await run(
     ["friction", "route", "t-cite", "--route", "tool", "--reason", "q7: a verb beats prose", "--arc", "asset:one-seed-sync-arc", "--pg"],
     liveDeps(s, dirs),
   );
   assert.equal(again.ok, true, again.body);
+  assert.match(again.body, /remedy parked on arc one-seed-sync-arc/);
   const after = (await s.getDoc("t-cite"))?.doc as Record<string, unknown>;
-  assert.deepEqual(after["references"], ["asset:one-seed-sync-arc"], "an `asset:`-prefixed value is normalised, not double-added");
+  assert.equal(after["references"], undefined, "the retired citation field is never re-created");
 });
 
-test("an already-citing item re-routes without repeating --arc (the --discharged-by path stays open)", async () => {
-  // The fence is on the CITATION, not the flag. `friction route` has no stamp-only path — adding
+// ---------------------------------------------------------------------------
+// `arcsParkingFriction` — the derived read that REPLACED the stored citation (ADR-0477 D1).
+//
+// `friction route --route tool --arc <id>` used to append an `asset:<arc-id>` to the friction's
+// `references`, and the ADR-0298 D2 fence read that list back. The field is retired, so the fence
+// now DERIVES the set: the arcs carrying an OPEN increment whose `frictionRefs` names the item.
+//
+// These pin the four ways that derivation can be wrong. They are not spare coverage: the old path
+// was covered through the stored array, and every one of these branches is new code.
+// ---------------------------------------------------------------------------
+
+test("a CLOSED entry does not park a friction item — the derived read counts OPEN entries only", async () => {
+  // The `status === "closed"` guard, and it is driven WITHOUT `--arc` on purpose: with the flag, the
+  // separate `arcParksFriction` check refuses first and this test would pass without the guard ever
+  // running. Routing bare leaves the DERIVED set as the only thing that can answer, so a mutant that
+  // drops the guard flips the outcome. (Verified by hand: with `--arc` the mutant survives.)
+  //
+  // A closed increment is permanent (ADR-0305 D3), so without the guard a landed remedy would keep
+  // satisfying a FORWARD routing forever — which is exactly what `--discharged-by` exists to say.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-closed"), dirs, { writable: true });
+  await newArc(s, "t-closed-arc");
+  await parkOnArc(s, "t-closed-arc", "t-closed-remedy", "t-closed");
+  await run(["arc", "increment", "close", "t-closed-remedy", "--pr", "#1", "--pg"], { store: s, writable: true });
+
+  const routed = await run(
+    ["friction", "route", "t-closed", "--route", "tool", "--reason", "the remedy is deferred capability work", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(routed.ok, false, routed.body);
+  assert.match(routed.body, /requires a PARKED ENTRY on the arc that owns the remedy/);
+});
+
+test("an entry naming a DIFFERENT friction item does not park this one", async () => {
+  // The `refs.includes(frictionId)` guard, driven bare for the same reason as the test above: with
+  // `--arc` the sibling check answers first and the guard never decides. Without it, ANY open entry
+  // anywhere would satisfy the fence, and "the remedy EXISTS" collapses back into "an arc was
+  // NAMED" — the weaker claim ADR-0298 D2 explicitly refuses.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-mine"), dirs, { writable: true });
+  await fileNew(s, frictionDoc("t-other"), dirs, { writable: true });
+  await newArc(s, "t-shared-arc");
+  await parkOnArc(s, "t-shared-arc", "t-other-remedy", "t-other");
+
+  const routed = await run(
+    ["friction", "route", "t-mine", "--route", "tool", "--reason", "the remedy is deferred capability work", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(routed.ok, false, routed.body);
+  assert.match(routed.body, /requires a PARKED ENTRY on the arc that owns the remedy/);
+});
+
+test("friction new with no --file and no --json says WHAT to supply, not just that it is missing", async () => {
+  // The usage line lost "optional references" when the field was retired (ADR-0477 D1). It is the
+  // only place the required shape is stated at the point of failure, so an empty message turns a
+  // recoverable mistake into a guess.
+  const env = await run(["friction", "new"], { store: store() });
+  assert.equal(env.ok, false);
+  assert.match(env.body, /friction new needs the item as JSON: --file <doc\.json>/);
+  assert.match(env.body, /Supply id\/title\/description \+ statement\/evidence\/impact; the CLI stamps provenance\./);
+  assert.ok(!env.body.includes("references"), "the retired field is not still requested");
+});
+
+test("friction --help states the surviving capture floors and the ADR-0298 D2 arc fence", async () => {
+  // Two prose lines this branch rewrote: the capture floor list (which lost "references must
+  // resolve") and the `--arc` line (which now NAMES an arc rather than citing one). Help text is the
+  // only place a session learns either rule, so an empty line is a silent capability loss.
+  const env = await run(["friction"], { store: store() });
+  assert.match(env.body, /evidence must be CONCRETE, ≤3 per branch\/date/);
+  assert.ok(!env.body.includes("references must resolve"), "the retired floor is not still advertised");
+  assert.match(env.body, /--arc names the arc carrying the PARKED ENTRY the `tool` route emits/);
+  assert.match(env.body, /file a friction item, fail-closed/);
+  assert.match(env.body, /NO route at capture\. With --pg it writes live; offline it/);
+  assert.match(env.body, /routing to `tool` is refused until an arc carries an entry naming this item/);
+});
+
+test("the derived read is DEFENSIVE: a malformed increment row parks nothing and throws nothing", async () => {
+  // `arcsParkingFriction` runs over the LIVE corpus, not a parsed union, so three shapes it can meet
+  // are guarded — and each guard is load-bearing in a different direction:
+  //   • a NON-OBJECT `doc` (an older row, a hand-edit) must scan as nothing rather than throw;
+  //   • an `arcRef` WITHOUT the `asset:` prefix must not be sliced into a garbage arc id;
+  //   • the query is scoped to `increment`, so a row of another kind carrying a `frictionRefs`-shaped
+  //     property cannot park anything.
+  // Each row below satisfies every OTHER condition, so a dropped guard turns the refusal into a pass.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-malformed"), dirs, { writable: true });
+  await s.upsertDoc({ id: "bad-body", kind: "increment", doc: null });
+  await s.upsertDoc({
+    id: "bad-arcref",
+    kind: "increment",
+    doc: { kind: "increment", id: "bad-arcref", arcRef: "not-an-asset-ref", frictionRefs: ["t-malformed"] },
+  });
+  await s.upsertDoc({
+    id: "wrong-kind",
+    kind: "arc",
+    doc: { kind: "arc", id: "wrong-kind", arcRef: "asset:some-arc", frictionRefs: ["t-malformed"] },
+  });
+  // An OPEN entry that names the item and carries NO `arcRef` at all — it passes every other guard,
+  // so only the "is it a string" check stands between it and `undefined.startsWith(…)`.
+  await s.upsertDoc({
+    id: "no-arcref",
+    kind: "increment",
+    doc: { kind: "increment", id: "no-arcref", frictionRefs: ["t-malformed"] },
+  });
+
+  const routed = await run(
+    ["friction", "route", "t-malformed", "--route", "tool", "--reason", "the remedy is deferred capability work", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(routed.ok, false, `no malformed row may park an item:\n${routed.body}`);
+  assert.match(routed.body, /requires a PARKED ENTRY on the arc that owns the remedy/);
+});
+
+test("an OPEN entry naming the item parks it WITHOUT --arc — the derived read is what answers", async () => {
+  // The positive half, and the one that makes the two refusals above mean something: the same bare
+  // command SUCCEEDS the moment an open entry names the item. Without it, a derivation that always
+  // returned nothing would pass both refusal tests.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-derived"), dirs, { writable: true });
+  await newArc(s, "t-derived-arc");
+  await parkOnArc(s, "t-derived-arc", "t-derived-remedy", "t-derived");
+
+  const routed = await run(
+    ["friction", "route", "t-derived", "--route", "tool", "--reason", "the remedy is deferred capability work", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(routed.ok, true, routed.body);
+  assert.match(routed.body, /remedy parked on arc t-derived-arc/);
+  const doc = (await s.getDoc("t-derived"))?.doc as Record<string, unknown>;
+  assert.equal(doc["references"], undefined, "and nothing is written back onto the friction row");
+});
+
+test("TWO arcs parking the same item are both reported, deduped and in sorted order", async () => {
+  // The `Set` + `.sort()`. Order matters because the report NAMES the arcs: an unsorted read makes
+  // the same corpus print two different lines on two runs, and a missing dedup would print an arc
+  // twice when it parks the item in two entries.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-two"), dirs, { writable: true });
+  await newArc(s, "zzz-late-arc");
+  await newArc(s, "aaa-early-arc");
+  await parkOnArc(s, "zzz-late-arc", "zzz-remedy", "t-two");
+  await parkOnArc(s, "aaa-early-arc", "aaa-remedy", "t-two");
+  // A SECOND open entry on one of them, naming the same item — the dedup case.
+  await parkOnArc(s, "aaa-early-arc", "aaa-second-remedy", "t-two");
+
+  const routed = await run(
+    ["friction", "route", "t-two", "--route", "tool", "--reason", "the remedy is deferred capability work", "--arc", "aaa-early-arc", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(routed.ok, true, routed.body);
+  assert.match(
+    routed.body,
+    /remedy parked on arc aaa-early-arc, zzz-late-arc — an OPEN entry there names this item/,
+    `both arcs, each once, alphabetically:\n${routed.body}`,
+  );
+  // …and the `--arc` the caller named is not appended a SECOND time: it is already in the derived
+  // set, so the report must still name each arc once.
+  assert.equal(routed.body.match(/aaa-early-arc/g)?.length, 1, `named once, not twice:\n${routed.body}`);
+});
+
+test("routing to `tool` with NO arc parking the item is refused — the fence still binds", async () => {
+  // The whole point of the derivation: it must be able to say NO. A read that returned every arc,
+  // or an empty guard that let the routing through, would leave `tool` archiving items again while
+  // building nothing — the measured failure ADR-0298 exists to close (6 delivered of 125).
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("t-bare"), dirs, { writable: true });
+
+  const routed = await run(
+    ["friction", "route", "t-bare", "--route", "tool", "--reason", "the remedy is deferred capability work", "--pg"],
+    liveDeps(s, dirs),
+  );
+  assert.equal(routed.ok, false, routed.body);
+  assert.match(routed.body, /requires a PARKED ENTRY on the arc that owns the remedy/);
+});
+
+test("an already-parked item re-routes without repeating --arc (the --discharged-by path stays open)", async () => {
+  // The fence is on the PARKED ENTRY, not the flag. `friction route` has no stamp-only path — adding
   // `--discharged-by` later means re-running the whole route — so demanding `--arc` again would
-  // have closed the documented delivery-stamp path for every already-parked item.
+  // have closed the documented delivery-stamp path for every already-parked item. Since ADR-0477 D1
+  // the entry is ALSO the only record: nothing is written back onto the friction row, so this proves
+  // the derived read finds the arc on the second pass exactly as it did on the first.
   const s = store();
   const dirs = tempDirs();
   await fileNew(s, frictionDoc("t-stamp"), dirs, { writable: true });
@@ -805,7 +938,8 @@ test("an already-citing item re-routes without repeating --arc (the --discharged
   assert.equal(stamped.ok, true, stamped.body);
   const doc = (await s.getDoc("t-stamp"))?.doc as Record<string, unknown>;
   assert.equal(doc["dischargedBy"], "#1088");
-  assert.deepEqual(doc["references"], ["asset:t-stamp-arc"]);
+  assert.equal(doc["references"], undefined, "the retired citation field is never written");
+  assert.match(stamped.body, /remedy parked on arc t-stamp-arc/);
 });
 
 // ---------------------------------------------------------------------------

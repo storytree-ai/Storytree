@@ -72,7 +72,6 @@ async function makeKnowledgeStore(): Promise<InMemoryStore> {
       id: "demo-artifact",
       title: ARTIFACT_TITLE,
       body: `${ARTIFACT_BODY_TEXT}. ${ARTIFACT_CANARY}`,
-      references: [],
     },
   });
   await store.upsertDoc({

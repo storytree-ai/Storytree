@@ -16,7 +16,6 @@ interface ParityFixtureDoc {
   title: string;
   description: string;
   body: string;
-  references: readonly string[];
 }
 
 /**
@@ -47,7 +46,6 @@ function parityFixtureDoc(id: string, body: string): ParityFixtureDoc {
     title: `parity ${id}`,
     description: "a parity-suite fixture",
     body,
-    references: [],
   };
 }
 

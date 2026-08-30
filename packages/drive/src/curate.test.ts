@@ -34,7 +34,6 @@ function oqDoc(id: string, over: Record<string, unknown> = {}) {
     statement: "the question?",
     context: "why it is open now",
     options: "A vs B",
-    references: [],
     createdAt: ISO,
     updatedAt: ISO,
     ...over,

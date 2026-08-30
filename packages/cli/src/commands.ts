@@ -36,7 +36,6 @@ import {
   arrayFieldsForKind,
   knownFieldsForKind,
   stringFieldsForKind,
-  NODE_REF_PREFIX,
   REPO_ROOT_ENV,
   resolveRepoRoot,
 } from "@storytree/library";
@@ -400,14 +399,17 @@ function citesOf(stored: StoredDoc): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
-/** Read the `references` string[] off a stored doc body (the only edge field today). */
+/**
+ * Read the authored `dependsOn` string[] off a stored doc body — the corpus's ONLY edge field
+ * (ADR-0477 D1).
+ *
+ * It read `references` until that field was retired. Repointing rather than deleting is the D5
+ * correction: `tree focus`'s whole subject is "what does this connect to", and left on the dead
+ * field it would have kept rendering — printing `(none)` and `(none yet)` for every artifact in the
+ * corpus, which reads as a library with no structure rather than as a view that lost its input.
+ */
 function refsOf(stored: StoredDoc): string[] {
-  const doc = stored.doc;
-  if (typeof doc === "object" && doc !== null) {
-    const v = (doc as Record<string, unknown>).references;
-    if (Array.isArray(v)) return v.filter((x): x is string => typeof x === "string");
-  }
-  return [];
+  return readDependsOnPointers(stored.doc);
 }
 
 function groupByKind(docs: readonly StoredDoc[]): Map<string, StoredDoc[]> {
@@ -544,9 +546,6 @@ export async function libraryCheck(store: Store): Promise<Envelope> {
         return false;
       }
     },
-    // The `node:<id>` resolver (ADR-0107 D2) — the sibling of docExists, so a citation of a story
-    // that no longer exists surfaces as a WARN instead of being silently ignored.
-    nodeExists: (nodeId) => findNodeSpecFile(storiesDir, nodeId) !== null,
     // The `story:` / `capability:` resolver (ADR-0306 D1) — tier-aware, because the schemes are, so
     // a `story:` ref naming a real capability reads as the wrong scheme rather than as absence. The
     // index is scanned ONCE for the whole report rather than per ref.
@@ -626,8 +625,7 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   // This view is the narrow read `arc show` points every increment row at ("read/edit it: storytree
   // library artifact <id>"), so a citation edge invisible here would be unreachable from the one
   // command the arc offers for reading an entry. It is kept apart from Sources because the two are
-  // different claims: `references` is what this artifact was WRITTEN FROM, `cites` is what the work
-  // TOUCHES. Resolution is deliberately not attempted — that answer is checkout-dependent and
+  // different claims: `dependsOn` is what this artifact RESTS ON, `cites` is what the work TOUCHES. Resolution is deliberately not attempted — that answer is checkout-dependent and
   // belongs to `arc show` (which holds the disk index) and to `library --check`.
   const citeRefs = citesOf(stored);
   if (citeRefs.length > 0) {
@@ -694,8 +692,9 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   // of it was one 45-char candidate-set id repeated 28 times.
   //
   // The replacement is not this block ranked or capped — it is the authored `depends_on` edge spliced
-  // in above, which is a list a person chose rather than a provenance list read forwards. `references`
-  // is what an artifact was WRITTEN FROM; using it to say where to go NEXT was the whole defect.
+  // in above, which is a list a person chose rather than a provenance list read forwards. The
+  // citation field it replaced said what an artifact was WRITTEN FROM; using that to say where to go
+  // NEXT was the whole defect, and ADR-0477 D1 has since retired the field outright.
   return { ok: true, body: lines.join("\n"), next };
 }
 
@@ -1084,7 +1083,7 @@ const UNSETTABLE_FIELDS: ReadonlySet<string> = new Set(["kind", "schemaVersion",
  * Three ergonomics beyond a bare `field=value` (the arc-edit friction, ADR-0168): `field=@path`
  * reads the value from a FILE (long/multi-line prose without shell mangling); a typo'd field name
  * on a structured kind is rejected with a CLEAR message (via {@link knownFieldsForKind}) instead of
- * the opaque `.strict()` union dump; and an ARRAY-typed field (`references`, a uat-criterion's
+ * the opaque `.strict()` union dump; and an ARRAY-typed field (`dependsOn`, a uat-criterion's
  * `stepRefs`, …) takes a JSON array — inline or @file — via {@link arrayFieldsForKind} (a bare
  * string could never validate, so the field was previously unwritable from this surface). One array
  * stays fenced BY POLICY: an arc's `increments` log is append-only — that is what `storytree arc
@@ -1208,7 +1207,7 @@ export async function editArtifact(
     // `category` not `kind`) — used to reject a typo'd field name up front with a clear message,
     // rather than letting the .strict() schema throw an opaque "Unrecognized key(s)" union dump.
     const knownFields = kindStr !== undefined ? knownFieldsForKind(kindStr) : null;
-    // The ARRAY-typed fields (`references`, a uat-criterion's `stepRefs`, …): a bare string can
+    // The ARRAY-typed fields (`dependsOn`, a uat-criterion's `stepRefs`, …): a bare string can
     // never validate against them, so `--set` parses the value (inline or @file) as a JSON array.
     const arrayFields = kindStr !== undefined ? arrayFieldsForKind(kindStr) : null;
     // The mirror image, and the reason it is needed: a `--set` value is ALWAYS a string, so a JSON
@@ -1611,10 +1610,13 @@ export async function retireArtifact(
 
 /**
  * `storytree library tree focus <id>` — the DAG **for one node only** (ADR-0023): its outbound
- * references (intra-library `asset:` edges + `doc:` source/ADR pointers, the latter surfaced on
- * demand) and the inbound `asset:` edges that point at it (a derived back-edge scan). Honest about
- * sparsity: intra-library edges are few today, so the view doubles as a friction signal for the
- * typed `derives_from` / `consumes` edges a later slice will add.
+ * AUTHORED `dependsOn` edges (intra-library `asset:` pointers + `doc:` decision pointers, the latter
+ * surfaced on demand) and the inbound `asset:` edges that point at it (a derived back-edge scan).
+ *
+ * It walked `references` until ADR-0477 D1 retired that field. The view is therefore SPARSER than it
+ * was and deliberately so: it now shows edges somebody AUTHORED rather than every artifact ever
+ * consulted, which is ADR-0464 D2's whole point. What no edge reaches is found with
+ * `library search` / `library related --unlinked`, never by widening this walk.
  */
 export async function treeFocus(store: Store, id: string | undefined): Promise<Envelope> {
   if (id === undefined) {
@@ -1643,12 +1645,9 @@ export async function treeFocus(store: Store, id: string | undefined): Promise<E
       const t = byId.get(tid);
       firstLibraryNeighbour ??= tid;
       outbound.push(`  → ${tid}${t ? `  ${fieldOf(t, "title")}  [${t.kind}]` : "  (missing target)"}   (library)`);
-    } else if (r.startsWith(NODE_REF_PREFIX)) {
-      // ADR-0107 D2's proving-process anchor: an edge OUT of the library at a story / capability.
-      // Not a "source" — reading it means `storytree tree <id>`, not opening a doc.
-      outbound.push(`  → ${r.slice(NODE_REF_PREFIX.length)}   (story node — storytree tree ${r.slice(NODE_REF_PREFIX.length)})`);
     } else {
-      outbound.push(`  → ${r}   (source — surfaced on demand)`);
+      // `DependsOnRef`'s other admitted scheme: a `doc:<relpath>` decision pointer.
+      outbound.push(`  → ${r}   (decision — surfaced on demand)`);
     }
   }
 
@@ -1663,10 +1662,10 @@ export async function treeFocus(store: Store, id: string | undefined): Promise<E
     `# ${fieldOf(stored, "title")}    [${stored.kind}]   — tree focus`,
     `id: ${id}`,
     "",
-    "outbound  (what this references / derives from):",
+    "outbound  (what this stands on — its authored depends_on):",
     ...(outbound.length > 0 ? outbound : ["  (none)"]),
     "",
-    "inbound  (what references this):",
+    "inbound  (what stands on this):",
     ...(inbound.length > 0 ? inbound : ["  (none yet)"]),
   ];
   if (!hasLibraryEdge) {
@@ -2146,7 +2145,6 @@ export interface RunDeps {
     readonly now?: string;
     readonly inboxDir?: string;
     readonly docsDir?: string;
-    readonly nodeExists?: (nodeId: string) => boolean;
   };
 
   /**
@@ -2181,10 +2179,6 @@ function makeFrictionContext(deps: RunDeps): FrictionContext {
     now: deps.friction?.now ?? new Date().toISOString(),
     inboxDir: deps.friction?.inboxDir ?? path.join(root, "docs", "friction-inbox"),
     docsDir: deps.friction?.docsDir ?? path.join(root, "docs"),
-    // The `node:<id>` resolver (ADR-0107 D2), fs-backed here so `friction.ts` stays free of the
-    // stories/ layout — the `docExists` injection pattern. `findNodeSpecFile` is the ONE place that
-    // knows a story is `<id>/story.md` and a capability is `<story>/<id>.md`.
-    nodeExists: deps.friction?.nodeExists ?? ((nodeId) => findNodeSpecFile(storiesDir, nodeId) !== null),
   };
 }
 
@@ -4365,7 +4359,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // The deliberate foreign overwrite — see `routeFriction`'s compare-and-refuse guard.
       if (values["re-route"] === true) routeOpts.reRoute = true;
       // The ADR-0298 D2 emission: the ARC carrying the parked entry the `tool` route produces,
-      // cited in `references`. The entry itself is written first by `arc proposal add --friction`.
+      // named by the arc's own parked entry. The entry itself is written first by `arc proposal add --friction`.
       if (values.arc !== undefined) routeOpts.arc = values.arc;
       return routeFriction(deps, third, routeOpts, ctx);
     }

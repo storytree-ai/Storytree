@@ -47,10 +47,6 @@ export * from "./gate-criterion-audit.js";
 export * from "./gate-command-file-audit.js";
 export * from "./burned-ordinal-collision.js";
 export * from "./uat-witness-census.js";
-// ADR-0107 (generalising ADR-0106 d4): the proving-process OQ-attachment predicate — an open question
-// carrying a `node:<id>` reference is attached to that node's proving process and WITHHOLDS its green
-// (the green-fold is the orchestrator's `gateStoryGreenOnOpenQuestions`). Pure, browser-safe.
-export * from "./oq-gating.js";
 // ADR-0196 D1/D4: the universal lifecycle projection — every stored per-kind vocabulary (friction
 // route, plan status, ADR status, stateless-kind defaults) maps onto ONE `open|active|archived`
 // triad. Pure, browser-safe — the single place this mapping lives.
@@ -145,17 +141,17 @@ export * from "./graduation/graduation.js";
 // ADR-0202: the parked-memory lease compute (content-hash change detection, lease-expiry date
 // math, and the new/changed/expired/parked classifier). Pure, browser-safe — see the module header.
 export * from "./graduation/park.js";
+// ADR-0477 D7: the target-type GROUPING table survives the citation tier's retirement, because
+// ADR-0464 D2's authored-edge block orders itself by it. `groupSources` and its render types went
+// with the `Sources:` block.
 export {
-  groupSources,
   sourceGroupOf,
   SOURCE_GROUP_ORDER,
-  type SourceGroup,
   type SourceGroupName,
-  type ResolvedSource,
   type AssetTarget,
 } from "./knowledge-sources.js";
-// ADR-0464 D2: the authored `dependsOn` edge read as the rendered onward block. Pure + browser-safe,
-// like its `groupSources` neighbour — it resolves pointers through a caller-supplied corpus view.
+// ADR-0464 D2: the authored `dependsOn` edge read as the rendered onward block. Pure + browser-safe
+// — it resolves pointers through a caller-supplied corpus view.
 export { dependsOnEdges, type DependsOnEdge } from "./depends-on-edges.js";
 export {
   LibraryAsset,

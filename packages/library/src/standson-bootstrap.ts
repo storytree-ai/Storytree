@@ -13,7 +13,7 @@
  * still judges the result, because curators author edges this function never saw.
  *
  * It does NOT make citations "build the DAG" going forward (ADR-0223 dec 5): after the migration
- * `dependsOn` is authored independently and may diverge from `references` freely.
+ * `dependsOn` is authored independently and may diverge from the seed's inputs freely.
  */
 
 import { DependsOnRef } from "./knowledge.js";
@@ -151,10 +151,11 @@ export interface DependsOnBootstrapPlan {
 }
 
 /**
- * The per-kind `refList` citation fields ADR-0373 admits, alongside the envelope `references`.
+ * The per-kind `refList` citation fields ADR-0373 admits — now the ONLY thing the seed reads.
  *
- * WHY THESE AND NOT `references` ALONE. ADR-0223 dec 5 seeded from `references`, which is a SEE-ALSO
- * citation — "I consulted this". Three of the four fields below are strictly stronger than that: the
+ * WHY THESE AND NOT THE ENVELOPE CITATION LIST. ADR-0223 dec 5 seeded from `references`, which was a
+ * SEE-ALSO citation — "I consulted this". ADR-0373 added these because three of the four are
+ * strictly stronger than that: the
  * `storytree agents <name>` renderer INJECTS the cited unit's text into the agent's system prompt, so
  * changing the target changes the agent with no edit to the agent. That is a dependency by any
  * operational test, and the seed was recording the weakest relation in the corpus while ignoring the
@@ -166,7 +167,10 @@ export interface DependsOnBootstrapPlan {
  * injected exactly like `rules`, so the operational test is identical: change the guardrail and the
  * agent's prompt changes. The polarity is in the content, not in the direction of the dependency.
  *
- * A kind absent from this map contributes only its envelope `references`, unchanged.
+ * ADR-0477 D1 RETIRED THE ENVELOPE LIST, so a kind absent from this map now seeds NOTHING. That is
+ * this decision's direction taken to its end rather than a loss: the weakest relation in the corpus
+ * is gone and only the operational ones remain. `dependsOn` itself is AUTHORED (ADR-0464 D2) and is
+ * never a seed input — seeding it from itself would be a no-op by construction.
  */
 const CITATION_REFLISTS: ReadonlyMap<string, readonly string[]> = new Map([
   ["agent", ["context", "rules", "antiPatterns"]],
@@ -176,15 +180,12 @@ const CITATION_REFLISTS: ReadonlyMap<string, readonly string[]> = new Map([
 /**
  * Read a doc's citation pointers defensively: this runs over the LIVE corpus, not a parsed union.
  *
- * The envelope `references` first, then the kind's {@link CITATION_REFLISTS} fields in declared
- * order. Order matters only for reproducibility of the emitted array; duplicates across fields are
- * collapsed downstream by the caller's `seen` set.
+ * The kind's {@link CITATION_REFLISTS} fields in declared order. Order matters only for
+ * reproducibility of the emitted array; duplicates across fields are collapsed downstream by the
+ * caller's `seen` set.
  */
 function citationsOf(doc: unknown): string[] {
-  const payload = doc as { references?: unknown } | null | undefined;
-  const raw = Array.isArray(payload?.references) ? payload.references : [];
-  const out = raw.filter((entry): entry is string => typeof entry === "string");
-
+  const out: string[] = [];
   const bag = doc as Record<string, unknown> | null | undefined;
   for (const field of CITATION_REFLISTS.get(kindOf(doc)) ?? []) {
     const value = bag?.[field];
@@ -223,7 +224,7 @@ function kindOf(doc: unknown): string {
  *
  * An artifact that already carries `dependsOn` is EXTENDED, not skipped whole (ADR-0373). The seed had
  * to change here or the decision could not land at all: all 13 agents were already seeded from their
- * envelope `references` by ADR-0223 dec 5's first pass, so a skip-whole rule would have read every new
+ * envelope citation list by ADR-0223 dec 5's first pass, so a skip-whole rule would have read every new
  * `rules` / `context` / `antiPatterns` field and written none of them.
  *
  * "Never overwrite authored curation" is PRESERVED — the emitted set is the existing edges in their

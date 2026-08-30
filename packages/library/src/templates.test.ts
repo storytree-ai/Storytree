@@ -32,7 +32,6 @@ test("libraryTemplates returns the 13 canonical templates in order", () => {
 test("every template is a well-formed template asset", () => {
   for (const t of libraryTemplates()) {
     assert.equal(t.category, "template", `${t.id} category`);
-    assert.deepEqual(t.references, [], `${t.id} references`);
     assert.ok(t.title.length > 0, `${t.id} has a title`);
     assert.ok(t.description.length > 0, `${t.id} has a description`);
     assert.ok(t.body.length > 0, `${t.id} has a body`);

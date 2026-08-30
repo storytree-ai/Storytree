@@ -9,7 +9,6 @@ import { libraryTemplates } from '@storytree/library';
 const unit = (over: Partial<KnowledgeUnitLike> & { id: string; kind: string }): KnowledgeUnitLike => ({
   title: over.id.toUpperCase(),
   description: 'one line',
-  references: [],
   createdAt: '2026-01-01T00:00:00.000Z',
   updatedAt: '2026-01-02T00:00:00.000Z',
   ...over,
@@ -18,14 +17,13 @@ const unit = (over: Partial<KnowledgeUnitLike> & { id: string; kind: string }): 
 describe('deriveOfflineAssets', () => {
   it('maps knowledge units to assets (category = kind) then appends the 12 templates', async () => {
     const assets = await deriveOfflineAssets([
-      unit({ id: 'u1', kind: 'definition', references: ['doc:x.md'] }),
+      unit({ id: 'u1', kind: 'definition' }),
       unit({ id: 'u2', kind: 'principle' }),
     ]);
 
     // knowledge first, in order
     expect(assets.slice(0, 2).map((a) => a.id)).toEqual(['u1', 'u2']);
     expect(assets[0]?.category).toBe('definition');
-    expect(assets[0]?.references).toEqual(['doc:x.md']);
     expect(typeof assets[0]?.body).toBe('string');
 
     // the templates follow, matching libraryTemplates() exactly

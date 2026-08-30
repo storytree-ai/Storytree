@@ -138,20 +138,6 @@ function makeDocs(ids: string[]): DocMeta[] {
   return ids.map((id) => ({ id, title: id, group: 'Reference', excerpt: `${id} excerpt` }));
 }
 
-/** An artifact whose Sources block cites a doc — the `RefLink` surface under test. */
-function assetCiting(id: string, refs: string[]): GuidanceAsset {
-  return {
-    id,
-    category: 'pattern',
-    title: `${id} title`,
-    description: `${id} description`,
-    body: `${id} body`,
-    references: refs,
-    createdAt: '2026-01-01T00:00:00.000Z',
-    updatedAt: '2026-01-01T00:00:00.000Z',
-  };
-}
-
 function baseHealth(): StoreHealth {
   return {
     store: 'pg',

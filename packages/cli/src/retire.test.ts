@@ -22,7 +22,7 @@ async function seed(docs: StoredDoc[]): Promise<InMemoryStore> {
 
 test("referencedAssetIds pulls asset:<id> from every DECLARED ref field, at any depth", () => {
   const ids = referencedAssetIds({
-    references: ["asset:alpha", "doc:decisions/0001-x.md"],
+    dependsOn: ["asset:alpha", "doc:decisions/0001-x.md"], // the authored dependency edge
     context: ["asset:beta", "asset:gamma"], // an agent refList field
     arcRef: "asset:epsilon", // the single containment pointer
     stepRefs: [{ step: "one", refs: ["asset:zeta"] }], // an agent step's outbound edges
@@ -38,13 +38,13 @@ test("referencedAssetIds does NOT count an asset: token mentioned inside prose",
   const ids = referencedAssetIds({
     routeReason: "parked on asset:some-arc because the remedy is deferred capability work",
     statement: "as noted in asset:delta this matters",
-    references: ["asset:alpha"],
+    dependsOn: ["asset:alpha"],
   });
   assert.deepEqual([...ids].sort(), ["alpha"], "only the declared edge counts");
 });
 
 test("a ref field survives surrounding whitespace, a prose field is not rescued by trimming", () => {
-  assert.deepEqual([...referencedAssetIds({ references: ["  asset:alpha  "] })], ["alpha"]);
+  assert.deepEqual([...referencedAssetIds({ dependsOn: ["  asset:alpha  "] })], ["alpha"]);
   assert.deepEqual([...referencedAssetIds({ prose: "see asset:alpha." })], []);
 });
 

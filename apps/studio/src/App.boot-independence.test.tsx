@@ -159,7 +159,6 @@ function makeAsset(id: string): GuidanceAsset {
     title: `${id} title`,
     description: `${id} description`,
     body: `${id} body`,
-    references: [],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
   };

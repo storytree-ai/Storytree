@@ -61,7 +61,6 @@ function validDefinitionBody(over: Record<string, unknown> = {}) {
     title: "Good term",
     description: "A valid definition for the health tests.",
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    references: [],
     oneLine: "A throwaway definition used only by the health test suite.",
     whatItIs: "The exact meaning, stated precisely for the test.",
     createdAt: "2026-06-05T00:00:00.000Z",
@@ -112,7 +111,7 @@ test("schema-conformance FAIL on a structured doc missing a required field", () 
 
 test("schema-conformance skips non-structured (template) docs", () => {
   // A template asset has no structured `kind`; it is not subject to the schema-conformance check.
-  const tpl = stored({ id: "template-definition", category: "template", title: "T", description: "d", body: "b", references: [] });
+  const tpl = stored({ id: "template-definition", category: "template", title: "T", description: "d", body: "b" });
   const results = libraryHealth([tpl], BASE_OPTS);
   assert.equal(find(results, "schema-conformance").level, "PASS");
 });
@@ -144,14 +143,14 @@ test("version-floor FAIL when a structured doc sits below the current version", 
 });
 
 test("referential-integrity PASS when every pointer resolves", () => {
-  const a = stored(validDefinitionBody({ id: "a", references: ["asset:b"] }));
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: ["asset:b"] }));
   const b = stored(validDefinitionBody({ id: "b" }));
   const results = libraryHealth([a, b], { ...BASE_OPTS, docExists: () => true });
   assert.equal(find(results, "referential-integrity").level, "PASS");
 });
 
 test("referential-integrity FAIL on a dangling asset: pointer (a real graph break)", () => {
-  const a = stored(validDefinitionBody({ id: "a", references: ["asset:ghost"] }));
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: ["asset:ghost"] }));
   const results = libraryHealth([a], BASE_OPTS);
   const r = find(results, "referential-integrity");
   assert.equal(r.level, "FAIL");
@@ -159,15 +158,52 @@ test("referential-integrity FAIL on a dangling asset: pointer (a real graph brea
 });
 
 test("referential-integrity WARN on a dangling doc: pointer (softer — a doc can move)", () => {
-  const a = stored(validDefinitionBody({ id: "a", references: ["doc:missing/file.md"] }));
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: ["doc:missing/file.md"] }));
   const results = libraryHealth([a], { ...BASE_OPTS, docExists: () => false });
   const r = find(results, "referential-integrity");
   assert.equal(r.level, "WARN");
   assert.ok(r.lines.some((l) => l.includes("doc:missing/file.md")));
 });
 
+// --- the edge the scan READS (ADR-0477 D5) -----------------------------------------------------
+// `referentialIntegrity` scanned the `references` citation list until ADR-0477 D1 retired it, and now
+// scans the authored `dependsOn` edge. That repoint is a CORRECTION, not a fallback: a check left on
+// the dead field would not have broken, it would have kept printing "every pointer resolves" over a
+// scan that had lost its main input — and, worse, the fail-closed clause below is armed by
+// `decisionPointers > 0`, so an empty scan would have DISARMED the one guard that catches an
+// unreadable store. These pin the reader itself.
+
+test("referential-integrity reads `dependsOn`, and a NON-ARRAY value is no pointers rather than a throw", () => {
+  // This runs over the LIVE corpus, so a row from an older schema (or a hand-edit) must not take the
+  // whole report down — and must not be silently read as "one pointer" either.
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: "asset:ghost" }));
+  const results = libraryHealth([a], BASE_OPTS);
+  assert.equal(find(results, "referential-integrity").level, "PASS", "a malformed field scans as nothing");
+});
+
+test("referential-integrity drops NON-STRING entries from `dependsOn` and still checks the rest", () => {
+  // The `.filter(typeof x === "string")`. Without it a numeric entry reaches `ref.startsWith` and
+  // throws; with a filter that dropped everything, the real dangling pointer beside it goes unseen.
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: [42, null, "asset:ghost"] }));
+  const r = find(libraryHealth([a], BASE_OPTS), "referential-integrity");
+  assert.equal(r.level, "FAIL");
+  assert.ok(r.lines.some((l) => l.includes("asset:ghost")), "the string pointer is still resolved");
+  assert.ok(!r.lines.some((l) => l.includes("42")), "the non-string is dropped, not reported");
+});
+
+test("referential-integrity names the FOUR schemes it resolves, and no longer claims node:", () => {
+  // `node:<id>` was a fifth token and went with the field that carried it (ADR-0477 D1): the
+  // proving-process anchor only ever lived in `references`, and `DependsOnRef` does not admit it.
+  // The clean line is the report's only claim about its own scope, so it must not overstate it.
+  const clean = find(libraryHealth([stored(validDefinitionBody({ id: "a" }))], BASE_OPTS), "referential-integrity");
+  assert.equal(clean.level, "PASS");
+  const line = clean.lines.join("\n");
+  assert.match(line, /every asset:\/doc:\/story:\/capability: pointer resolves/);
+  assert.ok(!line.includes("node:"), "the retired scheme is not claimed as checked");
+});
+
 test("referential-integrity skips doc: resolution when no docExists is injected", () => {
-  const a = stored(validDefinitionBody({ id: "a", references: ["doc:missing/file.md"] }));
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: ["doc:missing/file.md"] }));
   const results = libraryHealth([a], BASE_OPTS); // no docExists
   assert.equal(find(results, "referential-integrity").level, "PASS");
 });
@@ -211,7 +247,6 @@ function adrRow(number: number): StoredDoc {
       title: `${label}: a decision this fixture holds`,
       description: "A decision row, so a decision pointer at it has something to resolve against.",
       schemaVersion: CURRENT_SCHEMA_VERSION,
-      references: [],
       number,
       status: "accepted",
       body: `# ${label}\n\n## Status\n\naccepted\n`,
@@ -226,7 +261,7 @@ function adrRow(number: number): StoredDoc {
  * `rows` — by default the single decision row ADR-0209. Pass `[]` for the no-decision-index case.
  */
 function refLines(refs: string[], rows: readonly StoredDoc[] = [adrRow(209)]): CheckResult {
-  const a = stored(validDefinitionBody({ id: "a", references: refs }));
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: refs }));
   return find(libraryHealth([a, ...rows], FAKE_DOCS), "referential-integrity");
 }
 
@@ -259,7 +294,7 @@ test("a decision pointer never reaches docExists — the filesystem is not a fal
   // stay green on a fix that asked the disk first and the store second, which reintroduces it the
   // day someone restores a stray `docs/decisions/` file. So the resolver records what it was asked.
   const asked: string[] = [];
-  const a = stored(validDefinitionBody({ id: "a", references: [`doc:decisions/${SLUG_0209}`] }));
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: [`doc:decisions/${SLUG_0209}`] }));
   const results = libraryHealth([a, adrRow(209)], {
     ...BASE_OPTS,
     docExists: (rel: string) => {
@@ -278,7 +313,7 @@ test("omitting docExists skips research notes but can NOT switch decision checki
   const a = stored(
     validDefinitionBody({
       id: "a",
-      references: ["doc:decisions/0000-no-such.md", "doc:research/no-such-note.md"],
+      dependsOn: ["doc:decisions/0000-no-such.md", "doc:research/no-such-note.md"],
     }),
   );
   const r = find(libraryHealth([a, adrRow(209)], BASE_OPTS), "referential-integrity"); // no docExists
@@ -338,30 +373,6 @@ test("referential-integrity does not treat a FOREIGN decisions/ tree as ours", (
   assert.equal(refLines(["doc:vendor/decisions/0001-not-ours.md"]).level, "PASS");
 });
 
-test("referential-integrity WARNs on a dangling node: pointer (ADR-0107 D2's third token)", () => {
-  // A `node:<id>` ref used to fall through every arm and be silently ignored, so a citation of a
-  // retired story dangled invisibly. WARN, not FAIL — like doc:, it points OUT of the library.
-  const a = stored(validDefinitionBody({ id: "a", references: ["node:no-such-story"] }));
-  const results = libraryHealth([a], { ...BASE_OPTS, nodeExists: () => false });
-  const r = find(results, "referential-integrity");
-  assert.equal(r.level, "WARN");
-  assert.ok(r.lines.some((l) => l.includes("node:no-such-story")));
-  assert.deepEqual(gateFailures(results), [], "still WARN-class — never a gate break");
-});
-
-test("referential-integrity PASSes a resolving node: pointer, and skips it with no resolver", () => {
-  const a = stored(validDefinitionBody({ id: "a", references: ["node:cli"] }));
-  assert.equal(
-    find(libraryHealth([a], { ...BASE_OPTS, nodeExists: () => true }), "referential-integrity").level,
-    "PASS",
-  );
-  assert.equal(
-    find(libraryHealth([a], BASE_OPTS), "referential-integrity").level,
-    "PASS",
-    "no nodeExists injected => node: resolution is skipped, never failed",
-  );
-});
-
 test("worstLevel / gateFailures / levelCounts agree on a FAIL-class break", () => {
   // A missing required field -> schema-conformance FAIL (a GATE check).
   const bad = validDefinitionBody();
@@ -377,7 +388,7 @@ test("worstLevel / gateFailures / levelCounts agree on a FAIL-class break", () =
 
 test("gateFailures is EMPTY when only a WARN-class check is non-green", () => {
   // A dangling doc: pointer -> referential-integrity WARN (NOT a gate check) => no gate failures.
-  const a = stored(validDefinitionBody({ id: "a", references: ["doc:missing/file.md"] }));
+  const a = stored(validDefinitionBody({ id: "a", dependsOn: ["doc:missing/file.md"] }));
   const results = libraryHealth([a], { ...BASE_OPTS, docExists: () => false });
   assert.equal(worstLevel(results), "WARN");
   assert.deepEqual(gateFailures(results), []);
@@ -420,7 +431,6 @@ function incrementWithCites(cites: string[]): StoredDoc {
     status: "ready",
     cites,
     schemaVersion: CURRENT_SCHEMA_VERSION,
-    references: [],
     createdAt: "2026-08-08T00:00:00.000Z",
     updatedAt: "2026-08-08T00:00:00.000Z",
   });

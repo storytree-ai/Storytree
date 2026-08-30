@@ -717,7 +717,7 @@ export function arcDescriptionFrom(intent: string): string {
  * (ADR-0335) indistinguishable at the `lifecycle` field. The bundled increment is born `status:
  * proposal`, id `<arc>-inc-01`, title derived from `--objective`'s first sentence. The CLI owns
  * `kind`; `id` (derived from the title unless one is passed); `description` (derived from the intent
- * unless passed); `references`; `schemaVersion` (via the upcaster); both timestamps; and
+ * unless passed); `schemaVersion` (via the upcaster); both timestamps; and
  * `lifecycle: active`. Nothing here authors a containment edge on the ARC either: plans/ADRs/stories
  * point UP at the arc (D3), so there is no child list to seed — only the one bundled increment, which
  * points up at the arc the same way every later one does.
@@ -833,7 +833,6 @@ export async function arcNew(
     intent,
     endState,
     lifecycle: "active",
-    references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
   };
@@ -1266,7 +1265,6 @@ export async function arcIncrementAdd(
     // row minted here is born closed, carries no `parked`, and states what happened in `body` by
     // construction, because `--outcome` is required above.
     outcome,
-    references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
   };
@@ -1434,7 +1432,6 @@ export async function arcIncrementNew(
     arcRef: `asset:${arcId}`,
     status: "proposal",
     parked: deps.now,
-    references: [],
     createdAt: deps.now,
     updatedAt: deps.now,
   };
@@ -1474,126 +1471,6 @@ export async function arcIncrementNew(
       `storytree arc increment close ${result.saved.id} --pr <ref> --pg   (when it lands)`,
     ],
   };
-}
-
-/** What {@link dropDischargedCitations} did, per friction item — reported, never silent. */
-interface CitationOutcome {
-  /** Frictions whose `asset:<arc>` citation was removed. */
-  readonly dropped: readonly string[];
-  /** Frictions kept, each with the still-open entry that holds the citation up. */
-  readonly kept: readonly { readonly friction: string; readonly by: string }[];
-  /** Frictions the drop could not be written for, with the reason and the hand remedy. */
-  readonly failed: readonly { readonly friction: string; readonly why: string }[];
-}
-
-/**
- * THE `tool`-ROUTE LIFECYCLE'S REVERSE GEAR (parked entry
- * `realizing-an-entry-drops-the-friction-edge-cli-write-fidelity`).
- *
- * `friction route --route tool --arc <id>` APPENDS an `asset:<arc-id>` citation to the friction's
- * `references[]` — the outbound pointer saying "the remedy for this is parked over there". Nothing
- * ever removed it. `friction route` treats its reference list as append-only and has no removal
- * path, so the only way to drop a discharged citation was `library artifact edit --set references=…`
- * — re-writing another adjudicator's row by hand, in a fixed, undocumented order that two lanes
- * independently re-derived from source hours apart on 2026-08-03.
- *
- * So the closing verb does it, in the same command that discharges the entry.
- *
- * ONLY WHEN NOTHING ELSE HOLDS IT UP. An arc may carry more than one open entry naming the same
- * friction; dropping the citation while another is still parked would erase a live pointer. So the
- * other OPEN entries on this arc are consulted first, and a citation held up by one is KEPT and the
- * holder named.
- *
- * THE TRACE IS NOT LOST, which is why dropping is safe rather than merely tidy: the closed increment
- * keeps its own `frictionRefs`, and a closed increment is permanent (ADR-0305 D3 — closed, never
- * deleted). The edge survives in the direction that carries the delivery signal (entry → friction);
- * what goes is the friction's forward pointer at an arc that has finished with it.
- *
- * NEVER FAIL-CLOSED ON THE CLOSE. The increment is already closed when this runs, and `close` refuses
- * a second run — so a friction whose write fails is REPORTED with its hand remedy rather than
- * throwing away the landing that just succeeded.
- */
-async function dropDischargedCitations(
-  deps: ArcWriteDeps,
-  closingId: string,
-  arcId: string,
-  frictionRefs: readonly string[],
-): Promise<CitationOutcome> {
-  const dropped: string[] = [];
-  const kept: { friction: string; by: string }[] = [];
-  const failed: { friction: string; why: string }[] = [];
-  if (frictionRefs.length === 0) return { dropped, kept, failed };
-
-  const citation = `${ASSET_REF_PREFIX}${arcId}`;
-  const increments = await deps.store.queryDocs({ kind: "increment" });
-  const stillOpen = increments.filter((d) => {
-    const doc = typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {};
-    return d.id !== closingId && doc["arcRef"] === citation && doc["status"] !== "closed";
-  });
-
-  for (const frictionId of frictionRefs) {
-    const holder = stillOpen.find((d) => {
-      const refs = (d.doc as Record<string, unknown>)["frictionRefs"];
-      return Array.isArray(refs) && refs.includes(frictionId);
-    });
-    if (holder !== undefined) {
-      kept.push({ friction: frictionId, by: holder.id });
-      continue;
-    }
-    try {
-      const stored = await deps.store.getDoc(frictionId);
-      if (!stored || stored.kind !== "friction") continue;
-      const base =
-        typeof stored.doc === "object" && stored.doc !== null
-          ? { ...(stored.doc as Record<string, unknown>) }
-          : {};
-      const refs = Array.isArray(base["references"]) ? (base["references"] as unknown[]) : [];
-      const next = refs.filter((r) => !(typeof r === "string" && r.trim() === citation));
-      if (next.length === refs.length) continue; // no citation to drop
-      // FIELD-SCOPED (ADR-0352): `references` and the stamp, nothing else. This verb reaches into
-      // ANOTHER adjudicator's friction row on its way past, so a whole-doc write here would revert
-      // whatever they landed on it — a `routeReason` most of all — for a citation edit. (The
-      // reference LIST itself is still last-write-wins: same-field overlap is what ADR-0352 leaves
-      // open, and it is the one field this write is entitled to be opinionated about.)
-      const written = await patchFields(deps, frictionId, "friction", {
-        references: next,
-        updatedAt: deps.now,
-      });
-      if ("invalid" in written) {
-        failed.push({ friction: frictionId, why: (written.invalid as Error).message });
-        continue;
-      }
-      if ("retired" in written) {
-        failed.push({ friction: frictionId, why: "it was retired before the drop landed" });
-        continue;
-      }
-      dropped.push(frictionId);
-    } catch (e) {
-      failed.push({ friction: frictionId, why: e instanceof Error ? e.message : String(e) });
-    }
-  }
-  return { dropped, kept, failed };
-}
-
-/** The citation outcome as envelope lines — empty when the entry cited no friction. */
-function citationLines(outcome: CitationOutcome, arcId: string): string[] {
-  const lines: string[] = [];
-  if (outcome.dropped.length > 0) {
-    lines.push(
-      `dropped the asset:${arcId} citation from ${outcome.dropped.join(", ")} — the arc has finished ` +
-        "with it, and the closed entry's own frictionRefs keeps the trace.",
-    );
-  }
-  for (const k of outcome.kept) {
-    lines.push(`kept ${k.friction}'s asset:${arcId} citation — entry ${k.by} is still open and names it.`);
-  }
-  for (const f of outcome.failed) {
-    lines.push(
-      `COULD NOT drop ${f.friction}'s asset:${arcId} citation: ${f.why}`,
-      `  fix by hand:  storytree library artifact edit ${f.friction} --set references=@refs.json --pg`,
-    );
-  }
-  return lines;
 }
 
 /** The increment lifecycle as an ORDER (ADR-0305 D2), so a promotion can refuse to run backwards. */
@@ -1829,12 +1706,14 @@ export async function arcIncrementClose(
   }
   if ("retired" in written) return retiredUnderfoot("increment", id, "the closure was being prepared");
 
-  // The reverse gear, in the SAME verb (see {@link dropDischargedCitations}) — after the close, so a
-  // refused close never strips a citation off a still-parked entry.
-  const frictionRefs = Array.isArray(doc["frictionRefs"])
-    ? (doc["frictionRefs"] as unknown[]).filter((f): f is string => typeof f === "string")
-    : [];
-  const citations = await dropDischargedCitations(deps, id, arcRef, frictionRefs);
+  // THE REVERSE GEAR IS GONE, and it left nothing behind (ADR-0477 D1). `friction route --route tool
+  // --arc <id>` used to APPEND an `asset:<arc-id>` citation to the friction's `references`, and this
+  // verb removed it on the way past when no other open entry still held it up — the whole of
+  // `dropDischargedCitations`. The citation tier is retired, so `friction route` writes no such
+  // pointer and there is none to drop: the friction→arc relation is now DERIVED from this
+  // increment's own `frictionRefs`, which means it can never fall out of step with the closure and
+  // needs no reverse gear at all. The trace argument is unchanged — a closed increment is permanent
+  // (ADR-0305 D3), so its `frictionRefs` is still what carries the delivery signal.
 
   // ADR-0335: this may have been the arc's last open increment — recompute closes it right here if so.
   const lifecycleNote = await recomputeArcLifecycle(deps, arcRef);
@@ -1844,7 +1723,6 @@ export async function arcIncrementClose(
     body: [
       `closed increment ${written.saved.id} on arc ${arcRef} — ${date}${pr !== undefined && pr !== "" ? `  ${pr}` : ""}` +
         (note !== undefined && note !== "" ? `\n${note}` : ""),
-      ...citationLines(citations, arcRef),
       ...(lifecycleNote !== null ? [lifecycleNote] : []),
     ].join("\n"),
     next: [`storytree arc show ${arcRef} --pg`, `storytree library artifact ${written.saved.id} --pg`],

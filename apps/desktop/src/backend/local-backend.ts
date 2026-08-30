@@ -288,23 +288,15 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
   });
   announceDesktopHierarchyOrigin(selection);
   const { stories, uatTestCriteriaByStory, uatCriteriaByStory, coverageByStory } = selection.read;
-  // Run the advisory reads in parallel so a down DB costs one timeout budget, not four.
-  const [latestVerdicts, verdictEvents, builds, assets] = await Promise.all([
+  // Run the advisory reads in parallel so a down DB costs one timeout budget, not three.
+  // The asset list used to be a fourth leg, read ONLY to feed the ADR-0107 open-question green-gate
+  // its `references`; that gate is retired with the citation tier (ADR-0477 D1), so the read went
+  // with it rather than being left fetching a list nothing folds.
+  const [latestVerdicts, verdictEvents, builds] = await Promise.all([
     deps.backend.latestVerdicts() as Promise<Record<string, DTVerdict> | null>,
     (deps.backend.verdictEvents?.() ?? Promise.resolve(null)) as Promise<readonly DTVerdictEvent[] | null>,
     deps.backend.inFlightBuilds(),
-    deps.backend.listAssets().catch(() => null),
   ]);
-  // The OQ green-gate reads the open-questions' `references` (ADR-0107) — filtered from the asset list.
-  const openQuestions = (Array.isArray(assets) ? assets : [])
-    .filter(
-      (a): a is { id: string; category: string; references?: readonly string[] } =>
-        typeof a === "object" &&
-        a !== null &&
-        (a as { category?: unknown }).category === "open-question" &&
-        typeof (a as { id?: unknown }).id === "string",
-    )
-    .map((a) => (a.references !== undefined ? { id: a.id, references: a.references } : { id: a.id }));
   await foldVerdicts(
     stories,
     uatTestCriteriaByStory,
@@ -312,7 +304,6 @@ async function buildTreePayload(deps: LocalBackendDeps): Promise<Record<string, 
     {
       latestVerdicts,
       verdictEvents,
-      openQuestions,
     },
     uatCriteriaByStory,
   );

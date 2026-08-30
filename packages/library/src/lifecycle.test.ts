@@ -149,7 +149,6 @@ test("llw-plan-status-crosses-the-wire — a stored plan doc surfaces status on 
     id: "sample-plan",
     title: "Sample plan",
     description: "a fixture plan",
-    references: [],
     objective: "Deliver the fixture.",
     arcRef: "asset:sample-arc",
     anchor: { sha: "abcdef1", date: "2026-07-01T00:00:00Z" },
@@ -179,7 +178,6 @@ test("an arc's lifecycle crosses the RenderedAsset wire (ADR-0239 D1), absent-by
     id: "sample-arc",
     title: "Sample arc",
     description: "a fixture arc",
-    references: [],
     intent: "Deliver the fixture.",
     endState: "The fixture is delivered.",
     lifecycle: "closed",
@@ -214,7 +212,6 @@ test("llw-non-plan-docs-carry-no-status — a non-plan structured doc omits stat
     id: "sample-principle",
     title: "Sample principle",
     description: "a fixture principle",
-    references: [],
     statement: "State it.",
     why: "Because.",
     howToApply: "Apply it.",
@@ -242,7 +239,6 @@ test("llw-passthrough-and-degraded-carry-no-status — a body-bearing pass-throu
     title: "Template · sample",
     description: "the shape a fixture conforms to",
     body: "**The fixture.** A literal passthrough body.",
-    references: [],
   };
   const storedTemplate: StoredDoc = {
     id: "template-sample",
@@ -263,7 +259,6 @@ test("llw-passthrough-and-degraded-carry-no-status — a body-bearing pass-throu
     id: "navigator",
     title: "Navigator",
     description: "a unit from a newer schema",
-    references: [],
     schemaVersion: 99,
   };
   const storedDegraded: StoredDoc = {

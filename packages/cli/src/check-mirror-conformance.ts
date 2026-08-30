@@ -270,7 +270,7 @@ function buildArcFixtures() {
   const doc = (id: string, kind: string, body: Record<string, unknown>) => ({
     id,
     kind,
-    doc: { kind, id, references: [], createdAt: "2026-07-29", updatedAt: "2026-07-30", ...body },
+    doc: { kind, id, createdAt: "2026-07-29", updatedAt: "2026-07-30", ...body },
     createdAt: "2026-07-29",
     updatedAt: "2026-07-30",
   } satisfies Record<string, unknown>);
