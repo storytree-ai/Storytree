@@ -46,7 +46,9 @@ import { openCorpusStore } from "@storytree/drive";
 import { loadProbeDecisions } from "./probe-decisions.js";
 import {
   combinedReadVacuity,
+  decisionNodeId,
   evaluateCombinedAcyclicity,
+  renderCombinedNodeId,
   VACUOUS_COMBINED_READ_FLOOR,
 } from "@storytree/library";
 
@@ -196,6 +198,29 @@ async function main(): Promise<void> {
     );
     for (const cycle of verdict.cycles) {
       console.error(`  ${cycle.crossesTheJoin ? "crosses the join" : "inside one half"}: ${cycle.line}`);
+    }
+    if (verdict.tombstoneRedirects.length > 0) {
+      // ADR-0485 dec 4. The one shape in this class with a SETTLED remedy, named so the next
+      // occurrence does not arrive as an anonymous ring between two numbers. It is still counted as
+      // a cycle above — a diagnosis, never an exemption (dec 1).
+      const render = (decisionNumber: number): string =>
+        renderCombinedNodeId(decisionNodeId(decisionNumber));
+      console.error("");
+      console.error(
+        `  ⚠ ${verdict.tombstoneRedirects.length} of the above is a TOMBSTONE REDIRECT (ADR-0485) — ` +
+          `a superseded decision whose \`dependsOn\` names the decision that superseded it:`,
+      );
+      for (const redirect of verdict.tombstoneRedirects) {
+        console.error(
+          `      ${render(redirect.victim)} --dependsOn--> ${render(redirect.superseder)}, which supersedes it`,
+        );
+      }
+      console.error(
+        `    THIS shape has a settled remedy, and taking it is not a repair-to-go-green: ` +
+          `\`dependsOn\` means plain support (ADR-0431 D1) and a tombstone rests on nothing, while ` +
+          `the redirect its author meant is already authored the other way round as \`supersedes\` ` +
+          `— which both \`adr list\` and the artifact render print. Drop the \`dependsOn\`.`,
+      );
     }
     process.exitCode = 1;
   } finally {
