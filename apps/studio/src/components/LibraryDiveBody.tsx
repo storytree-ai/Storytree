@@ -1,9 +1,10 @@
 /**
- * LibraryDiveBody — the dive body panel: an artifact's full body + Sources over the map
+ * LibraryDiveBody — the dive body panel: an artifact's full body over the map
  * (ADR-0185 dec 3/4, increment 4 of the library-tech-tree-overlay story).
  *
  * A THIN router around two EXISTING renderers, never a new one: `AssetView` for an asset
- * selection (body + Sources from the already-loaded corpus, no fetch) and `DocView` for a doc
+ * selection (body from the already-loaded corpus, no fetch — the `Sources` block it also rendered
+ * went with ADR-0477 D1's retirement of the library `references` field) and `DocView` for a doc
  * (ADR) selection (body via DocView's own on-demand `api.docContent` fetch, with its own
  * loading/error states). Takes `selection` as a PROP — mirroring how the shell/finder/subgraph
  * take their driving data as props — and holds no data of its own. Routes via the pure

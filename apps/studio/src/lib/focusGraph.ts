@@ -20,8 +20,9 @@
  * so "stands on" / "stood on by" over `references` were two restatements of one undirected "see
  * also", and the layout had no honest left/right to lay out. `dependsOn` is authored, acyclic, and
  * held closed by the `check:library-dag-acyclic` gate, so the two sides are now LITERALLY the edge
- * and its reverse. Citations are DEMOTED OUT OF THE DAG, not deleted — they keep their own home in
- * the artifact view's grouped "Sources" pane, which this walk never touched.
+ * and its reverse. Citations were DEMOTED OUT OF THE DAG here, and are now GONE ENTIRELY: ADR-0477
+ * D1 retired the `references` field and the artifact view's grouped "Sources" pane that had kept
+ * their home. This walk never read them either way, so nothing here changed with them.
  *
  * Each entry is a prefixed pointer (`"asset:<id>"` or `"doc:<relpath>"`); the prefix is stripped
  * before resolving the target id. The walk starts fresh from the centre each time (no fetch — reads

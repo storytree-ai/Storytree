@@ -99,7 +99,7 @@ dec 2 introduces (replacing the inline dive slot); the double-click / Open-butto
 
 REUSE `LibraryDiveBody` VERBATIM — the CONTAINER is the change, NOT the body rendering (ADR-0187 dec 2). The
 overlay is a THIN container that nests the byte-locked `<LibraryDiveBody selection={selection} />` verbatim —
-`LibraryDiveBody` already routes a `SearchResult | null` via `planDive` to `AssetView` (asset body + Sources,
+`LibraryDiveBody` already routes a `SearchResult | null` via `planDive` to `AssetView` (asset body,
 no fetch) or `DocView` (ADR body via its own on-demand `api.docContent`), with the empty/prompt state and the
 fetch-error guard already proven at inc-4 (`ldb-*`). Do NOT re-author body rendering, do NOT reimplement the
 router, and do NOT edit `LibraryDiveBody.tsx` / `diveBody.ts` — `ldb-*` stays byte-green. The change ADR-0187

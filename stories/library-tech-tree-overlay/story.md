@@ -101,7 +101,7 @@ Authored just-in-time, one provable unit per increment (ADR-0183 slow growth). L
 | 1 | Drawer shell → permanent lens | [`library-drawer-shell`](library-drawer-shell.md) | The `?overlay=library` invocation gate (`readLibraryOverlay` reader + absent-renders-nothing); its closed↔peek↔dive state machine RETIRED by ADR-0187 dec 1, reworked into `library-permanent-lens`. | landed #691, reconciled inc 8 |
 | 2 | Finder panel | [`library-finder`](library-finder.md) | Client-side search over the loaded corpus (assets on id/title/description/body, ADRs on title/id only) with a `kindLabel` sub-line, ADR status, and selection lifted via `onSelect`. | landed #693 |
 | 3 | Focus subgraph → DAG canvas | [`library-dag-canvas`](library-dag-canvas.md) | The focus canvas is a true layered reference DAG (ADR-0188 dec 5, walk reversed to one level by ADR-0193 dec 3): dagre rankdir-LR ranks over `references[]` BOTH ways to ONE level upstream + ONE level downstream, DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders (the global depth stepper + `+N more` chip retired), NO ← Back / breadcrumb / pan-zoom controls (click-through re-centre is the whole navigation, ADR-0193 dec 3), and a machine-asserted fit-to-view viewBox containing every node — the brownfield rework of the inc-3 focus subgraph (source files keep their names; only the capability/test/`ldag-` prefix are new). | authored (inc 10) |
-| 4 | Dive body panel | [`library-dive-body`](library-dive-body.md) | The full artifact body + Sources rendered over the map, reusing AssetView (assets, no fetch) / DocView (ADRs, on-demand `docContent`), routed off `SearchResult.source`. | landed #701 |
+| 4 | Dive body panel | [`library-dive-body`](library-dive-body.md) | The full artifact body rendered over the map, reusing AssetView (assets, no fetch) / DocView (ADRs, on-demand `docContent`), routed off `SearchResult.source`. | landed #701 |
 | 5 | Overview constellation | [`library-overview`](library-overview.md) | The empty-state dot field of the whole corpus under the LOD ladder (importance = degree), search-glow highlighting, node-select lifted with finder parity. | landed #704 |
 | 6 | ADR wire signals | [`library-adr-wire-signals`](library-adr-wire-signals.md) | Each ADR's `load_bearing` boolean + its decision-lineage edge numbers onto the studio wire via a tolerant flat-scan frontmatter parser (machine-only plumbing, no look leg). | landed #707 |
 | 8 | Permanent lens (shell rework) | [`library-permanent-lens`](library-permanent-lens.md) | The overlay is a permanent lens (ADR-0187 dec 1): flag-gated presence, no ×/Dive/mode machine, live map beneath, a body slot, and a bottom selection-preview section firing `Open`. | authored (inc 8) |
@@ -397,6 +397,19 @@ ADR-0139.)*
 > React state and the overlay writes no URL; and Esc now dismisses in ONE hop
 > ("loo-dismiss-fires-ondismiss"). Three stale clauses, not three uncovered residuals.
 >
+> **A FOURTH clause of that wording went stale later, and is corrected in place on 2026-08-30
+> (ADR-0139).** The quotation above is left verbatim, because it is the record of what the leg once
+> said — but "the artifact's full body + Sources render" no longer describes the surface either. The
+> panel DID render a grouped `Sources:` block, built from each artifact's `references` list;
+> **ADR-0477 D1 retired the citation tier outright**, the block came off every read surface in
+> `stop-rendering-the-sources-block` (PR #1724), and the field left the schema in PR #1727. So the
+> leg below now reads "the artifact's full body" alone, and the same correction was made across
+> [`library-dive-body`](library-dive-body.md), [`library-open-overlay`](library-open-overlay.md) and
+> [`library-dag-canvas`](library-dag-canvas.md). ⚠ The contract id
+> `ldb-asset-selection-renders-assetview-body-and-sources`, cited above and below, KEEPS its name on
+> purpose: it is a stable handle this story binds in five places, not a description, and its test
+> already asserts the block is ABSENT.
+>
 > **No gate is minted for the survivor.** This story declares no reliability gate at all, and
 > answering an unbound leg with a freshly minted check is the rubber stamp ADR-0097 §2 forbids and the
 > reflex ADR-0294's end state point 4 names. Ordinals **1**, **3** and **5** are BURNED, joining **2**
@@ -496,17 +509,19 @@ would have to exist before it could honestly become a leg again: the overview re
 running surface, and a recorded budget with a number in it. Until then this paragraph is the record
 that the claim was made and never discharged.
 
-4. **Open the selected artifact over the map.** _(witness: machine)(detail: library-tech-tree-overlay#uat-4)_ Select an artifact in the drawer, then open it from each of the THREE mounted surfaces that fire `onOpen` — the arc surface, the DAG canvas, and the selection card. **Success (machine) —** a _(criterion-id: uatc_2539bfd0b1c1c04c2adf77c7)_ _(revision-id: uatr1:8334f2aed9035ca2)_ _(previous-revision-id: uatr1:d44edbb8ee4ca285)_
+4. **Open the selected artifact over the map.** _(witness: machine)(detail: library-tech-tree-overlay#uat-4)_ Select an artifact in the drawer, then open it from each of the THREE mounted surfaces that fire `onOpen` — the arc surface, the DAG canvas, and the selection card. **Success (machine) —** a _(criterion-id: uatc_2539bfd0b1c1c04c2adf77c7)_ _(revision-id: uatr1:d1a4e3361ca38543)_ _(previous-revision-id: uatr1:8334f2aed9035ca2)_
    distinct full-detail overlay mounts OVER the live forest map as a `.world-frame` sibling, rendering
-   the artifact's full body + Sources (an ADR body fetched on demand via `docContent()`), with the map
+   the artifact's full body (an ADR body fetched on demand via `docContent()`), with the map
    and the drawer both still mounted beneath it; dismissing it — the close control or Esc — returns to
    the drawer and the live map in ONE hop, clearing the open selection.
    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-21).** No `(proof-gate:)`: this story declares no
    reliability gate at all, and none is minted here — answering an unbound leg with a freshly minted
    check is the rubber stamp ADR-0097 §2 forbids. The leg's two HALVES are proven one rung down —
    [`library-dive-body`](library-dive-body.md)'s `ldb-asset-selection-renders-assetview-body-and-sources`
-   and `ldb-doc-selection-fetches-and-renders-markdown` for the body/Sources render and the on-demand
-   ADR fetch, and [`library-open-overlay`](library-open-overlay.md)'s
+   and `ldb-doc-selection-fetches-and-renders-markdown` for the body render and the on-demand
+   ADR fetch (that first id keeps `-and-sources` as a stable handle only — ADR-0477 D1 retired the
+   `Sources` block and its test now asserts the block is ABSENT), and
+   [`library-open-overlay`](library-open-overlay.md)'s
    `loo-open-overlay-mounts-full-detail-over-map` and `loo-dismiss-fires-ondismiss` for the distinct
    overlay container and the one-hop dismiss. What the leg ADDS, and what nothing reaches, is the
    COMPOSITION: that `TreeView`'s `onOpen={setOpenSelection}` wiring actually carries a selection into
