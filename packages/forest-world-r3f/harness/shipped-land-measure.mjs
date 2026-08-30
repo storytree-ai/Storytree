@@ -367,7 +367,7 @@ for (const zoom of LAND_ZOOMS) {
 //    of delivered pixels and a `MeshStandardMaterial` crown puts thousands of them in the frame
 //    that are off the ground palette by construction. But a shadow with nothing casting it is not
 //    a picture anyone can judge, so the owner's pair is taken separately and labelled as such.
-for (const arm of ['grain-normal', 'shadow', 'dense', 'dense-lifted']) {
+for (const arm of ['grain-normal', 'shadow', 'dense']) {
   const dataUrl = await page.evaluate(
     ([a, z]) => window.landRunner.snapshotTreed(a, z),
     [arm, 8],
@@ -426,7 +426,7 @@ const geometryVerdict = frameBudgetVerdict({
 //     fine in `LAND_STEPS`: this verdict's premise is that every non-baseline row does strictly
 //     more fragment work THAN THE BASELINE, not than the row above it. Both do — a texture fetch
 //     and a compare chain, or a second field evaluation and a mix — so both belong in the segment.
-// ⚠ THE TWO REFINED ARMS ARE OUT OF THIS SEGMENT, and the reason is the segment's own premise
+// ⚠ THE REFINED ARM IS OUT OF THIS SEGMENT, and the reason is the segment's own premise
 //     rather than a doubt about them. It asserts every row does strictly MORE fragment work than
 //     the baseline; a refined ladder does the SAME fragment work — one more compare in a chain the
 //     shader already walks — so it can legitimately land at or below `banded` and would read as a
@@ -495,7 +495,7 @@ console.log(
 console.log('');
 for (const zoom of LAND_ZOOMS) {
   const flat = median(readings.get(`flat|${zoom}`).samples);
-  for (const arm of ['banded', 'grain-normal', 'shadow', 'dense', 'dense-lifted']) {
+  for (const arm of ['banded', 'grain-normal', 'shadow', 'dense']) {
     const m = median(readings.get(`${arm}|${zoom}`).samples);
     const pct = flat === 0 ? Number.NaN : ((m - flat) / flat) * 100;
     console.log(

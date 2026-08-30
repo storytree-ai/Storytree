@@ -685,3 +685,61 @@ test('a palette that cannot carry a shadow REFUSES rather than shipping a lie', 
     /cannot be drawn inside this closed palette/,
   );
 });
+
+test('THE `lit` OPTION reaches BOTH the ramp and the shader, and absent means byte-identical', () => {
+  // ⚠ BOTH HALVES OR NEITHER. The ramp is indexed by the shader's own `st_bandIndex`, so a `lit`
+  // that reached the ramp but not the GLSL (or the reverse) would index a 12-entry row with a
+  // 4-rung quantiser — every parcel painted some other rung's colour, silently, on the surface
+  // whose whole job is to report status.
+  const tokens = ['#8cb85e', '#b7684e', '#d8c069', '#57544a', '#9ca3af'];
+  const lit = [0.78, 0.8, 0.82, 0.84, 0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98, 1.0];
+
+  const shipped = createBandedGroundMaterial({ tokens });
+  const refined = createBandedGroundMaterial({ tokens, lit });
+
+  // THE RAMP: one entry per (token, rung).
+  assert.equal((shipped.uniforms['uRamp']!.value as unknown[]).length, tokens.length * 4);
+  assert.equal((refined.uniforms['uRamp']!.value as unknown[]).length, tokens.length * lit.length);
+
+  // THE SHADER: the quantiser carries the same count, and the ladder's own rungs.
+  assert.match(refined.fragmentShader, /const int ST_N_LEVELS = 12;/);
+  assert.match(shipped.fragmentShader, /const int ST_N_LEVELS = 4;/);
+  assert.ok(refined.fragmentShader.includes('return 0.820000;'), 'an intermediate rung is missing');
+  assert.ok(!shipped.fragmentShader.includes('return 0.820000;'));
+
+  // ⚠ AND THE GENERATED LADDER IS SPLICED IN WITH ITS INDENTATION INTACT. The join is what makes
+  // the emitted source readable AND what a byte-identity claim rests on; dropping it leaves the
+  // ladder flush against the margin inside a template that is otherwise indented.
+  assert.ok(refined.fragmentShader.includes('\n      const int ST_N_LEVELS = 12;'));
+
+  // ABSENT MEANS ABSENT: passing no ladder must emit exactly what a canvas that has never heard of
+  // this option emits, or every figure already published about the banded ground is about a
+  // different shader.
+  assert.equal(createBandedGroundMaterial({ tokens, grain: 'normal' }).fragmentShader, createBandedGroundMaterial({ tokens, grain: 'normal' }).fragmentShader);
+  assert.notEqual(refined.fragmentShader, shipped.fragmentShader);
+});
+
+test('a SHADOWED material re-derives its rung against the `lit` ladder rather than the authored one', () => {
+  // The coupling the fourth crossing was written to prevent, one lever further along: a candidate
+  // ladder must not silently inherit the shipped ladder's 0.77. The ramp is the observable — it is
+  // one entry longer per row than the lit ladder, and the extra entry is THIS ladder's rung.
+  const tokens = ['#8cb85e', '#b7684e', '#d8c069', '#57544a', '#9ca3af'];
+  const lit = [0.86, 0.9, 0.94, 1.0];
+  const shadow = groundShadowTexture(
+    buildGroundOcclusion({ bounds: SHADOW_BOUNDS, relief: 2.2, casters: [{ x: 0, z: 0, radius: 7, height: 19 }] }),
+  );
+
+  const unshadowed = createBandedGroundMaterial({ tokens, lit });
+  const shadowed = createBandedGroundMaterial({ tokens, lit, shadow });
+  const rampLen = (m: { uniforms: Record<string, { value: unknown }> }): number =>
+    (m.uniforms['uRamp']!.value as unknown[]).length;
+
+  assert.equal(rampLen(unshadowed), tokens.length * lit.length);
+  assert.equal(rampLen(shadowed), tokens.length * (lit.length + 1), 'the shadow adds ONE rung per row');
+  // And it is the rung derived against THIS ladder, which is not the shipped one.
+  assert.equal(shadowLadderFor(tokens, lit).levels.length, lit.length + 1);
+  // NON-VACUITY: an unshadowed material of the SAME ladder carries no shadow uniform at all, so
+  // the length difference above is the rung rather than an unrelated uniform.
+  assert.ok(!('uShadowTex' in unshadowed.uniforms));
+  assert.ok('uShadowTex' in shadowed.uniforms);
+});

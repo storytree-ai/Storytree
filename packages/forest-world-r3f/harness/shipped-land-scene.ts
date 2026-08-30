@@ -56,7 +56,8 @@ import { frameWorld } from '../src/camera-framing.js';
 import { LAND_RELIEF_AMPLITUDE, landHeightRange, landRelief } from '../src/land-relief.js';
 import { buildGroundOcclusion } from '../src/contact-shade.js';
 import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from '../src/ground-casters.js';
-import { shadowLadderFor } from '../src/shadow-rung.js';
+import { nearestReference, readerReferences, shadowLadderFor } from '../src/shadow-rung.js';
+import { deliveredForLevel } from '../src/shade-ladder.js';
 import { shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
 import { SHADE_LEVELS } from '../src/shade-ladder.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
@@ -104,45 +105,58 @@ export type LandArm =
   | 'grain-normal'
   | 'shadow'
   | 'grain-both'
-  | 'dense'
-  | 'dense-lifted';
+  | 'dense';
 
 /**
- * THE REFINED LADDER — the shipped four rungs plus the eight that fall between them, at an even
- * 0.02 spacing.
- *
- * ⚠⚠ IT IS A STRICT SUPERSET OF `SHADE_LEVELS`, AND THAT IS THE ARGUMENT RATHER THAN A
- * convenience. 0.78 + k x 0.02 lands on 0.80, 0.90 and 1.00 exactly, so every colour the shipped
- * ground draws today it still draws — the refinement ADDS entries and removes none. A ladder that
- * merely resampled the same span would be a repaint of every parcel; this one is not.
+ * THE REFINED LADDER — nine rungs at an even 0.025 spacing from 0.80 to 1.00, in place of the
+ * authored four.
  *
  * WHY IT EXISTS. The grain's NORMAL half perturbs the lambert BEFORE quantisation, so on flat
- * ground it can only express itself as a rung FLIP — and against four rungs it flips 14.4% of
- * flat ground, which is why the shipped texture reads as a speckle at band edges rather than as
- * the continuous mottle the approved Cycles render has. At 0.02 spacing the same field flips
- * 77.1%. Measured in `src/land-grain.test.ts`, not asserted here.
+ * ground it can only express itself as a rung FLIP — and against four rungs it flips 14.4% of flat
+ * ground, which is why the shipped texture reads as a speckle at band edges rather than as the
+ * continuous mottle the approved Cycles render has. At 0.025 spacing the same field flips 73.1%.
+ * Measured in `src/land-grain.test.ts`, not asserted here.
  *
- * ⚠ AND IT COSTS NO READING MARGIN AT ALL: every added rung is an authored `token x level`
- * product inside the span the ladder already spanned, so the closure GROWS and the tightest
- * margin is unchanged at 3.00 weighted units (`harness/grain-status-reading.test.ts`). It is the
- * one lever on this ground that buys texture without spending the thing the map exists to report.
+ * ⚠⚠ THE SPACING IS 0.025 AND NOT 0.02, AND THAT IS A MEASURED CONSTRAINT RATHER THAN A ROUND
+ * NUMBER. A reader's reference is whichever rung FLAT GROUND lands on, and flat ground's lambert
+ * under the authored light is 0.9105. On a 0.02 grid the nearest rung is 0.92, so the whole reader
+ * model shifts up two points — and against a 0.92 reference the darkest rungs are further from
+ * their own colour than from a neighbour's, which makes a 0.78-floored 0.02 ladder DISHONEST
+ * (`#d8c069@0.78` reads as `#8cb85e`, margin -1.36). At 0.025 the nearest rung is 0.90, exactly
+ * where it is today. So this ladder changes NOTHING derived: same reference rung, same shadow rung
+ * (0.77), same tightest reading margin (0.93). Only the texture moves.
+ *
+ * ⚠ IT KEEPS 0.80, 0.90 AND 1.00 and drops only 0.78 — today's darkest lit rung, and the one whose
+ * margin was always thinnest. Adding rungs BELOW the reference is what costs margin; adding them
+ * between the reference and full light costs none.
+ *
+ * ⚠ AND THE HONESTY IS RE-ASKED AGAINST THIS LADDER'S OWN REFERENCE, never inherited. Asking with
+ * `SHADE_LEVELS`' references would have reported the 0.02 ladder above as costing no margin at
+ * all — the exact shape of a derived constant read against the wrong subject. `landLadderHonest`
+ * is the check, and it is asserted for every arm.
  */
 export const REFINED_LADDER: readonly number[] = Array.from(
-  { length: 12 },
-  (_, i) => Math.round((0.78 + i * 0.02) * 100) / 100,
+  { length: 9 },
+  (_, i) => Math.round((0.8 + i * 0.025) * 1000) / 1000,
 );
 
 /**
- * THE REFINED LADDER WITH ITS FLOOR LIFTED to 0.86 — same spacing, same ceiling, eight rungs.
+ * Is every rung of every token on `lit` still read as its own token, judged against the references
+ * THAT LADDER produces?
  *
- * ⚠ IT IS THE OTHER HALF OF A FORK THE OWNER HAS TO SEE, not a recommendation. Lifting the floor
- * takes the tightest reading margin from 3.00 weighted units to 14.67 — nearly five times the
- * headroom, which is what any FUTURE colour effect on this ground would need (a wash, fog, a
- * vignette, a bought texture multiplied in, or the grain's own colour half at its authored 0.13,
- * none of which the shipped ladder can carry). What it spends is lit CONTRAST: the darkest lit
- * rung goes from 22% below full light to 14%, so relief reads more gently.
+ * ⚠ IT EXISTS BECAUSE ITS ABSENCE ALMOST PUBLISHED A DISHONEST ARM. The first refined ladder tried
+ * here was 0.02-spaced from 0.78, and measured against the SHIPPED ladder's references it looked
+ * free — same tightest margin to the last decimal. Against its own it is dishonest. A comparison
+ * page may not offer the owner a candidate that misreports, so every arm is held to this.
  */
-export const LIFTED_LADDER: readonly number[] = REFINED_LADDER.filter((l) => l >= 0.86);
+export function landLadderHonest(lit: readonly number[]): boolean {
+  const tokens = [...new Set(GROUND_TOKENS)];
+  const refs = readerReferences(tokens, lit);
+  const levels = shadowLadderFor(tokens, lit).levels;
+  return tokens.every((token) =>
+    levels.every((level) => nearestReference(deliveredForLevel(token, level), refs) === token),
+  );
+}
 
 /** Each arm, what it ADDS, and which arm it adds it TO. `from: null` is the baseline. */
 export interface LandArmSpec {
@@ -165,8 +179,7 @@ export const LAND_ARM_SPECS: readonly LandArmSpec[] = [
     from: 'grain-normal',
     adds: "+ the grain octave's COLOUR half (REFERENCE — off-palette, not adopted)",
   },
-  { arm: 'dense', from: 'shadow', adds: '+ the ladder refined to 0.02 spacing (12 rungs)' },
-  { arm: 'dense-lifted', from: 'dense', adds: "+ the ladder's floor lifted 0.78 -> 0.86" },
+  { arm: 'dense', from: 'shadow', adds: '+ the ladder refined to 0.025 spacing (9 rungs)' },
 ];
 
 export const LAND_ARMS: readonly LandArm[] = LAND_ARM_SPECS.map((spec) => spec.arm);
@@ -184,13 +197,12 @@ export const PALETTE_CLOSED_ARMS: readonly LandArm[] = [
   'banded',
   'grain-normal',
   'shadow',
-  // ⚠ BOTH REFINED ARMS ARE INSIDE THE CLOSURE, and that is the finding rather than an oversight.
-  // Every rung they add is an authored `token x level` product, so refining the ladder GROWS the
+  // ⚠ THE REFINED ARM IS INSIDE THE CLOSURE, and that is the finding rather than an oversight.
+  // Every rung it adds is an authored `token x level` product, so refining the ladder GROWS the
   // enumerable set without opening it — the same reading the shadow rung got, one lever further
   // along. The arm that buys texture by LEAVING the closure is `grain-both`, excluded above, and
-  // this pair is what makes it unnecessary.
+  // this one is what makes it unnecessary.
   'dense',
-  'dense-lifted',
 ];
 
 /** What `changedPct` is asked for, and what the report tables: each arm against the one it names.
@@ -214,7 +226,6 @@ const RELIEF_OF = {
   shadow: landRelief,
   'grain-both': landRelief,
   dense: landRelief,
-  'dense-lifted': landRelief,
 } satisfies Record<LandArm, GroundRelief>;
 
 /** Which grain option each banded arm asks the SHIPPED material for. `undefined` is the ungrained
@@ -232,29 +243,31 @@ const GRAIN_OF = {
   // and in nothing else. An unshadowed comparison against a grainless arm would be two changes.
   shadow: 'normal',
   'grain-both': 'both',
-  // Both refined arms wear the SHIPPED grain, because what they change is the ladder the grain
+  // The refined arm wears the SHIPPED grain, because what it changes is the ladder the grain
   // quantises onto and nothing else. Dropping the grain here would compare a refined ladder
   // against a grained one and call the difference the ladder's.
   dense: 'normal',
-  'dense-lifted': 'normal',
 } satisfies Record<
-  'banded' | 'grain-normal' | 'shadow' | 'grain-both' | 'dense' | 'dense-lifted',
+  'banded' | 'grain-normal' | 'shadow' | 'grain-both' | 'dense',
   GroundGrainMode | undefined
 >;
 
 /** The LIT ladder each arm hands the shipped material. Absent means `SHADE_LEVELS`, and absent is
  *  what every pre-existing arm passes — so their generated shader source, and therefore every
  *  figure already published about them, is untouched by this option existing. */
-const LIT_OF: Partial<Record<LandArm, readonly number[]>> = {
-  dense: REFINED_LADDER,
-  'dense-lifted': LIFTED_LADDER,
-};
+const LIT_OF: ReadonlyMap<LandArm, readonly number[]> = new Map([['dense', REFINED_LADDER]]);
 
-/** The arms that wear the ground occlusion field. `shadow` is where it arrived; the two refined
- *  arms keep it because they differ from `shadow` in the ladder and in nothing else — and because
- *  a refined arm that silently dropped the shadow would look like the refinement had brightened
- *  the island. */
-const SHADOWED_ARMS: readonly LandArm[] = ['shadow', 'dense', 'dense-lifted'];
+/** The LIT ladder an arm actually draws — the one place that fallback lives, so the scene, the
+ *  palette check and the honesty test cannot disagree about which ladder an arm is on. */
+export function litLadderOf(arm: LandArm): readonly number[] {
+  return LIT_OF.get(arm) ?? SHADE_LEVELS;
+}
+
+/** The arms that wear the ground occlusion field. `shadow` is where it arrived; the refined arm
+ *  keeps it because it differs from `shadow` in the ladder and in nothing else — and because a
+ *  refined arm that silently dropped the shadow would look like the refinement had brightened the
+ *  island. */
+const SHADOWED_ARMS: readonly LandArm[] = ['shadow', 'dense'];
 
 /** The ramp ROWS the shipped canvas uses, in its own `GROUND_COLOUR` order - transcribed here off
  *  `SHIPPED_GROUND_COLOUR`, which `shipped-baseline.test.ts` parses out of `ForestWorldCanvas.tsx`
@@ -405,7 +418,7 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number, treed = false): 
   // ⚠ BY STATEMENT, for the same byte-identity reason the grain is: an explicit `lit: undefined`
   // is a different call from an absent one, and every arm measured before 2026-08-30 must keep
   // emitting the shader those numbers were taken off.
-  const lit = LIT_OF[arm];
+  const lit = LIT_OF.get(arm);
   if (lit !== undefined) bandedOpts.lit = lit;
   // ⚠ THE SHADOW ARM BUILDS THE SAME FIELD `ForestWorldCanvas` BUILDS, through the same function
   // over the same casters — not a page-local approximation of it. An instrument that computed its
@@ -723,7 +736,7 @@ export function createLandRunner(): LandRunner {
       // was handed, extended by the shadow rung re-derived against THAT ladder. Asking a refined
       // arm about the four-rung closure would report every intermediate rung as a stray, which is
       // a fact about the question rather than about the pixels.
-      const armLit = LIT_OF[arm] ?? SHADE_LEVELS;
+      const armLit = litLadderOf(arm);
       const levels = SHADOWED_ARMS.includes(arm)
         ? shadowLadderFor(GROUND_TOKENS, armLit).levels
         : armLit;

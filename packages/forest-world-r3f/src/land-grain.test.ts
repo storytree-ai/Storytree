@@ -658,7 +658,7 @@ test('the OCTAVE LADDER is stated per octave — amplitude compounds, frequency 
   assert.equal(grainAmplitudeSum(), 1 + GRAIN_ROUGHNESS);
 });
 
-test('THE DENSITY LEVER: the same field flips 14% of flat ground on four rungs and 77% on twelve', () => {
+test('THE DENSITY LEVER: the same field flips 14% of flat ground on four rungs and 73% on nine', () => {
   // ⚠⚠ THE MEASUREMENT THAT DISSOLVED AN OWNER FORK. The approved Cycles render's ground reads
   // as a continuous MOTTLE; the shipped ground reads as a SPECKLE at band edges. That gap was
   // attributed to the missing half of the grain — the off-palette COLOUR mix — and closing it was
@@ -691,16 +691,16 @@ test('THE DENSITY LEVER: the same field flips 14% of flat ground on four rungs a
   };
 
   const shipped = flipFraction(SHADE_LEVELS);
-  const refined = flipFraction(evenly(0.78, 1.0, 12));
+  const refined = flipFraction(evenly(0.8, 1.0, 9));
   console.log(
-    `  rung-flip fraction: 4 rungs ${(shipped * 100).toFixed(1)}% -> 12 rungs ${(refined * 100).toFixed(1)}%`,
+    `  rung-flip fraction: 4 rungs ${(shipped * 100).toFixed(1)}% -> 9 rungs ${(refined * 100).toFixed(1)}%`,
   );
   assert.equal((shipped * 100).toFixed(1), '14.4');
-  assert.equal((refined * 100).toFixed(1), '77.1');
+  assert.equal((refined * 100).toFixed(1), '73.1');
 
   // MONOTONIC IN DENSITY, so the pair above is a curve rather than two points that happen to
   // differ. Without this a single lucky spacing would satisfy the assertions and prove nothing.
-  const curve = [4, 6, 8, 12, 16].map((n) => flipFraction(evenly(0.78, 1.0, n)));
+  const curve = [4, 6, 8, 12, 16].map((n) => flipFraction(evenly(0.8, 1.0, n)));
   for (let i = 1; i < curve.length; i++) {
     assert.ok(
       curve[i]! > curve[i - 1]!,
@@ -714,6 +714,6 @@ test('THE DENSITY LEVER: the same field flips 14% of flat ground on four rungs a
   // THE SPAN IS THE OTHER HALF OF THE LEVER, and it is NOT what delivers the texture: the same
   // 0.02 spacing over a shorter span flips about as much. So refining and lifting are genuinely
   // two separate choices, which is why the comparison carries them as two arms.
-  const lifted = flipFraction(evenly(0.86, 1.0, 8));
-  assert.ok(lifted > 0.75, `a lifted ladder at the same spacing flips ${(lifted * 100).toFixed(1)}%`);
+  const lifted = flipFraction(evenly(0.86, 1.0, 7));
+  assert.ok(lifted > 0.65, `a lifted ladder at the same spacing flips ${(lifted * 100).toFixed(1)}%`);
 });

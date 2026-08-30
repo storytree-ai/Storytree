@@ -316,3 +316,31 @@ test('the GLSL quantiser AGREES WITH the TypeScript one, rung for rung', () => {
     assert.equal(stBandIndex(x), bandLevelIndex(x), `the two quantisers disagree at ${x}`);
   }
 });
+
+test('bandGlsl WRITES THE LADDER IT IS GIVEN, and refuses one with no rungs', () => {
+  // ⚠ THE ARGUMENT IS THE WHOLE POINT OF THE FUNCTION BEING A FUNCTION. A `bandGlsl` that ignored
+  // its ladder and emitted `SHADE_LEVELS` would satisfy every existing assertion — they all pass
+  // nothing — while a caller that handed it a refined ladder got a shader quantising onto the old
+  // one and a ramp indexed for the new one, which is a foreign-status read on every parcel.
+  const ladder = [0.5, 0.75, 1.0];
+  const src = bandGlsl(ladder);
+  assert.match(src, /const int ST_N_LEVELS = 3;/);
+  for (const [i, level] of ladder.entries()) {
+    assert.ok(
+      src.includes(`if (i == ${i}) return ${level.toFixed(6)};`),
+      `rung ${i} (${level}) is missing from the generated ladder`,
+    );
+  }
+  // The clamp return is the LAST rung, not the last of `SHADE_LEVELS`.
+  assert.ok(src.includes('  return 1.000000;'));
+  assert.ok(!src.includes('0.780000'), "the default ladder's rungs must not leak in");
+  // And the trailing reader line carries the ladder it was given.
+  assert.ok(src.trimEnd().endsWith('0.500000, 0.750000, 1.000000'));
+
+  // ⚠ AND AN EMPTY LADDER IS REFUSED RATHER THAN EMITTED. It compiles — `ST_N_LEVELS = 0` gives a
+  // loop that never runs and an `st_level` with no branch — so it would ship as a black island
+  // rather than as an error, which is the one failure shape a picture cannot distinguish from art.
+  assert.throws(() => bandGlsl([]), /at least one rung/);
+  // NON-VACUITY: one rung is enough, so the refusal is about EMPTY rather than about smallness.
+  assert.match(bandGlsl([0.9]), /const int ST_N_LEVELS = 1;/);
+});
