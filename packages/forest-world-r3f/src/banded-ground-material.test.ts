@@ -23,6 +23,7 @@ import {
   shadowDarkenGlsl,
 } from './banded-ground-material.js';
 import { buildGroundOcclusion } from './contact-shade.js';
+import { occlusionGrid } from './land-shadow.js';
 import { shadowLadderFor } from './shadow-rung.js';
 import {
   GRAIN_COLOUR_MIX,
@@ -457,15 +458,28 @@ test('a GRAINED material really emits every fragment the grain needs — positiv
 // `the ramp grows by exactly one level per row` is what says so.
 // ---------------------------------------------------------------------------
 
-/** A field over a small rect with one caster in it — enough to build a real texture from. */
-const testShadow = () =>
-  groundShadowTexture(
+/** A field over a small rect with one caster in it — enough to build a real texture from.
+ *
+ *  ⚠ THE GRID IS CHECKED BEFORE THE FIELD IS BUILT, and that guard is about how the mutation rung
+ *  scores a hang rather than about this material. This fixture is a 252x252 field; under a broken
+ *  resolution cap it is 2048x2048, and ten of those is a suite that grinds rather than fails —
+ *  reported as a TIMEOUT, which the rung counts as UNPROVEN, credited to no test. Asked first, a
+ *  wrong grid is reported as a wrong grid. `land-shadow.test.ts`'s `smallGrid` is the same guard. */
+const SHADOW_BOUNDS = { minX: -40, maxX: 40, minZ: -40, maxZ: 40 };
+const testShadow = () => {
+  const grid = occlusionGrid(SHADOW_BOUNDS);
+  assert.ok(
+    grid.w <= 300 && grid.h <= 300,
+    `the shadow fixture's grid is ${grid.w}x${grid.h} — the resolution cap is not capping`,
+  );
+  return groundShadowTexture(
     buildGroundOcclusion({
-      bounds: { minX: -40, maxX: 40, minZ: -40, maxZ: 40 },
+      bounds: SHADOW_BOUNDS,
       relief: 2.2,
       casters: [{ x: 0, z: 0, radius: 7, height: 19 }],
     }),
   );
+};
 
 test('AN ABSENT SHADOW CHANGES NOTHING — no uniform, no sampler, no varying', () => {
   const bare = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS });
@@ -475,8 +489,16 @@ test('AN ABSENT SHADOW CHANGES NOTHING — no uniform, no sampler, no varying', 
   assert.deepEqual(Object.keys(bare.uniforms).sort(), ['uLightDir', 'uRamp']);
   // The ramp stays the four authored rungs per row.
   assert.equal((bare.uniforms['uRamp']!.value as unknown[]).length, SHIPPED_TOKENS.length * 4);
+  // ⚠ THE WHOLE THREE-LINE BLOCK, not just its last line. The index stage is now built by
+  // interpolation, so its two comment lines are string literals a mutant can blank — and a shader
+  // that still selects correctly while having lost the sentence explaining WHY is exactly the
+  // kind of erosion this file exists to refuse.
   assert.ok(
-    bare.fragmentShader.includes('int idx = int(vStatus + 0.5) * ST_N_LEVELS + st_bandIndex(lambert);'),
+    bare.fragmentShader.includes(
+      '        // +0.5 then truncate, rather than a bare cast: an interpolated float that arrives as\n' +
+        '        // 1.9999998 for row 2 would otherwise select row 1 and report a foreign status.\n' +
+        '        int idx = int(vStatus + 0.5) * ST_N_LEVELS + st_bandIndex(lambert);',
+    ),
   );
 });
 
@@ -486,6 +508,10 @@ test('NON-VACUITY: a shadowed material really does fill every one of those sites
   assert.ok(m.fragmentShader.includes('uniform sampler2D uShadowTex;'));
   assert.ok(m.fragmentShader.includes('uniform vec4 uShadowRect;'));
   assert.ok(m.fragmentShader.includes('texture2D(uShadowTex, shUv).r > 0.5'));
+  // The uniforms carry the REAL texture rather than a placeholder shaped like one.
+  const shadow = testShadow();
+  const wired = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow });
+  assert.equal(wired.uniforms['uShadowTex']!.value, shadow.texture);
   assert.deepEqual(Object.keys(m.uniforms).sort(), [
     'uLightDir',
     'uRamp',
@@ -602,11 +628,7 @@ test('the shadow is sampled in GROUND space, through the rect the texture was bu
 });
 
 test('the uploaded texture covers the field’s own ground rect', () => {
-  const field = buildGroundOcclusion({
-    bounds: { minX: -40, maxX: 40, minZ: -40, maxZ: 40 },
-    relief: 2.2,
-    casters: [],
-  });
+  const field = buildGroundOcclusion({ bounds: SHADOW_BOUNDS, relief: 2.2, casters: [] });
   const shadow = groundShadowTexture(field);
   assert.equal(shadow.minX, field.minX);
   assert.equal(shadow.minZ, field.minZ);
@@ -619,6 +641,12 @@ test('the uploaded texture covers the field’s own ground rect', () => {
   assert.equal(shadow.texture.image.width, field.w);
   assert.equal(shadow.texture.image.height, field.h);
   assert.equal(shadow.texture.image.data, field.data);
+  // ⚠ AND IT IS FLAGGED FOR UPLOAD. A `DataTexture` whose `needsUpdate` was never set is a
+  // texture the GPU never receives: every fragment then samples an empty sampler and the island
+  // renders unshadowed, correctly, in silence. Asked through `version` rather than through
+  // `needsUpdate`, which in three is a WRITE-ONLY setter — reading it back gives `undefined`, and
+  // an assertion on that is satisfied by never having set it.
+  assert.ok(shadow.texture.version > 0, "the texture must be flagged for upload");
 });
 
 test('a shadowed material still declares its GRAIN when it wears one, and both when both', () => {

@@ -28,6 +28,8 @@ import {
   nearestReference,
   readMargin,
   readerReferences,
+  probeCount,
+  rungsDarkenedBy,
   shadowLadderFor,
 } from './shadow-rung.js';
 
@@ -195,4 +197,103 @@ test('a shadow darkens only rungs LIGHTER than itself — it never brightens a s
 
 test('a malformed token FAILS where it can be named, not as a silent black reference', () => {
   assert.throws(() => readerReferences(['not-a-hex']));
+});
+
+// ---------------------------------------------------------------------------
+// THE EDGES the properties above do not reach: an empty table, a tie, the sweep's own two bounds,
+// and the rung boundary that only an argument can put on an authored level.
+// ---------------------------------------------------------------------------
+
+test('a reader with NO references reads nothing rather than something arbitrary', () => {
+  // `let best = ''` is the answer for an empty table, and it has to be the EMPTY string: any other
+  // initial value is a token this palette does not contain, returned as if it had been found.
+  assert.equal(nearestReference({ r: 1, g: 2, b: 3 }, []), '');
+});
+
+test('a TIE goes to the FIRST reference — what `numpy.argmin` over a stacked table does', () => {
+  // ⚠ `d < bestD` and `d <= bestD` differ only here, and the difference is which of two equally
+  // near statuses a delivered colour is reported as. The compositor's port resolved ties forward;
+  // so does this.
+  const refs = [
+    { hex: '#aa0000', colour: { r: 100, g: 0, b: 0 } },
+    { hex: '#bb0000', colour: { r: 120, g: 0, b: 0 } },
+  ];
+  assert.equal(nearestReference({ r: 110, g: 0, b: 0 }, refs), '#aa0000');
+  // And the reverse ordering flips it, so the assertion above is about the RULE rather than about
+  // which hex happens to be nearer.
+  assert.equal(nearestReference({ r: 110, g: 0, b: 0 }, [...refs].reverse()), '#bb0000');
+});
+
+test('the sweep starts BELOW flat ground and stops at its floor', () => {
+  // ⚠ `flatGroundLevel() - step` and `+ step` both produce a sweep; the second one starts ABOVE
+  // the reference rung and would return a "shadow" LIGHTER than the ground it darkens.
+  const answer = deepestAdmissibleRung(SHIPPED_TOKENS);
+  assert.ok(answer !== null && answer < flatGroundLevel(), `a shadow rung must be darker: ${answer}`);
+  // The STEP is honoured rather than fixed: a coarse sweep lands on a coarse grid.
+  assert.equal(deepestAdmissibleRung(SHIPPED_TOKENS, 0.05), 0.8);
+  // And so is the FLOOR: raise it above the natural answer and the sweep stops there instead.
+  assert.equal(deepestAdmissibleRung(SHIPPED_TOKENS, 0.01, 0.8), 0.81);
+});
+
+test('a rung that COINCIDES with an authored level darkens nothing at that level', () => {
+  // ⚠ THE CASE THE DERIVED RUNG CAN NEVER PRODUCE, which is why this is asked of the exported
+  // helper rather than through `shadowLadderFor`. `level > rung` and `level >= rung` agree at
+  // every rung the sweep returns, and disagree exactly here — where darkening a level onto ITSELF
+  // would be a shadow that changed nothing while claiming to.
+  assert.deepEqual(rungsDarkenedBy(0.8), [2, 3], 'only 0.90 and 1.00 are lighter than 0.80');
+  assert.deepEqual(rungsDarkenedBy(0.78), [1, 2, 3], 'the darkest authored level is not darkened');
+  assert.deepEqual(rungsDarkenedBy(0.77), [0, 1, 2, 3], 'the derived rung darkens all four');
+  assert.deepEqual(rungsDarkenedBy(1), [], 'a rung at full light darkens nothing');
+  // It reads the ladder it is given, so a palette with different levels gets a different answer.
+  assert.deepEqual(rungsDarkenedBy(0.5, [0.4, 0.5, 0.6]), [2]);
+});
+
+test('the refusal SAYS what to do about it, and does not merely fail', () => {
+  // An error message is source too. Blanked to an empty string it still throws, still passes a
+  // bare `assert.throws`, and tells whoever hits it nothing — least of all that the remedy is a
+  // palette change rather than a shallower shadow.
+  assert.throws(
+    () => shadowLadderFor(['#808080', '#7f7f7f']),
+    (err: unknown) => {
+      const message = err instanceof Error ? err.message : String(err);
+      assert.match(message, /^shadow-rung: /, 'the module that refused');
+      assert.match(message, /NO ladder level below flat ground is admissible/);
+      assert.match(message, /hue separation between the status tokens/, 'the remedy');
+      assert.match(message, /not a shallower shadow and not a wider palette/, 'the two non-remedies');
+      return true;
+    },
+  );
+});
+
+test('the ladder’s own arithmetic is derived from the levels rather than assumed', () => {
+  const ladder = shadowLadderFor(SHIPPED_TOKENS);
+  // Every index the material will use has to be a real index into the ramp it will upload.
+  assert.ok(ladder.rungIndex >= 0 && ladder.rungIndex < ladder.levels.length);
+  for (const i of ladder.litIndex) {
+    assert.ok(i >= 0 && i < ladder.levels.length, `lit index ${i} is off the ladder`);
+  }
+  for (const i of ladder.darkenable) {
+    assert.ok(i >= 0 && i < SHADE_LEVELS.length, `darkenable index ${i} is off the authored ladder`);
+  }
+  // The shadow rung is NOT one of the authored levels — a shadow reachable by lighting alone
+  // would be a shadow nobody could tell from a steep face.
+  assert.ok(!SHADE_LEVELS.includes(ladder.rung));
+});
+
+test('the sweep probes ENOUGH levels to reach its own answer', () => {
+  // ⚠ THE `+ 1` ON THE PROBE COUNT IS LOAD-BEARING AT SOME FLOORS AND SLACK AT OTHERS, so it is
+  // asked at one where it binds: a floor of 0.835 puts the answer on the LAST index the count
+  // provides, and a count two short stops at 0.85 instead of 0.84.
+  assert.equal(deepestAdmissibleRung(SHIPPED_TOKENS, 0.01, 0.835), 0.84);
+});
+
+test('the probe count spans the sweep INCLUSIVELY, and reads both of its ends', () => {
+  // The count is a bound on a loop that breaks on its own condition, so only its ends are
+  // observable through the answer. Read directly, all three arguments are.
+  assert.equal(probeCount(0.89, 0.8, 0.01), 10);
+  assert.equal(probeCount(0.89, 0.87, 0.01), 4);
+  assert.equal(probeCount(0.89, 0.835, 0.01), 7);
+  // A wider gap needs more probes; a coarser step needs fewer.
+  assert.ok(probeCount(0.89, 0.3, 0.01) > probeCount(0.89, 0.8, 0.01));
+  assert.ok(probeCount(0.89, 0.3, 0.05) < probeCount(0.89, 0.3, 0.01));
 });

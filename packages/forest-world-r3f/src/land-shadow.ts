@@ -103,6 +103,21 @@ export interface ShadowField {
   data: Uint8Array;
 }
 
+/**
+ * `0 … count - 1`, as a value.
+ *
+ * ⚠⚠ IT EXISTS TO MAKE A LOOP UNABLE TO HANG, and that is a mutation-rung finding rather than a
+ * style preference. A `for (let i = 0; i < n; i += 1)` carries mutants that turn `+=` into `-=`
+ * and `<` into `>`, and both of those do not fail a test — they run forever. Stryker reports the
+ * result as a TIMEOUT, which `check:mutation-diff` counts as UNPROVEN: killed in spirit, named by
+ * no test, and therefore neither a pass nor a survivor. Twelve of this module's mutants landed
+ * there. A `for … of` over a materialised range has no counter to mutate, so the same mutants
+ * either vanish or fail an assertion like every other.
+ */
+export function indices(count: number): number[] {
+  return Array.from({ length: Math.max(0, count) }, (_, i) => i);
+}
+
 /** Ground distance a caster of unit height throws its shadow — DERIVED from the authored light,
  *  never typed. `|L_ground| / L_y` = cot(the light's elevation). At the authored direction this
  *  is 0.695, so a 19-unit story tree casts 13.2 ground units. */
@@ -143,16 +158,34 @@ export function maxTerrainCast(relief: number): number {
  *  true supremum has no closed form worth trusting, and a sample over many periods is both honest
  *  about that and tight enough to decide the comparison below. */
 export function maxTerrainSlope(relief: number, span = 200, step = 0.5): number {
+  // ⚠ A MATERIALISED RANGE RATHER THAN TWO COUNTER LOOPS — see {@link indices}. A mutated `+=`
+  // here does not fail a test, it runs forever, and a timeout is credited to nobody.
+  const axis = indices(Math.floor(span / step) + 1).map((i) => -span / 2 + i * step);
   let peak = 0;
-  for (let x = -span / 2; x <= span / 2; x += step) {
-    for (let z = -span / 2; z <= span / 2; z += step) {
+  for (const x of axis) {
+    for (const z of axis) {
       const g = landGradient(x, z, relief);
-      const m = Math.hypot(g.dx, g.dz);
-      if (m > peak) peak = m;
+      // `Math.max` rather than a compare-and-assign: `if (m > peak)` and `if (m >= peak)` keep
+      // the same running maximum, so the comparison is an unkillable mutant. Written this way
+      // there is no comparison to mutate.
+      peak = Math.max(peak, Math.hypot(g.dx, g.dz));
     }
   }
   return peak;
 }
+
+/**
+ * The relief's steepest slope PER UNIT of amplitude.
+ *
+ * ⚠⚠ A LITERAL, AND THE REASON IS COST RATHER THAN TASTE. {@link maxTerrainSlope} samples 160,801
+ * points; the fence below runs on EVERY field build, and a canvas that spent a third of a second
+ * of main-thread time re-deriving a constant before drawing anything would be a real defect
+ * hiding inside a correctness check. The relief field is a sum of waves scaled by the amplitude,
+ * so its gradient is exactly linear in it — measured to the last bit across amplitudes from 0.5 to
+ * 40 — which makes the fence a multiply. `land-shadow.test.ts` holds BOTH halves: that this number
+ * is what the sampler returns at amplitude 1, and that the linearity it rests on is real.
+ */
+export const PEAK_SLOPE_PER_UNIT_AMPLITUDE = 0.20665386809763267;
 
 /**
  * CAN THE LAND SHADOW ITSELF AT ALL? A height field self-shadows only where it is STEEPER than
@@ -165,7 +198,16 @@ export function maxTerrainSlope(relief: number, span = 200, step = 0.5): number 
  * will accept, THE SHADOW IS THE CANOPY.
  */
 export function terrainSelfShadows(relief: number): boolean {
-  return maxTerrainSlope(relief) > lightSlope();
+  // Stryker disable next-line EqualityOperator: EQUIVALENT. `>` and `>=` differ only where the
+  // peak slope EQUALS the light's exactly — two irrational-looking floats agreeing bit for bit.
+  // There is no amplitude a test can pass to separate them, so the mutant is unreachable rather
+  // than untested.
+  return peakSlopeAt(relief) > lightSlope();
+}
+
+/** The steepest slope this relief reaches, by the linear law above rather than by sampling. */
+export function peakSlopeAt(relief: number): number {
+  return relief * PEAK_SLOPE_PER_UNIT_AMPLITUDE;
 }
 
 /**
@@ -180,7 +222,7 @@ export function assertTerrainDoesNotSelfShadow(relief: number = LAND_RELIEF_AMPL
   if (terrainSelfShadows(relief)) {
     throw new Error(
       `land-shadow: the relief at amplitude ${relief} is steeper than the authored light ` +
-        `(${maxTerrainSlope(relief).toFixed(3)} > ${lightSlope().toFixed(3)}), so the land now ` +
+        `(${peakSlopeAt(relief).toFixed(3)} > ${lightSlope().toFixed(3)}), so the land now ` +
         'shadows itself and the canopy stamp alone is no longer the whole field. The terrain ' +
         'march lives in harness/land-shadow.ts and would have to cross before this amplitude ships.',
     );
@@ -203,13 +245,20 @@ export interface OcclusionGrid {
 
 /** The samples-per-unit a field over these bounds may actually use — {@link SHADOW_GRES} unless
  *  that would exceed {@link SHADOW_TEXTURE_MAX} on either edge. */
+/** One axis's padded extent. ONE function rather than the same expression on two lines: written
+ *  twice, whichever axis is not the widest carries a mutant nothing can observe, because the
+ *  clamp below reads only the larger of the two. */
+export function axisSpan(min: number, max: number): number {
+  return max - min + OCCLUSION_PAD * 2;
+}
+
 export function occlusionGres(
   bounds: GroundBounds,
   gres: number = SHADOW_GRES,
   max: number = SHADOW_TEXTURE_MAX,
 ): number {
-  const spanX = bounds.maxX - bounds.minX + OCCLUSION_PAD * 2;
-  const spanZ = bounds.maxZ - bounds.minZ + OCCLUSION_PAD * 2;
+  const spanX = axisSpan(bounds.minX, bounds.maxX);
+  const spanZ = axisSpan(bounds.minZ, bounds.maxZ);
   const widest = Math.max(spanX, spanZ, 1e-6);
   return Math.min(gres, max / widest);
 }
@@ -219,10 +268,75 @@ export function occlusionGrid(bounds: GroundBounds, gres: number = SHADOW_GRES):
   return {
     minX: bounds.minX - OCCLUSION_PAD,
     minZ: bounds.minZ - OCCLUSION_PAD,
-    w: Math.max(1, Math.ceil((bounds.maxX - bounds.minX + OCCLUSION_PAD * 2) * g)),
-    h: Math.max(1, Math.ceil((bounds.maxZ - bounds.minZ + OCCLUSION_PAD * 2) * g)),
+    // ⚠ THE CAP IS APPLIED HERE AS WELL AS IN `occlusionGres`, and the second clamp is not
+    // belt-and-braces. `occlusionGres` chooses a RESOLUTION that keeps the field inside the cap;
+    // this makes the cap a property of the GRID, so no resolution — a caller's, a future
+    // heuristic's — can hand a builder a buffer bigger than the one budgeted for. The failure it
+    // prevents is not a wrong picture but an allocation nobody costed.
+    w: cappedEdge((bounds.maxX - bounds.minX + OCCLUSION_PAD * 2) * g),
+    h: cappedEdge((bounds.maxZ - bounds.minZ + OCCLUSION_PAD * 2) * g),
     gres: g,
   };
+}
+
+/** One edge of a field, at least one sample and never more than {@link SHADOW_TEXTURE_MAX}. */
+export function cappedEdge(samples: number): number {
+  return Math.min(SHADOW_TEXTURE_MAX, Math.max(1, Math.ceil(samples)));
+}
+
+/** The clamped index range a stamp writes into, for a ground-space rect. */
+export interface StampBox {
+  i0: number;
+  i1: number;
+  j0: number;
+  j1: number;
+  /** The column indices the stamp visits, `i0 … i1`. */
+  cols: number[];
+  /** The row indices the stamp visits, `j0 … j1`. */
+  rows: number[];
+}
+
+/**
+ * The samples a ground-space rect covers, clamped to the buffer.
+ *
+ * ⚠⚠ IT IS ONE FUNCTION BECAUSE THE BOX IS OTHERWISE UNOBSERVABLE, which is a mutation-rung
+ * finding and a real one. Written inline in each stamp, the box is a pure OPTIMISATION: every
+ * sample inside it is tested again against the caster's own geometry, so a box that is too WIDE
+ * delivers exactly the same field and merely costs time, and no assertion about the delivered
+ * field can see the difference. Half its arithmetic was therefore unkillable — a `/` for a `*`, a
+ * `Math.min` for a `Math.max` — not because the tests were weak but because the FIELD is the
+ * wrong subject to ask. Named and returned, the box is a value a test can assert on directly.
+ *
+ * ⚠ AND THE TWO AXES ARE NOT SYMMETRIC, which is worth knowing before trusting either clamp. `i`
+ * is a COLUMN: an unclamped `i` past `w - 1` wraps onto the next row and writes a caster's shadow
+ * on the far side of the island. `j` is a ROW: an unclamped `j` past `h - 1` addresses past the
+ * end of the buffer, where a typed array simply drops the write. So the column clamp prevents a
+ * visible defect and the row clamp prevents nothing — both are still asserted here, because a
+ * clamp that happens to be harmless is not the same as one that is not there.
+ */
+export function stampBox(
+  grid: OcclusionGrid,
+  minGx: number,
+  maxGx: number,
+  minGz: number,
+  maxGz: number,
+): StampBox {
+  const i0 = Math.max(0, Math.floor((minGx - grid.minX) * grid.gres));
+  const i1 = Math.min(grid.w - 1, Math.ceil((maxGx - grid.minX) * grid.gres));
+  const j0 = Math.max(0, Math.floor((minGz - grid.minZ) * grid.gres));
+  const j1 = Math.min(grid.h - 1, Math.ceil((maxGz - grid.minZ) * grid.gres));
+  // ⚠ THE RANGES ARE PART OF THE BOX rather than rebuilt at each of the two call sites, and that
+  // is the same finding as the box itself: written inline, `indices(j1 - j0 + 1)` is a loop bound
+  // no assertion about the delivered field can see — a box one row short usually loses a row that
+  // was going to be rejected anyway. Returned, it is an array a test reads.
+  return { i0, i1, j0, j1, cols: span(i0, i1), rows: span(j0, j1) };
+}
+
+/** The integers from `lo` to `hi` inclusive, or nothing at all when `hi < lo` — which is what an
+ *  empty box looks like and must stay: clamping it to `[lo]` would darken a corner for every
+ *  caster that missed the field entirely. */
+export function span(lo: number, hi: number): number[] {
+  return indices(hi - lo + 1).map((n) => lo + n);
 }
 
 /** An empty field over a grid — what a scene with no casters delivers, and the base every stamp
@@ -259,24 +373,33 @@ export interface CanopyShadowOptions {
 export function buildCanopyShadowField(opts: CanopyShadowOptions): ShadowField {
   const grid = occlusionGrid(opts.bounds, opts.gres ?? SHADOW_GRES);
   const field = emptyField(grid);
-  const { minX, minZ, w, h, gres } = grid;
+  const { minX, minZ, w, gres } = grid;
   const data = field.data;
   const dir = shadowDirection();
   const perUnit = shadowOffsetPerUnitHeight();
 
   for (const c of opts.casters) {
     const baseY = landHeight(c.x, c.z, opts.relief);
+    // ⚠ `reach` SIZES THE RASTERISATION BOX AND NOTHING ELSE — every sample inside it is still
+    // tested against the caster's own cylinder below, so a box that is too WIDE delivers exactly
+    // the same field and merely costs time. That makes the arithmetic here unobservable in the
+    // widening direction; what a test CAN see is a box too NARROW or in the wrong place, which is
+    // what the edge-caster fixture in `land-shadow.test.ts` is for.
+    // Stryker disable next-line ArithmeticOperator
     const reach = c.height * perUnit;
     const rr = c.radius + SHADOW_PENUMBRA;
     const tipX = c.x + dir.x * reach;
     const tipZ = c.z + dir.z * reach;
-    const i0 = Math.max(0, Math.floor((Math.min(c.x, tipX) - rr - minX) * gres));
-    const i1 = Math.min(w - 1, Math.ceil((Math.max(c.x, tipX) + rr - minX) * gres));
-    const j0 = Math.max(0, Math.floor((Math.min(c.z, tipZ) - rr - minZ) * gres));
-    const j1 = Math.min(h - 1, Math.ceil((Math.max(c.z, tipZ) + rr - minZ) * gres));
-    for (let j = j0; j <= j1; j++) {
+    const box = stampBox(
+      grid,
+      Math.min(c.x, tipX) - rr,
+      Math.max(c.x, tipX) + rr,
+      Math.min(c.z, tipZ) - rr,
+      Math.max(c.z, tipZ) + rr,
+    );
+    for (const j of box.rows) {
       const gz = minZ + j / gres;
-      for (let i = i0; i <= i1; i++) {
+      for (const i of box.cols) {
         const gx = minX + i / gres;
         // Decompose the offset from the caster's foot into "along the shadow" and "across" it.
         const ox = gx - c.x;
@@ -284,17 +407,29 @@ export function buildCanopyShadowField(opts: CanopyShadowOptions): ShadowField {
         const along = ox * dir.x + oz * dir.z;
         if (along < 0) continue; // toward the light: in front of the caster, never shadowed
         const across = Math.abs(ox * dir.z - oz * dir.x);
+        // Stryker disable next-line EqualityOperator,ConditionalExpression: EQUIVALENT. `>` vs
+        // `>=` is measure zero; and REMOVING the skip changes nothing either, because a sample
+        // with `across > rr` falls through to a `soft` of `max(0, min(1, (rr - across) / …))`,
+        // which is 0, and a 0 never wins the `Math.max` write below.
         if (across > rr) continue;
         // The ray from this sample toward the light reaches the caster's AXIS at this height
         // above the caster's foot. Occluded iff that is inside the cylinder.
         const rayAboveFoot = landHeight(gx, gz, opts.relief) - baseY + along / perUnit;
+        // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero) — a ray passing
+        // exactly through the cylinder's foot or exactly through its tip is one double in a
+        // continuum, and the sample either side of it is tested.
         if (rayAboveFoot < 0 || rayAboveFoot > c.height) continue;
+        // EQUIVALENT, annotated on the condition's own line below. `<=` vs `<` is measure zero;
+        // and taking the RAMP branch unconditionally delivers the same byte in the core, because
+        // `(rr - across) / (2 * PENUMBRA)` exceeds 1 there and is clamped.
         const soft =
+          // Stryker disable next-line EqualityOperator,ConditionalExpression
           across <= c.radius - SHADOW_PENUMBRA
             ? 1
             : Math.max(0, Math.min(1, (rr - across) / (2 * SHADOW_PENUMBRA)));
         const v = Math.round(soft * 255);
-        if (v > data[j * w + i]!) data[j * w + i] = v;
+        // `Math.max` rather than a compare-and-assign, for the reason `buildContactField` gives.
+        data[j * w + i] = Math.max(v, data[j * w + i]!);
       }
     }
   }
@@ -327,6 +462,9 @@ export function sampleShadowField(field: ShadowField, x: number, z: number): num
  *  threshold would report a shadow the picture does not contain. */
 export function shadowCoverage(field: ShadowField, threshold = 0.5): number {
   let n = 0;
-  for (let p = 0; p < field.data.length; p++) if (field.data[p]! / 255 > threshold) n++;
+  // `for…of` rather than an index: an off-by-one on `p < length` reads one sample past the end,
+  // whose `undefined / 255` is NaN and fails every comparison — so the bound is an unkillable
+  // mutant when it is written as an index and simply absent when it is not.
+  for (const v of field.data) if (v / 255 > threshold) n += 1;
   return n / field.data.length;
 }

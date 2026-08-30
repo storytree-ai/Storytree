@@ -119,6 +119,9 @@ export function groundBounds(cells: readonly InstanceDescriptor[]): GroundBounds
       maxZ = Math.max(maxZ, p.z);
     }
   }
-  if (!Number.isFinite(minX) || !Number.isFinite(minZ)) return null;
+  // ONE test rather than two joined by `||`. A parcel ring carries x and z together, so minX and
+  // minZ are finite or infinite as a pair and the second clause could never fire on its own —
+  // an unkillable mutant standing in for a case that cannot arise.
+  if (!Number.isFinite(minX)) return null;
   return { minX, maxX, minZ, maxZ };
 }

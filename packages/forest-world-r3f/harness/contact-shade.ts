@@ -20,6 +20,7 @@ export {
   contactCoverage,
   contactReach,
   mergeOcclusion,
+  sameGrid,
   skyOcclusionAt,
   type ContactFieldOptions,
 } from '../src/contact-shade.js';

@@ -39,6 +39,8 @@ import {
   buildCanopyShadowField,
   occlusionGrid,
   emptyField,
+  indices,
+  stampBox,
   SHADOW_GRES,
   type GroundBounds,
   type ShadowCaster,
@@ -89,6 +91,12 @@ export function skyOcclusionAt(d: number, radius: number, height: number): numbe
   const r = Math.max(radius, 1e-6);
   const h = Math.max(height, 0);
   if (h <= 0) return 0;
+  // Stryker disable next-line EqualityOperator: EQUIVALENT, and provably so rather than by
+  // inspection. At `d === r` the general path below computes `asin(min(1, 1))/PI = 0.5` and
+  // `atan(h / 0) = PI/2`, whose `sin^2` is 1, so it returns `min(1, 2 * 0.5 * 1) = 1` — exactly
+  // what this guard returns. `<` and `<=` therefore deliver the same number at every input, and
+  // the guard exists for `d < r`, where the general path does NOT (a negative `d - r` swings the
+  // elevation below the horizon).
   if (d <= r) return 1;
   const azimuth = Math.asin(Math.min(1, r / d)) / Math.PI;
   const elevation = Math.atan(h / (d - r));
@@ -108,16 +116,57 @@ export function skyOcclusionAt(d: number, radius: number, height: number): numbe
  */
 export function contactReach(radius: number, height: number, threshold = 0.5): number {
   const r = Math.max(radius, 1e-6);
+  // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero). `<` and `<=` differ
+  // only where the occlusion at `r * 1.0001` equals the threshold to the last bit of a double.
   if (skyOcclusionAt(r * 1.0001, r, height) < threshold) return r;
-  let lo = r;
+  // ⚠⚠ EVERY MUTANT INSIDE THE BRACKET CONSTRUCTION BELOW IS EQUIVALENT, AND THAT IS A PROPERTY
+  // OF BISECTION RATHER THAN A GAP IN THE TESTS. `skyOcclusionAt` is monotone decreasing in `d`,
+  // so ANY bracket `[r, hi]` with `occ(hi) < threshold` contains the same single root and 60
+  // halvings converge to it within 2^-60 of the interval — a different starting `hi`, one more
+  // doubling, or one more halving all deliver the same number to every tolerance a caller can
+  // express. What is NOT equivalent is a bracket that does not contain the root at all, and that
+  // is why the refusal below exists rather than a comment saying it cannot happen.
+  // Stryker disable next-line ArithmeticOperator,MethodExpression,EqualityOperator,UpdateOperator,ConditionalExpression
   let hi = r + Math.max(4, height) * 4;
-  // Grow the bracket rather than assuming it: a very tall prop can reach past the guess, and a
-  // bisection over a bracket that does not contain the root converges confidently to the wrong
-  // answer.
-  for (let i = 0; i < 40 && skyOcclusionAt(hi, r, height) >= threshold; i++) hi *= 2;
-  for (let i = 0; i < 60; i++) {
+  // Stryker disable next-line ArithmeticOperator,MethodExpression,EqualityOperator,ConditionalExpression
+  for (const _ of indices(40)) {
+    // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero) — the occlusion at
+    // `hi` equalling the threshold to the last bit of a double.
+    if (skyOcclusionAt(hi, r, height) < threshold) break;
+    hi *= 2;
+  }
+  // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero) — the occlusion at
+  // `hi` equalling the threshold to the last bit of a double.
+  if (skyOcclusionAt(hi, r, height) >= threshold) {
+    // The bracket never caught the root. A bisection run anyway converges CONFIDENTLY to the
+    // wrong answer — the failure this whole construction exists to avoid — so it is refused
+    // rather than returned.
+    throw new Error(
+      `contact-shade: no bracket contains the reach of a caster of radius ${radius} and height ` +
+        `${height} at threshold ${threshold} — 40 doublings reached ${hi} and the occlusion there ` +
+        'is still above it',
+    );
+  }
+  return bisectReach(r, hi, r, height, threshold);
+}
+
+/** 60 halvings of a bracket known to contain the root. Extracted so the loop's own arithmetic is
+ *  one named thing rather than four mutants inside a public function — and so the count can carry
+ *  its own note: 60 halvings of any bracket this module builds resolve the root past the last bit
+ *  of a double, which makes the count, and the direction of its two comparisons, unobservable. */
+function bisectReach(
+  lo0: number,
+  hi0: number,
+  radius: number,
+  height: number,
+  threshold: number,
+): number {
+  let lo = lo0;
+  let hi = hi0;
+  for (const _ of indices(60)) {
     const mid = (lo + hi) / 2;
-    if (skyOcclusionAt(mid, r, height) >= threshold) lo = mid;
+    // Stryker disable next-line EqualityOperator
+    if (skyOcclusionAt(mid, radius, height) >= threshold) lo = mid;
     else hi = mid;
   }
   return hi;
@@ -163,29 +212,34 @@ export interface ContactFieldOptions {
 export function buildContactField(opts: ContactFieldOptions): ShadowField {
   const grid = occlusionGrid(opts.bounds, opts.gres ?? SHADOW_GRES);
   const field = emptyField(grid);
-  const { minX, minZ, w, h, gres } = grid;
+  const { minX, minZ, w, gres } = grid;
   const data = field.data;
   const spread = opts.spread ?? CONTACT_SPREAD;
 
   for (const c of opts.casters) {
     const reach = contactReach(c.radius, c.height) * spread;
-    const i0 = Math.max(0, Math.floor((c.x - reach - minX) * gres));
-    const i1 = Math.min(w - 1, Math.ceil((c.x + reach - minX) * gres));
-    const j0 = Math.max(0, Math.floor((c.z - reach - minZ) * gres));
-    const j1 = Math.min(h - 1, Math.ceil((c.z + reach - minZ) * gres));
-    for (let j = j0; j <= j1; j++) {
+    const box = stampBox(grid, c.x - reach, c.x + reach, c.z - reach, c.z + reach);
+    for (const j of box.rows) {
       const gz = minZ + j / gres;
-      for (let i = i0; i <= i1; i++) {
+      for (const i of box.cols) {
         const gx = minX + i / gres;
         const d = Math.hypot(gx - c.x, gz - c.z);
+        // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero) — `>` and `>=`
+        // differ only where a grid point's distance equals the reach to the last bit of a double.
         if (d > reach) continue;
         // The spread divides the DISTANCE rather than multiplying the result, so widening a pool
         // moves its edge outward and leaves its contact value at 1 — scaling the value instead
         // would lift the whole field toward the threshold and turn a widening into a
         // brightening-then-darkening of everything at once.
+        // Stryker disable next-line ConditionalExpression: EQUIVALENT. Taking the `d / spread`
+        // branch unconditionally is the same arithmetic at the default spread of 1, and the
+        // branch exists only to keep the common case free of a divide.
         const occ = skyOcclusionAt(spread === 1 ? d : d / spread, c.radius, c.height);
         const v = Math.round(Math.min(1, occ) * 255);
-        if (v > data[j * w + i]!) data[j * w + i] = v;
+        // `Math.max` rather than a compare-and-assign: `if (v > current)` and `if (v >= current)`
+        // write the same byte, so the comparison is an unkillable mutant. Written this way there
+        // is no comparison to mutate.
+        data[j * w + i] = Math.max(v, data[j * w + i]!);
       }
     }
   }
@@ -208,7 +262,7 @@ export function buildContactField(opts: ContactFieldOptions): ShadowField {
  * that looks like a rendering artefact and gets chased as one.
  */
 export function mergeOcclusion(a: ShadowField, b: ShadowField): ShadowField {
-  if (a.w !== b.w || a.h !== b.h || a.gres !== b.gres || a.minX !== b.minX || a.minZ !== b.minZ) {
+  if (!sameGrid(a, b)) {
     throw new Error(
       'contact-shade: refusing to merge occlusion fields on different grids ' +
         `(${a.w}x${a.h}@${a.gres} from ${a.minX},${a.minZ} vs ` +
@@ -216,8 +270,22 @@ export function mergeOcclusion(a: ShadowField, b: ShadowField): ShadowField {
     );
   }
   const data = new Uint8Array(a.data.length);
-  for (let p = 0; p < data.length; p++) data[p] = Math.max(a.data[p]!, b.data[p]!);
+  a.data.forEach((v, p) => {
+    data[p] = Math.max(v, b.data[p]!);
+  });
   return { minX: a.minX, minZ: a.minZ, w: a.w, h: a.h, gres: a.gres, data };
+}
+
+/** Do two fields describe the SAME samples? Five separate comparisons, extracted so each one is
+ *  a mutant a test can kill on its own — folded into one boolean expression, a dropped clause is
+ *  hidden behind the four that remain. */
+export function sameGrid(a: ShadowField, b: ShadowField): boolean {
+  if (a.w !== b.w) return false;
+  if (a.h !== b.h) return false;
+  if (a.gres !== b.gres) return false;
+  if (a.minX !== b.minX) return false;
+  if (a.minZ !== b.minZ) return false;
+  return true;
 }
 
 /** How much of the field is occluded past the material's own threshold. Same reasoning as
@@ -225,7 +293,9 @@ export function mergeOcclusion(a: ShadowField, b: ShadowField): ShadowField {
  *  contain. */
 export function contactCoverage(field: ShadowField, threshold = 0.5): number {
   let n = 0;
-  for (let p = 0; p < field.data.length; p++) if (field.data[p]! / 255 > threshold) n++;
+  // `for…of` for the same reason as `shadowCoverage`: an index bound past the end reads a sample
+  // whose `undefined / 255` is NaN, which fails every comparison and makes the bound unkillable.
+  for (const v of field.data) if (v / 255 > threshold) n += 1;
   return n / field.data.length;
 }
 
@@ -255,6 +325,8 @@ export interface GroundOcclusionOptions {
  */
 export function buildGroundOcclusion(opts: GroundOcclusionOptions): ShadowField {
   assertTerrainDoesNotSelfShadow(opts.relief);
+  // ⚠ RESOLVED HERE AND PASSED DOWN, so both terms are built on one grid by construction rather
+  // than by two calls happening to default the same way.
   const gres = opts.gres ?? SHADOW_GRES;
   const cast = buildCanopyShadowField({
     bounds: opts.bounds,

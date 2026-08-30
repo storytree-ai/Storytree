@@ -117,3 +117,21 @@ test('a mixed descriptor set is read for parcels only when bounding the ground',
   const cells = mixed.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');
   assert.deepEqual(groundBounds(cells), { minX: -1, maxX: 1, minZ: -1, maxZ: 1 });
 });
+
+test('a parcel with NO RING is skipped rather than poisoning the bounds of the ones that have one', () => {
+  // ⚠ THE MUTANT THIS EXISTS FOR replaces the `?? []` fallback with a one-element array of
+  // rubbish. Asked only about a set of pointless cells, that mutant returns `null` exactly as the
+  // real code does — because rubbish has no `.x` and every bound comes out NaN. It separates only
+  // when a REAL parcel is in the same set: the real code returns that parcel's rect, the mutant
+  // returns null, and an island would render with no shadow field at all.
+  const real: InstanceDescriptor = {
+    ...at('cell-ground', 0, 0),
+    points: [
+      { x: -4, y: 0, z: -2 },
+      { x: 6, y: 0, z: 3 },
+    ],
+  };
+  const pointless = at('cell-ground', 99, 99);
+  assert.deepEqual(groundBounds([pointless, real]), { minX: -4, maxX: 6, minZ: -2, maxZ: 3 });
+  assert.deepEqual(groundBounds([real, pointless]), { minX: -4, maxX: 6, minZ: -2, maxZ: 3 });
+});

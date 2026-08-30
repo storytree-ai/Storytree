@@ -33,6 +33,16 @@ import { LAND_RELIEF_AMPLITUDE } from '../src/land-relief.js';
 import { groundCasters } from '../src/ground-casters.js';
 import { worldTo3D } from '../src/world-to-3d.js';
 import { islandScene } from './island-fixture.js';
+import { occlusionGrid } from '../src/land-shadow.js';
+
+/** A field small enough that building one is free — and checked, because under a broken
+ *  resolution cap it would be four million samples and the mutation rung scores a hang as
+ *  UNPROVEN rather than as a failure. */
+const TINY_OCCLUSION = {
+  bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 },
+  relief: LAND_RELIEF_AMPLITUDE,
+  casters: [],
+};
 
 test('the ladder is a LADDER WITH ONE FORK — every arm adds one thing to a NAMED predecessor', () => {
   assert.deepEqual(
@@ -89,6 +99,7 @@ test('the arm that SHIPS keeps the closure and the arm that does not is the only
   const tokens = [...GROUND_TOKENS];
   const closed = (src: string): boolean => /gl_FragColor = vec4\(c, 1\.0\);/.test(src);
   assert.ok(closed(createBandedGroundMaterial({ tokens }).fragmentShader));
+  assert.ok(occlusionGrid(TINY_OCCLUSION.bounds).w <= 300, 'the resolution cap is not capping');
   assert.ok(
     closed(createBandedGroundMaterial({ tokens, grain: 'normal' }).fragmentShader),
     "the grain's NORMAL half must still write an authored ramp entry — that is why it ships",
@@ -108,13 +119,7 @@ test('the arm that SHIPS keeps the closure and the arm that does not is the only
       createBandedGroundMaterial({
         tokens,
         grain: 'normal',
-        shadow: groundShadowTexture(
-          buildGroundOcclusion({
-            bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 },
-            relief: LAND_RELIEF_AMPLITUDE,
-            casters: [],
-          }),
-        ),
+        shadow: groundShadowTexture(buildGroundOcclusion(TINY_OCCLUSION)),
       }).fragmentShader,
     ),
     'a shadowed fragment must still write an authored ramp entry',

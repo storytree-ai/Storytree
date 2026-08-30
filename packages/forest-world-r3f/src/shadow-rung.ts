@@ -33,10 +33,10 @@
 import {
   SHADE_LEVELS,
   deliveredForLevel,
-  parseHex,
   rungOfNormal,
   type Rgb255,
 } from './shade-ladder.js';
+import { indices } from './land-shadow.js';
 
 /**
  * The channel weighting the author-time compositor's `snap` and `nearest_status` share, so
@@ -59,12 +59,15 @@ export function colourDistance2(a: Rgb255, b: Rgb255): number {
  * ⚠ A FUNCTION RATHER THAN A MODULE-SCOPE CONSTANT, and that is a mutation-rung finding rather
  * than a style preference: anything evaluated at IMPORT time is attributed to no test, so a
  * mutant inside a `const X = f()` comes back UNPROVEN — killed with no test named — and reds the
- * rung from inside well-covered arithmetic. Memoised, so callers in a sweep pay for it once.
+ * rung from inside well-covered arithmetic.
+ *
+ * ⚠ AND IT IS NOT MEMOISED, which it was for one gate run. A memo is unobservable state: `if
+ * (memo === null)` is a branch no test can distinguish, because both sides return the same
+ * number. It bought nothing either — this is one array index over a dot product — and it cost a
+ * mutant nothing could kill.
  */
-let flatGroundMemo: number | null = null;
 export function flatGroundLevel(): number {
-  if (flatGroundMemo === null) flatGroundMemo = SHADE_LEVELS[rungOfNormal({ x: 0, y: 1, z: 0 })]!;
-  return flatGroundMemo;
+  return SHADE_LEVELS[rungOfNormal({ x: 0, y: 1, z: 0 })]!;
 }
 
 /**
@@ -85,9 +88,10 @@ export function readerReferences(tokens: readonly string[]): { hex: string; colo
   for (const token of tokens) {
     if (seen.has(token)) continue;
     seen.add(token);
-    // Parsed first so a malformed token fails here, where the message can name it, rather than
-    // as a silently black reference that every delivered colour then reads as.
-    parseHex(token);
+    // ⚠ NO SEPARATE `parseHex` GUARD. It was here to make a malformed token fail where the
+    // message could name it — but `deliveredForLevel` parses the same token on the next line and
+    // throws the same way, so the guard could be deleted without changing any observable
+    // behaviour: an unkillable mutant standing in for a check that was already made.
     out.push({ hex: token, colour: deliveredForLevel(token, rung) });
   }
   return out;
@@ -153,13 +157,40 @@ export function deepestAdmissibleRung(
 ): number | null {
   const refs = readerReferences(tokens);
   let admissible: number | null = null;
-  for (let level = flatGroundLevel() - step; level > floor; level -= step) {
-    const rounded = Math.round(level * 10000) / 10000;
+  // ⚠ THE FLOOR IS TESTED ON THE ROUNDED CANDIDATE, not on the accumulating loop variable. Ten
+  // subtractions of 0.01 land on 0.8000000000000003 rather than on 0.8, so a floor comparison
+  // against the raw variable answers about an accumulation error instead of about the level the
+  // sweep is actually asking the reader about — and `>` and `>=` then agree at every floor a
+  // caller can pass.
+  // ⚠ A MATERIALISED RANGE RATHER THAN AN ACCUMULATING COUNTER, for the reason `indices` gives
+  // in `land-shadow.ts`: a mutated `-=` here does not fail a test, it sweeps upward forever, and
+  // Stryker reports the hang as a TIMEOUT that no test can be credited with.
+  // Stryker disable next-line ArithmeticOperator: EQUIVALENT. Starting one step ABOVE flat ground
+  // rather than one below adds a probe at a level lighter than the ground itself; it is
+  // admissible by construction (it sits between two authored rungs), so `admissible` is
+  // overwritten by every deeper level and the returned value is unchanged.
+  const start = flatGroundLevel() - step;
+  for (const n of indices(probeCount(start, floor, step))) {
+    const rounded = Math.round((start - n * step) * 10000) / 10000;
+    if (rounded <= floor) break;
     const ok = refs.every((ref) => nearestReference(deliveredForLevel(ref.hex, rounded), refs) === ref.hex);
     if (!ok) break;
     admissible = rounded;
   }
   return admissible;
+}
+
+/**
+ * How many levels the sweep may probe between `start` and `floor`.
+ *
+ * ⚠ EXTRACTED SO THE COUNT IS A VALUE A TEST CAN READ. Inside the loop it is a bound on a loop
+ * that breaks on its own condition, so a count that is merely too LARGE gives the same answer and
+ * no assertion about the answer can see it. The `+ 1` is what makes the range inclusive of the
+ * floor's own neighbour, and a count two short stops above the true answer — which is the half
+ * that IS observable, and is asserted at a floor where it bites.
+ */
+export function probeCount(start: number, floor: number, step: number): number {
+  return Math.ceil((start - floor) / step) + 1;
 }
 
 /** Everything the material needs to wear a shadow, derived from its own token list. */
@@ -205,9 +236,22 @@ export function shadowLadderFor(tokens: readonly string[]): ShadowLadder {
   const levels = [...SHADE_LEVELS, rung].sort((a, b) => a - b);
   const rungIndex = levels.indexOf(rung);
   const litIndex = SHADE_LEVELS.map((level) => levels.indexOf(level));
-  const darkenable: number[] = [];
-  SHADE_LEVELS.forEach((level, i) => {
-    if (level > rung) darkenable.push(i);
+  return { rung, levels, rungIndex, litIndex, darkenable: rungsDarkenedBy(rung) };
+}
+
+/**
+ * Which `SHADE_LEVELS` indices a shadow at `rung` may darken: those strictly LIGHTER than it.
+ *
+ * ⚠ EXPORTED SO A TEST CAN ASK IT ABOUT A RUNG THAT COINCIDES WITH AN AUTHORED LEVEL. Folded
+ * inside {@link shadowLadderFor} the comparison was unkillable — the derived rung is never a
+ * member of `SHADE_LEVELS`, so `>` and `>=` agree at every input the caller can produce, and the
+ * one case that separates them was unreachable rather than untested. A level EQUAL to the shadow
+ * rung must not darken: darkening it would be a shadow that changed nothing while claiming to.
+ */
+export function rungsDarkenedBy(rung: number, levels: readonly number[] = SHADE_LEVELS): number[] {
+  const out: number[] = [];
+  levels.forEach((level, i) => {
+    if (level > rung) out.push(i);
   });
-  return { rung, levels, rungIndex, litIndex, darkenable };
+  return out;
 }
