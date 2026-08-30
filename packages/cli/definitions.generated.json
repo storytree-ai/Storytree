@@ -20,7 +20,7 @@
   {
     "kind": "definition",
     "id": "arc",
-    "title": "Arc",
+    "title": "arc / epic",
     "oneLine": "The initiative overlay: a named multi-story owner intent tracked through an increment log to a closed end-state — upstream of stories and ADRs by provenance, holding its increments, rendered as \"Epic\" in the studio."
   },
   {
@@ -40,6 +40,12 @@
     "id": "capability",
     "title": "capability",
     "oneLine": "An organ within a story (bounded context): independently viable, proven by integration tests against real in-story collaborators, and composed of contracts."
+  },
+  {
+    "kind": "definition",
+    "id": "chip",
+    "title": "chip",
+    "oneLine": "A one-click offer of a follow-up session, minted with `spawn_task` — where the owner's click is CONSENT to the spend and never SELECTION of the work, so the judgment of whether the work is worth doing sits entirely on the minting side."
   },
   {
     "kind": "definition",
@@ -85,6 +91,12 @@
   },
   {
     "kind": "definition",
+    "id": "drive",
+    "title": "drive",
+    "oneLine": "To take a unit of decided work and carry it all the way to LANDED — decompose it, prove it red→green, gate it, open the PR, close it out — as opposed to planning it, scoping it, or exploring it."
+  },
+  {
+    "kind": "definition",
     "id": "event",
     "title": "event",
     "oneLine": "A typed record of a state change (owned-loop events plus orchestrator events) — the unit of observability."
@@ -103,9 +115,21 @@
   },
   {
     "kind": "definition",
+    "id": "fan-out",
+    "title": "fan out / fan-out",
+    "oneLine": "To dispatch several INDEPENDENT lanes of one arc concurrently — to parallel sessions, or to subagents — instead of taking them serially in a single thread."
+  },
+  {
+    "kind": "definition",
     "id": "fixture",
     "title": "fixture",
     "oneLine": "A test-supporting artifact (data file, scaffold, temp crate) created during a walkthrough and cleaned up before signing."
+  },
+  {
+    "kind": "definition",
+    "id": "friction",
+    "title": "friction",
+    "oneLine": "A captured, evidence-bearing record of what fought a session and at what cost — filed at most THREE per session, distilled rather than raw, and routed later rather than adjudicated at capture."
   },
   {
     "kind": "definition",
@@ -130,6 +154,30 @@
     "id": "in-session-subagent",
     "title": "in-session subagent",
     "oneLine": "A subagent spawned in-process by a running session's own Agent tool — starts immediately with no owner approval, is a CHILD of the spawning session, and dies if the parent's process exits."
+  },
+  {
+    "kind": "definition",
+    "id": "increment",
+    "title": "increment",
+    "oneLine": "One decided-but-not-yet-built unit of work parked on an arc, carrying its own lifecycle (`proposal → ready → active → closed`) — and, once closed, the arc's permanent log entry."
+  },
+  {
+    "kind": "definition",
+    "id": "inert",
+    "title": "inert",
+    "oneLine": "A session that has landed and will open no new work — no monitors, no polling loops, no scheduled wakeups — reached only for one of four NAMED reasons, and never mute."
+  },
+  {
+    "kind": "definition",
+    "id": "land",
+    "title": "land / landing",
+    "oneLine": "To bring a unit onto `main` through the whole ceremony — green through `pnpm gate`, committed, pushed, merged by CI from a NON-DRAFT PR, and closed out — never merely finished, and never merely pushed."
+  },
+  {
+    "kind": "definition",
+    "id": "lane",
+    "title": "lane",
+    "oneLine": "One independently-drivable strand of an arc — work whose OWN dependency sentence says nothing outstanding blocks it, so it can run beside its siblings rather than after them."
   },
   {
     "kind": "definition",
@@ -164,7 +212,7 @@
   {
     "kind": "definition",
     "id": "node",
-    "title": "node",
+    "title": "node / storynode",
     "oneLine": "A unit being worked on the DAG — a story or capability under construction — driven by one owned-loop session (the intended DBOS workflow wrapper is deferred, ADR-0019)."
   },
   {
@@ -235,14 +283,32 @@
   },
   {
     "kind": "definition",
+    "id": "reonboard",
+    "title": "reonboard",
+    "oneLine": "To bring the owner back up to speed when he re-enters a thread cold — where things STAND, what he needs to KNOW to follow it, what you MAKE of it, what you WANT from him — offered unprompted, because being asked for it is the failure signal."
+  },
+  {
+    "kind": "definition",
+    "id": "residue",
+    "title": "residue",
+    "oneLine": "What a session writes onto the owning arc when it ends — what it attempted, what landed, what did not, and what the next session needs in order to resume — and it is the handover, because there is no other."
+  },
+  {
+    "kind": "definition",
     "id": "run",
     "title": "run",
     "oneLine": "A single per-node execution attempt, recorded as an event in the event store — many-per-node, never a new node."
   },
   {
     "kind": "definition",
+    "id": "self-perpetuating-session",
+    "title": "self-perpetuating session",
+    "oneLine": "A session that supplies its own continuation rather than waiting for the owner to supply it: it takes the next work when it lands, and when a real end forces it out it cuts its OWN successor rather than leaving the owner a click."
+  },
+  {
+    "kind": "definition",
     "id": "session-cutting",
-    "title": "session cutting",
+    "title": "session cutting / cut a fresh session",
     "oneLine": "The owner-approved delegation mechanism — a fresh top-level Claude Code session (own context, lifecycle, SessionStart hooks) launched via the desktop's `spawn_task` chip, surviving the proposing session entirely."
   },
   {
@@ -310,6 +376,12 @@
     "id": "work-hierarchy-is-disk-canonical",
     "title": "work hierarchy is disk-canonical",
     "oneLine": "The work hierarchy (story / capability / contract) lives as frontmatter-markdown files under stories/ — disk-canonical, landed via the PR — while the knowledge tier lives in the live --pg store; author each tier on its own canonical surface."
+  },
+  {
+    "kind": "definition",
+    "id": "worktree",
+    "title": "worktree",
+    "oneLine": "A git-registered linked checkout that is ALSO the session's identity — which is why the primary checkout is deliberately refused one, and why a session without a worktree can claim nothing."
   },
   {
     "kind": "definition",
