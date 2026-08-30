@@ -48,44 +48,61 @@ import {
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
   groundRamp,
+  type BandedGroundMaterialOptions,
+  type GroundGrainMode,
 } from '../src/banded-ground-material.js';
 import { frameWorld } from '../src/camera-framing.js';
 import { landHeightRange, landRelief } from '../src/land-relief.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
-import { createBandedMaterial } from './banded-material.js';
 import { islandScene } from './island-fixture.js';
 import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 
 /**
- * THE FOUR ARMS — a ladder in which each rung differs from the one before it in ONE thing.
+ * THE FIVE ARMS — a ladder in which each rung differs from the one before it in ONE thing.
  *
- *   flat     the shipped map as it drew on 2026-08-29
- *   relief   + the land's relief field           (crossed 2026-08-30, PR #1725)
- *   banded   + the authored shade ladder         (crossed 2026-08-30, THIS increment)
- *   treated  + the grain octave                  (REFERENCE ONLY - see below)
+ *   flat          the shipped map as it drew on 2026-08-29
+ *   relief        + the land's relief field           (crossed 2026-08-30, PR #1725)
+ *   banded        + the authored shade ladder         (crossed 2026-08-30, PR #1726)
+ *   grain-normal  + the grain octave's NORMAL half    (crossed 2026-08-30, THIS increment)
+ *   grain-both    + the grain octave's COLOUR half    (⚠ NOT SHIPPED — see below)
  *
- * THE `treated` ARM IS A REFERENCE AND NOT A SHIPPED ONE, and saying so is the point of it. The
- * owner reframed the standard on 2026-08-30: "the image that I stamped as looking awesome was
- * done in isolation and now we trying to do the same with the app constraints in place." So a
- * component that crosses correctly has not thereby delivered the look, and the honest way to
- * report a crossing is beside the ceiling it is reaching for. `treated` is the EXPERIMENT's own
- * material (`harness/banded-material.ts`) wearing the grain the approved Cycles render used, on
- * the same island, in the same frame, on the same GPU.
+ * ⚠⚠ ALL FIVE ARE NOW ONE IMPLEMENTATION, AND THAT IS WHAT THIS INCREMENT BOUGHT THE COMPARISON.
+ * Until `land-grain.ts` crossed, the ceiling arm was `harness/banded-material.ts` — the
+ * EXPERIMENT's material — so the last rung differed from its neighbour in an implementation as
+ * well as in the grain, and the gap had to be closed by an arithmetic proof that the two
+ * materials build an identical ramp. It does not any more: `grain-both` is the SHIPPED material
+ * with one option changed, so "these differ in the grain and in nothing else" is true by
+ * construction rather than by argument. That is the retirement `soleIslandToken` predicted in as
+ * many words, and the single-status refusal it carried went with it — the shipped material takes
+ * a ramp ROW per parcel, so a mixed-status island is drawn correctly by every arm here.
  *
- * It is drawn by a DIFFERENT IMPLEMENTATION from `banded`, which the other three rungs are not -
- * those are one function called with one input changed. The gap is closed by arithmetic rather
- * than by hope: `shipped-land-scene.test.ts` proves the two materials' ramps are IDENTICAL for
- * this island's token, so the only thing that can differ between `banded` and `treated` is the
- * grain. When `land-grain.ts` crosses, `treated` becomes an ordinary controlled arm.
- *
- * And its colour half is OFF-PALETTE BY CONSTRUCTION (`land-grain.ts`), so it could not be
- * adopted today whatever it looks like: it mixes a noise ramp INTO the delivered colour, and the
- * shipped ground's whole guarantee is that every pixel is an authored `(token x level)` entry.
- * That is a fence question for `improve-the-ground-texture`, not something a picture settles.
+ * ⚠ `grain-both` IS A REFERENCE, NOT A CANDIDATE, AND IT IS MEASURED RATHER THAN ASSUMED TO BE.
+ * Its colour half mixes a noise ramp INTO the delivered colour, so it is off-palette by
+ * construction. `harness/grain-status-reading.ts` asked the sharper question — does that move a
+ * pixel into a NEIGHBOURING STATUS's family — by driving all six shipped ground tokens through the
+ * mix arithmetically, and the answer at the authored fac of 0.13 is yes: the `proposed`/`building`
+ * yellow at the ladder's two darkest rungs reads as `healthy`. The largest fac every reading
+ * survives is 0.031. So this arm is here to SHOW what the closure costs, beside the arm that
+ * holds it, which is what lets the owner settle the fork on a picture rather than on a paragraph.
  */
-export type LandArm = 'flat' | 'relief' | 'banded' | 'treated';
-export const LAND_ARMS: readonly LandArm[] = ['flat', 'relief', 'banded', 'treated'];
+export type LandArm = 'flat' | 'relief' | 'banded' | 'grain-normal' | 'grain-both';
+export const LAND_ARMS: readonly LandArm[] = [
+  'flat',
+  'relief',
+  'banded',
+  'grain-normal',
+  'grain-both',
+];
+
+/** The arms whose every delivered land pixel must be an authored `(token x level)` entry — the
+ *  fence the whole surface rests on, as a LIST rather than as a literal in the driver, so adding
+ *  an arm forces a decision about which side of the closure it is on.
+ *
+ *  `flat` and `relief` are excluded because they wear a lit `MeshStandardMaterial` and deliver a
+ *  continuous gradient by construction — that is the thing being replaced. `grain-both` is
+ *  excluded because it is off-palette on purpose. Everything else must hold. */
+export const PALETTE_CLOSED_ARMS: readonly LandArm[] = ['banded', 'grain-normal'];
 
 /** Consecutive pairs of the ladder - what `changedPct` is asked for, and what the report tables.
  *  Derived from {@link LAND_ARMS} rather than written out, so an arm added in the middle cannot
@@ -104,8 +121,23 @@ const RELIEF_OF = {
   flat: FLAT_GROUND,
   relief: landRelief,
   banded: landRelief,
-  treated: landRelief,
+  'grain-normal': landRelief,
+  'grain-both': landRelief,
 } satisfies Record<LandArm, GroundRelief>;
+
+/** Which grain option each banded arm asks the SHIPPED material for. `undefined` is the ungrained
+ *  ladder, and it matters that it is undefined rather than a mode meaning "none": an absent grain
+ *  leaves the generated shader source byte-identical to the one measured on 2026-08-30, so the
+ *  `banded` arm here is the same shader that produced that evidence rather than a near relative.
+ *
+ *  ⚠ THE TWO PRE-BANDED ARMS ARE ABSENT FROM THIS MAP ON PURPOSE. They wear
+ *  `MeshStandardMaterial` and never reach `createBandedGroundMaterial` at all; a `flat: undefined`
+ *  entry would read as "the flat arm is ungrained", which is true of a material it does not use. */
+const GRAIN_OF = {
+  banded: undefined,
+  'grain-normal': 'normal',
+  'grain-both': 'both',
+} satisfies Record<'banded' | 'grain-normal' | 'grain-both', GroundGrainMode | undefined>;
 
 /** The ramp ROWS the shipped canvas uses, in its own `GROUND_COLOUR` order - transcribed here off
  *  `SHIPPED_GROUND_COLOUR`, which `shipped-baseline.test.ts` parses out of `ForestWorldCanvas.tsx`
@@ -121,26 +153,6 @@ export const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
  *  disagreement between the two paints every parcel a different status's colour. */
 export const groundRowOf = (material: string | undefined): number =>
   GROUND_ROWS.get(material ?? 'unknown') ?? GROUND_ROWS.get('unknown')!;
-
-/**
- * THE ISLAND'S ONE STATUS - and the refusal that keeps the reference arm honest.
- *
- * `treated` wears `harness/banded-material.ts`, which takes ONE authored token per material,
- * because the experiment island builds a mesh per prop role. That is only a truthful picture of
- * THIS island while the island wears one status. It does today; if it ever stops, a single-token
- * reference arm would paint every parcel the same state and the picture would be a lie about the
- * map's whole job (ADR-0392 D5 / ADR-0398 D7). So it is checked rather than assumed.
- */
-export function soleIslandToken(cells: readonly InstanceDescriptor[]): string {
-  const statuses = [...new Set(cells.map((c) => c.material ?? 'unknown'))];
-  if (statuses.length !== 1) {
-    throw new Error(
-      `shipped-land-scene: the reference arm needs a single-status island, found ${statuses.length}` +
-        ` (${statuses.join(', ')}). Cross land-grain.ts and drop the reference arm instead.`,
-    );
-  }
-  return SHIPPED_GROUND_COLOUR.get(statuses[0]!) ?? SHIPPED_GROUND_COLOUR.get('unknown')!;
-}
 
 /** The parcels of the island the studio actually ships — 164 of them, mean diameter 16.57 ground
  *  units, 191 distinct ring vertices of which 185 belong to more than one parcel. That last figure
@@ -229,12 +241,18 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
   // `shipped-baseline.ts` reads out of the canvas. `banded` is unlit because the ladder computes
   // its own lambert against the authored `LIGHT_DIRECTION` - which is exactly the change being
   // pictured, so hiding it under a common material would be a comparison of nothing.
+  // ⚠ THE GRAIN IS PASSED BY STATEMENT RATHER THAN AS `grain: GRAIN_OF[arm]`, and that is the
+  // byte-identity claim rather than a concession to `exactOptionalPropertyTypes`: an explicit
+  // `grain: undefined` is a different call from an absent one, and the whole reason the `banded`
+  // arm is comparable to the 2026-08-30 evidence is that it is the SAME shader those numbers were
+  // taken off. Absent means absent.
+  const bandedOpts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS };
+  const grain = arm === 'flat' || arm === 'relief' ? undefined : GRAIN_OF[arm];
+  if (grain !== undefined) bandedOpts.grain = grain;
   const material =
     arm === 'flat' || arm === 'relief'
       ? new THREE.MeshStandardMaterial({ vertexColors: true })
-      : arm === 'banded'
-        ? createBandedGroundMaterial({ tokens: GROUND_TOKENS })
-        : createBandedMaterial({ token: soleIslandToken(cells), grain: { mode: 'both' } });
+      : createBandedGroundMaterial(bandedOpts);
   const mesh = new THREE.Mesh(geometry, material);
 
   const scene = new THREE.Scene();
@@ -550,8 +568,9 @@ export function createLandRunner(): LandRunner {
 const ARM_CAPTION = {
   flat: 'the shipped map on 2026-08-29',
   relief: '+ the land relief field',
-  banded: '+ the authored shade ladder (SHIPPED)',
-  treated: '+ the grain octave (REFERENCE — off-palette, not adopted)',
+  banded: '+ the authored shade ladder',
+  'grain-normal': "+ the grain octave's NORMAL half (SHIPPED)",
+  'grain-both': "+ the grain octave's COLOUR half (REFERENCE — off-palette, not adopted)",
 } satisfies Record<LandArm, string>;
 
 /** Mount the page: every arm at both zooms, side by side, with the runner on `window` for the

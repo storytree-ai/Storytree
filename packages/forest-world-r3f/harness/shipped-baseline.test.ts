@@ -205,6 +205,28 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   assert.match(hexGround, /meshStandardMaterial/, 'the classic substrate still wears the placeholder');
 });
 
+test('the shipped ground WEARS THE GRAIN OCTAVE — normal half only, unconditionally, item 6', () => {
+  // The third component of the approved treatment to cross (2026-08-30). Same fence as the two
+  // before it: no prop, no default-off, no flag nobody flips.
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(
+    src,
+    /createBandedGroundMaterial\(\{ tokens: GROUND_TOKENS, grain: 'normal' \}\)/,
+    'the shipped ground material must ask for the grain, and must ask for it unconditionally',
+  );
+  // ⚠⚠ AND IT MUST NOT ASK FOR `both`. That is not style: the colour half is off-palette by
+  // construction, and `harness/grain-status-reading.ts` measured that at its authored fac of 0.13
+  // the `proposed`/`building` yellow at the two darkest rungs reads as `healthy`. A ground that
+  // misreports a capability's proof state is the one way this arc can do real harm
+  // (ADR-0392 D5 / ADR-0398 D7), so the fork is the owner's and this is the assertion that keeps
+  // a later session from taking it by accident.
+  assert.ok(
+    !/grain:\s*'both'/.test(src),
+    "the shipped canvas must not wear the grain's COLOUR half — it is measured inadmissible on " +
+      'this palette, and adopting it is an owner decision rather than a shader edit',
+  );
+});
+
 test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
   // ⚠ THE FAILURE THIS FORBIDS IS THE WORST ONE THIS SURFACE HAS. A geometry indexing one order
   // and a material uploading another paints every parcel with a DIFFERENT status's colour —
@@ -213,7 +235,7 @@ test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
   const src = readFileSync(SHIPPED, 'utf8');
   assert.match(src, /GROUND_TOKENS[^=]*=\s*\[\.\.\.GROUND_COLOUR\.values\(\)\]/);
   assert.match(src, /GROUND_ROWS[^=]*=[\s\S]{0,120}\[\.\.\.GROUND_COLOUR\.keys\(\)\]/);
-  assert.match(src, /createBandedGroundMaterial\(\{ tokens: GROUND_TOKENS \}\)/);
+  assert.match(src, /createBandedGroundMaterial\(\{ tokens: GROUND_TOKENS[,)]/);
   // An unrecognised material falls back to `unknown`'s ROW exactly as it falls back to
   // `unknown`'s COLOUR — the one state that means "no data". Any other fallback would have the
   // map assert something about work it could not classify, in the form hardest to notice.

@@ -1,31 +1,34 @@
 // shipped-land-scene.test.ts — the comparison page's own controls, proved without a GPU.
 //
-// ⚠⚠ WHY THIS FILE EXISTS AT ALL. Three of the four arms are ONE function called with one input
-// changed, which makes them a controlled comparison by construction. The fourth is not:
-// `treated` is drawn by the EXPERIMENT's material and `banded` by the SHIPPED one, so "these two
-// differ only in the grain" is a claim rather than a property. It is closed here, arithmetically:
-// if the two materials' ramps are identical for this island's token, the only thing left that can
-// differ is the grain. Without this the reference arm would be an assertion dressed as a picture.
+// ⚠⚠ WHY THIS FILE EXISTS AT ALL. The five arms are ONE function called with one input changed,
+// which is what makes them a controlled comparison rather than five pictures side by side. Until
+// 2026-08-30 that was true of only four of them — the ceiling arm was drawn by the EXPERIMENT's
+// material, so "these two differ only in the grain" was a claim, and this file closed it
+// arithmetically by proving the two materials build an identical ramp. `land-grain.ts` has since
+// crossed, so the ceiling arm is the SHIPPED material with one option changed and that claim is
+// now a property. What is left to prove here is what the ladder ASSERTS: that the grain moves
+// shading and not the palette, that the arm which ships still writes an authored ramp entry, and
+// that the arm which does not is the only one exempted from the closure.
 
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { groundRamp } from '../src/banded-ground-material.js';
-import { SHADE_LEVELS, toHex, tokenRamp } from '../src/shade-ladder.js';
+import { createBandedGroundMaterial, groundRamp } from '../src/banded-ground-material.js';
+import { SHADE_LEVELS } from '../src/shade-ladder.js';
 import {
   GROUND_ROWS,
   GROUND_TOKENS,
   LAND_ARMS,
   LAND_STEPS,
   LAND_ZOOMS,
+  PALETTE_CLOSED_ARMS,
   groundRowOf,
   shippedParcels,
-  soleIslandToken,
 } from './shipped-land-scene.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
 
 test('the ladder is a LADDER — every step changes exactly one rung, in order', () => {
-  assert.deepEqual([...LAND_ARMS], ['flat', 'relief', 'banded', 'treated']);
+  assert.deepEqual([...LAND_ARMS], ['flat', 'relief', 'banded', 'grain-normal', 'grain-both']);
   assert.equal(LAND_STEPS.length, LAND_ARMS.length - 1);
   // Derived rather than written out: an arm inserted in the middle must move the steps with it,
   // or the report would go on describing the old ladder while drawing the new one.
@@ -36,35 +39,65 @@ test('the ladder is a LADDER — every step changes exactly one rung, in order',
   assert.deepEqual([...LAND_ZOOMS], [2, 8], 'the overview and the zoomed read, as everywhere else');
 });
 
-test('THE REFERENCE ARM IS HONEST: both materials build the SAME ramp for this island', () => {
-  // `banded` selects from `groundRamp(GROUND_TOKENS)`; `treated` selects from the harness
-  // material's `tokenRamp(token)`. If those agree, the two arms differ in the grain and in
-  // nothing else — which is the whole claim the reference arm makes.
-  const token = soleIslandToken(shippedParcels());
-  const rows = [...SHIPPED_GROUND_COLOUR.values()];
-  const row = rows.indexOf(token);
-  assert.ok(row >= 0, `the island token ${token} is not one of the shipped ground tokens`);
-
-  const shipped = groundRamp(rows)
-    .slice(row * SHADE_LEVELS.length, (row + 1) * SHADE_LEVELS.length)
-    .map(([r, g, b]) => toHex({ r: Math.round(r! * 255), g: Math.round(g! * 255), b: Math.round(b! * 255) }));
-  const experiment = tokenRamp(token).map(toHex);
-  assert.deepEqual(shipped, experiment);
-  // NON-VACUITY: a ramp of one repeated colour would satisfy the equality above and prove nothing
-  // about either material. The island's token must actually shade.
-  assert.ok(new Set(shipped).size >= 3, `the token ${token} delivers only ${new Set(shipped).size} colours`);
+test('the three banded arms are ONE material with ONE option changed', () => {
+  // The property that replaced the old arithmetic proof. All three ask
+  // `createBandedGroundMaterial` for the same six ramp rows, so their PALETTES are the same object
+  // by construction and the only thing that can differ between them is the grain.
+  const tokens = [...GROUND_TOKENS];
+  const banded = createBandedGroundMaterial({ tokens });
+  const normal = createBandedGroundMaterial({ tokens, grain: 'normal' });
+  const both = createBandedGroundMaterial({ tokens, grain: 'both' });
+  const rampOf = (m: { uniforms: Record<string, { value: unknown }> }): string =>
+    JSON.stringify(m.uniforms['uRamp']!.value);
+  assert.equal(rampOf(normal), rampOf(banded), 'the grain must not move the ramp');
+  assert.equal(rampOf(both), rampOf(banded), 'the grain must not move the ramp');
+  // NON-VACUITY: a ramp of one repeated colour would satisfy the equalities above and prove
+  // nothing. Six tokens across four rungs have to deliver a real spread.
+  const entries = new Set(groundRamp(tokens).map((c) => c.join(',')));
+  assert.ok(entries.size >= 18, `the ground ramp delivers only ${entries.size} distinct colours`);
+  assert.equal(groundRamp(tokens).length, tokens.length * SHADE_LEVELS.length);
 });
 
-test('the island the arms draw is SINGLE-STATUS, which the reference arm requires', () => {
-  // ⚠ AND IT IS A REQUIREMENT RATHER THAN A CONVENIENCE. `harness/banded-material.ts` takes ONE
-  // token per material, so on a mixed island the reference arm would paint every parcel the same
-  // state — a picture that lies about the map's whole job (ADR-0392 D5 / ADR-0398 D7). The
-  // builder refuses rather than drawing it; this proves the refusal can fire.
+test('the arm that SHIPS keeps the closure and the arm that does not is the only exemption', () => {
+  // ⚠ THIS IS THE FENCE, ASKED OF THE SOURCE. The palette closure is the property a picture can
+  // only ever SAMPLE — a capture proves the pixels it photographed were authored entries, never
+  // that no reachable pixel is off. The source carries the stronger claim: if the only expression
+  // reaching `gl_FragColor` is a `uRamp` element, no lighting term and no noise can produce a
+  // colour outside the closure, because none of them is ever added to a colour.
+  const tokens = [...GROUND_TOKENS];
+  const closed = (src: string): boolean => /gl_FragColor = vec4\(c, 1\.0\);/.test(src);
+  assert.ok(closed(createBandedGroundMaterial({ tokens }).fragmentShader));
+  assert.ok(
+    closed(createBandedGroundMaterial({ tokens, grain: 'normal' }).fragmentShader),
+    "the grain's NORMAL half must still write an authored ramp entry — that is why it ships",
+  );
+  assert.ok(
+    !closed(createBandedGroundMaterial({ tokens, grain: 'both' }).fragmentShader),
+    "the grain's COLOUR half must NOT be palette-closed, or the arm meant to show the cost of " +
+      'holding the closure is showing nothing',
+  );
+  // And the driver's own exemption list has to agree with that, or the run would either refuse
+  // the reference arm for being what it is or wave the shipping arm through.
+  assert.deepEqual([...PALETTE_CLOSED_ARMS], ['banded', 'grain-normal']);
+  for (const arm of PALETTE_CLOSED_ARMS) {
+    assert.ok(LAND_ARMS.includes(arm), `${arm} is held to the closure but is not an arm`);
+  }
+  assert.ok(!PALETTE_CLOSED_ARMS.includes('grain-both'));
+});
+
+test('the arms draw a MULTI-STATUS material, which is what retired the single-status refusal', () => {
+  // ⚠ THE OLD LADDER COULD NOT SAY THIS. Its ceiling arm wore `harness/banded-material.ts`, which
+  // takes ONE token per material, so the page had to refuse a mixed island rather than paint every
+  // parcel the same state — a picture that would lie about the map's whole job (ADR-0392 D5 /
+  // ADR-0398 D7). The shipped material takes a ramp ROW per parcel, so every arm now draws
+  // whatever statuses the island carries. Asserted rather than assumed, because the fixture
+  // happens to be single-status and would satisfy a weaker page just as well.
   const cells = shippedParcels();
   assert.ok(cells.length > 100, `the shipped island fixture should be ~164 parcels, got ${cells.length}`);
-  assert.doesNotThrow(() => soleIslandToken(cells));
-  const mixed = [...cells, { ...cells[0]!, material: 'unhealthy' }];
-  assert.throws(() => soleIslandToken(mixed), /single-status island, found 2/);
+  assert.equal(GROUND_TOKENS.length, SHIPPED_GROUND_COLOUR.size, 'every shipped status has a row');
+  assert.ok(GROUND_TOKENS.length >= 6, 'six statuses, not the four a folded set would give');
+  const ramp = groundRamp([...GROUND_TOKENS]);
+  assert.equal(ramp.length, GROUND_TOKENS.length * SHADE_LEVELS.length);
 });
 
 test('every parcel of the fixture resolves to a token the shipped canvas actually holds', () => {
