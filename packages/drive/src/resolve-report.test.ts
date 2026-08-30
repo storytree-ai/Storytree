@@ -84,12 +84,21 @@ test("resolveReport on a spec-borne node reports source=spec, all command/scope/
 test("resolveReport discloses a SUITE proof command's accounting posture without refusing it", () => {
   // A suite-scoped command is exit-code-only and stays buildable (ADR-0098 R2 is structurally this
   // shape). What changes is that an operator can see it BEFORE paying for a build.
-  const file = findNodeSpecFile(STORIES_DIR, "model-judged-uat");
-  assert.ok(file !== null, "the story that hit this at node 5/5 on 2026-08-09");
+  //
+  // RE-GROUNDED 2026-08-31 (`model-uat-family-consolidation-arc` inc-01). This case was written
+  // against the `model-judged-uat` story, whose package ADR-0247 D5 has now retired and this
+  // increment DELETED. The story directory survives — retired stories stay as browsable rows — so
+  // the old assertion would have gone on passing on a pure string comparison while naming a
+  // `pnpm --filter` target that no longer resolves: a green assertion about a dead command.
+  // `uat-criterion-detail` reproduces the condition exactly (story tier, spec-borne real arm,
+  // whole-package `pnpm --filter … test`, accounting `none`, basis `suite-scoped`) and is the LIVE
+  // story of the same family — the one package the consolidation keeps.
+  const file = findNodeSpecFile(STORIES_DIR, "uat-criterion-detail");
+  assert.ok(file !== null, "a LIVE story reproducing the 2026-08-09 node-5/5 condition");
   const report = resolveReport(loadNodeSpec(file));
 
   assert.ok(report.real !== null);
-  assert.equal(report.real.proofCommand, "pnpm --filter @storytree/model-judged-uat test");
+  assert.equal(report.real.proofCommand, "pnpm --filter @storytree/uat-criterion test");
   assert.equal(report.real.proofAccounting, "none");
   assert.equal(report.real.proofRouteBasis, "suite-scoped");
   assert.match(report.real.proofAccountingNote ?? "", /no oracle is POSSIBLE/);

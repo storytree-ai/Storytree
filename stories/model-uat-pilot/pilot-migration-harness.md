@@ -15,27 +15,21 @@ decisions: [209, 192, 82]
 # NEW port @storytree/model-uat-pilot (ADR-0192). Consumes @storytree/model-uat +
 # @storytree/uat-criterion public barrels. Offline filesystem read of the three story.md files
 # and the uat-criterion seed dir — no DB, no live model.
-proof:
-  command:
-    file: pnpm
-    args: ["--filter", "@storytree/model-uat-pilot", "test"]
-  scope:
-    testGlobs: ["packages/model-uat-pilot/src/pilot-migration-harness.test.ts"]
-    sourceGlobs: ["packages/model-uat-pilot/src/pilot-migration-harness.ts"]
-  real:
-    testFile: "packages/model-uat-pilot/src/pilot-migration-harness.test.ts"
-    sourceFile: "packages/model-uat-pilot/src/pilot-migration-harness.ts"
-    editsExisting: true
-    scope:
-      testGlobs: ["packages/model-uat-pilot/src/pilot-migration-harness.test.ts"]
-      sourceGlobs: ["packages/model-uat-pilot/src/pilot-migration-harness.ts"]
-    install: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/model-uat-pilot", "typecheck"]
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/model-uat-pilot", "test"]
+# PROOF BINDING REMOVED 2026-08-31 — the package it named is gone. `@storytree/model-uat-pilot` was DELETED
+# by `model-uat-family-consolidation-arc` increment 1 (ADR-0247 D5's first package retirement), so
+# the `proof:` block that stood here bound a test file, a source file and a `pnpm --filter` target
+# that no longer exist. Leaving it would not have been inert: a dead `--filter` EXITS 0 WITHOUT
+# RUNNING, which is a proof command that can only ever report success. `check:verification-decay`'s
+# `contract-binding-drift` instrument (ceiling 0) and the `coverage-drain` sweep both red on exactly
+# that, and ADR-0252 D3 forbids raising a ceiling to absorb it — of the three sanctioned drains
+# (author a test, split/retire, repair the binding), only REPAIR applies here: the code is gone so no
+# test can be authored, and this node was already `status: retired`, which by itself cleared nothing
+# because no instrument filters on it.
+#
+# The node is KEPT as a browsable row, per ADR-0247 D2 (a retirement, not a deletion — the tier can
+# be brought back). It simply no longer registers a real-build surface. This is the shape
+# `stories/studio-build` already holds: retired, body kept as history, binding no file, breaching no
+# ceiling. The implementation stays recoverable in git history.
 ---
 
 # A public harness proves pilot migration completeness and reports counts

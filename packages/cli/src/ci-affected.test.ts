@@ -12,6 +12,7 @@ import {
   discoverWorkspaceProjects,
   pnpmArgsFor,
   type WorkspaceProject,
+  ROOT_PATH_READERS,
 } from "./ci-affected.js";
 
 /** A representative workspace slice — names/dirs mirror the real repo shape. */
@@ -22,7 +23,6 @@ const PROJECTS: WorkspaceProject[] = [
   { name: "@storytree/drive", dir: "packages/drive" },
   { name: "@storytree/forest-world", dir: "packages/forest-world" },
   { name: "@storytree/library", dir: "packages/library" },
-  { name: "@storytree/model-uat-pilot", dir: "packages/model-uat-pilot" },
   { name: "@storytree/orchestrator", dir: "packages/orchestrator" },
   { name: "desktop", dir: "apps/desktop" },
   { name: "studio", dir: "apps/studio" },
@@ -235,7 +235,7 @@ test(".claude/agents/ is narrower than .claude/, and the deeper entry wins", () 
   ]);
 });
 
-test("a story-only diff narrows to the seven measured readers — and still runs validate-corpus's owner", () => {
+test("a story-only diff narrows to the six measured readers — and still runs validate-corpus's owner", () => {
   // The negative that matters here is the mirror of the ADR one: `stories/**` is guarded by cli's
   // validate-corpus, so cli must be selected AND must survive into the real filter chain.
   const scope = classifyChangedFiles(["stories/ci-cd/green-gate.md"], PROJECTS);
@@ -245,11 +245,56 @@ test("a story-only diff narrows to the seven measured readers — and still runs
     "@storytree/context-traversal-capture",
     "@storytree/drive",
     "@storytree/library",
-    "@storytree/model-uat-pilot",
     "@storytree/orchestrator",
     "studio",
   ]);
   assert.match(pnpmArgsFor(scope), /--filter \.\.\.@storytree\/cli(\s|$)/);
+});
+
+test("EVERY map entry carries a measurement reason that names its own path", () => {
+  // ADR-0394's burden of proof lives in `reason`: an entry is admitted because its reader set was
+  // MEASURED, and the reason is the record a later session re-runs rather than re-guesses. Nothing
+  // in the classifier reads the field — the returned `scope.reason` is composed separately — so it
+  // was reachable by no test, and a mutation run duly showed it could be emptied with the whole
+  // suite still green. The map could lose its evidence silently. Two properties, both cheap:
+  //
+  //   1. non-empty — an entry with no reason is an unjustified narrowing, which is exactly what
+  //      "ADDING AN ENTRY IS AN ADR-0394 AMENDMENT, and it costs a measurement" forbids;
+  //   2. it names its own prefix — a reason that talks about some other path is evidence for a
+  //      different entry, which is how a copy-pasted entry acquires borrowed justification.
+  for (const entry of ROOT_PATH_READERS) {
+    assert.ok(entry.reason.trim().length > 0, `${entry.prefix} carries no measurement reason`);
+    const bare = entry.prefix.endsWith("/") ? entry.prefix.slice(0, -1) : entry.prefix;
+    assert.ok(
+      entry.reason.includes(bare),
+      `${entry.prefix}'s reason does not name the path it justifies: ${entry.reason}`,
+    );
+    assert.ok(entry.projects.length > 0, `${entry.prefix} narrows to an empty project set`);
+  }
+});
+
+test("a map entry that states a reader COUNT in words agrees with the projects it lists", () => {
+  // The drift this catches, measured 2026-08-31: deleting `@storytree/model-uat-pilot` took the
+  // `stories/` entry from seven readers to six, and the count lives in PROSE beside the list.
+  // Nothing joined the two, so the prose could have gone on saying "seven" over a six-name list —
+  // a reason that reads as measured evidence while contradicting the entry it justifies.
+  const WORDS = [
+    "zero", "one", "two", "three", "four", "five", "six",
+    "seven", "eight", "nine", "ten", "eleven", "twelve",
+  ] as const;
+  let checked = 0;
+  for (const entry of ROOT_PATH_READERS) {
+    const stated = /by (\w+) projects/.exec(entry.reason);
+    if (stated === null) continue;
+    checked += 1;
+    assert.equal(
+      stated[1],
+      WORDS[entry.projects.length],
+      `${entry.prefix}'s reason says "${stated[1]} projects" but lists ${entry.projects.length}`,
+    );
+  }
+  // Without this the suite would pass vacuously the day the last worded count is rephrased.
+  assert.ok(checked > 0, "no entry states a count in words — this test has stopped checking anything");
 });
 
 test("EVERY map entry fails WIDE when one of its readers is absent, not just the ADR one", () => {

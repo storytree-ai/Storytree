@@ -16,24 +16,21 @@ decisions: [209, 20, 192, 82]
 # `@storytree/model-judged-uat` package: AUTHOR_TEST writes spine-validation.test.ts; IMPLEMENT
 # authors spine-validation.ts. Consumes `@storytree/model-uat` + `@storytree/uat-criterion` as
 # package dependencies (story depends_on); does not squat their source.
-proof:
-  command:
-    file: pnpm
-    args: ["--filter", "@storytree/model-judged-uat", "test"]
-  scope:
-    testGlobs: ["packages/model-judged-uat/src/spine-validation.test.ts"]
-    sourceGlobs: ["packages/model-judged-uat/src/spine-validation.ts"]
-  real:
-    testFile: "packages/model-judged-uat/src/spine-validation.test.ts"
-    sourceFile: "packages/model-judged-uat/src/spine-validation.ts"
-    scope:
-      testGlobs: ["packages/model-judged-uat/src/spine-validation.test.ts"]
-      sourceGlobs: ["packages/model-judged-uat/src/spine-validation.ts"]
-    install: true
-    editsExisting: true
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/model-judged-uat", "typecheck"]
+# PROOF BINDING REMOVED 2026-08-31 — the package it named is gone. `@storytree/model-judged-uat` was DELETED
+# by `model-uat-family-consolidation-arc` increment 1 (ADR-0247 D5's first package retirement), so
+# the `proof:` block that stood here bound a test file, a source file and a `pnpm --filter` target
+# that no longer exist. Leaving it would not have been inert: a dead `--filter` EXITS 0 WITHOUT
+# RUNNING, which is a proof command that can only ever report success. `check:verification-decay`'s
+# `contract-binding-drift` instrument (ceiling 0) and the `coverage-drain` sweep both red on exactly
+# that, and ADR-0252 D3 forbids raising a ceiling to absorb it — of the three sanctioned drains
+# (author a test, split/retire, repair the binding), only REPAIR applies here: the code is gone so no
+# test can be authored, and this node was already `status: retired`, which by itself cleared nothing
+# because no instrument filters on it.
+#
+# The node is KEPT as a browsable row, per ADR-0247 D2 (a retirement, not a deletion — the tier can
+# be brought back). It simply no longer registers a real-build surface. This is the shape
+# `stories/studio-build` already holds: retired, body kept as history, binding no file, breaching no
+# ceiling. The implementation stays recoverable in git history.
 ---
 
 # The spine admits a model judgment only when shape, eligibility, tier, and hash are clean
