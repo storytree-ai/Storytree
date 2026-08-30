@@ -7,6 +7,24 @@ outcome: "Inviting a member emails them the studio link so they learn they have 
 status: proposed
 proof_mode: integration-test
 depends_on: [invite-ui]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057.
+# `best-effort-notify` — `inviteMailer.test.ts` proves the disabled mailer "always skips, carrying a
+# reason", the env gating, and that an unreachable SMTP host "reports `failed` (never throws)"; the
+# API half is `serveApi.integration.test.ts`'s invite leg, which asserts the 201 envelope carries
+# `notify: { status: 'skipped' }` with the `invited` row still written.
+# `configured-smtp-send` — `inviteMailer.test.ts`'s full SMTP conversation: "authenticates, sends the
+# message, and dot-stuffs leading-dot body lines", plus the CR/LF header-injection guard.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "studio", "test"]
+  scope:
+    testGlobs:
+      - "apps/studio/server/inviteMailer.test.ts"
+      - "apps/studio/server/serveApi.integration.test.ts"
+    sourceGlobs:
+      - "apps/studio/server/inviteMailer.ts"
 ---
 
 # Invitees are emailed the studio link when invited
@@ -31,7 +49,12 @@ is best-effort and never blocks the invite, and the admin sees whether it went o
 - Secret handling: the app password lives in Secret Manager, injected as an env var; the deploy
   flags + setup live in `infra/studio-cloud.md` §4c.
 
-## UAT Test Criteria (would-be)
+## Acceptance walk (draft)
+
+> **Corrected 2026-08-31 — see [`invite-ui`](invite-ui.md) for the full reason.** This section was
+> headed `## UAT Test Criteria (would-be)`; that heading made `loadNodeSpec` demand a
+> `_(criterion-id: …)_` per numbered item, threw when it found none, and rendered this capability as
+> `(spec missing)` in `storytree tree`. The canonical UAT tier is the story's.
 
 1. Admin invites a member with email configured. **Success —** the invitee receives an email
    containing the studio URL; the panel shows "an invite email is on its way"; the `invited` row

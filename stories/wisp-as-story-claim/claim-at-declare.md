@@ -9,11 +9,38 @@ proof_mode: integration-test
 depends_on: [claim-store-work-time]
 decisions: [142, 138, 121, 33, 175]
 # DOCUMENTATION OF LANDED WORK (ADR-0142, PR #535) — authored AFTER the landing to keep the story's
-# map honest, not to drive a build. NO `proof:` block: the behaviour is already proven by ordinary
-# offline package tests that landed WITH the implementation (packages/drive/src/noticeboard.test.ts,
+# map honest, not to drive a build. The behaviour is already proven by ordinary offline package tests
+# that landed WITH the implementation (packages/drive/src/noticeboard.test.ts,
 # packages/notice-board/src/store/claim-store.test.ts), not by a fresh red→green through the
-# prove-it-gate — a `real:` arm authored now would manufacture a fake red over green code. Absent
-# block ⇒ the node is not `--real`-buildable, which is correct: there is nothing left to build.
+# prove-it-gate — a `real:` arm authored now would manufacture a fake red over green code, so the
+# `real:` arm stays deliberately ABSENT and the node is correctly not `--real`-buildable.
+# ⚠ CORRECTED 2026-08-31: this comment used to say "NO `proof:` block" and gave the reason above for
+# it. The reason argues against a `real:` ARM, and the two are not the same thing. ADR-0465 D2/D4
+# made the difference load-bearing: an ADOPTION observes the capability's DECLARED COMMAND green at a
+# clean HEAD and signs for it, and a capability that declares no command is refused before any spend
+# — so withholding the block did not protect this capability from a manufactured red, it only made it
+# unadoptable. The block below names the command that already proves it; no `real:` arm rides with it.
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057 — the command named in "How it
+# was proven" below, written down where the spine can observe it. It spans two packages by
+# construction: the DECLARE ceremony is drive's, the claim STORE is notice-board's.
+# `packages/drive/src/noticeboard.test.ts` proves declare-takes-the-claim, the refused arm (presence
+# lands, the holder is surfaced), the claim-write-failure arm and no-claims-without---node;
+# `packages/notice-board/src/store/claim-store.test.ts` proves releaseClaimsBySession and
+# bumpHeartbeatsBySession.
+# The `real:` arm stays deliberately ABSENT for the reason the header comment gives — a red would have
+# to be manufactured over green code. That is what ADR-0465 narrows: an adoption needs the DECLARED
+# COMMAND, not a driven red→green.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/drive", "--filter", "@storytree/notice-board", "test"]
+  scope:
+    testGlobs:
+      - "packages/drive/src/noticeboard.test.ts"
+      - "packages/notice-board/src/store/claim-store.test.ts"
+    sourceGlobs:
+      - "packages/drive/src/noticeboard.ts"
+      - "packages/notice-board/src/store/claim-store.ts"
 ---
 
 # Claim-at-declare — the landed work-time claim acquisition
