@@ -23,6 +23,25 @@
 //    adding it to the parent's would draw a bar for a window that does not exist. Observations
 //    belonging to another window are counted and excluded, never folded in.
 //
+// 5. ONE SERIES IS ONE CONTEXT WINDOW, and a series that would span two is REFUSED rather than
+//    spliced (`traversal-panel-one-trace-one-session`; owner, 2026-08-30, looking at the panel: "we
+//    want each one to represent a single orchestration session, the context window should never go
+//    down unless i did a compaction"). Rule 4 was enforced against the replayed SESSION id, which is
+//    the whole guard for a trace keyed by a window — but the legacy traces are keyed by a worktree
+//    SLOT, and a slot pools every window that ran in it. `recursing-neumann-3a74d7` is 98 separate
+//    conversations under one session id: measured over its 1,077 readings the spliced line falls 44
+//    times, and ZERO of those falls occur inside a window — every one sits exactly on a boundary. No
+//    number in it is wrong; the LINE is, because laying 98 windows end to end draws a fall the window
+//    never had. So the readings themselves are checked for `windowId`, and where they name more than
+//    one the bar says "none observed" with the count. THE STATED ABSENCE IS THE HOUSE PREFERENCE over
+//    a fabricated line, and the alternatives were weighed: drawing ONE named window would hold a dead
+//    window's last reading across the days of trace that follow it — trading this lie for a subtler
+//    one — and drawing boundary marks would add grammar to a picture that is in front of the owner
+//    for signature. Only TWO local traces can splice at all (the only two ever `traversal ingest`-ed;
+//    the other 748 carry no readings), and trace identity is already fixed FORWARD — every trace
+//    since 2026-08-26 is keyed by a window UUID. This is the code path, not a data repair: the two
+//    legacy traces are the historical record and are not re-keyed.
+//
 // ★ THERE ARE TWO SOURCES FOR ONE BAR, AND THE PREFERENCE IS NOT A TASTE (ADR-0456 D2). The bar was
 //   built on the replayed TRACE, and `residentInputTokens` reaches a trace only through an explicit
 //   `storytree traversal ingest` — measured 2026-08-26, 2 of 697 local traces carry it. So the bar
@@ -95,6 +114,19 @@ export interface OccupancySeries {
   readonly observationCount: number;
   /** Requests belonging to another window — excluded, never summed (rule 4). */
   readonly foreignWindowCount: number;
+  /**
+   * How many distinct context windows the PLOTTED readings named — rule 5 in mechanical form.
+   *
+   * Whenever `observations` is non-empty this is exactly 1: that is the invariant a reader may
+   * assert instead of trusting the prose. A source whose readings would span more is refused, and
+   * then this reports how many were found while `observations` stays empty — so the count survives
+   * the refusal rather than being discarded with the line it would have drawn.
+   *
+   * `0` means no reading named a window: either there was nothing to plot, or the readings carry no
+   * `windowId` at all. The field is optional on the wire, so an unstamped reading is the absence of
+   * evidence and never evidence of a splice.
+   */
+  readonly spannedWindowCount: number;
   readonly maxResidentTokens: number;
   /**
    * The track's ceiling. A DISPLAY scale chosen from the series, never a claim about any model's
@@ -123,7 +155,54 @@ export function buildOccupancySeries(
   events: readonly TraversalEventEnvelope[],
   sessionId: string,
 ): OccupancySeries {
-  const observations: OccupancyObservation[] = [];
+  const scan = scanTraceReadings(events, sessionId);
+  const spannedWindowCount = scan.windowIds.size;
+  const facts = {
+    modelContextCount: scan.modelContextCount,
+    foreignWindowCount: scan.foreignWindowCount,
+    spannedWindowCount,
+    source: 'trace' as const,
+  };
+
+  // Rule 5. The readings themselves name more than one window, so there is no single window whose
+  // occupancy this could be — and the falls a spliced line draws are boundaries, not compactions.
+  if (spannedWindowCount > 1) {
+    return assemble([], { ...facts, note: splicedTraceNote(spannedWindowCount, scan.readings) });
+  }
+
+  return assemble(plottedObservations(scan.readings), { ...facts, note: '' });
+}
+
+/** One reading kept beside the window it named, so rule 5 can be decided on what would be PLOTTED. */
+interface ScannedReading {
+  readonly observation: OccupancyObservation;
+  /** `undefined` where the event carried no `windowId` — it names no window, and is not evidence. */
+  readonly windowId: string | undefined;
+}
+
+/** What one pass over a replay's events yields: the plottable readings, and the two denominators. */
+interface TraceScan {
+  readonly readings: readonly ScannedReading[];
+  readonly modelContextCount: number;
+  readonly foreignWindowCount: number;
+  /** Distinct windows named by the readings ABOVE — never by events that would not be drawn. */
+  readonly windowIds: ReadonlySet<string>;
+}
+
+/**
+ * Walk a replay's events once for everything the series needs.
+ *
+ * ★ THE WINDOW IDS ARE COLLECTED FROM THE PLOTTABLE READINGS ONLY, and that is the load-bearing
+ * choice. A `model_context` event carrying no resident figure would never be drawn, so a second
+ * window that contributes nothing to the line is not a splice and must not refuse the series — the
+ * question rule 5 asks is what the LINE would be built from, not what the trace happens to contain.
+ */
+function scanTraceReadings(
+  events: readonly TraversalEventEnvelope[],
+  sessionId: string,
+): TraceScan {
+  const readings: ScannedReading[] = [];
+  const windowIds = new Set<string>();
   let modelContextCount = 0;
   let foreignWindowCount = 0;
 
@@ -141,15 +220,30 @@ export function buildOccupancySeries(
     if (resident === undefined) continue;
     const atMs = parseAt(event.at);
     if (atMs === null) continue;
-    observations.push({ atMs, residentTokens: resident });
+    const windowId = event.windowId;
+    if (windowId !== undefined) windowIds.add(windowId);
+    readings.push({ observation: { atMs, residentTokens: resident }, windowId });
   }
 
-  return assemble(observations, {
-    modelContextCount,
-    foreignWindowCount,
-    source: 'trace',
-    note: '',
-  });
+  return { readings, modelContextCount, foreignWindowCount, windowIds };
+}
+
+/** Drop the window each reading named, once rule 5 has been decided on it. */
+function plottedObservations(readings: readonly ScannedReading[]): OccupancyObservation[] {
+  const observations: OccupancyObservation[] = [];
+  for (const reading of readings) observations.push(reading.observation);
+  return observations;
+}
+
+/**
+ * The sentence a refused trace renders VERBATIM — the reason, never a blank.
+ *
+ * It names the window count because that is the fact an operator needs to recognise a slot-keyed
+ * legacy trace for what it is, and the reading count because "none observed" would otherwise read as
+ * "this session was never observed" when in truth it was observed 1,077 times across 98 conversations.
+ */
+function splicedTraceNote(windowCount: number, readings: readonly ScannedReading[]): string {
+  return `${readings.length} reading(s) in this trace span ${windowCount} context windows — no single window’s occupancy to draw, and a line across them would fall at every boundary`;
 }
 
 /**
@@ -183,14 +277,28 @@ export function buildTranscriptOccupancySeries(
     // Helper requests, excluded upstream and counted. The trace source calls the same fact
     // `foreignWindowCount`; both mean "a request that belongs to another window" (ADR-0413 D2).
     foreignWindowCount: payload.sidechainRequests,
+    spannedWindowCount: transcriptWindowCount(payload),
     source: 'transcript',
     note: payload.note,
   });
 }
 
+/**
+ * Rule 5 for the transcript source, which satisfies it BY CONSTRUCTION rather than by checking.
+ *
+ * The route reads one window's own transcript, found by that window's id as a file name, so a series
+ * it produced cannot have named a second window. It is stated here anyway so both sources answer the
+ * same question with the same field — a reader asserting the invariant must not have to know which
+ * source it got.
+ */
+function transcriptWindowCount(payload: ContextWindowSeriesPayload): number {
+  return payload.observations.length > 0 ? 1 : 0;
+}
+
 interface SeriesFacts {
   readonly modelContextCount: number;
   readonly foreignWindowCount: number;
+  readonly spannedWindowCount: number;
   readonly source: OccupancySource;
   readonly note: string;
 }
@@ -204,6 +312,7 @@ function assemble(observations: OccupancyObservation[], facts: SeriesFacts): Occ
     modelContextCount: facts.modelContextCount,
     observationCount: sorted.length,
     foreignWindowCount: facts.foreignWindowCount,
+    spannedWindowCount: facts.spannedWindowCount,
     maxResidentTokens,
     scaleTokens: scaleFor(maxResidentTokens),
     source: facts.source,
@@ -220,11 +329,16 @@ function assemble(observations: OccupancyObservation[], facts: SeriesFacts): Occ
  * not regress to "none observed" the moment the ambient read comes back empty.
  *
  * ★ WHEN NEITHER HAS READINGS THE TRANSCRIPT STILL WINS, and that is the case worth stating: what a
- * reader needs then is the REASON, and only the transcript source carries one. Its note says whether
- * the root was empty, whether nothing on this machine is named for that window (the legacy
- * slot-keyed traces, 601 of 704), or whether the window's own transcript held nothing usable. The
- * trace-sourced build has no note at all, so preferring it here would trade a stated absence for a
- * silent one — which is the whole failure class this module exists to avoid.
+ * reader needs then is the REASON, and the transcript source always carries one. Its note says
+ * whether the root was empty, whether nothing on this machine is named for that window (the legacy
+ * slot-keyed traces, 601 of 704), or whether the window's own transcript held nothing usable —
+ * absences about the MACHINE's transcripts, which is what a reader looking for a missing series
+ * needs first. The trace-sourced build carries a note in exactly one case, rule 5's refusal, and
+ * that case is precisely the one where the transcript's own sentence already says the same thing in
+ * the same breath ("a trace keyed by a worktree slot pools every window that ran in it and names no
+ * single window"). So the ordering is unchanged and neither branch is now a silent absence — the
+ * refusal's own reason still reaches a reader wherever the transcript could not be read at all, the
+ * `null` branch below.
  *
  * `null` for the transcript means NOT READ YET, never "nothing was observed", so it leaves the trace
  * series drawing exactly as it did before this preference existed.

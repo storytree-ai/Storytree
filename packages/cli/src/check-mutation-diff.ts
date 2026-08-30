@@ -44,6 +44,7 @@ import {
   type NarrowedFile,
   parseUnifiedDiffRanges,
   changedLinesAreCodeFree,
+  isNarrowedToNothing,
   type ReportPart,
   runnerFor,
   selectMutationTargets,
@@ -571,6 +572,30 @@ function main(): void {
     const report = mergeMutationReports(parts);
     const verdict = adjudicateMutants(report, selection.changedTestFiles);
 
+    // Read once, used twice: the comment-only skip needs the source to corroborate the diff, and the
+    // verdict render needs it to quote each mutant's original span beside its replacement.
+    const sources = new Map<string, string>();
+    for (const file of selection.targets.flatMap((t) => t.sourceFiles)) {
+      const abs = path.join(repoRoot, file);
+      if (existsSync(abs)) sources.set(file, readFileSync(abs, "utf8"));
+    }
+
+    // A RUN NARROWED TO NOTHING IS A SKIP, NOT A VACUOUS FAILURE.
+    //
+    // Every mutant this run found sits in a package whose tests it never ran, so Stryker decided
+    // each one against a copy nothing imported (see `packagesWithTestsInRun`). The run proved
+    // nothing — but it says exactly why, and there is nothing the branch could change to make it
+    // prove more, so redding the PR would charge the author for a limit of the instrument.
+    if (isNarrowedToNothing(verdict)) {
+      const disposition = skipDisposition({
+        inCi: process.env["CI"] === "true",
+        gateSkipExitCode: GATE_SKIP_EXIT_CODE,
+      });
+      console.log(`${TAG} ${disposition.label} — nothing this run mutated could be witnessed by it.`);
+      for (const narrowing of verdict.narrowings) console.log(`${TAG} ${narrowing}`);
+      process.exit(disposition.exitCode);
+    }
+
     // A COMMENT-ONLY CHANGE TO A SOURCE FILE IS "NOTHING TO MUTATE", NOT A VACUOUS RUN.
     //
     // The selection is textual — `parseUnifiedDiffRanges` reads a diff, not a syntax tree — so a
@@ -587,11 +612,6 @@ function main(): void {
     // hiding inside a string literal fails the first, because Stryker mutates those. The remaining
     // case both signals agree on is the one that is actually true.
     if (verdict.verdict === "vacuous") {
-      const sources = new Map<string, string>();
-      for (const file of selection.targets.flatMap((t) => t.sourceFiles)) {
-        const abs = path.join(repoRoot, file);
-        if (existsSync(abs)) sources.set(file, readFileSync(abs, "utf8"));
-      }
       if (changedLinesAreCodeFree(ranges, sources)) {
         const disposition = skipDisposition({
           inCi: process.env["CI"] === "true",
@@ -606,7 +626,7 @@ function main(): void {
       }
     }
 
-    const body = formatMutationVerdict(TAG, verdict, selection.targets);
+    const body = formatMutationVerdict(TAG, verdict, selection.targets, sources);
 
     if (verdict.verdict === "pass") {
       console.log(body);

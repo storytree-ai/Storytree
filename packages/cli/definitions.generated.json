@@ -115,12 +115,6 @@
   },
   {
     "kind": "definition",
-    "id": "fan-out",
-    "title": "fan out / fan-out",
-    "oneLine": "To dispatch several INDEPENDENT lanes of one arc concurrently — to parallel sessions, or to subagents — instead of taking them serially in a single thread."
-  },
-  {
-    "kind": "definition",
     "id": "fixture",
     "title": "fixture",
     "oneLine": "A test-supporting artifact (data file, scaffold, temp crate) created during a walkthrough and cleaned up before signing."
@@ -171,7 +165,7 @@
     "kind": "definition",
     "id": "land",
     "title": "land / landing",
-    "oneLine": "To bring a unit onto `main` through the whole ceremony — green through `pnpm gate`, committed, pushed, merged by CI from a NON-DRAFT PR, and closed out — never merely finished, and never merely pushed."
+    "oneLine": "Merged to `main` — the ordinary industry sense — plus the three parts a reader does NOT already carry: CI performs the merge from a NON-DRAFT PR and the session never runs `gh pr merge`; the CLOSING LEG is part of landing, not after it (residue on the arc, claims released, owner debriefed); and an ESCALATION is also a landing, never a wait."
   },
   {
     "kind": "definition",
