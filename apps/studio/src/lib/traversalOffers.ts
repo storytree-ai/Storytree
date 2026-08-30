@@ -1,13 +1,19 @@
 // OFFER FANS (`traversal-panel-arc`, increment `traversal-panel-lanes-and-depth`): the branches a
 // visit PRINTED and did not take, drawn only from what was recorded.
 //
-// This module JOINS NOTHING. Every outcome it renders arrives already decided by
+// This module JOINS NO OUTCOME. Every outcome it renders arrives already decided by
 // `computeDecisionPoints` (`packages/context-traversal-capture/src/decision-point-playback.ts`), run
 // server-side and mirrored onto the replay payload — the same function `storytree traversal show`
 // renders from. What is left here is placing each recorded offer on the axis and counting it. A second
 // implementation of "which offers could ever be followed" is the one way the panel and the CLI could
 // come to describe the same trace differently, and ADR-0312 D6's denominator exists to make that
 // impossible rather than merely unlikely.
+//
+// ⚠ THE ONE THING IT DOES CARRY IS AN IDENTITY, AND IT IS NOT THAT JOIN (ADR-0482 D4). Since offer
+// fans became rings AROUND THE MARK, a fan needs to know which mark printed it, and the trace records
+// that: a `candidate_set` id is `candidate-set:<visitId>`. {@link TraversalOffer.printedByVisitId} is
+// that recorded id read back, nothing more — it decides no outcome and reclassifies no candidate. The
+// parse and the measurement behind it live in `traversalOfferRings.ts`.
 //
 // THREE HONESTY RULES WITH TEETH, all three enforced here rather than left to the renderer:
 //
@@ -35,6 +41,7 @@ import type {
   TraversalDecisionPointReport,
   TraversalEventEnvelope,
 } from '../types';
+import { offerPrintedByVisitId } from './traversalOfferRings';
 import { yAt, type TraversalTimeScale } from './traversalTime';
 
 export type TraversalOfferStatus = 'followed' | 'not-followed' | 'unobservable' | 'ambiguous';
@@ -51,6 +58,14 @@ export interface TraversalOffer {
   readonly surfaceId: string;
   readonly atMs: number;
   readonly y: number;
+  /**
+   * The visit that PRINTED this offer, read out of the recorded id (ADR-0482 D4). `null` when the id
+   * carries none — see `traversalOfferRings.ts`, which owns that parse and the measurement behind it.
+   *
+   * It is here rather than in the renderer because it is a fact about the RECORD, not about the
+   * drawing: the renderer only resolves it to a row, which needs the corpus and therefore the mount.
+   */
+  readonly printedByVisitId: string | null;
   /** RECORDED ORDER, never sorted (rule 2 above). */
   readonly candidates: readonly TraversalOfferCandidate[];
   /** N — how many branches were printed. */
@@ -143,6 +158,7 @@ export function buildTraversalOffers(
     offers.push({
       candidateSetId: point.candidateSetId,
       surfaceId: point.surfaceId,
+      printedByVisitId: offerPrintedByVisitId(point.candidateSetId),
       atMs,
       y: yAt(scale, atMs),
       candidates,

@@ -223,3 +223,27 @@ describe('the spine composes the axis and the occupancy series', () => {
     expect(model.marks).toHaveLength(1);
   });
 });
+
+describe('a mark carries the RECORDED visit id, so an offer fan can find the mark that printed it', () => {
+  // ADR-0482 D4. A `candidate_set` is recorded under `candidate-set:<visitId>`, and that id is the
+  // only evidence linking an offer to the read that printed it — a time match agrees for only 1,363
+  // of the 2,106 offer sets on this machine. The field is carried rather than parsed back out of
+  // `TraversalMark.id`, which is a composite display handle this module mints for itself.
+  it('carries it for BOTH read kinds, verbatim', () => {
+    const model = buildTraversalSpine(
+      replay([visit('full_payload_read', 0, 'arc'), visit('front_matter_read', 10_000, 'plan')]),
+    );
+    expect(model.marks.map((mark) => mark.visitId)).toEqual(['visit:arc:0', 'visit:plan:10000']);
+    // Verbatim, and NOT the mark's own id — the two differ by the `#index` suffix, and an offer
+    // looking a mark up by the recorded id would miss every one of them if this returned the handle.
+    expect(model.marks[0]?.visitId).not.toBe(model.marks[0]?.id);
+  });
+
+  it('answers null for a SEARCH, which is not a visit and prints no offers', () => {
+    const model = buildTraversalSpine(replay([search(0), visit('full_payload_read', 10_000, 'arc')]));
+    expect(model.marks.map((mark) => mark.visitId)).toEqual([null, 'visit:arc:10000']);
+    // A search's own `searchId` must never leak into this field: it would key the offer lookup on an
+    // id no `candidate_set` can ever name, which is a silent miss rather than an honest null.
+    expect(model.marks[0]?.visitId).toBeNull();
+  });
+});

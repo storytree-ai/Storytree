@@ -66,6 +66,16 @@ export interface TraversalMark {
    * exists to be read by a human is how a renderer starts depending on the wording of a label.
    */
   readonly nodeId: string | null;
+  /**
+   * The RECORDED visit id, or `null` for a search (which is not a visit and prints no offers).
+   *
+   * Carried as its own field rather than parsed back out of {@link TraversalMark.id}, which is a
+   * composite display handle this module mints — the same rule {@link TraversalEdge.fromId} states
+   * for itself. The offer rings key on it: a `candidate_set` is recorded under
+   * `candidate-set:<visitId>`, so this is what joins a fan to the mark that printed it
+   * (`traversalOfferRings.ts`, ADR-0482 D4).
+   */
+  readonly visitId: string | null;
 }
 
 export interface TraversalEdge {
@@ -148,6 +158,7 @@ export function buildTraversalSpine(
     depth: visitDepth(depth, item.event),
     label: labelOf(item.event),
     nodeId: nodeIdOf(item.event),
+    visitId: visitIdOf(item.event),
   }));
 
   const edges: TraversalEdge[] = [];
@@ -205,6 +216,15 @@ function identityOf(event: TraversalEventEnvelope, index: number): string {
     return `${event.visitId}#${index}`;
   }
   return `${event.eventId}#${index}`;
+}
+
+/**
+ * The recorded visit id. `null` for a search, which is not a visit: it prints no offers, so nothing
+ * can name it as the visit that printed one.
+ */
+function visitIdOf(event: TraversalEventEnvelope): string | null {
+  if (event.kind === 'full_payload_read' || event.kind === 'front_matter_read') return event.visitId;
+  return null;
 }
 
 /** The artifact a visit read. `null` for a search — it reads no single node, so it has no depth. */

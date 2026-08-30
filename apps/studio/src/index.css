@@ -4511,7 +4511,14 @@ button.legend-tile:hover {
    assignment, the bands, the open caps, the in-band model chips and the handoff/return edges. The
    picture is the orchestrator's own walk; whether subagents come back, and how, is deferred. */
 
-/* An offer fan: one ray per recorded candidate, never sorted and never truncated. */
+/* An offer fan: CONCENTRIC RINGS AROUND THE MARK that printed it (ADR-0482 D4), one ring per
+   recorded candidate, never sorted and never truncated — the owner's own shape, proposed at the LOOK
+   by analogy with tree rings signalling age. The rays and the band above the spine are gone; the
+   radii live in `lib/traversalOfferRings.ts`, which also carries the measurement behind them.
+
+   ⚠ RINGS COUNT BRANCHES, THEY DO NOT GAUGE. ADR-0354 clause 5 keeps marks plain with no per-node
+   gauge, and ADR-0482 D4 moved only the fan's shape. `fill` is `none` on purpose and is the rule
+   most worth guarding: a filled ring set IS a dial, arrived at without anyone deciding to draw one. */
 .traversal-offer {
   opacity: 0;
   transition: opacity 120ms ease;
@@ -4519,30 +4526,34 @@ button.legend-tile:hover {
 .traversal-offer.is-visible {
   opacity: 1;
 }
-.traversal-offer-ray {
-  stroke-width: 1;
-  stroke-linecap: round;
+/* NO `stroke-width` HERE. It is set per ring as an SVG attribute, because it is computed from the
+   ring spacing (`offerRingGeometry`) and a CSS value would silently win over the geometry that keeps
+   a dense fan from fusing into a disc. The stylesheet carries COLOUR; the module carries WEIGHT. */
+.traversal-offer-ring {
+  fill: none;
 }
-.traversal-offer-ray.status-followed {
+/* The one state that DEPARTS from the plain ring — accent-coloured, and drawn heavier by
+   `FOLLOWED_STROKE_SCALE` rather than by a rule here. */
+.traversal-offer-ring.status-followed {
   stroke: var(--accent);
-  stroke-width: 1.5;
 }
-/* SOLID, and this is a DEFECT FIX rather than a taste change: the legend has always said "solid ray
-   not followed", and this rule drew it DASHED. The two disagreed, and the legend was the one telling
-   the truth about the signed grammar. It mattered more than it looks — nothing is ever followed in
-   practice (measured: 373 offered, 0 followed on the trace the owner looked at), so every ray in
-   every fan was a dash, and the whole fan read as the dotted texture the owner objected to. */
-.traversal-offer-ray.status-not-followed {
+/* SOLID, AND AT FULL WEIGHT — the ADR-0393 defect's own lesson, carried over from the rays. That
+   defect was a legend saying "solid ray not followed" over a rule that drew it DASHED, and it
+   survived because nothing is ever followed in practice (measured: 373 offered, 0 followed on the
+   trace the owner looked at), so every ray in every fan was the disagreeing state and the picture
+   read as texture. The near-universal state is the one that must read on its own, never the one
+   de-emphasised against a state nobody ever sees. */
+.traversal-offer-ring.status-not-followed {
   stroke: var(--border-strong);
 }
 /* Solid too, for the same reason. Colour carries "we could not tell", which is what this state is;
    a dash would put the objected-to texture straight back for a state nobody can act on. */
-.traversal-offer-ray.status-ambiguous {
+.traversal-offer-ring.status-ambiguous {
   stroke: var(--warn);
 }
-/* `.status-unobservable` is GONE (ADR-0393 D3) — those rays are no longer drawn at all, so a rule
-   for them would style nothing. The branches they stood for are still counted in the fan's raw
-   `offered N, observable M of N`, which is where ADR-0312 D6 now lives in full. */
+/* `.status-unobservable` is GONE (ADR-0393 D3) — those branches are no longer drawn at all, so a rule
+   for them would style nothing. They are still counted in the fan's raw `offered N, observable M of
+   N`, which is where ADR-0312 D6 now lives in full. */
 
 /* The four note rules that sat here are retired with the notes (ADR-0393 D1). The knowledge-depth
    reading survives as a counts CHIP on the axis line above the picture, styled by
