@@ -665,3 +665,60 @@ test("manifest-edges-are-counted-apart-from-the-rest, so the shift stays attribu
   // going blind, which is a different fact from agents that inject nothing.
   assert.equal(verdict.manifestEdges, 1);
 });
+
+test("surface-depth-answers-a-pre-adr-0403-decision-read: the legacy FILE spelling gets its depth", () => {
+  // A three-level chain whose floor is a decision, exactly the shape the traversal panel meets: an
+  // agent read `merge-ceremony`, which stands on ADR-0002, which stands on ADR-0001.
+  const verdict = evaluateSurfaceDepth(
+    nodesOf([
+      row("merge-ceremony", { dependsOn: ["asset:adr-0002"] }),
+      row("adr-0002", { kind: "adr", dependsOn: ["asset:adr-0001"] }),
+      row("adr-0001", { kind: "adr" }),
+    ]),
+    decisionSupportResolver([
+      { number: 1, dependsOn: [] },
+      { number: 2, dependsOn: ["asset:adr-0001"] },
+    ]),
+  );
+
+  // THE MODERN SPELLING — the id a trace records today, and the reading everything else must match.
+  assert.deepEqual(surfaceDepthOf(verdict, "adr-0001"), { state: "placed", depth: 2 });
+
+  // THE LEGACY SPELLING — what a trace written before the decision log moved into the store records,
+  // because the agent opened a file. Before this resolved, it read ABSENT and the two hops of depth
+  // this decision had already earned were withheld from every historical trace.
+  assert.deepEqual(surfaceDepthOf(verdict, "doc:decisions/0001-first.md"), {
+    state: "placed",
+    depth: 2,
+  });
+  assert.deepEqual(surfaceDepthOf(verdict, "doc:docs/decisions/0001-first.md"), {
+    state: "placed",
+    depth: 2,
+  });
+  // IDENTICAL, not merely both placed: a legacy read and a modern read of one decision must be the
+  // same reading, or the panel reports two depths for one artifact depending on the trace's age.
+  assert.deepEqual(
+    surfaceDepthOf(verdict, "doc:decisions/0002-second.md"),
+    surfaceDepthOf(verdict, "adr-0002"),
+  );
+});
+
+test("surface-depth-never-guesses-a-legacy-read-into-place: unresolvable stays ABSENT, not depth 0", () => {
+  const verdict = evaluateSurfaceDepth(
+    nodesOf([row("guidance", { dependsOn: ["asset:adr-0002"] }), row("adr-0002", { kind: "adr" })]),
+    decisionSupportResolver([{ number: 2, dependsOn: [] }]),
+  );
+  // Placed, so the fixture is not vacuously answering absent to everything.
+  assert.deepEqual(surfaceDepthOf(verdict, "doc:decisions/0002-second.md"), {
+    state: "placed",
+    depth: 1,
+  });
+  for (const id of [
+    "doc:decisions/no-number.md", // malformed: no four-digit prefix
+    "doc:docs/research/a-note.md", // a repository file that is not a decision
+    "doc:vendor/decisions/0002-foreign.md", // a foreign directory reusing the numbering
+    "doc:decisions/0009-a-decision-this-corpus-does-not-hold.md", // well formed, not in the corpus
+  ]) {
+    assert.deepEqual(surfaceDepthOf(verdict, id), { state: "absent" }, `must stay absent: ${id}`);
+  }
+});

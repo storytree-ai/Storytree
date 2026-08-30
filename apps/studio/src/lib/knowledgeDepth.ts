@@ -45,14 +45,21 @@
 //   • ABSENT — the visited id is not a graph node at all. Measured across this machine's whole trace
 //     index on 2026-08-20: 96 of 402 distinct visited ids, which are story/capability ids, retired
 //     artifacts and CLI tokens. A panel that filed those under "unlinked" would blame the corpus for
-//     ids the corpus was never asked to hold.
+//     ids the corpus was never asked to hold. ⚠ A PRE-ADR-0403 DECISION READ IS NO LONGER ONE OF
+//     THEM: a trace older than the migration records the decision FILE it opened, and
+//     `resolveDecisionSpelling` folds that onto the row id before every lookup here, so the read is
+//     answered rather than blamed on the corpus. It was the single largest population in this state
+//     — 51 of one trace's 77 reads — and every one of them was a decision the corpus does hold.
 //
 // And a fourth state that is NOT a reading at all: UNMEASURED, when `/api/assets` has not resolved or
 // failed. It renders as its own sentence and never as "0 annotated" — the same trap
 // `assetsStatus`/`assetsError` exist to prevent app-wide (ADR-0240 decision 3).
 
 import { agentManifestRefs } from '@storytree/library/agent-manifest';
-import { adrNumberOfArtifactId } from '@storytree/library/decision-pointer';
+import {
+  adrNumberOfArtifactId,
+  resolveDecisionSpelling,
+} from '@storytree/library/decision-pointer';
 import {
   decisionSupportResolver,
   type SupportOnlyDecision,
@@ -230,6 +237,14 @@ export interface KnowledgeDepthReport {
  * DISTINCT artifacts, not visit events: a session that reads `merge-ceremony` nine times has read one
  * artifact at one depth, and counting the reads instead would let a single hot artifact dominate the
  * distribution and say something about attention rather than about depth.
+ *
+ * ⚠ THE FOLD RUNS BEFORE THE SET, AND THAT ORDER IS WHAT MAKES "DISTINCT ARTIFACTS" TRUE.
+ * `resolveDecisionSpelling` turns a pre-ADR-0403 read of a decision FILE
+ * (`doc:decisions/0311-….md`) into the row id a read today records (`adr-0311`) — see its header. A
+ * trace spanning the migration reads some decisions both ways, so folding AFTER the dedup would count
+ * one decision twice: once placed and once absent, inflating the denominator this whole report sits
+ * over while claiming to count artifacts. Measured on the richest local trace, the honest denominator
+ * is 74 where the raw strings say 77.
  */
 export function reportKnowledgeDepth(
   events: readonly TraversalEventEnvelope[],
@@ -240,7 +255,7 @@ export function reportKnowledgeDepth(
   const nodeIds = new Set<string>();
   for (const event of events) {
     if (event.kind === 'front_matter_read' || event.kind === 'full_payload_read') {
-      nodeIds.add(event.nodeId);
+      nodeIds.add(resolveDecisionSpelling(event.nodeId));
     }
   }
 

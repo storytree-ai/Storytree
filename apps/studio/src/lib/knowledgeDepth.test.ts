@@ -336,6 +336,58 @@ describe('a visited decision reads its own depth, not its artifact twin`s', () =
     expect(report).toMatchObject({ visited: 3, placed: 3, unlinked: 0, absent: 0, maxDepth: 3 });
   });
 
+  // A TRACE OLDER THAN ADR-0403 RECORDS THE DECISION FILE IT OPENED
+  // (`traversal-panel-legacy-decision-reads-resolve`). 601 of this machine's 750 traces are that
+  // era, and their decision reads were the largest single population reading ABSENT — 51 of one
+  // trace's 77. The decision number is in the filename, so nothing about this is a guess.
+  it('places a read recorded as the pre-ADR-0403 decision FILE at the same depth as the row id', () => {
+    const model = buildKnowledgeDepth(DECISIONS_READY);
+    // The exact shape the recorder wrote when an agent opened the decision with the file tool.
+    expect(markKnowledgeDepth(model, 'doc:decisions/0403-decisions-are-artifacts.md')).toMatchObject({
+      state: 'placed',
+      depth: 2,
+    });
+    expect(
+      markKnowledgeDepth(model, 'doc:docs/decisions/0363-the-knowledge-dag.md'),
+    ).toMatchObject({ state: 'placed', depth: 3 });
+    // IDENTICAL to the modern read, label and all — a decision's depth must not depend on how old
+    // the trace asking about it is.
+    expect(markKnowledgeDepth(model, 'doc:decisions/0403-decisions-are-artifacts.md')).toEqual(
+      markKnowledgeDepth(model, 'adr-0403'),
+    );
+  });
+
+  it('counts one decision ONCE when a trace read it under both spellings', () => {
+    const model = buildKnowledgeDepth(DECISIONS_READY);
+    const report = reportKnowledgeDepth(
+      [
+        visit('ceremony', 0),
+        // A session spanning the migration: the same decision opened as a file, then as a row.
+        visit('doc:decisions/0403-decisions-are-artifacts.md', 10),
+        visit('adr-0403', 20),
+      ],
+      model,
+    );
+    // TWO distinct artifacts, not three. This report's contract is DISTINCT ARTIFACTS, so folding
+    // after the dedup would count one decision twice — once placed and once absent — and inflate
+    // the very denominator the panel prints its placed count over.
+    expect(report).toMatchObject({ visited: 2, placed: 2, absent: 0, maxDepth: 2 });
+  });
+
+  it('leaves an unresolvable legacy path ABSENT rather than guessing it onto a decision', () => {
+    const model = buildKnowledgeDepth(DECISIONS_READY);
+    const report = reportKnowledgeDepth(
+      [
+        visit('doc:decisions/no-number-in-this-name.md', 0),
+        visit('doc:docs/research/a-note.md', 10),
+        // Well formed, and this corpus does not hold ADR-0009. Absent is not depth 0.
+        visit('doc:decisions/0009-not-in-this-corpus.md', 20),
+      ],
+      model,
+    );
+    expect(report).toMatchObject({ visited: 3, placed: 0, absent: 3, maxDepth: null });
+  });
+
   it('still says UNLINKED for a decision no edge touches — the readings stay four', () => {
     const model = buildKnowledgeDepth({
       assets: [...DECISION_CORPUS, decisionAsset(9999)],
