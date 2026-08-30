@@ -64,6 +64,10 @@ import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { islandScene } from './island-fixture.js';
 import { SHIPPED_CROWN_COLOUR, SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
+import { kitMeshes, loadKit, roleFootprints } from './kit-scene.js';
+import type { LoadedKit } from './kit-scene.js';
+import { capabilityFactsFrom, dressIslandFromKit } from '../src/kit-vocabulary.js';
+import { parcelCellsFrom } from '../src/parcel-cells.js';
 
 /**
  * THE SIX ARMS — a LADDER WITH ONE FORK, in which every arm differs from the one it names in
@@ -287,6 +291,50 @@ export const groundRowOf = (material: string | undefined): number =>
 /** The parcels of the island the studio actually ships — 164 of them, mean diameter 16.57 ground
  *  units, 191 distinct ring vertices of which 185 belong to more than one parcel. That last figure
  *  is why a CONTINUOUS field is watertight here for free. */
+/**
+ * THE BOUGHT KIT, ONCE, FOR THE WHOLE PAGE.
+ *
+ * ⚠ IT IS SET RATHER THAN LOADED HERE because `buildLandScene` is SYNCHRONOUS and every
+ * measurement on this page depends on that: the driver builds an arm, reads it, and builds the
+ * next one inside one animation frame. Parsing a `.glb` is asynchronous, so the page awaits it
+ * once during setup and hands it in. An arm asked for props before that has none, and says so by
+ * drawing none — which is what makes {@link LandRunner.dressed}'s prop count worth reading.
+ */
+let landKit: LoadedKit | null = null;
+
+/** Hand the page its kit. The page's own async setup is the only caller. */
+export function setLandKit(kit: LoadedKit): void {
+  landKit = kit;
+}
+
+/**
+ * THE PROPS THE SHIPPED CANVAS WOULD STAND ON THIS ISLAND — built through the SAME functions, off
+ * the SAME descriptors.
+ *
+ * ⚠ NOT A PAGE-LOCAL APPROXIMATION. `ForestWorldCanvas` calls `parcelCellsFrom` →
+ * `capabilityFactsFrom` → `dressIslandFromKit` → `kitMeshes` with the kit's own measured
+ * footprints, and so does this. An instrument that dressed the island its own way would be
+ * picturing something the product does not draw — the failure the three disagreeing status
+ * palettes cost an increment to undo.
+ *
+ * ⚠ `blooms: 0`, matching the canvas and for the canvas's reason: a bloom is a claim about a
+ * STORY's signed UAT criteria, and the descriptor stream carries no island attribution, so a count
+ * read here would scatter one story's signatures over every other story's island.
+ */
+export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
+  const cells = parcelCellsFrom(worldTo3D(islandScene()));
+  return kitMeshes(
+    kit,
+    dressIslandFromKit({
+      cells,
+      facts: capabilityFactsFrom(cells),
+      blooms: 0,
+      relief: LAND_RELIEF_AMPLITUDE,
+      footprint: roleFootprints(kit),
+    }),
+  );
+}
+
 export function shippedParcels(): InstanceDescriptor[] {
   return worldTo3D(islandScene()).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
@@ -368,6 +416,10 @@ export interface LandScene {
   /** How many things stand on this island and therefore darken it. ONE, and that is the finding
    *  rather than a fixture accident — see {@link shippedCasters}. */
   casters: number;
+  /** How many MERGED prop meshes this arm added — one per (material, tint), never one per prop.
+   *  Zero on an undressed arm, and zero on a dressed one whose kit never arrived, which is why
+   *  the driver reads it rather than trusting the flag it passed in. */
+  props: number;
 }
 
 /** What the driver asks about an arm's occlusion field, as plain data it can carry back out of
@@ -387,7 +439,12 @@ export interface OcclusionReading {
  * would make the relieved island come out subtly SMALLER for being subtly taller — a framing
  * artefact, and one that would read as the treatment having changed the island's size.
  */
-export function buildLandScene(arm: LandArm, pxPerUnit: number, treed = false): LandScene {
+export function buildLandScene(
+  arm: LandArm,
+  pxPerUnit: number,
+  treed = false,
+  dressed = false,
+): LandScene {
   const cells = shippedParcels();
   const geo = cellGroundGeometry({
     cells,
@@ -452,6 +509,18 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number, treed = false): 
   // So the measured arms are ground-only and `treed` exists purely so the owner can see the
   // shadow beside the thing casting it. `snapshotTreed` is the only caller.
   if (treed) scene.add(storyTreeGroup());
+  // ⚠ THE BOUGHT PROPS ARE FOR LOOKING AT, EXACTLY AS THE TREE IS, and for the same reason: a
+  // textured crown puts thousands of pixels in the frame that are off the GROUND palette by
+  // construction, and every measured claim on this page is about the ground's delivered pixels.
+  // So the measured ladder above is unchanged and the props ride alongside it — which is also
+  // honest about what they are: the props are not a ground treatment, they are what STANDS on it.
+  let props = 0;
+  if (dressed && landKit !== null) {
+    for (const mesh of shippedProps(landKit)) {
+      scene.add(mesh);
+      props += 1;
+    }
+  }
   scene.add(new THREE.AmbientLight(0xffffff, SHIPPED_LIGHTING.ambientIntensity));
   const sun = new THREE.DirectionalLight(0xffffff, SHIPPED_LIGHTING.directionalIntensity);
   const [lx, ly, lz] = SHIPPED_LIGHTING.directionalPosition;
@@ -512,6 +581,7 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number, treed = false): 
     heightSpan: hi - lo,
     occlusionCoverage,
     casters: shippedCasters().length,
+    props,
   };
 }
 
@@ -609,6 +679,17 @@ export interface LandRunner {
   snapshot(arm: LandArm, pxPerUnit: number): string;
   /** The same arm with the island's story trees drawn — for LOOKING at, never for measuring. */
   snapshotTreed(arm: LandArm, pxPerUnit: number): string;
+  /**
+   * The same arm with the story trees AND one bought object per capability — the comparison this
+   * increment lands, and also never measured.
+   *
+   * ⚠ IT REPORTS THE PROP COUNT BESIDE THE PICTURE, and that is not decoration. A kit that failed
+   * to parse draws NO props and produces a picture identical to `snapshotTreed`'s — a
+   * perfectly ordinary-looking frame that says nothing about what went wrong. The count is what
+   * distinguishes "the props are drawn and this is what they look like" from "the props are
+   * absent and this is what the ground looks like".
+   */
+  snapshotDressed(arm: LandArm, pxPerUnit: number): { png: string; props: number; triangles: number };
   /** The arm's occlusion field, as plain data. ⚠ THIS IS THE ONLY NON-VACUITY A PIXEL SWEEP
    *  CANNOT SUPPLY: a frame with no shadow in it is a perfectly ordinary-looking frame, so what
    *  says the field reached the material at all is that the field itself has something in it. */
@@ -665,17 +746,27 @@ export function createLandRunner(): LandRunner {
   // triangulation of 164 parcels along with the GPU's frame, which is not the number being asked
   // for and is where the relieved arm would look "more expensive" for no rendering reason.
   const built = new Map<string, LandScene>();
-  const sceneFor = (arm: LandArm, pxPerUnit: number, treed = false): LandScene => {
-    const key = `${arm}|${pxPerUnit}|${treed}`;
+  const sceneFor = (
+    arm: LandArm,
+    pxPerUnit: number,
+    treed = false,
+    dressed = false,
+  ): LandScene => {
+    const key = `${arm}|${pxPerUnit}|${treed}|${dressed}`;
     const found = built.get(key);
     if (found) return found;
-    const made = buildLandScene(arm, pxPerUnit, treed);
+    const made = buildLandScene(arm, pxPerUnit, treed, dressed);
     built.set(key, made);
     return made;
   };
 
-  const render = (arm: LandArm, pxPerUnit: number, treed = false): LandScene => {
-    const s = sceneFor(arm, pxPerUnit, treed);
+  const render = (
+    arm: LandArm,
+    pxPerUnit: number,
+    treed = false,
+    dressed = false,
+  ): LandScene => {
+    const s = sceneFor(arm, pxPerUnit, treed, dressed);
     renderer.setSize(s.width, s.height, false);
     renderer.render(s.scene, s.camera);
     return s;
@@ -787,6 +878,10 @@ export function createLandRunner(): LandRunner {
       render(arm, pxPerUnit, true);
       return canvas.toDataURL('image/png');
     },
+    snapshotDressed(arm, pxPerUnit) {
+      const s = render(arm, pxPerUnit, true, true);
+      return { png: canvas.toDataURL('image/png'), props: s.props, triangles: s.triangles };
+    },
     snapshot(arm, pxPerUnit) {
       render(arm, pxPerUnit);
       // ⚠ The renderer's OWN buffer, not an element screenshot — an element screenshot composites
@@ -838,7 +933,19 @@ function armCaption(arm: LandArm): string {
 
 /** Mount the page: every arm at both zooms, side by side, with the runner on `window` for the
  *  driver to reach. */
-export function mountShippedLand(root: HTMLElement): void {
+export async function mountShippedLand(root: HTMLElement): Promise<void> {
+  // ⚠ THE KIT IS AWAITED BEFORE ANYTHING IS BUILT. `buildLandScene` is synchronous by design, so
+  // a page that started drawing first would cache every arm WITHOUT props and then hand the
+  // driver those cached scenes — a dressed row that quietly showed bare ground, which is exactly
+  // the shape a reader cannot distinguish from "the props look like nothing".
+  try {
+    setLandKit(await loadKit());
+  } catch (err) {
+    // Loud, and then on: the ground arms are the measured ones and they do not need the kit. A
+    // page that refused to render at all would take every land measurement down with the props.
+    console.error('shipped-land: the bought kit did not load, so the dressed row is bare', err);
+  }
+
   const runner = createLandRunner();
   runner.warm();
   const id = runner.identity();
@@ -887,6 +994,37 @@ export function mountShippedLand(root: HTMLElement): void {
     treedRow.appendChild(fig);
   }
   root.appendChild(treedRow);
+
+  // ⚠⚠ THE ROW THIS INCREMENT LANDS — the shipped island with one bought object per capability,
+  // at both zooms, beside the same island without them. Also outside the measured ladder, and for
+  // the same reason the tree is: a textured crown's pixels are off the GROUND palette by
+  // construction. The prop count is printed in the caption because a kit that failed to parse
+  // draws a picture identical to the bare one and says nothing about why.
+  const h3 = document.createElement('h2');
+  h3.textContent =
+    'with one bought object per capability (ADR-0475) — for looking at, not measured';
+  root.appendChild(h3);
+  for (const zoom of LAND_ZOOMS) {
+    const dressedRow = document.createElement('div');
+    dressedRow.className = 'row';
+    for (const dressed of [false, true]) {
+      const shot = dressed
+        ? runner.snapshotDressed('shadow', zoom)
+        : { png: runner.snapshotTreed('shadow', zoom), props: 0, triangles: 0 };
+      const s = buildLandScene('shadow', zoom, true, dressed);
+      const fig = document.createElement('figure');
+      const img = document.createElement('img');
+      img.src = shot.png;
+      img.width = Math.min(s.width, 900);
+      const cap = document.createElement('figcaption');
+      cap.textContent = dressed
+        ? `shadow + the bought kit — ${zoom} px/unit · ${shot.props} merged prop meshes · ${s.triangles} ground triangles`
+        : `shadow, bare — ${zoom} px/unit`;
+      fig.append(img, cap);
+      dressedRow.appendChild(fig);
+    }
+    root.appendChild(dressedRow);
+  }
 
   window.landRunner = runner;
 }

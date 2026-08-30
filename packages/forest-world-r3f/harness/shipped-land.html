@@ -68,7 +68,7 @@
     <script type="module">
       import { mountShippedLand } from './shipped-land-scene.ts';
       try {
-        mountShippedLand(document.getElementById('root'));
+        await mountShippedLand(document.getElementById('root'));
       } catch (e) {
         document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
       }
