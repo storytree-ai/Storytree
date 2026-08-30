@@ -84,6 +84,20 @@ describe('containedPath (the shared traversal guard)', () => {
       path.win32.resolve(winBase, 'research/notes.md'),
     );
   });
+
+  // PINS THE SEAM ITSELF, and it needs BOTH flavours to do it. On a win32 host the ambient `path`
+  // IS `path.win32`, so every win32 assertion above passes just as well against an implementation
+  // that ignored `flavour` and used the ambient `path` — and symmetrically on posix. Measured: with
+  // only the win32 assertions, replacing `flavour.resolve` with `path.resolve` SURVIVED on Windows.
+  // Asserting the flavour that does NOT match the host is what makes the injection observable, so
+  // this pair is load-bearing on whichever platform CI happens to be.
+  it('uses the INJECTED flavour rather than the ambient one (asserted on the non-host flavour too)', () => {
+    expect(containedPath('/repo/docs', 'notes.md', path.posix)).toBe('/repo/docs/notes.md');
+    expect(containedPath('/repo/docs', '../secret.md', path.posix)).toBeNull();
+    expect(containedPath(String.raw`C:\repo\docs`, 'notes.md', path.win32)).toBe(
+      String.raw`C:\repo\docs\notes.md`,
+    );
+  });
 });
 
 // The `.md` refusal is safeDocPath's OWN contribution — containedPath does not make it — so the
