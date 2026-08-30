@@ -579,7 +579,9 @@ describe("the picture is the ORCHESTRATOR's own walk — no subagent lanes", () 
       box: { width: 900, height: 240 },
       totalPx: 600,
       hasOffers: false,
-      maxDepth: 1,
+      // Rows below the spine. Since ADR-0482 D1 these come from the knowledge axis (one depth row
+      // plus its unmeasured row), not from the `parentVisitId` descent that used to feed them.
+      rows: 2,
     });
     expect(withLanes.step).toBeGreaterThan(11);
     // The geometry no longer has a lane concept to compute at all.
@@ -617,8 +619,8 @@ describe("the picture is the ORCHESTRATOR's own walk — no subagent lanes", () 
   });
 });
 
-describe('depth indents only where parent links exist', () => {
-  it('indents a descent and comes back, drawing each move as the move it was', () => {
+describe('the session descent is KEPT as telemetry and no longer drawn (ADR-0482 D5)', () => {
+  it('still resolves a parentVisitId chain, and no longer moves the picture with it', () => {
     render(
       <TraversalSpine
         replay={replay([
@@ -630,15 +632,23 @@ describe('depth indents only where parent links exist', () => {
     );
     scrubTo(1);
 
+    // THE FOLD IS UNTOUCHED. `traversalDepth.ts` still resolves the chain and the reading still rides
+    // `data-depth`, exactly as ADR-0393 kept the subagent lane fields after it stopped drawing lanes:
+    // the recording was never the problem, and a session-descent drawing stays cheap to restore.
     const depths = screen.getAllByTestId('traversal-mark').map((mark) => mark.getAttribute('data-depth'));
     expect(depths).toEqual(['0', '1', '0']);
 
+    // AND THE DRAWING NO LONGER FOLLOWS IT. With no corpus supplied there is no axis, so the picture
+    // is one flat row — including across the descent the field above still records. That divergence
+    // between `data-depth` and `data-row` IS the decision, made mechanical.
+    const rows = screen.getAllByTestId('traversal-mark').map((mark) => mark.getAttribute('data-row'));
+    expect(rows).toEqual(['0', '0', '0']);
     const moves = [...screen.getByTestId('traversal-spine-map').querySelectorAll('.traversal-edge')].map(
       (edge) => edge.getAttribute('data-depth-move'),
     );
-    expect(moves).toEqual(['descend', 'return']);
-    // The paragraph that used to restate this in words is DELETED (ADR-0393 D1). The indentation and
-    // the two typed moves are the claim now, and they are what a screenshot could not have checked.
+    expect(moves).toEqual(['level', 'level']);
+    // The axis says which case this is rather than drawing an empty scale.
+    expect(screen.getByTestId('traversal-depth-axis-note').getAttribute('data-axis-measured')).toBe('false');
     expect(screen.queryByTestId('traversal-depth-note')).toBeNull();
   });
 
@@ -1015,18 +1025,75 @@ describe('knowledge depth from the surface is a SECOND axis, joined read-only at
     ).toBe(true);
   });
 
-  it('keeps the two depths apart — the drawn indentation and the counted knowledge depth', () => {
+  it('keeps the two depths apart — the recorded session descent and the drawn corpus distance', () => {
     render(<TraversalSpine replay={WALK} knowledge={READY} />);
-    // The picture's indentation is depth from `parentVisitId` — the route this session actually
-    // walked. The chip is depth from the graph's own surface — a property of the CORPUS that is the
-    // same for every session that reads the artifact. Both paragraphs that used to name the
-    // difference are deleted (ADR-0393 D1), so the separation now rests on their being two different
-    // SURFACES carrying two different numbers — which is exactly why the chip must never be labelled
-    // "depth" alone.
+    // `data-depth` is the route this session actually walked, from `parentVisitId`. `data-row` is the
+    // corpus distance now drawn on the vertical (ADR-0482 D1) — a property of the CORPUS, the same for
+    // every session that reads the artifact. TWO NUMBERS ON TWO ATTRIBUTES, never one: this trace
+    // resolves no parent link, so every `data-depth` is 0 while the rows walk 1, 2, unmeasured — and
+    // an implementation that collapsed them would make that impossible to see.
     expect(screen.getByTestId('traversal-knowledge-chip').textContent).toContain('knowledge');
-    const drawnDepths = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-depth'));
-    expect(new Set(drawnDepths)).toEqual(new Set(['0']));
+    const sessionDepths = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-depth'));
+    expect(new Set(sessionDepths)).toEqual(new Set(['0']));
     const knowledge = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-knowledge-depth'));
     expect(knowledge).toEqual(['1', '2', 'unlinked', 'absent']);
+  });
+
+  // ── THE DRAWN AXIS (`traversal-panel-depth-on-the-axis`, ADR-0482 D1–D3) ────────────────────────
+
+  it('draws each placed read on the row its corpus depth names', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    const rows = screen.getAllByTestId('traversal-mark').map((m) => m.getAttribute('data-row'));
+    // `ceremony` 1 hop down, `principle` 2. The axis and the chip read ONE model, so the row and the
+    // hover reading cannot disagree — which is the whole reason the axis is not computed twice.
+    expect(rows.slice(0, 2)).toEqual(['1', '2']);
+    const cys = screen
+      .getAllByTestId('traversal-mark')
+      .map((m) => Number(m.querySelector('circle')?.getAttribute('cy') ?? '0'));
+    // Not merely different attributes: different PIXELS. A row attribute nothing positioned would be
+    // a green assertion over a flat picture.
+    expect(cys[1]).toBeGreaterThan(cys[0] as number);
+  });
+
+  it('NEVER draws an unmeasured read at the surface, and puts it below every depth row', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    const marks = screen.getAllByTestId('traversal-mark');
+    const rowOf = (index: number): number => Number(marks[index]?.getAttribute('data-row') ?? '-1');
+    // `orphan` is unlinked and `forest-world` is absent. Both are the ABSENCE of a reading, and
+    // `reading.depth ?? 0` would file both at row 0 beside genuine surfaces — the picture would then
+    // say "everything is at the surface", which reads as health (ADR-0482 D3).
+    expect(rowOf(2)).not.toBe(0);
+    expect(rowOf(3)).not.toBe(0);
+    expect(rowOf(2)).toBe(rowOf(3));
+    expect(rowOf(2)).toBeGreaterThan(rowOf(1));
+    // And the row says what it is where a reader meets it.
+    const labels = [...screen.getByTestId('traversal-row-labels').querySelectorAll('text')].map(
+      (t) => t.textContent,
+    );
+    expect(labels).toContain('surface');
+    expect(labels).toContain('unmeasured');
+    expect(labels).not.toContain('depth 1');
+  });
+
+  it('states that the vertical is CORPUS distance and not the route this session took', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    // ADR-0482 D2: the reversed clause's intent is preserved BY LABELLING, so this is a contract and
+    // not a wording preference. An unlabelled axis re-creates the claim ADR-0354 clause 5 forbade.
+    const note = screen.getByTestId('traversal-depth-axis-note');
+    expect(note.getAttribute('data-axis-measured')).toBe('true');
+    expect(note.getAttribute('data-axis-deepest')).toBe('2');
+    expect(note.getAttribute('title')).toContain('CORPUS distance');
+    expect(note.getAttribute('title')).toContain('never the route this session took');
+  });
+
+  it('moves the drawn edge with the CORPUS distance, not with the session descent', () => {
+    render(<TraversalSpine replay={WALK} knowledge={READY} />);
+    scrubTo(1);
+    const moves = [...screen.getByTestId('traversal-spine-map').querySelectorAll('.traversal-edge')].map(
+      (edge) => edge.getAttribute('data-depth-move'),
+    );
+    // 1 → 2 → unmeasured → unmeasured. This trace resolves NO parent link, so under the old rule every
+    // one of these was `level`; the moves are evidence the edges follow the same rows the marks do.
+    expect(moves).toEqual(['descend', 'descend', 'level']);
   });
 });
