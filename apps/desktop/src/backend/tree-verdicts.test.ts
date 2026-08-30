@@ -226,13 +226,37 @@ test("tree-verdicts: `building` and `decisions` are ALWAYS on the node, present-
       "utf8",
     );
 
+    // The `render: building` hint itself (ADR-0076) — drawn as a de-connected building rather than
+    // an island. Present so the assignment is checked in BOTH directions: a fold that had stopped
+    // reading `render` entirely would still satisfy the `false` case below.
+    await fs.mkdir(path.join(dir, "shed"));
+    await fs.writeFile(
+      path.join(dir, "shed", "story.md"),
+      [
+        "---",
+        'id: "shed"',
+        "tier: story",
+        'title: "Shed"',
+        'outcome: "the shed outcome"',
+        "status: proposed",
+        "proof_mode: UAT",
+        "render: building",
+        "---",
+        "",
+        "# Shed",
+      ].join("\n"),
+      "utf8",
+    );
+
     const { stories } = await readTreeWithCaps(dir);
     const plain = stories.find((s) => s.id === "plain");
     const broken = stories.find((s) => s.id === "broken");
-    assert.ok(plain && broken, "both stories are read");
+    const shed = stories.find((s) => s.id === "shed");
+    assert.ok(plain && broken && shed, "all three stories are read");
 
     assert.equal(plain.building, false, "an ordinary story carries `building: false`, not nothing");
     assert.ok("building" in plain, "the KEY is present — absent and false are different on the wire");
+    assert.equal(shed.building, true, "and `render: building` is what makes it true");
 
     assert.ok(broken.error !== undefined, "the malformed spec took the catch branch");
     assert.deepEqual(broken.decisions, [], "a story that failed to parse still carries `decisions: []`");

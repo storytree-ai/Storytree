@@ -382,6 +382,10 @@ test("projectTraversalPayload: a payload that is not keyed by request label is R
     () => projectTraversalPayload({ label: "not an answer object" }),
     /must be a \{ status, body \} object/,
   );
+  // The refusal must NAME the row, because three rows share this projection: a broken tree probe
+  // reported as a "traversal payload" sends a reader to the wrong pair's two files.
+  assert.throws(() => projectTraversalPayload(null), /^Error: traversal payload/);
+  assert.throws(() => projectTraversalPayload({ r: 1 }), /^Error: traversal answer "r"/);
 });
 
 // ---------- projectTreePayload: the `/api/tree` projection ----------

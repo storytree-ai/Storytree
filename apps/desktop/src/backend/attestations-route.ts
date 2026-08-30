@@ -26,7 +26,6 @@
 // import is sanctioned), and the compute they are folded with is browser-safe raw TS, loaded lazily
 // — the `.js` re-export trap this app already navigates.
 
-import { existsSync } from "node:fs";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
@@ -105,6 +104,9 @@ export function createAttestationsMount(
       res.end(JSON.stringify({ error: `method ${method} not allowed` }));
       return true;
     }
+    // Stryker disable next-line StringLiteral: EQUIVALENT, and measurably — `new URL("", base)` and
+    // `new URL("/", base)` both resolve to `base + "/"`, so no replacement of this fallback can
+    // change the parsed URL. It also never fires in production (Node's parser always sets `url`).
     const urlObj = new URL(req.url ?? "/", "http://localhost");
     const storyId = (urlObj.searchParams.get("storyId") ?? "").trim();
     if (!storyId) {
@@ -125,7 +127,22 @@ export function createAttestationsMount(
     } = await import("@storytree/orchestrator");
     const spec = loadStorySpec(deps.storiesDir, storyId, loadNodeSpec);
     const tests = spec?.uatTestCriteria ?? [];
+    // Stryker disable next-line LogicalOperator,ArrayDeclaration: EQUIVALENT, and worth stating
+    // because it reads as load-bearing and is not. The ONLY consumer is `resolvedWitnessOf`, which
+    // returns `resolveWitness(...).witness` — and every branch of that function answers `"machine"`
+    // for a `machine` leg and `"human"` for anything else, WHATEVER the gates are. Gates decide the
+    // refusal REASON and the routing, neither of which this route puts on the wire. So no gate list,
+    // including a nonsense one, can change any answer here. It is passed anyway because the studio
+    // passes it, and the day `resolvedWitnessOf` becomes gate-sensitive the two surfaces must move
+    // together — dropping it to satisfy a mutant would plant exactly the divergence this route's
+    // mirror row exists to catch.
     const gates = spec?.reliabilityGates ?? [];
+    // Stryker disable next-line StringLiteral: EQUIVALENT, and provably so — the three `??`
+    // fallbacks above and here fire TOGETHER, on the one condition `spec === null`. So whenever this
+    // `""` is reached, `tests` is `[]`, and `adopted` below feeds `unresolvedUatLegs([])`, which is
+    // `[]` for any status. No answer this route can give distinguishes the empty string from any
+    // other unreachable-status placeholder. The literal stays because the field is typed `string`
+    // and the reader below compares it to three named statuses.
     const status = spec?.status ?? "";
     // Attestation marks and verdict events in parallel (both advisory).
     const [marksMap, events] = await Promise.all([
@@ -147,6 +164,11 @@ export function createAttestationsMount(
     // resolveUatRowWitnesses from apiRouter.ts, re-composed from shared orchestrator functions
     // so the binary can never fork between studio and desktop).
     const resolved = tests.map((t) => ({ ...t, witness: resolvedWitnessOf(t, gates) }));
+    // Stryker disable next-line ConditionalExpression,StringLiteral: the `status !== ""` clause alone
+    // is EQUIVALENT, for the reason recorded at the `?? ""` above — `""` is reachable only when the
+    // spec is null, and a null spec also empties `tests`, so this clause can never change the answer.
+    // The other two clauses are NOT disabled and are asserted directly (a `mapped` story and a
+    // `retired` one, each carrying a real leg).
     const adopted = status !== "" && status !== "mapped" && status !== "retired";
     const unresolvedWitnesses = adopted ? unresolvedUatLegs(tests).map((t) => t.criterionId) : [];
     // Proven state from signed verdicts (advisory — absent on a down DB).
@@ -160,6 +182,13 @@ export function createAttestationsMount(
         return s === "healthy" ? "pass" : s === "unhealthy" ? "fail" : undefined;
       };
       const rolled = rollupStoryUat(tests, events);
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — `rollupStoryUat` is DECLARED
+      // `Status | null` (the six-member work enum) but its body can only ever return `healthy`,
+      // `unhealthy` or `null`, so the `: null` arm is reached only when `rolled` is already null and
+      // the whole-condition `true` mutant produces the identical value. The narrowing stays because
+      // the studio narrows the SAME way against the same declared type: dropping it here would put
+      // the two surfaces on different readings the day that function's range widens, which is the
+      // one thing this route's mirror row exists to prevent.
       storyUat = rolled === "healthy" || rolled === "unhealthy" ? rolled : null;
     }
     // ADR-0209 D7: the optional Library detail pointer each leg's `(detail: …)` tag names, so the
@@ -179,13 +208,24 @@ export function createAttestationsMount(
       // pointer-less criterion carries no such key at all rather than an explicit `undefined`.
       // Present-vs-absent is exactly what the mirror comparison reads, and what the renderer keys on.
       const row: UatAttestationRow = { ...t, ...marks };
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT AT THE WIRE — the always-assign
+      // mutant sets `row.proven = undefined`, and `JSON.stringify` (the only thing that reads this
+      // object) omits an `undefined` value exactly as it omits an absent key. No response can
+      // separate them. The guard stays because the assignment is also a TYPE claim, and because the
+      // sibling below is the same shape.
       if (proven !== undefined) row.proven = proven;
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT AT THE WIRE, same reason.
       if (detailArtifactId !== undefined) row.detailArtifactId = detailArtifactId;
       return row;
     });
     res.statusCode = 200;
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     const testsEnvelope: UatTestsEnvelope = { storyId, tests: rows };
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT AT THE WIRE — `JSON.stringify`
+    // omits an `undefined` value exactly as it omits an absent key, so the always-assign mutant
+    // serialises identically. The DISTINCTION the guard protects is real and IS asserted (a stream
+    // that answered sets `storyUat: null`; no stream at all omits the key), it just cannot be
+    // reached through this branch.
     if (storyUat !== undefined) testsEnvelope.storyUat = storyUat;
     if (unresolvedWitnesses.length > 0) testsEnvelope.unresolvedWitnesses = unresolvedWitnesses;
     res.end(JSON.stringify(testsEnvelope));
@@ -218,12 +258,16 @@ type NodeSpec = ReturnType<LoadNodeSpec>;
  * The containment check re-composes the studio's `containedPath` rather than importing it (ADR-0100),
  * and the mirror follows the reference on both counts.
  */
-function loadStorySpec(
+export function loadStorySpec(
   storiesDir: string,
   storyId: string,
   loadNodeSpec: LoadNodeSpec,
 ): NodeSpec | null {
   const file = containedStoryFile(storiesDir, storyId);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT BY DESIGN, and the design is the
+  // point. A REFUSED id must be indistinguishable from an absent story (see the docblock), so the
+  // refusal and the throw below deliberately produce the same value — which is exactly why no
+  // assertion can separate this guard from the catch. Removing it would call loadNodeSpec(null).
   if (file === null) return null;
   try {
     return loadNodeSpec(file);
@@ -245,9 +289,15 @@ function loadStorySpec(
 export function containedStoryFile(storiesDir: string, storyId: string): string | null {
   const root = path.resolve(storiesDir);
   const target = path.resolve(root, storyId);
-  if (target !== root && !target.startsWith(root + path.sep)) return null;
-  const file = path.join(target, "story.md");
-  return existsSync(file) ? file : null;
+  // ONE condition, and it deliberately refuses `storyId` values that resolve to the root ITSELF
+  // (`.`, `./`) as well as ones that climb above it — there is no story called `.`, and a second
+  // `target !== root` conjunct would only make an unreachable exception whose absence no answer can
+  // distinguish (it read as rigour and was scored as a survivor, correctly).
+  if (!target.startsWith(root + path.sep)) return null;
+  // NOT existence-checked here. Both callers already treat an unreadable story as a missing one —
+  // `loadStorySpec` catches, `detailPointers` catches — so a `existsSync` guard would be a second
+  // early-out down the same path, indistinguishable from the catch and therefore unprovable.
+  return path.join(target, "story.md");
 }
 
 /**
@@ -260,6 +310,9 @@ export function containedStoryFile(storiesDir: string, storyId: string): string 
 async function detailPointers(storiesDir: string, storyId: string): Promise<Map<string, string>> {
   const out = new Map<string, string>();
   const file = containedStoryFile(storiesDir, storyId);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT for the reason above — a refused id
+  // and an unreadable file both have to yield an empty map, so the guard and the catch agree by
+  // construction. Kept because the alternative is handing `fs.readFile` a null path.
   if (file === null) return out;
   try {
     const { parseCriterionPointers } = await import("@storytree/uat-criterion");
