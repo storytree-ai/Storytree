@@ -15,6 +15,9 @@
 //     and SAYS SO when there is no series rather than drawing a flat zero;
 //   • the events this increment defers are named on the surface rather than silently omitted.
 
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import type {
@@ -172,8 +175,9 @@ function drawnXs(): number[] {
 
 /**
  * The same sweep down the OTHER axis. It exists because the rotation (ADR-0354 D3) made the vertical
- * the scarce dimension: depth rows, lane rows and the offer band now share the dock's height, where
- * before nothing could overflow downward at all.
+ * the scarce dimension, where before nothing could overflow downward at all. What shares it has
+ * changed twice since — the lane rows went (ADR-0393 D2) and the upward offer band went with the
+ * rays (ADR-0482 D4) — but the depth rows kept the room and now reach 16 (ADR-0482 D1).
  */
 function drawnYs(): number[] {
   const svg = screen.getByTestId('traversal-spine-map');
@@ -686,15 +690,25 @@ describe('the session descent is KEPT as telemetry and no longer drawn (ADR-0482
   });
 });
 
-describe('offer fans carry their raw denominator', () => {
+describe('offer fans are rings around the mark that printed them', () => {
+  // The RECORDED convention, and the whole reason the rings can find their mark: a `candidate_set`
+  // is written under `candidate-set:<visitId>`. Measured 2026-08-30 across all 759 local traces,
+  // 2,106 of 2,106 sets carry it and the visit it names is present every time. A fixture using an
+  // arbitrary id — as these did — would test a shape no producer emits.
+  const PRINTER = 'visit:printer';
+  const CANDIDATE_SET = `candidate-set:${PRINTER}`;
+
   const OFFER_EVENTS: TraversalEventEnvelope[] = [
-    visit('full_payload_read', 0, 'a'),
+    visit('full_payload_read', 0, 'a', PRINTER),
     {
       kind: 'candidate_set',
       eventId: 'event:cs',
       sessionId: SESSION,
+      // DELIBERATELY LATER THAN THE VISIT. Only 1,363 of the 2,106 measured sets share their exact
+      // millisecond with the visit that printed them, so a fixture where the two agree would pass
+      // against a nearest-instant anchor — the plausible wrong implementation — and prove nothing.
       at: at(20_000),
-      candidateSetId: 'cs:1',
+      candidateSetId: CANDIDATE_SET,
       surfaceId: 'library-artifact',
       candidateNodeIds: ['arc', 'plan', 'doc:decisions/0183-x.md'],
     },
@@ -704,7 +718,7 @@ describe('offer fans carry their raw denominator', () => {
   const OFFER_REPORT: TraversalDecisionPointReport = {
     points: [
       {
-        candidateSetId: 'cs:1',
+        candidateSetId: CANDIDATE_SET,
         surfaceId: 'library-artifact',
         candidates: [
           { nodeId: 'arc', outcome: { status: 'followed', toVisitId: 'v', edgeId: 'e' } },
@@ -717,27 +731,98 @@ describe('offer fans carry their raw denominator', () => {
     orphanFollows: [],
   };
 
-  it('draws NO ray for an unobservable branch, and keeps recorded order among the rest', () => {
+  it('draws NO ring for an unobservable branch, and keeps recorded order innermost-first', () => {
     render(<TraversalSpine replay={replay(OFFER_EVENTS, OFFER_REPORT)} />);
     scrubTo(1);
 
-    // ADR-0393 D3: the owner removed the faint dashed rays at the LOOK. They were branches no read
-    // could ever have followed — an ADR file pointer — so what is left is only what the agent could
-    // actually have taken.
-    const rays = screen.getAllByTestId('traversal-offer-ray');
-    expect(rays).toHaveLength(2);
-    expect(rays.map((ray) => ray.getAttribute('data-status'))).toEqual(['followed', 'not-followed']);
+    // ADR-0393 D3: the owner removed these at the earlier LOOK. They were branches no read could
+    // ever have followed — an ADR file pointer — so what is left is only what the agent could
+    // actually have taken. ADR-0482 D4 changed the SHAPE and reopened nothing else.
+    const rings = screen.getAllByTestId('traversal-offer-ring');
+    expect(rings).toHaveLength(2);
     // Recorded order among the survivors, never sorted (ADR-0318 D3): filtering must not re-order.
-    expect(document.querySelectorAll('.traversal-offer-ray.status-unobservable')).toHaveLength(0);
+    expect(rings.map((ring) => ring.getAttribute('data-status'))).toEqual([
+      'followed',
+      'not-followed',
+    ]);
+    expect(document.querySelectorAll('.traversal-offer-ring.status-unobservable')).toHaveLength(0);
+    // Rings, and strictly outward: the first offered is the innermost, the analogy's own direction.
+    const radii = rings.map((ring) => Number(ring.getAttribute('r')));
+    expect(radii[1] as number).toBeGreaterThan(radii[0] as number);
+    // And they are RINGS, not a dial: an unfilled circle is what keeps the drawing off clause 5's
+    // no-per-node-gauge rule. `fill: none` is on the class, so the tag is the assertable half.
+    expect(rings.every((ring) => ring.tagName.toLowerCase() === 'circle')).toBe(true);
+  });
+
+  it('centres the rings on the MARK NAMED BY THE RECORDED ID, not on the offer’s own instant', () => {
+    render(<TraversalSpine replay={replay(OFFER_EVENTS, OFFER_REPORT)} />);
+    scrubTo(1);
+
+    // THE PLAUSIBLE WRONG IMPLEMENTATION IS A TIME MATCH, and this is the assertion that kills it:
+    // the offer is recorded 20s after the visit that printed it, so a ring centred on the offer's
+    // own instant lands between the two marks and rings neither. It must sit exactly on mark 'a'.
+    const marks = screen.getAllByTestId('traversal-mark');
+    const printer = marks[0] as Element;
+    const dot = printer.querySelector('circle') as SVGCircleElement;
+    const rings = screen.getAllByTestId('traversal-offer-ring');
+    for (const ring of rings) {
+      expect(ring.getAttribute('cx')).toBe(dot.getAttribute('cx'));
+      expect(ring.getAttribute('cy')).toBe(dot.getAttribute('cy'));
+    }
+    // Every radius clears the mark, so the mark itself is never covered by its own fan.
+    const markRadius = Number(dot.getAttribute('r'));
+    for (const ring of rings) expect(Number(ring.getAttribute('r'))).toBeGreaterThan(markRadius);
+  });
+
+  it('follows the mark DOWN the depth axis rather than staying on the spine', () => {
+    // ADR-0482 D1 moved the marks off one line; this is what makes the anchor load-bearing rather
+    // than cosmetic. The printing read sits at corpus depth 1, so its rings must sit there with it.
+    const corpus: GuidanceAsset[] = [
+      {
+        id: 'anchor',
+        category: 'principle',
+        title: 'anchor',
+        description: '',
+        body: '',
+        cites: ['story:studio'],
+        dependsOn: ['asset:a'],
+        createdAt: '2026-08-30T00:00:00.000Z',
+        updatedAt: '2026-08-30T00:00:00.000Z',
+      },
+      {
+        id: 'a',
+        category: 'pattern',
+        title: 'a',
+        description: '',
+        body: '',
+        createdAt: '2026-08-30T00:00:00.000Z',
+        updatedAt: '2026-08-30T00:00:00.000Z',
+      },
+    ];
+    const knowledge = buildKnowledgeDepth({
+      assets: corpus,
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+    render(<TraversalSpine replay={replay(OFFER_EVENTS, OFFER_REPORT)} knowledge={knowledge} />);
+    scrubTo(1);
+
+    const fan = screen.getByTestId('traversal-offer');
+    const printer = screen
+      .getAllByTestId('traversal-mark')
+      .find((mark) => (mark.querySelector('title')?.textContent ?? '').startsWith('a ·')) as Element;
+    expect(fan.getAttribute('data-row')).toBe(printer.getAttribute('data-row'));
+    expect(fan.getAttribute('data-row')).not.toBe('0');
   });
 
   it('KEEPS the raw `M of N` denominator, and still never a percentage', () => {
     render(<TraversalSpine replay={replay(OFFER_EVENTS, OFFER_REPORT)} />);
     scrubTo(1);
 
-    // ADR-0312 D6 is NOT repealed by dropping the dashed rays and the note (ADR-0393 D3): the fan
-    // still carries the full denominator, on hover and on its data attributes. What narrowed is the
-    // denominator's SURFACE. A change that drops THESE too would be the repeal.
+    // ADR-0312 D6 is NOT repealed by dropping the dashed rays and the note (ADR-0393 D3), nor by
+    // redrawing the fan as rings (ADR-0482 D4): the fan still carries the full denominator, on hover
+    // and on its data attributes. What narrowed is the denominator's SURFACE. A change that drops
+    // THESE too would be the repeal.
     const fan = screen.getByTestId('traversal-offer');
     expect(fan.getAttribute('data-offered')).toBe('3');
     expect(fan.getAttribute('data-observable')).toBe('2');
@@ -757,7 +842,7 @@ describe('offer fans carry their raw denominator', () => {
         replay={replay(OFFER_EVENTS, {
           points: [
             {
-              candidateSetId: 'cs:1',
+              candidateSetId: CANDIDATE_SET,
               surfaceId: 'library-artifact',
               candidates: [
                 { nodeId: 'arc', outcome: { status: 'not-followed' } },
@@ -775,9 +860,131 @@ describe('offer fans carry their raw denominator', () => {
 
     // Two drawn (the unobservable one is not), and nothing followed — the measured shape on this
     // machine, drawn as the sparse signal it is rather than padded to look fuller.
-    expect(screen.getAllByTestId('traversal-offer-ray')).toHaveLength(2);
+    const rings = screen.getAllByTestId('traversal-offer-ring');
+    expect(rings).toHaveLength(2);
     expect(screen.getByTestId('traversal-offer').getAttribute('data-followed')).toBe('0');
     expect(screen.getByTestId('traversal-offer').getAttribute('data-observable')).toBe('2');
+
+    // ⚠ THE ADR-0393 DEFECT, PINNED AS A NUMBER. Nothing is ever followed in practice, so an
+    // all-not-followed fan is the ONLY fan anyone sees. Every ring in it must be drawn at the base
+    // weight — not thinned, not dashed away — or the picture reads as texture again.
+    const widths = rings.map((ring) => Number(ring.getAttribute('stroke-width')));
+    expect(new Set(widths).size).toBe(1);
+    expect(widths[0] as number).toBeGreaterThan(0);
+  });
+
+  it('draws the FOLLOWED ring heavier — the departure is on the rare state, never on the common one', () => {
+    render(<TraversalSpine replay={replay(OFFER_EVENTS, OFFER_REPORT)} />);
+    scrubTo(1);
+    const rings = screen.getAllByTestId('traversal-offer-ring');
+    const followed = rings.find((ring) => ring.getAttribute('data-status') === 'followed') as Element;
+    const plain = rings.find((ring) => ring.getAttribute('data-status') === 'not-followed') as Element;
+    expect(Number(followed.getAttribute('stroke-width'))).toBeGreaterThan(
+      Number(plain.getAttribute('stroke-width')),
+    );
+  });
+
+  it('DRAWS NOTHING, and says how many, for an offer whose printing visit the trace does not hold', () => {
+    // FAIL CLOSED (ADR-0482 D3/D4). Measured at 0 of 2,106 real sets, so this is a guard rather than
+    // a fallback — but the wrong answer is cheap and tempting: park it on the spine. The spine is
+    // row 0, and row 0 now means "at the graph's surface", so parking it there states a depth
+    // nothing measured. It is dropped from the drawing and COUNTED on the layer.
+    const orphan: TraversalEventEnvelope[] = [
+      visit('full_payload_read', 0, 'a', PRINTER),
+      {
+        kind: 'candidate_set',
+        eventId: 'event:cs',
+        sessionId: SESSION,
+        at: at(20_000),
+        candidateSetId: 'candidate-set:visit:nobody-recorded-this',
+        surfaceId: 'library-artifact',
+        candidateNodeIds: ['arc', 'plan'],
+      },
+    ];
+    render(
+      <TraversalSpine
+        replay={replay(orphan, {
+          points: [
+            {
+              candidateSetId: 'candidate-set:visit:nobody-recorded-this',
+              surfaceId: 'library-artifact',
+              candidates: [
+                { nodeId: 'arc', outcome: { status: 'not-followed' } },
+                { nodeId: 'plan', outcome: { status: 'not-followed' } },
+              ],
+              unresolved: [],
+            },
+          ],
+          orphanFollows: [],
+        })}
+      />,
+    );
+    scrubTo(1);
+
+    expect(screen.queryAllByTestId('traversal-offer-ring')).toHaveLength(0);
+    expect(screen.queryAllByTestId('traversal-offer')).toHaveLength(0);
+    expect(screen.getByTestId('traversal-offer-layer').getAttribute('data-unanchored')).toBe('1');
+    // The picture is still drawn — a dropped fan is not an empty trace.
+    expect(screen.getAllByTestId('traversal-mark').length).toBeGreaterThan(0);
+  });
+});
+
+describe('the legend and the stylesheet say the same thing', () => {
+  // ⚠ THIS IS THE ADR-0393 DEFECT'S OWN TRIPWIRE, and the increment asked for it by name. That
+  // defect was a legend reading "solid ray not followed" over a stylesheet drawing that state
+  // DASHED. It survived review because nothing is ever followed in practice, so the state that
+  // disagreed was the only state anyone ever saw — the picture looked like a texture and nobody
+  // could tell it was lying. The pair is pinned here rather than left to a reader's eye.
+  const css = readFileSync(resolve(process.cwd(), 'src', 'index.css'), 'utf8');
+
+  function ruleBody(selector: string): string | null {
+    const at = css.indexOf(`${selector} {`);
+    if (at === -1) return null;
+    return css.slice(at, css.indexOf('}', at));
+  }
+
+  it('draws every state SOLID, so a fan of the near-universal state is not a texture', () => {
+    for (const selector of [
+      '.traversal-offer-ring',
+      '.traversal-offer-ring.status-followed',
+      '.traversal-offer-ring.status-not-followed',
+      '.traversal-offer-ring.status-ambiguous',
+    ]) {
+      const body = ruleBody(selector);
+      expect(body, `${selector} must exist`).not.toBeNull();
+      expect(body as string).not.toContain('dasharray');
+    }
+  });
+
+  it('leaves the WEIGHT to the geometry, so a dense fan cannot be fused into a disc by CSS', () => {
+    // `offerRingGeometry` thins the stroke with the spacing; a `stroke-width` in the stylesheet
+    // would win over that and put the filled disc — the per-node gauge — straight back.
+    for (const selector of [
+      '.traversal-offer-ring',
+      '.traversal-offer-ring.status-followed',
+      '.traversal-offer-ring.status-not-followed',
+      '.traversal-offer-ring.status-ambiguous',
+    ]) {
+      expect(ruleBody(selector) as string).not.toContain('stroke-width');
+    }
+    // And rings are rings: a filled ring set IS the gauge clause 5 forbids.
+    expect(ruleBody('.traversal-offer-ring') as string).toContain('fill: none');
+  });
+
+  it('styles no state the picture no longer draws', () => {
+    // ADR-0393 D3 removed unobservable candidates from the drawing. A rule for them would style
+    // nothing — and would read to the next editor as evidence they are still drawn.
+    expect(ruleBody('.traversal-offer-ring.status-unobservable')).toBeNull();
+    // The rays are GONE, not renamed around. A surviving ray rule is the shape this pair fails at.
+    expect(css).not.toContain('.traversal-offer-ray');
+  });
+
+  it('says RINGS where a reader meets the picture, and no longer says rays', () => {
+    render(<TraversalSpine replay={replay([visit('full_payload_read', 0, 'a')])} />);
+    const legend = screen.getByTestId('traversal-legend').textContent ?? '';
+    expect(legend).toContain('offer rings');
+    expect(legend).toContain('one solid ring per branch');
+    expect(legend).not.toMatch(/\bray\b/);
   });
 });
 
@@ -793,12 +1000,15 @@ describe('nothing paints past the block’s right edge', () => {
       events.push(handoff(`e${lane}`, 20_000 + lane * 100));
       events.push(result(`e${lane}`, 90_000));
     }
+    // Hung on the DEEPEST visit — `visit:7`, past the drawn cap — so the widest fan in the picture
+    // is also the one furthest down the axis, which is where a ring set would overflow the block if
+    // it were bounded by anything other than its own row.
     events.push({
       kind: 'candidate_set',
       eventId: 'event:cs',
       sessionId: SESSION,
       at: at(30_000),
-      candidateSetId: 'cs:1',
+      candidateSetId: 'candidate-set:visit:7',
       surfaceId: 'library-artifact',
       candidateNodeIds: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'],
     });
@@ -808,7 +1018,7 @@ describe('nothing paints past the block’s right edge', () => {
         replay={replay(events, {
           points: [
             {
-              candidateSetId: 'cs:1',
+              candidateSetId: 'candidate-set:visit:7',
               surfaceId: 'library-artifact',
               candidates: ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'].map((nodeId) => ({
                 nodeId,
@@ -827,7 +1037,7 @@ describe('nothing paints past the block’s right edge', () => {
     // fan really are drawn. The six spawn pairs are still IN the trace and still stretch the axis —
     // they are simply no longer drawn as rows (ADR-0393 D2).
     expect(screen.getAllByTestId('traversal-mark').length).toBeGreaterThan(7);
-    expect(screen.getAllByTestId('traversal-offer-ray')).toHaveLength(8);
+    expect(screen.getAllByTestId('traversal-offer-ring')).toHaveLength(8);
     expect(screen.queryAllByTestId('traversal-lane')).toHaveLength(0);
 
     // RE-POINTED, NOT DELETED (the increment's own instruction). The claim is unchanged — a
@@ -848,9 +1058,11 @@ describe('nothing paints past the block’s right edge', () => {
     expect(Math.min(...xs)).toBeGreaterThanOrEqual(0);
     expect(Math.max(...xs)).toBeLessThanOrEqual(boxWidth);
 
-    // The VERTICAL is the scarce axis — the depth rows and the offer band share it — so it is
-    // bounded here. It got materially less crowded when the six lane rows went (ADR-0393 D2), which
-    // is the point of the removal, but the bound is asserted rather than assumed either way.
+    // The VERTICAL is the scarce axis, so it is bounded here. It got materially less crowded when
+    // the six lane rows went (ADR-0393 D2) and again when the upward offer band went with the rays
+    // (ADR-0482 D4), but the bound is asserted rather than assumed either way. `drawnYs` pads every
+    // `cy` by its own `r`, so a ring set's full extent is swept — which is what makes this the
+    // containment proof for the widest fan as well as for the deepest mark.
     const ys = drawnYs();
     expect(ys.length).toBeGreaterThan(20);
     expect(Math.min(...ys)).toBeGreaterThanOrEqual(0);

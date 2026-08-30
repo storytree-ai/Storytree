@@ -22,9 +22,16 @@
 // itself — THREE portions since ADR-0456 D4, because ADR-0411 D3 set a second mark at ~400K beside
 // the bar's 500K, and the clause applies to two thresholds exactly as it did to one; plain node
 // marks with no per-node gauge; solid full-payload and grey dotted front-matter edges; a magnifying
-// glass for search; branching carried by animation rather than drawn loop-backs; explicit-only forks
-// stating a raw `M of N` and never a percentage; and no depth ever inferred from order, time or the
-// node graph.
+// glass for search; branching carried by animation rather than drawn loop-backs; and explicit-only
+// forks stating a raw `M of N` and never a percentage.
+//
+// ⚠ CLAUSE 5 HAS SINCE BEEN NARROWED TWICE MORE, both by ADR-0482 and both owner-directed at the
+// LOOK, so this paragraph no longer transcribes it whole. (a) "no depth ever inferred from order,
+// time or the node graph" is REVERSED FOR THE DRAWN AXIS (D1): the vertical carries CORPUS distance
+// over `dependsOn` — see `traversalKnowledgeAxis.ts`, whose labelling is what preserves the reversed
+// clause's intent. (b) The offer FAN is drawn as concentric rings around the mark rather than as rays
+// out of it (D4) — see `traversalOfferRings.ts`. Everything else listed above is untouched and still
+// binds, the plain-mark / no-per-node-gauge rule most of all: it is the clause the rings sit nearest.
 //
 // THE SIX PURE LIBS ARE UNTOUCHED, which is what made this a re-flow rather than a rewrite: they
 // assert SEMANTICS, not placement. `traversalTime` is a 1-D density-weighted map from instants onto
@@ -60,6 +67,11 @@ import {
   type KnowledgeAxis,
 } from '../lib/traversalKnowledgeAxis';
 import type { TraversalOffer } from '../lib/traversalOffers';
+import {
+  FOLLOWED_STROKE_SCALE,
+  offerRingGeometry,
+  ringHeadroom,
+} from '../lib/traversalOfferRings';
 import {
   bandGuidance,
   bandOf,
@@ -102,7 +114,7 @@ interface Geometry {
   readonly width: number;
   readonly height: number;
   readonly axisBand: number;
-  readonly offerBand: number;
+  readonly ringHeadroom: number;
   readonly depthRows: number;
   readonly step: number;
   readonly spineY: number;
@@ -262,18 +274,53 @@ export function TraversalSpine({
   // with no reading, which is what an unknown id would be.
   const rowOf = (markId: string): number => rowByMarkId.get(markId) ?? 0;
 
+  // THE MARK EACH FAN RINGS (ADR-0482 D4). Keyed on the RECORDED visit id, which the offer carries
+  // out of its own `candidate-set:<visitId>` — not on the instant, which agrees for only 1,363 of
+  // the 2,106 measured sets and would anchor the other 743 by a nearest-match guess.
+  //
+  // A search is not a visit and carries no visit id, so it can never be keyed here — which is right:
+  // a search prints no offers.
+  const markByVisitId = useMemo(() => {
+    const byVisit = new Map<string, TraversalMark>();
+    for (const mark of marks) {
+      if (mark.visitId !== null && !byVisit.has(mark.visitId)) byVisit.set(mark.visitId, mark);
+    }
+    return byVisit;
+  }, [marks]);
+
+  // FAIL CLOSED, AND COUNTED. An offer whose printing visit this trace does not hold is dropped from
+  // the drawing rather than centred on the spine: the spine is row 0 and row 0 now means "at the
+  // graph's surface" (ADR-0482 D3), so parking it there would state a depth nothing measured. The
+  // count is surfaced on the layer so a trace that starts producing them is visible rather than
+  // silently thinner — measured today at 0 of 2,106 across every local trace.
+  const anchoredOffers = useMemo(() => {
+    const anchored: { offer: TraversalOffer; mark: TraversalMark }[] = [];
+    let unanchored = 0;
+    for (const offer of offers.offers) {
+      const mark = offer.printedByVisitId === null ? undefined : markByVisitId.get(offer.printedByVisitId);
+      if (mark === undefined) {
+        unanchored += 1;
+        continue;
+      }
+      anchored.push({ offer, mark });
+    }
+    return { anchored, unanchored };
+  }, [offers.offers, markByVisitId]);
+
   const geometry = useMemo(
     () =>
       computeGeometry({
         box,
         totalPx: scale.totalPx,
-        hasOffers: offers.offers.length > 0,
+        // The ANCHORED count, not the recorded one: the headroom exists for rings that draw, and an
+        // offer with no resolvable mark draws none.
+        hasOffers: anchoredOffers.anchored.length > 0,
         rows: axis.rows,
       }),
-    [box, scale.totalPx, offers.offers.length, axis.rows],
+    [box, scale.totalPx, anchoredOffers.anchored.length, axis.rows],
   );
 
-  const nothingToDraw = marks.length === 0 && offers.offers.length === 0;
+  const nothingToDraw = marks.length === 0 && anchoredOffers.anchored.length === 0;
   const atMs = timeAt(scale, playPos);
   const observed = occupancyAt(occupancy, atMs);
 
@@ -356,7 +403,7 @@ export function TraversalSpine({
                 role="presentation"
                 data-testid="traversal-row-labels"
               >
-                <RowLabels geometry={geometry} axis={axis} hasOffers={offers.offers.length > 0} />
+                <RowLabels geometry={geometry} axis={axis} />
               </svg>
             </div>
 
@@ -382,14 +429,25 @@ export function TraversalSpine({
                     `lib/traversalLanes.ts` still folds them — so whoever brings lanes back finds the
                     data waiting rather than a capture to rebuild. Only the drawing stopped. */}
 
-                {offers.offers.map((offer) => (
-                  <OfferFan
-                    key={offer.candidateSetId}
-                    offer={offer}
-                    geometry={geometry}
-                    visible={playPos >= offer.y}
-                  />
-                ))}
+                <g
+                  className="traversal-offer-layer"
+                  data-testid="traversal-offer-layer"
+                  data-unanchored={anchoredOffers.unanchored}
+                >
+                  {anchoredOffers.anchored.map(({ offer, mark }) => (
+                    <OfferRings
+                      key={offer.candidateSetId}
+                      offer={offer}
+                      geometry={geometry}
+                      row={rowOf(mark.id)}
+                      markY={mark.y}
+                      // The reveal still rides the OFFER'S OWN instant, which is when the branches
+                      // were printed. It is never earlier than the visit's, so a fan cannot appear
+                      // around a mark the playhead has not reached.
+                      visible={playPos >= offer.y}
+                    />
+                  ))}
+                </g>
 
                 {edges.map((edge) => (
                   <path
@@ -520,6 +578,17 @@ function KnowledgeChip({
   );
 }
 
+/**
+ * A mark's radius on a row `step` px tall.
+ *
+ * Lifted out of {@link computeGeometry}'s return literal because the ring headroom now needs it
+ * BEFORE the geometry exists — see the two-pass note below. One function, so a mark and the rings
+ * around it can never be sized against different numbers.
+ */
+function markRadiusFor(step: number): number {
+  return Math.max(2.4, Math.min(4.2, step * 0.16));
+}
+
 function computeGeometry({
   box,
   totalPx,
@@ -541,18 +610,34 @@ function computeGeometry({
   const depthRows = rows;
 
   const height0 = Math.max(56, box.height);
-  const offerBand = hasOffers ? Math.min(52, Math.max(14, (height0 - axisBand) * 0.24)) : 6;
-  const body = height0 - axisBand - offerBand;
   // 1 spine row + depth rows. The lane rows are GONE (ADR-0393 D2), and the vertical they used to
   // take is the whole point of removing them: on a ten-lane trace they were 10 of 12 rows, so the
   // orchestrator's own walk — the subject of the picture — was squeezed into a sixth of the height.
   const slots = 1 + depthRows;
-  const step = Math.max(11, Math.min(40, body / (slots + 0.7)));
+  const stepFor = (band: number): number =>
+    Math.max(11, Math.min(40, (height0 - axisBand - band) / (slots + 0.7)));
 
-  const contentHeight = offerBand + step * (slots + 0.7) + axisBand;
+  // THE OFFER BAND IS GONE WITH THE RAYS (ADR-0482 D4). It reserved 14–52px above the spine for rays
+  // fanning upward; rings sit ON the mark, so what is left to reserve is the radius of one ring set
+  // drawn on the surface row, which is the only row with nothing above it. On a full-height panel
+  // that hands roughly 30px back to the depth rows ADR-0482 D1 just gave something to say.
+  //
+  // TWO PASSES, because the ring cap and the row height each depend on the other: the cap is a share
+  // of `step`, and `step` is what is left after the headroom. Pass one sizes rows against the
+  // no-offer band, pass two re-sizes them against the headroom that cap needs. It is SAFE in one
+  // direction only, and that is why it terminates rather than iterating: more headroom means a
+  // shorter `body`, so `step` can only shrink, and both `markRadius` and `ringOuterCap` are
+  // non-decreasing in `step` — so the pass-two cap is never larger than the headroom pass one
+  // reserved for it.
+  const NO_OFFER_BAND = 6;
+  const step0 = stepFor(NO_OFFER_BAND);
+  const headroom = hasOffers ? ringHeadroom(step0, markRadiusFor(step0)) : NO_OFFER_BAND;
+  const step = stepFor(headroom);
+
+  const contentHeight = headroom + step * (slots + 0.7) + axisBand;
   const height = contentHeight > height0 ? Math.ceil(contentHeight) : height0;
 
-  const spineY = offerBand + step * 0.55;
+  const spineY = headroom + step * 0.55;
 
   // "THE AXIS MAY STRETCH" (ADR-0354 D3), and this is where it does. The density-weighted budget is
   // computed in axis units; when a trace's whole walk is SHORTER than the panel is wide, the axis
@@ -565,12 +650,12 @@ function computeGeometry({
     width: AXIS_HEAD + totalPx * sx + AXIS_TAIL,
     height,
     axisBand,
-    offerBand,
+    ringHeadroom: headroom,
     depthRows,
     step,
     spineY,
     sx,
-    markRadius: Math.max(2.4, Math.min(4.2, step * 0.16)),
+    markRadius: markRadiusFor(step),
     axisY: height - axisBand + 6,
     x: (axisUnits: number) => AXIS_HEAD + axisUnits * sx,
     depthY: (d: number) => spineY + step * Math.min(depthRows, Math.max(0, d)),
@@ -655,7 +740,6 @@ function Axis({
 function RowLabels({
   geometry,
   axis,
-  hasOffers,
 }: {
   geometry: Geometry;
   /**
@@ -665,10 +749,12 @@ function RowLabels({
    * its own words here would quietly repeal it.
    */
   axis: KnowledgeAxis;
-  hasOffers: boolean;
 }): React.JSX.Element {
+  // THE `offers ↑` ROW IS GONE WITH THE BAND (ADR-0482 D4). It named a band above the spine that
+  // rays fanned into; rings sit on the mark, so there is no row of the picture that is "the offers".
+  // A gutter label for a row nothing occupies would be the picture describing a shape it stopped
+  // drawing — the ADR-0393 defect, in words instead of CSS.
   const rows: { y: number; text: string; strong?: boolean }[] = [];
-  if (hasOffers) rows.push({ y: Math.max(9, geometry.offerBand / 2), text: 'offers ↑' });
   rows.push({ y: geometry.spineY, text: axis.measured ? axisRowLabel(axis, 0) : 'spine', strong: true });
   for (let d = 1; d <= geometry.depthRows; d += 1) {
     rows.push({ y: geometry.depthY(d), text: axisRowLabel(axis, d) });
@@ -764,42 +850,66 @@ function Mark({
 }
 
 /**
- * The branches a visit PRINTED, fanning UPWARD from the spine now that depth hangs below it.
+ * The branches a visit PRINTED, drawn as concentric rings AROUND THE MARK THAT PRINTED THEM — the
+ * owner's own shape, proposed at the LOOK on 2026-08-30 by analogy with tree rings signalling age,
+ * and settled as ADR-0482 D4.
  *
- * UNOBSERVABLE CANDIDATES ARE NOT DRAWN (ADR-0393 D3). The owner named these specifically at the
- * LOOK, offered against the other dotted element in the picture. They are the branches an agent was
- * shown that no CLI read could ever have followed — an ADR file pointer — so they were drawn as faint
- * dashed rays meaning "never available", never as a declined branch. Measured on the trace the owner
- * looked at: 373 branches offered, 261 followable, so 112 of the rays were dashes for roads that do
- * not exist. Removing them leaves the fan showing only what the agent could actually have taken.
+ * WHAT MOVED IS THE SHAPE AND NOTHING ELSE. The fan used to be rays out of the spine into a band
+ * above it, which stopped making sense the moment ADR-0482 D1 gave the vertical 16 rows of corpus
+ * depth to carry: a band anchored to the spine sat around nothing on any trace where the marks had
+ * moved down. Everything else clause 5 says still binds and is unchanged here — the raw `M of N`
+ * that never becomes a percentage, explicit-only forks, and marks that stay plain.
  *
- * ADR-0312 D6's RAW `M of N` DENOMINATOR IS NOT REPEALED BY THIS, and the distinction matters: the
- * fan still carries `offered N, observable M of N` on hover and on `data-offered`/`data-observable`,
- * and no percentage or ratio is introduced anywhere. What narrowed is the DENOMINATOR'S SURFACE, from
- * drawn-plus-stated to stated. A later change that drops the hover too WOULD repeal it.
+ * ⚠ RINGS COUNT BRANCHES, THEY DO NOT GAUGE. See `traversalOfferRings.ts`, which owns the radii and
+ * says it at more length: rings around a mark are one step from a dial, and a ring set encoding
+ * anything but the offer count would breach a clause nobody reopened.
  *
- * The rest of the rule stands. One ray per drawn candidate in RECORDED ORDER (ADR-0318 D3 — the set
- * is authoritative on which ids were offered and never on their order, so sorting would draw a
- * stable-looking sequence that is not what the agent saw), and no top-N and no truncation among the
- * ones drawn: a fan that quietly showed SOME of the followable branches would be exactly the
- * over-report the denominator exists to prevent.
+ * THE CENTRE IS RECORDED, NOT GUESSED. `row` and `x` come from the mark named by the offer's own
+ * recorded id (`candidate-set:<visitId>`), resolved by the mount. An offer whose printing visit this
+ * trace does not hold is NOT DRAWN — never parked on the spine, which is row 0 and now means "at the
+ * graph's surface". Measured across all 759 local traces, that branch is 0 of 2,106.
+ *
+ * UNOBSERVABLE CANDIDATES ARE STILL NOT DRAWN (ADR-0393 D3). The owner named these specifically at
+ * the previous LOOK: they are branches no CLI read could ever have followed — an ADR file pointer —
+ * so drawing them said "never available" rather than "declined". Measured on the trace he looked at,
+ * 373 branches offered and 261 followable, so 112 of them stood for roads that do not exist.
+ *
+ * ADR-0312 D6's RAW `M of N` DENOMINATOR IS NOT REPEALED BY EITHER CHANGE: the fan still carries
+ * `offered N, observable M of N` on hover and on `data-offered`/`data-observable`, and no percentage
+ * or ratio is introduced anywhere. A later change that drops the hover too WOULD repeal it.
+ *
+ * ONE RING PER DRAWN CANDIDATE IN RECORDED ORDER, innermost first (ADR-0318 D3 — the set is
+ * authoritative on which ids were offered and never on their order, so sorting would draw a
+ * stable-looking sequence that is not what the agent saw). No top-N and no truncation: a fan quietly
+ * showing SOME of the followable branches would be exactly the over-report the denominator exists to
+ * prevent. At large N the SPACING gives way, never the count.
  */
-function OfferFan({
+function OfferRings({
   offer,
   geometry,
+  row,
+  markY,
   visible,
 }: {
   offer: TraversalOffer;
   geometry: Geometry;
+  /** The drawn row of the mark that printed this offer, resolved by the mount from the corpus. */
+  row: number;
+  /** That mark's own axis position — the rings centre on the MARK, not on the offer's instant. */
+  markY: number;
   visible: boolean;
 }): React.JSX.Element {
-  const ox = geometry.x(offer.y);
+  const cx = geometry.x(markY);
+  const cy = geometry.depthY(row);
   // The recorded order is preserved by FILTERING rather than re-indexing: `candidates` keeps its
-  // order, the unobservable entries drop out, and the survivors fan in the order the agent saw them.
+  // order, the unobservable entries drop out, and the survivors ring outward in the order the agent
+  // saw them.
   const drawn = offer.candidates.filter((candidate) => candidate.status !== 'unobservable');
-  const count = drawn.length;
-  const spread = Math.min(26, 5 + count * 1.6);
-  const height = Math.max(10, geometry.offerBand - 12);
+  const rings = offerRingGeometry({
+    count: drawn.length,
+    markRadius: geometry.markRadius,
+    step: geometry.step,
+  });
   return (
     <g
       className={`traversal-offer${visible ? ' is-visible' : ''}`}
@@ -807,26 +917,31 @@ function OfferFan({
       data-offered={offer.offered}
       data-observable={offer.observable}
       data-followed={offer.followed}
-      data-drawn={count}
+      data-drawn={drawn.length}
+      data-row={row}
     >
       {/* The raw denominator survives HERE (ADR-0312 D6) now that the offer note below the picture is
           gone — `offered N, observable M of N`, never a ratio. */}
       <title>{`${offer.surfaceId} · ${offer.denominator}`}</title>
-      {drawn.map((candidate, index) => {
-        const ratio = count === 1 ? 0.5 : index / (count - 1);
-        return (
-          <line
-            key={`${offer.candidateSetId}#${candidate.nodeId}#${index}`}
-            className={`traversal-offer-ray status-${candidate.status}`}
-            data-testid="traversal-offer-ray"
-            data-status={candidate.status}
-            x1={ox}
-            y1={geometry.spineY - 2}
-            x2={ox + (ratio - 0.5) * spread}
-            y2={geometry.spineY - 2 - height}
-          />
-        );
-      })}
+      {drawn.map((candidate, index) => (
+        <circle
+          key={`${offer.candidateSetId}#${candidate.nodeId}#${index}`}
+          className={`traversal-offer-ring status-${candidate.status}`}
+          data-testid="traversal-offer-ring"
+          data-status={candidate.status}
+          cx={cx}
+          cy={cy}
+          r={rings.radii[index]}
+          // FOLLOWED is the state that departs; NOT-FOLLOWED is the plain ring at full weight. That
+          // is the ADR-0393 defect's own lesson: nothing is ever followed in practice, so a fan
+          // de-emphasising the near-universal state renders as texture rather than as a reading.
+          strokeWidth={
+            candidate.status === 'followed'
+              ? rings.strokeWidth * FOLLOWED_STROKE_SCALE
+              : rings.strokeWidth
+          }
+        />
+      ))}
     </g>
   );
 }
@@ -961,8 +1076,18 @@ function Legend(): React.JSX.Element {
         front matter only
       </span>
       <span className="traversal-legend-key">⌕ search</span>
+      {/* ⚠ THE LEGEND AND THE STYLESHEET MUST AGREE, and that is a defect fix rather than tidiness.
+          ADR-0393's was exactly this pair disagreeing — the legend said "solid ray not followed" over
+          CSS that drew it dashed — and it survived review because nothing is ever followed, so the
+          disagreeing state was the only one that ever occurred. `TraversalSpine.test.tsx` reads
+          `index.css` and pins these words against the rules that draw them. */}
       <span className="traversal-legend-key">
-        offer fan — one solid ray per branch the read could have taken
+        <svg width="22" height="16" aria-hidden="true">
+          <circle className="traversal-mark-dot" cx={11} cy={8} r={2.4} />
+          <circle className="traversal-offer-ring status-not-followed" cx={11} cy={8} r={4.8} />
+          <circle className="traversal-offer-ring status-not-followed" cx={11} cy={8} r={7.2} />
+        </svg>
+        offer rings — one solid ring per branch the read could have taken, innermost offered first
       </span>
       <span className="traversal-legend-key">
         <span className="traversal-legend-bar" aria-hidden="true">
