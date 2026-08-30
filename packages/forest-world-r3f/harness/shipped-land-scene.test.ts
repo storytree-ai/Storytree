@@ -19,6 +19,7 @@ import {
   GROUND_ROWS,
   GROUND_TOKENS,
   LAND_ARMS,
+  LAND_ARM_SPECS,
   LAND_STEPS,
   LAND_ZOOMS,
   PALETTE_CLOSED_ARMS,
@@ -26,16 +27,47 @@ import {
   shippedParcels,
 } from './shipped-land-scene.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
+import { buildGroundOcclusion } from '../src/contact-shade.js';
+import { groundShadowTexture } from '../src/banded-ground-material.js';
+import { LAND_RELIEF_AMPLITUDE } from '../src/land-relief.js';
+import { groundCasters } from '../src/ground-casters.js';
+import { worldTo3D } from '../src/world-to-3d.js';
+import { islandScene } from './island-fixture.js';
+import { occlusionGrid } from '../src/land-shadow.js';
 
-test('the ladder is a LADDER — every step changes exactly one rung, in order', () => {
-  assert.deepEqual([...LAND_ARMS], ['flat', 'relief', 'banded', 'grain-normal', 'grain-both']);
-  assert.equal(LAND_STEPS.length, LAND_ARMS.length - 1);
-  // Derived rather than written out: an arm inserted in the middle must move the steps with it,
-  // or the report would go on describing the old ladder while drawing the new one.
-  LAND_STEPS.forEach(([a, b], i) => {
-    assert.equal(a, LAND_ARMS[i]);
-    assert.equal(b, LAND_ARMS[i + 1]);
-  });
+/** A field small enough that building one is free — and checked, because under a broken
+ *  resolution cap it would be four million samples and the mutation rung scores a hang as
+ *  UNPROVEN rather than as a failure. */
+const TINY_OCCLUSION = {
+  bounds: { minX: -10, maxX: 10, minZ: -10, maxZ: 10 },
+  relief: LAND_RELIEF_AMPLITUDE,
+  casters: [],
+};
+
+test('the ladder is a LADDER WITH ONE FORK — every arm adds one thing to a NAMED predecessor', () => {
+  assert.deepEqual(
+    [...LAND_ARMS],
+    ['flat', 'relief', 'banded', 'grain-normal', 'shadow', 'grain-both'],
+  );
+  // ⚠ EACH ARM NAMES ITS OWN PREDECESSOR, and the shadow arm is what forced that. Two arms now
+  // hang off `grain-normal` — the shadow (a candidate) and the grain's colour half (a reference) —
+  // so an ORDINAL chain would publish `grain-both → shadow` as a one-thing comparison of two
+  // things. Every step must therefore be a spec's own (from, arm), never a neighbouring pair.
+  assert.equal(LAND_STEPS.length, LAND_ARM_SPECS.filter((spec) => spec.from !== null).length);
+  for (const [from, arm] of LAND_STEPS) {
+    const spec = LAND_ARM_SPECS.find((it) => it.arm === arm);
+    assert.ok(spec !== undefined, `${arm} is a step target with no spec`);
+    assert.equal(spec.from, from, `${arm} must be compared against the arm it extends`);
+    assert.ok(LAND_ARMS.includes(from), `${from} is a predecessor but not an arm`);
+  }
+  // Exactly one baseline, and it is the map as it drew before any of this.
+  assert.deepEqual(
+    LAND_ARM_SPECS.filter((spec) => spec.from === null).map((spec) => spec.arm),
+    ['flat'],
+  );
+  // THE FORK, named: both of these extend the arm that ships, and neither extends the other.
+  assert.equal(LAND_ARM_SPECS.find((it) => it.arm === 'shadow')!.from, 'grain-normal');
+  assert.equal(LAND_ARM_SPECS.find((it) => it.arm === 'grain-both')!.from, 'grain-normal');
   assert.deepEqual([...LAND_ZOOMS], [2, 8], 'the overview and the zoomed read, as everywhere else');
 });
 
@@ -67,6 +99,7 @@ test('the arm that SHIPS keeps the closure and the arm that does not is the only
   const tokens = [...GROUND_TOKENS];
   const closed = (src: string): boolean => /gl_FragColor = vec4\(c, 1\.0\);/.test(src);
   assert.ok(closed(createBandedGroundMaterial({ tokens }).fragmentShader));
+  assert.ok(occlusionGrid(TINY_OCCLUSION.bounds).w <= 300, 'the resolution cap is not capping');
   assert.ok(
     closed(createBandedGroundMaterial({ tokens, grain: 'normal' }).fragmentShader),
     "the grain's NORMAL half must still write an authored ramp entry — that is why it ships",
@@ -78,7 +111,20 @@ test('the arm that SHIPS keeps the closure and the arm that does not is the only
   );
   // And the driver's own exemption list has to agree with that, or the run would either refuse
   // the reference arm for being what it is or wave the shipping arm through.
-  assert.deepEqual([...PALETTE_CLOSED_ARMS], ['banded', 'grain-normal']);
+  // ⚠ THE SHADOW ARM IS HELD TO THE CLOSURE TOO, and that is the whole difference between the
+  // two forks off `grain-normal`. Its extra rung is `token x 0.77` — an authored `(token x level)`
+  // product — so the palette GROWS BY ONE ENTRY PER ROW rather than opening.
+  assert.ok(
+    closed(
+      createBandedGroundMaterial({
+        tokens,
+        grain: 'normal',
+        shadow: groundShadowTexture(buildGroundOcclusion(TINY_OCCLUSION)),
+      }).fragmentShader,
+    ),
+    'a shadowed fragment must still write an authored ramp entry',
+  );
+  assert.deepEqual([...PALETTE_CLOSED_ARMS], ['banded', 'grain-normal', 'shadow']);
   for (const arm of PALETTE_CLOSED_ARMS) {
     assert.ok(LAND_ARMS.includes(arm), `${arm} is held to the closure but is not an arm`);
   }
@@ -130,4 +176,25 @@ test('the ramp ROWS and the ramp TOKENS agree, status for status', () => {
   // NON-VACUITY: `unknown` is not row 0, so falling back to it is a real choice rather than the
   // default a zero-filled buffer would give.
   assert.notEqual(GROUND_ROWS.get('unknown'), 0);
+});
+
+test('THE CENSUS: the shipped map draws ONE object, and skips 1,088 that stand on its ground', () => {
+  // ⚠ THIS IS THE INCREMENT'S FINDING, and it bounds what a shadow can do here. `contact-shade.ts`
+  // was ranked FIRST of ten mechanisms separating the owner's references from our island — but it
+  // was ranked on the EXPERIMENT island, which stands 155 props. This map draws a story tree and
+  // nothing else, so one contact pool is not what "placed rather than pasted" meant. The shadow is
+  // bounded by the map's own emptiness rather than by the field, and it grows when the props do.
+  const descriptors = worldTo3D(islandScene());
+  const standing = descriptors.filter(
+    (d) =>
+      d.kind === 'skipped' &&
+      ['parcel-blade', 'parcel-flora', 'parcel-shrub', 'parcel-stem'].includes(d.sceneKind ?? ''),
+  );
+  const flowers = descriptors.filter(
+    (d) => d.kind === 'skipped' && (d.sceneKind ?? '').startsWith('tall-flower-'),
+  );
+  assert.equal(standing.length + flowers.length, 1088, 'the skipped ground-standing census moved');
+  assert.equal(descriptors.filter((d) => d.kind === 'story-tree').length, 1);
+  // And exactly one of them becomes a caster.
+  assert.deepEqual(groundCasters(descriptors), [{ x: 0, z: -6, radius: 7, height: 19 }]);
 });

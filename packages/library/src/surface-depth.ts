@@ -84,6 +84,7 @@ import {
   type DependencyGraph,
 } from "./knowledge-depth.js";
 import { type DecisionSupportResolver } from "./decision-support-seam.js";
+import { resolveDecisionSpelling } from "./decision-pointer.js";
 
 /** One bucket of the reached-depth distribution. */
 export interface SurfaceDepthBucket {
@@ -450,10 +451,24 @@ export function evaluateSurfaceDepth(
 
 /**
  * One id's reading. FOUR states — see {@link SurfaceDepthReading}; collapsing any two is the bug.
+ *
+ * ## IT ANSWERS FOR EVERY SPELLING OF A DECISION, INCLUDING THE ONE THAT PREDATES THE ROW
+ *
+ * A caller asks about the id a session READ, and a session that read a decision BEFORE ADR-0403 dec 1
+ * recorded the FILE it opened — `doc:decisions/0311-….md` — where a session today records `adr-0311`.
+ * {@link resolveDecisionSpelling} folds the file spellings onto the row id first, so one decision has
+ * one reading here no matter which era's trace is asking. Without it a historical read is answered
+ * ABSENT, and a decision's entire subtree of depth is withheld from every trace older than the
+ * migration (`traversal-panel-legacy-decision-reads-resolve` — measured on the richest local trace,
+ * `placed 16/77 · deepest 2` became `placed 60/74 · deepest 12`).
+ *
+ * It is a no-op on every id that is not a decision spelling, so a caller handing in ordinary artifact
+ * ids — which is every caller that reads the corpus rather than a trace — is unaffected byte for byte.
  */
 export function surfaceDepthOf(verdict: SurfaceDepthVerdict, id: string): SurfaceDepthReading {
   // A caller asks about the id a session READ — `adr-0012`, never `decision:0012`. See the header.
-  const canonical = verdict.canonicalIds.get(id) ?? id;
+  const spelled = resolveDecisionSpelling(id);
+  const canonical = verdict.canonicalIds.get(spelled) ?? spelled;
   const depth = verdict.depthById.get(canonical);
   if (depth !== undefined) return { state: "placed", depth };
   if (verdict.unlinkedIds.has(canonical)) return { state: "unlinked" };

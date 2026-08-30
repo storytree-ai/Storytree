@@ -152,6 +152,47 @@ export function parseDecisionPointer(pointer: string): DecisionPointer | null {
     spelling: match[1] === undefined ? "decisions" : "docs/decisions",
   };
 }
+
+/**
+ * PURE and TOTAL: fold any decision SPELLING onto the artifact id `adr-NNNN`. Everything else is
+ * returned unchanged.
+ *
+ * ## WHAT THIS IS FOR: A READ RECORDED UNDER THE NAME THE DECISION USED TO HAVE
+ *
+ * The three spellings in this module are the ones an AUTHOR writes into a `dependsOn`. A CONTEXT
+ * TRACE records a different population — the id an agent actually opened — and before ADR-0403 dec 1
+ * made a decision an ordinary Library row, opening one meant opening a FILE. So a trace written
+ * before the migration records `doc:decisions/0311-….md` where a trace written after it records
+ * `adr-0311`, for the identical act of reading the identical decision.
+ *
+ * A reader that looks the raw string up in today's corpus finds nothing under the old spelling and
+ * counts the read ABSENT — the decision's whole subtree of depth silently withheld from every
+ * historical trace. Measured on this machine's richest trace on 2026-08-30 (`traversal-panel-arc`,
+ * increment `traversal-panel-legacy-decision-reads-resolve`): `placed 16/77 · deepest 2` becomes
+ * `placed 60/74 · deepest 12`. The traces were never shallow; the lookup was failing on an obsolete
+ * spelling of a name.
+ *
+ * ## IT FOLDS ONTO THE ARTIFACT ID, NOT ONTO THE WALK NODE, AND THAT IS THE POINT
+ *
+ * `adr-NNNN` is exactly what a MODERN trace records, so a legacy read and a modern read of the same
+ * decision become the same string here and are answered by one code path from this line down. Folding
+ * onto {@link decisionNodeId} instead would give a legacy read a route into the graph that a modern
+ * read does not have, and the two spellings could then report different depths for one decision —
+ * which is the failure the whole module exists to prevent, reintroduced one floor lower.
+ *
+ * ## IT NEVER GUESSES, BECAUSE ABSENT IS NOT DEPTH 0
+ *
+ * TOTAL, not partial: a string that is not one of the three spellings comes back untouched, so a
+ * malformed path (`doc:decisions/x-nonumber.md`), a foreign directory (`doc:vendor/decisions/…`) and
+ * an ordinary research note (`doc:docs/research/…`) all stay whatever they were and are looked up as
+ * themselves — which is to say, they resolve to nothing and read ABSENT. Rounding an unresolvable id
+ * to a nearby decision would manufacture a depth for a read that never happened.
+ */
+export function resolveDecisionSpelling(id: string): string {
+  const decision = parseDecisionPointer(id);
+  return decision === null ? id : adrDocId(decision.number);
+}
+
 /**
  * PURE: the graph node id for a decision — `decision:0223`.
  *

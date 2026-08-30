@@ -3,12 +3,14 @@ import test from "node:test";
 
 import {
   DECISION_NODE_PREFIX,
+  adrDocId,
   decisionLabel,
   decisionNodeId,
   decisionNumberOfNodeId,
   isDecisionNodeId,
   parseDecisionPointer,
   renderCombinedNodeId,
+  resolveDecisionSpelling,
 } from "./decision-pointer.js";
 
 test("decision-pointer-resolves-both-live-spellings: the two forms name the same decision", () => {
@@ -80,4 +82,57 @@ test("decision-pointer-renders-decisions-as-labels-and-artifacts-as-themselves",
   assert.equal(decisionLabel(223), "ADR-0223");
   assert.equal(renderCombinedNodeId(decisionNodeId(223)), "ADR-0223");
   assert.equal(renderCombinedNodeId("merge-ceremony"), "merge-ceremony");
+});
+
+test("decision-pointer-folds-the-legacy-file-spelling-onto-the-row-id: a pre-ADR-0403 read resolves", () => {
+  // The exact shape a trace written before the migration records: the agent opened the FILE, so the
+  // file path is what the recorder saw. Today that decision is the row `adr-0311`.
+  assert.equal(
+    resolveDecisionSpelling("doc:decisions/0311-retire-gate-rungs-that-cannot-show-evidence.md"),
+    "adr-0311",
+  );
+  assert.equal(resolveDecisionSpelling("doc:docs/decisions/0311-retire-gate-rungs.md"), "adr-0311");
+  assert.equal(resolveDecisionSpelling("asset:adr-0311"), "adr-0311");
+  // A Windows-authored path folds too — `parseDecisionPointer` normalises the separator, and a
+  // resolver that only handled `/` would leave every trace recorded on this machine unresolved.
+  assert.equal(resolveDecisionSpelling("doc:docs\\decisions\\0311-retire.md"), "adr-0311");
+  // ALL FOUR LAND ON ONE STRING. That is the property the panel's distinct-artifact count rests on:
+  // a trace spanning the migration must not report one decision as two reads.
+  assert.equal(
+    new Set(
+      [
+        "doc:decisions/0311-a.md",
+        "doc:docs/decisions/0311-a.md",
+        "asset:adr-0311",
+        "adr-0311",
+      ].map(resolveDecisionSpelling),
+    ).size,
+    1,
+  );
+});
+
+test("decision-pointer-fold-is-total-and-never-guesses: an unresolvable id is returned untouched", () => {
+  // ABSENT IS NOT DEPTH 0. Each of these must come back as itself, so the lookup that follows finds
+  // nothing and reports absent — rather than being rounded onto a decision that was never read.
+  for (const id of [
+    "doc:decisions/no-number-here.md", // a decisions/ file with no four-digit prefix
+    "doc:decisions/311-short.md", // three digits — not the log's shape
+    "doc:docs/research/bun-runtime-probe-2026-08-22.md", // a research note, not a decision
+    "doc:vendor/decisions/0001-foreign.md", // a foreign directory's own numbering
+    "doc:decisions/0311-nested/inner.md", // the number is a directory, not the file
+    "merge-ceremony", // an ordinary artifact id
+    "adr-health-notes", // begins `adr-` and is not a decision
+    "story:studio", // a work anchor, outside this graph entirely
+    "library artifact", // a CLI token the recorder minted
+    "", // the empty string, which no branch may claim
+  ]) {
+    assert.equal(resolveDecisionSpelling(id), id, `must be returned untouched: ${id}`);
+  }
+});
+
+test("decision-pointer-fold-is-idempotent: folding an already-folded id changes nothing", () => {
+  // The panel folds at two seams (the dedup and the lookup) and a legacy id may pass through both.
+  const once = resolveDecisionSpelling("doc:decisions/0403-the-decision-log-moves.md");
+  assert.equal(resolveDecisionSpelling(once), once);
+  assert.equal(once, adrDocId(403));
 });
