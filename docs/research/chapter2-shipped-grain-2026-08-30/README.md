@@ -1,5 +1,14 @@
 # The shipped map's ground wears the grain — its palette-safe half, because the other one misreports
 
+
+> ⚠⚠ **EVERY FIGURE BELOW IS ABOUT THE FOUR-RUNG SHADE LADDER** `[0.78 0.80 0.90 1.00]`, which is
+> what shipped when it was measured. The map adopted a NINE-rung ladder at 0.025 spacing from 0.80
+> on 2026-08-31 (`adopt-the-refined-shade-ladder`), so any rung index, rung count, per-rung
+> separation or "one shade rung" comparison here is read at a coarser resolution than the map now
+> draws. The figures are not wrong — they are about a ladder the comparison page still renders, as
+> the arms pinned to `LEGACY_SHADE_LEVELS`. What moved, what did not, and why the derived constants
+> survived: `chapter2-shipped-adopted-ladder-2026-08-31/`.
+
 **Increment:** `cross-the-grain-octave-into-the-shipped-ground` on
 `adopt-the-land-into-the-shipped-map-arc`. **Date:** 2026-08-30. **Measured on:**
 `ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)`, read out of the live
