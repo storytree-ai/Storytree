@@ -45,7 +45,7 @@ import {
   cylinderTriangles,
   sphereTriangles,
 } from './shipped-baseline.js';
-import { LIGHT_DIRECTION } from '../src/shade-ladder.js';
+import { LIGHT_DIRECTION, SHADE_LEVELS } from '../src/shade-ladder.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SHIPPED = join(HERE, '..', 'src', 'ForestWorldCanvas.tsx');
@@ -168,13 +168,37 @@ test('the LIGHT is the light the shipped canvas actually hangs — and it is DER
   // it, plus that the numbers still agree; a canvas that went back to a literal would satisfy the
   // second and fail the first, which is the direction that matters.
   const src = readFileSync(SHIPPED, 'utf8');
-  assert.match(src, new RegExp(`<ambientLight intensity=\\{${SHIPPED_LIGHTING.ambientIntensity}\\}`));
+  // ⚠ THE INTENSITIES ARE DERIVED TOO, and asserting the DERIVATION rather than the number is the
+  // same rule as the direction below: a literal `0.78` in the JSX would agree with this table
+  // today and drift the moment the ladder's floor moved, which is the drift every unpinned
+  // transcription in this package has made at least once.
+  assert.ok(
+    src.includes('<ambientLight intensity={SHADE_LEVELS[0]!} />'),
+    "the ambient must be the ladder's FLOOR, read off the ladder",
+  );
   assert.match(
     src,
     /position=\{\[\s*LIGHT_DIRECTION\.x \* (\d+),\s*LIGHT_DIRECTION\.y \* \1,\s*LIGHT_DIRECTION\.z \* \1,?\s*\]\}/,
     'the key light must be aimed along LIGHT_DIRECTION, on all three axes at ONE distance',
   );
-  assert.match(src, new RegExp(`intensity=\\{${SHIPPED_LIGHTING.directionalIntensity}\\}`));
+  assert.ok(
+    src.includes('intensity={SHADE_LEVELS[SHADE_LEVELS.length - 1]! - SHADE_LEVELS[0]!}'),
+    'the key light must carry a face from the ladder floor to its top rung, read off the ladder',
+  );
+  // The two derivations agree: a fully lit white face lands on the ladder's TOP rung and an unlit
+  // one on its FLOOR — the range the ground beside it is quantised into.
+  assert.equal(SHIPPED_LIGHTING.ambientIntensity, SHADE_LEVELS[0]);
+  assert.equal(
+    SHIPPED_LIGHTING.ambientIntensity + SHIPPED_LIGHTING.directionalIntensity,
+    SHADE_LEVELS[SHADE_LEVELS.length - 1],
+  );
+  // ⚠ NON-VACUITY. The pair the canvas hung until 2026-08-30 summed to 1.8, which saturates
+  // anything with a texture on it — the first dressed frame delivered pale grey needles on PINK
+  // trunks. A test that only checked "the two agree" would pass for two copies of that.
+  assert.ok(
+    SHIPPED_LIGHTING.ambientIntensity + SHIPPED_LIGHTING.directionalIntensity <= 1,
+    'the lights overexpose anything carrying a texture',
+  );
   // And the two derivations agree numerically — the baseline scales by the same distance the
   // canvas does, so a comparison scene lights its arms exactly as the product lights its map.
   const [dx, dy, dz] = SHIPPED_LIGHTING.directionalPosition;

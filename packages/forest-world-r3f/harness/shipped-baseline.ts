@@ -26,7 +26,7 @@
 // repo does not own, so a transcription is the only option there and a refusal holds it.
 import { cellGroundTriangles } from '../src/cell-ground-geometry.js';
 import type { Descriptor3D } from '../src/world-to-3d.js';
-import { LIGHT_DIRECTION } from '../src/shade-ladder.js';
+import { LIGHT_DIRECTION, SHADE_LEVELS } from '../src/shade-ladder.js';
 
 /** Three.js `CylinderGeometry` torso triangles.
  *
@@ -302,8 +302,28 @@ export const SHIPPED_CROWN_COLOUR: ReadonlyMap<string, string> = new Map([
  *  THIS light direction. A comparison lit from somewhere else would be a picture of a land the
  *  map does not draw. */
 export const SHIPPED_LIGHTING = {
-  /** `<ambientLight intensity={…} />` */
-  ambientIntensity: 0.7,
+  /**
+   * `<ambientLight intensity={…} />`.
+   *
+   * ⚠⚠ DERIVED FROM THE LADDER SINCE 2026-08-30, and this too is a finding rather than a
+   * tidy-up. It was `0.7` against a directional `1.1`, chosen when every lit object on this map
+   * was a flat placeholder cone or cylinder whose own colour was the whole picture — for those,
+   * 1.8 of total intensity is merely bright. The bought kit is the first thing here with a
+   * TEXTURE, and 1.8 saturates it: the first dressed frame delivered pale grey needles on PINK
+   * trunks, which reads as a broken asset and is actually an overexposed one.
+   *
+   * The ladder already says what "lit" and "unlit" mean on this map, so the intensities are read
+   * off it — exactly the pair `calibrateLights` starts from: a fully lit white face lands on the
+   * ladder's TOP rung and an unlit one on its FLOOR, which is the range the ground beside it is
+   * quantised into.
+   *
+   * ⚠ WHAT IS NOT DONE HERE is that calibration's second half. `calibrateLights` then PROBES a
+   * live renderer and scales both intensities by `target / probe`, because a standard material's
+   * real response includes a specular term this arithmetic does not model. The shipped canvas runs
+   * no probe, so what it hangs is the authored intent rather than the measured correction — named
+   * rather than silently approximated, and it is what a later increment would close.
+   */
+  ambientIntensity: SHADE_LEVELS[0]!,
   /**
    * `<directionalLight position={…} />`, in world units.
    *
@@ -324,8 +344,9 @@ export const SHIPPED_LIGHTING = {
     LIGHT_DIRECTION.y * 400,
     LIGHT_DIRECTION.z * 400,
   ] as readonly [number, number, number],
-  /** `<directionalLight intensity={…} />` */
-  directionalIntensity: 1.1,
+  /** `<directionalLight intensity={…} />` — what carries a face from the ladder's floor to its
+   *  top rung. Derived with the ambient above; see its note. */
+  directionalIntensity: SHADE_LEVELS[SHADE_LEVELS.length - 1]! - SHADE_LEVELS[0]!,
   /** `<color attach="background" args={[…]} />` */
   background: '#101418',
 } as const;

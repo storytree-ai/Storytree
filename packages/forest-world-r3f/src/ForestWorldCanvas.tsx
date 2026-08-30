@@ -40,7 +40,7 @@ import type { ShadowCaster } from './land-shadow.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh.js';
 import { capabilityFactsFrom, dressIslandFromKit } from './kit-vocabulary.js';
 import { parcelCellsFrom } from './parcel-cells.js';
-import { LIGHT_DIRECTION } from './shade-ladder.js';
+import { LIGHT_DIRECTION, SHADE_LEVELS } from './shade-ladder.js';
 import {
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
@@ -555,7 +555,19 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
        `back * √2` away, so the same 1/4000 range still contains the whole world. */
     <Canvas orthographic camera={{ position: frame.position, near: 1, far: 4000 }}>
       <color attach="background" args={['#101418']} />
-      <ambientLight intensity={0.7} />
+      {/* ⚠⚠ THE INTENSITIES ARE READ OFF THE LADDER, and they were `0.7` / `1.1` until 2026-08-30.
+          That pair was chosen when every lit object here was a flat placeholder cone or cylinder
+          whose own colour WAS the picture; for those, 1.8 of total intensity is merely bright.
+          The bought kit is the first thing on this map with a TEXTURE, and 1.8 saturates it — the
+          first dressed frame delivered pale grey needles on PINK trunks, which reads as a broken
+          asset and is an overexposed one. So a fully lit white face now lands on the ladder's TOP
+          rung and an unlit one on its FLOOR: the same range the ground beside it is quantised
+          into, by derivation rather than by eye.
+          ⚠ This is the authored intent, not a measured calibration: `calibrateLights` also PROBES
+          a live renderer and scales both by `target / probe`, because a standard material's real
+          response carries a specular term this arithmetic does not model. The canvas runs no
+          probe. Named here rather than silently approximated. */}
+      <ambientLight intensity={SHADE_LEVELS[0]!} />
       {/* ⚠⚠ THE KEY LIGHT IS AIMED ALONG THE LAND'S OWN AUTHORED SUN, and it was not until
           2026-08-30. It sat at `[120, 300, 80]`, which normalises to (+0.36, +0.90, +0.24) —
           the OPPOSITE SIDE IN X from `LIGHT_DIRECTION`'s (-0.45, +0.83, +0.35). So every lit
@@ -570,7 +582,7 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
           sit outside any world. */}
       <directionalLight
         position={[LIGHT_DIRECTION.x * 400, LIGHT_DIRECTION.y * 400, LIGHT_DIRECTION.z * 400]}
-        intensity={1.1}
+        intensity={SHADE_LEVELS[SHADE_LEVELS.length - 1]! - SHADE_LEVELS[0]!}
       />
       <HexGround tiles={grounds} />
       <CellGround cells={cells} casters={casters} />
