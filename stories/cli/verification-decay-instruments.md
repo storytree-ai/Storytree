@@ -2,8 +2,8 @@
 id: "verification-decay-instruments"
 tier: capability
 story: cli
-title: "The chartered decay instruments — located, charged to their author, held to a per-instrument ceiling"
-outcome: "Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it."
+title: "The repo-reading decay instruments — located, charged to their author, held to a per-instrument ceiling"
+outcome: "Each of the five repo-reading chartered instruments reports the decay it locates as a finding charged to the branch that authored it."
 status: proposed
 proof_mode: integration-test
 depends_on: []
@@ -12,6 +12,31 @@ depends_on: []
 # (`unproven-seam-default`); ADR-0301 is the attribution half — a breach resting entirely on signals
 # this branch did not author is `inherited` and does not block the landing.
 decisions: [252, 278, 301]
+# ⚠ THE ROSTER IS SIX AND THIS CAPABILITY COVERS FIVE — narrowed in place 2026-08-31
+# (`prove-unproven-capabilities-arc` inc-23, on the inc-22 reading pass). Until then the title and
+# outcome said "every chartered instrument", which stopped being true when ADR-0424 D5 chartered
+# `decision-source-drift`: `CHARTERED_INSTRUMENTS` (verification-decay.ts:211-226) has SIX members,
+# and this unit's `scope` below binds neither `decision-source-decay.ts` nor its 28-test suite. An
+# adoption verdict recorded against the old wording would have attached to a claim the proof cannot
+# make — which is why it was corrected before adopting rather than after.
+#
+# THE BOUNDARY IS PRINCIPLED, NOT AN ARBITRARY FIVE, and the source states it at the sixth member's
+# own declaration: the five here take their facts from the REPO (story specs, route tables, test
+# files, check sources, package sources), while `decision-source-drift` is "the first member whose
+# subject is the LIBRARY tier instead of the repo's source — and therefore the first that dials the
+# store". A judge over injected repo facts and a judge that opens a database connection are not one
+# proof, and this unit's suite is fixture-only by design (see the honest limit below).
+#
+# ADR-0424 IS DELIBERATELY ABSENT FROM `decisions:` ABOVE. It charters the instrument this unit does
+# NOT cover, so listing it would re-assert the overclaim in the field a reader trusts most.
+#
+# ⚠ AND THE SIXTH IS OWNED BY NOBODY — a stated gap, not a hidden one. Verified 2026-08-31: no spec
+# under `stories/**` names `decision-source-decay` or `decision-source-drift` at all, so its 34.6 KB
+# of source and 28 tests are bound by no capability's proof block. Narrowing this unit is what makes
+# that gap VISIBLE; it does not create it, and closing it is a separate authoring call for
+# `story-author` (a sixth contract here, or a unit of its own) rather than something this correction
+# should decide unilaterally. The story-grain `repo-manifest.json` key `packages/cli/src/*decay*.ts`
+# does match the file, so ownership at STORY grain is intact — it is the capability grain that is empty.
 # A greenfield capability registered after its implementation and tests (the arc that authored it:
 # capability-layer-coverage-arc increment 5, 2026-08-08). It resolves ONE story-grain
 # `repo-manifest.json` declaration (`packages/cli/src/*decay*.ts`).
@@ -45,10 +70,16 @@ proof:
       - "packages/cli/src/decay-attribution.ts"
 ---
 
-# The chartered decay instruments — located, charged to their author, held to a per-instrument ceiling
+# The repo-reading decay instruments — located, charged to their author, held to a per-instrument ceiling
 
-**Outcome —** Every chartered verification instrument reports the decay it locates as a finding
-charged to the branch that authored it.
+**Outcome —** Each of the five repo-reading chartered instruments reports the decay it locates as a
+finding charged to the branch that authored it.
+
+**Five of six, and the sixth is nobody's —** `CHARTERED_INSTRUMENTS` holds SIX members; this unit
+binds the five whose facts come from the repo. The sixth, `decision-source-drift` (ADR-0424 D5),
+judges the LIBRARY tier and dials the store, and no spec under `stories/**` names it or its 34.6 KB
+of source at all. The frontmatter carries the full note; it is recorded here too because a reader
+who takes only the outcome away is the reader the old wording misled.
 
 **Depends on —** nothing within this story. `verification-decay.ts` reaches outside itself for
 exactly two things: the TypeScript compiler API, and `readTestCallTitle` from
@@ -60,13 +91,18 @@ parser, not a consumed outcome. It is a root.
 > `healthy`).** Storytree's prove-it-gate did not drive this red→green, but the code was built inside
 > Storytree, so ADR-0395 keeps its unsigned authored baseline at `proposed`.
 >
-> **The proof — 116 tests.** `verification-decay.test.ts` (103 `it()` across 24 `describe` blocks)
-> and `decay-attribution.test.ts` (13). Every one of the five instruments is held on BOTH sides —
-> what it locates AND its false-positive guards, as separate `describe` blocks — and the ceiling, the
-> attribution, the report and the escalation backstop each have their own.
+> **The proof — 123 tests.** `verification-decay.test.ts` (110 `it()` across 25 `describe` blocks)
+> and `decay-attribution.test.ts` (13). Each of the five instruments IN THIS SCOPE is held on BOTH
+> sides — what it locates AND its false-positive guards, as separate `describe` blocks — and the
+> ceiling, the attribution, the report and the escalation backstop each have their own.
+>
+> *(Counts re-measured 2026-08-31 by `grep -cE "^\s*(it|test)\(" ` and `grep -cE "^\s*describe\("`
+> over the two files; the figures they replace — 116 / 103 / 24 — had drifted as the suite grew.
+> They exclude `decision-source-decay.test.ts` (28 tests), which this unit does not bind: see the
+> six-versus-five note in the frontmatter.)*
 >
 > **THE HONEST LIMIT, STATED FIRST BECAUSE IT IS THE THING A READER WILL ASSUME OTHERWISE.** This
-> suite is **fixture-only**: zero of the 116 cases read the real repo tree. It builds its inputs from
+> suite is **fixture-only**: zero of the 123 cases read the real repo tree. It builds its inputs from
 > literal factories (`workspace()` `:39-46`, `binding()` `:48-50`, `surface()` `:161-164`,
 > `finding()` / `measured()` in `decay-attribution.test.ts:15-33`). So **`pnpm --filter
 > @storytree/cli test` reds when the JUDGE breaks, and never when the repo decays.** The command that
@@ -77,8 +113,8 @@ parser, not a consumed outcome. It is a root.
 > **THAT SPLIT IS WHY THE OUTCOME ABOVE IS A JUDGING OUTCOME, AND THE WORDING IS DELIBERATE.** This
 > unit does NOT claim "the repo's verification apparatus is free of decay"; nothing here could red on
 > that, and binding such an outcome to this suite would be the rubber stamp ADR-0085 / ADR-0097 §2
-> forbid. It claims that each chartered instrument LOCATES and CHARGES correctly — which is a fact
-> about this code, and which 116 tests observe directly. The module says the same of itself
+> forbid. It claims that each of the five repo-reading instruments LOCATES and CHARGES correctly —
+> which is a fact about this code, and which 123 tests observe directly. The module says the same of itself
 > (`verification-decay.ts:59-62`, *"Pure and injectable — every instrument judges FACTS handed to it,
 > never disk"*), and every instrument's own contract below is a locating claim, never an adjudicating
 > one.
@@ -179,10 +215,15 @@ that unresolved call and does not widen it.
 
 ## Integration test
 
-**Goal —** Prove that each chartered instrument returns exactly the findings its charter describes
-and no others — the located set AND the false-positive guards — that a finding is charged to the
-branch that authored it, that each instrument is held to its OWN ceiling with no fungibility between
-them, and that an instrument which sweeps nothing escalates instead of reporting a clean run.
+**Goal —** Prove that each of the five repo-reading instruments returns exactly the findings its
+charter describes and no others — the located set AND the false-positive guards — that a finding is
+charged to the branch that authored it, that each instrument is held to its OWN ceiling with no
+fungibility between them, and that an instrument which sweeps nothing escalates instead of reporting
+a clean run.
+
+The ceiling, attribution, report and escalation contracts below are written over the sweep as a
+whole, so they hold for any registered instrument including the sixth; it is the five per-instrument
+locating contracts (2-6) that bound this unit's scope.
 
 The integration-flavoured proof is `packages/cli/src/verification-decay.test.ts` plus
 `packages/cli/src/decay-attribution.test.ts`, run by `pnpm --filter @storytree/cli test`. Real
