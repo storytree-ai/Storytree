@@ -205,7 +205,7 @@ const groundRowOf = (material: string | undefined): number =>
  *  darkest rungs walks into `healthy`'s green under the house reader model, which is an
  *  ADR-0392 D5 / ADR-0398 D7 failure rather than a matter of taste. The largest fac every reading
  *  survives is 0.031. That fork is the owner's and is open;
- *  `oq-the-grain-s-colour-half-is-inadmissible-on-the-shipped-p` carries it. */
+ *  `oq-the-grain-s-colour-half-is-inadmissible-on-the-shipped-pa` carries it. */
 const BANDED_GROUND = createBandedGroundMaterial({ tokens: GROUND_TOKENS, grain: 'normal' });
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
