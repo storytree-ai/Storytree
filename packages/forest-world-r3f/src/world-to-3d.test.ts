@@ -559,6 +559,194 @@ test('a cell’s OWN status wins over the inherited one — the parcels-present 
   assert.deepEqual(materials, ['healthy', 'unhealthy']);
 });
 
+// ---------------------------------------------------------------------------
+// WHICH CAPABILITY A CELL BELONGS TO — the identity the shipped stream used to drop
+// ---------------------------------------------------------------------------
+//
+// ⚠ Until 2026-08-30 a `cell-ground` descriptor carried the FOLDED status and the ring and
+// nothing else, so a consumer could draw the ground and could NOT say which capability any part
+// of it reported on. That makes ADR-0475's ONE OBJECT PER CAPABILITY inexpressible on the shipped
+// path — and anything else that has to be counted per capability with it. `groundCellsFrom`
+// (`harness/island-descriptors.ts`) had read the identity off the scene since PR #1693; these
+// tests hold the same reading here, and a probe against the real fixture agrees with it exactly
+// (164 cells, 11 parcels, identical id sets).
+
+/** A relaxed-mesh ground fragment with real `parcel` groups between the ground and its cells —
+ *  the shape `scene.ts` emits when parcels are present (`kind: 'parcel'`, `id` = the capability). */
+function parcelledGround(
+  parcels: readonly { id?: string; kind?: SceneKind; cells: number }[],
+  groundStatus?: SceneStatus,
+): SceneG {
+  const cell: SceneNode = {
+    el: 'path',
+    kind: 'cell',
+    d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z',
+  };
+  const groups: SceneNode[] = parcels.map((p) => {
+    // ANNOTATED local, then a guarded assignment — `anti-slop/no-conditional-empty-object-spread`.
+    const g: SceneNode = {
+      el: 'g',
+      kind: p.kind ?? 'parcel',
+      children: Array.from({ length: p.cells }, () => cell),
+    };
+    if (p.id !== undefined) g.id = p.id;
+    return g;
+  });
+  const ground: SceneG = { el: 'g', kind: 'ground', children: groups };
+  if (groundStatus !== undefined) ground.status = groundStatus;
+  return ground;
+}
+
+const parcelsOf = (scene: SceneG): (string | undefined)[] =>
+  worldTo3D(scene)
+    .filter(asInstance)
+    .filter((d) => d.kind === 'cell-ground')
+    .map((d) => d.parcel);
+
+test('every cell carries the id of the parcel group it sits under', () => {
+  assert.deepEqual(
+    parcelsOf(parcelledGround([{ id: 'cap-a', cells: 2 }, { id: 'cap-b', cells: 1 }], 'healthy')),
+    ['cap-a', 'cap-a', 'cap-b'],
+    'the land is partitioned along the capability boundaries the scene declares',
+  );
+});
+
+test('⚠ an id on a group that is NOT a parcel is IGNORED — the plausible-wrong-partition trap', () => {
+  // ⚠ THE LOAD-BEARING ONE, and it is the reason this reads `kind` before it reads `id`. Every
+  // `<g>` on an island carries an `id` for its own reasons — a territory, a trail edge, a hit
+  // target — and a mapper that took `node.id` generally would partition the land along lines that
+  // are not capability boundaries. It would do it INVISIBLY: the resulting picture is an ordinary
+  // island, and every prop on it would assert about the wrong capability.
+  for (const kind of ['ground', 'territory', 'trail-edge'] as const) {
+    assert.deepEqual(
+      parcelsOf(parcelledGround([{ id: 'not-a-capability', kind, cells: 2 }], 'healthy')),
+      [undefined, undefined],
+      `a <g kind="${kind}" id=…> was mistaken for a parcel`,
+    );
+  }
+});
+
+test('a substrate with no parcel groups says so — absent, never a placeholder', () => {
+  // Absent is a real answer: a consumer must be able to tell "this cell belongs to capability X"
+  // from "this substrate does not say". A `''` or an `'unknown'` here would read as an identity.
+  const cells = worldTo3D(meshGround([UNIT_SQUARE, UNIT_SQUARE], { status: 'healthy' }))
+    .filter(asInstance)
+    .filter((d) => d.kind === 'cell-ground');
+  for (const c of cells) {
+    assert.equal(c.parcel, undefined);
+    assert.ok(!('parcel' in c), 'the key must be absent, not present-and-undefined');
+  }
+});
+
+test('a parcel group with no id of its own does not invent one', () => {
+  assert.deepEqual(parcelsOf(parcelledGround([{ cells: 2 }], 'healthy')), [undefined, undefined]);
+});
+
+test('a parcel id reaches a cell nested deeper than one level', () => {
+  // The core is free to put a wrapper between a parcel and its cells; the identity has to survive
+  // it, exactly as the status does.
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'ground',
+    status: 'healthy',
+    children: [
+      {
+        el: 'g',
+        kind: 'parcel',
+        id: 'cap-deep',
+        children: [
+          {
+            el: 'g',
+            children: [
+              { el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z' },
+            ],
+          },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(parcelsOf(scene), ['cap-deep']);
+});
+
+test('an inner parcel group wins over the outer one it sits in', () => {
+  // Nesting is not expected from the core today, and "the nearest declaration wins" is the same
+  // rule status already follows — so the two cannot drift into disagreeing about which ancestor
+  // an inherited value comes from.
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'ground',
+    status: 'healthy',
+    children: [
+      {
+        el: 'g',
+        kind: 'parcel',
+        id: 'outer',
+        children: [
+          {
+            el: 'g',
+            kind: 'parcel',
+            id: 'inner',
+            children: [
+              { el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z' },
+            ],
+          },
+          { el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z' },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(parcelsOf(scene), ['inner', 'outer']);
+});
+
+test('the parcel identity is independent of the status — two capabilities in one state stay distinct', () => {
+  // ⚠ `material` is the FOLDED status, so it cannot stand in for identity: eleven `healthy`
+  // capabilities are eleven copies of one value. That is exactly the real fixture's shape.
+  const ds = worldTo3D(
+    parcelledGround([{ id: 'cap-a', cells: 1 }, { id: 'cap-b', cells: 1 }], 'healthy'),
+  )
+    .filter(asInstance)
+    .filter((d) => d.kind === 'cell-ground');
+  assert.deepEqual(ds.map((d) => d.material), ['healthy', 'healthy']);
+  assert.deepEqual(ds.map((d) => d.parcel), ['cap-a', 'cap-b']);
+});
+
+test('a cell-wheat parcel carries its identity too — the same ground wearing a wheat look', () => {
+  assert.deepEqual(
+    parcelsOf(
+      ({
+        el: 'g',
+        kind: 'ground',
+        status: 'mapped',
+        children: [
+          {
+            el: 'g',
+            kind: 'parcel',
+            id: 'cap-wheat',
+            children: [
+              {
+                el: 'path',
+                kind: 'cell-wheat',
+                d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 L 10.0 0.0 Z',
+              },
+            ],
+          },
+        ],
+      }) satisfies SceneG,
+    ),
+    ['cap-wheat'],
+  );
+});
+
+test('no other family carries a parcel — it is a cell-ground field', () => {
+  // A `tile` IS a territory on the classic substrate, so a parcel id there would be an identity
+  // the scene never declared. The whole descriptor stream is swept rather than one family, so a
+  // future family that started carrying one would have to say so here.
+  for (const d of worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS }))).filter(asInstance)) {
+    if (d.kind === 'cell-ground') continue;
+    assert.ok(!('parcel' in d), `${d.kind} carries a parcel id`);
+  }
+});
+
 test('a parcel with no status anywhere falls back to unknown, never to undefined', () => {
   const cells = worldTo3D(meshGround([UNIT_SQUARE]))
     .filter(asInstance)

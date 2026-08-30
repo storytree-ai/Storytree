@@ -60,21 +60,17 @@ import { mulberry32 } from './mesh-kit.js';
 // 0. THE SPACE
 // ---------------------------------------------------------------------------
 
-/** A ground-space point. x east, z south — the space `landHeight(x, z)` takes. */
-export interface GPoint {
-  x: number;
-  z: number;
-}
+/** A ground-space point, and one cell's outline in it.
+ *
+ *  ⚠ BOTH SHAPES CROSSED INTO `src/parcel-cells.ts` ON 2026-08-30 with the bought kit, and are
+ *  re-exported here so this module's twenty-odd consumers are untouched. Only the TYPES crossed:
+ *  the 1,100 lines of scatter, grove, meander and loop machinery below stayed, because the
+ *  shipped map has no use for them — it needed a way to say what a cell IS, not a way to fill
+ *  one. `layoutCells` also stayed: it takes a harness `GroundCell`, and the shipped path reaches
+ *  the same shapes from descriptors through `parcelCellsFrom`. */
+export type { GPoint, LayoutCell } from '../src/parcel-cells.js';
 
-/** Every cell's outline in `{x, z}`, plus its parcel — the form the rest of this module
- *  works in. Converting once here is what stops the y-is-really-z trap being re-encountered
- *  downstream (see the header). */
-export interface LayoutCell {
-  points: GPoint[];
-  parcel: string | undefined;
-  status: string;
-  cellId: string | undefined;
-}
+import type { GPoint, LayoutCell } from '../src/parcel-cells.js';
 
 /** The island's ground cells, converted into this module's basis. The ONLY place the
  *  `y`-means-`z` identity is applied — every other function here takes `GPoint`. */
