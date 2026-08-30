@@ -608,6 +608,7 @@
       "packages/context-traversal-transcript/src/transcript-occupancy.ts": "transcript-occupancy-extraction",
       "packages/context-traversal-transcript/src/decision-reads.ts": "transcript-decision-read-extraction",
       "packages/context-traversal-transcript/src/ingest-decision-reads.ts": "transcript-decision-read-ingest",
+      "packages/context-traversal-transcript/src/ingest-receipt.ts": "context-traversal-transcript",
       "packages/context-traversal-transcript/src/index.ts": "context-traversal-transcript",
       "$comment_aperture": "NINTH BLOCK — the extension-aperture widening (`ownership-walk-extension-aperture`, 2026-08-18). `gatherSourceFiles` (packages/cli/src/ownership.ts) widened from `.ts`/`.tsx`-only to also walk `.mts`/`.cts`/`.mjs`/`.cjs` (test variants excluded, `.d.*` included, matching the pre-existing `.d.ts` treatment). The entries below are the newly-visible files this widening exposed, each declared per rule (1)/(7): capability grain ONLY where an existing capability's OWN scope.sourceGlobs already names the file (`camera-rasterisation-probe` for measure-camera-rasterisation.mjs), story grain everywhere else because no capability's stated proof reaches these author-time/harness/e2e scripts. This is a SEPARATE authoring pass from the eight numbered blocks above (those predate the aperture and cover only `.ts`/`.tsx`); it is deliberately not folded into the numbered rules, which is why it is its own top-level comment rather than a ninth numbered rule there.",
       "packages/cli/*.mjs": "cli",

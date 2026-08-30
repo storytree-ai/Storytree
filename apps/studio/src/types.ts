@@ -1123,6 +1123,15 @@ export type TraversalEventEnvelope =
 
 /** What may honestly be said about the occupancy series — mirrors the spawn package's `TraversalOccupancy`. */
 export interface TraversalOccupancyDeclaration {
+  /**
+   * WHICH RECORDER the plotted series came from, and it is always the harness (ADR-0484 D5).
+   *
+   * `residentInputTokens` has one producer — the host-transcript adapter's explicit
+   * `storytree traversal ingest` — so the bar plots a HARNESS-DERIVED reading even though
+   * {@link modelContextCount} mixes it with our own build-spawn observations. A declaration, never
+   * derived: a replay holding no observation could not tell you.
+   */
+  seriesProvenance: TraversalProvenance;
   /** How many `model_context` events were observed at all. */
   modelContextCount: number;
   /** How many of them carried `residentInputTokens` — the plottable series' true length. */
@@ -1177,6 +1186,61 @@ export interface TraversalDecisionPointReport {
   orphanFollows: unknown[];
 }
 
+// ---- which recorder wrote these observations (ADR-0484 D5), mirrored ----
+//
+// A trace holds TWO recorders' work: storytree's own CLI observer, which records a read as the
+// command runs, and the harness transcript scraper, which reads the host's session transcript
+// afterwards. The second is kept deliberately — the transcript is the only witness to what an agent
+// did that was NOT a storytree command — and is a SECONDARY source that must never be drawn as the
+// same tier as our own log.
+//
+// ARRIVES ALREADY CLASSIFIED, on the `decisionPoints` rule: the authority is
+// `traversal-harness-provenance.ts` in `@storytree/context-traversal-telemetry`, folded by the same
+// `replayTraversalSessionAllAdapters` composition `storytree traversal show` renders from. The panel
+// LOOKS UP a surface in what it was handed; it never re-derives which tier a surface belongs to,
+// because a second copy of that table is exactly how the panel and the CLI would come to disagree
+// about one trace.
+
+/** Which recorder an observation came from. `unclassified` is a real answer, never an error state. */
+export type TraversalProvenance = 'storytree-own' | 'harness-derived' | 'unclassified';
+
+/** One surface present in this trace, with the narrowness that qualifies any count taken over it. */
+export interface TraversalProvenanceSurface {
+  surfaceId: string;
+  count: number;
+  provenance: TraversalProvenance;
+  /** What this surface can observe AT ALL — the clause that stops a harness count over-reading. */
+  scope: string;
+  /** The storytree-own surface recording the same act, when one does. Absent = the ONLY witness. */
+  overlaps?: string;
+}
+
+/** The two recorders counted APART. Summing `own` and `harness` is the failure this prevents. */
+export interface TraversalProvenanceCensus {
+  total: number;
+  own: number;
+  harness: number;
+  unclassified: number;
+  /** Observations carrying no surface at all — counted so the total matches the replay's length. */
+  withoutSurface: number;
+  surfaces: TraversalProvenanceSurface[];
+}
+
+export interface TraversalProvenanceDeclaration {
+  census: TraversalProvenanceCensus;
+  /** Which tier wins where both saw one act. Rendered verbatim, never paraphrased. */
+  precedence: string;
+  /**
+   * Has a harness ingest ever run over this trace?
+   *
+   * FALSE IS NOT "NOTHING HAPPENED": neither harness ingest is ambient and a run that recovers
+   * nothing writes nothing, so an empty harness census with no receipt is UNMEASURED, not zero.
+   */
+  ingestRan: boolean;
+  /** One line to render verbatim: when each harness adapter last looked, or that none has. */
+  ingestNote: string;
+}
+
 /**
  * GET /api/traversal?session=&lt;id&gt; — one session's structured replay, carrying its own honesty:
  * the installed adapters' `skipped`/`partial` reading (a partial trace must never present as
@@ -1195,6 +1259,14 @@ export interface TraversalReplayPayload {
   occupancy: TraversalOccupancyDeclaration;
   /** The offer/follow join — the only thing an offer fan may be drawn from. */
   decisionPoints: TraversalDecisionPointReport;
+  /**
+   * WHICH RECORDER wrote these observations (ADR-0484 D5) — and whether the harness one ever ran.
+   *
+   * Rides the same payload as `partial` and `occupancy`, for the same reason: a picture that mixes
+   * our own log with a secondary source and does not say so is over-reporting, and the thing that
+   * makes it honest is never an optional extra fetch.
+   */
+  provenance: TraversalProvenanceDeclaration;
 }
 
 // ---------- the arc surface (GET /api/arcs, ADR-0267 / ADR-0314) ----------

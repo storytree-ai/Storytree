@@ -43,10 +43,12 @@ import {
 import {
   ContextTraversalCoverage,
   CoverageFeature,
+  PROVENANCE_PRECEDENCE,
   type ContextTraversalEvent,
 } from "@storytree/context-traversal-telemetry";
 
 import { collectTranscriptFiles } from "./correlate-transcripts.js";
+import { recordHarnessIngestRun } from "./ingest-receipt.js";
 import {
   DECISION_READ_SURFACES,
   scanTranscriptDecisionReads,
@@ -105,6 +107,20 @@ export interface DecisionReadIngestResult {
   readonly blind: boolean;
   /** True when the caller asked for a scan with no writes. */
   readonly dryRun: boolean;
+  /**
+   * The session traces this sweep stamped with an ingest RECEIPT (ADR-0484 D5 deliverable 4), so a
+   * later replay can tell a MEASURED zero from a session nobody ever swept.
+   *
+   * ⚠ ITS FLOOR IS NARROWER THAN THE SWEEP'S, AND THAT IS DECLARED RATHER THAN IMPLIED. A receipt is
+   * written for each session this sweep EXTRACTED A READ FOR. A session whose transcripts held no
+   * decision read at all is not in {@link DecisionReadIngestResult.sessions} and gets none, so its
+   * replay still reads NEVER RUN. That under-claims measurement rather than over-claiming it, which
+   * is the safe direction — but it is a floor, not a census, exactly like every other figure here.
+   * Empty on a dry run, which writes no byte by definition.
+   */
+  readonly receipted: readonly string[];
+  /** Sessions whose receipt could not be written. Reported, never swallowed. */
+  readonly receiptFailures: readonly string[];
 }
 
 export interface IngestDecisionReadsArgs {
@@ -114,6 +130,12 @@ export interface IngestDecisionReadsArgs {
   readonly transcriptDir: string;
   /** Scan and report without writing a byte. Default false. */
   readonly dryRun?: boolean;
+  /**
+   * The clock the receipt is stamped from, ISO-8601. Injected, so this module still consults no
+   * clock of its own and its tests stay exact — every event timestamp it writes comes from the
+   * transcript, and only the RUN's own time originates here.
+   */
+  readonly now?: () => string;
 }
 
 const EVENT_PREFIX = "host-transcript-decision-read:";
@@ -187,6 +209,9 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
   }
 
   const sessions: IngestedDecisionSession[] = [];
+  const receipted: string[] = [];
+  const receiptFailures: string[] = [];
+  const at = (input.now ?? (() => new Date().toISOString()))();
   let appended = 0;
 
   for (const [sessionId, reads] of [...bySession.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
@@ -219,6 +244,21 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
     }
     appended += appendedForSession;
     sessions.push({ sessionId, extracted: reads.length, appended: appendedForSession });
+
+    // THE RECEIPT (ADR-0484 D5 deliverable 4), and it is stamped on a RE-INGEST too — where
+    // `appendedForSession` is legitimately zero — because the fact recorded is that this adapter
+    // LOOKED, not that it wrote. A dry run stamps nothing: it declares it writes no byte.
+    if (!dryRun) {
+      const ok = recordHarnessIngestRun({
+        traceDir,
+        sessionId,
+        adapter: "host-transcript-decision-read",
+        observed: reads.length,
+        appended: appendedForSession,
+        at,
+      });
+      (ok ? receipted : receiptFailures).push(sessionId);
+    }
   }
 
   const bySize = (counts: Map<string, number>): DeclinedVerb[] =>
@@ -250,6 +290,8 @@ export function ingestDecisionReads(input: IngestDecisionReadsArgs): DecisionRea
     // other, honest zero: a machine with no decision traffic at all.
     blind: extracted === 0 && decisionMentions > 0,
     dryRun,
+    receipted,
+    receiptFailures,
   };
 }
 
@@ -441,6 +483,37 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
   lines.push("");
   lines.push("NOT COVERED AT ALL:");
   for (const omission of DECISION_READ_OMISSIONS) lines.push(`  - ${omission}`);
+
+  // WHICH TIER THIS IS, said on the report rather than left to the reader (ADR-0484 D5). Every
+  // number above is harness-derived, and the reason the distinction has teeth is the `cli` shape:
+  // it re-reads an invocation our own log already recorded, so the two counts must never be summed.
+  lines.push("");
+  lines.push("TIER: HARNESS-DERIVED — a SECONDARY source (ADR-0484 D5).");
+  lines.push(`  ${PROVENANCE_PRECEDENCE}.`);
+  lines.push(
+    "  It is kept for what we cannot source ourselves — the transcript is the only witness to what " +
+      "an agent did that was NOT a storytree command — and it is never a substitute for widening our " +
+      "own capture.",
+  );
+  lines.push(
+    "  Every surface it mints is DECISION-ONLY: an agent opening a decision record, four different " +
+      "ways. It is not general tool capture and a count taken from it is not files-the-agent-read.",
+  );
+  lines.push(
+    result.dryRun
+      ? "  receipts: none — a dry run writes no byte, so no session is stamped as measured."
+      : `  receipts: stamped ${result.receipted.length} session(s) as MEASURED by this adapter` +
+        (result.receiptFailures.length === 0
+          ? ""
+          : // EVERY failing session is named, not the first five. A truncated list with no "and N
+            // more" is a silent cap, and this report exists so that "we have no data" stays
+            // distinguishable from "nothing happened" — a cap would hide exactly the sessions whose
+            // measurement was lost. The list is bounded by the sweep's own session count.
+            `; ${result.receiptFailures.length} receipt(s) could not be written (${result.receiptFailures.join(", ")})`) +
+        ". A session this sweep extracted no read for is NOT stamped, so its replay still reads " +
+        "never-run — an under-claim of measurement, which is the safe direction.",
+  );
+
   lines.push("");
   lines.push(
     `coverage: adapter=${DECISION_READ_COVERAGE.adapterId} ` +

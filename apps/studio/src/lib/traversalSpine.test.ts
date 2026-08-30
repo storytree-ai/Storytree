@@ -9,6 +9,8 @@ import { describe, it, expect } from 'vitest';
 import type {
   TraversalDecisionPointReport,
   TraversalEventEnvelope,
+  TraversalProvenanceDeclaration,
+  TraversalProvenanceSurface,
   TraversalReplayPayload,
 } from '../types';
 import { buildTraversalSpine } from './traversalSpine';
@@ -44,9 +46,32 @@ function search(offsetMs: number): TraversalEventEnvelope {
   };
 }
 
+/**
+ * The provenance declaration the server folds (ADR-0484 D5). EMPTY by default rather than derived
+ * from the events: a fixture that classified surfaces itself would be a second copy of the server's
+ * table, which is precisely the drift the payload-carried classification exists to prevent. With no
+ * declaration, every mark reads `unclassified`, which is the honest answer for a payload that made
+ * no claim — the tests that care pass their own census.
+ */
+function provenance(
+  surfaces: TraversalProvenanceSurface[] = [],
+  ingestRan = false,
+): TraversalProvenanceDeclaration {
+  const own = surfaces.filter((s) => s.provenance === 'storytree-own').reduce((n, s) => n + s.count, 0);
+  const harness = surfaces.filter((s) => s.provenance === 'harness-derived').reduce((n, s) => n + s.count, 0);
+  const unclassified = surfaces.filter((s) => s.provenance === 'unclassified').reduce((n, s) => n + s.count, 0);
+  return {
+    census: { total: own + harness + unclassified, own, harness, unclassified, withoutSurface: 0, surfaces },
+    precedence: 'the storytree log is authoritative',
+    ingestRan,
+    ingestNote: ingestRan ? 'harness ingest: ran' : 'harness ingest: NEVER RUN',
+  };
+}
+
 function replay(
   events: TraversalEventEnvelope[],
   decisionPoints: TraversalDecisionPointReport = { points: [], orphanFollows: [] },
+  provenanceDeclaration: TraversalProvenanceDeclaration = provenance(),
 ): TraversalReplayPayload {
   return {
     sessionId: SESSION,
@@ -56,8 +81,15 @@ function replay(
     coverageCaveats: [],
     skipped: 0,
     partial: false,
-    occupancy: { modelContextCount: 0, observationCount: 0, declared: false, note: 'no occupancy observed' },
+    occupancy: {
+      seriesProvenance: 'harness-derived',
+      modelContextCount: 0,
+      observationCount: 0,
+      declared: false,
+      note: 'no occupancy observed',
+    },
     decisionPoints,
+    provenance: provenanceDeclaration,
   };
 }
 
@@ -245,5 +277,76 @@ describe('a mark carries the RECORDED visit id, so an offer fan can find the mar
     // A search's own `searchId` must never leak into this field: it would key the offer lookup on an
     // id no `candidate_set` can ever name, which is a silent miss rather than an honest null.
     expect(model.marks[0]?.visitId).toBeNull();
+  });
+});
+
+describe('which recorder wrote each observation rides the mark (ADR-0484 D5)', () => {
+  const OWN: TraversalProvenanceSurface = {
+    surfaceId: 'library-artifact',
+    count: 1,
+    provenance: 'storytree-own',
+    scope: 'one storytree read verb, recorded as it ran',
+  };
+  const HARNESS: TraversalProvenanceSurface = {
+    surfaceId: 'host-transcript-file-read',
+    count: 1,
+    provenance: 'harness-derived',
+    scope: 'a DECISION RECORD opened with the harness file tool, and NOTHING ELSE',
+  };
+
+  function onSurface(surfaceId: string, offsetMs: number, nodeId: string): TraversalEventEnvelope {
+    return {
+      kind: 'full_payload_read',
+      eventId: `event:${nodeId}:${offsetMs}`,
+      sessionId: SESSION,
+      at: at(offsetMs),
+      visitId: `visit:${nodeId}:${offsetMs}`,
+      nodeId,
+      surfaceId,
+    };
+  }
+
+  it('labels each mark from the payload it was handed, never from a table of its own', () => {
+    const model = buildTraversalSpine(
+      replay(
+        [onSurface('library-artifact', 0, 'adr-0484'), onSurface('host-transcript-file-read', 30_000, 'doc:decisions/0403-a.md')],
+        { points: [], orphanFollows: [] },
+        provenance([OWN, HARNESS]),
+      ),
+    );
+
+    expect(model.marks.map((mark) => mark.provenance)).toEqual(['storytree-own', 'harness-derived']);
+    // The narrowness travels with it, so a hover can say what that surface can observe at all.
+    expect(model.marks[1]?.provenanceScope).toContain('DECISION RECORD');
+    expect(model.marks[1]?.surfaceId).toBe('host-transcript-file-read');
+  });
+
+  it('falls to unclassified for a surface the payload did not classify, never to our own log', () => {
+    // THE SAFE DIRECTION. A surface an adapter minted and nobody declared must read as a tier a
+    // reader cannot weigh — drawing it as storytree's own log is the exact collapse D5 prevents.
+    const model = buildTraversalSpine(
+      replay([onSurface('some-new-adapter-surface', 0, 'x')], { points: [], orphanFollows: [] }, provenance([OWN])),
+    );
+    expect(model.marks[0]?.provenance).toBe('unclassified');
+    expect(model.marks[0]?.surfaceId).toBe('some-new-adapter-surface');
+    expect(model.marks[0]?.provenanceScope).toBeNull();
+  });
+
+  it('separates an event that recorded NO surface from one carrying an unclassified surface', () => {
+    // Both are `unclassified`, and only the second is a drift: the first is an old event from before
+    // surfaces were stamped, and nothing about it can be attributed either way.
+    const model = buildTraversalSpine(
+      replay([visit('full_payload_read', 0, 'arc')], { points: [], orphanFollows: [] }, provenance([OWN])),
+    );
+    expect(model.marks[0]?.provenance).toBe('unclassified');
+    expect(model.marks[0]?.surfaceId).toBeNull();
+  });
+
+  it('labels a search from its own surface too — it is an observation like any other', () => {
+    const model = buildTraversalSpine(
+      replay([search(0)], { points: [], orphanFollows: [] }, provenance([OWN])),
+    );
+    expect(model.marks[0]?.strength).toBe('search');
+    expect(model.marks[0]?.provenance).toBe('storytree-own');
   });
 });
