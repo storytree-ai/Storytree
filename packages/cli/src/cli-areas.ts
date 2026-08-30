@@ -87,6 +87,10 @@ export const CLI_AREAS = [
   // It supplies the number D6 says a session must be handed rather than estimate, and enforces
   // nothing — D8 keeps the marks reversible.
   "context",
+  // `storytree vocabulary` — which words are in heavy use here, and which of them resolve to no
+  // `definition` (`self-sustaining-sessions-arc`)? Offline, transcripts only, no store: it reports
+  // promotion candidates and authors nothing.
+  "vocabulary",
   // `storytree dispatch <handle>` — the caller's half of the ADR-0328 D3 handback: read a
   // backgrounded job's verdict ONCE, and report RUNNING / UNVERIFIED as non-verdicts rather than
   // folding them into a pass. Read-only, offline, no store.
