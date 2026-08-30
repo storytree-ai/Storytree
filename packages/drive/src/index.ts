@@ -61,7 +61,6 @@ export * from "./chat-stream.js";
 // orchestrate (the CI/git diagnosis surface). Observation only; each tool refuses a mutating arg.
 export * from "./inspect-deps.js";
 export * from "./wisp-smoke.js";
-export * from "./oq-gate.js";
 export * from "./resolve-report.js";
 export * from "./curate.js";
 export * from "./noticeboard.js";

@@ -16,8 +16,11 @@ depends_on: []
 decision is written as the `adr-NNNN` **row**; the `adr-health` suite — **seven** GATE checks, not
 just one — reddens a PR through the `check:adr-health` gate rung; and that rung **fails rather than
 skips** when the decision log cannot be read, so a green means the decisions were read and judged.
-This is the **dev-repo (PR) half of ADR-0037** decision binding (plus ADR-0050 number allocation);
-its build-drive counterpart is drive-machinery's `oq-hygiene-gate` (ADR-0037 §5).
+This is the **dev-repo (PR) half of ADR-0037** decision binding (plus ADR-0050 number allocation).
+Since 2026-08-30 it is the ONLY enforced half: ADR-0037 §5's build-drive counterpart,
+drive-machinery's `oq-hygiene-gate`, retired when ADR-0477 removed the library `references` field it
+read to find the open questions bearing on a story. Nothing on the live `story build` path enforces
+§5 now — this gate's scope is unchanged, and it never covered §5.
 
 ## Guidance
 
@@ -73,13 +76,19 @@ its build-drive counterpart is drive-machinery's `oq-hygiene-gate` (ADR-0037 §5
   two rungs passing over an empty list), and no guardrails carrying `enforcedBy`. The decision floor
   survived the move; the other two were dropped and nothing noticed, because the real corpus is never
   empty — exactly the shape that only fails on the day it matters.
-- **The ADR-0037 enforcement is deliberately split by TRIGGER SURFACE, not duplicated.** This gate is
-  the **PR-path** half (§3–4 structural health + ADR-0050 numbers, run in CI `verify`). The
-  **build-drive** half is drive-machinery's [`oq-hygiene-gate`](../drive-machinery/oq-hygiene-gate.md)
-  (§5), which refuses a live `story build` while an operator answer on a deciding ADR's open question
-  sits unprocessed — a different trigger (a storytree build, not a contributor PR). Keeping each half
-  with its trigger surface is the owner's call (2026-06-14); a future `decision-binding` substrate
-  story could absorb both, but is not authored.
+- **The ADR-0037 enforcement was deliberately split by TRIGGER SURFACE, not duplicated — and only
+  this half is left.** This gate is the **PR-path** half (§3–4 structural health + ADR-0050 numbers,
+  run in CI `verify`), and it is unchanged. The **build-drive** half was drive-machinery's
+  [`oq-hygiene-gate`](../drive-machinery/oq-hygiene-gate.md) (§5), which refused a live `story build`
+  while an operator answer on a deciding ADR's open question sat unprocessed — a different trigger (a
+  storytree build, not a contributor PR). It **RETIRED on 2026-08-30**: ADR-0477 removed the library
+  `references` field the gate read to find the questions bearing on a story, and `open-question` is
+  edge-free (ADR-0223 D1), so there is no field left in which a question can say which decision it is
+  about. Do NOT read that as this gate inheriting §5 — the two halves observe different objects on
+  different triggers, and §5 simply has no enforcement half now. Keeping each half with its trigger
+  surface was the owner's call (2026-06-14); a future `decision-binding` substrate story could absorb
+  both, and is where a §5 revival would belong (it would need a typed pointer on the `open-question`
+  kind, not a revived citation array).
 - Every leg now needs `pnpm db:up` — the allocator's reservation from `events.adr_number` and the
   rung's read of the decision rows alike. The registered offline proof should cover the pure layers
   (`adrHealth` takes injected views and returns `CheckResult[]`; the suite proves each rung's logic

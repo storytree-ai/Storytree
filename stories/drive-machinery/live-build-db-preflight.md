@@ -60,8 +60,10 @@ capability-grain edge is added.
 > binding around it is not, and contract 12's second half pins the two faces' RESULT SHAPE structurally
 > rather than executing either body. `realBudget` (`:103-114`) joins that pocket: it is the shared
 > `setTimeout` primitive both budgets run on, asserted only through the branch that omits the injected
-> seam (contract 15). This is the same shape [`oq-hygiene-gate`](oq-hygiene-gate.md) records for its
-> `loadLive` loader.
+> seam (contract 15). The shape is the house one for a live loader: a fully-covered pure core with a
+> thin, uncovered real-effects binding around it, declared rather than hidden.
+> ([`oq-hygiene-gate`](oq-hygiene-gate.md) recorded the same shape for its `loadLive` loader until it
+> retired on 2026-08-30 — that precedent is now history, so the declaration above stands on its own.)
 >
 > **One live observation, 2026-08-08 (not a signed verdict — an operator sighting).** `pnpm db:up`
 > against the real instance emitted the two new named legs before its verdict:

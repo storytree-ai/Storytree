@@ -82,7 +82,6 @@ import {
 import type { CommentSink, CuratorRunner, SdkCuratorRunnerArgs } from "./curate.js";
 import { deriveIdentity } from "./noticeboard.js";
 import type { SessionIdentity } from "./noticeboard.js";
-import { oqHygieneGate, type OqGateDeps } from "./oq-gate.js";
 import { emitWisp, gateEmitWisp } from "./wisp-smoke.js";
 import type { EmitWispArgs, EmitWispDeps, GateEmitWispOpts } from "./wisp-smoke.js";
 import { staleExistenceClaimRefusal } from "./stale-existence-claim.js";
@@ -360,8 +359,6 @@ export interface StoryBuildOpts {
   openPr?: boolean;
   /** PR title for `openPr` (defaults to `real: <story-id> proven via the gate`). */
   prTitle?: string;
-  /** Injectable OQ-hygiene row loader for tests (ADR-0037 §5); defaults to the live store. */
-  oqGateDeps?: OqGateDeps;
   /**
    * ADR-0067 — the post-green curation pass. `curatorRunner` defaults to a no-op
    * {@link ScriptedCuratorRunner} (the live SDK-spawned librarian-curator lands in a follow-up
@@ -611,9 +608,9 @@ export async function storyBuild(
 
   // ADR-0060/0081, narrowed by ADR-0099-B: only a REAL driven chain OWNS the database and persists —
   // `--store` resolves to `pg` for `--real`, and the preflight ENSURES the instance is up (probe →
-  // `db:up` + wait if down) BEFORE anything that touches it: the oq-hygiene gate's live loader composes
-  // the PgLibraryStore, and the verdict store is pg. A SYNTHETIC chain (`--dry-run`, or a `--live`
-  // add(2,3) smoke) is untouched (in-memory, never the DB) — a synthetic PASS must never persist a green.
+  // `db:up` + wait if down) BEFORE anything that touches it: the verdict store is pg. A SYNTHETIC chain
+  // (`--dry-run`, or a `--live` add(2,3) smoke) is untouched (in-memory, never the DB) — a synthetic
+  // PASS must never persist a green.
   const retryCmd = `storytree story build ${story.id} ${real ? "--real" : "--live"}`;
   const effectiveStore = effectiveVerdictStore(opts.verdictStore, mode !== "real");
   // The instance must be up to PERSIST verdicts AND to run any db-backed proof in the chain
@@ -641,11 +638,6 @@ export async function storyBuild(
       };
     }
   }
-
-  // ADR-0037 §5: open-question hygiene gates a LIVE/REAL build, before any store setup or spend.
-  // An unprocessed operator answer on a deciding ADR's OQ refuses the run; offline never refuses.
-  const hygiene = await oqHygieneGate(story, live || real, opts.oqGateDeps ?? {});
-  if (hygiene.refusal !== null) return hygiene.refusal;
 
   // ADR-0051 §4: assemble the live SDK leaf's per-phase system prompt from the Library once for the
   // whole chain (red-builder → AUTHOR_TEST, green-builder → IMPLEMENT). Fail-loud before any spend —
@@ -967,7 +959,6 @@ export async function storyBuild(
       `order:       ${order.map((n) => n.id).join(" → ")}`,
       `             (${capabilities.length} capabilities topo-ordered from depends_on, then the story's UAT node)`,
       `uat witness: ${witness}${story.uatWitness === undefined ? " (undeclared — the fail-closed default, ADR-0040)" : " (declared)"}${storyWithheld ? " — the story UAT node is withheld from the gate" : ""}`,
-      ...hygiene.lines,
       "",
       ...nodeLines,
       "",
