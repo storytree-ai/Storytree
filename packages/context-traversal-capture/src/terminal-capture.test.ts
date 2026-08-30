@@ -25,7 +25,8 @@ import { test } from "node:test";
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
 import { captureCliInvocation, showTraversalSession } from "./terminal-capture.js";
-import { readTraversalSession } from "./sink.js";
+import { readTraversalSession, appendTraversalEvents } from "./sink.js";
+import { readShipCursor } from "./store/ship.js";
 
 function freshDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `traversal-unit-${prefix}-`));
@@ -115,6 +116,68 @@ test("captureCliInvocation: capture disabled writes no trace at all (ADR-0241 D2
     now: () => AT,
   });
   assert.deepEqual(fs.readdirSync(dir), []);
+});
+
+test("captureCliInvocation: the FORWARD-ONLY ship baseline is stamped before the append (ADR-0484 D6)", () => {
+  const dir = freshDir("baseline");
+  const sessionId = "session-unit-baseline";
+
+  // Pre-landing history: two events written by a capture path that knew nothing about shipping.
+  appendTraversalEvents(
+    [
+      {
+        kind: "front_matter_read",
+        eventId: "old-1",
+        sessionId,
+        at: "2026-08-27T00:00:00.000Z",
+        visitId: "old-v1",
+        nodeId: "plan",
+      },
+      {
+        kind: "front_matter_read",
+        eventId: "old-2",
+        sessionId,
+        at: "2026-08-27T00:00:01.000Z",
+        visitId: "old-v2",
+        nodeId: "plan",
+      },
+    ],
+    { dir, sessionId },
+  );
+  const historyBytes = fs.statSync(path.join(dir, `${sessionId}.jsonl`)).size;
+
+  captureCliInvocation({
+    argv: ["library", "artifact", "plan"],
+    ok: true,
+    sessionId,
+    dir,
+    nextId: () => "visit-baseline",
+    now: () => AT,
+  });
+
+  // The cursor sits at the file's size BEFORE this invocation, so the two historical events are
+  // never shipped and this one is. A missing cursor here would make the session look like
+  // pre-landing history to the shipper and lose every event it goes on to write; a cursor at the
+  // file's CURRENT size would skip the event this invocation just appended.
+  assert.equal(readShipCursor(dir, sessionId)?.offset, historyBytes);
+  assert.ok(fs.statSync(path.join(dir, `${sessionId}.jsonl`)).size > historyBytes);
+});
+
+test("captureCliInvocation: an invocation that observes nothing stamps no baseline either", () => {
+  const dir = freshDir("no-baseline");
+  captureCliInvocation({
+    argv: ["library", "artifact", "edit", "plan"],
+    ok: true,
+    sessionId: "session-unit-no-baseline",
+    dir,
+    nextId: () => "visit-none",
+    now: () => AT,
+  });
+  // A write-shaped command writes no line, so there is nothing to baseline AGAINST — and a cursor
+  // minted here would enrol a session in the sweep on the strength of a command that recorded
+  // nothing.
+  assert.deepEqual(fs.readdirSync(dir), []);
+  assert.equal(readShipCursor(dir, "session-unit-no-baseline"), null);
 });
 
 test("showTraversalSession: the render declares the SURVIVING outermost coverage, not a retired outer layer", () => {

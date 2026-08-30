@@ -1,7 +1,8 @@
 #!/usr/bin/env -S tsx
 import path from "node:path";
 import process from "node:process";
-import { pathToFileURL } from "node:url";
+import { spawn } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { HttpStore, type Store } from "@storytree/storage-protocol";
 import {
@@ -12,9 +13,20 @@ import {
 } from "@storytree/library/store";
 import {
   captureCliInvocation,
+  isTraversalCaptureEnabled,
   resolveAgentDescent,
   resolveTraceIdentity,
+  resolveTraversalDir,
 } from "@storytree/context-traversal-capture";
+import {
+  isShipChildProcess,
+  markShipAttempt,
+  PgTraversalEventStore,
+  shouldStartShip,
+  SHIP_CHILD_ENV,
+  SHIP_WATCHDOG_MS,
+} from "@storytree/context-traversal-capture/store";
+import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 import type {
   CaptureCliInvocationInput,
   TraceIdentity,
@@ -78,6 +90,14 @@ async function buildStore(usePg: boolean): Promise<{
   /** The studio member directory (ADR-0043) — `storytree members`; null off --pg (no door, no offline form). */
   members: MemberStoreLike | null;
   adr: AdrAllocatorLike | null;
+  /**
+   * The SHARED context-traversal log (ADR-0484 D1) — `storytree traversal ship`; null off --pg.
+   *
+   * It rides the pool `--pg` ALREADY opened and never opens one of its own, which is the whole of
+   * how ADR-0484 D4's "a bare read must not open a pool it did not already need" is held here: off
+   * this branch the seam is simply absent, and the ship verb refuses.
+   */
+  traversalEvents: TraversalEventStore | null;
   /** The cursor-once overlap-delta pull (ADR-0200 D4); null offline — no footer surface. */
   pullDeltas: ((sessionId: string) => Promise<OverlapDelta[]>) | null;
   close: () => Promise<void>;
@@ -118,6 +138,10 @@ async function buildStore(usePg: boolean): Promise<{
       // The ADR-number allocator (ADR-0050): `storytree adr new` reserves the next number through
       // events.adr_number on the same pool; offline it falls back to max+1 with a loud warning.
       adr: new PgAdrStore(pool),
+      // The shared traversal event log (ADR-0484 D1): `storytree traversal ship` drains this
+      // machine's local JSONL traces into events.traversal_event over the same pool. Nothing on a
+      // command's own path reads this seam — the capture path writes locally and returns.
+      traversalEvents: new PgTraversalEventStore(pool),
       // The cursor-once overlap-delta pull (ADR-0200 D4): every --pg command's envelope render
       // piggybacks the deltas that touch this session's own claims — see main() below.
       pullDeltas: (sessionId: string) => claimStore.pullOverlapDeltas(sessionId),
@@ -141,6 +165,7 @@ async function buildStore(usePg: boolean): Promise<{
       attestations: null,
       members: null,
       adr: null,
+      traversalEvents: null,
       pullDeltas: null,
       close: async () => {},
     };
@@ -181,6 +206,7 @@ async function buildStore(usePg: boolean): Promise<{
     attestations: null,
     members: null,
     adr: null,
+    traversalEvents: null,
     pullDeltas: null,
     close: async () => {
       if (opened !== null) await opened.close();
@@ -305,12 +331,20 @@ function resolveInvocationIdentities(): InvocationIdentities {
  * FAIL-SILENT and ADDITIVE, like the delta footer and the traversal capture beside it: a `null`
  * identity (the primary checkout, CI) registers nothing, and a registry write that throws leaves the
  * command untouched and simply uninventoried — the state every run was in before this existed.
+ *
+ * ⚠ THE DETACHED TELEMETRY SHIPPER IS THE ONE DELIBERATE EXCEPTION (ADR-0484 D4). It runs in this
+ * worktree and would therefore register under this session's identity — and `storytree own` is what
+ * the closing leg asks before a session may call itself inert, where a LIVE row means "you are still
+ * running something". The shipper is ambient telemetry the session did not start and cannot be asked
+ * to wait for, so counting it would make every session's closing check answer BUSY for a process
+ * nobody is holding. It is bounded by its own watchdog instead.
  */
 function registerThisInvocation(
   argv: readonly string[],
   identity: { sessionId: string; branch: string } | null,
 ): () => void {
   if (identity === null) return () => {};
+  if (isShipChildProcess(process.env)) return () => {};
   try {
     const filePath = registerSpawn({
       sessionId: identity.sessionId,
@@ -365,10 +399,58 @@ async function captureInvocation(
     // identity grade rather than inferring it from the id's shape.
     if (trace !== null) capture = { ...capture, grade: trace.grade, slot: trace.slot };
     captureCliInvocation(capture);
+    // The event is now DURABLE LOCALLY. Everything after this point is out of band: the ship is a
+    // detached process this command does not wait for, and does not learn the outcome of
+    // (ADR-0484 D4). Inside the same try/catch, on the same never-break-a-command rule.
+    startTraversalShip(trace?.sessionId ?? null);
   } catch {
     // Telemetry never breaks a command — the envelope is the payload, and a trace that could not be
     // written must not reach the caller's control flow, exit code, or envelope (ADR-0241 D3).
     // "A courtesy" is withdrawn as too weak (ADR-0484 D4): what stands is that it never BLOCKS.
+  }
+}
+
+/**
+ * Start the out-of-band ship, if this invocation is the one that should (ADR-0484 D4).
+ *
+ * THE COMMAND DOES NOT WAIT. This spawns a DETACHED, unref'd process and returns; the event is
+ * already durable in this machine's local trace, so losing the spawn loses nothing but latency. It
+ * is the difference between "the log lives in Postgres" and "someone remembers to run a command".
+ *
+ * THE DECISION IS NOT HERE. `shouldStartShip` owns the five rules and is pure, testable and beside
+ * the ship path it governs; what is left here is the one line that cannot be exercised without
+ * starting a real process against a real database. That split is deliberate — a test of this
+ * function would have to spawn, and a suite that spawns a `--pg` child reaches the live store.
+ *
+ * FAIL-SILENT throughout, on the capture path's own contract (ADR-0241 D3): a spawn that cannot
+ * start leaves the backlog where it is, which `storytree traversal backlog` will report.
+ */
+function startTraversalShip(sessionId: string | null): void {
+  try {
+    const dir = resolveTraversalDir();
+    const now = new Date();
+    const start = shouldStartShip({
+      sessionId,
+      env: process.env,
+      dir,
+      now,
+      captureEnabled: isTraversalCaptureEnabled(),
+    });
+    if (!start) return;
+    // Marked BEFORE the spawn: a shipper that then hangs must not leave the machine unthrottled.
+    markShipAttempt(dir, now);
+    const child = spawn(
+      process.execPath,
+      [fileURLToPath(new URL("../launch.mjs", import.meta.url)), "traversal", "ship", "--pg"],
+      {
+        detached: true,
+        stdio: "ignore",
+        env: { ...process.env, [SHIP_CHILD_ENV]: "1" },
+      },
+    );
+    child.unref();
+  } catch {
+    // Telemetry never breaks a command. An unstartable shipper is a backlog, not an error.
   }
 }
 
@@ -384,6 +466,13 @@ export async function main(): Promise<void> {
   // (which would demote every forwarded flag, e.g. --dry-run/--check, to a positional).
   const raw = process.argv.slice(2);
   const argv = raw[0] === "--" ? raw.slice(1) : raw;
+  // THE DETACHED SHIPPER BOUNDS ITSELF. It has no parent watching it and no terminal to notice it,
+  // so a `createPool` that hangs against a stopped instance would leave an invisible process
+  // burning on a shared box — the shape `storytree own` exists to make findable, and which this one
+  // is deliberately absent from. `unref()` so the deadline never keeps a healthy run alive.
+  if (isShipChildProcess(process.env)) {
+    setTimeout(() => process.exit(0), SHIP_WATCHDOG_MS).unref();
+  }
   // Hydrate credentials (CLAUDE_CODE_OAUTH_TOKEN / STORYTREE_DB_USER) from
   // ~/.storytree/secrets.json when the env doesn't already carry them — env always wins
   // (CURSOR_API_KEY hydration retired with the Cursor leaf — ADR-0198).
@@ -406,8 +495,20 @@ export async function main(): Promise<void> {
   // hangs on the connector handshake is precisely the one a session needs to be able to find.
   const deregister = registerThisInvocation(argv, identity);
   const usePg = argv.includes("--pg");
-  const { store, claims, ledger, verdicts, workLog, uatStore, attestations, members, adr, pullDeltas, close } =
-    await buildStore(usePg);
+  const {
+    store,
+    claims,
+    ledger,
+    verdicts,
+    workLog,
+    uatStore,
+    attestations,
+    members,
+    adr,
+    traversalEvents,
+    pullDeltas,
+    close,
+  } = await buildStore(usePg);
   try {
     // Writes only persist against the live --pg store; the offline copy is read-only-by-convention.
     const actor = process.env["STORYTREE_ACTOR"];
@@ -423,6 +524,7 @@ export async function main(): Promise<void> {
       attestations,
       members,
       adr,
+      traversalEvents,
     };
     // The claim NAMESPACE (ADR-0310 D2) — supplied HERE and only here, because this is the one
     // place that knows the store is the live corpus rather than a test double. A memoised loader,

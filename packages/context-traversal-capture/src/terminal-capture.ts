@@ -32,6 +32,7 @@ import {
   readTraversalSession,
   resolveTraversalDir,
 } from "./sink.js";
+import { ensureShipBaseline } from "./store/ship.js";
 
 const TRAVERSAL_TOGGLE_ENV = "STORYTREE_TRAVERSAL";
 
@@ -174,6 +175,11 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   });
 
   const dir = input.dir ?? resolveTraversalDir();
+  // The FORWARD-ONLY ship baseline (ADR-0484 D6), stamped BEFORE the append so that the events this
+  // invocation is about to write are the first that can ever reach the shared store — and so that a
+  // session's pre-landing history is left exactly where it is. A no-op for every invocation after
+  // the first in a session, and fail-silent like everything else on this path.
+  ensureShipBaseline(dir, sessionId);
   // A revisit link needs the session's EARLIER visits, which live only in the trace already on disk
   // (each invocation is its own process). Read them back through the sink's tolerant reader — a
   // missing or partly-corrupt file replays as whatever IS readable, so a bad line costs at most a

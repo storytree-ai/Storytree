@@ -96,6 +96,7 @@ import {
   type CountCommitsSince,
 } from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
+import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./session-cost.js";
 // `context` — this session's OWN context-window occupancy, the number ADR-0411 D6 says a session
@@ -2056,6 +2057,16 @@ export interface RunDeps {
   readonly attestations?: AttestationStoreLike | null;
   /** The studio member directory (ADR-0043) — `storytree members`; null/absent off --pg. */
   readonly members?: MemberStoreLike | null;
+  /**
+   * The SHARED context-traversal log (ADR-0484 D1): the live store when --pg; null/absent otherwise,
+   * where `storytree traversal ship` refuses rather than opening a pool.
+   *
+   * Only `ship` reads this seam, and that narrowness is the decision, not an omission: telemetry is
+   * written to this machine's local trace synchronously and drained here OUT OF BAND, so no other
+   * command — least of all a bare read — may acquire a database connection on account of the log
+   * (ADR-0484 D4).
+   */
+  readonly traversalEvents?: TraversalEventStore | null;
   /**
    * The verdict event log as a WRITE surface (ADR-0082 `uat attest`): the live work store when --pg
    * (the same PgWorkStore as `verdicts`, here typed to expose `appendEvent`); null/absent offline —
@@ -4100,13 +4111,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   }
 
   if (area === "traversal") {
-    // The captured-trace surface (ADR-0235 / ADR-0241). Local JSONL only — offline-safe, never
-    // `--pg`: `list`/`show` read it, and `ingest` (ADR-0248 D1) reads this session's host
-    // transcripts and appends their occupancy to the same local trace. The compositions live in
-    // `@storytree/context-traversal-capture`, `-spawn`, and `-transcript`; this branch is declared
-    // glue (ADR-0158) and is claimed by no capability.
+    // The captured-trace surface (ADR-0235 / ADR-0241 / ADR-0484). `list` / `show` / `ingest` /
+    // `backlog` are local reads and stay offline-safe; `ship` is the ONE verb here that talks to the
+    // database, and it refuses without `--pg` rather than opening a pool a read never needed. The
+    // compositions live in `@storytree/context-traversal-capture`, `-spawn`, and `-transcript`; this
+    // branch is declared glue (ADR-0158) and is claimed by no capability.
     if (help) return traversalHelp();
-    return traversalCommand(sub, third);
+    return traversalCommand(sub, third, { traversalEvents: deps.traversalEvents ?? null });
   }
 
   if (area === "agents") {

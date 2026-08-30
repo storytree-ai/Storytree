@@ -3,9 +3,10 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Durable per-session context-traversal capture at the terminal CLI boundary: a local JSONL sink, the argv read-allowlist, and the replay query (ADR-0235 / ADR-0241).",
+  "description": "Durable per-session context-traversal capture at the terminal CLI boundary: a local JSONL sink, the argv read-allowlist, and the replay query (ADR-0235 / ADR-0241). The shared Postgres event log and the asynchronous shipper that fills it live behind ./store (ADR-0484).",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./store": "./src/store/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

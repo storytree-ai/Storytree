@@ -575,3 +575,40 @@ CREATE INDEX IF NOT EXISTS work_capability_story_idx ON events.work_capability (
 CREATE INDEX IF NOT EXISTS work_criterion_story_idx ON events.work_criterion (story_id);
 CREATE INDEX IF NOT EXISTS work_criterion_revision_idx ON events.work_criterion (criterion_id, revision_id);
 CREATE INDEX IF NOT EXISTS work_gate_story_idx ON events.work_gate (story_id);
+
+-- ---------------------------------------------------------------------------
+-- The shared CONTEXT-TRAVERSAL EVENT LOG (ADR-0484 D1): storytree's own telemetry, moved out of
+-- per-machine JSONL and into the one store. Our own commands are recorded by our own process into
+-- our own store; nothing about capturing a `storytree` command depends on the harness.
+--
+-- WRITTEN OUT OF BAND, NEVER ON THE COMMAND'S PATH (ADR-0484 D4). The capture path still writes the
+-- local JSONL line synchronously and returns; a separate, detached shipper drains that file into
+-- this table and retries. So a row here is a SHIPPED copy of a durable local line — `shipped_at` is
+-- when it arrived, `observed_at` (the event's own `at`) is when it happened, and the two differ by
+-- however long the ship took. A command never waits on this table and never fails because of it.
+--
+-- `event_id` is UNIQUE rather than the primary key so `seq` can carry APPEND ORDER, which is the
+-- only "earlier" the producer is allowed to know (ADR-0235) and the order the JSONL reader returns.
+-- The uniqueness is what makes a re-ship idempotent: a retry after a partial failure re-sends lines
+-- that may already have landed, and `ON CONFLICT (event_id) DO NOTHING` absorbs them.
+--
+-- `grade` / `slot` are the line-identity attributes the JSONL sink stamps beside each event
+-- (`linked-session-context-arc-inc-30`), carried across unchanged: NULL is a legacy slot-era line
+-- and is labelled, never retrofitted.
+--
+-- ⚠ HISTORY IS NOT MIGRATED (ADR-0484 D6, owner-directed). Every existing local trace stays valid
+-- and stays where it is; a reader spanning the change reads two stores. The shipper baselines a
+-- session's cursor at the file's CURRENT END the first time it appends after this landing, so what
+-- lands here is what was traced FORWARD from it.
+CREATE TABLE IF NOT EXISTS events.traversal_event (
+  seq         BIGSERIAL PRIMARY KEY,
+  event_id    TEXT NOT NULL UNIQUE,
+  session_id  TEXT NOT NULL,
+  observed_at TIMESTAMPTZ NOT NULL,   -- the event's own `at`, never the ship time
+  grade       TEXT,                   -- window|declared; NULL = the legacy slot era
+  slot        TEXT,                   -- the worktree slot, a GROUPING attribute beside the identity
+  event       JSONB NOT NULL,         -- the whole ContextTraversalEvent, validated before it ships
+  shipped_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS traversal_event_session_idx ON events.traversal_event (session_id, seq);
