@@ -8,6 +8,22 @@ status: proposed
 proof_mode: integration-test
 depends_on: [proof-binding-outcome-contract]
 decisions: [180, 249]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. The single contract
+# `accounts-for-every-machine-leg` is exercised today by `machine-leg-binding-audit.test.ts`, whose
+# two cases are the completeness claim ("emits one deterministic provenance-bearing row for every and
+# only machine criterion") and the refusal-retention claim ("a newly parsed unbound machine leg grows
+# the report by one refusal") — the fixture corpus, the reordered gates and all four refusal cases the
+# contract names.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/library", "test"]
+  scope:
+    testGlobs:
+      - "packages/library/src/machine-leg-binding-audit.test.ts"
+    sourceGlobs:
+      - "packages/library/src/machine-leg-binding-audit.ts"
 ---
 
 # Audit every machine UAT leg into a proof-binding outcome

@@ -7,6 +7,24 @@ outcome: "A per-test attestation persists as an append-only signed signal (human
 status: proposed
 proof_mode: integration-test
 depends_on: [uat-test-units]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. The append-only signal log
+# and its pure derivation are exercised today by the orchestrator suite:
+# `store/attestation-store.test.ts` proves the `events.attestation` write boundary (its own family,
+# never `events.verdict`), the latest-signal-per-(testId,witness) projection and the retained
+# history; `proof/attestations.test.ts` proves `deriveAttestations` keys by test id, records signer +
+# relayedBy provenance, grants nothing on a malformed signal, and rolls nothing up to the story.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/orchestrator", "test"]
+  scope:
+    testGlobs:
+      - "packages/orchestrator/src/store/attestation-store.test.ts"
+      - "packages/orchestrator/src/proof/attestations.test.ts"
+    sourceGlobs:
+      - "packages/orchestrator/src/store/attestation-store.ts"
+      - "packages/orchestrator/src/proof/attestations.ts"
 ---
 
 # A per-test attestation is an append-only signed signal, never a gate verdict

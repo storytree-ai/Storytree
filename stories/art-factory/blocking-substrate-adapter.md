@@ -7,6 +7,29 @@ outcome: "An author-time, vendor-swappable adapter produces a thrown-away genera
 status: proposed
 proof_mode: integration-test
 depends_on: [art-pipeline]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. The package landed
+# 2026-07-21 (`ff98fbc8`) and its tests are NAMED for these contracts:
+# `bsa-adapter-fans-to-swappable-vendors` and `bsa-author-selects-one-maquette-rest-discarded` —
+# `adapter.test.ts`; `bsa-reauthor-handoff-governed-by-checker` — `reauthor.test.ts`, against the REAL
+# art-pipeline checker (sound passes, perturbed refused, the maquette never enters the bake);
+# `bsa-nvidia-edify-backend-exports-a-mesh` — its OFFLINE conformance half only, in
+# `backends/nvidia-trellis.test.ts` (interface conformance, fail-closed on a missing key, the
+# request/response contract with an injected fetch). The LIVE credential-gated leg is excluded here
+# exactly as contract 4 already says, so this adoption never rests on a credential.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/art-authoring", "test"]
+  scope:
+    testGlobs:
+      - "packages/art-authoring/src/adapter.test.ts"
+      - "packages/art-authoring/src/reauthor.test.ts"
+      - "packages/art-authoring/src/backends/nvidia-trellis.test.ts"
+    sourceGlobs:
+      - "packages/art-authoring/src/adapter.ts"
+      - "packages/art-authoring/src/reauthor.ts"
+      - "packages/art-authoring/src/backends/nvidia-trellis.ts"
 ---
 
 # The blocking-substrate adapter — generate a maquette, re-author to a checkable vector
@@ -21,17 +44,20 @@ produced maquette earns nothing until an author has re-authored a checkable vect
 governs (ADR-0217 stations 1–3). That hand-off is a real within-story code edge onto the pipeline
 (ADR-0010 §3) — the adapter never touches the building/landscape factories directly.
 
-> **Proof status (honest) — `proposed`, greenfield, UNBUILT.** This organ does not exist yet: there is
-> no adapter package, no backend, no test. It is authored here as the provable journey and its contract
-> set; it greens by BUILD, not by adoption — the greenfield `proposed → healthy` transition
-> (ADR-0094:
-> *proposed builds*), driven red→green by the prove-it-gate. The build increment authors the spec-borne
-> proof-config (ADR-0057, the `proof:`
-> block) against the real package + test file it creates; it is deliberately absent now so the spec
-> claims no build it cannot back. Do **not** call any contract below proven, `healthy`, or green —
-> `healthy` is DERIVED from a signed verdict (ADR-0020
-> / ADR-0040), never
-> authored.
+> **Proof status — BUILT since 2026-07-21, corrected in place 2026-08-31.** This block used to read
+> *"greenfield, UNBUILT — there is no adapter package, no backend, no test"*, and it was **false at
+> HEAD**: `packages/art-authoring/` landed in `ff98fbc8` ("the offline generative blocking-substrate
+> adapter seam (ADR-0225, contracts 1-3)") with the adapter, the backend registry, the re-author
+> hand-off, two real backends and a test file per contract — the tests are literally NAMED for the
+> contract ids below. It is registered in `repo-manifest.json`. A session trusting this paragraph
+> would have paid the prove-it-gate to manufacture a red over green code, which is the exact failure
+> ADR-0465 exists to stop; the spec's own self-report is never the evidence, the code is.
+>
+> The build path it described is therefore spent: contracts 1–3 and contract 4's OFFLINE conformance
+> half are discharged by ADOPTION on the owner's recorded risk acceptance (ADR-0465 D2/D4) against
+> the `proof:` block in this frontmatter, not by a driven red→green. What stays genuinely unproven is
+> only contract 4's LIVE credential-gated leg, exactly as contract 4 already says. `healthy` remains
+> DERIVED from a signed verdict (ADR-0020 / ADR-0040) and is never authored here.
 
 ## Guidance
 
@@ -42,11 +68,15 @@ that buys correct iso projection, occlusion and one consistent light) instead of
 the rig. The organ is a **`(prompt, concept image) → block` adapter** with three load-bearing shapes:
 
 - **Vendor-swappable.** The generator sits behind an adapter interface so the same request fans to more
-  than one backend and the author picks the best-produced block. NVIDIA Edify (via the Shutterstock /
-  Getty NVIDIA NIM services — mesh export confirmed, commercially/ethically licensed) is the FIRST
-  block-producing backend; Google/Gemini stays an optional image-reference backend (view-only, no mesh
-  export — verified ADR-0225); Adobe is excluded. The swappability makes the vendor ordering
-  non-load-bearing — a further backend is an addition behind the interface, not a rewrite.
+  than one backend and the author picks the best-produced block. The FIRST block-producing backend
+  that actually shipped is NVIDIA-hosted **microsoft/TRELLIS** on `build.nvidia.com`
+  (`backends/nvidia-trellis.ts`) — ADR-0225 named NVIDIA Edify via the Shutterstock / Getty NIM
+  services, NVIDIA pulled Edify's direct API in June 2025, and the swappable seam absorbed the
+  substitution exactly as designed (contract 4's note carries the detail). Google/Gemini stays an
+  optional image-reference backend (view-only, no mesh export — verified ADR-0225, shipped as
+  `backends/gemini-nano-banana.ts`); Adobe is excluded. The swappability makes the vendor ordering
+  non-load-bearing — a further backend is an addition behind the interface, not a rewrite, and that
+  vendor substitution is the first live evidence of it.
 - **Author-time ONLY.** The adapter runs in an author's tooling session, NEVER in the deterministic
   build, NEVER at runtime, NEVER per-instance, and its output is NEVER parsed into our code
   (ADR-0219 D1 / ADR-0217 D2). The generator's non-determinism never reaches the prove-it-gate.
@@ -98,8 +128,15 @@ no-inlining invariant).
 
 The test-proven leaf behaviours. Contracts 1–3 are offline, isolated, and provable **without** the
 owner-provided credential; contract 4 is the credential-gated live backend, separately provable and
-excluded from the offline gate. (Anchors/`proven by` files are authored by the build increment against
-the real package — this greenfield spec names the behaviours, not yet-existent test files.)
+excluded from the offline gate.
+
+> **Corrected 2026-08-31.** This preamble used to end *"Anchors/`proven by` files are authored by the
+> build increment against the real package — this greenfield spec names the behaviours, not
+> yet-existent test files."* The test files exist and each is named for the contract it proves:
+> contracts 1 and 2 → `packages/art-authoring/src/adapter.test.ts`, contract 3 →
+> `src/reauthor.test.ts` (against the REAL `art-pipeline` checker), contract 4's offline conformance
+> → `src/backends/nvidia-trellis.test.ts`. See the `proof:` block in this spec's frontmatter for the
+> declared command.
 
 1. **`bsa-adapter-fans-to-swappable-vendors`** — the vendor-swappable interface fans one request to N registered backends
    - **asserts —** given ≥2 registered fixture backends, the adapter fans a single `(prompt, concept
@@ -125,10 +162,21 @@ the real package — this greenfield spec names the behaviours, not yet-existent
      `@storytree/procedural-architecture` checker.
    - **proven by —** an isolated offline unit test against the real checker with a fixture re-authored
      asset, authored with the code.
-4. **`bsa-nvidia-edify-backend-exports-a-mesh`** — the live NVIDIA-Edify backend returns an exportable mesh, conforming to the backend interface
-   - **asserts —** the live NVIDIA Edify backend (via a Shutterstock / Getty NVIDIA NIM service) returns
+4. **`bsa-nvidia-edify-backend-exports-a-mesh`** — the live NVIDIA backend returns an exportable mesh, conforming to the backend interface
+   > **Corrected 2026-08-31 — the VENDOR moved, the contract did not.** NVIDIA pulled Edify's direct
+   > API in June 2025 (Edify is Shutterstock/Getty-only now), so the backend that actually shipped is
+   > NVIDIA-hosted **microsoft/TRELLIS** on `build.nvidia.com`
+   > (`packages/art-authoring/src/backends/nvidia-trellis.ts`), reached with a direct `nvapi-` key.
+   > That is precisely the swappability this capability claims — a different vendor behind the same
+   > seam is an addition, not a rewrite — so the contract stands as written with the vendor name
+   > read as "the live NVIDIA mesh backend". The contract ID keeps its `edify` spelling because the
+   > test names bind to it verbatim; renaming it would break that binding for nothing.
+   - **asserts —** the live NVIDIA mesh backend returns
      an exportable mesh (glTF / OBJ / GLB) for a `(prompt, concept image)` request and conforms to the
      adapter's backend interface — the one leg that proves a REAL vendor plugs into the swappable seam.
+     Verified end-to-end by hand against the hosted endpoint on 2026-07-21 (a real 200 returned a
+     3.48 MB GLB carrying the `glTF` magic); that hand-run is not a signed verdict, which is why the
+     leg below stays excluded from the offline gate and from this capability's adoption.
    - **covers —** the NVIDIA-Edify backend adapter (the new author-tool package).
    - **proven by —** a **credential-gated** live smoke (owner-provided NVIDIA NIM key; Claude never
      enters credentials), run separately and **excluded from the offline prove-it-gate**. Its offline

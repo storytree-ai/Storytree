@@ -7,6 +7,25 @@ outcome: "Users persist as append-only events plus a one-row-per-email projectio
 status: proposed
 proof_mode: integration-test
 depends_on: []
+# ADOPTION BASIS (ADR-0465 D2/D4) — the command that ALREADY exercises this capability, declared
+# spec-borne per ADR-0057. `users.test.ts` proves the write-boundary validation (blank email /
+# unknown role / unknown status refused), `mergeUser`'s upsert semantics and the last-admin guard;
+# `store/user-store.test.ts` proves the event+projection pair (append `user_event`, upsert one row
+# per email, latest wins, history readable) and the same last-admin guard at the transactional
+# boundary. There is deliberately NO `real:` arm: the implementation and its tests already exist, so
+# CONFIRM_RED has no red left to observe and a `real:` arm would manufacture a fake one over green
+# code (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/studio-members", "test"]
+  scope:
+    testGlobs:
+      - "packages/studio-members/src/users.test.ts"
+      - "packages/studio-members/src/store/user-store.test.ts"
+    sourceGlobs:
+      - "packages/studio-members/src/users.ts"
+      - "packages/studio-members/src/store/user-store.ts"
 ---
 
 # Users persist as events plus a role/status projection, last-admin protected

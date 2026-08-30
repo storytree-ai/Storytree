@@ -2,18 +2,52 @@
 id: "guest-scope"
 tier: capability
 story: studio-cloud
-title: "Guests read everything, comment as themselves, and touch nothing else"
-outcome: "In guarded mode every API request carries a verified identity; guests read everything, comment under their stamped identity, edit only their own comments; admins keep asset writes; db control is refused for everyone."
+title: "Every hosted request carries a verified identity; a caller comments as themselves and touches nothing else"
+outcome: "In guarded mode every API request carries a verified identity; an admitted caller comments under their stamped identity and edits only their own comments; admins keep asset writes; db control is refused for everyone."
 status: proposed
 proof_mode: integration-test
 depends_on: [serve-mode]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. The four contracts are
+# exercised today by `guestPolicy.test.ts` (the policy decisions, guarded and degraded) and
+# `serveApi.integration.test.ts` over the REAL hosted server: identity-less /api/* is 401 on every
+# route; "comment authorship is stamped from the verified identity — the client field is ignored";
+# "a member edits their own comment but not another author's; an admin may touch any"; asset writes
+# need the admin role and "db control is 403 for member AND admin".
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "studio", "test"]
+  scope:
+    testGlobs:
+      - "apps/studio/server/guestPolicy.test.ts"
+      - "apps/studio/server/serveApi.integration.test.ts"
+    sourceGlobs:
+      - "apps/studio/server/guestPolicy.ts"
+      - "apps/studio/server/identity.ts"
 ---
 
-# Guests read everything, comment as themselves, and touch nothing else
+# Every hosted request carries a verified identity; a caller comments as themselves and touches nothing else
 
-**Outcome —** In guarded mode every API request carries a verified identity; guests read
-everything, comment under their stamped identity, edit only their own comments; admins keep
-asset writes; db control is refused for everyone.
+**Outcome —** In guarded mode every API request carries a verified identity; an admitted caller
+comments under their stamped identity and edits only their own comments; admins keep asset
+writes; db control is refused for everyone.
+
+> **Corrected in place 2026-08-31 (ADR-0043 overtook the premise, not the contracts).** This spec
+> was authored under ADR-0042, where IAP's allowlist WAS the membership decision and anyone it let
+> through was a "guest" who could read everything. ADR-0043 made IAP **authenticate-only**
+> (`allAuthenticatedUsers`) and moved the authorization decision into the app's own users
+> projection: a verified NON-member is now served nothing but `GET /api/me` — 403 + a
+> `request-access` marker on the whole corpus. **That membership gate is
+> [`app-authorization`](../studio-members/app-authorization.md)'s, not this capability's**, and it is
+> the reason no wording here should still promise reading "everything".
+>
+> What this capability owns is UNCHANGED and still true, which is why this is a correction and not a
+> supersede: the identity layer is fail-closed, comment authorship is stamped from the verified
+> caller rather than the request body, a caller's write reach ends at their OWN comments, and
+> `/api/db/*` is refused for everyone hosted. All four contracts below stand as written; only the
+> word "guest" in the outcome named a population ADR-0043 retired. Read "guest" below as "a caller
+> the app has already admitted".
 
 ## Guidance
 

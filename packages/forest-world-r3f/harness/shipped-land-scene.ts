@@ -358,8 +358,12 @@ export function shippedCasters(): ShadowCaster[] {
 }
 
 /** Status variant → LINEAR colour, through three's own sRGB transfer function — the same route
- *  `ForestWorldCanvas` takes, so the two arms wear the colours the map reports with. */
-function linearColourOf(material: string | undefined): LinearRgb {
+ *  `ForestWorldCanvas` takes, so the two arms wear the colours the map reports with.
+ *
+ *  ⚠ EXPORTED SINCE 2026-08-31 for `shipped-crowd-scene.ts`, which draws the same ground at
+ *  forest scale. A second transcription of this three-line function is how two pages that both
+ *  claim to draw "the shipped ground" end up delivering two palettes. */
+export function linearColourOf(material: string | undefined): LinearRgb {
   const hex =
     SHIPPED_GROUND_COLOUR.get(material ?? 'unknown') ?? SHIPPED_GROUND_COLOUR.get('unknown')!;
   const c = new THREE.Color(hex);
