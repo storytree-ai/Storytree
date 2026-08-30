@@ -12,12 +12,14 @@ import { fileURLToPath } from "node:url";
 import {
   ACTIVITY_KEY,
   ARCS_KEY,
+  COMMENTS_KEY,
   compareMirrors,
   FLOOR_HEALTH_KEY,
   formatDivergences,
   MIRRORS,
   projectActivityPayload,
   projectArcsPayload,
+  projectCommentsPayload,
   projectFloorHealthPayload,
   projectTraversalPayload,
   registeredMirrorRoutes,
@@ -162,6 +164,7 @@ test("the registry exposes its routes as DATA, so a second reader never scrapes 
     [
       "/api/activity",
       "/api/arcs",
+      "/api/comments",
       "/api/context-windows",
       "/api/docs",
       "/api/floor-health",
@@ -230,7 +233,14 @@ test("every MIRRORS row names probes that EXIST, under the app dir it declares",
 test("every MIRRORS row declares a usable comparison key, input set and surface pair", () => {
   // The set `check-mirror-conformance.ts` builds a fixture for. A row naming anything else spawns
   // its probes with no arguments, which they answer by exiting 2.
-  const inputSets = new Set(["docs-trees", "activity-fixtures", "arc-fixtures", "floor-health-fixtures", "traversal-fixtures"]);
+  const inputSets = new Set([
+    "docs-trees",
+    "activity-fixtures",
+    "arc-fixtures",
+    "floor-health-fixtures",
+    "traversal-fixtures",
+    "comments-fixtures",
+  ]);
   for (const { spec, inputs } of MIRRORS) {
     assert.ok(inputSets.has(inputs), `${spec.surface}: unknown input set "${inputs}"`);
     assert.ok(spec.key.length > 0, `${spec.surface}: an empty key compares every entry against every other`);
@@ -543,6 +553,169 @@ test("an arcs payload that is not a JSON object is a THROW, never a silently emp
     assert.throws(() => projectArcsPayload(bad), /must be a JSON object/);
   }
   assert.throws(() => projectArcsPayload({ list: "200 OK" }), /must be a \{ status, body \} object/);
+});
+
+
+// ---------- projectCommentsPayload: the `/api/comments` projection ----------
+
+const COMMENTS_SPEC: MirrorSpec = {
+  surface: "GET /api/comments",
+  route: "/api/comments",
+  reference: "studio",
+  mirror: "desktop",
+  key: COMMENTS_KEY,
+  referenceOnlyFields: [],
+};
+
+/** What a probe prints for one request: the status, the served list, and the RECORDED filter. */
+const echo = (status: number, filter: unknown) => ({ status, body: [], filter });
+
+test("the comments projection emits a response marker and the composed filter, labels sorted", () => {
+  const entries = projectCommentsPayload({
+    "/api/comments?topicKind=doc": echo(200, { topicKind: "doc" }),
+    "/api/comments": echo(200, {}),
+  });
+  // Labels SORTED, so the entry order is the request SET and never the probe's iteration order.
+  assert.deepEqual(entries.map((e) => e[COMMENTS_KEY]), [
+    "response:/api/comments",
+    "/api/comments#filter",
+    "response:/api/comments?topicKind=doc",
+    "/api/comments?topicKind=doc#filter",
+  ]);
+  assert.deepEqual(entries[0], {
+    [COMMENTS_KEY]: "response:/api/comments",
+    status: 200,
+    shape: "array",
+    length: 0,
+  });
+  assert.deepEqual(entries[3], {
+    [COMMENTS_KEY]: "/api/comments?topicKind=doc#filter",
+    topicKind: "doc",
+    filterKeys: "topicKind",
+  });
+});
+
+test("filterKeys is SORTED and comma-joined, so key ORDER is never mistaken for a difference", () => {
+  // Both halves are load-bearing and both are cheap to lose. Unsorted, two surfaces composing the
+  // same two filters in different orders would red the gate on nothing; unjoined, `topicId` and
+  // `topicKind` would run together into one token that cannot be read back.
+  const entries = projectCommentsPayload({
+    "/api/comments": echo(200, { topicKind: "asset", topicId: "x" }),
+  });
+  assert.equal(entries[1]?.["filterKeys"], "topicId,topicKind");
+});
+
+test("an empty ?topicId= admitted as a filter value is a divergence — the defect this row was opened on", () => {
+  // THE load-bearing assertion. `searchParams.get` answers `""` — not null — for a present-but-empty
+  // parameter, so a `?? undefined` guard admits the empty string as a filter and the route answers
+  // with NO comments, where a truthy guard treats the parameter as absent and answers with ALL of
+  // them. Measured on the two live surfaces 2026-08-31 (`unscored-guards-arc` /
+  // `establish-remaining-mirror-pairs`); two of eight replayed requests disagreed exactly here.
+  const studio = projectCommentsPayload({ "/api/comments?topicId=": echo(200, {}) });
+  const desktop = projectCommentsPayload({ "/api/comments?topicId=": echo(200, { topicId: "" }) });
+
+  const divergences = compareMirrors(studio, desktop, COMMENTS_SPEC, "comments-requests");
+  assert.ok(
+    divergences.some(
+      (d) => d.kind === "field" && d.key === "/api/comments?topicId=#filter" && d.field === "topicId",
+    ),
+    "the admitted empty value shows up as a field the reference never carried",
+  );
+  assert.ok(
+    divergences.some(
+      (d) =>
+        d.kind === "field" &&
+        d.key === "/api/comments?topicId=#filter" &&
+        d.field === "filterKeys",
+    ),
+    "and `filterKeys` catches it as an ABSENT key, which is the shape a per-field compare alone misses",
+  );
+});
+
+test("a STATUS that diverges is a divergence, even when both surfaces composed the same filter", () => {
+  // The envelope's other half. A projection over the filter alone would compare two identical
+  // filters and never notice one surface answering under a different code — the same reason
+  // `projectFloorHealthPayload` takes status and body together.
+  const studio = projectCommentsPayload({ "/api/comments": echo(200, {}) });
+  const desktop = projectCommentsPayload({ "/api/comments": echo(404, {}) });
+
+  const divergences = compareMirrors(studio, desktop, COMMENTS_SPEC, "comments-requests");
+  assert.ok(
+    divergences.some(
+      (d) => d.kind === "field" && d.key === "response:/api/comments" && d.field === "status",
+    ),
+    "the status rides the response marker",
+  );
+});
+
+test("the comments projection fails CLOSED on a payload it cannot read", () => {
+  // A probe that printed something else has proved nothing, and must never decode to entries — a
+  // degraded projection compares equal to the other side's equally-degraded one and reads as a PASS.
+  // Every shape `asRecord` must reject is exercised: an array, null, and a primitive.
+  assert.throws(() => projectCommentsPayload([1, 2]), /keyed by request/);
+  assert.throws(() => projectCommentsPayload(null), /keyed by request/);
+  assert.throws(() => projectCommentsPayload("nope"), /keyed by request/);
+  assert.throws(
+    () => projectCommentsPayload({ "/api/comments": "not an answer" }),
+    /must be a \{ status, body \} object/,
+  );
+  assert.throws(
+    () => projectCommentsPayload({ "/api/comments": null }),
+    /must be a \{ status, body \} object/,
+  );
+  assert.throws(
+    () => projectCommentsPayload({ "/api/comments": [{ status: 200 }] }),
+    /must be a \{ status, body \} object/,
+  );
+});
+
+test("a list answer with no recorded filter is REFUSED, never coped with", () => {
+  // Each arm is a way a probe can degrade while still printing a plausible list. Coping with any of
+  // them would decode to something comparable, and two degraded sides compare equal. Every shape
+  // `asRecord` must reject is exercised here, since this is the call site whose rejection throws.
+  const bad = (filter: unknown) => () =>
+    projectCommentsPayload({ "/api/comments": { status: 200, body: [], filter } });
+  assert.throws(bad(undefined), /without recording the filter/, "the field is missing entirely");
+  assert.throws(bad(null), /without recording the filter/, "a null filter");
+  assert.throws(bad(42), /without recording the filter/, "a primitive filter");
+  assert.throws(bad("topicId=x"), /without recording the filter/, "a string filter");
+  assert.throws(bad([]), /without recording the filter/, "an array filter");
+
+  // THE REFUSAL MUST QUOTE WHAT IT FOUND, not just say it was wrong. A probe author reading this
+  // message needs the offending value to know which of the arms above they hit; a message that
+  // renders the wrong field would say `(absent)` for every one of them and help with none.
+  assert.throws(bad(42), /got 42/, "the message renders the filter it rejected");
+  assert.throws(bad("topicId=x"), /got "topicId=x"/, "including a string, quoted");
+});
+
+test("a non-array body is projected without inventing a filter entry, and its SHAPE is reported", () => {
+  // An error body (or a route that stopped returning a list) must show up as a shape change rather
+  // than be silently skipped: the response marker still lands, and no `#filter` entry is fabricated
+  // from a payload that carries no echo. The desktop probe answers 404 with an error object when the
+  // boot mount does not claim the path, so this is a contracted case and not only a defensive one.
+  const entries = projectCommentsPayload({
+    "/api/comments": { status: 404, body: { error: "unclaimed by the boot read mount" } },
+  });
+  assert.deepEqual(entries.map((e) => e[COMMENTS_KEY]), ["response:/api/comments"]);
+  assert.equal(entries[0]?.["status"], 404);
+  assert.equal(entries[0]?.["shape"], "object");
+  assert.equal(entries[0]?.["length"], null);
+});
+
+test("a NULL body reports shape \"null\", which is a different fact from an empty list", () => {
+  // `{ status, body: null }` means the route ended without a payload; `body: []` means it answered
+  // with none. A projection that collapsed them would hide a route that stopped answering at all.
+  const nulled = projectCommentsPayload({ "/api/comments": { status: 204, body: null } });
+  assert.deepEqual(nulled.map((e) => e[COMMENTS_KEY]), ["response:/api/comments"]);
+  assert.equal(nulled[0]?.["shape"], "null");
+  assert.equal(nulled[0]?.["length"], null);
+});
+
+test("a MISSING status decodes to null rather than dropping the field", () => {
+  // The field has to exist on both sides for `compareMirrors` to compare it; a probe that omitted
+  // the status must diverge from one that sent it, not quietly agree.
+  const entries = projectCommentsPayload({ "/api/comments": { body: [], filter: {} } });
+  assert.equal(entries[0]?.["status"], null);
 });
 
 // ---------- projectFloorHealthPayload: the `/api/floor-health` projection ----------

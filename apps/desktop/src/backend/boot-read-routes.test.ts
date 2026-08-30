@@ -488,6 +488,43 @@ test("boot-read-routes: GET /api/comments returns the injected stub result as a 
   });
 });
 
+// Pins the EMPTY-VALUE half of that parse, which is a different rule from forwarding a value and
+// was wrong here until 2026-08-31. `searchParams.get` answers `""` — not null — for a present-but-
+// empty `?topicId=`, so a `?? undefined` guard admitted the empty string as a filter and this route
+// answered with NO comments, while the studio's truthy guard treated the parameter as ABSENT and
+// answered with ALL of them. Same request, opposite answer, and nothing observed it until the two
+// surfaces were response-diffed (`unscored-guards-arc` / `establish-remaining-mirror-pairs`). The
+// cross-surface half is now pinned by `check:mirror-conformance`'s `/api/comments` row; this is the
+// desktop-side unit half, so the rule fails HERE too and not only on a whole-gate run.
+test("boot-read-routes: an empty ?topicId= is ABSENT, not a filter for the empty string", async () => {
+  const receivedFilters: Array<{ topicId?: string; topicKind?: "doc" | "asset" }> = [];
+
+  const handler = createBootReadRoutes({
+    docsDir: "/tmp/boot-read-routes-test-missing-dir",
+    listComments: async (filter) => {
+      receivedFilters.push(filter);
+      return [];
+    },
+  });
+
+  await withServer(handler, async (base) => {
+    await fetch(`${base}/api/comments?topicId=`);
+    await fetch(`${base}/api/comments?topicId=&topicKind=asset`);
+  });
+
+  assert.equal(receivedFilters.length, 2, "both requests must reach the seam");
+  assert.deepEqual(
+    receivedFilters[0],
+    {},
+    "an empty ?topicId= must compose an EMPTY filter — filtering on \"\" matches no comment at all",
+  );
+  assert.deepEqual(
+    receivedFilters[1],
+    { topicKind: "asset" },
+    "and it must drop out alongside a valid second parameter, not ride along with it",
+  );
+});
+
 // Pins the query-string filter wiring: the handler parses topicId/topicKind from the URL and
 // passes them to listComments. The studio's non-boot comment-panel calls use these filters.
 test("boot-read-routes: GET /api/comments forwards topicId and topicKind to the listComments seam", async () => {

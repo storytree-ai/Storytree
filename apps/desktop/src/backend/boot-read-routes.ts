@@ -234,13 +234,21 @@ export function createBootReadRoutes(
 
     if (pathname === "/api/comments") {
       // Parse optional query-string filters from the raw URL on the request.
+      //
+      // AN EMPTY `?topicId=` IS ABSENT, NOT A FILTER FOR THE EMPTY STRING. `searchParams.get`
+      // answers `""` — not null — for a present-but-empty parameter, so the earlier
+      // `?? undefined` guard let `""` through and this surface filtered to comments whose topicId
+      // is empty (none), while the studio's `if (topicId)` treated it as unfiltered (all). Same
+      // request, opposite answer, and nothing observed it: established by response diff on
+      // 2026-08-31 (`unscored-guards-arc` / `establish-remaining-mirror-pairs`), which is why this
+      // pair is now registered in `MIRRORS` and compared on every gate run.
       const url = new URL(_req.url ?? "/", "http://localhost");
-      const topicId = url.searchParams.get("topicId") ?? undefined;
+      const topicId = url.searchParams.get("topicId");
       const topicKindRaw = url.searchParams.get("topicKind");
       const topicKind =
         topicKindRaw === "doc" || topicKindRaw === "asset" ? topicKindRaw : undefined;
       const filter: CommentsFilter = {};
-      if (topicId !== undefined) filter.topicId = topicId;
+      if (topicId) filter.topicId = topicId;
       if (topicKind !== undefined) filter.topicKind = topicKind;
       const comments = await deps.listComments(filter);
       sendJson(res, 200, comments);

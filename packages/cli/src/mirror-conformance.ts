@@ -97,6 +97,13 @@ export interface Probe {
  *   probes replay). Each probe prints `{ [label]: { status, body } }` for those requests, which
  *   {@link projectArcsPayload} turns into entries. The request list rides the FIXTURE rather than
  *   living in each probe: two hand-kept lists of what to ask is the same drift class one level up.
+ * - `comments-fixtures` — argv is fixture JSON PATHS (`{ requests }` — the request list both probes
+ *   replay). Each probe prints `{ [request]: { status, body } }` for those requests, which
+ *   {@link projectCommentsPayload} turns into entries. The comment STORE is stubbed to ECHO the
+ *   filter it is handed, on the same principle `activity-fixtures` feeds raw rows: what this route
+ *   composes for itself is the query-string PARSE, so the parse is what the payload has to make
+ *   visible. A fixture that returned a fixed comment list instead would compare two stores and stay
+ *   green through a parse that disagreed.
  * - `floor-health-fixtures` — argv is fixture JSON PATHS (`{ docs, events, requests }` — the two
  *   reads the floor-health composition makes, plus the request list both probes replay). Each probe
  *   prints `{ [label]: { status, body } }`, which {@link projectFloorHealthPayload} turns into
@@ -110,7 +117,8 @@ export type MirrorInputSet =
   | "activity-fixtures"
   | "arc-fixtures"
   | "floor-health-fixtures"
-  | "traversal-fixtures";
+  | "traversal-fixtures"
+  | "comments-fixtures";
 
 /** One registered mirrored payload: the rules, the input protocol, plus the two probes. */
 export interface MirrorTarget {
@@ -359,7 +367,141 @@ export const MIRRORS: readonly MirrorTarget[] = [
       file: "apps/desktop/src/backend/traversal-mirror-probe.ts",
     },
   },
+  {
+    // ESTABLISHED BY RESPONSE DIFF, NOT BY READING THE TWO HANDLERS (2026-08-31,
+    // `unscored-guards-arc` / `establish-remaining-mirror-pairs`). The handler-diff route is what
+    // manufactured a false finding on `/api/health` one increment earlier: the studio composes its
+    // payload IN the handler while the desktop composes parts of its own in the INJECTED dependency
+    // (`apps/desktop/electron/backend-entry.ts`), because ADR-0100 forbids importing
+    // `apps/studio/server` — so a handler-level comparison reports a divergence whenever the two
+    // surfaces merely drew their seam in different places. Both probes here replay REQUESTS and
+    // print what their own surface answered.
+    //
+    // THE DIVERGENCE THIS ROW WAS OPENED ON WAS REAL AND PRESENT, which is not the usual outcome —
+    // `mirror-pair-drift` locates a missing OBSERVER, and "these two agree today" refutes nothing.
+    // Two of eight replayed requests disagreed: `?topicId=` returned EVERY comment on the studio and
+    // NONE on the desktop, because `searchParams.get` answers `""` rather than null for a
+    // present-but-empty parameter and only one surface's guard was truthy-based. Fixed in
+    // `boot-read-routes.ts` in the same landing; this row is what stops it recurring silently.
+    //
+    // WHAT IS AT RISK IS THE PARSE, AND THE FIXTURE IS SHAPED FOR IT. Neither surface composes a
+    // comment — both hand a filter to an injected store — so the store is stubbed to ECHO its
+    // filter and the comparison lands on the only thing each surface writes for itself. See
+    // `projectCommentsPayload`, which explains why a fixed comment list would have been the wrong
+    // fixture.
+    spec: {
+      surface: "GET /api/comments (the composed topicId/topicKind filter)",
+      route: "/api/comments",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<request>` / `<request>#filter`), not a payload
+      // field — see `projectCommentsPayload`. Spelled literally like the rows above.
+      key: "_key",
+      // EMPTY BY DESIGN: the desktop serves the compiled studio bundle, whose comment views read
+      // this wire on both surfaces. A difference here is a defect, never a deliberate narrowing.
+      // (`/api/me` IS a deliberate narrowing and for that reason has no row — see the increment.)
+      referenceOnlyFields: [],
+    },
+    inputs: "comments-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/commentsMirrorProbe.ts" },
+    mirror: {
+      appDir: "apps/desktop",
+      file: "apps/desktop/src/backend/comments-mirror-probe.ts",
+    },
+  },
 ];
+
+/**
+ * The value as a plain JSON object, or `null` for anything else — an array, `null`, or a primitive.
+ *
+ * ONE COMPARISON, DELIBERATELY. The hand-written form
+ * (`v !== null && typeof v === "object" && !Array.isArray(v)`) carries a null clause whose mutants
+ * are EQUIVALENT by construction: a guard that returns null FOR null and a guard that falls through
+ * TO null agree on every input, so no test can tell them apart. `Object.prototype.toString` asks the
+ * same question with no null clause to be blind about, and every mutant of it changes an answer.
+ */
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return Object.prototype.toString.call(value) === "[object Object]"
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+/**
+ * PURE: project a `GET /api/comments` probe payload — `{ [request]: { status, body } }`, one entry
+ * per request both probes replayed — into comparable {@link Entry} rows.
+ *
+ * WHAT THIS PAIR ACTUALLY OBSERVES, and why the probes record rather than filter. Neither surface
+ * composes a comment: both hand a FILTER to an injected store and send what comes back. The whole
+ * of each surface's own contribution is therefore the query-string PARSE — so each probe's store
+ * RECORDS the filter it is handed and prints it beside the response, and this projection compares
+ * that. Feeding a fixed comment list instead would have compared two stubs applying the same filter
+ * and stayed green through the very divergence that put this row here.
+ *
+ * THE DIVERGENCE THAT PUT IT HERE, measured 2026-08-31 (`unscored-guards-arc` /
+ * `establish-remaining-mirror-pairs`): `searchParams.get` answers `""` — not null — for a
+ * present-but-empty `?topicId=`, so the desktop's `?? undefined` guard passed `""` through and it
+ * filtered to comments with an empty topicId (none), while the studio's `if (topicId)` treated the
+ * parameter as absent (all). Same request, opposite answer, no observer. Two of eight replayed
+ * requests diverged.
+ *
+ * TWO ENTRY KINDS PER REQUEST:
+ *
+ *   `response:<request>` — the status, the body's SHAPE and its length. Status rides along for the
+ *     reason {@link projectFloorHealthPayload} takes it: an envelope's half is its code, and a
+ *     projection over bodies alone would never notice one surface answering under a different one.
+ *   `<request>#filter` — the composed filter's fields BY NAME, plus the sorted key set. The key set
+ *     is what catches an ABSENT key, which is the exact shape the empty-`topicId` defect took: one
+ *     side carried `topicId` and the other carried nothing, and every field they shared agreed.
+ *
+ * A list answer that carries no recorded filter THROWS rather than decoding to something
+ * comparable — see the fail-closed note in the body.
+ */
+export function projectCommentsPayload(body: unknown): Entry[] {
+  if (asRecord(body) === null) {
+    throw new Error(
+      `comments payload must be a JSON object keyed by request, got ${render(body)}`,
+    );
+  }
+  const out: Entry[] = [];
+  // Sorted so the entry order is the request SET, never the probe's iteration order.
+  for (const label of Object.keys(body as Record<string, unknown>).sort()) {
+    const answer = asRecord((body as Record<string, unknown>)[label]);
+    if (answer === null) {
+      throw new Error(
+        `comments answer "${label}" must be a { status, body } object, got ${render((body as Record<string, unknown>)[label])}`,
+      );
+    }
+    const payload = answer["body"];
+    const isList = Array.isArray(payload);
+    out.push({
+      [COMMENTS_KEY]: `response:${label}`,
+      status: answer["status"] ?? null,
+      shape: payload === null ? "null" : isList ? "array" : typeof payload,
+      length: isList ? payload.length : null,
+    });
+    if (!isList) continue;
+
+    // FAIL CLOSED rather than cope. Within this pair's contract a list answer ALWAYS reached the
+    // store, so it always carries the filter the surface composed — anything else is a probe that
+    // has proved nothing, and an entry decoded from it would compare equal to the other side's
+    // equally-degraded entry and read as a PASS. Coping with a malformed answer instead of refusing
+    // it is the shape that makes a check unable to fail.
+    const filter = asRecord(answer["filter"]);
+    if (filter === null) {
+      throw new Error(
+        `comments answer "${label}" served a list without recording the filter it composed, got ${render(answer["filter"])}`,
+      );
+    }
+    // The synthetic key is written LAST so a filter that happened to carry `_key` cannot displace
+    // it and collapse two entries onto one.
+    out.push({
+      ...filter,
+      filterKeys: Object.keys(filter).sort().join(","),
+      [COMMENTS_KEY]: `${label}#filter`,
+    });
+  }
+  return out;
+}
 
 /**
  * The route paths {@link MIRRORS} proves exactly — the set `mirror-pair-drift` treats as already
@@ -389,6 +531,10 @@ export type Entry = Record<string, unknown>;
 
 /** The projection's key field — synthetic, so it can never collide with a payload's own `key`. */
 export const ACTIVITY_KEY = "_key";
+
+/** The `/api/comments` projection's key field — the same synthetic name, aliased for the reason
+ * {@link ARCS_KEY} is. */
+export const COMMENTS_KEY = ACTIVITY_KEY;
 
 /**
  * The `/api/arcs` projection's key field — the SAME synthetic name, deliberately: this is one
