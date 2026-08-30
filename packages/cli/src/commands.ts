@@ -101,6 +101,13 @@ import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./ses
 // `context` — this session's OWN context-window occupancy, the number ADR-0411 D6 says a session
 // must be handed rather than estimate. Offline; reads the harness's local transcripts.
 import { contextCommand, contextHelp } from "./context.js";
+import {
+  defaultVocabularyDeps,
+  parseLimitFlag,
+  vocabularyCommand,
+  vocabularyHelp,
+  type VocabularyOptions,
+} from "./vocabulary.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import {
   dispatchCommand,
@@ -4493,6 +4500,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // nothing: D6 leaves the judgement with the session, D8 keeps the marks reversible.
     if (help) return contextHelp();
     return contextCommand();
+  }
+
+  if (area === "vocabulary") {
+    // Which words are in heavy use here, and which of them resolve to no `definition`
+    // (`self-sustaining-sessions-arc`, increment `vocabulary-pass-becomes-a-verb`)? Offline and
+    // read-only, like `context` beside it: the vocabulary signal lives in the harness's local
+    // transcripts, and traces cannot answer it at all — a `search` event carries `operation` and
+    // `resultNodeIds` and no query text. It REPORTS candidates and authors nothing: frequency
+    // selects, and whether a term earns a definition is a judgment (`edit-first-curation`).
+    if (help) return vocabularyHelp();
+    const parsedLimit = parseLimitFlag(values["limit"]);
+    if (parsedLimit.refusal !== undefined) {
+      return { ok: false, body: parsedLimit.refusal, next: ["storytree vocabulary --help"] };
+    }
+    const vocabOpts: VocabularyOptions =
+      parsedLimit.limit === undefined ? {} : { limit: parsedLimit.limit };
+    return vocabularyCommand(defaultVocabularyDeps(), vocabOpts);
   }
 
   if (area === "lint-panel") {
