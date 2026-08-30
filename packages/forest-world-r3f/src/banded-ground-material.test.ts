@@ -33,6 +33,7 @@ import {
   grainStops,
 } from './land-grain.js';
 import {
+  LEGACY_SHADE_LEVELS,
   LIGHT_DIRECTION,
   SHADE_LEVELS,
   bandGlsl,
@@ -62,7 +63,7 @@ test('the ramp is ROW-MAJOR: row r, rung k is at r * nLevels + k', () => {
   });
 });
 
-test('⚠ THE THREE KNIFE-EDGE PRODUCTS — why the GPU is never allowed to multiply a colour', () => {
+test('⚠ THE EIGHT KNIFE-EDGE PRODUCTS — why the GPU is never allowed to multiply a colour', () => {
   // The first time this package let a shader compute `token * level` it delivered 929 px of
   // `#c2ad5e` where the authored entry is `#c2ad5f`: the product is EXACTLY 94.5 and JavaScript
   // rounds an exact half UP while the GPU's float-to-unorm8 conversion took it DOWN.
@@ -71,12 +72,21 @@ test('⚠ THE THREE KNIFE-EDGE PRODUCTS — why the GPU is never allowed to mult
   // rather than sampling it, which is what makes this a proof about the palette and not a spot
   // check — and it is worth enumerating: a first pass reasoned the class had two members and
   // the arithmetic found three, the extra one on `unknown`, the state that means "no data".
+  //
+  // ⚠⚠ AND REFINING THE LADDER MORE THAN DOUBLED THE CLASS: 3 members on the four-rung ladder,
+  // EIGHT on the nine. That is arithmetic rather than bad luck — a 0.025 grid puts far more
+  // (channel x level) products on an exact half than a 0.02/0.10/0.10 one does, and five of the
+  // eight are on `healthy`'s green, the most common colour on the map. So the adoption did not
+  // merely leave the never-let-the-GPU-multiply rule standing; it made it MUCH more live. The
+  // architecture already handles it — colours are rounded once, in TypeScript, and uploaded
+  // finished — which is why a change that would have been a visible regression under the first
+  // design costs nothing under this one.
   assert.equal(105 * 0.9, 94.5, 'the yellow token blue channel');
   assert.equal(175 * 0.9, 157.5, 'the unknown token blue channel, at 0.9');
-  assert.equal(175 * 0.78, 136.5, 'and again at 0.78 — two of the four rungs of unknown');
+  assert.equal(140 * 0.825, 115.5, 'and the green token green channel, at a rung the refinement added');
   assert.equal(toHex(deliveredForLevel('#d8c069', 0.9)), '#c2ad5f');
   assert.equal(toHex(deliveredForLevel('#9ca3af', 0.9)), '#8c939e');
-  assert.equal(toHex(deliveredForLevel('#9ca3af', 0.78)), '#7a7f89');
+  assert.equal(toHex(deliveredForLevel('#8cb85e', 0.825)), '#74984e');
 
   const halves: string[] = [];
   for (const token of new Set(SHIPPED_TOKENS)) {
@@ -95,6 +105,29 @@ test('⚠ THE THREE KNIFE-EDGE PRODUCTS — why the GPU is never allowed to mult
   // NON-VACUITY: the class is not empty, so "the GPU must not multiply" is a live constraint on
   // this palette rather than a precaution about a hypothetical one.
   assert.deepEqual(halves.sort(), [
+    '#57544a@0.875=73.5',
+    '#8cb85e@0.825=115.5',
+    '#8cb85e@0.875=122.5',
+    '#8cb85e@0.925=129.5',
+    '#8cb85e@0.975=136.5',
+    '#9ca3af@0.875=136.5',
+    '#9ca3af@0.9=157.5',
+    '#d8c069@0.9=94.5',
+  ]);
+  // ⚠ THE FOUR-RUNG LADDER'S OWN THREE, held beside them, so the growth above is the ladder
+  // moving rather than this sweep drifting. `#9ca3af@0.78` left the class with the rung itself.
+  const legacyHalves: string[] = [];
+  for (const token of new Set(SHIPPED_TOKENS)) {
+    for (const level of LEGACY_SHADE_LEVELS) {
+      for (const channel of [1, 3, 5].map((i) => Number.parseInt(token.slice(i, i + 2), 16))) {
+        const product = channel * level;
+        if (Math.abs(product - Math.floor(product) - 0.5) < 1e-9) {
+          legacyHalves.push(`${token}@${level}=${product}`);
+        }
+      }
+    }
+  }
+  assert.deepEqual(legacyHalves.sort(), [
     '#9ca3af@0.78=136.5',
     '#9ca3af@0.9=157.5',
     '#d8c069@0.9=94.5',
@@ -487,8 +520,10 @@ test('AN ABSENT SHADOW CHANGES NOTHING — no uniform, no sampler, no varying', 
   assert.ok(!/texture2D/.test(bare.fragmentShader), 'and samples no texture');
   assert.ok(!/sampler2D/.test(bare.fragmentShader));
   assert.deepEqual(Object.keys(bare.uniforms).sort(), ['uLightDir', 'uRamp']);
-  // The ramp stays the four authored rungs per row.
-  assert.equal((bare.uniforms['uRamp']!.value as unknown[]).length, SHIPPED_TOKENS.length * 4);
+  // The ramp stays the NINE authored rungs per row — four until the ladder was adopted on
+  // 2026-08-31, and the literal is spelled out rather than read off `SHADE_LEVELS` so that a
+  // ladder change has to be looked at here rather than absorbed.
+  assert.equal((bare.uniforms['uRamp']!.value as unknown[]).length, SHIPPED_TOKENS.length * 9);
   // ⚠ THE WHOLE THREE-LINE BLOCK, not just its last line. The index stage is now built by
   // interpolation, so its two comment lines are string literals a mutant can blank — and a shader
   // that still selects correctly while having lost the sentence explaining WHY is exactly the
@@ -528,7 +563,7 @@ test('THE RAMP GROWS BY EXACTLY ONE LEVEL PER ROW, and every entry is still auth
   const ladder = shadowLadderFor(SHIPPED_TOKENS);
   const ramp = m.uniforms['uRamp']!.value as { x: number; y: number; z: number }[];
   assert.equal(ramp.length, SHIPPED_TOKENS.length * (SHADE_LEVELS.length + 1));
-  assert.equal(ramp.length, SHIPPED_TOKENS.length * 5);
+  assert.equal(ramp.length, SHIPPED_TOKENS.length * 10);
   // ⚠ THE CLOSURE, ENUMERATED RATHER THAN SAMPLED: every uploaded colour must be exactly
   // `deliveredForLevel(token, level)` for a level ON the shadow ladder.
   SHIPPED_TOKENS.forEach((token, row) => {
@@ -550,9 +585,10 @@ test('THE RAMP GROWS BY EXACTLY ONE LEVEL PER ROW, and every entry is still auth
 
 test('groundRamp over the shadow ladder is the same array the material uploads', () => {
   const ladder = shadowLadderFor(SHIPPED_TOKENS);
-  assert.equal(groundRamp(SHIPPED_TOKENS, ladder.levels).length, 30);
-  // And the default is still the authored ladder, so every existing caller is unmoved.
-  assert.equal(groundRamp(SHIPPED_TOKENS).length, 24);
+  assert.equal(groundRamp(SHIPPED_TOKENS, ladder.levels).length, 60);
+  // And the default is still the authored ladder, so every existing caller reads the ladder the
+  // map wears rather than a second one.
+  assert.equal(groundRamp(SHIPPED_TOKENS).length, 54);
 });
 
 test('THE FRAGMENT SELECTS — the shadow adds no arithmetic to a delivered colour', () => {
@@ -565,13 +601,13 @@ test('THE FRAGMENT SELECTS — the shadow adds no arithmetic to a delivered colo
   assert.ok(!/mix\(c,/.test(body), 'no mix on the way out');
 });
 
-test('THE STRIDE MOVES WITH THE LADDER — a shadowed row is five entries wide', () => {
+test('THE STRIDE MOVES WITH THE LADDER — a shadowed row is ten entries wide', () => {
   const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
   assert.ok(
-    m.fragmentShader.includes('int idx = int(vStatus + 0.5) * 5 + lvl;'),
+    m.fragmentShader.includes('int idx = int(vStatus + 0.5) * 10 + lvl;'),
     'the shadowed stride must be the shadow ladder’s length, not ST_N_LEVELS',
   );
-  // ⚠ A stride left at 4 would select the NEXT ROW's colours for every status past the first —
+  // ⚠ A stride left at 9 would select the NEXT ROW's colours for every status past the first —
   // a foreign-status read on the surface whose whole job is to report status.
   assert.ok(!m.fragmentShader.includes('* ST_N_LEVELS + lvl'));
 });
@@ -698,12 +734,12 @@ test('THE `lit` OPTION reaches BOTH the ramp and the shader, and absent means by
   const refined = createBandedGroundMaterial({ tokens, lit });
 
   // THE RAMP: one entry per (token, rung).
-  assert.equal((shipped.uniforms['uRamp']!.value as unknown[]).length, tokens.length * 4);
+  assert.equal((shipped.uniforms['uRamp']!.value as unknown[]).length, tokens.length * 9);
   assert.equal((refined.uniforms['uRamp']!.value as unknown[]).length, tokens.length * lit.length);
 
   // THE SHADER: the quantiser carries the same count, and the ladder's own rungs.
   assert.match(refined.fragmentShader, /const int ST_N_LEVELS = 12;/);
-  assert.match(shipped.fragmentShader, /const int ST_N_LEVELS = 4;/);
+  assert.match(shipped.fragmentShader, /const int ST_N_LEVELS = 9;/);
   assert.ok(refined.fragmentShader.includes('return 0.820000;'), 'an intermediate rung is missing');
   assert.ok(!shipped.fragmentShader.includes('return 0.820000;'));
 

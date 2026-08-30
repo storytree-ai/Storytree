@@ -32,7 +32,12 @@ import {
   yawBasis,
   type Raw,
 } from './mesh-kit.js';
-import { LIGHT_DIRECTION, SHADE_LEVELS, rungOfNormal } from './palette-band.js';
+import {
+  LEGACY_SHADE_LEVELS,
+  LIGHT_DIRECTION,
+  SHADE_LEVELS,
+  rungOfNormal,
+} from './palette-band.js';
 
 /** Every distinct normal a raw soup carries, deduped to 4 decimal places. */
 function normals(raw: Raw): { x: number; y: number; z: number }[] {
@@ -54,10 +59,22 @@ function dot(n: { x: number; y: number; z: number }): number {
 
 test('the ladder facts every built prop is designed against', () => {
   // Restated as assertions rather than as a comment, because every batter and every pitch in
-  // `prop-linear.ts`, `prop-structures.ts` and `island-dressing.ts` is chosen against these four
-  // numbers. If the light or the ladder ever moves, this is what says so first.
-  assert.deepEqual([...SHADE_LEVELS], [0.78, 0.8, 0.9, 1.0]);
-  assert.equal(rungOfNormal({ x: 0, y: 1, z: 0 }), 2, 'a horizontal top lands on rung 2, not 3');
+  // `prop-linear.ts`, `prop-structures.ts` and `island-dressing.ts` is chosen against these
+  // numbers. If the light or the ladder ever moves, this is what says so first — AND ON 2026-08-31
+  // IT DID, which is what this test turned out to be for.
+  //
+  // ⚠⚠ THE LADDER MOVED UNDER THIS VOCABULARY AND THE VOCABULARY WAS NOT RE-TUNED. Adopting the
+  // nine-rung ladder made the steps UNIFORM at 0.025, which removed the old ladder's very shallow
+  // FIRST step — 0.78 -> 0.80, a gap of 0.02 where every other gap was 0.10. Several constants in
+  // the PROCEDURAL prop vocabulary were calibrated on exactly that step and no longer buy what
+  // they were chosen to buy; the cottage wall's 0.2 batter above all, which used to lift the lit
+  // side one rung and now lifts it none. Recorded rather than repaired, for two reasons: retuning
+  // a batter is an ART change on a surface the owner signs off (ADR-0392 D1), and this is the
+  // procedural arm ADR-0475 replaced with the bought kit, so nothing that ships is touched — the
+  // kit's props wear `MeshStandardMaterial` and are never quantised onto this ladder at all.
+  assert.deepEqual([...SHADE_LEVELS], [0.8, 0.825, 0.85, 0.875, 0.9, 0.925, 0.95, 0.975, 1.0]);
+  assert.deepEqual([...LEGACY_SHADE_LEVELS], [0.78, 0.8, 0.9, 1.0], 'what they were designed against');
+  assert.equal(rungOfNormal({ x: 0, y: 1, z: 0 }), 4, 'a horizontal top lands on rung 4, not the top');
   for (const [x, z] of [
     [-1, 0],
     [1, 0],
@@ -82,22 +99,32 @@ test('addBox: an UNBATTERED box delivers exactly two rungs, whichever way it is 
     addBox(raw, [0, 0, 0], { x: 3, z: 3 }, 5, { yaw });
     assert.deepEqual(
       [...rungs(raw)].sort(),
-      [0, 2],
-      `an unbattered box at yaw ${yaw} should deliver only the vertical rung and the top rung`,
+      [0, 4],
+      `an unbattered box at yaw ${yaw} should deliver only the vertical rung and the flat one`,
     );
   }
 });
 
-test('addBox: the batter genuinely buys contrast, and 0.4 is where it reaches rung 2', () => {
+test('⚠ addBox: THE 0.2 BATTER STOPPED BUYING A RUNG WHEN THE LADDER WAS ADOPTED', () => {
   const at = (batter: number): Set<number> => {
     const raw = emptyRaw();
     addBox(raw, [0, 0, 0], { x: 3, z: 3 }, 5, { batter });
     return rungs(raw);
   };
-  // Measured landings, pinned so a change to the light or the ladder surfaces here rather than in
-  // a picture: slope 0.2 -> dot 0.603 -> rung 1; slope 0.4 -> dot 0.723 -> rung 2.
-  assert.ok(at(0.2).has(1), 'batter 0.2 should lift the lit side to rung 1');
-  assert.ok(at(0.4).has(2), 'batter 0.4 should lift the lit side to rung 2');
+  // ⚠⚠ THIS IS A RECORDED COST OF THE 2026-08-31 LADDER ADOPTION, NOT A RE-PIN. Slope 0.2 gives
+  // dot 0.603, i.e. half-lambert 0.8015. On the four-rung ladder that snapped to 0.80 — one rung
+  // ABOVE the 0.78 floor — and the whole point of `BoxOptions.batter` was to buy that rung. The
+  // nine-rung ladder FLOORS at 0.80, so the same face now lands on rung 0 alongside the unbattered
+  // one and the lever fires into nothing. It takes 0.3 to reach the first rung now.
+  //
+  // Left as it is, deliberately: see the ladder-facts test at the top of this file. Retuning the
+  // vocabulary is an art change the owner signs off, and this arm does not ship.
+  assert.ok(!at(0.2).has(1), 'if 0.2 buys a rung again the ladder moved back — re-read the note above');
+  assert.ok(at(0.3).has(1), 'batter 0.3 is what lifts the lit side one rung on the adopted ladder');
+  assert.ok(at(0.4).has(2), 'batter 0.4 reaches two');
+  // NON-VACUITY: the lever is not simply dead — a steep enough batter still climbs, so what the
+  // assertions above measure is the ladder's floor and not a broken normal.
+  assert.ok(at(0.5).has(3), 'a 0.5 batter still climbs, so the lever itself works');
   for (const b of [0.2, 0.4, 0.45]) {
     assert.ok(at(b).has(0), `batter ${b} must still leave a side on rung 0 — contrast needs both`);
   }
@@ -121,34 +148,45 @@ test('addBox: normals follow the batter, so a leaning face is not lit as a wall'
   }
 });
 
-test('addGableRoof: the ridge-along-z slope reaches RUNG 3 — the regression this file exists for', () => {
+test('addGableRoof: the ridge-along-z slope reaches the BRIGHTEST rung any surface here can — the regression this file exists for', () => {
   // ⚠ THE BUG. Before the fix this delivered rung 2 at every pitch in the usable band, because the
   // normal's components were swapped. Asserting the RUNG rather than the vector is deliberate: a
   // vector assertion would have to restate the arithmetic and could be "corrected" to agree with
   // whatever the code emitted, which is exactly how a metric stops being evidence.
-  for (const pitchDeg of [20, 25, 30, 35, 40]) {
+  // ⚠ THE BAND NARROWED WITH THE LADDER: 20-37 degrees rather than the wider window a coarse
+  // top rung gave. That is the same fact as the note below — rung 7 is a narrower target than a
+  // rounded-up 1.00 was — and 40 degrees, which used to qualify, no longer does.
+  for (const pitchDeg of [20, 25, 30, 35, 37]) {
     const half = { x: 10, z: 8 };
     const rise = half.x * Math.tan((pitchDeg * Math.PI) / 180);
     const raw = emptyRaw();
     addGableRoof(raw, [0, 0, 0], half, rise);
     const got = rungs(raw);
+    // ⚠ RUNG 7, NOT 8, AND THAT IS THE LADDER TELLING THE TRUTH RATHER THAN A LOSS. A
+    // ridge-along-z slope's normal lies in the x-y plane, so its best possible dot is
+    // `hypot(L.x, L.y) = 0.9366` — half-lambert 0.9683, which the four-rung ladder rounded all the
+    // way up to 1.00 and called full strength. Nothing on this island ever faced the light
+    // dead-on; the coarse ladder simply could not say so. On nine rungs the roof lands on 0.975
+    // and flat ground on 0.90, so it clears the ground by THREE rungs where it used to clear it by
+    // one — more resolvable contrast, not less.
     assert.ok(
-      got.has(3),
-      `a ${pitchDeg}-degree roof ridged along z must reach rung 3 — it is the only surface on ` +
-        'this island that can, and a swapped normal silently costs it',
+      got.has(7),
+      `a ${pitchDeg}-degree roof ridged along z must reach rung 7 — it is the brightest surface ` +
+        'on this island, and a swapped normal silently costs it',
     );
+    assert.ok(!got.has(8), 'and nothing here reaches full light, which needs a normal along L');
     assert.ok(got.has(0), `a ${pitchDeg}-degree roof must also carry rung 0 on its far slope`);
   }
 });
 
-test('addGableRoof: ridged along X the SAME pitch tops out at rung 2, which is why z is the default', () => {
+test('addGableRoof: ridged along X the SAME pitch tops out a rung lower, which is why z is the default', () => {
   const half = { x: 10, z: 8 };
   const rise = half.z * Math.tan((30 * Math.PI) / 180);
   const raw = emptyRaw();
   addGableRoof(raw, [0, 0, 0], half, rise, { ridgeAlongX: true });
   const got = rungs(raw);
-  assert.ok(!got.has(3), 'ridge along x cannot reach rung 3 at 30 degrees');
-  assert.ok(got.has(2) && got.has(0), 'it should still deliver a lit slope and a dark one');
+  assert.ok(!got.has(7), 'ridge along x cannot reach the brightest rung at 30 degrees');
+  assert.ok(got.has(6) && got.has(0), 'it should still deliver a lit slope and a dark one');
 });
 
 test('addGableRoof: the slope normal is the PERPENDICULAR of the slope, at every pitch', () => {
@@ -261,7 +299,7 @@ test('a box is anchored at its BASE, not its centre', () => {
   assert.equal(maxY, 23);
 });
 
-test('the roof pitch band that reaches rung 3 is BOUNDED at both ends', () => {
+test('the roof pitch band that reaches rung 7 is BOUNDED at both ends', () => {
   // Worth pinning because it is counter-intuitive: a steeper roof is not a brighter one. The
   // light sits 28.75 degrees off vertical, so the rung-3 window is centred there and closes again
   // once the pitch overshoots it. A generator that "made the roof steeper to make it pop" would
@@ -270,9 +308,9 @@ test('the roof pitch band that reaches rung 3 is BOUNDED at both ends', () => {
     const rise = 10 * Math.tan((pitchDeg * Math.PI) / 180);
     const raw = emptyRaw();
     addGableRoof(raw, [0, 0, 0], { x: 10, z: 8 }, rise);
-    return rungs(raw).has(3);
+    return rungs(raw).has(7);
   };
-  assert.ok(!reaches(5), 'a nearly flat roof does not reach rung 3');
+  assert.ok(!reaches(5), 'a nearly flat roof does not reach rung 7');
   assert.ok(reaches(29), 'the middle of the band does');
   assert.ok(!reaches(60), 'and a very steep roof loses it again');
 

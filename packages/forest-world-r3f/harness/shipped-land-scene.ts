@@ -59,7 +59,7 @@ import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from 
 import { nearestReference, readerReferences, shadowLadderFor } from '../src/shadow-rung.js';
 import { deliveredForLevel } from '../src/shade-ladder.js';
 import { shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
-import { SHADE_LEVELS } from '../src/shade-ladder.js';
+import { LEGACY_SHADE_LEVELS, SHADE_LEVELS } from '../src/shade-ladder.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { islandScene } from './island-fixture.js';
 import { SHIPPED_CROWN_COLOUR, SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
@@ -112,37 +112,14 @@ export type LandArm =
   | 'dense';
 
 /**
- * THE REFINED LADDER — nine rungs at an even 0.025 spacing from 0.80 to 1.00, in place of the
- * authored four.
+ * THE REFINED LADDER IS NOW THE SHIPPED ONE — `REFINED_LADDER` IS GONE, DELIBERATELY.
  *
- * WHY IT EXISTS. The grain's NORMAL half perturbs the lambert BEFORE quantisation, so on flat
- * ground it can only express itself as a rung FLIP — and against four rungs it flips 14.4% of flat
- * ground, which is why the shipped texture reads as a speckle at band edges rather than as the
- * continuous mottle the approved Cycles render has. At 0.025 spacing the same field flips 73.1%.
- * Measured in `src/land-grain.test.ts`, not asserted here.
- *
- * ⚠⚠ THE SPACING IS 0.025 AND NOT 0.02, AND THAT IS A MEASURED CONSTRAINT RATHER THAN A ROUND
- * NUMBER. A reader's reference is whichever rung FLAT GROUND lands on, and flat ground's lambert
- * under the authored light is 0.9105. On a 0.02 grid the nearest rung is 0.92, so the whole reader
- * model shifts up two points — and against a 0.92 reference the darkest rungs are further from
- * their own colour than from a neighbour's, which makes a 0.78-floored 0.02 ladder DISHONEST
- * (`#d8c069@0.78` reads as `#8cb85e`, margin -1.36). At 0.025 the nearest rung is 0.90, exactly
- * where it is today. So this ladder changes NOTHING derived: same reference rung, same shadow rung
- * (0.77), same tightest reading margin (0.93). Only the texture moves.
- *
- * ⚠ IT KEEPS 0.80, 0.90 AND 1.00 and drops only 0.78 — today's darkest lit rung, and the one whose
- * margin was always thinnest. Adding rungs BELOW the reference is what costs margin; adding them
- * between the reference and full light costs none.
- *
- * ⚠ AND THE HONESTY IS RE-ASKED AGAINST THIS LADDER'S OWN REFERENCE, never inherited. Asking with
- * `SHADE_LEVELS`' references would have reported the 0.02 ladder above as costing no margin at
- * all — the exact shape of a derived constant read against the wrong subject. `landLadderHonest`
- * is the check, and it is asserted for every arm.
+ * It lived here from 2026-08-30 as the `dense` arm's candidate ladder while the owner decided. He
+ * adopted it on `oq-which-shade-ladder-should-the-map-wear-and-the-yellow-doe` ("Adopt it."), so
+ * `src/shade-ladder.ts`'s {@link SHADE_LEVELS} IS those nine rungs and a second constant holding
+ * the same numbers would be the fork this package has already paid for three times. What is pinned
+ * here instead is the OTHER side of the comparison — see {@link LIT_OF}.
  */
-export const REFINED_LADDER: readonly number[] = Array.from(
-  { length: 9 },
-  (_, i) => Math.round((0.8 + i * 0.025) * 1000) / 1000,
-);
 
 /**
  * Is every rung of every token on `lit` still read as its own token, judged against the references
@@ -177,13 +154,17 @@ export const LAND_ARM_SPECS: readonly LandArmSpec[] = [
   { arm: 'relief', from: 'flat', adds: '+ the land relief field' },
   { arm: 'banded', from: 'relief', adds: '+ the authored shade ladder' },
   { arm: 'grain-normal', from: 'banded', adds: "+ the grain octave's NORMAL half" },
-  { arm: 'shadow', from: 'grain-normal', adds: '+ the occlusion field (SHIPPED)' },
+  { arm: 'shadow', from: 'grain-normal', adds: '+ the occlusion field' },
   {
     arm: 'grain-both',
     from: 'grain-normal',
     adds: "+ the grain octave's COLOUR half (REFERENCE — off-palette, not adopted)",
   },
-  { arm: 'dense', from: 'shadow', adds: '+ the ladder refined to 0.025 spacing (9 rungs)' },
+  {
+    arm: 'dense',
+    from: 'shadow',
+    adds: '+ the ladder refined to 0.025 spacing, 9 rungs (SHIPPED)',
+  },
 ];
 
 export const LAND_ARMS: readonly LandArm[] = LAND_ARM_SPECS.map((spec) => spec.arm);
@@ -256,10 +237,25 @@ const GRAIN_OF = {
   GroundGrainMode | undefined
 >;
 
-/** The LIT ladder each arm hands the shipped material. Absent means `SHADE_LEVELS`, and absent is
- *  what every pre-existing arm passes — so their generated shader source, and therefore every
- *  figure already published about them, is untouched by this option existing. */
-const LIT_OF: ReadonlyMap<LandArm, readonly number[]> = new Map([['dense', REFINED_LADDER]]);
+/**
+ * The LIT ladder each arm hands the shipped material. Absent means `SHADE_LEVELS` — the NINE rungs
+ * the map wears since 2026-08-31 — and `dense` is now the arm that passes nothing.
+ *
+ * ⚠⚠ THIS MAP INVERTED WHEN THE LADDER WAS ADOPTED, AND THAT IS THE WHOLE POINT OF IT. It used to
+ * carry one entry, `dense -> REFINED_LADDER`, with every other arm taking the four-rung default.
+ * Adoption made the default the refined ladder — so leaving the map alone would have moved
+ * `banded` / `grain-normal` / `shadow` / `grain-both` onto the new ladder too, silently making
+ * every figure published about them untrue and collapsing the `shadow -> dense` step into a
+ * comparison of a thing with itself. They are therefore PINNED to {@link LEGACY_SHADE_LEVELS},
+ * which is what they were measured on, and the one remaining difference between `shadow` and
+ * `dense` is the ladder.
+ */
+const LIT_OF: ReadonlyMap<LandArm, readonly number[]> = new Map([
+  ['banded', LEGACY_SHADE_LEVELS],
+  ['grain-normal', LEGACY_SHADE_LEVELS],
+  ['shadow', LEGACY_SHADE_LEVELS],
+  ['grain-both', LEGACY_SHADE_LEVELS],
+]);
 
 /** The LIT ladder an arm actually draws — the one place that fallback lives, so the scene, the
  *  palette check and the honesty test cannot disagree about which ladder an arm is on. */

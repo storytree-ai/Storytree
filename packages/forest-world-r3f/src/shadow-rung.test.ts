@@ -19,7 +19,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SHADE_LEVELS, deliveredForLevel, rungOfNormal, toHex } from './shade-ladder.js';
+import {
+  LEGACY_SHADE_LEVELS,
+  SHADE_LEVELS,
+  deliveredForLevel,
+  rungOfNormal,
+  toHex,
+} from './shade-ladder.js';
 import {
   W_LUMA,
   colourDistance2,
@@ -162,7 +168,13 @@ test('NON-VACUITY: the same call on the shipped palette does NOT throw', () => {
 
 test('the shadow ladder is the authored one plus exactly one entry, sorted', () => {
   const ladder = shadowLadderFor(SHIPPED_TOKENS);
-  assert.deepEqual([...ladder.levels], [0.77, 0.78, 0.8, 0.9, 1]);
+  // ⚠ THE RUNG DID NOT MOVE WHEN THE LADDER DID. 0.77 is DERIVED — the deepest level at which
+  // every shipped token still reads as itself — so nothing forced it to survive the adoption of
+  // the nine-rung lit ladder on 2026-08-31; it is re-derived here against the ladder that ships,
+  // and against the four-rung predecessor below, and the two agree.
+  assert.deepEqual([...ladder.levels], [0.77, 0.8, 0.825, 0.85, 0.875, 0.9, 0.925, 0.95, 0.975, 1]);
+  assert.equal(shadowLadderFor(SHIPPED_TOKENS, LEGACY_SHADE_LEVELS).rung, ladder.rung);
+  assert.deepEqual([...shadowLadderFor(SHIPPED_TOKENS, LEGACY_SHADE_LEVELS).levels], [0.77, 0.78, 0.8, 0.9, 1]);
   assert.equal(ladder.levels.length, SHADE_LEVELS.length + 1);
   const ascending = [...ladder.levels].sort((a, b) => a - b);
   assert.deepEqual([...ladder.levels], ascending, 'the ladder must be ascending');
@@ -179,7 +191,14 @@ test('the lit remap is a LOOKUP, not an offset — every lit rung finds its own 
   SHADE_LEVELS.forEach((level, i) => {
     assert.equal(ladder.levels[ladder.litIndex[i]!], level, `lit rung ${i} remaps wrong`);
   });
-  assert.deepEqual([...ladder.litIndex], [1, 2, 3, 4]);
+  assert.deepEqual([...ladder.litIndex], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
+  // ⚠ THE REMAP IS AN OFFSET-BY-ONE ON *THIS* LADDER, WHICH IS EXACTLY WHY THE LOOKUP MATTERS.
+  // The derived rung lands BELOW every lit rung, so the extended ladder is the lit one shifted up
+  // by one and an `i + 1` would agree with the lookup at every index. Asked of a ladder whose rung
+  // lands MID-way instead, the two answers separate — see the `lit` test further down, which is
+  // where the offset is actually refuted.
+  const mid = shadowLadderFor(SHIPPED_TOKENS, [0.7, 0.9, 1.0]);
+  assert.deepEqual([...mid.litIndex], [0, 2, 3], 'a rung above the floor breaks any offset');
 });
 
 test('a shadow darkens only rungs LIGHTER than itself — it never brightens a surface', () => {
@@ -191,8 +210,8 @@ test('a shadow darkens only rungs LIGHTER than itself — it never brightens a s
     if (ladder.darkenable.includes(i)) continue;
     assert.ok(SHADE_LEVELS[i]! <= ladder.rung, `rung ${i} is lighter but was not darkenable`);
   }
-  // On this palette every authored rung is lighter than 0.77, so all four darken.
-  assert.deepEqual([...ladder.darkenable], [0, 1, 2, 3]);
+  // On this palette every authored rung is lighter than 0.77, so all NINE darken.
+  assert.deepEqual([...ladder.darkenable], [0, 1, 2, 3, 4, 5, 6, 7, 8]);
 });
 
 test('a malformed token FAILS where it can be named, not as a silent black reference', () => {
@@ -240,9 +259,13 @@ test('a rung that COINCIDES with an authored level darkens nothing at that level
   // helper rather than through `shadowLadderFor`. `level > rung` and `level >= rung` agree at
   // every rung the sweep returns, and disagree exactly here — where darkening a level onto ITSELF
   // would be a shadow that changed nothing while claiming to.
-  assert.deepEqual(rungsDarkenedBy(0.8), [2, 3], 'only 0.90 and 1.00 are lighter than 0.80');
-  assert.deepEqual(rungsDarkenedBy(0.78), [1, 2, 3], 'the darkest authored level is not darkened');
-  assert.deepEqual(rungsDarkenedBy(0.77), [0, 1, 2, 3], 'the derived rung darkens all four');
+  assert.deepEqual(rungsDarkenedBy(0.8), [1, 2, 3, 4, 5, 6, 7, 8], 'the floor is not darkened onto itself');
+  assert.deepEqual(rungsDarkenedBy(0.9), [5, 6, 7, 8], 'and neither is the reference rung');
+  assert.deepEqual(
+    rungsDarkenedBy(0.77),
+    [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    'the derived rung darkens all nine',
+  );
   assert.deepEqual(rungsDarkenedBy(1), [], 'a rung at full light darkens nothing');
   // It reads the ladder it is given, so a palette with different levels gets a different answer.
   assert.deepEqual(rungsDarkenedBy(0.5, [0.4, 0.5, 0.6]), [2]);
@@ -324,7 +347,11 @@ test('the derived rung is re-asked against the LIT LADDER it is given, remap and
   // what makes the shadow a shadow on this ladder rather than on the default one.
   assert.ok(refined.rung < Math.min(...lit));
   assert.deepEqual([...refined.darkenable], [0, 1, 2, 3, 4, 5, 6, 7], 'read off THIS ladder');
-  assert.deepEqual([...shipped.darkenable], [0, 1, 2, 3], 'and off the authored one by default');
+  assert.deepEqual(
+    [...shipped.darkenable],
+    [0, 1, 2, 3, 4, 5, 6, 7, 8],
+    'and off the authored one by default',
+  );
   assert.deepEqual(rungsDarkenedBy(refined.rung, lit), [...refined.darkenable]);
 
   // AND THE REFERENCE MOVED WITH THE LADDER: flat ground on this one lands on its own nearest

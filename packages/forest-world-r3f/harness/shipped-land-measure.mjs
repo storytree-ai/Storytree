@@ -387,28 +387,38 @@ for (const arm of ['grain-normal', 'shadow', 'dense']) {
 //    produces a picture PIXEL-IDENTICAL to the bare one — an ordinary-looking frame that would be
 //    filed as "this is what the bought kit looks like". So the run stops rather than writing a
 //    comparison of one thing with itself.
+//
+//    ⚠⚠ AND IT IS TAKEN ON BOTH LADDERS SINCE 2026-08-31, which is the comparison the ladder
+//    adoption lands. Every picture the owner has seen of the refined ladder is of BARE ground; the
+//    bought kit crossed after that measurement was taken. The pair below is therefore the first
+//    look at the ground he adopted UNDER the props he adopted — `shadow` is the four-rung ladder
+//    the map wore, `dense` is the nine-rung one it wears, the props and the frame are identical,
+//    and the ladder is the only difference between them.
 const dressed = [];
 for (const zoom of LAND_ZOOMS) {
-  const bare = await page.evaluate(([a, z]) => window.landRunner.snapshotTreed(a, z), ['shadow', zoom]);
-  const bareName = `shipped-bare-${zoom}px.png`;
-  writeFileSync(join(OUT, bareName), Buffer.from(bare.split(',')[1], 'base64'));
+  for (const arm of ['shadow', 'dense']) {
+    const bare = await page.evaluate(([a, z]) => window.landRunner.snapshotTreed(a, z), [arm, zoom]);
+    const bareName = `shipped-bare-${arm}-${zoom}px.png`;
+    writeFileSync(join(OUT, bareName), Buffer.from(bare.split(',')[1], 'base64'));
 
-  const shot = await page.evaluate(
-    ([a, z]) => window.landRunner.snapshotDressed(a, z),
-    ['shadow', zoom],
-  );
-  if (!(shot.props > 0)) {
-    throw new Error(
-      `shipped-land: the dressed arm at ${zoom} px/unit drew ${shot.props} prop meshes, so the ` +
-        'bought kit never reached the frame. The picture would be the bare island under a name ' +
-        'claiming otherwise — check that the page awaited loadKit() and that /assets/ is served.',
+    const shot = await page.evaluate(
+      ([a, z]) => window.landRunner.snapshotDressed(a, z),
+      [arm, zoom],
     );
+    if (!(shot.props > 0)) {
+      throw new Error(
+        `shipped-land: the dressed ${arm} arm at ${zoom} px/unit drew ${shot.props} prop meshes, ` +
+          'so the bought kit never reached the frame. The picture would be the bare island under ' +
+          'a name claiming otherwise — check that the page awaited loadKit() and that /assets/ ' +
+          'is served.',
+      );
+    }
+    const name = `shipped-dressed-${arm}-${zoom}px.png`;
+    writeFileSync(join(OUT, name), Buffer.from(shot.png.split(',')[1], 'base64'));
+    pictures.push(bareName, name);
+    dressed.push({ arm, pxPerUnit: zoom, propMeshes: shot.props, groundTriangles: shot.triangles });
+    console.log(`  wrote ${bareName} and ${name} (${shot.props} merged prop meshes)`);
   }
-  const name = `shipped-dressed-${zoom}px.png`;
-  writeFileSync(join(OUT, name), Buffer.from(shot.png.split(',')[1], 'base64'));
-  pictures.push(bareName, name);
-  dressed.push({ pxPerUnit: zoom, propMeshes: shot.props, groundTriangles: shot.triangles });
-  console.log(`  wrote ${bareName} and ${name} (${shot.props} merged prop meshes)`);
 }
 
 // ── THE VERDICT — ⚠⚠ TWO OF THEM, and the reason is a finding rather than a complication.

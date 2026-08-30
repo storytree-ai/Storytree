@@ -12,6 +12,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  LEGACY_SHADE_LEVELS,
   SHADE_LEVELS,
   deliveredForLevel,
   parseHex,
@@ -62,14 +63,16 @@ test('THE UNGRAINED LADDER HOLDS — every rung of every shipped token reads as 
   // The control the whole measurement rests on. If the shipped ground already misreported, the
   // grain could not be blamed for anything and the fork would be a different one entirely.
   const readings = ladderReadings();
-  // ⚠⚠ FIVE RUNGS, NOT FOUR, AND THAT IS A CORRECTION RATHER THAN A WIDENING. Until 2026-08-30
+  // ⚠⚠ TEN RUNGS NOW, AND EACH GROWTH WAS A CORRECTION RATHER THAN A WIDENING. Until 2026-08-30
   // this instrument walked `SHADE_LEVELS` and reported on 24 patches; the shadow crossing
-  // (PR #1736) gave the shipped material a fifth, DERIVED rung at 0.77, below all four. An
-  // instrument left on the old ladder does not go red — it answers about a ground nobody draws.
+  // (PR #1736) gave the shipped material a fifth, DERIVED rung at 0.77, below all four. The
+  // 2026-08-31 ladder adoption took the lit half from four rungs to nine, so the shipped ground
+  // now draws ten and this reports on 60. An instrument left on an old ladder does not go red —
+  // it answers about a ground nobody draws, which is why the count is derived AND pinned.
   assert.equal(shippedLadder().length, SHADE_LEVELS.length + 1);
   assert.equal(shippedLadder()[0], 0.77, 'the derived shadow rung, and it is the DARKEST');
   assert.equal(readings.length, SHIPPED_STATUSES.length * shippedLadder().length);
-  assert.equal(readings.length, 30);
+  assert.equal(readings.length, 60);
   for (const r of readings) {
     assert.ok(
       ownFamily(r.status).has(r.readsAs),
@@ -94,7 +97,7 @@ test('THE UNGRAINED LADDER HOLDS — every rung of every shipped token reads as 
   // NON-VACUITY on the correction itself: asked about the OLD four-rung ladder the same
   // instrument still returns the old answer, so the change above is the ladder moving rather than
   // the arithmetic drifting.
-  const four = ladderReadings(shippedReaderTable(), SHADE_LEVELS);
+  const four = ladderReadings(shippedReaderTable(), LEGACY_SHADE_LEVELS);
   assert.equal(four.length, 24);
   assert.equal(four.reduce((a, b) => (a.margin <= b.margin ? a : b)).margin.toFixed(2), '3.00');
 });
@@ -132,18 +135,23 @@ test('the mix is a NO-OP at fac 0 and reaches the stops at fac 1 — the ends ar
 test('THE ANSWER: the colour half is INADMISSIBLE at its authored mix, and where', () => {
   const v = grainColourHalfVerdict();
   assert.equal(v.admissible, false, 'the finding this increment reports');
-  // Exactly the four `(status, rung)` readings that move — the shared yellow at the ladder's two
+  // Exactly the six `(status, rung)` readings that move — the shared yellow at the ladder's three
   // darkest rungs, once for each of the two statuses that share the token. Named rather than
   // counted, so a palette change that moved the failure somewhere else could not pass as this one.
+  //
+  // ⚠ THE SET IS THE SAME SIZE AND NOT THE SAME SET. The 2026-08-31 ladder adoption dropped 0.78
+  // and added 0.825; the failures moved with the rungs, and they are still exactly the bottom of
+  // the ladder for exactly the two statuses that share the yellow. Refining bought the tint no
+  // headroom, which is the finding the fork turned on and is unchanged by the adoption.
   assert.deepEqual(
     v.breaks.map((b) => `${b.status}@${b.level}`).sort(),
     [
       'building@0.77',
-      'building@0.78',
       'building@0.8',
+      'building@0.825',
       'proposed@0.77',
-      'proposed@0.78',
       'proposed@0.8',
+      'proposed@0.825',
     ],
   );
   for (const b of v.breaks) {
@@ -151,9 +159,9 @@ test('THE ANSWER: the colour half is INADMISSIBLE at its authored mix, and where
     assert.ok(b.baseMargin > 0, 'and it must have held BEFORE the grain, or the grain broke nothing');
     assert.ok(b.worstMargin < 0);
   }
-  // The other twenty-four hold, which is what makes this a narrow finding rather than a
-  // condemnation of the mechanism.
-  assert.equal(grainColourHalfReadings().filter((r) => r.holds).length, 24);
+  // The other fifty-four hold, which is what makes this a narrow finding rather than a
+  // condemnation of the mechanism — and the ratio IMPROVED with the ladder, 24 of 30 to 54 of 60.
+  assert.equal(grainColourHalfReadings().filter((r) => r.holds).length, 54);
 });
 
 test('THE CEILING: the largest mix every reading survives, and it is far below the authored one', () => {
@@ -161,13 +169,25 @@ test('THE CEILING: the largest mix every reading survives, and it is far below t
   // "no". The owner is choosing between pictures — a quarter-strength grain that holds the closure
   // against a full-strength one that does not — and a boolean would hide the option.
   const ceiling = admissibleMixCeiling(0.001);
-  // ⚠⚠ 0.006, NOT THE 0.031 THE FOUR-RUNG LADDER REPORTED — a fifth of the old figure and a
+  // ⚠⚠ 0.006, NOT THE 0.031 THE FOUR-RUNG LIT LADDER REPORTED — a fifth of that figure and a
   // twentieth of the authored mix. The shadow rung is what took it: a level darker than any lit
   // one, at 0.93 units of margin, survives almost no wash at all. Every sentence in the corpus
   // reading "the largest fac today's colours survive is 0.031" is about a ladder that has been
   // superseded, and this is where that becomes a red rather than a slow drift.
+  //
+  // ⚠ THE CEILING DID NOT MOVE WHEN THE LADDER DID, which is worth knowing because it is the
+  // number the owner's fork turned on. It is set by the SHADOW rung, and the shadow rung is
+  // derived and landed on 0.77 either way — so refining the lit ladder bought the colour half no
+  // headroom at all. The lit-only figure below rose from 0.031 to 0.077 for the same reason the
+  // rest of this pass keeps meeting: raising the floor from 0.78 to 0.80 removed the tightest
+  // lit rung. Neither number reaches the authored 0.13.
   assert.equal(ceiling, 0.006);
-  assert.equal(admissibleMixCeiling(0.001, 1.0, SHADE_LEVELS), 0.031, 'the old ladder, unchanged');
+  assert.equal(
+    admissibleMixCeiling(0.001, 1.0, LEGACY_SHADE_LEVELS),
+    0.031,
+    'the four-rung lit ladder, unchanged',
+  );
+  assert.equal(admissibleMixCeiling(0.001, 1.0, SHADE_LEVELS), 0.077, 'the adopted lit ladder alone');
   assert.ok(ceiling < GRAIN_COLOUR_MIX, 'a ceiling at or above the authored mix would be no fork');
   assert.equal(grainColourHalfVerdict(ceiling).admissible, true);
   assert.equal(grainColourHalfVerdict(Math.round((ceiling + 0.001) * 1000) / 1000).admissible, false);
@@ -231,10 +251,15 @@ test('THE BAND: a tinted ground may only use levels near flat ground, and the sh
   assert.ok(lo < FLAT_GROUND_LEVEL && hi > FLAT_GROUND_LEVEL, 'the band brackets flat ground');
 
   // THE CONSEQUENCE, stated as an overlap rather than as prose: three of the shipped ladder's
-  // five rungs sit BELOW the tinted floor, and they are exactly the ones the verdict breaks on.
+  // TEN rungs sit BELOW the tinted floor, and they are exactly the ones the verdict breaks on.
+  //
+  // ⚠ THE COUNT OF BREAKING RUNGS DID NOT CHANGE WHEN THE LADDER GREW — three before, three now
+  // — but the SHARE did, from three of five to three of ten. The band itself is unmoved: it is a
+  // property of the reader's single reference at flat ground, not of how finely the ladder is
+  // subdivided, which is the whole claim this test was written to make.
   const outside = shippedLadder().filter((l) => l < lo || l > hi);
-  assert.deepEqual(outside, [0.77, 0.78, 0.8]);
-  assert.equal(shippedLadder().filter((l) => l >= lo && l <= hi).length, 2);
+  assert.deepEqual(outside, [0.77, 0.8, 0.825]);
+  assert.equal(shippedLadder().filter((l) => l >= lo && l <= hi).length, 7);
 });
 
 test('the band is a property of the LADDER, not of the yellow — moving the token does not move it much', () => {

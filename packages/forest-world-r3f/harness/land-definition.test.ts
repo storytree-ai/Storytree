@@ -40,7 +40,13 @@ import {
   wallFootY,
   type PlaceableCell,
 } from './land-definition.js';
-import { LIGHT_DIRECTION, SHADE_LEVELS, rungOfNormal } from './palette-band.js';
+import {
+  LEGACY_SHADE_LEVELS,
+  LIGHT_DIRECTION,
+  SHADE_LEVELS,
+  rungOfNormal,
+} from './palette-band.js';
+import { lambertOfNormal, nearestLevelIndex } from '../src/shade-ladder.js';
 
 const CELLS = groundCellsFrom(islandScene());
 
@@ -150,18 +156,35 @@ test('THE FLAT LAND IS ONE RUNG, AND THAT IS THE WHOLE FINDING', () => {
   assert.equal(offBaseShare(0), 0);
 });
 
-test('at the authored amplitude the land reaches every rung of the ladder', () => {
+test('at the authored amplitude the land reaches every rung it CAN — all but full light', () => {
   const rungs = new Set<number>();
   for (let x = -115; x <= 115; x += 2) {
     for (let z = -67; z <= 67; z += 2) rungs.add(rungOf(landNormal(x, z, LAND_RELIEF_AMPLITUDE)));
   }
-  assert.equal(
-    rungs.size,
-    SHADE_LEVELS.length,
+  // ⚠ EIGHT OF NINE, AND THE MISSING ONE IS THE TOP. Until the nine-rung ladder was adopted on
+  // 2026-08-31 the land reached all four rungs, because the coarse ladder's top entry absorbed
+  // every half-lambert from 0.95 up. On nine rungs full light needs 0.9875 — a normal within about
+  // 9 degrees of the authored direction — and this relief's steepest slope is 0.455 against the
+  // light's 1.438, so no land normal comes close. That is the ladder reporting the relief honestly
+  // rather than the relief having lost anything: eight distinct levels where there used to be
+  // four.
+  assert.deepEqual(
+    [...rungs].sort((a, b) => a - b),
+    [0, 1, 2, 3, 4, 5, 6, 7],
     `the land reached ${rungs.size} of ${SHADE_LEVELS.length} rungs at amplitude ` +
       `${LAND_RELIEF_AMPLITUDE} — definition an eye can read is the point, and a treatment ` +
       'that never leaves the base rung delivers exactly nothing',
   );
+  assert.equal(rungs.size, SHADE_LEVELS.length - 1);
+  // And it reached ALL FOUR of the ladder it was authored against, so the amplitude was never
+  // under-spanning; what changed is the resolution it is measured at.
+  const legacyRungs = new Set<number>();
+  for (let x = -115; x <= 115; x += 2) {
+    for (let z = -67; z <= 67; z += 2) {
+      legacyRungs.add(nearestLevelIndex(LEGACY_SHADE_LEVELS, lambertOfNormal(landNormal(x, z, LAND_RELIEF_AMPLITUDE))));
+    }
+  }
+  assert.equal(legacyRungs.size, LEGACY_SHADE_LEVELS.length);
 });
 
 test('more amplitude means more of the land off the base rung, monotonically', () => {
@@ -176,11 +199,43 @@ test('more amplitude means more of the land off the base rung, monotonically', (
         `less than ${ladder[i - 1]!.a}'s ${ladder[i - 1]!.share}`,
     );
   }
-  // And the chosen amplitude is not a rounding error away from the flat control: the 1.2
-  // rung on the evidence page is there because it measurably ISN'T enough.
+  // ⚠⚠ THE DISCRIMINATION THIS METRIC USED TO CARRY IS GONE, AND IT IS THE LADDER'S DOING RATHER
+  // THAN THE RELIEF'S. "Share of the land off its base rung" was a proxy for "definition an eye
+  // can read", and on a coarse ladder it separated the candidates sharply: amplitude 1.2 moved a
+  // small minority off base while 2.2 moved most of the island, more than four times as much. On
+  // the nine-rung ladder adopted 2026-08-31 the rung gaps are 0.025, so almost ANY relief leaves
+  // its base rung — 1.2 already moves 67.5% against 2.2's 78.7%, a ratio of 1.17. The metric
+  // SATURATES, and a saturated metric cannot choose an amplitude.
+  //
+  // So the 4x clause is not re-pinned at 1.17; it is asked of the ladder it was true on, which is
+  // what keeps it evidence rather than a number adjusted until it passed. Whether 2.2 is still the
+  // right amplitude now that a finer ladder resolves 1.2's relief too is an ART question for the
+  // owner (ADR-0392 D1), and this increment does not answer it.
+  const legacyShare = (a: number): number => {
+    const base = nearestLevelIndex(LEGACY_SHADE_LEVELS, lambertOfNormal(landNormal(0, 0, 0)));
+    let off = 0;
+    let total = 0;
+    for (let x = -115; x <= 115; x += 2) {
+      for (let z = -67; z <= 67; z += 2) {
+        total += 1;
+        if (nearestLevelIndex(LEGACY_SHADE_LEVELS, lambertOfNormal(landNormal(x, z, a))) !== base) {
+          off += 1;
+        }
+      }
+    }
+    return off / total;
+  };
   assert.ok(
-    ladder[2]!.share > 4 * ladder[1]!.share,
-    `amplitude ${LAND_RELIEF_AMPLITUDE} is barely distinguishable from 1.2`,
+    legacyShare(2.2) > 4 * legacyShare(1.2),
+    'the four-rung ladder separated 1.2 from 2.2 by more than 4x — if it no longer does, the ' +
+      'evidence page this amplitude was chosen on has moved and the choice needs re-making',
+  );
+  // AND THE SATURATION ITSELF, pinned, because it is the finding rather than an inconvenience: on
+  // the adopted ladder the same pair is barely more than one to one.
+  assert.ok(
+    ladder[2]!.share < 1.5 * ladder[1]!.share,
+    `the metric still separates 1.2 from 2.2 on the nine-rung ladder (${ladder[1]!.share} vs ` +
+      `${ladder[2]!.share}) — the saturation note above is out of date`,
   );
 });
 

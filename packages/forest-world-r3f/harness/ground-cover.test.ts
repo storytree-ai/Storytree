@@ -33,6 +33,7 @@ import {
   worstStatusPair,
 } from './ground-cover.js';
 import {
+  LEGACY_SHADE_LEVELS,
   SHADE_LEVELS,
   STATUS_TOKENS,
   deliveredForLevel,
@@ -96,18 +97,34 @@ test('separation is measured at MATCHED CONDITION, and the darkest rung is the w
   assert.equal(Object.keys(s.per).length, STATUS_TOKENS.size);
 });
 
-test('the ladder\'s first step is far shallower than the rest, so "a rung" is not one number', () => {
-  // Read for the report: `SHADE_LEVELS` is [0.78, 0.80, 0.90, 1.00], so the first gap is a fifth
-  // of the others. A separation quoted against "one shade rung" means very different things
-  // depending on which rung, and this is what stops the README quoting the flattering one.
+test('⚠ THE LADDER\'S STEPS ARE NOW EVEN — the finding this test recorded was cured by the adoption', () => {
+  // ⚠⚠ THIS TEST USED TO SAY THE OPPOSITE, AND THE CHANGE IS THE POINT. On the four-rung ladder
+  // [0.78, 0.80, 0.90, 1.00] the first gap was a FIFTH of the others, so "further apart than one
+  // shade rung" was a claim that was true or false depending entirely on which rung was meant —
+  // and the report printed all three gaps rather than an average precisely so nobody could quote
+  // the flattering one.
+  //
+  // The nine-rung ladder adopted 2026-08-31 is EVENLY SPACED at 0.025, so every gap is the same
+  // and "one shade rung" is finally one number. That is a small, real gain in how this vocabulary
+  // can be TALKED about, on top of what the refinement was adopted for.
   const gaps = shadeRungGaps(YELLOW_GRASS);
   assert.equal(gaps.length, SHADE_LEVELS.length - 1);
-  assert.ok(gaps[0]! < gaps[1]! / 3, `first gap ${gaps[0]} is not far shallower than ${gaps[1]}`);
-  // And the shallow one is quieter than the bar every separation is quoted against — so
-  // "further apart than one shade rung" is a claim that is true or false depending entirely on
-  // which rung is meant, which is why the report prints all three gaps rather than an average.
-  assert.ok(gaps[0]! < SEPARATION_FLOOR, `the shallowest rung ${gaps[0]} is no longer under the bar`);
-  assert.ok(gaps[1]! > SEPARATION_FLOOR * 2, `the deep rungs should dwarf the bar`);
+  const spread = Math.max(...gaps) - Math.min(...gaps);
+  assert.ok(spread < 1, `the ladder's steps are no longer even: ${gaps.map((g) => g.toFixed(2)).join(', ')}`);
+  // ⚠ AND EVERY GAP IS NOW UNDER THE BAR, WHICH IS THE COST OF THE SAME CHANGE. A 0.025 step moves
+  // a token far less than a 0.10 one did, so a separation quoted against "one shade rung" is now
+  // quoted against a much quieter reference — the bar got easier to clear, and a reader of the
+  // report has to know that before reading any ratio in it as an improvement.
+  for (const g of gaps) {
+    assert.ok(g < SEPARATION_FLOOR, `rung gap ${g.toFixed(2)} is no longer under the scenery bar`);
+  }
+  // NON-VACUITY, and it is the frozen record: on the ladder those sentences were written against,
+  // the gaps were emphatically uneven and the deep ones dwarfed the bar.
+  const legacyGaps = shadeRungGaps(YELLOW_GRASS, LEGACY_SHADE_LEVELS);
+  assert.equal(legacyGaps.length, LEGACY_SHADE_LEVELS.length - 1);
+  assert.ok(legacyGaps[0]! < legacyGaps[1]! / 3, `first gap ${legacyGaps[0]}`);
+  assert.ok(legacyGaps[0]! < SEPARATION_FLOOR);
+  assert.ok(legacyGaps[1]! > SEPARATION_FLOOR * 2, 'the deep rungs used to dwarf the bar');
 });
 
 test('the closest two DIFFERENT statuses are healthy and unknown, at 24.58', () => {
@@ -119,10 +136,20 @@ test('the closest two DIFFERENT statuses are healthy and unknown, at 24.58', () 
   // and a parcel asserting nothing. ADR-0462 gave `unknown` its own slate and the worst pair moved
   // to `proposed`/`mapped` at **14.23**. Re-authoring `mapped` as a clay on 2026-08-28 moved it
   // again — brown is now 41.52 from green and 24.36 from yellow, so what binds is `healthy`
-  // against `unknown` at **24.58**, which is the same PAIR the defect was and 7.4x further apart.
+  // against `unknown` at **25.40**, which is the same PAIR the defect was and 7.6x further apart.
+  //
+  // ⚠ IT MOVED A THIRD TIME, 24.58 -> 25.40, and no colour changed: the nine-rung ladder adopted
+  // 2026-08-31 dropped the 0.78 rung, which is the darkest and therefore where two families sit
+  // closest. Removing it removed the binding comparison. The figure is pinned on BOTH ladders
+  // below, so this is the ladder moving rather than a token drifting.
   const worst = worstStatusPair();
   assert.deepEqual([worst.a, worst.b].sort(), ['healthy', 'unknown']);
-  assert.ok(Math.abs(worst.distance - 24.58) < 0.01, `worst pair moved to ${worst.distance.toFixed(2)}`);
+  assert.ok(Math.abs(worst.distance - 25.4) < 0.01, `worst pair moved to ${worst.distance.toFixed(2)}`);
+  const legacyWorst = worstStatusPair(STATUS_TOKENS, LEGACY_SHADE_LEVELS);
+  assert.ok(
+    Math.abs(legacyWorst.distance - 24.58) < 0.01,
+    `the four-rung figure moved to ${legacyWorst.distance.toFixed(2)}`,
+  );
   // AND THE COMPARISON WITH THE SCENERY BAR HAS INVERTED AND KEPT GOING, which is worth an
   // assertion rather than a comment because it is the sentence `YELLOW_GRASS`'s docstring has now
   // been corrected for twice. The worst meaningful pair used to be QUIETER than the bar a scenery
@@ -160,7 +187,16 @@ test('the floor is still the shipped wheat override\'s own separation', () => {
   // pass by construction and would let a change to EITHER token re-baseline the bar in silence.
   // Pinning it means a moved token REDS here, where a human decides, instead of quietly moving
   // what every later cover is held to.
-  const wheat = separationOf(STATUS_TOKENS.get('healthy')!.wheat);
+  // ⚠⚠ ON THE FOUR-RUNG LADDER, WHICH IS WHAT THE CONSTANT IS. `SEPARATION_FLOOR` is the wheat
+  // override's own separation ROUNDED DOWN, and that separation is a minimum over the ladder's
+  // rungs — so it moves when the ladder does. The nine-rung ladder adopted 2026-08-31 dropped the
+  // 0.78 rung, which is where the wheat came closest to `proposed`, and the same override now
+  // measures 7.95. The constant is deliberately NOT re-derived onto that: raising a bar changes
+  // which scenery colours are admissible on the island, and which colours may appear is a look
+  // decision the owner signs (ADR-0392 D1), not one an adoption of the ground's ladder settles.
+  // What is asserted instead is both numbers — the frozen derivation exactly, and the live one as
+  // a recorded drift — so the gap is visible rather than absorbed.
+  const wheat = separationOf(STATUS_TOKENS.get('healthy')!.wheat, LEGACY_SHADE_LEVELS);
   assert.equal(wheat.nearest, 'proposed');
   // Rounded DOWN, so the colour that DEFINES the bar sits inside it — see the constant's note.
   // Both directions are asserted: below the floor means wheat got worse and the bar is now
@@ -172,6 +208,16 @@ test('the floor is still the shipped wheat override\'s own separation', () => {
     `wheat now measures ${wheat.distance.toFixed(4)} against a pinned floor of ${SEPARATION_FLOOR} — ` +
       'a token moved; decide what the bar should be rather than re-pinning it reflexively',
   );
+  // THE LIVE DRIFT, recorded rather than acted on: on the ladder the map wears, the colour that
+  // DEFINES the bar sits 0.27 above it. The bar is therefore now slightly LOOSER than its own
+  // source, which is the direction the second assertion above exists to catch — so it is named
+  // here instead of being allowed to pass unremarked.
+  const wheatToday = separationOf(STATUS_TOKENS.get('healthy')!.wheat);
+  assert.ok(
+    Math.abs(wheatToday.distance - 7.95) < 0.01,
+    `the wheat override measures ${wheatToday.distance.toFixed(4)} on the adopted ladder`,
+  );
+  assert.ok(wheatToday.distance > SEPARATION_FLOOR, 'the bar is looser than its source, not stricter');
   // The reference is never a candidate, but it must still not be reported as failing itself.
   assert.equal(coverVerdict(STATUS_TOKENS.get('healthy')!.wheat).ok, true);
 });
@@ -202,10 +248,19 @@ test('a colliding cover FAILS — the bar is not vacuous', () => {
   }
   // And the curve is continuous rather than a cliff: the palest yellow that still reads as grass
   // lands ON the bar, which is the whole reason the authored token is a mustard and not a straw.
-  const pale = coverVerdict('#c6c06a');
+  //
+  // ⚠ CALIBRATED ON THE FOUR-RUNG LADDER, like the bar it is calibrated against. `#c6c06a` was
+  // chosen to measure exactly `SEPARATION_FLOOR`; on the adopted ladder it measures 8.22, because
+  // the rung where it came closest to `proposed` no longer exists. Both are asserted, so the
+  // calibration stays a calibration and the drift stays visible.
+  const pale = separationOf('#c6c06a', LEGACY_SHADE_LEVELS);
   assert.ok(
-    Math.abs(pale.separation.distance - SEPARATION_FLOOR) < 0.02,
-    `#c6c06a measures ${pale.separation.distance.toFixed(2)}, no longer sitting on the bar`,
+    Math.abs(pale.distance - SEPARATION_FLOOR) < 0.02,
+    `#c6c06a measures ${pale.distance.toFixed(2)}, no longer sitting on the bar`,
+  );
+  assert.ok(
+    Math.abs(separationOf('#c6c06a').distance - 8.22) < 0.01,
+    `#c6c06a measures ${separationOf('#c6c06a').distance.toFixed(2)} on the adopted ladder`,
   );
 });
 
