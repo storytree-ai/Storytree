@@ -129,6 +129,16 @@ describe('which row a read draws on', () => {
     expect(row).not.toBe(axis.unmeasuredRow);
   });
 
+  it('gives a depth row to PLACED and to nothing else, even if another state carries a number', () => {
+    // The state is what earns a depth row, never the presence of a number. `surface-depth.ts` already
+    // DISCARDS the partial depth a cyclic node accumulates — "a partial longest chain is not a longest
+    // chain" — so a reading carrying both a non-placed state and a number is a shape this must refuse
+    // rather than trust. Testing `depth !== null` alone would admit it.
+    const cyclicWithNumber = { state: 'cyclic', depth: 2, attr: 'cyclic', label: '?' } as const;
+    expect(knowledgeAxisRow(axis, cyclicWithNumber)).toBe(axis.unmeasuredRow);
+    expect(knowledgeAxisRow(axis, cyclicWithNumber)).not.toBe(2);
+  });
+
   it('sends a PLACED reading carrying no number to the unmeasured row, never to the surface', () => {
     // `MarkKnowledgeDepth` is a flat record, so `depth` is `number | null` on every state — the shape
     // permits `placed` with no number even though `markKnowledgeDepth` never produces one. The guard
@@ -166,6 +176,13 @@ describe('the axis says what it is', () => {
     );
     expect(axisRowLabel(clamped, clamped.depthRows)).toBe(
       `${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH)}+ hops`,
+    );
+    // ONLY the last row. A clamp is a statement about where the scale RUNS OUT, so marking every row
+    // open-ended would say each of them holds reads from further down — which is false of all but one
+    // and is exactly what an unguarded `+` produces.
+    expect(axisRowLabel(clamped, 1)).toBe('1 hop');
+    expect(axisRowLabel(clamped, clamped.depthRows - 1)).toBe(
+      `${String(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH - 1)} hops`,
     );
   });
 

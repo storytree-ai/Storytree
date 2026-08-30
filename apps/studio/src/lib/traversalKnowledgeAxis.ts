@@ -97,11 +97,20 @@ export function buildKnowledgeAxis(report: KnowledgeDepthReport | null): Knowled
     return { depthRows: 0, deepest: null, clamped: false, measured: false, unmeasuredRow: 0, rows: 0 };
   }
   const deepest = report.maxDepth;
-  const depthRows = Math.min(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH, deepest ?? 0);
+  // `null` (nothing placed) and `0` (every placed read at the surface) must REPORT differently — that
+  // is what {@link KnowledgeAxis.deepest} is for — but they need the same row arithmetic, so they are
+  // resolved together HERE, once, and kept apart only where the difference is visible.
+  //
+  // The resolution is what lets `clamped` be a plain numeric comparison. Written against the nullable
+  // instead (`deepest !== null && deepest > MAX`) the null guard can never change the answer, because
+  // `null > 16` is already false — a condition no input can flip, which mutation testing correctly
+  // reported as unkillable and which no reviewer could have distinguished from a real guard.
+  const reached = deepest ?? 0;
+  const depthRows = Math.min(TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH, reached);
   return {
     depthRows,
     deepest,
-    clamped: deepest !== null && deepest > TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH,
+    clamped: reached > TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH,
     measured: true,
     unmeasuredRow: depthRows + 1,
     rows: depthRows + 1,
