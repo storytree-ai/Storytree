@@ -3,7 +3,7 @@ id: "library-dag-canvas"
 tier: capability
 story: library-tech-tree-overlay
 title: "The focus canvas is a true layered dependency DAG: dagre rankdir-LR ranks over the authored standsOn edge BOTH ways to ONE level upstream + ONE level downstream (the full transitive walk retired, ADR-0193 dec 3; the references[] citation substrate retired, ADR-0223), DRAWN SVG edges between rank-adjacent nodes, per-branch ⊕ expanders taming breadth (the global depth stepper retired), NO ← Back / breadcrumb and NO pan/zoom controls — search-first plus click-through re-centre is the whole navigation — and a machine-asserted fit-to-view viewBox containing every laid-out node — the brownfield rework of library-focus-subgraph (source files keep their names)"
-outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus's authored standsOn dependency edge BOTH ways (upstream stands-on left, downstream stood-on-by right — literally the edge and its reverse) walked ONE level upstream + ONE level downstream only (the full transitive walk retired, ADR-0193 dec 3 reversing ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), NO ← Back button and NO breadcrumb trail and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS one-level neighbourhood — is the whole navigation), and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested. Citations are demoted out of the DAG — this walk never reads them (and since ADR-0477 D1 they no longer exist to read)."
+outcome: "The finder's lifted selection centres a @dagrejs/dagre rankdir-LR layered DAG built from the corpus's authored standsOn dependency edge BOTH ways (upstream stands-on left, downstream stood-on-by right — literally the edge and its reverse) walked ONE level upstream + ONE level downstream only (the full transitive walk retired, ADR-0193 dec 3 reversing ADR-0188 dec 5), with DRAWN SVG edges between rank-adjacent nodes, per-branch breadth tamed by in-place ⊕ expanders (the global depth stepper and +N-more cluster chip retired), NO ← Back button and NO breadcrumb trail and NO pan/zoom controls (search-first plus click-through — clicking a neighbour re-centres to reveal ITS one-level neighbourhood — is the whole navigation), and a bounded fit-to-view viewBox computed from the laid-out node bbox and machine-asserted to contain every node — over the already-loaded corpus with no fetch beyond the wire; its geometry and behaviour machine-witnessed, its seed-packet appearance operator-attested. The DAG rests on the authored dependency edge alone: upstream is the centre's OWN edge and downstream is that same edge REVERSED, so the two sides are one directed edge read both ways rather than two readings of a single undirected see-also."
 status: proposed
 proof_mode: integration-test
 depends_on: [library-finder]
@@ -302,7 +302,7 @@ The test-proven leaf behaviours — each **one isolated automated test** in the 
 `apps/studio/src/components/LibraryDagCanvas.test.tsx`; the pure-heart contracts import `buildFocusGraph` from
 `../lib/focusGraph`, the component contracts import `LibraryFocusGraph` from `./LibraryFocusGraph`). Per
 ADR-0122 (`storytree coverage`) each contract id is the LEAD of a distinctly-named test, so the coverage check
-reports 14/14 against the ONE `real.testFile`. None of these is an APPEARANCE assertion — the look (the
+reports 13/13 against the ONE `real.testFile`. None of these is an APPEARANCE assertion — the look (the
 seed-packet palette, the drawn vine-stroke edges, the purple selected-chain, the dashed ephemeral stroke, the
 ⊕ affordance) is the story's operator-attested UAT leg (ADR-0188 dec 5/7, ADR-0070). Contracts 1–4 (the
 adjacency, edge list, ranks, neighbour-walk, kind plaque, chain/ephemeral markers, no-fetch) RE-HOME the
@@ -402,29 +402,51 @@ dec 3); contracts pinning DRAWN edges, per-node expanders, the fit-to-view viewB
     - **covers —** `apps/studio/src/lib/focusGraph.ts` + `apps/studio/src/components/LibraryFocusGraph.tsx` (the loaded-corpus-only, no-fetch invariant)
     - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
 
-CONTRACTS 13-14 belong CONCEPTUALLY with 1-2 (they pin the same substrate switch) and are APPENDED rather than
-inserted so contracts 3-12 keep their ordinals. They are the net-new proof that ADR-0223's substrate change
-actually took: without them nothing catches a silent regression to the citation walk, which would go on rendering
-a plausible — and cyclic — graph.
+CONTRACT 14 belongs CONCEPTUALLY with 1-2 (it pins the same substrate switch) and was APPENDED rather than
+inserted so contracts 3-12 keep their ordinals. It is the net-new proof that ADR-0223's substrate change actually
+took: without it nothing catches a silent collapse of the two sides back into one undirected reading. It was
+authored as half of a PAIR — its sibling, ordinal 13, guarded the same switch from the negative side over a
+citation fixture — and that sibling RETIRED with the citation tier on 2026-08-30 (ADR-0477 D1, the blockquote
+below). Contract 14 KEEPS ordinal 14: the ordinal 13 is BURNED rather than closed up, because
+[`story.md`](story.md) and `stories/uat-legacy-dispositions.json` both cite this contract set by name and
+renumbering would strand them.
 
-13. **`ldag-citations-are-demoted-out-of-the-dag`** — a `references[]` citation contributes NO node and NO edge; a mutual citation pair cannot close a cycle
-    - **asserts —** over a fixture where the centre CITES two artifacts that also cite EACH OTHER (the exact
-      mutually-constitutive definition-pair shape that forced ADR-0223, and which the retired `references[]` walk
-      drew as an unorientable 2-cycle), and separately STANDS ON one bedrock artifact: neither cited artifact
-      appears as a node, the ONLY edge returned is the authored `standsOn` one, and no edge touches either member
-      of the citation pair in either direction. Citations are DEMOTED OUT of the DAG — a substrate this walk
-      never touched, and since ADR-0477 D1 retired the citation tier there is nothing left to touch (the
-      "they keep their home in the artifact view's grouped `Sources` pane" half of this rationale expired
-      with it; see the substrate note above).
-    - **covers —** `apps/studio/src/lib/focusGraph.ts` (the substrate switch — `references` reaches neither the node set nor the edge list)
-    - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
-14. **`ldag-stood-on-by-is-the-literal-reverse-edge`** — the downstream fan is exactly the reverse `standsOn` edge, and a citer of the centre is not in it
-    - **asserts —** over a fixture with two artifacts that STAND ON the centre and one that merely CITES it, the
-      downstream ("stood on by") fan is exactly the two standers and excludes the citer — so the pane is literally
-      the edge reversed rather than a restatement of the citation web (the ADR-0223 end-state wording). The
-      upstream fan of a centre carrying no authored edge is EMPTY, which is the design and not a gap: `standsOn`
-      is `.optional()` and never defaulted.
-    - **covers —** `apps/studio/src/lib/focusGraph.ts` (the reverse index built over `standsOn`)
+> **~~13. `ldag-citations-are-demoted-out-of-the-dag`~~ — RETIRED 2026-08-30 (ADR-0477 D1).** Its SUBJECT is
+> gone. ADR-0477 D1 removed `references` from the artifact schema, so the citation its fixture had to author
+> cannot be built and a regression to the citation walk is unrepresentable — this contract can no longer FAIL
+> for the reason it was written. Its landed test passed only because the two fixture artifacts it added were
+> connected to nothing.
+>
+> NARROWING IT to "the walk reads `dependsOn` and nothing else" was CONSIDERED AND REFUSED, because that
+> sentence is false. `apps/studio/src/lib/focusGraph.ts` reads `dependsOn` both ways AND, for a `process`
+> centre, that asset's `branchEdges` (the `library-process-flow` typed edge, ADR-0266). A truthful narrowing
+> would assert from the negative side exactly what contracts 1, 2 and `library-process-flow` already pin
+> positively — a guard against a regression with no mechanism, since nothing has ever walked prose or category.
+> That is manufacturing a contract to avoid a retirement, which re-creates the same
+> green-check-that-verifies-nothing fault in a new costume.
+>
+> IT ORPHANS NO COVERAGE. Its `covers` target `apps/studio/src/lib/focusGraph.ts` is also covered by contract 2
+> (`ldag-edge-list-over-standson`), and the surviving negative guard MOVES into contract 14's rebuilt fixture,
+> where `rev-bystander` stands on the same bedrock the centre does — connected INTO the neighbourhood by an edge
+> that does not reach the centre, so a wrongly-keyed or undirected reverse index WOULD draw it.
+
+14. **`ldag-stood-on-by-is-the-literal-reverse-edge`** — the downstream fan is exactly the authored edge reversed; the centre's own target lands UPSTREAM, and a same-bedrock bystander that no edge reaches is no node at all
+    - **asserts —** over a fixture where the centre `rev-centre` carries `dependsOn: ['asset:rev-bedrock']`, two
+      artifacts `rev-stander-a` and `rev-stander-b` each carry `dependsOn: ['asset:rev-centre']`, and
+      `rev-bystander` carries `dependsOn: ['asset:rev-bedrock']`, `buildFocusGraph` returns a downstream ("stood
+      on by") fan of EXACTLY the two standers, an upstream ("stands on") fan of EXACTLY `rev-bedrock`, NO node
+      for `rev-bystander` at all — so the pane is literally the authored edge and its
+      reverse rather than a restatement of one undirected "see also" (the ADR-0223 end-state wording; the
+      spec calls this edge `standsOn` throughout, and `GuidanceAsset` carries it as `dependsOn`). Pinning that
+      the centre's OWN target lands UPSTREAM rather than downstream is the clause that fails if the two sides
+      ever collapse back into one. A SECOND build asserts the still-true half the old fixture carried: a centre
+      carrying no authored edge has an EMPTY upstream fan, which is the design and not a gap — the field is
+      `.optional()` and never defaulted. WHY THE EXCLUSION MOVED (2026-08-30, ADR-0477 D1): this contract used
+      to exclude a CITER of the centre, and once the citation tier retired a citer became an artifact connected
+      to NOTHING, so that exclusion passed for the wrong reason and could not fail; `rev-bystander` is connected
+      INTO the same neighbourhood by an edge that does not reach the centre, so a wrongly-keyed or undirected
+      reverse index WOULD draw it.
+    - **covers —** `apps/studio/src/lib/focusGraph.ts` (the reverse index built over the authored `dependsOn` edge)
     - **proven by —** `apps/studio/src/components/LibraryDagCanvas.test.tsx`.
 
 ## Guidance — the brownfield slice that earns the signed verdict
@@ -437,7 +459,7 @@ true layered reference DAG, test-first, keeping the `lot-*` node-open trigger by
   `LibraryDrawer.test.tsx` shape; NO real `fetch`/`docContent`/socket/DB/Electron). Import `{ buildFocusGraph }`
   from `"../lib/focusGraph"` and `{ LibraryFocusGraph }` from `"./LibraryFocusGraph"` (the source files KEEP
   their names). Name each test for its contract id (`ldag-…`, LEADING the title) so
-  `storytree coverage library-dag-canvas` reports 14/14 (ADR-0122) — the pure-heart contracts live in THIS one
+  `storytree coverage library-dag-canvas` reports 13/13 (ADR-0122) — the pure-heart contracts live in THIS one
   file too, since coverage scans only `real.testFile`.
 - **The RED the spine observes (before IMPLEMENT) —** a FAILING-ASSERTION red (both sources exist — NOT
   module-not-found): at HEAD `buildFocusGraph` still takes a `depth` param and walks FULL transitive depth (over

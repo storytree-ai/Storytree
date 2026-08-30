@@ -125,58 +125,17 @@ describe('buildFocusGraph — one level each way, over the authored dependsOn ed
     expect(graph.nodes.some((n) => n.id === 'edgelist-a')).toBe(false);
   });
 
-  // ── ldag-citations-are-demoted-out-of-the-dag ────────────────────────────────────
-  it('ldag-citations-are-demoted-out-of-the-dag: a references[] citation contributes NO node and NO edge, and a mutual citation pair cannot close a cycle', () => {
-    // The exact shape that forced ADR-0223: two artifacts that CITE each other. Under the retired
-    // references[] walk this drew a 2-cycle the layout could not orient. Neither carries dependsOn.
-    const left = asset({
-      id: 'demote-left',
-      category: 'definition',
-      title: 'Demote Left',
-    });
-    const right = asset({
-      id: 'demote-right',
-      category: 'definition',
-      title: 'Demote Right',
-    });
-    // A third artifact the centre genuinely stands on — the ONLY thing that should be drawn.
-    const bedrock = asset({ id: 'demote-bedrock', category: 'principle', title: 'Demote Bedrock' });
-    const centre = asset({
-      id: 'demote-centre',
-      category: 'pattern',
-      title: 'Demote Centre',
-      dependsOn: ['asset:demote-bedrock'],
-    });
-
-    const graph = buildFocusGraph({
-      centre: selectionFor(centre),
-      assets: [left, right, bedrock, centre],
-      docs: [],
-    } as Parameters<typeof buildFocusGraph>[0]);
-
-    // The centre cites both definitions, yet neither is drawn: citations are demoted OUT of the DAG
-    // (they keep their home in the artifact view's Sources pane), not deleted.
-    expect(graph.nodes.some((n) => n.id === 'demote-left')).toBe(false);
-    expect(graph.nodes.some((n) => n.id === 'demote-right')).toBe(false);
-    // Only the authored dependency edge is drawn.
-    expect(graph.nodes.map((n) => n.id).sort()).toEqual(['demote-bedrock', 'demote-centre'].sort());
-    expect(graph.edges).toEqual([{ from: 'demote-bedrock', to: 'demote-centre' }]);
-    // The mutual citation pair contributes no edge in EITHER direction — so the one cycle shape the
-    // citation web is legitimately full of can no longer reach the layout at all.
-    expect(
-      graph.edges.some(
-        (e) =>
-          e.from === 'demote-left' ||
-          e.to === 'demote-left' ||
-          e.from === 'demote-right' ||
-          e.to === 'demote-right',
-      ),
-    ).toBe(false);
-  });
-
   // ── ldag-stood-on-by-is-the-literal-reverse-edge ─────────────────────────────────
-  it('ldag-stood-on-by-is-the-literal-reverse-edge: the downstream fan is exactly the set of assets whose dependsOn names the centre, and an ADR centre stands on nothing', () => {
-    const centre = asset({ id: 'rev-centre', category: 'principle', title: 'Rev Centre' });
+  it('ldag-stood-on-by-is-the-literal-reverse-edge: the downstream fan is exactly the assets whose dependsOn names the centre, the edge the centre authors lands upstream, and a bystander on the same bedrock is drawn nowhere', () => {
+    // The centre authors ONE edge of its own, so "stands on" has something to hold and the two
+    // sides can be caught collapsing back into a single undirected reading.
+    const bedrock = asset({ id: 'rev-bedrock', category: 'principle', title: 'Rev Bedrock' });
+    const centre = asset({
+      id: 'rev-centre',
+      category: 'principle',
+      title: 'Rev Centre',
+      dependsOn: ['asset:rev-bedrock'],
+    });
     const standerA = asset({
       id: 'rev-stander-a',
       category: 'pattern',
@@ -189,25 +148,52 @@ describe('buildFocusGraph — one level each way, over the authored dependsOn ed
       title: 'Rev Stander B',
       dependsOn: ['asset:rev-centre'],
     });
-    // Cites the centre but does NOT stand on it — must not appear on the "stood on by" side.
-    const citer = asset({
-      id: 'rev-citer',
+    // Stands on the SAME bedrock the centre does: connected into this very neighbourhood, but by no
+    // edge that reaches the centre. It replaces the retired "citer" — ADR-0477 D1 removed the
+    // `references` field, so a citer is now an artifact connected to NOTHING and excluding one could
+    // not fail. An undirected or wrongly-keyed reverse index WOULD draw this one.
+    const bystander = asset({
+      id: 'rev-bystander',
       category: 'pattern',
-      title: 'Rev Citer',
+      title: 'Rev Bystander',
+      dependsOn: ['asset:rev-bedrock'],
     });
 
     const graph = buildFocusGraph({
       centre: selectionFor(centre),
-      assets: [centre, standerA, standerB, citer],
+      assets: [bedrock, centre, standerA, standerB, bystander],
       docs: [],
     } as Parameters<typeof buildFocusGraph>[0]);
 
-    const downstream = graph.nodes.filter((n) => n.side === 'downstream').map((n) => n.id);
-    expect(downstream.sort()).toEqual(['rev-stander-a', 'rev-stander-b'].sort());
-    expect(downstream).not.toContain('rev-citer');
-    // "stands on" is empty here, and that is the DESIGN for a bedrock-ward node, not a gap:
-    // dependsOn is optional and never defaulted, so an artifact with no authored edge has no fan.
-    expect(graph.nodes.filter((n) => n.side === 'upstream')).toHaveLength(0);
+    const downstream = graph.nodes
+      .filter((n) => n.side === 'downstream')
+      .map((n) => n.id)
+      .sort();
+    const upstream = graph.nodes
+      .filter((n) => n.side === 'upstream')
+      .map((n) => n.id)
+      .sort();
+
+    // "stood on by" is exactly the reverse edge — the assets whose dependsOn names the centre.
+    expect(downstream).toEqual(['rev-stander-a', 'rev-stander-b']);
+    // ...and "stands on" is exactly the forward edge. This is the clause that fails the moment the
+    // two sides collapse into one undirected "see also": bedrock would then appear on both sides,
+    // or the standers would join it on the left.
+    expect(upstream).toEqual(['rev-bedrock']);
+    // The bystander is drawn NOWHERE — no node, neither side, no edge in either direction.
+    expect(graph.nodes.some((n) => n.id === 'rev-bystander')).toBe(false);
+    expect(graph.edges.some((e) => e.from === 'rev-bystander' || e.to === 'rev-bystander')).toBe(
+      false,
+    );
+
+    // A centre carrying NO authored edge has an EMPTY upstream fan — the design for a bedrock-ward
+    // node, not a gap: dependsOn is optional and never defaulted.
+    const edgeFreeCentre = buildFocusGraph({
+      centre: selectionFor(bedrock),
+      assets: [bedrock, centre, standerA, standerB, bystander],
+      docs: [],
+    } as Parameters<typeof buildFocusGraph>[0]);
+    expect(edgeFreeCentre.nodes.filter((n) => n.side === 'upstream')).toHaveLength(0);
   });
 
   // ── ldag-layered-ranks-upstream-left-downstream-right ────────────────────────────
