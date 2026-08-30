@@ -47,7 +47,13 @@ import {
   grainStops,
   linearToSrgb255,
 } from './land-grain.js';
-import { rungOfNormal, toHex } from './shade-ladder.js';
+import {
+  SHADE_LEVELS,
+  lambertOfNormal,
+  nearestLevelIndex,
+  rungOfNormal,
+  toHex,
+} from './shade-ladder.js';
 
 /** A base colour for the colour half to mix INTO. It is the shipped ground's `healthy` token,
  *  written as a literal rather than imported: the harness's `landTokens()` is the experiment's
@@ -650,4 +656,64 @@ test('the OCTAVE LADDER is stated per octave — amplitude compounds, frequency 
   assert.ok(grainOctaveFrequency(0) < 1, 'the frequency is a RECIPROCAL of the lattice spacing');
   assert.equal(grainTerms().length, GRAIN_OCTAVES);
   assert.equal(grainAmplitudeSum(), 1 + GRAIN_ROUGHNESS);
+});
+
+test('THE DENSITY LEVER: the same field flips 14% of flat ground on four rungs and 77% on twelve', () => {
+  // ⚠⚠ THE MEASUREMENT THAT DISSOLVED AN OWNER FORK. The approved Cycles render's ground reads
+  // as a continuous MOTTLE; the shipped ground reads as a SPECKLE at band edges. That gap was
+  // attributed to the missing half of the grain — the off-palette COLOUR mix — and closing it was
+  // thought to need a palette move first, because the tint at its authored 0.13 walks the shared
+  // `proposed`/`building` yellow into `healthy`'s green
+  // (`harness/grain-status-reading.ts`, `move-the-yellow-so-the-ground-texture-can-finish`).
+  //
+  // IT IS NOT THE TINT. It is the LADDER'S RESOLUTION. The normal half perturbs the lambert
+  // BEFORE quantisation, so on flat ground it can only express itself as a rung FLIP — and a
+  // four-rung ladder gives it almost nowhere to land: the excursion it produces is ~0.11 in
+  // lambert units against rung gaps of 0.02, 0.10 and 0.10, so most of the island sits in the
+  // middle of a band and never moves. Halving the gaps does not touch the field, the palette, the
+  // shadow or the reading margin — every added rung is an authored `token x level` product inside
+  // the span the ladder already spanned — and it takes the same grain from a speckle to a mottle.
+  const flat = { x: 0, y: 1, z: 0 };
+  const evenly = (lo: number, hi: number, n: number): number[] =>
+    Array.from({ length: n }, (_, i) => Math.round((lo + ((hi - lo) * i) / (n - 1)) * 1000) / 1000);
+  const flipFraction = (ladder: readonly number[]): number => {
+    const base = nearestLevelIndex(ladder, lambertOfNormal(flat));
+    let flipped = 0;
+    let total = 0;
+    for (let x = -100; x <= 100; x += 1.3) {
+      for (let z = -60; z <= 60; z += 1.1) {
+        total++;
+        const rung = nearestLevelIndex(ladder, lambertOfNormal(grainPerturbNormal(flat, x, z)));
+        if (rung !== base) flipped++;
+      }
+    }
+    return flipped / total;
+  };
+
+  const shipped = flipFraction(SHADE_LEVELS);
+  const refined = flipFraction(evenly(0.78, 1.0, 12));
+  console.log(
+    `  rung-flip fraction: 4 rungs ${(shipped * 100).toFixed(1)}% -> 12 rungs ${(refined * 100).toFixed(1)}%`,
+  );
+  assert.equal((shipped * 100).toFixed(1), '14.4');
+  assert.equal((refined * 100).toFixed(1), '77.1');
+
+  // MONOTONIC IN DENSITY, so the pair above is a curve rather than two points that happen to
+  // differ. Without this a single lucky spacing would satisfy the assertions and prove nothing.
+  const curve = [4, 6, 8, 12, 16].map((n) => flipFraction(evenly(0.78, 1.0, n)));
+  for (let i = 1; i < curve.length; i++) {
+    assert.ok(
+      curve[i]! > curve[i - 1]!,
+      `density is not monotonic: ${curve.map((c) => c.toFixed(3)).join(' ')}`,
+    );
+  }
+  // ⚠ AND IT SATURATES BELOW 1, which is what keeps it a grain rather than a repaint: some of
+  // flat ground must stay on its own rung or the texture has replaced the shading it modulates.
+  assert.ok(curve[curve.length - 1]! < 0.95, 'a ladder fine enough to flip everything is a repaint');
+
+  // THE SPAN IS THE OTHER HALF OF THE LEVER, and it is NOT what delivers the texture: the same
+  // 0.02 spacing over a shorter span flips about as much. So refining and lifting are genuinely
+  // two separate choices, which is why the comparison carries them as two arms.
+  const lifted = flipFraction(evenly(0.86, 1.0, 8));
+  assert.ok(lifted > 0.75, `a lifted ladder at the same spacing flips ${(lifted * 100).toFixed(1)}%`);
 });

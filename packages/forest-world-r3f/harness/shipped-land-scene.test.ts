@@ -14,7 +14,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createBandedGroundMaterial, groundRamp } from '../src/banded-ground-material.js';
-import { SHADE_LEVELS } from '../src/shade-ladder.js';
+import { SHADE_LEVELS, deliveredForLevel } from '../src/shade-ladder.js';
+import { nearestReference, readMargin, readerReferences } from '../src/shadow-rung.js';
 import {
   GROUND_ROWS,
   GROUND_TOKENS,
@@ -22,7 +23,9 @@ import {
   LAND_ARM_SPECS,
   LAND_STEPS,
   LAND_ZOOMS,
+  LIFTED_LADDER,
   PALETTE_CLOSED_ARMS,
+  REFINED_LADDER,
   groundRowOf,
   shippedParcels,
 } from './shipped-land-scene.js';
@@ -47,7 +50,16 @@ const TINY_OCCLUSION = {
 test('the ladder is a LADDER WITH ONE FORK — every arm adds one thing to a NAMED predecessor', () => {
   assert.deepEqual(
     [...LAND_ARMS],
-    ['flat', 'relief', 'banded', 'grain-normal', 'shadow', 'grain-both'],
+    [
+      'flat',
+      'relief',
+      'banded',
+      'grain-normal',
+      'shadow',
+      'grain-both',
+      'dense',
+      'dense-lifted',
+    ],
   );
   // ⚠ EACH ARM NAMES ITS OWN PREDECESSOR, and the shadow arm is what forced that. Two arms now
   // hang off `grain-normal` — the shadow (a candidate) and the grain's colour half (a reference) —
@@ -68,6 +80,13 @@ test('the ladder is a LADDER WITH ONE FORK — every arm adds one thing to a NAM
   // THE FORK, named: both of these extend the arm that ships, and neither extends the other.
   assert.equal(LAND_ARM_SPECS.find((it) => it.arm === 'shadow')!.from, 'grain-normal');
   assert.equal(LAND_ARM_SPECS.find((it) => it.arm === 'grain-both')!.from, 'grain-normal');
+  // ⚠ AND THE REFINED PAIR HANGS OFF THE ARM THAT SHIPS, NOT OFF THE REFERENCE. `dense` extends
+  // `shadow` — the map as it draws today, occlusion field and all — so its picture answers "what
+  // does refining the ladder change about the SHIPPED ground". Hanging it off `grain-both` would
+  // have compared it against a ground nobody may draw and made the refinement look like a
+  // concession rather than a replacement.
+  assert.equal(LAND_ARM_SPECS.find((it) => it.arm === 'dense')!.from, 'shadow');
+  assert.equal(LAND_ARM_SPECS.find((it) => it.arm === 'dense-lifted')!.from, 'dense');
   assert.deepEqual([...LAND_ZOOMS], [2, 8], 'the overview and the zoomed read, as everywhere else');
 });
 
@@ -124,7 +143,41 @@ test('the arm that SHIPS keeps the closure and the arm that does not is the only
     ),
     'a shadowed fragment must still write an authored ramp entry',
   );
-  assert.deepEqual([...PALETTE_CLOSED_ARMS], ['banded', 'grain-normal', 'shadow']);
+  // ⚠⚠ THE REFINED ARMS ARE INSIDE THE CLOSURE, AND THAT IS THE FINDING THEY EXIST TO CARRY.
+  // The texture the approved render gets from a continuous mottle was assumed to need the grain's
+  // off-palette COLOUR half, and therefore to need a palette move first
+  // (`move-the-yellow-so-the-ground-texture-can-finish`). It does not: refining the LADDER
+  // delivers the mottle out of authored `token x level` products alone, so these two arms write
+  // ramp entries exactly as `shadow` does.
+  assert.deepEqual(
+    [...PALETTE_CLOSED_ARMS],
+    ['banded', 'grain-normal', 'shadow', 'dense', 'dense-lifted'],
+  );
+  for (const lit of [REFINED_LADDER, LIFTED_LADDER]) {
+    assert.ok(
+      closed(createBandedGroundMaterial({ tokens, grain: 'normal', lit }).fragmentShader),
+      'a refined ladder must still write an authored ramp entry',
+    );
+    // NON-VACUITY on the refinement itself: a `lit` that changed nothing would satisfy the line
+    // above while proving nothing about the ladder. The shader must actually carry more rungs.
+    const refined = createBandedGroundMaterial({ tokens, grain: 'normal', lit });
+    const shipped = createBandedGroundMaterial({ tokens, grain: 'normal' });
+    assert.notEqual(refined.fragmentShader, shipped.fragmentShader);
+    assert.ok(
+      (refined.uniforms['uRamp']!.value as unknown[]).length >
+        (shipped.uniforms['uRamp']!.value as unknown[]).length,
+      'a refined ladder must upload MORE ramp entries, or it is the same ladder',
+    );
+  }
+  // AND THE REFINEMENT IS A SUPERSET, WHICH IS WHY IT IS NOT A REPAINT. Every rung the shipped
+  // ladder draws survives in the refined one, so no parcel changes colour except where the grain
+  // now reaches a rung between two it could not reach before.
+  for (const level of SHADE_LEVELS) {
+    assert.ok(REFINED_LADDER.includes(level), `the refinement dropped the authored rung ${level}`);
+  }
+  assert.equal(REFINED_LADDER.length, 12);
+  assert.equal(LIFTED_LADDER.length, 8);
+  assert.equal(LIFTED_LADDER[0], 0.86);
   for (const arm of PALETTE_CLOSED_ARMS) {
     assert.ok(LAND_ARMS.includes(arm), `${arm} is held to the closure but is not an arm`);
   }
@@ -144,6 +197,39 @@ test('the arms draw a MULTI-STATUS material, which is what retired the single-st
   assert.ok(GROUND_TOKENS.length >= 6, 'six statuses, not the four a folded set would give');
   const ramp = groundRamp([...GROUND_TOKENS]);
   assert.equal(ramp.length, GROUND_TOKENS.length * SHADE_LEVELS.length);
+});
+
+test('the refined ladder buys TEXTURE without buying a semantic cost, and the lifted one buys headroom', () => {
+  // ⚠⚠ THE TWO NUMBERS THE OWNER'S FORK TURNS ON, pinned here so neither can drift into prose.
+  // Refining the ladder leaves the tightest reading margin EXACTLY where it was — every added
+  // rung sits inside the span the ladder already spanned, so nothing walks closer to a neighbour.
+  // Lifting the floor is the one that trades: nearly five times the headroom, at the cost of the
+  // two darkest lit rungs.
+  const refs = readerReferences([...new Set(GROUND_TOKENS)]);
+  const tightest = (ladder: readonly number[]): number => {
+    let min = Infinity;
+    for (const token of new Set(GROUND_TOKENS)) {
+      for (const level of ladder) {
+        min = Math.min(min, readMargin(deliveredForLevel(token, level), token, refs));
+      }
+    }
+    return min;
+  };
+  assert.equal(tightest(SHADE_LEVELS).toFixed(2), '3.00');
+  assert.equal(tightest(REFINED_LADDER).toFixed(2), '3.00', 'refining must cost NO margin');
+  assert.equal(tightest(LIFTED_LADDER).toFixed(2), '14.67', 'lifting is what buys headroom');
+  // And every rung of both is honest, which is the property a margin only summarises.
+  for (const ladder of [REFINED_LADDER, LIFTED_LADDER]) {
+    for (const token of new Set(GROUND_TOKENS)) {
+      for (const level of ladder) {
+        assert.equal(
+          nearestReference(deliveredForLevel(token, level), refs),
+          token,
+          `${token} at rung ${level} reads as another token`,
+        );
+      }
+    }
+  }
 });
 
 test('every parcel of the fixture resolves to a token the shipped canvas actually holds', () => {

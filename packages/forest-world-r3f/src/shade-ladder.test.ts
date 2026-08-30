@@ -261,7 +261,7 @@ test('bandGlsl emits EXACTLY this shader — every line of it, derived from the 
   // thing is the ladder (which is the point) and the source TEXT is written independently.
   const n = SHADE_LEVELS.length;
   const expected = [
-    '// GENERATED from shade-ladder.ts SHADE_LEVELS — do not hand-edit this ladder.',
+    '// GENERATED from a shade-ladder.ts ladder — do not hand-edit this ladder.',
     `const int ST_N_LEVELS = ${n};`,
     'float st_level(int i) {',
     ...SHADE_LEVELS.map((l, i) => `  if (i == ${i}) return ${l.toFixed(6)};`),

@@ -33,7 +33,8 @@
 import {
   SHADE_LEVELS,
   deliveredForLevel,
-  rungOfNormal,
+  lambertOfNormal,
+  nearestLevelIndex,
   type Rgb255,
 } from './shade-ladder.js';
 import { indices } from './land-shadow.js';
@@ -65,9 +66,17 @@ export function colourDistance2(a: Rgb255, b: Rgb255): number {
  * (memo === null)` is a branch no test can distinguish, because both sides return the same
  * number. It bought nothing either — this is one array index over a dot product — and it cost a
  * mutant nothing could kill.
+ *
+ * ⚠⚠ IT TAKES THE LADDER, AND THE REASON IS THAT THE REFERENCE IS NOT A CONSTANT — it is
+ * WHICHEVER RUNG FLAT GROUND LANDS ON, and that moves the moment the ladder does. A candidate
+ * ladder floored higher than 0.78 (the shape `move-the-yellow-so-the-ground-texture-can-finish`
+ * is measuring) still delivers flat ground at the rung nearest the authored light's lambert, and
+ * a reader model that kept comparing against `SHADE_LEVELS`' 0.90 would be judging one ladder's
+ * pixels against another ladder's references. The default is `SHADE_LEVELS`, so the shipped
+ * answer is unchanged and the argument is only exercised by the comparison.
  */
-export function flatGroundLevel(): number {
-  return SHADE_LEVELS[rungOfNormal({ x: 0, y: 1, z: 0 })]!;
+export function flatGroundLevel(ladder: readonly number[] = SHADE_LEVELS): number {
+  return ladder[nearestLevelIndex(ladder, lambertOfNormal({ x: 0, y: 1, z: 0 }))]!;
 }
 
 /**
@@ -81,10 +90,13 @@ export function flatGroundLevel(): number {
  * rather than about the ground. The material knows only tokens, so tokens are what it is asked
  * about: does `token x rung` still read as `token` rather than as some OTHER token?
  */
-export function readerReferences(tokens: readonly string[]): { hex: string; colour: Rgb255 }[] {
+export function readerReferences(
+  tokens: readonly string[],
+  ladder: readonly number[] = SHADE_LEVELS,
+): { hex: string; colour: Rgb255 }[] {
   const seen = new Set<string>();
   const out: { hex: string; colour: Rgb255 }[] = [];
-  const rung = flatGroundLevel();
+  const rung = flatGroundLevel(ladder);
   for (const token of tokens) {
     if (seen.has(token)) continue;
     seen.add(token);
@@ -154,8 +166,9 @@ export function deepestAdmissibleRung(
   tokens: readonly string[],
   step = 0.01,
   floor = 0.3,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): number | null {
-  const refs = readerReferences(tokens);
+  const refs = readerReferences(tokens, ladder);
   let admissible: number | null = null;
   // ⚠ THE FLOOR IS TESTED ON THE ROUNDED CANDIDATE, not on the accumulating loop variable. Ten
   // subtractions of 0.01 land on 0.8000000000000003 rather than on 0.8, so a floor comparison
@@ -169,7 +182,7 @@ export function deepestAdmissibleRung(
   // rather than one below adds a probe at a level lighter than the ground itself; it is
   // admissible by construction (it sits between two authored rungs), so `admissible` is
   // overwritten by every deeper level and the returned value is unchanged.
-  const start = flatGroundLevel() - step;
+  const start = flatGroundLevel(ladder) - step;
   for (const n of indices(probeCount(start, floor, step))) {
     const rounded = Math.round((start - n * step) * 10000) / 10000;
     if (rounded <= floor) break;
@@ -223,8 +236,11 @@ export interface ShadowLadder {
  * lit-rung remap is read back out of it. Assuming the shadow rung is index 0 would paint the
  * wrong colour for every fragment on this map the day the palette moves.
  */
-export function shadowLadderFor(tokens: readonly string[]): ShadowLadder {
-  const rung = deepestAdmissibleRung(tokens);
+export function shadowLadderFor(
+  tokens: readonly string[],
+  lit: readonly number[] = SHADE_LEVELS,
+): ShadowLadder {
+  const rung = deepestAdmissibleRung(tokens, 0.01, 0.3, lit);
   if (rung === null) {
     throw new Error(
       'shadow-rung: NO ladder level below flat ground is admissible for every authored ground ' +
@@ -233,10 +249,10 @@ export function shadowLadderFor(tokens: readonly string[]): ShadowLadder {
         'shallower shadow and not a wider palette.',
     );
   }
-  const levels = [...SHADE_LEVELS, rung].sort((a, b) => a - b);
+  const levels = [...lit, rung].sort((a, b) => a - b);
   const rungIndex = levels.indexOf(rung);
-  const litIndex = SHADE_LEVELS.map((level) => levels.indexOf(level));
-  return { rung, levels, rungIndex, litIndex, darkenable: rungsDarkenedBy(rung) };
+  const litIndex = lit.map((level) => levels.indexOf(level));
+  return { rung, levels, rungIndex, litIndex, darkenable: rungsDarkenedBy(rung, lit) };
 }
 
 /**

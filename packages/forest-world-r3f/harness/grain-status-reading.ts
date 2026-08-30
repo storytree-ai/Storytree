@@ -27,12 +27,8 @@
 // picture of that island cannot see a foreign-status read at all. All six shipped ground tokens
 // are driven through the mix here.
 
-import {
-  SHADE_LEVELS,
-  deliveredForLevel,
-  toHex,
-  type Rgb255,
-} from '../src/shade-ladder.js';
+import { deliveredForLevel, toHex, type Rgb255 } from '../src/shade-ladder.js';
+import { shadowLadderFor } from '../src/shadow-rung.js';
 import { GRAIN_COLOUR_MIX, grainStops } from './land-grain.js';
 import { FLAT_GROUND_LEVEL, colourDistance2, nearestStatus } from './shadow-ladder.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
@@ -47,6 +43,31 @@ import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
  * would be measuring a smaller palette than the one that ships.
  */
 export const SHIPPED_STATUSES: readonly string[] = [...SHIPPED_GROUND_COLOUR.keys()];
+
+/** The DISTINCT authored ground tokens, in row order — five over six states (ADR-0462). */
+export const SHIPPED_TOKENS: readonly string[] = [...new Set(SHIPPED_GROUND_COLOUR.values())];
+
+/**
+ * THE LADDER THE SHIPPED GROUND ACTUALLY DRAWS — `SHADE_LEVELS` plus the derived shadow rung.
+ *
+ * ⚠⚠ THIS IS A CORRECTION, AND THE THING IT CORRECTS LOOKED EXACTLY LIKE A PASS. Until
+ * 2026-08-30 every walk below iterated `SHADE_LEVELS` — four rungs — and reported a verdict
+ * about 24 patches. The shadow crossing (PR #1736) gave the shipped material a FIFTH rung,
+ * derived by {@link shadowLadderFor} and sitting BELOW the four, which is precisely where the
+ * tightest margin already lived. An instrument that keeps asking about the old ladder does not
+ * fail; it answers a question nobody is asking any more, in the vocabulary of the one they are.
+ * The measured cost of the correction: the tightest ungrained margin falls 3.00 -> 0.93, the
+ * admissible tint ceiling falls 0.031 -> 0.006, and the count of patches the tint breaks rises
+ * from four to six.
+ *
+ * ⚠ DERIVED ON EVERY CALL RATHER THAN MEMOISED, for the reason `shadow-rung.ts`'s
+ * `flatGroundLevel` gives at length: a memo is unobservable state — both sides of `if (memo ===
+ * null)` return the same value — so it buys a mutant nothing can kill. The sweep behind it is
+ * ~60 levels over five tokens; there is nothing here to amortise.
+ */
+export function shippedLadder(): readonly number[] {
+  return shadowLadderFor(SHIPPED_TOKENS).levels;
+}
 
 /**
  * The reader's reference colours for the SHIPPED ground: one authored token per status,
@@ -208,11 +229,12 @@ export const GRAIN_REACH_STEPS = 2000;
 export function grainColourHalfReadings(
   fac: number = GRAIN_COLOUR_MIX,
   table: Record<string, Rgb255[]> = shippedReaderTable(),
+  levels: readonly number[] = shippedLadder(),
 ): GrainReadVerdict[] {
   const out: GrainReadVerdict[] = [];
   for (const status of SHIPPED_STATUSES) {
     const token = SHIPPED_GROUND_COLOUR.get(status)!;
-    for (const level of SHADE_LEVELS) {
+    for (const level of levels) {
       const base = deliveredForLevel(token, level);
       const family = ownFamily(status);
       const seen = new Set<string>();
@@ -259,8 +281,9 @@ export interface GrainClosureVerdict {
 export function grainColourHalfVerdict(
   fac: number = GRAIN_COLOUR_MIX,
   table: Record<string, Rgb255[]> = shippedReaderTable(),
+  levels: readonly number[] = shippedLadder(),
 ): GrainClosureVerdict {
-  const readings = grainColourHalfReadings(fac, table);
+  const readings = grainColourHalfReadings(fac, table, levels);
   let worst = Infinity;
   let worstAt = '';
   let ungrained = Infinity;
@@ -294,14 +317,104 @@ export function grainColourHalfVerdict(
  * honest escalation carries the factor that IS, so the owner is choosing between pictures rather
  * than between a yes and a no.
  */
-export function admissibleMixCeiling(step = 0.005, ceiling = 1.0): number {
+export function admissibleMixCeiling(
+  step = 0.005,
+  ceiling = 1.0,
+  levels: readonly number[] = shippedLadder(),
+): number {
   let best = 0;
+  const table = shippedReaderTable();
   for (let fac = step; fac <= ceiling + 1e-9; fac += step) {
     const rounded = Math.round(fac * 10000) / 10000;
-    if (!grainColourHalfVerdict(rounded).admissible) break;
+    if (!grainColourHalfVerdict(rounded, table, levels).admissible) break;
     best = rounded;
   }
   return best;
+}
+
+/**
+ * THE FINDING THE PALETTE SEARCH PRODUCED, AS A FUNCTION: which ladder LEVELS a tinted ground may
+ * use at all — the contiguous band around flat ground inside which every authored token, tinted at
+ * `fac`, still reads as itself.
+ *
+ * ⚠⚠ IT EXISTS BECAUSE THE INCREMENT'S PREMISE WAS WRONG, and this is the shape of the
+ * correction. `move-the-yellow-so-the-ground-texture-can-finish` was written on the reading that
+ * *"the cause is the colours, not the texture"* — pull the `proposed`/`building` yellow away from
+ * `healthy`'s green and the tint fits. Measured exhaustively on 2026-08-30, it does not: over a
+ * 5,000-candidate sweep of the yellow (and a second sweep moving the green with it) NOT ONE
+ * palette admits the authored 0.13, and neither do synthetic maximally-separated palettes —
+ * red/green/blue/black/white comes back at -9.26, a saturated hue wheel at -4.94, a pure luma
+ * ladder at -39.62. Moving the yellow merely hands the binding constraint to another token.
+ *
+ * THE ACTUAL MECHANISM, and it is a property of the READER rather than of the palette. The reader
+ * holds ONE reference per token, at {@link FLAT_GROUND_LEVEL} — what LIT flat ground looks like,
+ * which is the only reference a viewer at a glance can be assumed to have. So a rung's margin is
+ * spent by the DISTANCE FROM 0.90, in both directions: it peaks at 0.90 (29.3 units on the
+ * shipped palette) and falls away to zero near 0.77 and near 1.10. The tint then pushes a further
+ * 9-17 weighted units. What binds is therefore how far the LADDER REACHES, not how far apart the
+ * colours sit — and the shipped ladder reaches 0.77, with three of its five rungs below the
+ * tinted floor this function returns.
+ *
+ * Returns the band as `[lo, hi]` inclusive on the probe grid, or `null` when no level survives.
+ */
+export function admissibleLevelBand(
+  fac: number = GRAIN_COLOUR_MIX,
+  table: Record<string, Rgb255[]> = shippedReaderTable(),
+  step = 0.01,
+  span: readonly [number, number] = [0.5, 1.5],
+): readonly [number, number] | null {
+  const ok: number[] = [];
+  const [from, to] = span;
+  for (const n of levelProbes(from, to, step)) {
+    const level = Math.round((from + n * step) * 10000) / 10000;
+    if (level > to) break;
+    if (levelSurvivesTint(level, fac, table)) ok.push(level);
+  }
+  if (ok.length === 0) return null;
+  // CONTIGUOUS AROUND FLAT GROUND, not merely "every level that passed". The band is what a
+  // ladder may span, and a ladder cannot skip a hole: a level reachable only by passing through
+  // an inadmissible one is not a ceiling, it is an island past a cliff — the same reading
+  // `deepestAdmissibleRung` makes about the shadow rung.
+  const flat = FLAT_GROUND_LEVEL;
+  if (!ok.includes(Math.round(flat * 10000) / 10000)) return null;
+  let lo = flat;
+  let hi = flat;
+  const has = new Set(ok);
+  while (has.has(Math.round((lo - step) * 10000) / 10000)) lo = Math.round((lo - step) * 10000) / 10000;
+  while (has.has(Math.round((hi + step) * 10000) / 10000)) hi = Math.round((hi + step) * 10000) / 10000;
+  return [lo, hi];
+}
+
+/** How many levels {@link admissibleLevelBand} probes between `from` and `to`.
+ *
+ *  ⚠ EXTRACTED SO THE COUNT IS A VALUE A TEST CAN READ, for the reason `shadow-rung.ts`'s
+ *  `probeCount` gives: inside the loop it bounds a loop that also breaks on its own condition, so
+ *  a count that is merely too LARGE gives the same answer and no assertion about the answer can
+ *  see it. A materialised range rather than an accumulating counter, so a mutated step does not
+ *  hang (`mutation-rung-scores-a-hang-as-unproven`). */
+export function levelProbes(from: number, to: number, step: number): number[] {
+  // ⚠ THE SPAN IS ROUNDED BEFORE THE CEILING. `(0.93 - 0.9) / 0.01` is 3.0000000000000027, whose
+  // ceiling is 4 rather than 3 — so an unrounded count is one probe long on most inputs, in the
+  // direction that is merely generous and therefore invisible from the band it produces. Rounding
+  // makes the count exact, which is what lets a test assert it as a value at all.
+  const span = Math.round(((to - from) / step) * 1e6) / 1e6;
+  return Array.from({ length: Math.max(0, Math.ceil(span) + 1) }, (_, i) => i);
+}
+
+/** Does every authored token, tinted at `fac`, still read as itself when delivered at `level`? */
+export function levelSurvivesTint(
+  level: number,
+  fac: number = GRAIN_COLOUR_MIX,
+  table: Record<string, Rgb255[]> = shippedReaderTable(),
+): boolean {
+  for (const status of SHIPPED_STATUSES) {
+    const base = deliveredForLevel(SHIPPED_GROUND_COLOUR.get(status)!, level);
+    const family = ownFamily(status);
+    for (const i of levelProbes(0, GRAIN_REACH_STEPS, 1)) {
+      if (!family.has(nearestStatus(grainMixed(base, i / GRAIN_REACH_STEPS, fac), table))) return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -325,10 +438,11 @@ export interface LadderReading {
 
 export function ladderReadings(
   table: Record<string, Rgb255[]> = shippedReaderTable(),
+  levels: readonly number[] = shippedLadder(),
 ): LadderReading[] {
   const out: LadderReading[] = [];
   for (const status of SHIPPED_STATUSES) {
-    for (const level of SHADE_LEVELS) {
+    for (const level of levels) {
       const c = deliveredForLevel(SHIPPED_GROUND_COLOUR.get(status)!, level);
       out.push({
         status,
@@ -343,8 +457,11 @@ export function ladderReadings(
 }
 
 /** Does every ladder rung of every shipped token still read as its own family? */
-export function ladderHolds(table: Record<string, Rgb255[]> = shippedReaderTable()): boolean {
-  return ladderReadings(table).every((r) => ownFamily(r.status).has(r.readsAs));
+export function ladderHolds(
+  table: Record<string, Rgb255[]> = shippedReaderTable(),
+  levels: readonly number[] = shippedLadder(),
+): boolean {
+  return ladderReadings(table, levels).every((r) => ownFamily(r.status).has(r.readsAs));
 }
 
 /** The grain stops as delivered pixels — the two colours the whole question is about, so a
