@@ -24,10 +24,12 @@ import {
   assertKitComplete,
   collectKitPrimitive,
   collectLeafMeans,
+  decodedLeafMean,
   declaredObjectName,
   geometryTriangles,
   kitFromScene,
   kitMeshes,
+  loadEmbeddedKit,
   materialTextures,
   newKitCollector,
   parseKit,
@@ -39,10 +41,16 @@ import {
   tintedMaterial,
 } from './kit-mesh.js';
 import type { KitAssemblyGeometry, KitObject, LoadedKit } from './kit-mesh.js';
-import { KIT_ROLES, KIT_ROLE_ASSEMBLIES, KIT_ROLE_SIZE, kitObjectNames } from './kit-vocabulary.js';
+import {
+  KIT_ASSEMBLIES,
+  KIT_ROLES,
+  KIT_ROLE_ASSEMBLIES,
+  KIT_ROLE_SIZE,
+  kitObjectNames,
+} from './kit-vocabulary.js';
 import type { KitAssembly, KitPlacement, KitRole } from './kit-vocabulary.js';
 import { leafTintGainFor } from './leaf-tint.js';
-import type { DecodedMap } from './map-texels.js';
+import type { DecodedMap, TexelCanvas } from './map-texels.js';
 import { RAW_COLOUR_SPACE } from './texture-convention.js';
 import type { Rgb } from './texture-convention.js';
 
@@ -227,8 +235,24 @@ test('a state with no declared tint is refused rather than drawn untinted', () =
   const leaves = KIT.assemblies.get('pine-a')!.objects[1]!;
   assert.throws(
     () => tintedMaterial(KIT, leaves.material, 'Pine_Branches', 'healthy', cache),
-    /no declared leaf tint/,
+    (e: Error) => {
+      assert.match(e.message, /the state healthy has no declared leaf tint/);
+      // The half that says what the refusal is protecting: a crown carrying a state nothing names.
+      assert.match(e.message, /asking the crown to carry a state the vocabulary does not name/);
+      return true;
+    },
   );
+});
+
+test('a tinted clone is marked for re-upload — three compiles a program per material', () => {
+  // Without `needsUpdate` the clone can render with the program the base material already compiled,
+  // which is the untinted one: a yellow crown drawn green, with nothing anywhere saying so.
+  const cache = new Map<string, THREE.MeshStandardMaterial>();
+  const leaves = KIT.assemblies.get('pine-a')!.objects[1]!;
+  const tinted = tintedMaterial(KIT, leaves.material, 'Pine_Branches', 'proposed', cache);
+  // ⚠ `needsUpdate` is a write-only setter that bumps `version`; reading it back answers undefined.
+  assert.ok(tinted.version > 0, 'the tinted clone was never marked for re-upload');
+  assert.equal(leaves.material.version, 0, 'the kit’s own material was marked instead');
 });
 
 test('a leaf material with no recorded mean is refused — a tint has nothing to rotate', () => {
@@ -253,7 +277,67 @@ test('a dressing merges to ONE mesh per (material, tint), however many props the
   );
   const meshes = kitMeshes(KIT, many);
   assert.equal(meshes.length, 2, `12 untinted pines merged into ${meshes.length} meshes`);
-  for (const m of meshes) assert.ok(m.geometry.getAttribute('position').count > 0);
+
+  // ⚠⚠ AND ALL TWELVE ARE IN THERE. "Two meshes" is also what a merge that kept only the LAST prop
+  // per bucket produces — an island with one tree on it, drawn with no error anywhere. The vertex
+  // count is what tells the two apart.
+  const one = kitMeshes(KIT, [placement()]);
+  for (const [i, m] of meshes.entries()) {
+    assert.equal(
+      m.geometry.getAttribute('position').count,
+      one[i]!.geometry.getAttribute('position').count * 12,
+      'the merged mesh does not carry all twelve props',
+    );
+    // ⚠ AND IT IS ONE DRAW CALL, NOT TWELVE. `mergeGeometries(parts, true)` produces a group per
+    // source, and three issues a draw call per group — the same picture at the cost the merge
+    // exists to avoid, on a renderer measured draw-call bound.
+    assert.equal(m.geometry.groups.length, 0, 'the merge kept a group per prop');
+  }
+});
+
+test('the merged SOURCES are disposed — a re-mounted island strands no buffer per prop', () => {
+  // ⚠ `mergeGeometries` COPIES its inputs, so the clones this makes are garbage the moment it
+  // returns. The canvas re-mounts per navigation; a dressing that left them behind would strand one
+  // buffer per prop per visit.
+  const disposed: THREE.BufferGeometry[] = [];
+  const real = THREE.BufferGeometry.prototype.dispose;
+  THREE.BufferGeometry.prototype.dispose = function patched(this: THREE.BufferGeometry): void {
+    disposed.push(this);
+    real.call(this);
+  };
+  try {
+    const meshes = kitMeshes(KIT, [placement(), placement({ capId: 'b', at: { x: 60, z: 0 } })]);
+    // Two placements of a two-part assembly: four source clones, none of them a returned mesh.
+    assert.equal(disposed.length, 4);
+    for (const m of meshes) assert.ok(!disposed.includes(m.geometry), 'a delivered mesh was disposed');
+  } finally {
+    THREE.BufferGeometry.prototype.dispose = real;
+  }
+});
+
+test('geometries that cannot merge are REFUSED, not drawn one draw call per prop', () => {
+  // ⚠⚠ `mergeGeometries` answers `null` when its inputs disagree about their attribute set — it
+  // does not throw. Pushing on would leave the dressing to be drawn some other way, or silently
+  // absent; either way the merge this module exists for did not happen and nothing said so.
+  const odd = { ...KIT, assemblies: new Map(KIT.assemblies) };
+  const mismatched = assembly(3, 12, 3);
+  // Both parts wear ONE material name, so they land in one bucket — and one of them carries an
+  // attribute the other does not.
+  mismatched.objects[0]!.materialName = 'Pine_Trunks';
+  mismatched.objects[1]!.materialName = 'Pine_Trunks';
+  const count = mismatched.objects[1]!.geometry.getAttribute('position').count;
+  mismatched.objects[1]!.geometry.setAttribute(
+    'uv2',
+    new THREE.BufferAttribute(new Float32Array(count * 2), 2),
+  );
+  odd.assemblies.set('pine-a', mismatched);
+
+  assert.throws(() => kitMeshes(odd, [placement()]), (e: Error) => {
+    assert.match(e.message, /could not merge the 2 geometries wearing Pine_Trunks/);
+    assert.match(e.message, /they do not share an attribute set/);
+    assert.match(e.message, /one draw call per prop on a draw-call-bound renderer/);
+    return true;
+  });
 });
 
 test('⚠ the TINT is part of the merge key — two states never share one mesh', () => {
@@ -300,10 +384,13 @@ test('an empty dressing is no meshes, not one empty one', () => {
   assert.deepEqual(kitMeshes(KIT, []), []);
 });
 
-test('a placement naming an assembly the kit does not hold is refused', () => {
+test('a placement naming an assembly the kit does not hold is refused, in its OWN words', () => {
+  // ⚠ `placementScale` refuses the same missing assembly one line later. Two identical messages
+  // are two floors no test can tell apart, which reads as one redundant guard rather than as the
+  // independent pair they are.
   const thin = { ...KIT, assemblies: new Map(KIT.assemblies) };
   thin.assemblies.delete('pine-a');
-  assert.throws(() => kitMeshes(thin, [placement()]), /pine-a/);
+  assert.throws(() => kitMeshes(thin, [placement()]), /this dressing names the assembly pine-a/);
 });
 
 // ---------------------------------------------------------------------------
@@ -320,7 +407,17 @@ test('the loader refuses a kit whose leaf material carries no base-colour map', 
   //
   // The parse's texture half is proved on a real GPU by the delivered-pixel colour guard; this is
   // the half that can be proved without one, and it is the fail-closed half.
-  await assert.rejects(parseKit(decodeKitAsset(), 'the embedded kit'), /carries no base-colour map/);
+  await assert.rejects(
+    parseKit(decodeKitAsset(), 'the embedded kit'),
+    /in the embedded kit the leaf material Pine_Branches carries no base-colour/,
+  );
+});
+
+test('the shipped loader reads the EMBEDDED bytes, and says which asset it read', async () => {
+  // ⚠ THE SHIPPED PATH HAS NO URL TO FETCH — the web sync carries `.ts` and `.tsx` only, so a
+  // module reaching for `/assets/dressing-kit.glb` works in the harness and 404s in the public
+  // engine copy. The refusal naming `src/kit-asset.ts` is what says WHICH of the two loaders ran.
+  await assert.rejects(loadEmbeddedKit(), /in the embedded kit \(src\/kit-asset\.ts\)/);
 });
 
 test('the loader names its source in a refusal', async () => {
@@ -364,6 +461,11 @@ test('a kit material is put into alpha TEST, double sided, and the raw colour co
   const foliage = texturedMaterial('Pine_Branches', { map: { width: 4, height: 4 } });
   foliage.transparent = true;
   foliage.depthWrite = false;
+  // ⚠ THE MAP STARTS IN THE WRONG SPACE ON PURPOSE. `three` gives a bare texture
+  // `NoColorSpace`, which is what the raw convention wants — so a fixture that never set it would
+  // pass whether or not the convention ran at all. A bought base-colour map arrives sRGB-tagged,
+  // and decoded that way it renders about 3.5x dark on a surface that is not colour-managed.
+  foliage.map!.colorSpace = THREE.SRGBColorSpace;
   prepareKitMaterial(foliage);
   assert.equal(foliage.transparent, false);
   assert.equal(foliage.alphaTest, 0.5);
@@ -372,6 +474,11 @@ test('a kit material is put into alpha TEST, double sided, and the raw colour co
   // The base-colour map is moved into this surface's raw convention — the reason a bought texture
   // does not render ~3.5x dark on a renderer that is not colour-managed.
   assert.equal(foliage.map!.colorSpace, RAW_COLOUR_SPACE);
+  assert.notEqual(THREE.SRGBColorSpace, RAW_COLOUR_SPACE, 'the fixture started in the target space');
+  // ⚠ `needsUpdate` IS A WRITE-ONLY SETTER in three — it bumps `version`, and reading it back
+  // answers `undefined`. The version is the observable, and a re-tag without it leaves the GPU
+  // holding the texture it already decoded in the space this convention just moved it out of.
+  assert.ok(foliage.map!.version > 0, 'the texture was re-tagged without being re-uploaded');
 
   // ⚠ AND AN OPAQUE MATERIAL IS LEFT ALONE ON THAT AXIS. Setting an alpha test on solid trunk bark
   // would punch holes in it wherever the map's alpha happened to be low.
@@ -440,23 +547,33 @@ test('a primitive resolves to the DECLARED object it belongs to — own name, pa
   // which `GLTFLoader` turns into a Group whose children are `<object>_0`, `<object>_1`. Keying on
   // the mesh's own name loses the object entirely — a quietly incomplete island.
   const declared = new Set(['Pine_Trunk_01', 'Pine_Leaves_01']);
-  assert.equal(declaredObjectName('Pine_Trunk_01', 'Scene', declared), 'Pine_Trunk_01');
-  assert.equal(declaredObjectName('Pine_Trunk_01_0', 'Pine_Trunk_01', declared), 'Pine_Trunk_01');
+  const under = (name: string): { name: string } => ({ name });
+  assert.equal(declaredObjectName('Pine_Trunk_01', under('Scene'), declared), 'Pine_Trunk_01');
+  assert.equal(declaredObjectName('Pine_Trunk_01_0', under('Pine_Trunk_01'), declared), 'Pine_Trunk_01');
+  // ⚠⚠ AND THE PARENT CLAUSE HAS TO DO REAL WORK, so the primitive's own name must NOT strip down
+  // to its parent's. Blender names a multi-material node's children after the MESH DATA, not after
+  // the object — `Plane.054_0` under `Pine_Leaves_01` — and stripping that gives a name the
+  // manifest has never heard of, which is a kit object silently absent from every island.
+  assert.equal(declaredObjectName('Plane054_0', under('Pine_Leaves_01'), declared), 'Pine_Leaves_01');
   // Its OWN name wins over the parent's, so a declared child of a declared group stays itself.
-  assert.equal(declaredObjectName('Pine_Leaves_01', 'Pine_Trunk_01', declared), 'Pine_Leaves_01');
+  assert.equal(declaredObjectName('Pine_Leaves_01', under('Pine_Trunk_01'), declared), 'Pine_Leaves_01');
+  // ⚠ NO PARENT AT ALL is the case a placeholder string used to stand in for — and four of the
+  // kit's six objects are scene-root nodes, so it is the ordinary case rather than a defensive one.
+  assert.equal(declaredObjectName('Plane054_0', null, declared), 'Plane054');
+  assert.equal(declaredObjectName('Pine_Leaves_01', null, declared), 'Pine_Leaves_01');
   // Neither declared: strip a TRAILING `_<digits>` and nothing else.
-  assert.equal(declaredObjectName('Rock_07_1', 'Scene', declared), 'Rock_07');
-  assert.equal(declaredObjectName('Leaves_v2_final', '', declared), 'Leaves_v2_final');
+  assert.equal(declaredObjectName('Rock_07_1', under('Scene'), declared), 'Rock_07');
+  assert.equal(declaredObjectName('Leaves_v2_final', null, declared), 'Leaves_v2_final');
   // ⚠⚠ THE DECLARED SET IS WHAT PROTECTS A NAME THAT ENDS IN DIGITS, AND NOTHING ELSE.
   // `Pine_Trunk_No_Leaves_01` is a real kit object whose tail is indistinguishable from a
   // primitive index — so the two clauses above are load-bearing rather than a convenience: asked
   // about it undeclared, the strip runs and answers a name the kit does not contain.
   const dead = 'Pine_Trunk_No_Leaves_01';
-  assert.equal(declaredObjectName(dead, '', new Set([dead])), dead);
-  assert.equal(declaredObjectName(dead, '', declared), 'Pine_Trunk_No_Leaves');
+  assert.equal(declaredObjectName(dead, null, new Set([dead])), dead);
+  assert.equal(declaredObjectName(dead, null, declared), 'Pine_Trunk_No_Leaves');
   // Only the tail, and only digits: an index in the MIDDLE of a name is left alone.
-  assert.equal(declaredObjectName('Pine_01_Trunk', '', declared), 'Pine_01_Trunk');
-  assert.equal(declaredObjectName('Trunk_0a', '', declared), 'Trunk_0a');
+  assert.equal(declaredObjectName('Pine_01_Trunk', null, declared), 'Pine_01_Trunk');
+  assert.equal(declaredObjectName('Trunk_0a', null, declared), 'Trunk_0a');
 });
 
 /** A scene node: a mesh of the given size, at the given offset, wearing the given material. */
@@ -479,7 +596,10 @@ test('the scene pass reads only textured MESHES, and bakes each one through its 
   const group = new THREE.Group();
   group.name = 'Pine_Trunk_01';
   group.position.set(100, 0, -50);
-  const primitive = node('Pine_Trunk_01_0', texturedMaterial('Pine_Trunks', {}), [2, 6, 2]);
+  // ⚠ NAMED AFTER ITS MESH DATA, NOT AFTER THE OBJECT — which is what Blender exports. A child
+  // called `Pine_Trunk_01_0` would strip down to its parent's name anyway, so it could not tell
+  // the parent clause from the fallback.
+  const primitive = node('Plane054_0', texturedMaterial('Pine_Trunks', {}), [2, 6, 2]);
   group.add(primitive);
   group.updateMatrixWorld(true);
   group.traverse((o) => collectKitPrimitive(o, declared, found));
@@ -490,6 +610,10 @@ test('the scene pass reads only textured MESHES, and bakes each one through its 
   assert.equal(found.objects.get('Pine_Trunk_01')!.length, 1);
   assert.equal(found.triangles, 12);
   assert.deepEqual([...found.materials], ['Pine_Trunks']);
+  // ⚠ THE MATERIAL IS PUT INTO THIS SURFACE'S CONVENTION ON THE WAY IN. A kit read without that
+  // step draws a stand of cut-out leaf cards in the sorted transparent pass and its base-colour
+  // maps about 3.5x dark — both of which look like art direction rather than a missing call.
+  assert.equal((primitive.material as THREE.MeshStandardMaterial).side, THREE.DoubleSide);
   const box = found.objects.get('Pine_Trunk_01')![0]!.geometry.boundingBox!;
   assert.ok(Math.abs(box.min.x - 99) < 1e-9, `the node transform did not reach the vertices: ${box.min.x}`);
   assert.ok(Math.abs(box.max.z - -49) < 1e-9);
@@ -500,6 +624,39 @@ test('the scene pass reads only textured MESHES, and bakes each one through its 
   collectKitPrimitive(odd, declared, found);
   assert.equal(found.objects.get('Pine_Trunk_01')!.length, 1, 'a non-standard material was read in');
   assert.equal(found.triangles, 12);
+
+  // ⚠⚠ AND SOMETHING THAT IS NOT A MESH AT ALL BUT DOES CARRY GEOMETRY AND A STANDARD MATERIAL.
+  // glTF has POINTS and LINES primitive modes, which `GLTFLoader` turns into `THREE.Points` and
+  // `THREE.LineSegments` — both of which answer `.geometry` and `.material` perfectly well. A read
+  // that only checked the MATERIAL would fold a debug polyline into a tree's own geometry.
+  const points = new THREE.Points(new THREE.BoxGeometry(2, 2, 2), texturedMaterial('Pine_Trunks', {}));
+  points.name = 'Pine_Trunk_01';
+  collectKitPrimitive(points, declared, found);
+  assert.equal(found.objects.get('Pine_Trunk_01')!.length, 1, 'a Points node was read in as a mesh');
+  assert.equal(found.triangles, 12);
+});
+
+test('a primitive with no parent at all resolves on its own name, rather than throwing', () => {
+  // ⚠ A ROOT-LEVEL MESH HAS NO PARENT UNTIL IT IS ADDED TO SOMETHING, and four of the kit's six
+  // objects are root-level nodes. Reading `obj.parent.name` unguarded turns the whole load into a
+  // TypeError deep inside a traverse, naming nothing.
+  const declared = new Set(['Pine_Trunk_01', 'Pine_Leaves_01']);
+  const found = newKitCollector();
+  const orphan = node('Pine_Trunk_01', texturedMaterial('Pine_Trunks', {}));
+  orphan.updateMatrixWorld(true);
+  assert.equal(orphan.parent, null, 'the fixture has a parent — it proves nothing');
+  assert.ok(
+    kitObjectNames().filter((n) => !n.includes('No_Leaves')).length >= 4,
+    'the kit no longer has root-level objects — this case may have stopped being the ordinary one',
+  );
+  collectKitPrimitive(orphan, declared, found);
+  assert.deepEqual([...found.objects.keys()], ['Pine_Trunk_01']);
+
+  // And an UNdeclared parentless primitive falls through to the strip, not to an empty name.
+  const stray = node('Plane054_2', texturedMaterial('Pine_Trunks', {}));
+  stray.updateMatrixWorld(true);
+  collectKitPrimitive(stray, declared, found);
+  assert.deepEqual([...found.objects.keys()], ['Pine_Trunk_01', 'Plane054']);
 });
 
 test('⚠ two primitives of ONE object are a LIST under one key, not one overwriting the other', () => {
@@ -531,6 +688,9 @@ test('the manifest floor names every declared object the asset failed to deliver
       assert.match(e.message, /Pine_Leaves_01, Red_Flower_01/);
       assert.doesNotMatch(e.message, /Pine_Trunk_01,/);
       assert.match(e.message, /under-reporting the work/);
+      // What to DO about it, which is the half a bare "missing X" would drop: the asset may be
+      // wrong, or the vocabulary may be.
+      assert.match(e.message, /Re-export the kit, or correct KIT_ASSEMBLIES/);
       return true;
     },
   );
@@ -541,12 +701,17 @@ test('the manifest floor names every declared object the asset failed to deliver
 test('an assembly is recentred on its JOINT footprint with its base at y = 0', () => {
   // ⚠⚠ ONE BOX FOR THE WHOLE ASSEMBLY. Recentring each object on its OWN base drops a pine's crown
   // 18% of the tree's height into its trunk — the crown's own base is not the tree's.
+  // ⚠⚠ THE ASSEMBLY DOES NOT START ON THE GROUND. Blender exports the kit's objects around their
+  // own origins, so a fixture already sitting at y = 0 makes `-box.min.y` and `+box.min.y` the same
+  // translate and the assembly's height `max - min` and `max + min` the same number — a recentring
+  // that never moves anything, proving nothing about either.
   const trunk = part('Trunk', 'Pine_Trunks', 2, 10, 2);
-  trunk.geometry.translate(20, 5, -8);
+  trunk.geometry.translate(20, 9, -8);
   trunk.geometry.computeBoundingBox();
   const crown = part('Crown', 'Pine_Branches', 6, 6, 6);
-  crown.geometry.translate(21, 12, -8);
+  crown.geometry.translate(21, 16, -8);
   crown.geometry.computeBoundingBox();
+  assert.ok(trunk.geometry.boundingBox!.min.y > 0, 'the fixture already stands on the ground');
 
   const built = assembleParts([trunk, crown], ['Trunk', 'Crown']);
   const joint = new THREE.Box3();
@@ -559,7 +724,8 @@ test('an assembly is recentred on its JOINT footprint with its base at y = 0', (
   assert.ok(built.objects[1]!.geometry.boundingBox!.min.y > 0, 'the crown was dropped to the ground');
 
   // The measurements are the JOINT box's own extents, and the width is the WIDER horizontal axis.
-  assert.equal(built.height, 15 - 0);
+  // Trunk spans y 4..14, crown 13..19 — so the assembly is 15 tall and its base was 4 off the floor.
+  assert.equal(built.height, 19 - 4);
   assert.equal(built.width, 24 - 18);
   assert.deepEqual(built.names, ['Trunk', 'Crown']);
 
@@ -628,7 +794,12 @@ test('a leaf material with no decoded map is refused, and so is a kit carrying n
   const meanOf = (): Rgb => ({ r: 1, g: 1, b: 1 });
   assert.throws(
     () => collectLeafMeans([[leafPart('Pine_Branches', null)]], 'a-source', meanOf),
-    /Pine_Branches carries no base-colour map/,
+    (e: Error) => {
+      assert.match(e.message, /in a-source the leaf material Pine_Branches carries no base-colour/);
+      assert.match(e.message, /a state tint has nothing to rotate/);
+      assert.match(e.message, /silently wear the token as a flat colour instead of the asset/);
+      return true;
+    },
   );
   // A kit with no leaf material anywhere is the other half, and it says what it costs: every
   // tinted state would fall back to the kit's own green and report every capability as proven.
@@ -637,10 +808,42 @@ test('a leaf material with no decoded map is refused, and so is a kit carrying n
     (e: Error) => {
       assert.match(e.message, /a-source carries none of the declared leaf materials/);
       assert.match(e.message, /\[Pine_Branches\]/);
+      assert.match(e.message, /every tinted state would fall back to the kit's own green/);
       assert.match(e.message, /every capability as proven/);
       return true;
     },
   );
+
+  // ⚠ THE MISSING SET IS A LIST, AND IT IS JOINED. `LEAF_MATERIALS` has one member today, so the
+  // separator is unreachable through it — and a message that ran two material names together
+  // would be discovered the day a second leaf material is declared, in a refusal nobody can read.
+  assert.throws(
+    () =>
+      collectLeafMeans(
+        [[leafPart('Pine_Trunks', { id: 'bark' })]],
+        'a-source',
+        meanOf,
+        new Set(['Pine_Branches', 'Birch_Leaves']),
+      ),
+    /\[Pine_Branches, Birch_Leaves\]/,
+  );
+});
+
+test('the default mean reader averages the map’s own solid texels', () => {
+  // ⚠ The reader is a SEAM because decoding an image needs a browser — but the canvas comes
+  // through it, so the default's own arithmetic is provable here rather than only on a GPU.
+  const part1 = leafPart('Pine_Branches', { width: 2, height: 1 });
+  const data = Uint8ClampedArray.from([10, 20, 30, 255, 30, 60, 90, 255]);
+  const canvas: TexelCanvas = {
+    width: -1,
+    height: -1,
+    getContext: () => ({
+      drawImage: () => undefined,
+      getImageData: () => ({ data }),
+    }),
+  };
+  const mean = decodedLeafMean(part1.material.map!.image as DecodedMap, () => canvas);
+  assert.deepEqual(mean, { r: 20, g: 40, b: 60 });
 });
 
 /** A whole scene the vocabulary declares every object of — a kit, synthesised. */
@@ -648,7 +851,10 @@ function fixtureScene(): THREE.Group {
   const scene = new THREE.Group();
   const foliage = texturedMaterial('Pine_Branches', { map: { width: 8, height: 8 } });
   foliage.map!.image = { width: 8, height: 8 };
-  for (const name of kitObjectNames()) {
+  // ⚠ REVERSED, SO THE MATERIAL LIST ARRIVES OUT OF ORDER. `kitObjectNames()` is sorted and its
+  // first entries are the leafy ones, so reading the objects forward inserts `Pine_Branches` first
+  // and the material list comes out sorted whether anything sorts it or not.
+  for (const name of [...kitObjectNames()].reverse()) {
     const leafy = name.includes('Leaves') && !name.includes('No_Leaves');
     scene.add(node(name, leafy ? foliage : texturedMaterial('Pine_Trunks', {}), [2, 4, 2], [0, 2, 0]));
   }
@@ -690,6 +896,68 @@ test('a scene missing a declared object is refused by the load, naming it', () =
     () => kitFromScene(thin, 0, 'a-source', () => ({ r: 1, g: 1, b: 1 })),
     /missing objects the vocabulary declares: Red_Flower_01/,
   );
+});
+
+test('⚠ resolving the scene graph cannot move a RECENTRED assembly on this asset', () => {
+  // ⚠⚠ THIS IS THE PREMISE THE `Stryker disable` ON `updateMatrixWorld` RESTS ON, PINNED RATHER
+  // THAN ASSERTED IN A COMMENT — and it is a fact about the ASSET, not about the code. Every part
+  // of each declared assembly sits under ONE node transform, and `assembleParts` recentres on the
+  // joint box, so a translation common to all of them is subtracted straight back out. Resolving
+  // the graph or not therefore delivers the same `LoadedKit` for this kit, and no test can kill a
+  // mutant in that call.
+  //
+  // The CALL is still required and is NOT equivalent in general: glTF keeps a node transform
+  // separate from its mesh, so a kit whose crown and trunk hung off different nodes — or a scaled
+  // node — would come out proportioned by an accident of how it was authored. If a re-export ever
+  // does that, this fails and the annotation stops being true in the same run.
+  //
+  // ⚠ IT READS THE CONTAINER'S OWN JSON RATHER THAN LOADING IT. A `GLTFLoader` import here would
+  // put this file on `texture-convention.test.ts`'s sweep of "modules that reach for a texture
+  // loader", and carving test files out of that sweep is exactly the list-shaped opt-out its own
+  // header refuses.
+  const bytes = new Uint8Array(decodeKitAsset());
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const jsonLength = view.getUint32(12, true);
+  const gltf = JSON.parse(new TextDecoder().decode(bytes.subarray(20, 20 + jsonLength))) as {
+    nodes?: Array<{
+      name?: string;
+      mesh?: number;
+      children?: number[];
+      translation?: number[];
+      scale?: number[];
+      matrix?: number[];
+    }>;
+  };
+  const nodes = gltf.nodes ?? [];
+
+  // Every declared object's own node, and the world offset it sits at. The kit's objects are all
+  // scene-root nodes, so a node's own translation IS its world one — asserted rather than assumed.
+  const childOf = new Set(nodes.flatMap((n) => n.children ?? []));
+  const at = new Map<string, string>();
+  for (const [index, n] of nodes.entries()) {
+    if (n.mesh === undefined || !n.name) continue;
+    assert.ok(!childOf.has(index), `${n.name} is nested — its world transform is not its own`);
+    assert.equal(n.matrix, undefined, `${n.name} carries a raw matrix, not a TRS`);
+    assert.deepEqual(n.scale ?? [1, 1, 1], [1, 1, 1], `${n.name} is scaled — recentring cannot undo that`);
+    at.set(n.name, JSON.stringify(n.translation ?? [0, 0, 0]));
+  }
+
+  let checked = 0;
+  for (const names of Object.values(KIT_ASSEMBLIES)) {
+    const places = (names as readonly string[]).map((n) => {
+      const where = at.get(n);
+      assert.ok(where, `the asset holds no node named ${n}`);
+      return where;
+    });
+    for (const where of places) {
+      assert.equal(where, places[0], 'an assembly’s parts hang off DIFFERENT node transforms');
+      checked += 1;
+    }
+  }
+  assert.equal(checked, kitObjectNames().length, `only ${checked} objects checked`);
+  // NON-VACUITY: the transforms are not all the same one, so "equal within an assembly" is a real
+  // constraint rather than a fact about a kit authored at the origin.
+  assert.ok(new Set(at.values()).size > 1, 'every object sits at the same place — nothing is proved');
 });
 
 test('⚠ `updateMatrixWorld`’s FORCE argument cannot change a matrix on this asset', () => {

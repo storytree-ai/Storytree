@@ -34,7 +34,7 @@ import {
 import type { KitAssembly, KitPlacement, KitRole, RoleFootprints } from './kit-vocabulary.js';
 import { leafTintGainFor } from './leaf-tint.js';
 import { mapMeans } from './map-texels.js';
-import type { DecodedMap } from './map-texels.js';
+import type { DecodedMap, TexelCanvasFactory } from './map-texels.js';
 import { applyRawColourConvention } from './texture-convention.js';
 import type { ConventionMaterial, Rgb } from './texture-convention.js';
 
@@ -146,11 +146,14 @@ export function geometryTriangles(geometry: THREE.BufferGeometry): number {
  */
 export function declaredObjectName(
   own: string,
-  parentName: string,
+  parent: { name: string } | null,
   declared: ReadonlySet<string>,
 ): string {
   if (declared.has(own)) return own;
-  if (declared.has(parentName)) return parentName;
+  // ⚠ THE PARENT ITSELF, NOT ITS NAME BEHIND A `?? ''`. A placeholder for "no parent" is
+  // unobservable — every string the manifest does not declare behaves identically — so it is a
+  // mutant nothing can kill, standing exactly where the resolution's own null case lives.
+  if (parent && declared.has(parent.name)) return parent.name;
   return own.replace(/_\d+$/, '');
 }
 
@@ -193,7 +196,7 @@ export function collectKitPrimitive(
   into.triangles += geometryTriangles(geometry);
   into.materials.add(material.name);
 
-  const key = declaredObjectName(obj.name, obj.parent?.name ?? '', declared);
+  const key = declaredObjectName(obj.name, obj.parent, declared);
   const part = { name: key, geometry, material, materialName: material.name };
   const existing = into.objects.get(key);
   if (existing) existing.push(part);
@@ -230,10 +233,11 @@ export function assembleParts(parts: KitObject[], names: readonly string[]): Kit
   for (const part of parts) box.union(part.geometry.boundingBox!);
   const cx = (box.min.x + box.max.x) / 2;
   const cz = (box.min.z + box.max.z) / 2;
-  for (const part of parts) {
-    part.geometry.translate(-cx, -box.min.y, -cz);
-    part.geometry.computeBoundingBox();
-  }
+  // ⚠ NO `computeBoundingBox()` AFTER THE TRANSLATE. `BufferGeometry.applyMatrix4` — which
+  // `translate` is — recomputes a bounding box that is already there, and every part reaching here
+  // has one (the union above would have thrown otherwise). A second call changes nothing, which
+  // makes it a mutant no assertion can kill.
+  for (const part of parts) part.geometry.translate(-cx, -box.min.y, -cz);
   return {
     objects: parts,
     names,
@@ -260,7 +264,10 @@ export function textureGpuBytes(textures: Iterable<KitTexture>): number {
  */
 export type LeafMeanReader = (image: DecodedMap) => Rgb;
 
-const decodedLeafMean: LeafMeanReader = (image) => mapMeans(image).raw;
+/** The default reader: the map's own solid texels, averaged. The canvas comes through as a second
+ *  argument so this is provable without one — see `map-texels.ts`'s {@link TexelCanvasFactory}. */
+export const decodedLeafMean = (image: DecodedMap, canvasFor?: TexelCanvasFactory): Rgb =>
+  mapMeans(image, canvasFor).raw;
 
 /**
  * EACH LEAF MATERIAL'S OWN BASE-COLOUR MEAN, read ONCE from the asset's own decoded texels — not
@@ -273,24 +280,25 @@ export function collectLeafMeans(
   objects: Iterable<KitObject[]>,
   source: string,
   meanOf: LeafMeanReader = decodedLeafMean,
+  leaves: ReadonlySet<string> = LEAF_MATERIALS,
 ): Map<string, Rgb> {
   const leafMeans = new Map<string, Rgb>();
   for (const parts of objects) {
     for (const part of parts) {
-      if (!LEAF_MATERIALS.has(part.materialName)) continue;
+      if (!leaves.has(part.materialName)) continue;
       if (leafMeans.has(part.materialName)) continue;
       const image = part.material.map?.image as DecodedMap | undefined;
       if (!image) {
         throw new Error(
-          `kit-mesh: the leaf material ${part.materialName} carries no base-colour map, so a ` +
-            'state tint has nothing to rotate — a crown would silently wear the token as a flat ' +
-            'colour instead of the asset it was bought for',
+          `kit-mesh: in ${source} the leaf material ${part.materialName} carries no base-colour ` +
+            'map, so a state tint has nothing to rotate — a crown would silently wear the token ' +
+            'as a flat colour instead of the asset it was bought for',
         );
       }
       leafMeans.set(part.materialName, meanOf(image));
     }
   }
-  const missingLeaf = [...LEAF_MATERIALS].filter((m) => !leafMeans.has(m));
+  const missingLeaf = [...leaves].filter((m) => !leafMeans.has(m));
   if (missingLeaf.length > 0) {
     throw new Error(
       `kit-mesh: ${source} carries none of the declared leaf materials [${missingLeaf.join(', ')}] — ` +
@@ -356,7 +364,7 @@ export function kitFromScene(
  */
 export async function parseKit(
   bytes: ArrayBuffer,
-  source = 'the embedded kit',
+  source: string,
   meanOf?: LeafMeanReader,
 ): Promise<LoadedKit> {
   // Stryker disable next-line StringLiteral: EQUIVALENT — the second argument is the base PATH
@@ -364,11 +372,20 @@ export async function parseKit(
   // committed `.glb` is self-contained (one BIN chunk, no `uri` anywhere in its JSON), so every
   // path resolves the same asset and no fetch is ever issued.
   const gltf = await new GLTFLoader().parseAsync(bytes, '');
-  // Stryker disable next-line BooleanLiteral: EQUIVALENT, and provably rather than by inspection.
-  // `force` only reaches a node that has turned `matrixAutoUpdate` OFF — every other node dirties
-  // itself on the same call and recomputes regardless. `GLTFLoader` turns it off on nothing, which
-  // `kit-mesh.test.ts` pins, so this argument cannot change a matrix. The CALL is not equivalent:
-  // without it every world matrix is still identity.
+  // Stryker disable next-line BooleanLiteral,CallExpression: EQUIVALENT ON THIS ASSET, and provably
+  // rather than by inspection — `kit-mesh.test.ts` pins both halves of the argument.
+  //
+  // The ARGUMENT: `force` only reaches a node that has turned `matrixAutoUpdate` OFF, and every
+  // other node dirties itself on the same call and recomputes regardless. `GLTFLoader` turns it off
+  // on nothing.
+  //
+  // The CALL: every part of each declared assembly sits under ONE node transform in this kit, and
+  // `assembleParts` recentres on the joint box — so a translation common to all of a assembly's
+  // parts is subtracted straight back out, and resolving the graph or not delivers the same
+  // `LoadedKit`. ⚠ THAT IS A FACT ABOUT THE ASSET, NOT ABOUT THIS CODE, and the call is REQUIRED:
+  // a kit whose crown and trunk hung off different nodes, or a scaled node, would come out
+  // proportioned by an accident of how it was authored. The test fails if a re-export does that,
+  // and this annotation stops being true in the same run.
   gltf.scene.updateMatrixWorld(true);
   return kitFromScene(gltf.scene, bytes.byteLength, source, meanOf);
 }
@@ -503,7 +520,12 @@ export function kitMeshes(kit: LoadedKit, placements: readonly KitPlacement[]): 
 
   for (const placement of placements) {
     const assembly = kit.assemblies.get(placement.assembly);
-    if (!assembly) throw new Error(`kit-mesh: no assembly ${placement.assembly}`);
+    if (!assembly) {
+      // ⚠ ITS OWN WORDING, not `placementScale`'s. Both refuse the same missing assembly one line
+      // apart, and two identical messages are two refusals no test can tell apart — which reads as
+      // a redundant guard rather than as the two independent floors they are.
+      throw new Error(`kit-mesh: this dressing names the assembly ${placement.assembly}, which the kit does not hold`);
+    }
     const scale = placementScale(kit, placement);
     q.setFromAxisAngle(up, placement.yaw);
     m.compose(

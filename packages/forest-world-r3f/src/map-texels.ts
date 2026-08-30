@@ -156,6 +156,12 @@ export interface TexelCanvas {
  *  reach — the same finding that pulled {@link texelMeans} out of the read above it. */
 export type TexelCanvasFactory = () => TexelCanvas;
 
+// Stryker disable next-line all: UNWITNESSABLE, and this is the one line in the module that is.
+// It is the module's ONLY DOM access and it cannot execute outside a browser, so no test can kill a
+// mutant in it — which is exactly why the factory is a parameter: everything ABOUT the readback
+// (that the canvas is sized to the map's own dimensions, that a readback context is asked for, that
+// the image is drawn at the origin, that a surface with no context is refused) is proved through the
+// seam in `map-texels.test.ts`. Its own delivery is proved on a real GPU by the colour guard.
 const domCanvas: TexelCanvasFactory = () => document.createElement('canvas');
 
 /**

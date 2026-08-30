@@ -42,7 +42,6 @@
 // `parcel-cells.ts` is the route from those into this basis.
 
 import { landHeight } from './land-relief.js';
-import { LEAF_TINT_TOKEN } from './leaf-tint.js';
 import { cellsByParcel } from './parcel-cells.js';
 import type { GPoint, LayoutCell } from './parcel-cells.js';
 
@@ -179,10 +178,21 @@ export function deliveredRolePx(role: KitRole, pxPerUnit: number): number {
   return size.axis === 'height' ? deliveredHeightPx(size.units, pxPerUnit) : size.units * pxPerUnit;
 }
 
+/**
+ * Does a prop of this declared size clear the object floor at the overview zoom?
+ *
+ * ⚠⚠ A SIZE RATHER THAN A ROLE, AND THE REASON IS THAT THE ROLES CANNOT SHOW THE FORK. All three
+ * declared roles answer the same either way — 18, 15 and 4 units all fall on the same side of both
+ * thresholds — so a predicate reading the WRONG axis is invisible through them, and the axis fork
+ * is the whole point: width does not foreshorten at this camera and height does.
+ */
+export function sizeClearsObjectFloor(size: { axis: 'height' | 'width'; units: number }): boolean {
+  return size.units >= (size.axis === 'height' ? MIN_PROP_HEIGHT : MIN_PROP_WIDTH);
+}
+
 /** Does this role clear the object floor at the overview zoom? */
 export function clearsObjectFloor(role: KitRole): boolean {
-  const size = KIT_ROLE_SIZE[role];
-  return size.units >= (size.axis === 'height' ? MIN_PROP_HEIGHT : MIN_PROP_WIDTH);
+  return sizeClearsObjectFloor(KIT_ROLE_SIZE[role]);
 }
 
 /** The camera elevation every land picture on this arc is taken at. */
@@ -322,7 +332,9 @@ export function candidatePoints(
   count: number,
   seed: number,
 ): GPoint[] {
-  if (cells.length === 0 || count <= 0) return [];
+  // ⚠ NO `count <= 0` CLAUSE — `Math.max(0, count)` below already answers one, and a second
+  // early-out changes no output, which is a mutant nothing can kill.
+  if (cells.length === 0) return [];
   const rand = propStream(seed);
   const out: GPoint[] = [];
   // ⚠ A MATERIALISED RANGE RATHER THAN A COUNTER. `for (let i = 0; i < count; i++)` carries
@@ -445,6 +457,8 @@ export function bestCandidate(
     let clearance = Infinity;
     for (const o of occupied) {
       const gap = Math.hypot(p.x - o.x, p.z - o.z) - (radius + o.radius);
+      // Stryker disable next-line EqualityOperator: EQUIVALENT — on a tie the assignment stores
+      // the value already in `clearance`, so `<` and `<=` differ only in whether a no-op runs.
       if (gap < clearance) clearance = gap;
     }
     if (clearance > bestClearance) {
@@ -497,6 +511,10 @@ export function dressIslandFromKit(opts: KitDressingOptions): KitPlacement[] {
   const heightAt = (x: number, z: number): number => landHeight(x, z, opts.relief);
   const seed0 = opts.seed ?? 11;
   const out: KitPlacement[] = [];
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT, and provably rather than by
+  // inspection. A fabricated entry carries no `x`, `z` or `radius`, so its gap is `NaN`;
+  // `bestCandidate` compares with `NaN < clearance`, which is false, so the entry is skipped
+  // exactly as an absent one is and no candidate's score can move.
   const occupied: Occupancy[] = [];
 
   const byParcel = cellsByParcel(cells);
@@ -612,10 +630,15 @@ export function dressingCensus(placements: readonly KitPlacement[]): DressingCen
   return out;
 }
 
-/** Every declared tint is one this vocabulary can actually reach — the two-place check between
- *  `stateForm` and `LEAF_TINT_TOKEN`, in one place so a report can print it. */
+/** Every state whose FORM asks for a leaf tint — the list a report prints, and the left-hand side
+ *  of the two-place check `kit-vocabulary.test.ts` runs against `LEAF_TINT_TOKEN`. */
 export function tintedStates(): string[] {
-  return VOCABULARY_STATES.filter((s) => stateForm(s)?.tint !== null && stateForm(s) !== null).filter(
-    (s) => LEAF_TINT_TOKEN.has(s),
-  );
+  // ⚠ WHAT THE VOCABULARY ASKS FOR, not what `LEAF_TINT_TOKEN` happens to declare. The two-place
+  // agreement between them is a CHECK and lives in `kit-vocabulary.test.ts`; asserting it here as
+  // a second filter made the first one redundant, and a redundant clause is a mutant nothing can
+  // kill — the shape that reads as a check while proving nothing.
+  return VOCABULARY_STATES.filter((s) => {
+    const form = stateForm(s);
+    return form !== null && form.tint !== null;
+  });
 }

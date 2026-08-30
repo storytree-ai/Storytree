@@ -38,6 +38,7 @@ import {
   dressingOverlaps,
   kitObjectNames,
   propRadius,
+  sizeClearsObjectFloor,
   propStream,
   stateForm,
   tintedStates,
@@ -746,9 +747,31 @@ test('the blooms take the golden angle and their own seed run, off the WHOLE isl
     blooms[0]!.at,
     bestCandidate(candidatePoints(all, 96, 11 + 7717 + 0 * 131), FOOT.bloom / 2, occupied),
   );
-  // ⚠ THE SEED MOVES PER BLOOM: without the index every bloom is the same search and they stack.
+  // ⚠ THE SEED MOVES PER BLOOM, AND IT MOVES BY `+ i * 131`. Asserting only that two blooms differ
+  // is satisfied by any per-bloom seed at all, including one that walks the wrong way.
+  const occupiedThen = [
+    ...occupied,
+    { x: blooms[0]!.at.x, z: blooms[0]!.at.z, radius: FOOT.bloom / 2 },
+  ];
+  assert.deepEqual(
+    blooms[1]!.at,
+    bestCandidate(candidatePoints(all, 96, 11 + 7717 + 131), FOOT.bloom / 2, occupiedThen),
+  );
   assert.notDeepEqual(blooms[0]!.at, blooms[1]!.at);
   assert.notDeepEqual(blooms[1]!.at, blooms[2]!.at);
+
+  // ⚠ A BLOOM BELONGS TO THE STORY, and says so: it is the one placement whose `capId` names no
+  // capability, which is what stops a criterion marker being read as one capability's own signal.
+  for (const b of blooms) {
+    assert.equal(b.capId, 'story');
+    // ⚠ AND THE BLOOM'S OWN ASSEMBLY. `flower` is the only arm its role serves, so a bloom naming
+    // anything else is a placement the kit cannot draw — `kitMeshes` refuses it, which turns a
+    // signed criterion into a crashed canvas rather than a missing marker.
+    assert.equal(b.assembly, 'flower');
+    assert.equal(b.tint, null);
+  }
+  assert.deepEqual(KIT_ROLE_ASSEMBLIES.bloom, ['flower']);
+  assert.equal(new Set(placements.filter((p) => p.role !== 'bloom').map((p) => p.capId)).size, 6);
 });
 
 test('⚠ a bloom never stands on ground that belongs to no capability', () => {
@@ -837,47 +860,49 @@ test('a dressed island has no overlapping pair at the footprint it was dressed w
 test('an overlap is named by role and capability, measured, and reported WORST FIRST', () => {
   // ⚠ Away from the origin on both axes: `a.x - b.x` and `a.x + b.x` coincide for a pair
   // straddling zero, which is how a sign error survives a tidy fixture.
-  const at = (x: number, z: number): GPoint => ({ x, z });
-  const p = (role: KitRole, capId: string, x: number, z: number): KitPlacement => ({
+  const p = (role: KitRole, capId: string, x: number): KitPlacement => ({
     role,
     assembly: role === 'bloom' ? 'flower' : 'pine-a',
     capId,
     tint: null,
-    at: at(x, z),
+    at: { x: 300 + x, z: -200 },
     y: 0,
     yaw: 0,
   });
-  const near = FOOT.tree / 2 + FOOT.bloom / 2 - 1;
+  // ⚠⚠ A FOOTPRINT WHOSE HALVES SUM EXACTLY, and gaps whose INSERTION order is neither ascending
+  // nor descending. A comparator that returns the same sign for every pair does not leave an array
+  // alone — it reverses it — so a fixture whose pairs happen to arrive in descending order is
+  // sorted correctly by an arithmetic that compares nothing.
+  const exact = { tree: 8, deadTree: 6, bloom: 4 };
   const overlaps = dressingOverlaps(
-    [
-      p('tree', 'cap-0', 300, -200),
-      p('bloom', 'story', 300 + near, -200),
-      p('tree', 'cap-1', 300 + FOOT.tree - 4, -200),
-    ],
-    FOOT,
+    [p('tree', 'a', 0), p('tree', 'b', 1), p('tree', 'c', 7), p('tree', 'd', 7.5)],
+    exact,
   );
   assert.deepEqual(
-    overlaps.map((o) => [o.a, o.b]),
+    overlaps.map((o) => [o.a, o.b, Number(o.gap.toFixed(6))]),
     [
-      ['bloom:story', 'tree:cap-1'],
-      ['tree:cap-0', 'tree:cap-1'],
-      ['tree:cap-0', 'bloom:story'],
+      ['tree:c', 'tree:d', -7.5],
+      ['tree:a', 'tree:b', -7],
+      ['tree:b', 'tree:c', -2],
+      ['tree:b', 'tree:d', -1.5],
+      ['tree:a', 'tree:c', -1],
+      ['tree:a', 'tree:d', -0.5],
     ],
     'the overlaps are not worst-first, or are not named by role and capability',
   );
-  assert.ok(Math.abs(overlaps[2]!.gap - -1) < 1e-9, `gap ${overlaps[2]!.gap}`);
-  assert.ok(overlaps[0]!.gap < overlaps[1]!.gap && overlaps[1]!.gap < overlaps[2]!.gap);
 
   // ⚠ TOUCHING IS NOT OVERLAPPING. Two props exactly their own footprints apart have a gap of
   // zero, and reporting that would make the detector fire on a placement that did its job.
-  // ⚠ A FOOTPRINT WHOSE HALVES SUM EXACTLY. `10.13 / 2 + 10.13 / 2` is 5e-15 short of `10.13`, so
-  // the declared numbers cannot express a true touch at all and would report one as an overlap of
-  // negative five femtometres — a fixture measuring the float, not the rule.
-  const exact = { tree: 8, deadTree: 6, bloom: 4 };
-  assert.deepEqual(dressingOverlaps([p('tree', 'a', 300, -200), p('tree', 'b', 308, -200)], exact), []);
-  assert.equal(dressingOverlaps([p('tree', 'a', 300, -200), p('tree', 'b', 307.9, -200)], exact).length, 1);
-  assert.deepEqual(dressingOverlaps([p('tree', 'a', 0, 0)], FOOT), []);
-  assert.deepEqual(dressingOverlaps([], FOOT), []);
+  // `10.13 / 2 + 10.13 / 2` is 5e-15 short of `10.13`, so the DECLARED numbers cannot express a
+  // true touch at all — a fixture built on them measures the float, not the rule.
+  assert.deepEqual(dressingOverlaps([p('tree', 'a', 0), p('tree', 'b', 8)], exact), []);
+  assert.equal(dressingOverlaps([p('tree', 'a', 0), p('tree', 'b', 7.9)], exact).length, 1);
+
+  // A mixed pair takes half of EACH footprint, so the two roles' clearances are not interchangeable.
+  assert.equal(dressingOverlaps([p('tree', 'a', 0), p('bloom', 'story', 6)], exact).length, 0);
+  assert.equal(dressingOverlaps([p('tree', 'a', 0), p('bloom', 'story', 5.9)], exact).length, 1);
+  assert.deepEqual(dressingOverlaps([p('tree', 'a', 0)], exact), []);
+  assert.deepEqual(dressingOverlaps([], exact), []);
 });
 
 test('the vocabulary’s six states are the map’s six, in the order a report prints them', () => {
@@ -893,10 +918,20 @@ test('the vocabulary’s six states are the map’s six, in the order a report p
 
 test('the TINTED states are exactly the three a crown rotates for', () => {
   // ⚠ `healthy` and `unhealthy` draw an UNTINTED form — the kit's own needles, and a bare dead
-  // trunk — and `unknown` draws nothing at all. A list that included any of them would have a
-  // report claiming a tint that no crown wears.
+  // trunk — and `unknown` draws NO form at all, so it has no tint to ask about. A list that
+  // included any of them would have a report claiming a tint that no crown wears.
   assert.deepEqual(tintedStates(), ['mapped', 'proposed', 'building']);
+  assert.equal(stateForm('healthy')?.tint, null);
+  assert.equal(stateForm('unhealthy')?.tint, null);
+  assert.equal(stateForm('unknown'), null);
+
+  // ⚠⚠ THE TWO-PLACE CHECK LIVES HERE, and that is the point: as a second filter inside
+  // `tintedStates` it made the first one redundant, so the function agreed with the tint table by
+  // construction and could not disagree with it however wrong either got.
   for (const s of tintedStates()) assert.ok(LEAF_TINT_TOKEN.has(s), `${s} has no declared tint`);
+  for (const s of LEAF_TINT_TOKEN.keys()) {
+    assert.ok(tintedStates().includes(s), `${s} declares a tint no form asks for`);
+  }
 });
 
 test('the declared object manifest is deduped AND sorted, so a report’s list is stable', () => {
@@ -917,15 +952,26 @@ test('a role’s delivered pixels are read on the axis it is SIZED by', () => {
   assert.ok(deliveredRolePx('bloom', 2) > deliveredRolePx('bloom', 1), 'the zoom does not reach it');
 });
 
-test('the object floor is read against the role’s OWN axis, at its own threshold', () => {
-  // ⚠ Two thresholds, and a role sized by width must not be judged against the height one — 5
-  // units of width clears, 5 units of height does not, so reading the wrong pair inverts the
-  // answer for exactly the roles the vocabulary is made of.
-  assert.equal(MIN_PROP_WIDTH < MIN_PROP_HEIGHT, true, 'the two thresholds are not distinguishable');
-  assert.equal(clearsObjectFloor('tree'), KIT_ROLE_SIZE.tree.units >= MIN_PROP_HEIGHT);
-  assert.equal(clearsObjectFloor('deadTree'), KIT_ROLE_SIZE.deadTree.units >= MIN_PROP_HEIGHT);
-  assert.equal(clearsObjectFloor('bloom'), KIT_ROLE_SIZE.bloom.units >= MIN_PROP_WIDTH);
-  // The threshold is inclusive at the boundary, and a hair under it is not.
+test('the object floor is read against the size’s OWN axis, at its own threshold', () => {
+  // ⚠⚠ THE THREE DECLARED ROLES CANNOT SHOW THIS FORK — 18, 15 and 4 units all fall the same side
+  // of both thresholds, so a predicate reading the WRONG axis answers correctly for every role the
+  // vocabulary has. The discriminating sizes are the ones BETWEEN the two thresholds, which is
+  // exactly the band the fork exists for: width does not foreshorten at this camera and height
+  // does, by cos(50°).
+  assert.ok(MIN_PROP_WIDTH < MIN_PROP_HEIGHT, 'the two thresholds are not distinguishable');
+  const between = (MIN_PROP_WIDTH + MIN_PROP_HEIGHT) / 2;
+  assert.equal(sizeClearsObjectFloor({ axis: 'width', units: between }), true);
+  assert.equal(sizeClearsObjectFloor({ axis: 'height', units: between }), false);
+  // Inclusive at each threshold, and a hair under it is not.
+  assert.equal(sizeClearsObjectFloor({ axis: 'width', units: MIN_PROP_WIDTH }), true);
+  assert.equal(sizeClearsObjectFloor({ axis: 'width', units: MIN_PROP_WIDTH - 1e-9 }), false);
+  assert.equal(sizeClearsObjectFloor({ axis: 'height', units: MIN_PROP_HEIGHT }), true);
+  assert.equal(sizeClearsObjectFloor({ axis: 'height', units: MIN_PROP_HEIGHT - 1e-9 }), false);
+
+  // And each role is that predicate over its OWN declared size.
+  for (const role of KIT_ROLES) {
+    assert.equal(clearsObjectFloor(role), sizeClearsObjectFloor(KIT_ROLE_SIZE[role]), role);
+  }
   assert.equal(clearsObjectFloor('tree'), true);
   assert.equal(clearsObjectFloor('bloom'), false);
 });

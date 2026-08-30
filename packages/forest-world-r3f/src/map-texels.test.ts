@@ -42,6 +42,20 @@ test('⚠ the linear mean is mean(srgb_to_linear(texel)), NOT srgb_to_linear(mea
   assert.ok(Math.abs(perTexel - ofTheMean) > 1, 'the fixture does not separate the two readings');
 });
 
+
+test('the linear mean DIVIDES by the count, on every channel', () => {
+  // ⚠ THREE CHANNELS WITH THREE DIFFERENT SUMS AND MORE THAN ONE TEXEL. With a single texel a
+  // divide and a multiply by the count agree, and with equal channels an implementation that
+  // computed one and copied it agrees too — so the fixture has to break both at once.
+  const means = texelMeans(rgba([10, 60, 200, 255], [30, 100, 240, 255], [20, 80, 220, 255]));
+  const lin = (a: number, b: number, c: number): number =>
+    (srgbToLinearUnit(a / 255) + srgbToLinearUnit(b / 255) + srgbToLinearUnit(c / 255)) * (255 / 3);
+  assert.ok(Math.abs(means.linear.r - lin(10, 30, 20)) < 1e-9, `r ${means.linear.r}`);
+  assert.ok(Math.abs(means.linear.g - lin(60, 100, 80)) < 1e-9, `g ${means.linear.g}`);
+  assert.ok(Math.abs(means.linear.b - lin(200, 240, 220)) < 1e-9, `b ${means.linear.b}`);
+  assert.equal(means.opaque, 3);
+});
+
 test('⚠ ONLY FULLY OPAQUE TEXELS COUNT, and the cut is exactly where it is declared', () => {
   // ⚠⚠ TWO THINGS BREAK ON A CUT-OUT MAP, and the first produced a wrong answer before this
   // existed. `getImageData` un-premultiplies, so an alpha-0 texel comes back BLACK whatever colour
