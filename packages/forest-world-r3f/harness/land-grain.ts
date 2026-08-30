@@ -20,6 +20,8 @@ export {
   GRAIN_NORMAL_STRENGTH,
   GRAIN_RAMP,
   GRAIN_GRAD_STEP,
+  grainTerms,
+  grainAmplitudeSum,
   grainFeaturePeriod,
   linearToSrgb255,
   grainStops,

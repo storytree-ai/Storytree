@@ -150,10 +150,24 @@ export const GRAIN_COLOUR_MIX = 0.13;
  */
 export const GRAIN_NORMAL_STRENGTH = 1.0;
 
-/** The colour ramp's two stop POSITIONS, from Cycles `_ramp([(0.30, ...), (0.70, ...)])`.
- *  The field is remapped across this span before it picks a grain colour, so the ramp's ends
- *  are flat and the grain does not spend its amplitude on the noise's rare extremes. */
-export const GRAIN_RAMP: readonly [number, number] = [0.3, 0.7];
+/**
+ * The colour ramp's two stop POSITIONS, from Cycles `_ramp([(0.30, ...), (0.70, ...)])`.
+ * The field is remapped across this span before it picks a grain colour, so the ramp's ends are
+ * flat and the grain does not spend its amplitude on the noise's rare extremes.
+ *
+ * ⚠⚠ A MEMOISED FUNCTION RATHER THAN A MODULE-SCOPE CONSTANT, and that is a mutation-rung finding
+ * rather than a preference. Stryker files anything evaluated during IMPORT as STATIC coverage —
+ * attributed to no test — so a mutated module-scope initializer comes back "killed, but the report
+ * named no test", which `check:mutation-diff` counts as neither a pass nor a survivor and reds the
+ * rung over well-tested code. ⚠ It surfaced ONLY IN CI: the same commit ran clean on Windows and
+ * reported two of these on Linux, so a local green does not clear it. Deferring evaluation to
+ * first use puts the initializer back inside a test. See {@link grainTerms} and
+ * `harness/grain-status-reading.ts`'s own `stops()` for the same fix in two other places.
+ */
+let rampMemo: readonly [number, number] | null = null;
+export function GRAIN_RAMP(): readonly [number, number] {
+  return (rampMemo ??= [0.3, 0.7]);
+}
 
 /**
  * The two grain colours, AUTHORED IN CYCLES' LINEAR SPACE and converted here rather than
@@ -280,8 +294,8 @@ export function grainOctave(x: number, y: number): number {
  */
 export function grainField(x: number, z: number): number {
   let sum = 0;
-  for (const { amp, freq } of GRAIN_TERMS) sum += amp * grainOctave(x * freq, z * freq);
-  return sum / GRAIN_AMPLITUDE_SUM;
+  for (const { amp, freq } of grainTerms()) sum += amp * grainOctave(x * freq, z * freq);
+  return sum / grainAmplitudeSum();
 }
 
 /** ONE OCTAVE'S CONTRIBUTION: its amplitude and its lattice frequency. */
@@ -308,21 +322,44 @@ export interface GrainTerm {
  * `GRAIN_ROUGHNESS^o`, frequency `2^o / GRAIN_LATTICE`, which is what the multiply-in-place loop
  * accumulated.
  */
-export const GRAIN_TERMS: readonly GrainTerm[] = Array.from(
-  { length: GRAIN_OCTAVES },
-  (_, o) => ({ amp: GRAIN_ROUGHNESS ** o, freq: 2 ** o / GRAIN_LATTICE }),
-);
+let termsMemo: readonly GrainTerm[] | null = null;
+export function grainTerms(): readonly GrainTerm[] {
+  return (termsMemo ??= Array.from({ length: GRAIN_OCTAVES }, (_, o) => ({
+    amp: grainOctaveAmplitude(o),
+    freq: grainOctaveFrequency(o),
+  })));
+}
+
+/** Octave `o`'s amplitude — the roughness compounded once per octave. */
+export function grainOctaveAmplitude(o: number): number {
+  return GRAIN_ROUGHNESS ** o;
+}
+
+/** Octave `o`'s LATTICE FREQUENCY, in cycles per ground unit: the base lattice doubled once per
+ *  octave. Octave 0 is `1 / GRAIN_LATTICE` by definition — the whole field is authored against that
+ *  spacing — so a multiply here instead of a divide would size the grain by a factor of
+ *  `GRAIN_LATTICE` squared and deliver regional variation under the grain's name.
+ *
+ *  ⚠ A NAMED FUNCTION rather than an expression inside the `Array.from` callback, because
+ *  `check:mutation-diff` could swap that divide for a multiply with the whole suite green: the
+ *  mutant sat inside a callback the rung could attribute to no test, so a field 6x too coarse was
+ *  unrepresentable in the goldens and perfectly possible in the code. */
+export function grainOctaveFrequency(o: number): number {
+  return 2 ** o / GRAIN_LATTICE;
+}
 
 /** The amplitude sum the field is normalised by, so its range does not move when the octave count
  *  or the roughness is retuned. Derived from {@link GRAIN_TERMS} rather than accumulated beside
  *  them — a normaliser that could disagree with the terms it normalises is the one arithmetic
  *  error here that would look like an amplitude choice. */
-export const GRAIN_AMPLITUDE_SUM: number = GRAIN_TERMS.reduce((n, t) => n + t.amp, 0);
+export function grainAmplitudeSum(): number {
+  return grainTerms().reduce((n, t) => n + t.amp, 0);
+}
 
 /** The field remapped across the authored ramp span and clamped — the scalar that actually
  *  picks a grain colour, and the same scalar the shader ramps. */
 export function grainRamped(x: number, z: number): number {
-  const [lo, hi] = GRAIN_RAMP;
+  const [lo, hi] = GRAIN_RAMP();
   const t = (grainField(x, z) - lo) / (hi - lo);
   // CLAMP THEN FADE, rather than three branches. `fade(0)` is 0 and `fade(1)` is 1, so the two
   // spellings deliver identical values — but the branch form carried two boundary comparisons that
@@ -397,11 +434,11 @@ export function grainPerturbNormal(
  * disagreeing about how many octaves there are.
  */
 export function grainGlsl(): string {
-  const octaves = GRAIN_TERMS.map(
+  const octaves = grainTerms().map(
     ({ amp, freq }) => `  s += ${amp.toFixed(6)} * st_grainOctave(p * ${freq.toFixed(6)});`,
   );
-  const norm = GRAIN_AMPLITUDE_SUM;
-  const [lo, hi] = GRAIN_RAMP;
+  const norm = grainAmplitudeSum();
+  const [lo, hi] = GRAIN_RAMP();
   return [
     '// GENERATED from land-grain.ts — do not hand-edit these constants.',
     `// wavelength ${GRAIN_LATTICE} ground units, ${GRAIN_OCTAVES} octaves, roughness ${GRAIN_ROUGHNESS}`,

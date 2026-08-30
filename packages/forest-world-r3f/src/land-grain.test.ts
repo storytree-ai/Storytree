@@ -31,6 +31,10 @@ import {
   GRAIN_FEATURE_RATIO,
   grainHash,
   grainOctave,
+  grainOctaveAmplitude,
+  grainOctaveFrequency,
+  grainTerms,
+  grainAmplitudeSum,
   grainColourAt,
   grainFeaturePeriod,
   grainField,
@@ -152,7 +156,7 @@ test('the delivered feature clears both floors it has to clear', () => {
 });
 
 test('the ramp clamps outside its authored span', () => {
-  const [lo, hi] = GRAIN_RAMP;
+  const [lo, hi] = GRAIN_RAMP();
   assert.ok(lo < hi);
   for (let x = 0; x < 200; x += 0.31) {
     const t = grainRamped(x, 12.5);
@@ -247,8 +251,8 @@ test('the GLSL carries the authored constants rather than a private copy', () =>
   // private copies of the same numbers prove nothing about each other.
   const src = grainGlsl();
   assert.match(src, new RegExp((1 / GRAIN_LATTICE).toFixed(6).replace('.', '\\.')));
-  assert.match(src, new RegExp(GRAIN_RAMP[0].toFixed(6).replace('.', '\\.')));
-  assert.match(src, new RegExp(GRAIN_RAMP[1].toFixed(6).replace('.', '\\.')));
+  assert.match(src, new RegExp(GRAIN_RAMP()[0].toFixed(6).replace('.', '\\.')));
+  assert.match(src, new RegExp(GRAIN_RAMP()[1].toFixed(6).replace('.', '\\.')));
   // The octaves are unrolled at generation time, so the count is visible in the source.
   const octaveCalls = [...src.matchAll(/st_grainOctave\(p \*/g)];
   assert.equal(octaveCalls.length, GRAIN_OCTAVES, 'unrolled octave count disagrees with GRAIN_OCTAVES');
@@ -543,8 +547,8 @@ test('the RAMP CLAMPS AT BOTH ENDS, and both ends are reachable on the real fiel
   // the field really visits.
   assert.equal(grainRamped(0, 0), 0, 'the field is 0 at the origin, well below the span');
   assert.equal(grainRamped(-498.52, -199.24), 1, 'and 0.758 here, above it');
-  assert.ok(grainField(-498.52, -199.24) >= GRAIN_RAMP[1], 'that point must really be above the span');
-  assert.ok(grainField(0, 0) <= GRAIN_RAMP[0], 'and the origin really below it');
+  assert.ok(grainField(-498.52, -199.24) >= GRAIN_RAMP()[1], 'that point must really be above the span');
+  assert.ok(grainField(0, 0) <= GRAIN_RAMP()[0], 'and the origin really below it');
 });
 
 test('linearToSrgb255 uses the LINEAR branch below the knee and the power branch above', () => {
@@ -631,4 +635,19 @@ test('grainKeepsPaletteClosed reads the SOURCE it is handed, whatever its spacin
   // — a whole-file fragment, which is exactly what a generator emits.
   assert.equal(grainKeepsPaletteClosed(variants[0]!.trimStart()), true);
   assert.ok(variants[0]!.startsWith('void main('), 'that case must really put main at index 0');
+});
+
+test('the OCTAVE LADDER is stated per octave — amplitude compounds, frequency doubles', () => {
+  // ⚠ NAMED SEPARATELY BECAUSE THE GOLDENS COULD NOT REACH THEM. Both live inside an `Array.from`
+  // callback, and `check:mutation-diff` attributed a swapped divide there to no test at all — so a
+  // field six times too coarse would have been a live possibility with every value above green.
+  assert.equal(grainOctaveAmplitude(0), 1, 'the first octave carries the full amplitude');
+  assert.equal(grainOctaveAmplitude(1), GRAIN_ROUGHNESS);
+  assert.equal(grainOctaveFrequency(0), 1 / GRAIN_LATTICE, 'octave 0 IS the authored lattice');
+  assert.equal(grainOctaveFrequency(0), 0.4);
+  assert.equal(grainOctaveFrequency(1), 0.8, 'and each octave doubles it');
+  // NON-VACUITY on the direction: a multiply instead of a divide would give 2.5, not 0.4.
+  assert.ok(grainOctaveFrequency(0) < 1, 'the frequency is a RECIPROCAL of the lattice spacing');
+  assert.equal(grainTerms().length, GRAIN_OCTAVES);
+  assert.equal(grainAmplitudeSum(), 1 + GRAIN_ROUGHNESS);
 });
