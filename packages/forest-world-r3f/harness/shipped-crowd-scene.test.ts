@@ -175,7 +175,10 @@ test('the crowd is re-centred on one of its own islands, so every frame lands on
 test('the fit zoom is never one of the timed zooms', () => {
   // It delivers a different px/unit per scene by construction, so timing at it would compare three
   // different frames and call the difference the ladder's.
-  assert.ok(!CROWD_ZOOMS.includes(FIT_ZOOM as unknown as number));
+  // Compared as strings rather than through an assertion chain: `CROWD_ZOOMS` is numbers and
+  // `FIT_ZOOM` is the literal 'fit', so `includes` cannot be asked directly — and casting to ask it
+  // would discard exactly the type evidence that makes the two kinds of zoom distinguishable.
+  assert.ok(CROWD_ZOOMS.every((z) => String(z) !== FIT_ZOOM));
   assert.ok(
     crowdPxPerUnit(REAL, FIT_ZOOM) < crowdPxPerUnit(ONE, FIT_ZOOM),
     'fitting a forest must zoom further out than fitting one island',

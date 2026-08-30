@@ -96,11 +96,12 @@ import type { LandArm } from './shipped-land-scene.js';
 export type CrowdArm = Extract<LandArm, 'shadow' | 'dense'>;
 export const CROWD_ARMS: readonly CrowdArm[] = ['shadow', 'dense'];
 
-/** What each arm is, for the caption under its picture. */
-export const CROWD_ARM_CAPTION: Readonly<Record<CrowdArm, string>> = {
+/** What each arm is, for the caption under its picture. `satisfies` rather than an annotation, so
+ *  a missing arm is still a compile error while the literal keys stay known to a reader. */
+export const CROWD_ARM_CAPTION = {
   shadow: 'the four-rung ladder the map wore until 2026-08-31 (LEGACY_SHADE_LEVELS)',
   dense: 'the nine-rung ladder the map wears now (SHADE_LEVELS)',
-};
+} satisfies Record<CrowdArm, string>;
 
 /**
  * THE CROWD AXIS — three scenes, and the middle one exists only to split the other two apart.
@@ -224,7 +225,14 @@ export function crowdIslands(size: CrowdSize): readonly CrowdIsland[] {
  * coordinates — `crowdLayout`'s density arithmetic wants the island as the reader sees it, and
  * under a 45-degree view an island 46 units deep is 37 units tall on screen.
  */
-function shippedIslandExtent(): { w: number; screenH: number } {
+export interface ShippedIslandExtent {
+  /** The island's own width in ground units. */
+  w: number;
+  /** Its on-screen height in ground units — already foreshortened by the camera. */
+  screenH: number;
+}
+
+function shippedIslandExtent(): ShippedIslandExtent {
   const cells = shippedParcels();
   const geo = cellGroundGeometry({ cells, resolve: linearColourOf, relief: landRelief });
   const camera = orientedCamera({ x: 0, z: 0 }, 1);
@@ -302,7 +310,12 @@ export function crowdCells(size: CrowdSize): InstanceDescriptor[] {
   const out: InstanceDescriptor[] = [];
   for (const island of crowdIslands(size)) {
     for (const cell of base) {
-      out.push({
+      // ⚠ THE RING IS ATTACHED IN A SEPARATE STATEMENT rather than through a conditional spread.
+      // Under `exactOptionalPropertyTypes` an absent `points` and a `points: undefined` are
+      // different descriptors, and a spread of `{}` hides which one this is at the call site —
+      // which matters here because `groundBounds` and `cellGroundGeometry` both read `points ?? []`
+      // and a cell that lost its ring silently bounds nothing.
+      const moved: InstanceDescriptor = {
         ...cell,
         material: island.status,
         transform: {
@@ -310,16 +323,15 @@ export function crowdCells(size: CrowdSize): InstanceDescriptor[] {
           x: cell.transform.x + island.offset.x,
           z: cell.transform.z + island.offset.z,
         },
-        ...(cell.points
-          ? {
-              points: cell.points.map((p) => ({
-                ...p,
-                x: p.x + island.offset.x,
-                z: p.z + island.offset.z,
-              })),
-            }
-          : {}),
-      });
+      };
+      if (cell.points !== undefined) {
+        moved.points = cell.points.map((p) => ({
+          ...p,
+          x: p.x + island.offset.x,
+          z: p.z + island.offset.z,
+        }));
+      }
+      out.push(moved);
     }
   }
   return out;
