@@ -29,6 +29,8 @@ import {
   GRAIN_ROUGHNESS,
   GRAIN_LATTICE,
   GRAIN_FEATURE_RATIO,
+  grainHash,
+  grainOctave,
   grainColourAt,
   grainFeaturePeriod,
   grainField,
@@ -279,4 +281,354 @@ test('grainKeepsPaletteClosed is not vacuous', () => {
     'a literal colour is not a ramp entry',
   );
   assert.equal(grainKeepsPaletteClosed('nothing that assigns gl_FragColor at all'), false);
+});
+
+// ─────────────────────────────────────────────────────────────── PINNED INSTANCE
+//
+// ⚠⚠ EVERYTHING ABOVE ASSERTS A PROPERTY, AND A PROPERTY CANNOT PIN AN INSTANCE. "the field stays
+// in [0,1]", "a stronger bump flips more ground", "the gradient rises along itself" are all true of
+// a great many DIFFERENT fields — which is why `check:mutation-diff` could rewrite `x * freq` as
+// `x / freq`, or `2 * e` as `e / 2`, and every test above stayed green (37 surviving arithmetic
+// mutants, measured on this branch). A retune that silently changed the delivered picture would
+// pass the same way.
+//
+// So the properties stay — they are what says the field is CORRECT — and these pin WHICH field it
+// is. Both are needed and neither substitutes for the other: a golden alone is a change detector
+// proving nothing about the construction, and the properties alone leave the construction free to
+// be any of a family of fields.
+//
+// ⚠ THE VALUES ARE THIS IMPLEMENTATION'S OWN OUTPUT, recorded rather than derived — which for a
+// noise field is the only form a golden can take, and it is honest as long as it is SAID.
+// `an-expectation-derived-from-its-subject-cannot-fail` bites an expectation standing ALONE; here
+// the correctness claims are made above by construction-independent properties, and these answer a
+// different question: did the construction move?
+//
+// ⚠ AND THEY ARE JS VALUES, NOT GPU VALUES. `grainHash` is `fract(sin(...))`, documented at length
+// as NOT portable — `Math.sin` and a GPU's `sin` are different functions. Nothing here claims the
+// shader delivers these numbers; what the two share is the field's SHAPE, carried by the constants
+// `grainGlsl()` interpolates.
+
+/** `[x, z, expected]` — twelve significant figures, far tighter than any operator swap. */
+const FIELD_GOLDEN: readonly (readonly [number, number, number])[] = [
+  [0, 0, 0],
+  [3.1, 7.2, 0.382063044709],
+  [-18.4, 22.9, 0.545826597037],
+  [64, -11.5, 0.349969546504],
+  [1.25, 0.75, 0.211470748954],
+  [-0.5, -0.5, 0.166224687331],
+  [123.456, 78.9, 0.388947812413],
+];
+
+const RAMPED_GOLDEN: readonly (readonly [number, number, number])[] = [
+  [0, 0, 0],
+  [3.1, 7.2, 0.108998914633],
+  [-18.4, 22.9, 0.668842258193],
+  [64, -11.5, 0.042918800275],
+  [1.25, 0.75, 0],
+  [-0.5, -0.5, 0],
+  [123.456, 78.9, 0.126353075202],
+];
+
+/** `[x, z, dh/dx, dh/dz]`. */
+const GRADIENT_GOLDEN: readonly (readonly [number, number, number, number])[] = [
+  [0, 0, -0.077625616119, 0.142141768962],
+  [3.1, 7.2, 0.049606703238, -0.069906262774],
+  [-18.4, 22.9, -0.134193830844, -0.093034970237],
+  [64, -11.5, 0.250727452397, -0.166161980166],
+  [1.25, 0.75, 0.07446896682, 0.029670261058],
+  [-0.5, -0.5, -0.33444912425, -0.088619105163],
+  [123.456, 78.9, -0.043538137186, -0.113464523199],
+];
+
+const EPS = 1e-11;
+
+test('the LATTICE HASH delivers this instance — the one construction everything else rests on', () => {
+  for (const [ix, iy, expected] of [
+    [0, 0, 0],
+    [1, 0, 0.325623615965],
+    [0, 1, 0.819303973756],
+    [1, 1, 0.104671925503],
+    [-3, 7, 0.486684472966],
+  ] as const) {
+    assert.ok(
+      Math.abs(grainHash(ix, iy) - expected) < EPS,
+      `grainHash(${ix}, ${iy}) = ${grainHash(ix, iy)}, expected ${expected}`,
+    );
+  }
+  // NON-VACUITY: the hash must actually spread. An implementation returning a constant would fail
+  // this rather than sail through on a lucky sample.
+  const seen = new Set<number>();
+  for (let i = 0; i < 40; i++) seen.add(Math.floor(grainHash(i, i * 3 + 1) * 10));
+  assert.ok(seen.size >= 7, `the hash landed in only ${seen.size} of 10 deciles over 40 sites`);
+});
+
+test('one OCTAVE delivers this instance — the smoothstep interpolant, pinned', () => {
+  for (const [x, z, expected] of [
+    [0, 0, 0],
+    [3.1, 7.2, 0.437607282527],
+    [-18.4, 22.9, 0.531497602153],
+    [64, -11.5, 0.388790066732],
+    [1.25, 0.75, 0.242681854545],
+    [-0.5, -0.5, 0.437600121194],
+    [123.456, 78.9, 0.375729555278],
+  ] as const) {
+    assert.ok(
+      Math.abs(grainOctave(x, z) - expected) < EPS,
+      `grainOctave(${x}, ${z}) = ${grainOctave(x, z)}, expected ${expected}`,
+    );
+  }
+});
+
+test('the FIELD delivers this instance — the octave sum, its frequencies and its normaliser', () => {
+  // What catches a swapped `*`/`/` on the frequency, a wrong amplitude falloff, or an unnormalised
+  // sum — none of which any range or determinism property can see.
+  for (const [x, z, expected] of FIELD_GOLDEN) {
+    assert.ok(
+      Math.abs(grainField(x, z) - expected) < EPS,
+      `grainField(${x}, ${z}) = ${grainField(x, z)}, expected ${expected}`,
+    );
+  }
+});
+
+test('the RAMPED field delivers this instance — the authored span and its smoothstep', () => {
+  // Three of the seven land on the ramp's flat ends, which is the behaviour the span exists for,
+  // and four land inside it — so a moved span shows up either way.
+  for (const [x, z, expected] of RAMPED_GOLDEN) {
+    assert.ok(
+      Math.abs(grainRamped(x, z) - expected) < EPS,
+      `grainRamped(${x}, ${z}) = ${grainRamped(x, z)}, expected ${expected}`,
+    );
+  }
+  assert.equal(RAMPED_GOLDEN.filter(([, , v]) => v === 0).length, 3, 'the clamped end is exercised');
+  assert.ok(RAMPED_GOLDEN.some(([, , v]) => v > 0.5), 'and so is the interior');
+});
+
+test('the GRADIENT delivers this instance — the central difference AND its quarter-period step', () => {
+  // The sign convention is asserted above, construction-independently; this pins the MAGNITUDE,
+  // which is what `GRAIN_NORMAL_STRENGTH` was calibrated against. Halving or doubling the step
+  // changes every number here and no property test above.
+  for (const [x, z, dx, dz] of GRADIENT_GOLDEN) {
+    const [gx, gz] = grainGradient(x, z);
+    assert.ok(Math.abs(gx - dx) < EPS, `d/dx at (${x}, ${z}) = ${gx}, expected ${dx}`);
+    assert.ok(Math.abs(gz - dz) < EPS, `d/dz at (${x}, ${z}) = ${gz}, expected ${dz}`);
+  }
+});
+
+test('the GENERATED GLSL is pinned LINE FOR LINE — it is a contract with a compiler', () => {
+  // ⚠ A GENERATOR'S OUTPUT IS THE PRODUCT, so pinning it is not change-detection theatre: these
+  // lines are compiled by a GPU driver, and a dropped one is a shader that fails to link or, worse,
+  // links and shades differently. Nothing else in the suite read them — 44 of the mutants
+  // `check:mutation-diff` found surviving on this branch were emitted string literals blanked to
+  // "" with every test still green.
+  const lines = grainGlsl().split('\n');
+  assert.deepEqual(lines, [
+    '// GENERATED from land-grain.ts — do not hand-edit these constants.',
+    '// wavelength 2.5 ground units, 2 octaves, roughness 0.55',
+    'float st_grainHash(vec2 i) {',
+    '  return fract(sin(i.x * 127.1 + i.y * 311.7) * 43758.5453123);',
+    '}',
+    '',
+    'float st_grainOctave(vec2 p) {',
+    '  vec2 i = floor(p);',
+    '  vec2 f = p - i;',
+    '  vec2 u = f * f * (3.0 - 2.0 * f);',
+    '  float h00 = st_grainHash(i);',
+    '  float h10 = st_grainHash(i + vec2(1.0, 0.0));',
+    '  float h01 = st_grainHash(i + vec2(0.0, 1.0));',
+    '  float h11 = st_grainHash(i + vec2(1.0, 1.0));',
+    '  return mix(mix(h00, h10, u.x), mix(h01, h11, u.x), u.y);',
+    '}',
+    '',
+    '// The field in [0,1], normalised by the amplitude sum so its range does not move when',
+    '// the octave count or the roughness is retuned.',
+    'float st_grainField(vec2 p) {',
+    '  float s = 0.0;',
+    '  s += 1.000000 * st_grainOctave(p * 0.400000);',
+    '  s += 0.550000 * st_grainOctave(p * 0.800000);',
+    '  return s / 1.550000;',
+    '}',
+    '',
+    '// The field across the authored ramp span, smoothstepped and clamped.',
+    'float st_grainRamped(vec2 p) {',
+    '  return smoothstep(0.300000, 0.700000, st_grainField(p));',
+    '}',
+    '',
+    '// The grain gradient, per ground unit. The step is a QUARTER WAVELENGTH rather than an',
+    '// epsilon: it measures the slope of the FEATURE, not of one lattice cell face.',
+    'vec2 st_grainGradient(vec2 p) {',
+    '  float e = 0.625000;',
+    '  float gx = st_grainField(p + vec2(e, 0.0)) - st_grainField(p - vec2(e, 0.0));',
+    '  float gz = st_grainField(p + vec2(0.0, e)) - st_grainField(p - vec2(0.0, e));',
+    '  return vec2(gx, gz) / (2.0 * e);',
+    '}',
+  ]);
+  // ⚠ THE OCTAVE BLOCK IS UNROLLED FROM `GRAIN_OCTAVES`, so the golden above would go stale
+  // SILENTLY if that constant moved — the deepEqual would fail, but a reader would not know which
+  // half was wrong. Stated as a derivation so the failure names the cause.
+  assert.equal(
+    lines.filter((l) => l.includes('st_grainOctave(p *')).length,
+    GRAIN_OCTAVES,
+    'the unroll must emit exactly GRAIN_OCTAVES accumulate lines',
+  );
+});
+
+test('grainKeepsPaletteClosed refuses every OPEN shape, one at a time', () => {
+  // Its regexes ARE the check, and `check:mutation-diff` found 13 of them survivable on this
+  // branch — a rewritten character class went unnoticed because the tests only ever exercised one
+  // closed shader and one open one. Each case below moves exactly one thing.
+  const closed =
+    'void main() { vec3 c = uRamp[0];\nif (idx == 1) c = uRamp[1];\ngl_FragColor = vec4(c, 1.0); }';
+  assert.equal(grainKeepsPaletteClosed(closed), true, 'the control must pass');
+
+  const open: readonly (readonly [string, string])[] = [
+    ['no main at all', 'vec3 c = uRamp[0]; gl_FragColor = vec4(c, 1.0);'],
+    ['no gl_FragColor write', 'void main() { vec3 c = uRamp[0]; }'],
+    ['alpha is not 1.0', 'void main() { vec3 c = uRamp[0];\ngl_FragColor = vec4(c, 0.5); }'],
+    ['the written name is never assigned', 'void main() { gl_FragColor = vec4(c, 1.0); }'],
+    [
+      'a mix into the written colour',
+      'void main() { vec3 c = uRamp[0];\nc = mix(c, g, 0.13);\ngl_FragColor = vec4(c, 1.0); }',
+    ],
+    [
+      'an add into the written colour',
+      'void main() { vec3 c = uRamp[0];\nc = c + vec3(0.1);\ngl_FragColor = vec4(c, 1.0); }',
+    ],
+    [
+      'a multiply into the written colour',
+      'void main() { vec3 c = uRamp[0];\nc = c * 0.9;\ngl_FragColor = vec4(c, 1.0); }',
+    ],
+    [
+      'a literal colour rather than a ramp read',
+      'void main() { vec3 c = vec3(1.0, 0.0, 0.0);\ngl_FragColor = vec4(c, 1.0); }',
+    ],
+    ['a NON-NUMERIC ramp index', 'void main() { vec3 c = uRamp[idx];\ngl_FragColor = vec4(c, 1.0); }'],
+    [
+      'a ramp read with something appended',
+      'void main() { vec3 c = uRamp[0] * 2.0;\ngl_FragColor = vec4(c, 1.0); }',
+    ],
+    ['a different uniform array', 'void main() { vec3 c = uOther[0];\ngl_FragColor = vec4(c, 1.0); }'],
+    // ⚠ THE TWO PREPENDED CASES ARE WHAT MAKE THE ANCHORS LOAD-BEARING, and they are not the same
+    // case twice. The whole point of the pattern is that the assignment is a BARE ramp read; a
+    // factor in front of it is a colour arithmetic the closure forbids just as much as one behind.
+    // Spaced and unspaced are both needed: without the spaced one the `^` anchor is free to go,
+    // and without the UNSPACED one the leading `\s*` can widen to `\S*` and swallow the factor.
+    [
+      'a factor in FRONT of the ramp read',
+      'void main() { vec3 c = 0.5 * uRamp[0];\ngl_FragColor = vec4(c, 1.0); }',
+    ],
+    [
+      'a factor in front with no space',
+      'void main() { vec3 c = 0.5*uRamp[0];\ngl_FragColor = vec4(c, 1.0); }',
+    ],
+  ];
+  for (const [why, src] of open) {
+    assert.equal(grainKeepsPaletteClosed(src), false, `should be OPEN — ${why}`);
+  }
+  // ⚠ AND THE SCOPE IS `main()` ONLY, which is a correctness requirement rather than an
+  // optimisation: a HELPER above main declaring a local of the same name once made this report a
+  // closed shader as OPEN. A mix inside a helper must not change the verdict.
+  assert.equal(
+    grainKeepsPaletteClosed(
+      `vec3 helper() { vec3 c = vec3(0.0);\nc = mix(c, c, 0.5);\nreturn c; }\n${closed}`,
+    ),
+    true,
+    'a mix inside a HELPER is not a write to the delivered colour',
+  );
+});
+
+test('the RAMP CLAMPS AT BOTH ENDS, and both ends are reachable on the real field', () => {
+  // ⚠ THE POINT IS THE `>= 1` END. Every other test walks ordinary coordinates, where the field
+  // sits inside the authored span and the clamp never fires — so a mutated clamp survives while
+  // the picture at the field's rare extremes changes. Both ends are exercised here on coordinates
+  // the field really visits.
+  assert.equal(grainRamped(0, 0), 0, 'the field is 0 at the origin, well below the span');
+  assert.equal(grainRamped(-498.52, -199.24), 1, 'and 0.758 here, above it');
+  assert.ok(grainField(-498.52, -199.24) >= GRAIN_RAMP[1], 'that point must really be above the span');
+  assert.ok(grainField(0, 0) <= GRAIN_RAMP[0], 'and the origin really below it');
+});
+
+test('linearToSrgb255 uses the LINEAR branch below the knee and the power branch above', () => {
+  // The transfer function is two pieces and the join is what a transcription gets wrong. Sampled
+  // either side of the knee at values far enough apart to separate the two curves: the linear
+  // branch would overshoot badly at 0.5 and the power branch would undershoot at 0.001.
+  assert.equal(linearToSrgb255(0), 0);
+  assert.equal(linearToSrgb255(1), 255);
+  assert.equal(linearToSrgb255(0.001), 3, 'below the knee: 12.92 * 0.001 * 255');
+  assert.equal(linearToSrgb255(0.5), 188, 'above it: the 1/2.4 power curve');
+  assert.equal(linearToSrgb255(0.0031308), 10, 'at the knee itself, where the two agree');
+  // Out of range must CLAMP rather than wrap or throw — the grain stops are authored by hand and a
+  // typo outside [0,1] would otherwise reach a shader as a wrapped byte.
+  assert.equal(linearToSrgb255(-1), 0);
+  assert.equal(linearToSrgb255(2), 255);
+});
+
+test('the PERTURBED NORMAL delivers this instance — on a TILTED normal, not just a flat one', () => {
+  // ⚠ EVERY OTHER TEST OF THIS FUNCTION USES `{0, 1, 0}` AND READS ONLY THE RUNG, which is a
+  // four-valued view of a three-component answer: the whole normalisation, the y component and the
+  // sign of each subtraction can move without changing which rung a flat surface lands on. The
+  // relief'd land is not flat, so a tilted input is the case that actually ships.
+  const n = { x: 0.3, y: 0.9, z: -0.2 };
+  for (const [x, z, px, py, pz] of [
+    [3.1, 7.2, 0.265472867217, 0.954201185038, -0.137928442474],
+    [-18.4, 22.9, 0.432046324283, 0.895548633428, -0.106435984699],
+    [64, -11.5, 0.054626931835, 0.997801839822, -0.037515153829],
+  ] as const) {
+    const p = grainPerturbNormal(n, x, z);
+    assert.ok(Math.abs(p.x - px) < EPS, `x at (${x}, ${z}) = ${p.x}, expected ${px}`);
+    assert.ok(Math.abs(p.y - py) < EPS, `y at (${x}, ${z}) = ${p.y}, expected ${py}`);
+    assert.ok(Math.abs(p.z - pz) < EPS, `z at (${x}, ${z}) = ${p.z}, expected ${pz}`);
+    // And it must stay a UNIT normal, which is what the shader assumes and what the raw
+    // subtraction does not give on its own.
+    assert.ok(Math.abs(Math.hypot(p.x, p.y, p.z) - 1) < 1e-12, 'the result must be normalised');
+  }
+  // A DEGENERATE input must not divide by zero — the `|| 1` guard, stated rather than trusted.
+  const zero = grainPerturbNormal({ x: 0, y: 0, z: 0 }, 0, 0, 0);
+  assert.ok(Number.isFinite(zero.x) && Number.isFinite(zero.y) && Number.isFinite(zero.z));
+});
+
+test('the COLOUR HALF delivers this instance — the mix, and the ramp between the two stops', () => {
+  // The existing test says only that the result is NOT the base token, which is satisfied by any
+  // mix at any factor between any two colours. These pin the arithmetic: the base, the two stops,
+  // the ramp position and the 0.13 factor.
+  for (const [x, z, r, g, b] of [
+    [3.1, 7.2, 132, 171, 90],
+    [-18.4, 22.9, 142, 180, 99],
+    [64, -11.5, 131, 170, 89],
+    [0, 0, 130, 169, 88],
+  ] as const) {
+    const c = grainColourAt(HEALTHY, x, z);
+    assert.deepEqual(c, { r, g, b }, `grainColourAt at (${x}, ${z})`);
+  }
+  // A ZERO mix must be the base exactly — the boundary the factor is measured from, and the one
+  // case where "not the base token" would be the wrong assertion.
+  assert.equal(toHex(grainColourAt(HEALTHY, 3.1, 7.2, 0)), HEALTHY);
+  // A FULL mix must be the ramp colour itself, with the base gone entirely.
+  const full = grainColourAt(HEALTHY, -18.4, 22.9, 1);
+  const [dark, light] = grainStops();
+  const t = grainRamped(-18.4, 22.9);
+  assert.deepEqual(full, {
+    r: Math.round(dark.r + (light.r - dark.r) * t),
+    g: Math.round(dark.g + (light.g - dark.g) * t),
+    b: Math.round(dark.b + (light.b - dark.b) * t),
+  });
+});
+
+test('grainKeepsPaletteClosed reads the SOURCE it is handed, whatever its spacing', () => {
+  // ⚠ THE REGEXES ARE THE CHECK, and a shader's whitespace is a formatter's business rather than
+  // the author's — a pattern that only matches one spelling would report a closed shader as OPEN
+  // the first time anything reformatted it, which is the false-alarm shape this module's own
+  // comments say turns a guard into noise a reader learns to ignore.
+  const variants = [
+    'void main(){vec3 c=uRamp[0];gl_FragColor=vec4(c,1.0);}',
+    'void main( void ) {\n  vec3 c   =  uRamp[ 12 ] ;\n  gl_FragColor  =  vec4( c , 1.0 ) ;\n}',
+    'void main() { vec3 _c0 = uRamp[3];\ngl_FragColor = vec4(_c0, 1.0); }',
+  ];
+  for (const src of variants) {
+    assert.equal(grainKeepsPaletteClosed(src), true, `should be CLOSED: ${JSON.stringify(src)}`);
+  }
+  // ⚠ AND `main()` AT INDEX 0 MUST STILL BE FOUND. The absent case is `indexOf` returning -1, so a
+  // guard written as `<= 0` rejects the one source that begins with the function it is looking for
+  // — a whole-file fragment, which is exactly what a generator emits.
+  assert.equal(grainKeepsPaletteClosed(variants[0]!.trimStart()), true);
+  assert.ok(variants[0]!.startsWith('void main('), 'that case must really put main at index 0');
 });

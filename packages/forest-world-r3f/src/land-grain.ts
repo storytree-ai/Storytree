@@ -172,12 +172,35 @@ const GRAIN_LINEAR: readonly [readonly [number, number, number], readonly [numbe
     [0.56, 0.56, 0.43],
   ];
 
-/** Linear -> sRGB, the standard piecewise transfer, to a 0..255 byte. Exported so the
- *  conversion above is a tested function rather than five numbers someone has to trust. */
-export function linearToSrgb255(c: number): number {
-  const v = c <= 0.0031308 ? 12.92 * c : 1.055 * Math.pow(c, 1 / 2.4) - 0.055;
-  return Math.max(0, Math.min(255, Math.round(v * 255)));
+/** The delivered byte for a transfer-function output in [0, 1], clamped rather than wrapped — the
+ *  grain stops are authored by hand and a typo outside the range would otherwise reach a shader as
+ *  a wrapped byte, which looks like an art choice. A NAMED function rather than a nested chain:
+ *  `check:mutation-diff` cannot attribute a killing test to an inline `Math.min(Math.max(...))` and
+ *  reports it UNPROVEN, which is neither a pass nor a survivor
+ *  (`mutation-rung-misreports-inline-chains`). */
+function toByte(v: number): number {
+  const scaled = Math.round(v * 255);
+  const floored = Math.max(0, scaled);
+  const capped = Math.min(255, floored);
+  return capped;
 }
+
+/** Linear -> sRGB, the standard piecewise transfer, to a 0..255 byte. Exported so the conversion
+ *  {@link grainStops} performs is a tested function rather than five numbers someone has to trust.
+ *
+ *  ⚠ TWO STATEMENTS RATHER THAN A TERNARY, for the same attribution reason as {@link toByte}: the
+ *  branch condition and the two arithmetic bodies each need a line a test can be pinned to. */
+export function linearToSrgb255(c: number): number {
+  // Stryker disable next-line EqualityOperator: EQUIVALENT AT THE OUTPUT, and provably rather than
+  // by inspection. The two branches are equal AT the knee by construction — that is what makes it
+  // the knee — so `<=` and `<` can differ only for c === 0.0031308 exactly, where both give 10.31
+  // and this function returns a BYTE. No input can separate them. ⚠ The claim is about the KNEE
+  // VALUE: if 0.0031308 is ever retuned away from the true crossing, DELETE this line rather than
+  // updating it — a stale equivalence claim suppresses a mutant a test could kill.
+  if (c <= 0.0031308) return toByte(12.92 * c);
+  return toByte(1.055 * Math.pow(c, 1 / 2.4) - 0.055);
+}
+
 
 /** The grain's dark and light stops as delivered sRGB, derived from {@link GRAIN_LINEAR}. */
 export function grainStops(): readonly [Rgb255, Rgb255] {
@@ -257,24 +280,55 @@ export function grainOctave(x: number, y: number): number {
  */
 export function grainField(x: number, z: number): number {
   let sum = 0;
-  let norm = 0;
-  let amp = 1;
-  let freq = 1 / GRAIN_LATTICE;
-  for (let o = 0; o < GRAIN_OCTAVES; o++) {
-    sum += amp * grainOctave(x * freq, z * freq);
-    norm += amp;
-    amp *= GRAIN_ROUGHNESS;
-    freq *= 2;
-  }
-  return sum / norm;
+  for (const { amp, freq } of GRAIN_TERMS) sum += amp * grainOctave(x * freq, z * freq);
+  return sum / GRAIN_AMPLITUDE_SUM;
 }
+
+/** ONE OCTAVE'S CONTRIBUTION: its amplitude and its lattice frequency. */
+export interface GrainTerm {
+  amp: number;
+  freq: number;
+}
+
+/**
+ * THE OCTAVE TERMS, DERIVED ONCE — and shared by the field and by the GLSL that evaluates the same
+ * field on a GPU.
+ *
+ * ⚠⚠ IT IS ONE DERIVATION FOR TWO CONSUMERS, WHICH IS THIS MODULE'S OWN RULE APPLIED TO ITSELF.
+ * `grainGlsl` already interpolates the constants rather than re-typing them, on the argument that
+ * a shader and a test holding private copies of one number prove nothing about each other — but
+ * the two were still running private LOOPS over those constants, so an octave count that agreed
+ * and an amplitude falloff that did not would have been unrepresentable in one place and perfectly
+ * possible in the other.
+ *
+ * ⚠ IT ALSO REMOVES TWO LOOP COUNTERS the mutation rung could not attribute. An indexed `for` over
+ * `GRAIN_OCTAVES` came back UNPROVEN in both consumers — killed, but with no test named — which is
+ * neither a pass nor a survivor (`mutation-rung-misreports-inline-chains`). With the counter gone
+ * there is nothing left to mis-attribute, and the arithmetic is identical: amplitude
+ * `GRAIN_ROUGHNESS^o`, frequency `2^o / GRAIN_LATTICE`, which is what the multiply-in-place loop
+ * accumulated.
+ */
+export const GRAIN_TERMS: readonly GrainTerm[] = Array.from(
+  { length: GRAIN_OCTAVES },
+  (_, o) => ({ amp: GRAIN_ROUGHNESS ** o, freq: 2 ** o / GRAIN_LATTICE }),
+);
+
+/** The amplitude sum the field is normalised by, so its range does not move when the octave count
+ *  or the roughness is retuned. Derived from {@link GRAIN_TERMS} rather than accumulated beside
+ *  them — a normaliser that could disagree with the terms it normalises is the one arithmetic
+ *  error here that would look like an amplitude choice. */
+export const GRAIN_AMPLITUDE_SUM: number = GRAIN_TERMS.reduce((n, t) => n + t.amp, 0);
 
 /** The field remapped across the authored ramp span and clamped — the scalar that actually
  *  picks a grain colour, and the same scalar the shader ramps. */
 export function grainRamped(x: number, z: number): number {
   const [lo, hi] = GRAIN_RAMP;
   const t = (grainField(x, z) - lo) / (hi - lo);
-  return t <= 0 ? 0 : t >= 1 ? 1 : fade(t);
+  // CLAMP THEN FADE, rather than three branches. `fade(0)` is 0 and `fade(1)` is 1, so the two
+  // spellings deliver identical values — but the branch form carried two boundary comparisons that
+  // no input on this field could distinguish (`check:mutation-diff` survivors, measured), i.e. two
+  // decisions the code was making that nothing could ever hold it to. Fewer decisions is the fix.
+  return fade(Math.min(1, Math.max(0, t)));
 }
 
 /**
@@ -343,16 +397,10 @@ export function grainPerturbNormal(
  * disagreeing about how many octaves there are.
  */
 export function grainGlsl(): string {
-  const octaves: string[] = [];
-  let amp = 1;
-  let norm = 0;
-  let freq = 1 / GRAIN_LATTICE;
-  for (let o = 0; o < GRAIN_OCTAVES; o++) {
-    octaves.push(`  s += ${amp.toFixed(6)} * st_grainOctave(p * ${freq.toFixed(6)});`);
-    norm += amp;
-    amp *= GRAIN_ROUGHNESS;
-    freq *= 2;
-  }
+  const octaves = GRAIN_TERMS.map(
+    ({ amp, freq }) => `  s += ${amp.toFixed(6)} * st_grainOctave(p * ${freq.toFixed(6)});`,
+  );
+  const norm = GRAIN_AMPLITUDE_SUM;
   const [lo, hi] = GRAIN_RAMP;
   return [
     '// GENERATED from land-grain.ts — do not hand-edit these constants.',
@@ -422,6 +470,12 @@ export function grainGlsl(): string {
  */
 export function grainKeepsPaletteClosed(fragmentSource: string): boolean {
   const mainAt = fragmentSource.indexOf('void main(');
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT, and the argument is structural.
+  // Removing this guard leaves `slice(-1)` — a ONE-CHARACTER body — and the assignment pattern
+  // below needs at least `gl_FragColor=vec4(x,1.0)`, 23 characters, so it cannot match and the
+  // function returns false down the other path. The guard is kept because reasoning about
+  // `slice(-1)` at every later line is worse than one explicit early return, not because any
+  // input can tell the two apart.
   if (mainAt < 0) return false;
   const body = fragmentSource.slice(mainAt);
   const assignment = /gl_FragColor\s*=\s*vec4\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*1\.0\s*\)/.exec(

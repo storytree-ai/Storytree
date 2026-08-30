@@ -93,11 +93,19 @@ export function ownFamily(status: string): Set<string> {
   return new Set(SHIPPED_STATUSES.filter((s) => SHIPPED_GROUND_COLOUR.get(s) === token));
 }
 
-/** The two grain stops, converted ONCE. `grainStops()` runs six `Math.pow` calls through the
- *  linear-to-sRGB transfer, and the walks below evaluate it ~48,000 times per verdict — hoisting it
- *  is what keeps the exhaustive walk cheap enough to run inside a test. It is a function of
- *  authored constants only, so there is nothing to invalidate. */
-const STOPS = grainStops();
+/** The two grain stops, converted ONCE — but LAZILY, and both halves of that matter.
+ *
+ *  ONCE: `grainStops()` runs six `Math.pow` calls through the linear-to-sRGB transfer, and the
+ *  walks below evaluate it ~48,000 times per verdict. Un-memoised, `admissibleMixCeiling` took
+ *  6.4 s and timed out inside the mutation rung dry run.
+ *
+ *  ⚠ LAZILY, because a module-scope `const STOPS = grainStops()` runs at IMPORT time, and Stryker
+ *  files code executed during import as STATIC coverage rather than against any test. Every mutant
+ *  in `linearToSrgb255` was then killed with "no test named" — reported UNPROVEN, which
+ *  `check:mutation-diff` treats as neither a pass nor a survivor, so a well-tested function reds
+ *  the rung. Deferring the call to first use puts it back inside a test.  */
+let stopsMemo: readonly [Rgb255, Rgb255] | null = null;
+const stops = (): readonly [Rgb255, Rgb255] => (stopsMemo ??= grainStops());
 
 /**
  * The colour the grain's COLOUR half delivers for `base` at grain scalar `t` in [0, 1].
@@ -108,7 +116,7 @@ const STOPS = grainStops();
  * to visit.
  */
 export function grainMixed(base: Rgb255, t: number, fac: number = GRAIN_COLOUR_MIX): Rgb255 {
-  const [dark, light] = STOPS;
+  const [dark, light] = stops();
   const at = (lo: number, hi: number) => lo + (hi - lo) * t;
   const mix = (b: number, lo: number, hi: number) => Math.round(b + (at(lo, hi) - b) * fac);
   return {

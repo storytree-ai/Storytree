@@ -24,7 +24,13 @@ import {
   grainKeepsPaletteClosed,
   grainStops,
 } from './land-grain.js';
-import { LIGHT_DIRECTION, SHADE_LEVELS, deliveredForLevel, toHex } from './shade-ladder.js';
+import {
+  LIGHT_DIRECTION,
+  SHADE_LEVELS,
+  bandGlsl,
+  deliveredForLevel,
+  toHex,
+} from './shade-ladder.js';
 
 /** The six shipped ground statuses' tokens, in `ForestWorldCanvas`'s own `GROUND_COLOUR` order.
  *  ⚠ Transcribed rather than imported: importing the canvas would drag React and three into a
@@ -286,7 +292,14 @@ test('AN ABSENT GRAIN CHANGES NOTHING — same source, same uniforms, byte for b
   // by naming what each site must join to when the grain is absent, rather than by sweeping for
   // blank lines (the spliced-in ladder source legitimately carries some of its own).
   const joins: readonly [string, string][] = [
-    ['fragment: the grain source', 'uniform vec3 uRamp['],
+    // ⚠ THE PRECEDING LINE IS PART OF THIS ONE. `'uniform vec3 uRamp['` alone is satisfied by
+    // any amount of injected text before it, which is exactly what a mutated `: ''` else-branch
+    // is. The ladder's own last line is DERIVED rather than transcribed, so retuning `bandGlsl`
+    // moves the expectation with it instead of leaving a literal that quietly stops anchoring.
+    [
+      'fragment: the grain source',
+      `${bandGlsl().split('\n').at(-1)!}\n\n      uniform vec3 uRamp[`,
+    ],
     ['fragment: the grain uniforms', 'uniform vec3 uLightDir;\n      varying float vStatus;'],
     ['fragment: the world varying', 'varying vec3 vNormal;\n\n      void main() {'],
     ['fragment: the normal stage', 'vec3 n = normalize(vNormal);\n        // Half-lambert'],
@@ -379,4 +392,44 @@ test('the grain GLSL is spliced in from the module, not transcribed', () => {
       `the generated grain source is missing: ${line.trim()}`,
     );
   }
+});
+
+test('a GRAINED material really emits every fragment the grain needs — positively, not by absence', () => {
+  // ⚠ THE UNGRAINED ASSERTIONS ABOVE ARE ALL `!includes`, AND AN ABSENCE CANNOT HOLD A PRESENCE.
+  // Every conditional string in the builder could be blanked to "" and those tests would go on
+  // passing while the grained shader failed to compile — measured, six surviving `StringLiteral`
+  // mutants on this branch. These say what each one must contain.
+  const g = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal' });
+  // The world position, declared in BOTH stages and assigned in the vertex stage. A varying
+  // declared in one stage only is a link error; assigned nowhere, it is silently zero, which
+  // shades the whole island with one grain sample and looks like the grain being too coarse.
+  assert.ok(g.vertexShader.includes('varying vec3 vWorld;'), 'vertex must declare vWorld');
+  assert.ok(g.fragmentShader.includes('varying vec3 vWorld;'), 'fragment must declare vWorld');
+  assert.ok(
+    g.vertexShader.includes('vWorld = (modelMatrix * vec4(position, 1.0)).xyz;'),
+    'and the vertex stage must assign it in WORLD space — a view-space grain would swim',
+  );
+  // ⚠ WITH ITS COMMENT. Generated shader source is read by whoever debugs a driver's compile log,
+  // and every other block this file emits explains itself there; an emitted comment that nothing
+  // holds is one a later edit drops without noticing.
+  assert.ok(
+    g.vertexShader.includes('// The grain is authored in GROUND coordinates, so it is sampled in them.'),
+    'the assignment must say why it is in world space',
+  );
+  assert.ok(g.fragmentShader.includes('uniform float uGrainNormalStrength;'));
+  // The spliced grain source keeps its INDENTATION, which is what a blanked join separator loses
+  // — the shader still compiles, so nothing but this notices.
+  assert.ok(
+    g.fragmentShader.includes('\n      float st_grainHash(vec2 i) {'),
+    'the grain source must be spliced in at the shader body indentation',
+  );
+
+  const b = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'both' });
+  assert.ok(b.vertexShader.includes('varying vec3 vWorld;'));
+  assert.ok(b.fragmentShader.includes('uniform float uGrainNormalStrength;'));
+  assert.ok(b.fragmentShader.includes('uniform float uGrainColourMix;'));
+  assert.ok(b.fragmentShader.includes('st_grainRamped(vWorld.xz)'), 'the colour half samples too');
+  // ⚠ AND `normal` MUST NOT CARRY THE COLOUR HALF'S UNIFORM. A declared-but-unused uniform is a
+  // reader taking the shipped material for the off-palette one.
+  assert.ok(!g.fragmentShader.includes('uGrainColourMix'));
 });
