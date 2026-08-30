@@ -115,15 +115,23 @@ describe('the quantity is the resident figure, and it can fall', () => {
 });
 
 describe('occupancy is held at the playhead, never interpolated', () => {
-  const series = buildOccupancySeries(
-    [
-      modelContext({ atMs: T0, resident: 100_000 }),
-      modelContext({ atMs: T0 + 100 * MIN, resident: 200_000 }),
-    ],
-    SESSION,
-  );
+  // ⚠ BUILT INSIDE EACH TEST, never at describe scope. A describe body runs at COLLECTION time, so a
+  // series built there is executed by no test — and `check:mutation-diff`'s per-test coverage then
+  // attributes the builder's lines to nothing, marks every mutant in them `static`, and reports them
+  // as SURVIVED even though the suite kills all of them. Four phantom survivors were traced to
+  // exactly this on 2026-08-30 and hand-checked away; a factory costs nothing and keeps the rung
+  // able to see which test kills what.
+  const heldSeries = (): ReturnType<typeof buildOccupancySeries> =>
+    buildOccupancySeries(
+      [
+        modelContext({ atMs: T0, resident: 100_000 }),
+        modelContext({ atMs: T0 + 100 * MIN, resident: 200_000 }),
+      ],
+      SESSION,
+    );
 
   it('holds the last observation through the gap', () => {
+    const series = heldSeries();
     // Halfway between the two: an interpolating bar would read 150k. The window's occupancy between
     // requests is simply the last thing observed.
     expect(occupancyAt(series, T0 + 50 * MIN)?.residentTokens).toBe(100_000);
@@ -132,11 +140,11 @@ describe('occupancy is held at the playhead, never interpolated', () => {
   });
 
   it('answers null BEFORE the first observation — unobserved is not zero', () => {
-    expect(occupancyAt(series, T0 - MIN)).toBeNull();
+    expect(occupancyAt(heldSeries(), T0 - MIN)).toBeNull();
   });
 
   it('holds the final observation past the end of the series', () => {
-    expect(occupancyAt(series, T0 + 10_000 * MIN)?.residentTokens).toBe(200_000);
+    expect(occupancyAt(heldSeries(), T0 + 10_000 * MIN)?.residentTokens).toBe(200_000);
   });
 });
 
@@ -475,36 +483,42 @@ describe('the transcript source builds the same shape, and re-parses nothing', (
 });
 
 describe('one bar, two sources, a stated preference', () => {
-  const withReadings = (tokens: number): typeof empty =>
+  // Factories, not describe-scope values — see the note on `heldSeries` above: a series built in a
+  // describe body is executed at collection time and covered by no test, which turns every mutant in
+  // the builder into a phantom `static` survivor for `check:mutation-diff`.
+  const withReadings = (tokens: number): ReturnType<typeof buildTranscriptOccupancySeries> =>
     buildTranscriptOccupancySeries(
       seriesPayload({ observations: [{ at: new Date(T0).toISOString(), residentTokens: tokens }] }),
     );
-  const empty = buildTranscriptOccupancySeries(
-    seriesPayload({ absence: 'no-window-transcript', note: 'a worktree slot names no single window' }),
-  );
-  const tracePlot = buildOccupancySeries([modelContext({ atMs: T0, resident: 240_900 })], SESSION);
-  const traceEmpty = buildOccupancySeries([modelContext({ atMs: T0 })], SESSION);
+  const empty = (): ReturnType<typeof buildTranscriptOccupancySeries> =>
+    buildTranscriptOccupancySeries(
+      seriesPayload({ absence: 'no-window-transcript', note: 'a worktree slot names no single window' }),
+    );
+  const tracePlot = (): ReturnType<typeof buildOccupancySeries> =>
+    buildOccupancySeries([modelContext({ atMs: T0, resident: 240_900 })], SESSION);
+  const traceEmpty = (): ReturnType<typeof buildOccupancySeries> =>
+    buildOccupancySeries([modelContext({ atMs: T0 })], SESSION);
 
   it('draws the AMBIENT transcript when it has readings, even over an ingested trace', () => {
-    expect(preferredOccupancy(tracePlot, withReadings(431_000)).source).toBe('transcript');
+    expect(preferredOccupancy(tracePlot(), withReadings(431_000)).source).toBe('transcript');
   });
 
   it('keeps the trace when the transcript came back empty — the 2-in-697 case must not regress', () => {
-    expect(preferredOccupancy(tracePlot, empty).source).toBe('trace');
-    expect(preferredOccupancy(tracePlot, empty).maxResidentTokens).toBe(240_900);
+    expect(preferredOccupancy(tracePlot(), empty()).source).toBe('trace');
+    expect(preferredOccupancy(tracePlot(), empty()).maxResidentTokens).toBe(240_900);
   });
 
   it('prefers the transcript when NEITHER has readings, because only it says WHY', () => {
     // The commonest state on this machine by far, and the one a naive "trace unless transcript has
     // data" rule gets wrong: it would trade a stated absence for a silent one.
-    const chosen = preferredOccupancy(traceEmpty, empty);
+    const chosen = preferredOccupancy(traceEmpty(), empty());
     expect(chosen.observationCount).toBe(0);
     expect(chosen.note).toContain('worktree slot');
   });
 
   it('treats an UNREAD transcript as unread — never as an observation of absence', () => {
-    expect(preferredOccupancy(tracePlot, null).source).toBe('trace');
-    expect(preferredOccupancy(traceEmpty, null).source).toBe('trace');
+    expect(preferredOccupancy(tracePlot(), null).source).toBe('trace');
+    expect(preferredOccupancy(traceEmpty(), null).source).toBe('trace');
   });
 });
 
