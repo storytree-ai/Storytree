@@ -318,3 +318,69 @@ test("combined-dag-ignores-a-manifest-shaped-field-on-a-NON-agent-row", () => {
   assert.equal(verdict.manifestEdges, 0);
   assert.equal(verdict.manifestDanglingEdges, 0);
 });
+
+// ── TOMBSTONE REDIRECTS (ADR-0485) ───────────────────────────────────────────────────────────────
+// The judge NAMES a superseded decision that points back at its superseder, and does not excuse it.
+
+test("combined-dag-names-a-tombstone-redirect: the superseded decision pointing back at its superseder", () => {
+  // The live shape: ADR-0464 superseded ADR-0467 ninety minutes after the fact, and ADR-0467 —
+  // which decides nothing — carried a `dependsOn` back at it.
+  const verdict = evaluateCombinedAcyclicity(
+    [],
+    [decision(464, { supersedes: [467] }), decision(467, { supports: [464] })],
+  );
+
+  assert.deepEqual(verdict.tombstoneRedirects, [{ victim: 467, superseder: 464 }]);
+});
+
+test("combined-dag-still-REDS-on-a-tombstone-redirect: naming the shape is a diagnosis, not an exemption", () => {
+  // ADR-0485 dec 1 refused narrowing the cycle question. A ring wearing this shape could be genuine,
+  // so the proof keeps seeing it — if this assertion ever flips to `acyclic`, the diagnosis has
+  // silently grown into the exemption the decision declined.
+  const verdict = evaluateCombinedAcyclicity(
+    [],
+    [decision(464, { supersedes: [467] }), decision(467, { supports: [464] })],
+  );
+
+  assert.equal(verdict.acyclic, false, "the ring is still a cycle");
+  assert.equal(verdict.cycles.length, 1);
+  // And both edges are still counted under their own names, never netted off against each other.
+  assert.equal(verdict.decisionSupersedesEdges, 1);
+  assert.equal(verdict.decisionSupportEdges, 1);
+});
+
+test("combined-dag-does-NOT-call-ordinary-decision-support-a-tombstone-redirect", () => {
+  // The negative that stops the detector matching on "a decision supports a decision". 33 of the 41
+  // tombstones in the live log carry ordinary support edges; only the one pointing at its OWN
+  // superseder is the fault. Without this, the diagnosis would fire on a third of the log.
+  const verdict = evaluateCombinedAcyclicity(
+    [],
+    [
+      decision(464, { supersedes: [467] }),
+      decision(467, { supports: [400] }), // supported, but not by its superseder
+      decision(400),
+    ],
+  );
+
+  assert.deepEqual(verdict.tombstoneRedirects, []);
+  assert.equal(verdict.decisionSupportEdges, 1, "the ordinary support edge is still counted");
+});
+
+test("combined-dag-does-NOT-fire-on-the-edge-pointing-the-OTHER-way", () => {
+  // A superseder supporting the decision it replaced is a different shape and closes no ring; the
+  // detector must not match it just because the same two numbers are involved.
+  const verdict = evaluateCombinedAcyclicity(
+    [],
+    [decision(464, { supersedes: [467], supports: [467] }), decision(467)],
+  );
+
+  assert.deepEqual(verdict.tombstoneRedirects, []);
+  assert.equal(verdict.acyclic, true);
+});
+
+test("combined-dag-reports-no-tombstone-redirect-on-a-clean-log", () => {
+  const verdict = evaluateCombinedAcyclicity([], [decision(464, { supersedes: [467] }), decision(467)]);
+
+  assert.deepEqual(verdict.tombstoneRedirects, []);
+  assert.equal(verdict.acyclic, true);
+});

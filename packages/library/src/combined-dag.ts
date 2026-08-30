@@ -115,6 +115,27 @@ export interface DecisionEdgeSource {
 /** Which side of the join a node sits on. */
 export type CombinedNodeClass = "artifact" | "decision";
 
+/**
+ * A SUPERSEDED decision whose own `dependsOn` names the decision that superseded it (ADR-0485).
+ *
+ * Reported so the ring this closes arrives with a name and a remedy instead of as an anonymous pair
+ * of numbers. `dependsOn` means plain support — *this rests on that* (ADR-0431 D1) — and a tombstone
+ * rests on nothing; the relation its author meant is already carried, correctly typed and in the
+ * opposite direction, by the `supersedes` edge, which both `adr list` and the artifact render print.
+ * So the edge is mis-typed data, and the fix is to drop it.
+ *
+ * **This does NOT exempt the shape from {@link CombinedDagVerdict.cycles}, and must not grow into
+ * one.** ADR-0485 dec 1 refused narrowing the cycle question: a two-node ring wearing this shape
+ * could be genuine, and blinding the proof to it would cost more than the one row in forty-one this
+ * class has actually produced. Diagnosing a fault is the opposite of tolerating it.
+ */
+export interface TombstoneRedirect {
+  /** The superseded decision that authored the edge. */
+  readonly victim: number;
+  /** The decision that superseded it, and that the edge names. */
+  readonly superseder: number;
+}
+
 /** One cycle as an operator reads it. */
 export interface CombinedCycleReport {
   /** The closed path in NODE IDS, first id === last id — the detector's output verbatim. */
@@ -194,6 +215,14 @@ export interface CombinedDagVerdict {
    */
   readonly decisionToLibraryEdges: number;
 
+  /**
+   * Superseded decisions pointing back at their own superseder — see {@link TombstoneRedirect}.
+   *
+   * Empty on a clean corpus. Each entry closes a two-node ring that also appears in
+   * {@link cycles}: this is a DIAGNOSIS of a subset of the cycles, never a subtraction from them.
+   */
+  readonly tombstoneRedirects: readonly TombstoneRedirect[];
+
   /** Artifact ids repeated in the corpus read. First row wins, matching `findDependsOnCycles`. */
   readonly duplicateArtifactIds: readonly string[];
   /** Decision numbers seen more than once. First row wins. */
@@ -266,12 +295,25 @@ export function evaluateCombinedAcyclicity(
 
   const decisionNumbers = new Set<number>();
   const duplicateDecisionNumbers: number[] = [];
+  // WHO SUPERSEDED WHOM, indexed here rather than in the walk below (ADR-0485). A support edge
+  // cannot be judged a tombstone redirect until EVERY `supersedes` edge in the log has been read,
+  // and the log is not ordered — so the index has to be complete before the walk starts. It is
+  // built in THIS pass because this is already the first-row-wins pass, so the redirect reading and
+  // every counter below agree about which row won without a second dedupe to keep in step.
+  // Unresolvable victims are left in as dead keys rather than filtered: lookups below are keyed by
+  // a decision the log holds, so a key for one it does not hold can never be reached.
+  const supersededBy = new Map<number, Set<number>>();
   for (const decision of decisions) {
     if (decisionNumbers.has(decision.number)) {
       duplicateDecisionNumbers.push(decision.number);
       continue;
     }
     decisionNumbers.add(decision.number);
+    for (const victim of decision.supersedes) {
+      const superseders = supersededBy.get(victim) ?? new Set<number>();
+      superseders.add(decision.number);
+      supersededBy.set(victim, superseders);
+    }
   }
 
   const nodes: { id: string; dependsOn: string[] }[] = [];
@@ -337,6 +379,8 @@ export function evaluateCombinedAcyclicity(
   let decisionDanglingEdges = 0;
   let decisionToLibraryEdges = 0;
 
+  const tombstoneRedirects: TombstoneRedirect[] = [];
+
   const seenDecisions = new Set<number>();
   for (const decision of decisions) {
     if (seenDecisions.has(decision.number)) continue; // First row wins.
@@ -367,6 +411,12 @@ export function evaluateCombinedAcyclicity(
         }
         decisionSupportEdges += 1;
         targets.push(decisionNodeId(asDecision.number));
+        // ADR-0485: this edge is a tombstone redirect exactly when its TARGET is one of the
+        // decisions that superseded its AUTHOR. The direction is the whole test — a superseder
+        // supporting the record it replaced is an ordinary edge and closes no ring.
+        if (supersededBy.get(decision.number)?.has(asDecision.number) === true) {
+          tombstoneRedirects.push({ victim: decision.number, superseder: asDecision.number });
+        }
         continue;
       }
       if (!pointer.startsWith(ASSET_PREFIX)) continue;
@@ -405,6 +455,7 @@ export function evaluateCombinedAcyclicity(
     decisionSupersedesEdges,
     decisionDanglingEdges,
     decisionToLibraryEdges,
+    tombstoneRedirects,
     duplicateArtifactIds,
     duplicateDecisionNumbers,
     collidingIds,
