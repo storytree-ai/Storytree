@@ -401,7 +401,15 @@ export async function handleComments(
   req: IncomingMessage,
   res: ServerResponse,
   url: URL,
-  backend: LibraryBackend,
+  // NARROWED TO WHAT IT ACTUALLY REACHES — the four comment verbs, and nothing else on the backend.
+  // Declaring the whole `LibraryBackend` forced every caller that is not a live backend (the mirror
+  // probe, above all) to reach it through an `as unknown as` chain, which the house TypeScript
+  // standard refuses and which discards the very evidence a reader wants. Same `Pick` shape
+  // `handleClaims` and `handleActivity` already use.
+  backend: Pick<
+    LibraryBackend,
+    'listComments' | 'createComment' | 'updateComment' | 'deleteComment'
+  >,
   scope: CommentScope | null = null,
 ): Promise<void> {
   const method = req.method ?? 'GET';
@@ -470,7 +478,9 @@ export async function handleComments(
  * so ownership never leaks existence.
  */
 async function ensureCommentOwnership(
-  backend: LibraryBackend,
+  // Narrowed with its caller (`handleComments`) to the one verb it reaches — it reads the comment
+  // list to check authorship and touches nothing else on the backend.
+  backend: Pick<LibraryBackend, 'listComments'>,
   id: string,
   scope: CommentScope | null,
 ): Promise<void> {

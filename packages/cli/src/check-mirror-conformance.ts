@@ -76,6 +76,7 @@ import {
   formatDivergences,
   projectActivityPayload,
   projectArcsPayload,
+  projectCommentsPayload,
   projectFloorHealthPayload,
   projectTraversalPayload,
   type Divergence,
@@ -655,12 +656,55 @@ function buildTraversalFixtures() {
   return { dir, inputs };
 }
 
+/**
+ * The `comments-fixtures` input set: ONE fixture file carrying the request list both probes replay.
+ *
+ * WHY THESE REQUESTS. Each one isolates a decision the two surfaces make SEPARATELY when they parse
+ * the query string, which is the only part of this route either of them composes:
+ *   · no parameters at all — the unfiltered baseline;
+ *   · `?topicId=` PRESENT BUT EMPTY — the divergence this pair was opened on. `searchParams.get`
+ *     answers `""` rather than null here, so a guard written `?? undefined` admits the empty string
+ *     as a filter value and the route answers with NO comments, where a truthy guard treats the
+ *     parameter as absent and answers with ALL of them. Two surfaces, opposite answers, no observer
+ *     (measured 2026-08-31, `unscored-guards-arc`);
+ *   · a real `topicId`, so the fixture proves the parse still passes a genuine value through and the
+ *     row above is not green merely because both sides stopped filtering;
+ *   · each `topicKind` arm — the accepted pair, empty, and an unrecognised value, which must be
+ *     DROPPED rather than passed to the store as a filter no comment can match;
+ *   · the two combined, with the id empty and then present, because the empty-id defect survived
+ *     alongside a valid second parameter and a single-parameter fixture would have missed it.
+ *
+ * No comment data rides the fixture, deliberately — see `projectCommentsPayload`.
+ */
+function buildCommentsFixtures() {
+  const dir = mkdtempSync(join(tmpdir(), "storytree-comments-"));
+  const file = join(dir, "requests.json");
+  writeFileSync(
+    file,
+    JSON.stringify({
+      requests: [
+        "/api/comments",
+        "/api/comments?topicId=",
+        "/api/comments?topicId=adr-0001",
+        "/api/comments?topicKind=doc",
+        "/api/comments?topicKind=asset",
+        "/api/comments?topicKind=",
+        "/api/comments?topicKind=bogus",
+        "/api/comments?topicId=&topicKind=asset",
+        "/api/comments?topicId=x&topicKind=asset",
+      ],
+    }),
+  );
+  return { dir, inputs: [{ label: "requests", arg: file }] };
+}
+
 function buildInputSets() {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
   const arcs = buildArcFixtures();
   const floorHealth = buildFloorHealthFixtures();
   const traversal = buildTraversalFixtures();
+  const comments = buildCommentsFixtures();
   return {
     sets: {
       "docs-trees": [
@@ -671,6 +715,7 @@ function buildInputSets() {
       "arc-fixtures": arcs.inputs,
       "floor-health-fixtures": floorHealth.inputs,
       "traversal-fixtures": traversal.inputs,
+      "comments-fixtures": comments.inputs,
     },
     cleanup: () => {
       rmSync(docsFixture, { recursive: true, force: true });
@@ -678,6 +723,7 @@ function buildInputSets() {
       rmSync(arcs.dir, { recursive: true, force: true });
       rmSync(floorHealth.dir, { recursive: true, force: true });
       rmSync(traversal.dir, { recursive: true, force: true });
+      rmSync(comments.dir, { recursive: true, force: true });
     },
   };
 }
@@ -721,6 +767,12 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
     case "traversal-fixtures":
       try {
         return projectTraversalPayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
+    case "comments-fixtures":
+      try {
+        return projectCommentsPayload(payload);
       } catch (err) {
         throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
       }
