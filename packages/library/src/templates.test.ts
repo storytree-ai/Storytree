@@ -74,3 +74,30 @@ test("template-adr is the bespoke doc scaffold, not a schema-derived body", () =
     assert.ok(adr.body.includes(marker), `template-adr body contains "${marker}"`);
   }
 });
+
+test("template-adr scaffolds no retired edge — `amends` was removed from the schema (ADR-0431 D1)", () => {
+  const adr = libraryTemplates().find((t) => t.id === "template-adr");
+  assert.ok(adr, "template-adr is present");
+  // A template is the scaffold an author COPIES, so a retired key here is worse than a stale
+  // mention elsewhere: `storytree adr new` accepts no `--amends`, and an `amends:` frontmatter line
+  // is refused, so following the old body produced a hard CLI error. Assert on the two copyable
+  // shapes rather than on the word — the body legitimately NAMES the edge to say it is retired.
+  for (const [label, shape] of [
+    ["a --amends <n> invocation", /--amends\s+\d/],
+    ["an amends: [...] frontmatter key", /\bamends:\s*\[/],
+  ] as const) {
+    assert.ok(!shape.test(adr.body), `template-adr must not scaffold ${label}`);
+  }
+  // Both surviving keys must still be offered, or the negatives above would pass on an empty body.
+  for (const live of ["depends_on", "supersedes"]) {
+    assert.ok(adr.body.includes(live), `template-adr still offers \`${live}\``);
+  }
+  // The obligation the retired edge used to carry OUTLIVES it (ADR-0139 D4), and with the edge gone
+  // the in-place annotation is the only record of an amendment. Dropping the instruction along with
+  // the edge would trade one wrong instruction for a missing one.
+  assert.match(
+    adr.body,
+    /ANNOTATE that clause/,
+    "template-adr still requires the in-place annotation the retired edge used to oblige",
+  );
+});
