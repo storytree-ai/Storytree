@@ -20,7 +20,7 @@
       "web": "storytree-web (the public front-door site) vendored as a submodule; wired in .gitmodules (PR #111)."
     },
     "dirs": {
-      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / model-uat / uat-criterion / model-judged-uat / model-uat-pilot; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; model-uat is the model-UAT-witness organism added packages-forward per ADR-0192; uat-criterion is the seed-canonical per-criterion detail organism for ADR-0209 D5/D6; model-judged-uat is the independent model-judge + spine-validation + escalation organism for ADR-0209 D3/D4; model-uat-pilot is the three-story pilot migration harness for ADR-0209 D8; art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps).",
+      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / model-uat / uat-criterion; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; model-uat is the model-UAT-witness organism added packages-forward per ADR-0192; uat-criterion is the seed-canonical per-criterion detail organism for ADR-0209 D5/D6 (the sibling model-judged-uat and model-uat-pilot organisms were DELETED on 2026-08-31 — ADR-0247 D5 retired ADR-0209's rubric-judge and pilot machinery, and both were imported by nothing outside themselves; a model DRIVING a UAT journey is untouched and lives in @storytree/drive); art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps).",
       "apps": "Workspace apps (studio).",
       "docs": "ADRs + open-questions backlog + research notes (see docs.* below).",
       "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
@@ -64,8 +64,6 @@
       "@storytree/art-authoring": "art-factory",
       "@storytree/model-uat": "model-uat-witness",
       "@storytree/uat-criterion": "uat-criterion-detail",
-      "@storytree/model-judged-uat": "model-judged-uat",
-      "@storytree/model-uat-pilot": "model-uat-pilot",
       "@storytree/context-traversal-telemetry": "context-traversal-telemetry",
       "@storytree/context-traversal-capture": "context-traversal-capture",
       "@storytree/context-traversal-spawn": "context-traversal-spawn",
@@ -580,14 +578,6 @@
       "packages/uat-criterion/src/story-author-scope.ts": "story-author-detail-authority",
       "packages/uat-criterion/src/criterion.test-helpers.ts": "uat-criterion-detail",
       "packages/uat-criterion/src/index.ts": "uat-criterion-detail",
-      "packages/model-judged-uat/src/judge-seam.ts": "independent-judge-seam",
-      "packages/model-judged-uat/src/judge-result.ts": "judge-result-shape",
-      "packages/model-judged-uat/src/escalation.ts": "model-escalation-ladder",
-      "packages/model-judged-uat/src/spine-validation.ts": "spine-judge-validation",
-      "packages/model-judged-uat/src/test-bindings.ts": "model-judged-uat",
-      "packages/model-judged-uat/src/index.ts": "model-judged-uat",
-      "packages/model-uat-pilot/src/pilot-*.ts": "pilot-migration-harness",
-      "packages/model-uat-pilot/src/index.ts": "model-uat-pilot",
 
       "$section_traversal": "The four context-traversal organisms — every non-barrel file is a named capability.",
       "packages/context-traversal-capture/src/decision-point-playback.ts": "decision-point-playback",
@@ -993,13 +983,6 @@
           "checkout"
         ],
         "because": "a one-shot migration over the checkout it was run against."
-      },
-      "packages/model-uat-pilot/src/pilot-migration-harness.ts": {
-        "camp": "prove",
-        "reads": [
-          "checkout"
-        ],
-        "because": "the ADR-0209 D8 pilot harness reads the stories it migrates off the checkout."
       },
       "packages/orchestrator/src/node-spec.ts": {
         "camp": "prove",

@@ -129,6 +129,17 @@ interface RootPathReaders {
  *   cli + drive                       9 of 26            533.5s   86.3%   <- docs/, docs/decisions/
  *   the seven `stories/` readers     14 of 26            591.0s   95.6%
  *
+ * ⚠ THE THIRD ROW, AND THE "12 projects" AND "~4.4%" FIGURES BELOW, ARE FROZEN MEASUREMENTS AND ARE
+ * LEFT AT THEIR MEASURED VALUES. The `stories/` entry now names SIX readers, not seven:
+ * `@storytree/model-uat-pilot` was DELETED on 2026-08-31 (ADR-0247 D5,
+ * `model-uat-family-consolidation-arc` increment 1), and `model-judged-uat` went with it, so the
+ * workspace holds 24 projects rather than 26. Every derived figure here therefore moves, and none of
+ * them has been re-measured: `model-uat-pilot`'s share of the 591.0s was never broken out. Writing
+ * smaller numbers in would be reporting a measurement nobody took, which is the one thing a frozen
+ * table must not do. The CONCLUSION each figure supports is unaffected — `stories/` is kept for the
+ * projects it removes from a story-only branch, not for the work it saves — so re-running the
+ * instrumented sweep buys nothing and is deliberately not done here.
+ *
  * So the guidance-projection entries are the prize: `CLAUDE.md`, `AGENTS.md` and the five harness
  * agent directories select ONE project and cut ~65% of the test leg, on the most common non-package
  * change shape in the repo (611 path-touches across 800 commits). The `stories/` entry saves ~4.4% of
@@ -142,7 +153,7 @@ interface RootPathReaders {
  *
  * ADDING AN ENTRY IS AN ADR-0394 AMENDMENT, and it costs a measurement, not an argument.
  */
-const ROOT_PATH_READERS: readonly RootPathReaders[] = [
+export const ROOT_PATH_READERS: readonly RootPathReaders[] = [
   {
     prefix: "docs/",
     projects: ["@storytree/cli", "@storytree/drive", "@storytree/app-surface"],
@@ -157,11 +168,10 @@ const ROOT_PATH_READERS: readonly RootPathReaders[] = [
       "@storytree/context-traversal-capture",
       "@storytree/drive",
       "@storytree/library",
-      "@storytree/model-uat-pilot",
       "@storytree/orchestrator",
     ],
     reason:
-      "stories/** is read at test time by seven projects — cli's validate-corpus and the story readers, drive/orchestrator's build paths, library, capture, model-uat-pilot, and studio — and by no other",
+      "stories/** is read at test time by six projects — cli's validate-corpus and the story readers, drive/orchestrator's build paths, library, capture, and studio — and by no other",
   },
   // THE GENERATED GUIDANCE PROJECTIONS. These move together, whenever an agent artifact is edited
   // and `build:guidance` / `build:agents` are re-run — 611 path-touches across 800 commits, the
