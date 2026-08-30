@@ -14,7 +14,7 @@
     "capture:comparative": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/comparative-capture.mjs",
     "capture:unwatched": "node --import ../../scripts/tsx-cache-off.mjs --import tsx scripts/capture-unwatched-regrow.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json",
-    "test": "vitest run",
+    "test": "vitest run src/ server/",
     "uat": "playwright test"
   },
   "dependencies": {

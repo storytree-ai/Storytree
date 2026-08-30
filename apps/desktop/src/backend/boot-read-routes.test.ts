@@ -101,13 +101,49 @@ async function withServer(
   }
 }
 
+/** Body of the `.md` file seeded ONE LEVEL ABOVE docsDir — see {@link seedDocsDir}. */
+const OUTSIDE_SENTINEL = "SENTINEL-OUTSIDE-THE-DOCS-DIR";
+/** Body of the non-`.md` file seeded INSIDE docsDir — see {@link seedDocsDir}. */
+const NON_MARKDOWN_SENTINEL = "SENTINEL-CONTAINED-BUT-NOT-MARKDOWN";
+
 /**
  * Create a temporary docs dir seeded with one ADR (decisions/ + frontmatter) and one
  * reference doc. Returns the dir path and a cleanup fn. The ADR doc has `status: accepted` and
  * `decided: 2024-01-15` in its frontmatter — the test pins that both are parsed and surfaced.
+ *
+ * TWO SENTINEL FILES EXIST SO THE TRAVERSAL TEST CAN FAIL, and that is the whole reason the
+ * temp dir is nested inside a ROOT rather than being the mkdtemp dir itself. Until 2026-08-30
+ * the traversal test asked for `../../package.json` and a `.md`-less id, and BOTH resolved to
+ * paths where no file existed — so `existsSync` produced the expected 404 and the guard was
+ * never the thing under test. Measured: deleting either arm of `safeDocPath`'s guard
+ * (`rel.startsWith("..")`, `!resolved.endsWith(".md")`) left the whole 234-test desktop suite
+ * GREEN. The test asserted "refuses a path-traversal id, a non-.md id … and NEVER leaks file
+ * contents" and measured "a missing file 404s", three times.
+ *
+ * A REAL file now sits at each escape point, so the guard is the ONLY thing that can produce
+ * the 404 and a regression in it shows up as a 200 carrying the sentinel:
+ *   <root>/outside-the-docs-dir.md     — real markdown, ABOVE docsDir (pins the `..` arm)
+ *   <root>/docs/contained-not-markdown.json — real file, INSIDE docsDir (pins the `.md` arm)
+ *
+ * The `.json` sentinel is invisible to `listDocs` (which walks `.md` only), so the seeded-doc
+ * count stays 2 and no other test in this file moves.
  */
 async function seedDocsDir(): Promise<{ dir: string; cleanup: () => Promise<void> }> {
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "boot-read-routes-docs-"));
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "boot-read-routes-root-"));
+  // Readable, real, and OUTSIDE the docs dir: what a working `..` guard must refuse to serve.
+  await fs.writeFile(
+    path.join(root, "outside-the-docs-dir.md"),
+    ["# Outside", "", OUTSIDE_SENTINEL].join("\n"),
+    "utf8",
+  );
+  const dir = path.join(root, "docs");
+  await fs.mkdir(dir);
+  // Readable, real, and INSIDE the docs dir: what a working `.md` guard must refuse to serve.
+  await fs.writeFile(
+    path.join(dir, "contained-not-markdown.json"),
+    JSON.stringify({ secret: NON_MARKDOWN_SENTINEL }),
+    "utf8",
+  );
   // A Decisions-group doc: decisions/0001-some-decision.md (ADR with frontmatter)
   const decisionsDir = path.join(dir, "decisions");
   await fs.mkdir(decisionsDir);
@@ -133,8 +169,9 @@ async function seedDocsDir(): Promise<{ dir: string; cleanup: () => Promise<void
   );
   return {
     dir,
+    // Remove the ROOT, not just the docs dir — the outside-the-docs-dir sentinel lives above it.
     cleanup: async () => {
-      await fs.rm(dir, { recursive: true, force: true });
+      await fs.rm(root, { recursive: true, force: true });
     },
   };
 }
@@ -367,24 +404,49 @@ test("boot-read-routes: GET /api/docs/content 404s traversal / non-md / missing 
     });
 
     await withServer(handler, async (base) => {
-      for (const badId of [
-        "..%2F..%2Fpackage.json", // path traversal out of docsDir
-        "decisions%2F0001-some-decision", // valid file but non-.md id
-        "decisions%2F9999-does-not-exist.md", // valid shape, no such file
-      ]) {
-        const res = await fetch(`${base}/api/docs/content?id=${badId}`);
-        assert.equal(res.status, 404, `id=${badId} must 404`);
-        const body = (await res.json()) as Record<string, unknown>;
+      // Each id names a file that REALLY EXISTS and is REALLY READABLE, except the last. That is
+      // what makes the first two load-bearing: only the guard can turn them into a 404, so
+      // deleting either arm of it turns them into a 200 carrying the sentinel body.
+      const cases = [
+        {
+          id: "..%2Foutside-the-docs-dir.md", // escapes docsDir; the file above it is real markdown
+          leak: OUTSIDE_SENTINEL,
+          why: "a `..` id that resolves onto a REAL .md file above docsDir",
+        },
+        {
+          id: "contained-not-markdown.json", // contained, real, readable — but not markdown
+          leak: NON_MARKDOWN_SENTINEL,
+          why: "a contained id naming a REAL non-.md file",
+        },
+        {
+          id: "decisions%2F9999-does-not-exist.md", // valid shape, no such file
+          leak: null,
+          why: "a well-formed id with no file behind it",
+        },
+      ];
+      for (const { id, leak, why } of cases) {
+        const res = await fetch(`${base}/api/docs/content?id=${id}`);
+        const raw = await res.text();
+        assert.equal(res.status, 404, `${why} (id=${id}) must 404 — got ${res.status}: ${raw}`);
+        const body = JSON.parse(raw) as Record<string, unknown>;
         assert.equal(
           body["error"],
           "doc not found",
-          `id=${badId} must return the guard's 'doc not found' — not fall through, not leak`,
+          `${why} (id=${id}) must return the guard's 'doc not found' — not fall through, not leak`,
         );
         assert.equal(
           body["markdown"],
           undefined,
-          `id=${badId} must never leak file contents`,
+          `${why} (id=${id}) must never leak file contents`,
         );
+        if (leak !== null) {
+          // Belt to the braces above: assert on the RESPONSE BYTES, so no future reshaping of the
+          // error envelope can carry the file's contents through under a different key.
+          assert.ok(
+            !raw.includes(leak),
+            `${why} (id=${id}) must not leak the target file's contents anywhere in the response`,
+          );
+        }
       }
     });
   } finally {
