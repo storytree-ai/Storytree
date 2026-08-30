@@ -185,12 +185,28 @@ The refinement is one more comparison in a chain the shader already walks, so it
 than the ground that ships today** at the zoomed read — and relatively more at 2 px, where the whole
 frame is cheap enough that a fixed cost dominates.
 
+> ⚠⚠ **CORRECTED IN PLACE 2026-08-31 (ADR-0139): THE `dense` ROW DID NOT REPRODUCE.** Re-measured
+> on the same box after the ladder was adopted, with both runs agreeing to four decimals, `dense`
+> @8 is **0.1126 ms = 0.68%** of a 60 Hz frame rather than 0.1005 / 0.60%, i.e. **23% more than the
+> ground it replaced** rather than 8%. Every other row above reproduced within 1.7%. The likely
+> cause is that this run predates the bought-kit crossing, which changed the map's own key light
+> and intensities. The 2 px figure held (0.0534 against 0.0529) and the paragraph above understates
+> what it means: measured properly, the refinement costs **6.8x** at the overview zoom, and the
+> cost is per-DRAW rather than per-fragment — it barely moves when the fragment count grows
+> sixteenfold. Full working: `chapter2-shipped-adopted-ladder-2026-08-31/` §3a.
+
 ## 5. WHAT THIS DOES NOT SETTLE
 
 - **Whether to adopt is the owner's call, and it is a LOOK decision.** The arithmetic says the
   refined ladder is honest and nearly free; it does not say the picture is better. Nothing is
   adopted here — `SHADE_LEVELS` is untouched and the shipped canvas passes no ladder, so what ships
   is exactly what shipped yesterday.
+  > ⚠ **SETTLED 2026-08-30 and LANDED 2026-08-31.** The owner answered
+  > `oq-which-shade-ladder-should-the-map-wear-and-the-yellow-doe` with "Adopt it." — option A, the
+  > nine-rung ladder. `SHADE_LEVELS` IS those nine rungs as of 2026-08-31; this paragraph describes
+  > the state on the day this note was written and is kept for that reason. The `dense` arm on this
+  > page is now what the map draws by default, and the `banded` / `grain-normal` / `shadow` /
+  > `grain-both` arms are pinned to `LEGACY_SHADE_LEVELS` so their medians above stay reproducible.
 - **Whether the tint is still wanted at all.** If the refined ladder delivers the mottle, the
   off-palette colour half has nothing left to buy and `grain-both` can be retired rather than
   unblocked. That is a judgment on the pictures.

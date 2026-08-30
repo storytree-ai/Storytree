@@ -48,6 +48,7 @@ import {
   linearToSrgb255,
 } from './land-grain.js';
 import {
+  LEGACY_SHADE_LEVELS,
   SHADE_LEVELS,
   lambertOfNormal,
   nearestLevelIndex,
@@ -172,12 +173,21 @@ test('the ramp clamps outside its authored span', () => {
 
 test('the normal half moves SOME ground between rungs and not all of it', () => {
   // THE MEASUREMENT THIS INCREMENT TURNS ON, stated as a requirement rather than as an
-  // observation. `SHADE_LEVELS` is [0.78, 0.80, 0.90, 1.00] and flat ground sits at rung 2
+  // observation. `SHADE_LEVELS` is nine rungs at 0.025 from 0.80 and flat ground sits on 0.90
   // (half-lambert 0.9105 under the authored light), so grain on flat ground can only express
   // itself as a rung FLIP. Two ways it can fail, and both are silent:
   //   - flips nothing, and the component is invisible however good the field is;
-  //   - flips most of the ground, and it is a repaint rather than a grain.
-  // The bounds below come from those two failure modes, NOT from a number this run produced.
+  //   - flips ALL of it, and it is a repaint rather than a grain — the texture has replaced the
+  //     shading it was supposed to modulate, and the land stops reporting relief at all.
+  //
+  // ⚠⚠ THE UPPER BOUND WAS 0.5 AND THAT NUMBER DID NOT SURVIVE THE LADDER, DELIBERATELY. It was
+  // calibrated on the four-rung ladder, where the field flipped 14.4% and half the island was a
+  // generous ceiling. The nine-rung ladder is the SAME field flipping 73.1% — and that increase is
+  // the entire reason the owner adopted it, so a 0.5 ceiling would now be a guard refusing the
+  // thing it was written to protect. What is kept is the FAILURE MODE, re-stated at the standard
+  // the refinement was actually judged against: the curve must SATURATE below 1, i.e. some flat
+  // ground keeps its own rung. `THE DENSITY LEVER` below holds the same 0.95 ceiling over a whole
+  // density sweep, which is where a ladder refined too far would be caught.
   const flat = { x: 0, y: 1, z: 0 };
   const base = rungOfNormal(flat);
   let flipped = 0;
@@ -195,7 +205,12 @@ test('the normal half moves SOME ground between rungs and not all of it', () => 
       `${(fraction * 100).toFixed(1)}% (${flipped}/${total})`,
   );
   assert.ok(fraction > 0.001, `grain flips ${(fraction * 100).toFixed(3)}% of flat ground — invisible`);
-  assert.ok(fraction < 0.5, `grain flips ${(fraction * 100).toFixed(1)}% of flat ground — a repaint`);
+  assert.ok(fraction < 0.95, `grain flips ${(fraction * 100).toFixed(1)}% of flat ground — a repaint`);
+  // AND THE VALUE ITSELF, pinned — a bound this loose would otherwise absorb a real drift in the
+  // field silently. It is the figure the adoption was measured on, and `THE DENSITY LEVER` reaches
+  // it by an independent route (its own ladder literal rather than `SHADE_LEVELS`), so the two
+  // agreeing is evidence rather than one number restated twice.
+  assert.equal((fraction * 100).toFixed(1), '73.1');
 });
 
 test('a stronger bump flips strictly more ground', () => {
@@ -658,7 +673,7 @@ test('the OCTAVE LADDER is stated per octave — amplitude compounds, frequency 
   assert.equal(grainAmplitudeSum(), 1 + GRAIN_ROUGHNESS);
 });
 
-test('THE DENSITY LEVER: the same field flips 14% of flat ground on four rungs and 73% on nine', () => {
+test('THE DENSITY LEVER: the same field flipped 14% of flat ground on four rungs and flips 73% on the nine it now has', () => {
   // ⚠⚠ THE MEASUREMENT THAT DISSOLVED AN OWNER FORK. The approved Cycles render's ground reads
   // as a continuous MOTTLE; the shipped ground reads as a SPECKLE at band edges. That gap was
   // attributed to the missing half of the grain — the off-palette COLOUR mix — and closing it was
@@ -690,13 +705,18 @@ test('THE DENSITY LEVER: the same field flips 14% of flat ground on four rungs a
     return flipped / total;
   };
 
+  const legacy = flipFraction(LEGACY_SHADE_LEVELS);
   const shipped = flipFraction(SHADE_LEVELS);
-  const refined = flipFraction(evenly(0.8, 1.0, 9));
   console.log(
-    `  rung-flip fraction: 4 rungs ${(shipped * 100).toFixed(1)}% -> 9 rungs ${(refined * 100).toFixed(1)}%`,
+    `  rung-flip fraction: 4 rungs ${(legacy * 100).toFixed(1)}% -> 9 rungs ${(shipped * 100).toFixed(1)}%`,
   );
-  assert.equal((shipped * 100).toFixed(1), '14.4');
-  assert.equal((refined * 100).toFixed(1), '73.1');
+  assert.equal((legacy * 100).toFixed(1), '14.4');
+  assert.equal((shipped * 100).toFixed(1), '73.1');
+  // ⚠ THE NINE-RUNG SIDE IS NOW THE LADDER THAT SHIPS, so this pair is a before/after of an
+  // adoption rather than a candidate against an incumbent. It is still asked of the generated
+  // grid too, because agreeing with `evenly(0.8, 1.0, 9)` is what says the shipped literal really
+  // is that grid rather than nine rungs that merely flip about as much.
+  assert.equal(flipFraction(evenly(0.8, 1.0, 9)), shipped);
 
   // MONOTONIC IN DENSITY, so the pair above is a curve rather than two points that happen to
   // differ. Without this a single lucky spacing would satisfy the assertions and prove nothing.

@@ -184,11 +184,24 @@ export const ADR0462_STATUS_TOKENS: ReadonlyMap<string, StatusFamily> = (() => {
  * The lit ladder only. The SHADOW rung is not swept here because it is not reachable by lighting —
  * `shadow-ladder.ts` derives it precisely as the deepest level at which no rendered status reads as
  * another, so its admissibility is that module's own guarantee rather than this one's to restate.
+ *
+ * ⚠⚠ THE LADDER IS A PARAMETER, AND IT IS NOT A CONVENIENCE. Every figure in this module is a
+ * function of which rungs exist: refining the ladder adds cross-rung pairs (which can only lower a
+ * minimum) AND shrinks each family's largest lighting step (which raises every ratio read against
+ * it). So a FROZEN palette judged on a ladder it was never measured on reports numbers that
+ * reproduce nothing — the 2026-08-31 adoption moved `ADR0462_STATUS_TOKENS`'s recorded 0.395 to
+ * 1.439 without a single colour changing. Historical arms pass `LEGACY_SHADE_LEVELS`; the live
+ * table takes the default, which is the ladder the map wears. Same rule, one lever further along,
+ * as `src/shadow-rung.ts`'s reader family.
  */
-export function crossRungSeparation(a: string, b: string): { distance: number; at: string } {
+export function crossRungSeparation(
+  a: string,
+  b: string,
+  ladder: readonly number[] = SHADE_LEVELS,
+): { distance: number; at: string } {
   let out = { distance: Infinity, at: '' };
-  for (const la of SHADE_LEVELS) {
-    for (const lb of SHADE_LEVELS) {
+  for (const la of ladder) {
+    for (const lb of ladder) {
       const d = colourDistance(deliveredForLevel(a, la), deliveredForLevel(b, lb));
       if (d < out.distance) out = { distance: d, at: `${a} at ${la} vs ${b} at ${lb}` };
     }
@@ -218,12 +231,12 @@ export function chromaticSeparation(a: string, b: string): number {
 
 /** The largest distance ONE lighting step moves a single token — the control every separation
  *  figure here is read against, so no bar in this file is a number somebody picked. */
-export function largestRungStep(token: string): number {
+export function largestRungStep(token: string, ladder: readonly number[] = SHADE_LEVELS): number {
   let out = 0;
-  for (let i = 1; i < SHADE_LEVELS.length; i++) {
+  for (let i = 1; i < ladder.length; i++) {
     const d = colourDistance(
-      deliveredForLevel(token, SHADE_LEVELS[i - 1]!),
-      deliveredForLevel(token, SHADE_LEVELS[i]!),
+      deliveredForLevel(token, ladder[i - 1]!),
+      deliveredForLevel(token, ladder[i]!),
     );
     if (d > out) out = d;
   }
@@ -264,6 +277,7 @@ export interface ColourPair {
 export function colourPairs(
   tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
   vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): ColourPair[] {
   const colours = LAND_COLOURS.filter((c) => tokensOfColour(c, tokens, vocab).length > 0);
   const rows: ColourPair[] = [];
@@ -274,10 +288,10 @@ export function colourPairs(
       let best = { distance: Infinity, at: '' };
       let step = 0;
       for (const ta of as) {
-        step = Math.max(step, largestRungStep(ta));
+        step = Math.max(step, largestRungStep(ta, ladder));
         for (const tb of bs) {
-          step = Math.max(step, largestRungStep(tb));
-          const c = crossRungSeparation(ta, tb);
+          step = Math.max(step, largestRungStep(tb, ladder));
+          const c = crossRungSeparation(ta, tb, ladder);
           if (c.distance < best.distance) best = c;
         }
       }
@@ -291,8 +305,9 @@ export function colourPairs(
 export function worstColourPair(
   tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
   vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): ColourPair {
-  const rows = colourPairs(tokens, vocab);
+  const rows = colourPairs(tokens, vocab, ladder);
   const first = rows[0];
   if (first === undefined) throw new Error('status-vocabulary: no colour pairs to compare');
   return first;
@@ -316,6 +331,7 @@ export function foreignColourReads(
   tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
   vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
   flatGroundLevel: number = FLAT_GROUND_LEVEL,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): string[] {
   const colours = LAND_COLOURS.filter((c) => tokensOfColour(c, tokens, vocab).length > 0);
   // `nearestStatus` is the ported reader, imported rather than re-derived — an argmin written a
@@ -329,7 +345,7 @@ export function foreignColourReads(
   const out: string[] = [];
   for (const c of colours) {
     const token = tokensOfColour(c, tokens, vocab)[0]!;
-    for (const level of SHADE_LEVELS) {
+    for (const level of ladder) {
       const read = nearestStatus(deliveredForLevel(token, level), table);
       if (read !== c) out.push(`${c}@${level}->${read}`);
     }
@@ -394,8 +410,9 @@ export function vocabularySeparation(
   tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
   vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
   flatGroundLevel: number = FLAT_GROUND_LEVEL,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): SeparationVerdict {
-  const standings: PairStanding[] = colourPairs(tokens, vocab).map((p) => ({
+  const standings: PairStanding[] = colourPairs(tokens, vocab, ladder).map((p) => ({
     pair: `${p.a}/${p.b}`,
     distance: p.distance,
     bar: p.step,
@@ -408,6 +425,6 @@ export function vocabularySeparation(
     throw new Error('status-vocabulary: a vocabulary with no pairs to compare cannot be judged separated');
   }
   const under = byRatio.filter((s) => s.ratio < 1);
-  const foreignReads = foreignColourReads(tokens, vocab, flatGroundLevel);
+  const foreignReads = foreignColourReads(tokens, vocab, flatGroundLevel, ladder);
   return { pass: under.length === 0 && foreignReads.length === 0, tightest, under, foreignReads };
 }

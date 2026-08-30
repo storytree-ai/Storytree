@@ -44,7 +44,7 @@
 // nothing here re-derives a distance.
 
 import { colourPairs, foreignColourReads, STATUS_COLOUR, type LandColour } from './status-vocabulary.js';
-import { STATUS_TOKENS, parseHex, type StatusFamily } from './palette-band.js';
+import { SHADE_LEVELS, STATUS_TOKENS, parseHex, type StatusFamily } from './palette-band.js';
 import { colourDistance } from './ground-cover.js';
 
 const clamp255 = (v: number): number => Math.max(0, Math.min(255, Math.round(v)));
@@ -125,8 +125,9 @@ export function familyMovement(a: StatusFamily, b: StatusFamily): number {
 export function todaysBars(
   tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
   vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): ReadonlyMap<string, number> {
-  return new Map(colourPairs(tokens, vocab).map((p) => [`${p.a}/${p.b}`, p.step] as const));
+  return new Map(colourPairs(tokens, vocab, ladder).map((p) => [`${p.a}/${p.b}`, p.step] as const));
 }
 
 export interface Tightest {
@@ -150,10 +151,11 @@ export function tightestPair(
   tokens: ReadonlyMap<string, StatusFamily>,
   bars: ReadonlyMap<string, number> = todaysBars(),
   vocab: ReadonlyMap<string, LandColour> = STATUS_COLOUR,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): Tightest {
   let ratio = Infinity;
   let pair = '';
-  for (const p of colourPairs(tokens, vocab)) {
+  for (const p of colourPairs(tokens, vocab, ladder)) {
     const bar = Math.max(p.step, bars.get(`${p.a}/${p.b}`) ?? 0);
     const r = bar === 0 ? Infinity : p.distance / bar;
     if (r < ratio) {
@@ -161,7 +163,7 @@ export function tightestPair(
       pair = `${p.a}/${p.b}`;
     }
   }
-  return { ratio, pair, foreignReads: foreignColourReads(tokens, vocab) };
+  return { ratio, pair, foreignReads: foreignColourReads(tokens, vocab, undefined, ladder) };
 }
 
 /** One point on the frontier. */
@@ -201,12 +203,18 @@ export function sweepFamily(
   status: string,
   sweep: Sweep = DEFAULT_SWEEP,
   tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
+  ladder: readonly number[] = SHADE_LEVELS,
 ): Candidate[] {
   const base = tokens.get(status);
   if (!base) throw new Error(`hue-frontier: no token family for status "${status}"`);
   // ⚠ The ratchet's floor comes from the table BEING SWEPT, never from the live palette. Sweeping
   // a frozen table while ratcheting against a live one mixes two vocabularies into one verdict.
-  const bars = todaysBars(tokens);
+  // ⚠ AND THE SAME ARGUMENT APPLIES TO THE LADDER, which is why it is a parameter here too: a
+  // reproduction of a search run on the four-rung ladder is not a reproduction if it is re-run on
+  // the nine-rung one. Every ratio in this module is read against a family's largest lighting
+  // step, and refining the ladder shrinks that step — so the whole table moves without a colour
+  // changing.
+  const bars = todaysBars(tokens, STATUS_COLOUR, ladder);
   const out: Candidate[] = [];
   for (const deg of sweep.deg) {
     for (const sat of sweep.sat) {
@@ -220,7 +228,7 @@ export function sweepFamily(
           val,
           family,
           movement: familyMovement(base, family),
-          ...tightestPair(candidate, bars),
+          ...tightestPair(candidate, bars, STATUS_COLOUR, ladder),
         });
       }
     }

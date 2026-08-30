@@ -36,6 +36,7 @@ import {
   parseHex,
   toHex,
   type Rgb255,
+  type StatusFamily,
 } from './palette-band.js';
 
 /** Which scenery cover a ground cell wears instead of its status family's own token. */
@@ -206,7 +207,10 @@ export interface Separation {
  * Only the `top` faces are compared. That is the face the study stands on and the face a cover
  * actually occupies — the rim wears its own token and is a different question.
  */
-export function separationOf(token: string): Separation {
+export function separationOf(
+  token: string,
+  ladder: readonly number[] = SHADE_LEVELS,
+): Separation {
   const per: Record<string, number> = {};
   let nearest = '';
   let distance = Infinity;
@@ -216,7 +220,7 @@ export function separationOf(token: string): Separation {
     let best = Infinity;
     let bestAt = '';
     fam.top.forEach((variant, index) => {
-      for (const level of SHADE_LEVELS) {
+      for (const level of ladder) {
         const d = colourDistance(deliveredForLevel(token, level), deliveredForLevel(variant, level));
         if (d < best) {
           best = d;
@@ -246,11 +250,14 @@ export function separationOf(token: string): Separation {
  *  about twice, not a pair. The test is on the TOKENS, not on a hand-kept list of which
  *  statuses have merged: a future merge is caught with no edit here, and an accidental
  *  un-merge stops being skipped the instant the tokens differ. */
-export function worstStatusPair(): { a: string; b: string; distance: number; at: string } {
-  const statuses = [...STATUS_TOKENS.keys()];
+export function worstStatusPair(
+  tokens: ReadonlyMap<string, StatusFamily> = STATUS_TOKENS,
+  ladder: readonly number[] = SHADE_LEVELS,
+): { a: string; b: string; distance: number; at: string } {
+  const statuses = [...tokens.keys()];
   const sameColour = (x: string, y: string): boolean => {
-    const fx = STATUS_TOKENS.get(x)!.top;
-    const fy = STATUS_TOKENS.get(y)!.top;
+    const fx = tokens.get(x)!.top;
+    const fy = tokens.get(y)!.top;
     return fx.length === fy.length && fx.every((t, i) => t === fy[i]);
   };
   let out = { a: '', b: '', distance: Infinity, at: '' };
@@ -259,9 +266,9 @@ export function worstStatusPair(): { a: string; b: string; distance: number; at:
       const sa = statuses[i]!;
       const sb = statuses[j]!;
       if (sameColour(sa, sb)) continue;
-      for (const ta of STATUS_TOKENS.get(sa)!.top) {
-        for (const tb of STATUS_TOKENS.get(sb)!.top) {
-          for (const level of SHADE_LEVELS) {
+      for (const ta of tokens.get(sa)!.top) {
+        for (const tb of tokens.get(sb)!.top) {
+          for (const level of ladder) {
             const d = colourDistance(deliveredForLevel(ta, level), deliveredForLevel(tb, level));
             if (d < out.distance) out = { a: sa, b: sb, distance: d, at: `${ta} vs ${tb} at ${level}` };
           }
@@ -276,8 +283,11 @@ export function worstStatusPair(): { a: string; b: string; distance: number; at:
  *  one lighting step away". The comparison that says whether a separation is loud or quiet:
  *  a gap smaller than a rung step means the difference between scenery and a proof state is
  *  quieter than the difference between lit ground and shaded ground. */
-export function shadeRungGaps(token: string): number[] {
-  const rungs = SHADE_LEVELS.map((level) => deliveredForLevel(token, level));
+export function shadeRungGaps(
+  token: string,
+  ladder: readonly number[] = SHADE_LEVELS,
+): number[] {
+  const rungs = ladder.map((level) => deliveredForLevel(token, level));
   const out: number[] = [];
   for (let i = 1; i < rungs.length; i++) out.push(colourDistance(rungs[i - 1]!, rungs[i]!));
   return out;

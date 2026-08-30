@@ -23,7 +23,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SHADE_LEVELS, STATUS_TOKENS, deliveredForLevel, toHex } from './palette-band.js';
+import {
+  LEGACY_SHADE_LEVELS,
+  SHADE_LEVELS,
+  STATUS_TOKENS,
+  deliveredForLevel,
+  toHex,
+} from './palette-band.js';
 import {
   ADR0462_STATUS_TOKENS,
   LAND_COLOURS,
@@ -100,12 +106,30 @@ test('every state has an authored colour, and an unknown state THROWS rather tha
 
 // --- the constraint --------------------------------------------------------------------------
 
+// ⚠⚠ EVERY FROZEN ARM IN THIS FILE PASSES `LEGACY_SHADE_LEVELS`, AND THAT IS WHAT KEEPS IT A
+// REPRODUCTION. The map adopted a nine-rung ladder on 2026-08-31. Every figure in this module is a
+// separation over the rungs that exist, read against a family's largest LIGHTING STEP — so
+// refining the ladder moves both halves at once without a colour changing: the pre-clay palette's
+// recorded 0.395 ratio reads as 1.439, and its six recorded misreads become a different six. A
+// historical arm re-measured on a ladder it never ran on is a different measurement wearing the
+// old one's assertions. The LIVE arms take the default, which is the ladder the map wears.
+
 test('THE CONSTRAINT: grey and black clear the lighting-step bar at every rung', () => {
   const pair = colourPairs().find((p) => [p.a, p.b].sort().join('/') === 'black/grey')!;
-  // 24.93 against a bar of 17.42 — the closest the two families come across the WHOLE ladder,
+  // 27.75 against a much smaller bar — the closest the two families come across the WHOLE ladder,
   // against the largest single lighting step either of them takes.
+  //
+  // ⚠ IT WENT UP, 24.93 -> 27.75, WHICH IS THE OPPOSITE OF WHAT ADDING RUNGS SOUNDS LIKE. A finer
+  // ladder adds cross-rung pairs, so a minimum over them can only fall — except that the adoption
+  // also DROPPED the 0.78 rung, and the darkest rung is where two families are compressed closest
+  // together. Losing it removed the binding pair outright.
   assert.ok(pair.distance > pair.step, `grey/black ${pair.distance.toFixed(2)} is under the ${pair.step.toFixed(2)} bar at ${pair.at}`);
-  assert.ok(Math.abs(pair.distance - 24.93) < 0.01, `grey/black moved to ${pair.distance.toFixed(2)}`);
+  assert.ok(Math.abs(pair.distance - 27.75) < 0.01, `grey/black moved to ${pair.distance.toFixed(2)}`);
+  // And on the ladder the figure was recorded against, it is still exactly what was recorded.
+  const legacyPair = colourPairs(undefined, undefined, LEGACY_SHADE_LEVELS).find(
+    (p) => [p.a, p.b].sort().join('/') === 'black/grey',
+  )!;
+  assert.ok(Math.abs(legacyPair.distance - 24.93) < 0.01, `the four-rung figure moved to ${legacyPair.distance.toFixed(2)}`);
   // THE HONEST-BAR TEST: where would a number picked to PASS have sat? Just under 24.93. The bar
   // is 30% below that and is derived from the ladder rather than chosen.
   assert.ok(pair.step < pair.distance * 0.8);
@@ -113,19 +137,29 @@ test('THE CONSTRAINT: grey and black clear the lighting-step bar at every rung',
 
 test('THE BAR CAN FAIL — three greys that were candidates, and why each is not the one', () => {
   const black = STATUS_TOKENS.get('unhealthy')!.top[0]!;
-  const bar = (g: string) => Math.max(largestRungStep(g), largestRungStep(black));
+  const bar = (g: string) =>
+    Math.max(largestRungStep(g, LEGACY_SHADE_LEVELS), largestRungStep(black, LEGACY_SHADE_LEVELS));
 
   // (a) A PURE BRIGHTNESS VARIANT of the charred token — the literal ADR-0414 D4 case. Its
   // chromatic residual is essentially zero and the cross-rung minimum collapses with it.
+  // ⚠ ASKED ON THE FOUR-RUNG LADDER, because that is where these three candidates were judged and
+  // rejected. On the nine-rung ladder the bar is the ladder's own 0.025 step rather than a 0.10
+  // one, so a bar this small is cleared by almost anything — the arms below would stop failing and
+  // the test would silently become an assertion that nothing collides. Whether the grey candidates
+  // would be rejected again under a finer ladder is a live question and not this test's.
   const brightnessOnly = '#7a7668';
   assert.ok(chromaticSeparation(brightnessOnly, black) < 0.5, 'this arm must BE a brightness variant');
-  assert.ok(crossRungSeparation(brightnessOnly, black).distance < bar(brightnessOnly));
+  assert.ok(
+    crossRungSeparation(brightnessOnly, black, LEGACY_SHADE_LEVELS).distance < bar(brightnessOnly),
+  );
 
   // (b) A DARKER warm grey — the same cast, close enough in luma that the ladder reaches across.
   const darkWarm = '#6d6a5f';
-  assert.ok(crossRungSeparation(darkWarm, black).distance < bar(darkWarm));
+  assert.ok(crossRungSeparation(darkWarm, black, LEGACY_SHADE_LEVELS).distance < bar(darkWarm));
   assert.deepEqual(
-    foreignColourReads(withGrey(darkWarm)).filter((r) => r.includes('black') || r.includes('grey')),
+    foreignColourReads(withGrey(darkWarm), undefined, undefined, LEGACY_SHADE_LEVELS).filter(
+      (r) => r.includes('black') || r.includes('grey'),
+    ),
     ['grey@0.78->black', 'grey@0.8->black'],
     'a dark warm grey slides onto the charred token — doubt read as failure',
   );
@@ -136,27 +170,57 @@ test('THE BAR CAN FAIL — three greys that were candidates, and why each is not
   // proof read as doubt. This is the arm that shows the constraint had to be checked against the
   // WHOLE vocabulary and not just against the pair the increment named.
   const naive = '#808763';
-  assert.ok(crossRungSeparation(naive, black).distance > bar(naive), 'the naive grey does clear grey/black');
+  assert.ok(
+    crossRungSeparation(naive, black, LEGACY_SHADE_LEVELS).distance > bar(naive),
+    'the naive grey does clear grey/black',
+  );
   // ⚠ RECORDED ON THE PALETTE OF 2026-08-27, and pinned to it. Two of these four reads are the tan
   // brown's — `brown@0.78->grey` is the sage grey catching the tan, and the two `yellow->brown`
   // entries are ADR-0462's own remaining defect showing through the arm. The clay removed both, so
   // reading this list off the live table would quietly shrink the recorded counterfactual until it
   // no longer demonstrated what it was written to demonstrate.
-  assert.deepEqual(foreignColourReads(withGrey(naive, ADR0462_STATUS_TOKENS)), [
+  assert.deepEqual(
+    foreignColourReads(withGrey(naive, ADR0462_STATUS_TOKENS), undefined, undefined, LEGACY_SHADE_LEVELS),
+    [
     'brown@0.78->grey',
     'green@0.78->grey',
     'yellow@0.78->brown',
     'yellow@0.8->brown',
-  ]);
+    ],
+  );
 
   // AND THE LESSON OUTLIVES THE PALETTE, which is the reason the arm is kept rather than deleted.
-  // On TODAY's vocabulary the naive grey still clears the pair the increment named and still fails
-  // elsewhere — `healthy`'s dark rung reading as doubt. Fewer reads, same finding: a candidate has
-  // to be checked against the WHOLE vocabulary, not against the pair it was aimed at.
-  assert.deepEqual(foreignColourReads(withGrey(naive)), ['green@0.78->grey']);
+  // On TODAY's vocabulary, judged on the ladder this candidate was judged on, the naive grey still
+  // clears the pair the increment named and still fails elsewhere — `healthy`'s dark rung reading
+  // as doubt. Fewer reads, same finding: a candidate has to be checked against the WHOLE
+  // vocabulary, not against the pair it was aimed at.
+  assert.deepEqual(
+    foreignColourReads(withGrey(naive), undefined, undefined, LEGACY_SHADE_LEVELS),
+    ['green@0.78->grey'],
+  );
+
+  // ⚠⚠ BUT IT DOES NOT OUTLIVE THE LADDER, AND THAT IS A FINDING RATHER THAN A HOLE IN THE ARM.
+  // On the nine-rung ladder adopted 2026-08-31 the naive grey misreports NOTHING — not because it
+  // became a better colour, but because every read this arm ever produced lived on the 0.78 rung,
+  // and the adoption dropped it. The darkest LIT rung is where two families are compressed closest
+  // together, so raising the floor from 0.78 to 0.80 removed that whole class of misread. It is
+  // the same mechanism behind the pre-ADR-0462 palette's recorded six reads becoming a different
+  // six, and it is a semantic GAIN of the refinement rather than a side effect to work around.
+  //
+  // ⚠ Read precisely: this says the READER cannot be fooled at these rungs any more. It does not
+  // say the naive grey would now be an acceptable `unknown` — that call was made on other grounds
+  // (ADR-0414 D4's chromatic residual, asserted in arm (a)) and nothing here reopens it.
+  assert.deepEqual(foreignColourReads(withGrey(naive)), []);
 
   // ...and the authored slate does none of it. Zero, since the clay: the tan's two were the last.
-  assert.deepEqual(foreignColourReads(ADR0462_STATUS_TOKENS), ['yellow@0.78->brown', 'yellow@0.8->brown']);
+  assert.deepEqual(
+    foreignColourReads(ADR0462_STATUS_TOKENS, undefined, undefined, LEGACY_SHADE_LEVELS),
+    ['yellow@0.78->brown', 'yellow@0.8->brown'],
+  );
+  // ⚠ ONE OF THE TWO IS A 0.78-RUNG READ, so on the adopted ladder the pre-clay palette is down
+  // to a single misread — the same floor-raising effect as the naive grey above. It is still
+  // refused, on one read rather than two.
+  assert.deepEqual(foreignColourReads(ADR0462_STATUS_TOKENS), ['yellow@0.8->brown']);
   assert.deepEqual(foreignColourReads(), []);
 });
 
@@ -174,8 +238,8 @@ test('ADR-0462 removed four of the six cross-colour misreads, and the clay remov
   // shipped, `now` is live. Reading `mid` off the live table — which is what this test did until
   // the clay landed — would have turned ADR-0462's recorded outcome into a restatement of today's,
   // and the finding that ONE pair survived it would have vanished with the pair.
-  const before = foreignColourReads(LEGACY_STATUS_TOKENS);
-  const mid = foreignColourReads(ADR0462_STATUS_TOKENS);
+  const before = foreignColourReads(LEGACY_STATUS_TOKENS, undefined, undefined, LEGACY_SHADE_LEVELS);
+  const mid = foreignColourReads(ADR0462_STATUS_TOKENS, undefined, undefined, LEGACY_SHADE_LEVELS);
   const after = foreignColourReads();
   assert.deepEqual(before, [
     // brown at full light reading as the old orange-gold `building` yellow
@@ -194,13 +258,22 @@ test('ADR-0462 removed four of the six cross-colour misreads, and the clay remov
   assert.deepEqual([...new Set(mid.map((r) => r.split('@')[0]))], ['yellow']);
   // THE CLAY CLOSES IT. Six misreads, then two, then none: no delivered land pixel on any lit rung
   // now reads as a colour other than its own.
+  //
+  // ⚠⚠ AND `after` IS ASKED ON THE NINE-RUNG LADDER THE MAP ACTUALLY WEARS, deliberately, because
+  // this is the fence ADR-0392 D5 / ADR-0398 D7 carry and a ladder change is exactly the kind of
+  // move that could reopen it. Refining more than DOUBLED the enumerable closure (25 authored
+  // entries to 50 over the shipped tokens, shadow rung included) and added no misread at all.
   assert.deepEqual(after, []);
+  // NON-VACUITY, and it is worth having: the same instrument on the same live palette DOES report
+  // misreads for a ladder that reaches lower, so the empty list above is the palette holding and
+  // not the sweep having quietly stopped looking.
+  assert.ok(foreignColourReads(LEGACY_STATUS_TOKENS, undefined, undefined, [0.6, 0.78, 0.9, 1.0]).length > 0);
 });
 
 test('the worst pair of DISTINCT colours went 3.33 -> 8.27 -> 23.72, and brown left the bottom slot', () => {
-  const before = worstColourPair(LEGACY_STATUS_TOKENS);
-  const mid = worstColourPair(ADR0462_STATUS_TOKENS);
-  const after = worstColourPair();
+  const before = worstColourPair(LEGACY_STATUS_TOKENS, undefined, LEGACY_SHADE_LEVELS);
+  const mid = worstColourPair(ADR0462_STATUS_TOKENS, undefined, LEGACY_SHADE_LEVELS);
+  const after = worstColourPair(STATUS_TOKENS, undefined, LEGACY_SHADE_LEVELS);
   assert.deepEqual([before.a, before.b].sort(), ['green', 'grey']);
   assert.ok(Math.abs(before.distance - 3.33) < 0.01, `before moved to ${before.distance.toFixed(2)}`);
   // ADR-0462's own recorded figure, frozen against the palette it was taken on.
@@ -213,10 +286,31 @@ test('the worst pair of DISTINCT colours went 3.33 -> 8.27 -> 23.72, and brown l
   assert.ok(Math.abs(after.distance - 23.72) < 0.01, `after moved to ${after.distance.toFixed(2)}`);
   assert.ok(mid.distance > before.distance * 2, 'the weakest link should have improved by more than 2x');
   assert.ok(after.distance > mid.distance * 2, 'and again by more than 2x');
-  // Pairs still UNDER the lighting-step bar: three, then one, then none.
-  assert.equal(colourPairs(LEGACY_STATUS_TOKENS).filter((p) => p.distance < p.step).length, 3);
-  assert.equal(colourPairs(ADR0462_STATUS_TOKENS).filter((p) => p.distance < p.step).length, 1);
-  assert.equal(colourPairs().filter((p) => p.distance < p.step).length, 0);
+  // ⚠ AND ON THE LADDER THE MAP NOW WEARS, THE ORDERING IS DIFFERENT — kept here rather than
+  // replacing the line above, because the two answer different questions. The nine-rung ladder
+  // adds cross-rung pairs, so the minimum over them can only fall, and `yellow/brown` takes the
+  // bottom slot back from `yellow/green`. It is still 20.68, i.e. more than twice ADR-0462's 8.27,
+  // so the clay's absolute gain survives; what does not survive is "brown left the bottom slot",
+  // which was a claim about a four-rung ladder. Whether that matters is a look question for the
+  // owner, not a fence: `foreignColourReads()` on this ladder is empty, asserted above.
+  const live = worstColourPair();
+  assert.deepEqual([live.a, live.b].sort(), ['brown', 'yellow']);
+  assert.ok(live.distance > mid.distance * 2, `the live worst pair is ${live.distance.toFixed(2)}`);
+  // Pairs still UNDER the lighting-step bar: three, then one, then none — on the ladder those
+  // three counts were taken against.
+  const under = (t: ReadonlyMap<string, StatusFamily>, ladder: readonly number[]): number =>
+    colourPairs(t, undefined, ladder).filter((p) => p.distance < p.step).length;
+  assert.equal(under(LEGACY_STATUS_TOKENS, LEGACY_SHADE_LEVELS), 3);
+  assert.equal(under(ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS), 1);
+  assert.equal(under(STATUS_TOKENS, LEGACY_SHADE_LEVELS), 0);
+  // ⚠ AND ON THE ADOPTED LADDER THE BAR ALMOST STOPS DISCRIMINATING, which is not a claim that
+  // the 2026-08-18 vocabulary was fine: the BAR is a family's largest single lighting step, and
+  // 0.025 rungs make that step small enough that a pair has to be very close indeed to sit under
+  // it. Three of the oldest palette's collisions clear it; ONE still does not. The bar loses most
+  // of its power; the FOREIGN-READ verdict does not, and it is what still refuses that palette
+  // (asserted in the red-green test above). That is why the two instruments are kept separate.
+  assert.equal(under(LEGACY_STATUS_TOKENS, SHADE_LEVELS), 1);
+  assert.equal(under(STATUS_TOKENS, SHADE_LEVELS), 0);
 });
 
 test('colourPairs enumerates COLOURS, never statuses — the merge is not a collision', () => {
@@ -249,10 +343,16 @@ test('LEGACY_STATUS_TOKENS is HISTORY: it differs from the live palette and is n
   assert.notEqual(LEGACY_STATUS_TOKENS.get('building')!.top[0], LEGACY_STATUS_TOKENS.get('proposed')!.top[0]);
 });
 
-test('the delivered ramp of every live token is still four distinct colours', () => {
+test('the delivered ramp of every live token is still ONE DISTINCT COLOUR PER RUNG', () => {
   // The palette closure is `palette-band.ts`'s to prove; what is checked here is only that the
   // newly authored slate has not been given a token so dark that two rungs round together, which
-  // would quietly cost the family a quarter of its relief.
+  // would quietly cost the family part of its relief.
+  //
+  // ⚠ IT GOT HARDER ON 2026-08-31 AND STILL HOLDS. Nine rungs at 0.025 means adjacent rungs differ
+  // by 2.5% of a channel, so a channel under about 40 rounds two rungs together — where the
+  // four-rung ladder's smallest gap was 0.02 only once, at the very bottom. Every channel of every
+  // live land token clears it; `src/shade-ladder.test.ts` holds the same property for the shipped
+  // ground tokens with a non-vacuity arm.
   for (const c of LAND_COLOURS) {
     for (const token of tokensOfColour(c)) {
       const delivered = new Set(SHADE_LEVELS.map((l) => toHex(deliveredForLevel(token, l))));
@@ -286,20 +386,31 @@ test('⚠ THE SEPARATION CHECK CAN FAIL — it REFUSES the palette that shipped 
   // work, and two instruments on this arc were found in exactly that state (one compared a
   // hand-copied duplicate of its own subject; one timed the wrong thing). So the check is run
   // against the REAL pre-change palette — not a synthetic bad case — and has to refuse it.
-  const before = vocabularySeparation(ADR0462_STATUS_TOKENS);
+  const before = vocabularySeparation(ADR0462_STATUS_TOKENS, undefined, undefined, LEGACY_SHADE_LEVELS);
   assert.equal(before.pass, false, 'the pre-clay palette must NOT clear the floor');
   assert.equal(before.tightest.pair, 'yellow/brown');
   assert.ok(Math.abs(before.tightest.ratio - 0.395) < 0.002, `ratio ${before.tightest.ratio.toFixed(3)}`);
   assert.deepEqual(before.under.map((u) => u.pair), ['yellow/brown']);
   assert.deepEqual([...before.foreignReads], ['yellow@0.78->brown', 'yellow@0.8->brown']);
 
-  // ...and it passes the one that shipped after.
-  const now = vocabularySeparation();
+  // ...and it passes the one that shipped after, on the same ladder.
+  const now = vocabularySeparation(STATUS_TOKENS, undefined, undefined, LEGACY_SHADE_LEVELS);
   assert.equal(now.pass, true);
   assert.equal(now.tightest.pair, 'yellow/green');
   assert.ok(Math.abs(now.tightest.ratio - 1.134) < 0.002, `ratio ${now.tightest.ratio.toFixed(3)}`);
   assert.deepEqual(now.under, []);
   assert.deepEqual([...now.foreignReads], []);
+
+  // ⚠⚠ AND ON THE LADDER THE MAP NOW WEARS. Kept beside the pair above rather than replacing it,
+  // because the ordering moved and the verdict did not: `yellow/brown` is the tightest pair again
+  // — refining shrinks every family's largest lighting STEP, which is the denominator — while the
+  // ratio rises from 1.13 to over 4 and the foreign-read list stays empty. The fence
+  // (ADR-0392 D5 / ADR-0398 D7) is the empty list; the ordering is a look observation.
+  const adopted = vocabularySeparation();
+  assert.equal(adopted.pass, true);
+  assert.equal(adopted.tightest.pair, 'yellow/brown');
+  assert.ok(adopted.tightest.ratio > 4, `ratio ${adopted.tightest.ratio.toFixed(3)}`);
+  assert.deepEqual([...adopted.foreignReads], []);
 });
 
 test('the verdict ranks by RATIO, not by distance — and the two orderings genuinely disagree', () => {

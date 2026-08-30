@@ -222,8 +222,9 @@ test('every declared token is PROVABLE — it has a colour nothing else on the i
 });
 
 test('the subtraction actually subtracts — a shared colour cannot prove either token', () => {
-  // Today's palette has NO collision (measured: all 21 prop tokens keep all five of their
-  // delivered colours across the 60 land tokens), so the subtraction currently removes nothing
+  // Today's palette has NO collision (measured: all 21 prop tokens keep all ten of their
+  // delivered colours across the 60 land tokens — five until the nine-rung ladder was adopted on
+  // 2026-08-31), so the subtraction currently removes nothing
   // and a test written against the real universe would agree with the answer whether or not the
   // line existed. Two constructed greys collide exactly — 125 x 0.80 rounds to 100, and 100 x 1.00
   // is 100 — which is what makes this an observation rather than a restatement.
@@ -231,7 +232,7 @@ test('the subtraction actually subtracts — a shared colour cannot prove either
   const b = '#7d7d7d';
   const alone = discriminatingColours(a, [a]);
   const shared = discriminatingColours(a, [a, b]);
-  assert.equal(alone.length, 5, 'on its own a token keeps every rung it delivers');
+  assert.equal(alone.length, 10, 'on its own a token keeps every rung it delivers');
   assert.ok(alone.includes(a), 'including its own full-strength colour');
   assert.ok(!shared.includes(a), 'which the neighbour also delivers, so it can prove neither');
   assert.equal(shared.length, alone.length - 1);

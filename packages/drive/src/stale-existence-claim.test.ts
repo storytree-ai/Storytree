@@ -239,16 +239,31 @@ test("real corpus: boot-read-routes — sourceFile exists AND the spec's own pro
   assert.match(refusal?.body ?? "", /boot-read-routes\.ts/);
 });
 
-// REPOINTED 2026-08-25. This case used to read `backend-chat-reset-route`, whose declared path was
-// genuinely missing until that capability was BUILT and signed (run `real-mt8n6ern`, verdict @ 5445a18)
-// — at which point its sourceFile existed and its prose still claimed otherwise, so the fixture began
-// asserting the opposite of the truth. That is the mirror of the maintenance the comment above already
-// anticipated for the "(a) refuses" case, and it is the cost of validating against the LIVE corpus:
-// this case needs an id whose declared path is still absent, so proving one out repoints it.
-// `pixellab-organic-growth-tracks` → `packages/app-surface/src/organic-growth-track.ts` is absent today.
-test("real corpus: pixellab-organic-growth-tracks — the declared path is genuinely still missing → does not refuse", () => {
-  const spec = loadRealSpec("pixellab-organic-growth-tracks");
-  assert.equal(spec.buildConfig?.real?.sourceFile, "packages/app-surface/src/organic-growth-track.ts");
+// REPOINTED TWICE, AND THIS TIME AT A PATH WHOSE ABSENCE IS PERMANENT BY DESIGN — which is what
+// takes the recurring maintenance off this case for good.
+//
+// It first read `backend-chat-reset-route`, whose declared path was genuinely missing until that
+// capability was BUILT and signed (run `real-mt8n6ern`, verdict @ 5445a18); it then read
+// `pixellab-organic-growth-tracks`, whose declared path was missing because the spec was STALE —
+// the real suites were `organic-pose-to-pose-{track,assets}` all along. Correcting that spec
+// (`prove-unproven-capabilities-arc` inc-23 lane B) landed the same repoint a third time.
+//
+// Both predecessors shared a defect this case can now shed: their absence was a CONDITION SOMEBODY
+// WOULD EVENTUALLY FIX, so the fixture was always one honest landing away from asserting the
+// opposite of the truth — the very failure the comment above calls "the cost of validating against
+// the LIVE corpus". `studio-build-uat-seed` is different in kind. It is the repo's designated
+// always-red REAL-mode build target, and its own spec states the property this case needs: both its
+// declared paths are "deliberately net-new on main", and "a successful node --real run parks its
+// proven branch without landing these files, leaving the same red premise on fresh main". Its
+// absence is therefore load-bearing rather than pending — proving it out does not land it, so no
+// honest landing can quietly invert this assertion.
+//
+// It is a `contract` rather than a `capability`; `loadRealSpec` is tier-agnostic and the case tests
+// the refusal rule, not the tier. If this ever DOES resolve, that is a real change to the repo's
+// real-build target and repointing here is the correct signal, not a chore.
+test("real corpus: studio-build-uat-seed — the declared path is absent BY DESIGN → does not refuse", () => {
+  const spec = loadRealSpec("studio-build-uat-seed");
+  assert.equal(spec.buildConfig?.real?.sourceFile, "packages/drive/src/studio-build-uat-seed.ts");
   assert.equal(staleExistenceClaimRefusal(spec, root), null);
 });
 

@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createBandedGroundMaterial, groundRamp } from '../src/banded-ground-material.js';
-import { SHADE_LEVELS, deliveredForLevel } from '../src/shade-ladder.js';
+import { LEGACY_SHADE_LEVELS, SHADE_LEVELS, deliveredForLevel } from '../src/shade-ladder.js';
 import {
   flatGroundLevel,
   nearestReference,
@@ -30,7 +30,6 @@ import {
   LAND_STEPS,
   LAND_ZOOMS,
   PALETTE_CLOSED_ARMS,
-  REFINED_LADDER,
   landLadderHonest,
   litLadderOf,
   groundRowOf,
@@ -92,6 +91,15 @@ test('the ladder is a LADDER WITH ONE FORK — every arm adds one thing to a NAM
   // have compared it against a ground nobody may draw and made the refinement look like a
   // concession rather than a replacement.
   assert.equal(LAND_ARM_SPECS.find((it) => it.arm === 'dense')!.from, 'shadow');
+  // ⚠⚠ AND THE STEP SURVIVED THE ADOPTION ONLY BECAUSE THE EARLIER ARMS ARE PINNED. Once
+  // `SHADE_LEVELS` became the nine rungs, an unpinned `shadow` would have drawn the SAME ladder as
+  // `dense` — a step comparing a thing with itself, which no assertion about arms or specs can
+  // see. Its own predecessors are pinned with it, so the whole published chain stays reproducible.
+  for (const arm of ['banded', 'grain-normal', 'shadow', 'grain-both'] as const) {
+    assert.deepEqual([...litLadderOf(arm)], [...LEGACY_SHADE_LEVELS], `${arm} left its own ladder`);
+  }
+  assert.deepEqual([...litLadderOf('dense')], [...SHADE_LEVELS]);
+  assert.notDeepEqual([...litLadderOf('shadow')], [...litLadderOf('dense')]);
   assert.deepEqual([...LAND_ZOOMS], [2, 8], 'the overview and the zoomed read, as everywhere else');
 });
 
@@ -155,24 +163,32 @@ test('the arm that SHIPS keeps the closure and the arm that does not is the only
   // delivers the mottle out of authored `token x level` products alone, so these two arms write
   // ramp entries exactly as `shadow` does.
   assert.deepEqual([...PALETTE_CLOSED_ARMS], ['banded', 'grain-normal', 'shadow', 'dense']);
-  const lit = REFINED_LADDER;
+  // ⚠ THE REFINED LADDER IS NOW THE DEFAULT — `dense` is the arm that passes NO `lit`, and the
+  // pinned one is the LEGACY four-rung ladder the earlier arms were measured on. The pair below
+  // therefore reads the opposite way round from how it read before the adoption.
+  const refinedMat = createBandedGroundMaterial({ tokens, grain: 'normal' });
   assert.ok(
-    closed(createBandedGroundMaterial({ tokens, grain: 'normal', lit }).fragmentShader),
-    'a refined ladder must still write an authored ramp entry',
+    closed(refinedMat.fragmentShader),
+    'the refined ladder must still write an authored ramp entry',
   );
-  // NON-VACUITY on the refinement itself: a `lit` that changed nothing would satisfy the line
-  // above while proving nothing about the ladder. The shader must actually carry more rungs.
-  const refinedMat = createBandedGroundMaterial({ tokens, grain: 'normal', lit });
-  const shippedMat = createBandedGroundMaterial({ tokens, grain: 'normal' });
-  assert.notEqual(refinedMat.fragmentShader, shippedMat.fragmentShader);
+  // NON-VACUITY on the refinement itself: a ladder that changed nothing would satisfy the line
+  // above while proving nothing. The shipped shader must actually carry more rungs than the one
+  // the published `shadow` figures were taken against.
+  const legacyMat = createBandedGroundMaterial({
+    tokens,
+    grain: 'normal',
+    lit: LEGACY_SHADE_LEVELS,
+  });
+  assert.notEqual(refinedMat.fragmentShader, legacyMat.fragmentShader);
   assert.ok(
     (refinedMat.uniforms['uRamp']!.value as unknown[]).length >
-      (shippedMat.uniforms['uRamp']!.value as unknown[]).length,
-    'a refined ladder must upload MORE ramp entries, or it is the same ladder',
+      (legacyMat.uniforms['uRamp']!.value as unknown[]).length,
+    'the shipped ladder must upload MORE ramp entries than the legacy one, or nothing was adopted',
   );
-  assert.equal(REFINED_LADDER.length, 9);
-  assert.equal(REFINED_LADDER[0], 0.8);
-  assert.equal(REFINED_LADDER[REFINED_LADDER.length - 1], 1);
+  assert.equal(SHADE_LEVELS.length, 9);
+  assert.equal(SHADE_LEVELS[0], 0.8);
+  assert.equal(SHADE_LEVELS[SHADE_LEVELS.length - 1], 1);
+  assert.equal(LEGACY_SHADE_LEVELS.length, 4);
   for (const arm of PALETTE_CLOSED_ARMS) {
     assert.ok(LAND_ARMS.includes(arm), `${arm} is held to the closure but is not an arm`);
   }
@@ -194,15 +210,17 @@ test('the arms draw a MULTI-STATUS material, which is what retired the single-st
   assert.equal(ramp.length, GROUND_TOKENS.length * SHADE_LEVELS.length);
 });
 
-test('THE REFINED LADDER MOVES NOTHING DERIVED — same reference rung, same shadow rung, same margin', () => {
-  // ⚠⚠ THE NUMBERS THE OWNER'S FORK TURNS ON, pinned so none can drift into prose. The whole
-  // reason 0.025 is the spacing is that it leaves flat ground on 0.90, exactly where it is today;
-  // every derived quantity that hangs off the reference is therefore unchanged, and the ONLY thing
-  // that moves is how much of the island the grain reaches.
+test('THE ADOPTED LADDER MOVED NOTHING DERIVED — same reference rung, same shadow rung, same margin', () => {
+  // ⚠⚠ THE NUMBERS THE OWNER'S FORK TURNED ON, pinned so none can drift into prose — and now
+  // asked of the ladder the map WEARS rather than of a candidate. The whole reason 0.025 is the
+  // spacing is that it leaves flat ground on 0.90, exactly where the four-rung ladder left it;
+  // every derived quantity that hangs off the reference is therefore unchanged across the
+  // adoption, and the ONLY thing that moved is how much of the island the grain reaches.
   const tokens = [...new Set(GROUND_TOKENS)];
-  assert.equal(flatGroundLevel(SHADE_LEVELS), 0.9);
-  assert.equal(flatGroundLevel(REFINED_LADDER), 0.9, 'the reference rung must NOT move');
-  assert.equal(shadowLadderFor(tokens, REFINED_LADDER).rung, 0.77, 'nor the derived shadow rung');
+  assert.equal(flatGroundLevel(LEGACY_SHADE_LEVELS), 0.9);
+  assert.equal(flatGroundLevel(SHADE_LEVELS), 0.9, 'the reference rung must NOT move');
+  assert.equal(shadowLadderFor(tokens, SHADE_LEVELS).rung, 0.77, 'nor the derived shadow rung');
+  assert.equal(shadowLadderFor(tokens, LEGACY_SHADE_LEVELS).rung, 0.77);
   assert.equal(shadowLadderFor(tokens).rung, 0.77);
 
   const tightest = (lit: readonly number[]): number => {
@@ -215,15 +233,15 @@ test('THE REFINED LADDER MOVES NOTHING DERIVED — same reference rung, same sha
     }
     return min;
   };
-  assert.equal(tightest(SHADE_LEVELS).toFixed(2), '0.93');
-  assert.equal(tightest(REFINED_LADDER).toFixed(2), '0.93', 'refining must cost NO margin');
+  assert.equal(tightest(LEGACY_SHADE_LEVELS).toFixed(2), '0.93');
+  assert.equal(tightest(SHADE_LEVELS).toFixed(2), '0.93', 'refining must have cost NO margin');
 
   // ⚠⚠ AND THE HONESTY IS ASKED AGAINST EACH LADDER'S OWN REFERENCE. This is the check whose
   // absence nearly published a dishonest arm: a 0.02-spaced ladder puts flat ground on 0.92
   // instead of 0.90, and against THAT reference its darkest rungs misreport — while against
   // `SHADE_LEVELS`' references it looks free. Judged correctly, it is refused.
   assert.ok(landLadderHonest(SHADE_LEVELS));
-  assert.ok(landLadderHonest(REFINED_LADDER));
+  assert.ok(landLadderHonest(LEGACY_SHADE_LEVELS));
   const twoHundredths = Array.from({ length: 12 }, (_, i) => Math.round((0.78 + i * 0.02) * 100) / 100);
   assert.equal(flatGroundLevel(twoHundredths), 0.92, 'a 0.02 grid moves the reference');
   assert.equal(landLadderHonest(twoHundredths), false, 'and that makes its floor misreport');

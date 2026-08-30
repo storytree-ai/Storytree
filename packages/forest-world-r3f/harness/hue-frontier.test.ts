@@ -23,6 +23,7 @@ import {
 } from './hue-frontier.js';
 import { STATUS_TOKENS, parseHex } from './palette-band.js';
 import { ADR0462_STATUS_TOKENS, colourPairs, vocabularySeparation } from './status-vocabulary.js';
+import { LEGACY_SHADE_LEVELS } from './palette-band.js';
 
 test('a null warp is the identity — the sweep contains its own starting colours', () => {
   const base = ADR0462_STATUS_TOKENS.get('mapped')!;
@@ -61,6 +62,18 @@ test('`wheat` is NOT warped — it is shared by every family', () => {
 /* ── ⚠⚠ THE RATCHET — the property this module exists for ───────────────────────────────────── */
 
 test('THE RATCHET is real but INERT here — and the report must not claim it saved anything', () => {
+  // ⚠⚠ EVERY CALL IN THIS FILE PASSES `LEGACY_SHADE_LEVELS`, AND THAT IS NOT A RE-PIN — IT IS WHAT
+  // MAKES THIS A REPRODUCTION. ADR-0462's search was run against the four-rung ladder
+  // [0.78, 0.80, 0.90, 1.00]; the map adopted a nine-rung one on 2026-08-31. Every ratio here is a
+  // separation divided by a family's largest LIGHTING STEP, and refining the ladder shrinks that
+  // step from ~0.10 to 0.025 — so the pre-clay palette's recorded 0.395 reads as 1.439 on today's
+  // ladder without one colour having moved, and the sweep's own pick changes from the shipped
+  // `#b7684e` to `#9e614d`. Re-running a search on a ladder that did not exist when the decision
+  // was made reproduces nothing; it is a different search wearing the old one's assertions.
+  //
+  // What the LIVE ladder says about the LIVE palette is asserted at the bottom of this file, which
+  // is where a reader should look for today's answer.
+  //
   // The ratchet exists because a bar computed FROM the families being compared can be shrunk by
   // desaturating one of them. On THIS vocabulary it changes nothing, and that is worth pinning:
   // the pair that binds is yellow/brown, and its bar is YELLOW's own rung step, which no edit to
@@ -74,9 +87,18 @@ test('THE RATCHET is real but INERT here — and the report must not claim it sa
       for (const val of [0.7, 0.85, 1.0]) {
         const tokens = new Map(ADR0462_STATUS_TOKENS);
         tokens.set('mapped', warpFamily(base, deg, sat, val));
-        const ownBars = new Map(colourPairs(tokens).map((p) => [`${p.a}/${p.b}`, p.step] as const));
-        const own = tightestPair(tokens, ownBars).ratio;
-        const ratcheted = tightestPair(tokens, todaysBars(ADR0462_STATUS_TOKENS)).ratio;
+        const ownBars = new Map(
+          colourPairs(tokens, undefined, LEGACY_SHADE_LEVELS).map(
+            (p) => [`${p.a}/${p.b}`, p.step] as const,
+          ),
+        );
+        const own = tightestPair(tokens, ownBars, undefined, LEGACY_SHADE_LEVELS).ratio;
+        const ratcheted = tightestPair(
+          tokens,
+          todaysBars(ADR0462_STATUS_TOKENS, undefined, LEGACY_SHADE_LEVELS),
+          undefined,
+          LEGACY_SHADE_LEVELS,
+        ).ratio;
         assert.ok(ratcheted <= own + 1e-12, 'the ratchet may only ever be STRICTER');
         if (ratcheted < own - 1e-12) strictlyTighter++;
         if (own > 1 && ratcheted <= 1) flips++;
@@ -91,7 +113,12 @@ test('THE RATCHET is real but INERT here — and the report must not claim it sa
 });
 
 test('the palette the search STARTED from scores exactly as `status-vocabulary` said it did', () => {
-  const t = tightestPair(ADR0462_STATUS_TOKENS, todaysBars(ADR0462_STATUS_TOKENS));
+  const t = tightestPair(
+    ADR0462_STATUS_TOKENS,
+    todaysBars(ADR0462_STATUS_TOKENS, undefined, LEGACY_SHADE_LEVELS),
+    undefined,
+    LEGACY_SHADE_LEVELS,
+  );
   assert.equal(t.pair, 'yellow/brown');
   // 8.27 against a 20.92 bar — ADR-0462's remaining defect, restated in ratio form. This is the
   // number the whole search is measured against, so it is pinned to the table it was taken on.
@@ -102,14 +129,44 @@ test('the palette the search STARTED from scores exactly as `status-vocabulary` 
 test('AND THE PICK LANDED: the live vocabulary is the one the search said it would be', () => {
   // The other half of the reproduction. The sweep predicted, of the palette that would exist once
   // the clay landed: tightest pair `yellow/green`, ratio 1.134, zero foreign reads. This asserts
-  // that against the LIVE table — so the search's prediction and the shipped palette are held
-  // together, and a later edit to any land colour that broke the prediction would show up here
-  // rather than only in the frozen arm.
-  const t = tightestPair(STATUS_TOKENS);
+  // that against the LIVE table on the ladder the prediction was made for — so the search's
+  // prediction and the shipped palette are held together, and a later edit to any land colour that
+  // broke the prediction would show up here rather than only in the frozen arm.
+  const t = tightestPair(
+    STATUS_TOKENS,
+    todaysBars(STATUS_TOKENS, undefined, LEGACY_SHADE_LEVELS),
+    undefined,
+    LEGACY_SHADE_LEVELS,
+  );
   assert.equal(t.pair, 'yellow/green', 'brown is out of the bottom slot');
   assert.ok(Math.abs(t.ratio - 1.134) < 0.002, `live ratio is ${t.ratio.toFixed(3)}`);
   assert.deepEqual([...t.foreignReads], []);
-  assert.equal(vocabularySeparation().pass, true);
+  assert.equal(vocabularySeparation(STATUS_TOKENS, undefined, undefined, LEGACY_SHADE_LEVELS).pass, true);
+});
+
+test('⚠ AND ON THE LADDER THE MAP NOW WEARS: still separated, and brown is back in the bottom slot', () => {
+  // ⚠⚠ TODAY'S ANSWER, kept beside the reproduction rather than instead of it, because the two say
+  // different things and each one alone would mislead.
+  //
+  // The nine-rung ladder adopted on 2026-08-31 changed no colour and re-ordered the ratios anyway:
+  // every family's largest lighting step fell from ~0.10 of its own brightness to 0.025, so every
+  // separation divided by it rose. `yellow/brown` is the tightest pair again — the slot ADR-0462's
+  // clay was authored to get brown OUT of — and it now sits at more than FOUR TIMES its bar rather
+  // than at 0.4x. So the clay's gain is intact in absolute terms and the ordering that expressed
+  // it is not: "brown is out of the bottom slot" was a claim about a four-rung ladder.
+  //
+  // ⚠ WHAT MATTERS FOR THE MAP IS THE LINE BELOW, and it is the fence ADR-0392 D5 / ADR-0398 D7
+  // carry: no delivered pixel reads as a status it does not hold. That is unchanged, on a palette
+  // whose enumerable closure doubled.
+  const live = vocabularySeparation();
+  assert.deepEqual([...live.foreignReads], [], 'a refined ladder must not add a foreign read');
+  assert.equal(live.pass, true);
+  assert.equal(live.tightest.pair, 'yellow/brown');
+  assert.ok(live.tightest.ratio > 4, `the tightest pair sits at ${live.tightest.ratio.toFixed(3)} of its bar`);
+  // NON-VACUITY: the ratio rose because the BAR fell, not because the colours moved apart. Asked on
+  // the old ladder the same live palette reports its old, much tighter number.
+  const onLegacy = vocabularySeparation(STATUS_TOKENS, undefined, undefined, LEGACY_SHADE_LEVELS);
+  assert.ok(onLegacy.tightest.ratio < 1.2, `the same palette scores ${onLegacy.tightest.ratio.toFixed(3)} on four rungs`);
 });
 
 /* ── ⚠⚠ THE FRONTIER — what the vocabulary actually has room for ───────────────────────────── */
@@ -119,7 +176,7 @@ test('a brown-only edit CAN clear every pair — the first, narrower sweep was w
   // ZERO clearing candidates and peaked at 0.966 — which reads exactly like "the palette has no
   // room for a browner brown", and was one assertion away from being published as a finding. The
   // conclusion was a property of the search box. Widening it finds hundreds.
-  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS);
+  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS);
   const clearing = rows.filter((r) => r.ratio > 1 && r.foreignReads.length === 0);
   assert.ok(clearing.length > 100, `expected a wide frontier, got ${clearing.length}`);
 });
@@ -127,7 +184,7 @@ test('a brown-only edit CAN clear every pair — the first, narrower sweep was w
 test('the sweep reports its FAILURES too — a filtered frontier cannot show a shortfall', () => {
   // Non-vacuity in the other direction: if `sweepFamily` returned only the winners, the narrow
   // sweep above could never have been caught, because "no rows" and "no winners" would look alike.
-  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS);
+  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS);
   assert.ok(rows.some((r) => r.ratio < 1), 'the sweep must contain candidates that fail');
   assert.ok(rows.some((r) => r.foreignReads.length > 0), 'including some that misreport outright');
   assert.equal(rows.length, DEFAULT_SWEEP.deg.length * DEFAULT_SWEEP.sat.length * DEFAULT_SWEEP.val.length);
@@ -137,7 +194,7 @@ test('THE RULE, and the colour it picks: brown stops being the weakest link', ()
   // "Clears by N%" is a margin nobody can justify. The rule is a statement about the VOCABULARY:
   // the tightest pair must no longer involve brown at all — brown is out of the bottom slot, and
   // what binds instead is yellow/green, which no edit to brown ever touched.
-  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS);
+  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS);
   const unseating = rows.filter(
     (r) => r.ratio > 1 && r.foreignReads.length === 0 && !r.pair.includes('brown'),
   );
