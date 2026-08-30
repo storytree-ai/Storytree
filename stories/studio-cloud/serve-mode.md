@@ -7,6 +7,30 @@ outcome: "A standalone node server serves the built SPA and the same /api route 
 status: proposed
 proof_mode: integration-test
 depends_on: []
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057.
+# `one-route-table` — `serveApi.integration.test.ts` boots `createStudioServer` (serve.ts) over a REAL
+# node:http server and drives the whole /api surface through `apiRouter.handleApiRequest`, while the
+# dev-side suites (`healthApi`/`claimsApi`/`activityApi.integration.test.ts`) import the SAME handlers
+# through devApi's re-export — one table, two mounts, both green.
+# `static-spa-serving` — the same suite's "serves index.html at / and real assets by path (no identity
+# needed)" and "falls back to index.html for unknown paths (hash routing)", with the traversal guard
+# proven directly by `pathTraversal.test.ts` (containedPath / safeDocPath / uatContextForStory).
+# `port-and-paths-from-env` — `repoRootOverride.test.ts` proves docs/ and stories/ resolve from the
+# resolved studio paths rather than CWD, and the integration server binds an injected port.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "studio", "test"]
+  scope:
+    testGlobs:
+      - "apps/studio/server/serveApi.integration.test.ts"
+      - "apps/studio/server/pathTraversal.test.ts"
+      - "apps/studio/server/repoRootOverride.test.ts"
+    sourceGlobs:
+      - "apps/studio/server/serve.ts"
+      - "apps/studio/server/apiRouter.ts"
+      - "apps/studio/server/devApi.ts"
 ---
 
 # The studio serves without Vite — static dist plus the one shared API route table

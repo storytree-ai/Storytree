@@ -7,6 +7,25 @@ outcome: "Every API request resolves its verified email to a user row and enforc
 status: proposed
 proof_mode: integration-test
 depends_on: [user-directory]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. All three contracts are
+# exercised today by the studio suite: `serveApi.integration.test.ts` drives the REAL hosted server
+# over node:http and asserts membership-gates-the-corpus ("a stranger gets 403 + requestAccess on the
+# whole corpus; only /api/me answers"), role-enforced ("a member reads, comments as self, but cannot
+# write assets or reach user mgmt" / the seed admin writing assets) and identity-still-fail-closed
+# ("refuses identity-less /api/* with 401 — every route, health and me included");
+# `guestPolicy.test.ts` proves the same decisions at the policy layer, degraded and normal.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "studio", "test"]
+  scope:
+    testGlobs:
+      - "apps/studio/server/serveApi.integration.test.ts"
+      - "apps/studio/server/guestPolicy.test.ts"
+    sourceGlobs:
+      - "apps/studio/server/guestPolicy.ts"
+      - "apps/studio/server/identity.ts"
 ---
 
 # The app authorizes by user row and role; non-members are served nothing

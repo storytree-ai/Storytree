@@ -7,6 +7,32 @@ outcome: "When the shared Cloud SQL instance is idle-stopped, an admin presses o
 status: proposed
 proof_mode: integration-test
 depends_on: [serve-mode, guest-scope]
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. All four contracts are
+# exercised today:
+# `keyless-rest-wake` — `dbWake.test.ts`: createDbWaker "PATCHes the right instance URL with
+# activationPolicy=ALWAYS and the bearer token", throws with the Admin-API reason on a non-2xx, and
+# handleDbWake answers 202/405/404/502 over a real http server.
+# `admin-gated-wake` — `serveApi.integration.test.ts`: "an admin wakes the DB (202, the waker fires);
+# a member is refused before any wake", non-POST 405, identity-less 401, and canWakeDb on /api/me.
+# `degraded-seed-wake` — `guestPolicy.test.ts`'s createDegradedPolicy block: a seed admin may wake
+# while the store is down, a non-seed member is 403, /api/health + /api/me stay alive, 503 elsewhere.
+# `button-recovers` — `StoreBanner.test.tsx`: "canWake: shows 'Wake the database'; click → api.dbWake
+# → starting → health ok → recovered" and the 403 reason surfacing with the affordance kept.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "studio", "test"]
+  scope:
+    testGlobs:
+      - "apps/studio/server/dbWake.test.ts"
+      - "apps/studio/server/guestPolicy.test.ts"
+      - "apps/studio/server/serveApi.integration.test.ts"
+      - "apps/studio/src/components/StoreBanner.test.tsx"
+    sourceGlobs:
+      - "apps/studio/server/dbWake.ts"
+      - "apps/studio/server/guestPolicy.ts"
+      - "apps/studio/src/components/StoreBanner.tsx"
 ---
 
 # The hosted studio wakes its own idle-stopped DB
