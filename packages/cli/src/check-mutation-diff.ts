@@ -44,6 +44,7 @@ import {
   type NarrowedFile,
   parseUnifiedDiffRanges,
   changedLinesAreCodeFree,
+  noChangedTestOutcome,
   isNarrowedToNothing,
   type ReportPart,
   runnerFor,
@@ -371,6 +372,23 @@ function testScriptOf(dir: string): string | undefined {
   }
 }
 
+/**
+ * The on-disk text of every source file the selection will mutate, keyed by repo-relative path.
+ *
+ * Shared by the two skip paths that corroborate the diff against the source — the no-changed-test
+ * branch and the `vacuous` branch — so both ask {@link changedLinesAreCodeFree} about the same
+ * bytes. A file that has vanished is simply absent, which makes the code-free check fail closed on
+ * it rather than treat an unreadable range as blank.
+ */
+function sourcesFor(targets: readonly { sourceFiles: readonly string[] }[]): Map<string, string> {
+  const sources = new Map<string, string>();
+  for (const file of targets.flatMap((t) => t.sourceFiles)) {
+    const abs = path.join(repoRoot, file);
+    if (existsSync(abs)) sources.set(file, readFileSync(abs, "utf8"));
+  }
+  return sources;
+}
+
 function main(): void {
   const base = resolveBaseRef();
   console.log(`${TAG} base: ${base.because}`);
@@ -463,6 +481,37 @@ function main(): void {
   }
 
   if (selection.changedTestFiles.length === 0) {
+    // A DELETION-ONLY LANDING REACHES HERE WITH NOTHING TO PROVE, AND MUST NOT BE FAILED FOR IT.
+    //
+    // The `vacuous` branch far below already refuses to red a comment-only change — but it needs a
+    // Stryker report to get there, and this branch exits first, so a landing that DELETES code and
+    // corrects the comment naming it could never reach that disposition. Its only added lines are
+    // comment lines; there is no mutant for any test to kill, so "no changed test" is not evidence
+    // of anything. That made this rung unable to PASS a whole class of correct landings — the very
+    // "instrument that cannot PASS" failure the comment-only guard was written to avoid.
+    //
+    // ONE SIGNAL IS ENOUGH *HERE*, WHERE THE VACUOUS BRANCH NEEDS TWO. There the second signal
+    // (Stryker independently counting zero) disambiguates "ran and found nothing" from "silently
+    // did not run" — a distinction that exists only because a run was claimed. No run is claimed
+    // here, so the sole question is whether the diff contains a code line at all, and
+    // `changedLinesAreCodeFree` answers exactly that: it fails CLOSED on an unreadable source, an
+    // empty source map, and any range it cannot account for, so it can only skip when every changed
+    // line is provably blank or comment.
+    const sources = sourcesFor(selection.targets);
+    const outcome = noChangedTestOutcome({
+      changedLinesCodeFree: changedLinesAreCodeFree(ranges, sources),
+      inCi: process.env["CI"] === "true",
+      gateSkipExitCode: GATE_SKIP_EXIT_CODE,
+    });
+    if (outcome.kind === "skip") {
+      console.log(
+        `${TAG} ${outcome.label} — this branch changes no test, but every line it changed in ` +
+          `${[...sources.keys()].join(", ")} is blank or comment (the rest of the diff is deletion). ` +
+          `There is no mutant here for a test to kill.`,
+      );
+      if (outcome.exitCode !== 0) process.exit(outcome.exitCode);
+      return;
+    }
     console.error(`${TAG} this branch changes source under src/ but adds or changes NO test file:`);
     for (const target of selection.targets) {
       for (const file of target.sourceFiles) console.error(`${TAG}   ${file}`);
@@ -574,11 +623,7 @@ function main(): void {
 
     // Read once, used twice: the comment-only skip needs the source to corroborate the diff, and the
     // verdict render needs it to quote each mutant's original span beside its replacement.
-    const sources = new Map<string, string>();
-    for (const file of selection.targets.flatMap((t) => t.sourceFiles)) {
-      const abs = path.join(repoRoot, file);
-      if (existsSync(abs)) sources.set(file, readFileSync(abs, "utf8"));
-    }
+    const sources = sourcesFor(selection.targets);
 
     // A RUN NARROWED TO NOTHING IS A SKIP, NOT A VACUOUS FAILURE.
     //

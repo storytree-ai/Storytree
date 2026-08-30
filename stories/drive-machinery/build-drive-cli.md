@@ -6,14 +6,19 @@ title: "The build drive CLI (node build / story build)"
 outcome: "An operator drives any registered node or whole story through the gate from one CLI command and gets an honest envelope back."
 status: proposed
 proof_mode: integration-test
-depends_on: [prove-spec-resolution, prove-it-gate, real-build-worktree, story-topo-build, oq-hygiene-gate, work-verdict-event-log]
+depends_on: [prove-spec-resolution, prove-it-gate, real-build-worktree, story-topo-build, work-verdict-event-log]
+# `oq-hygiene-gate` was DROPPED from this list on 2026-08-30. The edge was code-import-evidenced —
+# `story-build.ts` imported `oqHygieneGate` and called it live-only before any spend — and that
+# import, its call site and the module were deleted when the capability retired (ADR-0477 removed the
+# library `references` field the gate's input lived in). `story build` no longer runs an OQ-hygiene
+# check on a live build; see oq-hygiene-gate.md for the retirement record.
 ---
 
 # The build drive CLI (node build / story build)
 
 **Outcome —** An operator drives any registered node or whole story through the gate from one CLI command and gets an honest envelope back.
 
-**Depends on —** [`prove-spec-resolution`](prove-spec-resolution.md), [`prove-it-gate`](prove-it-gate.md), [`real-build-worktree`](real-build-worktree.md), [`story-topo-build`](story-topo-build.md), [`oq-hygiene-gate`](oq-hygiene-gate.md), [`work-verdict-event-log`](work-verdict-event-log.md)
+**Depends on —** [`prove-spec-resolution`](prove-spec-resolution.md), [`prove-it-gate`](prove-it-gate.md), [`real-build-worktree`](real-build-worktree.md), [`story-topo-build`](story-topo-build.md), [`work-verdict-event-log`](work-verdict-event-log.md)
 
 > **Proof status (honest) — `proposed`, with the live arms still unsigned.** The dry-run
 > walks (single node AND whole story), every mode/refusal branch, and the forged-healthy store
@@ -43,9 +48,12 @@ The operator surface over the whole machinery — two commands, one honest-envel
   CALLER — exactly what lets `story build` chain nodes over one event log.
 - **`story build <story-id>`** (`packages/drive/src/story-build.ts:320-920`): loads the story + its
   listed capabilities, topo-orders them ([`story-topo-build`](story-topo-build.md)), prechecks
-  EVERY node's registry entry before any node runs (and before any spend), runs the
-  [`oq-hygiene-gate`](oq-hygiene-gate.md) (live only), then chains `driveNode` per node over ONE
-  store and runId. `--runtime` threads through the whole chain; Claude remains the compatibility
+  EVERY node's registry entry before any node runs (and before any spend), then chains `driveNode`
+  per node over ONE store and runId. (It ALSO ran the ADR-0037 §5
+  [`oq-hygiene-gate`](oq-hygiene-gate.md) live-only at this point, until that capability retired on
+  2026-08-30 — ADR-0477 removed the library `references` field the gate's input lived in — and the
+  call went with the module. A live `story build` no longer refuses on open-question hygiene.)
+  `--runtime` threads through the whole chain; Claude remains the compatibility
   default and may opt into a caller-supplied USD ceiling, while Codex refuses `--budget` rather
   than presenting subscription quota as API spend. The report derives per-node rollups off the one
   shared event log.
@@ -80,9 +88,9 @@ The operator surface over the whole machinery — two commands, one honest-envel
 Code edges for the `depends_on`: `node-build.ts:11-25` (the resolver/gate/worktree surface:
 `resolveProveSpec`, `proveUnit`, `createBuildWorktree`, `promoteRealPass`, `runRegressionSuite`,
 `runWorktreeTypecheck`, `loadNodeSpec`, `findNodeSpecFile`, registry lookups);
-`story-build.ts:20-22` (`runStoryBuild`, `topoOrderStoryNodes`); `story-build.ts:61`
-(`oqHygieneGate`); `node-build.ts:23-27` (`workEvent`, `rollupStatus`, `verdictLine`) and `:49`
-(`PgWorkStore`). **Cross-story (the story-level `library` edge):** `node-build.ts:41-44` also pulls
+`story-build.ts:20-22` (`runStoryBuild`, `topoOrderStoryNodes`); `node-build.ts:23-27`
+(`workEvent`, `rollupStatus`, `verdictLine`) and `:49`
+(`PgWorkStore`). **Cross-story (the story-level `library` edge):** `node-build.ts:44-49` also pulls
 `createPool`/`closePool`/`applySchema` — the library story's store-connection seam. The
 live-author imports are type-only — the consumed executor seam's reporting surface. Claude reports
 advisory API-list-price accounting for compatibility; Codex reports turns/tokens without pretending

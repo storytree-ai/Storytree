@@ -150,6 +150,44 @@ export function skipDisposition(args: {
   return { exitCode: args.gateSkipExitCode, label: "SKIP" };
 }
 
+/** What a branch that changed NO test file should do — see {@link noChangedTestOutcome}. */
+export type NoChangedTestOutcome =
+  | { readonly kind: "skip"; readonly exitCode: number; readonly label: string }
+  | { readonly kind: "fail" };
+
+/**
+ * A branch that adds or changes NO test file, but does change selected source: red, or skip?
+ *
+ * NORMALLY RED, and that is the rung's whole point — it asks whether THIS branch's own tests kill
+ * the mutants in its own changed lines, and with no changed test the answer is no by construction.
+ *
+ * THE ONE EXCEPTION IS A DIFF THAT ADDS NO CODE. A landing that DELETES code and corrects the
+ * comment naming it selects its file (the selection is textual, not syntactic) while adding only
+ * comment lines — so there is no mutant for any test to kill, and "no changed test" is evidence of
+ * nothing. Without this branch the rung could not PASS a whole class of correct landings, which is
+ * the "instrument that cannot PASS" failure its sibling comment-only guard already exists to avoid.
+ *
+ * ONE SIGNAL HERE, WHERE THE `vacuous` GUARD NEEDS TWO. That guard also requires Stryker to have
+ * independently counted zero, because it must tell "ran and found nothing" from "silently did not
+ * run" — a distinction that only exists because a run was claimed. No run is claimed here, so the
+ * sole question is whether the diff contains a code line at all. The caller answers it with
+ * {@link changedLinesAreCodeFree}, which fails CLOSED on an empty source map, an unreadable file
+ * and any range it cannot account for, so this can only skip when every changed line is provably
+ * blank or comment.
+ */
+export function noChangedTestOutcome(args: {
+  /** {@link changedLinesAreCodeFree} over the selected targets — the caller reads the sources. */
+  readonly changedLinesCodeFree: boolean;
+  /** `process.env.CI === "true"` — measured by the shell, never guessed here. */
+  readonly inCi: boolean;
+  /** `GATE_SKIP_EXIT_CODE`, passed in so this module owns no copy of it. */
+  readonly gateSkipExitCode: number;
+}): NoChangedTestOutcome {
+  if (!args.changedLinesCodeFree) return { kind: "fail" };
+  const skip = skipDisposition({ inCi: args.inCi, gateSkipExitCode: args.gateSkipExitCode });
+  return { kind: "skip", exitCode: skip.exitCode, label: skip.label };
+}
+
 /**
  * A `*.uat.test.ts` leg — EXCLUDED from the mutation runner's test set, and this is a repair rather
  * than a weakening.

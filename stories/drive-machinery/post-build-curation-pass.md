@@ -96,9 +96,14 @@ parking is the ADJUDICATOR's seat (ADR-0298 D2), and a pass scoped to ONE story 
 view of which initiative owns a remedy. A curator that cannot see the arcs would charter or mis-file
 them, which is exactly the homeless-item failure ADR-0298 exists to end. What it keeps is ESCALATE.
 
-**Not to be confused with [`oq-hygiene-gate`](oq-hygiene-gate.md)**, which is the OTHER end of the same
-build: a PRE-build refusal that blocks a live story build while an operator's answer sits unprocessed.
-This capability is the POST-green cleanup. Different trigger, different direction, no shared code.
+**This pass is now the ONLY open-question machinery on a live story build.** It used to be one end of
+a pair: [`oq-hygiene-gate`](oq-hygiene-gate.md) was the PRE-build refusal that blocked a live story
+build while an operator's answer sat unprocessed, and this capability is the POST-green cleanup —
+different trigger, different direction, no shared code. The pre-build half **RETIRED on 2026-08-30**
+(ADR-0477 removed the library `references` field it read to find the questions bearing on a story),
+so a live build no longer refuses on OQ hygiene before spending; it only curates after going green.
+The two never shared code, so nothing here changed — but the "OTHER end" is gone, and this pass does
+not and cannot stand in for it: it runs AFTER the spend and is advisory by construction.
 
 **Consumed by** [`story-topo-build`](story-topo-build.md) / [`build-drive-cli`](build-drive-cli.md):
 `story-build.ts:194` renders the curator prompt, `:207` constructs the live runner, and `:946-980` runs

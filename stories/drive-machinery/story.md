@@ -5,12 +5,17 @@ title: "The drive machinery"
 outcome: "The spine drives any registered node through a genuine red→green proof and lands the proven commit through the merge gate."
 status: proposed
 proof_mode: UAT
-capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, oq-hygiene-gate, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write]
+capabilities: [halt-aware-sequence, red-green-phase-machine, work-verdict-event-log, phase-scoped-write-wall, shell-test-observer, prove-it-gate, owned-loop-phase-author, real-build-worktree, prove-spec-resolution, spec-borne-proof-config, proof-command-vocabulary, story-topo-build, story-real-chain, multi-file-existing-source, gate-as-proof-authoring, build-drive-cli, adoption-pocket-classifier, uat-machine-proof-binding, uat-machine-gate-resolution, uat-bound-command-adoption, live-author-accounting-override, leaf-slices-observer-activation, live-build-db-preflight, post-build-curation-pass, build-usage-accounting, phase-activity-write]
+# `oq-hygiene-gate` was DROPPED from this list on 2026-08-30 when it retired (ADR-0477 removed the
+# library `references` field its input lived in). The drop is required, not cosmetic: rollupStoryGreen
+# iterates this array with no retired filter, so a retired id left here computes null and DROPS the
+# story's crown. Its doc survives as history at oq-hygiene-gate.md.
 # Story-level edge (ADR-0010 §4, code-import-evidenced; ADR-0036): the drive consumes the
 # library story's store connection seam — createPool/closePool/applySchema in
-# packages/drive/src/node-build.ts:41-44 (events.work_event/verdict are its OWN tables), and the
-# oq-hygiene gate's live loader composes the library's PgLibraryStore + PgCommentStore
-# (packages/drive/src/oq-gate.ts:110-119). The drive surface now lives in its own package
+# packages/drive/src/node-build.ts:44-49 (events.work_event/verdict are its OWN tables). The edge
+# formerly rested on a SECOND import too — the oq-hygiene gate's live loader composed the library's
+# PgLibraryStore + PgCommentStore — and that clause is dropped with the module; the store-connection
+# seam above is live, standing evidence on its own, so the EDGE is unchanged. The drive surface now lives in its own package
 # @storytree/drive (ADR-0112 — carved out of packages/cli/src), re-exported through cli's
 # ./build subpath for back-compat; cli depends_on drive and dispatches it from commands.ts.
 # ADR-0075: the spine (orchestrator) imports the base + proof-protocol ROOT ports (the proof
@@ -32,7 +37,11 @@ depends_on: [library, storage-protocol, proof-protocol, agent, notice-board]
 # edge already declared in stories/studio/story.md, so no new graph edge appears here.
 consumed_by: [cli]
 # Deciding ADRs (ADR-0037 §2): the spine sequence (5), the gate (20), the live-author seam (30),
-# promotion (31), leaf feedback tools (35), the OQ hygiene gate on live builds (37), the
+# promotion (31), leaf feedback tools (35), ADR-0037 — §2's deciding-ADR declaration this frontmatter
+# uses, and §5's live-build OQ hygiene gate, whose ENFORCEMENT half retired 2026-08-30 when ADR-0477
+# removed the library `references` field its input lived in (see oq-hygiene-gate.md; the decision is
+# kept in this list as the record of why that capability existed, and §3-4's PR half is live in
+# stories/ci-cd) — the
 # inner-loop-expansion keystone — node-borne proof config (57) — gate-as-proof authoring (59),
 # the drive-package extraction that gave this story its own @storytree/drive home (112), the
 # fail-closed per-UAT-leg proof binding required by ADR-0180 d.5, and the machine-witness conversion
@@ -53,8 +62,10 @@ the proven commit through the merge gate.
 
 This is the story home for storytree's own build machinery: the prove-it-gate (ADR-0020), the
 node/story build drive (`node build` / `story build`, PRs #26–#30), REAL worktree builds and
-promotion (ADR-0031), the leaf's bounded feedback tools (ADR-0035), and the OQ-hygiene gate on
-live story builds (ADR-0037 §5), plus ADR-0180's strict per-machine-UAT proof binding. Per the V1
+promotion (ADR-0031), the leaf's bounded feedback tools (ADR-0035), and — until 2026-08-30 — the
+OQ-hygiene gate on live story builds (ADR-0037 §5, retired with ADR-0477's removal of the library
+`references` field it read; [`oq-hygiene-gate`](oq-hygiene-gate.md) records the retirement), plus
+ADR-0180's strict per-machine-UAT proof binding. Per the V1
 lesson recorded in ADR-0031 §3, **machinery is
 ordinary work in the ordinary tree** — it gets a normal story, not a special meta-corner. It spans
 the spine in `packages/orchestrator`, proof DATA in `packages/proof-protocol`, event persistence in
@@ -70,7 +81,9 @@ brownfield provenance. Its dominant behaviour is observationally verified by the
 orchestrator, CLI, drive, and store suites, but standing tests and registration after implementation do
 not alter provenance or substitute for a signed pass (ADR-0395). The unsigned live arms are pinned per
 capability; the recurring shape is *offline-proven mechanics, live-attested-but-not-standing-tested live
-legs* (the SDK leaf, the GitHub push, the live Postgres SQL, the live OQ loader).
+legs* (the SDK leaf, the GitHub push, the live Postgres SQL). The live OQ loader was a fourth such
+pocket until 2026-08-30, when [`oq-hygiene-gate`](oq-hygiene-gate.md) retired and its module was
+deleted — the pocket is gone rather than closed.
 
 **Buildability is separate from authoredness:** `verdict-line` and the three strict UAT-binding
 nodes carry spec-borne `proof:` blocks today (ADR-0057 — no registry entry). A whole
@@ -115,7 +128,7 @@ and this story's frontmatter carries the `agent` edge in `depends_on`. The coupl
 documented prose — it is a first-class declared, world-visible edge (the boundary gate, ADR-0074,
 now sees the spine↔leaf seam).
 
-## Capabilities (27)
+## Capabilities (26)
 
 Listed roots-first (a capability appears after everything it depends on). `proposed` means this
 greenfield unit lacks a current signed pass; the Proof blockquote in each file records the standing
@@ -133,8 +146,8 @@ evidence and any unsigned live arms without treating either as brownfield proven
 | 8 | [`real-build-worktree`](real-build-worktree.md) | A signed REAL pass survives its worktree: the proven commit is parked on a run-unique claude/real branch that lands through the merge gate. | proposed | `shell-test-observer` |
 | 9 | [`prove-spec-resolution`](prove-spec-resolution.md) | Any registered node id resolves into a runnable ProveSpec for the chosen mode with nothing left to hand-wire. | proposed | `red-green-phase-machine`, `shell-test-observer`, `prove-it-gate`, `owned-loop-phase-author`, `real-build-worktree` |
 | 10 | [`story-topo-build`](story-topo-build.md) | A story's nodes drive through the gate in dependency order with the story's UAT node last and a halt never reported as a pass. | proposed | `halt-aware-sequence`, `prove-spec-resolution`, `prove-it-gate` |
-| 11 | [`oq-hygiene-gate`](oq-hygiene-gate.md) | A live story build is refused while an operator answer on a deciding ADR's open question sits unprocessed. | proposed | `prove-spec-resolution` |
-| 12 | [`build-drive-cli`](build-drive-cli.md) | An operator drives any registered node or whole story through the gate from one CLI command and gets an honest envelope back. | proposed | `prove-spec-resolution`, `prove-it-gate`, `real-build-worktree`, `story-topo-build`, `oq-hygiene-gate`, `work-verdict-event-log` |
+| ~~11~~ | ~~[`oq-hygiene-gate`](oq-hygiene-gate.md)~~ | **RETIRED 2026-08-30 (ADR-0477).** The gate found the open questions bearing on a story by reading `doc:decisions/NNNN` pointers in each question's library `references[]`. ADR-0477 removed that field, and `open-question` is edge-free (ADR-0223 D1), so there is no field left in which a question can say which decision it is about — the input is unrepresentable, not empty (measured: 27 live questions, 0 carrying a decisions pointer). The classification logic was unchanged and still unit-true when deleted; it is recoverable from git. | — | ~~`prove-spec-resolution`~~ |
+| 12 | [`build-drive-cli`](build-drive-cli.md) | An operator drives any registered node or whole story through the gate from one CLI command and gets an honest envelope back. | proposed | `prove-spec-resolution`, `prove-it-gate`, `real-build-worktree`, `story-topo-build`, `work-verdict-event-log` |
 | 13 | [`spec-borne-proof-config`](spec-borne-proof-config.md) | A node carries its own proof config, so authoring it is the single act that makes it inner-loop-buildable. | proposed | `prove-spec-resolution` |
 | 14 | [`proof-command-vocabulary`](proof-command-vocabulary.md) | A node declares its own proof command, so the same gate drives non-node:test work red→green. | proposed | `spec-borne-proof-config` |
 | 15 | [`story-real-chain`](story-real-chain.md) | A whole story grows to signed verdicts: capabilities real-built in dependency order over one worktree, promoted once. | proposed | `story-topo-build`, `real-build-worktree`, `spec-borne-proof-config` |
@@ -207,9 +220,9 @@ coupling) and marked.
 - `story-topo-build` → `prove-it-gate`
   - `story-build.ts:1` imports the `ProveResult` type (type-only) — a node's outcome in the chain
     is the gate's result.
-- `oq-hygiene-gate` → `prove-spec-resolution`
-  - `oq-gate.ts:2` imports the `NodeSpec` type (type-only) — the gate reads the loaded story
-    spec's `decisions`.
+- ~~`oq-hygiene-gate` → `prove-spec-resolution`~~ — **edge gone with the capability's retirement
+  (2026-08-30).** `oq-gate.ts` imported the `NodeSpec` type to read the loaded story spec's
+  `decisions`; the module is deleted, so the import that evidenced this edge no longer exists.
 - `build-drive-cli` → `prove-spec-resolution`
   - `node-build.ts:11-25` + `story-build.ts:8-23` import `resolveProveSpec`, `loadNodeSpec`,
     `findNodeSpecFile`, `mapProofMode`, and the registry lookups — the whole wiring surface.
@@ -220,8 +233,10 @@ coupling) and marked.
     `runRegressionSuite`, `runWorktreeTypecheck` — the `--real` lifecycle (`:634-702`).
 - `build-drive-cli` → `story-topo-build`
   - `story-build.ts:20-22` imports `runStoryBuild` + `topoOrderStoryNodes` (`:584`, `:424`).
-- `build-drive-cli` → `oq-hygiene-gate`
-  - `story-build.ts:61` imports `oqHygieneGate`, called live-only before any spend (`:526-527`).
+- ~~`build-drive-cli` → `oq-hygiene-gate`~~ — **edge gone with the capability's retirement
+  (2026-08-30).** `story-build.ts` imported `oqHygieneGate` and called it live-only before any
+  spend; the import, the call and the module are deleted, so `build-drive-cli` no longer declares
+  this edge in its `depends_on`.
 - `build-drive-cli` → `work-verdict-event-log`
   - `node-build.ts:23-27` imports `workEvent` + `rollupStatus` + `verdictLine` (building marks
     `:465` and `:637`, report rollups `:1003`); `:49` imports `PgWorkStore` (the `--store pg` swap,
@@ -286,8 +301,11 @@ coupling) and marked.
     `@storytree/context-traversal-*` package (that would close the `check:boundaries` cycle), and the
     proof injects a SPY.
 
-**Cross-story:** the `library` edge (the store-connection seam + the OQ loader's library stores),
-the `storage-protocol` + `proof-protocol` root-port edges (ADR-0075), and the **`agent`** edge — the
+**Cross-story:** the `library` edge (the store-connection seam — `createPool`/`closePool`/
+`applySchema` in `node-build.ts`; the OQ loader's `PgLibraryStore` + `PgCommentStore` composition
+was a second evidence site until 2026-08-30 and went with `oq-hygiene-gate`, leaving the edge
+standing on the store-connection seam alone), the `storage-protocol` + `proof-protocol` root-port
+edges (ADR-0075), and the **`agent`** edge — the
 spine imports `@storytree/agent` to consume the `PhaseAuthor` seam (`OwnedLoopAuthor` + the gate +
 the prove-spec resolver) and bind `ClaudeAgentAuthor` by default or `CodexPhaseAuthor` when
 `--runtime codex` is selected. See the "PhaseAuthor seam is CONSUMED, not owned" section above for
@@ -346,10 +364,12 @@ The four deleted criteria and the node that already proves each, for audit:
 | `uatc_fe41d841f6b38c81c2cd1e0c` | *Orient* — `pnpm storytree node` lists the registered and REAL-buildable nodes in a help envelope | [`build-drive-cli`](build-drive-cli.md) (capability) — `packages/cli/src/node-build.test.ts:102`, covered by gate-2 |
 | `uatc_e4ec2bdd541d8b575ea8fd3f` | *Prove the glue first* — the `--dry-run` phase trail, in-memory signed verdict, derived rollup, honest dry-run framing | [`build-drive-cli`](build-drive-cli.md) (capability) — `packages/cli/src/node-build.test.ts:17`, `:74`, covered by gate-2. A **dry run is not the real thing**, so this was never a step of the journey above |
 | `uatc_2bb0f5162edab352e64e66bf` | *Chain a story* — `story build <id> --dry-run` topo-orders capabilities from `depends_on`, story UAT node last, one event log, halt-is-never-a-pass | [`story-topo-build`](story-topo-build.md) + [`story-real-chain`](story-real-chain.md) (capabilities) — `packages/cli/src/story-build.test.ts:17`, covered by gate-1/gate-2. Also a dry run |
-| `uatc_21d6fd739ddeeaade11b1b92` | *Refuse the dishonest paths* — `--store pg` with `--dry-run` refused; a live story build with an unprocessed operator answer refused | [`build-drive-cli`](build-drive-cli.md) — `story-build.test.ts:90`/`:124` (gate-2) and [`oq-hygiene-gate`](oq-hygiene-gate.md) — `oq-gate.test.ts:141` (gate-3) |
+| `uatc_21d6fd739ddeeaade11b1b92` | *Refuse the dishonest paths* — `--store pg` with `--dry-run` refused; a live story build with an unprocessed operator answer refused | **first half only:** [`build-drive-cli`](build-drive-cli.md) — `story-build.test.ts:90`/`:124` (gate-2). The second half was [`oq-hygiene-gate`](oq-hygiene-gate.md) — `oq-gate.test.ts:141` (gate-3) — and is proven NOWHERE since 2026-08-30: the capability retired under ADR-0477 and its module and suite were deleted, so the refusal itself no longer exists to prove |
 
-Every assertion above still runs, under the same commands, and every capability still greens: the
-deletion removed a second signature at the story rung, not the evidence (ADR-0294 D2).
+Every assertion above still runs, under the same commands, except the OQ-hygiene half of the fourth
+row: that behaviour was REMOVED on 2026-08-30 rather than re-signed elsewhere, so the row records a
+claim the system no longer makes. For the other three rows and the first half of the fourth, the
+2026-08-03 deletion removed a second signature at the story rung, not the evidence (ADR-0294 D2).
 
 > **Where the earlier honesty note went.** This section used to carry a long blockquote reconciling
 > which legs were scripted, which attested, and which had been converted human→machine by ADR-0184. All
@@ -409,21 +429,25 @@ the story and unsigned capabilities remain amber until a valid greenfield proof 
 The machinery's offline behaviour spans **three suites** — the spine (`@storytree/orchestrator`), the
 CLI-resident build-drive + ADR-authoring integration tests (`@storytree/cli`), and the carved-out drive
 package (`@storytree/drive`, ADR-0112) — so its capability reliability floor carries one consolidated
-observe gate per suite, every gate naming the capabilities it `(covers:)` (ADR-0097 — three
-capability-covering gates over 18 capabilities reads cleaner than 18 per-cap gates, the same multi-cover
-shape the `library` story uses). A fourth, command-bearing observe gate runs the CLI and drive suites
-together solely for Story UAT leg 6, whose two refusal assertions span those packages; a fifth,
+observe gate per suite (ADR-0097 — a handful of capability-covering gates reads cleaner than one gate
+per capability, the same multi-cover shape the `library` story uses). Gates 1 and 2 each name the
+capabilities they `(covers:)`; **gate-3 now names none** — the single drive-machinery capability it
+covered, `oq-hygiene-gate`, retired on 2026-08-30, and the gate is left in place uncovering rather
+than deleted (see gate-3 below). A fourth, command-bearing observe gate runs the CLI and drive suites
+together solely for Story UAT leg 6, whose two refusal assertions spanned those packages (the
+drive-resident half of that pair went with `oq-hygiene-gate`; leg 6 itself was deleted in 2026-08-03
+under ADR-0294 D2); a fifth,
 command-bearing observe gate runs the drive-package ancestry check solely for Story UAT leg 4 (the
 proven REAL commits reached `main` non-squash, ADR-0184); a sixth, command-bearing observe gate
 runs the live-artifact `witnessable-verdict` check solely for Story UAT leg 3 (a recent spine-driven
 DRIVEN verdict for a drive-machinery node, landed in `main`'s ancestry, ADR-0184); and a seventh,
 command-bearing observe gate runs the live-artifact `dogfood-witness` check solely for Story UAT leg 7
 (the cold-start dogfood probe — a fresh, uncoached `claude -p` agent onboarding from CLAUDE.md alone
-reached a signed verdict for a `dogfood-probe-*` node it authored, ADR-0184). None of gates 4–7
-carries a `(covers:)` — the first three gates already cover the capabilities, and gates 4, 5, 6, and 7
-each prove a UAT leg, not a capability.
-The first three gates name the 18 already-built capabilities. The 18th —
-[`adoption-pocket-classifier`](adoption-pocket-classifier.md)
+reached a signed verdict for a `dogfood-probe-*` node it authored, ADR-0184). None of gates 3–7
+carries a `(covers:)`, for two different reasons: gates 4, 5, 6 and 7 each prove a UAT leg rather
+than a capability, while gate-3's list emptied when its one covered capability retired.
+The first two gates name the 17 already-built capabilities that still carry a covering gate. One of
+them, capability 18 — [`adoption-pocket-classifier`](adoption-pocket-classifier.md)
 — was authored `proposed` (would-be) and deliberately left uncovered; its behaviour has since been
 BUILT outer-loop (2026-06-27, `assembleProposal` + `adopt plan --readings`, commit `2c170db`) with a
 real offline suite in the orchestrator package. It remains greenfield `proposed` without a current
@@ -434,7 +458,7 @@ Capabilities 19–21 — parser
 [`uat-machine-gate-resolution`](uat-machine-gate-resolution.md), and drive consumption
 [`uat-bound-command-adoption`](uat-bound-command-adoption.md) — retain authored `proposed` status
 while their separate signed REAL verdicts derive proof health (ADR-0020). They are intentionally not
-folded into the three suite-level capability-covering observe gates: each was driven red→green through
+folded into the suite-level capability-covering observe gates: each was driven red→green through
 its own literal REAL pair.
 Capabilities 22–23 — [`live-author-accounting-override`](live-author-accounting-override.md) and
 [`leaf-slices-observer-activation`](leaf-slices-observer-activation.md), the ADR-0243 accounting seam —
@@ -450,7 +474,8 @@ Distinct from `## UAT Test Criteria` above (the part-scripted/part-attested driv
 journey): the gates are the author's **expandable floor**, GROWING a `_(gate: build-tests)_` regression
 leg the moment observation proves insufficient (a real spine/gate defect slips through). **Honesty
 boundary — observe greens OFFLINE behaviour only:** several covered caps carry a `proposed` LIVE pocket
-(the SDK leaf, the live `--store pg` SQL, the GitHub push, the live OQ loader; see **Honest status** and
+(the SDK leaf, the live `--store pg` SQL, the GitHub push; the live OQ loader was a fourth until
+`oq-hygiene-gate` retired on 2026-08-30; see **Honest status** and
 each cap's Proof blockquote) that observe does NOT reach — the gate attests the offline suite, which is
 honest, not a gap; those live legs stay operator-attested separately and join as `build-tests` gates only
 if they ever earn standing offline tests. The bootstrap step **Honest status** names — re-running these
@@ -481,19 +506,28 @@ Adopting the existing green is not available merely because the tests predate re
    completeness checker (`adr-completeness.ts` / `gate-as-proof.ts`) is genuinely CLI-resident beside the
    corpus/ADR primitives `cli` owns — so all three caps' offline proofs run under the `@storytree/cli`
    suite (the same suite `cli#gate-1` adopts).
-3. **The drive package's OQ-hygiene gate is green** _(gate: observe)_ _(covers: oq-hygiene-gate)_ `pnpm --filter @storytree/drive test`.
-   The spine OBSERVES the carved-out drive package green at a clean HEAD — in particular the OQ-hygiene
-   gate refusing a live story build while an operator answer on a deciding ADR's open question sits
-   unprocessed (`oq-gate.test.ts`). Since ADR-0112 the OQ-hygiene loader + its test live in `@storytree/drive`;
-   that suite runs much more (other stories' drive surfaces), but `oq-hygiene-gate` is the only
-   drive-machinery capability whose offline proof is resident there.
-4. **The dishonest-path refusal pair is green** _(gate: observe)_ `pnpm --filter @storytree/cli --filter @storytree/drive test`.
-   The spine OBSERVES both suites through one executable pnpm command at a clean HEAD: the CLI-resident
-   integration test refuses `--store pg` with `--dry-run`, and the drive-resident OQ-hygiene test refuses
-   a live story build with an unprocessed operator answer on a deciding ADR. Together they prove the
-   whole of Story UAT leg 6, which binds to `drive-machinery#gate-4`. This gate carries no `(covers:)`;
-   gates 2 and 3 already cover the owning capabilities, and this combined command exists only because
-   no single existing gate command proved both halves of the UAT leg.
+3. **The drive package's suite is green** _(gate: observe)_ `pnpm --filter @storytree/drive test`.
+   The spine OBSERVES the carved-out drive package (`@storytree/drive`, ADR-0112) green at a clean
+   HEAD. **This gate covers no capability, and that is deliberate, not an omission.** It was minted to
+   cover exactly one — `oq-hygiene-gate`, the only drive-machinery capability whose offline proof was
+   resident in this package — and that capability RETIRED on 2026-08-30 when ADR-0477 removed the
+   library `references` field its input lived in; `oq-gate.ts` and `oq-gate.test.ts` were deleted in
+   the same landing. The gate is left in place UNCOVERING rather than deleted, because gate ids are
+   POSITIONAL (`parseReliabilityGates`): removing it would renumber gates 4/5/6/7 and silently
+   re-point the `(proof-gate:)` bindings and signed verdicts of the three live UAT legs onto
+   different gates. Its command still runs and still means something — the drive suite carries other
+   stories' drive surfaces, and gates 1, 2 and 4 observe package suites the same way — so a gate that
+   covers no capability here is honest, not broken. Retiring the id is a separate, id-aware change.
+4. **The dishonest-path refusal is green** _(gate: observe)_ `pnpm --filter @storytree/cli --filter @storytree/drive test`.
+   The spine OBSERVES both suites through one executable pnpm command at a clean HEAD. It was minted
+   for a PAIR: the CLI-resident integration test refusing `--store pg` with `--dry-run`, and the
+   drive-resident OQ-hygiene test refusing a live story build with an unprocessed operator answer on a
+   deciding ADR. **Only the first half survives** — the second retired with `oq-hygiene-gate` on
+   2026-08-30 (ADR-0477), and the refusal it observed no longer exists to observe. The leg it was
+   minted for, Story UAT leg 6, was itself deleted on 2026-08-03 (ADR-0294 D2), so nothing live binds
+   this gate; the blockquote under **UAT Test Criteria** records why the id is nonetheless kept. This
+   gate carries no `(covers:)`; gate 2 covers the surviving capability, and the combined command
+   remains a truthful observation of both suites.
 5. **The proven commits reached `main` non-squash** _(gate: observe)_ `pnpm --filter @storytree/drive exec node --import tsx src/promotion-ancestry.check.ts`.
    The machine witness for Story UAT leg 4 (ADR-0184): a free, deterministic check that every attested
    drive-machinery REAL-proof commit (`0e8f4ba` verdict-line, `47c9e43` node-resolve-report, and the
@@ -567,13 +601,19 @@ node with one is `verdict-line` (whose authored status stays `proposed` forever,
    and the pg event store as ONE capability (one vocabulary, one parity bar — the library's
    store-seam shape). The alternative is splitting the pg half out so the live-SQL `proposed`
    pocket is visible at capability grain.
-4. **`oq-hygiene-gate`'s home (RESOLVED 2026-06-14).** It lives here because the build drive consumes
-   it (the gate fires inside `story build --live`), implementing ADR-0037 §5. Its sibling machinery
-   (`adr-health` + ADR-number allocation, the CI repo-path checks) is now owned by `stories/ci-cd`'s
-   [`adr-health-gate`](../ci-cd/adr-health-gate.md): ADR-0037 enforcement is split by TRIGGER SURFACE
-   — §3–4 on the contributor PR (ci-cd), §5 on the live `story build` drive (here) — kept with each
-   trigger rather than merged. A future `decision-binding` substrate story could still absorb both;
-   the owner deferred that, so this capability stays.
+4. **`oq-hygiene-gate`'s home — MOOT since 2026-08-30; the capability is RETIRED.** This note asked
+   where the §5 gate should live, and answered (2026-06-14) that it lived here because the build
+   drive consumed it. That question is settled by removal rather than by placement: ADR-0477 retired
+   the library `references` field the gate read to find the open questions bearing on a story, and
+   `open-question` is edge-free (ADR-0223 D1), so there is no field left in which a question can say
+   which decision it is about. The gate's input became unrepresentable, the module was deleted, and
+   [`oq-hygiene-gate`](oq-hygiene-gate.md) is `status: retired` — there is no home left to place.
+   **What that does NOT settle** is ADR-0037 §5's rule, which was not judged wrong; reviving it means
+   deciding how a question DECLARES the decision it bears on — a typed pointer on the kind (the
+   `arcRef` / `settledByRef` shape), never a revived citation array. The split by TRIGGER SURFACE
+   still holds for what remains: §3–4 on the contributor PR is live in `stories/ci-cd`'s
+   [`adr-health-gate`](../ci-cd/adr-health-gate.md); §5 on the live `story build` drive has no
+   enforcement half. The deferred `decision-binding` substrate story is where a revival would belong.
 5. **Registering the machinery's own nodes — ADDRESSED (ADR-0057, keystone BUILT).** The keystone
    [`spec-borne-proof-config`](spec-borne-proof-config.md) is now built (outer-loop, per the
    bootstrap caveat): a node declares its own proof command + write scope in its own spec's `proof:`
