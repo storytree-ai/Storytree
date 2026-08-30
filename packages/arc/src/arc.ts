@@ -149,6 +149,10 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
       next: deps.pg
         ? ['storytree arc new --title "<the initiative>" --intent "…" --end-state "…" --pg']
         : ["storytree arc list --pg"],
+      // A REAL empty, recorded as one (ADR-0484 D3). Set on this branch too, because an ABSENT
+      // `observedResultIds` is what a trace reads as "nobody plumbed the results through" — the very
+      // ambiguity the field exists to remove — and "no arcs here" is a fact, not an unplumbed one.
+      observedResultIds: [],
     };
   }
   const closedCount = rollups.filter((a) => a.lifecycle === "closed").length;
@@ -204,6 +208,9 @@ async function arcList(deps: ArcViewDeps, scope: ArcScope): Promise<Envelope> {
       ...shown.slice(0, 3).map((a) => `storytree arc show ${a.id}${pgFlag}`),
       ...(scope === "active" && elsewhere.length > 0 ? [`storytree arc list --all${pgFlag}`] : []),
     ],
+    // The arcs this scope actually listed, carried out to the traversal capture (ADR-0484 D3) —
+    // `shown`, so the recorded set is the one the reader saw rather than every arc in the store.
+    observedResultIds: shown.map((a) => a.id),
   };
 }
 

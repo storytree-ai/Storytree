@@ -35,8 +35,13 @@ export {
 } from "./session-identity.js";
 
 export {
+  AREAS_WITHOUT_CORPUS_READS,
+  CLI_READ_VERBS,
+  KEY_LENGTHS,
   observeCliInvocation,
   TERMINAL_CLI_DISPATCH_COVERAGE,
+  verbSpecFor,
+  type CliVerbSpec,
   type ObserveCliDeps,
 } from "./observe-cli.js";
 

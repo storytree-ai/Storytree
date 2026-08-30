@@ -1105,6 +1105,9 @@ export async function listFriction(
       ...(staged > 0 ? ["storytree friction migrate --pg   (file the staged inbox items live)"] : []),
       "storytree friction new --file <doc.json> --pg   (file one)",
     ],
+    // The worklist this call actually listed, carried out to the traversal capture (ADR-0484 D3).
+    // Empty when the worklist is empty, which is the free outcome ADR-0168 D1 names — a real zero.
+    observedResultIds: rows.map((r) => r.id),
   };
 }
 

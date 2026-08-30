@@ -672,6 +672,22 @@ export function loadBearingReach(listings: readonly AdrListing[]): Set<number> {
  * no longer differ from the first. The right response to a set that grows too large is ADR-0139's
  * consolidation pass, never a filter that hides edges.
  */
+export function selectAdrListings(
+  listings: readonly AdrListing[],
+  filter: AdrListFilter,
+): AdrListing[] {
+  const reach = loadBearingReach(listings);
+  return [...listings]
+    .sort((a, b) => a.meta.number - b.meta.number)
+    .filter((l) => {
+      const m = l.meta;
+      if (filter.current === true && m.status !== "accepted") return false;
+      if (filter.loadBearing === true && !reach.has(m.number)) return false;
+      if (filter.status !== undefined && m.status !== filter.status) return false;
+      return true;
+    });
+}
+
 export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFilter): string[] {
   const supersededBy = backEdges(listings, (m) => m.supersedes);
   // ADR-0431: support edges live on `dependsOn` now, so the view must read them or show nothing.
@@ -683,13 +699,13 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     const s = statusOf.get(n);
     return s === undefined || s === "accepted" ? pad(n) : `${pad(n)} (${s})`;
   };
-  const sorted = [...listings].sort((a, b) => a.meta.number - b.meta.number);
+  // ONE definition of "which decisions this cut shows" ({@link selectAdrListings}), shared with the
+  // traversal capture's result ids (ADR-0484 D3). Re-applying the predicate here would be a second
+  // copy of the filter, and a search event whose recorded results disagreed with the printed rows
+  // would be worse than one that recorded nothing.
   const rows: string[] = [];
-  for (const l of sorted) {
+  for (const l of selectAdrListings(listings, filter)) {
     const m = l.meta;
-    if (filter.current === true && m.status !== "accepted") continue;
-    if (filter.loadBearing === true && !reach.has(m.number)) continue;
-    if (filter.status !== undefined && m.status !== filter.status) continue;
     const mark = reach.has(m.number) ? "★" : " ";
     rows.push(`${mark} ${pad(m.number)}  ${m.status.padEnd(10)} ${l.title}`);
     const edges: string[] = [];
@@ -889,6 +905,9 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
       "storytree adr list --load-bearing   (the calibrate-to-these set)",
       "storytree adr list --current        (every accepted, non-superseded ADR)",
     ],
+    // The decisions this cut actually listed, carried out to the traversal capture (ADR-0484 D3).
+    // Taken from the same selection the rows were rendered from, never re-filtered.
+    observedResultIds: selectAdrListings(listings, filter).map((l) => adrDocId(l.meta.number)),
   };
 }
 

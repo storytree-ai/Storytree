@@ -1159,6 +1159,24 @@ test("list groups items by derived lifecycle with counts", async () => {
   assert.match(env.body, /→ tool/);
 });
 
+test("list carries the worklist ids it printed out to the traversal capture", async () => {
+  // ADR-0484 D3: the friction worklist is a corpus SEARCH in the trace vocabulary, so it records
+  // what it listed. The empty worklist below records an EMPTY set rather than no field at all —
+  // "nothing to report" is a real answer (ADR-0168 D1), and the trace has to be able to say so.
+  const s = store();
+  const dirs = tempDirs();
+  await fileNew(s, frictionDoc("obs-a"), dirs, { writable: true });
+  await fileNew(s, frictionDoc("obs-b"), dirs, { writable: true });
+
+  const env = await run(["friction", "list"], { store: s, writable: true, friction: frictionDeps(dirs) });
+  assert.equal(env.ok, true, env.body);
+  assert.deepEqual([...(env.observedResultIds ?? [])].sort(), ["obs-a", "obs-b"]);
+
+  const empty = await run(["friction", "list"], { store: store(), friction: frictionDeps(tempDirs()) });
+  assert.equal(empty.ok, true);
+  assert.deepEqual(empty.observedResultIds, []);
+});
+
 test("list on an empty worklist is a friendly first-class outcome", async () => {
   const s = store();
   const dirs = tempDirs();

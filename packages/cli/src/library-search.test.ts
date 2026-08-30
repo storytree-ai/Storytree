@@ -356,3 +356,58 @@ test("`library related --all` is wired the same way, and --unlinked still narrow
   assert.doesNotMatch(without.body, /inc-01/);
   assert.match(without.body, /were NOT ranked/);
 });
+
+test("every ok path of `library search` carries the ids it showed out to the traversal capture", async () => {
+  // ADR-0484 D3: the capture cannot re-run the ranking, so the command hands over what it returned.
+  // All three ok paths set the field — a recorded `resultNodeIds: []` must mean "matched nothing",
+  // and an ABSENT one is what a trace reads as "nobody plumbed the results through".
+  const store = await storeWith([
+    row("adr-0431", "adr", { id: "adr-0431", title: "Retire the amends edge", body: "amends annotation" }),
+    row("adr-0139", "adr", { id: "adr-0139", title: "Consolidation", body: "amends annotation prose" }),
+  ]);
+  const opts = { kind: undefined, limit: undefined, all: false };
+
+  const hits = await librarySearch(store, "amends", opts);
+  assert.equal(hits.ok, true);
+  assert.deepEqual([...(hits.observedResultIds ?? [])].sort(), ["adr-0139", "adr-0431"]);
+
+  const none = await librarySearch(store, "zzzznothingmatchesthis", opts);
+  assert.equal(none.ok, true);
+  assert.deepEqual(none.observedResultIds, []);
+
+  // Every word a stop word: a real zero over a population nothing was ranked from.
+  const stopWords = await librarySearch(store, "the of a", opts);
+  assert.equal(stopWords.ok, true);
+  assert.deepEqual(stopWords.observedResultIds, []);
+});
+
+test("`library search` records the PAGE it printed, so a truncated ranking records what was shown", async () => {
+  const store = await storeWith([
+    row("adr-0001", "adr", { id: "adr-0001", title: "Amends one", body: "amends" }),
+    row("adr-0002", "adr", { id: "adr-0002", title: "Amends two", body: "amends" }),
+    row("adr-0003", "adr", { id: "adr-0003", title: "Amends three", body: "amends" }),
+  ]);
+  const page = await librarySearch(store, "amends", { kind: undefined, limit: "2", all: false });
+  assert.equal(page.ok, true);
+  // Two shown of three matched — the recorded set is the page, not the match count, because the
+  // page is what a later read can be checked against.
+  assert.equal((page.observedResultIds ?? []).length, 2);
+  assert.ok(page.body.includes("1 more"), page.body);
+});
+
+test("`library related` carries its neighbour ids out, on both the hits and the nothing-to-show path", async () => {
+  const store = await storeWith([
+    row("adr-0139", "adr", { id: "adr-0139", title: "Consolidation", body: "distinctive vocabulary here" }),
+    row("adr-0086", "adr", { id: "adr-0086", title: "Neighbour", body: "distinctive vocabulary here too" }),
+    row("lonely-artifact", "definition", { id: "lonely-artifact", title: "Lonely", body: "unrelated words entirely" }),
+  ]);
+  const opts = { kind: undefined, limit: undefined, unlinked: false, all: false };
+
+  const related = await libraryRelated(store, "adr-0139", opts);
+  assert.equal(related.ok, true);
+  assert.deepEqual(related.observedResultIds, ["adr-0086"]);
+
+  const nothing = await libraryRelated(store, "lonely-artifact", opts);
+  assert.equal(nothing.ok, true);
+  assert.deepEqual(nothing.observedResultIds, []);
+});

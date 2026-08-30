@@ -105,7 +105,15 @@ function renderEventLine(event: ContextTraversalEvent): string {
   }
   switch (event.kind) {
     case "search":
-      return `  [search] search=${event.searchId} surface=${event.surfaceId} operation=${event.operation}`;
+      // `results=` and `anchor=` ride the line because the whole point of recording a search is
+      // whether the agent FOUND the thing (ADR-0484 D3) — a line that said only "a search fired" is
+      // the render half of the empty `resultNodeIds` this landing removed. `anchor=` appears only
+      // for a search that HAD one (`library related <id>`); a free-text query is never recorded.
+      return (
+        `  [search] search=${event.searchId} surface=${event.surfaceId} operation=${event.operation}` +
+        (event.anchorNodeId === undefined ? "" : ` anchor=${event.anchorNodeId}`) +
+        ` results=${event.resultNodeIds.length}`
+      );
     case "candidate_set":
       return `  [candidate-set] set=${event.candidateSetId} surface=${event.surfaceId} candidates=${event.candidateNodeIds.length}`;
     case "followed_edge":

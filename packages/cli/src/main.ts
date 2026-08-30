@@ -334,6 +334,7 @@ async function captureInvocation(
   ok: boolean,
   store: Store,
   trace: TraceIdentity | null,
+  observedResultIds: readonly string[] | undefined,
 ): Promise<void> {
   try {
     // An `agents <name>` essentials render resolves the agent's floor refs BY EXPLICIT ID, so each
@@ -353,6 +354,11 @@ async function captureInvocation(
       ok,
       sessionId: trace?.sessionId ?? null,
       agentRefIds,
+      // What a SEARCH-shaped read returned (ADR-0484 D3). The command computed it; the observer is
+      // pure and could only get it by running the ranking a second time. Passed through as-is,
+      // `undefined` included — the absent-vs-empty decision belongs where every other capture
+      // attribute makes it, in the composition that writes the line.
+      resultNodeIds: observedResultIds,
     };
     // Stamped on every line this invocation writes: what the session id NAMES, and the worktree
     // slot it ran in as a grouping attribute beside it — so a later reader states the trace's
@@ -360,7 +366,9 @@ async function captureInvocation(
     if (trace !== null) capture = { ...capture, grade: trace.grade, slot: trace.slot };
     captureCliInvocation(capture);
   } catch {
-    // Telemetry never breaks a command — the envelope is the payload, the trace is a courtesy.
+    // Telemetry never breaks a command — the envelope is the payload, and a trace that could not be
+    // written must not reach the caller's control flow, exit code, or envelope (ADR-0241 D3).
+    // "A courtesy" is withdrawn as too weak (ADR-0484 D4): what stands is that it never BLOCKS.
   }
 }
 
@@ -449,7 +457,7 @@ export async function main(): Promise<void> {
       // collapsing to 0/1 would destroy the gate's reserved 3 (SKIP) and 4 (PARTIAL RUN).
       process.exitCode = env.exitCode ?? (env.ok ? 0 : 1);
     }
-    await captureInvocation(argv, env.ok, store, trace);
+    await captureInvocation(argv, env.ok, store, trace, env.observedResultIds);
   } finally {
     await close();
     // LAST, and outside every other concern: the record must survive until the command genuinely

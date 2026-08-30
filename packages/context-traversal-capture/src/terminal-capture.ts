@@ -73,6 +73,19 @@ export interface CaptureCliInvocationInput {
    * Empty or absent for every other dispatch shape, which is the normal case.
    */
   readonly agentRefIds?: readonly string[];
+  /**
+   * The canonical ids a SEARCH-shaped invocation returned, taken from the envelope the command
+   * already built (`Envelope.observedResultIds`, ADR-0484 D3).
+   *
+   * Resolved by the CALLER for the same reason `agentRefIds` is: the observer is pure and cannot run
+   * the search, and re-running it here would put a second whole-corpus scan behind a read. Absent
+   * for every non-search shape, which is the normal case.
+   *
+   * `| undefined` explicitly, not merely optional: the CLI passes the envelope's field straight
+   * through, and the absent-vs-empty decision is made HERE — beside the same decision for `grade`
+   * and `slot` — rather than by a branch in the entry point that nothing can reach in a test.
+   */
+  readonly resultNodeIds?: readonly string[] | undefined;
 }
 
 /** Where the query composition reads a captured session from. */
@@ -137,11 +150,17 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   // exactly as the shell handed it over.
   const nextVisitId = (): string => nextId();
 
+  // `resultNodeIds` passes straight through, `undefined` included: the observer reads it only on a
+  // SEARCH shape and treats absent as none, so there is nothing for a branch here to decide. What
+  // keeps `resultNodeIds: []` on a written line meaning "this search matched nothing" is upstream —
+  // every search-classified verb sets `Envelope.observedResultIds`, and `cli-read-verbs.test.ts`
+  // drives each one and reds if it does not.
   const events = observeCliInvocation(input.argv, {
     ok: input.ok,
     sessionId,
     nextVisitId,
     now,
+    resultNodeIds: input.resultNodeIds,
   });
   if (events.length === 0) return;
 

@@ -967,6 +967,10 @@ export async function listCategory(store: Store, category: string | undefined): 
     body,
     doctrine: [await renderDoctrine(store, EDIT_FIRST_ID)],
     next: ["storytree library artifact <id>"],
+    // What this listing RETURNED, carried out to the traversal capture (ADR-0484 D3). The search
+    // event this shape mints has recorded `resultNodeIds: []` since it was written; a listing whose
+    // results are unrecorded cannot answer whether the agent found what it went looking for.
+    observedResultIds: arr.map((row) => row.id),
   };
 }
 

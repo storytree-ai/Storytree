@@ -116,6 +116,9 @@ export async function libraryQuery(store: Store, opts: QueryOptions): Promise<En
       ok: true,
       body: `${matched.length}`,
       next: [`storytree library query --kind ${opts.kind} --pg   (drop --count for the rows)`],
+      // `--count` prints a NUMBER and no ids, so the trace records that a query fired and found
+      // nothing it could name (ADR-0484 D3). A real empty, not an unplumbed one.
+      observedResultIds: [],
     };
   }
 
@@ -149,6 +152,8 @@ export async function libraryQuery(store: Store, opts: QueryOptions): Promise<En
       `storytree library artifact <id> --pg`,
       `storytree library query --kind ${opts.kind} --count --pg`,
     ],
+    // The PRINTED page, not every match — the trace records the set the caller was shown.
+    observedResultIds: shown.map((row) => row.id),
   };
 }
 

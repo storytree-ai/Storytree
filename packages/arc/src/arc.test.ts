@@ -245,6 +245,31 @@ async function withClosedArc(store: InMemoryStore): Promise<InMemoryStore> {
   return store;
 }
 
+test("arc list carries the arcs it SHOWED out to the traversal capture, scope included", async () => {
+  // ADR-0484 D3: `arc list` is a corpus SEARCH in the trace vocabulary, so it records what it
+  // returned. It follows the SCOPE, not the store: a default listing that recorded the closed arcs
+  // it deliberately hid would describe a page nobody saw.
+  const fx = diskFixture();
+  try {
+    const store = await withClosedArc(await seededStore());
+
+    const active = await arcCommand("list", undefined, depsFor(store, fx));
+    assert.equal(active.ok, true);
+    assert.deepEqual(active.observedResultIds, ["map-arc"]);
+
+    const all = await arcCommand("list", undefined, depsFor(store, fx), "all");
+    assert.deepEqual([...(all.observedResultIds ?? [])].sort(), ["done-arc", "map-arc"]);
+
+    // An empty store records an EMPTY set, not an absent one: "no arcs here" is a real answer, and
+    // an absent field is what a trace reads as "nobody plumbed the results through".
+    const none = await arcCommand("list", undefined, depsFor(new InMemoryStore(), fx));
+    assert.equal(none.ok, true);
+    assert.deepEqual(none.observedResultIds, []);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
 test("arcScopeOf resolves the widening flags — active by default, --all wins over --closed", () => {
   assert.equal(arcScopeOf({}), "active");
   assert.equal(arcScopeOf({ all: false, closed: false }), "active");
