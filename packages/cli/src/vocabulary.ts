@@ -49,8 +49,19 @@ import type { DefinitionDoc } from "../definition-injection.mjs";
 import { DEFINITIONS_PROJECTION_BASENAME } from "./definitions-projection.js";
 import type { Envelope } from "./envelope.js";
 
-/** Longest n-gram considered. Three covers the multi-word terms of art here ("cut a fresh session"). */
-export const MAX_GRAM = 3;
+/**
+ * The gram widths counted, narrowest first — three covers the multi-word terms of art here
+ * ("cut a fresh session").
+ *
+ * A LIST rather than a counted loop, because a counted loop over untrusted text hands
+ * `check:mutation-diff` a mutant it can only ever record as a hang: `n++` becomes `n--`, the bound
+ * never fails, and the runner reports a Timeout naming no test. Iterating a list has no counter to
+ * invert, so the same decision becomes something a test can assert.
+ */
+export const GRAM_WIDTHS = [1, 2, 3] as const;
+
+/** Longest n-gram considered. Derived, so the two can never disagree. */
+export const MAX_GRAM = GRAM_WIDTHS.length;
 
 /** A term must appear in at least this many DISTINCT sessions to be reported. */
 export const DEFAULT_MIN_SESSIONS = 6;
@@ -112,8 +123,14 @@ export interface VocabularyRead {
   readonly minSessions: number;
 }
 
-/** Lowercase, collapse hyphen/underscore to space — the same normalisation the injector applies. */
-function normalize(text: string): string {
+/**
+ * Lowercase, collapse hyphen/underscore to space — the same normalisation the injector applies.
+ *
+ * Exported for the reason {@link parseLimitFlag} is: it is a decision this module makes, and a
+ * decision reachable only through {@link rankVocabulary} cannot be pinned without also pinning
+ * everything around it.
+ */
+export function normalize(text: string): string {
   return text
     .toLowerCase()
     .replace(/[-_]/g, " ")
@@ -122,12 +139,13 @@ function normalize(text: string): string {
 
 const WORD = /[a-z][a-z0-9']+/g;
 
-function tokenize(text: string): string[] {
+/** The words of one text, normalised — a single character and punctuation are not words. */
+export function tokenize(text: string): string[] {
   return normalize(text).match(WORD) ?? [];
 }
 
 /** A gram is generic when every token in it is a stopword or too short to mean anything. */
-function isGeneric(gram: string): boolean {
+export function isGeneric(gram: string): boolean {
   return gram.split(" ").every((w) => STOPWORDS.has(w) || w.length <= 2);
 }
 
@@ -136,6 +154,10 @@ function isGeneric(gram: string): boolean {
  * than reconstructed, so a term this reports as unresolvable is one the hook would also have missed.
  */
 function isCovered(term: string, defs: readonly DefinitionDoc[]): boolean {
+  // Stryker disable next-line ObjectLiteral: EQUIVALENT — this asks only whether the count is
+  // NONZERO, and dropping `{ max: 1 }` merely raises the cap to MAX_MATCHES. A term the matcher
+  // resolves at all resolves under either cap, so no input can tell the two apart. The cap is here
+  // to stop the matcher ranking surfaces this will never read, not to change the answer.
   return matchDefinitions(term, defs, { max: 1 }).length > 0;
 }
 
@@ -145,15 +167,28 @@ interface GramCount {
   readonly distinct: Set<string>;
 }
 
+/**
+ * The `n`-word grams of one token list, in order — `["a","b","c"]` at width 2 is `["a b","b c"]`.
+ *
+ * A map over a SLICE rather than an index loop, for the reason given on {@link GRAM_WIDTHS}: an
+ * index loop's `i++` and its bound comparison can only be caught as a hang, where the LENGTH of
+ * this result is an arithmetic fact a test can pin. A width wider than the text yields nothing
+ * rather than a negative slice, which is what `Math.max` is doing.
+ */
+export function gramsOfWidth(toks: readonly string[], n: number): string[] {
+  return toks
+    .slice(0, Math.max(0, toks.length - n + 1))
+    .map((_unused, i) => toks.slice(i, i + n).join(" "));
+}
+
 /** Count n-grams in one text, returning both the multiset and the distinct set. */
 function grams(texts: readonly string[]): GramCount {
   const total = new Map<string, number>();
   const distinct = new Set<string>();
   for (const text of texts) {
     const toks = tokenize(text);
-    for (let n = 1; n <= MAX_GRAM; n++) {
-      for (let i = 0; i + n <= toks.length; i++) {
-        const g = toks.slice(i, i + n).join(" ");
+    for (const n of GRAM_WIDTHS) {
+      for (const g of gramsOfWidth(toks, n)) {
         total.set(g, (total.get(g) ?? 0) + 1);
         distinct.add(g);
       }
@@ -172,6 +207,23 @@ function grams(texts: readonly string[]): GramCount {
 export interface VocabularyOptions {
   readonly minSessions?: number;
   readonly limit?: number;
+}
+
+/**
+ * The candidate order: owner document-frequency first (his vocabulary is what the tier serves),
+ * then the session's, then the alphabet so a run is reproducible.
+ *
+ * Exported because a comparator can only be PROVEN directly. Through `sort` it cannot: a mutated
+ * `-` to `+` makes the comparator inconsistent rather than merely wrong, and what an inconsistent
+ * comparator does to an array is up to the sort implementation — it can leave an already-ordered
+ * pair alone and look correct. Asked directly, the sign is the whole answer.
+ */
+export function byRank(a: VocabularyCandidate, b: VocabularyCandidate): number {
+  return (
+    b.ownerSessions - a.ownerSessions ||
+    b.sessionSessions - a.sessionSessions ||
+    a.term.localeCompare(b.term)
+  );
 }
 
 export function rankVocabulary(
@@ -217,6 +269,8 @@ export function rankVocabulary(
       fresh.push(prompt);
       if (key.length <= 25) continue;
       promptsScored++;
+      // Stryker disable next-line ObjectLiteral: EQUIVALENT — the same reason as `isCovered`'s:
+      // the hit rate counts prompts resolving AT LEAST ONE definition, which the cap cannot move.
       if (matchDefinitions(prompt, defs, { max: 1 }).length > 0) promptsResolved++;
     }
     const o = grams(fresh);
@@ -244,12 +298,7 @@ export function rankVocabulary(
     });
   }
 
-  candidates.sort(
-    (a, b) =>
-      b.ownerSessions - a.ownerSessions ||
-      b.sessionSessions - a.sessionSessions ||
-      a.term.localeCompare(b.term),
-  );
+  candidates.sort(byRank);
 
   return {
     sessionsScanned: sessions.length,
@@ -294,30 +343,64 @@ function isOperatorEntry(rec: Record<string, unknown>): boolean {
   return rec["promptSource"] !== undefined;
 }
 
+/**
+ * `value` as a record of unknown fields, or `undefined` when it is not one.
+ *
+ * The null check is NOT redundant with the `typeof` check: `typeof null === "object"`, so it is the
+ * only thing standing between a `null` transcript line and a property read that throws. Written once
+ * and exported rather than repeated inline at each of the four places a transcript is descended,
+ * where each copy is its own pair of mutants and none of them is reachable on its own.
+ */
+export function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+/**
+ * `JSON.parse` that answers `undefined` rather than throwing.
+ *
+ * Its own function so the Stryker range below covers ONE `try`/`catch` and nothing else — inside the
+ * loop it would have swept every block in the function.
+ */
+// Stryker disable BlockStatement: the CATCH's mutant is EQUIVALENT — emptying it returns `undefined`
+// by falling off the end, which is exactly what its `return` does, so no input can distinguish them.
+// `disable next-line` cannot reach it: a `catch` clause carries no leading comment for Stryker to
+// attach to, and the range form is the only one that does. The cost is named rather than hidden —
+// the range also covers the `try`, whose mutant is NOT equivalent (emptying it drops every line) and
+// is caught by every test in `vocabulary.test.ts`. What is lost is the report's proof of it.
+function parsedOrUndefined(line: string): unknown {
+  try {
+    return JSON.parse(line) as unknown;
+  } catch {
+    return undefined;
+  }
+}
+// Stryker restore BlockStatement
+
 /** Pull one transcript apart into what the operator typed and what the session wrote. */
 export function splitTranscript(raw: string): SessionText {
   const owner: string[] = [];
   const session: string[] = [];
   for (const line of raw.split("\n")) {
+    // Stryker disable next-line ConditionalExpression,MethodExpression: EQUIVALENT — a fast path,
+    // not a guard. A blank line that falls through reaches `JSON.parse`, throws, and is dropped by
+    // the `catch` below, so skipping it here and not skipping it produce the same result. Reading
+    // `line` untrimmed is equivalent for the same reason: the carriage return a CRLF file leaves
+    // behind is non-empty and still fails to parse.
     if (line.trim().length === 0) continue;
-    let entry: unknown;
-    try {
-      entry = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    if (typeof entry !== "object" || entry === null) continue;
-    const rec = entry as Record<string, unknown>;
-    const message = rec["message"];
-    if (typeof message !== "object" || message === null) continue;
-    const content = (message as Record<string, unknown>)["content"];
+    const rec = asRecord(parsedOrUndefined(line));
+    if (rec === undefined) continue;
+    const message = asRecord(rec["message"]);
+    if (message === undefined) continue;
+    const content = message["content"];
 
     const texts: string[] = [];
     if (typeof content === "string") texts.push(content);
     else if (Array.isArray(content)) {
       for (const part of content) {
-        if (typeof part !== "object" || part === null) continue;
-        const p = part as Record<string, unknown>;
+        const p = asRecord(part);
+        if (p === undefined) continue;
         if (p["type"] === "text" && typeof p["text"] === "string") texts.push(p["text"]);
       }
     }
@@ -428,6 +511,26 @@ export function parseLimitFlag(raw: unknown): LimitFlagRead {
     return { refusal: `--limit must be a positive whole number, got ${JSON.stringify(raw)}.` };
   }
   return { limit: parsed };
+}
+
+/** The `--limit` flag as the options the command takes, or the refusal naming what was wrong. */
+export interface VocabularyFlagsRead {
+  readonly refusal?: string;
+  readonly options: VocabularyOptions;
+}
+
+/**
+ * `--limit` in, `VocabularyOptions` out — so the dispatch arm makes NO decision of its own.
+ *
+ * The empty-object branch is the whole reason this is not inline: the arm cannot be reached without
+ * the real transcript scan behind it, so a ternary there is a mutant no test can pin. Here it is one
+ * `deepEqual` away. `{}` and `{ limit: undefined }` are NOT the same object under
+ * `exactOptionalPropertyTypes`, and the command reads the absent key as "no limit".
+ */
+export function vocabularyOptionsFrom(raw: unknown): VocabularyFlagsRead {
+  const read = parseLimitFlag(raw);
+  if (read.refusal !== undefined) return { refusal: read.refusal, options: {} };
+  return { options: read.limit === undefined ? {} : { limit: read.limit } };
 }
 
 export function vocabularyHelp(): Envelope {

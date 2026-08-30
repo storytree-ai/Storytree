@@ -103,10 +103,9 @@ import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./ses
 import { contextCommand, contextHelp } from "./context.js";
 import {
   defaultVocabularyDeps,
-  parseLimitFlag,
   vocabularyCommand,
   vocabularyHelp,
-  type VocabularyOptions,
+  vocabularyOptionsFrom,
 } from "./vocabulary.js";
 import { CLI_AREAS } from "./cli-areas.js";
 import {
@@ -4509,14 +4508,16 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // transcripts, and traces cannot answer it at all — a `search` event carries `operation` and
     // `resultNodeIds` and no query text. It REPORTS candidates and authors nothing: frequency
     // selects, and whether a term earns a definition is a judgment (`edit-first-curation`).
+    // Stryker disable next-line ConditionalExpression: KILLED, NAMEABLE ONLY AS A TIMEOUT —
+    // `cli-areas.test.ts` drives `run([area, "--help"])` for EVERY area, so forcing this false sends
+    // that probe into the real transcript scan of this box and the run hangs rather than failing.
+    // The mutant is caught; the report cannot attribute it to a test.
     if (help) return vocabularyHelp();
-    const parsedLimit = parseLimitFlag(values["limit"]);
-    if (parsedLimit.refusal !== undefined) {
-      return { ok: false, body: parsedLimit.refusal, next: ["storytree vocabulary --help"] };
+    const flags = vocabularyOptionsFrom(values["limit"]);
+    if (flags.refusal !== undefined) {
+      return { ok: false, body: flags.refusal, next: ["storytree vocabulary --help"] };
     }
-    const vocabOpts: VocabularyOptions =
-      parsedLimit.limit === undefined ? {} : { limit: parsedLimit.limit };
-    return vocabularyCommand(defaultVocabularyDeps(), vocabOpts);
+    return vocabularyCommand(defaultVocabularyDeps(), flags.options);
   }
 
   if (area === "lint-panel") {
