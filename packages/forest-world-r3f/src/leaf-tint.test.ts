@@ -192,6 +192,18 @@ test('IT REFUSES A MAP IT CANNOT ROTATE rather than delivering a clipped primary
     () => leafTintGain(token, { r: MIN_TINTABLE_CHANNEL - 0.01, g: 90, b: 69 }),
     /below 4/,
   );
+  // ⚠ AND THE REFUSAL SAYS WHY, not just that. What it costs to get this wrong — a clipped
+  // primary standing in for the token — is the whole reason the floor is there, and a message
+  // that had lost that half would send a reader looking for a broken asset instead of a map this
+  // arithmetic cannot rotate.
+  assert.throws(
+    () => leafTintGain(token, { r: MIN_TINTABLE_CHANNEL - 0.01, g: 90, b: 69 }),
+    (e: Error) => {
+      assert.match(e.message, /clipped primary rather than the token/);
+      assert.match(e.message, /refuses rather than drawing a plausible wrong colour/);
+      return true;
+    },
+  );
   assert.throws(() => leafTintGain(token, { r: 0, g: 0, b: 0 }), /no luminance/);
   assert.throws(() => leafTintGain({ r: 0, g: 0, b: 0 }, FOLIAGE_MEAN), /no luminance/);
   // And a map it CAN rotate is not refused — otherwise the refusal above proves nothing.

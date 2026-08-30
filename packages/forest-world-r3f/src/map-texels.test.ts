@@ -9,7 +9,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { texelMeans } from './map-texels.js';
+import { decodedSize, mapMeans, meansOverTexels, texelMeans } from './map-texels.js';
+import type { DecodedMap, TexelCanvas, TexelContext } from './map-texels.js';
 import { OPAQUE_TEXEL_CUT, srgbToLinearUnit } from './texture-convention.js';
 
 /** RGBA bytes for a run of texels. */
@@ -99,4 +100,104 @@ test('every texel is visited — the stride does not skip or double-count', () =
   const means = texelMeans(rgba(...many));
   assert.equal(means.opaque, 16);
   assert.equal(means.raw.r, (0 + 15) * 4 / 2);
+});
+
+// ---------------------------------------------------------------------------
+// the decoded size, and the readback the canvas seam makes provable
+// ---------------------------------------------------------------------------
+
+test('a map that never decoded is REFUSED by its size, not defaulted to zero', () => {
+  // ⚠ A zero-sized read returns an empty buffer, and `texelMeans` would then refuse it as "no
+  // solid texels" — naming the wrong fault. The true one is that the image never decoded, which
+  // is what a headless run of the real loader hits.
+  assert.throws(() => decodedSize({}), /no decoded pixels/);
+  assert.throws(() => decodedSize({ width: 8 }), /no decoded pixels/);
+  assert.throws(() => decodedSize({ width: 8, height: 0 }), /no decoded pixels/);
+  assert.throws(() => decodedSize({ width: 0, height: 8 }), /no decoded pixels/);
+  assert.deepEqual(decodedSize({ width: 8, height: 3 }), { width: 8, height: 3 });
+});
+
+test('the opaque FRACTION is over the whole map, not over the texels that counted', () => {
+  // ⚠ `opaque / (width * height)` and not `opaque / opaque`. Half of a 2x2 map solid is 0.5, and
+  // an implementation dividing by the count would answer 1 for every map ever read — a number
+  // that always says "fully opaque" is the shape of a check that cannot fail.
+  const data = rgba([10, 20, 30, 255], [50, 60, 70, 255], [0, 0, 0, 0], [0, 0, 0, 0]);
+  const means = meansOverTexels(data, 2, 2);
+  assert.equal(means.opaqueFraction, 0.5);
+  assert.equal(means.width, 2);
+  assert.equal(means.height, 2);
+  assert.equal(means.raw.r, 30);
+  // The dimensions are carried through as given, not re-derived from the buffer's length.
+  assert.equal(meansOverTexels(data, 4, 1).opaqueFraction, 0.5);
+});
+
+/** A canvas double and the log of what the readback asked it for. */
+interface CanvasDouble {
+  canvas: TexelCanvas;
+  log: string[];
+}
+
+/**
+ * A decoded image stand-in.
+ *
+ * ⚠ ONE HOP THROUGH `unknown`, DELIBERATELY, AND IT IS NOT HIDING ANYTHING. `DecodedMap` is
+ * `CanvasImageSource`, a union of six browser classes none of which node has — and the readback
+ * only ever asks this for its DIMENSIONS before handing it to `drawImage`, which the double below
+ * records rather than executes. There is no narrower type that says that.
+ */
+function decodedImage(size: { width?: number; height?: number }): DecodedMap {
+  return size as DecodedMap;
+}
+
+/** A canvas double: it records what it was asked for and answers a buffer of known texels. */
+function fakeCanvas(data: Uint8ClampedArray, over: { context?: null } = {}): CanvasDouble {
+  const log: string[] = [];
+  const ctx: TexelContext = {
+    drawImage: (_image, dx, dy) => log.push(`draw ${dx},${dy}`),
+    getImageData: (sx, sy, sw, sh) => {
+      log.push(`read ${sx},${sy},${sw},${sh}`);
+      return { data };
+    },
+  };
+  const canvas: TexelCanvas = {
+    width: -1,
+    height: -1,
+    getContext: (id, opts) => {
+      log.push(`context ${id} willReadFrequently=${opts.willReadFrequently}`);
+      return over.context === null ? null : ctx;
+    },
+  };
+  return { canvas, log };
+}
+
+test('the readback sizes the canvas to the MAP’s dimensions and reads all of it back', () => {
+  // ⚠⚠ THE CANVAS IS THE ONLY BROWSER-BOUND PART, AND THE CLAIMS AROUND IT ARE NOT. A canvas left
+  // at its default 300x150 would silently crop a 1024-wide foliage map to its top-left corner and
+  // deliver a mean of whatever happened to be there — a perfectly ordinary-looking wrong colour.
+  const data = rgba([12, 34, 56, 255], [12, 34, 56, 255]);
+  const { canvas, log } = fakeCanvas(data);
+  const means = mapMeans(decodedImage({ width: 2, height: 1 }), () => canvas);
+  assert.equal(canvas.width, 2);
+  assert.equal(canvas.height, 1);
+  assert.deepEqual(log, ['context 2d willReadFrequently=true', 'draw 0,0', 'read 0,0,2,1']);
+  assert.equal(means.raw.r, 12);
+  assert.equal(means.raw.g, 34);
+  assert.equal(means.raw.b, 56);
+  assert.equal(means.opaqueFraction, 1);
+});
+
+test('a surface with no 2d context is refused rather than read as an empty map', () => {
+  const { canvas } = fakeCanvas(rgba([1, 2, 3, 255]), { context: null });
+  assert.throws(
+    () => mapMeans(decodedImage({ width: 1, height: 1 }), () => canvas),
+    /no 2d context/,
+  );
+});
+
+test('the size is checked BEFORE a canvas is asked for at all', () => {
+  // An undecoded image must not reach `drawImage` — it is the refusal above, and the order is what
+  // keeps the message about the image rather than about the surface.
+  const { canvas, log } = fakeCanvas(rgba([1, 2, 3, 255]));
+  assert.throws(() => mapMeans(decodedImage({}), () => canvas), /no decoded pixels/);
+  assert.deepEqual(log, []);
 });

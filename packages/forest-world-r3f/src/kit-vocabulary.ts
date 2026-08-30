@@ -296,7 +296,7 @@ export interface KitPlacement {
  * A deterministic stream. `Math.random` is forbidden on this surface (ADR-0380 D6 fence 2), and
  * a scatter that moved between runs would present that movement as the direction.
  */
-function rng(seed: number): () => number {
+export function propStream(seed: number): () => number {
   let s = (seed | 0) || 1;
   return () => {
     s = (s * 1664525 + 1013904223) | 0;
@@ -317,9 +317,13 @@ function rng(seed: number): () => number {
  * centroid so nothing sits on an edge two parcels share — a tree straddling a boundary reads as
  * belonging to neither.
  */
-function candidatePoints(cells: readonly LayoutCell[], count: number, seed: number): GPoint[] {
+export function candidatePoints(
+  cells: readonly LayoutCell[],
+  count: number,
+  seed: number,
+): GPoint[] {
   if (cells.length === 0 || count <= 0) return [];
-  const rand = rng(seed);
+  const rand = propStream(seed);
   const out: GPoint[] = [];
   // ⚠ A MATERIALISED RANGE RATHER THAN A COUNTER. `for (let i = 0; i < count; i++)` carries
   // mutants flipping `++` to `--` and `<` to `>`; neither fails an assertion, both run forever,
@@ -388,6 +392,21 @@ export const KIT_FOOTPRINTS_2026_08_29 = {
 /** How far the loaded kit's own footprints may sit from the frozen literal, as a fraction. */
 export const FOOTPRINT_TOLERANCE = 0.01;
 
+/**
+ * THE CIRCLE ONE PROP OCCUPIES — a declared footprint is a WIDTH, so the radius is half of it.
+ *
+ * ⚠⚠ IT IS A NAMED VALUE BECAUSE THE PLACEMENT CANNOT SHOW IT. `bestCandidate` scores
+ * `distance − (own radius + theirs)`, so scaling every radius by a constant subtracts the same
+ * amount from every candidate and the search's argmax does not move — a radius twice too big
+ * places identically, and "nothing overlaps" is satisfied by any radius at least as large as the
+ * true one. What the two callers CAN be held to is that they agree: the clearance the placement
+ * keeps is the clearance {@link dressingOverlaps} measures against, and `kit-vocabulary.test.ts`
+ * asserts the detector's own arithmetic against exact gaps.
+ */
+export function propRadius(footprint: RoleFootprints, role: KitRole): number {
+  return footprint[role] / 2;
+}
+
 /** How many candidates a placement is chosen from. Fixed rather than tuned: it is the resolution
  *  of the search, and moving it moves every island's dressing, so it belongs beside the
  *  algorithm rather than in a caller's options. */
@@ -415,7 +434,7 @@ const CANDIDATES_PER_PLACEMENT = 96;
  * attempts, and every answer to that is either "drop the prop" (the island under-reports) or
  * "place it anyway" (the defect, silently).
  */
-function bestCandidate(
+export function bestCandidate(
   candidates: readonly GPoint[],
   radius: number,
   occupied: readonly Occupancy[],
@@ -491,7 +510,7 @@ export function dressIslandFromKit(opts: KitDressingOptions): KitPlacement[] {
     seed: number,
     yaw: number,
   ): void => {
-    const radius = opts.footprint[role] / 2;
+    const radius = propRadius(opts.footprint, role);
     const at = bestCandidate(candidatePoints(from, CANDIDATES_PER_PLACEMENT, seed), radius, occupied);
     if (!at) return;
     occupied.push({ x: at.x, z: at.z, radius });
@@ -499,8 +518,10 @@ export function dressIslandFromKit(opts: KitDressingOptions): KitPlacement[] {
   };
 
   facts.forEach((fact, fi) => {
+    // ⚠ AN EMPTY CELL SET NEEDS NO GUARD HERE — `place` samples no candidate from one and returns
+    // without pushing anything. A second early-out would change no output, which is exactly the
+    // dead clause `check:mutation-diff` cannot kill and therefore cannot pass.
     const parcelCells = byParcel.get(fact.capId) ?? [];
-    if (parcelCells.length === 0) return;
     const form = stateForm(fact.status);
     // `unknown` — and any state this vocabulary has never heard of — grows nothing.
     if (!form) return;
@@ -556,11 +577,12 @@ export function dressingOverlaps(
   footprint: RoleFootprints,
 ): PropOverlap[] {
   const out: PropOverlap[] = [];
-  for (let i = 0; i < placements.length; i++) {
-    for (let j = i + 1; j < placements.length; j++) {
-      const a = placements[i]!;
-      const b = placements[j]!;
-      const need = footprint[a.role] / 2 + footprint[b.role] / 2;
+  // ⚠ PAIRS OFF THE ARRAY, NOT TWO COUNTERS. An index loop running one past the end leaves the
+  // inner loop empty, so nothing ever reads the element that is not there — no assertion can see
+  // it, and `check:mutation-diff` scores that as unproven rather than as harmless.
+  for (const [i, a] of placements.entries()) {
+    for (const b of placements.slice(i + 1)) {
+      const need = propRadius(footprint, a.role) + propRadius(footprint, b.role);
       const gap = Math.hypot(a.at.x - b.at.x, a.at.z - b.at.z) - need;
       if (gap < 0) {
         out.push({ a: `${a.role}:${a.capId}`, b: `${b.role}:${b.capId}`, gap });

@@ -18,18 +18,33 @@ import * as THREE from 'three';
 
 import { decodeKitAsset } from './kit-asset.js';
 import {
+  KIT_TEXTURE_SLOTS,
   LEAF_MATERIALS,
+  assembleParts,
+  assertKitComplete,
+  collectKitPrimitive,
+  collectLeafMeans,
+  declaredObjectName,
+  geometryTriangles,
+  kitFromScene,
   kitMeshes,
+  materialTextures,
+  newKitCollector,
   parseKit,
   placementExtent,
   placementScale,
+  prepareKitMaterial,
   roleFootprints,
+  textureGpuBytes,
   tintedMaterial,
 } from './kit-mesh.js';
 import type { KitAssemblyGeometry, KitObject, LoadedKit } from './kit-mesh.js';
-import { KIT_ROLES, KIT_ROLE_ASSEMBLIES, KIT_ROLE_SIZE } from './kit-vocabulary.js';
+import { KIT_ROLES, KIT_ROLE_ASSEMBLIES, KIT_ROLE_SIZE, kitObjectNames } from './kit-vocabulary.js';
 import type { KitAssembly, KitPlacement, KitRole } from './kit-vocabulary.js';
 import { leafTintGainFor } from './leaf-tint.js';
+import type { DecodedMap } from './map-texels.js';
+import { RAW_COLOUR_SPACE } from './texture-convention.js';
+import type { Rgb } from './texture-convention.js';
 
 /** A box of a named size wearing a named material — enough for every measurement below. */
 function part(name: string, materialName: string, w: number, h: number, d: number): KitObject {
@@ -314,4 +329,386 @@ test('the loader names its source in a refusal', async () => {
     assert.match(e.message, /Pine_Branches/);
     return true;
   });
+});
+
+// ---------------------------------------------------------------------------
+// the load, split so a node test can reach it
+// ---------------------------------------------------------------------------
+//
+// ⚠⚠ WHY THESE ARE SEPARATE FUNCTIONS AT ALL. `parseKit` needs a browser only to DECODE an image;
+// walking the scene graph, resolving which declared object a primitive belongs to, recentring an
+// assembly on its joint footprint, the manifest floor and the GPU-byte arithmetic are none of them
+// browser-bound. Left inside the load they were 101 mutants nothing could reach and
+// `check:mutation-diff` said so — the same finding that pulled `texelMeans` out of the canvas read
+// in `map-texels.ts`. The remedy is not a better browser fixture: the subject was never the browser.
+
+/** A material carrying named texture slots of a given size — enough to measure a kit's payload. */
+function texturedMaterial(
+  name: string,
+  slots: Partial<Record<(typeof KIT_TEXTURE_SLOTS)[number], { width: number; height: number } | null>>,
+): THREE.MeshStandardMaterial {
+  const material = new THREE.MeshStandardMaterial({ name });
+  material.name = name;
+  for (const [slot, size] of Object.entries(slots)) {
+    const texture = new THREE.Texture();
+    if (size) texture.image = size;
+    material[slot as 'map'] = texture;
+  }
+  return material;
+}
+
+test('a kit material is put into alpha TEST, double sided, and the raw colour convention', () => {
+  // ⚠ `alphaTest` and `transparent` are mutually exclusive in three: leaving `transparent` on
+  // keeps a stand of cut-out leaf cards in the sorted transparent pass, which is the classic
+  // sorting failure this correction exists for.
+  const foliage = texturedMaterial('Pine_Branches', { map: { width: 4, height: 4 } });
+  foliage.transparent = true;
+  foliage.depthWrite = false;
+  prepareKitMaterial(foliage);
+  assert.equal(foliage.transparent, false);
+  assert.equal(foliage.alphaTest, 0.5);
+  assert.equal(foliage.depthWrite, true);
+  assert.equal(foliage.side, THREE.DoubleSide);
+  // The base-colour map is moved into this surface's raw convention — the reason a bought texture
+  // does not render ~3.5x dark on a renderer that is not colour-managed.
+  assert.equal(foliage.map!.colorSpace, RAW_COLOUR_SPACE);
+
+  // ⚠ AND AN OPAQUE MATERIAL IS LEFT ALONE ON THAT AXIS. Setting an alpha test on solid trunk bark
+  // would punch holes in it wherever the map's alpha happened to be low.
+  const bark = texturedMaterial('Pine_Trunks', { map: { width: 4, height: 4 } });
+  bark.transparent = false;
+  prepareKitMaterial(bark);
+  assert.equal(bark.alphaTest, 0);
+  assert.equal(bark.side, THREE.DoubleSide, 'the side is set for every material, not only cut-outs');
+});
+
+test('a material’s textures are recorded per SLOT, and a slot that never decoded is skipped', () => {
+  const material = texturedMaterial('Pine_Branches', {
+    map: { width: 1024, height: 512 },
+    normalMap: { width: 256, height: 256 },
+    // An undecoded slot: three carries the texture, its image is not there.
+    roughnessMap: null,
+  });
+  const records = materialTextures(material);
+  assert.deepEqual(
+    records.map(([, r]) => r),
+    [
+      { name: 'map:Pine_Branches', width: 1024, height: 512 },
+      { name: 'normalMap:Pine_Branches', width: 256, height: 256 },
+    ],
+  );
+  // ⚠ KEYED ON THE TEXTURE'S OWN UUID, not on the slot. Two slots sharing one image are one
+  // texture on the GPU, and counting it twice would over-report the payload by its own size.
+  assert.deepEqual(
+    records.map(([uuid]) => uuid),
+    [material.map!.uuid, material.normalMap!.uuid],
+  );
+  assert.equal(materialTextures(new THREE.MeshStandardMaterial()).length, 0);
+});
+
+test('a decoded image with no dimensions is recorded as zero rather than as NaN', () => {
+  // `undefined * 4` is NaN, and a NaN in the payload total makes every reported byte count NaN —
+  // a number that says nothing, printed where a reader expects a size.
+  const material = texturedMaterial('Pine_Trunks', {});
+  const texture = new THREE.Texture();
+  texture.image = {};
+  material.map = texture;
+  assert.deepEqual(materialTextures(material)[0]![1], {
+    name: 'map:Pine_Trunks',
+    width: 0,
+    height: 0,
+  });
+});
+
+test('triangles are counted off the INDEX when there is one, and off positions when there is not', () => {
+  // ⚠ An indexed geometry's position count is its VERTEX count, which is smaller than three per
+  // triangle wherever vertices are shared — reading it instead would under-report a merged
+  // island's triangles by whatever the export happened to weld.
+  const indexed = new THREE.BoxGeometry(1, 1, 1);
+  assert.ok(indexed.getIndex(), 'the fixture geometry is not indexed — it proves nothing');
+  assert.equal(geometryTriangles(indexed), indexed.getIndex()!.count / 3);
+  assert.equal(geometryTriangles(indexed), 12);
+
+  const soup = indexed.toNonIndexed();
+  assert.equal(soup.getIndex(), null);
+  assert.equal(geometryTriangles(soup), 12);
+  assert.notEqual(indexed.getAttribute('position').count, soup.getAttribute('position').count);
+});
+
+test('a primitive resolves to the DECLARED object it belongs to — own name, parent, then stripped', () => {
+  // ⚠⚠ THE TRAP. A kit object wearing two materials is exported as ONE node with TWO primitives,
+  // which `GLTFLoader` turns into a Group whose children are `<object>_0`, `<object>_1`. Keying on
+  // the mesh's own name loses the object entirely — a quietly incomplete island.
+  const declared = new Set(['Pine_Trunk_01', 'Pine_Leaves_01']);
+  assert.equal(declaredObjectName('Pine_Trunk_01', 'Scene', declared), 'Pine_Trunk_01');
+  assert.equal(declaredObjectName('Pine_Trunk_01_0', 'Pine_Trunk_01', declared), 'Pine_Trunk_01');
+  // Its OWN name wins over the parent's, so a declared child of a declared group stays itself.
+  assert.equal(declaredObjectName('Pine_Leaves_01', 'Pine_Trunk_01', declared), 'Pine_Leaves_01');
+  // Neither declared: strip a TRAILING `_<digits>` and nothing else.
+  assert.equal(declaredObjectName('Rock_07_1', 'Scene', declared), 'Rock_07');
+  assert.equal(declaredObjectName('Leaves_v2_final', '', declared), 'Leaves_v2_final');
+  // ⚠⚠ THE DECLARED SET IS WHAT PROTECTS A NAME THAT ENDS IN DIGITS, AND NOTHING ELSE.
+  // `Pine_Trunk_No_Leaves_01` is a real kit object whose tail is indistinguishable from a
+  // primitive index — so the two clauses above are load-bearing rather than a convenience: asked
+  // about it undeclared, the strip runs and answers a name the kit does not contain.
+  const dead = 'Pine_Trunk_No_Leaves_01';
+  assert.equal(declaredObjectName(dead, '', new Set([dead])), dead);
+  assert.equal(declaredObjectName(dead, '', declared), 'Pine_Trunk_No_Leaves');
+  // Only the tail, and only digits: an index in the MIDDLE of a name is left alone.
+  assert.equal(declaredObjectName('Pine_01_Trunk', '', declared), 'Pine_01_Trunk');
+  assert.equal(declaredObjectName('Trunk_0a', '', declared), 'Trunk_0a');
+});
+
+/** A scene node: a mesh of the given size, at the given offset, wearing the given material. */
+function node(
+  name: string,
+  material: THREE.Material,
+  size: readonly [number, number, number] = [2, 2, 2],
+  at: readonly [number, number, number] = [0, 0, 0],
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(...size), material);
+  mesh.name = name;
+  mesh.position.set(...at);
+  return mesh;
+}
+
+test('the scene pass reads only textured MESHES, and bakes each one through its world matrix', () => {
+  const declared = new Set(['Pine_Trunk_01']);
+  const found = newKitCollector();
+
+  const group = new THREE.Group();
+  group.name = 'Pine_Trunk_01';
+  group.position.set(100, 0, -50);
+  const primitive = node('Pine_Trunk_01_0', texturedMaterial('Pine_Trunks', {}), [2, 6, 2]);
+  group.add(primitive);
+  group.updateMatrixWorld(true);
+  group.traverse((o) => collectKitPrimitive(o, declared, found));
+
+  // ⚠ THE GROUP ITSELF IS NOT A MESH and contributes nothing; its child does, under the group's
+  // NAME, at the group's position.
+  assert.deepEqual([...found.objects.keys()], ['Pine_Trunk_01']);
+  assert.equal(found.objects.get('Pine_Trunk_01')!.length, 1);
+  assert.equal(found.triangles, 12);
+  assert.deepEqual([...found.materials], ['Pine_Trunks']);
+  const box = found.objects.get('Pine_Trunk_01')![0]!.geometry.boundingBox!;
+  assert.ok(Math.abs(box.min.x - 99) < 1e-9, `the node transform did not reach the vertices: ${box.min.x}`);
+  assert.ok(Math.abs(box.max.z - -49) < 1e-9);
+
+  // A mesh wearing something that is not a standard material is stepped over — the kit's own
+  // objects all wear one, and anything else in the file is not part of the vocabulary.
+  const odd = node('Pine_Trunk_01', new THREE.MeshBasicMaterial());
+  collectKitPrimitive(odd, declared, found);
+  assert.equal(found.objects.get('Pine_Trunk_01')!.length, 1, 'a non-standard material was read in');
+  assert.equal(found.triangles, 12);
+});
+
+test('⚠ two primitives of ONE object are a LIST under one key, not one overwriting the other', () => {
+  // The dead pine wears both `Pine_Trunks` and `Pine_Branches`, so it exports as two primitives.
+  // A map of name -> object would keep whichever arrived last and the tree would lose half itself.
+  const declared = new Set(['Pine_Trunk_No_Leaves_01']);
+  const found = newKitCollector();
+  const group = new THREE.Group();
+  group.name = 'Pine_Trunk_No_Leaves_01';
+  group.add(node('Pine_Trunk_No_Leaves_01_0', texturedMaterial('Pine_Trunks', {})));
+  group.add(node('Pine_Trunk_No_Leaves_01_1', texturedMaterial('Pine_Branches', {})));
+  group.updateMatrixWorld(true);
+  group.traverse((o) => collectKitPrimitive(o, declared, found));
+
+  const parts = found.objects.get('Pine_Trunk_No_Leaves_01')!;
+  assert.equal(parts.length, 2);
+  assert.deepEqual(parts.map((p) => p.materialName).sort(), ['Pine_Branches', 'Pine_Trunks']);
+  assert.equal(found.triangles, 24, 'the second primitive’s triangles were lost');
+});
+
+test('the manifest floor names every declared object the asset failed to deliver', () => {
+  // ⚠ Every count and placement downstream is per assembly FOUND, so an asset that lost an object
+  // would draw a quietly emptier island. The refusal names what is missing so it is actionable.
+  const objects = new Map<string, unknown>([['Pine_Trunk_01', 1]]);
+  assert.throws(
+    () => assertKitComplete(['Pine_Trunk_01', 'Pine_Leaves_01', 'Red_Flower_01'], objects, 'a-source'),
+    (e: Error) => {
+      assert.match(e.message, /a-source/);
+      assert.match(e.message, /Pine_Leaves_01, Red_Flower_01/);
+      assert.doesNotMatch(e.message, /Pine_Trunk_01,/);
+      assert.match(e.message, /under-reporting the work/);
+      return true;
+    },
+  );
+  assert.equal(assertKitComplete(['Pine_Trunk_01'], objects, 'a-source'), undefined);
+  assert.equal(assertKitComplete([], new Map(), 'a-source'), undefined);
+});
+
+test('an assembly is recentred on its JOINT footprint with its base at y = 0', () => {
+  // ⚠⚠ ONE BOX FOR THE WHOLE ASSEMBLY. Recentring each object on its OWN base drops a pine's crown
+  // 18% of the tree's height into its trunk — the crown's own base is not the tree's.
+  const trunk = part('Trunk', 'Pine_Trunks', 2, 10, 2);
+  trunk.geometry.translate(20, 5, -8);
+  trunk.geometry.computeBoundingBox();
+  const crown = part('Crown', 'Pine_Branches', 6, 6, 6);
+  crown.geometry.translate(21, 12, -8);
+  crown.geometry.computeBoundingBox();
+
+  const built = assembleParts([trunk, crown], ['Trunk', 'Crown']);
+  const joint = new THREE.Box3();
+  for (const p of built.objects) joint.union(p.geometry.boundingBox!);
+
+  // x and z on the joint centre, base at y = 0 — and the crown keeps its offset from the trunk.
+  assert.ok(Math.abs(joint.min.y) < 1e-9, `the base sits at ${joint.min.y}, not 0`);
+  assert.ok(Math.abs(joint.min.x + joint.max.x) < 1e-9, 'x is not centred on the joint box');
+  assert.ok(Math.abs(joint.min.z + joint.max.z) < 1e-9, 'z is not centred on the joint box');
+  assert.ok(built.objects[1]!.geometry.boundingBox!.min.y > 0, 'the crown was dropped to the ground');
+
+  // The measurements are the JOINT box's own extents, and the width is the WIDER horizontal axis.
+  assert.equal(built.height, 15 - 0);
+  assert.equal(built.width, 24 - 18);
+  assert.deepEqual(built.names, ['Trunk', 'Crown']);
+
+  // ⚠ NON-VACUITY ON `Math.max`: a deeper-than-wide assembly takes its depth instead.
+  const deep = part('Deep', 'Pine_Trunks', 2, 4, 9);
+  deep.geometry.computeBoundingBox();
+  assert.equal(assembleParts([deep], ['Deep']).width, 9);
+});
+
+test('the GPU payload is 4 bytes a texel with the mip chain, summed over the textures', () => {
+  // 4/3 is the full mip chain over the base level; dropping it under-reports every island's VRAM
+  // by a quarter, and multiplying instead of adding it is a different number that looks fine.
+  assert.equal(textureGpuBytes([]), 0);
+  assert.equal(
+    textureGpuBytes([{ name: 'a', width: 1024, height: 512 }]),
+    Math.round(1024 * 512 * 4 * (4 / 3)),
+  );
+  assert.equal(
+    textureGpuBytes([
+      { name: 'a', width: 1024, height: 512 },
+      { name: 'b', width: 256, height: 128 },
+    ]),
+    Math.round(1024 * 512 * 4 * (4 / 3)) + Math.round(256 * 128 * 4 * (4 / 3)),
+  );
+  // ⚠ WIDTH TIMES HEIGHT, NOT DIVIDED: a non-square texture is the case that tells them apart.
+  assert.equal(textureGpuBytes([{ name: 'a', width: 8, height: 2 }]), Math.round(8 * 2 * 4 * (4 / 3)));
+  assert.notEqual(textureGpuBytes([{ name: 'a', width: 8, height: 2 }]), Math.round((8 / 2) * 4 * (4 / 3)));
+});
+
+/** A part whose material carries a base-colour map with the given decoded stand-in. */
+function leafPart(materialName: string, image: unknown): KitObject {
+  const p = part('Leaves', materialName, 1, 1, 1);
+  if (image !== null) {
+    const texture = new THREE.Texture();
+    texture.image = image;
+    p.material.map = texture;
+  }
+  return p;
+}
+
+test('a leaf material’s mean is read ONCE, off the asset, and only for LEAF materials', () => {
+  // ⚠ A tint rotates the map onto a token's chromaticity at the MAP's own luminance, so the mean
+  // has to come from the asset. Reading it per part instead of once would decode a 1024x1024
+  // foliage map for every tree on the island.
+  const reads: unknown[] = [];
+  const meanOf = (image: DecodedMap): Rgb => {
+    reads.push(image);
+    return { r: 70, g: 90, b: 69 };
+  };
+  const means = collectLeafMeans(
+    [
+      [leafPart('Pine_Trunks', { id: 'bark' }), leafPart('Pine_Branches', { id: 'foliage-a' })],
+      [leafPart('Pine_Branches', { id: 'foliage-b' })],
+    ],
+    'a-source',
+    meanOf,
+  );
+  assert.deepEqual([...means.keys()], ['Pine_Branches']);
+  assert.deepEqual(means.get('Pine_Branches'), { r: 70, g: 90, b: 69 });
+  assert.deepEqual(reads, [{ id: 'foliage-a' }], 'the mean was read more than once, or off the bark');
+});
+
+test('a leaf material with no decoded map is refused, and so is a kit carrying none at all', () => {
+  // ⚠ The alternative is a crown silently wearing its state token as a FLAT colour instead of the
+  // asset it was bought for — which reads as a deliberate art direction, not as a fault.
+  const meanOf = (): Rgb => ({ r: 1, g: 1, b: 1 });
+  assert.throws(
+    () => collectLeafMeans([[leafPart('Pine_Branches', null)]], 'a-source', meanOf),
+    /Pine_Branches carries no base-colour map/,
+  );
+  // A kit with no leaf material anywhere is the other half, and it says what it costs: every
+  // tinted state would fall back to the kit's own green and report every capability as proven.
+  assert.throws(
+    () => collectLeafMeans([[leafPart('Pine_Trunks', { id: 'bark' })]], 'a-source', meanOf),
+    (e: Error) => {
+      assert.match(e.message, /a-source carries none of the declared leaf materials/);
+      assert.match(e.message, /\[Pine_Branches\]/);
+      assert.match(e.message, /every capability as proven/);
+      return true;
+    },
+  );
+});
+
+/** A whole scene the vocabulary declares every object of — a kit, synthesised. */
+function fixtureScene(): THREE.Group {
+  const scene = new THREE.Group();
+  const foliage = texturedMaterial('Pine_Branches', { map: { width: 8, height: 8 } });
+  foliage.map!.image = { width: 8, height: 8 };
+  for (const name of kitObjectNames()) {
+    const leafy = name.includes('Leaves') && !name.includes('No_Leaves');
+    scene.add(node(name, leafy ? foliage : texturedMaterial('Pine_Trunks', {}), [2, 4, 2], [0, 2, 0]));
+  }
+  scene.updateMatrixWorld(true);
+  return scene;
+}
+
+test('the whole load, over a synthesised scene: assemblies, materials, triangles and payload', () => {
+  // ⚠ THE RETURN ITSELF IS AN ASSERTION SUBJECT. Every field here was unreachable while the load
+  // was one browser-bound function — including `wireBytes`, which is the number a payload report
+  // prints, and the SORT on `materials`, which is what makes a report's list stable between runs.
+  const kit = kitFromScene(fixtureScene(), 162_748, 'a-source', () => ({ r: 70, g: 90, b: 69 }));
+
+  assert.deepEqual([...kit.assemblies.keys()].sort(), ['flower', 'pine-a', 'pine-b', 'pine-dead']);
+  assert.deepEqual(kit.assemblies.get('pine-a')!.names, ['Pine_Trunk_01', 'Pine_Leaves_01']);
+  assert.equal(kit.assemblies.get('pine-a')!.objects.length, 2);
+  assert.equal(kit.assemblies.get('pine-dead')!.objects.length, 1);
+  assert.deepEqual(kit.materials, ['Pine_Branches', 'Pine_Trunks'], 'the material list is not sorted');
+  assert.equal(kit.triangles, kitObjectNames().length * 12);
+  assert.equal(kit.wireBytes, 162_748);
+  assert.deepEqual(kit.textures, [{ name: 'map:Pine_Branches', width: 8, height: 8 }]);
+  assert.equal(kit.gpuBytes, Math.round(8 * 8 * 4 * (4 / 3)));
+  assert.deepEqual([...kit.leafMeans.keys()], ['Pine_Branches']);
+
+  // Every assembly is recentred, so a placement stands ON the ground rather than half through it.
+  for (const [name, built] of kit.assemblies) {
+    const box = new THREE.Box3();
+    for (const p of built.objects) box.union(p.geometry.boundingBox!);
+    assert.ok(Math.abs(box.min.y) < 1e-9, `${name} does not stand at y = 0`);
+    assert.equal(built.height, 4);
+  }
+});
+
+test('a scene missing a declared object is refused by the load, naming it', () => {
+  const thin = fixtureScene();
+  const gone = thin.children.find((c) => c.name === 'Red_Flower_01')!;
+  thin.remove(gone);
+  assert.throws(
+    () => kitFromScene(thin, 0, 'a-source', () => ({ r: 1, g: 1, b: 1 })),
+    /missing objects the vocabulary declares: Red_Flower_01/,
+  );
+});
+
+test('⚠ `updateMatrixWorld`’s FORCE argument cannot change a matrix on this asset', () => {
+  // ⚠⚠ THIS IS THE PREMISE THE `Stryker disable` ON THAT LINE RESTS ON, PINNED RATHER THAN
+  // ASSERTED IN A COMMENT. `Object3D.updateMatrixWorld(force)` recomputes a node's world matrix
+  // when its own matrix is dirty OR when `force` is set — and a node with `matrixAutoUpdate` on
+  // dirties itself on every call, so `force` only ever reaches nodes that have turned it off.
+  // `GLTFLoader` turns it off on nothing. If a re-export or a loader change ever did, this fails
+  // and the annotation stops being true in the same run.
+  //
+  // The CALL still matters and is not equivalent: glTF keeps a node transform separate from its
+  // mesh, and every world matrix is identity until something resolves the graph.
+  const gltf = new THREE.Group();
+  const scene = fixtureScene();
+  gltf.add(scene);
+  let nodes = 0;
+  gltf.traverse((o) => {
+    nodes += 1;
+    assert.equal(o.matrixAutoUpdate, true, `${o.name || o.type} has turned matrixAutoUpdate off`);
+  });
+  assert.ok(nodes > 1, 'the fixture has no nodes to check');
 });

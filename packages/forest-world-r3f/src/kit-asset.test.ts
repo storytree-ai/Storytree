@@ -93,3 +93,41 @@ test('⚠ the drift check can actually fire — a one-byte difference is caught'
   const shorter = GLB.subarray(0, GLB.length - 1);
   assert.notEqual(shorter.length, KIT_ASSET_BYTES, 'a truncation was not detected');
 });
+
+test('⚠ the asset is SELF-CONTAINED — no chunk of it lives at a URI a loader would have to fetch', () => {
+  // ⚠⚠ THIS IS WHAT LICENSES `parseKit` PASSING AN EMPTY BASE PATH, and the annotation on that
+  // line names this test. `GLTFLoader.parseAsync(bytes, path)` resolves every external `uri` in
+  // the JSON against `path`; a `.glb` that referenced its buffer or an image externally would
+  // therefore load correctly in the harness (served off vite beside the file) and 404 in the
+  // public engine copy, which carries `.ts` only. A container with exactly two chunks — JSON and
+  // BIN — and no `uri` anywhere has nothing to resolve, so the base path cannot matter.
+  const bytes = new Uint8Array(decodeKitAsset());
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+
+  const chunks: Array<{ type: number; start: number; length: number }> = [];
+  let at = 12;
+  while (at + 8 <= bytes.length) {
+    const length = view.getUint32(at, true);
+    const type = view.getUint32(at + 4, true);
+    chunks.push({ type, start: at + 8, length });
+    at += 8 + length + ((4 - (length % 4)) % 4);
+  }
+  assert.equal(chunks.length, 2, `the container holds ${chunks.length} chunks, not JSON + BIN`);
+  assert.equal(chunks[0]!.type, 0x4e4f534a, 'the first chunk is not JSON');
+  assert.equal(chunks[1]!.type, 0x004e4942, 'the second chunk is not BIN — the buffer is external');
+
+  const json = Buffer.from(
+    bytes.subarray(chunks[0]!.start, chunks[0]!.start + chunks[0]!.length),
+  ).toString('utf8');
+  const gltf = JSON.parse(json) as {
+    buffers?: Array<{ uri?: string }>;
+    images?: Array<{ uri?: string }>;
+  };
+  // NON-VACUITY: the asset really does carry both kinds of resource, so "none of them is external"
+  // is a fact about this kit rather than about an empty list.
+  assert.ok((gltf.buffers ?? []).length > 0, 'the glTF declares no buffer at all');
+  assert.ok((gltf.images ?? []).length > 0, 'the glTF declares no image at all');
+  for (const b of gltf.buffers ?? []) assert.equal(b.uri, undefined, 'a buffer lives at a URI');
+  for (const i of gltf.images ?? []) assert.equal(i.uri, undefined, 'an image lives at a URI');
+  assert.ok(!json.includes('"uri"'), 'the glTF JSON still names a uri somewhere');
+});

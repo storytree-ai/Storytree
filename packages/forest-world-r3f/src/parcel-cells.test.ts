@@ -75,6 +75,17 @@ test('only cell-ground descriptors are read — every other family is stepped ov
   ];
   assert.deepEqual(parcelCellsFrom(others), []);
   assert.equal(parcelCellsFrom([...others, cell({ parcel: 'cap-0' })]).length, 1);
+
+  // ⚠ AND ONE OF THEM CARRIES A PERFECTLY GOOD RING. Every descriptor above is refused by the
+  // family check OR by the ring check, so a reader that had lost the family check entirely would
+  // still answer `[]` here and look correct. This one is refused ONLY by its `kind` — a substrate
+  // whose parcels were read off `hex-ground` too would put a capability's tree on a hex the
+  // relaxed mesh no longer draws.
+  const shaped: Descriptor3D = {
+    ...cell({ parcel: 'cap-0' }),
+    kind: 'hex-ground',
+  };
+  assert.deepEqual(parcelCellsFrom([shaped]), []);
 });
 
 test('a ring bounding no area is stepped over, and so is a missing one', () => {

@@ -82,83 +82,133 @@ export interface LoadedKit {
   gpuBytes: number;
 }
 
+/** The base-colour and data maps a kit material can carry, in the order a report lists them. */
+export const KIT_TEXTURE_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap'] as const;
+
+/** One decoded texture the kit holds, named by the slot and material that reach it. */
+export interface KitTexture {
+  name: string;
+  width: number;
+  height: number;
+}
+
 /**
- * LOAD THE KIT.
+ * PUT ONE KIT MATERIAL INTO THIS SURFACE'S CONVENTION.
  *
  * Two corrections the kit's own export needs for a map, both the same ones `loadPine` makes and
  * for the same reasons: the foliage is authored `BLEND`, which for a stand of cut-out leaf cards
  * is the classic sorting failure, so it is switched to an alpha TEST; and the base-colour maps
  * are put in this surface's raw convention.
+ */
+export function prepareKitMaterial(material: THREE.MeshStandardMaterial): void {
+  if (material.transparent) {
+    // `alphaTest` and `transparent` are mutually exclusive in three: leaving `transparent` on
+    // keeps the mesh in the sorted transparent pass even with a test set.
+    material.transparent = false;
+    material.alphaTest = 0.5;
+    material.depthWrite = true;
+  }
+  material.side = THREE.DoubleSide;
+  applyRawColourConvention(material satisfies ConventionMaterial);
+}
+
+/** The decoded textures one material contributes, keyed by the texture's own uuid so two slots
+ *  sharing one image are counted once. */
+export function materialTextures(material: THREE.MeshStandardMaterial): Array<[string, KitTexture]> {
+  const out: Array<[string, KitTexture]> = [];
+  for (const key of KIT_TEXTURE_SLOTS) {
+    const tex = material[key];
+    if (!tex || !tex.image) continue;
+    const img = tex.image as { width?: number; height?: number };
+    out.push([
+      tex.uuid,
+      { name: `${key}:${material.name}`, width: img.width ?? 0, height: img.height ?? 0 },
+    ]);
+  }
+  return out;
+}
+
+/** How many triangles a geometry carries, indexed or not. */
+export function geometryTriangles(geometry: THREE.BufferGeometry): number {
+  const index = geometry.getIndex();
+  return index ? index.count / 3 : geometry.getAttribute('position').count / 3;
+}
+
+/**
+ * THE DECLARED KIT OBJECT ONE PRIMITIVE BELONGS TO: its own name if that is declared, else its
+ * parent group's, else its name with the primitive index stripped.
+ *
+ * ⚠ A KIT OBJECT WEARING TWO MATERIALS IS EXPORTED AS TWO PRIMITIVES. The dead pine wears both
+ * `Pine_Trunks` and `Pine_Branches`, so glTF gives it one node with two primitives and
+ * `GLTFLoader` turns that into a Group whose children are named `<object>_0`, `<object>_1`.
+ * Keying on the mesh's own name loses the object entirely — which the manifest floor catches
+ * rather than drawing a quietly incomplete island, but only because this resolution exists.
+ */
+export function declaredObjectName(
+  own: string,
+  parentName: string,
+  declared: ReadonlySet<string>,
+): string {
+  if (declared.has(own)) return own;
+  if (declared.has(parentName)) return parentName;
+  return own.replace(/_\d+$/, '');
+}
+
+/** What one pass over a glTF scene accumulates. Mutable on purpose: the pass IS the read. */
+export interface KitCollector {
+  /** ⚠ A LIST PER NAME, NOT ONE OBJECT — see {@link declaredObjectName}. */
+  objects: Map<string, KitObject[]>;
+  materials: Set<string>;
+  textures: Map<string, KitTexture>;
+  triangles: number;
+}
+
+/** An empty collector, so a caller never has to restate its four fields. */
+export function newKitCollector(): KitCollector {
+  return { objects: new Map(), materials: new Set(), textures: new Map(), triangles: 0 };
+}
+
+/**
+ * READ ONE SCENE NODE INTO THE COLLECTOR — the whole per-primitive half of the load.
  *
  * ⚠ EVERY GEOMETRY IS BAKED THROUGH ITS NODE'S WORLD MATRIX FIRST. glTF keeps a node transform
  * separate from its mesh, so a bounding box read straight off the geometry is in some other
  * space than the one the kit laid its objects out in — and this vocabulary's whole trunk/crown
  * relationship is a fact about that layout.
  */
-export async function parseKit(
-  bytes: ArrayBuffer,
-  source = 'the embedded kit',
-): Promise<LoadedKit> {
+export function collectKitPrimitive(
+  obj: THREE.Object3D,
+  declared: ReadonlySet<string>,
+  into: KitCollector,
+): void {
+  if (!(obj instanceof THREE.Mesh)) return;
+  const material = obj.material;
+  if (!(material instanceof THREE.MeshStandardMaterial)) return;
 
-  const gltf = await new GLTFLoader().parseAsync(bytes, '');
-  gltf.scene.updateMatrixWorld(true);
+  prepareKitMaterial(material);
+  for (const [uuid, record] of materialTextures(material)) into.textures.set(uuid, record);
 
-  // ⚠ A LIST PER NAME, NOT ONE OBJECT. A kit object wearing TWO materials — the dead pine wears
-  // both `Pine_Trunks` and `Pine_Branches` — is exported as one node with two PRIMITIVES, and
-  // `GLTFLoader` turns that into a Group whose children are named `<object>_0`, `<object>_1`.
-  // Keying on the mesh's own name loses the object entirely, which the manifest floor below
-  // caught on the first run rather than drawing a quietly incomplete island.
-  const objects = new Map<string, KitObject[]>();
-  const declared = new Set(kitObjectNames());
-  const materials = new Set<string>();
-  const textures = new Map<string, { name: string; width: number; height: number }>();
-  let triangles = 0;
+  const geometry = (obj.geometry as THREE.BufferGeometry).clone().applyMatrix4(obj.matrixWorld);
+  geometry.computeBoundingBox();
+  into.triangles += geometryTriangles(geometry);
+  into.materials.add(material.name);
 
-  gltf.scene.traverse((obj) => {
-    if (!(obj instanceof THREE.Mesh)) return;
-    const material = obj.material;
-    if (!(material instanceof THREE.MeshStandardMaterial)) return;
+  const key = declaredObjectName(obj.name, obj.parent?.name ?? '', declared);
+  const part = { name: key, geometry, material, materialName: material.name };
+  const existing = into.objects.get(key);
+  if (existing) existing.push(part);
+  else into.objects.set(key, [part]);
+}
 
-    if (material.transparent) {
-      // `alphaTest` and `transparent` are mutually exclusive in three: leaving `transparent` on
-      // keeps the mesh in the sorted transparent pass even with a test set.
-      material.transparent = false;
-      material.alphaTest = 0.5;
-      material.depthWrite = true;
-    }
-    material.side = THREE.DoubleSide;
-    applyRawColourConvention(material satisfies ConventionMaterial);
-
-    for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap'] as const) {
-      const tex = material[key];
-      if (!tex || !tex.image) continue;
-      const img = tex.image as { width?: number; height?: number };
-      textures.set(tex.uuid, {
-        name: `${key}:${material.name}`,
-        width: img.width ?? 0,
-        height: img.height ?? 0,
-      });
-    }
-
-    const geometry = (obj.geometry as THREE.BufferGeometry).clone().applyMatrix4(obj.matrixWorld);
-    geometry.computeBoundingBox();
-    const index = geometry.getIndex();
-    triangles += index ? index.count / 3 : geometry.getAttribute('position').count / 3;
-    materials.add(material.name);
-    // Resolve the DECLARED object this primitive belongs to: its own name if that is declared,
-    // else its parent group's, else its name with the primitive index stripped.
-    const own = obj.name;
-    const parent = obj.parent?.name ?? '';
-    const stripped = own.replace(/_\d+$/, '');
-    const key = declared.has(own) ? own : declared.has(parent) ? parent : stripped;
-    const part = { name: key, geometry, material, materialName: material.name };
-    const existing = objects.get(key);
-    if (existing) existing.push(part);
-    else objects.set(key, [part]);
-  });
-
-  // ⚠ THE MANIFEST FLOOR. Every count and every placement below is per assembly FOUND, so an
-  // asset that lost an object would draw a quietly emptier island and nothing would say so.
+/**
+ * THE MANIFEST FLOOR. Every count and every placement downstream is per assembly FOUND, so an
+ * asset that lost an object would draw a quietly emptier island and nothing would say so.
+ */
+export function assertKitComplete(
+  declared: Iterable<string>,
+  objects: ReadonlyMap<string, unknown>,
+  source: string,
+): void {
   const missing = [...declared].filter((n) => !objects.has(n));
   if (missing.length > 0) {
     throw new Error(
@@ -167,42 +217,65 @@ export async function parseKit(
         'island under-reporting the work.',
     );
   }
+}
 
-  const assemblies = new Map<KitAssembly, KitAssemblyGeometry>();
-  for (const [assembly, names] of Object.entries(KIT_ASSEMBLIES) as Array<
-    [KitAssembly, readonly string[]]
-  >) {
-    const parts = names.flatMap((n) => objects.get(n)!);
-    // ONE joint box for the whole assembly — see `KIT_ASSEMBLIES`. Recentring each object on its
-    // own base drops a pine's crown 18% of the tree's height into its trunk.
-    const box = new THREE.Box3();
-    for (const part of parts) box.union(part.geometry.boundingBox!);
-    const cx = (box.min.x + box.max.x) / 2;
-    const cz = (box.min.z + box.max.z) / 2;
-    for (const part of parts) {
-      part.geometry.translate(-cx, -box.min.y, -cz);
-      part.geometry.computeBoundingBox();
-    }
-    assemblies.set(assembly, {
-      objects: parts,
-      names,
-      height: box.max.y - box.min.y,
-      width: Math.max(box.max.x - box.min.x, box.max.z - box.min.z),
-    });
+/**
+ * RECENTRE ONE ASSEMBLY'S PARTS ON THEIR JOINT FOOTPRINT, base at y = 0, and measure it.
+ *
+ * ⚠ ONE JOINT BOX FOR THE WHOLE ASSEMBLY — see `KIT_ASSEMBLIES`. Recentring each object on its
+ * OWN base drops a pine's crown 18% of the tree's height into its trunk.
+ */
+export function assembleParts(parts: KitObject[], names: readonly string[]): KitAssemblyGeometry {
+  const box = new THREE.Box3();
+  for (const part of parts) box.union(part.geometry.boundingBox!);
+  const cx = (box.min.x + box.max.x) / 2;
+  const cz = (box.min.z + box.max.z) / 2;
+  for (const part of parts) {
+    part.geometry.translate(-cx, -box.min.y, -cz);
+    part.geometry.computeBoundingBox();
   }
+  return {
+    objects: parts,
+    names,
+    height: box.max.y - box.min.y,
+    width: Math.max(box.max.x - box.min.x, box.max.z - box.min.z),
+  };
+}
 
+/** Decoded bytes the GPU holds for a set of textures: 4 per texel, and the full mip chain is 4/3
+ *  of the base level. */
+export function textureGpuBytes(textures: Iterable<KitTexture>): number {
   let gpuBytes = 0;
-  for (const t of textures.values()) {
-    // 4 bytes per texel, and the full mip chain is 4/3 of the base level.
-    gpuBytes += Math.round(t.width * t.height * 4 * (4 / 3));
-  }
+  for (const t of textures) gpuBytes += Math.round(t.width * t.height * 4 * (4 / 3));
+  return gpuBytes;
+}
 
-  // ⚠ THE LEAF MEANS ARE READ HERE, ONCE, FROM THE ASSET'S OWN DECODED TEXELS — not declared and
-  // not derived from the delivered frame. A tint rotates a map onto a token's chromaticity at the
-  // MAP's own luminance (`leaf-tint.ts`), so it needs the map's mean and nothing else; taking it
-  // from the picture instead would be an expectation derived from its own subject.
+/**
+ * HOW A LEAF MATERIAL'S OWN BASE-COLOUR MEAN IS READ.
+ *
+ * ⚠ A SEAM, AND IT NAMES THE ONE BROWSER-BOUND STEP IN THE WHOLE LOAD. Decoding a texture's
+ * texels needs a canvas; every claim about what the mean is FOR — that it is read once, off the
+ * ASSET rather than off the delivered frame, and that a leaf material without one is refused —
+ * is arithmetic, and is proved here rather than only on a GPU.
+ */
+export type LeafMeanReader = (image: DecodedMap) => Rgb;
+
+const decodedLeafMean: LeafMeanReader = (image) => mapMeans(image).raw;
+
+/**
+ * EACH LEAF MATERIAL'S OWN BASE-COLOUR MEAN, read ONCE from the asset's own decoded texels — not
+ * declared and not derived from the delivered frame. A tint rotates a map onto a token's
+ * chromaticity at the MAP's own luminance (`leaf-tint.ts`), so it needs the map's mean and
+ * nothing else; taking it from the picture instead would be an expectation derived from its own
+ * subject.
+ */
+export function collectLeafMeans(
+  objects: Iterable<KitObject[]>,
+  source: string,
+  meanOf: LeafMeanReader = decodedLeafMean,
+): Map<string, Rgb> {
   const leafMeans = new Map<string, Rgb>();
-  for (const parts of objects.values()) {
+  for (const parts of objects) {
     for (const part of parts) {
       if (!LEAF_MATERIALS.has(part.materialName)) continue;
       if (leafMeans.has(part.materialName)) continue;
@@ -214,7 +287,7 @@ export async function parseKit(
             'colour instead of the asset it was bought for',
         );
       }
-      leafMeans.set(part.materialName, mapMeans(image).raw);
+      leafMeans.set(part.materialName, meanOf(image));
     }
   }
   const missingLeaf = [...LEAF_MATERIALS].filter((m) => !leafMeans.has(m));
@@ -225,16 +298,79 @@ export async function parseKit(
         'every capability as proven',
     );
   }
+  return leafMeans;
+}
+
+/**
+ * EVERYTHING DOWNSTREAM OF THE glTF PARSE — one pass over the scene, then arithmetic.
+ *
+ * ⚠⚠ SPLIT OUT OF {@link parseKit} SO IT CAN BE PROVED. What needs a browser in this module is
+ * decoding an IMAGE; walking a scene graph, resolving which declared object a primitive belongs
+ * to, recentring an assembly on its joint footprint, the manifest floor and the GPU-byte
+ * arithmetic are none of them browser-bound. Left inside the load they were 101 mutants nothing
+ * could reach and `check:mutation-diff` said so — the same finding that pulled `texelMeans` out
+ * of the canvas read in `map-texels.ts`.
+ */
+export function kitFromScene(
+  scene: THREE.Object3D,
+  wireBytes: number,
+  source: string,
+  meanOf: LeafMeanReader = decodedLeafMean,
+): LoadedKit {
+  const declared = new Set(kitObjectNames());
+  const found = newKitCollector();
+  scene.traverse((obj) => collectKitPrimitive(obj, declared, found));
+
+  assertKitComplete(declared, found.objects, source);
+
+  const assemblies = new Map<KitAssembly, KitAssemblyGeometry>();
+  for (const [assembly, names] of Object.entries(KIT_ASSEMBLIES) as Array<
+    [KitAssembly, readonly string[]]
+  >) {
+    assemblies.set(
+      assembly,
+      assembleParts(
+        names.flatMap((n) => found.objects.get(n)!),
+        names,
+      ),
+    );
+  }
 
   return {
     assemblies,
-    materials: [...materials].sort(),
-    leafMeans,
-    triangles,
-    wireBytes: bytes.byteLength,
-    textures: [...textures.values()],
-    gpuBytes,
+    materials: [...found.materials].sort(),
+    leafMeans: collectLeafMeans(found.objects.values(), source, meanOf),
+    triangles: found.triangles,
+    wireBytes,
+    textures: [...found.textures.values()],
+    gpuBytes: textureGpuBytes(found.textures.values()),
   };
+}
+
+/**
+ * LOAD THE KIT — the glTF parse, and then {@link kitFromScene}.
+ *
+ * ⚠ `updateMatrixWorld` FIRST. glTF keeps a node transform separate from its mesh and
+ * `GLTFLoader` does not resolve the graph for you, so every world matrix is identity until this
+ * runs — and every geometry would then be baked through the wrong one.
+ */
+export async function parseKit(
+  bytes: ArrayBuffer,
+  source = 'the embedded kit',
+  meanOf?: LeafMeanReader,
+): Promise<LoadedKit> {
+  // Stryker disable next-line StringLiteral: EQUIVALENT — the second argument is the base PATH
+  // external URIs resolve against, and this asset has none: `kit-asset.test.ts` holds that the
+  // committed `.glb` is self-contained (one BIN chunk, no `uri` anywhere in its JSON), so every
+  // path resolves the same asset and no fetch is ever issued.
+  const gltf = await new GLTFLoader().parseAsync(bytes, '');
+  // Stryker disable next-line BooleanLiteral: EQUIVALENT, and provably rather than by inspection.
+  // `force` only reaches a node that has turned `matrixAutoUpdate` OFF — every other node dirties
+  // itself on the same call and recomputes regardless. `GLTFLoader` turns it off on nothing, which
+  // `kit-mesh.test.ts` pins, so this argument cannot change a matrix. The CALL is not equivalent:
+  // without it every world matrix is still identity.
+  gltf.scene.updateMatrixWorld(true);
+  return kitFromScene(gltf.scene, bytes.byteLength, source, meanOf);
 }
 
 /**
