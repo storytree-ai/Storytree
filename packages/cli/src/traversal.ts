@@ -8,6 +8,8 @@
  * proof, and nothing here may re-implement a renderer or touch the trace files directly.
  */
 import { listTraversalSessionsRendered, resolveTraversalDir } from "@storytree/context-traversal-capture";
+import { shipTraversalBacklog, traversalShipBacklog } from "@storytree/context-traversal-capture/store";
+import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 import { showTraversalSessionAllAdapters } from "@storytree/context-traversal-spawn";
 import {
   HOST_TRANSCRIPT_COVERAGE,
@@ -34,6 +36,16 @@ export function traversalHelp(): Envelope {
       "                                        (ADR-0248 D1). Idempotent — re-running appends",
       "                                        nothing. Transcripts are read from",
       "                                        ~/.claude/projects (STORYTREE_TRANSCRIPT_DIR).",
+      "  storytree traversal backlog           what has NOT reached the shared store yet, and",
+      "                                        since when. Offline — reads the local cursors.",
+      "  storytree traversal ship --pg         drain the local traces into the shared store",
+      "                                        (ADR-0484). Runs out of band; a command never",
+      "                                        waits on it. Retries are the cursor, so re-running",
+      "                                        after a failure is the normal repair.",
+      "",
+      "The shared log holds what was traced FORWARD from 2026-08-30 (ADR-0484 D6): a session's",
+      "pre-existing local history stays local and is never backfilled, so a question spanning the",
+      "change reads both stores.",
     ].join("\n"),
     next: ["storytree traversal list — find a captured session id"],
   };
@@ -107,12 +119,146 @@ function traversalIngest(sessionId: string): Envelope {
 }
 
 /**
- * Dispatch one `traversal` invocation. Reads only: this area never writes a trace, so it is
- * offline-safe and needs no `--pg`.
+ * `storytree traversal backlog` — what has not reached the shared store, and since when
+ * (ADR-0484 D4's reportable backlog).
+ *
+ * OFFLINE, deliberately: it reads this machine's own ship cursors and the unshipped tail of each
+ * waiting trace. A backlog report that needed the database would be unable to answer in exactly the
+ * case it exists for — the database being unreachable is the commonest reason there IS a backlog.
+ *
+ * The report distinguishes the two states a bare "no data" collapses: sessions merely WAITING (the
+ * shipper has not run, or has nothing new) and sessions FAILING (the last attempt did not land, and
+ * here is what it said).
  */
-export function traversalCommand(sub: string | undefined, third: string | undefined): Envelope {
+function traversalBacklogReport(): Envelope {
+  const dir = resolveTraversalDir();
+  const backlog = traversalShipBacklog(dir);
+
+  const lines = [
+    "traversal backlog — local traces not yet in the shared store (ADR-0484 D4)",
+    "",
+    `tracked ${backlog.tracked} session(s) since the ship path landed; ${backlog.totalUnshippedEvents} event(s) unshipped`,
+  ];
+  if (backlog.oldestUnshippedAt !== undefined) {
+    lines.push(`oldest unshipped event observed at ${backlog.oldestUnshippedAt}`);
+  }
+
+  if (backlog.waiting.length === 0) {
+    lines.push("", "nothing waiting — every tracked session is up to date in the shared store.");
+  } else {
+    lines.push("", "waiting:");
+    for (const row of backlog.waiting) {
+      lines.push(
+        `  ${row.sessionId} — ${row.unshippedEvents} event(s), ${row.unshippedBytes} byte(s)` +
+          (row.oldestUnshippedAt !== undefined ? `, oldest ${row.oldestUnshippedAt}` : ""),
+      );
+    }
+  }
+
+  if (backlog.failing.length > 0) {
+    lines.push("", "FAILING — the last ship attempt did not land (this is not 'nothing happened'):");
+    for (const row of backlog.failing) {
+      lines.push(
+        `  ${row.sessionId} — ${row.consecutiveFailures} consecutive failure(s)` +
+          (row.lastAttemptAt !== undefined ? `, last tried ${row.lastAttemptAt}` : "") +
+          `: ${row.lastError ?? "reason unrecorded"}`,
+      );
+    }
+  }
+
+  lines.push(
+    "",
+    // Sessions with no cursor are pre-landing history and are NOT part of this count. Said out
+    // loud, because a total that quietly excluded them would read as "everything is shipped".
+    "history written before the ship path landed is not counted here and is never backfilled",
+    "(ADR-0484 D6) — it stays readable through `storytree traversal show <session>`.",
+  );
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next:
+      backlog.waiting.length > 0
+        ? ["storytree traversal ship --pg — drain the backlog into the shared store"]
+        : ["storytree traversal list — the captured session ids"],
+  };
+}
+
+/**
+ * `storytree traversal ship --pg` — drain this machine's local traces into the shared store.
+ *
+ * The verb exists so the ship is ADDRESSABLE: the ordinary path is the throttled detached sweep the
+ * capture path starts, and this is the same sweep run deliberately — after a fix, on a machine that
+ * has been offline, or to see what the backlog does when it is asked to move.
+ *
+ * `--pg` is required and that is not ceremony: this is the one traversal verb that talks to the
+ * database, and a bare read must not open a pool it did not already need (ADR-0484 D4).
+ */
+async function traversalShip(store: TraversalEventStore | null | undefined): Promise<Envelope> {
+  if (store === null || store === undefined) {
+    return {
+      ok: false,
+      body: [
+        "storytree traversal ship needs --pg — the shared traversal log lives in the live store.",
+        "",
+        "Nothing is lost by not running it: every event is already durable in this machine's local",
+        "trace, and `storytree traversal backlog` reports what is waiting.",
+      ].join("\n"),
+      next: ["storytree traversal backlog — what is waiting, and since when"],
+    };
+  }
+
+  const dir = resolveTraversalDir();
+  const report = await shipTraversalBacklog({ dir, store });
+  const lines = [
+    "traversal ship — draining local traces into the shared store (ADR-0484 D1)",
+    "",
+    `shipped ${report.shipped} event(s) across ${report.sessions.length} session(s)`,
+  ];
+  if (report.unshippable > 0) {
+    lines.push(`skipped ${report.unshippable} unusable line(s) — counted, and stepped past`);
+  }
+  if (report.failed > 0) {
+    lines.push(`${report.failed} session(s) FAILED to ship; their cursors did not advance and will retry`);
+  }
+  for (const outcome of report.sessions) {
+    lines.push(
+      `  ${outcome.sessionId} — ${outcome.ok ? `shipped ${outcome.shipped}` : `FAILED: ${outcome.error ?? "unknown"}`}`,
+    );
+  }
+
+  return {
+    ok: report.failed === 0,
+    body: lines.join("\n"),
+    next: ["storytree traversal backlog — what is still waiting"],
+  };
+}
+
+/** What the `traversal` area needs from the composition root. */
+export interface TraversalDeps {
+  /** The shared traversal log — the live `--pg` store, or null/absent when there is none. */
+  readonly traversalEvents?: TraversalEventStore | null;
+}
+
+/**
+ * Dispatch one `traversal` invocation. Every sub-command but `ship` is a local read: this area does
+ * not touch the corpus, and only `ship` touches the database at all.
+ */
+export async function traversalCommand(
+  sub: string | undefined,
+  third: string | undefined,
+  deps: TraversalDeps = {},
+): Promise<Envelope> {
   if (sub === undefined || sub === "list" || sub === "sessions") {
     return listTraversalSessionsRendered();
+  }
+
+  if (sub === "backlog") {
+    return traversalBacklogReport();
+  }
+
+  if (sub === "ship") {
+    return traversalShip(deps.traversalEvents);
   }
 
   if (sub === "show") {
@@ -143,7 +289,7 @@ export function traversalCommand(sub: string | undefined, third: string | undefi
 
   return {
     ok: false,
-    body: `unknown traversal sub-command "${sub}" — expected "list", "show", or "ingest".`,
+    body: `unknown traversal sub-command "${sub}" — expected "list", "show", "ingest", "backlog", or "ship".`,
     next: ["storytree traversal --help"],
   };
 }

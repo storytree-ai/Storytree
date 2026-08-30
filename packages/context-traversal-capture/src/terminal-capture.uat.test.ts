@@ -40,6 +40,7 @@ import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 import type { ContextTraversalEvent, ContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
 import { readTraversalSession } from "./sink.js";
+import { readShipCursor, SHIP_CURSOR_EXT } from "./store/ship.js";
 
 const LAUNCHER = fileURLToPath(new URL("../../cli/launch.mjs", import.meta.url));
 
@@ -516,10 +517,25 @@ test("a real spawned read keys its trace by the CONTEXT WINDOW, not the pooled w
   assert.equal(flagged.status, 0, `expected the flagged read to exit 0: ${flagged.stderr}`);
 
   assert.deepEqual(
-    listDir(dir),
+    listDir(dir).filter((entry) => entry.endsWith(".jsonl")),
     [`${windowId}.jsonl`],
     "the trace is named by the context window — a slot-named file here would be the pooling defect",
   );
+
+  // THE FORWARD-ONLY SHIP BASELINE, stamped by the REAL CLI (ADR-0484 D6). The cursor is named by
+  // the same window id, so what a shipper would later drain is this window's own events and nothing
+  // else — and it sits at 0 because this trace had no history before the invocation. A cursor named
+  // by the SLOT here would ship one window's events under another's identity.
+  assert.deepEqual(
+    listDir(dir).filter((entry) => entry.endsWith(SHIP_CURSOR_EXT)),
+    [`${windowId}${SHIP_CURSOR_EXT}`],
+  );
+  assert.equal(readShipCursor(dir, windowId)?.offset, 0);
+  // NOTHING WAS SHIPPED and no ship was attempted: `STORYTREE_TRAVERSAL_DIR` is set here, which is
+  // the shipper's own refusal to drain a directory it was pointed at rather than the machine's own.
+  // Asserted rather than assumed — a spawned CLI that started a background `--pg` process would make
+  // this suite reach the live database, which it must never do.
+  assert.equal(listDir(dir).includes(".ship-attempt"), false, "an overridden trace dir is never swept ambiently");
 
   const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId: windowId });
   assert.equal(skipped, 0);
@@ -567,9 +583,19 @@ test("a real spawned read keys its trace by the CONTEXT WINDOW, not the pooled w
   });
   assert.equal(second.status, 0, `expected the second window's read to exit 0: ${second.stderr}`);
   assert.deepEqual(
-    listDir(dir).sort(),
+    listDir(dir)
+      .filter((entry) => entry.endsWith(".jsonl"))
+      .sort(),
     [`${otherWindowId}.jsonl`, `${windowId}.jsonl`].sort(),
     "two context windows in one worktree are two sessions, not one session that read twice",
+  );
+  // And each window carries its OWN ship cursor, for the same reason the traces are separate: a
+  // cursor keyed by the shared worktree slot would drain one window's events under the other's id.
+  assert.deepEqual(
+    listDir(dir)
+      .filter((entry) => entry.endsWith(SHIP_CURSOR_EXT))
+      .sort(),
+    [`${otherWindowId}${SHIP_CURSOR_EXT}`, `${windowId}${SHIP_CURSOR_EXT}`].sort(),
   );
   const secondReplay = readTraversalSession({ dir, sessionId: otherWindowId });
   assert.equal(visitsOf(secondReplay.replay.events).length, 1);
