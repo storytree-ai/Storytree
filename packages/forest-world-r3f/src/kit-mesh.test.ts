@@ -547,7 +547,8 @@ test('a primitive resolves to the DECLARED object it belongs to — own name, pa
   // which `GLTFLoader` turns into a Group whose children are `<object>_0`, `<object>_1`. Keying on
   // the mesh's own name loses the object entirely — a quietly incomplete island.
   const declared = new Set(['Pine_Trunk_01', 'Pine_Leaves_01']);
-  const under = (name: string): { name: string } => ({ name });
+  // Inference, not an annotation — `anti-slop/no-known-value-widening`.
+  const under = (name: string) => ({ name });
   assert.equal(declaredObjectName('Pine_Trunk_01', under('Scene'), declared), 'Pine_Trunk_01');
   assert.equal(declaredObjectName('Pine_Trunk_01_0', under('Pine_Trunk_01'), declared), 'Pine_Trunk_01');
   // ⚠⚠ AND THE PARENT CLAUSE HAS TO DO REAL WORK, so the primitive's own name must NOT strip down
