@@ -39,9 +39,10 @@ function modelContext(
     cumulative?: number;
     added?: number;
     sessionId?: string;
+    windowId?: string;
   },
 ): TraversalEventEnvelope {
-  const event = {
+  const base = {
     kind: 'model_context' as const,
     eventId: `occupancy:${over.atMs}`,
     sessionId: over.sessionId ?? SESSION,
@@ -49,6 +50,7 @@ function modelContext(
     cumulativeInputTokens: over.cumulative ?? 5_000_000,
     addedInputTokens: over.added ?? 5_000_000,
   };
+  const event = over.windowId === undefined ? base : { ...base, windowId: over.windowId };
   return over.resident === undefined ? event : { ...event, residentInputTokens: over.resident };
 }
 
@@ -200,6 +202,177 @@ describe('the fill splits at each of the two marks, and only the excess above on
     // …and the ceiling keeps headroom above the peak, so a bar at its maximum is not a full bar.
     // A peak landing exactly on a step boundary is the case that would otherwise fill the track.
     expect(filled).toBeLessThan(1);
+  });
+});
+
+describe('one series is ONE context window — a series that would span two is refused, not spliced', () => {
+  // The 98-window shape at legible scale (`traversal-panel-one-trace-one-session`).
+  //
+  // ⚠ A SINGLE-WINDOW FIXTURE PASSES THE BUG THIS SUITE EXISTS FOR, which is why every case here is
+  // built from `THREE_WINDOWS`: three conversations that ran under one worktree-slot session id,
+  // each RISING monotonically, each starting below where the previous one ended. That is the real
+  // shape — measured over `recursing-neumann-3a74d7`'s 1,077 readings, all 44 falls sit exactly on a
+  // window boundary and ZERO occur inside a window.
+  const WIN_A = 'e43dc90f-c2b9-4e7a-87a4-9db9ec05c954';
+  const WIN_B = '842415b0-f164-4f2a-8113-6049b90f330a';
+  const WIN_C = '1fcc3fd5-37da-4a54-8674-cf6e9beca6d2';
+
+  const THREE_WINDOWS: readonly { atMs: number; resident: number; windowId: string }[] = [
+    { atMs: T0 + 0 * MIN, resident: 82_800, windowId: WIN_A },
+    { atMs: T0 + 1 * MIN, resident: 210_000, windowId: WIN_A },
+    { atMs: T0 + 2 * MIN, resident: 430_616, windowId: WIN_A },
+    { atMs: T0 + 3 * MIN, resident: 60_700, windowId: WIN_B },
+    { atMs: T0 + 4 * MIN, resident: 141_700, windowId: WIN_B },
+    { atMs: T0 + 5 * MIN, resident: 73_500, windowId: WIN_C },
+    { atMs: T0 + 6 * MIN, resident: 309_262, windowId: WIN_C },
+  ];
+
+  const threeWindowEvents = THREE_WINDOWS.map((reading) => modelContext(reading));
+  /** Which window each instant belongs to — how a rendered reading is traced back to its source. */
+  const windowAt = new Map(THREE_WINDOWS.map((reading) => [reading.atMs, reading.windowId]));
+
+  /** Consecutive decreases in a rendered series — the falls an operator actually sees. */
+  function fallsIn(series: { observations: readonly { residentTokens: number }[] }): number {
+    let falls = 0;
+    for (let i = 1; i < series.observations.length; i += 1) {
+      const previous = series.observations[i - 1] as { residentTokens: number };
+      const current = series.observations[i] as { residentTokens: number };
+      if (current.residentTokens < previous.residentTokens) falls += 1;
+    }
+    return falls;
+  }
+
+  it('the fixture really is the bug’s shape — spliced it falls, and only at the boundaries', () => {
+    // A control, so nothing below can pass vacuously: this asserts the RED existed. Laid end to end
+    // the seven readings fall twice, and each fall is a change of conversation rather than anything
+    // the window did.
+    let falls = 0;
+    let fallsInsideOneWindow = 0;
+    for (let i = 1; i < THREE_WINDOWS.length; i += 1) {
+      const previous = THREE_WINDOWS[i - 1] as { resident: number; windowId: string };
+      const current = THREE_WINDOWS[i] as { resident: number; windowId: string };
+      if (current.resident >= previous.resident) continue;
+      falls += 1;
+      if (current.windowId === previous.windowId) fallsInsideOneWindow += 1;
+    }
+    expect(falls).toBe(2);
+    expect(fallsInsideOneWindow).toBe(0);
+  });
+
+  it('NO RENDERED SERIES MIXES TWO WINDOW IDS', () => {
+    // The invariant stated directly on what is drawn, rather than on a count that stands in for it:
+    // trace every rendered reading back to the window it came from and there must be at most one.
+    const series = buildOccupancySeries(threeWindowEvents, SESSION);
+    const rendered = new Set(
+      series.observations.map((observation) => windowAt.get(observation.atMs)),
+    );
+    expect(rendered.size).toBeLessThanOrEqual(1);
+  });
+
+  it('draws nothing, and says how many windows it found rather than going blank', () => {
+    const series = buildOccupancySeries(threeWindowEvents, SESSION);
+    expect(series.observationCount).toBe(0);
+    expect(series.spannedWindowCount).toBe(3);
+    // "none observed" must not read as "this session was never observed" — it was, seven times.
+    expect(series.note).toContain('3 context windows');
+    expect(series.note).toContain('7 reading(s)');
+    // The denominator survives the refusal: the readings were seen, they are just not plottable as
+    // one line.
+    expect(series.modelContextCount).toBe(7);
+  });
+
+  it('a fall the panel draws is a fall the window really had', () => {
+    // The owner's requirement, asserted on the rendered series: "the context window should never go
+    // down unless i did a compaction".
+    const series = buildOccupancySeries(threeWindowEvents, SESSION);
+    expect(fallsIn(series)).toBe(0);
+  });
+
+  it('the refusal’s reason reaches the reader when the transcript could not be read at all', () => {
+    // `null` is "not read yet or unreadable", the branch where the trace series is what renders. Its
+    // absence must carry the reason rather than a silent blank.
+    const refused = buildOccupancySeries(threeWindowEvents, SESSION);
+    const preferred = preferredOccupancy(refused, null);
+    expect(preferred.observationCount).toBe(0);
+    expect(preferred.note).toContain('3 context windows');
+  });
+
+  it('still draws a trace whose readings all name ONE window — no regression', () => {
+    const series = buildOccupancySeries(
+      [
+        modelContext({ atMs: T0, resident: 100_000, windowId: WIN_A }),
+        modelContext({ atMs: T0 + MIN, resident: 240_900, windowId: WIN_A }),
+        modelContext({ atMs: T0 + 2 * MIN, resident: 228_100, windowId: WIN_A }),
+      ],
+      SESSION,
+    );
+
+    expect(series.observationCount).toBe(3);
+    expect(series.spannedWindowCount).toBe(1);
+    expect(series.note).toBe('');
+    // Rule 1 is untouched by rule 5: a real recession inside one window is still drawn as a fall.
+    expect(fallsIn(series)).toBe(1);
+  });
+
+  it('still draws a trace whose readings carry NO window id — absence of evidence is not a splice', () => {
+    // `windowId` is optional on the wire. Counting an unstamped reading as its own window would
+    // refuse every trace written before the stamp existed.
+    const series = buildOccupancySeries(
+      [
+        modelContext({ atMs: T0, resident: 100_000 }),
+        modelContext({ atMs: T0 + MIN, resident: 200_000 }),
+      ],
+      SESSION,
+    );
+
+    expect(series.observationCount).toBe(2);
+    expect(series.spannedWindowCount).toBe(0);
+  });
+
+  it('counts only STAMPED ids, so one window plus unstamped readings still draws', () => {
+    const series = buildOccupancySeries(
+      [
+        modelContext({ atMs: T0, resident: 100_000, windowId: WIN_A }),
+        modelContext({ atMs: T0 + MIN, resident: 200_000 }),
+      ],
+      SESSION,
+    );
+
+    expect(series.observationCount).toBe(2);
+    expect(series.spannedWindowCount).toBe(1);
+  });
+
+  it('a second window that would draw NOTHING does not refuse the series', () => {
+    // The refusal is about what the LINE would be built from, never about what the trace contains.
+    // Window B's requests carry no resident figure, so they were never going to be plotted.
+    const series = buildOccupancySeries(
+      [
+        modelContext({ atMs: T0, resident: 100_000, windowId: WIN_A }),
+        modelContext({ atMs: T0 + MIN, windowId: WIN_B }),
+        modelContext({ atMs: T0 + 2 * MIN, resident: 150_000, windowId: WIN_A }),
+      ],
+      SESSION,
+    );
+
+    expect(series.observationCount).toBe(2);
+    expect(series.spannedWindowCount).toBe(1);
+    expect(series.modelContextCount).toBe(3);
+  });
+
+  it('the transcript source answers the same invariant — one window with readings, none without', () => {
+    // It satisfies rule 5 by construction (one window's transcript, found by its own id), but it
+    // states the field so a reader can assert the invariant without knowing which source it got.
+    const drawn = buildTranscriptOccupancySeries(
+      seriesPayload({
+        observations: [{ at: new Date(T0).toISOString(), residentTokens: 240_900 }],
+      }),
+    );
+    expect(drawn.spannedWindowCount).toBe(1);
+
+    const empty = buildTranscriptOccupancySeries(
+      seriesPayload({ absence: 'no-window-transcript', note: 'nothing named for this window' }),
+    );
+    expect(empty.spannedWindowCount).toBe(0);
   });
 });
 
