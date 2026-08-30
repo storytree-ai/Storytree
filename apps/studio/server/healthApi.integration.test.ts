@@ -12,8 +12,23 @@ import { handleHealth, type HealthDeps } from './devApi';
 import { HttpError } from './httpUtil';
 import type { CodeStamp } from './codeStamp';
 
-const fresh: CodeStamp = { startedAt: 'a'.repeat(40), head: 'a'.repeat(40), stale: false };
-const moved: CodeStamp = { startedAt: 'a'.repeat(40), head: 'b'.repeat(40), stale: true };
+// The identity half (directory/branch) rides these fixtures deliberately: every assertion below
+// deep-equals the whole `code` object against them, so it is also the wire proof that the served
+// copy's identity survives serialisation out of /api/health rather than being dropped en route.
+const fresh: CodeStamp = {
+  startedAt: 'a'.repeat(40),
+  head: 'a'.repeat(40),
+  stale: false,
+  directory: '/srv/checkout-a',
+  branch: 'claude/some-worktree',
+};
+const moved: CodeStamp = {
+  startedAt: 'a'.repeat(40),
+  head: 'b'.repeat(40),
+  stale: true,
+  directory: '/srv/checkout-a',
+  branch: 'claude/some-worktree',
+};
 
 // The stubs flip per test.
 let deps: HealthDeps;

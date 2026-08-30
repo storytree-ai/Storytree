@@ -119,7 +119,13 @@ beforeAll(async () => {
     backend: stubBackend,
     admins: parseSeedAdmins(ADMIN),
     // Inject a stamp so the served commit resolves (no real git in the temp repo).
-    codeStamp: async () => ({ startedAt: COMMIT, head: COMMIT, stale: false }),
+    codeStamp: async () => ({
+      startedAt: COMMIT,
+      head: COMMIT,
+      stale: false,
+      directory: tmp,
+      branch: 'main',
+    }),
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
