@@ -129,6 +129,17 @@ describe('which row a read draws on', () => {
     expect(row).not.toBe(axis.unmeasuredRow);
   });
 
+  it('sends a PLACED reading carrying no number to the unmeasured row, never to the surface', () => {
+    // `MarkKnowledgeDepth` is a flat record, so `depth` is `number | null` on every state — the shape
+    // permits `placed` with no number even though `markKnowledgeDepth` never produces one. The guard
+    // exists so that if such a reading ever arrives it falls to UNMEASURED, which is the direction
+    // that does not read as health. `Math.min(rows, null)` is 0, so dropping the guard files it at
+    // the surface silently.
+    const malformed = { state: 'placed', depth: null, attr: '?', label: '?' } as const;
+    expect(knowledgeAxisRow(axis, malformed)).toBe(axis.unmeasuredRow);
+    expect(knowledgeAxisRow(axis, malformed)).not.toBe(0);
+  });
+
   it('sits a read with no reading at all on the spine — a search, or an unread corpus', () => {
     // `markKnowledgeDepth` answers null for a search (it reads no single node) and for an unmeasured
     // model. Both sat on the spine before this axis existed and still do.
