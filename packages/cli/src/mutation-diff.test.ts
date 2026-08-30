@@ -8,6 +8,8 @@ import {
   adjudicateMutants,
   changedLinesAreCodeFree,
   isCodeFreeLine,
+  isNarrowedToNothing,
+  workspacePackageOf,
   declaredTestRoots,
   formatNarrowingLines,
   entryPointsFromMirrorRegistry,
@@ -17,6 +19,7 @@ import {
   type MutationReport,
   type MutationTarget,
   parseUnifiedDiffRanges,
+  type ReportMutant,
   type ProjectDir,
   mergeMutationReports,
   type ReportPart,
@@ -1849,4 +1852,495 @@ test("formatNarrowingLines: the ordinary line says the drop was deliberate, and 
   assert.match(line, /sits outside/);
   assert.match(line, /which no unit test is written against/);
   assert.match(line, /Dropped on purpose\./);
+});
+
+
+// ── the cross-package blind spot: a mutant no test in the run could witness ──
+//
+// Measured 2026-08-30 and proven end to end: Stryker's sandbox symlinks every `node_modules` it
+// finds, so `<sandbox>/packages/cli/node_modules/@storytree/library` resolves to the REAL
+// `packages/library/`. A sandboxed test importing a workspace sibling by package name loads the
+// UNMUTATED original, and Stryker correctly reports that no test noticed — as `Survived`, this
+// rung's most severe verdict, on a rung that blocks merges.
+
+/** A report with mutants in `mutantFile` and one enumerated test file per entry of `testFiles`. */
+function crossPackageReport(mutantFile: string, testFiles: readonly string[], status = "Survived"): MutationReport {
+  const enumerated: Record<string, { tests: { id: string; name: string }[] }> = {};
+  testFiles.forEach((file, i) => {
+    enumerated[file] = { tests: [{ id: String(i), name: `${file} > case` }] };
+  });
+  return {
+    files: {
+      [mutantFile]: {
+        mutants: [
+          { id: "m1", mutatorName: "StringLiteral", status, killedBy: [], location: { start: { line: 166 } } },
+        ],
+      },
+    },
+    testFiles: enumerated,
+  };
+}
+
+test("workspacePackageOf: a file under packages/ or apps/ names its package", () => {
+  assert.equal(workspacePackageOf("packages/cli/src/a.ts"), "packages/cli");
+  assert.equal(workspacePackageOf("apps/studio/src/lib/b.ts"), "apps/studio");
+});
+
+test("workspacePackageOf: a repo-root path belongs to no package", () => {
+  assert.equal(workspacePackageOf("scripts/tool.ts"), null);
+  assert.equal(workspacePackageOf("oxlint.config.ts"), null);
+});
+
+test("workspacePackageOf: the LAST match wins, so an enclosing directory cannot masquerade", () => {
+  // Stryker's report keys are the sandbox's ABSOLUTE paths. Taking the first match would read a
+  // checkout that happens to live under a directory called `packages` as a workspace package on
+  // some machines and not others.
+  assert.equal(
+    workspacePackageOf("C:/dev/packages/checkout/.stryker-tmp/sandbox-Ab12/packages/library/src/x.ts"),
+    "packages/library",
+  );
+});
+
+test("workspacePackageOf: backslashes normalise, because git, the scan and Stryker disagree", () => {
+  assert.equal(workspacePackageOf("packages\\cli\\src\\a.ts"), "packages/cli");
+});
+
+test("mutation-diff: a mutant whose package ran no test is UNWITNESSABLE, never SURVIVED", () => {
+  const verdict = adjudicateMutants(
+    crossPackageReport("packages/library/src/fixture/corpus.ts", ["packages/cli/src/cli.test.ts"]),
+    ["packages/cli/src/cli.test.ts"],
+  );
+  assert.equal(verdict.mutants[0]?.outcome, "unwitnessable");
+  assert.equal(verdict.counted, 0, "an unwitnessable mutant is not scored either way");
+});
+
+test("mutation-diff: the blind package is NAMED, with the reason, not silently dropped", () => {
+  const verdict = adjudicateMutants(
+    crossPackageReport("packages/library/src/fixture/corpus.ts", ["packages/cli/src/cli.test.ts"]),
+    ["packages/cli/src/cli.test.ts"],
+  );
+  assert.equal(verdict.narrowings.length, 1);
+  assert.match(verdict.narrowings[0] ?? "", /NARROWED \(BLIND\): packages\/library/);
+  assert.match(verdict.narrowings[0] ?? "", /resolves workspace imports back out to the unmutated original/);
+});
+
+test("mutation-diff: a mutant whose own package DID run tests is scored as before", () => {
+  // THE DISCRIMINATOR. Without this, the rule reads as "stop scoring survivors", which would turn a
+  // rung that reds on a real gap into one that excuses it.
+  const verdict = adjudicateMutants(
+    crossPackageReport("packages/cli/src/friction.ts", ["packages/cli/src/friction.test.ts"]),
+    ["packages/cli/src/friction.test.ts"],
+  );
+  assert.equal(verdict.mutants[0]?.outcome, "survived");
+  assert.equal(verdict.verdict, "fail");
+  assert.deepEqual(verdict.narrowings, []);
+});
+
+test("mutation-diff: one blind package does not excuse a survivor in a package that DID run", () => {
+  const blind: MutationReport = {
+    files: {
+      "packages/cli/src/friction.ts": {
+        mutants: [
+          { id: "m1", mutatorName: "StringLiteral", status: "Survived", killedBy: [], location: { start: { line: 5 } } },
+        ],
+      },
+      "packages/library/src/fixture/corpus.ts": {
+        mutants: [
+          { id: "m2", mutatorName: "StringLiteral", status: "Survived", killedBy: [], location: { start: { line: 166 } } },
+        ],
+      },
+    },
+    testFiles: { "packages/cli/src/friction.test.ts": { tests: [{ id: "0", name: "friction > case" }] } },
+  };
+  const verdict = adjudicateMutants(blind, ["packages/cli/src/friction.test.ts"]);
+  assert.equal(verdict.verdict, "fail", "the cli survivor still reds");
+  assert.equal(verdict.counted, 1, "and only the witnessable mutant is counted");
+  assert.equal(verdict.narrowings.length, 1);
+  assert.equal(
+    isNarrowedToNothing(verdict),
+    false,
+    "a run that still counted something is not a run narrowed to nothing",
+  );
+});
+
+test("mutation-diff: a report naming NO test file narrows nothing — cannot-tell is not no-tests", () => {
+  // FAIL-SAFE, and the direction matters. Reading an empty enumeration as "no package ran tests"
+  // would excuse EVERY mutant in the run — a rung that quietly stops redding, which is worse than
+  // the false red this rule removes.
+  const verdict = adjudicateMutants(crossPackageReport("packages/library/src/x.ts", []), []);
+  assert.equal(verdict.mutants[0]?.outcome, "survived");
+  assert.deepEqual(verdict.narrowings, []);
+});
+
+test("mutation-diff: a repo-root file is never called unwitnessable — nothing symlinks to it", () => {
+  const verdict = adjudicateMutants(
+    crossPackageReport("scripts/tool.ts", ["packages/cli/src/cli.test.ts"]),
+    ["packages/cli/src/cli.test.ts"],
+  );
+  assert.equal(verdict.mutants[0]?.outcome, "survived");
+  assert.deepEqual(verdict.narrowings, []);
+});
+
+test("isNarrowedToNothing: a run that counted nothing BECAUSE it was blind is a skip", () => {
+  const verdict = adjudicateMutants(
+    crossPackageReport("packages/library/src/fixture/corpus.ts", ["packages/cli/src/cli.test.ts"]),
+    ["packages/cli/src/cli.test.ts"],
+  );
+  assert.equal(verdict.verdict, "vacuous");
+  assert.equal(isNarrowedToNothing(verdict), true);
+});
+
+test("isNarrowedToNothing: an empty report is still the vacuous FAILURE, not a skip", () => {
+  // The two ways to count nothing want opposite treatment: a bad glob or a sandbox that failed to
+  // build must stay loud.
+  const verdict = adjudicateMutants({ files: {}, testFiles: {} }, []);
+  assert.equal(verdict.verdict, "vacuous");
+  assert.equal(isNarrowedToNothing(verdict), false);
+});
+
+test("mutation-diff: a narrowing is printed on a PASS, where silence would read as full coverage", () => {
+  const killed: MutationReport = {
+    files: {
+      "packages/cli/src/friction.ts": {
+        mutants: [
+          { id: "m1", mutatorName: "StringLiteral", status: "Killed", killedBy: ["0"], location: { start: { line: 5 } } },
+        ],
+      },
+      "packages/library/src/fixture/corpus.ts": {
+        mutants: [
+          { id: "m2", mutatorName: "StringLiteral", status: "Survived", killedBy: [], location: { start: { line: 166 } } },
+        ],
+      },
+    },
+    testFiles: { "packages/cli/src/friction.test.ts": { tests: [{ id: "0", name: "friction > case" }] } },
+  };
+  const verdict = adjudicateMutants(killed, ["packages/cli/src/friction.test.ts"]);
+  assert.equal(verdict.verdict, "pass");
+  const body = formatMutationVerdict("[mutation]", verdict, [TARGET]);
+  assert.match(body, /NARROWED \(BLIND\): packages\/library/);
+  assert.match(body, /PASS —/);
+});
+
+// ── a survivor names its SPAN, because file:line does not identify a mutant ──
+
+/** One mutant with a full span and a replacement — the shape a real Stryker report carries. */
+function spannedReport(args: {
+  line: number;
+  column: number;
+  endColumn: number;
+  replacement: string;
+}): MutationReport {
+  return {
+    files: {
+      "packages/cli/src/a.ts": {
+        mutants: [
+          {
+            id: "m1",
+            mutatorName: "ConditionalExpression",
+            status: "Survived",
+            killedBy: [],
+            replacement: args.replacement,
+            location: {
+              start: { line: args.line, column: args.column },
+              end: { line: args.line, column: args.endColumn },
+            },
+          },
+        ],
+      },
+      "packages/cli/src/x.test.ts": { mutants: [] },
+    },
+    testFiles: { "packages/cli/src/a.test.ts": { tests: [{ id: "0", name: "a > case" }] } },
+  };
+}
+
+test("mutation-diff: a survivor carries its columns and its replacement through adjudication", () => {
+  const verdict = adjudicateMutants(
+    spannedReport({ line: 605, column: 7, endColumn: 32, replacement: "false" }),
+    [],
+  );
+  const mutant = verdict.mutants[0];
+  assert.equal(mutant?.column, 7);
+  assert.equal(mutant?.endColumn, 32);
+  assert.equal(mutant?.replacement, "false");
+});
+
+test("mutation-diff: a survivor line names the exact span, not just the line", () => {
+  // THE FAULT THIS CLOSES. `packages/cli/src/friction.ts:605` carries three ConditionalExpression
+  // mutants on three different spans; only the left operand survives, and the whole condition — the
+  // one a reader reaches for — is killed. Printed without columns, all three read identically.
+  const verdict = adjudicateMutants(
+    spannedReport({ line: 605, column: 7, endColumn: 32, replacement: "false" }),
+    [],
+  );
+  const body = formatMutationVerdict("[mutation]", verdict, [TARGET]);
+  assert.match(body, /SURVIVED packages\/cli\/src\/a\.ts:605:7-32 \[ConditionalExpression\] -> `false`/);
+});
+
+test("mutation-diff: given the source, the line quotes the ORIGINAL text beside the replacement", () => {
+  const verdict = adjudicateMutants(
+    spannedReport({ line: 1, column: 7, endColumn: 32, replacement: "false" }),
+    [],
+  );
+  const sources = new Map([["packages/cli/src/a.ts", '  if (typeof d.doc !== "object" || d.doc === null) return {};']]);
+  const body = formatMutationVerdict("[mutation]", verdict, [TARGET], sources);
+  assert.match(body, /`typeof d\.doc !== "object"` -> `false`/);
+});
+
+test("mutation-diff: the hand-check instruction is printed, because the wrong span disproves nothing", () => {
+  const verdict = adjudicateMutants(
+    spannedReport({ line: 1, column: 7, endColumn: 32, replacement: "false" }),
+    [],
+  );
+  const body = formatMutationVerdict("[mutation]", verdict, [TARGET]);
+  assert.match(body, /replace EXACTLY the quoted span at those columns/);
+});
+
+test("mutation-diff: a span that runs past the line is not quoted — a truncation is not the mutant", () => {
+  const verdict = adjudicateMutants(
+    spannedReport({ line: 1, column: 7, endColumn: 400, replacement: "false" }),
+    [],
+  );
+  const sources = new Map([["packages/cli/src/a.ts", "  if (a) return;"]]);
+  const body = formatMutationVerdict("[mutation]", verdict, [TARGET], sources);
+  assert.match(body, /a\.ts:1:7-400 \[ConditionalExpression\] -> `false`/);
+  assert.doesNotMatch(body, /`  if/);
+});
+
+test("mutation-diff: a source the caller did not supply degrades to columns, never to a guess", () => {
+  const verdict = adjudicateMutants(
+    spannedReport({ line: 1, column: 7, endColumn: 12, replacement: "false" }),
+    [],
+  );
+  const body = formatMutationVerdict("[mutation]", verdict, [TARGET], new Map());
+  assert.match(body, /a\.ts:1:7-12 \[ConditionalExpression\] -> `false`/);
+});
+
+test("workspacePackageOf: a trailing `packages/` names no package — an empty segment is not a name", () => {
+  assert.equal(workspacePackageOf("packages/"), null);
+  assert.equal(workspacePackageOf("apps/"), null);
+});
+
+test("mutation-diff: only WORKSPACE test paths count as a package having run", () => {
+  // The set is built from `workspacePackageOf`, so a report enumerating only repo-root test paths
+  // has answered nothing about any package — and must narrow nothing rather than narrow everything.
+  const verdict = adjudicateMutants(crossPackageReport("packages/library/src/x.ts", ["scripts/root.test.ts"]), []);
+  assert.equal(verdict.mutants[0]?.outcome, "survived");
+  assert.deepEqual(verdict.narrowings, []);
+});
+
+test("mutation-diff: blind packages are named in a stable order, not report order", () => {
+  const report: MutationReport = {
+    files: {
+      "packages/zeta/src/z.ts": {
+        mutants: [{ id: "m1", mutatorName: "M", status: "Survived", killedBy: [], location: { start: { line: 1 } } }],
+      },
+      "packages/alpha/src/a.ts": {
+        mutants: [{ id: "m2", mutatorName: "M", status: "Survived", killedBy: [], location: { start: { line: 1 } } }],
+      },
+    },
+    testFiles: { "packages/cli/src/cli.test.ts": { tests: [{ id: "0", name: "cli > case" }] } },
+  };
+  const verdict = adjudicateMutants(report, []);
+  assert.equal(verdict.narrowings.length, 2);
+  assert.match(verdict.narrowings[0] ?? "", /packages\/alpha/);
+  assert.match(verdict.narrowings[1] ?? "", /packages\/zeta/);
+});
+
+test("isNarrowedToNothing: SOME unwitnessable is not enough — the run must have counted nothing", () => {
+  // A vacuous run mixing an EXCLUDED mutant with an UNWITNESSABLE one: `some` is true and `every` is
+  // false, which is the pair that separates "nothing was counted" from "nothing was witnessable".
+  const report: MutationReport = {
+    files: {
+      "packages/cli/src/a.ts": {
+        mutants: [
+          { id: "m1", mutatorName: "M", status: "CompileError", killedBy: [], location: { start: { line: 1 } } },
+        ],
+      },
+      "packages/library/src/b.ts": {
+        mutants: [{ id: "m2", mutatorName: "M", status: "Survived", killedBy: [], location: { start: { line: 1 } } }],
+      },
+    },
+    testFiles: { "packages/cli/src/a.test.ts": { tests: [{ id: "0", name: "a > case" }] } },
+  };
+  const verdict = adjudicateMutants(report, []);
+  assert.equal(verdict.verdict, "vacuous");
+  assert.equal(isNarrowedToNothing(verdict), true);
+});
+
+test("isNarrowedToNothing: a vacuous run with mutants but NO blind package stays a failure", () => {
+  const report: MutationReport = {
+    files: {
+      "packages/cli/src/a.ts": {
+        mutants: [
+          { id: "m1", mutatorName: "M", status: "CompileError", killedBy: [], location: { start: { line: 1 } } },
+        ],
+      },
+    },
+    testFiles: { "packages/cli/src/a.test.ts": { tests: [{ id: "0", name: "a > case" }] } },
+  };
+  const verdict = adjudicateMutants(report, []);
+  assert.equal(verdict.verdict, "vacuous");
+  assert.equal(isNarrowedToNothing(verdict), false);
+});
+
+// ── the span render degrades honestly rather than guessing ──
+
+/**
+ * A MUTABLE {@link ReportMutant} the partial-span fixtures assemble field by field.
+ *
+ * Named rather than written inline, because an anonymous object type on a binding discards the
+ * inference the house standard wants kept (`no-known-value-widening`), and mutable rather than
+ * `ReportMutant` because these fixtures exist to build a report with a field left OUT.
+ */
+interface DraftMutant {
+  id: string;
+  mutatorName: string;
+  status: string;
+  killedBy: string[];
+  replacement?: string;
+  // NonNullable, not `ReportMutant["location"]`. Indexing an optional property yields the union WITH
+  // `undefined`, and under `exactOptionalPropertyTypes` an optional property whose type includes
+  // undefined is not assignable to one whose type does not — so the indexed form makes this draft
+  // unassignable to the very interface it is a draft of.
+  location?: MutantLocation;
+}
+
+/** A {@link ReportMutant} location with the optional-property `undefined` stripped off. */
+type MutantLocation = NonNullable<ReportMutant["location"]>;
+
+/**
+ * One mutant with whatever parts of a span and a replacement the caller wants to supply.
+ *
+ * The two optional parts are ASSIGNED rather than conditionally spread: the whole point of these
+ * cases is a report that OMITS a field, and `never-hide-omission-in-an-empty-spread` exists because
+ * an empty-object spread makes the omission unreadable at the site that performs it.
+ */
+function partialSpanReport(location: MutantLocation | undefined, replacement?: string): MutationReport {
+  const mutant: DraftMutant = {
+    id: "m1",
+    mutatorName: "ConditionalExpression",
+    status: "Survived",
+    killedBy: [],
+  };
+  if (replacement !== undefined) mutant.replacement = replacement;
+  if (location !== undefined) mutant.location = location;
+  return {
+    files: { "packages/cli/src/a.ts": { mutants: [mutant] } },
+    testFiles: { "packages/cli/src/a.test.ts": { tests: [{ id: "0", name: "a > case" }] } },
+  };
+}
+
+/** The one failing line of a rendered verdict — the line a reader acts on. */
+function failingLine(report: MutationReport, sources?: ReadonlyMap<string, string>): string {
+  const verdict = adjudicateMutants(report, []);
+  const rendered =
+    sources === undefined
+      ? formatMutationVerdict("[m]", verdict, [TARGET])
+      : formatMutationVerdict("[m]", verdict, [TARGET], sources);
+  // The per-mutant line, not the tally line above it — both carry the word SURVIVED.
+  const line = rendered.split("\n").find((l) => l.startsWith("[m]   SURVIVED"));
+  assert.ok(line !== undefined, rendered);
+  return line;
+}
+
+test("mutation-diff: a mutant with no columns renders file:line, never file:line:null-null", () => {
+  const line = failingLine(partialSpanReport({ start: { line: 12 } }, "false"));
+  assert.match(line, /a\.ts:12 \[ConditionalExpression\] -> `false`/);
+  assert.doesNotMatch(line, /null/);
+});
+
+test("mutation-diff: a start column without an end column is not half a span", () => {
+  // Stryker emits both columns today, but `ReportMutant` declares every part optional because this
+  // rung does not own that schema — so the degradation is a contract, and a contract is testable.
+  const line = failingLine(partialSpanReport({ start: { line: 12, column: 7 } }, "false"));
+  assert.match(line, /a\.ts:12 \[ConditionalExpression\]/);
+  assert.doesNotMatch(line, /12:7/);
+});
+
+test("mutation-diff: an end column without a start column is not half a span either", () => {
+  const line = failingLine(partialSpanReport({ start: { line: 12 }, end: { line: 12, column: 20 } }, "false"));
+  assert.match(line, /a\.ts:12 \[ConditionalExpression\]/);
+  assert.doesNotMatch(line, /null/);
+});
+
+test("mutation-diff: an incomplete span quotes nothing even when the source IS to hand", () => {
+  // The pairing that matters: with no source there is nothing to quote either way, so only a run
+  // that HAS the file can show that an incomplete span is declined rather than read at a guess.
+  const line = failingLine(
+    partialSpanReport({ start: { line: 1 } }, "false"),
+    new Map([["packages/cli/src/a.ts", "const a = b;"]]),
+  );
+  assert.match(line, /a\.ts:1 \[ConditionalExpression\] -> `false`/);
+  assert.doesNotMatch(line, /const/);
+});
+
+test("mutation-diff: an end column without a line is not a span either", () => {
+  const line = failingLine(partialSpanReport({ start: { column: 7 }, end: { column: 20 } }, "false"));
+  assert.match(line, /^\[m\]   SURVIVED packages\/cli\/src\/a\.ts \[ConditionalExpression\]/);
+});
+
+test("mutation-diff: a mutant the report gave no replacement for says so by omission", () => {
+  const line = failingLine(partialSpanReport({ start: { line: 12, column: 7 }, end: { line: 12, column: 20 } }));
+  assert.match(line, /a\.ts:12:7-20 \[ConditionalExpression\] — no test named/);
+  assert.doesNotMatch(line, /->/);
+});
+
+test("mutation-diff: a span ending exactly at the end of its line is still quoted", () => {
+  // The boundary the length guard is written against. `endColumn - 1 === line.length` is the LAST
+  // legal span, so a guard that rejected it would silently stop quoting every end-of-line mutant.
+  const source = "const a = b;";
+  const line = failingLine(
+    partialSpanReport({ start: { line: 1, column: 11 }, end: { line: 1, column: 13 } }, "c"),
+    new Map([["packages/cli/src/a.ts", source]]),
+  );
+  assert.match(line, /`b;` -> `c`/);
+});
+
+test("mutation-diff: an empty span quotes nothing rather than an empty pair of backticks", () => {
+  const line = failingLine(
+    partialSpanReport({ start: { line: 1, column: 5 }, end: { line: 1, column: 5 } }, "c"),
+    new Map([["packages/cli/src/a.ts", "const a = b;"]]),
+  );
+  assert.match(line, /a\.ts:1:5-5 \[ConditionalExpression\] -> `c`/);
+  assert.doesNotMatch(line, /``/);
+});
+
+test("mutation-diff: a line number past the end of the supplied source quotes nothing", () => {
+  const line = failingLine(
+    partialSpanReport({ start: { line: 9, column: 1 }, end: { line: 9, column: 3 } }, "c"),
+    new Map([["packages/cli/src/a.ts", "one line only"]]),
+  );
+  assert.match(line, /a\.ts:9:1-3 \[ConditionalExpression\] -> `c`/);
+});
+
+test("mutation-diff: a plain LF source splits into lines, not just a CRLF one", () => {
+  // Sources arrive from `readFileSync` on whatever the checkout wrote. Splitting on CRLF alone
+  // would collapse an LF file to one line, and every mutant past line 1 would stop being quoted.
+  const line = failingLine(
+    partialSpanReport({ start: { line: 2, column: 1 }, end: { line: 2, column: 4 } }, "zzz"),
+    new Map([["packages/cli/src/a.ts", "first\nabc"]]),
+  );
+  assert.match(line, /`abc` -> `zzz`/);
+});
+
+test("mutation-diff: the hand-check instruction says WHY the wrong span proves nothing", () => {
+  // Two sentences, and the second is the one that carries the reason. Pinning only the first would
+  // leave the sentence that explains the fault free to be deleted.
+  const lines = formatMutationVerdict(
+    "[m]",
+    adjudicateMutants(partialSpanReport({ start: { line: 1, column: 1 }, end: { line: 1, column: 2 } }, "x"), []),
+    [TARGET],
+  ).split("\n");
+  assert.ok(
+    lines.includes(
+      "[m] To hand-check one, replace EXACTLY the quoted span at those columns: a line often carries several",
+    ),
+    lines.join("\n"),
+  );
+  assert.ok(
+    lines.includes(
+      "[m] mutants of one mutator, and replacing the wrong one disproves a mutant nobody reported.",
+    ),
+    lines.join("\n"),
+  );
 });
