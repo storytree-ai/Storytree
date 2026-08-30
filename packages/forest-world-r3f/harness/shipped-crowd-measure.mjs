@@ -306,7 +306,7 @@ for (const zoom of CROWD_ZOOMS) {
         size,
         arm,
         ms,
-        spreadPct: r.samples.length > 1 ? spread(r.samples) : null,
+        spreadMs: r.samples.length > 1 ? spread(r.samples) : null,
         pctOfFrame: ms === null ? null : (ms / FRAME_BUDGET_60HZ_MS) * 100,
         triangles: r.triangles,
         parcels: r.parcels,
@@ -325,12 +325,17 @@ for (const zoom of CROWD_ZOOMS) {
 
 const fmt = (v, d = 4) => (v === null || v === undefined ? '   —   ' : v.toFixed(d));
 console.log('');
-console.log('zoom  size          arm     ms/frame  %60Hz   spread   draws  tris    rows  land%');
+// ⚠ THE SPREAD COLUMN IS MILLISECONDS, NOT A PERCENTAGE, and it is printed to four decimals for
+// that reason: `spread()` returns the run-to-run range in ms, and at these costs the whole range
+// is hundredths of a millisecond. Printed to one decimal it reads `0.0` — which a reader takes as
+// "no variance at all" when the budget verdict two screens down is calling the same figure a
+// 0.05 ms noise floor and withholding deltas against it.
+console.log('zoom  size          arm     ms/frame  %60Hz   spread(ms)  draws  tris    rows  land%');
 for (const r of rows) {
   console.log(
     `${String(r.zoom).padStart(4)}  ${r.size.padEnd(12)}  ${r.arm.padEnd(6)}  ` +
       `${fmt(r.ms).padStart(8)}  ${fmt(r.pctOfFrame, 2).padStart(5)}  ` +
-      `${fmt(r.spreadPct, 1).padStart(6)}  ${String(r.drawCalls).padStart(5)}  ` +
+      `${fmt(r.spreadMs).padStart(10)}  ${String(r.drawCalls).padStart(5)}  ` +
       `${String(r.triangles).padStart(6)}  ${String(r.statusRows).padStart(4)}  ` +
       `${(r.landFraction * 100).toFixed(2).padStart(5)}`,
   );
@@ -359,6 +364,26 @@ for (const zoom of CROWD_ZOOMS) {
       `· whole forest ${whole === null ? '—' : `${whole.toFixed(2)}x`}`,
   );
 }
+// ⚠ THE HEADLINE, COMPUTED RATHER THAN TYPED. `cadence-verdict.ts` exists in this package because
+// a hand-written sentence in a report was once false while every computed number in it held up.
+// This is that sentence, derived: what the whole forest WOULD have cost if the increment's premise
+// had been right (one draw per island, so the per-draw cost multiplied by 35), against what it
+// actually costs with one draw for all of them.
+console.log('');
+console.log('IF THE PREMISE HAD BEEN TRUE (one draw per island) vs WHAT IT COSTS (one for all):');
+for (const zoom of CROWD_ZOOMS) {
+  const one = at(zoom, 'one', 'dense');
+  const forest = at(zoom, 'forest', 'dense');
+  if (!one?.ms || !forest?.ms) continue;
+  const feared = one.ms * forest.islands;
+  console.log(
+    `  ${String(zoom).padStart(2)} px/unit  feared ${feared.toFixed(4)} ms ` +
+      `(${((feared / FRAME_BUDGET_60HZ_MS) * 100).toFixed(1)}% of a 60 Hz frame)  ` +
+      `· measured ${forest.ms.toFixed(4)} ms (${forest.pctOfFrame.toFixed(2)}%)  ` +
+      `· overstated by ${(feared / forest.ms).toFixed(1)}x`,
+  );
+}
+
 console.log('');
 console.log('THE PICTURE CHANGED BY (shadow → dense):');
 for (const [k, pct] of changed) console.log(`  ${k.padEnd(20)} ${pct.toFixed(2)}% of pixels`);
