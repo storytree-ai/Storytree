@@ -17,14 +17,14 @@ proof:
     file: pnpm
     args: ["--filter", "@storytree/app-surface", "test"]
   scope:
-    testGlobs: ["packages/app-surface/src/organic-growth-track.test.tsx", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
-    sourceGlobs: ["packages/app-surface/src/organic-growth-track.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts", "packages/app-surface/src/assets/chapter2-organic-growth/**/*"]
+    testGlobs: ["packages/app-surface/src/organic-pose-to-pose-track.test.ts", "packages/app-surface/src/organic-pose-to-pose-assets.test.ts", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
+    sourceGlobs: ["packages/app-surface/src/organic-pose-to-pose-track.ts", "packages/app-surface/src/organic-pose-to-pose-assets.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts", "packages/app-surface/src/assets/chapter2-organic-pose-to-pose/**/*"]
   real:
-    testFile: "packages/app-surface/src/organic-growth-track.test.tsx"
-    sourceFile: "packages/app-surface/src/organic-growth-track.ts"
+    testFile: "packages/app-surface/src/organic-pose-to-pose-track.test.ts"
+    sourceFile: "packages/app-surface/src/organic-pose-to-pose-track.ts"
     scope:
-      testGlobs: ["packages/app-surface/src/organic-growth-track.test.tsx", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
-      sourceGlobs: ["packages/app-surface/src/organic-growth-track.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts", "packages/app-surface/src/assets/chapter2-organic-growth/**/*"]
+      testGlobs: ["packages/app-surface/src/organic-pose-to-pose-track.test.ts", "packages/app-surface/src/organic-pose-to-pose-assets.test.ts", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
+      sourceGlobs: ["packages/app-surface/src/organic-pose-to-pose-track.ts", "packages/app-surface/src/organic-pose-to-pose-assets.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts", "packages/app-surface/src/assets/chapter2-organic-pose-to-pose/**/*"]
     install: true
     proofCommand:
       file: pnpm
