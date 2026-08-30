@@ -11,6 +11,8 @@ import test from 'node:test';
 
 import {
   MARKER_TOKENS,
+  PROP_TOKENS,
+  SHADE_KEYS,
   SHADE_LEVELS,
   SHARED_TOKENS,
   STATUS_TOKENS,
@@ -265,4 +267,19 @@ test('NON-VACUITY: the flower tokens really are OUTSIDE the pre-2026-08-20 land 
   for (const fam of [...TREE_TOKENS.values()]) {
     assert.ok(!landOnly.has(fam.crown), `${fam.crown} is a ground token wearing a crown’s name`);
   }
+});
+
+test('the CROSSED shade keys are still keyed on THIS file’s prop tokens', () => {
+  // ⚠ THE ONE SEAM THE 2026-08-30 CROSSING OPENED. `SHADE_KEYS` moved into `src/shade-ladder.ts`
+  // with the rest of the ladder arithmetic, but `PROP_TOKENS` stayed here — the prop vocabulary
+  // is the harness island's and does not ship. So the crossed copy carries those three token
+  // hexes as LITERALS, and without this test retuning a prop token would silently orphan its
+  // key: the canopy would fall back to `token x level`, shading by darkening instead of by the
+  // measured hue rotation, and nothing would fail. The picture would just quietly get worse.
+  assert.deepEqual(
+    [...SHADE_KEYS.keys()].sort(),
+    [PROP_TOKENS.canopy, PROP_TOKENS.canopyDark, PROP_TOKENS.canopyRust].sort(),
+  );
+  // ...and each key is itself a parseable token, so an orphan cannot hide as a malformed one.
+  for (const key of SHADE_KEYS.values()) assert.doesNotThrow(() => parseHex(key));
 });

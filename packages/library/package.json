@@ -9,6 +9,7 @@
     "./sources": "./src/knowledge-sources.ts",
     "./knowledge": "./src/knowledge.ts",
     "./knowledge-depth": "./src/knowledge-depth.ts",
+    "./surface-depth": "./src/surface-depth.ts",
     "./decision-pointer": "./src/decision-pointer.ts",
     "./decision-support": "./src/decision-support-seam.ts",
     "./knowledge-render": "./src/knowledge-render.ts",

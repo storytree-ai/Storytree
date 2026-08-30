@@ -303,22 +303,57 @@ function stringsOf(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && entry !== "");
 }
-
 /**
- * PURE: compute every artifact's depth from the work, plus the denominators that make the answer
- * readable.
+ * THE ADJACENCY, RESOLVED ONCE AND SHARED BY EVERY READING OVER IT (ADR-0476 D6).
  *
- * Breadth-first from every anchor at once, so an artifact reachable by several chains takes the
- * SHORTEST — depth is "how far away is this", and the long way round is not the distance. A cycle
- * terminates by construction: an id keeps the first depth assigned to it and is never re-queued.
+ * There are two depth readings over this one graph — {@link evaluateDepthFromWork} (distance from the
+ * work anchor) and `surface-depth.ts`'s (distance from the graph's own surface) — and they differ
+ * ONLY in where they start and how they measure. The edge rules they share are the delicate part and
+ * are held here, in one place, on purpose:
+ *
+ *   • DECISION RESOLUTION RUNS BEFORE `parseCiteRef` ON BOTH HALVES, so all three live pointer
+ *     spellings land on the same node. A reading that resolved `doc:decisions/…` and not
+ *     `doc:docs/decisions/…` silently drops 19 of 390 crossing pointers; one that let `parseCiteRef`
+ *     claim `asset:adr-NNNN` first lands it on the decision's edge-less artifact twin. Both push the
+ *     same way — chains read SHORTER than they are.
+ *   • `dependsOn` PLUS the `asset:` half of `cites`, because an increment's dependency edge lives in
+ *     `cites` and 0 of the anchors carry a literal `dependsOn`.
+ *   • `supersedes` IS UNREACHABLE FROM HERE, held by the shape of `decision-support-seam.ts` rather
+ *     than by a comment: there is no `supersedesOf` verb to call and no edge-type flag to get wrong.
+ *
+ * A SECOND COPY OF THESE RULES WOULD DISAGREE WITH THE FIRST the day either was touched, which is the
+ * failure this file's header was written to end. Extracting them was ADR-0476 D6, and it is the one
+ * clause of that decision a later refactor is most likely to undo by "inlining for clarity".
  *
  * The first id wins on a duplicate, matching `findDependsOnCycles`: re-pointing an id at a later row
  * would silently re-parent everything below it.
  */
-export function evaluateDepthFromWork(
+export interface DependencyGraph {
+  /** Every ARTIFACT node, by id. Decision nodes are NOT in here — see {@link decisionIds}. */
+  readonly byId: ReadonlyMap<string, DepthFromWorkNode>;
+  /** Resolved outbound targets per node id, artifacts and decisions alike. */
+  readonly outbound: ReadonlyMap<string, readonly string[]>;
+  /** Artifacts whose `cites` names a `story:` / `capability:` unit — the work seed. */
+  readonly anchorIds: readonly string[];
+  /** The decision node ids this graph holds (`decision:NNNN`), empty with no resolver. */
+  readonly decisionIds: readonly string[];
+  readonly anchorEdges: number;
+  readonly edgesScanned: number;
+  readonly bedrockTargets: number;
+  readonly danglingTargets: number;
+  readonly decisionEdges: number;
+  readonly decisionDependsOnEdges: number;
+  readonly decisionDependsOnUnwalkedTargets: number;
+  readonly decisionDanglingTargets: number;
+  readonly decisionsScanned: number;
+  readonly decisionsCarryingDependsOn: number;
+}
+
+/** PURE: resolve the joined artifact + decision adjacency. See {@link DependencyGraph}. */
+export function buildDependencyGraph(
   nodes: readonly DepthFromWorkNode[],
   decisions?: DecisionSupportResolver,
-): DepthFromWorkVerdict {
+): DependencyGraph {
   const byId = new Map<string, DepthFromWorkNode>();
   for (const node of nodes) if (!byId.has(node.id)) byId.set(node.id, node);
 
@@ -501,6 +536,57 @@ export function evaluateDepthFromWork(
     outbound.set(id, targets);
   }
 
+  return {
+    byId,
+    outbound,
+    anchorIds,
+    decisionIds,
+    anchorEdges,
+    edgesScanned,
+    bedrockTargets,
+    danglingTargets,
+    decisionEdges,
+    decisionDependsOnEdges,
+    decisionDependsOnUnwalkedTargets,
+    decisionDanglingTargets,
+    decisionsScanned: heldDecisions.size,
+    decisionsCarryingDependsOn: decisions?.decisionsCarryingDependsOn ?? 0,
+  };
+}
+
+
+/**
+ * PURE: compute every artifact's depth from the work, plus the denominators that make the answer
+ * readable.
+ *
+ * Breadth-first from every anchor at once, so an artifact reachable by several chains takes the
+ * SHORTEST — depth is "how far away is this", and the long way round is not the distance. A cycle
+ * terminates by construction: an id keeps the first depth assigned to it and is never re-queued.
+ *
+ * The first id wins on a duplicate, matching `findDependsOnCycles`: re-pointing an id at a later row
+ * would silently re-parent everything below it.
+ */
+export function evaluateDepthFromWork(
+  nodes: readonly DepthFromWorkNode[],
+  decisions?: DecisionSupportResolver,
+): DepthFromWorkVerdict {
+  const {
+    byId,
+    outbound,
+    anchorIds,
+    decisionIds,
+    anchorEdges,
+    edgesScanned,
+    bedrockTargets,
+    danglingTargets,
+    decisionEdges,
+    decisionDependsOnEdges,
+    decisionDependsOnUnwalkedTargets,
+    decisionDanglingTargets,
+    decisionsScanned,
+    decisionsCarryingDependsOn,
+  } = buildDependencyGraph(nodes, decisions);
+
   const depthById = new Map<string, number>();
   let frontier: string[] = [];
   for (const id of anchorIds) {
@@ -575,11 +661,11 @@ export function evaluateDepthFromWork(
     deepestId,
     histogram: ascending(artifactCounts),
     maxArtifactDepth,
-    decisionsScanned: heldDecisions.size,
+    decisionsScanned,
     decisionEdges,
     decisionDependsOnEdges,
     decisionDependsOnUnwalkedTargets,
-    decisionsCarryingDependsOn: decisions?.decisionsCarryingDependsOn ?? 0,
+    decisionsCarryingDependsOn,
     decisionDanglingTargets,
     decisionsReached,
     decisionHistogram: ascending(decisionCounts),
