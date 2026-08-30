@@ -21,6 +21,7 @@ import test from 'node:test';
 import { grainFeaturePeriod } from './land-grain.js';
 import { STATUS_TOKENS, type StatusFamily } from './palette-band.js';
 import { ADR0462_STATUS_TOKENS, STATUS_COLOUR, vocabularySeparation } from './status-vocabulary.js';
+import { LEGACY_SHADE_LEVELS } from './palette-band.js';
 import { TERRAINS, type Terrain, type TerrainName } from './terrain-vocabulary.js';
 import {
   COLD_SEASON_THEME,
@@ -111,7 +112,16 @@ test('⚠ a REAL palette this project shipped is refused — the pre-clay table'
   // the day before the tilled clay replaced `mapped`'s tan, frozen at commit 1693f33e. Run through
   // the colour half it REFUSES, naming `yellow/brown`. A floor whose only failing input was
   // invented for it would be much weaker evidence than one that refuses something we drew.
-  const v = vocabularySeparation(ADR0462_STATUS_TOKENS, STATUS_COLOUR);
+  // ⚠ ON THE FOUR-RUNG LADDER THIS PALETTE WAS JUDGED ON. The nine-rung ladder adopted 2026-08-31
+  // shrinks every family's largest lighting step, so this same table scores 1.439 there — it is
+  // still refused, on its surviving foreign read rather than on its ratio, and a reproduction that
+  // quietly changed which half did the refusing would not be one.
+  const v = vocabularySeparation(
+    ADR0462_STATUS_TOKENS,
+    STATUS_COLOUR,
+    undefined,
+    LEGACY_SHADE_LEVELS,
+  );
   assert.equal(v.pass, false, 'the pre-clay palette must not clear the floor');
   assert.equal(v.tightest.pair, 'yellow/brown');
   assert.ok(v.tightest.ratio < 0.4, `the recorded ratio is 0.395; got ${v.tightest.ratio.toFixed(3)}`);

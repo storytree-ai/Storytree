@@ -60,6 +60,7 @@ export {
   SHADE_KEYS,
   SHADE_KEY_FLOOR,
   SHADE_LEVELS,
+  LEGACY_SHADE_LEVELS,
   LIGHT_DIRECTION,
   rungOfNormal,
   parseHex,

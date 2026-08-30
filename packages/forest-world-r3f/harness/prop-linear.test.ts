@@ -272,7 +272,7 @@ test('the batter works at EVERY orientation, not just the lucky one', () => {
 });
 
 test('a FLIGHT OF STEPS gets its contrast from its form, with no batter needed', () => {
-  // The one prop in the module that does not depend on the batter: a tread is horizontal (rung 2)
+  // The one prop in the module that does not depend on the batter: a tread is horizontal (rung 4)
   // and a riser is near-vertical, so the flight alternates the two ends of the ladder by
   // construction. Asserted because the shallow 0.18 batter on steps looks like an oversight next to
   // the 0.4 everywhere else, and this is the reason it is not one.
@@ -282,18 +282,20 @@ test('a FLIGHT OF STEPS gets its contrast from its form, with no batter needed',
   for (let i = 0; i < mesh.normals.length; i += 3) {
     if (mesh.normals[i + 1]! > 0.9) tops.add(rungOfNormal({ x: mesh.normals[i]!, y: mesh.normals[i + 1]!, z: mesh.normals[i + 2]! }));
   }
-  assert.deepEqual([...tops], [2], 'a tread is a horizontal top face and lands on rung 2');
+  assert.deepEqual([...tops], [4], 'a tread is a horizontal top face and lands on the flat rung');
   assert.ok(sideRungs(mesh).includes(0), 'and a riser stays on rung 0 — the ladder`s other end');
 });
 
 test('a water surface is LIT, not a dark stripe', () => {
-  // The only teal on the island is worth nothing if it delivers at x0.78. A level strip is a
-  // horizontal face and lands on rung 2, which is what the `water` token was chosen against.
+  // The only teal on the island is worth nothing if it delivers at the ladder's floor. A level
+  // strip is a horizontal face and lands on rung 4, the flat rung, which is what the `water` token
+  // was chosen against. (Rung 2 until the nine-rung ladder was adopted on 2026-08-31 — the flat
+  // rung is still 0.90, it is just the fifth of nine entries rather than the third of four.)
   const mesh = growWaterChannel(BENT, {}).get(PROP_TOKENS.water)!;
   for (let i = 0; i < mesh.normals.length; i += 3) {
     const n = { x: mesh.normals[i]!, y: mesh.normals[i + 1]!, z: mesh.normals[i + 2]! };
     assert.ok(n.y > 0, 'a water normal that pointed down would light the channel bed, not the water');
-    assert.equal(rungOfNormal(n), 2, 'the surface lands on the horizontal rung');
+    assert.equal(rungOfNormal(n), 4, 'the surface lands on the horizontal rung');
   }
 });
 
@@ -484,7 +486,14 @@ test('a hedge is one token, and its crest lands on a brighter rung than its flan
   for (let i = 0; i < mesh.normals.length; i += 3) {
     rungs.add(rungOfNormal({ x: mesh.normals[i]!, y: mesh.normals[i + 1]!, z: mesh.normals[i + 2]! }));
   }
-  assert.ok(rungs.has(0) && rungs.has(3), `a hedge should span the ladder, got ${[...rungs].sort().join(',')}`);
+  // ⚠ MEASURED AGAINST THE NINE-RUNG LADDER: the lobes carry normals onto rungs 0 through 7, so
+  // the hedge spans from the ladder's floor to its brightest reachable rung. It was `0 and 3` on
+  // the four-rung ladder — the same span, read at finer resolution.
+  assert.ok(
+    rungs.has(0) && rungs.has(7),
+    `a hedge should span the ladder, got ${[...rungs].sort().join(',')}`,
+  );
+  assert.ok(rungs.size >= 6, 'and a lobe should carry most of the ladder, not just its two ends');
   // And it is the size it was asked for, within the crest jitter.
   const h = ceilingOf(hedge);
   assert.ok(h > 3.7 && h < 4.3, `a 4-unit hedge came out ${h.toFixed(2)} tall`);

@@ -139,15 +139,19 @@ test('a canopy delivers MORE THAN ONE RUNG — it is a solid, not a silhouette',
     assert.ok(rungs.size >= 3, `${shape} delivers only ${rungs.size} rung(s)`);
   }
 
-  // ⚠ A SPIRE CANNOT REACH THE TOP RUNG, AND THAT IS ARITHMETIC RATHER THAN A DEFECT. It is
+  // ⚠ A SPIRE TOPS OUT WELL BELOW A DOME, AND THAT IS ARITHMETIC RATHER THAN A DEFECT. It is
   // recorded as an assertion so that a later widening of the profile does not slip past
-  // unnoticed. `rungOfNormal` half-lambertises (`dot * 0.5 + 0.5`) before snapping onto
-  // [0.78, 0.80, 0.90, 1.00], so rung 3 needs lambert >= 0.95, i.e. a normal within about 26
-  // degrees of the authored light. A spire's surface is steep almost everywhere — at 7 x 25 its
-  // steepest-lit normal reaches dot 0.77, which is rung 2 — so the ladder is effectively THREE
-  // rungs deep for a spire and four for a dome. What carries a spire's roundness instead is the
-  // SHADE KEY's hue rotation across rungs 0 to 2, which is a larger perceptual step than the
-  // 0.90 -> 1.00 value one it cannot have.
+  // unnoticed. `rungOfNormal` half-lambertises (`dot * 0.5 + 0.5`) before snapping onto the
+  // authored ladder. A spire's surface is steep almost everywhere — at 7 x 25 its steepest-lit
+  // normal reaches dot 0.77, i.e. half-lambert 0.885, which on the nine-rung ladder is rung 3
+  // against a dome's rung 6.
+  //
+  // ⚠⚠ THE GAP GREW WITH THE LADDER AND THE OLD NUMBERS ARE HISTORY. On the four-rung ladder this
+  // read as "a spire cannot reach rung 3 and a dome can" — ONE rung of separation, and rung 3 was
+  // itself a rounding-up of ~0.95. On nine rungs the two silhouettes differ by THREE rungs, so the
+  // colour difference the file exists to protect is larger than it was, not smaller. What still
+  // carries a spire's roundness on top of that is the SHADE KEY's hue rotation across its low
+  // rungs, which is a larger perceptual step than any value one.
   const spire = growCanopy({ width: 7, height: 25, shape: 'spire' }).get(PROP_TOKENS.canopy)!;
   const spireRungs = new Set<number>();
   for (let i = 0; i < spire.normals.length; i += 3) {
@@ -155,7 +159,7 @@ test('a canopy delivers MORE THAN ONE RUNG — it is a solid, not a silhouette',
       rungOfNormal({ x: spire.normals[i]!, y: spire.normals[i + 1]!, z: spire.normals[i + 2]! }),
     );
   }
-  assert.ok(!spireRungs.has(3), 'a spire now reaches rung 3 — the profile was widened');
+  assert.ok(Math.max(...spireRungs) === 3, `a spire tops out at rung ${Math.max(...spireRungs)} — the profile was changed`);
 
   // A DOME does reach it, which is what makes the two silhouettes differ in COLOUR as well as in
   // outline: the flatter shoulder turns far enough toward the light for the brightest entry.

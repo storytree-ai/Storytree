@@ -255,7 +255,7 @@ test('THE PLACEMENT CONTRACT: base on y = 0, plan-centred on the origin', () => 
 // the rung arithmetic — the property the whole vocabulary is shaped around
 // ---------------------------------------------------------------------------------------------
 
-test('A ROOF REACHES RUNG 3 AND RUNG 0 — the island’s only full-strength surface', () => {
+test('A ROOF REACHES RUNG 7 AND RUNG 0 — the island’s brightest surface', () => {
   // The measured claim, restated as an assertion: a pitched roof with its ridge running along z
   // is the ONLY large surface on this island that reaches rung 3 (x1.00), and its own twin slope
   // sits on rung 0 (x0.78). That is the brightest and the darkest entry the ladder holds, on one
@@ -279,35 +279,60 @@ test('A ROOF REACHES RUNG 3 AND RUNG 0 — the island’s only full-strength sur
     const mesh = parts.get(token);
     assert.ok(mesh, `${name} grew no roof`);
     const rungs = rungsOf(mesh);
-    assert.ok(rungs.has(3), `${name}'s roof reaches only rungs [${[...rungs].sort().join(', ')}] — no rung 3`);
+  // ⚠ RUNG 7 RATHER THAN THE OLD RUNG 3, AND IT IS THE SAME SURFACE. The nine-rung ladder adopted
+  // on 2026-08-31 tells the truth the four-rung one could not: no surface on this island faces the
+  // authored light dead-on, so nothing reaches full strength (rung 8). A pitched roof's best dot
+  // is around 0.93, half-lambert ~0.966, which the coarse ladder rounded up to 1.00. On nine rungs
+  // it lands on 0.975 — three rungs above flat ground's 0.90, where it used to be one.
+    assert.ok(rungs.has(7), `${name}'s roof reaches only rungs [${[...rungs].sort().join(', ')}] — no rung 7`);
+    assert.ok(!rungs.has(8), 'and nothing here is full-strength, which needs a normal along L');
     assert.ok(rungs.has(0), `${name}'s roof has no rung-0 twin, so it carries no contrast`);
   }
 });
 
-test('a battered wall lifts off rung 0 — the second-strongest lever, and it is being used', () => {
+test('⚠ THE COTTAGE WALL BATTER STOPPED BUYING ITS RUNG WHEN THE LADDER WAS ADOPTED', () => {
   // Every vertical face lands on rung 0 at every compass bearing (the best a horizontal normal can
-  // reach is dot 0.5708, short of rung 1), so an un-battered cottage delivers exactly two colours.
-  // The wall's 0.2 batter is what buys rung 1 on the lit side. This asserts the lever fired.
+  // reach is dot 0.5708), so an un-battered cottage delivers exactly two colours. The wall's 0.2
+  // batter existed to buy one rung on the lit side, and until 2026-08-31 it did: slope 0.2 gives
+  // half-lambert 0.8015, which the four-rung ladder snapped to 0.80 — one rung above its 0.78
+  // floor.
+  //
+  // ⚠⚠ THE NINE-RUNG LADDER FLOORS AT 0.80, so that face now lands on rung 0 with the unbattered
+  // one and the lever fires into nothing. This is a RECORDED COST of the ladder adoption, not a
+  // re-pin: the refinement made the steps uniform at 0.025 and in doing so removed the 0.02 first
+  // step the batter was calibrated against. It takes 0.3 to buy a rung now
+  // (`mesh-kit.test.ts` measures the threshold).
+  //
+  // Left unrepaired on purpose. Retuning a batter is an ART change the owner signs off
+  // (ADR-0392 D1), and this is the PROCEDURAL prop arm that ADR-0475 replaced with the bought kit
+  // — the props that ship wear `MeshStandardMaterial` and are never quantised onto this ladder.
   const wall = growCottage({}).get(PROP_TOKENS.stoneLight);
   assert.ok(wall, 'the cottage grew no walls');
   const rungs = rungsOf(wall);
-  assert.ok(rungs.has(1), `the battered wall lands on [${[...rungs].sort().join(', ')}] — no rung 1`);
+  assert.ok(
+    !rungs.has(1),
+    `the wall lands on [${[...rungs].sort().join(', ')}] — if it reaches rung 1 again the ladder moved back`,
+  );
   assert.ok(rungs.has(0), 'the shaded wall should still be rung 0 — otherwise there is no relief');
+  // NON-VACUITY: the wall is not simply unlit. It still carries its own horizontal top face on the
+  // flat rung, so the contrast that survives is form rather than batter.
+  assert.ok(rungs.has(4), 'the wall keeps its flat-rung top, so the two-colour reading survives');
 });
 
-test('the lantern’s cap and the porch roof are the other two full-strength surfaces', () => {
+test('the lantern’s cap and the porch roof are the other two brightest-rung surfaces', () => {
   // Both are recorded appearance calls in the module, so both get an assertion rather than a
-  // comment: the lantern's six-sided cone reaches rung 3 on its light-facing facet (which is what
+  // comment: the lantern's six-sided cone reaches rung 7 on its light-facing facet (which is what
   // makes a two-metre object read across an island), and the porch's mono-pitch reaches it from a
-  // much shallower slope because it faces -x.
+  // much shallower slope because it faces -x. Rung 7 rather than the old rung 3 for the reason the
+  // roof test above records — the coarse ladder was rounding ~0.966 up to full strength.
   const cap = growLantern({}).get(PROP_TOKENS.stone);
   assert.ok(cap, 'the lantern grew no stone');
-  assert.ok(rungsOf(cap).has(3), 'the lantern’s cap never reaches rung 3');
+  assert.ok(rungsOf(cap).has(7), 'the lantern’s cap never reaches rung 7');
 
   const porchRoof = growCottage({ porch: true }).get(PROP_TOKENS.roofTile);
   assert.ok(porchRoof, 'the porched cottage grew no roof');
   const rungs = rungsOf(porchRoof);
-  assert.ok(rungs.has(3) && rungs.has(0), 'the porched cottage’s roof lost its full-strength face');
+  assert.ok(rungs.has(7) && rungs.has(0), 'the porched cottage’s roof lost its brightest face');
 });
 
 // ---------------------------------------------------------------------------------------------
