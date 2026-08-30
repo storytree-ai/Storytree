@@ -602,11 +602,13 @@ const PARKED_WORK_ROUTE = "tool";
  */
 /** A stored row's body as a record, or `{}` for the null/non-object shapes the live corpus can hold. */
 function bodyOfRow(d: StoredDoc): Record<string, unknown> {
-  // Stryker disable next-line ConditionalExpression: MIS-REPORTED, not equivalent — forcing this
-  // guard TRUE makes every row scan as `{}`, and `friction.test.ts`'s "an OPEN entry naming the item
-  // parks it WITHOUT --arc" then fails (the derived set empties and the route is refused). Verified
-  // by hand-applying the replacement and running the suite. The rung reports it SURVIVED anyway;
-  // extracting the expression into this named function — the documented remedy — did not clear it.
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — the LEFT operand alone. Forcing
+  // `typeof d.doc !== "object"` to false leaves `d.doc === null` still catching null, and every
+  // other shape a stored row can hold — object, array, string, number, boolean, from a JSONB column
+  // or the wire contract — is only ever PROPERTY-READ by the one caller, which yields `undefined` on
+  // the raw value exactly as it does on `{}`. The single input that separates them, `doc:
+  // undefined`, cannot come out of JSON. (The whole-condition mutants on this line ARE killed; the
+  // disable is line-granular, which is the only granularity Stryker offers.)
   if (typeof d.doc !== "object" || d.doc === null) return {};
   return d.doc as Record<string, unknown>;
 }
@@ -614,10 +616,6 @@ function bodyOfRow(d: StoredDoc): Record<string, unknown> {
 /** The arc id an `arcRef` names, or null when it is absent or not an `asset:` pointer. */
 function arcIdOfRef(arcRef: unknown): string | null {
   if (typeof arcRef !== "string") return null;
-  // Stryker disable next-line ConditionalExpression: MIS-REPORTED, not equivalent — forcing this
-  // guard FALSE slices a non-`asset:` value into a garbage arc id, and `friction.test.ts`'s "the
-  // derived read is DEFENSIVE" case (`arcRef: "not-an-asset-ref"`) then routes successfully where it
-  // must refuse. Verified by hand-applying the replacement; the rung reports SURVIVED regardless.
   if (!arcRef.startsWith(ASSET_REF_PREFIX)) return null;
   return arcRef.slice(ASSET_REF_PREFIX.length);
 }

@@ -657,10 +657,11 @@ export async function questionSettle(
     answer,
     updatedAt: deps.now,
   };
-  // Stryker disable next-line ConditionalExpression: MIS-REPORTED, not equivalent — forcing this
-  // TRUE writes `settledByRef: undefined` onto every settlement, and `question.test.ts`'s "question
-  // settle WITHOUT --adr writes no settledByRef at all" then fails. Verified by hand-applying the
-  // replacement and running the suite; the rung reports it SURVIVED.
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — forcing this TRUE assigns
+  // `settledByRef: undefined`, and `mergeFields` (storage-protocol/src/store.ts) documents
+  // `undefined` as DELETE-the-key, so the patch removes a key that was never there. The guard earns
+  // its place by saying so at the call site rather than relying on the store's rule, and no input
+  // can distinguish the two: hand-applied, the whole `packages/arc` suite is 202 pass / 0 fail.
   if (adrRef !== undefined) fields.settledByRef = adrRef;
 
   let saved: Awaited<ReturnType<typeof deps.store.patchDoc>>;
