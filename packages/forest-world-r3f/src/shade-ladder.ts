@@ -313,22 +313,37 @@ export function paletteImageOfToken(token: string): Rgb255[] {
 // parse its own evidence and therefore looked exactly like a guard that did not fire;
 // deriving beats asserting.)
 
-/** GLSL source for the banding quantiser, with the ladder written in from `SHADE_LEVELS`.
+/** GLSL source for the banding quantiser, with the ladder written into it.
  *
  *  It returns the ladder INDEX, not the multiplier: the fragment stage then reads
  *  `uRamp[index]` — the finished, already-rounded authored colour uploaded by
  *  `tokenRamp` — and writes it through unchanged. The GPU therefore performs no colour
  *  arithmetic at all, which is what makes "the delivered pixel is an authored entry" a
- *  bit-identity rather than an approximation (see `bandLevelIndex`). */
-export function bandGlsl(): string {
-  const n = SHADE_LEVELS.length;
-  const levels = SHADE_LEVELS.map((l) => l.toFixed(6)).join(', ');
+ *  bit-identity rather than an approximation (see `bandLevelIndex`).
+ *
+ *  ⚠ THE LADDER IS AN ARGUMENT, DEFAULTING TO `SHADE_LEVELS`, AND THE DEFAULT IS THE POINT: the
+ *  shipped material passes nothing and therefore emits the byte-identical source every measured
+ *  figure about the banded ground was taken against. What the argument buys is a COMPARISON —
+ *  `harness/shipped-land-scene.ts` renders candidate ladders through this same material rather
+ *  than through a second implementation, which is what lets an arm claim to differ in exactly
+ *  one thing. Whether the SHIPPED ladder moves is an owner-visible look decision
+ *  (`move-the-yellow-so-the-ground-texture-can-finish`), and nothing here decides it. */
+export function bandGlsl(ladder: readonly number[] = SHADE_LEVELS): string {
+  if (ladder.length === 0) {
+    // A zero-rung ladder emits `st_level` with no branch and `ST_N_LEVELS = 0`, whose loop never
+    // runs and whose `st_level(...)` reads past the end of nothing. That compiles, so it would
+    // ship as a black island rather than as an error. Refusing is the only reading that cannot
+    // be mistaken for art — the same call `createBandedGroundMaterial` makes about an empty ramp.
+    throw new Error('shade-ladder: bandGlsl needs at least one rung — a ladder with no levels');
+  }
+  const n = ladder.length;
+  const levels = ladder.map((l) => l.toFixed(6)).join(', ');
   const lines = [
-    '// GENERATED from shade-ladder.ts SHADE_LEVELS — do not hand-edit this ladder.',
+    '// GENERATED from a shade-ladder.ts ladder — do not hand-edit this ladder.',
     `const int ST_N_LEVELS = ${n};`,
     'float st_level(int i) {',
-    ...SHADE_LEVELS.map((l, i) => `  if (i == ${i}) return ${l.toFixed(6)};`),
-    `  return ${SHADE_LEVELS[SHADE_LEVELS.length - 1]!.toFixed(6)};`,
+    ...ladder.map((l, i) => `  if (i == ${i}) return ${l.toFixed(6)};`),
+    `  return ${ladder[ladder.length - 1]!.toFixed(6)};`,
     '}',
     '',
     '// The ladder rung a lighting scalar falls on. Nearest, ties DOWN, ends clamped —',

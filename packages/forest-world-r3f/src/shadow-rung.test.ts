@@ -297,3 +297,54 @@ test('the probe count spans the sweep INCLUSIVELY, and reads both of its ends', 
   assert.ok(probeCount(0.89, 0.3, 0.01) > probeCount(0.89, 0.8, 0.01));
   assert.ok(probeCount(0.89, 0.3, 0.05) < probeCount(0.89, 0.3, 0.01));
 });
+
+test('the derived rung is re-asked against the LIT LADDER it is given, remap and all', () => {
+  // ⚠ THE ARGUMENT EXISTS BECAUSE THE REFERENCE IS NOT A CONSTANT. A reader's reference is
+  // whichever rung FLAT GROUND lands on, so it moves when the ladder does; a `shadowLadderFor`
+  // that ignored its ladder would judge one ladder's pixels against another ladder's references
+  // and hand back a `litIndex` remap indexed for a ladder the material is not using — which paints
+  // the wrong colour for every fragment on the map.
+  const tokens = ['#8cb85e', '#b7684e', '#d8c069', '#57544a', '#9ca3af'];
+  const lit = [0.86, 0.88, 0.9, 0.92, 0.94, 0.96, 0.98, 1.0];
+
+  const shipped = shadowLadderFor(tokens);
+  const refined = shadowLadderFor(tokens, lit);
+  assert.equal(shipped.levels.length, SHADE_LEVELS.length + 1);
+  assert.equal(refined.levels.length, lit.length + 1, 'one shadow rung on top of the lit ladder');
+
+  // THE REMAP IS READ BACK OUT OF THE LADDER IT WAS BUILT FROM. Every lit level must land on its
+  // own index in the extended ladder — an identity mapping would put every fragment on rung 0.
+  assert.equal(refined.litIndex.length, lit.length);
+  for (const [i, level] of lit.entries()) {
+    assert.equal(refined.levels[refined.litIndex[i]!], level, `lit rung ${level} remaps wrong`);
+  }
+  assert.notDeepEqual([...refined.litIndex], [...shipped.litIndex]);
+
+  // THE SHADOW RUNG IS DARKER THAN EVERY LIT RUNG, and every lit rung is darkenable — which is
+  // what makes the shadow a shadow on this ladder rather than on the default one.
+  assert.ok(refined.rung < Math.min(...lit));
+  assert.deepEqual([...refined.darkenable], [0, 1, 2, 3, 4, 5, 6, 7], 'read off THIS ladder');
+  assert.deepEqual([...shipped.darkenable], [0, 1, 2, 3], 'and off the authored one by default');
+  assert.deepEqual(rungsDarkenedBy(refined.rung, lit), [...refined.darkenable]);
+
+  // AND THE REFERENCE MOVED WITH THE LADDER: flat ground on this one lands on its own nearest
+  // rung, not on the authored 0.90 — measured rather than assumed, since a lifted ladder that
+  // happened to contain 0.90 would hide the difference.
+  // ⚠⚠ AND THE REFERENCE MOVES WITH THE LADDER, WHICH IS THE WHOLE REASON THE ARGUMENT EXISTS —
+  // and it is subtler than "does the ladder contain 0.90". Flat ground's lambert is 0.9105, so on
+  // a 0.02 grid the NEAREST rung is 0.92 even though 0.90 is present. The reader's references
+  // shift two points up, and the derived shadow rung shifts with them: 0.77 -> 0.79. A
+  // `shadowLadderFor` that ignored its argument would return 0.77 here and hand the material a
+  // rung derived against references it does not draw.
+  assert.equal(flatGroundLevel(), 0.9);
+  assert.equal(flatGroundLevel(lit), 0.92, "0.9105 is nearer 0.92 than 0.90 on a 0.02 grid");
+  assert.equal(shipped.rung, 0.77);
+  assert.equal(refined.rung, 0.79, 'the rung is re-derived against the moved reference');
+  const moved = [0.5, 0.7, 0.95];
+  assert.equal(flatGroundLevel(moved), 0.95);
+  assert.notEqual(shadowLadderFor(tokens, moved).rung, shipped.rung);
+  assert.notEqual(
+    readerReferences(tokens, moved)[0]!.colour.g,
+    readerReferences(tokens)[0]!.colour.g,
+  );
+});

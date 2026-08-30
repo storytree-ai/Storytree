@@ -112,6 +112,22 @@ export interface BandedGroundMaterialOptions {
    *  it delivered before shadows existed. Built by {@link groundShadowTexture}, so the texture
    *  and the rect it is sampled through can never disagree about which ground the samples cover. */
   shadow?: GroundShadow;
+  /** THE LIT LADDER this material quantises its lighting scalar onto. Absent means the authored
+   *  `SHADE_LEVELS`, and the shipped canvas passes nothing — so the source it emits is
+   *  byte-identical to the one every measured figure about the banded ground was taken against.
+   *
+   *  ⚠ IT IS HERE FOR THE COMPARISON, NOT AS A DIAL SOMEBODY MAY TURN IN PRODUCTION. Which
+   *  ladder the map wears decides how dark a shaded parcel gets, and therefore how much reading
+   *  margin the ground has left over for anything else — a look decision with a semantic cost,
+   *  which ADR-0392 D5 reserves to the owner. What the option buys is that candidate ladders
+   *  render through THIS material rather than through a second implementation, so an arm on the
+   *  comparison page can honestly claim to differ in exactly one thing.
+   *
+   *  ⚠ THE SHADOW RUNG IS RE-DERIVED AGAINST IT. A shadowed material asks `shadowLadderFor` how
+   *  dark THIS ladder's tokens may go, so a candidate does not silently inherit the shipped
+   *  ladder's 0.77 — a stale derived number of exactly the class the fourth crossing was written
+   *  to prevent. */
+  lit?: readonly number[];
 }
 
 /** The occlusion field, uploaded, with the ground rect it covers. */
@@ -238,10 +254,11 @@ export function shadowDarkenGlsl(darkenable: readonly number[], rungIndex: numbe
 /**
  * The banded ground material: `colour = ramp[statusRow * nLevels + bandIndex(lambert)]`.
  *
- * The ladder in the fragment source is INTERPOLATED from `SHADE_LEVELS` by `bandGlsl()` and the
- * ramp is computed by `deliveredForLevel`, so a shader and a test holding private copies of the
- * same numbers is unrepresentable — the argument `bandGlsl` already makes about the ladder,
- * extended to the colours.
+ * The ladder in the fragment source is INTERPOLATED by `bandGlsl` from the material's own lit
+ * ladder (`SHADE_LEVELS` unless a caller overrides it) and the ramp is computed by
+ * `deliveredForLevel`, so a shader and a test holding private copies of the same numbers is
+ * unrepresentable — the argument `bandGlsl` already makes about the ladder, extended to the
+ * colours.
  *
  * THE AMBIENT FLOOR IS DELIBERATELY ABSENT. Adding a constant AFTER quantisation would produce
  * `token * level + ambient`, which is not a closure member. The ladder's darkest rung IS the
@@ -253,8 +270,9 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // typed. `shadowLadderFor` asks how dark every one of them may go before it reads as another,
   // and THROWS if the answer is "not at all" — a palette that cannot carry a shadow honestly has
   // to fail loudly, because the failure IS the finding (ADR-0392 D5 / ADR-0398 D7).
-  const ladder = opts.shadow === undefined ? null : shadowLadderFor(opts.tokens);
-  const ramp = groundRamp(opts.tokens, ladder === null ? SHADE_LEVELS : ladder.levels);
+  const lit = opts.lit ?? SHADE_LEVELS;
+  const ladder = opts.shadow === undefined ? null : shadowLadderFor(opts.tokens, lit);
+  const ramp = groundRamp(opts.tokens, ladder === null ? lit : ladder.levels);
   if (ramp.length === 0) {
     // A material with an empty ramp compiles to `uRamp[0]` on a zero-length uniform array, which
     // is a link error on some drivers and a black island on others. Refusing is the only reading
@@ -406,7 +424,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
       }
     `,
     fragmentShader: `
-      ${bandGlsl().split('\n').join('\n      ')}
+      ${bandGlsl(lit).split('\n').join('\n      ')}
 ${grainSource}
       uniform vec3 uRamp[${ramp.length}];
       uniform vec3 uLightDir;${grainUniformDecls}${shadowUniformDecls}
