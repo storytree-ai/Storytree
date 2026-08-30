@@ -45,6 +45,7 @@ import {
   cylinderTriangles,
   sphereTriangles,
 } from './shipped-baseline.js';
+import { LIGHT_DIRECTION } from '../src/shade-ladder.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SHIPPED = join(HERE, '..', 'src', 'ForestWorldCanvas.tsx');
@@ -152,21 +153,39 @@ test('the shipped size constants are what the shipped canvas holds', () => {
   assert.match(src, new RegExp(`TILE_HEIGHT\\s*=\\s*${SHIPPED_TILE_HEIGHT}\\b`));
 });
 
-test('the transcribed LIGHT is the light the shipped canvas actually hangs', () => {
+test('the LIGHT is the light the shipped canvas actually hangs — and it is DERIVED, not transcribed', () => {
   // ⚠ THE ONE TRANSCRIPTION RELIEF DEPENDS ON. Relief moves no colour and adds no mark — the
   // whole visible difference between the flat map and the relieved one is `dot(n, L)` against
   // this direction, so a comparison lit from anywhere else is a picture of a land the product
   // does not draw. Every unpinned transcription in this package has drifted from its source at
   // least once; this one is read off the file rather than remembered.
+  //
+  // ⚠⚠ AND SINCE 2026-08-30 THE STRONGER PROPERTY HOLDS: there is no transcription left to
+  // drift. The canvas used to hang the key light at the literal `[120, 300, 80]` — (+0.36, +0.90,
+  // +0.24) normalised, the OPPOSITE SIDE IN X from the land's own authored sun — so every lit
+  // object was lit from the east while the ground beside it was banded, and cast its shadows,
+  // from the west. Both now read `LIGHT_DIRECTION`. So the assertion is that the canvas DERIVES
+  // it, plus that the numbers still agree; a canvas that went back to a literal would satisfy the
+  // second and fail the first, which is the direction that matters.
   const src = readFileSync(SHIPPED, 'utf8');
-  const [dx, dy, dz] = SHIPPED_LIGHTING.directionalPosition;
   assert.match(src, new RegExp(`<ambientLight intensity=\\{${SHIPPED_LIGHTING.ambientIntensity}\\}`));
   assert.match(
     src,
-    new RegExp(
-      `<directionalLight position=\\{\\[${dx}, ${dy}, ${dz}\\]\\} intensity=\\{${SHIPPED_LIGHTING.directionalIntensity}\\}`,
-    ),
+    /position=\{\[\s*LIGHT_DIRECTION\.x \* (\d+),\s*LIGHT_DIRECTION\.y \* \1,\s*LIGHT_DIRECTION\.z \* \1,?\s*\]\}/,
+    'the key light must be aimed along LIGHT_DIRECTION, on all three axes at ONE distance',
   );
+  assert.match(src, new RegExp(`intensity=\\{${SHIPPED_LIGHTING.directionalIntensity}\\}`));
+  // And the two derivations agree numerically — the baseline scales by the same distance the
+  // canvas does, so a comparison scene lights its arms exactly as the product lights its map.
+  const [dx, dy, dz] = SHIPPED_LIGHTING.directionalPosition;
+  const scale = Math.hypot(dx, dy, dz);
+  assert.ok(Math.abs(dx / scale - LIGHT_DIRECTION.x) < 1e-12, 'x');
+  assert.ok(Math.abs(dy / scale - LIGHT_DIRECTION.y) < 1e-12, 'y');
+  assert.ok(Math.abs(dz / scale - LIGHT_DIRECTION.z) < 1e-12, 'z');
+  // ⚠ NON-VACUITY, and this is the assertion the old literal would have failed. The authored sun
+  // comes from the WEST (negative x); the light the canvas hung until 2026-08-30 came from the
+  // east. A test that only checked "the two agree" would pass for two copies of the wrong one.
+  assert.ok(dx < 0, 'the key light is on the same side as the shadows the ground casts');
   assert.ok(src.includes(`args={['${SHIPPED_LIGHTING.background}']}`), 'the background colour');
 });
 

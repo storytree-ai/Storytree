@@ -26,6 +26,7 @@
 // repo does not own, so a transcription is the only option there and a refusal holds it.
 import { cellGroundTriangles } from '../src/cell-ground-geometry.js';
 import type { Descriptor3D } from '../src/world-to-3d.js';
+import { LIGHT_DIRECTION } from '../src/shade-ladder.js';
 
 /** Three.js `CylinderGeometry` torso triangles.
  *
@@ -303,8 +304,26 @@ export const SHIPPED_CROWN_COLOUR: ReadonlyMap<string, string> = new Map([
 export const SHIPPED_LIGHTING = {
   /** `<ambientLight intensity={…} />` */
   ambientIntensity: 0.7,
-  /** `<directionalLight position={…} />`, in world units. */
-  directionalPosition: [120, 300, 80] as readonly [number, number, number],
+  /**
+   * `<directionalLight position={…} />`, in world units.
+   *
+   * ⚠⚠ DERIVED FROM `LIGHT_DIRECTION` SINCE 2026-08-30, NOT TRANSCRIBED — and the change is a
+   * finding rather than a tidy-up. It was the literal `[120, 300, 80]`, which normalises to
+   * (+0.36, +0.90, +0.24): the OPPOSITE SIDE IN X from the land's own authored sun at
+   * (-0.45, +0.83, +0.35). So every lit object on the shipped map was lit from the east while
+   * the ground beside it was banded — and, once the shadow field crossed, CAST ITS SHADOWS —
+   * from the west. The story tree carried that alone for months; a stand of bought trees cannot,
+   * which is what surfaced it.
+   *
+   * The canvas now hangs the light along `LIGHT_DIRECTION` too, so there is no transcription left
+   * to drift: both read one constant. The distance is arbitrary (a directional light has a
+   * direction, not a position) and only has to sit outside any world.
+   */
+  directionalPosition: [
+    LIGHT_DIRECTION.x * 400,
+    LIGHT_DIRECTION.y * 400,
+    LIGHT_DIRECTION.z * 400,
+  ] as readonly [number, number, number],
   /** `<directionalLight intensity={…} />` */
   directionalIntensity: 1.1,
   /** `<color attach="background" args={[…]} />` */

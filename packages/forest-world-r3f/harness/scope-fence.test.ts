@@ -192,6 +192,17 @@ const ADOPTED: readonly { src: string; reExportedBy: string; because: string }[]
       'in the same landing.',
   },
   {
+    src: 'kit-mesh.ts',
+    reExportedBy: 'kit-scene.ts',
+    because:
+      "the bought kit's BROWSER half — parsing the asset, pairing a trunk with its own crown, " +
+      'measuring each role’s footprint off the loaded geometry, tinting a leaf material, and ' +
+      'merging every placement into one mesh per (material, tint) on a renderer measured ' +
+      'draw-call bound. ⚠ A SPLIT: the harness’s FETCH stayed (vite serves its `/assets/`; the ' +
+      'shipped canvas has none, and parses the embedded bytes instead), and so did the light ' +
+      'CALIBRATION, which probes a live renderer and is an instrument.',
+  },
+  {
     src: 'texture-convention.ts',
     reExportedBy: 'texture-convention.ts',
     because:

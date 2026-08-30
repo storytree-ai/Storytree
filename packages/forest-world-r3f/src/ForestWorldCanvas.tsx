@@ -26,10 +26,10 @@
 // nothing focused, nothing shown; opting in draws the whole network. Ghost
 // (under-island) strips are never drawn here — the cave props carry that story.
 
-import { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
-import { Color, OrthographicCamera } from 'three';
+import { Color, OrthographicCamera, type Mesh } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 import { frameWorld, orthographicZoomFor } from './camera-framing.js';
 import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry.js';
@@ -37,6 +37,10 @@ import { LAND_RELIEF_AMPLITUDE, landRelief } from './land-relief.js';
 import { buildGroundOcclusion } from './contact-shade.js';
 import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from './ground-casters.js';
 import type { ShadowCaster } from './land-shadow.js';
+import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh.js';
+import { capabilityFactsFrom, dressIslandFromKit } from './kit-vocabulary.js';
+import { parcelCellsFrom } from './parcel-cells.js';
+import { LIGHT_DIRECTION } from './shade-ladder.js';
 import {
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
@@ -326,6 +330,96 @@ function CellGround({
   );
 }
 
+// ---------------------------------------------------------------------------
+// THE BOUGHT KIT — one object per capability (ADR-0475)
+// ---------------------------------------------------------------------------
+
+/**
+ * THE KIT, PARSED ONCE FOR THE WHOLE PAGE.
+ *
+ * ⚠ A MODULE-SCOPE PROMISE RATHER THAN PER-MOUNT STATE, and it is the right singleton here for
+ * the reason the ground material is NOT one: the kit is a constant — the same asset, the same
+ * geometry, the same three materials, whatever island is on screen — where the occlusion field is
+ * built from THIS island's own casters. Parsing it per mount would decode the same textures again
+ * on every navigation and hold a second copy of them on the GPU.
+ */
+let kitPromise: Promise<LoadedKit> | null = null;
+const kit = (): Promise<LoadedKit> => (kitPromise ??= loadEmbeddedKit());
+
+/**
+ * ONE BOUGHT OBJECT PER CAPABILITY, ITS SPECIES AND LEAF TINT CARRYING THAT CAPABILITY'S STATE.
+ *
+ * The owner settled this vocabulary on 2026-08-29 (ADR-0475) and authorised the crossing the same
+ * day. Until now the shipped map drew ONE of the 1,089 things the semantic scene puts on its
+ * ground: the story tree, and nothing else.
+ *
+ * ⚠⚠ THE BLOOMS ARE NOT DRAWN HERE, AND THAT IS A NAMED GAP RATHER THAN A QUIET DROP. The
+ * vocabulary's sixth entry is one flower per UAT criterion the owner has signed (ADR-0226 D4),
+ * and it is a claim about a STORY. The descriptor stream carries no island attribution on a
+ * `cell-ground` — only the capability's parcel — so a bloom count read here would scatter one
+ * story's signed criteria across every other story's island. That is the map asserting a
+ * signature on work nobody signed (ADR-0392 D5), which is worse than the absence. The criteria
+ * themselves ARE in the scene (`tall-flower-proven`, currently a skip); carrying an island id
+ * through `worldTo3D` is what closes it, and it is its own unit.
+ *
+ * ⚠ THE FOOTPRINTS ARE READ OFF THE LOADED KIT, never declared here. A pine's canopy is as wide
+ * as its own geometry says once scaled to 18 ground units, and a number restated in the canvas
+ * would drift the first time the asset is re-exported.
+ */
+function KitProps({ cells }: { cells: InstanceDescriptor[] }) {
+  const [loaded, setLoaded] = useState<LoadedKit | null>(null);
+  useEffect(() => {
+    let live = true;
+    // A kit that fails to parse must not take the MAP down with it: the ground is the thing that
+    // reports proof state, and it reports it correctly with no props on it. The refusal is loud
+    // in the console and the island simply stands bare.
+    kit().then(
+      (k) => {
+        if (live) setLoaded(k);
+      },
+      (err: unknown) => {
+        console.error('ForestWorldCanvas: the bought kit did not load, so no props are drawn', err);
+      },
+    );
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  const meshes = useMemo(() => {
+    if (!loaded) return [];
+    const parcels = parcelCellsFrom(cells);
+    return kitMeshes(
+      loaded,
+      dressIslandFromKit({
+        cells: parcels,
+        facts: capabilityFactsFrom(parcels),
+        blooms: 0,
+        relief: LAND_RELIEF_AMPLITUDE,
+        footprint: roleFootprints(loaded),
+      }),
+    );
+  }, [loaded, cells]);
+
+  // ⚠ THE MERGED GEOMETRY IS DISPOSED, THE KIT'S OWN IS NOT. `kitMeshes` clones every part and
+  // bakes its transform in, so each mesh here owns geometry nothing else refers to; the kit's
+  // source geometry and its materials are the module singleton's and outlive every mount.
+  useEffect(
+    () => () => {
+      for (const m of meshes) m.geometry.dispose();
+    },
+    [meshes],
+  );
+
+  return (
+    <>
+      {meshes.map((m: Mesh, i: number) => (
+        <primitive key={i} object={m} />
+      ))}
+    </>
+  );
+}
+
 function StoryTree({ tree }: { tree: InstanceDescriptor }) {
   const { x, y, z } = tree.transform;
   const colour = crownColourOf(tree.material);
@@ -462,9 +556,25 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
     <Canvas orthographic camera={{ position: frame.position, near: 1, far: 4000 }}>
       <color attach="background" args={['#101418']} />
       <ambientLight intensity={0.7} />
-      <directionalLight position={[120, 300, 80]} intensity={1.1} />
+      {/* ⚠⚠ THE KEY LIGHT IS AIMED ALONG THE LAND'S OWN AUTHORED SUN, and it was not until
+          2026-08-30. It sat at `[120, 300, 80]`, which normalises to (+0.36, +0.90, +0.24) —
+          the OPPOSITE SIDE IN X from `LIGHT_DIRECTION`'s (-0.45, +0.83, +0.35). So every lit
+          object on this map was lit from the east while the ground beside it was banded, and
+          since the shadow crossing landed, CAST ITS SHADOWS, from the west. A prop lit from one
+          side and throwing its shadow toward the same side is the incoherence that reads as
+          "wrong" before anyone can say why, and the bought kit is what made it matter: the story
+          tree could carry it alone, a stand of trees cannot.
+          It is DERIVED rather than chosen — the same constant `banded-ground-material.ts` shades
+          with and `land-shadow.ts` casts along, so the three cannot drift apart. The distance is
+          arbitrary (a directional light has a direction, not a position) and is large enough to
+          sit outside any world. */}
+      <directionalLight
+        position={[LIGHT_DIRECTION.x * 400, LIGHT_DIRECTION.y * 400, LIGHT_DIRECTION.z * 400]}
+        intensity={1.1}
+      />
       <HexGround tiles={grounds} />
       <CellGround cells={cells} casters={casters} />
+      <KitProps cells={cells} />
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
       ))}
