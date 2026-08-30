@@ -89,7 +89,20 @@ capabilities: [credential-broker, electron-shell, local-backend-boot, boot-read-
 #                       coupling — and NOT an artifact edge: it is a real declared dep in
 #                       apps/desktop/package.json, pulled through a lazy `loadArc()` memo mirroring
 #                       `loadDrive()` for the vite config-load reason documented at the call site.
-depends_on: [studio, drive-machinery, library, app-guide, studio-cloud, proof-protocol, notice-board, arc, context-traversal-capture, context-traversal-spawn, context-traversal-transcript]
+#   - uat-criterion-detail — @storytree/uat-criterion's `parseCriterionPointers`, the ONE grammar for a
+#                       UAT leg's `(detail: <id>)` Library pointer (ADR-0209 D7). `GET /api/attestations`
+#                       here re-composes the studio's join, and the studio attaches those pointers; this
+#                       backend attached none, so the SHARED `UatTestCriteriaSection` — the desktop serves
+#                       the studio's compiled bundle — rendered every leg on this surface with no link to
+#                       the artifact explaining it. Measured 2026-08-31 by the `/api/attestations` mirror
+#                       row (`unscored-guards-arc`), which is what made the gap observable. A pure parser
+#                       (no `pg`, no server), and NOT reachable transitively under this repo's pnpm strict
+#                       isolation — so it is a DECLARED dep in apps/desktop/package.json and the
+#                       cross-story edge is declared here, the same ADR-0074 / ADR-0113 §8 pattern the
+#                       proof-protocol / notice-board edges follow. Reading ONE grammar rather than
+#                       re-reading the tag is the point: a second reading of `(detail: …)` is precisely
+#                       the drift the mirror row exists to fence.
+depends_on: [studio, drive-machinery, library, app-guide, studio-cloud, proof-protocol, notice-board, arc, context-traversal-capture, context-traversal-spawn, context-traversal-transcript, uat-criterion-detail]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
 # declared-edge honesty gate accepts these without a code import; remove an entry if the seam ever
@@ -429,6 +442,16 @@ agent/SDK seam, the library schema, the studio frontend, or the app-guide-owned 
   `apps/desktop/package.json` and the cross-story edges are declared in `depends_on` above — exactly the
   ADR-0074 / ADR-0113 §8 "declare the edge, never work around it" pattern the drive-machinery / studio /
   library edges follow.
+- **`uat-criterion-detail`** — the **one grammar** for a UAT leg's `(detail: <id>)` Library pointer
+  (ADR-0209 D7). `GET /api/attestations` on this backend re-composes the studio's join, and the studio
+  attaches those pointers; this surface attached none, so the shared `UatTestCriteriaSection` — the
+  desktop serves the studio's compiled bundle — rendered every leg here with no link to the artifact
+  explaining it. Found 2026-08-31 by the `/api/attestations` mirror row (`unscored-guards-arc`), which
+  is what made a gap that changed no pixel observable at all. `@storytree/uat-criterion`'s
+  `parseCriterionPointers` is a pure parser (no `pg`, no server) and is not reachable transitively under
+  pnpm's strict isolation, so it is a DECLARED dep and the edge is declared above. Sharing the grammar
+  rather than re-reading the tag is the whole point: a second reading of `(detail: …)` would be the
+  drift the mirror row exists to fence, arriving inside the fix for it.
 
 ## UAT Test Criteria
 
