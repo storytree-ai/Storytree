@@ -33,7 +33,6 @@ function asset(
     title: id,
     description: id,
     body: '',
-    references: [],
     createdAt: '2026-08-20T00:00:00.000Z',
     updatedAt: '2026-08-20T00:00:00.000Z',
   };
@@ -241,7 +240,6 @@ function decisionAsset(number: number, dependsOn: string[] = []): GuidanceAsset 
     title: `ADR-${String(number).padStart(4, '0')}`,
     description: id,
     body: '',
-    references: [],
     createdAt: '2026-08-26T00:00:00.000Z',
     updatedAt: '2026-08-26T00:00:00.000Z',
   };

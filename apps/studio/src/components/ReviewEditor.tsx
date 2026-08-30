@@ -45,7 +45,7 @@ interface ReviewEditorProps {
   /** The asset whose markdown body seeds the editor. Optional metadata (category, fields …)
    *  is carried so Save can write a body-only asset losslessly; a structured asset (fields
    *  authoritative, body derived) Saves LOCAL — see save(). */
-  asset: Pick<GuidanceAsset, 'id' | 'category' | 'title' | 'description' | 'body' | 'references'> &
+  asset: Pick<GuidanceAsset, 'id' | 'category' | 'title' | 'description' | 'body'> &
     Partial<Pick<GuidanceAsset, 'fields' | 'provenance'>>;
 }
 
@@ -224,7 +224,6 @@ export function ReviewEditor({ asset }: ReviewEditorProps): React.JSX.Element {
         title: asset.title,
         description: asset.description,
         body: source,
-        references: asset.references,
       };
       if (asset.provenance !== undefined) input.provenance = asset.provenance;
       await api.updateAsset(topicId, input);

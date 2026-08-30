@@ -346,9 +346,12 @@ export function computeRecurrence(input: RecurrenceInput): RecurrenceReport {
  * adjudicator, and an unauditable one.
  */
 export const COLLAPSING_RULE =
-  "Two live filings are ONE cause when an AUTHOR joined them: (a) both are cited by the same " +
-  "increment's `frictionRefs` — one remedy declared to cover both — or (b) one names the other in " +
-  "its `references` as `asset:<id>`. A cause is the transitive closure of those two edges. " +
+  "Two live filings are ONE cause when an AUTHOR joined them: both are cited by the same " +
+  "increment's `frictionRefs` — one remedy declared to cover both. A cause is the transitive " +
+  "closure of that edge. " +
+  "A SECOND edge was retired on 2026-08-30 with the citation tier (ADR-0477 D1): one filing naming " +
+  "another in its `references`. So this number COLLAPSES LESS than it did before that date, and a " +
+  "rise across it is a change in this instrument, not a rise in bottlenecks. " +
   "Reinforcements are part of their own item and are never separate filings. " +
   "Filings carrying NO join edge stand alone, so the cause count is a CEILING on distinctness, " +
   "never a measurement of filing volume — see `unjoined` for how far the rule actually reached.";
@@ -416,8 +419,6 @@ class DisjointSet {
   }
 }
 
-const ASSET_PREFIX = "asset:";
-
 function stringArray(doc: Record<string, unknown>, key: string): string[] {
   const raw = doc[key];
   return Array.isArray(raw) ? raw.filter((v): v is string => typeof v === "string") : [];
@@ -459,7 +460,7 @@ export function computeBottlenecks(input: {
     edgesFor.set(id, bucket);
   };
 
-  // Edge (a) — one remedy declared to cover several filings.
+  // The join — one remedy declared to cover several filings.
   for (const inc of input.increments) {
     if (inc.kind !== "increment") continue;
     const refs = stringArray(asRecord(inc.doc), "frictionRefs").filter((r) => live.has(r));
@@ -467,21 +468,6 @@ export function computeBottlenecks(input: {
     for (const ref of refs) {
       sets.union(refs[0]!, ref);
       noteEdge(ref, `increment:${inc.id}`);
-    }
-  }
-
-  // Edge (b) — one filing names another as its own cause.
-  for (const [id, doc] of live) {
-    for (const ref of stringArray(doc, "references")) {
-      if (!ref.startsWith(ASSET_PREFIX)) continue;
-      const target = ref.slice(ASSET_PREFIX.length);
-      if (!live.has(target) || target === id) continue;
-      sets.union(id, target);
-      // ONE label per pair, naming both ends and the direction — a `cited-by:` twin would print the
-      // same edge twice and leave a reader guessing which filing did the citing.
-      const label = `${id} cites ${target}`;
-      noteEdge(id, label);
-      noteEdge(target, label);
     }
   }
 

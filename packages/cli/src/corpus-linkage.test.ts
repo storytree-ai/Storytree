@@ -191,8 +191,8 @@ test("pointer resolution reports every floor rather than dropping one silently",
 
 test("the per-kind roll-up separates ISOLATED from linked-only-off-graph", () => {
   const verdict = evaluateCorpusLinkage([
-    // Carries a reference, so it is unlinked but not isolated.
-    row("p1", "principle", { references: ["asset:x"] }),
+    // Points at a repo FILE rather than an artifact, so it is unlinked but not isolated.
+    row("p1", "principle", { dependsOn: ["doc:docs/research/x.md"] }),
     // Nothing at all.
     row("p2", "principle", {}),
     row("f1", "friction", {}),
@@ -202,7 +202,12 @@ test("the per-kind roll-up separates ISOLATED from linked-only-off-graph", () =>
   assert.equal(principles.unlinked, 2);
   assert.equal(principles.isolated, 1);
   assert.equal(principles.linkedOnlyOffGraph, 1);
-  assert.equal(principles.reasons.get("field-never-authored"), 2);
+  assert.equal(principles.reasons.get("field-never-authored"), 1, "p2 carries no key at all");
+  assert.equal(
+    principles.reasons.get("points-outside-the-corpus"),
+    1,
+    "p1 authored a pointer, at a repo file this graph does not hold",
+  );
   const friction = verdict.byKind.find((kindRow) => kindRow.kind === "friction")!;
   assert.equal(friction.reasons.get("schema-refuses-the-field"), 1);
 });
@@ -257,8 +262,11 @@ test("`supersedes` naming a decision this corpus does not hold is dropped, not c
   assert.equal(verdict.nodes[0]!.supersedesOut, 0);
 });
 
-test("`references` is counted and is NEVER an edge", () => {
+test("`references` is counted and is NEVER an edge, NOR an off-graph signal (ADR-0477 D5)", () => {
   // Provenance, not dependency (ADR-0464 D1 retires the surface built on exactly that conflation).
+  // The field itself is retired (ADR-0477 D1) and a live row keeps the key only until its next write
+  // drains it, so this still REPORTS what it finds — what it no longer does is count toward the
+  // isolation sum, which is what kept a cited-but-edge-free node out of `isolated`.
   const verdict = evaluateCorpusLinkage([
     row("a", "principle", { references: ["asset:b", "asset:c", 7] }),
     row("b", "principle", {}),
@@ -267,6 +275,11 @@ test("`references` is counted and is NEVER an edge", () => {
   const source = verdict.nodes.find((node) => node.nodeId === "a")!;
   assert.equal(source.referenceCount, 2, "the non-string is dropped");
   assert.equal(source.outDegree, 0, "a reference is not a dependency");
+  assert.equal(
+    verdict.byKind[0]!.isolated,
+    3,
+    "and it no longer buys the citing node out of `isolated` (ADR-0477 D5)",
+  );
   assert.equal(verdict.unlinked, 3);
   assert.equal(verdict.nodes.find((node) => node.nodeId === "b")!.inDegree, 0);
 });
@@ -389,10 +402,10 @@ test("the per-kind roll-up counts only the UNLINKED, with a linked sibling prese
 });
 
 test("EACH off-graph signal on its own is enough to be linked-only-off-graph", () => {
-  // The isolation test sums five counters. Each case leaves exactly ONE of them non-zero, so a sum
-  // that dropped or negated any single term puts that case in the wrong bucket.
+  // The isolation test sums four counters (five until ADR-0477 D5 dropped the citation term). Each
+  // case leaves exactly ONE of them non-zero, so a sum that dropped or negated any single term puts
+  // that case in the wrong bucket.
   const cases: readonly { readonly label: string; readonly rows: readonly LinkageSource[] }[] = [
-    { label: "references", rows: [row("a", "principle", { references: ["asset:x"] })] },
     { label: "anchorOut", rows: [row("a", "increment", { cites: ["story:s"] })] },
     { label: "repoFileOut", rows: [row("a", "principle", { dependsOn: ["doc:docs/research/x.md"] })] },
   ];
@@ -421,7 +434,8 @@ test("isolated and off-graph are counted separately, with UNEQUAL populations", 
   const verdict = evaluateCorpusLinkage([
     row("p1", "principle", {}),
     row("p2", "principle", {}),
-    row("p3", "principle", { references: ["asset:x"] }),
+    row("p3", "principle", { supersedes: [100] }),
+    row("adr-0100", "adr", {}),
   ]);
   const principles = verdict.byKind.find((kindRow) => kindRow.kind === "principle")!;
   assert.equal(principles.isolated, 2);
@@ -475,20 +489,14 @@ test("SIZE beats the alphabet in the per-kind roll-up too", () => {
 });
 
 test("EACH off-graph term can carry the sum on its own, against a cancelling partner", () => {
-  // The isolation test is a five-term sum of non-negative counts, so flipping one `+` to `-` is
+  // The isolation test is a four-term sum of non-negative counts, so flipping one `+` to `-` is
   // invisible unless that term EQUALS the rest — which is what each case below arranges. Without
   // this, a dropped term still yields a non-zero total and the node lands in the same bucket.
-  const anchorAndReference = evaluateCorpusLinkage([
-    row("a", "increment", { cites: ["story:s"], references: ["asset:x"] }),
+  const anchorAndRepoFile = evaluateCorpusLinkage([
+    row("a", "increment", { cites: ["story:s"], dependsOn: ["doc:docs/research/x.md"] }),
   ]).byKind[0]!;
-  assert.equal(anchorAndReference.linkedOnlyOffGraph, 1);
-  assert.equal(anchorAndReference.isolated, 0);
-
-  const referenceAndRepoFile = evaluateCorpusLinkage([
-    row("a", "principle", { references: ["asset:x"], dependsOn: ["doc:docs/research/x.md"] }),
-  ]).byKind[0]!;
-  assert.equal(referenceAndRepoFile.linkedOnlyOffGraph, 1);
-  assert.equal(referenceAndRepoFile.isolated, 0);
+  assert.equal(anchorAndRepoFile.linkedOnlyOffGraph, 1);
+  assert.equal(anchorAndRepoFile.isolated, 0);
 
   // A decision that supersedes one AND is superseded by another: out and in are both 1.
   const bothEnds = evaluateCorpusLinkage([
@@ -515,27 +523,3 @@ test("EACH off-graph term can carry the sum on its own, against a cancelling par
   assert.equal(anchorAndSuperseded.supersedesIn, 1);
 });
 
-test("ADR-0477 TRIPWIRE: a citation ALONE keeps a node out of the isolated bucket", () => {
-  // THIS TEST EXISTS TO FAIL, once, on purpose.
-  //
-  // ADR-0477 retires the `references` field. D5 requires every instrument that folded citations into
-  // a count to be corrected in the SAME landing as the removal, and this classifier is one — it will
-  // NOT break when the field goes. `referenceCount` will simply read zero, and every node whose only
-  // off-graph signal was a citation moves from `linkedOnlyOffGraph` to `isolated`: the cohort table
-  // shifts, and it reads as a corpus that got worse rather than an instrument that changed.
-  //
-  // So the coupling is pinned here rather than left to be noticed. When this test fails, the field
-  // is gone and the fix is in `evaluateCorpusLinkage`: drop `node.referenceCount` from the isolation
-  // sum, and drop the `references` bullet from this module's header. Then delete this test — its
-  // whole job is to make that moment loud.
-  const verdict = evaluateCorpusLinkage([row("cited-only", "principle", { references: ["asset:x"] })]);
-  const principles = verdict.byKind.find((kindRow) => kindRow.kind === "principle")!;
-  assert.equal(
-    principles.linkedOnlyOffGraph,
-    1,
-    "a citation is still an off-graph signal — if this fails, `references` is gone: see ADR-0477 D5 " +
-      "and remove `referenceCount` from the isolation sum rather than accepting the new number",
-  );
-  assert.equal(principles.isolated, 0);
-  assert.equal(verdict.nodes[0]!.referenceCount, 1);
-});

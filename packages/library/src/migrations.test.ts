@@ -31,8 +31,11 @@ function v0DefinitionWithSeeAlso() {
     id: "test-term",
     title: "Test term",
     description: "A test definition for migration coverage.",
-    references: ["doc:decisions/0017-knowledge-tier.md"],
     seeAlso: ["asset:proof-mode"], // retired field — must be dropped by migration #1
+    // A v0 doc carried `references`; migration #9 is what removes it (ADR-0477 D1). Kept here
+    // because these fixtures are HISTORICAL shapes — the pipeline's job is to migrate them forward,
+    // and a fixture already in the target shape would prove nothing about the transform.
+    references: ["doc:decisions/0017-knowledge-tier.md"],
     oneLine: "A throwaway definition used only by the migration test suite.",
     whatItIs: "The exact meaning, stated precisely for the test.",
     createdAt: "2026-06-05T00:00:00.000Z",
@@ -49,7 +52,6 @@ function templateAsset() {
     title: "Definition template",
     description: "The blank definition template.",
     body: "**In one line.** _What this term means._\n\n## What it is\n\n_..._",
-    references: [],
     createdAt: "2026-06-05T00:00:00.000Z",
     updatedAt: "2026-06-05T00:00:00.000Z",
   });
@@ -59,7 +61,7 @@ test("upcast: v0 structured unit drops seeAlso, stamps schemaVersion, and valida
   const out = upcast(v0DefinitionWithSeeAlso());
   assert.equal("seeAlso" in out, false, "retired seeAlso dropped");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to current version");
-  assert.equal(CURRENT_SCHEMA_VERSION, 8, "current version is 8 (drop-adr-amends)");
+  assert.equal(CURRENT_SCHEMA_VERSION, 9, "current version is 9 (drop-references)");
   // The forwarded doc passes the strict validator (it would have been rejected un-upcast).
   const validated = validateLibraryDoc(out);
   assert.equal((validated as { schemaVersion?: number }).schemaVersion, CURRENT_SCHEMA_VERSION);
@@ -98,6 +100,9 @@ function v1AgentPreReshape() {
     title: "Test agent",
     description: "A test agent for migration coverage.",
     schemaVersion: 1,
+    // Migration #2's `context` fallback READS this list, so a v1 fixture must carry it — the field
+    // was live at v1 and migration #9 is what removes it (ADR-0477 D1), at the end of the pipeline.
+    references: ["doc:decisions/0029-agents-as-library-artifact-category.md", "asset:edit-first-curation"],
     oneLine: "A throwaway agent used only by the migration test suite.",
     role: "Exists to exercise migration #2.",
     owns: "The migration fixture surface.",
@@ -111,7 +116,6 @@ function v1AgentPreReshape() {
     rules: "- **Edit first** -> `asset:edit-first-curation`.\n- A role-shape rule with no citation.",
     antiPatterns: "- Restating doctrine -> `asset:reference-dont-restate`.",
     escalation: "Surface everything.",
-    references: ["doc:decisions/0029-agents-as-library-artifact-category.md", "asset:edit-first-curation"],
     createdAt: "2026-06-11T00:00:00.000Z",
     updatedAt: "2026-06-11T00:00:00.000Z",
   });
@@ -155,7 +159,6 @@ test("upcast: agent reshape is idempotent and leaves non-agent kinds untouched b
     statement: "Is the fixture fine?",
     context: "Prose context, not a ref list.",
     options: "A vs B.",
-    references: [],
     createdAt: "2026-06-11T00:00:00.000Z",
     updatedAt: "2026-06-11T00:00:00.000Z",
   });
@@ -173,9 +176,9 @@ test("upcast: migration #3 strips glossary* fields + the doc:glossary.md citatio
     title: "spine",
     description: "the control-flow layer",
     schemaVersion: 2,
-    references: ["doc:glossary.md", "doc:decisions/0005-deterministic-spine.md", "asset:leaf"],
     oneLine: "The control-flow layer.",
     whatItIs: "The deterministic routing layer.",
+    references: ["doc:glossary.md", "doc:decisions/0005-deterministic-spine.md", "asset:leaf"],
     glossarySection: "Studio & tooling",
     glossaryTerm: "**spine**",
     glossaryBody: "the canonical glossary paragraph",
@@ -185,14 +188,59 @@ test("upcast: migration #3 strips glossary* fields + the doc:glossary.md citatio
   for (const gone of ["glossarySection", "glossaryTerm", "glossaryBody"]) {
     assert.equal(gone in out, false, `${gone} stripped`);
   }
-  assert.deepEqual(
-    out["references"],
-    ["doc:decisions/0005-deterministic-spine.md", "asset:leaf"],
-    "the dangling doc:glossary.md citation is dropped; the other refs are kept in order",
-  );
+  // Migration #3 ALSO dropped the now-dangling `doc:glossary.md` citation, and that half is no longer
+  // observable through `upcast`: migration #9 runs after it and removes the whole `references` field
+  // (ADR-0477 D1). What #3 still owns on its own is the glossary-field strip asserted above.
+  assert.equal("references" in out, false, "the retired citation field does not survive the pipeline");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "stamped to the current version");
   // The stripped doc passes the strict validator (the glossary fields are gone from the schema).
   assert.doesNotThrow(() => validateLibraryDoc(out));
+});
+
+test("migration #9 (drop-references): removes the retired key, is GLOBAL across kinds, and is idempotent", () => {
+  // GLOBAL, unlike migration #8. `amends` was declared on `adr` alone, so kind-scoping it was safe;
+  // `references` sat on `commonShape`, so every structured kind carried it and a kind-scoped sweep
+  // would brick whichever kind it forgot. One doc per shape below, all at v8 so ONLY #9 runs.
+  for (const kind of ["definition", "principle", "agent", "arc"]) {
+    const out = upcast({
+      kind,
+      id: `m9-${kind}`,
+      title: "t",
+      description: "d",
+      schemaVersion: 8,
+      references: ["asset:something", "doc:decisions/0477-x.md"],
+      createdAt: "2026-08-30T00:00:00.000Z",
+      updatedAt: "2026-08-30T00:00:00.000Z",
+    });
+    assert.equal("references" in out, false, `${kind}: the retired key is dropped`);
+    assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, `${kind}: stamped forward`);
+  }
+
+  // IDEMPOTENT, via the `hasOwn` short-circuit: a doc that never carried the key is returned as-is,
+  // and a second pass finds nothing to drop. Without the guard the transform would still "work",
+  // so what this pins is that it does not rewrite a doc it has no business touching.
+  const clean = {
+    kind: "principle",
+    id: "m9-clean",
+    title: "t",
+    description: "d",
+    schemaVersion: 8,
+    statement: "s",
+    why: "w",
+    howToApply: "h",
+    createdAt: "2026-08-30T00:00:00.000Z",
+    updatedAt: "2026-08-30T00:00:00.000Z",
+  };
+  const once = upcast(clean);
+  assert.equal("references" in once, false);
+  assert.deepEqual(upcast(once), once, "a second pass is a no-op");
+
+  // The registry entry NAMES itself — the human-facing "what ran" record (§5). An unnamed migration
+  // is unauditable, and the name is how a reader ties a stored version to the transform that made it.
+  const nine = MIGRATIONS.find((m) => m.version === 9);
+  assert.ok(nine, "migration 9 is registered");
+  assert.equal(nine.name, "drop-references");
+  assert.equal(CURRENT_SCHEMA_VERSION, 9, "and it is the current pin");
 });
 
 test("upcast: migration #3 is a no-op on a doc with no glossary projection (idempotent)", () => {
@@ -202,7 +250,6 @@ test("upcast: migration #3 is a no-op on a doc with no glossary projection (idem
     title: "Red-green",
     description: "prove it",
     schemaVersion: 2,
-    references: ["doc:decisions/0010-proof-modes.md"],
     statement: "Red, then green.",
     why: "Evidence over assertion.",
     howToApply: "Write the failing test first.",
@@ -210,7 +257,7 @@ test("upcast: migration #3 is a no-op on a doc with no glossary projection (idem
     updatedAt: "2026-06-09T00:00:00.000Z",
   };
   const out = upcast(clean);
-  assert.deepEqual(out["references"], ["doc:decisions/0010-proof-modes.md"], "refs untouched");
+  assert.equal("references" in out, false, "migration #9 removes the retired citation field");
   assert.equal(out["schemaVersion"], CURRENT_SCHEMA_VERSION, "still stamped to the current version");
   assert.deepEqual(upcast(out), out, "idempotent");
 });
@@ -229,7 +276,6 @@ function v3PlanPreCollapse(overrides: Record<string, unknown> = {}) {
     title: "Parity plan",
     description: "A plan used only by the migration test suite.",
     schemaVersion: 3,
-    references: [],
     arcRef: "asset:parity-arc",
     anchor: { sha: "0123abc", date: "2026-07-11" },
     status: "consumed",
@@ -342,7 +388,6 @@ function v5IncrementWithDuplicatedNote(
     title: "LANDED — the halt is owner-attested.",
     description: "An increment used only by the migration test suite.",
     schemaVersion: 5,
-    references: [],
     arcRef: "asset:parity-arc",
     status: "closed",
     objective: "LANDED — the halt is owner-attested.",
@@ -417,7 +462,9 @@ test("upcast: migration #6 withholds the drop when it would brick the row, and n
 
   // Every other kind passes through untouched — the transform is kind-scoped on `increment`, so a
   // doc of another kind is only ever re-stamped.
-  const { seeAlso: _seeAlso, ...cleanDefinition } = v0DefinitionWithSeeAlso();
+  // `references` comes off with `seeAlso`: migration #9 drops it for every kind (ADR-0477 D1), so the
+  // expected shape is the fixture minus both retired keys, re-stamped.
+  const { seeAlso: _seeAlso, references: _references, ...cleanDefinition } = v0DefinitionWithSeeAlso();
   const atV5 = { ...cleanDefinition, schemaVersion: 5 };
   assert.deepEqual(upcast(atV5), { ...atV5, schemaVersion: CURRENT_SCHEMA_VERSION });
 });
@@ -429,7 +476,6 @@ test("upcast: migration #5 drops the arc's two folded arrays, so a stored arc st
     title: "Map",
     description: "d",
     schemaVersion: 4,
-    references: [],
     intent: "i",
     endState: "e",
     increments: [{ date: "2026-07-01", pr: "#640", outcome: "landed" }],
@@ -458,7 +504,6 @@ test("upcast: migration #4 no-ops on every other kind, and synthesises a body fr
     title: "Red-green",
     description: "prove it",
     schemaVersion: 3,
-    references: [],
     statement: "Red, then green.",
     why: "Evidence over assertion.",
     howToApply: "Write the failing test first.",
@@ -490,7 +535,6 @@ function v6PrincipleWithStandsOn(
     title: "Red-green",
     description: "prove it",
     schemaVersion: 6,
-    references: ["doc:decisions/0223-the-knowledge-dag-is-an-authored-standson-edge-not-the-citat.md"],
     standsOn: ["asset:proof-mode", "doc:decisions/0020-the-prove-it-gate.md"],
     statement: "Red, then green.",
     why: "Evidence over assertion.",
@@ -573,7 +617,6 @@ test("upcast: migration #7 tests the KEY not the kind, so an edge-free kind stay
     stakes: "None.",
     statement: "Is the fixture fine?",
     options: "A vs B.",
-    references: [],
     standsOn: ["asset:proof-mode"],
     createdAt: "2026-06-11T00:00:00.000Z",
     updatedAt: "2026-06-11T00:00:00.000Z",

@@ -4,7 +4,7 @@
  *
  * Five pure functions, none of which fetch (they read only the `assets` handed in):
  *
- *   - `importanceOf(assets)` — the in+out DEGREE of each node over the `references[]` graph.
+ *   - `importanceOf(assets)` — the in+out DEGREE of each node over the `dependsOn[]` graph.
  *     Degree-only, and it stays that way: the weighted (load-bearing) enrichment this comment once
  *     deferred to "increment 6" was RETIRED before being built (ADR-0188 retires ADR-0187 dec 3's
  *     overview information design; the zoomed-out weighted field is not mounted). The load-bearing
@@ -18,7 +18,15 @@
  *     ALREADY drawn as circles out of `assets` — so the doc fold had stopped adding decisions and
  *     was only adding mislabelled ones. The stale ADR-0251 note that used to sit here is gone with
  *     it: `DocMeta` no longer carries `loadBearing?`/`references?` at all, and an `adr` artifact's
- *     out-degree is now its real reference count like any other node's.
+ *     out-degree is now its real edge count like any other node's.
+ *
+ *     ★ THE GRAPH IS `dependsOn`, NOT `references` (ADR-0477 D5). Both this module's degree scoring
+ *     and its layout read the AUTHORED dependency edge now. The citation field they used to read is
+ *     retired (ADR-0477 D1), and leaving them on it was the D5 "silent shrink": nothing would have
+ *     thrown — every node's importance would simply have collapsed to 0 and the constellation gone
+ *     UNIFORM, which reads as a corpus with no structure rather than as an instrument that lost its
+ *     input. `dependsOn` is what `focusGraph.ts` already walks (`GuidanceAsset.dependsOn`'s own
+ *     docblock calls it "the DAG substrate"), so the two studio views now agree by construction.
  *   - `sizeTiers(assets)` — buckets importance into exactly 3 monotonic size tiers (0..2).
  *   - `lodBand(zoom)` — maps a zoom level to one of `'far' | 'mid' | 'close'` at settled,
  *     monotonic thresholds (more zoom never reverses to a farther band).
@@ -56,19 +64,24 @@ function resolveRef(ref: string): string {
 }
 
 /**
- * The in+out DEGREE of each corpus node over the `references[]` graph. Every asset id is present in
+ * The in+out DEGREE of each corpus node over the `dependsOn[]` graph. Every asset id is present in
  * the returned map (totality), including isolated (degree-0) nodes.
+ *
+ * `dependsOn` is OPTIONAL and absent-by-default (never `[]`), so an edgeless node reads as degree 0
+ * exactly as it always did — no branch here can tell "no edges authored" from "field not carried",
+ * and neither can a reader, which is the correct reading for both.
  */
 export function importanceOf(assets: GuidanceAsset[]): Map<string, number> {
   const importance = new Map<string, number>();
   for (const a of assets) importance.set(a.id, 0);
 
   for (const a of assets) {
-    // Out-degree: the count of this node's own references (regardless of whether the target
-    // resolves inside the loaded corpus — an unresolvable pointer still costs the referencer).
-    importance.set(a.id, (importance.get(a.id) ?? 0) + a.references.length);
-    // In-degree: every resolvable reference bumps its target.
-    for (const ref of a.references) {
+    const edges = a.dependsOn ?? [];
+    // Out-degree: the count of this node's own edges (regardless of whether the target resolves
+    // inside the loaded corpus — an unresolvable pointer still costs the referencer).
+    importance.set(a.id, (importance.get(a.id) ?? 0) + edges.length);
+    // In-degree: every resolvable edge bumps its target.
+    for (const ref of edges) {
       const target = resolveRef(ref);
       if (importance.has(target)) {
         importance.set(target, (importance.get(target) ?? 0) + 1);
@@ -164,7 +177,11 @@ export function constellationLayout(
   const assetById = new Map(assets.map((a) => [a.id, a]));
   function referencesOf(id: string): string[] {
     const asset = assetById.get(id);
-    return asset ? asset.references.map(resolveRef) : [];
+    // Stryker disable next-line ArrayDeclaration: EQUIVALENT — the fallback's CONTENTS cannot be
+    // observed. Every id this returns is filtered by `known.has(ref)` in both `rankOf` and the edge
+    // loop below, so a non-empty fallback of ids no corpus holds is dropped exactly as an empty one
+    // is. Only the ABSENCE of the fallback is observable, and that is a TypeError, not a mutant.
+    return asset ? (asset.dependsOn ?? []).map(resolveRef) : [];
   }
 
   const nodeIds = assets.map((a) => a.id).sort();

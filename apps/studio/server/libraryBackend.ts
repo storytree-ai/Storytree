@@ -62,7 +62,6 @@ export interface AssetInput {
   title: string;
   description: string;
   body: string;
-  references: string[];
   provenance?: string;
   /** Per-kind structured fields when `category` is a structured Knowledge kind (option C). */
   fields?: Record<string, string>;
@@ -712,7 +711,6 @@ function toGuidanceAsset(rendered: {
   title: string;
   description: string;
   body: string;
-  references: string[];
   provenance?: string;
   fields?: Record<string, string>;
   degraded?: string;
@@ -733,7 +731,6 @@ function toGuidanceAsset(rendered: {
     title: rendered.title,
     description: rendered.description,
     body: rendered.body,
-    references: rendered.references,
     createdAt: rendered.createdAt,
     updatedAt: rendered.updatedAt,
   };

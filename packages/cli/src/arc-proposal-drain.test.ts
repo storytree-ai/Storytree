@@ -1,7 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import { citedAssetIds } from "./asset-citation.js";
 import {
   evaluateArcProposalDrain,
   type ArcProposalRecord,
@@ -22,29 +21,6 @@ function parked(
 function friction(id: string, days: readonly string[] = [], extra: Partial<FrictionRecord> = {}): FrictionRecord {
   return { id, reinforcedBy: days.map((date, i) => ({ branch: `branch-${i}`, date })), ...extra };
 }
-
-// ---------------------------------------------------------------------------
-// The shared citation token rule (asset-citation.ts)
-// ---------------------------------------------------------------------------
-
-test("citedAssetIds parses the asset: token and nothing else", () => {
-  assert.deepEqual(citedAssetIds(["asset:one", "asset:two"]), ["one", "two"]);
-  // Other ref tokens are not corpus-artifact refs (ADR-0107 D2's `node:`, and `doc:`).
-  assert.deepEqual(citedAssetIds(["doc:x", "node:cap-1", "asset:real"]), ["real"]);
-  // Order is authored order — a report naming "the first citation" must mean it.
-  assert.deepEqual(citedAssetIds(["asset:b", "asset:a"]), ["b", "a"]);
-});
-
-test("citedAssetIds is defensive about every shape a stored doc can carry", () => {
-  assert.deepEqual(citedAssetIds(undefined), []);
-  assert.deepEqual(citedAssetIds(null), []);
-  assert.deepEqual(citedAssetIds("asset:not-an-array"), []);
-  assert.deepEqual(citedAssetIds({ 0: "asset:x" }), []);
-  assert.deepEqual(citedAssetIds([42, null, { id: "asset:x" }, "asset:kept"]), ["kept"]);
-  // A bare prefix names nothing — it must never resolve to the empty id.
-  assert.deepEqual(citedAssetIds(["asset:", "asset:   "]), []);
-  assert.deepEqual(citedAssetIds(["asset: padded "]), ["padded"]);
-});
 
 // ---------------------------------------------------------------------------
 // The quiet cases — a parked entry nobody is hitting never reds

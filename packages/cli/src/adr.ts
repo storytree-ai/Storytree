@@ -752,7 +752,6 @@ async function scaffoldRow(
       status: fields.status,
       supersedes: [...fields.supersedes],
       loadBearing: fields.loadBearing,
-      references: [],
       createdAt: fields.decided === undefined ? now : `${fields.decided}T00:00:00.000Z`,
       updatedAt: now,
     };

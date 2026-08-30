@@ -658,7 +658,6 @@ test("the anchor refusal's next: line spells the edit verb", async () => {
       arcRef: "asset:some-arc",
       status: "proposal",
       parked: "2026-08-13",
-      references: [],
       createdAt: "2026-08-13",
       updatedAt: "2026-08-13",
     },

@@ -46,7 +46,6 @@ function decisionRow(number: number, extra: Record<string, unknown> = {}) {
     status: "accepted",
     supersedes: [],
     loadBearing: false,
-    references: [],
     body: `# ADR-${String(number).padStart(4, "0")}: a decision\n\n## Status\n\naccepted\n`,
     createdAt: NOW,
     updatedAt: NOW,

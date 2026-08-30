@@ -6,7 +6,7 @@
  * It is deliberately NOT a doc author: deciding the genuine durable wording of a `principle` /
  * `process` / `definition` from freeform memory prose is the curation JUDGMENT (ADR-0095 Decision
  * 3 — prove-the-mechanism / curate-the-judgment, the same split as ADR-0069/0070), so the engine
- * classifies, resolves references, and flags duplicates, and the librarian authors the final
+ * classifies and flags duplicates, and the librarian authors the final
  * fields. Pure, deterministic, browser-safe: no `node:`, no filesystem, no clock — the caller
  * passes `now`. Reading the memory files off disk is the CLI's job (a node seam, follow-on).
  *
@@ -79,7 +79,7 @@ export type GraduationTarget = Extract<
 /**
  * A graduation candidate: a worklist item for the librarian, NOT a finished
  * {@link import("../library-doc.js").LibraryDoc}. The librarian authors the kind-required fields
- * (the judgment); the engine supplies the classification, provenance, resolved references, the raw
+ * (the judgment); the engine supplies the classification, provenance, the raw
  * material, and a dedup verdict.
  */
 export interface GraduationCandidate {
@@ -91,8 +91,6 @@ export interface GraduationCandidate {
   readonly rationale: string;
   /** the attribution line the finished doc must carry (ADR-0095 Decision 8) */
   readonly provenance: string;
-  /** `asset:<id>` references resolved from the body's `[[wiki-links]]` that match a Library doc */
-  readonly references: readonly string[];
   /** the raw durable material the librarian authors the final fields from */
   readonly body: string;
   /** the id of an existing Library doc that already covers this, if dedup found one (else novel) */
@@ -152,30 +150,6 @@ function normalize(s: string): string {
 }
 
 /**
- * Resolve the body's `[[wiki-links]]` to `asset:<id>` references by matching each link against the
- * snapshot's doc ids and titles (normalised equality). An unmatched link is dropped — a dangling
- * `[[link]]` is a hint, not a reference. Order-preserving, de-duplicated.
- */
-export function resolveReferences(body: string, snapshot: LibrarySnapshot): string[] {
-  const byKey = new Map<string, string>(); // normalised id-or-title -> doc id
-  for (const d of snapshot.docs) {
-    byKey.set(normalize(d.id), d.id);
-    byKey.set(normalize(d.title), d.id);
-  }
-  const out: string[] = [];
-  const seen = new Set<string>();
-  for (const link of extractWikiLinks(body)) {
-    const id = byKey.get(normalize(link));
-    if (id === undefined) continue;
-    const ref = `asset:${id}`;
-    if (seen.has(ref)) continue;
-    seen.add(ref);
-    out.push(ref);
-  }
-  return out;
-}
-
-/**
  * Dedup: return the id of an existing Library doc that already covers this memory, or `undefined`
  * if it is novel. Deterministic v1: a normalised match of the memory's `name` against an existing
  * doc's id or title. The librarian does the deeper semantic dedup (ADR-0095 Decision 8); this just
@@ -190,9 +164,8 @@ export function findCover(memory: MemoryFile, snapshot: LibrarySnapshot): string
 }
 
 /**
- * The PURE engine. For each memory: classify (skipping the deferred `user` tier), resolve its
- * `[[wiki-link]]` references against the Library, stamp provenance, and flag whether an existing
- * doc already covers it. Returns the FULL list with duplicates flagged (not silently dropped —
+ * The PURE engine. For each memory: classify (skipping the deferred `user` tier), stamp provenance,
+ * and flag whether an existing doc already covers it. Returns the FULL list with duplicates flagged (not silently dropped —
  * ADR-0095: surface what was suppressed); use {@link novelCandidates} for the librarian's worklist.
  */
 export function graduationCandidates(
@@ -210,7 +183,6 @@ export function graduationCandidates(
       target,
       rationale: `${m.type} memory → ${target}: ${m.description}`,
       provenance: `Graduated from agent-memory '${m.name}' on ${opts.now}.`,
-      references: resolveReferences(m.body, snapshot),
       body: m.body,
     };
     out.push(duplicateOf === undefined ? candidate : { ...candidate, duplicateOf });

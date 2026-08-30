@@ -56,7 +56,6 @@ function asset(
   return {
     description: 'unrelated description text',
     body: 'unrelated body text',
-    references: [],
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,

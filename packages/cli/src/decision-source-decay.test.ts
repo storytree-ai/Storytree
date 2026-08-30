@@ -99,7 +99,6 @@ function row(id: string, status: string, extra: Record<string, unknown> = {}): D
       amends: [],
       supersedes: [],
       loadBearing: false,
-      references: [],
       ...extra,
     },
   };

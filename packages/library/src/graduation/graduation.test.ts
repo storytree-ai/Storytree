@@ -4,7 +4,6 @@ import assert from "node:assert/strict";
 import {
   classifyMemory,
   extractWikiLinks,
-  resolveReferences,
   findCover,
   graduationCandidates,
   novelCandidates,
@@ -45,17 +44,6 @@ test("extractWikiLinks returns nothing for prose with no links", () => {
   assert.deepEqual(extractWikiLinks("no links here, just words"), []);
 });
 
-test("resolveReferences matches links to snapshot ids/titles as asset:<id>, drops danglers, dedups", () => {
-  const body = "builds on [[deep-modules]] and [[Merge Ceremony]] but cites [[a-memory-not-in-the-library]].";
-  assert.deepEqual(resolveReferences(body, snapshot), ["asset:deep-modules", "asset:merge-ceremony"]);
-});
-
-test("resolveReferences matches a link by normalised TITLE, not just id", () => {
-  // "Slow growth: minimum to green" (title) normalises to the same as the link text
-  const body = "apply [[slow growth minimum to green]] here.";
-  assert.deepEqual(resolveReferences(body, snapshot), ["asset:slow-growth-minimum-to-green"]);
-});
-
 test("findCover flags a memory whose name matches an existing doc; novel names are undefined", () => {
   assert.equal(findCover(mem({ type: "feedback", name: "deep-modules" }), snapshot), "deep-modules");
   assert.equal(findCover(mem({ type: "feedback", name: "Deep Modules" }), snapshot), "deep-modules"); // normalised
@@ -89,7 +77,6 @@ test("graduationCandidates builds a novel candidate with target, provenance, res
   assert.equal(c.source, "verify-edit-write-persisted");
   assert.equal(c.target, "principle");
   assert.equal(c.provenance, "Graduated from agent-memory 'verify-edit-write-persisted' on 2026-06-22T12:00:00Z.");
-  assert.deepEqual(c.references, ["asset:merge-ceremony"]);
   assert.equal(c.duplicateOf, undefined);
   assert.match(c.rationale, /feedback memory → principle/);
 });

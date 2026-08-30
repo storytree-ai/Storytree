@@ -47,7 +47,6 @@ async function fakeKnowledgeStore(): Promise<Store> {
       id: "live-shaped-artifact",
       title: "A live-shaped principle",
       body: "THE PRINCIPLE BODY TEXT",
-      references: ["asset:another-artifact"],
     },
   });
   return store;

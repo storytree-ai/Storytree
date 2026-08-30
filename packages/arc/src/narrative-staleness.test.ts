@@ -303,7 +303,6 @@ const ARC_DOC = {
   intent: "The strongest unspent candidate is the thing that already shipped.",
   endState: "The owner has looked.",
   lifecycle: "active",
-  references: [],
   createdAt: "2026-07-24",
   updatedAt: "2026-08-06",
 };
@@ -317,7 +316,6 @@ function incDoc(overrides: Record<string, unknown>) {
     body: "b",
     arcRef: "asset:a1",
     status: "closed",
-    references: [],
     createdAt: "2026-08-03",
     updatedAt: "2026-08-03",
     ...overrides,

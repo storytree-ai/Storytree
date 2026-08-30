@@ -270,7 +270,7 @@ const POPULATION: StoredDoc[] = [
   frictionDoc({ id: "a-flake-hides-later-steps", route: "tool" }),
   frictionDoc({ id: "gate-aborts-early", route: "tool" }),
   frictionDoc({ id: "shared-tmp-path-collides", route: "tool" }),
-  frictionDoc({ id: "cites-its-cause", route: "principle", references: ["asset:the-underlying-cause"] }),
+  frictionDoc({ id: "cites-its-cause", route: "principle" }),
   frictionDoc({ id: "the-underlying-cause", route: "principle" }),
   frictionDoc({ id: "stands-alone", route: "adr" }),
   frictionDoc({ id: "already-landed", route: "tool", dischargedBy: "#900" }),
@@ -281,6 +281,9 @@ const INCREMENTS: StoredDoc[] = [
   incrementDoc("one-remedy-for-two", ["a-flake-hides-later-steps", "gate-aborts-early"]),
   incrementDoc("another-remedy-overlapping", ["a-flake-hides-later-steps", "shared-tmp-path-collides"]),
   incrementDoc("single-ref-joins-nothing", ["stands-alone"]),
+  // The second join edge — one filing citing another in its `references` — was retired with the
+  // citation tier (ADR-0477 D5), so this pair is joined the only way left: one remedy covering both.
+  incrementDoc("one-remedy-for-the-pair", ["cites-its-cause", "the-underlying-cause"]),
 ];
 
 test("the population is un-discharged ROUTED filings — discharged, archived and unrouted are out", () => {
@@ -293,7 +296,7 @@ test("the population is un-discharged ROUTED filings — discharged, archived an
   assert.equal(report.context.discharged, 1);
 });
 
-test("six filings collapse to three distinct causes across BOTH authored edges, transitively", () => {
+test("six filings collapse to three distinct causes across the authored edge, transitively", () => {
   const recurrence = computeRecurrence({ docs: POPULATION, events: [] });
   const report = computeBottlenecks({ docs: POPULATION, increments: INCREMENTS, recurrence });
   assert.equal(report.sample.causes, 3);
@@ -314,10 +317,10 @@ test("the collapse is AUDITABLE: each cause names the authored edges that produc
     "increment:another-remedy-overlapping",
     "increment:one-remedy-for-two",
   ]);
-  // ONE label per citation pair, naming both ends and the direction — a `cited-by:` twin would print
-  // the same edge twice and leave a reader guessing which filing did the citing.
+  // ADR-0477 D5 retired the second edge — one filing naming another in its `references` — so every
+  // join is now an increment's `frictionRefs`, and every label says so.
   const cited = report.causes.find((c) => c.members.includes("cites-its-cause"));
-  assert.deepEqual(cited?.joinedBy, ["cites-its-cause cites the-underlying-cause"]);
+  assert.deepEqual(cited?.joinedBy, ["increment:one-remedy-for-the-pair"]);
 });
 
 test("the rule is STATED in the output and the count declares itself a CEILING", () => {
@@ -325,6 +328,17 @@ test("the rule is STATED in the output and the count declares itself a CEILING",
   const report = computeBottlenecks({ docs: POPULATION, increments: INCREMENTS, recurrence });
   assert.equal(report.rule, COLLAPSING_RULE);
   assert.match(report.rule, /CEILING on distinctness/);
+  // The rule STATES its own scope, and since ADR-0477 D5 that includes what it stopped collapsing on
+  // and when. A reader comparing a cause count across 2026-08-30 is comparing two measures, and this
+  // sentence is the only place that says so — it rides every report precisely so it cannot be missed.
+  assert.match(report.rule, /both are cited by the same increment's `frictionRefs`/);
+  assert.match(report.rule, /A SECOND edge was retired on 2026-08-30 with the citation tier \(ADR-0477 D1\)/);
+  assert.match(report.rule, /COLLAPSES LESS than it did before that date/);
+  assert.match(report.rule, /Reinforcements are part of their own item/);
+  assert.match(report.rule, /one filing naming another in its `references`/);
+  assert.match(report.rule, /see `unjoined` for how far the rule actually reached/);
+  assert.match(report.rule, /A cause is the transitive closure of that edge/);
+  assert.match(report.rule, /a rise across it is a change in this instrument, not a rise in bottlenecks/);
   assert.equal(report.sample.unjoined, 1, "`stands-alone` carries no join edge and is counted alone");
 });
 

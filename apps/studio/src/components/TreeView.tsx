@@ -2060,15 +2060,11 @@ export function TreeView({
   // inc 8) — distinct from `librarySelection` (the finder/subgraph/preview centre). Open is triggered
   // by the lens's bottom "Open" button or a node double-click; dismissing clears it back to the map.
   const [openSelection, setOpenSelection] = useState<SearchResult | null>(null);
-  // The focus subgraph (inc 3) walks `GuidanceAsset.references` both ways. The wire type
-  // declares `references: string[]`, but the served corpus can violate it (e.g. the `planner`
-  // agent artifact ships no `references` field). Normalise to the declared type at this
-  // composition boundary so the proven subgraph always receives conformant input — the signed
-  // source assumes an iterable `references` and stays byte-untouched.
-  const libraryAssets = useMemo(
-    () => assets.map((a) => (Array.isArray(a.references) ? a : { ...a, references: [] })),
-    [assets],
-  );
+  // This composition boundary used to normalise a possibly-absent `references` array before handing
+  // the corpus to the focus subgraph. It had been VESTIGIAL since ADR-0223 moved `focusGraph.ts`
+  // onto `dependsOn`, and the field it defended is retired outright (ADR-0477 D1) — so the corpus
+  // now passes straight through. `dependsOn` needs no such guard: it is optional by design and every
+  // reader treats absence as "no authored edge" rather than assuming an iterable.
   // ADR-0283 D2: there is no layout dial any more — the world is DAG rows, full stop. The
   // synthetic hub-island injection that only `solar` needed went with it.
   // ADR-0076 §2 / ADR-0088: building-class stories (e.g. library) are EXCLUDED from the map and
@@ -3907,14 +3903,14 @@ export function TreeView({
                   {librarySelection ? (
                     <>
                       <LibraryFocusGraph
-                        assets={libraryAssets}
+                        assets={assets}
                         selection={librarySelection}
                         onFocus={setLibrarySelection}
                         onOpen={setOpenSelection}
                       />
                       <LibrarySelectionCard
                         selection={librarySelection}
-                        assets={libraryAssets}
+                        assets={assets}
                         onOpen={setOpenSelection}
                       />
                     </>

@@ -57,7 +57,6 @@ function asset(
   return {
     description: 'unrelated description text',
     body: 'unrelated body text',
-    references: [],
     createdAt: NOW,
     updatedAt: NOW,
     ...overrides,
@@ -170,7 +169,6 @@ describe('LibraryDiveBody — asset selection reuses AssetView', () => {
       title: 'Dive Referencing Asset',
       category: 'pattern',
       body: 'the referencing asset body prose, rendered in full by AssetView',
-      references: ['asset:dive-sources-target'],
     });
     const data = appData({ assets: [referencer, target] });
     const selection: SearchResult = {

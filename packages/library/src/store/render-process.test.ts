@@ -21,7 +21,6 @@ async function withProcess(): Promise<InMemoryStore> {
       title: "Demo Process",
       description: "a process with a branch-edge graph",
       body: "The ceremony. Do the thing.",
-      references: [],
       branchEdges: [
         { ref: "asset:merge-ceremony", label: "when green" },
         { ref: "asset:pull-based-context" },
@@ -65,7 +64,6 @@ test("renderProcessNode: a non-process kind fails closed (the graph is process-o
       statement: "s",
       why: "w",
       howToApply: "h",
-      references: [],
     },
   });
   const res = await renderProcessNode(store, "some-principle");
@@ -87,7 +85,6 @@ test("renderProcessNode: a process with NO branchEdges degrades honestly (empty 
       title: "Bare",
       description: "no graph yet",
       body: "b",
-      references: [],
     },
   });
   const res = await renderProcessNode(store, "bare-process");
@@ -108,7 +105,6 @@ test("renderProcessNode: malformed branch-edges (no ref / junk) are DROPPED, nev
       title: "Messy",
       description: "d",
       body: "b",
-      references: [],
       branchEdges: [null, { label: "orphan-no-ref" }, { ref: "asset:ok" }, { ref: 42 }],
     },
   });
@@ -141,7 +137,7 @@ async function putProcess(
   await store.upsertDoc({
     id,
     kind: "process",
-    doc: { kind: "process", id, title: id, description: "d", body: "b", references: [], branchEdges },
+    doc: { kind: "process", id, title: id, description: "d", body: "b", branchEdges },
   });
 }
 

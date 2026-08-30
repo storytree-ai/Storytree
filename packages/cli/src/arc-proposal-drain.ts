@@ -38,7 +38,7 @@
 // a ceiling may rise at all. A recurrence ceiling has no integer to edit.
 //
 // THE JOIN RUNS ARC → FRICTION, WHICH IS THE ONE CHANGE FROM ADR-0287's VERSION. That version scanned
-// friction `references` for a proposal's `asset:` token, because a proposal was 1:1 with its friction
+// the friction's own citation list for a proposal's `asset:` token, because a proposal was 1:1 with its friction
 // and carried no reverse pointer. An arc is not: it may hold many parked entries, so a citation
 // naming only the arc cannot say which entry a recurrence presses on. ADR-0298 D2 therefore puts the
 // unambiguous edge ON THE ENTRY (`frictionRefs`), and this reads it from there. The friction → arc

@@ -330,7 +330,6 @@ describe('roles: member vs admin reach', () => {
           evidence: 'db:up reported "unreachable within 420s" at status RUNNABLE.',
           impact: 'The build stalled for ~21 min waiting on a warm connection.',
         },
-        references: [],
       }),
     });
     expect(res.status).toBe(201);

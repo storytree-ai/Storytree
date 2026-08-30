@@ -33,7 +33,6 @@ test("validateLibraryDoc accepts a generated template artifact", () => {
     title: "Template · principle",
     description: "the shape a principle conforms to",
     body: "**The principle.** _..._",
-    references: [],
     createdAt: "2026-06-08T00:00:00Z",
     updatedAt: "2026-06-08T00:00:00Z",
   };
@@ -50,7 +49,6 @@ test("validateLibraryDoc accepts a general edited asset (any category + body)", 
     title: "Owned loop",
     description: "the agent loop we build and own",
     body: "**In one line.** The loop we own end to end.\n\n## What it is\n\nOurs.",
-    references: ["doc:decisions/0019-...md"],
     createdAt: "2026-06-08T00:00:00Z",
     updatedAt: "2026-06-08T00:00:00Z",
   };

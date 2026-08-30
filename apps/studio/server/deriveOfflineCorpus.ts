@@ -32,7 +32,6 @@ export interface KnowledgeUnitLike {
   kind: string;
   title: string;
   description: string;
-  references?: string[];
   /** The authored `dependsOn` dependency edge (ADR-0223) — absent for an edge-free kind or an
    *  un-curated doc; carried so the offline focus graph walks the same substrate as the live one. */
   dependsOn?: string[];
@@ -64,7 +63,6 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
       title: doc.title,
       description: doc.description,
       body: renderBody(doc as Parameters<typeof renderBody>[0]),
-      references: doc.references ?? [],
       createdAt: doc.createdAt ?? '',
       updatedAt: doc.updatedAt ?? '',
     };
@@ -91,7 +89,6 @@ export async function deriveOfflineAssets(units: KnowledgeUnitLike[]): Promise<G
     title: t.title,
     description: t.description,
     body: t.body,
-    references: [...t.references],
     createdAt: t.createdAt,
     updatedAt: t.updatedAt,
   }));

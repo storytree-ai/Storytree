@@ -43,7 +43,6 @@ describe('JsonBackend offline seed (ADR-0210)', () => {
         kind: 'definition',
         title: 'K1',
         description: 'd',
-        references: [],
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       },
@@ -70,7 +69,6 @@ describe('JsonBackend offline seed (ADR-0210)', () => {
       title: 'Mine',
       description: 'd',
       body: 'b',
-      references: [],
     });
 
     // a fresh backend over the same dir must SEE the edit — the seed must not clobber it

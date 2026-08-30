@@ -12,7 +12,7 @@
 //  - the BOUNDARY holds: this module imports no pg / no @storytree/*/store / no studio server.
 //
 // DELETION TEST: drop the latestVerdicts attach and the plant never greens; drop applyUatCrowns and the
-// island never greens; make the fold ignore openQuestions and the gated story over-claims. Each
+// island never greens. Each
 // assertion below fails if its fold step is removed — the green is DERIVED, never hand-painted (ADR-0040).
 //
 // INTEGRATION TIER: readTreeWithCaps drives a REAL recursive FS walk + the REAL orchestrator
@@ -320,7 +320,6 @@ test("tree-verdicts: foldVerdicts greens the plant (own verdict) AND the island 
         passEvent(1, "cap-a", "capability"),
         passEvent(2, alphaCriterion.criterionId, "story", alphaCriterion.revisionId),
       ],
-      openQuestions: [],
     });
     const alpha = stories[0];
     assert.ok(alpha);
@@ -348,7 +347,6 @@ test("tree-verdicts: foldVerdicts with null verdict sources attaches NO verdict 
     await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: null,
       verdictEvents: null,
-      openQuestions: [],
     });
     const alpha = stories[0];
     assert.ok(alpha);
@@ -371,7 +369,6 @@ test("tree-verdicts: an island whose only obligation is UNSIGNABLE greens on its
     await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
       verdictEvents: [passEvent(1, "cap-a", "capability")], // cap proven; the one leg can never be signed
-      openQuestions: [],
     });
     const alpha = stories[0];
     assert.ok(alpha);
@@ -393,35 +390,11 @@ test("tree-verdicts: a green plant alone does NOT green the island while a SIGNA
     await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
       verdictEvents: [passEvent(1, "cap-a", "capability")], // cap proven, but NO verdict for the leg
-      openQuestions: [],
     });
     const alpha = stories[0];
     assert.ok(alpha);
     assert.equal(alpha.capabilities[0]?.verdict?.outcome, "pass", "the plant is green");
     assert.equal(alpha.verdict, undefined, "the island is NOT green — a signable obligation is unsigned");
-  } finally {
-    await cleanup();
-  }
-});
-
-// The OQ green-gate (ADR-0107): an OPEN question attached to the story's proving process (`node:alpha`)
-// WITHHOLDS the would-be green crown — the desktop must not paint green a story the hosted studio gates.
-test("tree-verdicts: an open gating question WITHHOLDS the would-be green crown", async () => {
-  const { dir, cleanup } = await seedStories();
-  try {
-    const { stories, uatTestCriteriaByStory, coverageByStory } = await readTreeWithCaps(dir);
-    await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
-      latestVerdicts: { "cap-a": { outcome: "pass", at: TS } },
-      verdictEvents: [passEvent(1, "cap-a", "capability"), passEvent(2, "alpha#uat-1", "story")],
-      openQuestions: [{ id: "oq-1", references: ["node:alpha"] }],
-    });
-    const alpha = stories[0];
-    assert.ok(alpha);
-    assert.equal(
-      alpha.verdict,
-      undefined,
-      "the crown that WOULD be green is withheld while a node:alpha open question is unresolved",
-    );
   } finally {
     await cleanup();
   }
@@ -565,7 +538,6 @@ test("tree-verdicts: foldVerdicts derives uatCriteria state from the SAME signed
           passEvent(2, C2, "story", criteria[1]!.revisionId),
           { kind: "signing", seq: 3, doc: { unitId: C2, criterionId: C2, revisionId: criteria[1]!.revisionId, proofMode: "story", outcome: "fail", commitSha: "ca".repeat(20), signer: "ci@example.com", runId: "run-fail", at: TS } },
         ],
-        openQuestions: [],
       },
       uatCriteriaByStory,
     );
@@ -592,7 +564,7 @@ test("tree-verdicts: foldVerdicts with no verdict events yields 'pending' for ev
       stories,
       uatTestCriteriaByStory,
       coverageByStory,
-      { latestVerdicts: null, verdictEvents: null, openQuestions: [] },
+      { latestVerdicts: null, verdictEvents: null },
       uatCriteriaByStory,
     );
     const mixed = stories.find((s) => s.id === "mixed");
@@ -617,7 +589,6 @@ test("tree-verdicts: foldVerdicts called WITHOUT the uatCriteriaByStory arg (bac
     await foldVerdicts(stories, uatTestCriteriaByStory, coverageByStory, {
       latestVerdicts: null,
       verdictEvents: null,
-      openQuestions: [],
     });
     const mixed = stories.find((s) => s.id === "mixed");
     assert.ok(mixed);

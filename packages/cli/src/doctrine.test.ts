@@ -21,7 +21,6 @@ async function seeded(): Promise<InMemoryStore> {
       problem: "Duplicate artifacts split authority.",
       approach: "Search before you write.",
       tradeoffs: "Up-front search vs downstream split authority.",
-      references: [],
     },
   });
   return store;

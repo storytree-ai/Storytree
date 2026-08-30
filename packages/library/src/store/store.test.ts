@@ -60,6 +60,35 @@ test("validateLibraryDoc accepts every unit of the real fixture corpus", () => {
   assert.ok(kinds.size >= 4, `the fixture must span several kinds, spans ${[...kinds].join(", ")}`);
 });
 
+test("the fixture entries another package's suites navigate BY VALUE keep their exact text", () => {
+  // The fixture's own header warns that "a 'tidy the fixture' pass would otherwise break suites in
+  // another package", and names these two entries as what `library tree focus` walks. That warning
+  // is prose; this is the check. It belongs HERE, beside the data, because the assertions that would
+  // otherwise catch a change live in `@storytree/cli` — so a per-package sweep (the mutation rung,
+  // or anyone running only this package's suite) cannot see them, and the coupling would be silent.
+  //
+  // `glossary-wins` supplies the OUTBOUND `doc:` decision edges; `trunk` → `approval-gated-trunk` is
+  // the INBOUND back-edge pair. Both moved from `references` to `dependsOn` under ADR-0477 D1, which
+  // is exactly the kind of edit this pins.
+  const byId = new Map(FIXTURE_CORPUS_UNITS.map((u) => [(u as { id: string }).id, u as Record<string, unknown>]));
+
+  const glossaryWins = byId.get("glossary-wins");
+  assert.ok(glossaryWins, "glossary-wins is the tree-focus OUTBOUND subject");
+  assert.equal(glossaryWins["title"], "When a term is in question, the definition artifact wins");
+  assert.match(String(glossaryWins["description"]), /^The Library's definition artifacts are the authoritative terminology/);
+  assert.deepEqual(glossaryWins["dependsOn"], [
+    "doc:decisions/0135-retire-docs-glossary-md-the-library-is-the-sole-term-authori.md",
+    "doc:decisions/0002-work-hierarchy-story-capability-contract.md",
+  ]);
+
+  const trunk = byId.get("trunk");
+  assert.ok(trunk, "trunk is the INBOUND back-edge source");
+  assert.equal(trunk["title"], "trunk");
+  assert.equal(trunk["description"], "The canonical integrated mainline a capability lands on once approved.");
+  assert.deepEqual(trunk["dependsOn"], ["asset:approval-gated-trunk"]);
+  assert.ok(byId.has("approval-gated-trunk"), "and the edge's target is in the fixture (CLOSED set)");
+});
+
 test("validateLibraryDoc rejects garbage", () => {
   assert.throws(() => validateLibraryDoc({ nope: true }));
   assert.throws(() => validateLibraryDoc(null));

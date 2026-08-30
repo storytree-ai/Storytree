@@ -15,7 +15,7 @@ import { KIND_SPECS } from "./knowledge.js";
  */
 
 /** The schema version every freshly-written structured Knowledge doc conforms to. */
-export const CURRENT_SCHEMA_VERSION = 8;
+export const CURRENT_SCHEMA_VERSION = 9;
 
 /** One forward, version-numbered transform on a JSONB document. */
 export interface Migration {
@@ -364,6 +364,50 @@ export const MIGRATIONS: readonly Migration[] = [
       if (doc["kind"] !== "adr") return doc;
       if (!Object.hasOwn(doc, "amends")) return doc;
       const { amends: _amends, ...rest } = doc;
+      return rest;
+    },
+  },
+  {
+    version: 9,
+    name: "drop-references",
+    up(doc) {
+      // ADR-0477 D1 — the citation tier is retired. `depends_on` is the library's only edge, and
+      // provenance survives ONLY as the frozen snapshot `docs/research/citation-snapshot-2026-08-30.md`
+      // (D2), which was committed before anything here was written.
+      //
+      // MIGRATION 8'S CLASS — a WRITABILITY fix. Every kind schema is `.strict()`, so the instant
+      // `commonShape` stops declaring `references`, all 2,651 stored structured rows carrying the key
+      // are REFUSED at their next write. `upcast` folds this in at the write boundary, so an
+      // old-shape row is forward-migrated rather than bricked — which is what lets the retirement
+      // proceed with no bulk update of the live rows, no quiescence window, and no coordination with
+      // concurrent sessions.
+      //
+      // GLOBAL, unlike migration 8. `amends` was declared on `adr` alone, so kind-scoping it kept a
+      // stray key on another kind being refused by the same validator that refuses it today.
+      // `references` sat on `commonShape` — EVERY structured kind carried it — so a kind-scoped
+      // sweep here would brick whichever kind it forgot.
+      //
+      // ⚠ IT DOES NOT REACH THE 13 `template-*` ROWS, and that is not an oversight. Those are
+      // body-bearing `LibraryAsset`s with no `kind`, so `isStructuredKnowledge` rejects them and
+      // `upcast` passes them through untouched — by design, since they carry no `schemaVersion` to
+      // pin. They hold ZERO refs (measured 2026-08-30), and the landing drops the empty key from
+      // those 13 rows directly. Anything else non-structured is likewise this migration's blind
+      // spot by construction; the census is what establishes there is nothing else.
+      //
+      // THE VALUE IS DISCARDED, and that is what the ADR decided: D2's snapshot is the record, and
+      // ADR-0477's Consequences name the destruction of live provenance as the real, accepted cost.
+      // Nothing here is the last copy of anything.
+      //
+      // Pure and idempotent: a second pass finds no `references` to drop.
+      //
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — forcing this guard FALSE makes
+      // the destructure below run on a doc that never carried the key, which yields an identical
+      // shallow copy. The two returns differ only in object IDENTITY, and `upcast` mutates nothing
+      // and returns a fresh object either way, so no caller can observe the difference. The guard is
+      // kept because it says what the transform means (drop the key IF it is there) and avoids a
+      // pointless copy on the majority of rows.
+      if (!Object.hasOwn(doc, "references")) return doc;
+      const { references: _references, ...rest } = doc;
       return rest;
     },
   },

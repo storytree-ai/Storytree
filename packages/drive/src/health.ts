@@ -3,7 +3,6 @@ import {
   upcastAndValidate,
   KIND_SPECS,
   DOC_REF_PREFIX,
-  NODE_REF_PREFIX,
   CAPABILITY_REF_PREFIX,
   STORY_REF_PREFIX,
   parseCiteRef,
@@ -26,15 +25,15 @@ import type { WorkTier } from "./work-hierarchy.js";
  *   3 version-floor       — no doc below CURRENT_SCHEMA_VERSION (GATE)
  *   4 referential-integ.  — asset:<id> resolves to a live id (FAIL on break); a DECISION doc: pointer
  *                           resolves against the projection's own `adr-NNNN` rows (see
- *                           referentialIntegrity); any other doc:<path> via docExists, node:<id> via
- *                           nodeExists, and an increment's cites story:/capability: via
- *                           workUnitTier (WARN) (WARN-class, except the FAILs named above)
+ *                           referentialIntegrity); any other doc:<path> via docExists, and an
+ *                           increment's cites story:/capability: via workUnitTier (WARN)
+ *                           (WARN-class, except the FAILs named above)
  *
  * (There was a fifth, count-reconciliation — structured-kind docs == the generated assets.json count.
  * ADR-0210 deleted that file and this check together, with no replacement; see libraryHealth below.)
  *
- * The function stays node-light: the out-of-library resolvers (`docExists`, `nodeExists`,
- * `workUnitTier`) are INJECTED via {@link HealthOpts}, so it is pure and unit-testable; the CLI
+ * The function stays node-light: the out-of-library resolvers (`docExists`, `workUnitTier`) are
+ * INJECTED via {@link HealthOpts}, so it is pure and unit-testable; the CLI
  * layer provides the fs-backed resolvers (design §4 "keep it node-light").
  */
 
@@ -64,14 +63,9 @@ export interface HealthOpts {
    */
   readonly docExists?: (relpath: string) => boolean;
   /**
-   * Resolve a `node:<id>` pointer to a story / capability node spec (ADR-0107 D2). Omit to skip
-   * node: resolution — the same fail-open posture as {@link HealthOpts.docExists}.
-   */
-  readonly nodeExists?: (nodeId: string) => boolean;
-  /**
    * Resolve a `story:<id>` / `capability:<id>` pointer (ADR-0306 D1) to the TIER that unit actually
    * has in this checkout, or null when it is not here at all. Omit to skip work-hierarchy resolution
-   * entirely — the same fail-open posture as its two neighbours, and load-bearing here: an omitted
+   * entirely — the same fail-open posture as its neighbour, and load-bearing here: an omitted
    * resolver must never be read as "nothing resolves", because the hierarchy is branch-dependent and
    * a false dangling report is exactly what ADR-0306 refuses to produce.
    *
@@ -107,6 +101,14 @@ export const CHEAP_CHECKS: ReadonlySet<string> = new Set([
  * `requiredReading` (migration #2, the ADR-0029 owner reshape — walls are code/guardrails,
  * context is a typed ref-list). The denylist the retired-field check runs against — lives with
  * the check (moved here from the CLI dispatch when the health module joined `@storytree/drive`).
+ *
+ * ⚠ A FIELD DOES NOT JOIN THIS LIST ON THE DAY ITS MIGRATION LANDS, and the omissions are deliberate
+ * rather than forgotten. `amends` (migration #8) and `references` (migration #9) are both absent.
+ * Migrations drain LAZILY, at each row's own write boundary, so on the day one lands every stored row
+ * still carries the key — and this check reads the LIVE rows. Adding the field here would report the
+ * entire corpus as carrying a retired field, which is true and useless: the finding would be the
+ * migration's own backlog, not a reappearance. A field belongs here once the corpus has drained, at
+ * which point the check means what it says again.
  */
 export const RETIRED_FIELDS = ["seeAlso", "owns", "doesNotTouch", "authority", "requiredReading"];
 
@@ -123,16 +125,30 @@ function isStructured(d: StoredDoc): boolean {
   return STRUCTURED_KINDS.has(d.kind);
 }
 
-/** The `references` string[] off a doc body. */
-function refsOf(body: Record<string, unknown>): string[] {
-  const v = body.references;
+/**
+ * The authored `dependsOn` string[] off a doc body (ADR-0223) — `asset:<id>` / `doc:<relpath>`.
+ *
+ * THIS USED TO READ `references`, AND THE SWAP IS A CORRECTION, NOT A FALLBACK (ADR-0477 D5). The
+ * citation tier is retired, and a check left reading the dead field would not have BROKEN: it would
+ * have kept printing "every pointer resolves" over a scan that had quietly lost its main input, and
+ * the decision-pointer census below — the number that distinguishes a check that ran from one that
+ * found nothing to do — would have collapsed toward zero while still reading as an audit. Worse, the
+ * fail-closed clause is armed by `decisionPointers > 0`, so an empty scan would have disarmed the
+ * one guard that catches an unreadable store.
+ *
+ * `dependsOn` is where those pointers live now: {@link DependsOnRef} admits exactly the `asset:` and
+ * `doc:` schemes this scan resolves, and ADR-0464 D2 made it the corpus's edge. It was never scanned
+ * before, so this closes a real hole as well as filling the one the retirement opened.
+ */
+function dependsOnRefsOf(body: Record<string, unknown>): string[] {
+  const v = body["dependsOn"];
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : [];
 }
 
 /**
  * The typed ref-list field values (KIND_SPECS `refList`, e.g. the agent kind's
- * context/rules/antiPatterns) off a structured doc — they carry `asset:` pointers exactly like
- * `references`, so referential-integrity scans them too (the ADR-0029 Q4 WARN posture covers
+ * context/rules/antiPatterns) off a structured doc — they carry `asset:` pointers exactly like the
+ * authored `dependsOn` edge, so referential-integrity scans them too (the ADR-0029 Q4 WARN posture covers
  * their dangling candidate refs the same way).
  */
 function refListRefsOf(d: StoredDoc, body: Record<string, unknown>): string[] {
@@ -240,8 +256,8 @@ function docsRelativeTarget(ref: string): string {
  * The decision numbers this projection HOLDS AS ROWS — `adr-0403` → 403 (ADR-0403 dec 1).
  *
  * DERIVED FROM THE SAME `docs` ARRAY THE CHECK ALREADY HAS, never injected, and that is the whole
- * safety argument. Its three out-of-library neighbours (`docExists` / `nodeExists` / `workUnitTier`)
- * are OPTIONAL and fail OPEN — omit one and that token is silently skipped — which is defensible for
+ * safety argument. Its two out-of-library neighbours (`docExists` / `workUnitTier`) are OPTIONAL and
+ * fail OPEN — omit one and that token is silently skipped — which is defensible for
  * a tree this check does not own. It is NOT defensible here: decisions live in the very store this
  * report is reading, so an optional resolver could be dropped by a future caller and the whole
  * decision tier would go unchecked while the report still printed a clean line. That degradation —
@@ -265,16 +281,15 @@ function decisionRowNumbers(docs: readonly StoredDoc[]): ReadonlySet<number> {
 
 // 4. referential-integrity -----------------------------------------------------------------------
 /**
- * All FIVE corpus reference tokens are checked: `asset:<id>` against the live projection (a real
- * graph break — FAIL), `doc:<relpath>` via the injected `docExists` (softer, a doc can move — WARN),
- * and `node:<id>` via the injected `nodeExists` (ADR-0107 D2's proving-process anchor — also WARN,
- * because like a doc it points OUT of the library at a tree this check does not own). A `node:` ref
- * used to fall through every arm and be silently ignored, so a retired story left its citations
- * dangling invisibly. The `story:<id>` / `capability:<id>` schemes (ADR-0306 D1) join them via
- * `workUnitTier`, WARN-class for the same reason and one more: what they point at is BRANCH-
- * DEPENDENT, so an increment citing a story its own branch has not landed yet is legal and must
- * report rather than fail. All THREE out-of-library resolvers are OPTIONAL — omit one and that token
- * is skipped, never failed.
+ * FOUR corpus reference tokens are checked: `asset:<id>` against the live projection (a real graph
+ * break — FAIL), `doc:<relpath>` via the injected `docExists` (softer, a doc can move — WARN), and
+ * the `story:<id>` / `capability:<id>` schemes (ADR-0306 D1) via `workUnitTier`, WARN-class for the
+ * same reason and one more: what they point at is BRANCH-DEPENDENT, so an increment citing a story
+ * its own branch has not landed yet is legal and must report rather than fail. Both out-of-library
+ * resolvers are OPTIONAL — omit one and that token is skipped, never failed.
+ *
+ * `node:<id>` was a FIFTH token and is gone with the field that carried it (ADR-0477 D1): the
+ * proving-process anchor only ever lived in `references`, and `DependsOnRef` does not admit it.
  *
  * ## A DECISION POINTER RESOLVES AGAINST THE STORE, NOT THE FILESYSTEM
  *
@@ -302,13 +317,12 @@ function decisionRowNumbers(docs: readonly StoredDoc[]): ReadonlySet<number> {
  * false alarm it just cleared. So the check reports neither. It says the pointers were NOT CHECKED,
  * names how many, and FAILs — a report that cannot read its subject must not read as a clean answer.
  *
- * The refs come from three places on the doc: `references`, the KIND_SPECS `refList` fields, and an
- * increment's schema-level `cites`.
+ * The refs come from three places on the doc: the authored `dependsOn` edge, the KIND_SPECS
+ * `refList` fields, and an increment's schema-level `cites`.
  */
 function referentialIntegrity(
   docs: readonly StoredDoc[],
   docExists: ((relpath: string) => boolean) | undefined,
-  nodeExists: ((nodeId: string) => boolean) | undefined,
   workUnitTier: ((id: string) => WorkTier | null) | undefined,
 ): CheckResult {
   const liveIds = new Set(docs.map((d) => d.id));
@@ -319,7 +333,7 @@ function referentialIntegrity(
   let decisionPointers = 0;
   for (const d of docs) {
     const body = bodyOf(d);
-    for (const ref of [...refsOf(body), ...refListRefsOf(d, body), ...citesOf(body)]) {
+    for (const ref of [...dependsOnRefsOf(body), ...refListRefsOf(d, body), ...citesOf(body)]) {
       if (ref.startsWith("asset:")) {
         const id = ref.slice("asset:".length);
         if (!liveIds.has(id)) danglingAsset.push(`${d.id} -> ${ref} (no such artifact)`);
@@ -339,9 +353,6 @@ function referentialIntegrity(
           const rel = docsRelativeTarget(ref);
           if (!docExists(rel)) danglingOut.push(`${d.id} -> ${ref} (no such file under docs/)`);
         }
-      } else if (ref.startsWith(NODE_REF_PREFIX) && nodeExists !== undefined) {
-        const nodeId = ref.slice(NODE_REF_PREFIX.length);
-        if (!nodeExists(nodeId)) danglingOut.push(`${d.id} -> ${ref} (no such story/capability node)`);
       } else if (
         (ref.startsWith(STORY_REF_PREFIX) || ref.startsWith(CAPABILITY_REF_PREFIX)) &&
         workUnitTier !== undefined
@@ -396,7 +407,7 @@ function referentialIntegrity(
     lines:
       all.length > 0
         ? [...all, ...census]
-        : ["every asset:/doc:/node:/story:/capability: pointer resolves", ...census],
+        : ["every asset:/doc:/story:/capability: pointer resolves", ...census],
   };
 }
 
@@ -413,7 +424,7 @@ export function libraryHealth(docs: StoredDoc[], opts: HealthOpts): CheckResult[
     schemaConformance(docs),
     retiredField(docs, opts.retiredFields),
     versionFloor(docs, opts.currentSchemaVersion),
-    referentialIntegrity(docs, opts.docExists, opts.nodeExists, opts.workUnitTier),
+    referentialIntegrity(docs, opts.docExists, opts.workUnitTier),
   ];
 }
 

@@ -278,10 +278,6 @@ function asString(v: unknown): string {
   return typeof v === 'string' ? v : '';
 }
 
-function asStringArray(v: unknown): string[] {
-  return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
-}
-
 /** A flat string→string record (drops non-string values); `{}` for anything that isn't an object. */
 function asStringRecord(v: unknown) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
@@ -492,7 +488,6 @@ function readAssetInput(input: Record<string, unknown>): AssetInput {
     title,
     description,
     body,
-    references: asStringArray(input.references),
   };
   if (provenance) asset.provenance = provenance;
   if (hasFields) asset.fields = fields;
@@ -1098,8 +1093,7 @@ function loadOrchestrator(): Promise<OrchestratorModule> {
 }
 
 // @storytree/library is browser-safe (pure zod) but raw-TS like the others — its `.js` specifiers
-// don't resolve under vite's config-load, so it is loaded lazily on first use too (the OQ-gate layer's
-// `openQuestionsGatingNode` attachment predicate, ADR-0107). Loaded at request time, past config-load.
+// don't resolve under vite's config-load, so it is loaded lazily on first use too. Loaded at request
 type LibraryModule = typeof import('@storytree/library');
 // @storytree/studio-members is pure zod and browser-safe, but raw-TS like the others: its barrel
 // re-exports `./users.js`, which Node's ESM resolver cannot resolve during vite's CONFIG-LOAD (no
@@ -1517,43 +1511,6 @@ export function applyCapCoverage(
         const at = latestVerdictAt(events, coveringGateIds(coverage, cap.id));
         cap.verdict = { outcome: 'pass', at: at ?? '' };
       }
-    }
-  }
-}
-
-/**
- * Apply the ADR-0107 proving-process OQ gate (generalising ADR-0106 decision 4) to the tree payload —
- * a sibling pass to {@link applyUatCrowns} / {@link applyCapCoverage}, run AFTER them. An OPEN question
- * raised while driving a story's adopt/build proving process — attached via a `node:<storyId>`
- * reference, counted by the library's `openQuestionsGatingNode` — WITHHOLDS that story's green until
- * the OQ is resolved (retired, ADR-0018 §6). It routes the decision through the orchestrator's
- * {@link gateStoryGreenOnOpenQuestions} (the ONE definition of the rule) so the world's crown can never
- * drift from the CLI/spine compute: a `pass` crown over ≥1 open gating OQ drops to NO verdict (the world
- * under-claims to `mapped`/`proposed`, reading "blocked — not yet green"). It NEVER paints red — a
- * `fail` or absent crown is left untouched (a withheld green is not a regression). `gate` is injected so
- * this stays unit-testable without the lazy orchestrator. Mutates `stories` in place.
- */
-export function applyOpenQuestionGate(
-  stories: TreeStory[],
-  gatingCountByStory: ReadonlyMap<string, number>,
-  // The base is only ever the green/withered/abstain the crown produces; narrowing it here (vs a bare
-  // `string | null`) lets the real `gateStoryGreenOnOpenQuestions` (typed over the full `Status` union)
-  // be passed without a cast — its wider input is assignable, its `Status | null` return narrows in.
-  gate: (base: 'healthy' | 'unhealthy' | null, count: number) => string | null,
-): void {
-  for (const story of stories) {
-    const count = gatingCountByStory.get(story.id) ?? 0;
-    if (count === 0) continue;
-    const base =
-      story.verdict?.outcome === 'pass'
-        ? 'healthy'
-        : story.verdict?.outcome === 'fail'
-          ? 'unhealthy'
-          : null;
-    // The gate only ever WITHHOLDS a green: a would-be-healthy crown over an open fork drops to
-    // no-verdict. A fail/absent crown is returned unchanged by the gate, so it is left in place.
-    if (base === 'healthy' && gate(base, count) !== 'healthy') {
-      delete story.verdict;
     }
   }
 }
@@ -1987,7 +1944,6 @@ function suggestionDecisionBackend(backend: LibraryBackend): SuggestionDecisionB
         title: asset.title,
         description: asset.description,
         body: result.body,
-        references: asset.references,
       };
       if (asset.provenance) patch.provenance = asset.provenance;
       const updated = await backend.updateAsset(topicId, patch);
@@ -2101,13 +2057,14 @@ export async function buildTreePayload(
   // crown roll-up (ADR-0082); absent on a backend that doesn't implement it
   // (the json store / a partial mock). The `sessions` presence weave is
   // RETIRED (ADR-0200 D7) — claim activity rides /api/activity + /api/claims.
-  const [verdicts, verdictEvents, builds, assets] = await Promise.all([
+  //
+  // The asset list was a FOURTH leg, read ONLY to feed the ADR-0107 open-question green-gate its
+  // `references`. That gate is retired with the citation tier (ADR-0477 D1), so the read went with
+  // it rather than being left fetching a list nothing folds.
+  const [verdicts, verdictEvents, builds] = await Promise.all([
     ctx.backend.latestVerdicts(),
     ctx.backend.verdictEvents?.() ?? Promise.resolve(null),
     ctx.backend.inFlightBuilds(),
-    // ADR-0107: the proving-process OQ-gate layer reads the live open-questions to withhold the
-    // green of any story with an open fork. Advisory like the rest — null on failure never throws.
-    ctx.backend.listAssets().catch(() => null),
   ]);
   if (verdicts) {
     for (const story of payload.stories) {
@@ -2135,32 +2092,13 @@ export async function buildTreePayload(
   // own-unit verdict set above. Skipped when the backend has no verdict events (json / down DB)
   // or no story declares per-test tests.
   if (verdictEvents) {
-    const { rollupStoryGreen, rollupCapStatus, gateStoryGreenOnOpenQuestions } =
-      await loadOrchestrator();
+    const { rollupStoryGreen, rollupCapStatus } = await loadOrchestrator();
     // ADR-0097 §5 / owner Option A (2026-06-25): a covered brownfield plant greens the same as the
     // crown counts it — run BEFORE the crown so the world's plants and crown agree. Independent of
     // per-test UAT existing (a cap greens via its gate's coverage alone).
     applyCapCoverage(payload.stories, coverageByStory, verdictEvents, rollupCapStatus);
     if (uatTestCriteriaByStory.size > 0) {
       applyUatCrowns(payload.stories, uatTestCriteriaByStory, coverageByStory, verdictEvents, rollupStoryGreen);
-    }
-    // ADR-0107 (generalising ADR-0106 d4): an OPEN question raised during a story's proving process
-    // — attached via a `node:<id>` reference — WITHHOLDS that story's green until it is resolved
-    // (retired). Run AFTER the crown passes (it only ever drops a `pass` crown to no-verdict, never
-    // paints red), so the world reflects an open fork the same way the CLI/spine roll-up does.
-    if (assets && assets.length > 0) {
-      const openQuestions = assets.filter((a) => a.category === 'open-question');
-      if (openQuestions.length > 0) {
-        const { openQuestionsGatingNode } = await loadLibrary();
-        const gatingCountByStory = new Map<string, number>();
-        for (const story of payload.stories) {
-          const n = openQuestionsGatingNode(openQuestions, story.id).length;
-          if (n > 0) gatingCountByStory.set(story.id, n);
-        }
-        if (gatingCountByStory.size > 0) {
-          applyOpenQuestionGate(payload.stories, gatingCountByStory, gateStoryGreenOnOpenQuestions);
-        }
-      }
     }
   }
   if (builds && builds.length > 0) payload.builds = builds;

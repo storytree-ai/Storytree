@@ -49,7 +49,6 @@ function storedArc(extra: Record<string, unknown> = {}) {
     intent: "Keep the proof instruments honest.",
     endState: "Every instrument is within its ceiling and says who owes the drain.",
     lifecycle: "active",
-    references: [],
     createdAt: "2026-07-01T00:00:00.000Z",
     updatedAt: "2026-08-03T00:00:00.000Z",
     ...extra,

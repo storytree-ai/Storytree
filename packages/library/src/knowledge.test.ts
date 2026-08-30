@@ -30,7 +30,6 @@ function minimalDoc(kind: KnowledgeKind) {
   doc["id"] = `parity-${kind}`;
   doc["title"] = `parity ${kind}`;
   doc["description"] = "parity-suite fixture";
-  doc["references"] = [];
   doc["createdAt"] = "2026-06-11T00:00:00.000Z";
   doc["updatedAt"] = "2026-06-11T00:00:00.000Z";
   for (const spec of KIND_SPECS[kind]) {
@@ -701,7 +700,7 @@ test("open-question template (ADR-0359 D5): an OPTIONAL analogy sits beside the 
   // the `amends` field from the `adr` schema (migration #8). A rename and a removal both change the
   // shape a `.strict()` schema will accept, so neither can be a zero-migration change. What this
   // still guards is that ADR-0359's own optional field did not move it.
-  assert.equal(CURRENT_SCHEMA_VERSION, 8, "an optional body field bumps nothing");
+  assert.equal(CURRENT_SCHEMA_VERSION, 9, "an optional body field bumps nothing");
 
   // And it round-trips through the body renderer + parser, like every other KIND_SPECS field.
   const withAnalogy = validateLibraryDoc({
@@ -719,7 +718,7 @@ test("ADR-0267 D4 is a ZERO-migration change: every registered migration no-ops 
   // for unrelated reasons (ADR-0305 D2/D4's increment reshape, then ADR-0322's outcome-note
   // de-duplication — both REMOVE fields and so cannot be zero-migration changes, then ADR-0402's
   // `standsOn` -> `dependsOn` RENAME) — what this guards is that no migration strips the edge.
-  assert.equal(CURRENT_SCHEMA_VERSION, 8, "the pin tracks migrations.ts, not this ADR's change");
+  assert.equal(CURRENT_SCHEMA_VERSION, 9, "the pin tracks migrations.ts, not this ADR's change");
   const stamped = {
     ...minimalDoc("open-question"),
     schemaVersion: CURRENT_SCHEMA_VERSION,

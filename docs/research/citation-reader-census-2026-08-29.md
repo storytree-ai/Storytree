@@ -142,6 +142,7 @@ named above. `disposition` is what step 4 must do.
 | `packages/library/src/graduation/graduation.ts` | `GraduationCandidate.references` — resolved from a memory body's `[[wiki-links]]`, NOT the library field; it is the value a graduated doc would be authored WITH | retire (its destination is going) |
 | `packages/storage-protocol/src/store-parity.ts` | the parity suite's doc shape carries the field | remove |
 | `packages/cli/src/commands.ts` | `referencesOf` + the `Sources:` block render; `tree focus`'s inbound/outbound view reads `references[]` | retire render (step 3), reader (step 4) |
+| `packages/cli/src/corpus-linkage.ts` | ⚠ **MISSED BY THIS CENSUS — added at step 4.** `referenceCount` feeds the ISOLATION SUM: a node whose only off-graph signal was a citation moves from `linkedOnlyOffGraph` to `isolated` when the field goes. A **denominator**, and the silent-shrink shape | corrected in the same landing (D5) — `referenceCount` out of the sum, still reported per node |
 | `packages/cli/src/library-search.ts` | `STRING_REF_FIELDS = ["dependsOn","cites","references"]` — search indexing | remove from the list |
 | `packages/cli/src/retire.ts` | `referencedAssetIds` recurses over EVERY string value, so it covers the field implicitly — the retire hard-refusal narrows but does not break | narrow (no edit strictly required) |
 | `packages/cli/src/asset-citation.ts` | `citedAssetIds(references)` — ADR-0168 D2's "route set, output cited in `references`" | repoint or retire |
@@ -209,3 +210,80 @@ Both are recorded from the `amends` retirement, and both were checked here:
 - **A flag-classification list the arg table does not feed.** `packages/cli/src/at-path.ts` carries
   its own list of known flags. It names no `references` flag today (checked). If step 4 removes a
   flag, check it there too.
+
+---
+
+## STEP 4 OUTCOME — landed 2026-08-30
+
+Every row above is `resolved` except the three noted below. `pnpm probe:citation-readers` exits 0.
+
+### The row this census MISSED, and how it was caught
+
+`packages/cli/src/corpus-linkage.ts` folded `referenceCount` into its isolation sum and is not in the
+original 41. It was found by a **tripwire the step-1 session left in `corpus-linkage.test.ts`** —
+a test written to fail exactly once, naming ADR-0477 D5 and the fix. That is the mechanism that
+worked; the lexical scan alone would not have caught it, because the scan only asks whether a file
+is NAMED, and an unnamed file only fails once someone runs it against a tree where the field is gone.
+
+**The lesson for the next one-way door: a tripwire test beats a census row.** The census says who
+reads the field TODAY; a tripwire fires at the moment the assumption breaks, in the landing that
+breaks it, with the remedy attached.
+
+### Three dispositions this census got wrong, corrected at step 4
+
+1. **`packages/arc/src/question.ts` — "repoint `--adr` to `dependsOn`" is UNIMPLEMENTABLE.**
+   `open-question` is an `EDGE_FREE_KINDS` member (ADR-0223 D1), so `buildKindSchema` gives it no
+   `dependsOn` at all; admitting one would undo that decision to carry a pointer that is not a
+   dependency. **Done instead:** a new optional `settledByRef: AssetRef` on the kind — exactly the
+   `arcRef` shape it already carries. It adds no edge to the knowledge DAG, which is what keeps it
+   inside D6, and it preserves ADR-0434's capability. Forward-only, no backfill, as this census ruled.
+
+2. **`packages/library/src/standson-bootstrap.ts` — "retire" would have cascaded into a story
+   retirement.** The module exports `KNOWLEDGE_TIERS` / `TIER_ZERO_KINDS`, which ADR-0468's totality
+   check depends on, and `stories/library/library-standson-corpus-bootstrap.md` binds it as the
+   `sourceFile` of four contracts. **Done instead:** NARROWED — `citationsOf` drops the envelope list
+   and keeps `CITATION_REFLISTS`, so the seed still projects from `agent.context/rules/antiPatterns`
+   and `uat-criterion.refs`. That is ADR-0373's own stated reasoning (those fields are the STRONGER
+   relation) taken to its end, and all four contracts survive.
+
+3. **`packages/drive/src/oq-gate.ts` — "retire or repoint" resolves to NEITHER, cleanly.** Its
+   attachment was a `doc:decisions/NNNN` pointer in an open-question's `references`, and there is
+   nowhere in the schema left for that to live. Repointing is impossible; deleting the module would
+   retire `stories/drive-machinery/oq-hygiene-gate.md` and eight contracts, which has no business
+   riding inside a one-way schema landing. **Done instead:** the LIVE PATH short-circuits with an
+   explicit `RETIRED` line naming ADR-0477 D1. `classifyOpenQuestions` and its contracts are
+   untouched and still unit-true; what is gone is its live INPUT, not its logic. **Measured first:
+   ZERO live open-questions carried a decisions pointer on 2026-08-30**, so the gate had no input on
+   the day it was retired and refuses nothing it would otherwise have refused. Deleting the module
+   and its story capability is PARKED as its own increment.
+
+### Denominators corrected in this landing (D5)
+
+- **`drive/src/factory-health.ts` `COLLAPSING_RULE`** — edge (b), one filing citing another, is
+  DROPPED. The rule's own prose (stated in every report) now names the change and its date, so the
+  report keeps saying truthfully what it collapsed on.
+- **`drive/src/health.ts` `referentialIntegrity`** — scans the authored `dependsOn` edge instead.
+  390 live decision pointers ride it, so the decision census stays meaningful and the fail-closed
+  clause stays ARMED. It had never scanned `dependsOn`, so this closes a real hole as well.
+- **`studio/src/lib/overviewConstellation.ts`** — degree over `dependsOn[]`, the substrate
+  `focusGraph.ts` already walks, so the two studio views now agree by construction. Both
+  `importanceOf` AND `constellationLayout` read it; the census named only the first.
+- **`cli/src/corpus-linkage.ts`** — `referenceCount` is out of the isolation sum, still reported
+  per node. The cohort figures moved on 2026-08-30 and the move is the instrument's, not the corpus's.
+- **`cli/src/commands.ts` `tree focus`** — walks `dependsOn` both ways. Deliberately SPARSER: it
+  shows edges somebody AUTHORED, which is ADR-0464 D2's point.
+
+### The data
+
+The field is removed from the schema and `CURRENT_SCHEMA_VERSION` is **9** (`drop-references`,
+global across structured kinds — `references` sat on `commonShape`, unlike `amends`). Rows drain at
+their own write boundary; **the resulting `version-floor` report is expected and must NOT be
+bulk-drained.** Migration #9 cannot reach the 13 body-bearing `template-*` rows (`upcast` skips a doc
+with no `kind`), and those held ZERO refs — they were repaired directly, through the store's own
+validated write path so the append-only `library_event` log stays honest.
+
+### Still open
+
+`correct-the-dive-panel-spec` (parked on this arc) and the `oq-gate.ts` module retirement above.
+`packages/cli/src/citation-readers.ts` and `pnpm probe:citation-readers` are KEPT until the arc
+closes — they are what verifies this landing, and retiring the verb is the arc's last act.
