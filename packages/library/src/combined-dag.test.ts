@@ -260,3 +260,61 @@ test("combined-dag-reports-an-id-collision-rather-than-merging-two-nodes", () =>
 
   assert.deepEqual(verdict.collidingIds, ["decision:0223"]);
 });
+
+// ── THE AGENT MANIFEST (ADR-0481 D4) ─────────────────────────────────────────────────────────────
+//
+// ADR-0403 dec 5 rests on THIS verdict, so the edge set it proves must be the edge set the depth
+// walks traverse. These pin that the manifest is admitted here too — the alternative being a proof
+// that keeps reporting ACYCLIC about a graph nobody walks.
+
+/** An `agent` row whose manifest injects artifacts, as the raw store holds one. */
+function agent(id: string, rules: readonly string[]) {
+  return { id, doc: { kind: "agent", id, rules: [...rules] } };
+}
+
+test("combined-dag-walks-the-agent-manifest: an injected artifact is an edge of the proved graph", () => {
+  const verdict = evaluateCombinedAcyclicity(
+    [agent("the-agent", ["asset:a-guardrail"]), artifact("a-guardrail", [])],
+    [],
+  );
+
+  assert.equal(verdict.manifestEdges, 1);
+  assert.equal(verdict.manifestDanglingEdges, 0);
+  // Counted apart from `libraryEdges`, which is what keeps a moved total attributable to its source.
+  assert.equal(verdict.libraryEdges, 0);
+});
+
+test("combined-dag-counts-a-dangling-manifest-pointer, never walking it", () => {
+  const verdict = evaluateCombinedAcyclicity([agent("the-agent", ["asset:never-written"])], []);
+
+  assert.equal(verdict.manifestEdges, 0);
+  assert.equal(verdict.manifestDanglingEdges, 1);
+});
+
+test("combined-dag-SEES-a-cycle-that-only-the-manifest-closes", () => {
+  // The whole point of D4. `a-guardrail` stands on the agent through `dependsOn`, and the agent
+  // injects the guardrail through its manifest — a loop no reader blind to the manifest can see.
+  // Before ADR-0481 this graph was reported ACYCLIC, which is the failure the decision names.
+  const verdict = evaluateCombinedAcyclicity(
+    [agent("the-agent", ["asset:a-guardrail"]), artifact("a-guardrail", ["asset:the-agent"])],
+    [],
+  );
+
+  assert.equal(verdict.cycles.length, 1);
+  assert.equal(verdict.manifestEdges, 1);
+});
+
+test("combined-dag-ignores-a-manifest-shaped-field-on-a-NON-agent-row", () => {
+  // 26 `open-question` rows carry a `context` field of prose. A row that is not an agent contributes
+  // no manifest edge, so the proof's edge set cannot be inflated by a field name collision.
+  const verdict = evaluateCombinedAcyclicity(
+    [
+      { id: "a-question", doc: { kind: "open-question", context: "asset:a-guardrail" } },
+      artifact("a-guardrail", []),
+    ],
+    [],
+  );
+
+  assert.equal(verdict.manifestEdges, 0);
+  assert.equal(verdict.manifestDanglingEdges, 0);
+});

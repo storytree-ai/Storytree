@@ -35,12 +35,13 @@ import { loadProbeDecisions } from "./probe-decisions.js";
 import {
   decisionSupportResolver,
   decisionWalkVacuity,
-  depthFromWorkNodes,
   evaluateDepthFromWork,
   readDependsOnPointers,
   renderCombinedNodeId,
+  type DepthFromWorkNode,
 } from "@storytree/library";
 import { renderStoredDoc } from "@storytree/library/store";
+import { agentManifestRefs } from "@storytree/library/agent-manifest";
 
 const TAG = "probe:depth-from-work";
 
@@ -53,9 +54,44 @@ const TAG = "probe:depth-from-work";
  * these two lines and nothing else.
  */
 
-/** The two pointer fields, per doc, as one comparable string. */
-function signature(dependsOn: readonly string[], cites: readonly string[]): string {
-  return JSON.stringify({ dependsOn, cites });
+/**
+ * The three pointer fields, per doc, as one comparable string.
+ *
+ * `manifest` joined the signature with ADR-0481 D1, and it is the field most worth comparing here:
+ * the agent tier's refLists sit at the raw row's TOP LEVEL and under `fields` on the wire, and they
+ * change shape crossing it (arrays become one newline-joined string). A reader that knew only one
+ * shape returned a confident zero. Comparing the two sides per row turns that trap into a probe
+ * failure instead of a note somebody has to remember.
+ */
+function signature(
+  dependsOn: readonly string[],
+  cites: readonly string[],
+  manifest: readonly string[],
+): string {
+  return JSON.stringify({ dependsOn, cites, manifest });
+}
+
+/**
+ * The already-read pointers, as walk nodes.
+ *
+ * DELIBERATELY NOT `depthFromWorkNodes`, and this is a correctness fix rather than a style choice.
+ * That projection re-reads its pointers out of a stored doc, and the two sides here hand it a
+ * SYNTHETIC doc carrying the pointers as bare arrays — which has no `kind`, so `agentManifestRefs`
+ * would correctly refuse it and BOTH sides would report 0 manifest edges while agreeing perfectly.
+ * A probe that compares two readers must not launder either one through a third.
+ */
+function nodesOf(
+  rows: readonly {
+    id: string;
+    doc: { dependsOn: string[]; cites: string[]; manifest: string[] };
+  }[],
+): DepthFromWorkNode[] {
+  return rows.map((row) => ({
+    id: row.id,
+    dependsOn: row.doc.dependsOn,
+    cites: row.doc.cites,
+    manifest: row.doc.manifest,
+  }));
 }
 
 function strings(value: unknown): string[] {
@@ -79,7 +115,11 @@ async function main(): Promise<void> {
         // other `renderStoredDoc` (the browser wire) — and both of those are now tolerant. Making
         // only this side tolerant would report ~778 disagreements that are real but say nothing
         // about the wire; making neither tolerant is what let both sides agree, at zero, on a lie.
-        doc: { dependsOn: readDependsOnPointers(stored.doc), cites: strings(payload?.cites) },
+        doc: {
+          dependsOn: readDependsOnPointers(stored.doc),
+          cites: strings(payload?.cites),
+          manifest: agentManifestRefs(stored.doc),
+        },
       };
     });
 
@@ -92,7 +132,11 @@ async function main(): Promise<void> {
       return {
         id: stored.id,
         degraded: typeof rendered.degraded === "string",
-        doc: { dependsOn: strings(rendered.dependsOn), cites: strings(rendered.cites) },
+        doc: {
+          dependsOn: strings(rendered.dependsOn),
+          cites: strings(rendered.cites),
+          manifest: agentManifestRefs(rendered),
+        },
       };
     });
 
@@ -100,18 +144,23 @@ async function main(): Promise<void> {
     for (let index = 0; index < rawRows.length; index += 1) {
       const raw = rawRows[index]!;
       const rendered = renderedRows[index]!;
-      if (signature(raw.doc.dependsOn, raw.doc.cites) === signature(rendered.doc.dependsOn, rendered.doc.cites)) {
+      if (
+        signature(raw.doc.dependsOn, raw.doc.cites, raw.doc.manifest) ===
+        signature(rendered.doc.dependsOn, rendered.doc.cites, rendered.doc.manifest)
+      ) {
         continue;
       }
       disagreements.push(
-        `  ${raw.id}: raw dependsOn=${raw.doc.dependsOn.length}/cites=${raw.doc.cites.length} ` +
+        `  ${raw.id}: raw dependsOn=${raw.doc.dependsOn.length}/cites=${raw.doc.cites.length}` +
+          `/manifest=${raw.doc.manifest.length} ` +
           `vs rendered dependsOn=${rendered.doc.dependsOn.length}/cites=${rendered.doc.cites.length}` +
+          `/manifest=${rendered.doc.manifest.length}` +
           (rendered.degraded ? " (rendered DEGRADED)" : ""),
       );
     }
 
-    const rawVerdict = evaluateDepthFromWork(depthFromWorkNodes(rawRows));
-    const renderedVerdict = evaluateDepthFromWork(depthFromWorkNodes(renderedRows));
+    const rawVerdict = evaluateDepthFromWork(nodesOf(rawRows));
+    const renderedVerdict = evaluateDepthFromWork(nodesOf(renderedRows));
     const degraded = renderedRows.filter((row) => row.degraded).length;
 
     console.log(`${TAG} — ${docs.length} stored artifacts, read RAW and RENDERED in one run.`);
@@ -123,6 +172,13 @@ async function main(): Promise<void> {
       `  RENDERED ${renderedVerdict.edgesScanned} walkable edges, ${renderedVerdict.bedrockTargets} doc: bedrock, ` +
         `${renderedVerdict.danglingTargets} dangling, ${renderedVerdict.anchors} anchors ` +
         `(${degraded} degraded row${degraded === 1 ? "" : "s"})`,
+    );
+    // Stated on its own line, on BOTH sides, because a 0 here over a corpus holding agent rows is
+    // the reader going blind — the exact failure ADR-0481 D1 was written to end, and one that would
+    // otherwise be invisible inside the walkable-edge totals above.
+    console.log(
+      `  MANIFEST ${rawVerdict.manifestEdges} raw / ${renderedVerdict.manifestEdges} rendered agent-manifest edges ` +
+        `(${rawVerdict.manifestDanglingTargets} / ${renderedVerdict.manifestDanglingTargets} naming no artifact)`,
     );
 
     // The panel reads the RENDERED wire, so the depth denominators are reported from that view.
@@ -170,7 +226,7 @@ async function main(): Promise<void> {
     // `adrs` carries `supersedes` too; `decisionSupportResolver`'s PARAMETER TYPE is what drops it,
     // so there is no filtering to forget here (ADR-0403 dec 6).
     const withDecisions = evaluateDepthFromWork(
-      depthFromWorkNodes(renderedRows),
+      nodesOf(renderedRows),
       decisionSupportResolver(adrs),
     );
 

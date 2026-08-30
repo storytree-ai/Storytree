@@ -13,6 +13,7 @@
 //     the corpus's wiring rather than about the session.
 
 import { describe, it, expect } from 'vitest';
+import { surfaceDepthOf } from '@storytree/library/surface-depth';
 import type { GuidanceAsset, TraversalEventEnvelope } from '../types';
 import {
   buildKnowledgeDepth,
@@ -502,5 +503,70 @@ describe('the linkage line agrees in number with a ONE-artifact knowledge corpus
       assetsError: '',
     });
     expect(linkageSummary(model)).toContain('1 of 1 knowledge artifact sits in the dependency graph');
+  });
+});
+
+// ── THE AGENT MANIFEST ON THE WIRE (ADR-0481 D1) ─────────────────────────────────────────────────
+//
+// The half most able to regress in silence. The panel is handed `renderStoredDoc` output, where an
+// agent's refLists arrive NESTED under `fields` and JOINED into one newline-delimited string — a
+// shape nothing else on this wire wears. A reader that took the wire's top level found ZERO of the
+// 116 live manifest targets and reported a confident, plausible, wrong answer.
+//
+// So this asserts the PANEL's model over the PANEL's input shape. `agent-manifest.test.ts` already
+// covers the reader itself; covering it twice at that altitude would leave exactly this seam — the
+// studio's own projection from `GuidanceAsset` — untested.
+describe('an agent manifest is an edge of the panel`s reading', () => {
+  const agentAsset: GuidanceAsset = {
+    id: 'session-orchestrator',
+    category: 'agent',
+    title: 'session-orchestrator',
+    description: 'the session agent',
+    body: '',
+    createdAt: '2026-08-20T00:00:00.000Z',
+    updatedAt: '2026-08-20T00:00:00.000Z',
+    // The live wire shape, transcribed rather than invented: newline-joined, `asset:`-prefixed,
+    // under `fields`. Typed `Record<string, string>` there, which is exactly why the reader must
+    // accept a string as readily as an array.
+    fields: { rules: 'asset:register-follows-audience\nasset:never-bypass-the-gate' },
+  };
+
+  it('links what the agent injects, read off the nested `fields`', () => {
+    const model = buildKnowledgeDepth({
+      assets: [agentAsset, asset('register-follows-audience'), asset('never-bypass-the-gate')],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+
+    expect(model.status).toBe('measured');
+    if (model.status !== 'measured') return;
+    // Before ADR-0481 all three read `unlinked`: the agent pointed at nothing the walk could see, so
+    // it was not even a surface, and the panel reported "nothing was measured" over a wired triple.
+    expect(model.verdict.unlinked).toBe(0);
+    expect(model.verdict.manifestEdges).toBe(2);
+    expect(model.verdict.surfaces).toBe(1);
+    expect(surfaceDepthOf(model.verdict, 'session-orchestrator')).toEqual({ state: 'placed', depth: 0 });
+    expect(surfaceDepthOf(model.verdict, 'register-follows-audience')).toEqual({ state: 'placed', depth: 1 });
+  });
+
+  it('does not read a manifest-shaped field on a row that is not an agent', () => {
+    // 26 `open-question` rows carry a `context` field of prose. Splitting that on newlines without
+    // the kind gate manufactures pointers out of English sentences.
+    const question: GuidanceAsset = {
+      ...agentAsset,
+      id: 'oq-something',
+      category: 'open-question',
+      fields: { context: 'asset:register-follows-audience' },
+    };
+    const model = buildKnowledgeDepth({
+      assets: [question, asset('register-follows-audience')],
+      assetsStatus: 'ready',
+      assetsError: '',
+    });
+
+    expect(model.status).toBe('measured');
+    if (model.status !== 'measured') return;
+    expect(model.verdict.manifestEdges).toBe(0);
+    expect(model.verdict.unlinked).toBe(2);
   });
 });

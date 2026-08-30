@@ -26,7 +26,9 @@ import { depthFromWorkNodes, type DepthFromWorkSource } from "./knowledge-depth.
 
 function row(
   id: string,
-  fields: { dependsOn?: unknown; cites?: unknown; kind?: string } = {},
+  // Open on purpose: a real stored row carries its kind's own fields too, and the agent tier's
+  // manifest refLists (ADR-0481 D1) are read off exactly those rather than off `dependsOn`.
+  fields: { dependsOn?: unknown; cites?: unknown; kind?: string; [field: string]: unknown } = {},
 ): DepthFromWorkSource {
   const { kind = "principle", ...rest } = fields;
   return { id, doc: { kind, id, ...rest } };
@@ -351,10 +353,10 @@ test("the-collapse-drops-a-self-edge-and-deduplicates: a twin pointing at its ow
 
 test("a-duplicate-row-does-not-relabel-the-node: first id wins, matching the graph builder", () => {
   const verdict = evaluateSurfaceDepth([
-    { id: "dup", kind: "definition", dependsOn: ["asset:target"], cites: [] },
+    { id: "dup", kind: "definition", dependsOn: ["asset:target"], cites: [], manifest: []  },
     // A second row for the same id, claiming a record kind. The graph was built from the first.
-    { id: "dup", kind: "increment", dependsOn: [], cites: [] },
-    { id: "target", kind: "definition", dependsOn: [], cites: [] },
+    { id: "dup", kind: "increment", dependsOn: [], cites: [], manifest: []  },
+    { id: "target", kind: "definition", dependsOn: [], cites: [], manifest: []  },
   ]);
   assert.equal(verdict.knowledgeScanned, 2);
   assert.equal(verdict.recordScanned, 0);
@@ -549,9 +551,9 @@ test("the-vacuity-reasons-say-what-to-suspect, not merely that something is wron
 
 test("a-duplicate-id-is-classified-once, from the FIRST row the walk was built from", () => {
   const verdict = evaluateSurfaceDepth([
-    { id: "dup", kind: "definition", dependsOn: ["asset:target"], cites: [] },
-    { id: "dup", kind: "increment", dependsOn: [], cites: [] },
-    { id: "target", kind: "definition", dependsOn: [], cites: [] },
+    { id: "dup", kind: "definition", dependsOn: ["asset:target"], cites: [], manifest: []  },
+    { id: "dup", kind: "increment", dependsOn: [], cites: [], manifest: []  },
+    { id: "target", kind: "definition", dependsOn: [], cites: [], manifest: []  },
   ]);
   // Taking the LAST row's kind would move `dup` to the record tier and shrink the denominator the
   // panel prints — silently, since both readings are internally consistent.
@@ -563,8 +565,8 @@ test("a-node-whose-kind-is-EMPTY-lands-on-the-knowledge-side", () => {
   // `""` is what `kindOfDoc` returns for a row declaring no usable kind, and it is a real value the
   // walk receives rather than a missing field. It must not fall to the record side.
   const verdict = evaluateSurfaceDepth([
-    { id: "no-kind-declared", kind: "", dependsOn: ["asset:target"], cites: [] },
-    { id: "target", kind: "definition", dependsOn: [], cites: [] },
+    { id: "no-kind-declared", kind: "", dependsOn: ["asset:target"], cites: [], manifest: []  },
+    { id: "target", kind: "definition", dependsOn: [], cites: [], manifest: []  },
   ]);
   assert.equal(verdict.knowledgeScanned, 2);
   assert.equal(verdict.recordScanned, 0);
@@ -623,4 +625,43 @@ test("nothing-is-admitted-to-the-queue-twice: the walk terminates and each node 
     { depth: 1, count: 1 },
     { depth: 2, count: 1 },
   ]);
+});
+
+// ── THE AGENT MANIFEST (ADR-0481 D1) ─────────────────────────────────────────────────────────────
+//
+// This is the reading the manifest edge moves MOST: an artifact an agent injects stops being
+// `unlinked` and the agent becomes a surface. Ten artifacts this walk reported `unlinked` on
+// 2026-08-29 — including all five anti-slop guardrails and `register-follows-audience` — were
+// reached by the system's single most reliable delivery path the whole time.
+
+test("manifest-edge-un-orphans-what-an-agent-injects: `unlinked` becomes placed, and the agent is the surface", () => {
+  const verdict = verdictOf([
+    row("the-agent", { kind: "agent", rules: ["asset:a-guardrail"] }),
+    row("a-guardrail", { kind: "guardrail" }),
+  ]);
+
+  // Before the manifest was read, BOTH rows were unlinked — the agent pointed at nothing the walk
+  // could see, so it was not a surface either, and "nothing was measured" was reported over a pair
+  // the corpus genuinely connects.
+  assert.equal(verdict.unlinked, 0);
+  assert.equal(verdict.surfaces, 1);
+  assert.deepEqual(surfaceDepthOf(verdict, "the-agent"), { state: "placed", depth: 0 });
+  assert.deepEqual(surfaceDepthOf(verdict, "a-guardrail"), { state: "placed", depth: 1 });
+  assert.equal(verdict.manifestEdges, 1);
+  // Both are knowledge-tier kinds, so the denominator the panel prints moves with them.
+  assert.equal(verdict.knowledgeLinked, 2);
+});
+
+test("manifest-edges-are-counted-apart-from-the-rest, so the shift stays attributable", () => {
+  const verdict = verdictOf([
+    row("the-agent", { kind: "agent", rules: ["asset:a-guardrail"], dependsOn: ["asset:a-principle"] }),
+    row("a-guardrail", { kind: "guardrail" }),
+    row("a-principle", { kind: "principle" }),
+  ]);
+
+  assert.equal(verdict.edgesScanned, 2);
+  // Folding this into `edgesScanned` would make a reader unable to tell which half of a moved
+  // denominator came from the manifest — and a 0 here over a corpus holding agents is the reader
+  // going blind, which is a different fact from agents that inject nothing.
+  assert.equal(verdict.manifestEdges, 1);
 });

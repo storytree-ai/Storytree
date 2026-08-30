@@ -36,6 +36,7 @@
     "check:hierarchy-camps": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/check-hierarchy-camps.ts",
     "probe:depth-from-work": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-depth-from-work.ts",
     "probe:surface-depth": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-surface-depth.ts",
+    "verify:manifest-edge-effect": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/verify-manifest-edge-effect.ts",
     "probe:adr-graph": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-adr-graph.ts",
     "probe:combined-dag": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-combined-dag.ts",
     "probe:decision-reads": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-reads.ts",

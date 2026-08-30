@@ -8,6 +8,7 @@
     ".": "./src/index.ts",
     "./sources": "./src/knowledge-sources.ts",
     "./knowledge": "./src/knowledge.ts",
+    "./agent-manifest": "./src/agent-manifest.ts",
     "./knowledge-depth": "./src/knowledge-depth.ts",
     "./surface-depth": "./src/surface-depth.ts",
     "./decision-pointer": "./src/decision-pointer.ts",

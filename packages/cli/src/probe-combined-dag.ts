@@ -86,6 +86,11 @@ async function main(): Promise<void> {
     console.log("");
     console.log(`  THE TWO HALVES`);
     console.log(
+      `    manifest: ${verdict.manifestEdges} agent-manifest edges resolving ` +
+        `(${verdict.manifestDanglingEdges} dangling) — ADR-0481 D1, proved here so this verdict ` +
+        `covers the graph the depth walks traverse`,
+    );
+    console.log(
       `    library: ${verdict.libraryEdges} \`asset:\` edges resolving ` +
         `(${verdict.libraryDanglingEdges} dangling)`,
     );

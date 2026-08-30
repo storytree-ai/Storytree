@@ -185,12 +185,15 @@ test("depth-from-work-projects-defensively: a row shaped by another branch's sch
     { id: "null-doc", doc: null },
     { id: "string-doc", doc: "not an object" },
     { id: "wrong-types", doc: { dependsOn: "asset:a", cites: [42, null, "story:studio"] } },
+    // An agent-shaped row whose manifest fields are the wrong types, for the same reason.
+    { id: "odd-agent", doc: { kind: "agent", rules: 7, stepRefs: "not-a-list" } },
   ]);
 
   assert.deepEqual(nodes, [
-    { id: "null-doc", dependsOn: [], cites: [] },
-    { id: "string-doc", dependsOn: [], cites: [] },
-    { id: "wrong-types", dependsOn: [], cites: ["story:studio"] },
+    { id: "null-doc", dependsOn: [], cites: [], manifest: [] },
+    { id: "string-doc", dependsOn: [], cites: [], manifest: [] },
+    { id: "wrong-types", dependsOn: [], cites: ["story:studio"], manifest: [] },
+    { id: "odd-agent", dependsOn: [], cites: [], manifest: [] },
   ]);
   assert.equal(evaluateDepthFromWork(nodes).anchors, 1);
 });
@@ -307,4 +310,82 @@ test("depth-from-work-carries-the-decision-blindness-denominator: 0 means blind 
   );
   assert.equal(verdict.decisionsScanned, 3);
   assert.equal(verdict.decisionsCarryingDependsOn, 2);
+});
+
+// ── THE AGENT MANIFEST (ADR-0481 D1) ─────────────────────────────────────────────────────────────
+//
+// The edge source no walk read until 2026-08-30, while 116 artifacts were being assembled into an
+// agent's system prompt on every run of that agent. These four pin the edge, its direction, its
+// effect on the SEED, and its dangling case — the last three being the ways admitting it could have
+// gone wrong quietly.
+
+/** An `agent` row carrying a manifest, shaped as the raw store holds one. */
+function agentRow(
+  id: string,
+  fields: { context?: string[]; rules?: string[]; antiPatterns?: string[]; cites?: unknown },
+): DepthFromWorkSource {
+  return { id, doc: { kind: "agent", id, ...fields } };
+}
+
+test("manifest-edge-is-walked: an artifact an agent INJECTS is reached through the agent", () => {
+  const verdict = verdictOf([
+    // The anchor names a work unit and stands on the agent.
+    row("an-increment", { cites: ["story:studio", "asset:the-agent"] }),
+    agentRow("the-agent", { rules: ["asset:a-guardrail"] }),
+    row("a-guardrail"),
+  ]);
+
+  assert.equal(verdict.depthById.get("an-increment"), 0);
+  assert.equal(verdict.depthById.get("the-agent"), 1);
+  // THE ASSERTION THIS EXISTS FOR. Before the manifest was read this was `undefined` — the guardrail
+  // was an orphan the graph could not see, while the agent injected it on every run.
+  assert.equal(verdict.depthById.get("a-guardrail"), 2);
+  assert.equal(verdict.manifestEdges, 1);
+  assert.equal(verdict.manifestDanglingTargets, 0);
+});
+
+test("manifest-does-not-anchor: injecting artifacts never puts an agent in the SEED", () => {
+  // The seed is `cites` naming a `story:`/`capability:` and nothing else. An agent that injects a
+  // hundred artifacts and names no work unit is a STEP on the walk, never a starting point — the
+  // same rule an `asset:` cite already obeys. Widening the seed here would put the whole agent tier
+  // at depth 0 and flatten the axis, which is the failure mode with the largest silent blast radius.
+  const verdict = verdictOf([
+    agentRow("the-agent", { rules: ["asset:a-guardrail"] }),
+    row("a-guardrail"),
+  ]);
+
+  assert.equal(verdict.anchors, 0);
+  assert.equal(verdict.reached, 0);
+  // The edge was still RESOLVED — it is the seed that did not move, not the reader that went blind.
+  assert.equal(verdict.manifestEdges, 1);
+});
+
+test("manifest-runs-down-tier-only: the injected artifact never reaches back up to the agent", () => {
+  // ADR-0363's direction argument, applied to this edge. `dependsOn` points from the stander to the
+  // stood-on and an agent standing on a guardrail points the same way. A reader that also walked it
+  // in REVERSE would let a work-touching guardrail hand the agent a depth — making the surface layer
+  // an operator meets first read as DEEPER than the work, which inverts the health signal.
+  const verdict = verdictOf([
+    row("an-increment", { cites: ["story:studio", "asset:a-guardrail"] }),
+    row("a-guardrail"),
+    agentRow("the-agent", { rules: ["asset:a-guardrail"] }),
+  ]);
+
+  assert.equal(verdict.depthById.get("a-guardrail"), 1);
+  assert.equal(verdict.depthById.has("the-agent"), false);
+  assert.deepEqual(depthFromWorkOf(verdict, "the-agent"), { state: "unreachable" });
+});
+
+test("manifest-dangling-target-is-counted, never walked and never silently dropped", () => {
+  const verdict = verdictOf([
+    row("an-increment", { cites: ["story:studio", "asset:the-agent"] }),
+    agentRow("the-agent", { rules: ["asset:a-guardrail", "asset:never-written"] }),
+    row("a-guardrail"),
+  ]);
+
+  assert.equal(verdict.manifestEdges, 1);
+  assert.equal(verdict.manifestDanglingTargets, 1);
+  // A dangling manifest pointer is NOT an artifact dangling target: the two are counted apart so a
+  // reader can tell an unwritten guardrail from a broken `dependsOn`.
+  assert.equal(verdict.danglingTargets, 0);
 });
