@@ -189,7 +189,12 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   // zones the research renders show. Same fence as the relief above: no prop, no default-off.
   const src = readFileSync(SHIPPED, 'utf8');
   assert.match(src, /index:\s*groundRowOf/, 'CellGround must hand the builder its parcel rows');
-  assert.match(src, /<mesh material=\{BANDED_GROUND\}>/, 'and draw them with the banded material');
+  // ⚠ THE MATERIAL IS BUILT PER SCENE RATHER THAN ONCE FOR THE MODULE since the shadow crossed
+  // (2026-08-30) — the occlusion field is built over THIS island's bounds from THIS island's
+  // casters, so a shared instance would hand every canvas the first one's shadow. What this test
+  // is about is unchanged: the cell ground draws the banded material and nothing else.
+  assert.match(src, /<mesh material=\{built\.material\}>/, 'and draw them with the banded material');
+  assert.match(src, /buildGroundMaterial\(cells, casters\)/, 'built from this scene’s own casters');
   // ⚠ AND THE SMOOTH MATERIAL IS GONE FROM THE CELL GROUND RATHER THAN LEFT BESIDE IT. Two land
   // materials is the outcome item 6 calls worse than either — and here it would be worse still,
   // because the two disagree about what a status colour looks like.
@@ -211,7 +216,7 @@ test('the shipped ground WEARS THE GRAIN OCTAVE — normal half only, unconditio
   const src = readFileSync(SHIPPED, 'utf8');
   assert.match(
     src,
-    /createBandedGroundMaterial\(\{ tokens: GROUND_TOKENS, grain: 'normal' \}\)/,
+    /BandedGroundMaterialOptions = \{ tokens: GROUND_TOKENS, grain: 'normal' \};/,
     'the shipped ground material must ask for the grain, and must ask for it unconditionally',
   );
   // ⚠⚠ AND IT MUST NOT ASK FOR `both`. That is not style: the colour half is off-palette by
@@ -227,6 +232,34 @@ test('the shipped ground WEARS THE GRAIN OCTAVE — normal half only, unconditio
   );
 });
 
+test('the shipped ground WEARS THE OCCLUSION FIELD — unconditionally, item 6 again', () => {
+  // The fourth component of the approved treatment to cross (2026-08-30), and the one the owner
+  // asked for by name: "i'm still hoping for future iterations to ... add shadows". Same fence as
+  // the three before it — no prop, no default-off, no flag nobody flips (end-state item 6).
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(src, /buildGroundOcclusion\(\{ bounds, relief: LAND_RELIEF_AMPLITUDE, casters \}\)/);
+  assert.match(src, /groundShadowTexture\(/, 'the field must be uploaded, not merely computed');
+  assert.match(src, /if \(shadow !== null\) opts\.shadow = shadow;/);
+  // ⚠ THE ONLY THING THAT MAY WITHHOLD IT IS AN ISLAND THAT BOUNDS NOTHING. Any other guard —
+  // a prop, an env read, a `showShadows` default — would be the flag nobody flips.
+  assert.match(src, /bounds === null\s*\?\s*null/);
+  assert.ok(
+    !/showShadows|shadows\s*=\s*false|shadow\?:\s*boolean/.test(src),
+    'a shadow behind a prop is not adoption',
+  );
+  // And the casters are derived from the WHOLE descriptor set, so a cave portal casts too.
+  assert.match(src, /groundCasters\(descriptors\)/);
+});
+
+test('a WISP casts nothing on the shipped map, and the canvas does not decide that for itself', () => {
+  // The rule lives in `src/ground-casters.ts` (and its own test), not in a filter written here: a
+  // wisp is the live-work signal, so a shadow that appeared and vanished with a session's claim
+  // would be the LAND appearing to change under work that never touched it.
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.ok(!/wisp[^\n]*caster/i.test(src), 'the canvas must not build casters from wisps');
+  assert.match(src, /import \{[\s\S]{0,200}groundCasters[\s\S]{0,200}\} from '\.\/ground-casters\.js'/);
+});
+
 test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
   // ⚠ THE FAILURE THIS FORBIDS IS THE WORST ONE THIS SURFACE HAS. A geometry indexing one order
   // and a material uploading another paints every parcel with a DIFFERENT status's colour —
@@ -235,7 +268,8 @@ test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
   const src = readFileSync(SHIPPED, 'utf8');
   assert.match(src, /GROUND_TOKENS[^=]*=\s*\[\.\.\.GROUND_COLOUR\.values\(\)\]/);
   assert.match(src, /GROUND_ROWS[^=]*=[\s\S]{0,120}\[\.\.\.GROUND_COLOUR\.keys\(\)\]/);
-  assert.match(src, /createBandedGroundMaterial\(\{ tokens: GROUND_TOKENS[,)]/);
+  assert.match(src, /BandedGroundMaterialOptions = \{ tokens: GROUND_TOKENS[,}]/);
+  assert.match(src, /createBandedGroundMaterial\(opts\)/);
   // An unrecognised material falls back to `unknown`'s ROW exactly as it falls back to
   // `unknown`'s COLOUR — the one state that means "no data". Any other fallback would have the
   // map assert something about work it could not classify, in the form hardest to notice.

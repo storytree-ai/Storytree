@@ -54,13 +54,19 @@ const EXPERIMENT = [
   'flower-geometry.ts',
   'tree-descriptors.ts',
   'tree-geometry.ts',
+  // The confusability INSTRUMENT stays: it is a reader model with a provenance argument (a port
+  // of the author-time compositor's `safe_depth`, held to three independently recorded
+  // configurations) over the EXPERIMENT island's own status vocabulary, and none of that
+  // publishes. Its shipping half — the derived rung and the ladder it extends — crossed as
+  // `src/shadow-rung.ts`; see ADOPTED below.
   'shadow-ladder.ts',
-  'land-shadow.ts',
-  // The occlusion and ground-variation modules landed in PR #1480 and were never added here, so
-  // the sweeps below have been passing OVER them — which is the exact decay this file's header
-  // warns about, arriving by omission rather than by rename. Added while extending the list for
-  // the props, because a fence with holes in it reads as more coverage than it has.
-  'contact-shade.ts',
+  // ⚠ `land-shadow.ts` and `contact-shade.ts` USED TO SIT HERE and have CROSSED (2026-08-30) —
+  // see ADOPTED below. `land-shadow.ts` is a SPLIT: the canopy stamp and everything around it
+  // moved, the TERRAIN MARCH stayed, because at the shipped relief amplitude the land is nowhere
+  // steeper than the light and the term is identically zero.
+  // The ground-variation module landed in PR #1480 and was never added here, so the sweeps below
+  // were passing OVER it — the exact decay this file's header warns about, arriving by omission
+  // rather than by rename.
   'ground-variation.ts',
   // The prop vocabulary (ADR-0406). All four are pure: the three generators author geometry and
   // placement in world units, and the dressing module composes them. None of them may reach for
@@ -145,6 +151,37 @@ const ADOPTED: readonly { src: string; reExportedBy: string; because: string }[]
       'writes an authored ramp entry and the palette closure is untouched.',
   },
   {
+    src: 'land-shadow.ts',
+    reExportedBy: 'land-shadow.ts',
+    because:
+      'the cast-shadow field — the owner asked for shadows by name on 2026-08-29 and the shipped ' +
+      'ground had none of any kind. ⚠ IT IS A SPLIT: the canopy stamp, the caster and field ' +
+      'types, the authored light’s own derivations and the shared occlusion grid crossed; the ' +
+      'TERRAIN MARCH did not, because the shipped relief’s steepest slope (0.455) is nowhere ' +
+      'near the authored light’s (1.438), so the term is identically zero on the land as it ' +
+      'ships. `assertTerrainDoesNotSelfShadow` is the fence that fails loudly if that changes.',
+  },
+  {
+    src: 'contact-shade.ts',
+    reExportedBy: 'contact-shade.ts',
+    because:
+      'contact darkening — the other half of the one occlusion field the material receives. ⚠ Its ' +
+      'own ranking INVERTS on this surface: it was ranked first of ten mechanisms on an island ' +
+      'standing 155 props, and the shipped map draws ONE object (the mapper skips all 1,088 ' +
+      'vegetation nodes the semantic scene emits), so one pool is not what "placed rather than ' +
+      'pasted" meant. It ships because both terms merge into one texture and one rung.',
+  },
+  {
+    src: 'shadow-rung.ts',
+    reExportedBy: 'shadow-ladder.ts',
+    because:
+      'the arithmetic the SHIPPED material cannot run without — the derived shadow rung, the ' +
+      'ladder it extends, and which lit rungs it may darken — re-asked against the tokens the ' +
+      'shipped canvas draws rather than inherited from the experiment’s. The two agree at 0.77 ' +
+      'today and that agreement is measured, not assumed. The reader model’s provenance argument ' +
+      'and its status-keyed table stayed in shadow-ladder.ts.',
+  },
+  {
     src: 'shade-ladder.ts',
     reExportedBy: 'palette-band.ts',
     because:
@@ -206,6 +243,10 @@ test('nothing has left the fence by simply being deleted from the list', () => {
     'land-grain.ts',
     'palette-band.ts',
     'shade-ladder.ts',
+    'land-shadow.ts',
+    'contact-shade.ts',
+    'shadow-ladder.ts',
+    'shadow-rung.ts',
   ];
   for (const owed of owedModules) {
     assert.ok(accounted.has(owed), `${owed} is in neither EXPERIMENT nor ADOPTED — unaccounted for`);

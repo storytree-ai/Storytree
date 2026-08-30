@@ -48,34 +48,40 @@ import {
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
   groundRamp,
+  groundShadowTexture,
   type BandedGroundMaterialOptions,
   type GroundGrainMode,
 } from '../src/banded-ground-material.js';
 import { frameWorld } from '../src/camera-framing.js';
-import { landHeightRange, landRelief } from '../src/land-relief.js';
+import { LAND_RELIEF_AMPLITUDE, landHeightRange, landRelief } from '../src/land-relief.js';
+import { buildGroundOcclusion } from '../src/contact-shade.js';
+import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from '../src/ground-casters.js';
+import { shadowLadderFor } from '../src/shadow-rung.js';
+import { shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
+import { SHADE_LEVELS } from '../src/shade-ladder.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { islandScene } from './island-fixture.js';
-import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
+import { SHIPPED_CROWN_COLOUR, SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 
 /**
- * THE FIVE ARMS — a ladder in which each rung differs from the one before it in ONE thing.
+ * THE SIX ARMS — a LADDER WITH ONE FORK, in which every arm differs from the one it names in
+ * exactly ONE thing.
  *
  *   flat          the shipped map as it drew on 2026-08-29
  *   relief        + the land's relief field           (crossed 2026-08-30, PR #1725)
  *   banded        + the authored shade ladder         (crossed 2026-08-30, PR #1726)
- *   grain-normal  + the grain octave's NORMAL half    (crossed 2026-08-30, THIS increment)
+ *   grain-normal  + the grain octave's NORMAL half    (crossed 2026-08-30, PR #1731) — ⭐ SHIPPED
+ *   shadow        + the ground-space occlusion field  (crossed 2026-08-30, THIS increment)
  *   grain-both    + the grain octave's COLOUR half    (⚠ NOT SHIPPED — see below)
  *
- * ⚠⚠ ALL FIVE ARE NOW ONE IMPLEMENTATION, AND THAT IS WHAT THIS INCREMENT BOUGHT THE COMPARISON.
- * Until `land-grain.ts` crossed, the ceiling arm was `harness/banded-material.ts` — the
- * EXPERIMENT's material — so the last rung differed from its neighbour in an implementation as
- * well as in the grain, and the gap had to be closed by an arithmetic proof that the two
- * materials build an identical ramp. It does not any more: `grain-both` is the SHIPPED material
- * with one option changed, so "these differ in the grain and in nothing else" is true by
- * construction rather than by argument. That is the retirement `soleIslandToken` predicted in as
- * many words, and the single-status refusal it carried went with it — the shipped material takes
- * a ramp ROW per parcel, so a mixed-status island is drawn correctly by every arm here.
+ * ⚠⚠ EACH ARM NAMES ITS OWN PREDECESSOR RATHER THAN INHERITING IT FROM THE ORDER, and this
+ * increment is what forced that. The list used to be a straight chain and `LAND_STEPS` was
+ * `slice(1)` over it — which was honest while every arm really did follow the one before it, and
+ * stopped being honest the moment a second arm hung off `grain-normal`. Both `shadow` and
+ * `grain-both` extend the SHIPPED arm; neither extends the other, and an ordinal chain would have
+ * silently published "grain-both → shadow" as a one-thing comparison of two things. Naming the
+ * predecessor makes that unrepresentable, and it is what a reader has to know to read the table.
  *
  * ⚠ `grain-both` IS A REFERENCE, NOT A CANDIDATE, AND IT IS MEASURED RATHER THAN ASSUMED TO BE.
  * Its colour half mixes a noise ramp INTO the delivered colour, so it is off-palette by
@@ -83,17 +89,40 @@ import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
  * pixel into a NEIGHBOURING STATUS's family — by driving all six shipped ground tokens through the
  * mix arithmetically, and the answer at the authored fac of 0.13 is yes: the `proposed`/`building`
  * yellow at the ladder's two darkest rungs reads as `healthy`. The largest fac every reading
- * survives is 0.031. So this arm is here to SHOW what the closure costs, beside the arm that
- * holds it, which is what lets the owner settle the fork on a picture rather than on a paragraph.
+ * survives is 0.031. So this arm is here to SHOW what the closure costs, beside the arms that hold
+ * it, which is what lets the owner settle the fork on a picture rather than on a paragraph.
+ *
+ * ⚠ `shadow` IS A CANDIDATE AND IT HOLDS THE CLOSURE, which is the whole difference between the
+ * two forks. Its rung is `token x 0.77` — an authored `(token x level)` product, DERIVED as the
+ * deepest level at which every shipped ground token still reads as itself, so the palette grows by
+ * one entry per row and stays closed. See `src/shadow-rung.ts`.
  */
-export type LandArm = 'flat' | 'relief' | 'banded' | 'grain-normal' | 'grain-both';
-export const LAND_ARMS: readonly LandArm[] = [
-  'flat',
-  'relief',
-  'banded',
-  'grain-normal',
-  'grain-both',
+export type LandArm = 'flat' | 'relief' | 'banded' | 'grain-normal' | 'shadow' | 'grain-both';
+
+/** Each arm, what it ADDS, and which arm it adds it TO. `from: null` is the baseline. */
+export interface LandArmSpec {
+  arm: LandArm;
+  /** The arm this one differs from in exactly one thing. */
+  from: LandArm | null;
+  /** What that one thing is — the caption under its picture, kept beside the arm rather than in
+   *  the HTML so a rung cannot be added without a reader being told what it is. */
+  adds: string;
+}
+
+export const LAND_ARM_SPECS: readonly LandArmSpec[] = [
+  { arm: 'flat', from: null, adds: 'the shipped map on 2026-08-29' },
+  { arm: 'relief', from: 'flat', adds: '+ the land relief field' },
+  { arm: 'banded', from: 'relief', adds: '+ the authored shade ladder' },
+  { arm: 'grain-normal', from: 'banded', adds: "+ the grain octave's NORMAL half" },
+  { arm: 'shadow', from: 'grain-normal', adds: '+ the occlusion field (SHIPPED)' },
+  {
+    arm: 'grain-both',
+    from: 'grain-normal',
+    adds: "+ the grain octave's COLOUR half (REFERENCE — off-palette, not adopted)",
+  },
 ];
+
+export const LAND_ARMS: readonly LandArm[] = LAND_ARM_SPECS.map((spec) => spec.arm);
 
 /** The arms whose every delivered land pixel must be an authored `(token x level)` entry — the
  *  fence the whole surface rests on, as a LIST rather than as a literal in the driver, so adding
@@ -101,15 +130,17 @@ export const LAND_ARMS: readonly LandArm[] = [
  *
  *  `flat` and `relief` are excluded because they wear a lit `MeshStandardMaterial` and deliver a
  *  continuous gradient by construction — that is the thing being replaced. `grain-both` is
- *  excluded because it is off-palette on purpose. Everything else must hold. */
-export const PALETTE_CLOSED_ARMS: readonly LandArm[] = ['banded', 'grain-normal'];
+ *  excluded because it is off-palette on purpose. Everything else must hold, `shadow` included:
+ *  its extra rung is an authored product, so the closure grows by one entry per row rather than
+ *  opening. */
+export const PALETTE_CLOSED_ARMS: readonly LandArm[] = ['banded', 'grain-normal', 'shadow'];
 
-/** Consecutive pairs of the ladder - what `changedPct` is asked for, and what the report tables.
- *  Derived from {@link LAND_ARMS} rather than written out, so an arm added in the middle cannot
- *  leave the pair list quietly describing the old ladder. */
-export const LAND_STEPS: readonly (readonly [LandArm, LandArm])[] = LAND_ARMS.slice(1).map(
-  (arm, i) => [LAND_ARMS[i]!, arm] as const,
-);
+/** What `changedPct` is asked for, and what the report tables: each arm against the one it names.
+ *  Derived from {@link LAND_ARM_SPECS} rather than from the ORDER, so a fork cannot leave the pair
+ *  list quietly describing a chain that no longer exists. */
+export const LAND_STEPS: readonly (readonly [LandArm, LandArm])[] = LAND_ARM_SPECS.filter(
+  (spec): spec is LandArmSpec & { from: LandArm } => spec.from !== null,
+).map((spec) => [spec.from, spec.arm] as const);
 
 /** Delivered CSS pixels per ground unit. The same two zooms every other comparison on this arc is
  *  taken at: 2 is roughly the overview a laptop opens on, 8 is the zoomed-in read. On an
@@ -122,6 +153,7 @@ const RELIEF_OF = {
   relief: landRelief,
   banded: landRelief,
   'grain-normal': landRelief,
+  shadow: landRelief,
   'grain-both': landRelief,
 } satisfies Record<LandArm, GroundRelief>;
 
@@ -136,8 +168,14 @@ const RELIEF_OF = {
 const GRAIN_OF = {
   banded: undefined,
   'grain-normal': 'normal',
+  // The shadow arm wears the SHIPPED grain, because it differs from `grain-normal` in the shadow
+  // and in nothing else. An unshadowed comparison against a grainless arm would be two changes.
+  shadow: 'normal',
   'grain-both': 'both',
-} satisfies Record<'banded' | 'grain-normal' | 'grain-both', GroundGrainMode | undefined>;
+} satisfies Record<
+  'banded' | 'grain-normal' | 'shadow' | 'grain-both',
+  GroundGrainMode | undefined
+>;
 
 /** The ramp ROWS the shipped canvas uses, in its own `GROUND_COLOUR` order - transcribed here off
  *  `SHIPPED_GROUND_COLOUR`, which `shipped-baseline.test.ts` parses out of `ForestWorldCanvas.tsx`
@@ -161,6 +199,26 @@ export function shippedParcels(): InstanceDescriptor[] {
   return worldTo3D(islandScene()).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
+}
+
+/** The story trees the shipped mapper emits for this island — what `StoryTree` draws, and what
+ *  the shadow arm's occlusion field is cast from. */
+export function shippedTrees(): InstanceDescriptor[] {
+  return worldTo3D(islandScene()).filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
+}
+
+/**
+ * EVERYTHING THAT STANDS ON THE SHIPPED ISLAND, as occluders.
+ *
+ * ⚠⚠ THERE IS EXACTLY ONE, AND THAT IS THIS INCREMENT'S FINDING RATHER THAN A PROPERTY OF THE
+ * FIXTURE. The semantic scene emits 1,089 objects standing on this ground — 693 grass blades, 144
+ * flora, 112 shrubs, 3 stems, 136 tall-flower parts and ONE story tree — and the shipped mapper has
+ * a case for the tree and skips the other 1,088. So the shadow this map can draw is bounded by its own
+ * emptiness rather than by the field, and `shipped-land-scene.test.ts` asserts the census so the
+ * number in the evidence is one a test holds.
+ */
+export function shippedCasters(): ShadowCaster[] {
+  return groundCasters(worldTo3D(islandScene()));
 }
 
 /** Status variant → LINEAR colour, through three's own sRGB transfer function — the same route
@@ -211,6 +269,22 @@ export interface LandScene {
    *  that plus the relief's own range for the relieved one. The driver refuses a run where those
    *  two are equal, which is what a page drawing the same thing twice looks like. */
   heightSpan: number;
+  /** How much of the occlusion FIELD is past the material's own threshold, or null for an arm
+   *  that carries no field. It is a fraction of the padded ground RECT rather than of the island,
+   *  so it is comparable across arms and is not the same number as `changedPct`. */
+  occlusionCoverage: number | null;
+  /** How many things stand on this island and therefore darken it. ONE, and that is the finding
+   *  rather than a fixture accident — see {@link shippedCasters}. */
+  casters: number;
+}
+
+/** What the driver asks about an arm's occlusion field, as plain data it can carry back out of
+ *  the page. The scene itself holds three objects and cannot cross that boundary. */
+export interface OcclusionReading {
+  arm: LandArm;
+  pxPerUnit: number;
+  occlusionCoverage: number | null;
+  casters: number;
 }
 
 /**
@@ -221,7 +295,7 @@ export interface LandScene {
  * would make the relieved island come out subtly SMALLER for being subtly taller — a framing
  * artefact, and one that would read as the treatment having changed the island's size.
  */
-export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
+export function buildLandScene(arm: LandArm, pxPerUnit: number, treed = false): LandScene {
   const cells = shippedParcels();
   const geo = cellGroundGeometry({
     cells,
@@ -249,6 +323,23 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
   const bandedOpts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS };
   const grain = arm === 'flat' || arm === 'relief' ? undefined : GRAIN_OF[arm];
   if (grain !== undefined) bandedOpts.grain = grain;
+  // ⚠ THE SHADOW ARM BUILDS THE SAME FIELD `ForestWorldCanvas` BUILDS, through the same function
+  // over the same casters — not a page-local approximation of it. An instrument that computed its
+  // own occlusion would be measuring something the product does not draw.
+  let occlusionCoverage: number | null = null;
+  if (arm === 'shadow') {
+    const bounds = groundBounds(cells);
+    if (bounds === null) {
+      throw new Error('shipped-land-scene: the island bounds nothing — no ground to shadow');
+    }
+    const field = buildGroundOcclusion({
+      bounds,
+      relief: LAND_RELIEF_AMPLITUDE,
+      casters: shippedCasters(),
+    });
+    occlusionCoverage = shadowCoverage(field);
+    bandedOpts.shadow = groundShadowTexture(field);
+  }
   const material =
     arm === 'flat' || arm === 'relief'
       ? new THREE.MeshStandardMaterial({ vertexColors: true })
@@ -258,6 +349,12 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
   scene.add(mesh);
+  // ⚠ THE TREE IS FOR LOOKING AT AND FOR NOTHING ELSE. Every measurement on this page is about
+  // the GROUND's delivered pixels — the palette closure above all — and a `MeshStandardMaterial`
+  // crown puts thousands of pixels in the frame that are off the ground palette by construction.
+  // So the measured arms are ground-only and `treed` exists purely so the owner can see the
+  // shadow beside the thing casting it. `snapshotTreed` is the only caller.
+  if (treed) scene.add(storyTreeGroup());
   scene.add(new THREE.AmbientLight(0xffffff, SHIPPED_LIGHTING.ambientIntensity));
   const sun = new THREE.DirectionalLight(0xffffff, SHIPPED_LIGHTING.directionalIntensity);
   const [lx, ly, lz] = SHIPPED_LIGHTING.directionalPosition;
@@ -316,7 +413,46 @@ export function buildLandScene(arm: LandArm, pxPerUnit: number): LandScene {
     // The SLAB is `CELL_GROUND_DEPTH` thick in both arms, so the interesting figure is how much
     // MORE than that the buffer spans — which is the relief's own range and zero when it is flat.
     heightSpan: hi - lo,
+    occlusionCoverage,
+    casters: shippedCasters().length,
   };
+}
+
+/**
+ * The shipped story trees, as three meshes — built from `ground-casters.ts`'s own constants and
+ * `SHIPPED_CROWN_COLOUR`, so the tree on this page is the tree the canvas draws.
+ */
+function storyTreeGroup(): THREE.Group {
+  const group = new THREE.Group();
+  for (const tree of shippedTrees()) {
+    const g = new THREE.Group();
+    g.position.set(tree.transform.x, tree.transform.y, tree.transform.z);
+    const trunk = new THREE.Mesh(
+      new THREE.CylinderGeometry(
+        STORY_TREE_TRUNK.radiusTop,
+        STORY_TREE_TRUNK.radiusBottom,
+        STORY_TREE_TRUNK.height,
+      ),
+      new THREE.MeshStandardMaterial({ color: '#6b4f35' }),
+    );
+    trunk.position.y = STORY_TREE_TRUNK.height / 2;
+    const crown = new THREE.Mesh(
+      new THREE.ConeGeometry(
+        STORY_TREE_CROWN.radius,
+        STORY_TREE_CROWN.height,
+        STORY_TREE_CROWN.segments,
+      ),
+      new THREE.MeshStandardMaterial({
+        color:
+          SHIPPED_CROWN_COLOUR.get(tree.material ?? 'unknown') ??
+          SHIPPED_CROWN_COLOUR.get('unknown')!,
+      }),
+    );
+    crown.position.y = STORY_TREE_CROWN.centreY;
+    g.add(trunk, crown);
+    group.add(g);
+  }
+  return group;
 }
 
 export interface LandArmReading {
@@ -374,6 +510,12 @@ export interface LandRunner {
   identity(): RendererIdentity;
   warm(): void;
   snapshot(arm: LandArm, pxPerUnit: number): string;
+  /** The same arm with the island's story trees drawn — for LOOKING at, never for measuring. */
+  snapshotTreed(arm: LandArm, pxPerUnit: number): string;
+  /** The arm's occlusion field, as plain data. ⚠ THIS IS THE ONLY NON-VACUITY A PIXEL SWEEP
+   *  CANNOT SUPPLY: a frame with no shadow in it is a perfectly ordinary-looking frame, so what
+   *  says the field reached the material at all is that the field itself has something in it. */
+  occlusion(arm: LandArm, pxPerUnit: number): OcclusionReading;
   colours(arm: LandArm, pxPerUnit: number): LandColourReading;
   /** Percentage of pixels that differ between two arms at this zoom, on identical frames. */
   changedPct(a: LandArm, b: LandArm, pxPerUnit: number): number;
@@ -426,17 +568,17 @@ export function createLandRunner(): LandRunner {
   // triangulation of 164 parcels along with the GPU's frame, which is not the number being asked
   // for and is where the relieved arm would look "more expensive" for no rendering reason.
   const built = new Map<string, LandScene>();
-  const sceneFor = (arm: LandArm, pxPerUnit: number): LandScene => {
-    const key = `${arm}|${pxPerUnit}`;
+  const sceneFor = (arm: LandArm, pxPerUnit: number, treed = false): LandScene => {
+    const key = `${arm}|${pxPerUnit}|${treed}`;
     const found = built.get(key);
     if (found) return found;
-    const made = buildLandScene(arm, pxPerUnit);
+    const made = buildLandScene(arm, pxPerUnit, treed);
     built.set(key, made);
     return made;
   };
 
-  const render = (arm: LandArm, pxPerUnit: number): LandScene => {
-    const s = sceneFor(arm, pxPerUnit);
+  const render = (arm: LandArm, pxPerUnit: number, treed = false): LandScene => {
+    const s = sceneFor(arm, pxPerUnit, treed);
     renderer.setSize(s.width, s.height, false);
     renderer.render(s.scene, s.camera);
     return s;
@@ -489,8 +631,13 @@ export function createLandRunner(): LandRunner {
       // array the material uploads, so this compares delivered pixels against the material's own
       // table rather than against a transcription of it — the argument `bandGlsl` makes about the
       // ladder, applied to the pixels.
+      // ⚠ THE AUTHORED SET IS THE ARM'S OWN. A shadowed material's ramp is one entry longer per
+      // row — `token x SHADOW_RUNG`, still an authored product — so asking the shadow arm about
+      // the FOUR-rung closure would report every shadowed pixel as a stray. That failure would be
+      // loud rather than silent, but it would be a fact about the question.
+      const levels = arm === 'shadow' ? shadowLadderFor(GROUND_TOKENS).levels : SHADE_LEVELS;
       const authored = new Set(
-        groundRamp(GROUND_TOKENS).map(
+        groundRamp(GROUND_TOKENS, levels).map(
           (entry) =>
             (Math.round(entry[0]! * 255) << 16) |
             (Math.round(entry[1]! * 255) << 8) |
@@ -523,6 +670,19 @@ export function createLandRunner(): LandRunner {
       };
     },
 
+    occlusion(arm, pxPerUnit) {
+      const s = sceneFor(arm, pxPerUnit);
+      return {
+        arm,
+        pxPerUnit,
+        occlusionCoverage: s.occlusionCoverage,
+        casters: s.casters,
+      };
+    },
+    snapshotTreed(arm, pxPerUnit) {
+      render(arm, pxPerUnit, true);
+      return canvas.toDataURL('image/png');
+    },
     snapshot(arm, pxPerUnit) {
       render(arm, pxPerUnit);
       // ⚠ The renderer's OWN buffer, not an element screenshot — an element screenshot composites
@@ -563,15 +723,14 @@ export function createLandRunner(): LandRunner {
   };
 }
 
-/** What each rung of the ladder ADDED, for the caption under its picture. Kept beside the arms
- *  rather than in the HTML so a rung cannot be added without a reader being told what it is. */
-const ARM_CAPTION = {
-  flat: 'the shipped map on 2026-08-29',
-  relief: '+ the land relief field',
-  banded: '+ the authored shade ladder',
-  'grain-normal': "+ the grain octave's NORMAL half (SHIPPED)",
-  'grain-both': "+ the grain octave's COLOUR half (REFERENCE — off-palette, not adopted)",
-} satisfies Record<LandArm, string>;
+/** What each arm ADDED and to WHAT — read off {@link LAND_ARM_SPECS} rather than transcribed, so
+ *  a rung cannot be added without a reader being told what it is, and a caption cannot come to
+ *  describe a predecessor the arm no longer has. */
+function armCaption(arm: LandArm): string {
+  const spec = LAND_ARM_SPECS.find((it) => it.arm === arm);
+  if (spec === undefined) throw new Error(`shipped-land-scene: no spec for arm ${arm}`);
+  return spec.from === null ? spec.adds : `${spec.adds} — on top of ${spec.from}`;
+}
 
 /** Mount the page: every arm at both zooms, side by side, with the runner on `window` for the
  *  driver to reach. */
@@ -597,12 +756,33 @@ export function mountShippedLand(root: HTMLElement): void {
       img.src = runner.snapshot(arm, zoom);
       img.width = Math.min(s.width, 900);
       const cap = document.createElement('figcaption');
-      cap.textContent = `${arm} — ${ARM_CAPTION[arm]} · ${s.triangles} triangles`;
+      cap.textContent = `${arm} — ${armCaption(arm)} · ${s.triangles} triangles`;
       fig.append(img, cap);
       row.appendChild(fig);
     }
     root.appendChild(row);
   }
+
+  // ⚠ THE ONE ROW WITH THE TREE IN IT, at the zoomed read, and it is deliberately outside the
+  // measured ladder above: the crown's pixels are off the ground palette by construction. It is
+  // here because a shadow with nothing casting it is not a picture anyone can judge.
+  const h2 = document.createElement('h2');
+  h2.textContent = 'with the story tree drawn — for looking at, not measured';
+  root.appendChild(h2);
+  const treedRow = document.createElement('div');
+  treedRow.className = 'row';
+  for (const arm of ['grain-normal', 'shadow'] satisfies LandArm[]) {
+    const s = buildLandScene(arm, 8, true);
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = runner.snapshotTreed(arm, 8);
+    img.width = Math.min(s.width, 900);
+    const cap = document.createElement('figcaption');
+    cap.textContent = `${arm} + the story tree — ${armCaption(arm)}`;
+    fig.append(img, cap);
+    treedRow.appendChild(fig);
+  }
+  root.appendChild(treedRow);
 
   window.landRunner = runner;
 }

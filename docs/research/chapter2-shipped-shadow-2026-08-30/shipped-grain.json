@@ -1,0 +1,696 @@
+{
+  "measuredOn": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false,
+    "timerQuery": true
+  },
+  "repeats": 7,
+  "batch": 300,
+  "zooms": [
+    2,
+    8
+  ],
+  "colours": {
+    "flat|2": {
+      "arm": "flat",
+      "pxPerUnit": 2,
+      "distinct": 4,
+      "landPixels": 25814
+    },
+    "relief|2": {
+      "arm": "relief",
+      "pxPerUnit": 2,
+      "distinct": 36,
+      "landPixels": 25630
+    },
+    "banded|2": {
+      "arm": "banded",
+      "pxPerUnit": 2,
+      "distinct": 5,
+      "landPixels": 25630
+    },
+    "grain-normal|2": {
+      "arm": "grain-normal",
+      "pxPerUnit": 2,
+      "distinct": 5,
+      "landPixels": 25630
+    },
+    "shadow|2": {
+      "arm": "shadow",
+      "pxPerUnit": 2,
+      "distinct": 6,
+      "landPixels": 25630
+    },
+    "grain-both|2": {
+      "arm": "grain-both",
+      "pxPerUnit": 2,
+      "distinct": 186,
+      "landPixels": 25630
+    },
+    "flat|8": {
+      "arm": "flat",
+      "pxPerUnit": 8,
+      "distinct": 6,
+      "landPixels": 412980
+    },
+    "relief|8": {
+      "arm": "relief",
+      "pxPerUnit": 8,
+      "distinct": 38,
+      "landPixels": 410396
+    },
+    "banded|8": {
+      "arm": "banded",
+      "pxPerUnit": 8,
+      "distinct": 5,
+      "landPixels": 410396
+    },
+    "grain-normal|8": {
+      "arm": "grain-normal",
+      "pxPerUnit": 8,
+      "distinct": 5,
+      "landPixels": 410396
+    },
+    "shadow|8": {
+      "arm": "shadow",
+      "pxPerUnit": 8,
+      "distinct": 6,
+      "landPixels": 410396
+    },
+    "grain-both|8": {
+      "arm": "grain-both",
+      "pxPerUnit": 8,
+      "distinct": 186,
+      "landPixels": 410396
+    }
+  },
+  "changedPct": {
+    "flat->relief|2": 55.36963036963037,
+    "relief->banded|2": 58.19180819180819,
+    "banded->grain-normal|2": 15.872763600036327,
+    "grain-normal->shadow|2": 1.898101898101898,
+    "grain-normal->grain-both|2": 58.19180819180819,
+    "flat->relief|8": 55.30199934224702,
+    "relief->banded|8": 58.17654997221561,
+    "banded->grain-normal|8": 15.779834200886834,
+    "grain-normal->shadow|8": 1.8920321164903209,
+    "grain-normal->grain-both|8": 58.17654997221561
+  },
+  "offPalette": {
+    "banded|2": {
+      "arm": "banded",
+      "pxPerUnit": 2,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 4,
+      "authored": 20,
+      "landPixels": 25630
+    },
+    "grain-normal|2": {
+      "arm": "grain-normal",
+      "pxPerUnit": 2,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 4,
+      "authored": 20,
+      "landPixels": 25630
+    },
+    "shadow|2": {
+      "arm": "shadow",
+      "pxPerUnit": 2,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 5,
+      "authored": 25,
+      "landPixels": 25630
+    },
+    "banded|8": {
+      "arm": "banded",
+      "pxPerUnit": 8,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 4,
+      "authored": 20,
+      "landPixels": 410396
+    },
+    "grain-normal|8": {
+      "arm": "grain-normal",
+      "pxPerUnit": 8,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 4,
+      "authored": 20,
+      "landPixels": 410396
+    },
+    "shadow|8": {
+      "arm": "shadow",
+      "pxPerUnit": 8,
+      "count": 0,
+      "colours": [],
+      "distinctLand": 5,
+      "authored": 25,
+      "landPixels": 410396
+    }
+  },
+  "grainReading": {
+    "authored": {
+      "admissible": false,
+      "worstMargin": -8.001554532860002,
+      "worstAt": "building@0.78",
+      "ungrainedWorstMargin": 3.002764214048085,
+      "ungrainedWorstAt": "building@0.78",
+      "breaks": [
+        {
+          "status": "building",
+          "level": 0.78,
+          "base": "#a89652",
+          "baseReadsAs": "building",
+          "baseMargin": 3.002764214048085,
+          "reach": [
+            "#9b8c4e",
+            "#ac9c5e"
+          ],
+          "reachSize": 50,
+          "grainedReadsAs": [
+            "building",
+            "healthy"
+          ],
+          "worstMargin": -8.001554532860002,
+          "holds": false
+        },
+        {
+          "status": "building",
+          "level": 0.8,
+          "base": "#ad9a54",
+          "baseReadsAs": "building",
+          "baseMargin": 8.408646739334703,
+          "reach": [
+            "#9f8f4f",
+            "#b0a060"
+          ],
+          "reachSize": 52,
+          "grainedReadsAs": [
+            "building",
+            "healthy"
+          ],
+          "worstMargin": -5.088181547335868,
+          "holds": false
+        },
+        {
+          "status": "proposed",
+          "level": 0.78,
+          "base": "#a89652",
+          "baseReadsAs": "building",
+          "baseMargin": 3.002764214048085,
+          "reach": [
+            "#9b8c4e",
+            "#ac9c5e"
+          ],
+          "reachSize": 50,
+          "grainedReadsAs": [
+            "building",
+            "healthy"
+          ],
+          "worstMargin": -8.001554532860002,
+          "holds": false
+        },
+        {
+          "status": "proposed",
+          "level": 0.8,
+          "base": "#ad9a54",
+          "baseReadsAs": "building",
+          "baseMargin": 8.408646739334703,
+          "reach": [
+            "#9f8f4f",
+            "#b0a060"
+          ],
+          "reachSize": 52,
+          "grainedReadsAs": [
+            "building",
+            "healthy"
+          ],
+          "worstMargin": -5.088181547335868,
+          "holds": false
+        }
+      ]
+    },
+    "ceiling": 0.031
+  },
+  "shadowField": {
+    "arm": "shadow",
+    "pxPerUnit": 8,
+    "occlusionCoverage": 0.031053480995047025,
+    "casters": 1
+  },
+  "softwareRun": false,
+  "arms": {
+    "flat|2": {
+      "arm": "flat",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 3,
+      "drawCalls": 1,
+      "gpuNs": 3809.28,
+      "samples": [
+        0.0038092800000000004,
+        0.003796693333333333,
+        0.0038092800000000004,
+        0.0038078933333333333,
+        0.003808426666666667,
+        0.0038094933333333333,
+        0.004273173333333333
+      ],
+      "median": 0.0038092800000000004,
+      "spread": 0.00047648000000000005
+    },
+    "relief|2": {
+      "arm": "relief",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 3951.786666666667,
+      "samples": [
+        0.003951786666666667,
+        0.00398368,
+        0.0039540266666666666,
+        0.0039573333333333335,
+        0.00395968,
+        0.003959253333333333,
+        0.00443168
+      ],
+      "median": 0.003959253333333333,
+      "spread": 0.0004798933333333335
+    },
+    "banded|2": {
+      "arm": "banded",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 2320.5333333333333,
+      "samples": [
+        0.002320533333333333,
+        0.0023281066666666667,
+        0.0023275733333333335,
+        0.00232896,
+        0.0023168000000000004,
+        0.0023274666666666666,
+        0.0026350933333333334
+      ],
+      "median": 0.0023275733333333335,
+      "spread": 0.00031829333333333303
+    },
+    "grain-normal|2": {
+      "arm": "grain-normal",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 7879.1466666666665,
+      "samples": [
+        0.007879146666666666,
+        0.007874453333333333,
+        0.0078848,
+        0.007884053333333333,
+        0.007871146666666667,
+        0.007881493333333333,
+        0.008826879999999999
+      ],
+      "median": 0.007881493333333333,
+      "spread": 0.0009557333333333317
+    },
+    "shadow|2": {
+      "arm": "shadow",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 8061.12,
+      "samples": [
+        0.00806112,
+        0.008062293333333333,
+        0.008063253333333333,
+        0.008065706666666667,
+        0.008062293333333333,
+        0.008062293333333333,
+        0.009024426666666667
+      ],
+      "median": 0.008062293333333333,
+      "spread": 0.0009633066666666669
+    },
+    "grain-both|2": {
+      "arm": "grain-both",
+      "pxPerUnit": 2,
+      "width": 484,
+      "height": 91,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 9332.053333333333,
+      "samples": [
+        0.009332053333333333,
+        0.009332053333333333,
+        0.009339626666666666,
+        0.009343253333333334,
+        0.009332053333333333,
+        0.009332586666666667,
+        0.010442453333333332
+      ],
+      "median": 0.009332586666666667,
+      "spread": 0.0011103999999999992
+    },
+    "flat|8": {
+      "arm": "flat",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 3,
+      "drawCalls": 1,
+      "gpuNs": 45056,
+      "samples": [
+        0.045056,
+        0.04506944,
+        0.04507872,
+        0.04505696,
+        0.04506752,
+        0.05252416,
+        0.15526549333333334
+      ],
+      "median": 0.04506944,
+      "spread": 0.11020949333333334
+    },
+    "relief|8": {
+      "arm": "relief",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 44974.293333333335,
+      "samples": [
+        0.04497429333333333,
+        0.044960426666666664,
+        0.04498922666666667,
+        0.044968,
+        0.04497408,
+        0.05252437333333334,
+        0.15572938666666666
+      ],
+      "median": 0.04497429333333333,
+      "spread": 0.11076896
+    },
+    "banded|8": {
+      "arm": "banded",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 21963.093333333334,
+      "samples": [
+        0.021963093333333333,
+        0.021957013333333334,
+        0.021962133333333335,
+        0.021953386666666665,
+        0.021982293333333337,
+        0.025591040000000002,
+        0.07642272
+      ],
+      "median": 0.021963093333333333,
+      "spread": 0.054469333333333335
+    },
+    "grain-normal|8": {
+      "arm": "grain-normal",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 91401.70666666667,
+      "samples": [
+        0.09140170666666667,
+        0.09138826666666666,
+        0.09143637333333333,
+        0.0913888,
+        0.09144096,
+        0.10327968,
+        0.20026229333333334
+      ],
+      "median": 0.09143637333333333,
+      "spread": 0.10887402666666668
+    },
+    "shadow|8": {
+      "arm": "shadow",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 93354.66666666667,
+      "samples": [
+        0.09335466666666667,
+        0.09337184,
+        0.09340885333333333,
+        0.09337514666666667,
+        0.09338197333333333,
+        0.10536309333333334,
+        0.1959312
+      ],
+      "median": 0.09338197333333333,
+      "spread": 0.10257653333333333
+    },
+    "grain-both|8": {
+      "arm": "grain-both",
+      "pxPerUnit": 8,
+      "width": 1938,
+      "height": 364,
+      "triangles": 1640,
+      "parcels": 164,
+      "heightSpan": 10.946075439453125,
+      "drawCalls": 1,
+      "gpuNs": 108407.46666666666,
+      "samples": [
+        0.10840746666666666,
+        0.10844917333333334,
+        0.10845525333333332,
+        0.10846997333333333,
+        0.10837077333333334,
+        0.12103925333333333,
+        0.19118752
+      ],
+      "median": 0.10845525333333332,
+      "spread": 0.08281674666666666
+    }
+  },
+  "verdict": {
+    "geometry": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "flat @ 2px",
+      "rows": [
+        {
+          "label": "flat @ 2px",
+          "gpuMsPerFrame": 0.0038092800000000004,
+          "spreadMs": 0.00047648000000000005,
+          "samples": 7,
+          "sharePct": 0.02285568,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.00047648000000000005
+        },
+        {
+          "label": "relief @ 2px",
+          "gpuMsPerFrame": 0.003959253333333333,
+          "spreadMs": 0.0004798933333333335,
+          "samples": 7,
+          "sharePct": 0.02375552,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.0004798933333333335
+        },
+        {
+          "label": "flat @ 8px",
+          "gpuMsPerFrame": 0.04506944,
+          "spreadMs": 0.11020949333333334,
+          "samples": 7,
+          "sharePct": 0.27041664,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.11020949333333334
+        },
+        {
+          "label": "relief @ 8px",
+          "gpuMsPerFrame": 0.04497429333333333,
+          "spreadMs": 0.11076896,
+          "samples": 7,
+          "sharePct": 0.26984576,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.11076896
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"flat @ 8px\" at 0.05 ms (0.3% of the budget). ⚠ 3 configuration(s) — \"relief @ 2px\", \"flat @ 8px\", \"relief @ 8px\" — moved the frame by LESS than the 0.00 ms run-to-run noise, so their cost is UNRESOLVED rather than zero: this run fits the budget but does not say what they cost."
+    },
+    "material": {
+      "status": "PASS",
+      "budgetMs": 16.666666666666668,
+      "baselineLabel": "banded @ 2px",
+      "rows": [
+        {
+          "label": "banded @ 2px",
+          "gpuMsPerFrame": 0.0023275733333333335,
+          "spreadMs": 0.00031829333333333303,
+          "samples": 7,
+          "sharePct": 0.013965439999999999,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BASELINE",
+          "noiseFloorMs": 0.00031829333333333303
+        },
+        {
+          "label": "grain-normal @ 2px",
+          "gpuMsPerFrame": 0.007881493333333333,
+          "spreadMs": 0.0009557333333333317,
+          "samples": 7,
+          "sharePct": 0.04728895999999999,
+          "deltaVsBaselineMs": 0.0055539199999999995,
+          "factorVsBaseline": 3.386141790018789,
+          "deltaSharePct": 0.033323519999999995,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.0009557333333333317
+        },
+        {
+          "label": "shadow @ 2px",
+          "gpuMsPerFrame": 0.008062293333333333,
+          "spreadMs": 0.0009633066666666669,
+          "samples": 7,
+          "sharePct": 0.048373759999999995,
+          "deltaVsBaselineMs": 0.00573472,
+          "factorVsBaseline": 3.4638192566793453,
+          "deltaSharePct": 0.03440831999999999,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.0009633066666666669
+        },
+        {
+          "label": "grain-both @ 2px",
+          "gpuMsPerFrame": 0.009332586666666667,
+          "spreadMs": 0.0011103999999999992,
+          "samples": 7,
+          "sharePct": 0.05599551999999999,
+          "deltaVsBaselineMs": 0.007005013333333333,
+          "factorVsBaseline": 4.009577929517437,
+          "deltaSharePct": 0.04203008,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.0011103999999999992
+        },
+        {
+          "label": "banded @ 8px",
+          "gpuMsPerFrame": 0.021963093333333333,
+          "spreadMs": 0.054469333333333335,
+          "samples": 7,
+          "sharePct": 0.13177856,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.054469333333333335
+        },
+        {
+          "label": "grain-normal @ 8px",
+          "gpuMsPerFrame": 0.09143637333333333,
+          "spreadMs": 0.10887402666666668,
+          "samples": 7,
+          "sharePct": 0.5486182399999999,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.10887402666666668
+        },
+        {
+          "label": "shadow @ 8px",
+          "gpuMsPerFrame": 0.09338197333333333,
+          "spreadMs": 0.10257653333333333,
+          "samples": 7,
+          "sharePct": 0.56029184,
+          "deltaVsBaselineMs": null,
+          "factorVsBaseline": null,
+          "deltaSharePct": null,
+          "resolution": "BELOW_NOISE",
+          "noiseFloorMs": 0.10257653333333333
+        },
+        {
+          "label": "grain-both @ 8px",
+          "gpuMsPerFrame": 0.10845525333333332,
+          "spreadMs": 0.08281674666666666,
+          "samples": 7,
+          "sharePct": 0.6507315199999999,
+          "deltaVsBaselineMs": 0.10612767999999999,
+          "factorVsBaseline": 46.5958480362953,
+          "deltaSharePct": 0.6367660799999999,
+          "resolution": "RESOLVED",
+          "noiseFloorMs": 0.08281674666666666
+        }
+      ],
+      "failures": [],
+      "unverified": [],
+      "prose": "PASS — every configuration fits in one 16.67 ms frame. The dearest is \"grain-both @ 8px\" at 0.11 ms (0.7% of the budget), and the costliest RESOLVED addition over \"banded @ 2px\" is \"grain-both @ 8px\" at +0.11 ms (0.6 percentage points of the frame, 46.60x the control). ⚠ 3 configuration(s) — \"banded @ 8px\", \"grain-normal @ 8px\", \"shadow @ 8px\" — moved the frame by LESS than the 0.05 ms run-to-run noise, so their cost is UNRESOLVED rather than zero: this run fits the budget but does not say what they cost."
+    },
+    "status": "PASS"
+  },
+  "pictures": [
+    "shipped-flat-2px.png",
+    "shipped-relief-2px.png",
+    "shipped-banded-2px.png",
+    "shipped-grain-normal-2px.png",
+    "shipped-shadow-2px.png",
+    "shipped-grain-both-2px.png",
+    "shipped-flat-8px.png",
+    "shipped-relief-8px.png",
+    "shipped-banded-8px.png",
+    "shipped-grain-normal-8px.png",
+    "shipped-shadow-8px.png",
+    "shipped-grain-both-8px.png",
+    "shipped-grain-normal-treed-8px.png",
+    "shipped-shadow-treed-8px.png"
+  ]
+}
