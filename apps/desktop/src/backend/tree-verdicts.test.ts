@@ -183,6 +183,65 @@ test("tree-verdicts: readTreeWithCaps reads full capabilities + the per-story UA
   }
 });
 
+// The two fields this walk emitted DIFFERENTLY from the studio's `readTree` until
+// `check:mirror-conformance` gained a `/api/tree` row (2026-08-31, `unscored-guards-arc` /
+// `register-deep-mirror-pairs`). Both were measured by standing each surface's own composition up in
+// its own process and diffing the composed RESULTS — never by reading the two walks side by side.
+//
+// PINNED HERE AS WELL AS THERE, on the `/api/comments` precedent: the mirror row is a gate step, so
+// without this the rule only fails on a whole-gate run and a `pnpm --filter desktop test` would stay
+// green through a re-introduction. The two are complementary — this test says what THIS surface must
+// emit, the row says the two surfaces must agree — and neither makes the other redundant.
+test("tree-verdicts: `building` and `decisions` are ALWAYS on the node, present-not-absent", async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "tree-presence-"));
+  try {
+    // An ORDINARY story: no `render:` hint at all. The studio assigns `building` the comparison
+    // itself, so it emits `false` here; this walk set the key only when true and omitted it
+    // otherwise. Both falsy, nothing rendered differently, and no observer for eleven months.
+    await fs.mkdir(path.join(dir, "plain"));
+    await fs.writeFile(
+      path.join(dir, "plain", "story.md"),
+      [
+        "---",
+        'id: "plain"',
+        "tier: story",
+        'title: "Plain"',
+        'outcome: "the plain outcome"',
+        "status: proposed",
+        "proof_mode: UAT",
+        "---",
+        "",
+        "# Plain",
+      ].join("\n"),
+      "utf8",
+    );
+    // A story whose frontmatter the loader cannot read — the catch branch, where the node is
+    // whatever the literal declared. The studio's literal carries `decisions: []`; this one did not,
+    // so the error path served no `decisions` key at all. It is the path a reader is least likely to
+    // look at and most likely to `.map` over.
+    await fs.mkdir(path.join(dir, "broken"));
+    await fs.writeFile(
+      path.join(dir, "broken", "story.md"),
+      ["---", "id: [unclosed", "tier: story", "---", "", "# Broken"].join("\n"),
+      "utf8",
+    );
+
+    const { stories } = await readTreeWithCaps(dir);
+    const plain = stories.find((s) => s.id === "plain");
+    const broken = stories.find((s) => s.id === "broken");
+    assert.ok(plain && broken, "both stories are read");
+
+    assert.equal(plain.building, false, "an ordinary story carries `building: false`, not nothing");
+    assert.ok("building" in plain, "the KEY is present — absent and false are different on the wire");
+
+    assert.ok(broken.error !== undefined, "the malformed spec took the catch branch");
+    assert.deepEqual(broken.decisions, [], "a story that failed to parse still carries `decisions: []`");
+    assert.ok("decisions" in broken, "the KEY is present on the error path, not only the happy one");
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
+});
+
 // The desktop mirror reads a REAL corpus story off disk — id, status and the loaded capability list —
 // so a resolver change that silently stopped loading capabilities is caught against live data rather
 // than a fixture. The EXEMPLAR is `terminal-tabs`, moved here from `map-terminal-build` by ADR-0404

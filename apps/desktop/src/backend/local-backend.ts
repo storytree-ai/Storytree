@@ -40,6 +40,21 @@ const loadLibraryFold = (): Promise<typeof import("@storytree/library")> =>
  * deleted. Nothing writes it to disk and nothing reads it back on boot.
  */
 const hierarchyCache = new HierarchyRuntimeCache();
+
+/**
+ * Test seam: forget the cached hierarchy, so the next request starts from a cold process.
+ *
+ * The sibling of `resetDesktopHierarchyAnnouncements` in hierarchy-live.ts, and it exists for a
+ * reason the mirror harness makes concrete. `selectDesktopHierarchy` degrades live → CACHE → disk,
+ * and the studio has no cache at all (live → disk, ADR-0445 D2 gives the desktop one because its
+ * disk copy is the incident rather than a mild degradation). So a probe replaying a LIVE arm and
+ * then a DISK arm in one process would compare the studio's disk walk against this cache — two
+ * different reads, reported as a divergence in neither. Resetting between arms is what keeps each
+ * arm's comparison the one it claims to be, and it means arm ORDER carries no hidden meaning.
+ */
+export function resetHierarchyCache(): void {
+  hierarchyCache.clear();
+}
 import type { DTVerdict, DTVerdictEvent } from "./tree-verdicts.js";
 
 // The verdict/claim zod schemas live in raw-TS workspace packages whose `.js` re-export

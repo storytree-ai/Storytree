@@ -41,6 +41,7 @@ import {
 import type { InspectSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
+import { containedStoryFile, createAttestationsMount } from "../src/backend/attestations-route.js";
 import {
   IN_FLIGHT_CLAIMS_SQL,
   claimRowsToActivity,
@@ -305,18 +306,9 @@ function currentGitState() {
   return { commitSha, clean: porcelain.trim() === "" };
 }
 
-/**
- * The `GET /api/attestations` wire envelope. `storyUat` and `unresolvedWitnesses` are OMITTED (never
- * `undefined`) when the rollup could not answer / the story resolves every witness — absence is the
- * signal the renderer keys on. `tests` rows are assembled from three sources (the declared leg, its
- * attestation marks, and the optional signed `proven`), so they are carried, not re-typed, here.
- */
-interface UatTestsEnvelope {
-  storyId: string;
-  tests: readonly unknown[];
-  storyUat?: "healthy" | "unhealthy" | null;
-  unresolvedWitnesses?: string[];
-}
+// The `GET /api/attestations` wire envelope moved with the mount it belongs to — see
+// `UatTestsEnvelope` in ../src/backend/attestations-route.ts. Left as a pointer rather than deleted
+// silently: a type declared beside a route reads as that route still living here.
 
 // ---------- main ----------
 
@@ -615,8 +607,12 @@ async function main(): Promise<void> {
       return true;
     }
 
-    const { findNodeSpecFile, loadNodeSpec, resolvedWitnessOf } = await import("@storytree/orchestrator");
-    const specFile = findNodeSpecFile(storiesDir, storyId);
+    const { loadNodeSpec, resolvedWitnessOf } = await import("@storytree/orchestrator");
+    // CONTAINED, not `findNodeSpecFile`: that helper applies no containment guard, so a `storyId` of
+    // `../…` reached a `path.join` and this route would sign a real verdict against a spec from
+    // OUTSIDE the stories root. Found by the `/api/attestations` mirror row, which measured the same
+    // hole on the READ next door (2026-08-31); the guard is shared rather than written twice.
+    const specFile = containedStoryFile(storiesDir, storyId);
     const spec = specFile === null ? null : loadNodeSpec(specFile);
     if (spec === null || spec.tier !== "story") {
       res.statusCode = 400;
@@ -665,97 +661,20 @@ async function main(): Promise<void> {
   // failure) — returns `{ storyId, tests: [] }` gracefully rather than crashing.
   // OPERATOR-ATTESTED GLUE (ADR-0070): the CI-proven cores are the orchestrator functions and
   // PgAttestationStore this wiring threads together; this route wiring is proven transitively.
-  const attestationsMount = async (
-    req: IncomingMessage,
-    res: ServerResponse,
-    pathname: string,
-  ): Promise<boolean> => {
-    if (pathname !== "/api/attestations") return false;
-    const method = req.method ?? "GET";
-    if (method !== "GET") {
-      res.statusCode = 405;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: `method ${method} not allowed` }));
-      return true;
-    }
-    const urlObj = new URL(req.url ?? "/", "http://localhost");
-    const storyId = (urlObj.searchParams.get("storyId") ?? "").trim();
-    if (!storyId) {
-      res.statusCode = 400;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: "storyId query param is required" }));
-      return true;
-    }
-    // Lazily imported — the raw-TS `.js` re-export discipline (same as tree-verdicts.ts).
-    // All compute in @storytree/orchestrator; no apps/studio/server.
-    const {
-      findNodeSpecFile, loadNodeSpec,
-      deriveAttestations,
-      resolvedWitnessOf, unresolvedUatLegs,
-      rollupCriterionStatus, rollupStoryUat,
-    } = await import("@storytree/orchestrator");
-    // Load story UAT context from disk (same logic as uatContextForStory in apiRouter.ts).
-    // findNodeSpecFile + loadNodeSpec are synchronous FS reads; any error → null, never a crash.
-    const storySpecFile = findNodeSpecFile(storiesDir, storyId);
-    const spec = storySpecFile !== null
-      ? (() => { try { return loadNodeSpec(storySpecFile); } catch { return null; } })()
-      : null;
-    const tests = spec?.uatTestCriteria ?? [];
-    const gates = spec?.reliabilityGates ?? [];
-    const status = spec?.status ?? "";
-    // Attestation marks and verdict events in parallel (both advisory).
-    const [marksMap, events] = await Promise.all([
-      // Derive the latest-per-(testId,witness) marks and filter to this story's tests.
-      attestations.readEvents().then((evts) => {
-        const derived = deriveAttestations(evts);
-        const out: Record<string, Record<string, unknown>> = {};
-        for (const [testId, entry] of derived) {
-          out[testId] = entry as Record<string, unknown>;
-        }
-        return out satisfies Record<string, Record<string, unknown>>;
-      }).catch((): Record<string, Record<string, unknown>> => ({})),
-      // Verdict events — advisory, same contract as /api/tree (null on any failure).
-      advisory("attestations-verdicts", readVerdictEventRows),
-    ]);
-    // Resolve each leg's declared witness into the binary one the UI reads (mirrors
-    // resolveUatRowWitnesses from apiRouter.ts, re-composed from shared orchestrator functions
-    // so the binary can never fork between studio and desktop).
-    const resolved = tests.map((t) => ({ ...t, witness: resolvedWitnessOf(t, gates) }));
-    const adopted = status !== "" && status !== "mapped" && status !== "retired";
-    const unresolvedWitnesses = adopted
-      ? unresolvedUatLegs(tests).map((t) => t.criterionId)
-      : [];
-    // Proven state from signed verdicts (advisory — absent on a down DB).
-    let provenOf:
-      | ((criterion: { criterionId: string; revisionId: string }) =>
-          | "pass"
-          | "fail"
-          | undefined)
-      | null = null;
-    let storyUat: "healthy" | "unhealthy" | null | undefined;
-    if (events !== null) {
-      provenOf = (criterion) => {
-        const s = rollupCriterionStatus(criterion, events);
-        return s === "healthy" ? "pass" : s === "unhealthy" ? "fail" : undefined;
-      };
-      const rolled = rollupStoryUat(tests, events);
-      storyUat = rolled === "healthy" || rolled === "unhealthy" ? rolled : null;
-    }
-    const rows = resolved.map((t) => {
-      const proven = provenOf?.(t);
-      const marks = marksMap[t.criterionId] ?? {};
-      // `proven` rides only when a signed verdict answered — a ternary on the WHOLE row, so an
-      // unproven criterion carries no `proven` key at all rather than an explicit undefined.
-      return proven !== undefined ? { ...t, ...marks, proven } : { ...t, ...marks };
-    });
-    res.statusCode = 200;
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    const testsEnvelope: UatTestsEnvelope = { storyId, tests: rows };
-    if (storyUat !== undefined) testsEnvelope.storyUat = storyUat;
-    if (unresolvedWitnesses.length > 0) testsEnvelope.unresolvedWitnesses = unresolvedWitnesses;
-    res.end(JSON.stringify(testsEnvelope));
-    return true;
-  };
+  // EXTRACTED, not re-implemented: the whole composition moved verbatim to
+  // apps/desktop/src/backend/attestations-route.ts and is COMPOSED here over this process's live
+  // seams. It was an inline closure in this function, so nothing outside a booted Electron backend
+  // could call it — which is why `check:mirror-conformance` had no way to compare it against the
+  // studio payload it is a hand-written copy of, and why `mirror-pair-drift` had been naming the
+  // pair as unobserved since its sweep widened to `apps/desktop/electron`. The module's header
+  // carries the boundary call and the two divergences the row's first run measured.
+  const attestationsMount = createAttestationsMount({
+    storiesDir,
+    readAttestationEvents: () => attestations.readEvents(),
+    // Advisory, same contract as /api/tree's: null on any failure, so the two proof-derived fields
+    // go ABSENT rather than negative.
+    readVerdictEvents: () => advisory("attestations-verdicts", readVerdictEventRows),
+  });
 
   // ---------- the chat SPAWN surface: RETIRED, composed nowhere (ADR-0175) ----------
   //

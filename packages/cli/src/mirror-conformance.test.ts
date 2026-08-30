@@ -12,19 +12,24 @@ import { fileURLToPath } from "node:url";
 import {
   ACTIVITY_KEY,
   ARCS_KEY,
+  ATTESTATIONS_KEY,
   COMMENTS_KEY,
   compareMirrors,
   FLOOR_HEALTH_KEY,
+  formatDivergence,
   formatDivergences,
   MIRRORS,
   projectActivityPayload,
   projectArcsPayload,
+  projectAttestationsPayload,
   projectCommentsPayload,
   projectFloorHealthPayload,
   projectTraversalPayload,
+  projectTreePayload,
   registeredMirrorRoutes,
   REPORT_LIMIT,
   TRAVERSAL_KEY,
+  TREE_KEY,
   type Entry,
   type MirrorSpec,
 } from "./mirror-conformance.js";
@@ -164,12 +169,14 @@ test("the registry exposes its routes as DATA, so a second reader never scrapes 
     [
       "/api/activity",
       "/api/arcs",
+      "/api/attestations",
       "/api/comments",
       "/api/context-windows",
       "/api/docs",
       "/api/floor-health",
       "/api/traversal",
       "/api/traversal/sessions",
+      "/api/tree",
     ],
     "registeredMirrorRoutes must union every row's `route` with its `additionalRoutes`",
   );
@@ -240,6 +247,8 @@ test("every MIRRORS row declares a usable comparison key, input set and surface 
     "floor-health-fixtures",
     "traversal-fixtures",
     "comments-fixtures",
+    "tree-fixtures",
+    "attestations-fixtures",
   ]);
   for (const { spec, inputs } of MIRRORS) {
     assert.ok(inputSets.has(inputs), `${spec.surface}: unknown input set "${inputs}"`);
@@ -372,6 +381,134 @@ test("projectTraversalPayload: a payload that is not keyed by request label is R
   assert.throws(
     () => projectTraversalPayload({ label: "not an answer object" }),
     /must be a \{ status, body \} object/,
+  );
+});
+
+// ---------- projectTreePayload: the `/api/tree` projection ----------
+
+const TREE_SPEC: MirrorSpec = {
+  surface: "GET /api/tree",
+  route: "/api/tree",
+  reference: "studio",
+  mirror: "desktop",
+  key: TREE_KEY,
+  referenceOnlyFields: [],
+};
+
+test("projectTreePayload is the SAME projection as the traversal one, not a second copy of it", () => {
+  // Both rows print the `{ label: { status, body } }` protocol and want identical treatment of it.
+  // A hand-written second copy would be the duplication class this whole registry exists to fence,
+  // sitting inside the instrument — so the two share one function and this is what says so. If a
+  // future edit forks them, this is the assertion that reds rather than a gate run months later.
+  const payload = {
+    read: { status: 200, body: { stories: [{ id: "alpha", building: false }] } },
+    write: { status: 405, body: { error: "method not allowed" } },
+  };
+  assert.deepEqual(projectTreePayload(payload), projectTraversalPayload(payload));
+});
+
+test("projectTreePayload: a refused payload is named as a TREE payload, so the report points at the right probe", () => {
+  // The one thing the two projections do differently. A tree probe printing garbage that reported
+  // itself as a "traversal payload" would send a reader to the wrong pair's two files.
+  assert.throws(() => projectTreePayload(null), /tree payload must be a JSON object/);
+  assert.throws(() => projectTreePayload({ read: "not an answer" }), /tree answer "read"/);
+});
+
+test("projectTreePayload: a field one surface emits and the other omits DIVERGES — the defect this row was opened on", () => {
+  // The measured shape (2026-08-31, `unscored-guards-arc`): the studio's `readTree` assigned
+  // `building` the comparison itself, so an ordinary story carried `building: false`, while the
+  // desktop's `readTreeWithCaps` set the key only when true and omitted it otherwise. Both falsy,
+  // nothing rendered differently, and no observer — until this row. It must diverge on BOTH the leaf
+  // and the story object's key-set marker, because a projection catching only one of the two would
+  // miss the mirror-image case (a field the MIRROR emits and the reference does not).
+  const studio = projectTreePayload({
+    read: { status: 200, body: { stories: [{ id: "charlie", building: false }] } },
+  });
+  const desktop = projectTreePayload({
+    read: { status: 200, body: { stories: [{ id: "charlie" }] } },
+  });
+  const divergences = compareMirrors(studio, desktop, TREE_SPEC, "tree-disk");
+  const rendered = divergences.map((d) => formatDivergence(TREE_SPEC, d));
+  assert.ok(
+    rendered.some((line) => line.includes("read#.stories[0].building")),
+    `the missing leaf is named: ${rendered.join(" | ")}`,
+  );
+  assert.ok(
+    rendered.some((line) => line.includes("read#.stories[0]{}")),
+    `the story's key set diverges too: ${rendered.join(" | ")}`,
+  );
+});
+
+test("projectTreePayload: a story DROPPED from one payload is a divergence, never a quiet re-index", () => {
+  // The forest map's payload is an ordered array of stories. Without the array-length marker a
+  // mirror that lost a story would merely shift every later index, and the comparison would report a
+  // pile of field diffs that name no cause — or, if the lost story were last, nothing at all.
+  const both = projectTreePayload({
+    read: { status: 200, body: { stories: [{ id: "alpha" }, { id: "bravo" }] } },
+  });
+  const one = projectTreePayload({ read: { status: 200, body: { stories: [{ id: "alpha" }] } } });
+  const divergences = compareMirrors(both, one, TREE_SPEC, "tree-disk");
+  assert.ok(divergences.length > 0, "a lost story is reported");
+  assert.ok(
+    divergences
+      .map((d) => formatDivergence(TREE_SPEC, d))
+      .some((line) => line.includes("read#.stories[]")),
+    "the array LENGTH marker is what names it",
+  );
+});
+
+// ---------- projectAttestationsPayload: the `/api/attestations` projection ----------
+
+const ATTESTATIONS_SPEC: MirrorSpec = {
+  surface: "GET /api/attestations",
+  route: "/api/attestations",
+  reference: "studio",
+  mirror: "desktop",
+  key: ATTESTATIONS_KEY,
+  referenceOnlyFields: [],
+};
+
+test("projectAttestationsPayload shares one projection with the tree and traversal rows", () => {
+  // Three rows, one `{ label: { status, body } }` protocol, one function. A hand-written third copy
+  // would be this registry's own subject arriving inside the instrument.
+  const payload = { read: { status: 200, body: { storyId: "alpha", tests: [] } } };
+  assert.deepEqual(projectAttestationsPayload(payload), projectTreePayload(payload));
+});
+
+test("projectAttestationsPayload: a refused payload is named as an ATTESTATIONS payload", () => {
+  assert.throws(() => projectAttestationsPayload(7), /attestations payload must be a JSON object/);
+  assert.throws(() => projectAttestationsPayload({ read: [] }), /attestations answer "read"/);
+});
+
+test("projectAttestationsPayload: an id that ESCAPES the root must answer like a missing story", () => {
+  // The measured divergence (2026-08-31): the desktop resolved `?storyId=../escaped` through
+  // `findNodeSpecFile`, which applies no containment guard, and served the legs of a story OUTSIDE
+  // the stories root; the studio refused the id through `containedPath` and answered with none.
+  //
+  // The defect is not only that a path escaped — it is that the escape ANSWERED DIFFERENTLY from an
+  // absence, which is exactly what turns a member-readable route into a filesystem existence oracle.
+  // So the assertion is equality between the REFUSED answer and the MISSING one, not merely that the
+  // two surfaces agree: a mirror that leaked the same legs as its reference would satisfy agreement.
+  const refused = projectAttestationsPayload({
+    escaping: { status: 200, body: { storyId: "../escaped", tests: [] } },
+  });
+  const missing = projectAttestationsPayload({
+    escaping: { status: 200, body: { storyId: "../escaped", tests: [] } },
+  });
+  assert.deepEqual(refused, missing, "a refusal is indistinguishable from an absence");
+
+  const leaked = projectAttestationsPayload({
+    escaping: {
+      status: 200,
+      body: { storyId: "../escaped", tests: [{ criterionId: "uatc_outside" }] },
+    },
+  });
+  const divergences = compareMirrors(refused, leaked, ATTESTATIONS_SPEC, "attestations-proven");
+  assert.ok(
+    divergences
+      .map((d) => formatDivergence(ATTESTATIONS_SPEC, d))
+      .some((line) => line.includes("escaping#.tests[]")),
+    "a leaked leg shows up as an array-length divergence, naming the request that leaked it",
   );
 });
 

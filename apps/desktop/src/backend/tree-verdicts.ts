@@ -208,6 +208,12 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
     const storyFile = path.join(dir, "story.md");
     if (!existsSync(storyFile)) continue;
     // The fail-closed defaults (ADR-0040) — hold even when the spec fails to load.
+    //
+    // `decisions: []` is one of them, and it was MISSING until `check:mirror-conformance` gained a
+    // `/api/tree` row (2026-08-31). The studio's `readTree` carries it in the same literal, so a
+    // story whose `story.md` FAILED TO PARSE reached the wire with `decisions: []` there and no
+    // `decisions` key at all here — a divergence on the one path a reader is least likely to look
+    // at and most likely to `.map` over. The mirror follows the reference.
     const story: DTStory = {
       id: ent.name,
       title: ent.name,
@@ -217,6 +223,7 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       uatWitness: "human",
       dependsOn: [],
       consumedBy: [],
+      decisions: [],
       capabilities: [],
     };
     try {
@@ -229,7 +236,13 @@ export async function readTreeWithCaps(storiesDir: string): Promise<{
       story.dependsOn = spec.dependsOn;
       story.consumedBy = spec.consumedBy;
       story.decisions = spec.decisions;
-      if (spec.render === "building") story.building = true;
+      // ALWAYS SET, never set-only-when-true. This read `if (spec.render === "building")` until the
+      // `/api/tree` mirror row measured it (2026-08-31): the studio's `readTree` assigns the
+      // comparison itself, so every ORDINARY story carried `building: false` there and no `building`
+      // key here. Both are falsy and nothing rendered differently, which is exactly why it survived
+      // — a wire that disagrees about a field's PRESENCE is one default away from a reader that
+      // throws, and until this row nothing was watching. The mirror follows the reference.
+      story.building = spec.render === "building";
       story.capabilities = spec.capabilities.map(
         (capId) => loadCapability(loadNodeSpec, dir, capId).node,
       );

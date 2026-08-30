@@ -57,6 +57,18 @@
  *     `{ reading: null }`, and the compiled band renders "no instrument here" and "all clear"
  *     differently on purpose.
  *
+ *   `tree-fixtures` — `GET /api/tree`, compared over three synthetic fixture DIRECTORIES, each a
+ *     `stories/` tree plus the four reads the fold makes (the work-hierarchy seam and the three
+ *     advisory proof layers) and the request list. THREE arms because this route's question has two
+ *     sources and each surface re-composes both: `tree-disk` drives the two independent disk walks
+ *     (`readTree` against `readTreeWithCaps`), `tree-live` the two independent adapters over the one
+ *     shared projection fold (`foldedToTreeWalk` against `toDesktopTree`), and `tree-absent` wires no
+ *     projection seam at all with every proof layer silent — the advisory-absence arm, the only one
+ *     that catches a mirror emitting `builds: []` where its reference omits the key. This is the
+ *     WIDEST pair here: on every other row the substance is shared code and only the envelope is
+ *     hand-copied, while here the walks, the adapters and all four enrichment passes exist once per
+ *     surface. It found two real, present divergences on its first run (see the `MIRRORS` row).
+ *
  * FAIL-CLOSED, and never vacuous. A probe that dies, prints unparseable output, or returns an
  * EMPTY payload for a non-empty input is a FAILURE, not a skip: two silent surfaces agree
  * perfectly, and "a proof that cannot fail is not a proof" is the class this arc exists to fence.
@@ -69,6 +81,11 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { appendTraversalEvents } from "@storytree/context-traversal-capture";
+// The criterion binding the `tree-fixtures` stories carry. Computed rather than typed: a
+// `(revision-id:)` that does not bind its item's content is a spec-load ERROR, and two surfaces
+// failing identically is a comparison that passes having proved nothing.
+import { canonicalUatCriterionContent, parseUatTestCriteria } from "@storytree/library";
+import { Attestation, Verdict, criterionRevisionId } from "@storytree/proof-protocol";
 
 import {
   MIRRORS,
@@ -79,6 +96,8 @@ import {
   projectCommentsPayload,
   projectFloorHealthPayload,
   projectTraversalPayload,
+  projectTreePayload,
+  projectAttestationsPayload,
   type Divergence,
   type Entry,
   type MirrorInputSet,
@@ -698,6 +717,781 @@ function buildCommentsFixtures() {
   return { dir, inputs: [{ label: "requests", arg: file }] };
 }
 
+/**
+ * The canonical text of one authored UAT criterion item — the EXACT string the fixture writes,
+ * minus its list number and identity annotations.
+ *
+ * ⚠ IT MUST BE THE WHOLE ITEM, and this is the trap that produced a vacuous arm before it was.
+ * `canonicalUatCriterionContent` strips only the identity tags (`criterion-id`, `revision-id`,
+ * `previous-revision-id`, `lineage`). A `(detail: …)` tag is CONTENT, so a revision computed from
+ * the prose alone does not bind an item that carries one — `parseUatTestCriteria` then refuses the
+ * whole story, `loadNodeSpec` throws, and BOTH surfaces answer with no legs at all. The comparison
+ * passes, having compared two identical failures: a fixture arm that looks rich and proves nothing.
+ * Measured 2026-08-31, on the first run of the `/api/attestations` row.
+ */
+function criterionItemText(ordinal: number, prose: string, detail?: string): string {
+  return `${ordinal}. ${prose}${detail === undefined ? "" : ` _(detail: ${detail})_`}`;
+}
+
+/** That item's computed content binding — what a signed verdict or a recorded vouch must carry. */
+function criterionRevision(ordinal: number, prose: string, detail?: string): string {
+  return criterionRevisionId(canonicalUatCriterionContent(criterionItemText(ordinal, prose, detail)));
+}
+
+/** One authored criterion LINE: the item text plus its identity and binding annotations. */
+function authoredCriterion(
+  ordinal: number,
+  criterionId: string,
+  prose: string,
+  detail?: string,
+): string {
+  return (
+    `${criterionItemText(ordinal, prose, detail)} (criterion-id: ${criterionId})` +
+    `(revision-id: ${criterionRevision(ordinal, prose, detail)})`
+  );
+}
+
+/**
+ * Refuse a fixture story whose UAT section does not parse into the criteria it was authored to carry.
+ *
+ * THE GUARD EXISTS BECAUSE THE FAILURE IS SILENT AND SYMMETRIC. A story body the criterion parser
+ * refuses makes `loadNodeSpec` throw, both surfaces fall to the same empty answer, and the mirror
+ * comparison PASSES — so the arm reports a tidy ✓ while comparing nothing. `main()`'s
+ * empty-payload guard cannot see it either: the payload is a well-formed envelope, it just has no
+ * legs in it. Asserted at fixture-BUILD time, where the author can still read the reason.
+ */
+function assertCriteriaParse(storyId: string, body: string, expected: number): void {
+  let parsed: readonly unknown[];
+  try {
+    parsed = parseUatTestCriteria(storyId, body);
+  } catch (err) {
+    throw new Error(
+      `mirror fixture story "${storyId}" does not parse — every arm using it would compare two ` +
+        `identical failures and PASS: ${(err as Error).message}`,
+    );
+  }
+  if (parsed.length !== expected) {
+    throw new Error(
+      `mirror fixture story "${storyId}" parsed ${parsed.length} UAT criteria, expected ${expected} ` +
+        "— an arm that measures fewer legs than it authored is measuring less than it reports",
+    );
+  }
+}
+
+/**
+ * The `tree-fixtures` input set: three synthetic fixture DIRECTORIES, each a `stories/` tree plus a
+ * `tree.json` carrying the four reads the `/api/tree` fold makes and the request list both probes
+ * replay.
+ *
+ * WHY THREE ARMS, and why none of them is optional. This route's QUESTION has two sources (ADR-0445
+ * D1) and each surface re-composes BOTH independently, so one arm would leave half the pair
+ * uncompared:
+ *   · `tree-disk` — the seam is PRESENT and answers `null` (the projection loader has not run), so
+ *     both surfaces fall back to their own disk walk: `readTree` (apiRouter.ts) against
+ *     `readTreeWithCaps` (tree-verdicts.ts), two independent walks of one `stories/` tree. This is
+ *     the arm that found both real divergences this row was registered with.
+ *   · `tree-live` — the seam answers with a projection, so each runs its own adapter over the ONE
+ *     shared `foldWorkHierarchy`: `foldedToTreeWalk` against `toDesktopTree`.
+ *   · `tree-absent` — the seam is MISSING ENTIRELY and every advisory proof layer is `null`. Two
+ *     absences at once, and the surfaces treat them separately: "this backend serves no projection"
+ *     is a different fallback reason from "the store holds none", and a null proof layer must leave
+ *     the authored hue rather than invent one. It is the arm that catches a mirror emitting
+ *     `builds: []` where its reference omits the key, or dropping `uatCriteria` when there is
+ *     nothing to say.
+ *
+ * THE STORIES TREE IS SHAPED BY BRANCH, one story per thing the two walks decide separately:
+ *   - `alpha` — the full shape: three capabilities (one whose spec file is MISSING, so both walks
+ *     must render an `error` node rather than throwing), two signable UAT criteria, and two
+ *     reliability gates of which one is RETIRED IN PLACE (ADR-0436 — it must leave both the
+ *     obligation union and the `(covers:)` coverage set) while the live one covers a capability with
+ *     no verdict of its own, so `applyCapCoverage` has something to synthesize;
+ *   - `bravo` — `render: building` and `uat_witness: machine`, the two frontmatter hints that reach
+ *     the wire as their own fields;
+ *   - `charlie` — the ORDINARY story: no capabilities, no criteria, no gates, no render hint. Its
+ *     whole job is the fields a walk emits when the author declared nothing, which is where a
+ *     present-vs-absent divergence hides;
+ *   - `delta` — a MALFORMED `story.md`, so both walks take the catch branch and emit an `error`
+ *     node. The least-read path on either surface and the likeliest to have drifted;
+ *   - `echo` — a `## UAT Test Criteria (would-be)` section (ADR-0097), whose criteria are recorded
+ *     and rendered but are not obligations;
+ *   - `no-story/` (a directory with no `story.md`) and `loose.md` (a file at the root), each of
+ *     which both walks must SKIP.
+ *
+ * THE PROOF LAYERS RIDE THE FIXTURE ALREADY SHAPED — a verdict map, a raw signing-event stream, a
+ * build list — for the reason `activity-fixtures` carries raw claim rows: they are the INPUT, and
+ * what is under test is each surface's fold of them. The events are REAL signed `Verdict` documents,
+ * parsed here so a malformed fixture fails at BUILD time: the shared rollup compute grants nothing
+ * for a doc it cannot parse, so a fixture of plausible-looking stubs would leave every crown grey on
+ * both surfaces and compare two blanks — the vacuous pass this whole harness exists to refuse.
+ *
+ * There is deliberately no "real corpus" arm. The live projection lives in Cloud SQL and CI is
+ * DB-free, so the honest input is a fixture rather than a store nobody can reach; the real
+ * `stories/` tree is already walked by each surface's own suite.
+ */
+function buildTreeFixtures() {
+  const root = mkdtempSync(join(tmpdir(), "storytree-tree-"));
+
+  // The SAME requests against every arm — the point of the absence arm is that an identical ask
+  // gives a different honest answer, so asking something different would defeat it.
+  const requests = [
+    { label: "read", method: "GET", path: "/api/tree" },
+    // Read-only is a DECISION on both surfaces and it is expressed as a status, so it is replayed.
+    { label: "write", method: "POST", path: "/api/tree" },
+  ];
+
+  const AT = "2026-08-31T09:00:00.000Z";
+  const C_ONE = `uatc_${"0".repeat(23)}1`;
+  const C_TWO = `uatc_${"0".repeat(23)}2`;
+  const C_WOULD_BE = `uatc_${"0".repeat(23)}3`;
+
+  const CRITERION_ONE = "**The map paints from proof** — the crown greens from signed verdicts.";
+  const CRITERION_TWO = "**The overlay under-claims** — a null source leaves the authored hue.";
+  const CRITERION_WOULD_BE = "**The would-be leg** — recorded, rendered, never green-blocking.";
+
+  /** One authored criterion line, its identity and content binding attached. */
+  const criterion = (ordinal: number, criterionId: string, prose: string): string =>
+    authoredCriterion(ordinal, criterionId, prose);
+  /** The same line's computed `(revision-id:)` — what a signed criterion verdict must carry. */
+  const revisionOf = (ordinal: number, prose: string): string =>
+    criterionRevision(ordinal, prose);
+
+  /** A signed verdict event, parsed so a malformed fixture fails HERE rather than folding to grey. */
+  const signed = (
+    seq: number,
+    unitId: string,
+    proofMode: "capability" | "story" | "contract",
+    outcome: "pass" | "fail",
+    binding?: { criterionId: string; revisionId: string },
+  ) => ({
+    kind: "signing",
+    seq,
+    doc: Verdict.parse({
+      unitId,
+      proofMode,
+      outcome,
+      commitSha: "ca".repeat(20),
+      signer: "ci@example.com",
+      runId: `run-${seq}`,
+      at: AT,
+      ...(binding ?? {}),
+    }),
+  });
+
+  const verdictEvents = [
+    // A capability's OWN signed verdict — the plant that greens on its own proof.
+    signed(1, "cap-a", "capability", "pass"),
+    // The live reliability gate: one own-proof obligation discharged, and — through its `(covers:)`
+    // — the only thing that can green `cap-b`, which has no verdict of its own.
+    signed(2, "alpha#gate-1", "story", "pass"),
+    // Criterion one: proven. Criterion two: proven and THEN regressed, so both `uatCriteria` states
+    // that are not `pending` are exercised — a fixture of passes alone would leave the `failing`
+    // branch of each surface's `applyUatCriteria` uncompared.
+    signed(3, C_ONE, "story", "pass", { criterionId: C_ONE, revisionId: revisionOf(1, CRITERION_ONE) }),
+    signed(4, C_TWO, "story", "pass", { criterionId: C_TWO, revisionId: revisionOf(2, CRITERION_TWO) }),
+    signed(5, C_TWO, "story", "fail", { criterionId: C_TWO, revisionId: revisionOf(2, CRITERION_TWO) }),
+    signed(6, "cap-c", "capability", "pass"),
+    // A legacy story's OWN unit verdict — never a roll-up, and it must survive the crown pass.
+    signed(7, "charlie", "story", "pass"),
+  ];
+
+  const latestVerdicts = {
+    "cap-a": { outcome: "pass", at: AT },
+    "cap-c": { outcome: "pass", at: AT },
+    charlie: { outcome: "pass", at: AT },
+  };
+
+  // Passed through verbatim by both surfaces, so its SHAPE is the assertion rather than its meaning.
+  const builds = [{ unitId: "cap-b", runId: "run-live", startedAt: AT, phase: "GREEN" }];
+
+  /** Write the shared `stories/` tree into one arm's fixture directory. */
+  const writeStories = (dir: string): void => {
+    // `uatLegs` is the number of criteria this body is authored to carry; the write refuses a body
+    // that does not parse into exactly that many. See `assertCriteriaParse` for why a silent
+    // refusal here would make the whole arm a vacuous pass.
+    const story = (id: string, body: string, uatLegs = 0): void => {
+      assertCriteriaParse(id, body, uatLegs);
+      mkdirSync(join(dir, "stories", id), { recursive: true });
+      writeFileSync(join(dir, "stories", id, "story.md"), body, "utf8");
+    };
+    const capability = (storyId: string, capId: string, body: string): void => {
+      writeFileSync(join(dir, "stories", storyId, `${capId}.md`), body, "utf8");
+    };
+
+    story(
+      "alpha",
+      [
+        "---",
+        'id: "alpha"',
+        "tier: story",
+        'title: "Alpha - the full shape"',
+        'outcome: "the alpha outcome"',
+        "status: proposed",
+        "proof_mode: UAT",
+        "capabilities: [cap-a, cap-b, cap-gone]",
+        "depends_on: [charlie]",
+        "consumed_by: [bravo]",
+        "decisions: [445, 443]",
+        "---",
+        "",
+        "# Alpha",
+        "",
+        "## Story UAT",
+        "",
+        criterion(1, C_ONE, CRITERION_ONE),
+        criterion(2, C_TWO, CRITERION_TWO),
+        "",
+        "## Reliability Gates",
+        "",
+        "1. **The suite is green** _(gate: observe)_ _(covers: cap-b)_ `pnpm test`.",
+        "2. **The withdrawn gate** _(gate: observe)_ _(retired)_ `pnpm gone`. Its ordinal is burned",
+        "   on purpose (ADR-0436) — it must leave BOTH the obligation union and the coverage set.",
+      ].join("\n"),
+      2,
+    );
+    capability(
+      "alpha",
+      "cap-a",
+      [
+        "---",
+        'id: "cap-a"',
+        "tier: capability",
+        'title: "Capability A"',
+        'outcome: "the cap-a outcome"',
+        "status: proposed",
+        "proof_mode: contract-test",
+        "depends_on: [cap-b]",
+        "---",
+        "",
+        "# Capability A",
+        "",
+        "## Contracts",
+        "",
+        // The bold CODE-SPAN id is what makes a numbered line a contract (`parseContracts` skips a
+        // stray list item), and `testCount` is `spec.contracts.length`. Authored without the
+        // backticks these parsed as nothing, both walks answered `testCount: 0`, and the control
+        // that re-seeds a `testCount` defect PASSED — a fixture arm that proved nothing while
+        // looking like it did. Kept as a note because the shape is not obvious from the field name.
+        "1. **`cap-a-first`** — it holds.",
+        "2. **`cap-a-second`** — it holds too.",
+      ].join("\n"),
+    );
+    capability(
+      "alpha",
+      "cap-b",
+      [
+        "---",
+        'id: "cap-b"',
+        "tier: capability",
+        'title: "Capability B"',
+        'outcome: "the cap-b outcome"',
+        "status: mapped",
+        "proof_mode: integration-test",
+        "---",
+        "",
+        "# Capability B",
+      ].join("\n"),
+    );
+    // `cap-gone.md` is DELIBERATELY absent — both walks must render `error: spec file missing`.
+
+    story(
+      "bravo",
+      [
+        "---",
+        'id: "bravo"',
+        "tier: story",
+        'title: "Bravo - the render hints"',
+        'outcome: "the bravo outcome"',
+        "status: proposed",
+        "proof_mode: UAT",
+        "uat_witness: machine",
+        "render: building",
+        "capabilities: [cap-c]",
+        "---",
+        "",
+        "# Bravo",
+      ].join("\n"),
+    );
+    capability(
+      "bravo",
+      "cap-c",
+      [
+        "---",
+        'id: "cap-c"',
+        "tier: capability",
+        'title: "Capability C"',
+        'outcome: "the cap-c outcome"',
+        "status: healthy",
+        "proof_mode: contract-test",
+        "---",
+        "",
+        "# Capability C",
+      ].join("\n"),
+    );
+
+    story(
+      "charlie",
+      [
+        "---",
+        'id: "charlie"',
+        "tier: story",
+        'title: "Charlie - the ordinary story"',
+        'outcome: "the charlie outcome"',
+        "status: proposed",
+        "proof_mode: UAT",
+        "---",
+        "",
+        "# Charlie",
+      ].join("\n"),
+    );
+
+    // A frontmatter block the spec loader cannot read — both walks take the catch branch.
+    story("delta", ["---", "id: [unclosed", "tier: story", "---", "", "# Delta"].join("\n"));
+
+    story(
+      "echo",
+      [
+        "---",
+        'id: "echo"',
+        "tier: story",
+        'title: "Echo - the aspirational legs"',
+        'outcome: "the echo outcome"',
+        "status: proposed",
+        "proof_mode: UAT",
+        "---",
+        "",
+        "# Echo",
+        "",
+        "## UAT Test Criteria (would-be)",
+        "",
+        criterion(1, C_WOULD_BE, CRITERION_WOULD_BE),
+      ].join("\n"),
+      1,
+    );
+
+    // A directory with no `story.md`, and a file at the stories root: both walks must SKIP each.
+    mkdirSync(join(dir, "stories", "no-story"), { recursive: true });
+    writeFileSync(join(dir, "stories", "no-story", "README.md"), "# not a story\n", "utf8");
+    writeFileSync(join(dir, "stories", "loose.md"), "# a loose file\n", "utf8");
+  };
+
+  /**
+   * The live arm's projection. Authored SEPARATELY from the `stories/` tree above rather than
+   * derived from it, and deliberately: deriving it would make this arm's input a function of the
+   * very walk it exists to be independent of. What the two surfaces must agree on here is how they
+   * fold ONE snapshot, never whether a snapshot matches a directory.
+   */
+  const snapshot = {
+    schemaVersion: 1,
+    commitSha: "fe".repeat(20),
+    storiesTreeSha: "ab".repeat(20),
+    generatedAt: AT,
+    generator: "check:mirror-conformance fixture",
+    stories: [
+      {
+        id: "alpha",
+        title: "Alpha - the full shape",
+        outcome: "the alpha outcome",
+        status: "proposed",
+        proofMode: "UAT",
+        uatWitness: "human",
+        dependsOn: ["charlie"],
+        consumedBy: ["bravo"],
+        decisions: [445, 443],
+        building: false,
+        capabilities: ["cap-a", "cap-b", "cap-gone"],
+        uatTestCriteria: [
+          {
+            id: "alpha#uat-1",
+            criterionId: C_ONE,
+            revisionId: revisionOf(1, CRITERION_ONE),
+            source: `1. ${CRITERION_ONE}`,
+            title: "The map paints from proof",
+            witness: "either",
+            wouldBe: false,
+          },
+        ],
+        reliabilityGates: [
+          {
+            id: "alpha#gate-1",
+            title: "The suite is green",
+            kind: "observe",
+            covers: ["cap-b"],
+            proofCommand: "pnpm test",
+            retired: false,
+          },
+          {
+            id: "alpha#gate-2",
+            title: "The withdrawn gate",
+            kind: "observe",
+            covers: [],
+            proofCommand: "pnpm gone",
+            retired: true,
+          },
+        ],
+      },
+      {
+        id: "bravo",
+        title: "Bravo - the render hints",
+        outcome: "the bravo outcome",
+        status: "proposed",
+        proofMode: "UAT",
+        uatWitness: "machine",
+        dependsOn: [],
+        consumedBy: [],
+        decisions: [],
+        building: true,
+        capabilities: ["cap-c"],
+        uatTestCriteria: [],
+        reliabilityGates: [],
+      },
+      {
+        // The projection's own `error` node — a spec the loader could not read, CARRIED rather than
+        // dropped so the store and the disk read agree about it.
+        id: "delta",
+        title: "delta",
+        outcome: "",
+        status: null,
+        proofMode: "",
+        uatWitness: null,
+        dependsOn: [],
+        consumedBy: [],
+        decisions: [],
+        building: false,
+        capabilities: [],
+        uatTestCriteria: [],
+        reliabilityGates: [],
+        error: "frontmatter did not parse",
+      },
+    ],
+    capabilities: [
+      {
+        id: "cap-a",
+        storyId: "alpha",
+        title: "Capability A",
+        outcome: "the cap-a outcome",
+        status: "proposed",
+        proofMode: "contract-test",
+        dependsOn: ["cap-b"],
+        contractCount: 2,
+      },
+      {
+        id: "cap-b",
+        storyId: "alpha",
+        title: "Capability B",
+        outcome: "the cap-b outcome",
+        status: "mapped",
+        proofMode: "integration-test",
+        dependsOn: [],
+        contractCount: 0,
+      },
+      {
+        id: "cap-gone",
+        storyId: "alpha",
+        title: "cap-gone",
+        outcome: "",
+        status: null,
+        proofMode: "",
+        dependsOn: [],
+        contractCount: 0,
+        error: "spec file missing",
+      },
+      {
+        id: "cap-c",
+        storyId: "bravo",
+        title: "Capability C",
+        outcome: "the cap-c outcome",
+        status: "healthy",
+        proofMode: "contract-test",
+        dependsOn: [],
+        contractCount: 0,
+      },
+    ],
+  };
+
+  const arm = (
+    label: string,
+    hierarchy: unknown,
+    proof: { latestVerdicts: unknown; verdictEvents: unknown; builds: unknown },
+  ) => {
+    const dir = join(root, label);
+    mkdirSync(dir, { recursive: true });
+    writeStories(dir);
+    writeFileSync(join(dir, "tree.json"), JSON.stringify({ hierarchy, ...proof, requests }), "utf8");
+    return { label: `tree-${label}`, arg: dir };
+  };
+
+  const proven = { latestVerdicts, verdictEvents, builds };
+  return {
+    dir: root,
+    inputs: [
+      arm("disk", { source: "empty" }, proven),
+      arm("live", { source: "live", snapshot }, proven),
+      // The advisory-absence arm: no projection seam at all, and every proof layer silent.
+      arm("absent", { source: "absent" }, { latestVerdicts: null, verdictEvents: null, builds: null }),
+    ],
+  };
+}
+
+/**
+ * The `attestations-fixtures` input set: two synthetic fixture DIRECTORIES, each a `stories/` tree
+ * plus an `attestations.json` carrying the two event streams the route joins and the request list
+ * both probes replay.
+ *
+ * WHY THE FIXTURE CARRIES RAW EVENTS RATHER THAN A MARKS MAP. The two surfaces draw their store seam
+ * at DIFFERENT levels: the studio's backend method `listAttestations` folds `events.attestation`
+ * through `deriveAttestations`, while the desktop folds the raw stream inside the route itself.
+ * Supplying one raw stream and letting each probe present it at its own surface's level is what
+ * keeps the comparison on the ROUTE composition — the layer mismatch that manufactured a false
+ * finding on `/api/health` one increment earlier is exactly this shape.
+ *
+ * WHY THESE REQUESTS. Each isolates something the two surfaces decide SEPARATELY:
+ *   · a story with legs, marks and signed verdicts — the ordinary row assembly, plus `storyUat`;
+ *   · a story with legs and NO marks, so a row that invented an empty `human`/`machine` key would
+ *     show up against one that omits them;
+ *   · an UNKNOWN story — the empty answer, which must be a 200 with no legs rather than a 404;
+ *   · a MISSING and a BLANK `storyId` — the 400 that makes the parameter required, and the fact that
+ *     `""` and absent are the same answer;
+ *   · an id that ESCAPES the stories root. The studio refuses it through `containedPath` and answers
+ *     exactly as if the story were missing; a surface that resolved it instead would be a filesystem
+ *     existence oracle carrying limited structured disclosure, and the tell is that its answer
+ *     DIFFERS from the absent one;
+ *   · a CAPABILITY id where a story id belongs — this route's vocabulary is stories, and a surface
+ *     that fell back to `<story>/<capId>.md` would answer a question nobody asked;
+ *   · a method NEITHER surface serves (`DELETE`), so the 405 guard is compared.
+ *
+ * ⚠ NO `POST` IS REPLAYED, and that is a decision rather than an omission. The studio's POST RECORDS
+ * an attestation (201); the desktop deliberately serves none and answers 405. That is a real,
+ * sanctioned difference — the `/api/me` shape — so replaying it would red this row forever on a
+ * correct answer. The row proves the READ pair; the write half has no mirror to be unequal to.
+ *
+ * WHY TWO ARMS. `attestations-proven` carries both streams, so the `proven` column and the story
+ * rollup are inside the comparison. `attestations-silent` wires `verdictEvents: null` and an EMPTY
+ * attestation log — the advisory-absence arm, and the only thing that catches a mirror emitting
+ * `storyUat: null` where its reference omits the key entirely. Absence is what the renderer keys on,
+ * so a surface that answered a null where the other answered nothing would drive the SAME compiled
+ * component into a different state.
+ */
+function buildAttestationsFixtures() {
+  const root = mkdtempSync(join(tmpdir(), "storytree-attestations-"));
+
+  const requests = [
+    { label: "read", method: "GET", path: "/api/attestations?storyId=alpha" },
+    { label: "read-no-marks", method: "GET", path: "/api/attestations?storyId=bravo" },
+    { label: "read-unknown", method: "GET", path: "/api/attestations?storyId=no-such-story" },
+    { label: "read-no-id", method: "GET", path: "/api/attestations" },
+    { label: "read-blank-id", method: "GET", path: "/api/attestations?storyId=" },
+    // Percent-encoded, so the guard is asked about a path that would ESCAPE the stories root.
+    { label: "read-escaping-id", method: "GET", path: "/api/attestations?storyId=..%2Fescaped" },
+    // A capability id where a story id belongs.
+    { label: "read-capability-id", method: "GET", path: "/api/attestations?storyId=cap-a" },
+    // A method neither surface serves — the shared 405 guard.
+    { label: "unsupported-method", method: "DELETE", path: "/api/attestations?storyId=alpha" },
+  ];
+
+  const AT = "2026-08-31T09:30:00.000Z";
+  const A_ONE = `uatc_${"a".repeat(23)}1`;
+  const A_TWO = `uatc_${"a".repeat(23)}2`;
+  const B_ONE = `uatc_${"b".repeat(23)}1`;
+  const CAP_ONE = `uatc_${"c".repeat(23)}1`;
+  const ESCAPED_ONE = `uatc_${"e".repeat(23)}1`;
+
+  const LEG_ONE = "**The panel opens** — clicking a story shows its legs.";
+  const LEG_TWO = "**The mark lands** — an operator vouch appears against the leg.";
+  const LEG_BRAVO = "**Bravo's only leg** — it holds.";
+  const LEG_CAP = "**A capability's own leg** — this route must never serve it.";
+  const LEG_ESCAPED = "**A leg outside the root** — reaching it at all is the whole defect.";
+
+  /** One authored criterion line; `detail` attaches the optional ADR-0209 D7 Library pointer. */
+  const criterion = (
+    ordinal: number,
+    criterionId: string,
+    prose: string,
+    detail?: string,
+  ): string => authoredCriterion(ordinal, criterionId, prose, detail);
+  /** The same line's computed `(revision-id:)` — what a signed verdict and a vouch must carry. */
+  const revisionOf = (ordinal: number, prose: string, detail?: string): string =>
+    criterionRevision(ordinal, prose, detail);
+
+  /** A recorded vouch, parsed so a malformed fixture fails HERE rather than folding to nothing. */
+  const mark = (seq: number, criterionId: string, revisionId: string, witness: "human" | "machine") => ({
+    seq,
+    doc: Attestation.parse({
+      testId: criterionId,
+      criterionId,
+      revisionId,
+      outcome: "pass",
+      witness,
+      signer: "operator@example.com",
+      at: AT,
+      note: `witnessed by ${witness}`,
+    }),
+  });
+
+  /** A signed criterion verdict — the PROVEN column, deliberately distinct from a vouch (ADR-0044). */
+  const signed = (seq: number, criterionId: string, revisionId: string, outcome: "pass" | "fail") => ({
+    kind: "signing",
+    seq,
+    doc: Verdict.parse({
+      unitId: criterionId,
+      criterionId,
+      revisionId,
+      proofMode: "story",
+      outcome,
+      commitSha: "da".repeat(20),
+      signer: "ci@example.com",
+      runId: `run-att-${seq}`,
+      at: AT,
+    }),
+  });
+
+  const writeStories = (dir: string): void => {
+    // `uatLegs` is the number of criteria this body is authored to carry; the write refuses a body
+    // that does not parse into exactly that many. See `assertCriteriaParse` for why a silent
+    // refusal here would make the whole arm a vacuous pass.
+    const story = (id: string, body: string, uatLegs = 0): void => {
+      assertCriteriaParse(id, body, uatLegs);
+      mkdirSync(join(dir, "stories", id), { recursive: true });
+      writeFileSync(join(dir, "stories", id, "story.md"), body, "utf8");
+    };
+    story(
+      "alpha",
+      [
+        "---",
+        'id: "alpha"',
+        "tier: story",
+        'title: "Alpha"',
+        'outcome: "the alpha outcome"',
+        // PAST `mapped`, so the "no `either` at rest" guard is live and `unresolvedWitnesses` can
+        // actually be populated. A still-mapped story would leave that field empty on both sides and
+        // the guard uncompared.
+        "status: proposed",
+        "proof_mode: UAT",
+        "capabilities: [cap-a]",
+        "---",
+        "",
+        "# Alpha",
+        "",
+        "## Story UAT",
+        "",
+        // Leg one declares a `(detail: …)` pointer, leg two does not — so the comparison sees both a
+        // row that carries `detailArtifactId` and one that must not invent the key.
+        criterion(1, A_ONE, LEG_ONE, "alpha#detail-1"),
+        criterion(2, A_TWO, LEG_TWO),
+      ].join("\n"),
+      2,
+    );
+    // A capability spec beside it: `?storyId=cap-a` must resolve to NOTHING on this route.
+    writeFileSync(
+      join(dir, "stories", "alpha", "cap-a.md"),
+      [
+        "---",
+        'id: "cap-a"',
+        "tier: capability",
+        'title: "Capability A"',
+        'outcome: "the cap-a outcome"',
+        "status: proposed",
+        "proof_mode: contract-test",
+        "---",
+        "",
+        "# Capability A",
+        "",
+        // A capability spec carrying its OWN criteria. Unusual to author, and the point: without
+        // legs on this file the two surfaces resolve `?storyId=cap-a` to DIFFERENT files and answer
+        // identically anyway, so the difference reaches no wire and the arm proves nothing about it.
+        "## UAT Test Criteria",
+        "",
+        authoredCriterion(1, CAP_ONE, LEG_CAP),
+      ].join("\n"),
+      "utf8",
+    );
+    story(
+      "bravo",
+      [
+        "---",
+        'id: "bravo"',
+        "tier: story",
+        'title: "Bravo"',
+        'outcome: "the bravo outcome"',
+        "status: proposed",
+        "proof_mode: UAT",
+        "---",
+        "",
+        "# Bravo",
+        "",
+        "## Story UAT",
+        "",
+        criterion(1, B_ONE, LEG_BRAVO),
+      ].join("\n"),
+      1,
+    );
+    // A REAL story.md one level ABOVE `stories/`, so `?storyId=../escaped` names something that
+    // genuinely exists and genuinely parses. An escaping id must still read exactly like a missing
+    // story — the whole point of the guard is that the refusal cannot be told apart from an absence,
+    // so the target has to be real, or the arm proves only that the path was empty.
+    mkdirSync(join(dir, "escaped"), { recursive: true });
+    const escaped = [
+      "---",
+      'id: "escaped"',
+      "tier: story",
+      'title: "Outside the stories root"',
+      'outcome: "must never be served"',
+      "status: proposed",
+      "proof_mode: UAT",
+      "---",
+      "",
+      "# Escaped",
+      "",
+      // It carries a LEG on purpose. With none, the escaped story reaches the wire as an empty
+      // `tests` list — indistinguishable from the refusal — so the arm would pass whether the
+      // containment guard held or not. Content is what makes an escape observable.
+      "## UAT Test Criteria",
+      "",
+      authoredCriterion(1, ESCAPED_ONE, LEG_ESCAPED),
+    ].join("\n");
+    assertCriteriaParse("escaped", escaped, 1);
+    writeFileSync(join(dir, "escaped", "story.md"), escaped, "utf8");
+  };
+
+  const arm = (
+    label: string,
+    attestationEvents: unknown[],
+    verdictEvents: unknown[] | null,
+  ) => {
+    const dir = join(root, label);
+    mkdirSync(dir, { recursive: true });
+    writeStories(dir);
+    writeFileSync(
+      join(dir, "attestations.json"),
+      JSON.stringify({ attestationEvents, verdictEvents, requests }),
+      "utf8",
+    );
+    return { label: `attestations-${label}`, arg: dir };
+  };
+
+  return {
+    dir: root,
+    inputs: [
+      arm(
+        "proven",
+        [
+          mark(1, A_ONE, revisionOf(1, LEG_ONE), "human"),
+          mark(2, A_ONE, revisionOf(1, LEG_ONE), "machine"),
+          // A mark for a leg on ANOTHER story — the join must leave it out of alpha's rows.
+          mark(3, B_ONE, revisionOf(1, LEG_BRAVO), "human"),
+        ],
+        [
+          signed(1, A_ONE, revisionOf(1, LEG_ONE), "pass"),
+          // Proven and then REGRESSED, so the `fail` branch of `proven` is exercised too.
+          signed(2, A_TWO, revisionOf(2, LEG_TWO), "pass"),
+          signed(3, A_TWO, revisionOf(2, LEG_TWO), "fail"),
+        ],
+      ),
+      // The advisory-absence arm: an empty vouch log and NO verdict stream at all.
+      arm("silent", [], null),
+    ],
+  };
+}
+
 function buildInputSets() {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
@@ -705,6 +1499,8 @@ function buildInputSets() {
   const floorHealth = buildFloorHealthFixtures();
   const traversal = buildTraversalFixtures();
   const comments = buildCommentsFixtures();
+  const tree = buildTreeFixtures();
+  const attestations = buildAttestationsFixtures();
   return {
     sets: {
       "docs-trees": [
@@ -716,6 +1512,8 @@ function buildInputSets() {
       "floor-health-fixtures": floorHealth.inputs,
       "traversal-fixtures": traversal.inputs,
       "comments-fixtures": comments.inputs,
+      "tree-fixtures": tree.inputs,
+      "attestations-fixtures": attestations.inputs,
     },
     cleanup: () => {
       rmSync(docsFixture, { recursive: true, force: true });
@@ -724,6 +1522,8 @@ function buildInputSets() {
       rmSync(floorHealth.dir, { recursive: true, force: true });
       rmSync(traversal.dir, { recursive: true, force: true });
       rmSync(comments.dir, { recursive: true, force: true });
+      rmSync(tree.dir, { recursive: true, force: true });
+      rmSync(attestations.dir, { recursive: true, force: true });
     },
   };
 }
@@ -773,6 +1573,18 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
     case "comments-fixtures":
       try {
         return projectCommentsPayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
+    case "tree-fixtures":
+      try {
+        return projectTreePayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
+    case "attestations-fixtures":
+      try {
+        return projectAttestationsPayload(payload);
       } catch (err) {
         throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
       }
