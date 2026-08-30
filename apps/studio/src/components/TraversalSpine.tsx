@@ -51,7 +51,14 @@ import {
   reportKnowledgeDepth,
   type KnowledgeDepthModel,
 } from '../lib/knowledgeDepth';
-import { TRAVERSAL_MAX_DRAWN_DEPTH } from '../lib/traversalDepth';
+import {
+  axisCaption,
+  axisRowLabel,
+  buildKnowledgeAxis,
+  knowledgeAxisRow,
+  TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH,
+  type KnowledgeAxis,
+} from '../lib/traversalKnowledgeAxis';
 import type { TraversalOffer } from '../lib/traversalOffers';
 import {
   bandGuidance,
@@ -225,15 +232,45 @@ export function TraversalSpine({
 
   const isCompact = compact || selfCompact;
 
+  // ── the drawn vertical (ADR-0482 D1–D3, `traversal-panel-depth-on-the-axis`) ───────────────────
+  //
+  // THE AXIS IS RESOLVED HERE, ONCE, AND BOTH THE MARKS AND THE EDGES READ THE SAME MAP. Resolving a
+  // row twice — once per mark and once per edge end — is how an edge comes to end somewhere its own
+  // mark is not: the two calls would have to stay in step through every future change to the join.
+  //
+  // It cannot be resolved in `buildTraversalSpine` instead, which is where the old `parentVisitId`
+  // depth was: that reading came out of the trace alone, and this one needs the CORPUS, which only
+  // the mount has. So the model still carries the session depth as telemetry (ADR-0482 D5) and the
+  // drawn row is a render-time join, inside ADR-0363 D2's read-only fence like every other use of it.
+  const report = useMemo(
+    () => (knowledge ? reportKnowledgeDepth(replay.events, knowledge) : null),
+    [replay.events, knowledge],
+  );
+  const axis = useMemo(() => buildKnowledgeAxis(report), [report]);
+  const rowByMarkId = useMemo(() => {
+    const rows = new Map<string, number>();
+    for (const mark of marks) {
+      rows.set(
+        mark.id,
+        knowledgeAxisRow(axis, knowledge ? markKnowledgeDepth(knowledge, mark.nodeId) : null),
+      );
+    }
+    return rows;
+  }, [marks, axis, knowledge]);
+  // A mark id the map does not hold cannot arise — the map is built from these same marks — so this
+  // is the surface a caller reads, not a fallback with a story. 0 is the spine: the answer for a read
+  // with no reading, which is what an unknown id would be.
+  const rowOf = (markId: string): number => rowByMarkId.get(markId) ?? 0;
+
   const geometry = useMemo(
     () =>
       computeGeometry({
         box,
         totalPx: scale.totalPx,
         hasOffers: offers.offers.length > 0,
-        maxDepth: depth.maxDepth,
+        rows: axis.rows,
       }),
-    [box, scale.totalPx, offers.offers.length, depth.maxDepth],
+    [box, scale.totalPx, offers.offers.length, axis.rows],
   );
 
   const nothingToDraw = marks.length === 0 && offers.offers.length === 0;
@@ -282,6 +319,23 @@ export function TraversalSpine({
             {marks.length} mark{marks.length === 1 ? '' : 's'} · {scale.folds.length} fold
             {scale.folds.length === 1 ? '' : 's'} · axis {Math.round(scale.totalPx)}px
           </span>
+          {/* ADR-0482 D2's LABELLING, and it is load-bearing rather than decorative. The vertical
+              now reads a corpus distance, which ADR-0354 clause 5 forbade drawing precisely because
+              a reader would take it for the session's own descent. The clause is reversed for the
+              axis and its intent kept HERE: the picture says what the vertical means, in the same
+              line that already states the mark and fold counts, with the full sentence on hover.
+              Removing this does not tidy the meta line — it repeals the condition the reversal was
+              granted on. */}
+          <span
+            className="traversal-axis-note small muted"
+            data-testid="traversal-depth-axis-note"
+            data-axis-measured={axis.measured ? 'true' : 'false'}
+            data-axis-rows={axis.rows}
+            {...(axis.deepest === null ? {} : { 'data-axis-deepest': axis.deepest })}
+            title={axisCaption(axis)}
+          >
+            {axis.measured ? 'depth ↓ corpus distance' : 'depth ↓ unmeasured'}
+          </span>
           <KnowledgeChip replay={replay} knowledge={knowledge} />
         </div>
 
@@ -302,7 +356,7 @@ export function TraversalSpine({
                 role="presentation"
                 data-testid="traversal-row-labels"
               >
-                <RowLabels geometry={geometry} hasOffers={offers.offers.length > 0} />
+                <RowLabels geometry={geometry} axis={axis} hasOffers={offers.offers.length > 0} />
               </svg>
             </div>
 
@@ -342,8 +396,8 @@ export function TraversalSpine({
                     key={edge.id}
                     className={`traversal-edge strength-${edge.strength}${playPos >= edge.toY ? ' is-visible' : ''}`}
                     data-strength={edge.strength}
-                    data-depth-move={depthMove(edge)}
-                    d={edgePath(geometry, edge)}
+                    data-depth-move={depthMove(rowOf(edge.fromId), rowOf(edge.toId))}
+                    d={edgePath(geometry, edge, rowOf(edge.fromId), rowOf(edge.toId))}
                   />
                 ))}
 
@@ -352,6 +406,7 @@ export function TraversalSpine({
                     key={mark.id}
                     mark={mark}
                     geometry={geometry}
+                    row={rowOf(mark.id)}
                     visible={playPos >= mark.y}
                     {...(knowledge ? { knowledge } : {})}
                   />
@@ -469,16 +524,21 @@ function computeGeometry({
   box,
   totalPx,
   hasOffers,
-  maxDepth,
+  rows,
 }: {
   box: { width: number; height: number };
   totalPx: number;
   hasOffers: boolean;
-  maxDepth: number;
+  /**
+   * Rows BELOW the spine, from the knowledge axis — depth rows plus the unmeasured row
+   * (`traversalKnowledgeAxis.ts`). Already clamped there, so no second clamp lives here: two clamps
+   * at two altitudes is how a picture ends up with rows nothing draws on.
+   */
+  rows: number;
 }): Geometry {
   const available = Math.max(240, box.width);
   const axisBand = box.height < 120 ? 20 : 26;
-  const depthRows = Math.min(TRAVERSAL_MAX_DRAWN_DEPTH, maxDepth);
+  const depthRows = rows;
 
   const height0 = Math.max(56, box.height);
   const offerBand = hasOffers ? Math.min(52, Math.max(14, (height0 - axisBand) * 0.24)) : 6;
@@ -513,7 +573,7 @@ function computeGeometry({
     markRadius: Math.max(2.4, Math.min(4.2, step * 0.16)),
     axisY: height - axisBand + 6,
     x: (axisUnits: number) => AXIS_HEAD + axisUnits * sx,
-    depthY: (d: number) => spineY + step * Math.min(TRAVERSAL_MAX_DRAWN_DEPTH, Math.max(0, d)),
+    depthY: (d: number) => spineY + step * Math.min(depthRows, Math.max(0, d)),
   };
 }
 
@@ -594,16 +654,24 @@ function Axis({
 /** The gutter: what each row IS, so the picture itself needs no in-band prose. */
 function RowLabels({
   geometry,
+  axis,
   hasOffers,
 }: {
   geometry: Geometry;
+  /**
+   * The knowledge axis, so the ROW NAMES come from the same module that decided the row POSITIONS
+   * (ADR-0482 D2). The labelling is what preserves the reversed clause's intent — an unlabelled
+   * vertical re-creates the claim ADR-0354 clause 5 was written to prevent — so a renderer inventing
+   * its own words here would quietly repeal it.
+   */
+  axis: KnowledgeAxis;
   hasOffers: boolean;
 }): React.JSX.Element {
   const rows: { y: number; text: string; strong?: boolean }[] = [];
   if (hasOffers) rows.push({ y: Math.max(9, geometry.offerBand / 2), text: 'offers ↑' });
-  rows.push({ y: geometry.spineY, text: 'spine', strong: true });
+  rows.push({ y: geometry.spineY, text: axis.measured ? axisRowLabel(axis, 0) : 'spine', strong: true });
   for (let d = 1; d <= geometry.depthRows; d += 1) {
-    rows.push({ y: geometry.depthY(d), text: `depth ${d}` });
+    rows.push({ y: geometry.depthY(d), text: axisRowLabel(axis, d) });
   }
   rows.push({ y: geometry.height - geometry.axisBand + 15, text: 'time →' });
 
@@ -644,16 +712,22 @@ function RowLabels({
 function Mark({
   mark,
   geometry,
+  row,
   visible,
   knowledge,
 }: {
   mark: TraversalMark;
   geometry: Geometry;
+  /**
+   * The DRAWN row, resolved once by the mount from the knowledge axis (ADR-0482 D1). Passed in rather
+   * than recomputed here so this mark and the edges touching it cannot land on different rows.
+   */
+  row: number;
   visible: boolean;
   knowledge?: KnowledgeDepthModel;
 }): React.JSX.Element {
   const x = geometry.x(mark.y);
-  const y = geometry.depthY(mark.depth);
+  const y = geometry.depthY(row);
   const r = geometry.markRadius;
   const reading = knowledge ? markKnowledgeDepth(knowledge, mark.nodeId) : null;
   return (
@@ -661,6 +735,11 @@ function Mark({
       className={`traversal-mark strength-${mark.strength}${visible ? ' is-visible' : ''}`}
       data-testid="traversal-mark"
       data-strength={mark.strength}
+      // The DRAWN row — corpus distance since ADR-0482 D1.
+      data-row={row}
+      // The SESSION-traversal depth from `parentVisitId`, kept as telemetry and no longer drawn
+      // (ADR-0482 D5, the ADR-0393 precedent). It is a DIFFERENT QUANTITY from `data-row` and the two
+      // are never comparable — see `surface-depth.ts`'s header before summing or contrasting them.
       data-depth={mark.depth}
       {...(reading ? { 'data-knowledge-depth': reading.attr } : {})}
     >
@@ -920,20 +999,20 @@ function Legend(): React.JSX.Element {
  * the control offset is capped, so a long run of flat time stays flat and the depth move stays
  * legible as a move.
  */
-function edgePath(geometry: Geometry, edge: TraversalEdge): string {
+function edgePath(geometry: Geometry, edge: TraversalEdge, fromRow: number, toRow: number): string {
   const x0 = geometry.x(edge.fromY);
   const x1 = geometry.x(edge.toY);
-  const y0 = geometry.depthY(edge.fromDepth);
-  const y1 = geometry.depthY(edge.toDepth);
+  const y0 = geometry.depthY(fromRow);
+  const y1 = geometry.depthY(toRow);
   if (y0 === y1) return `M ${x0} ${y0} L ${x1} ${y1}`;
   const bend = Math.min(16, Math.abs(x1 - x0) / 2);
   return `M ${x0} ${y0} L ${Math.max(x0, x1 - bend * 2)} ${y0} C ${x1 - bend} ${y0}, ${x1 - bend} ${y1}, ${x1} ${y1}`;
 }
 
 /** Which way this step moved in depth — the "a descent indents, a return comes back" clause. */
-function depthMove(edge: TraversalEdge): 'descend' | 'return' | 'level' {
-  if (edge.toDepth > edge.fromDepth) return 'descend';
-  if (edge.toDepth < edge.fromDepth) return 'return';
+function depthMove(fromRow: number, toRow: number): 'descend' | 'return' | 'level' {
+  if (toRow > fromRow) return 'descend';
+  if (toRow < fromRow) return 'return';
   return 'level';
 }
 
@@ -943,7 +1022,11 @@ export const TRAVERSAL_SPINE_GEOMETRY = {
   AXIS_TAIL,
   MIN_PICTURE_PX,
   RELEASE_COMPACT_PX,
-  MAX_DRAWN_DEPTH: TRAVERSAL_MAX_DRAWN_DEPTH,
+  // The vertical's clamp lives with the axis now (ADR-0482 D1): the rows are corpus distance, so the
+  // ceiling is a property of the corpus reading rather than of the session-descent module that used
+  // to feed them. `TRAVERSAL_MAX_DRAWN_DEPTH` still exists and still bounds `traversalDepth.ts`'s own
+  // reading, which is still computed and no longer drawn.
+  MAX_DRAWN_DEPTH: TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH,
 } as const;
 
 /** Exposed for the bounds test, which must hold every drawn coordinate inside the computed viewBox. */

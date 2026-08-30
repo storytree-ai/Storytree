@@ -70,6 +70,18 @@ export interface TraversalMark {
 
 export interface TraversalEdge {
   readonly id: string;
+  /**
+   * The MARK ids this edge joins, so a renderer that resolves a mark to a drawn row can resolve this
+   * edge to the same two rows without re-deriving them.
+   *
+   * Carried rather than parsed back out of {@link TraversalEdge.id}, which is a composite of both and
+   * is a display handle: the drawn vertical is the knowledge axis now
+   * (`traversalKnowledgeAxis.ts`, ADR-0482 D1), it is resolved at render where the corpus is, and an
+   * edge whose ends were recovered from a formatted string would detach from its marks the day the
+   * format changed.
+   */
+  readonly fromId: string;
+  readonly toId: string;
   readonly fromY: number;
   readonly toY: number;
   /** The source and target indentation, so a descent and a return are drawn as the moves they were. */
@@ -144,6 +156,8 @@ export function buildTraversalSpine(
     const to = marks[index] as TraversalMark;
     edges.push({
       id: `${from.id}->${to.id}`,
+      fromId: from.id,
+      toId: to.id,
       fromY: from.y,
       toY: to.y,
       fromDepth: from.depth,

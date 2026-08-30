@@ -483,6 +483,7 @@
       "apps/studio/src/lib/worldSettings.ts": "studio",
       "apps/studio/src/lib/traversalIndex.ts": "studio",
       "apps/studio/src/lib/knowledgeDepth.ts": "studio",
+      "apps/studio/src/lib/traversalKnowledgeAxis.ts": "studio",
       "apps/studio/src/lib/worldStatus.ts": "studio",
 
       "$section_studio_shell": "apps/studio — the SPA shell, the Playwright/Vitest configs and the story-UAT spec.",
