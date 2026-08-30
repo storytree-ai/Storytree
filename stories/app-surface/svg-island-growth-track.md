@@ -17,15 +17,15 @@ proof:
     file: pnpm
     args: ["--filter", "@storytree/app-surface", "test"]
   scope:
-    testGlobs: ["packages/app-surface/src/svg-island-growth.test.tsx", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
-    sourceGlobs: ["packages/app-surface/src/svg-island-growth.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts"]
+    testGlobs: ["packages/app-surface/src/svg-island-accretion.test.tsx", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
+    sourceGlobs: ["packages/app-surface/src/svg-island-accretion.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts"]
   real:
-    testFile: "packages/app-surface/src/svg-island-growth.test.tsx"
-    sourceFile: "packages/app-surface/src/SemanticGrowthWorldView.tsx"
+    testFile: "packages/app-surface/src/svg-island-accretion.test.tsx"
+    sourceFile: "packages/app-surface/src/svg-island-accretion.ts"
     editsExisting: true
     scope:
-      testGlobs: ["packages/app-surface/src/svg-island-growth.test.tsx", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
-      sourceGlobs: ["packages/app-surface/src/svg-island-growth.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts"]
+      testGlobs: ["packages/app-surface/src/svg-island-accretion.test.tsx", "packages/app-surface/src/SemanticGrowthWorldView.test.tsx", "packages/app-surface/src/SceneView.test.tsx"]
+      sourceGlobs: ["packages/app-surface/src/svg-island-accretion.ts", "packages/app-surface/src/SemanticGrowthWorldView.tsx", "packages/app-surface/src/semantic-growth.css", "packages/app-surface/src/SceneView.tsx", "packages/app-surface/src/index.ts"]
     install: true
     proofCommand:
       file: pnpm
