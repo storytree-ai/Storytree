@@ -2198,8 +2198,15 @@ interface DraftMutant {
   status: string;
   killedBy: string[];
   replacement?: string;
-  location?: ReportMutant["location"];
+  // NonNullable, not `ReportMutant["location"]`. Indexing an optional property yields the union WITH
+  // `undefined`, and under `exactOptionalPropertyTypes` an optional property whose type includes
+  // undefined is not assignable to one whose type does not — so the indexed form makes this draft
+  // unassignable to the very interface it is a draft of.
+  location?: MutantLocation;
 }
+
+/** A {@link ReportMutant} location with the optional-property `undefined` stripped off. */
+type MutantLocation = NonNullable<ReportMutant["location"]>;
 
 /**
  * One mutant with whatever parts of a span and a replacement the caller wants to supply.
@@ -2208,7 +2215,7 @@ interface DraftMutant {
  * cases is a report that OMITS a field, and `never-hide-omission-in-an-empty-spread` exists because
  * an empty-object spread makes the omission unreadable at the site that performs it.
  */
-function partialSpanReport(location: ReportMutant["location"], replacement?: string): MutationReport {
+function partialSpanReport(location: MutantLocation | undefined, replacement?: string): MutationReport {
   const mutant: DraftMutant = {
     id: "m1",
     mutatorName: "ConditionalExpression",
