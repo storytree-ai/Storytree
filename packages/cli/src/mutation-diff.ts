@@ -304,7 +304,16 @@ function normalise(p: string): string {
   return p.replace(/\\/g, "/").replace(/^\.\//, "").trim();
 }
 
-/** A `.ts` source file worth mutating: not a declaration, not a test, not a fixture. */
+/**
+ * A `.ts` source file worth mutating: not a declaration, not a test.
+ *
+ * ⚠ FIXTURES ARE NOT EXCLUDED, and this comment used to say they were — a docstring naming three
+ * conditions over a body that implements two. A frozen data module is therefore mutated word by
+ * word (measured 2026-08-28: 1,303 of one run's 1,484 mutants, 88%, one `StringLiteral` per
+ * captured word). Whether to exclude them, and on what predicate, is friction
+ * `mutation-diff-mutates-frozen-data-fixtures` and is not decided here; today's answer is to put a
+ * fixture inside its own `.test.ts`, which this function does exclude.
+ */
 function isMutableSource(file: string): boolean {
   if (!file.endsWith(".ts")) return false;
   if (file.endsWith(".d.ts")) return false;
@@ -760,13 +769,19 @@ export function changedLinesAreCodeFree(
   return true;
 }
 
-/** How one mutant was accounted for. Only `"proven"` passes; `"excluded"` is not counted at all. */
+/**
+ * How one mutant was accounted for. Only `"proven"` passes; `"excluded"` and `"unwitnessable"` are
+ * not counted at all — and they are not the same absence. `"excluded"` is a status this rung has no
+ * opinion about (a compile error, an ignored mutant); `"unwitnessable"` is a mutant this rung was
+ * STRUCTURALLY UNABLE to test, which is a gap in the instrument and is named on every run.
+ */
 export type MutantOutcome =
   | "proven"
   | "killed-by-others"
   | "unproven"
   | "survived"
   | "no-coverage"
+  | "unwitnessable"
   | "excluded";
 
 /** The mutation-testing-report-schema v1.0 subset this rung reads. */
@@ -784,7 +799,19 @@ export interface ReportMutant {
   readonly mutatorName?: string;
   readonly status?: string;
   readonly killedBy?: readonly string[];
-  readonly location?: { readonly start?: { readonly line?: number } };
+  /**
+   * The exact text Stryker substituted. Carried because `file:line [Mutator]` does NOT identify a
+   * mutant: one line commonly holds several mutants of the SAME mutator on different spans, and a
+   * reader handed only the line applies the replacement to the wrong one. Measured 2026-08-30 on
+   * `packages/cli/src/friction.ts:605` — eight mutants, three of them `ConditionalExpression`, on
+   * the left operand, the whole condition and the right operand; the survivor was the left operand
+   * and the whole condition is killed, so the obvious hand-check disproves the rung and is wrong.
+   */
+  readonly replacement?: string;
+  readonly location?: {
+    readonly start?: { readonly line?: number; readonly column?: number };
+    readonly end?: { readonly line?: number; readonly column?: number };
+  };
 }
 
 export interface ReportTest {
@@ -868,9 +895,15 @@ export function mergeMutationReports(parts: readonly ReportPart[]): MutationRepo
 export interface AdjudicatedMutant {
   readonly file: string;
   readonly line: number | null;
+  /** 1-based start column of the mutated span; `null` when the report omitted it. */
+  readonly column: number | null;
+  /** 1-based end column, exclusive — the same convention Stryker's report uses. */
+  readonly endColumn: number | null;
   readonly mutator: string;
   readonly status: string;
   readonly outcome: MutantOutcome;
+  /** The text Stryker substituted for the span, when the report carried it. */
+  readonly replacement: string | null;
   /** Repo-relative test files credited with the kill, when they could be resolved. */
   readonly killedByFiles: readonly string[];
 }
@@ -880,6 +913,12 @@ export interface MutationVerdict {
   readonly counted: number;
   readonly mutants: readonly AdjudicatedMutant[];
   readonly reasons: readonly string[];
+  /**
+   * What this run could NOT ask, in the {@link runsUnderBun} tradition: printed on a pass as well as
+   * a failure, because a gap nobody can see is worse than one named on every run. Narrowings never
+   * red the gate — they are not the author's doing and there is nothing in the branch to fix.
+   */
+  readonly narrowings: readonly string[];
 }
 
 /**
@@ -921,6 +960,70 @@ function resolveTestFiles(report: MutationReport, changedTestFiles: readonly str
 }
 
 /**
+ * The workspace package a repo-relative path belongs to (`packages/cli`, `apps/studio`), or `null`
+ * for a repo-root path that belongs to none.
+ *
+ * The LAST match wins, not the first. Stryker's report keys are the SANDBOX's absolute paths, and a
+ * checkout can sit under a directory that happens to be called `packages` — taking the first match
+ * would then read the enclosing filesystem as a workspace package on some machines and not others.
+ */
+export function workspacePackageOf(file: string): string | null {
+  // `previous` starts as null rather than "" so the walk carries no sentinel STRING: an initial ""
+  // is compared only against "packages" and "apps", so no input could ever distinguish it from any
+  // other string, and it would sit here as a permanently unkillable mutant.
+  let found: string | null = null;
+  let previous: string | null = null;
+  for (const segment of normalise(file).split("/")) {
+    if ((previous === "packages" || previous === "apps") && segment !== "") found = `${previous}/${segment}`;
+    previous = segment;
+  }
+  return found;
+}
+
+/**
+ * THE BLIND SPOT THIS RUNG MUST NAME RATHER THAN SCORE. Measured 2026-08-30, end to end.
+ *
+ * Stryker copies the project into a sandbox and mutates the copy. It also SYMLINKS every
+ * `node_modules` it finds, so `<sandbox>/packages/cli/node_modules` points at the REAL
+ * `packages/cli/node_modules`, whose `@storytree/library` entry is in turn an ABSOLUTE symlink to
+ * the real `packages/library/`. A sandboxed test that imports a workspace sibling BY PACKAGE NAME —
+ * which is this repo's stated convention for every cross-package import — therefore loads the
+ * UNMUTATED original. Stryker runs the suite against a mutant nothing imported, observes correctly
+ * that no test noticed, and records `Survived`.
+ *
+ * `Survived` is this rung's most severe verdict and reds a merge-blocking PR. Emitting it for a
+ * mutant no test in the run COULD have witnessed is a false red with no honest remedy: the author
+ * can only write a test that cannot help, or suppress a mutant that was never alive. Both happened
+ * on PR #1727, which is where this was found.
+ *
+ * The predicate is deliberately coarse and derived FROM THE REPORT, never from the config: a mutant
+ * in package P is witnessable only if the run actually executed a test file in P. It cannot drift
+ * from the run it describes, and it does not need to know how the groups were formed. A mutated
+ * file in no workspace package (a repo-root script) is left alone — nothing reaches it through a
+ * package symlink.
+ *
+ * THIS NAMES THE GAP; IT DOES NOT CLOSE IT. Closing it means either `symlinkNodeModules: false`
+ * (which copies a pnpm store into every sandbox) or `inPlace: true` (which mutates the real working
+ * tree on a shared box). Both are decisions with a cost worth stating before anyone pays it.
+ *
+ * ⚠ AN EMPTY ANSWER MEANS "CANNOT TELL", AND IT MUST NOT NARROW ANYTHING. A report that enumerates
+ * no test file in any workspace package cannot answer the reachability question at all, and reading
+ * that silence as "no package ran tests" would excuse EVERY mutant in the run — turning a rung that
+ * reds on a real survivor into one that quietly excuses it, which is a far worse failure than the
+ * false red this rule exists to remove. Narrowing therefore requires POSITIVE evidence: the run
+ * enumerated tests in at least one package, and this file's package is not among them. `null` is
+ * returned for the unanswerable case so a caller cannot mistake it for an empty result.
+ */
+function packagesWithTestsInRun(report: MutationReport): ReadonlySet<string> | null {
+  const packages = new Set<string>();
+  for (const rawPath of Object.keys(report.testFiles ?? {})) {
+    const pkg = workspacePackageOf(rawPath);
+    if (pkg !== null) packages.add(pkg);
+  }
+  return packages.size === 0 ? null : packages;
+}
+
+/**
  * Adjudicate the report against this branch's own changed tests.
  *
  * A VACUOUS RUN IS ITS OWN VERDICT, distinct from a pass. If the selection said there was source to
@@ -934,10 +1037,21 @@ export function adjudicateMutants(
   changedTestFiles: readonly string[],
 ): MutationVerdict {
   const { idToFile, changedReportPaths } = resolveTestFiles(report, changedTestFiles);
+  const ranPackages = packagesWithTestsInRun(report);
   const mutants: AdjudicatedMutant[] = [];
+  const unwitnessablePackages = new Set<string>();
 
   for (const [rawFile, entry] of Object.entries(report.files ?? {})) {
     const file = normalise(rawFile);
+    // The reachability question is asked ONCE PER FILE and BEFORE the status is read, because it is
+    // about the run and not about the mutant: when no test in this file's package ran, every status
+    // the report carries for it was decided against a copy nothing imported.
+    const pkg = workspacePackageOf(file);
+    let witnessable = true;
+    if (pkg !== null && ranPackages !== null && !ranPackages.has(pkg)) {
+      witnessable = false;
+      unwitnessablePackages.add(pkg);
+    }
     for (const mutant of entry?.mutants ?? []) {
       const status = mutant.status ?? "Unknown";
       const killedByFiles = [
@@ -950,15 +1064,29 @@ export function adjudicateMutants(
       mutants.push({
         file,
         line: mutant.location?.start?.line ?? null,
+        column: mutant.location?.start?.column ?? null,
+        endColumn: mutant.location?.end?.column ?? null,
         mutator: mutant.mutatorName ?? "unknown",
         status,
-        outcome: classify(status, killedByFiles, changedReportPaths),
+        replacement: mutant.replacement ?? null,
+        outcome: witnessable ? classify(status, killedByFiles, changedReportPaths) : "unwitnessable",
         killedByFiles: killedByFiles.sort(),
       });
     }
   }
 
-  const counted = mutants.filter((m) => m.outcome !== "excluded");
+  // Worded as `formatNarrowingLines`'s siblings are, because a reader meets them in the same output
+  // and they are the same news: something this rung could not ask. That one narrows at SELECTION
+  // (a file never mutated); this narrows at ADJUDICATION (a file mutated against a copy no test
+  // imported), so it carries its own marker rather than being folded into the other.
+  const narrowings = [...unwitnessablePackages].sort().map(
+    (pkg) =>
+      `NARROWED (BLIND): ${pkg} was mutated but this run executed no test inside it — a test in ` +
+      `another package cannot witness a mutant here, because Stryker's sandbox resolves workspace ` +
+      `imports back out to the unmutated original. Those mutants are NOT scored.`,
+  );
+
+  const counted = mutants.filter((m) => m.outcome !== "excluded" && m.outcome !== "unwitnessable");
   const reasons: string[] = [];
   const tally = (outcome: MutantOutcome): number => counted.filter((m) => m.outcome === outcome).length;
 
@@ -970,6 +1098,7 @@ export function adjudicateMutants(
       reasons: [
         "source was selected for mutation but the report counted no mutants — the run proved nothing, which is not a pass",
       ],
+      narrowings,
     };
   }
 
@@ -996,7 +1125,31 @@ export function adjudicateMutants(
     counted: counted.length,
     mutants,
     reasons,
+    narrowings,
   };
+}
+
+/**
+ * Did this run count nothing BECAUSE everything it found was structurally unwitnessable?
+ *
+ * The shell needs this fork because the two ways to count nothing want opposite treatment. A report
+ * that carried no mutant at all is the `vacuous` failure the rung already refuses to call a pass —
+ * a bad glob, a sandbox that failed to build. A report full of mutants in a package whose tests
+ * never ran is a NARROWED run: it proved nothing, it says exactly why, and there is nothing the
+ * branch could change to make it prove more. Redding a PR for that is the false red this whole
+ * change exists to remove.
+ *
+ * ONE SIGNAL IS ENOUGH HERE, unlike the comment-only skip alongside it, and the difference is
+ * where the evidence comes from. That one infers a fact about the DIFF from a report that never saw
+ * the diff, so it needs a second, independent reading of the source. This one is derived entirely
+ * from the report — the packages it mutated, and the packages whose tests it ran — so the report is
+ * already the primary witness to its own blindness.
+ */
+export function isNarrowedToNothing(verdict: MutationVerdict): boolean {
+  // Two clauses, not three: an unwitnessable mutant ALWAYS produces a narrowing, so also testing
+  // `narrowings.length > 0` would be a clause no input can make false while the second is true —
+  // dead, and therefore an unkillable mutant, which is the shape this rung exists to refuse.
+  return verdict.verdict === "vacuous" && verdict.mutants.some((m) => m.outcome === "unwitnessable");
 }
 
 /** The per-mutant rule. Kept separate so the table of statuses is readable in one screen. */
@@ -1032,17 +1185,97 @@ function classify(
   }
 }
 
-/** Render the verdict for a terminal. Pure — the caller owns the exit code. */
+/**
+ * Name one mutant so a reader can act on it, which means naming the SPAN and not just the line.
+ *
+ * `file:line [Mutator]` does not identify a mutant. Measured 2026-08-30: `packages/cli/src/friction.ts:605`
+ * carries eight mutants, three of them `ConditionalExpression`, on the left operand, the whole
+ * condition and the right operand. Only the left operand survived, and the whole-condition mutant —
+ * the one a reader naturally reaches for — is killed. The session that hand-checked it therefore
+ * disproved a mutant the rung never reported, and filed the rung itself as broken.
+ *
+ * `sources` is optional so the pure core stays pure: with it the line quotes the ORIGINAL text, and
+ * without it the columns still pin the span exactly.
+ */
+function describeMutant(mutant: AdjudicatedMutant, sources?: ReadonlyMap<string, string>): string {
+  const span = completeSpan(mutant);
+  const where =
+    span === null
+      ? mutant.line === null
+        ? mutant.file
+        : `${mutant.file}:${mutant.line}`
+      : `${mutant.file}:${span.line}:${span.column}-${span.endColumn}`;
+  const head = `${where} [${mutant.mutator}]`;
+  if (mutant.replacement === null) return head;
+  const text = sources === undefined ? undefined : sources.get(mutant.file);
+  const original = span === null ? null : originalSpan(text, span);
+  if (original === null) return `${head} -> ${quote(mutant.replacement)}`;
+  return `${head} ${quote(original)} -> ${quote(mutant.replacement)}`;
+}
+
+/** Wrap a fragment of source in backticks so a reader can see its exact extent, whitespace included. */
+function quote(text: string): string {
+  return `\`${text}\``;
+}
+
+/** A one-line span the report carried in full. */
+interface MutantSpan {
+  readonly line: number;
+  readonly column: number;
+  readonly endColumn: number;
+}
+
+/**
+ * The mutant's span, or `null` when the report left any part of it out.
+ *
+ * ONE completeness test, shared by the label and the quote, rather than one in each: a second copy
+ * is a branch no input can reach independently, and an unreachable branch is an unkillable mutant.
+ */
+function completeSpan(mutant: AdjudicatedMutant): MutantSpan | null {
+  const { line, column, endColumn } = mutant;
+  if (line === null || column === null || endColumn === null) return null;
+  return { line, column, endColumn };
+}
+
+/**
+ * The source text the mutant replaced, when the caller supplied the file.
+ *
+ * A MULTI-LINE SPAN IS DELIBERATELY NOT RECONSTRUCTED. Stryker mutates whole block statements and
+ * arrow bodies, so a span can run for pages: quoting it would bury the verdict, and quoting a
+ * TRUNCATION of it would hand the reader something that is not the mutated text — the exact class of
+ * near-miss this function exists to remove. A span whose end runs past the line it starts on is one
+ * of those, and is declined rather than clipped; the columns still name it unambiguously.
+ */
+function originalSpan(text: string | undefined, span: MutantSpan): string | null {
+  if (text === undefined) return null;
+  const line = text.split(/\r?\n/)[span.line - 1];
+  if (line === undefined) return null;
+  if (span.endColumn <= span.column) return null;
+  if (span.endColumn - 1 > line.length) return null;
+  return line.slice(span.column - 1, span.endColumn - 1);
+}
+
+/**
+ * Render the verdict for a terminal. Pure — the caller owns the exit code.
+ *
+ * `sources` maps a repo-relative changed source file to its text, and is optional: supplying it
+ * quotes each mutant's original span beside its replacement, and omitting it falls back to columns.
+ */
 export function formatMutationVerdict(
   tag: string,
   verdict: MutationVerdict,
   targets: readonly MutationTarget[],
+  sources?: ReadonlyMap<string, string>,
 ): string {
   const lines: string[] = [];
   const files = targets.flatMap((t) => t.sourceFiles);
   const spans = targets.reduce((n, t) => n + t.mutateGlobs.length, 0);
 
   lines.push(`${tag} ${files.length} changed source file(s), ${spans} changed line span(s), ${verdict.counted} mutant(s) counted`);
+
+  // NARROWINGS PRINT ON A PASS TOO. A run that could not reach a package is a real gap in this rung,
+  // and a green line with the gap omitted is exactly the reassuring silence the rung exists to deny.
+  for (const narrowing of verdict.narrowings) lines.push(`${tag} ${narrowing}`);
 
   if (verdict.verdict === "pass") {
     lines.push(`${tag} PASS — every mutant in this branch's changed lines was killed by this branch's own tests`);
@@ -1053,9 +1286,8 @@ export function formatMutationVerdict(
 
   const failing = verdict.mutants.filter((m) => m.outcome !== "proven" && m.outcome !== "excluded");
   for (const mutant of failing.slice(0, 25)) {
-    const where = mutant.line === null ? mutant.file : `${mutant.file}:${mutant.line}`;
     const credit = mutant.killedByFiles.length === 0 ? "no test named" : `killed by ${mutant.killedByFiles.join(", ")}`;
-    lines.push(`${tag}   ${mutant.outcome.toUpperCase()} ${where} [${mutant.mutator}] — ${credit}`);
+    lines.push(`${tag}   ${mutant.outcome.toUpperCase()} ${describeMutant(mutant, sources)} — ${credit}`);
   }
   if (failing.length > 25) lines.push(`${tag}   … and ${failing.length - 25} more`);
 
@@ -1063,5 +1295,9 @@ export function formatMutationVerdict(
     `${tag} The rung asks only about the lines THIS branch changed. Strengthen this branch's own tests until each`,
   );
   lines.push(`${tag} mutant above is caught, or record why the mutant is equivalent and cannot be killed.`);
+  lines.push(
+    `${tag} To hand-check one, replace EXACTLY the quoted span at those columns: a line often carries several`,
+  );
+  lines.push(`${tag} mutants of one mutator, and replacing the wrong one disproves a mutant nobody reported.`);
   return lines.join("\n");
 }
