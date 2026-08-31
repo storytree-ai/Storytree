@@ -652,6 +652,7 @@ test("story build ADMITS --runtime pi for --live, and REFUSES it for --real (ADR
   // ADR-0449 authorised ONE trial run through the live smoke. `--real` authors at real repo paths
   // and promotes a commit toward main; that is a separate admission nobody has taken.
   const real = await storyBuild("library", {
+    dryRun: false,
     real: true,
     runtime: "pi",
     actor: "tester@example.com",
@@ -662,6 +663,7 @@ test("story build ADMITS --runtime pi for --live, and REFUSES it for --real (ADR
   // pi meters nothing this process can read, so a USD cap is the phantom ADR-0232 already refuses
   // for Codex. --max-turns stays available: it is the leaf's real cost guard.
   const budget = await storyBuild("library", {
+    dryRun: false,
     live: true,
     runtime: "pi",
     budgetUsd: 1,

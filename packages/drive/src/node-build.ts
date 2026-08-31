@@ -188,7 +188,14 @@ function isCodexMultifileRuntimeSeam(unitId: string): boolean {
   return unitId === CODEX_MULTIFILE_RUNTIME_SEAM_ID;
 }
 
-function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unitId: string): string {
+/**
+ * EXPORTED FOR ITS TEST, and that is load-bearing rather than a convenience. ADR-0449 requires the
+ * frontier-model gap to be NAMED in pi's admission record rather than silently dropped; this
+ * function is the mechanism that meets that requirement on every `--runtime pi` build, so a test
+ * that pins the text is what stops the requirement being quietly deleted. Reaching it any other way
+ * costs a live run.
+ */
+export function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unitId: string): string {
   const leaf =
     runtime === "codex"
       ? "the Codex CLI with saved ChatGPT subscription authentication"
@@ -900,7 +907,7 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
  * is the load-bearing half: pi's built-in `anthropic` provider is REFUSED by wall 1, and this run
  * reaches the subscription path anyway because pi's OAuth dispatch keys on the token value.
  */
-const PI_LEAF_ENDPOINT_LABEL = "→ Anthropic on the subscription credential (fresh provider id)";
+export const PI_LEAF_ENDPOINT_LABEL = "→ Anthropic on the subscription credential (fresh provider id)";
 
 /** The per-node leaf summary lines shared by the node and story envelopes. */
 export function liveLeafLines(liveAuthor: LiveAuthor): string[] {

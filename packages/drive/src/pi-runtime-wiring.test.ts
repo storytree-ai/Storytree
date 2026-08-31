@@ -32,14 +32,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { validatePiEndpoint } from "@storytree/agent";
+import { PiPhaseAuthor, validatePiEndpoint } from "@storytree/agent";
 import {
   PI_SUBSCRIPTION_DEFAULT_MODEL,
   PI_SUBSCRIPTION_PROVIDER_ID,
   composePiSubscriptionEndpoint,
 } from "@storytree/orchestrator";
 
-import { resolveLiveRuntime } from "./node-build.js";
+import {
+  PI_LEAF_ENDPOINT_LABEL,
+  honestFramingLive,
+  liveLeafLines,
+  resolveLiveRuntime,
+} from "./node-build.js";
 
 /** A token shaped like the real subscription credential. NOT a credential — no such account. */
 const FAKE_SUBSCRIPTION_TOKEN = "sk-ant-oat01-not-a-real-token-fixture";
@@ -123,4 +128,84 @@ test("--model overrides the endpoint's model id but nothing else about the endpo
   assert.equal(composed.endpoint.providerId, PI_SUBSCRIPTION_PROVIDER_ID);
   assert.equal(composed.endpoint.api, "anthropic-messages");
   assert.equal(validatePiEndpoint(composed.endpoint).ok, true);
+});
+
+// ── The two REPORTING surfaces, which only a live run otherwise reaches ─────────────────────────
+
+test("the pi build envelope NAMES ADR-0449's frontier-model gap — the requirement, not a comment", () => {
+  // ADR-0449's Consequences: "If pi is admitted on the strength of this run alone, that gap should
+  // be named in the admission record, not silently dropped." This is where that is discharged, and
+  // it is discharged by a MECHANISM (printed on every pi build) rather than by whoever writes the
+  // admission up remembering. Deleting the clause reds this test.
+  const pi = honestFramingLive(false, "pi", "library-cli");
+  assert.match(pi, /ADR-0449 GAP, NAMED/);
+  assert.match(pi, /FRONTIER model/);
+  assert.match(pi, /NOT the weaker local open-weight model/);
+  // And it names the leaf that actually ran, not the Claude default.
+  assert.match(pi, /pi agent loop against Anthropic on the subscription credential/);
+
+  // The gap clause is pi-SPECIFIC: the other two runtimes do not carry a claim about pi's fence.
+  for (const runtime of ["claude", "codex"] as const) {
+    const other = honestFramingLive(false, runtime, "library-cli");
+    assert.doesNotMatch(other, /ADR-0449 GAP/);
+    assert.doesNotMatch(other, /pi agent loop/);
+  }
+});
+
+test("liveLeafLines reports a pi run as subscription-drawn, and splits the two wall kinds apart", () => {
+  // A genuine leaf instance with pushed rows — the `cannedLiveAuthor` shape. Nothing is driven and
+  // no endpoint is contacted; this exercises the REPORTING fold, which a live run would otherwise
+  // be the only way to reach.
+  const author = new PiPhaseAuthor({
+    cwd: process.cwd(),
+    isWriteAllowed: () => true,
+    endpoint: {
+      providerId: PI_SUBSCRIPTION_PROVIDER_ID,
+      baseUrl: "https://api.anthropic.com",
+      modelId: PI_SUBSCRIPTION_DEFAULT_MODEL,
+      api: "anthropic-messages",
+      contextWindow: 200_000,
+      maxTokens: 8_192,
+      apiKey: FAKE_SUBSCRIPTION_TOKEN,
+    },
+  });
+  author.runs.push({ phase: "AUTHOR_TEST", source: "pi-leaf", subtype: "success", turns: 2, model: "m" });
+
+  const clean = liveLeafLines(author).join("\n");
+  assert.match(clean, /leaf: *pi/);
+  assert.ok(
+    clean.includes(PI_LEAF_ENDPOINT_LABEL),
+    `the leaf line must name the endpoint: ${clean}`,
+  );
+  // NEVER a USD figure: pi meters nothing this process can read, and printing a zero would be a
+  // claim about spend rather than the absence of one (ADR-0232's reasoning, ADR-0449's credential).
+  assert.doesNotMatch(clean, /\$[0-9]/);
+  assert.match(clean, /subscription draw/);
+  assert.match(clean, /no write refusals/);
+  assert.match(clean, /no off-surface tool calls/);
+
+  // Now the two wall kinds together. They must NOT be folded: a `tool-surface` refusal carries no
+  // path and is not a write-fence firing, so counting it as one inflates the single number that
+  // line exists to report (the ADR-0446 split, applied to the human-readable surface).
+  author.violations.push({
+    phase: "AUTHOR_TEST",
+    tool: "write",
+    path: "impl.cjs",
+    reason: "write refused by phase scope",
+    kind: "scope",
+  });
+  author.violations.push({
+    phase: "AUTHOR_TEST",
+    tool: "bash",
+    path: "(no path)",
+    reason: "not on the authoring tool surface",
+    kind: "tool-surface",
+  });
+  const walls = liveLeafLines(author).join("\n");
+  const scopeLine = walls.split("\n").find((l) => l.startsWith("scope walls:")) ?? "";
+  const surfaceLine = walls.split("\n").find((l) => l.startsWith("tool surface:")) ?? "";
+  assert.match(scopeLine, /impl\.cjs/);
+  assert.doesNotMatch(scopeLine, /bash/, "a tool-surface refusal must not appear as a write refusal");
+  assert.match(surfaceLine, /bash/);
+  assert.doesNotMatch(surfaceLine, /impl\.cjs/);
 });

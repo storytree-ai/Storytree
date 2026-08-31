@@ -153,10 +153,16 @@ test("node build parses --runtime, keeps it live-only, and refuses fake Codex co
   // `pi` IS NOW ADMITTED — and this is the deliberate change increment 2 set up. It left
   // `resolveLiveRuntime` refusing `pi` with an assertion here, precisely so the path could not open
   // by someone widening a union; ADR-0449 settled the endpoint and increment 3 walked a real unit
-  // on it, so the assertion flips rather than the guard eroding. `--live --runtime pi` is not run
-  // here (it would spend); what is asserted is that the CLI no longer refuses the flag itself.
-  const pi = await run(["node", "build", "library-cli", "--live", "--runtime", "pi"], deps);
+  // on it, so the assertion flips rather than the guard eroding.
+  //
+  // Asserted through the DRY-RUN arm on purpose. `--live --runtime pi` would be admitted all the
+  // way into a real build — which is the point, but it means the assertion cannot be made there
+  // without spending. The dry-run arm refuses for the live-only reason and NOT for "unknown
+  // runtime", which is exactly the discrimination this line exists to make.
+  const pi = await run(["node", "build", "library-cli", "--dry-run", "--runtime", "pi"], deps);
+  assert.equal(pi.ok, false);
   assert.doesNotMatch(pi.body, /unknown --runtime "pi"/);
+  assert.match(pi.body, /valid only with --live or --real/);
 
   // THE NARROWING DID NOT DISAPPEAR, IT MOVED. ADR-0449 authorised ONE trial run through the live
   // smoke; `--real` authors at real repo paths and promotes a commit toward main, which is a
