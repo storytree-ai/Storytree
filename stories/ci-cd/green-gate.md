@@ -7,6 +7,33 @@ outcome: "A PR's verify job proves it against the merge of branch+main — organ
 status: proposed
 proof_mode: integration-test
 depends_on: []
+decisions: [486]
+# ⚠ THE PROOF IS DELIBERATELY SPLIT, NOT STRETCHED (ADR-0486). Contracts 2, 3 and 4 are static-YAML
+# audits over the real `.github/workflows/ci.yml` and are fully assertable offline. Contract 1 is
+# MIXED: its repo-owned half — that the `verify` checkout does not OVERRIDE actions/checkout's
+# pull_request merge-ref default — is assertable here and is what can actually regress in this repo;
+# its platform half — that GitHub and actions/checkout genuinely produce a correct merge commit — is
+# PLATFORM TRUST and is EXCLUDED from this unit's verdict rather than folded into it. Stretching one
+# proof to cover the platform half is how a sliver of unverifiable behaviour ends up inside a signed
+# green (ADR-0085/0097's inverse theater).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "test"]
+  scope:
+    testGlobs: ["packages/cli/src/green-gate-audit.test.ts"]
+    sourceGlobs: ["packages/cli/src/green-gate-audit.ts"]
+  real:
+    testFile: "packages/cli/src/green-gate-audit.test.ts"
+    sourceFile: "packages/cli/src/green-gate-audit.ts"
+    scope:
+      testGlobs: ["packages/cli/src/green-gate-audit.test.ts"]
+      sourceGlobs: ["packages/cli/src/green-gate-audit.ts"]
+    install: false
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/cli", "typecheck"]
+    editsExisting: false
 ---
 
 # The green gate — `verify` proves a PR against the merge of branch and main
@@ -51,15 +78,30 @@ step it does run is blocking, and that `automerge` cannot outrun it — never a 
 ## Contracts (4)
 
 1. **`proves-against-merge-ref`** — `verify` runs on the merge of branch+main, not the branch alone
-   - **asserts —** a branch that is green in isolation but whose MERGE with current `main` breaks an
-     invariant (e.g. `main` removed an export the branch's new call site imports, so only the merged
-     tree fails `-r typecheck`) makes `verify` go RED; the same branch re-based onto current `main`
-     goes green. The redness appears on the PR's merge-ref check, never only on a branch-only build.
+   - **asserts —** the `verify` job's checkout step does NOT override actions/checkout's
+     `pull_request` merge-ref default: it declares no `ref:` input pinning the head sha. That
+     ABSENCE is what carries the behaviour, so the absence is what is asserted — pinning the head sha
+     is the one edit that would silently convert the job from merge-of-branch-and-main to
+     branch-alone and reintroduce the whole "local green, CI red" class.
+   - **⚠ SPLIT — the platform half is EXCLUDED from this unit's verdict** (ADR-0486). That a branch
+     green in isolation but broken when MERGED with current `main` actually goes RED depends on
+     GitHub and actions/checkout producing a correct merge commit. That is platform trust, not a unit
+     a worktree red→green can drive, and no test here claims it. The behaviour is REAL and is what
+     the capability is for; it is simply not something this proof can honestly sign. Recorded as
+     trust rather than stretched into the signed green.
 2. **`every-step-is-required`** — every step the job runs is load-bearing; none is optional
    - **asserts —** breaking exactly one of the content checks `verify` runs makes the whole job go
      RED, and a green job therefore means every one of them passed. No step is advisory,
      `continue-on-error`, or otherwise soft in the `verify` job, and `automerge` (`needs: verify`)
-     never runs against a non-green one. **The step list is NOT part of what this contract
+     never runs against a non-green one.
+     ⚠ **SCOPE THE ASSERTION TO THE `verify` JOB — a whole-file read of `ci.yml` FAILS on correct
+     code.** Measured 2026-08-31: `continue-on-error: true` appears SEVEN times in the workflow and
+     every one is in the `automerge` job, never in `verify`. They are deliberate, documented,
+     post-merge fail-soft steps (the claim-release writer, the GCP auth, the hierarchy-mirror
+     regeneration, the ADR-0195 full-CI backstop dispatch), each carrying a comment saying why it must
+     not block a merge it cannot undo. The file also states its own exception: the studio-deploy
+     dispatch is LOUD (no `continue-on-error`) and must stay LAST, so a dispatch failure cannot skip
+     the fail-soft claim-release steps above it. **The step list is NOT part of what this contract
      guarantees** — read it from
      [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml), which is the live list; ADR-0302
      D4 and ADR-0311 D2 have both changed it, and a contract that froze an enumeration would have
