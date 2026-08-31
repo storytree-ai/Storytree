@@ -630,3 +630,43 @@ test("storyBuild feeds the curator the deciding ADRs' REAL status, read from the
   // to act on a location claim.
   assert.doesNotMatch(userPrompt, /not found on disk/);
 });
+
+/**
+ * `--runtime pi` on the CHAIN verb (ADR-0449, `pi-harness-admission-arc` increment 3).
+ *
+ * The narrowing exists on `node build` too, and it is asserted separately HERE on purpose: a
+ * narrowing that binds on one build verb and not the other is not a narrowing, and `story build`
+ * reaches the same resolver by a different path. Neither case spends — both are refusals taken
+ * before any leaf is constructed.
+ */
+test("story build ADMITS --runtime pi for --live, and REFUSES it for --real (ADR-0449)", async () => {
+  // Admitted: the flag itself is no longer an unknown runtime. (Not run live — that would spend.)
+  const live = await storyBuild("library", {
+    dryRun: true,
+    runtime: "pi",
+    actor: "tester@example.com",
+  });
+  // --runtime is live-only, so a dry-run refuses it for THAT reason — never for "unknown runtime".
+  assert.doesNotMatch(live.body, /unknown --runtime "pi"/);
+
+  // ADR-0449 authorised ONE trial run through the live smoke. `--real` authors at real repo paths
+  // and promotes a commit toward main; that is a separate admission nobody has taken.
+  const real = await storyBuild("library", {
+    real: true,
+    runtime: "pi",
+    actor: "tester@example.com",
+  });
+  assert.equal(real.ok, false);
+  assert.match(real.body, /--runtime pi is admitted for --live only/);
+
+  // pi meters nothing this process can read, so a USD cap is the phantom ADR-0232 already refuses
+  // for Codex. --max-turns stays available: it is the leaf's real cost guard.
+  const budget = await storyBuild("library", {
+    live: true,
+    runtime: "pi",
+    budgetUsd: 1,
+    actor: "tester@example.com",
+  });
+  assert.equal(budget.ok, false);
+  assert.match(budget.body, /--budget is unavailable with --runtime pi/);
+});

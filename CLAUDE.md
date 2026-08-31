@@ -524,11 +524,16 @@ kind owes a seed export any more.
 - Prove-it-gate: `packages/orchestrator/src/prove-it-gate.ts` (+ `.e2e.test.ts`). Red-green is enforced
   spine-side (phase machine + per-phase write-scope + spine-observed RED/GREEN + a signed verdict).
   Live smoke (ADR-0030/0232, subscription-billed):
-  `pnpm storytree node build <id> --live [--runtime claude|codex]`
+  `pnpm storytree node build <id> --live [--runtime claude|codex|pi]`
   (`--dry-run` is the offline scripted walk). Phase E chains a WHOLE story in dependency order:
-  `pnpm storytree story build <story-id> --dry-run | --live [--runtime claude|codex]`
+  `pnpm storytree story build <story-id> --dry-run | --live [--runtime claude|codex|pi]`
   (topo order from `depends_on`, story UAT node last, halt-is-never-a-pass; Claude accepts an
   optional `--budget` total, while Codex records subscription usage and refuses a fake USD cap).
+  **`--runtime pi` is `--live` ONLY and REFUSES `--real`** (ADR-0449 authorised ONE trial run
+  through the live smoke, not a promotion path); like Codex it refuses a fake USD cap, so
+  `--max-turns` is its only cost guard. It points at Anthropic on the existing subscription
+  `CLAUDE_CODE_OAUTH_TOKEN` under a FRESH provider id — never pi's `anthropic` built-in, which the
+  leaf's own first wall refuses on purpose, and never a metered key, which its fifth wall refuses.
   `--store pg` on live/real builds persists verdicts to `events.work_event`/`events.verdict`
   (refused for dry-runs — a scripted PASS persisted would be a forged healthy).
 - Library CLI: `pnpm storytree library` (explore). **READ BARE — `--pg` is for WRITES:**
