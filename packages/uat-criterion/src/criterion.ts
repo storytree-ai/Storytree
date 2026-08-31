@@ -12,6 +12,17 @@ import {
  * validator, mirroring `@storytree/library`'s `uat-test-criteria.ts` id scheme and
  * prose-parsing shape, but with `model` as a genuinely new, distinct kind (never a
  * spelling of `machine`) and without defaulting an untagged legacy criterion into it.
+ *
+ * LIFTED HERE FROM `packages/model-uat` on 2026-08-31 — ADR-0247 D5's third and last
+ * package retirement (`model-uat-family-consolidation-arc` increment 2). It is the ONLY
+ * part of that organism anything live still reached: `criterion-pointer.ts` next door
+ * wraps a `Criterion` and mirrors this parser's annotation grammar. Its two siblings
+ * (`model-registry.ts`, `model-uat-witness.ts`) implemented what ADR-0247 D1 retired
+ * outright and were deleted rather than moved. The MODULE moved without a behaviour
+ * change; the ADR-0209 D1/D2/D8 vocabulary below is unchanged, and the `model` witness
+ * kind survives here as a parseable value the pointer passes through — not as a live
+ * judging path (ADR-0247 D1 retired the independent model JUDGE; model-DRIVEN UAT is
+ * `@storytree/drive`'s and untouched).
  */
 
 // ---------------------------------------------------------------------------
@@ -135,8 +146,24 @@ export function legacyCriterionId(storyId: string, ordinal: number): string {
 // Prose parser
 // ---------------------------------------------------------------------------
 
+// Stryker disable next-line Regex: EQUIVALENT for the two mutants generated, each stated precisely.
+// Dropping the trailing `$` changes nothing: the capture immediately before it is `([^\n]*)`, which
+// under `/m` is already greedy to the end of the line, so the match ends in the same place either
+// way. Replacing that capture with `([\n]*)` is equivalent for a different reason: the group's TEXT
+// is never read — only `heading[0].length` is, to find where the section body begins — and a heading
+// with nothing after its title matches identically. The mutants that are NOT equivalent — the `^`
+// anchor and the whitespace run — are killed by "section: a heading must start its own line", by
+// "section: `##UAT Test Criteria` with no space after the hashes is not a heading", and by
+// "heading: more than one space after `##` still opens the section".
 const STORY_UAT_HEADING = /^##[^\n\S]+(?:UAT Test Criteria|Story UAT)([^\n]*)$/im;
 const NEXT_H2 = /^## /m;
+// Stryker disable next-line Regex: EQUIVALENT for the two mutants generated. This pattern is only
+// ever used as `NUMBERED_ITEM.test(line)` on a SINGLE line, and its capture group is never read, so
+// neither the trailing `$` nor the `+` on the whitespace run can change the boolean: `.` does not
+// match a newline, so `(.*)` already runs to the line's end, and a line with two spaces after the
+// ordinal matches whether the run is `+` or a single character. The mutant that would NOT be
+// equivalent — dropping the `^` — is killed by "items: a continuation line containing `1. ` mid-line
+// does NOT open a new item".
 const NUMBERED_ITEM = /^\d+\.[^\n\S]+(.*)$/;
 const BOLD_LEAD = /^\*\*(.+?)\*\*/;
 /**
@@ -161,6 +188,12 @@ function criteriaSection(body: string): string | null {
   if (heading === null) return null;
   const after = body.slice(heading.index + heading[0].length);
   const next = NEXT_H2.exec(after);
+  // Stryker disable next-line MethodExpression: EQUIVALENT — this `.trim()` is cosmetic. The only
+  // consumer is `splitItems`, which walks the section line by line and opens an item only on a line
+  // matching `NUMBERED_ITEM`, so leading blank lines are dropped rather than read; trailing ones are
+  // excluded from every item's canonical form by `canonicalCriterionContent`'s own per-line trim.
+  // Pinned by "section: with no following heading, the section runs to the end of the body", which
+  // parses identically whether or not the section text is trimmed.
   return (next === null ? after : after.slice(0, next.index)).trim();
 }
 
@@ -182,6 +215,20 @@ function splitItems(section: string): string[] {
 
 /** Pull the title from a numbered item: the bold lead (colon stripped), else the first line. */
 function itemTitle(item: string): string {
+  // Stryker disable next-line StringLiteral,Regex,MethodExpression: EQUIVALENT for the four mutants
+  // stated. The `?? ""` fallback is unreachable — `String.prototype.split` always yields at least
+  // one element, so `[0]` is never `undefined`. On the pattern: dropping the `^` cannot matter
+  // because `replace` without `/g` rewrites the FIRST match, and `itemTitle` is only ever called on
+  // an item whose first line begins with its ordinal, so that first match sits at index 0 either
+  // way; and the `+` on the whitespace run cannot matter because THIS line's `.trim()` removes
+  // whatever a shorter run leaves behind. That `.trim()` is itself equivalent, for a reason worth
+  // stating because it is not obvious: `firstLine` is read in exactly two places, and neither can
+  // see the difference. `BOLD_LEAD` is anchored at `^`, so only LEADING blanks could affect it and
+  // the ordinal strip above guarantees there are none; and on the no-bold path `firstLine` becomes
+  // `raw`, which the RETURN two lines below trims again. The mutant that is NOT equivalent — `\d`
+  // for `\d+` — is killed by "title: a MULTI-DIGIT ordinal is stripped from a title that has no
+  // bold lead". The trimming itself is pinned, one layer down, by "title: a first line with
+  // trailing whitespace yields a trimmed title".
   const firstLine = (item.split("\n")[0] ?? "").replace(/^\d+\.[^\n\S]+/, "").trim();
   const bold = BOLD_LEAD.exec(firstLine);
   const raw = bold !== null ? bold[1]! : firstLine;
@@ -226,6 +273,11 @@ function oneIdentityTag(item: string, pattern: RegExp, label: string): string {
   if (matches.length !== 1) {
     throw new Error(`${label}: expected exactly one (${label}: ...) annotation, found ${matches.length}`);
   }
+  // Stryker disable next-line OptionalChaining,StringLiteral: EQUIVALENT — all three mutants are
+  // unreachable rather than untested. The guard immediately above returns unless `matches.length` is
+  // exactly 1, so `matches[0]` is present; and this pattern's sole group is not optional, so any
+  // match carries it. Both `?.` guards and the `?? ""` fallback are therefore dead. The `.trim()` is
+  // NOT dead, and is killed by "identity tags: surrounding whitespace inside a tag is trimmed".
   return matches[0]?.[1]?.trim() ?? "";
 }
 
@@ -241,13 +293,25 @@ function itemPreviousRevisionId(item: string): string | undefined {
   const matches = [...item.matchAll(new RegExp(PREVIOUS_REVISION_ID_TAG.source, "gi"))];
   if (matches.length > 1) throw new Error("duplicate previous-revision-id annotations");
   if (matches.length === 0) return undefined;
+  // Stryker disable next-line OptionalChaining: EQUIVALENT — both guards are unreachable, for the
+  // same reason as in `oneIdentityTag`: the two lines above return unless `matches.length` is
+  // exactly 1, and this pattern's sole group is not optional. The `.trim()` is real, and is killed
+  // by "identity tags: a previous-revision-id written tightly, and one written padded, both parse".
   return CriterionRevisionId.parse(matches[0]?.[1]?.trim());
 }
 
 /** Canonical content matches the disk-canonical Library parser: position and identity history excluded. */
 export function canonicalCriterionContent(item: string): string {
-  return item
-    .replace(/^\d+\.[^\n\S]+/, "")
+  // The ordinal strip is its own statement so a `Stryker disable next-line` can reach it: a comment
+  // sitting INSIDE a fluent chain is not the leading comment of any statement, and the directive is
+  // silently ignored there.
+  // Stryker disable next-line Regex: EQUIVALENT for the whitespace-RUN mutant only. Narrowing
+  // `[^\n\S]+` to a single character leaves the extra spaces in place, and the per-line `.trim()`
+  // below then removes them, so the canonical form is byte-identical. The mutants that are NOT
+  // equivalent — the `^` anchor and `\d` for `\d+` — are killed by "canonical content: only a
+  // LEADING ordinal is stripped" and "canonical content: a MULTI-DIGIT ordinal is stripped too".
+  const withoutOrdinal = item.replace(/^\d+\.[^\n\S]+/, "");
+  return withoutOrdinal
     .replace(IDENTITY_METADATA_TAG, " ")
     .replace(/\r\n?/g, "\n")
     .split("\n")

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Criterion } from "@storytree/model-uat";
+import { Criterion } from "./criterion.js";
 import { EXACT_CRITERION } from "./criterion.test-helpers.js";
 
 /**

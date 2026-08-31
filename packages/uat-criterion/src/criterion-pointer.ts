@@ -1,12 +1,13 @@
 import { z } from "zod";
-import { Criterion, parseCriteria } from "@storytree/model-uat";
+import { Criterion, parseCriteria } from "./criterion.js";
 import type { UatCriterionDetail } from "./detail-kind.js";
 
 /**
  * The `criterion-detail-pointer` capability (ADR-0209 D5/D6): a story criterion
  * points to its detail artifact by id WITHOUT ceding the one-line title. This
- * module wraps a `@storytree/model-uat` `Criterion` (unchanged — witness/tier
- * ownership stays there) with a validated detail artifact id, and extends the
+ * module wraps a sibling {@link file://./criterion.ts} `Criterion` (unchanged
+ * — witness/tier ownership stays in that module) with a validated detail
+ * artifact id, and extends the
  * criterion annotation grammar with an optional `(detail: <id>)` tag. The
  * story stays display-canonical for the one-liner: {@link displayTitle} always
  * reads the criterion's title, never a resolved detail body's prose.
@@ -68,8 +69,8 @@ export interface DisplayableBinding {
  * Bind a classified `Criterion` to a detail artifact id. Throws (message
  * mentions "detail") for an empty, whitespace-only, or multi-token id — the
  * binding is validated, never silently coerced. Does NOT move witness/tier
- * ownership out of `@storytree/model-uat` — the criterion passes through
- * unchanged.
+ * ownership out of {@link file://./criterion.ts} — the criterion passes
+ * through unchanged.
  */
 export function bindDetail(criterion: Criterion, detailArtifactId: string): CriterionDetailBinding {
   const parsed = DetailArtifactId.safeParse(detailArtifactId);
@@ -101,7 +102,7 @@ export function displayTitle(binding: DisplayableBinding): string {
 /**
  * Optional inline detail-pointer annotation, e.g. `(detail: demo-story#detail-2)`,
  * mirroring the `(witness: ...)`/`(tier: ...)` tags in
- * `@storytree/model-uat`'s prose parser. Captured loosely (up to the closing
+ * {@link file://./criterion.ts}'s prose parser. Captured loosely (up to the closing
  * paren) so an explicit-but-empty/malformed value can be REFUSED rather than
  * silently dropped.
  */
@@ -159,7 +160,7 @@ function itemDetailArtifactId(item: string, id: string): string | undefined {
  * explicit but malformed `(detail: ...)` value throws at the parsing
  * boundary, mirroring `parseCriteria`'s witness/tier refusal behaviour. The
  * underlying criterion for a pointed leg is identical to what
- * `@storytree/model-uat`'s `parseCriteria` would produce for the same body.
+ * {@link parseCriteria} would produce for the same body.
  */
 export function parseCriterionPointers(storyId: string, body: string): CriterionDetailBinding[] {
   const section = criteriaSection(body);
