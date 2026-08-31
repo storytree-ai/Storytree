@@ -47,6 +47,7 @@ import {
   resolveLiveRuntime,
 } from "./node-build.js";
 import { storyBuild } from "./story-build.js";
+import { cannedLiveAuthor } from "./real-chain-fixture.js";
 
 /** A token shaped like the real subscription credential. NOT a credential — no such account. */
 const FAKE_SUBSCRIPTION_TOKEN = "sk-ant-oat01-not-a-real-token-fixture";
@@ -165,10 +166,15 @@ test("the pi build envelope NAMES ADR-0449's frontier-model gap — the requirem
   assert.match(codex, /the Codex CLI with saved ChatGPT subscription authentication/);
 });
 
-test("liveLeafLines reports a pi run as subscription-drawn, and splits the two wall kinds apart", () => {
+test("liveLeafLines renders a pi run EXACTLY, and keeps the two wall kinds apart", () => {
   // A genuine leaf instance with pushed rows — the `cannedLiveAuthor` shape. Nothing is driven and
   // no endpoint is contacted; this exercises the REPORTING fold, which a live run would otherwise
   // be the only way to reach.
+  //
+  // ⚠ ASSERTED AS EXACT LINES, and that is not pedantry — it is a correction. This test first
+  // checked the leaf line with `clean.includes(PI_LEAF_ENDPOINT_LABEL)`, which is an expectation
+  // DERIVED FROM ITS SUBJECT: blank the constant and `includes("")` is still true, so the assertion
+  // could not fail. The mutation rung is what caught it. The label is spelled out below instead.
   const author = new PiPhaseAuthor({
     cwd: process.cwd(),
     isWriteAllowed: () => true,
@@ -182,11 +188,22 @@ test("liveLeafLines reports a pi run as subscription-drawn, and splits the two w
       apiKey: FAKE_SUBSCRIPTION_TOKEN,
     },
   });
+
+  const COST =
+    "cost:        not metered — Claude subscription draw via CLAUDE_CODE_OAUTH_TOKEN " +
+    "(ADR-0449; no API/list-price USD asserted)";
+  const FEEDBACK = "feedback:    none — the spine reruns every registered proof command out of band";
+
   // BEFORE any slice: the empty-runs fallback. A leaf that ran nothing must SAY so — an empty
-  // parenthesis would read as a run that happened and reported nothing.
-  const empty = liveLeafLines(author).join("\n");
-  assert.match(empty, /\(no slices ran\)/);
-  assert.doesNotMatch(empty, /^tokens:/m, "no slice reported usage, so there is no tokens line");
+  // parenthesis would read as a run that happened and reported nothing. And no tokens line at all,
+  // rather than an empty one.
+  assert.deepEqual(liveLeafLines(author), [
+    "leaf:        pi → Anthropic on the subscription credential (fresh provider id) (no slices ran)",
+    COST,
+    "scope walls: no write refusals",
+    "tool surface: no off-surface tool calls",
+    FEEDBACK,
+  ]);
 
   author.runs.push({
     phase: "AUTHOR_TEST",
@@ -202,29 +219,27 @@ test("liveLeafLines reports a pi run as subscription-drawn, and splits the two w
     },
   });
 
-  const clean = liveLeafLines(author).join("\n");
-  assert.match(clean, /leaf: *pi/);
-  assert.ok(
-    clean.includes(PI_LEAF_ENDPOINT_LABEL),
-    `the leaf line must name the endpoint: ${clean}`,
-  );
-  assert.match(clean, /AUTHOR_TEST: success, 2 turns/);
-  assert.doesNotMatch(clean, /no slices ran/);
-  // The token breakdown, in full — every field, so dropping one is caught.
-  assert.match(
-    clean,
-    /tokens: +AUTHOR_TEST: 122 out \/ 2 in \/ 27974 cache-read \/ 174 cache-write/,
-  );
+  assert.deepEqual(liveLeafLines(author), [
+    "leaf:        pi → Anthropic on the subscription credential (fresh provider id) " +
+      "(AUTHOR_TEST: success, 2 turns)",
+    COST,
+    "tokens:      AUTHOR_TEST: 122 out / 2 in / 27974 cache-read / 174 cache-write",
+    "scope walls: no write refusals",
+    "tool surface: no off-surface tool calls",
+    FEEDBACK,
+  ]);
   // NEVER a USD figure: pi meters nothing this process can read, and printing a zero would be a
   // claim about spend rather than the absence of one (ADR-0232's reasoning, ADR-0449's credential).
-  assert.doesNotMatch(clean, /\$[0-9]/);
-  assert.match(clean, /subscription draw/);
-  assert.match(clean, /no write refusals/);
-  assert.match(clean, /no off-surface tool calls/);
+  assert.doesNotMatch(liveLeafLines(author).join("\n"), /\$[0-9]/);
 
   // Now the two wall kinds together. They must NOT be folded: a `tool-surface` refusal carries no
   // path and is not a write-fence firing, so counting it as one inflates the single number that
   // line exists to report (the ADR-0446 split, applied to the human-readable surface).
+  //
+  // The two refusals are given DIFFERENT phases and paths on purpose. Sharing them would let a
+  // fold-them-together bug render something that still reads correct: the shell refusal's path is
+  // "(no path)", so a scope line that wrongly swallowed it would not contain the word "bash" and a
+  // `doesNotMatch(/bash/)` check would pass over the very bug it was written for.
   author.violations.push({
     phase: "AUTHOR_TEST",
     tool: "write",
@@ -233,19 +248,26 @@ test("liveLeafLines reports a pi run as subscription-drawn, and splits the two w
     kind: "scope",
   });
   author.violations.push({
-    phase: "AUTHOR_TEST",
+    phase: "IMPLEMENT",
     tool: "bash",
     path: "(no path)",
     reason: "not on the authoring tool surface",
     kind: "tool-surface",
   });
-  const walls = liveLeafLines(author).join("\n");
-  const scopeLine = walls.split("\n").find((l) => l.startsWith("scope walls:")) ?? "";
-  const surfaceLine = walls.split("\n").find((l) => l.startsWith("tool surface:")) ?? "";
-  assert.match(scopeLine, /impl\.cjs/);
-  assert.doesNotMatch(scopeLine, /bash/, "a tool-surface refusal must not appear as a write refusal");
-  assert.match(surfaceLine, /bash/);
-  assert.doesNotMatch(surfaceLine, /impl\.cjs/);
+  const walls = liveLeafLines(author);
+  assert.equal(walls[3], "scope walls: AUTHOR_TEST:impl.cjs");
+  assert.equal(walls[4], "tool surface: IMPLEMENT:bash");
+});
+
+test("liveLeafLines routes a NON-pi runtime away from the pi branch", () => {
+  // The pi branch is selected on `runtime`, so a mutant that makes that test always-true would
+  // render a Claude run as a pi run — and no pi-only test can see that. Cheap structural control.
+  const claude = liveLeafLines(cannedLiveAuthor([])).join("\n");
+  assert.match(claude, /leaf: +Claude Agent SDK/);
+  assert.doesNotMatch(claude, /Anthropic on the subscription credential/);
+  assert.doesNotMatch(claude, /^tool surface:/m, "only pi has a tool-surface wall");
+  // And the Claude leaf DOES assert a USD figure — the line pi deliberately omits.
+  assert.match(claude, /cost: +\$0\.0000 SDK-reported/);
 });
 
 // ── The narrowing, asserted IN THIS PACKAGE ────────────────────────────────────────────────────
@@ -280,15 +302,37 @@ test("nodeBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", 
   assert.match(budget.body, /--budget is unavailable with --runtime pi/);
   assert.match(budget.body, /--max-turns is\s+the leaf's real cost guard/);
 
-  // The SAME flags on claude are NOT refused by these guards — so the refusals are pi-specific
-  // rather than a blanket block that would read identically from outside.
-  const claude = await nodeBuild("library-cli", {
+  // The retry hint must point at the shape that WORKS. A refusal that names no way forward is the
+  // thing this repo's envelopes exist to avoid.
+  assert.ok(
+    (real.next ?? []).some((n) => n.includes("--live") && n.includes("--runtime pi")),
+    `the refusal must offer the admitted shape: ${JSON.stringify(real.next)}`,
+  );
+  assert.ok((budget.next ?? []).some((n) => n.includes("--runtime pi")));
+
+  // THE CONTROL — a NON-pi runtime with `--real`, which must fall THROUGH these guards.
+  //
+  // Its shape is chosen so it costs nothing, and that took two wrong attempts worth recording. The
+  // `&&` is only distinguishable from `||` on an input where exactly one operand is true: `pi`
+  // without `--real`, or `--real` without `pi`. The first drives a live pi chain; the second, on a
+  // real-buildable node, drives a REAL build — measured at 151s and 112s of genuine spend before
+  // each was removed. A test must never be the thing that spends.
+  //
+  // `codex + --real + --budget` is the way out: the codex guards sit immediately AFTER the pi
+  // guards, so this falls through the ones under test and is refused by the next one, in
+  // milliseconds. Under the `||` mutant it would be refused by the PI guard instead, and the two
+  // assertions below are exactly that discrimination.
+  const codexReal = await nodeBuild("verdict-line", {
     dryRun: false,
     real: true,
-    runtime: "claude",
+    runtime: "codex",
+    budgetUsd: 1,
     actor: "t@example.com",
   });
-  assert.doesNotMatch(claude.body, /--runtime pi is admitted/);
+  assert.equal(codexReal.ok, false);
+  assert.doesNotMatch(codexReal.body, /--runtime pi is admitted/);
+  assert.doesNotMatch(codexReal.body, /--budget is unavailable with --runtime pi/);
+  assert.match(codexReal.body, /--budget is unavailable with --runtime codex/);
 });
 
 test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", async () => {
@@ -312,11 +356,22 @@ test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it",
   assert.equal(budget.ok, false);
   assert.match(budget.body, /--budget is unavailable with --runtime pi/);
 
-  const claude = await storyBuild("library", {
+  assert.ok(
+    (real.next ?? []).some((n) => n.includes("--live") && n.includes("--runtime pi")),
+    `the refusal must offer the admitted shape: ${JSON.stringify(real.next)}`,
+  );
+  assert.ok((budget.next ?? []).some((n) => n.includes("--runtime pi")));
+
+  // The same control, for the same reason — see the note in the nodeBuild test above.
+  const codexReal = await storyBuild("library", {
     dryRun: false,
     real: true,
-    runtime: "claude",
+    runtime: "codex",
+    budgetUsd: 1,
     actor: "t@example.com",
   });
-  assert.doesNotMatch(claude.body, /--runtime pi is admitted/);
+  assert.equal(codexReal.ok, false);
+  assert.doesNotMatch(codexReal.body, /--runtime pi is admitted/);
+  assert.doesNotMatch(codexReal.body, /--budget is unavailable with --runtime pi/);
+  assert.match(codexReal.body, /--budget is unavailable with --runtime codex/);
 });
