@@ -27,8 +27,11 @@
 //                    sea between them left out of the allocation. This is the third remedy the
 //                    increment named and nobody had costed; `src/shadow-atlas.ts` is it.
 //
-// AND `clamped` IS THE CONTROL — the map exactly as it ships today. Without it every arm above is
-// a picture of something better than a thing nobody photographed.
+// AND `clamped` IS THE CONTROL — the map exactly as it drew until this increment landed. Without
+// it every arm above is a picture of something better than a thing nobody photographed. ⚠ The
+// shipped canvas moved to `atlas` in the same landing (`ForestWorldCanvas.tsx`), so this arm is a
+// picture of the PAST rather than of the present, and it is kept for the reason the blooms page
+// keeps its own: "we avoided a misreport" is not something a reader can check without seeing it.
 //
 // ⚠⚠ THE PIXEL TRAP THIS PAGE IS BUILT AROUND, AND IT HAS ALREADY BITTEN THIS ARC ONCE. A
 // comparison at the OVERVIEW zoom cannot falsify a per-object claim: at 8 delivered px per ground
@@ -39,9 +42,11 @@
 // pool is ~250 px across, and the driver reports the pool's delivered width in pixels beside each
 // comparison so a null result can be read as a null result rather than as agreement.
 //
-// ⚠ IT ADOPTS NOTHING. `harness/` only. The page produces EVIDENCE about `src/` modules it
-// imports; it changes none of them, and whether the shipped canvas moves off `clamped` is the
-// increment's own closing decision.
+// ⚠ THE PAGE ITSELF ADOPTS NOTHING. `harness/` only: it produces EVIDENCE about `src/` modules it
+// imports and changes none of them. The ADOPTION is a separate edit in the same landing —
+// `ForestWorldCanvas.tsx` now builds `buildAtlasOcclusion`, because the numbers below settle
+// option A out on memory and hardware and leave C holding the property the arc already committed
+// to (`the forest's ground is ONE draw call`).
 
 import * as THREE from 'three';
 
@@ -123,7 +128,7 @@ export const ALL_SHADOW_ARMS: readonly ShadowArm[] = [REFERENCE_ARM, ...SHADOW_A
 
 export const SHADOW_ARM_CAPTION = {
   none: 'the reference — the same ground with NO occlusion field, as the map was until 2026-08-30',
-  clamped: 'the map as it ships — ONE field over the forest rect, resolution clamped by the cap',
+  clamped: 'the map until 2026-08-31 — ONE field over the forest RECT, resolution clamped by the cap',
   raised: 'A — the same field with the texture cap lifted until the authored resolution lands',
   'per-island': 'B — one field, one material and one draw call PER ISLAND',
   atlas: 'C — ONE field packed over the islands themselves; one material, one draw call',
