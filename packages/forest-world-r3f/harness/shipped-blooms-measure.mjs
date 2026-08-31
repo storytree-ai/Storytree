@@ -40,7 +40,6 @@ const ANGLE = process.env['ST_BLOOM_ANGLE'] ?? 'gl';
 const ALLOW_SOFTWARE = process.env['ST_BLOOM_ALLOW_SOFTWARE'] === '1';
 
 const DRESSINGS = ['none', 'scattered', 'attributed'];
-const ZOOMS = ['fit', 2, 8];
 
 const fail = (why) => {
   console.error(`REFUSED: ${why}`);
@@ -89,19 +88,26 @@ if (identity.software && !ALLOW_SOFTWARE) {
 
 mkdirSync(OUT, { recursive: true });
 
+const VIEWS = await page.evaluate(() => window.bloomRunner.views());
+if (VIEWS.length === 0) fail('the page offers no frames to take');
+
 const census = {};
 const shots = {};
 for (const dressing of DRESSINGS) {
   census[dressing] = await page.evaluate(([d]) => window.bloomRunner.census(d), [dressing]);
   shots[dressing] = {};
-  for (const zoom of ZOOMS) {
+  for (const view of VIEWS) {
     const shot = await page.evaluate(
-      ([d, z]) => window.bloomRunner.snapshot(d, z),
-      [dressing, zoom],
+      ([d, v]) => window.bloomRunner.snapshot(d, v),
+      [dressing, view.id],
     );
-    shots[dressing][zoom] = { props: shot.props, blooms: shot.blooms };
+    shots[dressing][view.id] = {
+      meshes: shot.meshes,
+      placements: shot.placements,
+      blooms: shot.blooms,
+    };
     writeFileSync(
-      join(OUT, `blooms-${dressing}-${zoom === 'fit' ? 'fit' : `${zoom}px`}.png`),
+      join(OUT, `blooms-${dressing}-${view.id}.png`),
       Buffer.from(shot.png.split(',')[1], 'base64'),
     );
   }
@@ -148,9 +154,9 @@ if (census['none'].undrawn !== signed) fail('the none arm must leave every signa
 // 5. A kit that failed to parse draws no props and produces a picture of bare land that says
 //    nothing about why. Every arm must stand SOMETHING.
 for (const dressing of DRESSINGS) {
-  for (const zoom of ZOOMS) {
-    if (shots[dressing][zoom].props === 0) {
-      fail(`${dressing} at ${zoom} drew ZERO props — the kit did not load`);
+  for (const view of VIEWS) {
+    if (shots[dressing][view.id].meshes === 0) {
+      fail(`${dressing} at ${view.id} drew ZERO meshes — the kit did not load`);
     }
   }
 }
@@ -170,17 +176,19 @@ for (const dressing of DRESSINGS) {
   );
 }
 console.log('');
-console.log('props standing on each frame');
-console.log('arm          zoom   props  flowers');
+console.log('objects standing on each frame (the kit MERGES them, so `meshes` is a handful)');
+console.log('arm          view           objects  flowers  meshes');
 for (const dressing of DRESSINGS) {
-  for (const zoom of ZOOMS) {
-    const s = shots[dressing][zoom];
+  for (const view of VIEWS) {
+    const s = shots[dressing][view.id];
     console.log(
-      `${dressing.padEnd(12)} ${String(zoom).padStart(4)}  ${String(s.props).padStart(6)}  ` +
-        `${String(s.blooms).padStart(7)}`,
+      `${dressing.padEnd(12)} ${view.id.padEnd(13)}  ${String(s.placements).padStart(7)}  ` +
+        `${String(s.blooms).padStart(7)}  ${String(s.meshes).padStart(6)}`,
     );
   }
 }
+console.log('');
+for (const view of VIEWS) console.log(`  ${view.id.padEnd(13)} ${view.what}`);
 console.log('');
 console.log(`pictures: ${OUT}`);
 

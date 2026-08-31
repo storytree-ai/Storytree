@@ -57,6 +57,7 @@ import {
   crowdIslandId,
   crowdIslands,
   crowdSize,
+  orientedCamera,
   type CrowdZoom,
 } from './shipped-crowd-scene.js';
 
@@ -76,10 +77,27 @@ export const BLOOM_CAPTION = {
   attributed: 'the count spent per island — every signature on the story that gave it',
 } satisfies Record<BloomDressing, string>;
 
-/** The zooms this page draws at: the overview of the whole forest, and the arc's two delivered
- *  scales. Nothing here is timed — a bloom is a look question, and the frame cost of the land is
- *  the page next door's measurement. */
-export const BLOOM_ZOOMS: readonly CrowdZoom[] = [FIT_ZOOM, ...CROWD_ZOOMS];
+/**
+ * THE FRAMES THIS PAGE DRAWS. Nothing here is timed — a bloom is a look question, and the frame
+ * cost of the land is the page next door's measurement.
+ *
+ * ⚠⚠ THE LAST ONE IS THE PICTURE THE OTHERS CANNOT TAKE, and it exists because the first three
+ * measurably do not show the defect. Measured 2026-08-31 on an RTX 2060: at the FIT overview the
+ * `none` and `scattered` frames come back BYTE-IDENTICAL — a bloom is 4 ground units wide and the
+ * whole forest is 3,500, so 210 misplaced flowers are sub-pixel and paint nothing at all. At
+ * 2 px/unit they are a few pixels. At 8 px/unit the frame is centred on the crowd's ANCHOR island,
+ * which is healthy and has signed all ten in BOTH arms, so both pictures are correct there.
+ *
+ * `unsigned-8px` frames a story that has signed NOTHING, at the same 8 px/unit. That is the one
+ * frame in which the misreport is a thing you can see rather than a number you have to trust.
+ */
+export interface BloomView {
+  id: string;
+  zoom: CrowdZoom;
+  /** Where the camera looks, in forest space. Absent ⇒ the crowd's own origin (its anchor island). */
+  centre?: { x: number; z: number };
+  what: string;
+}
 
 /**
  * THE PLACEMENTS EACH ARM STANDS.
@@ -196,15 +214,56 @@ export function bloomCensus(footprint: RoleFootprints, dressing: BloomDressing):
   };
 }
 
+/**
+ * THE ISLAND THIS PAGE ZOOMS IN ON TO SHOW THE DEFECT — the FIRST story in the crowd that has
+ * signed nothing at all.
+ *
+ * ⚠ CHOSEN BY THE FIXTURE'S OWN RULE rather than by index. A criterion defaults to `proven` on a
+ * HEALTHY island and `pending` on any other (ADR-0033 d.4: a story's status IS its own signed UAT
+ * verdict), so "signed nothing" means "not healthy" — and if the crowd's status mix ever changed
+ * so that every story signed something, this THROWS rather than quietly framing a story that did
+ * sign and picturing nothing.
+ */
+function unsignedIslandCentre(): { x: number; z: number } {
+  const signing = new Set(crowdBlooms(SIZE).map((b) => b.island));
+  for (const island of crowdIslands(SIZE)) {
+    if (!signing.has(crowdIslandId(island.index))) return { x: island.offset.x, z: island.offset.z };
+  }
+  throw new Error(
+    'shipped-blooms-scene: every story in this crowd has signed something, so there is no island ' +
+      'on which a misattributed flower could be seen. The comparison would picture nothing.',
+  );
+}
+
+export const BLOOM_VIEWS: readonly BloomView[] = [
+  { id: 'fit', zoom: FIT_ZOOM, what: 'the whole forest, fitted to a laptop screen' },
+  ...CROWD_ZOOMS.map((zoom) => ({
+    id: `${zoom}px`,
+    zoom,
+    what: `${zoom} delivered px per ground unit — centred on the crowd's anchor island, which has signed all ten`,
+  })),
+  {
+    id: 'unsigned-8px',
+    zoom: 8,
+    centre: unsignedIslandCentre(),
+    what: '8 px per ground unit, centred on a story that has signed NOTHING — the frame where the misreport is visible',
+  },
+];
+
 export interface BloomScene {
   scene: THREE.Scene;
   camera: THREE.OrthographicCamera;
   width: number;
   height: number;
   pxPerUnit: number;
-  /** Props standing on the frame — a kit that failed to parse draws none, and a picture with no
-   *  props in it is otherwise indistinguishable from a picture of bare land. */
-  props: number;
+  /** MERGED meshes standing on the frame — the kit merges every placement of a part into one, so
+   *  this is a handful whatever the map holds. It is here for ONE reason: a kit that failed to
+   *  parse draws NONE, and a picture with no props in it is otherwise indistinguishable from a
+   *  picture of bare land. Read {@link placements} for how many objects actually stand. */
+  meshes: number;
+  /** Objects placed on the map — trees, dead trees and flowers together. */
+  placements: number;
+  /** Of those, the flowers: one per signed UAT criterion this arm chose to draw. */
   blooms: number;
 }
 
@@ -219,34 +278,48 @@ export interface BloomScene {
 export function buildBloomScene(
   kit: LoadedKit | null,
   dressing: BloomDressing,
-  zoom: CrowdZoom,
+  view: BloomView,
 ): BloomScene {
-  const land = buildCrowdScene(LAND_ARM, SIZE, zoom);
-  let props = 0;
+  const land = buildCrowdScene(LAND_ARM, SIZE, view.zoom);
+  let meshes = 0;
   let blooms = 0;
+  let placed = 0;
   if (kit !== null) {
     const placements = bloomPlacements(roleFootprints(kit), dressing);
+    placed = placements.length;
     for (const placement of placements) if (placement.role === 'bloom') blooms += 1;
     for (const mesh of kitMeshes(kit, placements)) {
       land.scene.add(mesh);
-      props += 1;
+      meshes += 1;
     }
   }
+  // ⚠ THE CAMERA IS RE-AIMED RATHER THAN REBUILT, and only when the view asks for it.
+  // `buildCrowdScene` always looks at the forest's origin — correct for the page next door, whose
+  // whole point is that every timed frame shows the SAME island. Here one view has to look
+  // somewhere else, and it looks at the crowd's OWN pxPerUnit so the two frames stay one scale.
+  const camera =
+    view.centre === undefined ? land.camera : orientedCamera(view.centre, land.pxPerUnit);
   return {
     scene: land.scene,
-    camera: land.camera,
+    camera,
     width: land.width,
     height: land.height,
     pxPerUnit: land.pxPerUnit,
-    props,
+    meshes,
+    placements: placed,
     blooms,
   };
 }
 
 export interface BloomRunner {
   identity(): RendererIdentity;
-  snapshot(dressing: BloomDressing, zoom: CrowdZoom): { png: string; props: number; blooms: number };
+  snapshot(
+    dressing: BloomDressing,
+    view: string,
+  ): { png: string; meshes: number; placements: number; blooms: number };
   census(dressing: BloomDressing): BloomCensus;
+  /** The frames this page can take, so a driver walks the page's own list rather than a copy. */
+  views(): readonly { id: string; what: string }[];
   dispose(): void;
 }
 
@@ -264,18 +337,26 @@ export async function createBloomRunner(): Promise<BloomRunner> {
 
   return {
     identity: () => identity,
-    snapshot(dressing, zoom) {
-      const key = `${dressing}|${String(zoom)}`;
+    snapshot(dressing, view) {
+      const found = BLOOM_VIEWS.find((v) => v.id === view);
+      if (!found) throw new Error(`shipped-blooms-scene: no view "${view}"`);
+      const key = `${dressing}|${found.id}`;
       let s = built.get(key);
       if (!s) {
-        s = buildBloomScene(kit, dressing, zoom);
+        s = buildBloomScene(kit, dressing, found);
         built.set(key, s);
       }
       renderer.setSize(s.width, s.height, false);
       renderer.render(s.scene, s.camera);
-      return { png: canvas.toDataURL('image/png'), props: s.props, blooms: s.blooms };
+      return {
+        png: canvas.toDataURL('image/png'),
+        meshes: s.meshes,
+        placements: s.placements,
+        blooms: s.blooms,
+      };
     },
     census: (dressing) => bloomCensus(roleFootprints(kit), dressing),
+    views: () => BLOOM_VIEWS.map((v) => ({ id: v.id, what: v.what })),
     dispose() {
       renderer.dispose();
     },
@@ -303,23 +384,20 @@ export async function mountShippedBlooms(root: HTMLElement): Promise<void> {
   }).join('<br />');
   root.appendChild(table);
 
-  for (const zoom of BLOOM_ZOOMS) {
+  for (const view of BLOOM_VIEWS) {
     const h2 = document.createElement('h2');
-    h2.textContent =
-      zoom === FIT_ZOOM
-        ? 'the whole forest, fitted to a laptop screen'
-        : `${zoom} delivered px per ground unit`;
+    h2.textContent = view.what;
     root.appendChild(h2);
     const row = document.createElement('div');
     row.className = 'row';
     for (const dressing of BLOOM_DRESSINGS) {
-      const shot = runner.snapshot(dressing, zoom);
+      const shot = runner.snapshot(dressing, view.id);
       const fig = document.createElement('figure');
       const img = document.createElement('img');
       img.src = shot.png;
       img.width = 620;
       const cap = document.createElement('figcaption');
-      cap.textContent = `${dressing} — ${BLOOM_CAPTION[dressing]} · ${shot.props} props, ${shot.blooms} of them flowers`;
+      cap.textContent = `${dressing} — ${BLOOM_CAPTION[dressing]} · ${shot.placements} objects, ${shot.blooms} of them flowers`;
       fig.append(img, cap);
       row.appendChild(fig);
     }

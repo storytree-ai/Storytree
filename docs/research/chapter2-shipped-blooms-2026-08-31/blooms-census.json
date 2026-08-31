@@ -1,0 +1,78 @@
+{
+  "identity": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false,
+    "timerQuery": true
+  },
+  "census": {
+    "none": {
+      "dressing": "none",
+      "drawn": 0,
+      "signed": 210,
+      "misattributed": 0,
+      "unsignedIslandsWearingFlowers": 0,
+      "undrawn": 210
+    },
+    "scattered": {
+      "dressing": "scattered",
+      "drawn": 210,
+      "signed": 210,
+      "misattributed": 92,
+      "unsignedIslandsWearingFlowers": 14,
+      "undrawn": 92
+    },
+    "attributed": {
+      "dressing": "attributed",
+      "drawn": 210,
+      "signed": 210,
+      "misattributed": 0,
+      "unsignedIslandsWearingFlowers": 0,
+      "undrawn": 0
+    }
+  },
+  "shots": {
+    "none": {
+      "2": {
+        "props": 5,
+        "blooms": 0
+      },
+      "8": {
+        "props": 5,
+        "blooms": 0
+      },
+      "fit": {
+        "props": 5,
+        "blooms": 0
+      }
+    },
+    "scattered": {
+      "2": {
+        "props": 6,
+        "blooms": 210
+      },
+      "8": {
+        "props": 6,
+        "blooms": 210
+      },
+      "fit": {
+        "props": 6,
+        "blooms": 210
+      }
+    },
+    "attributed": {
+      "2": {
+        "props": 6,
+        "blooms": 210
+      },
+      "8": {
+        "props": 6,
+        "blooms": 210
+      },
+      "fit": {
+        "props": 6,
+        "blooms": 210
+      }
+    }
+  }
+}
