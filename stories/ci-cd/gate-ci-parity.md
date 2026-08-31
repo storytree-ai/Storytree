@@ -11,28 +11,52 @@ decisions: [486, 304, 195]
 # THE DECIDING ADR EXISTS NOW — ADR-0486 (accepted 2026-08-31), which this unit realises. It settles
 # the contract for how far the local gate may differ from CI: one declared two-way delta (D1), the
 # permitted delta classes CLOSED at three (D2), every member asserted BOTH ways (D3), both sides read
-# from their REAL definitions at runtime and never transcribed (D4), and a SKIP is not an absence (D5).
-# The old "no deciding ADR yet (owner escalation)" note is WITHDRAWN in place below: measured against
-# `owner-fork-bar` the question cleared none of its three tests — reversible, internal, and a pure
-# engineering tradeoff — and ADR-0304 D2 had already settled the direction.
-proof:
-  command:
-    file: pnpm
-    args: ["--filter", "@storytree/cli", "test"]
-  scope:
-    testGlobs: ["packages/cli/src/gate-ci-parity.test.ts"]
-    sourceGlobs: ["packages/cli/src/gate-ci-parity.ts"]
-  real:
-    testFile: "packages/cli/src/gate-ci-parity.test.ts"
-    sourceFile: "packages/cli/src/gate-ci-parity.ts"
-    scope:
-      testGlobs: ["packages/cli/src/gate-ci-parity.test.ts"]
-      sourceGlobs: ["packages/cli/src/gate-ci-parity.ts"]
-    install: false
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/cli", "typecheck"]
-    editsExisting: false
+# from their REAL definitions at runtime (D4), and a SKIP is not an absence (D5). The old "no deciding
+# ADR yet (owner escalation)" note is WITHDRAWN in place below: measured against `owner-fork-bar` the
+# question cleared none of its three tests — reversible, internal, and a pure engineering tradeoff —
+# and ADR-0304 D2 had already settled the direction.
+#
+# ⚠⚠ BLOCKED BY ADR-0192 — DO NOT SPEND A `--real` RUN ON THIS UNIT UNTIL ITS SOURCE HAS A HOME.
+# Measured 2026-08-31, the expensive way: this unit WAS driven `--real` on 2026-08-31 and PASSED — phase trail AUTHOR_TEST → CONFIRM_RED → IMPLEMENT →
+# CONFIRM_GREEN → GATE, verdict PASS, coverage 3/3 contracts, $2.8028. `check:boundaries`
+# then REFUSED the result on two rules at once:
+#   - the hosted-story landlord rule (ADR-0074 §4) — story "ci-cd" claimed a unit source file inside
+#     "cli"'s building (`packages/cli`) with no declared edge; and
+#   - the ADR-0192 PACKAGES-FORWARD REFUSAL — "ci-cd" is NOT in the frozen `hostedStories` register,
+#     and a NEW story cannot host in a foreign building AT ALL, regardless of any declared edge.
+# The register holds 15 entries, DOWN from the frozen 18, because its whole purpose is to SHRINK as
+# stories migrate out (ADR-0192 D3). Adding "ci-cd" to it would reverse the decision's direction and
+# is described by the refusal itself as a deliberate owner-reviewed grandfathering — not a session's
+# call to make on the way past.
+#
+# THE ROOT CAUSE IS THAT "ci-cd" OWNS NO WORKSPACE PACKAGE. Verified against `repo-manifest.json`:
+# `sourceOwnership` gives it ZERO subtrees. Its capabilities were all Class C (no `proof:` block at
+# all), so none had ever declared a `real.sourceFile` — which is why no hosting evidence existed and
+# why the register never listed it. Authoring the first one CREATED the first hosting relationship,
+# and ADR-0192 refused it on sight. That is the rule working, not a defect.
+#
+# ⚠ THE PRE-FLIGHT DOES NOT CATCH THIS, AND THAT IS THE COSTLY PART. `storytree node resolve`
+# reported "REAL-buildable: yes" and the build ran to a signed PASS before any boundary rung looked
+# at where the file landed. So the money is spent BEFORE the refusal is discoverable. Anyone adding a
+# `real.sourceFile` to a story that owns no package will pay the same ~$2.80 for an unlandable verdict.
+#
+# ⚠ THE WORK IS NOT LOST — DO NOT RE-DRIVE IT FROM SCRATCH. The leaf's authored pair is parked on
+# `origin/claude/real/gate-ci-parity-real-mtghoj67`: `packages/cli/src/gate-ci-parity.ts` and `packages/cli/src/gate-ci-parity.test.ts`. It is good work — pure functions, the CI
+# job scoped correctly, both real definitions read at runtime — and the signed PASS persists in
+# `events.verdict`. Re-home those two files into a package "ci-cd" legitimately owns, repoint the
+# arm, and re-prove; do not re-author.
+#
+# THE FORK, for story-author / an architecture decision — NOT an owner fork (ADR-0192 already
+# settled the rule; what is open is only WHICH remedy):
+#   (a) give "ci-cd" its own workspace package and re-home the unit's source there; or
+#   (b) re-home the CAPABILITY to the "cli" story, whose building already hosts the repo's checking
+#       apparatus (`verification-decay-instruments` owns check sources there today) — the subject is
+#       the gate/CI relationship, but the ARTEFACT is one more `check:*` rung; or
+#   (c) an owner-reviewed grandfathering of "ci-cd" onto the shrinking register — the direction
+#       ADR-0192 exists to reverse, and the weakest of the three.
+# Until one is chosen, the `proof:` block is REMOVED so `node resolve` reports the unit
+# NOT buildable and `--real` refuses fail-closed. That refusal is the point: it is cheaper than
+# another unlandable verdict.
 ---
 
 # Gate↔CI parity — the local gate and CI verify stand in one declared two-way delta, checkable

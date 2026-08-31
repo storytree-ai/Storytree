@@ -11,29 +11,52 @@ decisions: [486]
 # ⚠ THE PROOF IS DELIBERATELY SPLIT, NOT STRETCHED (ADR-0486). Contracts 2, 3 and 4 are static-YAML
 # audits over the real `.github/workflows/ci.yml` and are fully assertable offline. Contract 1 is
 # MIXED: its repo-owned half — that the `verify` checkout does not OVERRIDE actions/checkout's
-# pull_request merge-ref default — is assertable here and is what can actually regress in this repo;
-# its platform half — that GitHub and actions/checkout genuinely produce a correct merge commit — is
-# PLATFORM TRUST and is EXCLUDED from this unit's verdict rather than folded into it. Stretching one
-# proof to cover the platform half is how a sliver of unverifiable behaviour ends up inside a signed
-# green (ADR-0085/0097's inverse theater).
-proof:
-  command:
-    file: pnpm
-    args: ["--filter", "@storytree/cli", "test"]
-  scope:
-    testGlobs: ["packages/cli/src/green-gate-audit.test.ts"]
-    sourceGlobs: ["packages/cli/src/green-gate-audit.ts"]
-  real:
-    testFile: "packages/cli/src/green-gate-audit.test.ts"
-    sourceFile: "packages/cli/src/green-gate-audit.ts"
-    scope:
-      testGlobs: ["packages/cli/src/green-gate-audit.test.ts"]
-      sourceGlobs: ["packages/cli/src/green-gate-audit.ts"]
-    install: false
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/cli", "typecheck"]
-    editsExisting: false
+# pull_request merge-ref default — is assertable and is what can actually regress in this repo; its
+# platform half — that GitHub genuinely produces a correct merge commit — is PLATFORM TRUST and is
+# EXCLUDED from this unit's verdict rather than folded into it. Stretching one proof to cover the
+# platform half is how a sliver of unverifiable behaviour ends up inside a signed green.
+#
+# ⚠⚠ BLOCKED BY ADR-0192 — DO NOT SPEND A `--real` RUN ON THIS UNIT UNTIL ITS SOURCE HAS A HOME.
+# Measured 2026-08-31, the expensive way: this unit WAS driven `--real` — its SIBLING `gate-ci-parity` was, and this unit's arm named the
+# same foreign building, so it would hit the identical refusal. `check:boundaries`
+# then REFUSED the result on two rules at once:
+#   - the hosted-story landlord rule (ADR-0074 §4) — story "ci-cd" claimed a unit source file inside
+#     "cli"'s building (`packages/cli`) with no declared edge; and
+#   - the ADR-0192 PACKAGES-FORWARD REFUSAL — "ci-cd" is NOT in the frozen `hostedStories` register,
+#     and a NEW story cannot host in a foreign building AT ALL, regardless of any declared edge.
+# The register holds 15 entries, DOWN from the frozen 18, because its whole purpose is to SHRINK as
+# stories migrate out (ADR-0192 D3). Adding "ci-cd" to it would reverse the decision's direction and
+# is described by the refusal itself as a deliberate owner-reviewed grandfathering — not a session's
+# call to make on the way past.
+#
+# THE ROOT CAUSE IS THAT "ci-cd" OWNS NO WORKSPACE PACKAGE. Verified against `repo-manifest.json`:
+# `sourceOwnership` gives it ZERO subtrees. Its capabilities were all Class C (no `proof:` block at
+# all), so none had ever declared a `real.sourceFile` — which is why no hosting evidence existed and
+# why the register never listed it. Authoring the first one CREATED the first hosting relationship,
+# and ADR-0192 refused it on sight. That is the rule working, not a defect.
+#
+# ⚠ THE PRE-FLIGHT DOES NOT CATCH THIS, AND THAT IS THE COSTLY PART. `storytree node resolve`
+# reported "REAL-buildable: yes" and the build ran to a signed PASS before any boundary rung looked
+# at where the file landed. So the money is spent BEFORE the refusal is discoverable. Anyone adding a
+# `real.sourceFile` to a story that owns no package will pay the same ~$2.80 for an unlandable verdict.
+#
+# ⚠ THE WORK IS NOT LOST — DO NOT RE-DRIVE IT FROM SCRATCH. The leaf's authored pair is parked on
+# `origin/claude/real/<none — never driven>`: `packages/cli/src/green-gate-audit.ts` and `packages/cli/src/green-gate-audit.test.ts`. It is good work — pure functions, the CI
+# job scoped correctly, both real definitions read at runtime — and the signed PASS persists in
+# `events.verdict`. Re-home those two files into a package "ci-cd" legitimately owns, repoint the
+# arm, and re-prove; do not re-author.
+#
+# THE FORK, for story-author / an architecture decision — NOT an owner fork (ADR-0192 already
+# settled the rule; what is open is only WHICH remedy):
+#   (a) give "ci-cd" its own workspace package and re-home the unit's source there; or
+#   (b) re-home the CAPABILITY to the "cli" story, whose building already hosts the repo's checking
+#       apparatus (`verification-decay-instruments` owns check sources there today) — the subject is
+#       the gate/CI relationship, but the ARTEFACT is one more `check:*` rung; or
+#   (c) an owner-reviewed grandfathering of "ci-cd" onto the shrinking register — the direction
+#       ADR-0192 exists to reverse, and the weakest of the three.
+# Until one is chosen, the `proof:` block is REMOVED so `node resolve` reports the unit
+# NOT buildable and `--real` refuses fail-closed. That refusal is the point: it is cheaper than
+# another unlandable verdict.
 ---
 
 # The green gate — `verify` proves a PR against the merge of branch and main
