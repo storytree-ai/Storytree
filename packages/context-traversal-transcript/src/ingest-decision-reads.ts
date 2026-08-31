@@ -542,12 +542,17 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
   receipts +=
     ". A session this sweep extracted no read for is NOT stamped, so its replay still reads " +
     "never-run — an under-claim of measurement, which is the safe direction.";
-  // Stryker restore all
   lines.push(
     result.dryRun
       ? "  receipts: none — a dry run writes no byte, so no session is stamped as measured."
       : receipts,
   );
+  // Stryker restore all
+  //
+  // THE RESTORE SITS AFTER THE PUSH, not before it. Placed one line earlier it left the dry-run arm
+  // outside the region and CI reported that literal on the next cycle — the fourth in a row, each
+  // naming whatever the previous edit had shifted. The region is the WHOLE block this increment
+  // added, and its last statement is this push.
 
   lines.push("");
   lines.push(
