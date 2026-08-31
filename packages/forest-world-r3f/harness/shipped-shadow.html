@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the shadow at forest scale — three remedies — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The shadow at forest scale &mdash; three remedies, one instrument</h1>
+      <p>
+        The ground occlusion field is allocated over the whole ground&rsquo;s <em>rect</em>, and its
+        resolution is clamped so that rect fits inside a texture budget. One island spans 234 ground
+        units and gets the authored <strong>3.000 samples per ground unit</strong>; a
+        thirty-five-island forest spans about 3,500 and gets <strong>0.585</strong> &mdash; 5.1&times;
+        coarser in each axis, against parcels whose mean diameter is 16.57. The contact pool under a
+        story tree stops being a soft round shadow and goes shrunken and ragged, and it does so
+        precisely when the map becomes the real map.
+      </p>
+      <p class="numbers">
+        clamped&nbsp;&nbsp;&nbsp;&nbsp;the map until 2026-08-31 &mdash; one field over the forest RECT, clamped<br />
+        raised&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;A &mdash; the same field, texture cap lifted until the authored resolution lands<br />
+        per-island&nbsp;B &mdash; one field, one material and one draw call PER ISLAND<br />
+        atlas&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;C &mdash; ONE field packed over the islands themselves; one material, one draw
+      </p>
+      <p>
+        <strong>Every arm shares the ladder, the grain, the relief, the parcels, the light and the
+        camera.</strong> The only thing that moves is how the occlusion field is allocated and how
+        many meshes carry it &mdash; so a pixel difference between two arms is the remedy&rsquo;s and
+        nothing else&rsquo;s.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; Read the close zoom, not the overview.</strong> A contact pool is about
+        24 ground units across. At the fitted zoom that is a third of a pixel, so all four arms are
+        <em>identical by construction</em> there and a comparison taken at that zoom cannot come back
+        negative &mdash; this arc has already produced one pair of byte-identical files that way. The
+        caption under every frame states how wide a pool is in delivered pixels at that zoom, so a
+        null result can be read as a null result rather than as agreement.
+      </p>
+      <p>
+        <strong>&#9888; <code>clamped</code> is a picture of the past.</strong> The shipped canvas
+        moved to <code>atlas</code> in the same landing that produced this page. The old arm stays
+        because &ldquo;we removed a defect&rdquo; is not something a reader can check without seeing
+        the defect.
+      </p>
+      <p>
+        <strong>The one-island rows are the control.</strong> Every remedy must leave a single island
+        pixel-for-pixel as it is today: nothing was wrong there, and a remedy that changed it would
+        be changing the map&rsquo;s look on the surface everything committed so far was measured on.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedShadow } from './shipped-shadow-scene.ts';
+      try {
+        await mountShippedShadow(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

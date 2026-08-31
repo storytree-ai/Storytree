@@ -32,9 +32,17 @@ import { Instance, Instances, Line, MapControls } from '@react-three/drei';
 import { Color, OrthographicCamera, type Mesh } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 import { frameWorld, orthographicZoomFor } from './camera-framing.js';
-import { cellGroundGeometry, type LinearRgb } from './cell-ground-geometry.js';
+import {
+  cellGroundGeometry,
+  type CellGroundGeometryInput,
+  type LinearRgb,
+} from './cell-ground-geometry.js';
 import { LAND_RELIEF_AMPLITUDE, landRelief } from './land-relief.js';
-import { buildGroundOcclusion } from './contact-shade.js';
+import {
+  atlasOriginResolver,
+  buildAtlasOcclusion,
+  type AtlasField,
+} from './shadow-atlas.js';
 import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from './ground-casters.js';
 import type { ShadowCaster } from './land-shadow.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh.js';
@@ -43,9 +51,10 @@ import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour.js';
 import { calibrateLights, intensitiesFor } from './light-calibration.js';
 import {
+  GROUND_ATLAS_ATTRIBUTE,
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
-  groundShadowTexture,
+  groundAtlasTexture,
   type BandedGroundMaterialOptions,
 } from './banded-ground-material.js';
 
@@ -239,20 +248,40 @@ const groundRowOf = (material: string | undefined): number =>
  * headroom is 3.0 weighted channel units and it is the PALETTE's tightness, not the shadow's
  * greed — the same wall the grain's colour half met.
  */
-function buildGroundMaterial(cells: readonly InstanceDescriptor[], casters: readonly ShadowCaster[]) {
+function buildGroundMaterial(field: AtlasField | null) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
-  const bounds = groundBounds(cells);
-  // A parcel set that bounds nothing gets no field rather than a one-texel one every fragment
-  // then samples. `groundBounds` returns null rather than a degenerate rect precisely so this
-  // branch has to be written down.
-  const shadow =
-    bounds === null
-      ? null
-      : groundShadowTexture(
-          buildGroundOcclusion({ bounds, relief: LAND_RELIEF_AMPLITUDE, casters }),
-        );
-  if (shadow !== null) opts.shadow = shadow;
+  const shadow = field === null ? null : groundAtlasTexture(field);
+  if (shadow !== null) opts.shadowAtlas = shadow;
   return { material: createBandedGroundMaterial(opts), shadow };
+}
+
+/**
+ * THE OCCLUSION FIELD, PACKED OVER THE ISLANDS — adopted 2026-08-31, unconditionally and with no
+ * flag, like the relief, the ladder, the grain and the shadow itself before it.
+ *
+ * ⚠⚠ IT REPLACED A FIELD ALLOCATED OVER THE GROUND'S RECT, and the reason is a measurement
+ * rather than a preference. `occlusionGres` is `min(SHADOW_GRES, SHADOW_TEXTURE_MAX / widestSpan)`,
+ * so ONE island (234 ground units) got the authored 3.000 samples per ground unit and a real
+ * thirty-five-island forest (~3,500) got 0.585 — 5.1x coarser, against parcels whose mean
+ * diameter is 16.57. The contact pool under a story tree lost 5.5% of its area and 15.3% of its
+ * pixels moved: a soft round shadow became a lumpy one, precisely when the map became the real
+ * map. Packed over the islands themselves it is the authored resolution at every map size, and a
+ * SINGLE island is byte-identical to what it was (measured: 0.000% of the frame moved).
+ *
+ * ⚠ A PARCEL SET THAT BOUNDS NOTHING GETS NO FIELD, rather than a one-texel one every fragment
+ * then samples. `groundBounds` returns null rather than a degenerate rect precisely so this branch
+ * has to be written down.
+ *
+ * The costing of all three remedies — raising the texture cap (26x the memory, a 10,498-texel
+ * edge), a field and a material PER ISLAND (35 draw calls with the whole forest on screen), and
+ * this one — is `docs/research/chapter2-shipped-shadow-2026-08-31/`.
+ */
+function buildGroundOcclusionField(
+  cells: readonly InstanceDescriptor[],
+  casters: readonly ShadowCaster[],
+): AtlasField | null {
+  if (groundBounds(cells) === null) return null;
+  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters });
 }
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
@@ -297,13 +326,24 @@ function CellGround({
   casters: readonly ShadowCaster[];
 }) {
   const built = useMemo(() => {
-    const geo = cellGroundGeometry({
+    // ⚠ THE FIELD IS BUILT FIRST AND THE GEOMETRY READS ITS PACKING, which is what makes "the
+    // mesh and the material agree about where each island's tile is" true by construction rather
+    // than by two calls happening to pack the same way. They disagree silently: every island would
+    // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
+    // set of shadows belonging to the wrong land.
+    const field = buildGroundOcclusionField(cells, casters);
+    const input: CellGroundGeometryInput = {
       cells,
       resolve: linearColourOf,
       index: groundRowOf,
       relief: landRelief,
-    });
-    return { geo, ...buildGroundMaterial(cells, casters) };
+    };
+    // By statement rather than a conditional spread: under `exactOptionalPropertyTypes` an absent
+    // `atlasOrigin` and an `atlasOrigin: undefined` are different inputs, and only the first
+    // leaves the emitted buffer the one every pre-adoption figure was taken on.
+    if (field !== null) input.atlasOrigin = atlasOriginResolver(field);
+    const geo = cellGroundGeometry(input);
+    return { geo, ...buildGroundMaterial(field) };
   }, [cells, casters]);
   // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
   // TO BE. The occlusion field is about 107 KB of GPU memory for one island, and a canvas that
@@ -326,6 +366,15 @@ function CellGround({
           attach={`attributes-${GROUND_STATUS_ATTRIBUTE}`}
           args={[built.geo.statuses, 1]}
         />
+        {/* The island's tile corner in the packed occlusion atlas. Absent when the parcel set
+            bounds nothing and therefore wears no field — the shader declares no attribute in that
+            case either, so an empty buffer here would be one nothing reads. */}
+        {built.geo.atlasOrigins.length > 0 && (
+          <bufferAttribute
+            attach={`attributes-${GROUND_ATLAS_ATTRIBUTE}`}
+            args={[built.geo.atlasOrigins, 2]}
+          />
+        )}
       </bufferGeometry>
     </mesh>
   );

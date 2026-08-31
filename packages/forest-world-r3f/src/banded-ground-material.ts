@@ -48,6 +48,7 @@ import {
   ShaderMaterial,
   Texture,
   UnsignedByteType,
+  Vector2,
   Vector3,
   Vector4,
 } from 'three';
@@ -59,6 +60,7 @@ import {
   grainStops,
 } from './land-grain.js';
 import { type ShadowField } from './land-shadow.js';
+import { atlasScale, type AtlasField } from './shadow-atlas.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, deliveredForLevel } from './shade-ladder.js';
 import { shadowLadderFor } from './shadow-rung.js';
 
@@ -68,6 +70,13 @@ import { shadowLadderFor } from './shadow-rung.js';
  *  attribute simply never arrives, every fragment reads row 0, and the island paints itself one
  *  status while looking like it is working. */
 export const GROUND_STATUS_ATTRIBUTE = 'statusIndex';
+
+/** The attribute a merged ground buffer carries its island's ATLAS ORIGIN in, when the occlusion
+ *  field is packed rather than allocated over the ground's rect. Same argument as
+ *  {@link GROUND_STATUS_ATTRIBUTE}: a mismatch between the shader's spelling and the canvas's is
+ *  silent — every island reads the atlas's top-left corner, and the map wears one island's
+ *  shadow everywhere while looking like it is working. */
+export const GROUND_ATLAS_ATTRIBUTE = 'atlasOrigin';
 
 /**
  * WHICH HALF of the grain octave the shipped ground wears — and they are separate options rather
@@ -112,6 +121,20 @@ export interface BandedGroundMaterialOptions {
    *  it delivered before shadows existed. Built by {@link groundShadowTexture}, so the texture
    *  and the rect it is sampled through can never disagree about which ground the samples cover. */
   shadow?: GroundShadow;
+  /** RECEIVE the occlusion field as a PACKED ATLAS instead — one texture holding every island's
+   *  own field at the authored resolution, side by side, with the sea between them left out of
+   *  the allocation.
+   *
+   *  ⚠ MUTUALLY EXCLUSIVE WITH {@link shadow}, and refused rather than resolved by precedence: the
+   *  two forms disagree about how a fragment finds its sample, so a material handed both would
+   *  shade correctly under whichever one the code happened to check first and the other option
+   *  would sit there reading as though it were doing something.
+   *
+   *  ⚠ IT NEEDS THE MESH'S HELP, which {@link shadow} does not. The origin is a per-vertex
+   *  attribute ({@link GROUND_ATLAS_ATTRIBUTE}), so a geometry built without
+   *  `CellGroundGeometryInput.atlasOrigin` draws every island through the atlas's top-left tile.
+   *  That is the one failure mode of this form that looks like art rather than like a bug. */
+  shadowAtlas?: GroundShadowAtlas;
   /** THE LIT LADDER this material quantises its lighting scalar onto. Absent means the authored
    *  `SHADE_LEVELS`, and the shipped canvas passes nothing — so the source it emits is
    *  byte-identical to the one every measured figure about the banded ground was taken against.
@@ -137,6 +160,36 @@ export interface GroundShadow {
   minZ: number;
   spanX: number;
   spanZ: number;
+}
+
+/** A packed occlusion atlas, uploaded, with the ground→UV SCALE every tile shares. The per-tile
+ *  ORIGIN is not here: it rides on the mesh, because it is what differs per island. */
+export interface GroundShadowAtlas {
+  texture: Texture;
+  /** Atlas UV per ground unit, x and z. `gres / atlasEdge` — derived by `atlasScale` rather than
+   *  spelled here, so the packing and the shader cannot hold two copies of one number. */
+  scaleU: number;
+  scaleV: number;
+}
+
+/**
+ * Upload a packed {@link AtlasField} as a single-channel texture.
+ *
+ * SAME FILTERING AND WRAPPING AS {@link groundShadowTexture}, and the tile borders do not need
+ * more. `OCCLUSION_PAD` already leaves six texels of empty field between an island's own land and
+ * its tile's edge at the authored resolution, and a bilinear tap reaches one — so no fragment
+ * over ground the mesh actually covers can sample a neighbouring tile. `shadow-atlas.ts`'s
+ * `tileMargin` is what says so, and would say so loudly if the pad ever moved.
+ */
+export function groundAtlasTexture(field: AtlasField): GroundShadowAtlas {
+  const tex = new DataTexture(field.data, field.w, field.h, RedFormat, UnsignedByteType);
+  tex.minFilter = LinearFilter;
+  tex.magFilter = LinearFilter;
+  tex.wrapS = ClampToEdgeWrapping;
+  tex.wrapT = ClampToEdgeWrapping;
+  tex.needsUpdate = true;
+  const scale = atlasScale(field);
+  return { texture: tex, scaleU: scale.u, scaleV: scale.v };
 }
 
 /**
@@ -271,7 +324,17 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // and THROWS if the answer is "not at all" — a palette that cannot carry a shadow honestly has
   // to fail loudly, because the failure IS the finding (ADR-0392 D5 / ADR-0398 D7).
   const lit = opts.lit ?? SHADE_LEVELS;
-  const ladder = opts.shadow === undefined ? null : shadowLadderFor(opts.tokens, lit);
+  // ⚠ REFUSED, NOT RESOLVED BY PRECEDENCE. The two occlusion forms disagree about how a fragment
+  // finds its sample; a material handed both would shade through one of them and leave the other
+  // reading as though it were doing something.
+  if (opts.shadow !== undefined && opts.shadowAtlas !== undefined) {
+    throw new Error(
+      'banded-ground-material: both a rect occlusion field and a packed atlas were supplied — ' +
+        'they are two spellings of one input and only one of them can be the one being drawn',
+    );
+  }
+  const occluded = opts.shadow !== undefined || opts.shadowAtlas !== undefined;
+  const ladder = occluded ? shadowLadderFor(opts.tokens, lit) : null;
   const ramp = groundRamp(opts.tokens, ladder === null ? lit : ladder.levels);
   if (ramp.length === 0) {
     // A material with an empty ramp compiles to `uRamp[0]` on a zero-length uniform array, which
@@ -315,7 +378,18 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // The occlusion field's two uniforms follow the same by-statement shape, for the same two
   // reasons: an unshadowed material must carry NO `uShadow*` uniform at all, and both shorter
   // spellings are refused by the anti-slop rules.
-  const shadowUniforms: Record<string, { value: Texture } | { value: Vector4 }> = {};
+  const shadowUniforms: Record<
+    string,
+    { value: Texture } | { value: Vector4 } | { value: Vector2 }
+  > = {};
+  if (opts.shadowAtlas !== undefined) {
+    shadowUniforms['uShadowTex'] = { value: opts.shadowAtlas.texture };
+    // The SCALE only — every tile shares it, because the packing puts them all at one resolution.
+    // The per-island ORIGIN rides on the mesh; see GROUND_ATLAS_ATTRIBUTE.
+    shadowUniforms['uShadowAtlasScale'] = {
+      value: new Vector2(opts.shadowAtlas.scaleU, opts.shadowAtlas.scaleV),
+    };
+  }
   if (opts.shadow !== undefined) {
     shadowUniforms['uShadowTex'] = { value: opts.shadow.texture };
     // The RECT carries the RECIPROCAL spans rather than the spans, so the fragment stage does two
@@ -350,8 +424,24 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     (grainColour ? '\n      uniform float uGrainColourMix;' : '');
   // Same appended-string shape, same reason: an unshadowed shader must not merely fail to USE
   // these, it must not declare them.
-  const shadowUniformDecls = shadowed
-    ? '\n      uniform sampler2D uShadowTex;' + '\n      uniform vec4 uShadowRect;'
+  const shadowUniformDecls =
+    (opts.shadow !== undefined
+      ? '\n      uniform sampler2D uShadowTex;' + '\n      uniform vec4 uShadowRect;'
+      : '') +
+    (opts.shadowAtlas !== undefined
+      ? '\n      uniform sampler2D uShadowTex;' + '\n      uniform vec2 uShadowAtlasScale;'
+      : '');
+  // The atlas is the ONLY form that needs anything from the VERTEX stage, and every one of these
+  // is empty for the other two — so an unshadowed shader and a rect-shadowed one both stay
+  // byte-identical to the ones every committed figure was taken against.
+  const atlased = opts.shadowAtlas !== undefined;
+  const atlasAttribute = atlased ? `\n      attribute vec2 ${GROUND_ATLAS_ATTRIBUTE};` : '';
+  const atlasVarying = atlased ? '\n      varying vec2 vAtlasOrigin;' : '';
+  const atlasAssign = atlased
+    ? '\n        // The island\'s tile corner rides through the interpolator. All three vertices of' +
+      '\n        // a triangle belong to one island and carry the same corner, so the interpolated' +
+      '\n        // value is that corner exactly — the same argument vStatus above makes.' +
+      `\n        vAtlasOrigin = ${GROUND_ATLAS_ATTRIBUTE};`
     : '';
   const grainNormalStage = grainNormal
     ? `        // THE GRAIN'S NORMAL HALF — the palette-safe one, and the only one the shipped
@@ -393,8 +483,15 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
       ? '        // +0.5 then truncate, rather than a bare cast: an interpolated float that arrives as' +
         '\n        // 1.9999998 for row 2 would otherwise select row 1 and report a foreign status.' +
         '\n        int idx = int(vStatus + 0.5) * ST_N_LEVELS + st_bandIndex(lambert);'
-      : `        vec2 shUv = vec2((vWorld.x - uShadowRect.x) * uShadowRect.z,
-                         (vWorld.z - uShadowRect.y) * uShadowRect.w);
+      : `${
+          atlased
+            ? `        // The atlas form: the island's own tile corner, plus the ground position
+        // scaled into it. Two multiply-adds against the rect form's two subtract-multiplies —
+        // the packing costs the fragment stage nothing, it costs a vec2 on the mesh.
+        vec2 shUv = vAtlasOrigin + vec2(vWorld.x, vWorld.z) * uShadowAtlasScale;`
+            : `        vec2 shUv = vec2((vWorld.x - uShadowRect.x) * uShadowRect.z,
+                         (vWorld.z - uShadowRect.y) * uShadowRect.w);`
+        }
         int rung = st_bandIndex(lambert);
         int lvl = 0;
         ${litRemapGlsl(ladder.litIndex)}
@@ -408,9 +505,9 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   return new ShaderMaterial({
     uniforms,
     vertexShader: `
-      attribute float ${GROUND_STATUS_ATTRIBUTE};
+      attribute float ${GROUND_STATUS_ATTRIBUTE};${atlasAttribute}
       varying float vStatus;
-      varying vec3 vNormal;${worldVarying}
+      varying vec3 vNormal;${worldVarying}${atlasVarying}
       void main() {
         // The ramp ROW rides through the interpolator. All three vertices of a triangle carry
         // the same parcel's row, so the interpolated value is that row exactly — GLSL ES 1.0
@@ -419,7 +516,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         // The normal reaches the fragment stage in WORLD space: the light is an authored world
         // direction, so shading in view space would swing the lighting whenever the camera
         // moved — which on a banded material means visible rungs sliding across static ground.
-        vNormal = normalize(mat3(modelMatrix) * normal);${worldAssign}
+        vNormal = normalize(mat3(modelMatrix) * normal);${worldAssign}${atlasAssign}
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -429,7 +526,7 @@ ${grainSource}
       uniform vec3 uRamp[${ramp.length}];
       uniform vec3 uLightDir;${grainUniformDecls}${shadowUniformDecls}
       varying float vStatus;
-      varying vec3 vNormal;${worldVarying}
+      varying vec3 vNormal;${worldVarying}${atlasVarying}
 
       void main() {
         vec3 n = normalize(vNormal);

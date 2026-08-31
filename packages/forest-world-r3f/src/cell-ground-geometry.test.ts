@@ -21,6 +21,8 @@ import {
   signedTriangleArea2,
   triangulateRing,
   FLAT_GROUND,
+  ZERO_ORIGIN,
+  type AtlasOrigin,
   type GroundRelief,
   type LinearRgb,
 } from './cell-ground-geometry.js';
@@ -1040,4 +1042,110 @@ test('relief moves no ROW either — the field is position-only, so it cannot re
   const relieved = cellGroundGeometry({ cells, resolve: resolveWhite, index, relief: landRelief });
   assert.deepEqual([...relieved.statuses], [...flat.statuses]);
   assert.ok(flat.statuses.length > 0, 'NON-VACUITY: there are rows for the relief to have moved');
+});
+
+
+// ---------------------------------------------------------------------------------------------
+// THE ATLAS ORIGIN — the per-vertex half of a PACKED occlusion field.
+//
+// ⚠ IT IS A CONSTANT PER ISLAND, WHICH IS THE ONLY REASON IT MAY RIDE ON THE MESH. `land-shadow.ts`
+// rejected a per-vertex SHADOW because a shadow carries features finer than a parcel; an origin is
+// identical at every vertex of every triangle on its island, so the interpolator returns it
+// exactly. These tests hold that literally — not "close", the same float.
+
+/** A `cell-ground` on a named island. */
+function islandCell(
+  island: string,
+  ring: readonly (readonly [number, number])[],
+): InstanceDescriptor {
+  return { ...cellOf(ring), island };
+}
+
+const SQUARE_A: readonly (readonly [number, number])[] = [
+  [0, 0],
+  [10, 0],
+  [10, 10],
+  [0, 10],
+];
+const SQUARE_B: readonly (readonly [number, number])[] = [
+  [100, 0],
+  [110, 0],
+  [110, 10],
+  [100, 10],
+];
+
+test('NO atlas resolver means an EMPTY origin buffer, never a zero-filled one', () => {
+  const geo = cellGroundGeometry({ cells: [islandCell('a', SQUARE_A)], resolve: resolveWhite });
+  assert.equal(geo.atlasOrigins.length, 0);
+  // The argument for empty rather than zero-filled, stated as the thing it prevents: (0, 0) is a
+  // real corner of a real atlas, so a zero-filled buffer would draw every island through one tile.
+  assert.ok(geo.triangles > 0, 'and the buffer really was built, so this is not a vacuous zero');
+});
+
+test('an atlas resolver fills TWO floats per vertex, and the buffer sizes agree', () => {
+  const geo = cellGroundGeometry({
+    cells: [islandCell('a', SQUARE_A)],
+    resolve: resolveWhite,
+    atlasOrigin: () => ({ u: 0.25, v: 0.5 }),
+  });
+  assert.equal(geo.atlasOrigins.length, geo.triangles * 6);
+  assert.equal(geo.positions.length, geo.triangles * 9);
+  for (let v = 0; v < geo.triangles * 3; v += 1) {
+    assert.equal(geo.atlasOrigins[v * 2], 0.25, `vertex ${v} lost its u`);
+    assert.equal(geo.atlasOrigins[v * 2 + 1], 0.5, `vertex ${v} lost its v`);
+  }
+});
+
+test('⚠⚠ EVERY VERTEX OF AN ISLAND CARRIES ITS OWN ISLAND’S ORIGIN — tops and walls alike', () => {
+  // ⚠ EXACT BINARY FRACTIONS, so the assertions below may be `equal` rather than `close to`.
+  // The buffer is a Float32Array; 0.1 comes back as 0.10000000149011612 and an approximate
+  // comparison is a weaker claim than this test can afford — the failure it has to catch is a
+  // vertex carrying the WRONG island's origin, which differs by far more than a rounding.
+  const originA: AtlasOrigin = { u: 0.125, v: 0.25 };
+  const originB: AtlasOrigin = { u: 0.75, v: 0.5 };
+  // A FUNCTION rather than a dictionary, and the reason is the resolver's own contract: it takes
+  // `string | undefined`, so a lookup table would have to be widened to an open dictionary — which
+  // discards the two keys this test knows about, and is what `no-known-value-widening` refuses.
+  const originFor = (island: string | undefined): AtlasOrigin =>
+    island === 'a' ? originA : island === 'b' ? originB : { u: -1, v: -1 };
+  const origins = { a: originA, b: originB };
+  const geo = cellGroundGeometry({
+    cells: [islandCell('a', SQUARE_A), islandCell('b', SQUARE_B)],
+    resolve: resolveWhite,
+    relief: landRelief,
+    atlasOrigin: originFor,
+  });
+  // Read the origin back through the POSITION rather than through the write order: a vertex at
+  // x >= 100 is on island b, whatever order the builder happened to emit the parcels in. That is
+  // what makes this a claim about the delivered buffer instead of about the loop that filled it.
+  let onA = 0;
+  let onB = 0;
+  for (let v = 0; v < geo.triangles * 3; v += 1) {
+    const x = geo.positions[v * 3]!;
+    const want = x >= 100 ? origins['b']! : origins['a']!;
+    assert.equal(geo.atlasOrigins[v * 2], want.u, `vertex ${v} at x=${x} has the wrong u`);
+    assert.equal(geo.atlasOrigins[v * 2 + 1], want.v, `vertex ${v} at x=${x} has the wrong v`);
+    if (x >= 100) onB += 1;
+    else onA += 1;
+  }
+  assert.ok(onA > 0 && onB > 0, 'both islands must have contributed vertices');
+});
+
+test('a cell with NO island reaches the resolver as undefined, not as some other island', () => {
+  const seen: (string | undefined)[] = [];
+  cellGroundGeometry({
+    cells: [cellOf(SQUARE_A), islandCell('b', SQUARE_B)],
+    resolve: resolveWhite,
+    atlasOrigin: (island) => {
+      seen.push(island);
+      return { u: 0, v: 0 };
+    },
+  });
+  assert.deepEqual(seen, [undefined, 'b']);
+});
+
+test('the ZERO origin is a value that reaches nothing — it is not a claim about (0, 0)', () => {
+  assert.deepEqual(ZERO_ORIGIN, { u: 0, v: 0 });
+  const geo = cellGroundGeometry({ cells: [islandCell('a', SQUARE_A)], resolve: resolveWhite });
+  assert.equal(geo.atlasOrigins.length, 0, 'so the default never lands in a buffer anyone reads');
 });

@@ -298,7 +298,18 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   // casters, so a shared instance would hand every canvas the first one's shadow. What this test
   // is about is unchanged: the cell ground draws the banded material and nothing else.
   assert.match(src, /<mesh material=\{built\.material\}>/, 'and draw them with the banded material');
-  assert.match(src, /buildGroundMaterial\(cells, casters\)/, 'built from this scene’s own casters');
+  // ⚠ THE MATERIAL NOW TAKES THE FIELD RATHER THAN THE CELLS (2026-08-31), because the packed
+  // occlusion atlas has to be built ONCE and read by both the geometry and the material — two
+  // calls happening to pack the same way would be an agreement rather than a construction, and
+  // when it broke every island would read another island's corner of the atlas while drawing a
+  // perfectly ordinary set of shadows. What this test is about is unchanged: the field is still
+  // derived from THIS scene's own casters, with no flag between it and the mesh.
+  assert.match(src, /buildGroundMaterial\(field\)/, 'the material is built from the built field');
+  assert.match(
+    src,
+    /buildGroundOcclusionField\(cells, casters\)/,
+    'and that field is built from this scene’s own cells and casters',
+  );
   // ⚠ AND THE SMOOTH MATERIAL IS GONE FROM THE CELL GROUND RATHER THAN LEFT BESIDE IT. Two land
   // materials is the outcome item 6 calls worse than either — and here it would be worse still,
   // because the two disagree about what a status colour looks like.
@@ -341,12 +352,23 @@ test('the shipped ground WEARS THE OCCLUSION FIELD — unconditionally, item 6 a
   // asked for by name: "i'm still hoping for future iterations to ... add shadows". Same fence as
   // the three before it — no prop, no default-off, no flag nobody flips (end-state item 6).
   const src = readFileSync(SHIPPED, 'utf8');
-  assert.match(src, /buildGroundOcclusion\(\{ bounds, relief: LAND_RELIEF_AMPLITUDE, casters \}\)/);
-  assert.match(src, /groundShadowTexture\(/, 'the field must be uploaded, not merely computed');
-  assert.match(src, /if \(shadow !== null\) opts\.shadow = shadow;/);
+  // ⚠⚠ AND IT IS PACKED OVER THE ISLANDS RATHER THAN OVER THE GROUND'S RECT since 2026-08-31.
+  // The rect form clamped a real thirty-five-island forest from the authored 3.000 samples per
+  // ground unit to 0.585, so the contact pool under a story tree lost 5.5% of its area and 15.3%
+  // of its pixels moved — precisely when the map became the real map. Same fence as before: no
+  // prop, no default-off. Costing of all three remedies:
+  // `docs/research/chapter2-shipped-shadow-2026-08-31/`.
+  assert.match(src, /buildAtlasOcclusion\(\{ cells, relief: LAND_RELIEF_AMPLITUDE, casters \}\)/);
+  assert.match(src, /groundAtlasTexture\(/, 'the field must be uploaded, not merely computed');
+  assert.match(src, /if \(shadow !== null\) opts\.shadowAtlas = shadow;/);
+  // ⚠⚠ AND THE MESH MUST CARRY THE TILE CORNER, or every island reads the atlas's top-left tile
+  // and wears some other island's shadow while looking entirely ordinary. It is the one failure
+  // mode of the packed form that looks like art rather than like a bug.
+  assert.match(src, /input\.atlasOrigin = atlasOriginResolver\(field\)/);
+  assert.match(src, /attributes-\$\{GROUND_ATLAS_ATTRIBUTE\}/, 'the corner must reach the GPU');
   // ⚠ THE ONLY THING THAT MAY WITHHOLD IT IS AN ISLAND THAT BOUNDS NOTHING. Any other guard —
   // a prop, an env read, a `showShadows` default — would be the flag nobody flips.
-  assert.match(src, /bounds === null\s*\?\s*null/);
+  assert.match(src, /if \(groundBounds\(cells\) === null\) return null;/);
   assert.ok(
     !/showShadows|shadows\s*=\s*false|shadow\?:\s*boolean/.test(src),
     'a shadow behind a prop is not adoption',

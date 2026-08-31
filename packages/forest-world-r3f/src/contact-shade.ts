@@ -42,6 +42,7 @@ import {
   indices,
   stampBox,
   SHADOW_GRES,
+  SHADOW_TEXTURE_MAX,
   type GroundBounds,
   type ShadowCaster,
   type ShadowField,
@@ -179,6 +180,10 @@ export interface ContactFieldOptions {
   /** The upright props. Empty is legal and delivers an identically-zero field. */
   casters: readonly ShadowCaster[];
   gres?: number;
+  /** The texture-edge budget this field is allocated under, defaulting to
+   *  {@link SHADOW_TEXTURE_MAX} — the SAME one the cast field is built under, for the same
+   *  reason the bounds are the same: the merge is index-for-index. */
+  max?: number;
   /** Widen (or narrow) the derived pool. See {@link CONTACT_SPREAD}. */
   spread?: number;
 }
@@ -210,7 +215,7 @@ export interface ContactFieldOptions {
  * would look like rigour and be the opposite.
  */
 export function buildContactField(opts: ContactFieldOptions): ShadowField {
-  const grid = occlusionGrid(opts.bounds, opts.gres ?? SHADOW_GRES);
+  const grid = occlusionGrid(opts.bounds, opts.gres ?? SHADOW_GRES, opts.max ?? SHADOW_TEXTURE_MAX);
   const field = emptyField(grid);
   const { minX, minZ, w, gres } = grid;
   const data = field.data;
@@ -307,6 +312,10 @@ export interface GroundOcclusionOptions {
   /** Everything standing on the land. Empty is legal and delivers an identically-zero field. */
   casters: readonly ShadowCaster[];
   gres?: number;
+  /** The texture-edge budget both terms are allocated under — passed to BOTH, because the merge
+   *  below is index-for-index and two fields built under different caps are two different grids.
+   *  Defaults to {@link SHADOW_TEXTURE_MAX}. */
+  max?: number;
 }
 
 /**
@@ -328,12 +337,17 @@ export function buildGroundOcclusion(opts: GroundOcclusionOptions): ShadowField 
   // ⚠ RESOLVED HERE AND PASSED DOWN, so both terms are built on one grid by construction rather
   // than by two calls happening to default the same way.
   const gres = opts.gres ?? SHADOW_GRES;
+  // ⚠ RESOLVED HERE TOO, for exactly the reason above one rider further along: the cap decides
+  // the grid as surely as the resolution does, so two terms defaulting it separately could be
+  // built on grids the merge then refuses.
+  const max = opts.max ?? SHADOW_TEXTURE_MAX;
   const cast = buildCanopyShadowField({
     bounds: opts.bounds,
     relief: opts.relief,
     casters: opts.casters,
     gres,
+    max,
   });
-  const contact = buildContactField({ bounds: opts.bounds, casters: opts.casters, gres });
+  const contact = buildContactField({ bounds: opts.bounds, casters: opts.casters, gres, max });
   return mergeOcclusion(cast, contact);
 }

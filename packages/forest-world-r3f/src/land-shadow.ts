@@ -263,8 +263,12 @@ export function occlusionGres(
   return Math.min(gres, max / widest);
 }
 
-export function occlusionGrid(bounds: GroundBounds, gres: number = SHADOW_GRES): OcclusionGrid {
-  const g = occlusionGres(bounds, gres);
+export function occlusionGrid(
+  bounds: GroundBounds,
+  gres: number = SHADOW_GRES,
+  max: number = SHADOW_TEXTURE_MAX,
+): OcclusionGrid {
+  const g = occlusionGres(bounds, gres, max);
   return {
     minX: bounds.minX - OCCLUSION_PAD,
     minZ: bounds.minZ - OCCLUSION_PAD,
@@ -273,15 +277,20 @@ export function occlusionGrid(bounds: GroundBounds, gres: number = SHADOW_GRES):
     // this makes the cap a property of the GRID, so no resolution — a caller's, a future
     // heuristic's — can hand a builder a buffer bigger than the one budgeted for. The failure it
     // prevents is not a wrong picture but an allocation nobody costed.
-    w: cappedEdge((bounds.maxX - bounds.minX + OCCLUSION_PAD * 2) * g),
-    h: cappedEdge((bounds.maxZ - bounds.minZ + OCCLUSION_PAD * 2) * g),
+    w: cappedEdge((bounds.maxX - bounds.minX + OCCLUSION_PAD * 2) * g, max),
+    h: cappedEdge((bounds.maxZ - bounds.minZ + OCCLUSION_PAD * 2) * g, max),
     gres: g,
   };
 }
 
-/** One edge of a field, at least one sample and never more than {@link SHADOW_TEXTURE_MAX}. */
-export function cappedEdge(samples: number): number {
-  return Math.min(SHADOW_TEXTURE_MAX, Math.max(1, Math.ceil(samples)));
+/** One edge of a field, at least one sample and never more than the cap.
+ *
+ *  ⚠ THE CAP IS AN ARGUMENT AND NOT ONLY A CONSTANT, because {@link SHADOW_TEXTURE_MAX} is a
+ *  BUDGET rather than a law of the renderer, and the comparison that decides whether it is the
+ *  right budget has to be able to build a field at another one. It defaults to the authored value,
+ *  so every caller that does not care is unchanged — which is all of them but the instrument. */
+export function cappedEdge(samples: number, max: number = SHADOW_TEXTURE_MAX): number {
+  return Math.min(max, Math.max(1, Math.ceil(samples)));
 }
 
 /** The clamped index range a stamp writes into, for a ground-space rect. */
@@ -360,6 +369,9 @@ export interface CanopyShadowOptions {
   /** The upright casters. Empty is legal and delivers an identically-zero field. */
   casters: readonly ShadowCaster[];
   gres?: number;
+  /** The texture-edge budget this field is allocated under. Defaults to
+   *  {@link SHADOW_TEXTURE_MAX}; supplied only by the comparison that costs raising it. */
+  max?: number;
 }
 
 /**
@@ -371,7 +383,7 @@ export interface CanopyShadowOptions {
  * being tested against every caster. The result is identical.
  */
 export function buildCanopyShadowField(opts: CanopyShadowOptions): ShadowField {
-  const grid = occlusionGrid(opts.bounds, opts.gres ?? SHADOW_GRES);
+  const grid = occlusionGrid(opts.bounds, opts.gres ?? SHADOW_GRES, opts.max ?? SHADOW_TEXTURE_MAX);
   const field = emptyField(grid);
   const { minX, minZ, w, gres } = grid;
   const data = field.data;

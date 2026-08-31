@@ -532,6 +532,7 @@
       "packages/forest-world-r3f/src/banded-ground-material.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-grain.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-shadow.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/shadow-atlas.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/contact-shade.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shadow-rung.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/ground-casters.ts": "r3f-world-spike",
