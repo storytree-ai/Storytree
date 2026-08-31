@@ -492,6 +492,13 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
   lines.push(`  ${PROVENANCE_PRECEDENCE}.`);
   lines.push(
     "  It is kept for what we cannot source ourselves — the transcript is the only witness to what " +
+      // Stryker disable next-line StringLiteral: NOT EQUIVALENT — this clause IS killed, by
+      // `the-report-states-its-tier-clause-by-clause` below, which asserts `/NOT a storytree command/`
+      // and `/never a substitute for widening our/` against the rendered report. It is disabled for
+      // the runner's Defect B (docs/research/stryker-bun-attribution-2026-08-26.md): a killing test's
+      // name resolves to no dry-run id when a line is reached by most of a suite at once, so the
+      // mutant lands UNPROVEN on CI while passing locally. Removing the disable is safe the day that
+      // resolution is fixed; the assertion is already there.
       "an agent did that was NOT a storytree command — and it is never a substitute for widening our " +
       "own capture.",
   );
@@ -499,19 +506,24 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
     "  Every surface it mints is DECISION-ONLY: an agent opening a decision record, four different " +
       "ways. It is not general tool capture and a count taken from it is not files-the-agent-read.",
   );
+  // BUILT BY APPENDING, not by a ternary with an empty arm. The clean case now adds NOTHING rather
+  // than adding `""` — a literal that carries no meaning, cannot be read wrong, and yet is one more
+  // mutant on a line the runner already struggles to attribute (Defect B, above).
+  let receipts = `  receipts: stamped ${result.receipted.length} session(s) as MEASURED by this adapter`;
+  if (result.receiptFailures.length > 0) {
+    // EVERY failing session is named, not the first five. A truncated list with no "and N more" is a
+    // silent cap, and this report exists so that "we have no data" stays distinguishable from
+    // "nothing happened" — a cap would hide exactly the sessions whose measurement was lost. The
+    // list is bounded by the sweep's own session count.
+    receipts += `; ${result.receiptFailures.length} receipt(s) could not be written (${result.receiptFailures.join(", ")})`;
+  }
+  receipts +=
+    ". A session this sweep extracted no read for is NOT stamped, so its replay still reads " +
+    "never-run — an under-claim of measurement, which is the safe direction.";
   lines.push(
     result.dryRun
       ? "  receipts: none — a dry run writes no byte, so no session is stamped as measured."
-      : `  receipts: stamped ${result.receipted.length} session(s) as MEASURED by this adapter` +
-        (result.receiptFailures.length === 0
-          ? ""
-          : // EVERY failing session is named, not the first five. A truncated list with no "and N
-            // more" is a silent cap, and this report exists so that "we have no data" stays
-            // distinguishable from "nothing happened" — a cap would hide exactly the sessions whose
-            // measurement was lost. The list is bounded by the sweep's own session count.
-            `; ${result.receiptFailures.length} receipt(s) could not be written (${result.receiptFailures.join(", ")})`) +
-        ". A session this sweep extracted no read for is NOT stamped, so its replay still reads " +
-        "never-run — an under-claim of measurement, which is the safe direction.",
+      : receipts,
   );
 
   lines.push("");
