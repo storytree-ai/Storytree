@@ -49,8 +49,13 @@ untouched: green is still a signed verdict, and no one can forge one.
 > criteria until the explicitly staged corpus migration completes. Legacy `either` can never carry a
 > model tier or enter model judgment by default; new and migrated criteria classify explicitly as
 > `machine | model | human`. That three-kind tiered witness model + its eligibility registry is authored in the
-> arc's first increment, [`stories/model-uat-witness`](../model-uat-witness/story.md), as the
-> packages-forward `@storytree/model-uat` port in its OWN `packages/model-uat` building (ADR-0192).
+> arc's first increment, [`stories/model-uat-witness`](../model-uat-witness/story.md), authored at
+> the time as the packages-forward `@storytree/model-uat` port in its own `packages/model-uat`
+> building (ADR-0192). ⚠ THAT BUILDING IS GONE as of 2026-08-31: ADR-0247 D1 retired the rubric
+> judge and the three-kind witness outright, D5 retired the packages, and
+> `model-uat-family-consolidation-arc` deleted all three. The criterion PARSER — the only module
+> anything live still reached — was lifted into `packages/uat-criterion`. The story row above stays
+> browsable as history (ADR-0247 D2); it no longer names a live port.
 > The existing Library parser stays library-owned until explicit consumer adapter/re-export glue moves
 > it behind that port; the new story claims no proof-bound `packages/library` source. The
 > independent spine-signed model JUDGE run, the per-criterion seed-canonical Library detail artifact, the

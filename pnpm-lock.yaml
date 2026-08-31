@@ -616,22 +616,6 @@ importers:
         specifier: npm:typescript@5.7.3
         version: typescript@5.7.3
 
-  packages/model-uat:
-    dependencies:
-      '@storytree/proof-protocol':
-        specifier: workspace:*
-        version: link:../proof-protocol
-      zod:
-        specifier: ^3.24.1
-        version: 3.25.76
-    devDependencies:
-      '@types/node':
-        specifier: ^22.10.7
-        version: 22.19.19
-      typescript:
-        specifier: ~7.0.2
-        version: 7.0.2
-
   packages/notice-board:
     dependencies:
       '@storytree/library':
@@ -768,9 +752,9 @@ importers:
 
   packages/uat-criterion:
     dependencies:
-      '@storytree/model-uat':
+      '@storytree/proof-protocol':
         specifier: workspace:*
-        version: link:../model-uat
+        version: link:../proof-protocol
       zod:
         specifier: ^3.24.1
         version: 3.25.76

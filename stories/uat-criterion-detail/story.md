@@ -20,10 +20,21 @@ uat_witness: machine
 arc: model-uat-promotion
 # Packages-forward ownership (ADR-0192): this NEW story owns a NEW workspace package/port,
 # `@storytree/uat-criterion` (`packages/uat-criterion`). Every proof-bound source below lives in that
-# building. It consumes `@storytree/model-uat` (criterion id / witness / tier — already proven).
-# Library KIND_SPECS registration and agent spawn-fence injection are consumer-side glue
+# building. Library KIND_SPECS registration and agent spawn-fence injection are consumer-side glue
 # AFTER these proofs — no proof source squats in foreign buildings (ADR-0192).
-depends_on: [model-uat-witness]
+#
+# EDGE REPOINTED 2026-08-31 (`model-uat-family-consolidation-arc` increment 2, ADR-0247 D5). This
+# story used to declare `depends_on: [model-uat-witness]`, backed by a real code edge:
+# `criterion-pointer.ts` imported `Criterion` / `parseCriteria` from `@storytree/model-uat`. That
+# package is now DELETED and the criterion PARSER was lifted into this story's own building
+# (`packages/uat-criterion/src/criterion.ts`), so the edge named a RETIRED story with no code
+# behind it. What the lift exposed is that the dependency was never really on model-uat's
+# concepts: `criterion.ts` reaches `@storytree/proof-protocol` for `CriterionId` /
+# `CriterionRevisionId` / `criterionRevisionId`, which model-uat had been passing through
+# transitively. The edge is REPOINTED at that real provider rather than dropped — the workspace
+# dep moved onto `@storytree/proof-protocol` in the same landing, which is what keeps the code
+# graph a subgraph of the declared one.
+depends_on: [proof-protocol]
 # Deciding ADRs (ADR-0037 §2): 0209 (D5/D6 — this story's charter); 0307 (D5 — withdrew the
 # seed-canonical posture 0209 D5 rested on, so the detail is a LIVE-canonical artifact; supersedes
 # the ADR-0055 this story used to cite); 0192 (packages-forward ownership); 0082 (per-test
@@ -141,8 +152,10 @@ not scaffolded here):
   not belong in the detail-authoring journey.
 - **`uat-detail-studio`** — Studio one-liner row concision + open-Library-detail (ADR-0209 D7).
 - **`model-uat-pilot`** — classifying and detailing the three pilot stories (ADR-0209 D8).
-- **Reopening `model-uat-witness`** — witness/tier/registry stay as landed; this story consumes them
-  through `@storytree/model-uat`, it does not re-author those proofs.
+- **Reopening `model-uat-witness`** — the witness/tier VOCABULARY stays as landed; this story owns
+  the parser module outright since 2026-08-31 but does not re-author those proofs. (The registry and
+  the three-kind escalation ladder were retired outright by ADR-0247 D1 and deleted with the
+  package — nothing here revives them.)
 - **Foreign-building squats** — Library `KIND_SPECS` registration and `runSpawnStoryAuthor`
   predicate injection are **consumer-side glue** after this port's proofs land (same posture as
   increment 1's deferred library-parser adapter). Flagged in Ownership below; not proof-bound
@@ -192,9 +205,10 @@ as `model-uat-witness`).
 
 Runtime dependencies (honest `depends_on`):
 
-- **`model-uat-witness`** (`@storytree/model-uat`) — criterion id / classified witness / tier already
-  proven; the pointer capability binds detail onto that criterion shape without reopening witness
-  proofs.
+- **`proof-protocol`** (`@storytree/proof-protocol`) — `CriterionId` / `CriterionRevisionId` /
+  `criterionRevisionId`, the identity and content-binding vocabulary this story's criterion parser
+  reads. Held transitively through `@storytree/model-uat` until that package was retired
+  (2026-08-31, ADR-0247 D5); now a direct, declared edge.
 
 *(`storage-protocol` was a declared dependency for the retired seed-sync reconcile parity. With that
 capability withdrawn no source in `packages/uat-criterion` imports the `Store` seam any more, so the

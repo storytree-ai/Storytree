@@ -423,9 +423,13 @@ ADR-0139.)*
 > deleting: all four legs read `proven=–`, so no signed verdict was destroyed. Each deleted leg's
 > `(detail:)` artifact (`library-tech-tree-overlay#uat-1`, `#uat-3`, `#uat-5`) is RETIRED in the store
 > in the same pass, so no orphan is left behind; leg 4 keeps `#uat-4`, as `PILOT_STORY_IDS` coverage
-> requires — `packages/model-uat-pilot` asserts BOTH that this story still declares at least one
-> criterion and that every criterion it declares carries a well-formed detail pointer, which is why
-> the story is cut to one leg and not to zero.
+> required at the time — `packages/model-uat-pilot` asserted BOTH that this story still declares at
+> least one criterion and that every criterion it declares carries a well-formed detail pointer,
+> which is why the story was cut to one leg and not to zero. ⚠ THAT HARNESS NO LONGER EXISTS: the
+> package was deleted on 2026-08-31 (ADR-0247 D5, `model-uat-family-consolidation-arc` increment 1),
+> so nothing mechanically holds this story to a non-empty criterion set any more. The one-leg shape
+> is KEPT as authored — this note corrects the stated REASON, it does not re-decide the shape, which
+> is `story-author`'s call.
 
 **Goal —** One operator, in one session against the real running studio, pulls the Library down over
 the forest map, walks from a search to an artifact's neighbourhood, opens that artifact's body over

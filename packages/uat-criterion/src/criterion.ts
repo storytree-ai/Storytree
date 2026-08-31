@@ -12,6 +12,17 @@ import {
  * validator, mirroring `@storytree/library`'s `uat-test-criteria.ts` id scheme and
  * prose-parsing shape, but with `model` as a genuinely new, distinct kind (never a
  * spelling of `machine`) and without defaulting an untagged legacy criterion into it.
+ *
+ * LIFTED HERE FROM `packages/model-uat` on 2026-08-31 — ADR-0247 D5's third and last
+ * package retirement (`model-uat-family-consolidation-arc` increment 2). It is the ONLY
+ * part of that organism anything live still reached: `criterion-pointer.ts` next door
+ * wraps a `Criterion` and mirrors this parser's annotation grammar. Its two siblings
+ * (`model-registry.ts`, `model-uat-witness.ts`) implemented what ADR-0247 D1 retired
+ * outright and were deleted rather than moved. The MODULE moved without a behaviour
+ * change; the ADR-0209 D1/D2/D8 vocabulary below is unchanged, and the `model` witness
+ * kind survives here as a parseable value the pointer passes through — not as a live
+ * judging path (ADR-0247 D1 retired the independent model JUDGE; model-DRIVEN UAT is
+ * `@storytree/drive`'s and untouched).
  */
 
 // ---------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { Criterion, parseCriteria } from "@storytree/model-uat";
+import { Criterion, parseCriteria } from "./criterion.js";
 import { UAT_CRITERION_DETAIL_KIND, UatCriterionDetail } from "./detail-kind.js";
 import {
   DetailArtifactId,
@@ -14,8 +14,8 @@ import { authoredCriteria, EXACT_CRITERION } from "./criterion.test-helpers.js";
 /**
  * Offline unit tests for the `criterion-detail-pointer` capability (ADR-0209 D5/D6):
  * a story criterion points to its detail artifact by id WITHOUT ceding the
- * one-line title. The pointer wraps a `@storytree/model-uat` `Criterion`
- * (unchanged — witness/tier ownership stays there) with a validated detail
+ * one-line title. The pointer wraps a sibling `./criterion.ts` `Criterion`
+ * (unchanged — witness/tier ownership stays in that module) with a validated detail
  * artifact id; `displayTitle` always reads the criterion's one-liner, never
  * the pointed-at detail body's prose, even when a resolved detail is present.
  */
@@ -50,7 +50,7 @@ test("bindDetail: binds a classified criterion to a well-formed detail id", () =
   assert.equal(CriterionDetailBinding.safeParse(binding).success, true);
 });
 
-test("bindDetail: does not move witness/tier ownership out of model-uat — a model criterion's tier passes through unchanged", () => {
+test("bindDetail: does not move witness/tier ownership out of the criterion module — a model criterion's tier passes through unchanged", () => {
   const criterion = Criterion.parse({
     ...EXACT_CRITERION,
     title: "Model judged",

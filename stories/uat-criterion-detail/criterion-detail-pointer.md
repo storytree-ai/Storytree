@@ -10,8 +10,10 @@ proof_mode: integration-test
 depends_on: [uat-detail-kind]
 decisions: [209, 82, 192]
 # Node-borne proof config (ADR-0057 / ADR-0192). NET-NEW pair in packages/uat-criterion: binds a
-# `@storytree/model-uat` Criterion to a detail artifact id. Consumes model-uat (declared story
-# depends_on); does not edit packages/model-uat sources.
+# `Criterion` to a detail artifact id. The `Criterion` shape it binds came from
+# `@storytree/model-uat` until 2026-08-31, when ADR-0247 D5 retired that package and the parser was
+# lifted into this same building (`packages/uat-criterion/src/criterion.ts`) — so this is now an
+# in-story sibling import, and the declared story edge moved to `proof-protocol`, the real provider.
 proof:
   command:
     file: pnpm
@@ -39,11 +41,12 @@ display-canonical for the one-line title; the detail cannot silently redefine th
 ## Guidance
 
 - Author `packages/uat-criterion/src/criterion-pointer.ts`: the binding between a
-  `@storytree/model-uat` `Criterion` (stable id, one-line title, witness, optional tier) and a
-  detail artifact id of the kind `uat-detail-kind` defines.
+  `Criterion` (stable id, one-line title, witness, optional tier) from the sibling
+  `packages/uat-criterion/src/criterion.ts` and a detail artifact id of the kind `uat-detail-kind`
+  defines.
 - **Story remains authority (ADR-0209 D5):** the pointer adds `detailArtifactId` (or equivalent) onto
-  the criterion surface this port owns — it does NOT move witness/tier ownership out of model-uat,
-  and it does NOT treat the detail body as the display title source.
+  the criterion surface this port owns — it does NOT move witness/tier ownership out of the
+  criterion module, and it does NOT treat the detail body as the display title source.
 - **Display-canonical title (ADR-0209 D6):** `displayTitle(binding)` (or equivalent) returns the
   story criterion's one-liner even when the detail body contains longer procedural prose. A helper
   that would prefer the detail's prose as the canonical title is forbidden.
@@ -51,9 +54,12 @@ display-canonical for the one-line title; the detail cannot silently redefine th
   declare its pointer (e.g. a `(detail: <artifact-id>)` tag alongside witness/tier) OR provide an
   explicit bind API the later library/story parser glue will call — either way, the port must make
   the pointer first-class and validated (unknown / empty detail ids refused).
-- **Do not edit `packages/model-uat`:** consume its public barrel; packages-forward keeps model-uat
-  owned by `model-uat-witness`. If the shared Criterion zod object later needs a field in-package,
-  that is a follow-on amend of model-uat-witness — not a squat here.
+- **The Criterion object is now an in-story sibling, not a foreign building.** This fence used to
+  read "do not edit `packages/model-uat`"; that package was deleted on 2026-08-31 (ADR-0247 D5) and
+  its parser lifted into `packages/uat-criterion/src/criterion.ts`, which this story owns. A field
+  the shared Criterion zod object needs is an ordinary edit here — no longer a squat, and no longer
+  an amend of `model-uat-witness`. What the pointer must still NOT do is reclassify: it adds
+  `detailArtifactId`, it never rewrites witness or tier.
 - Pure validation + bind helpers. Test-author ≠ code-author.
 
 ## Contracts (3)
@@ -64,6 +70,6 @@ display-canonical for the one-line title; the detail cannot silently redefine th
 2. **`story-title-remains-display-canonical`** — the one-liner does not move to the artifact
    - **asserts —** given a criterion title T and a detail body whose prose differs from T, the
      display-canonical title helper returns T (ADR-0209 D6).
-3. **`pointer-preserves-witness-and-tier`** — model-uat classification is unchanged by the pointer
+3. **`pointer-preserves-witness-and-tier`** — classification is unchanged by the pointer
    - **asserts —** a bound criterion still reports the same witness (and tier when `model`) the
-     `@storytree/model-uat` criterion carried — the pointer is additive, never a reclassification.
+     parsed criterion carried — the pointer is additive, never a reclassification.

@@ -20,7 +20,9 @@
  * ARTIFACT, not proof: the record says what a model reported, and the only thing that ever mints a
  * {@link Verdict} is `observeAndSign`, over an exit code the SPINE watched out-of-band — exactly as
  * for a Playwright suite. ADR-0295 D2's prohibition holds in full: no `model` witness kind, no
- * eligibility tier, no rubric judge (`packages/model-uat*` stays retired).
+ * eligibility tier, no rubric judge. The `packages/model-uat*` family is not merely retired but
+ * DELETED as of 2026-08-31 (ADR-0247 D5's three retirements); the one live module it held, the
+ * criterion PARSER, lives in `packages/uat-criterion` and judges nothing.
  *
  * **What a flipped leg declares.** For the sibling flip increment, the binding shape is:
  *

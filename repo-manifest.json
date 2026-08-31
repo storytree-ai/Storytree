@@ -20,7 +20,7 @@
       "web": "storytree-web (the public front-door site) vendored as a submodule; wired in .gitmodules (PR #111)."
     },
     "dirs": {
-      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / model-uat / uat-criterion; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; model-uat is the model-UAT-witness organism added packages-forward per ADR-0192; uat-criterion is the seed-canonical per-criterion detail organism for ADR-0209 D5/D6 (the sibling model-judged-uat and model-uat-pilot organisms were DELETED on 2026-08-31 — ADR-0247 D5 retired ADR-0209's rubric-judge and pilot machinery, and both were imported by nothing outside themselves; a model DRIVING a UAT journey is untouched and lives in @storytree/drive); art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps).",
+      "packages": "Workspace packages (proof-protocol / storage-protocol / library / notice-board / studio-members / agent / orchestrator / drive / cli / uat-criterion; @storytree/core dissolved per ADR-0068, @storytree/store dissolved per ADR-0077; the two root ports renamed for role-not-position per ADR-0078: verdict-contract→proof-protocol, base→storage-protocol; drive carved the build/orchestrate drivers out of cli so the studio drives builds without depending on cli; uat-criterion is the per-criterion detail organism for ADR-0209 D5/D6, live-canonical since ADR-0307 D5, and since 2026-08-31 also the home of the criterion PARSER; the whole model-UAT family — model-judged-uat, model-uat-pilot and finally model-uat itself — was DELETED across ADR-0247 D5's three retirements, which withdrew ADR-0209's rubric-judge, pilot and judge-registry machinery; the one live thing model-uat still held was criterion.ts, lifted into uat-criterion rather than deleted; a model DRIVING a UAT journey is untouched and lives in @storytree/drive); art-authoring is the author-time, vendor-swappable generative-3D blocking-substrate adapter for ADR-0225 — a second art-factory-owned package that depends on procedural-architecture, NOT foundational because it carries node/network deps).",
       "apps": "Workspace apps (studio).",
       "docs": "ADRs + open-questions backlog + research notes (see docs.* below).",
       "stories": "The story-tree seed: the work-hierarchy corpus, schema-validated by packages/library.",
@@ -62,7 +62,6 @@
       "@storytree/forest-world-r3f": "website-experience",
       "@storytree/procedural-architecture": "art-factory",
       "@storytree/art-authoring": "art-factory",
-      "@storytree/model-uat": "model-uat-witness",
       "@storytree/uat-criterion": "uat-criterion-detail",
       "@storytree/context-traversal-telemetry": "context-traversal-telemetry",
       "@storytree/context-traversal-capture": "context-traversal-capture",
@@ -570,15 +569,12 @@
       "packages/art-authoring/src/*.ts": "blocking-substrate-adapter",
       "packages/art-authoring/src/sprite": "art-factory",
 
-      "$section_uat_organisms": "The UAT-witness organisms — the best-decomposed corner of the tree, where nearly every file is its own capability.",
-      "packages/model-uat/src/model-registry.ts": "model-eligibility-registry",
-      "packages/model-uat/src/criterion*.ts": "model-tier-classification",
-      "packages/model-uat/src/model-uat-witness.ts": "three-kind-witness",
-      "packages/model-uat/src/index.ts": "model-uat-witness",
+      "$section_uat_organisms": "The UAT-witness organism — one package since 2026-08-31, where nearly every file is its own capability. The four `packages/model-uat/src/**` keys that stood here went with the package (ADR-0247 D5, `model-uat-family-consolidation-arc` increment 2); `criterion.ts` is the one module that survived the retirement and it moved into `packages/uat-criterion/src/`, below.",
       "packages/uat-criterion/src/detail-hash.ts": "criterion-detail-hash-anchor",
       "packages/uat-criterion/src/detail-kind.ts": "uat-detail-kind",
       "packages/uat-criterion/src/criterion-pointer.ts": "criterion-detail-pointer",
       "packages/uat-criterion/src/story-author-scope.ts": "story-author-detail-authority",
+      "packages/uat-criterion/src/criterion.ts": "uat-criterion-detail",
       "packages/uat-criterion/src/criterion.test-helpers.ts": "uat-criterion-detail",
       "packages/uat-criterion/src/index.ts": "uat-criterion-detail",
 

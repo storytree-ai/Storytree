@@ -8,6 +8,9 @@
  * The public root barrel re-exports every capability module's public surface —
  * consumers import `@storytree/uat-criterion`, never a sibling capability file
  * directly.
+ *
+ * It also owns the criterion PARSER (`criterion.ts`), lifted here from the retired
+ * `packages/model-uat` on 2026-08-31 (ADR-0247 D5). See that module's header.
  */
 
 export {
@@ -16,6 +19,9 @@ export {
   UatCriterionDetail,
 } from "./detail-kind.js";
 export type { UatCriterionDetail as UatCriterionDetailType } from "./detail-kind.js";
+
+export type { Tier, CriterionWitness } from "./criterion.js";
+export { Criterion, parseCriteria } from "./criterion.js";
 
 export {
   DetailArtifactId,

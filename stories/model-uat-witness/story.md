@@ -53,27 +53,18 @@ capabilities: [three-kind-witness, model-tier-classification, model-eligibility-
 # barrel-consumption assertion, RED because index.ts currently exports nothing; IMPLEMENT edits only
 # index.ts to export the criterion/tier/registry/story-facade API. The package suite is the explicit
 # proof command and regression wall. No DB, SDK, API, or live model.
-proof:
-  command:
-    file: pnpm
-    args: ["--filter", "@storytree/model-uat", "test"]
-  scope:
-    testGlobs: ["packages/model-uat/src/model-uat-witness.uat.test.ts"]
-    sourceGlobs: ["packages/model-uat/src/index.ts"]
-  real:
-    testFile: "packages/model-uat/src/model-uat-witness.uat.test.ts"
-    sourceFile: "packages/model-uat/src/index.ts"
-    scope:
-      testGlobs: ["packages/model-uat/src/model-uat-witness.uat.test.ts"]
-      sourceGlobs: ["packages/model-uat/src/index.ts"]
-    install: true
-    editsExisting: true
-    proofCommand:
-      file: pnpm
-      args: ["--filter", "@storytree/model-uat", "test"]
-    typecheck:
-      file: pnpm
-      args: ["--filter", "@storytree/model-uat", "typecheck"]
+# PROOF BINDING REMOVED 2026-08-31 — the package it named is gone. `@storytree/model-uat` was DELETED
+# by `model-uat-family-consolidation-arc` increment 2 (ADR-0247 D5's THIRD and last package
+# retirement), so the `proof:` block that stood here bound a `pnpm --filter` target that no longer
+# resolves. Leaving it would not have been inert: a dead `--filter` EXITS 0 WITHOUT RUNNING, which is
+# a proof command that can only ever report success. `check:verification-decay`'s
+# `contract-binding-drift` instrument (ceiling 0) and the `coverage-drain` sweep both red on exactly
+# that, and ADR-0252 D3 forbids raising a ceiling to absorb it — of the three sanctioned drains
+# (author a test, split/retire, repair the binding), only REPAIR applies: this node was already
+# `status: retired`, which by itself cleared nothing because no instrument filters on it.
+#
+# The node is KEPT as a browsable row, per ADR-0247 D2 (a retirement, not a deletion). It simply no
+# longer registers a real-build surface — the shape `stories/model-uat-pilot` took in increment 1.
 ---
 
 # A classified UAT criterion earns a tiered witness — machine, capability-tiered model, or irreducible human
