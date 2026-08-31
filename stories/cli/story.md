@@ -28,7 +28,24 @@ proof_mode: UAT
 #     packages-forward rule REGARDLESS of any declared edge, since `cli` is not in the frozen
 #     `hostedStories.register`. It is also a REFINEMENT of `arcNew`, so `stories/arc` is where it
 #     belongs on the merits and not merely to satisfy a rule.
-capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, work-hierarchy-camp-fence, guided-setup-repair, verification-decay-instruments]
+# ONE capability ARRIVED on 2026-08-31, and it is the mirror of that departure: `gate-ci-parity`, from
+# `stories/ci-cd`, with its code already resident at `packages/cli/src/gate-ci-parity.ts`. Same rule,
+# same standard, opposite direction — `ci-cd` owns no workspace package, so its first `real:` arm
+# created a hosting relationship ADR-0192 refuses on sight. It was NOT moved to satisfy that rule.
+# It enters on the `organism-boundary-tooling` GROUND, which is NOT the ground `guided-setup-repair`
+# and `verification-decay-instruments` entered on, and the difference matters: those two entered
+# because no story owns their subject, whereas `ci-cd` demonstrably DOES own the pipeline. The
+# operative line is a SPLIT, not an absence — **`ci-cd` owns the PIPELINE (that a step runs, that it
+# blocks, that it sits on the merge ref); `cli` owns the JUDGE a `check:*` rung invokes** — and
+# `check:boundaries` is that split already instantiated: a `verify` step `ci-cd`'s `green-gate`
+# enumerates, whose analyser has always been a `cli` capability. `gate-ci-parity` is the fourth judge
+# of that shape here. It is also SOURCE-COUPLED to this building: its judge must read the `GATE_PLAN`
+# literal out of `packages/cli/src/gate-order.ts`, so half its subject is this package's own code, and
+# `repo-manifest.json`'s report-only `sourceOwnership` had already assigned `packages/cli/src/gate*.ts`
+# to it. It arrives with `depends_on: []` — its old `[green-gate]` edge was dropped as FALSE under the
+# `cross-story-dependency` test, not converted into a cross-story edge, so `cli` stays a pure source
+# and `consumed_by` stays empty. Its sibling `green-gate` did NOT follow it and stays in `ci-cd`.
+capabilities: [unified-command-dispatch, cli-resident-corpus-tools, organism-boundary-tooling, work-hierarchy-camp-fence, guided-setup-repair, verification-decay-instruments, gate-ci-parity]
 # The CLI is the wiring HUB: it imports every organism to surface it. Those outbound edges
 # (cli → drive-machinery / library / notice-board / store / arc) are declared PROVIDER-SIDE on each
 # spoke (their `consumed_by: [cli]`, ADR-0074 §4) so the hub stays de-noised and each organism owns
@@ -100,7 +117,7 @@ authoring primitives (the corpus guard, the ADR frontmatter parser).
   in-memory seed; live writes refuse without `--pg` and a reachable DB (degrade with guidance, never
   a silent no-op).
 
-## Capabilities (5)
+## Capabilities (7)
 
 Lightweight and **expandable** (ADR-0074 §3): the hub's own connective competence, NOT a re-derivation
 of every per-domain command (those belong to the organism that owns the journey). The list grows one
@@ -117,18 +134,49 @@ because neither has an owning organism: one diagnoses the DEV'S OWN MACHINE, the
 repo's verification apparatus — since 2026-08-31 that includes the decision log's grounded claims,
 the subject of its sixth chartered instrument — and no story in the tree owns either subject.
 
+**`gate-ci-parity` arrived on 2026-08-31 on a DIFFERENT ground, and conflating the two would be the
+easy mistake.** The no-owning-organism ground above cannot carry it: `ci-cd` exists, owns the delivery
+pipeline, and had authored this capability itself. What moved it here is a SPLIT rather than an
+absence — **`ci-cd` owns the PIPELINE (that a step runs, that it blocks, that it sits on the merge
+ref, that `automerge` needs it); `cli` owns the JUDGE a `check:*` rung invokes** — and that split is
+not new prose, it is `organism-boundary-tooling` restated. `check:boundaries` is a `verify` step,
+enumerated in `ci-cd`'s own [`green-gate`](../ci-cd/green-gate.md); its ANALYSER has always been a
+capability of this story, and nobody has ever thought otherwise. `work-hierarchy-camp-fence`
+(`check:hierarchy-camps`) sits on the same footing. `gate-ci-parity` is the fourth pure judge of that
+shape, and it is additionally SOURCE-COUPLED here in a way the others are not: its judge must read the
+`GATE_PLAN` literal out of `packages/cli/src/gate-order.ts`, so half of its subject is this package's
+own code. The story it LEFT keeps the pipeline half — `ci-cd`'s UAT leg 3 and Reliability Gate 3 still
+assert the local/CI relationship as repository-owned evidence on that story's own journey.
+
+So the tree now shows THREE distinct admission grounds here, and only the first is the original
+shim-vs-journey rule: wiring/authoring competence (rows 1–2), no-owning-organism (rows 5–6),
+judge-not-pipeline (rows 3, 4, 7). **None of this resolves open modeling call 1 below, and
+`gate-ci-parity` does not lean on it being resolved** — that call asks whether the no-owning-organism
+ground is right, and this capability does not stand on it. If anything the arrival WIDENS what the
+call has to weigh, from one alternative ground to two.
+
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
 | 1 | [`unified-command-dispatch`](unified-command-dispatch.md) | `storytree <verb>` parses args, hydrates credentials, dispatches to the owning organism, and returns a typed `Envelope`/exit code; offline commands run with no DB. | proposed | — |
 | 2 | [`cli-resident-corpus-tools`](cli-resident-corpus-tools.md) | The CLI-resident authoring primitives the gates build on: the `stories/` YAML corpus guard and the ADR frontmatter parser. | proposed | — |
 | 3 | [`organism-boundary-tooling`](organism-boundary-tooling.md) | The pure organism-boundary analyser behind `check:boundaries`: the blocking subgraph judge (ADR-0074) + the non-blocking declared-edge drift report (ADR-0115) that derives a virtual story's real edges from its units' `sourceFile` imports. | proposed | — |
-| 4 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | proposed | — |
-| 5 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | proposed | — |
+| 4 | [`work-hierarchy-camp-fence`](work-hierarchy-camp-fence.md) | A pure judge computes, from each module's own code, whether it reads the work hierarchy off the checkout or out of the live store, and a gate rung holds that against a declared camp in `repo-manifest.json`. | proposed | — |
+| 5 | [`guided-setup-repair`](guided-setup-repair.md) | A dev's failing setup probe is driven to a re-verified repair, or to a secrets-redacted owner escalation naming why no installer step can fix it. | proposed | — |
+| 6 | [`verification-decay-instruments`](verification-decay-instruments.md) | Every chartered verification instrument reports the decay it locates as a finding charged to the branch that authored it. | proposed | — |
+| 7 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable two-way relationship — every step outside the shared floor belonging to a declared class, asserted both ways, plus HEAD vs merge-ref; a stale-behind-main branch is surfaced. | proposed | — |
 
 *(Renumbered 1–5 on 2026-08-14 when three rows left. Safe, and different from the open modeling calls
 below, whose numbers are cited from OTHER files and are therefore never reused or shifted: nothing
 outside this file cites a capability by row number, and the prose here now names capabilities rather
 than positions, so a future departure cannot silently re-point a sentence.)*
+
+*(Grown to seven on 2026-08-31 by TWO separate corrections, worth separating. **`gate-ci-parity`
+arrived** from `stories/ci-cd` — the frontmatter note records the merits and the ground it enters on.
+**`work-hierarchy-camp-fence` was already a live capability of this story and had simply never been
+added to this table** — it has been in the frontmatter `capabilities:` list and has rendered in
+`storytree tree cli` all along, so the table, not the tree, was the thing that was wrong. That is the
+failure mode this heading's count invites: the frontmatter is what the tooling reads, the table is
+prose beside it, and only the frontmatter is checked. Read the tree, not this count.)*
 
 **Three capabilities left this table on 2026-08-14, and where they went is the point
 (ADR-0369).**

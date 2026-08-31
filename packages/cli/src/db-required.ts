@@ -22,7 +22,7 @@
 // `if (GITHUB_ACTIONS)`:
 //
 //   • a local session can set it and get exactly what CI gets, so gate↔CI parity stays a KNOB rather
-//     than a fork in behaviour (`stories/ci-cd/gate-ci-parity`), and a session can reproduce a CI red
+//     than a fork in behaviour (`stories/cli/gate-ci-parity`), and a session can reproduce a CI red
 //     on its own machine;
 //   • the flip is auditable in one place — the workflow file — instead of being implicit in a vendor
 //     env var that also happens to be set by other tools;
