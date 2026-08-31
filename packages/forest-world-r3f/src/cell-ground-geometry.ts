@@ -106,6 +106,30 @@ export interface CellGroundGeometryInput {
    *  positive for every finite gradient, so an upward-facing top face stays unrepresentable
    *  too: this trades one guarantee for the same guarantee reached a different way. */
   relief?: GroundRelief | undefined;
+  /** Island id → where that island's tile sits in a packed occlusion atlas, in UV.
+   *
+   *  ⚠ OPTIONAL, AND ITS ABSENCE MEANS AN EMPTY {@link CellGroundGeometry.atlasOrigins}, so a
+   *  caller that predates it gets the buffers it always got — the same shape as `index` above and
+   *  for the same reason: a zero-filled origin buffer would say every island reads the atlas's
+   *  top-left corner, which is a real texel, and the map would wear one island's shadow
+   *  everywhere while looking like it was working.
+   *
+   *  ⚠ IT IS A CONSTANT PER ISLAND, NOT A SPATIAL SIGNAL, which is the whole reason it may ride
+   *  on the mesh at all. `src/land-shadow.ts` rejected a per-vertex SHADOW attribute because the
+   *  shadow carries features finer than a parcel and interpolating it smears them; an atlas
+   *  origin is identical at all three vertices of every triangle on its island, so the
+   *  interpolator returns it exactly — the argument `banded-ground-material.ts` already makes
+   *  about the ramp row. */
+  atlasOrigin?: ((island: string | undefined) => AtlasOrigin) | undefined;
+}
+
+/** Where an island's tile begins in a packed occlusion atlas, in UV. A structural pair rather
+ *  than an import from `shadow-atlas.ts`, for the same reason {@link GroundRelief} is an
+ *  interface rather than a direct import of the relief field: this module stays arithmetic a
+ *  test can drive with values of its own choosing. */
+export interface AtlasOrigin {
+  u: number;
+  v: number;
 }
 
 /** The ground's shape, as the two functions a mesh needs: a height and a unit normal, both of
@@ -127,6 +151,11 @@ export const FLAT_GROUND: GroundRelief = {
   normal: () => ({ x: 0, y: 1, z: 0 }),
 };
 
+/** The origin a ring gets when the caller asked for no atlas — a value that only ever reaches a
+ *  zero-length buffer. Named rather than an inline literal so the two facts about it stay in one
+ *  place: it is written nowhere, and it is not a claim that (0, 0) is unshadowed. */
+export const ZERO_ORIGIN: AtlasOrigin = { u: 0, v: 0 };
+
 /** One merged, non-indexed ground buffer: three floats per vertex, three vertices per
  *  triangle, flat-shaded (each face's three vertices share that face's own normal). */
 export interface CellGroundGeometry {
@@ -142,6 +171,11 @@ export interface CellGroundGeometry {
    *  status, and a material handed it would paint the whole island one colour while looking
    *  like it was working. */
   statuses: Float32Array;
+  /** Per-vertex ATLAS ORIGIN — the UV corner of the owning island's tile in a packed occlusion
+   *  atlas. TWO floats per vertex, and {@link CellGroundGeometry.statuses}'s argument for being
+   *  empty rather than zero-filled applies here verbatim: (0, 0) is a real corner of a real
+   *  atlas. */
+  atlasOrigins: Float32Array;
   /** Parcels actually built (rings of fewer than three vertices bound no area and are dropped). */
   cells: number;
   /** Triangles in the merged buffer — the authored count `harness/baseline-measure.mjs`
@@ -326,7 +360,9 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   // index lookup here would be a second way to get the material wrong, and the parcel's colour is
   // what the map reports a capability's state with.
   const rings = input.cells.flatMap((c) =>
-    c.points !== undefined && c.points.length >= 3 ? [{ pts: c.points, material: c.material }] : [],
+    c.points !== undefined && c.points.length >= 3
+      ? [{ pts: c.points, material: c.material, island: c.island }]
+      : [],
   );
 
   let triangles = 0;
@@ -339,6 +375,11 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   // and sizing it like a colour would silently leave two thirds of it as zeros — row 0, a real
   // status — which is the failure mode that looks exactly like working code.
   const statuses = input.index === undefined ? new Float32Array(0) : new Float32Array(triangles * 3);
+  // ⚠ TWO floats per VERTEX, where the row above carries one and the colour carries three. Sized
+  // off the same `triangles * 3` vertex count, so the three buffers cannot disagree about how
+  // many vertices there are.
+  const atlasOrigins =
+    input.atlasOrigin === undefined ? new Float32Array(0) : new Float32Array(triangles * 6);
   let w = 0;
 
   /** Write one triangle with an EXPLICIT normal per vertex — the top face's route, because the
@@ -353,6 +394,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     vertexNormals: readonly [P3, P3, P3],
     colour: LinearRgb,
     row: number,
+    origin: AtlasOrigin,
   ): void => {
     for (let i = 0; i < 3; i += 1) {
       const p = vertices[i]!;
@@ -377,13 +419,26 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       // With no `index` resolver `statuses` is zero-length and every one of these is a silent
       // no-op on a typed array — which is the honest outcome: the caller asked for no rows.
       statuses[w / 3] = row;
+      // Same shape, same argument: written PER VERTEX beside the row rather than as a span
+      // afterwards, so there is no boundary arithmetic to be off by one in. With no
+      // `atlasOrigin` resolver the buffer is zero-length and both writes are silent no-ops on a
+      // typed array — the honest outcome, because the caller asked for no origins.
+      atlasOrigins[(w / 3) * 2] = origin.u;
+      atlasOrigins[(w / 3) * 2 + 1] = origin.v;
       w += 3;
     }
   };
 
   /** Write one triangle, deriving its normal from the very vertices being written — the WALLS'
    *  route, and the reason a positions/normals disagreement stays unrepresentable there. */
-  const pushTriangle = (a: P3, b: P3, c: P3, colour: LinearRgb, row: number): void => {
+  const pushTriangle = (
+    a: P3,
+    b: P3,
+    c: P3,
+    colour: LinearRgb,
+    row: number,
+    origin: AtlasOrigin,
+  ): void => {
     const ux = b.x - a.x;
     const uy = b.y - a.y;
     const uz = b.z - a.z;
@@ -406,7 +461,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       nz /= len;
     }
     const n: P3 = { x: nx, y: ny, z: nz };
-    pushTriangleWithNormals([a, b, c], [n, n, n], colour, row);
+    pushTriangleWithNormals([a, b, c], [n, n, n], colour, row, origin);
   };
 
   for (const ring of rings) {
@@ -414,6 +469,10 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     // ⚠ RESOLVED FROM THE DESCRIPTOR'S OWN MATERIAL, exactly as the colour beside it is, and
     // 0 when the caller asked for no rows — a value that reaches only a zero-length array.
     const row = input.index?.(ring.material) ?? 0;
+    // ⚠ RESOLVED FROM THE DESCRIPTOR'S OWN ISLAND, exactly as the row beside it is resolved from
+    // its own material, and ZERO_ORIGIN when the caller asked for no origins — a value that
+    // reaches only a zero-length array.
+    const origin = input.atlasOrigin?.(ring.island) ?? ZERO_ORIGIN;
     const pts = normalisedRing(ring.pts.map((p) => ({ x: p.x, z: p.z })));
     const n = pts.length;
 
@@ -425,6 +484,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
         [facing(a), facing(b), facing(c)],
         colour,
         row,
+        origin,
       );
     }
 
@@ -447,10 +507,18 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       const topNext = lift(b);
       const bot: P3 = { x: top.x, y: top.y - depth, z: top.z };
       const botNext: P3 = { x: topNext.x, y: topNext.y - depth, z: topNext.z };
-      pushTriangle(topNext, top, botNext, colour, row);
-      pushTriangle(botNext, top, bot, colour, row);
+      pushTriangle(topNext, top, botNext, colour, row, origin);
+      pushTriangle(botNext, top, bot, colour, row, origin);
     }
   }
 
-  return { positions, normals, colors, statuses, cells: rings.length, triangles };
+  return {
+    positions,
+    normals,
+    colors,
+    statuses,
+    atlasOrigins,
+    cells: rings.length,
+    triangles,
+  };
 }
