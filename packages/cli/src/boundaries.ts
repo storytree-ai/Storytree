@@ -130,6 +130,18 @@ export interface BoundaryInput {
    * so every mapped foreign-hosting pair is refused (fail-closed).
    */
   hostedStories?: string[];
+  /**
+   * Rule 7 (the ownership-LIVENESS rule): the ids of the stories that exist on disk carrying
+   * `status: retired`. PRESENCE of this field ARMS the rule, and it carries a second assertion with
+   * it: that {@link BoundaryInput.storyGraph} enumerates EVERY story directory on disk, so a
+   * `packageOwnership` value absent from it genuinely DOES NOT EXIST rather than merely sitting
+   * outside a narrow fixture's scope. The disk gatherer satisfies both at once — it walks `stories/`
+   * a single time and returns the graph and the retired set together — so the rule needs no walk of
+   * its own. `undefined` skips the rule entirely, the same posture as rules 5/6, which is what keeps
+   * the fixtures declaring only the two stories an edge case needs unaffected. An EMPTY array is NOT
+   * absent: `[]` means "nothing is retired", and the existence half still runs.
+   */
+  retiredStories?: string[];
 }
 
 /** One import/export specifier found in a package's source file (the input to the v2 scan). */
@@ -290,7 +302,59 @@ export function checkBoundaries(input: BoundaryInput): BoundaryResult {
   //    claims any foreign-hosted file is itself flagged (a self-pruning migration worklist).
   checkPackagesForwardRefusal(input, violations);
 
+  // 7. The ownership-LIVENESS rule: rule 0 above asserts every package is CLASSIFIED — present as a
+  //    KEY in the ownership map — and `classOf` never reads the VALUE, so a package could outlive
+  //    its owning story invisibly. Rule 7 resolves the value: the story must EXIST and must not be
+  //    RETIRED. See the call site's doc comment below.
+  checkOwnershipLiveness(input, violations);
+
   return { violations };
+}
+
+/**
+ * Rule 7 — the ownership-LIVENESS rule. Every `packageOwnership` VALUE (organisms AND surfaces) must
+ * name a story that exists in the story set and is not retired. Two failure modes, both invisible to
+ * every other rule:
+ *   1. the owner was RETIRED out from under a live package — the measured case (three packages of the
+ *      `model-uat` family sat under retired stories for eleven days with nothing saying so);
+ *   2. the owner NEVER EXISTED — a typo, or a story directory renamed or deleted without the map
+ *      following. A leaf package with no `@storytree/*` deps is not even caught indirectly by the
+ *      edge rule, because it projects no edges to go undeclared.
+ *
+ * The advisory drift report cannot stand in for this, and deliberately does not: it DROPS retired
+ * stories from its graph because a retired island no longer renders, so "review this edge" would be
+ * noise. That is right for the REPORT and is precisely why the question belongs on the BLOCKING gate,
+ * which keeps the full graph. ARMED by {@link BoundaryInput.retiredStories} — see its doc comment for
+ * why presence is the switch and why `[]` arms rather than disarms.
+ */
+function checkOwnershipLiveness(input: BoundaryInput, violations: string[]): void {
+  const { retiredStories, ownership, storyGraph } = input;
+  if (retiredStories === undefined) return;
+  const retired = new Set(retiredStories);
+  const owned = [
+    ...Object.entries(ownership.organisms),
+    ...Object.entries(ownership.surfaces ?? {}),
+  ].sort(([a], [b]) => a.localeCompare(b));
+  for (const [pkg, story] of owned) {
+    // The two cases are disjoint by construction (a retired story still HAS a story.md, so it is in
+    // the story set), but they must never collapse into one message: the fix differs in urgency and
+    // the reader needs to know which shape they are looking at.
+    if (retired.has(story)) {
+      violations.push(
+        `package "${pkg}" is owned by RETIRED story "${story}" — a live package cannot outlive its ` +
+          `owning story. Either retire the package with its story (delete its building and its ` +
+          `repo-manifest.json packageOwnership entry), or repoint the map at the live story that ` +
+          `inherited the code.`,
+      );
+    } else if (!Object.prototype.hasOwnProperty.call(storyGraph, story)) {
+      violations.push(
+        `package "${pkg}" is owned by story "${story}", which does not exist — stories/${story}/ ` +
+          `carries no story.md. Either retire the package with its story (delete its building and ` +
+          `its repo-manifest.json packageOwnership entry), or repoint the map at the live story ` +
+          `that inherited the code (a renamed story directory leaves the map behind).`,
+      );
+    }
+  }
 }
 
 /** Rule 4 (ADR-0166) — see the call site. Pure; appends fix-pointing violations. */

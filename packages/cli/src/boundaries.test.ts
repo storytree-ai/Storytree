@@ -1227,3 +1227,114 @@ test("packages-forward-refusal: one refusal per (S, T) pair across multiple fore
   assert.match(violations[1]!, /packages-forward refusal/);
   assert.match(violations[1]!, /packages\/notice-board/);
 });
+
+// ===================================================================================================
+// Rule 7: the OWNERSHIP-LIVENESS rule (model-uat-family-consolidation-arc-inc-03). Rule 0 asserts
+// every package is CLASSIFIED — present as a KEY in `packageOwnership` — and `classOf` never reads
+// the VALUE. So a package could outlive its owning story invisibly, in either of two shapes: the
+// owner was RETIRED out from under it (the measured case — three live packages sat under retired
+// stories for eleven days), or the owner NEVER EXISTED (a typo, or a story directory renamed or
+// deleted without the map following). Rule 7 resolves the value against the story set and fails on
+// both. The advisory drift report cannot cover this and deliberately does not: it DROPS retired
+// stories from its graph, because a retired island no longer renders — which is right for the
+// REPORT and is exactly why the question belongs on the BLOCKING gate, which keeps the full graph.
+// ===================================================================================================
+
+// Isolate rule 7 the way `landlordOnly` isolates rule 5: `packageDeps: {}` sidesteps rules 0/1/3/4
+// (their loops all key off packageDeps), rules 5/6 stay skipped (their inputs are absent), and the
+// real storyGraph/consumedBy is already proven acyclic — so any violation here can only be rule 7's.
+function livenessOnly(
+  o: Ownership,
+  retiredStories: string[],
+  graph: Record<string, string[]> = storyGraph,
+): string[] {
+  return checkBoundaries({
+    ownership: o,
+    packageDeps: {},
+    storyGraph: graph,
+    consumedBy,
+    retiredStories,
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+}
+
+test("rule 7 (ownership liveness): a package owned by a RETIRED story is a violation naming the case and both fixes", () => {
+  const violations = livenessOnly(ownership, ["notice-board"]);
+  assert.equal(violations.length, 1, violations.join("\n"));
+  assert.match(violations[0]!, /"@storytree\/notice-board"/); // the package
+  assert.match(violations[0]!, /"notice-board"/); // the story (unquoted-prefix-safe: the pkg is "@storytree/notice-board")
+  assert.match(violations[0]!, /RETIRED/); // WHICH case — a mutant collapsing the branches dies here
+  assert.doesNotMatch(violations[0]!, /does not exist/); // ...and must not claim the other one
+  assert.match(violations[0]!, /retire the package with its story/); // fix A
+  // Fix B asserted to its END: the pointer is only actionable if it says WHICH story to repoint at.
+  assert.match(violations[0]!, /repoint the map at the live story that inherited the code/); // fix B
+});
+
+test("rule 7 (ownership liveness): a package owned by a NONEXISTENT story is a violation naming THAT case", () => {
+  // The rename shape: stories/cli was moved to stories/cli-renamed and the map was left behind.
+  const ghost: Ownership = {
+    ...ownership,
+    organisms: { ...ownership.organisms, "@storytree/cli": "cli-renamed" },
+  };
+  const violations = livenessOnly(ghost, []);
+  assert.equal(violations.length, 1, violations.join("\n"));
+  assert.match(violations[0]!, /"@storytree\/cli"/);
+  assert.match(violations[0]!, /"cli-renamed"/);
+  assert.match(violations[0]!, /does not exist/); // WHICH case
+  assert.doesNotMatch(violations[0]!, /RETIRED/);
+  assert.match(violations[0]!, /retire the package with its story/); // fix A
+  // Fix B, asserted to its END — including the clause naming the shape that produces this case, so
+  // the reader who hits it knows to look for a rename rather than for a retirement.
+  assert.match(
+    violations[0]!,
+    /repoint the map at the live story that inherited the code \(a renamed story directory leaves the map behind\)/,
+  ); // fix B
+});
+
+test("rule 7 (ownership liveness): every owner live and present is clean — and `retiredStories: []` ARMS the rule, never disarms it", () => {
+  assert.deepEqual(livenessOnly(ownership, []), []);
+});
+
+test("rule 7 (ownership liveness): a consuming SURFACE's owner is resolved too, not just an organism's", () => {
+  const withSurface: Ownership = { ...ownership, surfaces: { studio: "studio-app" } };
+  const missing = livenessOnly(withSurface, []);
+  assert.equal(missing.length, 1, missing.join("\n"));
+  assert.match(missing[0]!, /"studio"/);
+  assert.match(missing[0]!, /"studio-app"/);
+  assert.match(missing[0]!, /does not exist/);
+
+  const retiredOwner = livenessOnly(withSurface, ["studio-app"], { ...storyGraph, "studio-app": [] });
+  assert.equal(retiredOwner.length, 1, retiredOwner.join("\n"));
+  assert.match(retiredOwner[0]!, /"studio"/);
+  assert.match(retiredOwner[0]!, /RETIRED/);
+});
+
+test("rule 7 (ownership liveness): `retiredStories` ABSENT skips the rule entirely (absent is not empty)", () => {
+  // Absent is the narrow-fixture posture rules 5/6 already use: a fixture that declares only the two
+  // stories its edge case needs must not be accused of owning nonexistent ones. PRESENCE of the set
+  // is what carries the gatherer's second assertion — that `storyGraph` enumerates EVERY story on
+  // disk — so the existence half is only ever judged against a total story set.
+  const ghost: Ownership = {
+    ...ownership,
+    organisms: { ...ownership.organisms, "@storytree/cli": "cli-renamed" },
+  };
+  const violations = checkBoundaries({
+    ownership: ghost,
+    packageDeps: {},
+    storyGraph,
+    consumedBy,
+  } as Parameters<typeof checkBoundaries>[0]).violations;
+  assert.deepEqual(violations, []);
+});
+
+test("rule 7 (ownership liveness): both cases in one run are reported once each, deterministically ordered by package", () => {
+  const broken: Ownership = {
+    ...ownership,
+    organisms: { ...ownership.organisms, "@storytree/agent": "ghost-story" },
+  };
+  const violations = livenessOnly(broken, ["library"]);
+  assert.equal(violations.length, 2, violations.join("\n"));
+  assert.match(violations[0]!, /"@storytree\/agent"/);
+  assert.match(violations[0]!, /does not exist/);
+  assert.match(violations[1]!, /"@storytree\/library"/);
+  assert.match(violations[1]!, /RETIRED/);
+});
