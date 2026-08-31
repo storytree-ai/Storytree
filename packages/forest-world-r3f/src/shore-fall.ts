@@ -173,8 +173,22 @@ export const SHIPPED_SHORE: ShoreArm = 'beach';
  * a test asks for directly, not a divide-by-zero guard.
  */
 export function shoreFall(distance: number, width: number): number {
-  if (width <= 0) return 1;
-  const t = distance <= 0 ? 0 : distance >= width ? 1 : distance / width;
+  // ⚠⚠ THE `width <= 0` EARLY-OUT THAT USED TO SIT HERE IS GONE, AND REMOVING THE LOWER CLAMP IS
+  // WHAT MADE IT DEAD. A distance is never negative, so at width 0 the comparison below is
+  // `distance >= 0`, which is always true, which returns 1 — the control's answer, reached by the
+  // ordinary path. Two lines answering every input identically are two mutants no test can
+  // separate; the second round of the rung reported exactly that and the fix is to keep one.
+  //
+  // ⚠ THERE IS NO LOWER CLAMP, AND ITS ABSENCE IS DELIBERATE. A `distance <= 0 ? 0 :` branch was
+  // written here first and the mutation rung showed it was doing nothing: at distance 0 the
+  // division already gives exactly 0, so the guard and the formula agree everywhere in the
+  // function's domain and no test could ever separate them. It was a correctness guard's clothes
+  // on an arithmetic identity. Deleted rather than annotated — the playbook's own preference.
+  //
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — `>=` and `>` differ only at
+  // `distance === width`, where the division gives exactly 1 and the branch returns 1. There is no
+  // input that separates them, for the same reason `nearestOnSegment`'s clamp carries this note.
+  const t = distance >= width ? 1 : distance / width;
   return t * t * (3 - 2 * t);
 }
 
@@ -196,8 +210,21 @@ export function shoreFall(distance: number, width: number): number {
  * zero wherever that axis sits near the band's inner edge.
  */
 export function shoreFallSlope(distance: number, width: number): number {
-  if (width <= 0) return 0;
-  if (distance <= 0 || distance >= width) return 0;
+  // ⚠ THE `width <= 0` EARLY-OUT THAT USED TO SIT HERE IS GONE, AND THE LINE BELOW SUBSUMES IT.
+  // The mutation rung found it unkillable, and the reason is that it was a DUPLICATE early-out
+  // rather than a guard: at width 0 a zero distance is caught by `distance <= 0`, and any positive
+  // distance is caught by `distance >= width`. Two branches answering the same input the same way
+  // are two mutants no test can separate, so the fix is to keep one.
+  //
+  // ⚠ AND THE `distance <= 0` HALF WENT WITH IT, for the third time in the same shape. At distance
+  // 0 the expression below is `6*0*(1-0)/width`, which is 0 — the branch's own answer — and at
+  // width 0 the surviving comparison catches it. Three rounds of this rung on one file, and every
+  // one of them found the same thing: a bound that the arithmetic already satisfies is not a guard.
+  //
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — at `distance === width` the
+  // derivative `6t(1-t)/width` is exactly 0, which is what the branch returns, so `>` and `>=` are
+  // indistinguishable at the bound by construction. Same note `nearestOnSegment` carries.
+  if (distance >= width) return 0;
   const t = distance / width;
   return (6 * t * (1 - t)) / width;
 }
@@ -218,7 +245,9 @@ export interface ShoreSample {
   gz: number;
 }
 
-interface LoopBounds {
+/** A coast loop with its bounding box precomputed — the unit {@link boxDistance} prunes against.
+ *  Exported alongside it because a function you can test needs an argument you can build. */
+export interface LoopBounds {
   points: readonly CoastPoint[];
   minX: number;
   maxX: number;
@@ -226,25 +255,48 @@ interface LoopBounds {
   maxZ: number;
 }
 
-/** How far a point sits outside a box — 0 when inside it. The prune's own arithmetic, and a lower
- *  bound on the distance to anything the box contains, which is what makes skipping exact. */
-function boxDistance(b: LoopBounds, x: number, z: number): number {
+/**
+ * How far a point sits outside a box — 0 when inside it. The prune's own arithmetic, and a lower
+ * bound on the distance to anything the box contains, which is what makes skipping exact.
+ *
+ * ⚠ EXPORTED FOR ITS OWN TESTS, AND THE MUTATION RUNG IS WHY. It is a pure cost OPTIMISATION: it
+ * changes which loops the sweep bothers to walk and never which answer comes back, so every mutant
+ * in it survives a test that can only see `sample`'s output. That is the playbook's
+ * "an optimisation bound cannot be seen from output it does not change".
+ *
+ * ⚠ AND DELETING IT IS THE WRONG FIX HERE, which the playbook also warns about — the coast clip
+ * removed an "unkillable optimisation" once and turned a caught-as-wrong-answer mutant into a
+ * TIMEOUT. Without this prune the forest sweep walks 35 loops x 208 segments for every one of
+ * 30,240 vertices. So it stays, and it is tested DIRECTLY instead.
+ */
+export function boxDistance(b: LoopBounds, x: number, z: number): number {
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — ON a face the gap is exactly 0, which
+  // is what the else-branch returns, so `<` / `<=` and `>` / `>=` cannot be separated at either
+  // bound. A point on the boundary is inside the box for this function's purpose, both ways.
   const dx = x < b.minX ? b.minX - x : x > b.maxX ? x - b.maxX : 0;
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — as above, on the other axis.
   const dz = z < b.minZ ? b.minZ - z : z > b.maxZ ? z - b.maxZ : 0;
   return Math.hypot(dx, dz);
 }
 
-function boundsOf(points: readonly CoastPoint[]): LoopBounds {
+/** A loop's bounding box. ⚠ Exported for the same reason {@link boxDistance} is: it feeds a prune,
+ *  so its own arithmetic never reaches an answer a caller can observe. */
+export function boundsOf(points: readonly CoastPoint[]): LoopBounds {
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
   let maxZ = -Infinity;
+  // Stryker disable EqualityOperator: EQUIVALENT — a running extremum assigns the same value
+  // whether or not it re-assigns on a tie, so `<` / `<=` and `>` / `>=` are indistinguishable on
+  // every input. The mutants that are NOT equivalent here — the initial `Infinity` sentinels and
+  // the comparison directions — are killed by `boundsOf`'s own tests.
   for (const p of points) {
     if (p.x < minX) minX = p.x;
     if (p.x > maxX) maxX = p.x;
     if (p.z < minZ) minZ = p.z;
     if (p.z > maxZ) maxZ = p.z;
   }
+  // Stryker restore EqualityOperator
   return { points, minX, maxX, minZ, maxZ };
 }
 
@@ -277,9 +329,22 @@ export function shoreField(
   cells: readonly InstanceDescriptor[],
   width: number,
 ): ShoreFieldReader {
-  const rings = cells
-    .filter((d) => coastalIsland(d) !== null)
-    .map((d) => (d.points ?? []).map((p) => ({ x: p.x, z: p.z })));
+  // ⚠ ONE PASS, NOT filter-THEN-map, AND THE MUTATION RUNG IS WHY. The two-step form ended
+  // `.map((d) => (d.points ?? []). …)`, and that `?? []` is UNREACHABLE: `coastalIsland` already
+  // returns null for a ringless descriptor, so the filter has removed every one before the map
+  // runs. The rung reported it as the file's only NO-COVERAGE mutant, which is what dead code
+  // looks like from outside. Reading `points` once and skipping on it removes the fallback rather
+  // than leaving a branch no input can take.
+  const rings: CoastPoint[][] = [];
+  for (const d of cells) {
+    if (coastalIsland(d) === null) continue;
+    // ⚠ THE NON-NULL ASSERTION IS THE HOUSE PRECEDENT, not a shortcut. `coastalIsland` refuses a
+    // descriptor with no ring, so `points` is present on every survivor — and `clipToCoast` writes
+    // `ringOf(d.points!)` two lines after the same call for the same reason. A second
+    // `points === undefined` check here reads as defensive and is UNREACHABLE, which the mutation
+    // rung reported twice: first as the file's only NO-COVERAGE mutant, then as a survivor.
+    rings.push(d.points!.map((p) => ({ x: p.x, z: p.z })));
+  }
   const bounds = rimLoops(rings).map(boundsOf);
   return {
     width,
@@ -291,6 +356,12 @@ export function shoreField(
       for (const loop of bounds) {
         // EXACT, not heuristic: `boxDistance` is a lower bound on the distance to every point of
         // the loop, so a loop whose box is already further than the best answer cannot beat it.
+        //
+        // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT — this line
+        // is the PRUNE. Never taking it (`false`) walks more loops and returns the same answer;
+        // taking it on a tie (`>` vs `>=`) skips a loop that could only have equalled `best`. It is
+        // a cost decision by construction, so no assertion about `sample`'s OUTPUT can reach it —
+        // which is why its soundness is asserted directly against `boxDistance` instead.
         if (boxDistance(loop, x, z) >= best) continue;
         const pts = loop.points;
         for (let i = 0; i < pts.length; i += 1) {
@@ -300,10 +371,19 @@ export function shoreField(
           const ez = b.z - a.z;
           const lenSq = ex * ex + ez * ez;
           const raw = lenSq === 0 ? 0 : ((x - a.x) * ex + (z - a.z) * ez) / lenSq;
+          // Stryker disable next-line EqualityOperator: EQUIVALENT — at `raw` exactly 0 or exactly
+          // 1 both sides of each comparison yield the SAME parameter, because the clamp's bound IS
+          // the parameter there. No input separates `<` from `<=` or `>` from `>=`. This is the
+          // note `nearestOnSegment` carries verbatim, on the same arithmetic.
           const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
           const qx = x - (a.x + ex * t);
           const qz = z - (a.z + ez * t);
           const d = Math.hypot(qx, qz);
+          // Stryker disable next-line EqualityOperator: EQUIVALENT for the DISTANCE, which is what
+          // every caller reads: on a tie both branches leave `best` at the same number. They differ
+          // only in which of two equidistant coast points supplies the gradient — the medial axis,
+          // where the distance field's gradient is genuinely undefined and where
+          // `shoreFallSlope` is heading to zero anyway.
           if (d >= best) continue;
           best = d;
           nx = qx;

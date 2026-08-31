@@ -16,6 +16,8 @@ import {
   SHORE_ARMS,
   SHORE_ARM_WIDTH,
   SHORE_DIP,
+  boundsOf,
+  boxDistance,
   shoreFall,
   shoreFallSlope,
   shoreField,
@@ -331,4 +333,151 @@ test('⚠⚠ THE SHIPPED ARM LEAVES EVERY PROP STANDING ON THE GROUND IT WAS PLA
   assert.equal(shipped.height(preCoastBoundary, 50), landHeight(preCoastBoundary, 50));
   const shelf = shoreRelief([square()], 'shelf');
   assert.notEqual(shelf.height(preCoastBoundary, 50), landHeight(preCoastBoundary, 50));
+});
+
+// ---------------------------------------------------------------------------
+// The prune — tested DIRECTLY, because its result is never observable from `sample`
+// ---------------------------------------------------------------------------
+
+test('a loop’s bounds are its extremes on both axes', () => {
+  const b = boundsOf([
+    { x: 3, z: -2 },
+    { x: -5, z: 7 },
+    { x: 1, z: 1 },
+  ]);
+  assert.equal(b.minX, -5);
+  assert.equal(b.maxX, 3);
+  assert.equal(b.minZ, -2);
+  assert.equal(b.maxZ, 7);
+});
+
+test('a ONE-POINT loop bounds a point — every extreme is that point', () => {
+  // Not hypothetical: the subdivide clip emits zero-length ring edges, and those chain into
+  // single-vertex "loops". They sit ON the coastline so they can never win a distance query, but
+  // they DO reach `boundsOf`, and a degenerate box must not come back inverted.
+  const b = boundsOf([{ x: 4, z: 9 }]);
+  assert.deepEqual([b.minX, b.maxX, b.minZ, b.maxZ], [4, 4, 9, 9]);
+  // And a point's box is at zero distance from itself and from nowhere else.
+  assert.equal(boxDistance(b, 4, 9), 0);
+  assert.equal(boxDistance(b, 4, 12), 3);
+});
+
+test('⚠ THE PRUNE IS A LOWER BOUND ON THE DISTANCE TO ANYTHING THE BOX CONTAINS', () => {
+  // THE PROPERTY THAT MAKES SKIPPING EXACT RATHER THAN HEURISTIC — and the reason `boxDistance` is
+  // exported at all. It is a pure cost optimisation, so no assertion about `sample`'s OUTPUT can
+  // reach it: the answer is identical whether the prune fires or not, which is precisely what left
+  // every mutant in it alive on the first mutation run.
+  const b = boundsOf([
+    { x: 0, z: 0 },
+    { x: 10, z: 0 },
+    { x: 10, z: 10 },
+    { x: 0, z: 10 },
+  ]);
+  // Inside the box: zero, from anywhere in it, edges included.
+  assert.equal(boxDistance(b, 5, 5), 0);
+  assert.equal(boxDistance(b, 0, 0), 0, 'a corner is inside its own box');
+  assert.equal(boxDistance(b, 10, 10), 0);
+  // Off one face: the gap on that axis alone, and each of the four faces separately — a sign flip
+  // on any one of them is a mutant that survives if only one direction is asked about.
+  assert.equal(boxDistance(b, -3, 5), 3);
+  assert.equal(boxDistance(b, 14, 5), 4);
+  assert.equal(boxDistance(b, 5, -6), 6);
+  assert.equal(boxDistance(b, 5, 17), 7);
+  // Off a corner: the DIAGONAL, not the larger of the two gaps.
+  assert.ok(Math.abs(boxDistance(b, -3, -4) - 5) < 1e-12);
+  assert.ok(Math.abs(boxDistance(b, 13, 14) - 5) < 1e-12);
+});
+
+test('the prune NEVER over-estimates — it stays under the true distance to every loop vertex', () => {
+  // The safety property, spelled as the inequality that makes the skip sound. If a box distance
+  // ever exceeded the real distance to a point of that loop, the sweep would skip a loop that
+  // should have won, and the waterline would land somewhere the map cannot justify.
+  const loop = [
+    { x: 0, z: 0 },
+    { x: 10, z: 2 },
+    { x: 7, z: 11 },
+    { x: -2, z: 6 },
+  ];
+  const b = boundsOf(loop);
+  for (const [x, z] of [[-20, -20], [30, 5], [5, 40], [-9, 3], [5, 5], [0, 0]] as const) {
+    const nearest = Math.min(...loop.map((p) => Math.hypot(p.x - x, p.z - z)));
+    assert.ok(
+      boxDistance(b, x, z) <= nearest + 1e-12,
+      `at ${x},${z}: the box said ${boxDistance(b, x, z)}, past the true nearest ${nearest}`,
+    );
+  }
+});
+
+test('⚠ THE BOX GAPS ARE MEASURED FROM THE FACE, NOT FROM THE ORIGIN', () => {
+  // ⚠ THIS TEST EXISTS BECAUSE THE FIRST FIXTURE ABOVE WAS TOO SYMMETRIC TO SEPARATE A BUG. That
+  // box is anchored at (0,0), so `minZ - z` and `minZ + z` agree for every point outside it —
+  // `Math.hypot` squares its arguments, so a sign flip vanishes whenever the bound is 0. The
+  // mutation rung caught exactly that: the arithmetic mutant survived a test that looked thorough.
+  //
+  // This box is anchored nowhere near the origin, so each gap is a genuine subtraction.
+  const b = boundsOf([
+    { x: 20, z: 50 },
+    { x: 35, z: 50 },
+    { x: 35, z: 80 },
+    { x: 20, z: 80 },
+  ]);
+  assert.equal(boxDistance(b, 20, 62), 0, 'on the west face');
+  assert.equal(boxDistance(b, 12, 62), 8, 'west of it — the gap is 20-12, not 12');
+  assert.equal(boxDistance(b, 44, 62), 9, 'east of it — the gap is 44-35, not 44');
+  assert.equal(boxDistance(b, 27, 43), 7, 'north of it — the gap is 50-43, not 43');
+  assert.equal(boxDistance(b, 27, 95), 15, 'south of it — the gap is 95-80, not 95');
+});
+
+test('⚠ A POINT IN THE SEA GETS ITS TRUE DISTANCE — which is what the segment clamp is for', () => {
+  // The ground mesh never asks about a point outside an island, but the field is total and the
+  // clamp is what keeps it honest there. Without it a point off the END of a segment projects onto
+  // that segment's infinite LINE, which is nearer than any point of the segment actually is — so
+  // the field would UNDER-report the distance and put the waterline out to sea.
+  //
+  // Off the north-west corner of the square, the nearest point of the whole loop is the corner
+  // itself at (0,0), so the honest answer is the diagonal. The unclamped answer would be the
+  // perpendicular to one of the two edges, which is shorter.
+  const field = shoreField([square()], 100);
+  const s = field.sample(-30, -40);
+  assert.ok(Math.abs(s.distance - 50) < 1e-9, `distance ${s.distance}, expected the 30-40-50 corner`);
+  // And the gradient points AWAY from that corner, back out to sea, since distance grows outward.
+  assert.ok(Math.abs(s.gx - -0.6) < 1e-9 && Math.abs(s.gz - -0.8) < 1e-9, `gradient ${s.gx},${s.gz}`);
+});
+
+test('a sea point off the MIDDLE of an edge measures to the edge, not to a corner', () => {
+  // The other side of the same clamp: here the projection IS inside the segment, so the clamp must
+  // not fire. Both halves are needed — a clamp that always fired would pass the test above.
+  const s = shoreField([square()], 100).sample(-12, 50);
+  assert.ok(Math.abs(s.distance - 12) < 1e-9, `distance ${s.distance}`);
+  assert.ok(Math.abs(s.gx - -1) < 1e-9 && Math.abs(s.gz) < 1e-9, `gradient ${s.gx},${s.gz}`);
+});
+
+test('⚠ A ZERO-LENGTH COAST EDGE DOES NOT POISON THE FIELD WITH NaN', () => {
+  // NOT HYPOTHETICAL. The subdivide coast clip emits six zero-length ring edges on the shipped
+  // island — inserted curve points that coincide where the outset loop had a very short edge —
+  // and those chain into single-vertex rim "loops". `shoreField` walks them like any other.
+  //
+  // A degenerate segment has `lenSq === 0`, and the guard is what stops the projection dividing by
+  // it. Without the guard the parameter is `0/0` = NaN, the offset is NaN, the distance is NaN,
+  // and `NaN >= best` is FALSE — so the NaN is ACCEPTED as the new best and the whole field goes
+  // undefined from that point on. Silent, and fatal to every height downstream.
+  const duplicated = {
+    ...square(),
+    points: [
+      { x: 0, y: 0, z: 0 },
+      { x: SIDE, y: 0, z: 0 },
+      { x: SIDE, y: 0, z: 0 },
+      { x: SIDE, y: 0, z: SIDE },
+      { x: 0, y: 0, z: SIDE },
+    ],
+  } as InstanceDescriptor;
+  const field = shoreField([duplicated], 40);
+  for (const [x, z] of [[10, 50], [50, 50], [90, 20], [0, 50], [50, 0]] as const) {
+    const s = field.sample(x, z);
+    assert.ok(Number.isFinite(s.distance), `distance at ${x},${z} was ${s.distance}`);
+    assert.ok(Number.isFinite(s.gx) && Number.isFinite(s.gz), `gradient at ${x},${z}`);
+    assert.ok(s.distance >= 0 && s.distance <= 40, `distance at ${x},${z} left its bounds`);
+  }
+  // And the answer is still the RIGHT one, not merely a number: ten in from the west side.
+  assert.ok(Math.abs(field.sample(10, 50).distance - 10) < 1e-9);
 });
