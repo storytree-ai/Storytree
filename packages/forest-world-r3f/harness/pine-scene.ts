@@ -54,7 +54,6 @@ import {
 import { GPU_TIMER_EXTENSION, type TimingSample } from './frame-cost.js';
 import {
   LIGHT_DIRECTION,
-  SHADE_LEVELS,
   SHARED_TOKENS,
   STATUS_TOKENS,
   TREE_TOKENS,
@@ -71,6 +70,11 @@ import {
   type PineVariant,
 } from './pine-asset.js';
 import { growTree } from './tree-geometry.js';
+import {
+  calibrateLights,
+  intensitiesFor,
+  type LightCalibration,
+} from '../src/light-calibration.js';
 
 /** The ground token every arm's land wears — the healthy family's lit top. */
 const HEALTHY = STATUS_TOKENS.get('healthy')!.top[0]!;
@@ -322,67 +326,27 @@ function gltfTrees(
  * colour at `SHADE_LEVELS`'s top and an unlit one at its floor — the SAME range the land beside
  * it is quantised into, by construction rather than by eye.
  */
-export interface LightCalibration {
-  /** What a white, fully-lit, fully-rough standard face delivered at unit intensities. */
-  probe: number;
-  /** The factor both intensities are multiplied by. */
-  scale: number;
-  /** The ladder rung the calibration targets — a fully lit face. */
-  target: number;
-  /** The floor an unlit face lands on — the ladder's own darkest rung. */
-  floor: number;
-}
-
 /**
- * Measure how a `MeshStandardMaterial` responds in THIS context, and return the correction.
+ * THE CALIBRATION CROSSED INTO `src/light-calibration.ts` ON 2026-08-31 and is re-exported here.
  *
- * The probe is a plane facing the camera with the key light straight down its normal, white
- * albedo, `roughness: 1`, `metalness: 0` — as close to pure Lambert as the standard material
- * gets. A small specular term survives at that roughness and is deliberately left in: it is part
- * of what the real material will deliver, so calibrating it away would leave every asset slightly
- * bright.
+ * The SHIPPED canvas needed it: it hangs the ladder-derived intensities as the AUTHORED INTENT
+ * and never measured them. ⚠ IT IS A SPLIT BY WHAT NEEDS A BROWSER — the rig, the `target /
+ * probe` arithmetic and the exact-colour refusal are node-provable and live in `src/`; only the
+ * render-and-read inch is browser-bound, and it is seamed there so its callers are provable
+ * without a context. Nothing in this file's behaviour moved: all four callers here already put
+ * their renderer into exact-colour mode first, which is the mode the crossed version now
+ * REFUSES to calibrate outside of. See `scope-fence.test.ts`'s ADOPTED ledger.
  */
-export function calibrateLights(renderer: THREE.WebGLRenderer): LightCalibration {
-  const floor = SHADE_LEVELS[0]!;
-  const target = SHADE_LEVELS[SHADE_LEVELS.length - 1]!;
+export {
+  buildProbeRig,
+  calibrateLights,
+  calibrationFrom,
+  intensitiesFor,
+  readProbePixel,
+  type LightCalibration,
+  type ProbeRig,
+} from '../src/light-calibration.js';
 
-  const scene = new THREE.Scene();
-  const plane = new THREE.Mesh(
-    new THREE.PlaneGeometry(2, 2),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 }),
-  );
-  scene.add(plane);
-  scene.add(new THREE.AmbientLight(0xffffff, floor));
-  const key = new THREE.DirectionalLight(0xffffff, target - floor);
-  key.position.set(0, 0, 1);
-  scene.add(key);
-
-  const camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0.1, 10);
-  camera.position.set(0, 0, 2);
-  camera.lookAt(0, 0, 0);
-
-  const size = new THREE.Vector2();
-  renderer.getSize(size);
-  const gl = renderer.getContext() as WebGL2RenderingContext;
-  renderer.setSize(8, 8, false);
-  renderer.render(scene, camera);
-  gl.finish();
-  const px = new Uint8Array(4);
-  gl.readPixels(4, 4, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
-  renderer.setSize(size.x, size.y, false);
-
-  plane.geometry.dispose();
-  (plane.material as THREE.Material).dispose();
-
-  const probe = px[0]! / 255;
-  if (!(probe > 0)) {
-    throw new Error(
-      'pine-scene: the lighting probe delivered black. A calibration that cannot see its own ' +
-        'control is not a calibration.',
-    );
-  }
-  return { probe, scale: target / probe, target, floor };
-}
 
 /** The same material with its image maps removed — the control the texture check reads against. */
 function stripMaps(material: THREE.Material): THREE.Material {
@@ -409,8 +373,12 @@ function stripMaps(material: THREE.Material): THREE.Material {
  * else reads as an art difference rather than a wiring one.
  */
 function addLights(scene: THREE.Scene, cal: LightCalibration): void {
-  scene.add(new THREE.AmbientLight(0xffffff, cal.floor * cal.scale));
-  const key = new THREE.DirectionalLight(0xffffff, (cal.target - cal.floor) * cal.scale);
+  // ⚠ THE PAIR IS DERIVED, NOT SPELLED OUT TWICE. `intensitiesFor` is the same function the
+  // shipped canvas hangs its two lights from, so the experiment and the product cannot end up
+  // scaling by different arithmetic — the fork this package has already paid for three times.
+  const lit = intensitiesFor(cal);
+  scene.add(new THREE.AmbientLight(0xffffff, lit.ambient));
+  const key = new THREE.DirectionalLight(0xffffff, lit.directional);
   key.position
     .set(LIGHT_DIRECTION.x, LIGHT_DIRECTION.y, LIGHT_DIRECTION.z)
     .normalize()

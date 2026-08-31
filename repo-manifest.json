@@ -541,6 +541,8 @@
       "packages/forest-world-r3f/src/map-texels.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/parcel-cells.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/texture-convention.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/exact-colour.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/light-calibration.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/index.ts": "website-experience",
       "packages/forest-world-r3f/harness": "website-experience",
       "packages/app-surface/src/SceneView.tsx": "app-surface-world-view",

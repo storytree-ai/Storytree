@@ -40,15 +40,15 @@ import {
 } from './shadow-ladder.js';
 
 /** Put a renderer into EXACT-COLOUR mode: what the shader writes is what the framebuffer
- *  holds. Required for the palette-closure proof to mean anything. Call once per renderer. */
-export function configureExactColour(renderer: THREE.WebGLRenderer): void {
-  // No output transform: the shader's rgb is already authored sRGB.
-  renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-  renderer.toneMapping = THREE.NoToneMapping;
-  // ...and no INPUT transform either, or `new THREE.Color('#8cb85e')` would be linearised
-  // on the way in and the round trip would still not be an identity.
-  THREE.ColorManagement.enabled = false;
-}
+ *  holds. Required for the palette-closure proof to mean anything. Call once per renderer.
+ *
+ *  ⚠ CROSSED INTO `src/exact-colour.ts` ON 2026-08-31 and re-exported here, because the SHIPPED
+ *  canvas needs it too: it was mounting @react-three/fiber's default `<Canvas>`, whose defaults
+ *  are ACES filmic tone mapping and an sRGB output encode — so the product's props were drawn
+ *  through a different transfer function from its own ground and from the approved reference. Both
+ *  spellings of the mode (these three assignments, and the `<Canvas>` props) now derive from one
+ *  value there. See `scope-fence.test.ts`'s ADOPTED ledger. */
+export { EXACT_COLOUR, configureExactColour, isExactColour } from '../src/exact-colour.js';
 
 /** A token as a three Color carrying the authored sRGB values verbatim (no linearisation —
  *  see `configureExactColour`). */

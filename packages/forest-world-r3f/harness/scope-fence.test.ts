@@ -232,6 +232,35 @@ const ADOPTED: readonly { src: string; reExportedBy: string; because: string }[]
       'the delivered frame, since an expectation derived from its own subject cannot fail.',
   },
   {
+    src: 'exact-colour.ts',
+    reExportedBy: 'banded-material.ts',
+    because:
+      'the TRANSFER FUNCTION the whole map is drawn through — the one setting the shipped canvas ' +
+      'and the approved reference render did not share. `<ForestWorldCanvas>` mounted ' +
+      "@react-three/fiber's DEFAULT `<Canvas>` (ACES filmic tone mapping, an sRGB output encode, " +
+      'colour management on) while every research render, and this package’s whole ' +
+      'palette-closure proof, is taken in exact-colour mode. So the map drew its GROUND through one ' +
+      'transfer function (a raw `ShaderMaterial` gets neither chunk from three, which is why the ' +
+      'ground was always right) and every PROP, tree, cave and wisp standing on it through another. ' +
+      '⚠ A SPLIT: `tokenColour` and the material itself stayed. Both spellings of the mode — the ' +
+      'three raw-three assignments and the three `<Canvas>` props — now derive from one value, ' +
+      'because two hand-kept copies of three settings is how they came apart.',
+  },
+  {
+    src: 'light-calibration.ts',
+    reExportedBy: 'pine-scene.ts',
+    because:
+      'the light calibration the sixth crossing deliberately left behind as “an instrument”. It ' +
+      'is not one: without it the canvas hangs the AUTHORED intent (ambient = the ladder floor, ' +
+      'directional = the span to its top) and nothing has ever measured whether a lit face lands ' +
+      'where that says. ⚠ A SPLIT BY WHAT NEEDS A BROWSER — the rig, the `target / probe` ' +
+      'arithmetic, the texel choice and the exact-colour REFUSAL are node-provable and crossed; ' +
+      'only the render-and-read inch stayed browser-bound, and it is seamed. The refusal is the ' +
+      'reason this could not cross alone: `target / probe` is a one-shot solve, exact only where ' +
+      'the delivered value is LINEAR in intensity, and through ACES it lands at 0.76 of the rung ' +
+      'it aimed at while looking exactly like a calibration.',
+  },
+  {
     src: 'shade-ladder.ts',
     reExportedBy: 'palette-band.ts',
     because:
@@ -301,6 +330,11 @@ test('nothing has left the fence by simply being deleted from the list', () => {
     // ground rather than being it.
     'kit-vocabulary.ts',
     'texture-convention.ts',
+    // The colour pipeline, crossed 2026-08-31 — the transfer function every component above is
+    // delivered THROUGH, and the calibration that puts a bought object on the same range as the
+    // ground beside it.
+    'exact-colour.ts',
+    'light-calibration.ts',
   ];
   for (const owed of owedModules) {
     assert.ok(accounted.has(owed), `${owed} is in neither EXPERIMENT nor ADOPTED — unaccounted for`);
