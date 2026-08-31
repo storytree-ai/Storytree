@@ -48,6 +48,29 @@ export interface LightCalibration {
   floor: number;
 }
 
+/** What "unlit" and "lit" mean on a ladder: its darkest and brightest rungs. */
+export interface LadderEnds {
+  floor: number;
+  target: number;
+}
+
+/**
+ * The ladder's two ends, or a refusal.
+ *
+ * ⚠ ONE FUNCTION RATHER THAN THE SAME GUARD IN TWO PLACES, and the mutation rung is what said so.
+ * `calibrationFrom` and `calibrateLights` each read `levels[0]` and `levels[length - 1]` and each
+ * tested both for `undefined` — and for an ARRAY those two conditions are the same condition, since
+ * an empty array has neither end. So every mutant of the `||` was equivalent, in two places, and
+ * the only fixture that reaches either is the empty ladder. Asking `length` once says the same
+ * thing with nothing left over.
+ */
+export function ladderEnds(levels: readonly number[]): LadderEnds {
+  if (levels.length === 0) {
+    throw new Error('light-calibration: a ladder with no rungs cannot say what "lit" means');
+  }
+  return { floor: levels[0]!, target: levels[levels.length - 1]! };
+}
+
 /**
  * The correction, from a measured probe and the ladder it is aimed at.
  *
@@ -61,11 +84,7 @@ export function calibrationFrom(
   probe: number,
   levels: readonly number[] = SHADE_LEVELS,
 ): LightCalibration {
-  const floor = levels[0];
-  const target = levels[levels.length - 1];
-  if (floor === undefined || target === undefined) {
-    throw new Error('light-calibration: a ladder with no rungs cannot say what "lit" means');
-  }
+  const { floor, target } = ladderEnds(levels);
   if (!Number.isFinite(probe) || probe <= 0) {
     // A calibration that cannot see its own control is not a calibration. It fails LOUDLY rather
     // than returning an identity, because an identity here is indistinguishable from a correction
@@ -122,6 +141,11 @@ export interface ProbeRig {
 export function buildProbeRig(cal: Pick<LightCalibration, 'floor' | 'target'>): ProbeRig {
   const scene = new THREE.Scene();
   const geometry = new THREE.PlaneGeometry(2, 2);
+  // Stryker disable next-line ObjectLiteral: EQUIVALENT — three's own MeshStandardMaterial defaults
+  // are already white / rough / non-metal, so `{}` builds the identical material. The options stay
+  // because they are the SPECIFICATION of the control, not a tweak of it; `light-calibration.test.ts`
+  // pins the premise, and that test fails the day three's defaults move, which is exactly when this
+  // annotation should stop being true.
   const material = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, metalness: 0 });
   scene.add(new THREE.Mesh(geometry, material));
   scene.add(new THREE.AmbientLight(0xffffff, cal.floor));
@@ -131,6 +155,10 @@ export function buildProbeRig(cal: Pick<LightCalibration, 'floor' | 'target'>): 
 
   const camera = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0.1, 10);
   camera.position.set(0, 0, 2);
+  // Stryker disable next-line CallExpression: EQUIVALENT — a fresh camera's orientation is already
+  // down -z, and the rig puts it at +z looking back at a plane on the origin plane, so this states
+  // an orientation it already has. Kept because it is what makes the framing readable; the test
+  // pins the premise, so moving the camera off the +z axis fails there rather than silently here.
   camera.lookAt(0, 0, 0);
 
   return {
@@ -203,12 +231,7 @@ export function calibrateLights(
   read: ProbeReader = readProbePixel,
 ): LightCalibration {
   assertExactColourForCalibration(renderer);
-  const floor = levels[0];
-  const target = levels[levels.length - 1];
-  if (floor === undefined || target === undefined) {
-    throw new Error('light-calibration: a ladder with no rungs cannot say what "lit" means');
-  }
-  const rig = buildProbeRig({ floor, target });
+  const rig = buildProbeRig(ladderEnds(levels));
   try {
     return calibrationFrom(read(renderer, rig), levels);
   } finally {

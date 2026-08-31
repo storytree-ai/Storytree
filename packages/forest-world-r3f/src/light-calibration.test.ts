@@ -24,8 +24,10 @@ import {
   calibrateLights,
   calibrationFrom,
   intensitiesFor,
+  ladderEnds,
   probeTexel,
   probeValueOf,
+  readProbePixel,
   type ProbeRig,
 } from './light-calibration.js';
 import { LEGACY_SHADE_LEVELS, SHADE_LEVELS } from './shade-ladder.js';
@@ -150,7 +152,16 @@ test('a probe that saw nothing is REFUSED, not quietly treated as an identity', 
 });
 
 test('a ladder with no rungs cannot say what "lit" means', () => {
+  assert.throws(() => ladderEnds([]), /no rungs/);
   assert.throws(() => calibrationFrom(0.25, []), /no rungs/);
+  // ⚠ AND A LADDER WITH RUNGS MUST NOT REFUSE — the half that stops the guard reading as "always
+  // throw", which is what a `length === 0` flipped to `length !== 0` would be.
+  assert.deepEqual(ladderEnds([0.4]), { floor: 0.4, target: 0.4 });
+  assert.deepEqual(ladderEnds([0.4, 0.6, 0.9]), { floor: 0.4, target: 0.9 });
+  assert.deepEqual(ladderEnds(SHADE_LEVELS), {
+    floor: SHADE_LEVELS[0],
+    target: SHADE_LEVELS[SHADE_LEVELS.length - 1],
+  });
 });
 
 test('intensitiesFor splits the ladder across the two lights, and scale multiplies both', () => {
@@ -202,6 +213,63 @@ test('the probe rig is a white fully-rough face lit straight down its own normal
     // ⚠ STRAIGHT DOWN THE NORMAL, so `dot(n, L)` is 1 and the reading is about the material rather
     // than about an angle. The plane faces +z and the light sits on +z.
     assert.deepEqual(key.position.toArray(), [0, 0, 1]);
+    assert.deepEqual(rig.camera.position.toArray(), [0, 0, 2]);
+    // ⚠ THE FRUSTUM IS A UNIT SQUARE INSIDE A 2x2 PLANE, so every texel of the probe frame is the
+    // face and none of it is background. A frustum whose left and right agree is degenerate and
+    // renders nothing — and a blank readback is a `probe` of 0, which `calibrationFrom` refuses,
+    // so the failure would be loud rather than silent. It is asserted anyway: the refusal would
+    // name the probe, not the frustum.
+    assert.equal(rig.camera.left, -0.5);
+    assert.equal(rig.camera.right, 0.5);
+    assert.equal(rig.camera.top, 0.5);
+    assert.equal(rig.camera.bottom, -0.5);
+    assert.ok(rig.camera.right - rig.camera.left > 0 && rig.camera.top - rig.camera.bottom > 0);
+    const geometry = mesh.geometry;
+    assert.ok(geometry instanceof THREE.PlaneGeometry);
+    assert.ok(
+      geometry.parameters.width > rig.camera.right - rig.camera.left,
+      'the face must overhang the frustum, or the probe reads background at its edges',
+    );
+  } finally {
+    rig.dispose();
+  }
+});
+
+test("the rig's two EQUIVALENT annotations are annotations, and here is why", () => {
+  // ⚠ THIS TEST EXISTS TO PIN TWO `Stryker disable … EQUIVALENT` CLAIMS IN `buildProbeRig`. An
+  // equivalence claim can be falsified by a later change — this package has already had one go
+  // stale — so each one is held by an assertion rather than by the comment beside it.
+
+  // (1) The material options restate three's own defaults, so `{}` builds the identical material.
+  const bare = new THREE.MeshStandardMaterial();
+  try {
+    assert.equal(bare.color.getHex(), 0xffffff, "three's default albedo is white");
+    assert.equal(bare.roughness, 1, "three's default roughness is 1");
+    assert.equal(bare.metalness, 0, "three's default metalness is 0");
+  } finally {
+    bare.dispose();
+  }
+
+  // (2) `camera.lookAt(0, 0, 0)` restates an orientation the camera already has: a fresh camera
+  // looks down -z, and the rig puts it on +z above a plane on the origin plane. So the claim is
+  // that the call changes nothing FROM THIS POSITION — which stops being true the moment the
+  // camera moves off the axis, and that is what this half catches.
+  const onAxis = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0.1, 10);
+  onAxis.position.set(0, 0, 2);
+  const before = onAxis.quaternion.clone();
+  onAxis.lookAt(0, 0, 0);
+  assert.ok(before.angleTo(onAxis.quaternion) < 1e-12, 'on the axis, lookAt is a restatement');
+  // NON-VACUITY: off the axis it is NOT a restatement, so the assertion above is about the rig's
+  // own placement rather than about `lookAt` being inert in general.
+  const offAxis = new THREE.OrthographicCamera(-0.5, 0.5, 0.5, -0.5, 0.1, 10);
+  offAxis.position.set(2, 0, 2);
+  const beforeOff = offAxis.quaternion.clone();
+  offAxis.lookAt(0, 0, 0);
+  assert.ok(beforeOff.angleTo(offAxis.quaternion) > 0.1, 'off the axis, lookAt turns the camera');
+
+  // And the rig really is the on-axis case.
+  const rig = buildProbeRig({ floor: 0.8, target: 1 });
+  try {
     assert.deepEqual(rig.camera.position.toArray(), [0, 0, 2]);
   } finally {
     rig.dispose();
@@ -331,6 +399,172 @@ test('calibrateLights carries the ladder it was given all the way through', () =
     assert.equal(cal.floor, LEGACY_SHADE_LEVELS[0]);
     assert.equal(cal.target, LEGACY_SHADE_LEVELS[LEGACY_SHADE_LEVELS.length - 1]);
     assert.throws(() => calibrateLights(renderer, [], () => 0.25), /no rungs/);
+  } finally {
+    THREE.ColorManagement.enabled = before;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────── the browser inch, seamed
+
+/**
+ * A renderer and a context that record what was asked of them.
+ *
+ * ⚠⚠ THIS IS WHAT MAKES `readProbePixel` PROVABLE AT ALL. It is the one function here that touches
+ * a live context, and a browser-bound body is a hundred mutants no fixture reaches — the shape this
+ * package has paid for three times. But nothing in it needs a GPU to be CHECKED: what it must get
+ * right is the SEQUENCE (save the size, shrink, render, finish, read, restore) and the fact that it
+ * restores. Both are observable against a stub. Only the delivered byte is the GPU's, and that is
+ * the thing the whole module treats as an input.
+ */
+function recordingRenderer(byte: number): {
+  renderer: THREE.WebGLRenderer;
+  log: string[];
+  sizes: [number, number, boolean][];
+  reads: [number, number][];
+} {
+  const log: string[] = [];
+  const sizes: [number, number, boolean][] = [];
+  const reads: [number, number][] = [];
+  const gl = {
+    RGBA: 6408,
+    UNSIGNED_BYTE: 5121,
+    finish() {
+      log.push('finish');
+    },
+    readPixels(x: number, y: number, _w: number, _h: number, _f: number, _t: number, px: Uint8Array) {
+      log.push('readPixels');
+      reads.push([x, y]);
+      px[0] = byte;
+      px[1] = byte;
+      px[2] = byte;
+      px[3] = 255;
+    },
+  };
+  const renderer = {
+    getSize(target: THREE.Vector2) {
+      log.push('getSize');
+      // The size the map is drawn at, so a failure to restore is visible as a wrong number rather
+      // than as a plausible one.
+      return target.set(1400, 900);
+    },
+    getContext: () => gl,
+    setSize(w: number, h: number, updateStyle: boolean) {
+      log.push(`setSize ${w}x${h}`);
+      sizes.push([w, h, updateStyle]);
+    },
+    render() {
+      log.push('render');
+    },
+  } as unknown as THREE.WebGLRenderer;
+  return { renderer, log, sizes, reads };
+}
+
+test('readProbePixel renders small, reads the centre texel, and puts the canvas back', () => {
+  const { renderer, log, sizes, reads } = recordingRenderer(51);
+  const rig = buildProbeRig({ floor: 0.8, target: 1 });
+  try {
+    assert.equal(readProbePixel(renderer, rig), 0.2);
+  } finally {
+    rig.dispose();
+  }
+  // ⚠ THE ORDER IS THE CONTRACT. Reading before `finish` returns whatever the driver had; reading
+  // before `render` returns the previous frame; restoring the size before reading reads a frame
+  // that was never drawn at that size. Every one of those is a plausible-looking number.
+  assert.deepEqual(log, [
+    'getSize',
+    `setSize ${PROBE_SIZE}x${PROBE_SIZE}`,
+    'render',
+    'finish',
+    'readPixels',
+    'setSize 1400x900',
+  ]);
+  // ⚠ AND IT MUST RESTORE. The probe runs on the canvas that is about to draw the map; leaving it
+  // 8x8 is a blank frame that reads exactly like a mount failure.
+  assert.deepEqual(sizes, [
+    [PROBE_SIZE, PROBE_SIZE, false],
+    [1400, 900, false],
+  ]);
+  // ⚠ `updateStyle: false` ON BOTH. Passing `true` writes the canvas element's CSS width and
+  // height, so an 8x8 probe would visibly collapse the map's DOM node for a frame.
+  assert.ok(sizes.every(([, , updateStyle]) => updateStyle === false));
+  assert.deepEqual(reads, [[probeTexel().x, probeTexel().y]]);
+});
+
+test('readProbePixel reads the RED channel, and a black frame becomes a refusal', () => {
+  const dark = recordingRenderer(0);
+  const rig = buildProbeRig({ floor: 0.8, target: 1 });
+  try {
+    const probe = readProbePixel(dark.renderer, rig);
+    assert.equal(probe, 0);
+    // The route a dead context takes: the read is honest, and `calibrationFrom` is what refuses.
+    assert.throws(() => calibrationFrom(probe), /cannot see its own control/);
+    const bright = recordingRenderer(255);
+    assert.equal(readProbePixel(bright.renderer, rig), 1);
+  } finally {
+    rig.dispose();
+  }
+});
+
+test('calibrateLights disposes its rig on BOTH paths', () => {
+  const before = THREE.ColorManagement.enabled;
+  const renderer = stubRenderer();
+  configureExactColour(renderer);
+  const disposed: string[] = [];
+  const geo = THREE.BufferGeometry.prototype.dispose;
+  const mat = THREE.Material.prototype.dispose;
+  THREE.BufferGeometry.prototype.dispose = function disposeGeometry(this: THREE.BufferGeometry) {
+    disposed.push('geometry');
+    geo.call(this);
+  };
+  THREE.Material.prototype.dispose = function disposeMaterial(this: THREE.Material) {
+    disposed.push('material');
+    mat.call(this);
+  };
+  try {
+    calibrateLights(renderer, SHADE_LEVELS, () => 0.32);
+    assert.deepEqual(disposed.sort(), ['geometry', 'material'], 'the success path disposes');
+    disposed.length = 0;
+    // ⚠ AND THE ERROR PATH. The probe runs on the canvas the map draws on, so a rig leaked when the
+    // context goes away is GPU memory held for the life of the page — and the throw makes it look
+    // like nothing was allocated.
+    assert.throws(
+      () =>
+        calibrateLights(renderer, SHADE_LEVELS, () => {
+          throw new Error('the context went away');
+        }),
+      /the context went away/,
+    );
+    assert.deepEqual(disposed.sort(), ['geometry', 'material'], 'the error path disposes too');
+  } finally {
+    THREE.BufferGeometry.prototype.dispose = geo;
+    THREE.Material.prototype.dispose = mat;
+    THREE.ColorManagement.enabled = before;
+  }
+});
+
+test('the refusal says WHY, because the why is the whole finding', () => {
+  // ⚠ THE MESSAGE IS PINNED AND THAT IS DELIBERATE. This fence looks like pedantry from the
+  // outside — the call site is a renderer that "obviously" works — and the only thing standing
+  // between a later session and deleting it is the message explaining that `target / probe` is a
+  // one-shot solve. A message reduced to "wrong mode" would leave the fence undefended.
+  const before = THREE.ColorManagement.enabled;
+  try {
+    THREE.ColorManagement.enabled = true;
+    let message = '';
+    try {
+      calibrateLights(stubRenderer(), SHADE_LEVELS, () => 0.25);
+    } catch (err) {
+      message = err instanceof Error ? err.message : String(err);
+    }
+    for (const phrase of [
+      'not in exact-colour mode',
+      'LINEAR in intensity',
+      'naive scale lands at 0.764',
+      'asymptotes',
+      'configureExactColour(renderer) first',
+    ]) {
+      assert.ok(message.includes(phrase), `the refusal must say "${phrase}" — it said: ${message}`);
+    }
   } finally {
     THREE.ColorManagement.enabled = before;
   }
