@@ -19,6 +19,8 @@ import {
 
 import { groundBounds, groundCellsFrom, triangulateFan } from './island-descriptors.js';
 import { islandScene } from './island-fixture.js';
+import { parcelCellsFrom } from '../src/parcel-cells.js';
+import { worldTo3D } from '../src/world-to-3d.js';
 
 const SCENE = islandScene();
 const CELLS = groundCellsFrom(SCENE);
@@ -181,5 +183,39 @@ test('the capability is taken ONLY from a group that says it is a parcel', () =>
     !CELLS.some((c) => c.parcel === territory),
     'a cell inherited the TERRITORY id instead of its capability — the walk is reading the ' +
       'wrong `id`, and every land boundary drawn from it would be fiction',
+  );
+});
+
+test('every cell names the STORY whose island it sits on, and it is NOT its capability', () => {
+  // ⚠ TWO IDS, TWO QUESTIONS. A capability's tree stands on its own parcel; a story's SIGNED UAT
+  // criterion belongs to the whole island. The fixture is ONE story holding eleven capabilities,
+  // so the two readings must produce 1 and 11 — a reader that had collapsed them would produce
+  // the same number twice and every count downstream would still look reasonable.
+  const territory = 'context-traversal-capture';
+  const islands = new Set(CELLS.map((c) => c.island));
+  assert.deepEqual([...islands], [territory], 'one story, named on every cell');
+  const parcels = new Set(CELLS.map((c) => c.parcel));
+  assert.ok(parcels.size > 5, `only ${parcels.size} capabilities on the one island`);
+  assert.notEqual(islands.size, parcels.size, 'the island id and the parcel id have collapsed');
+});
+
+test('⚠ the shipped MAPPER and this reader partition the fixture identically, story for story', () => {
+  // ⚠⚠ THE POINT OF ASSERTING IT TWICE. `worldTo3D` and `groundCellsFrom` walk DIFFERENT code over
+  // the same scene — one unprojects to ground coordinates, the other maps the drawing straight
+  // onto the ground plane — so neither is a witness to the other's arithmetic. What they can
+  // witness is the ATTRIBUTION: if the two independent walks disagree about which story a cell
+  // belongs to, one of them is reading the wrong `id`, and a per-story claim drawn from it would
+  // be fiction on a picture that looks entirely ordinary.
+  const mapped = parcelCellsFrom(worldTo3D(SCENE));
+  assert.equal(mapped.length, CELLS.length, 'the two readers see the same number of cells');
+  assert.deepEqual(
+    mapped.map((c) => c.island),
+    CELLS.map((c) => c.island),
+    'the two readers disagree about which story a cell belongs to',
+  );
+  assert.deepEqual(
+    mapped.map((c) => c.parcel),
+    CELLS.map((c) => c.parcel),
+    'the two readers disagree about which capability a cell belongs to',
   );
 });

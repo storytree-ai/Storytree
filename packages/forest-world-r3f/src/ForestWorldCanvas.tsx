@@ -38,8 +38,7 @@ import { buildGroundOcclusion } from './contact-shade.js';
 import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from './ground-casters.js';
 import type { ShadowCaster } from './land-shadow.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh.js';
-import { capabilityFactsFrom, dressIslandFromKit } from './kit-vocabulary.js';
-import { parcelCellsFrom } from './parcel-cells.js';
+import { dressMapFromKit } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour.js';
 import { calibrateLights, intensitiesFor } from './light-calibration.js';
@@ -355,20 +354,24 @@ const kit = (): Promise<LoadedKit> => (kitPromise ??= loadEmbeddedKit());
  * day. Until now the shipped map drew ONE of the 1,089 things the semantic scene puts on its
  * ground: the story tree, and nothing else.
  *
- * ⚠⚠ THE BLOOMS ARE NOT DRAWN HERE, AND THAT IS A NAMED GAP RATHER THAN A QUIET DROP. The
- * vocabulary's sixth entry is one flower per UAT criterion the owner has signed (ADR-0226 D4),
- * and it is a claim about a STORY. The descriptor stream carries no island attribution on a
- * `cell-ground` — only the capability's parcel — so a bloom count read here would scatter one
- * story's signed criteria across every other story's island. That is the map asserting a
- * signature on work nobody signed (ADR-0392 D5), which is worse than the absence. The criteria
- * themselves ARE in the scene (`tall-flower-proven`, currently a skip); carrying an island id
- * through `worldTo3D` is what closes it, and it is its own unit.
+ * ⚠⚠ THE BLOOMS ARE DRAWN PER ISLAND, AND THE WHOLE-MAP CALL THAT PRECEDED IT WAS THE HAZARD. The
+ * vocabulary's sixth entry is one flower per UAT criterion the owner has signed (ADR-0226 D4), and
+ * it is a claim about a STORY rather than about a capability. This component used to hand every
+ * `cell-ground` descriptor on the map to `dressIslandFromKit` in ONE call — correct while the map
+ * held one island, and a misreport the moment it held two, because a bloom is scattered over every
+ * cell it is given. So the count was pinned at zero until `worldTo3D` learned the island id.
+ * `dressMapFromKit` now spends each story's signatures on that story's own ground; a cell the
+ * substrate cannot attribute still grows its capabilities' trees and never a bloom.
+ *
+ * ⚠ IT TAKES THE WHOLE DESCRIPTOR STREAM rather than the ground slice, because the signatures are
+ * IN it: one `uat-bloom` per signed criterion. Counting them anywhere else would be a second
+ * opinion about proof state, and two sources is how a map comes to disagree with itself.
  *
  * ⚠ THE FOOTPRINTS ARE READ OFF THE LOADED KIT, never declared here. A pine's canopy is as wide
  * as its own geometry says once scaled to 18 ground units, and a number restated in the canvas
  * would drift the first time the asset is re-exported.
  */
-function KitProps({ cells }: { cells: InstanceDescriptor[] }) {
+function KitProps({ descriptors }: { descriptors: readonly Descriptor3D[] }) {
   const [loaded, setLoaded] = useState<LoadedKit | null>(null);
   useEffect(() => {
     let live = true;
@@ -390,18 +393,14 @@ function KitProps({ cells }: { cells: InstanceDescriptor[] }) {
 
   const meshes = useMemo(() => {
     if (!loaded) return [];
-    const parcels = parcelCellsFrom(cells);
     return kitMeshes(
       loaded,
-      dressIslandFromKit({
-        cells: parcels,
-        facts: capabilityFactsFrom(parcels),
-        blooms: 0,
+      dressMapFromKit(descriptors, {
         relief: LAND_RELIEF_AMPLITUDE,
         footprint: roleFootprints(loaded),
       }),
     );
-  }, [loaded, cells]);
+  }, [loaded, descriptors]);
 
   // ⚠ THE MERGED GEOMETRY IS DISPOSED, THE KIT'S OWN IS NOT. `kitMeshes` clones every part and
   // bakes its transform in, so each mesh here owns geometry nothing else refers to; the kit's
@@ -617,7 +616,7 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
       <CalibratedLights />
       <HexGround tiles={grounds} />
       <CellGround cells={cells} casters={casters} />
-      <KitProps cells={cells} />
+      <KitProps descriptors={descriptors} />
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
       ))}

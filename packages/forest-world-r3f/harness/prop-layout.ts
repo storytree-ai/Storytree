@@ -78,6 +78,7 @@ export function layoutCells(cells: readonly GroundCell[]): LayoutCell[] {
   return cells.map((c) => ({
     points: c.points.map((p) => ({ x: p.x, z: p.y })),
     parcel: c.parcel,
+    island: c.island,
     status: c.status,
     cellId: c.cellId,
   }));

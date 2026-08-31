@@ -68,9 +68,12 @@ for (let k = 0; k < 8; k++) {
 }
 const CAVE_TRAILS = routeTrails(CAVE_ISLANDS, [{ from: 'A', to: 'B' }], 'r3f-cave');
 
+/** The fixture territory's id — the STORY every island-level descriptor must name. */
+const TERRITORY_ID = 'library';
+
 function mkTerritory(over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInput {
   return {
-    id: 'library',
+    id: TERRITORY_ID,
     status: 'healthy',
     caps: 3,
     centroid: { x: 100, y: 200 },
@@ -341,10 +344,18 @@ test('r3f-unknown-kind-skips-visibly: an unhandled SceneKind yields a named skip
   );
 });
 
-test('r3f UAT-marker flowers (grounded-art inc 7): tall-flower markers add ZERO 3D instances and skip by name', () => {
-  // A flat tall-flower marker does not translate to a real 3D scene, so the whole tall-flower family is
-  // skipped here — like the standing-stones it replaced, this is a no-op for the island (only
-  // tile/tree/trail/cave/wisp become instances). The UAT markers therefore cannot change the R3F island.
+test('r3f UAT markers: ONLY the SIGNED criterion becomes a uat-bloom; pending and failing skip by name', () => {
+  // ⚠⚠ THE FENCE THIS TEST EXISTS FOR. A bloom is the claim "the owner SIGNED this criterion"
+  // (ADR-0226 D4), so it is bound by the same rule as the land's colour: a unit may read as the
+  // state it holds and as no other (ADR-0392 D5 / ADR-0398 D7). A mapper that emitted one for a
+  // PENDING or FAILING criterion would be the map inventing a signature nobody gave — and it would
+  // do it invisibly, because three flowers look like three flowers. So the proven wrapper maps and
+  // the other two keep falling through to the explicit skip.
+  //
+  // ⚠ THIS REPLACES AN ASSERTION THAT THE WHOLE FAMILY ADDED ZERO INSTANCES, which held from
+  // grounded-art inc 7 until 2026-08-31 and was the reason both shipped call sites had to pass
+  // `blooms: 0`. What has NOT changed is total coverage: every unmapped flower node is still a
+  // NAMED skip, never a throw and never a silent drop.
   const uatCriteria = [
     { id: 'a', state: 'proven' as const },
     { id: 'b', state: 'pending' as const },
@@ -353,14 +364,25 @@ test('r3f UAT-marker flowers (grounded-art inc 7): tall-flower markers add ZERO 
   const bare = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({})] })));
   const withFlowers = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })] })));
 
-  // The 3D INSTANCE set is identical whether or not the island carries UAT-marker flowers.
-  assert.deepEqual(withFlowers.filter(asInstance), bare.filter(asInstance));
+  const blooms = withFlowers.filter(asInstance).filter((d) => d.kind === 'uat-bloom');
+  assert.equal(blooms.length, 1, 'one of the three criteria is signed, so one bloom');
+  assert.equal(blooms[0]!.criterion, 'a', 'the bloom names the criterion it stands for');
+  assert.equal(blooms[0]!.island, TERRITORY_ID, 'and the story whose signature it is');
 
-  // And the flower family degrades to explicit NAMED skips (total coverage) — never a throw, never a
-  // silent drop, never a stray instance. Both the wrapper and the body marks skip by name.
+  // The island is otherwise unchanged: the markers add a bloom and nothing else — no stray ground,
+  // no second tree. Comparing the NON-bloom instances against the flowerless island is what says
+  // so, and it is a sharper claim than counting blooms alone.
+  assert.deepEqual(
+    withFlowers.filter(asInstance).filter((d) => d.kind !== 'uat-bloom'),
+    bare.filter(asInstance),
+  );
+
+  // And every other flower node degrades to an explicit NAMED skip (total coverage).
   const skips = withFlowers.filter(asSkipped).map((s) => s.sceneKind);
-  assert.ok(skips.includes('tall-flower-proven'), 'the proven wrapper skips by name');
+  assert.ok(skips.includes('tall-flower-pending'), 'the pending wrapper skips by name');
+  assert.ok(skips.includes('tall-flower-failing'), 'the failing wrapper skips by name');
   assert.ok(skips.includes('tall-flower-petal'), 'a flower body mark skips by name');
+  assert.ok(!skips.includes('tall-flower-proven'), 'the proven wrapper is mapped, not skipped');
 });
 
 test('r3f garden composition (grounded-art inc 11, ADR-0221): baked heroes + flat accents add ZERO 3D instances and skip by name', () => {
@@ -386,7 +408,15 @@ test('r3f garden composition (grounded-art inc 11, ADR-0221): baked heroes + fla
   assert.ok(skips.includes('baked-defs'), 'the baked-defs layer skips by name');
   assert.ok(skips.includes('garden-lavender-stem'), 'the lavender accent skips by name');
   assert.ok(skips.includes('garden-grass-blade'), 'the grass accent skips by name');
-  assert.ok(skips.includes('tall-flower-proven'), 'the UAT daisy-bed flowers still skip by name');
+  // The garden's own island suppresses the UAT scatter; this fixture's garden names a DIFFERENT
+  // island, so the territory keeps its markers — and since 2026-08-31 a signed one is a `uat-bloom`
+  // instance rather than a skip. What the assertion is here for is unchanged: the garden adds no
+  // drawable of its own, and the flowers it does not suppress are the map's, not the garden's.
+  assert.equal(
+    withGarden.filter(asInstance).filter((d) => d.kind === 'uat-bloom').length,
+    1,
+    'the one signed criterion still becomes exactly one bloom beside the garden',
+  );
 
   // no garden node became a real instance, and the hero tree REPLACES the procedural story-tree on the
   // garden island (a baked skip, not a story-tree), so the garden island has no story-tree instance.
@@ -744,6 +774,220 @@ test('no other family carries a parcel — it is a cell-ground field', () => {
   for (const d of worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS }))).filter(asInstance)) {
     if (d.kind === 'cell-ground') continue;
     assert.ok(!('parcel' in d), `${d.kind} carries a parcel id`);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// THE ISLAND IDENTITY — which STORY a descriptor belongs to
+// ---------------------------------------------------------------------------
+//
+// ⚠⚠ A CAPABILITY'S PARCEL AND A STORY'S ISLAND ARE DIFFERENT QUESTIONS, and the map needs both.
+// A capability's tree stands on its own parcel; a story's SIGNED UAT criterion belongs to the
+// whole island and to no capability on it. Until 2026-08-31 the descriptor stream answered only
+// the first, so both shipped call sites had to pass `blooms: 0` — a per-story count read off a
+// parcel-only stream scatters one story's signatures across every other story's island.
+
+/** The island ids the mapper stamps on one family, in emission order. */
+const islandsOf = (scene: SceneG, kind: string): (string | undefined)[] =>
+  worldTo3D(scene)
+    .filter(asInstance)
+    .filter((d) => d.kind === kind)
+    .map((d) => d.island);
+
+test('a cell inherits the ISLAND id from its ground group, one level above its parcel', () => {
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'ground-mesh',
+    children: [
+      {
+        el: 'g',
+        kind: 'ground',
+        id: 'atlas',
+        status: 'healthy',
+        children: [
+          {
+            el: 'g',
+            kind: 'parcel',
+            id: 'cap-a',
+            children: [{ el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 Z' }],
+          },
+        ],
+      },
+      {
+        el: 'g',
+        kind: 'ground',
+        id: 'beacon',
+        status: 'mapped',
+        children: [
+          {
+            el: 'g',
+            kind: 'parcel',
+            id: 'cap-b',
+            children: [{ el: 'path', kind: 'cell', d: 'M 50.0 0.0 L 50.0 10.0 L 60.0 10.0 Z' }],
+          },
+        ],
+      },
+    ],
+  };
+  assert.deepEqual(islandsOf(scene, 'cell-ground'), ['atlas', 'beacon']);
+  // ⚠ AND THE TWO IDENTITIES DO NOT COLLAPSE INTO EACH OTHER. A mapper that read `node.id`
+  // generally would give each cell its PARCEL's id as its island and draw a perfectly ordinary
+  // island — so the assertion is that they differ, not merely that both are set.
+  const cells = worldTo3D(scene)
+    .filter(asInstance)
+    .filter((d) => d.kind === 'cell-ground');
+  assert.deepEqual(cells.map((c) => c.parcel), ['cap-a', 'cap-b']);
+});
+
+test('⚠ the island id is taken ONLY from a group that says it IS an island', () => {
+  // Every `<g>` on the map carries an `id` for its own reasons. A parcel group's id is a
+  // CAPABILITY, and inheriting it as the island would attribute a story's signatures to one of
+  // its own capabilities — invisibly, because the island still draws correctly.
+  const parcelOnly: SceneG = {
+    el: 'g',
+    kind: 'parcel',
+    id: 'cap-a',
+    status: 'healthy',
+    children: [{ el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 Z' }],
+  };
+  assert.deepEqual(islandsOf(parcelOnly, 'cell-ground'), [undefined], 'a parcel is not an island');
+  for (const d of worldTo3D(parcelOnly).filter(asInstance)) {
+    assert.ok(!('island' in d), 'a parcel id leaked in as an island');
+  }
+
+  // An anonymous wrapper carrying an id is not an island either.
+  const wrapper: SceneG = {
+    el: 'g',
+    kind: 'hits-layer',
+    id: 'not-a-story',
+    status: 'healthy',
+    children: [{ el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 Z' }],
+  };
+  assert.deepEqual(islandsOf(wrapper, 'cell-ground'), [undefined], 'a layer is not an island');
+});
+
+test('the tree, the tiles and the blooms all name their island — the whole per-story family', () => {
+  // The classic substrate's `tile` IS a territory, the `territory` group holds the tree and the
+  // UAT markers, and the mesh substrate's `ground` holds the cells: three groups, one `t.id`.
+  const uatCriteria = [
+    { id: 'sig-1', state: 'proven' as const },
+    { id: 'sig-2', state: 'proven' as const },
+  ];
+  const scene = buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })] }));
+  assert.deepEqual(islandsOf(scene, 'hex-ground'), [TERRITORY_ID, TERRITORY_ID]);
+  assert.deepEqual(islandsOf(scene, 'story-tree'), [TERRITORY_ID]);
+  assert.deepEqual(islandsOf(scene, 'uat-bloom'), [TERRITORY_ID, TERRITORY_ID]);
+  assert.deepEqual(
+    worldTo3D(scene)
+      .filter(asInstance)
+      .filter((d) => d.kind === 'uat-bloom')
+      .map((d) => d.criterion),
+    ['sig-1', 'sig-2'],
+    'each bloom names the criterion it stands for',
+  );
+});
+
+test('⚠ NO island group ⇒ the field is ABSENT, on every one of the four families', () => {
+  // ⚠⚠ ABSENT AND `undefined` ARE DIFFERENT DESCRIPTORS, and the difference is the whole reason the
+  // assignment is guarded. Under `exactOptionalPropertyTypes` a consumer distinguishes "this
+  // substrate does not say which story this is" from "this story is undefined" by asking `'island'
+  // in d` — so a mapper that always assigned would hand every unattributed instance a key whose
+  // value is undefined, and `cellsByIsland` would still drop it while every `in` check flipped.
+  const marks: SceneNode[] = [
+    { el: 'path', kind: 'tall-flower-petal', d: 'M 0 0 L 1 1' },
+  ];
+  const orphans: SceneG = {
+    el: 'g',
+    kind: 'hits-layer',
+    status: 'healthy',
+    children: [
+      { el: 'g', kind: 'parcel', id: 'cap-a', children: [{ el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 Z' }] },
+      { el: 'g', kind: 'tree', children: [] },
+      { el: 'g', kind: 'tall-flower-proven', id: 'sig-orphan', children: marks },
+    ],
+  };
+  const got = worldTo3D(orphans).filter(asInstance);
+  assert.deepEqual(got.map((d) => d.kind).sort(), ['cell-ground', 'story-tree', 'uat-bloom']);
+  for (const d of got) assert.ok(!('island' in d), `${d.kind} invented an island`);
+
+  // The classic substrate's tile is the fourth: a `tile` group is an island only when it says which.
+  const namelessTile: SceneG = {
+    el: 'g',
+    kind: 'tile',
+    status: 'healthy',
+    children: [{ el: 'path', kind: 'tile-top', d: 'M 0 0 L 10 0 L 10 10 L 0 10 Z' }],
+  };
+  const hex = worldTo3D(namelessTile).filter(asInstance).find((d) => d.kind === 'hex-ground');
+  assert.ok(hex, 'the tile still becomes a hex-ground');
+  assert.ok(!('island' in hex), 'hex-ground invented an island');
+});
+
+test('a uat-bloom stands where the scene put its marker, in the family and status of its island', () => {
+  // ⚠ The kit places its own flowers, so nothing downstream reads this transform today. It is
+  // asserted because the descriptor is the map's RECORD of a signature: a bloom that reported the
+  // origin, or an empty group string, would be a claim about a story with no place and no family.
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'territory',
+    id: 'atlas',
+    status: 'unhealthy',
+    transform: 'translate(100 200)',
+    children: [
+      {
+        el: 'g',
+        kind: 'tall-flower-proven',
+        id: 'sig-7',
+        transform: 'translate(30 40) scale(1.4)',
+        children: [{ el: 'path', kind: 'tall-flower-stem', d: 'M 0 0 L 1 1' }],
+      },
+    ],
+  };
+  const bloom = worldTo3D(scene)
+    .filter(asInstance)
+    .find((d) => d.kind === 'uat-bloom');
+  assert.ok(bloom);
+  assert.deepEqual(bloom.transform, { x: 130, y: 0, z: 240 }, 'the marker carries its ancestor translate');
+  assert.equal(bloom.group, 'uat-bloom', 'the instancing group names the family');
+  assert.equal(bloom.material, 'unhealthy', 'the bloom wears its ISLAND’s folded status');
+  assert.equal(bloom.island, 'atlas');
+  assert.equal(bloom.criterion, 'sig-7');
+});
+
+test('a uat-bloom with no status anywhere falls back to unknown, never to undefined or empty', () => {
+  // The same rule every status-bearing family follows. `unknown` is the one state that means "no
+  // data"; an empty string would be a status nothing in the palette can resolve.
+  const bare: SceneG = {
+    el: 'g',
+    kind: 'tall-flower-proven',
+    children: [{ el: 'path', kind: 'tall-flower-stem', d: 'M 0 0 L 1 1' }],
+  };
+  const bloom = worldTo3D(bare)
+    .filter(asInstance)
+    .find((d) => d.kind === 'uat-bloom');
+  assert.equal(bloom?.material, 'unknown');
+  assert.ok(!('criterion' in (bloom ?? {})), 'an unstamped marker names no criterion');
+});
+
+test('a family that spans islands carries NO island — a trail belongs to neither end', () => {
+  // Absent is a real answer here. A trail strip runs between two islands, so any single id on it
+  // would be a claim about ownership the scene never made.
+  for (const d of worldTo3D(buildScene(mkInput())).filter(asInstance)) {
+    if (d.kind === 'trail-strip' || d.kind === 'trail-ghost-strip') {
+      assert.ok(!('island' in d), 'a trail strip claimed an island');
+    }
+  }
+});
+
+test('a cave portal keeps its OWN island id — the trails layer is outside every territory', () => {
+  // ⚠ The portal is reached through the trails layer rather than through a territory group, so it
+  // inherits nothing and carries `node.island` instead. A change that made inheritance win would
+  // silently blank every portal's island.
+  const arches = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })))
+    .filter(asInstance)
+    .filter((d) => d.kind === 'cave-arch');
+  assert.ok(arches.length > 0, 'the cave fixture routes at least one portal');
+  for (const arch of arches) {
+    assert.equal(typeof arch.island, 'string', 'a portal with no island id');
   }
 });
 
