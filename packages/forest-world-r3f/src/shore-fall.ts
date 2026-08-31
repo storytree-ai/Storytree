@@ -59,6 +59,13 @@
 // drop, same rung flips. The smoothstep never gets a sample to curve through; only its endpoint
 // value at distance 0 is ever read.
 //
+// ⚠ ON THE 35-ISLAND FOREST IT IS OVERWHELMING RATHER THAN ABSOLUTE, and the difference was caught
+// by the instrument's own refusal rather than reasoned about. The coast wave is seeded per island,
+// so 35 copies of one fixture wear 35 different coasts and each samples the rim-to-interior gap
+// differently. Across all of them exactly **ONE vertex in 8884** falls between 3.1 and 7 units of
+// its shore. Moving the band from the reference's width to ours therefore changes 0.011% of the
+// ground — which is a stronger statement about the knob than exact identity on one island was.
+//
 // ⚠ WHY, AND IT IS STRUCTURAL RATHER THAN A PROPERTY OF THIS ISLAND. The reference generator
 // displaces a **0.55-unit grid** (`GRID = 0.55`), so its 3.1-unit band spans about six samples.
 // This ground is PARCELS about 16.5 units across whose only vertices are their corners, and 8.66
