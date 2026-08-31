@@ -338,6 +338,15 @@ importers:
         specifier: ~7.0.2
         version: 7.0.2
 
+  packages/ci-cd:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.7
+        version: 22.19.19
+      typescript:
+        specifier: ~7.0.2
+        version: 7.0.2
+
   packages/cli:
     dependencies:
       '@storytree/agent':

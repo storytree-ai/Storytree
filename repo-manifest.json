@@ -63,6 +63,7 @@
       "@storytree/procedural-architecture": "art-factory",
       "@storytree/art-authoring": "art-factory",
       "@storytree/uat-criterion": "uat-criterion-detail",
+      "@storytree/ci-cd": "ci-cd",
       "@storytree/context-traversal-telemetry": "context-traversal-telemetry",
       "@storytree/context-traversal-capture": "context-traversal-capture",
       "@storytree/context-traversal-spawn": "context-traversal-spawn",
@@ -578,6 +579,9 @@
       "packages/uat-criterion/src/criterion.ts": "uat-criterion-detail",
       "packages/uat-criterion/src/criterion.test-helpers.ts": "uat-criterion-detail",
       "packages/uat-criterion/src/index.ts": "uat-criterion-detail",
+
+      "$section_ci_cd": "packages/ci-cd — the ci-cd story's own building, created 2026-08-31 (prove-unproven-capabilities-arc inc-28) for the same reason $section_arc exists: ADR-0192 D2 (packages-forward) refuses a story hosting proof-bound source in a foreign building, and ci-cd owned no package at all, so its first `real.sourceFile` had nowhere legal to land. It holds this story's PIPELINE judges — pure, dependency-free readers of .github/workflows/ci.yml. It is NOT the home of a `check:*` rung's analyser: `gate-ci-parity` went to packages/cli on the same day and for the opposite reason (ci-cd owns the pipeline, cli owns the judge a rung invokes).",
+      "packages/ci-cd/src/green-gate-audit.ts": "green-gate",
 
       "$section_traversal": "The four context-traversal organisms — every non-barrel file is a named capability.",
       "packages/context-traversal-capture/src/decision-point-playback.ts": "decision-point-playback",
