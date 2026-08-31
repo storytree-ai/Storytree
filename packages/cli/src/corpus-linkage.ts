@@ -92,6 +92,29 @@ const TYPED_KINDS: ReadonlySet<string> = new Set(Object.keys(KIND_SPECS));
 /** The `doc:` scheme — any repository file, of which a decision is one spelling. */
 const DOC_PREFIX = "doc:";
 
+/**
+ * THE FIELDS THE DEPENDENCY WALK FOLLOWS — the whole of the scope every figure in this module
+ * inherits, stated so it can be printed beside the number rather than assumed by whoever quotes it.
+ *
+ * THE ONE DECLARED LIST HERE, and declared because it IS the walk's definition rather than an
+ * observation about the corpus. Everything else about the pointer surface is DISCOVERED from the
+ * rows ({@link LinkageVerdict.pointerFields}), for the reason
+ * `a-corpus-count-inherits-one-querys-field-scope` records: a hand-kept list of "the fields that can
+ * hold a pointer" is exactly the artifact that goes stale silently, and it went stale before —
+ * `dischargedBy` carried two pointers and nobody would have listed it.
+ *
+ * ⚠ WHAT THIS MAKES FALSE, MEASURABLY. "70% of the library has no recorded connection to anything
+ * else: nothing points at it and it points at nothing" was the sentence this instrument's first
+ * reading was quoted as. Its second clause is not what was measured. Every increment carries
+ * `arcRef`, every open question carries one, 222 of 477 decisions carry one — the field `arc show`
+ * itself derives an arc's decision list from — and 88 friction rows are named by some increment's
+ * `frictionRefs`. None of that is walked here, so a node reachable only that way reads as connected
+ * to nothing. That is this list talking, not the corpus.
+ */
+export const WALKED_POINTER_FIELDS: readonly string[] = ["cites", "dependsOn"];
+
+const WALKED_FIELD_SET: ReadonlySet<string> = new Set(WALKED_POINTER_FIELDS);
+
 /** The minimal stored-row facts this reads. Matches `StoredDoc` structurally. */
 export interface LinkageSource {
   readonly id: string;
@@ -199,8 +222,48 @@ export interface LinkageNode {
   /** Pointers that named nothing held, and repository files that are not decisions. */
   readonly danglingOut: number;
   readonly repoFileOut: number;
+  /**
+   * Fields OUTSIDE {@link WALKED_POINTER_FIELDS} whose values name a row this corpus holds —
+   * sorted, distinct, and discovered from the row rather than read off a list.
+   *
+   * THIS IS THE FIELD THAT SEPARATES THE TWO SENTENCES the headline runs together. A node with
+   * `outDegree + inDegree === 0` carries no DEPENDENCY edge, which is true and is what "unlinked"
+   * means here. Whether it is CONNECTED TO NOTHING is a different question, and for an increment
+   * carrying `arcRef` the answer is plainly no.
+   */
+  readonly unwalkedPointerFields: readonly string[];
   /** Null when the node carries a walkable edge; the mechanical reason otherwise. */
   readonly edgeFreeReason: EdgeFreeReason | null;
+}
+
+/**
+ * One field's pointer tally — POINTERS and NODES apart, never summed into one figure.
+ *
+ * Both, because they answer different questions and the difference is the finding: four
+ * `frictionRefs` pointers across two increments is a thinner relationship than four across four,
+ * and a single total cannot tell them apart.
+ */
+export interface PointerFieldTally {
+  /** The authored field name, exactly as the row spells it. */
+  readonly field: string;
+  /** Whether the dependency walk follows it — i.e. whether it can make a node "linked". */
+  readonly walked: boolean;
+  /** Pointer values in this field that resolve onto some OTHER held node. */
+  readonly pointers: number;
+  /** Distinct nodes carrying at least one such value in this field. */
+  readonly nodes: number;
+}
+
+/**
+ * PURE: does this node point at something real by a relation the dependency walk ignores?
+ *
+ * The `story:`/`capability:` half of `cites` counts, though `cites` is a walked field: the walk
+ * follows its `asset:` half only, and an anchor leaves the corpus for the work hierarchy — a real
+ * destination this graph does not hold. So an artifact citing `story:desktop` and nothing else is
+ * edge-free HERE and is not an artifact connected to nothing.
+ */
+export function carriesUnwalkedPointer(node: LinkageNode): boolean {
+  return node.unwalkedPointerFields.length > 0 || node.anchorOut > 0;
 }
 
 /** The per-kind roll-up. Both denominators, always — see the header. */
@@ -236,6 +299,20 @@ export interface LinkageVerdict {
   readonly repoFilePointers: number;
   readonly unparseablePointers: number;
   readonly anchorPointers: number;
+  /**
+   * Every field found holding a pointer at a held node, walked and unwalked alike, biggest first.
+   *
+   * DISCOVERED, NEVER DECLARED — see {@link WALKED_POINTER_FIELDS}. This is the line that has to be
+   * printed beside the headline for the headline to be quotable at all.
+   */
+  readonly pointerFields: readonly PointerFieldTally[];
+  /**
+   * Unlinked nodes that nonetheless point at something real ({@link carriesUnwalkedPointer}).
+   *
+   * THE REFUTATION, AS A NUMBER. `unlinked` minus this is the population the bare sentence actually
+   * describes; this term is the size of the error in it.
+   */
+  readonly unlinkedWithTypedPointer: number;
 }
 
 /**
@@ -264,6 +341,48 @@ function bagOf(doc: unknown): Record<string, unknown> {
 function stringsOf(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && entry !== "");
+}
+
+/**
+ * PURE: the pointer-shaped values of one field, whatever shape the field takes.
+ *
+ * BOTH SHAPES, because the unwalked pointers are authored in both and picking one would reproduce
+ * this module's own bug one level down: `arcRef` is a bare scalar, `frictionRefs` an array. A field
+ * of any other type yields nothing rather than throwing — this runs over the live corpus, where a
+ * row written by an older schema is ordinary input.
+ */
+function pointerCandidates(value: unknown): string[] {
+  // No empty-string guard, deliberately: `""` carries no scheme, so `resolveHeldNode` returns null
+  // for it exactly as it does for any other non-pointer. A guard here would be a branch no test
+  // could ever distinguish from its absence — the mutation rung found it as three survivors, which
+  // is the correct verdict on a check that changes nothing.
+  if (typeof value === "string") return [value];
+  return stringsOf(value);
+}
+
+/**
+ * PURE: the held node one authored value names, or null.
+ *
+ * A POINTER CARRIES A SCHEME. `resolvePointer` is the whole rule — the same one the walk uses, so
+ * the two halves of this instrument cannot disagree about a string, and a decision collapses
+ * through {@link linkageNodeId} on both.
+ *
+ * ⚠ A BARE ROW NAME IS DELIBERATELY *NOT* A POINTER, and that was MEASURED rather than assumed.
+ * The first version of this accepted one, on the reasoning that `frictionRefs` authors bare ids and
+ * refusing them would under-report. Run over the live corpus (2,776 rows, 2026-08-31) it reported
+ * `category` carrying 2,448 pointers across 2,448 nodes — and `category` was the ONLY field in the
+ * corpus a bare match ever hit. Every one was false: `renderStoredDoc` stamps the row's KIND into
+ * `category`, and `increment` / `arc` / `plan` / `definition` are themselves definition rows, so
+ * every artifact appeared to "point at" the definition of its own kind. That inflated
+ * {@link LinkageVerdict.unlinkedWithTypedPointer} to 1,899 of 1,948 — a refutation manufactured
+ * almost entirely out of an artifact of rendering, which is precisely the shape this module exists
+ * to refuse. `frictionRefs` costs nothing here because it does not survive rendering at all (98
+ * authored pointers, all naming held rows, 0 on the rendered wire) — so the honest place for it is
+ * the RAW reading, reported beside this one, never a rule loosened until it appeared.
+ */
+function resolveHeldNode(value: string, nodeIds: ReadonlySet<string>): string | null {
+  const resolved = resolvePointer(value, nodeIds);
+  return resolved.sort === "node" ? resolved.nodeId : null;
 }
 
 /**
@@ -340,7 +459,13 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
   const inNeighbours = new Map<string, Set<string>>();
   const supersedesOut = new Map<string, Set<string>>();
   const supersedesIn = new Map<string, Set<string>>();
-  const perRow = new Map<string, { source: LinkageSource; outward: readonly PointerTarget[] }>();
+  const perRow = new Map<
+    string,
+    { source: LinkageSource; outward: readonly PointerTarget[]; unwalked: readonly string[] }
+  >();
+  // Field name → the tally being accumulated. Walked fields are counted here too: a scope statement
+  // that reported only what it MISSES would be as unquotable as the headline it exists to qualify.
+  const fieldTally = new Map<string, { walked: boolean; pointers: number; nodes: Set<string> }>();
   let danglingPointers = 0;
   let repoFilePointers = 0;
   let unparseablePointers = 0;
@@ -351,7 +476,27 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
     const outward = [...readDependsOnPointers(source.doc), ...stringsOf(bag["cites"])].map(
       (pointer) => resolvePointer(pointer, nodeIds),
     );
-    perRow.set(nodeId, { source, outward });
+    // THE FIELD SWEEP. Every field of the row, not a list of the ones expected to matter — the
+    // whole point of `pointerFields` is that the pointer surface is read off the corpus. A value
+    // naming this same node is skipped by the rule the walk already applies: pointing at yourself
+    // is not a connection to anything.
+    const unwalkedFields = new Set<string>();
+    for (const [field, value] of Object.entries(bag)) {
+      for (const candidate of pointerCandidates(value)) {
+        const target = resolveHeldNode(candidate, nodeIds);
+        if (target === null || target === nodeId) continue;
+        const walked = WALKED_FIELD_SET.has(field);
+        if (!walked) unwalkedFields.add(field);
+        let tally = fieldTally.get(field);
+        if (tally === undefined) {
+          tally = { walked, pointers: 0, nodes: new Set() };
+          fieldTally.set(field, tally);
+        }
+        tally.pointers += 1;
+        tally.nodes.add(nodeId);
+      }
+    }
+    perRow.set(nodeId, { source, outward, unwalked: [...unwalkedFields].sort() });
     for (const target of outward) {
       if (target.sort === "node") {
         // A self-pointer is not a link to anything else and must not rescue a node from the
@@ -376,7 +521,7 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
   // Iterating what the first pass WROTE, rather than re-walking `rows` and defaulting a miss to an
   // empty list: the default would be unreachable, and an unreachable default is a branch no reader
   // can evaluate and no test can pin.
-  for (const [nodeId, { source, outward }] of perRow) {
+  for (const [nodeId, { source, outward, unwalked }] of perRow) {
     const outDegree = outNeighbours.get(nodeId)?.size ?? 0;
     const inDegree = inNeighbours.get(nodeId)?.size ?? 0;
     nodes.push({
@@ -393,6 +538,7 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
       referenceCount: stringsOf(bagOf(source.doc)["references"]).length,
       danglingOut: outward.filter((t) => t.sort === "dangling").length,
       repoFileOut: outward.filter((t) => t.sort === "repo-file").length,
+      unwalkedPointerFields: unwalked,
       edgeFreeReason:
         outDegree + inDegree > 0 ? null : edgeFreeReasonFor(source.kind, source.doc, outward),
     });
@@ -432,6 +578,20 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
   let walkableEdges = 0;
   for (const targets of outNeighbours.values()) walkableEdges += targets.size;
   const unlinked = nodes.filter((node) => node.edgeFreeReason !== null).length;
+  const unlinkedWithTypedPointer = nodes.filter(
+    (node) => node.edgeFreeReason !== null && carriesUnwalkedPointer(node),
+  ).length;
+
+  // Biggest first, ties by field name — `byUnlinkedThenKind`'s rule, for its reason: SIZE is the
+  // reading, and the name is only there to make two equal rows print in a stable order.
+  const pointerFields = [...fieldTally.entries()]
+    .map(([field, tally]) => ({
+      field,
+      walked: tally.walked,
+      pointers: tally.pointers,
+      nodes: tally.nodes.size,
+    }))
+    .sort((a, b) => b.pointers - a.pointers || a.field.localeCompare(b.field));
 
   return {
     nodes,
@@ -446,5 +606,7 @@ export function evaluateCorpusLinkage(sources: readonly LinkageSource[]): Linkag
     repoFilePointers,
     unparseablePointers,
     anchorPointers,
+    pointerFields,
+    unlinkedWithTypedPointer,
   };
 }
