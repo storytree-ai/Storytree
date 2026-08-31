@@ -4,18 +4,50 @@ tier: capability
 story: studio
 title: "Seed the Library corpus from the ADRs and glossary"
 outcome: "Running the seeder produces the categorised, ADR-cited starter corpus the Library serves."
-status: "proposed"
+status: "retired"
 proof_mode: "integration-test"
 depends_on: []
 ---
 
 # Seed the Library corpus from the ADRs and glossary
 
+> ## ⚠ RETIRED, 2026-08-31 — `prove-unproven-capabilities-arc` inc-25, Group 2
+>
+> **The seeder is deleted, both of its inputs are deleted, and its output file is deleted. There is
+> nothing left for this unit to describe, and nothing a later session should try to revive.** This
+> is not a surface that moved — the whole build-time seeding STEP is gone, replaced by a live
+> database that needs no seeding.
+>
+> **Verified at source, 2026-08-31, in this worktree:**
+> - `apps/studio/data/seed.assets.mjs` — absent. So is its successor `build-corpus.mjs` (ADR-0210).
+> - `apps/studio/data/assets.json` — absent. `apps/studio/data/` holds exactly two files now,
+>   `comments.json` and `unit-status.json`.
+> - `docs/glossary.md` — absent (retired at ADR-0135). It was the source of 53 of the 54 definitions.
+> - `docs/decisions/` — absent (deleted at ADR-0403 dec 1, when decisions became ordinary `adr`
+>   Library rows). It was what the `adr(n)` helper scanned, and what the integration test and
+>   contracts 1 and 9 assert against.
+>
+> So every path, every line citation and every count below refers to a file that does not exist, and
+> no assertion in this spec could be executed today even in principle.
+>
+> **WHERE THE OUTCOME LIVES NOW — and why it is not a re-scope.** "The categorised corpus the Library
+> serves" is now simply the state of the shared Cloud SQL store: artifacts are written there directly
+> (`storytree library artifact new|edit … --pg`), so there is no derivation step to prove. The only
+> surviving relatives are much smaller and are owned elsewhere: the offline sandbox derives its view
+> at runtime from the library's committed FIXTURE corpus plus `libraryTemplates()`
+> (`apps/studio/server/deriveOfflineCorpus.ts` + `JsonBackend`'s derive-on-first-read seed, proven by
+> `apps/studio/server/libraryBackend.seed.test.ts`), which belongs to the persistence backbone rather
+> than to a seeder. Re-scoping this unit onto that would be inventing a new capability under an old
+> id, not correcting a description.
+>
+> **Everything below is kept verbatim as HISTORY of the original JSON-store era.** Read no path in it
+> as current.
+
 **Outcome —** Running the seeder produces the categorised, ADR-cited starter corpus the Library serves.
 
 **Depends on —** *(none — a root capability)*
 
-> **Proof status (honest) —** Code exists and runs today, and is the lone studio unit whose proof is AUTOMATABLE NOW. seed.assets.mjs executes under `node apps/studio/data/seed.assets.mjs` and produces apps/studio/data/assets.json; the committed output is verified to match the spec — 88 artifacts, split {definition:54,pattern:11,guardrail:8,principle:5,techstack:4,template:6}, 81 of 88 with >=1 reference (the 7 without are edit-first-curation + the 6 template scaffolds), all references doc:-prefixed, four dup-slug glossary blocks skipped (proof mode/prove-it-gate/deep-modules/standalone-resilient-library), term-map table excluded, per-mention ADR refs present (e.g. 'node' cites ADR-0004 + ADR-0009). HOWEVER there is NO automated test and NO scripted integration test in the repo: the integration test and all 9 contracts are RETROSPECTIVE — they describe assertions that WOULD prove each behaviour; none are currently written or running. NOT proven, NOT healthy — author-built and manually observed only.
+> **Proof status (honest, as written in 2026-06 — every claim below is now history) —** Code exists and runs today, and is the lone studio unit whose proof is AUTOMATABLE NOW. seed.assets.mjs executes under `node apps/studio/data/seed.assets.mjs` and produces apps/studio/data/assets.json; the committed output is verified to match the spec — 88 artifacts, split {definition:54,pattern:11,guardrail:8,principle:5,techstack:4,template:6}, 81 of 88 with >=1 reference (the 7 without are edit-first-curation + the 6 template scaffolds), all references doc:-prefixed, four dup-slug glossary blocks skipped (proof mode/prove-it-gate/deep-modules/standalone-resilient-library), term-map table excluded, per-mention ADR refs present (e.g. 'node' cites ADR-0004 + ADR-0009). HOWEVER there is NO automated test and NO scripted integration test in the repo: the integration test and all 9 contracts are RETROSPECTIVE — they describe assertions that WOULD prove each behaviour; none are currently written or running. NOT proven, NOT healthy — author-built and manually observed only.
 >
 > **Historical note (librarian pass, 2026-07-18):** the `seed.assets.mjs` → `assets.json` machinery
 > this spec is entirely about is **retired**. `seed.assets.mjs` was superseded by the `build-corpus.mjs`

@@ -7,6 +7,34 @@ outcome: "Decision-binding hygiene is enforced on the dev-repo path: ADR numbers
 status: proposed
 proof_mode: integration-test
 depends_on: []
+# ADOPTION BASIS (ADR-0465 D2/D4), declared spec-borne per ADR-0057. The capability spans two
+# packages by construction — the ALLOCATOR is the library organism's store seam, the RUNG is the
+# CLI's — so the declared command runs both suites rather than under-declaring one half.
+# `atomic-allocation` — `packages/library/src/store/adr-store.test.ts` proves the reservation retries
+# on a unique violation and reconciles monotonically against localMax; `packages/cli/src/adr.test.ts`
+# proves `adr new --pg` writes the reserved number as the `adr-NNNN` ROW.
+# `allocation-refuses-without-a-store` — the same CLI suite: no `--pg` leaves nothing to peek at, and
+# an allocator failure surfaces as a clear error rather than an on-disk fallback.
+# `parallel-allocations-are-named` — `parallelAllocations` is the exact gap between the local max and
+# the reserved number.
+# `number-identity-on-the-row`, `decision-binding-health-reddens-pr` and
+# `unreadable-subject-fails-never-skips` — `packages/cli/src/adr-health.test.ts` over every invariant
+# the rung runs, including the fail-closed empty-population arm.
+# NO `real:` arm — the code and its tests already exist, so there is no red to observe (ADR-0465).
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "--filter", "@storytree/library", "test"]
+  scope:
+    testGlobs:
+      - "packages/cli/src/adr-health.test.ts"
+      - "packages/cli/src/adr.test.ts"
+      - "packages/library/src/store/adr-store.test.ts"
+    sourceGlobs:
+      - "packages/cli/src/adr-health.ts"
+      - "packages/cli/src/check-adr-health.ts"
+      - "packages/cli/src/adr.ts"
+      - "packages/library/src/store/adr-store.ts"
 ---
 
 # ADR-health gate — atomic number allocation plus the full adr-health decision-binding gate

@@ -395,7 +395,7 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    there is no artifact for an `observe` gate to read, so `resolveWitness` refuses it
    (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2) — binding this to the two
    mapping suites that ARE green would sign exactly the half the leg does not turn on.
-9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.** _(criterion-id: uatc_89597d2010852d4ef712a33a)_ _(revision-id: uatr1:e3abf61d6f7ccf53)_ _(previous-revision-id: uatr1:53d8c3cefe6eb5b2)_
+9. **The CI merge releases the branch's claims — every grade, audited, waiter promoted.** _(criterion-id: uatc_89597d2010852d4ef712a33a)_ _(revision-id: uatr1:60fc57e7f53bd30f)_ _(previous-revision-id: uatr1:e3abf61d6f7ccf53)_
    _(witness: machine)(detail: wisp-as-story-claim#uat-9)_ Merge a real PR whose branch holds claims, then read the ledger. **Success —**
    every `events.node_claim` row for the merged branch is gone whatever its grade, one `released`
    `claim_event` row exists per cleared claim, the oldest LIVE waiter on each cleared unit is promoted in
@@ -407,7 +407,11 @@ the render. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 D1).
    byte-level observables, and "CI-observed — the released count + the `released` `claim_event` rows are
    the machine evidence the clear fired" is what that capability already calls its own evidence. The
    workflow being un-harnessed by the prove-it-gate is a COST, not a judgment gap — open modeling call
-   4.)*
+   4, **CLOSED 2026-08-27 by ADR-0466**: an outside system publishes its own pass/fail where our build
+   can read it, and a fresh green published result earns a signed verdict. ⚠ **Nothing implements that
+   route yet and no arc owns it** (searched 2026-08-31), so this leg stays UNBOUND below and must not be
+   bound, gated or recorded as reachable today. Corrected in place per ADR-0139 under
+   `prove-unproven-capabilities-arc-inc-25`.)*
    **UNBOUND — fails closed (ADR-0294 D4, 2026-08-20).** No `(proof-gate:)`: nothing observes the CI
    job CALLING the release, and that call persists no artifact an `observe` gate could read, so
    `resolveWitness` refuses it (`coverage: "refused"`). No gate is minted to host it (ADR-0097 §2) —
@@ -473,14 +477,34 @@ Surfaced rather than guessed — none blocks the delivered layer, and none is se
    the observable colour set is two of three. That is either an unbuilt producer (leg 5 is a real build
    obligation) or a render whose third state is decorative (leg 5 should narrow to two). Recorded, not
    guessed — the detail artifact names the exact call sites.
-4. **How does a CI-OBSERVED workflow effect reach the proof spine?** Machine leg 9's observable is a real
-   merge's effect on the live ledger, and `ci-clear-on-merge` is `proof_mode: operator-attested` precisely
-   because *"a workflow edit cannot be driven red→green by the prove-it-gate"*. Those two are consistent —
-   the WITNESS KIND is machine (rows and audit events), while the capability's PROOF MODE describes how
-   the gate can reach it — but the carry is unresolved, the same shape as `website-experience`'s open call
-   6. Candidate shapes, none chosen: a live-gated spec that invokes the workflow's release step directly
-   against `storytree_test`; a post-merge CI assertion published back as a verdict; or leaving the leg
-   discharged by CI evidence the spine does not sign. Owner/build-time call.
+4. **How does a CI-OBSERVED workflow effect reach the proof spine?** — **CLOSED (owner, 2026-08-27,
+   recorded as ADR-0466, accepted): the outside system PUBLISHES its own pass/fail where our build can
+   read it, and a FRESH GREEN published result earns a signed verdict.** The owner's answer was verbatim
+   *"just trust its result."* Of the three candidate shapes this call named, the SECOND is chosen — a
+   post-merge CI assertion published back — and the THIRD is explicitly refused, because "discharged by
+   CI evidence the spine does not sign" is exactly what ADR-0466 replaces with a signed verdict carrying
+   provenance. The first (a live-gated spec invoking the release step against `storytree_test`) is
+   refused by D3 on cost and coherence: for a workflow the fact being checked IS *"did this CI step run
+   correctly"*, which only exists inside the runner. **D2 settles BOTH boundaries in one decision** — a
+   separate repository and a CI workflow step — so `website-experience`'s twin open call 6, which this
+   call correctly identified as the same shape, is closed by the same ADR. This capability is therefore
+   NOT "not capability-shaped": it is capability-SHAPED with a SETTLED proof route, and adjudicating it
+   as a retirement would discard an answer the owner has already given.
+   **⚠ WHAT IS DECIDED IS THE POLICY, NOT A MECHANISM — AND NOTHING IMPLEMENTS IT** (searched
+   2026-08-31; no arc owns it). ADR-0466 D5 leaves the publishing format, the transport and whether one
+   mechanism serves both boundaries UNDECIDED, and D4's three fences are load-bearing rather than
+   hygiene: **the published result must NAME THE COMMIT it observed** (freshness binds to a revision,
+   never a timestamp — a green outliving the code it watched is the specific way this option fails);
+   **ABSENCE FAILS CLOSED** (no result, an unreadable one, or one naming an unknown revision is never a
+   pass); and **PROVENANCE RIDES THE VERDICT** (ADR-0085's never-silently-equated property survives).
+   Without all three this is strictly WORSE than the honest "never verified by us" state it replaces,
+   because it would look green. **So machine leg 9 stays honestly unproven and UNBOUND today**, and
+   [`ci-clear-on-merge`](ci-clear-on-merge.md) keeps `proof_mode: operator-attested`, no `proof:` block
+   and no `real:` arm — none of which may be authored on the strength of a route that does not exist.
+   Chartering that build lane is real, unclaimed work. *(Corrected in place 2026-08-31 per ADR-0139 —
+   this call read "the carry is unresolved … Owner/build-time call." It is resolved; the candidate list
+   is kept as the history of how it was posed. Adjudicated under
+   `prove-unproven-capabilities-arc-inc-25`.)*
 5. **The honesty wall is proven ONE-DIRECTIONALLY, and never with both layers present.** The
    capability-tier coverage named in the ADR-0294 D2/D4 pass above — `render-claim-as-wisp`'s
    `claim-activity-is-visibly-distinct-from-proven-green`, `render-core`'s §5 walks in

@@ -2,88 +2,200 @@
 id: "browse-library"
 tier: capability
 story: studio
-title: "Browse and view the guidance Library"
-outcome: "An operator explores the seeded guidance Library down to a single rendered artifact."
+title: "Render one Library artifact's detail"
+outcome: "An operator opens a single Library artifact and reads its rendered detail, and a corpus that has not loaded is never presented as an artifact that does not exist."
 status: "proposed"
 proof_mode: "integration-test"
-depends_on: [dev-server-persistence-backbone, seed-library-corpus, read-corpus]
+depends_on: [dev-server-persistence-backbone]
 ---
 
-# Browse and view the guidance Library
+# Render one Library artifact's detail
 
-**Outcome —** An operator explores the seeded guidance Library down to a single rendered artifact.
+**Outcome —** An operator opens a single Library artifact and reads its rendered detail, and a corpus
+that has not loaded is never presented as an artifact that does not exist.
 
-**Depends on —** [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md), [`seed-library-corpus`](seed-library-corpus.md), [`read-corpus`](read-corpus.md)
+**Depends on —** [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md)
 
-> **Proof status (honest) —** CODE EXISTS AND RUNS, NO AUTOMATED PROOF YET. All read-side behaviours are implemented and the studio runs under `pnpm --filter studio dev` serving the real 88-artifact seed; the full integration path (open #/library → narrow by chip → substring-search → open #/asset/<id> → follow a doc: ref to #/doc/<relpath>) is manually walkable today. But apps/studio has NO automated test suite and NO scripted integration test: none of the 11 contracts exist as tests, and the integration test is unscripted. The corpus counts and the 0-asset:-refs honesty caveat were verified by inspecting apps/studio/data/assets.json during this decomposition, not by any committed assertion. RETROSPECTIVE spec — nothing here is 'proven' or 'healthy', only present and exercised by hand.
+> ## ⚠ RE-SCOPED AND NARROWED, 2026-08-31 — `prove-unproven-capabilities-arc` inc-25, Group 2
 >
-> **Historical note (librarian pass, 2026-07-18):** the `assets.json` / `seed.assets.mjs` machinery
-> described above is **retired** — `seed.assets.mjs` gave way to the `build-corpus.mjs` generator at
-> ADR-0018, artifact state became live Cloud SQL-canonical at ADR-0023, and the last committed
-> `assets.json` + the `build-corpus.mjs` generator were retired at ADR-0210. The studio's Library tier
-> is now DB-backed (the offline backend derives its view at runtime from the library's committed
-> FIXTURE corpus, `@storytree/library/fixture`, plus `@storytree/library` `libraryTemplates()` —
-> ADR-0302 D1 deleted the `knowledge.json` that seed used to read, and the fixture is a small sandbox
-> seed, not a copy of the Library). This stays a retrospective spec of the original JSON-store era —
-> kept as history, not current code.
+> **The BROWSE half of this unit did not change implementation — it moved to another STORY. The VIEW
+> half stayed here, and is what this unit now is.** Read that distinction carefully, because the
+> tempting move is the wrong one: re-scoping this spec onto the constellation Library would author a
+> second unit describing an outcome `library-tech-tree-overlay` already owns in full, which is the
+> `one-way-to-do-things` defect rather than a correction.
+>
+> **What moved (verified at source, 2026-08-31, in this worktree):**
+> - `apps/studio/src/components/Library.tsx` — the chip grid, the `all (88)` counts, the
+>   `String.includes` search, the `No artifacts match.` empty state, the gloss banner — is DELETED.
+>   Contracts 1–6 below described that file exclusively.
+> - The `#/library` route is RETIRED. `parseRoute` has no `library` variant, `/library` and
+>   `/library/<category>` both resolve to the tree route, and `libraryHref()` returns
+>   `?overlay=library#/tree` (`apps/studio/src/lib/route.ts`). Contract 7 described a router arm that
+>   no longer exists. This was done deliberately by
+>   `library-tech-tree-overlay`'s own `library-retire-standalone-page` capability, on ADR-0185 dec 6,
+>   after the owner attested the lens on 2026-07-15.
+> - The replacement is a WHOLE STORY: `stories/library-tech-tree-overlay/`, outcome *"An operator
+>   explores the knowledge corpus as a tech-tree lens pulled down over the living forest map"*,
+>   decomposed into seventeen capabilities (the drawer shell, the ranked finder, the category and
+>   lifecycle shelves, the DAG canvas, the overview constellation, the permanent lens, the Open
+>   overlay, the selection card, the typed-edge wire …). Its sources live under `apps/studio/src`
+>   under the ADR-0192 landlord rule — a declared HOSTED-STORY edge, `depends_on: [studio, library]`
+>   — so finding those components in this story's territory is not evidence that this story owns
+>   them.
+>
+> **What stayed, and why this unit survives rather than retiring.** ADR-0185 dec 6 explicitly
+> PRESERVED the `#/asset/<id>` deep link and the detail render, and `library-tech-tree-overlay`
+> consumes rather than re-authors it: `LibraryDiveBody` is *"a THIN router around two EXISTING
+> renderers, never a new one"* — `AssetView` for an artifact, `DocView` for a document — and the Open
+> overlay reuses that body verbatim. So `AssetView` is a studio-owned surface with a live operator
+> route, two live callers, and a real outcome of its own. Retiring this unit outright would leave it
+> with no capability owner at all, which is precisely the capability-grain ownership hole this arc's
+> Group 3 exists to record; narrowing the unit onto the half that stayed keeps the grain honest and
+> keeps `author-library-artifact`'s edge onto it true.
+>
+> **`seed-library-corpus` IS DROPPED FROM `depends_on`.** That capability is RETIRED in this same
+> pass — the seeder, both of its inputs and its output file are all deleted — so the
+> data-provenance edge onto `assets.json` has no target. The corpus now arrives over
+> `GET /api/assets` from the live store (or, offline, from the JSON backend's derive-on-first-read
+> seed), which is the persistence backbone's concern and is already the surviving edge.
+>
+> **`read-corpus` IS ALSO DROPPED FROM `depends_on`.** The edge existed for `RefLink`: an artifact's
+> `doc:` citation rendered as an in-app link into `DocView`. ADR-0477 D1 retired the library's
+> `references` field entirely, `AssetView` renders no `Sources` block, and `RefLink` no longer
+> exists — so this unit's code calls nothing of `read-corpus`'s. `AssetView` and `DocView` are now
+> SIBLING renderers that `LibraryDiveBody` routes between; neither consumes the other. Contracts 10
+> and 11 below went with the field.
+>
+> **NO `proof:` BLOCK IS AUTHORED HERE, and the absence is the finding.** Real coverage exists for
+> the constellation surfaces — but that coverage belongs to `library-tech-tree-overlay`'s
+> capabilities, not to this one, and borrowing it would be naming a command that only looks like it
+> exercises the thing. What this narrowed unit needs is named under § Coverage.
 
 ## Guidance
 
-The three code-derived depends_on edges (ADR-0010 §3), read off the source: the read path GET /api/assets + GET /api/docs is served by `dev-server-persistence-backbone`'s middleware; the grid/chip-counts/citations all come from the assets.json that `seed-library-corpus` wrote (data-provenance coupling on its output file); and RefLink's doc link routes into `read-corpus`'s DocView to render the cited doc. Routing is a dependency-free custom hash router (route.ts): doc/asset ids are URI-encoded into a single hash segment so slashes in doc relpaths (e.g. 'decisions/0002-...md') don't break parsing — RefLink's doc link goes to #/doc/<encoded relpath>, which is why the citation-follow leg lands in read-corpus's real code. Both the category-filter and the substring-search live in ONE useMemo over the same assets array (Library.tsx:14-24); the search is literal String.includes over a lowercased `id title description body` haystack (Library.tsx:19) — describe it at that fidelity, NOT as ranked relevance. Chip counts are computed inline by re-filtering the assets array per category (Library.tsx:48), and a category with n===0 renders no chip (Library.tsx:49) — the same per-category-count surface is mirrored in Sidebar.tsx:26-41, so they share the live counts. The taxonomy is a closed 7-category schema, not a unit: AssetCategory union + ASSET_CATEGORIES order + ASSET_CATEGORY_GLOSS map (types.ts:67-74,128-147) — chips/gloss/route-guard all consume it but it is observed only THROUGH them. The schema declares seven categories — `definition`, `principle`, `pattern`, `guardrail`, `techstack`, `template`, `adr` — of which six are populated by the seed; `adr` is defined-but-unseeded, so it renders no chip (the n===0 guard). NOTE (owner, 2026-06-06): `template` is a real category with 6 seeded scaffolds, but per-category template ENFORCEMENT on authoring is not yet worked through. RefLink resolution is NOT live re-validation: it reads docIds/docTitles that App.tsx:58-59 derives once from the doc index into the shared AppData context (appData.ts:8-16); an unknown ref degrades gracefully to a muted '(unknown doc/asset)' span. SEED REALITY (verified against apps/studio/data/assets.json): exactly 88 artifacts (definition 54, pattern 11, guardrail 8, principle 5, techstack 4, template 6), 81 carry references, 137 doc: refs, and 0 asset: refs — so the asset: branch of RefLink (AssetView.tsx:114-122) is real but DEAD under the seed; the honest minimal integration test must follow a doc: ref (e.g. artifact 'deep-modules' → 'doc:decisions/0002-work-hierarchy-story-capability-contract.md').
+**THE ONE `dev-server-persistence-backbone` EDGE, read off the code.** The detail render's whole data
+path is `GET /api/assets` → `AppData.assets`; `AssetView` does not fetch, it looks the id up in the
+already-loaded corpus (`assets.find((a) => a.id === id)`). The read route is the backbone's handler
+and the `/api/*` dispatch is the backbone's registration, so that is the coupling and the only one.
+
+**THE NOT-YET-LOADED / GENUINELY-ABSENT DISTINCTION IS THE INTERESTING BEHAVIOUR HERE, and it is new
+since the first authoring.** A Library route can mount before `/api/assets` resolves —
+`map-boot-independence` (ADR-0240 stage 4) removed the boot gate that used to prevent that, on
+purpose. So `AssetView` branches on `assetsStatus` BEFORE it branches on the lookup miss: `loading`
+renders "Loading the Library corpus…", `error` renders a named failure carrying `assetsError`, and
+only `ready` lets a miss render "Artifact not found". Presenting an initial empty `assets` array as
+"no artifact with that id" is the confident-wrongness failure this ordering closes, and it is the
+half of this unit most worth a test.
+⚠ AND NOTE WHAT THIS SURFACE DOES *NOT* DO — recorded so a later reader does not assume it.
+`src/lib/docsIndex.ts` exports `unresolvedAssetReason` precisely so the not-yet-loaded / genuinely
+absent distinction is WORDED IN ONE PLACE and two surfaces cannot drift into saying different things
+about the same state. `AssetView` does not use it: it inlines its own two strings, and the only
+consumer is `RelevantAdrs` in `TreeView.tsx`. So the drift this helper exists to prevent is live
+here. That is a finding for whoever builds the contracts below, not something to fix by editing app
+source from a spec.
+
+**TWO LIVE ENTRY POINTS, AND THEY ARE NOT INTERCHANGEABLE.** (a) The `#/asset/<id>` route, parsed by
+`parseRoute` and dispatched in `App.tsx`'s `RouteView` — this is the deep link ADR-0185 dec 6
+preserved. (b) `LibraryDiveBody`'s `plan.kind === 'asset'` arm, which mounts the same component
+inside the overlay story's drawer and Open overlay. (b) belongs to
+`library-tech-tree-overlay`; what this unit owes it is a stable component contract, which is why the
+component takes only `id` and reads everything else from context.
+
+**WHAT THE DETAIL ACTUALLY RENDERS TODAY** (`apps/studio/src/components/AssetView.tsx`): a crumb
+(`library / <id>`, the `library` word linking to `libraryHref()` — the lens, not the retired page); a
+kind chip whose LABEL comes from `kindLabel(category, arcDisplay)` rather than the raw category, so
+an `arc` shows as "epic" by default (ADR-0183 D1), with `ASSET_CATEGORY_GLOSS` as its title and
+beside it; the title and the description lede; the body through `ReviewEditor` (ADR-0146's
+view/edit split-pane, wrapped in `ReviewToggle`), not a bare `<Markdown>`; the `provenance`
+attribution line if present (ADR-0095 D8 — a DIFFERENT field from the retired `references`, and it
+deliberately kept its home when the `Sources` block went); an id/created/updated footer; and the Edit
+and Delete actions.
+
+**THE DELETE CONFIRM LIVES HERE, THE WRITE BELONGS TO `author-library-artifact`.** `AssetView.remove()`
+owns the `window.confirm` gate and the post-delete `refreshAssets()` → `navigate(libraryHref())`
+tail. The edge runs the other way — `author-library-artifact` depends on THIS unit because its
+post-mutation navigate lands on this render — so the delete CONFIRM contract is authored over there
+with the rest of the mutation set, not duplicated here.
+
+**THE TAXONOMY IS STILL A CLOSED SCHEMA OBSERVED THROUGH ITS CONSUMERS, and it has grown.**
+`ASSET_CATEGORIES` / `ASSET_CATEGORY_GLOSS` (`src/types.ts`) is no longer the seven-entry list this
+spec once described — `friction` and `arc`, among others, arrived as structured Library kinds. Do not
+re-pin a count here; the drift guard that matters is the server-vs-client allowlist one, and it is
+owned by `dev-server-persistence-backbone`.
+
+## Coverage — what exists today, and what does not
+
+Recorded so the gap is visible rather than inferred. This is NOT a proof claim.
+
+**Exercised by NOTHING.** There is no `AssetView.test.tsx`, and no suite anywhere drives this
+component. Specifically unproven: the three-way `loading` / `error` / `not-found` branch — the
+behaviour above that is most worth having; the crumb's link target after the `#/library` retirement;
+`kindLabel`'s arc→"epic" substitution in this surface; that `provenance` renders and the retired
+`references` does not; and the footer's created/updated formatting.
+
+**Adjacent coverage that must NOT be mistaken for this unit's.**
+`src/components/LibraryDiveBody.test.tsx`, `LibraryOpenOverlay.test.tsx`, `LibrarySelectionCard.test.tsx`
+and their siblings are `library-tech-tree-overlay` capabilities' proofs; they exercise the ROUTER
+around this component, and several stub it. `src/App.boot-independence.test.tsx` proves the
+not-yet-loaded distinction reaches the drawer's consumers, which is that capability's contract about
+the CONTEXT object, not this one's about this render.
 
 ## Integration test
 
-**Goal —** An operator starts at the Library landing, narrows the seeded artifact corpus by category and free-text search, opens one artifact, and follows its doc citation to land on the cited ADR in-app — proving the whole read-side of the Library end-to-end.
+**Goal —** An operator opens one artifact by its `#/asset/<id>` deep link and reads its rendered
+detail; and while the Library corpus is still in flight, or has failed, the same route says so rather
+than reporting the artifact absent.
 
-The integration test exercises browse-library against its **real in-story
-collaborators** — the real 88-artifact `seed-library-corpus` output (the grid, chip
-counts, and citations all read from the assets.json it wrote), the
-`dev-server-persistence-backbone` middleware that serves it, and `read-corpus`'s DocView
-the citation-follow leg lands in — with **no stubs within the organism** (ADR-0010 §2/§5).
-These are exactly its three code-derived `depends_on` edges, exercised live. It would:
+The integration test exercises browse-library against its **real in-story collaborator** — the real
+`dev-server-persistence-backbone` read route serving `GET /api/assets`, reached through the real
+`api` client and the real `AppData` context — with **no stubs within the organism** (ADR-0010 §2/§5).
+It drives the real `App` with the transport doubled, the house style
+`App.docs-index-honesty.test.tsx` and `App.boot-independence.test.tsx` already set, rather than
+mocking the `api` module. It would:
 
-1. Start the studio (pnpm --filter studio dev) and open #/library. Assert the grid renders with the 'all (88)' chip active, plus one chip per non-empty category showing its live count: definition (54), pattern (11), guardrail (8), principle (5), techstack (4), template (6). No chip is shown for the defined-but-unseeded 'adr' category (n===0). No category gloss banner is shown yet (category is null).
-2. Click the 'definition' category chip. Assert the route becomes #/library/definition, the grid narrows to the 54 definition artifacts, the 'definition' chip is now active, and the one-line gloss banner appears reading 'definition — what something is'.
-3. Type a substring known to occur in one artifact's id/title/description/body (e.g. 'deep') into the search box. Assert the grid narrows further to only the cards whose combined id+title+description+body contains that substring (case-insensitive). Then type a string that matches nothing (e.g. 'zzzqqq') and assert the 'No artifacts match.' empty state replaces the grid; clear it to restore the list.
-4. Click an artifact card known to carry a doc: reference (e.g. 'deep-modules'). Assert the route becomes #/asset/deep-modules and the detail view renders: the category chip + its gloss in the header, the description lede, the markdown-rendered body, and a 'References' list containing the cited ADR rendered as an in-app link showing the doc's title (not the raw 'doc:decisions/0002-...md' string).
-5. Click that doc reference link. Assert the route becomes #/doc/decisions%2F0002-...md and read-corpus's DocView loads and renders that ADR as markdown in-app — proving the citation resolved to a real, reachable corpus document. (Honesty: the seed contains 0 asset: references, so this minimal test deliberately follows a doc: reference; the asset: branch of RefLink is real code but unexercised by the seed.)
+1. With `/api/assets` answering a corpus containing one structured artifact, open `#/asset/<id>`
+   COLD — no prior in-app navigation. Assert the detail renders: the `library / <id>` crumb whose
+   `library` link points at `libraryHref()` (the lens href, NOT `#/library`), the kind chip, the
+   title, the description lede, and the body.
+2. Assert an `arc` artifact's chip reads `epic` while its stored category is still `arc` — the label
+   is a display substitution, not a data one (ADR-0183 D1).
+3. Assert an artifact carrying `provenance` renders its attribution line, and that NO `Sources` /
+   references block renders for any artifact (ADR-0477 D1 retired that field; a `Sources` pane
+   reappearing is the regression this leg guards).
+4. THE HONESTY LEGS, and the reason this unit still exists. With `/api/assets` still PENDING, open
+   `#/asset/<id>` and assert the route reports the corpus as loading — NOT "Artifact not found".
+   Then with `/api/assets` REJECTED, assert it names the failure and surfaces `assetsError` — again
+   not "not found".
+5. With `/api/assets` RESOLVED and the id genuinely absent from it, assert "Artifact not found"
+   DOES render, carrying the id and a link back to the lens — so the three states are mutually
+   distinguishable rather than one fallback wearing three hats.
+6. Assert the same component renders the same artifact when mounted through `LibraryDiveBody`'s
+   asset arm rather than through the route — the stable contract the overlay story consumes.
 
-## Contracts (11)
+## Contracts (6)
 
-The test-proven leaf behaviours — each **one isolated automated test** with
-collaborators stubbed (ADR-0002). No automated tests exist yet; each entry is the
-assertion a contract test *would* prove, with the real code it covers.
+The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
+(ADR-0002). The eleven contracts this spec carried before 2026-08-31 are gone with their subjects:
+1–6 covered the deleted `Library.tsx`, 7 covered the retired `{name:'library'}` router arm (whose
+retirement is proven by `library-retire-standalone-page`'s own `lret-` contracts in
+`src/lib/route.test.ts`), and 10–11 covered `RefLink`, deleted with the `references` field at
+ADR-0477 D1. Contract 8 survives, narrowed; contract 9 is split into the four honest states below.
 
-1. **`bl-category-filter-narrows-grid`** — A category narrows the grid to that category's artifacts
-   - **asserts —** Given a fixed asset list spanning multiple categories and query='', the Library filter memo with category='definition' returns exactly the assets whose category==='definition' (and excludes all others).
-   - **covers —** `apps/studio/src/components/Library.tsx:16-17`
-2. **`bl-search-substring-filters-across-fields`** — Free-text search substring-matches across id+title+description+body
-   - **asserts —** Given category=null and a non-empty query, the filter memo keeps exactly the assets whose lowercased `id title description body` haystack contains the lowercased trimmed query, and drops the rest — proving match on a body-only / description-only hit, case-insensitively.
-   - **covers —** `apps/studio/src/components/Library.tsx:15,18-20`
-3. **`bl-chip-count-reflects-live-category-size`** — Each category chip shows its live per-category count
-   - **asserts —** Rendering the Library over a known assets array shows the 'all (N)' chip with N=assets.length and each category chip labelled '<cat> (n)' where n is the count of assets in that category.
-   - **covers —** `apps/studio/src/components/Library.tsx:44-45,47-58`
-4. **`bl-empty-category-chip-hidden`** — A category with zero artifacts renders no chip
-   - **asserts —** When the assets array contains zero artifacts of a given category, the Library renders no chip for that category (the `if (n === 0) return null` guard fires).
-   - **covers —** `apps/studio/src/components/Library.tsx:48-49`
-5. **`bl-empty-result-shows-empty-state`** — A query matching nothing shows the empty-state message
-   - **asserts —** When the category+query filter yields zero assets, the Library renders the 'No artifacts match.' message instead of the card grid.
-   - **covers —** `apps/studio/src/components/Library.tsx:76-77`
-6. **`bl-category-gloss-banner-on-narrow`** — Selecting a category shows that category's one-line gloss
-   - **asserts —** When category is non-null, the Library renders the gloss banner '<category> — <ASSET_CATEGORY_GLOSS[category]>'; when category is null, no gloss banner renders.
-   - **covers —** `apps/studio/src/components/Library.tsx:70-74`
-7. **`bl-library-route-category-guard`** — The router maps #/library/<category> to a valid category or null
-   - **asserts —** parseRoute('#/library/definition') yields {name:'library',category:'definition'}, parseRoute('#/library') yields category:null, and parseRoute('#/library/bogus') yields category:null (the asCategory guard rejects non-members).
-   - **covers —** `apps/studio/src/lib/route.ts:15-17,22-25`
-8. **`bl-asset-route-parses-id`** — The router maps #/asset/<id> to an asset route with the decoded id
-   - **asserts —** parseRoute('#/asset/deep-modules') yields {name:'asset',id:'deep-modules'}, and a percent-encoded id round-trips via decodeURIComponent (distinct from the '/edit' and 'new' sub-routes).
-   - **covers —** `apps/studio/src/lib/route.ts:29-35`
-9. **`bl-assetview-renders-header-body-refs`** — AssetView renders the resolved artifact's category gloss, body, and references
-   - **asserts —** Given an assets list containing the requested id, AssetView renders the category chip with ASSET_CATEGORY_GLOSS as its gloss, the markdown body, and one References entry per reference; given an id absent from the list it renders the 'Artifact not found' box.
-   - **covers —** `apps/studio/src/components/AssetView.tsx:17,23-32,47-69`
-10. **`bl-reflink-resolves-known-doc-ref`** — RefLink renders a known doc: reference as an in-app doc link titled by the doc
-   - **asserts —** For refStr='doc:<relpath>' where docIds.has(relpath), RefLink renders an anchor to docHref(relpath) whose text is docTitles.get(relpath); for an unknown relpath it renders the '(unknown doc)' muted fallback instead of a link.
-   - **covers —** `apps/studio/src/components/AssetView.tsx:106-113`
-11. **`bl-reflink-resolves-known-asset-ref`** — RefLink renders a known asset: reference as an in-app artifact link
-   - **asserts —** For refStr='asset:<id>' where some asset has that id, RefLink renders an anchor to assetHref(id) titled by that asset's title; for an unknown id it renders the '(unknown asset)' muted fallback. HONESTY: this branch is unexercised by the seed (0 asset: refs), so this contract proves real-but-unseeded code.
-   - **covers —** `apps/studio/src/components/AssetView.tsx:114-122`
+1. **`bl-asset-route-parses-id`** — The router maps `#/asset/<id>` to an asset route with the decoded id
+   - **asserts —** `parseRoute('#/asset/deep-modules')` yields `{name:'asset',id:'deep-modules'}`, a percent-encoded id round-trips through `decodeURIComponent`, and the `/edit` and `new` sub-routes yield `asset-edit` / `asset-new` instead — the three arms stay distinct.
+   - **covers —** `apps/studio/src/lib/route.ts` `parseRoute` (the `/asset/` arm)
+2. **`bl-assetview-renders-resolved-detail`** — A resolved artifact renders chip, title, lede, body and footer
+   - **asserts —** Given an `assets` context containing the requested id and `assetsStatus: 'ready'`, `AssetView` renders the kind chip with `ASSET_CATEGORY_GLOSS` as its gloss, the title, the description lede, the body, and an id/created/updated footer.
+   - **covers —** `apps/studio/src/components/AssetView.tsx`
+3. **`bl-assetview-chip-label-is-display-only`** — The chip shows the display label, never the raw category
+   - **asserts —** An artifact of category `arc` renders its chip as `epic` under the default arc display while `asset.category` is unchanged; a category with no substitution renders its own name.
+   - **covers —** `apps/studio/src/components/AssetView.tsx` + `src/lib/kindDisplay.ts` `kindLabel`
+4. **`bl-assetview-renders-provenance-not-references`** — Provenance renders; the retired citation block does not
+   - **asserts —** An artifact carrying `provenance` renders that attribution line as markdown; an artifact without it renders no attribution container; and no `Sources` / references list renders in either case (ADR-0477 D1).
+   - **covers —** `apps/studio/src/components/AssetView.tsx`
+5. **`bl-assetview-distinguishes-unloaded-from-absent`** — A pending or failed corpus is never reported as a missing artifact
+   - **asserts —** For an id absent from `assets`: with `assetsStatus: 'loading'` the surface says the corpus is loading; with `'error'` it names the failure and surfaces `assetsError`; with `'ready'` — and ONLY then — it renders "Artifact not found" carrying the id. The three renders are mutually distinguishable.
+   - **covers —** `apps/studio/src/components/AssetView.tsx` (its own inline branch — NOT `unresolvedAssetReason`, which this surface does not call; see § Guidance)
+6. **`bl-assetview-crumb-points-at-the-lens`** — The back-link targets the lens, not the retired standalone page
+   - **asserts —** Both the crumb's `library` link and the not-found box's "Back to the Library" link resolve to `libraryHref()` — a string carrying `overlay=library` and the `#/tree` hash — and neither is `#/library` (ADR-0185 dec 6).
+   - **covers —** `apps/studio/src/components/AssetView.tsx` + `src/lib/route.ts` `libraryHref`

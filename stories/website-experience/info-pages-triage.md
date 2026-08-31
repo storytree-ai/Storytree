@@ -15,6 +15,25 @@ decisions: [215]
 # build (no orphan links/routes). NO `proof:` block — witnessed, not `--real`-built. This is a HALT
 # point for the driving session: per-page dispositions are proposed to the owner, never decided
 # unilaterally.
+# ADJUDICATED 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — RECORDED AS CORRECT; NOTHING CHANGES.
+# Swept into ADR-0465 D1's "D6's instrument structurally cannot reach it" pile and routed to story-author
+# for a hierarchy decision. There is nothing to decide: this capability is already correctly tiered and
+# correctly `operator-attested`, PERMANENTLY, and for a DIFFERENT reason from its `appearance-uat`
+# neighbour — not taste, but OWNER DIRECTION. Owner decision 5 (2026-07-02) names the triage ITSELF as
+# editorial judgement about the site's voice, and the capability is an explicit HALT point where
+# dispositions are proposed and never decided unilaterally (`human-owns-the-outer-loop`, which ADR-0409
+# left untouched when it made machine-in-the-loop the default). The CLOSED arc
+# `stage-1-absorbs-the-non-taste-arc` measured this exact population, classified this capability as its
+# reason 2, and wrote: *"Out of scope by construction."* So: no re-scope, no re-tier, no retirement, no
+# `proof:` block, no `real:` arm — re-scoping it would be the `corpus-settled-escalation-non-adherence`
+# failure. ⚠ ADR-0466 does not reach it either: a published outside result can carry a mechanical fact,
+# and "which page earns its keep" is not one.
+# ⚠ ITS TWO `depends_on` CAPABILITIES WERE RE-SCOPED IN THE SAME PASS and this node is undisturbed. Both
+# `act2-guided-walkthrough` and `act2-guided-forest` were re-scoped away from the design they described
+# (ADR-0453 / `website-refresh-arc`). The dependency edges stand and stay SATISFIED as history: the fold
+# targets they had to exist for were resolved in PHASE 1 (2026-07-06) and then made moot by PHASE 2's
+# full retire (2026-07-07) — every legacy page carries an executed disposition and none is folded into an
+# Act 2 surface at all, so nothing this capability claims turns on which Act 2 the site now carries.
 ---
 
 # The info-page triage — every legacy page folded, discarded, or kept, and the CMS question answered
@@ -48,6 +67,24 @@ they are only concrete once the guided forest exists.
 > main `be960873`, CD green, LIVE (verified: every kept page 200, both stubs resolve, all three
 > `data-experience-*` markers intact). The signed set + the Keystatic retirement are recorded as
 > **ADR-0167** (born accepted, ADR-0110); story open call 4 is CLOSED by it.
+
+> **ADJUDICATED 2026-08-31 — RECORDED AS CORRECT; NOTHING CHANGES
+> (`prove-unproven-capabilities-arc-inc-25`).** This capability appeared on ADR-0465 D1's second pile —
+> the ids D6's proving instrument structurally cannot reach — and was routed to story-author for a
+> retire / re-scope / re-tier decision. **None of the three applies, and the recording IS the whole of
+> the work.** `operator-attested` here is not an un-closed gap: the judgement being made is not
+> verification at all but OWNER DIRECTION — which page earns its keep is editorial judgement about the
+> site's voice (owner decision 5, 2026-07-02), and the capability is deliberately a HALT point where
+> dispositions are proposed and never decided unilaterally. ADR-0409 made machine-in-the-loop the default
+> everywhere it could and left `human-owns-the-outer-loop` standing; the CLOSED arc
+> `stage-1-absorbs-the-non-taste-arc` measured this exact population, filed this capability as its reason
+> 2, and wrote *"Out of scope by construction."* A later sweep that finds this node unproven and reaches
+> for a `proof:` block, a `real:` arm or a retirement is re-litigating a settled answer
+> (`corpus-settled-escalation-non-adherence`). **ADR-0466's publish-back route does not reach here**
+> either — it carries a mechanical fact observed outside our build, and an editorial call is not one.
+> **Its two upstream capabilities were re-scoped in the same pass and this node is undisturbed** — see
+> the frontmatter note: the triage EXECUTED in full (phase 2, 2026-07-07) with no page folded into Act 2
+> at all, so nothing it claims turns on which Act 2 the site now carries.
 
 ## Guidance
 

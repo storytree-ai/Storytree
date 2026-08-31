@@ -2,12 +2,20 @@
 id: "act2-guided-walkthrough"
 tier: capability
 story: website-experience
-title: "Act 2 (increment G) — the website-first walk: the reused prompt, the orchestrator's mock-website proposal, and the 2.5D walk that grows one website story to the 'what's next' hand-off"
-outcome: "Act 2 replays Act 1's request — the SAME prompt (rewritten to 'build me a shopping website', reused across both acts) — done the storytree way (ADR-0148), shown through the REAL app's UI (ADR-0153). The walk OPENS from that reused prompt; the SESSION ORCHESTRATOR proposes a MOCK LOCAL WEBSITE first — no backend — in a short SCRIPTED exchange (honest, explicitly a mock; does not lead with the backend; meets the vibe coder where they are). Then the auto-guided, VISITOR-PACED walk (one Next-tap per beat, plain language — the tonal inverse of Act 1) grows THAT ONE website story green ON THE REAL 2.5D MAP — the synced buildScene scene graph rendered as the site's SVG (ADR-0145), narrated by callout boxes anchored to the map element each beat teaches. RESHAPED by ADR-0153 (owner-directed at the H gate, where the first walk was refined): the walk and orchestrator use the REAL desktop/web app UI components (not bespoke chrome) with progressive disclosure (hide UI the visitor has not been walked through); there is NO escape to any static/deprecated page (a11y fallback only); STEP 1 presents a story as an OUTCOME BRIEF WITH AN EXAMPLE via the session-orchestrator CHAT AT THE BOTTOM (as the real app — dropping the 'young tree on a label' framing); STEP 2 shows the orchestrator ROUTING the story to the DRIVE MACHINERY via a temporary top-left flow-diagram overlay of the agent loop; STEPS 3–4 expand the drive-machinery diagrams (CI/CD, devops, gates, wiring — a second overlay top-right OK) without overloading; the branch beat (limbs green ONLY on signed proof) is PRESERVED, and the wrong-way UI→DB road is RETIRED as the teach (ADR-0150 §4). The retained shopping fiction (Cart / Payments / Receipts) is exactly the features that cannot truly work without a backend, so the walk ends on a CTA that is a CONTINUATION SEAM into 'what's next' (the upstream forest of increment H — act2-guided-forest), not a hand-off to a separate page. A stylized teaching diorama over fictional data, never the operable studio."
+title: "Act 2 (increment G) — RE-SCOPED: the scripted walk over a fictional forest is superseded; chapter 2's opening is website-refresh-arc's GROW + TELL"
+outcome: "RE-SCOPED 2026-08-31 against `website-refresh-arc` (open, owner-directed 2026-08-22) and ADR-0453 (accepted 2026-08-26). The surface this capability specced — a visitor-paced walk through a FICTIONAL three-story shopping-website forest, narrated by a faithful re-creation of our own session orchestrator, advanced by exactly one reply chip per step — is REDIRECTED AWAY FROM, and all three of its load-bearing elements are rejected: the forest was MADE UP (ADR-0453 D3: the public forest is our REAL corpus, and its illegibility is the mechanism rather than a defect), the narrator was 'a Next button in a costume' (ADR-0453 D1: the site's job is excitement, not teaching — 'attempting both is what produced the narrator the arc already retired'), and it opened on a fitted view that showed the visitor everything at once and therefore showed them it was small. The OUTCOME SURVIVES AND HAS MOVED: chapter 2's opening is `website-refresh-arc`'s, delivered as the four fixed movements GROW · TELL · ROAM · ASK (ADR-0453 D11), of which GROW, TELL, PACE and ROAM landed 2026-08-28/29 over the real 35-story corpus. This node therefore carries NO live build obligation and is NOT a build, adopt, prove or retire target; the account below stands as TRUE HISTORY (copy-on-write). Chapter 1 is untouched ('I like chapter 1 - leave as is'); chapter 3 is dropped (ADR-0453 D8). NOT RETIRED: the journey it names is being delivered elsewhere, not abandoned. PRIOR OUTCOME, superseded: Act 2 replays Act 1's request — the SAME prompt (rewritten to 'build me a shopping website', reused across both acts) — done the storytree way (ADR-0148), shown through the REAL app's UI (ADR-0153). The walk OPENS from that reused prompt; the SESSION ORCHESTRATOR proposes a MOCK LOCAL WEBSITE first — no backend — in a short SCRIPTED exchange (honest, explicitly a mock; does not lead with the backend; meets the vibe coder where they are). Then the auto-guided, VISITOR-PACED walk (one Next-tap per beat, plain language — the tonal inverse of Act 1) grows THAT ONE website story green ON THE REAL 2.5D MAP — the synced buildScene scene graph rendered as the site's SVG (ADR-0145), narrated by callout boxes anchored to the map element each beat teaches. RESHAPED by ADR-0153 (owner-directed at the H gate, where the first walk was refined): the walk and orchestrator use the REAL desktop/web app UI components (not bespoke chrome) with progressive disclosure (hide UI the visitor has not been walked through); there is NO escape to any static/deprecated page (a11y fallback only); STEP 1 presents a story as an OUTCOME BRIEF WITH AN EXAMPLE via the session-orchestrator CHAT AT THE BOTTOM (as the real app — dropping the 'young tree on a label' framing); STEP 2 shows the orchestrator ROUTING the story to the DRIVE MACHINERY via a temporary top-left flow-diagram overlay of the agent loop; STEPS 3–4 expand the drive-machinery diagrams (CI/CD, devops, gates, wiring — a second overlay top-right OK) without overloading; the branch beat (limbs green ONLY on signed proof) is PRESERVED, and the wrong-way UI→DB road is RETIRED as the teach (ADR-0150 §4). The retained shopping fiction (Cart / Payments / Receipts) is exactly the features that cannot truly work without a backend, so the walk ends on a CTA that is a CONTINUATION SEAM into 'what's next' (the upstream forest of increment H — act2-guided-forest), not a hand-off to a separate page. A stylized teaching diorama over fictional data, never the operable studio."
 status: proposed
 proof_mode: operator-attested
 depends_on: [storm-to-forest-inflection, act2-beat-director, web-experience-sync]
-decisions: [213, 215]
+decisions: [213, 215, 453]
+# ⚠ RE-SCOPED 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — READ THE BLOCK AT THE TOP OF THE
+# BODY BEFORE ANYTHING BELOW IT. Every comment and record from here to the end of this file describes a
+# design the owner has REDIRECTED AWAY FROM. It is kept as true history (copy-on-write) and is NOT a
+# brief. ⚠ THIS CAPABILITY LOOKS ADOPTABLE AND MUST NOT BE ADOPTED: it is extensively built and carries
+# four separate owner attestations, and adopting it under ADR-0465 would record the owner accepting risk
+# on a design he has already rejected. It is equally NOT a retirement — the journey survives and moved to
+# `website-refresh-arc`. The replacement is that arc's to design, not this spec's and not a later
+# session's; six of its increments are still parked and unbuilt.
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work. The choreography ENGINE is already machine-proven
 # upstream (act2-beat-director: visitor-paced advance, proof-gated green, the flagged wrong-way
 # road, the approved default script — all parent-side contracts), and the artifact freshness is the
@@ -20,7 +28,89 @@ decisions: [213, 215]
 # — irreducibly human judgements on the real site. NO `proof:` block — witnessed, not `--real`-built.
 ---
 
-# Act 2 (increment G) — the website-first walk: the reused prompt, the orchestrator's mock-website proposal, and the 2.5D walk to the "what's next" hand-off
+# Act 2 (increment G) — RE-SCOPED: the scripted walk over a fictional forest is superseded
+
+## ⚠ RE-SCOPED 2026-08-31 — THE DESIGN BELOW IS REJECTED, AND CHAPTER 2 BELONGS TO `website-refresh-arc`
+
+**Read this section before anything under it.** Everything from `## Outcome (PRIOR — superseded)`
+onward is a true, dated account of a surface the owner has since redirected away from. It is kept
+whole (copy-on-write, this file's long-standing convention) and it is **not a brief**.
+
+**What happened.** On 2026-08-22 the owner directed a refresh of the public site and named this
+capability's built design as the FAULT to be replaced. Verbatim, from `website-refresh-arc`'s charter:
+*"I'm not a fan of the in terminal agent being the guide anymore."* The arc states the three faults
+separately, and they are separable:
+
+1. **The forest is made up.** `web/src/lib/world.ts` laid out a demo dataset at build time and this
+   walk scripted a three-story shopping example. A synthetic forest is a CLAIM about a product; the
+   real one is EVIDENCE of it, and throwing that away discards the only argument that matters — this
+   system built the site you are looking at. Settled as **ADR-0453 D3**: the public forest is our REAL
+   corpus, and its illegibility is the mechanism rather than a defect.
+2. **The narrator is a Next button in a costume.** `act2-orchestrator.ts` offered exactly ONE reply
+   chip per step — the full cost of looking like a conversation with none of the freedom of one — and
+   it made the pitch *"you will be talking to an agent"* when the pitch is *"you will watch a system
+   prove itself."* Settled as **ADR-0453 D1** (the site's job is excitement, not teaching), whose own
+   words are that *"attempting both is what produced the narrator the arc already retired."*
+3. **It opens on a fitted view**, which shows the visitor everything at once and therefore shows them
+   it is small. Settled as **ADR-0471** (the designed resting frame).
+
+**What replaced it, and who owns it.** Chapter 2 is now four movements with fixed names — **GROW ·
+TELL · ROAM · ASK** (**ADR-0453 D11**), each naming who is driving. `website-refresh-arc` owns them and
+has landed four:
+
+| landed | movement | what a visitor now gets instead of this walk |
+| --- | --- | --- |
+| 2026-08-28 (web PR #55) | **GROW** — `website-refresh-arc-arrival` | Out of chapter 1 the visitor lands on the REAL 35-story corpus at the designed resting frame, free to pan — not on a scripted three-story fiction. |
+| 2026-08-28 (web PR #57) | **TELL** — `website-refresh-arc-pitch-overlays` | Ten beats of short prose phase in over the settled map on a timing we own, each POINTING AT THE REAL MAP. The terminal-agent narrator is retired here. |
+| 2026-08-29 (web PR #58) | **PACE** — `website-refresh-arc-readable-pace` | The prose is delivered at 13 characters per second against a professional subtitle ceiling, and the forest grows into frame from the foundation row upward. |
+| 2026-08-28 (web PR #60) | **ROAM** — `website-refresh-arc-click-to-explain` | The visitor clicks the real forest and each click explains that thing — an island, its colour, what is inside it, a dependency trail. No voice over it. |
+
+**What survives of the machine, measured rather than assumed — and one common assumption is WRONG.**
+The instinct to "keep the sequencer, retire the voice" is right in principle and has already been
+acted on, but not by preservation. Per `website-refresh-arc-pitch-overlays`' landing record:
+`act2-orchestrator` was **DELETED**, together with `act2-guide`, `act2-diagram`, `act2-minimap`,
+`act2-studio` and ~450 lines of orphaned CSS — because every DOM node it built was namespaced
+`a2chat-` and every field of its step type carried dialogue, so re-mounting it would have resurrected
+the voice in order to reach the property. Its ONE load-bearing property — *a beat's rendered state is
+a pure function of its index, so replay is byte-identical* — was **REBUILT in `act2-tell.ts`** with no
+chat DOM and no reply chips. `act2-loop-diagram` SURVIVES as TELL's one figure, carrying the single
+thing the forest structurally cannot show: who does the checking. `act2-walkthrough` deliberately did
+NOT go — it is the scripted WALK rather than the narrator — but `mountWalkthrough` has **zero callers
+repo-wide** and hard-codes its own three-story fictional script, so it is dead weight on the live path,
+not a live surface. *(Measured in the arc's own increment log; the `web/` submodule is not checked out
+in this worktree, so nothing here was re-read from source and no line numbers are quoted.)*
+
+**What this capability IS now.**
+
+- **It carries NO live build obligation.** It is not a build target, not an adopt target, not a proof
+  target. ⚠ It LOOKS adoptable — it is extensively built and carries four separate owner attestations
+  (`ff70222b`, `8f4e166c`, `d761eadc`, `a87e8ed2`) — and **adopting it under ADR-0465 would record the
+  owner accepting risk on a design he has already rejected.** That is the specific failure this
+  adjudication exists to prevent.
+- **It is NOT retired.** The journey it names — the visitor comes out of chapter 1 and is shown what
+  storytree is — survives in full and is being delivered by another owner, so retirement would be
+  affirmatively wrong. `status` stays `proposed` and `proof_mode` stays `operator-attested`.
+- **The replacement is `website-refresh-arc`'s to design, not this spec's.** That arc has SIX
+  increments parked and unbuilt, so the replacement is NOT finished: `website-refresh-arc-app-handoff`
+  (ASK — the waitlist), `website-refresh-arc-arc-drawer` (ROAM's unshipped fifth target) and
+  `website-growth-matches-the-desktop-regrow` are its live proposals. Nothing in this file may
+  pre-empt them, and no session may invent the replacement design here. The owner's standing verdict
+  on what has landed is *"a first step toward where we want to be"* — a floor, not a ceiling.
+- **Remotion is NOT the runtime.** Decided against at the arc's charter, with reasons. Do not
+  re-propose it.
+- **⚠ NOT SETTLED BY THIS PASS: the parent-side LEAF.**
+  [`act2-beat-director`](act2-beat-director.md) encodes this walk's script as typed data in
+  `packages/forest-world-r3f` and is genuinely leaf-proven with signed verdicts. It is a different
+  tier with a different proof mode and it was NOT part of this adjudication's seven ids. That it now
+  holds a default script no shipped surface walks is recorded here as a FINDING for whoever
+  adjudicates it, and is explicitly not decided here.
+
+---
+
+## Outcome (PRIOR — superseded 2026-08-31; kept as true history)
+
+> Everything below is the specification and delivery record of the design the section above retires.
+> It remains accurate as an account of what was built and attested. It is not current direction.
 
 **Outcome —** Act 2 replays **Act 1's request, done right** — the SAME prompt (Act 1's terminal now
 leads with **"build me a shopping website"**, reused across both acts; one prompt, two ways — the

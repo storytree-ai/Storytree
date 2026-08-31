@@ -24,6 +24,28 @@ trunk.
 > SA that story stands up). It does not own the service's shape — it re-applies it on each merge. A
 > forward edge from this trunk into a sibling — declared, not absorbed.
 
+> **Adjudicated 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — RE-SCOPED by correcting stale
+> prose; no tiering or hierarchy change. The premise that routed it here does not survive a check at
+> source.** That increment filed this capability under "the thing to prove is a deployment", on the
+> reading "a live Cloud Run deploy". **This spec has never claimed a live deploy.** The
+> proof-walkthrough below says the opposite in terms: *"It is a workflow/posture audit, not a real
+> deploy."* All four contracts are assertable against
+> [`.github/workflows/deploy-studio.yml`](../../.github/workflows/deploy-studio.yml) and
+> [`infra/studio-cd.tf`](../../infra/studio-cd.tf) with no GCP call, no rollout and no money — the
+> same in-repo file-audit shape `auto-merge-on-green` carries, and the same one
+> `packages/cli/src/dist-bucket-infra.test.ts` and `web-editor-iam-bootstrap.test.ts` already use
+> against `.tf` files.
+>
+> Verified against the live workflow the same day: the `paths:` filter, the WIF provider +
+> `storytree-studio-deployer` SA with no JSON key, the Cloud Build step, and the full
+> `--service-account … --set-env-vars … --no-allow-unauthenticated --iap` flag set are all present
+> exactly as the contracts describe. **What did NOT survive is contract 4's trigger claim — corrected
+> below.**
+>
+> End-state: **capability-shaped, correctly tiered, correctly `integration-test`, and UNBUILT** — a
+> build-lane item, not an adjudication one. It is **not** an ADR-0466 case: the artifacts under test
+> are files in this repo, so nothing outside has to publish a result back.
+
 ## Guidance
 
 - **Proof-walkthrough first (integration test, against the real deploy workflow definition).** The
@@ -36,11 +58,20 @@ trunk.
   `Ready` and is the one serving — no curl, the site is
   IAP-locked). It is a workflow/posture audit, not a real deploy; the live rollout follows the house
   manual/dispatch path (next bullet).
-- **The GITHUB_TOKEN no-cascade reality (honest).** An AUTO-MERGED PR's `push:main` does NOT cascade
-  a deploy: GitHub will not fire a push-triggered workflow from a `GITHUB_TOKEN` push (anti-recursion).
-  Owner *manual* merges DO cascade. Until a deploy PAT is wired, a studio-affecting auto-merge is
-  deployed on demand with `gh workflow run deploy-studio.yml --ref main` (or the `workflow_dispatch`
-  entry). The capability proves the trigger + posture; it does not claim auto-merge alone deploys.
+- **The GITHUB_TOKEN no-cascade reality, and how it is CLOSED (corrected in place 2026-08-31 —
+  ADR-0061).** An auto-merged PR's `push:main` still does NOT cascade a deploy: GitHub will not fire
+  a push-triggered workflow from a `GITHUB_TOKEN` push (anti-recursion). Owner *manual* merges do
+  cascade. ⚠ **The old wording here — "until a deploy PAT is wired, a studio-affecting auto-merge is
+  deployed on demand" — described a gap that no longer exists and named a remedy that was never
+  taken.** ADR-0061 closed it with **no PAT and no new secret**: `ci.yml`'s `automerge` job holds
+  `actions: write` and, as its LAST step, greps the merged PR's file list against the ADR-0046
+  studio-affecting path set and runs `gh workflow run deploy-studio.yml --ref main`.
+  `workflow_dispatch` is the documented anti-recursion exception, and a dispatch on `--ref main`
+  presents a `refs/heads/main` OIDC token the deploy SA's main-scoped WIF binding already accepts.
+  So a studio-affecting auto-merge **does** deploy today — automatically, via dispatch rather than
+  via cascade. The hand-run `gh workflow run deploy-studio.yml --ref main` survives as the
+  break-glass path, not as the routine one. The capability still proves the trigger + posture, not a
+  rollout.
 - **Full posture, every time, verbatim.** The deploy passes the entire ADR-0042 flag set on every run
   so the IAP wall, the least-privilege runtime SA, and the env vars (`STORYTREE_STUDIO_STORE=pg`,
   the SA DB user, the admin allowlist) can never silently drift between deploys.
@@ -69,8 +100,16 @@ trunk.
      `--set-env-vars` (store=pg, DB user, admin allowlist), `--no-allow-unauthenticated`, and `--iap`
      — the IAP + runtime-SA + env posture re-applied on every deploy (forward edge into
      studio-cloud's `cloud-run-iap`).
-4. **`manual-or-dispatch-trigger`** — auto-merge alone does not cascade a deploy
-   - **asserts —** because the `automerge` job merges with `GITHUB_TOKEN`, the resulting `push:main`
-     does not cascade `deploy-studio.yml` (anti-recursion); the deploy fires from an owner manual
-     merge or an explicit `gh workflow run deploy-studio.yml --ref main` / `workflow_dispatch` — the
-     honest trigger gap, recorded not papered over.
+4. **`automerge-dispatches-the-deploy`** — the no-cascade gap is closed by dispatch, not by a PAT
+   - **asserts —** `deploy-studio.yml` declares `workflow_dispatch` alongside `push:main`; and
+     `ci.yml`'s `automerge` job carries `actions: write` and a LAST step that matches the merged PR's
+     file list against the ADR-0046 studio-affecting path set and runs `gh workflow run
+     deploy-studio.yml --ref main` — so a studio-affecting auto-merge deploys even though its
+     `GITHUB_TOKEN` `push:main` cannot cascade (anti-recursion). Asserts the step is LAST (a
+     dispatch failure must not be able to skip the fail-soft claim-release steps above it) and that
+     it carries no `continue-on-error` (a missed deploy is the bug ADR-0061 fixed, so it is loud).
+     *(Renamed and re-asserted 2026-08-31. It previously read `manual-or-dispatch-trigger` and
+     asserted the deploy fires only from an owner manual merge or a HAND-RUN dispatch — "the honest
+     trigger gap, recorded not papered over". That gap was closed by ADR-0061 and the contract had
+     gone stale in the direction that reads as honesty: it described a live automated dispatch as an
+     unfilled hole.)*
