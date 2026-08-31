@@ -36,8 +36,42 @@ import { shippedParcels } from './shipped-land-scene.js';
 
 /** The island the studio actually ships, as the mapper emits it. */
 const ISLAND: InstanceDescriptor[] = shippedParcels();
-/** The thirty-five-island forest, each copy re-stamped with its own island id. */
-const FOREST: InstanceDescriptor[] = crowdCells(crowdSize('forest'));
+/**
+ * THE THIRTY-FIVE-ISLAND FOREST — built LAZILY and used by exactly ONE test.
+ *
+ * ⚠⚠ EVERY OTHER MULTI-ISLAND CLAIM RUNS ON {@link twoIslands} INSTEAD, and that is a
+ * mutation-rung requirement measured rather than guessed. `check:mutation-diff` re-runs the
+ * covering tests once PER MUTANT against a timeout, and a mutant that breaks `edgeKey` turns
+ * `rimLoops` on a 5,740-parcel fixture into a quadratic chase over 46,000 forged boundary segments.
+ * Six mutants came back as TIMEOUTS — real detections the rung cannot attribute to any test,
+ * because no test failed: the suite simply ground. The claims below need MORE THAN ONE island, not
+ * thirty-five, so they get two; only the thirty-five-coasts finding is genuinely about thirty-five.
+ */
+let forest: InstanceDescriptor[] | null = null;
+function forestCells(): InstanceDescriptor[] {
+  forest ??= crowdCells(crowdSize('forest'));
+  return forest;
+}
+
+/** The shipped island and a copy of it 600 units east, wearing its own story id — enough to ask
+ *  every "does one island's coast reach another's" question at 1/17th the cost of the forest. */
+let pair: InstanceDescriptor[] | null = null;
+function twoIslands(): InstanceDescriptor[] {
+  pair ??= [
+    ...ISLAND,
+    ...ISLAND.map((c) => {
+      const moved: InstanceDescriptor = {
+        ...c,
+        island: 'story-east',
+        transform: { ...c.transform, x: c.transform.x + 600 },
+      };
+      if (c.parcel !== undefined) moved.parcel = `story-east/${c.parcel}`;
+      if (c.points !== undefined) moved.points = c.points.map((p) => ({ ...p, x: p.x + 600 }));
+      return moved;
+    }),
+  ];
+  return pair;
+}
 
 function ringsOf(cells: readonly InstanceDescriptor[]): CoastPoint[][] {
   return cells.map((c) => (c.points ?? []).map((p) => ({ x: p.x, z: p.z })));
@@ -83,7 +117,7 @@ test('⚠⚠ NO PARCEL FOLDS, on any arm, on the island OR the forest', () => {
   // is the assertion the driver's first refusal reads, and it is the reason the cap exists.
   for (const arm of ALL_COAST_ARMS) {
     assert.equal(coastPlan(ISLAND, arm).foldedParcels, 0, `${arm} folded a parcel on one island`);
-    assert.equal(coastPlan(FOREST, arm).foldedParcels, 0, `${arm} folded a parcel on the forest`);
+    assert.equal(coastPlan(twoIslands(), arm).foldedParcels, 0, `${arm} folded a parcel beside a neighbour`);
   }
 });
 
@@ -95,10 +129,24 @@ test('the fold cap binds on a handful of rim vertices, and says so', () => {
   assert.deepEqual(coastCapping(ISLAND, 'subdivide'), { rim: 52, bound: 3, least: 0.6 });
 });
 
-test('every island of the forest is capped, not just the first', () => {
-  const cap = coastCapping(FOREST, 'outset');
-  assert.equal(cap.rim, 52 * 35, 'the forest should carry thirty-five rims');
-  assert.ok(cap.bound > 0, 'the forest coast should bind the cap somewhere');
+test('EVERY island is capped, not just the first', () => {
+  const cap = coastCapping(twoIslands(), 'outset');
+  assert.equal(cap.rim, 52 * 2, 'both islands should report a rim');
+  assert.ok(cap.bound > 0, 'the cap should bind somewhere');
+  // And each island is capped on its OWN terms. Counting is not enough to say so — two different
+  // waves can happen to bind the same NUMBER of vertices, and here they do — so the claim is made
+  // against the coasts themselves: the same geometry under two story ids lands in two places.
+  const clipped = clipToCoast(twoIslands(), 'outset');
+  const relative = (island: string, dx: number): string =>
+    clipped
+      .filter((c) => c.island === island)
+      .map((c) => (c.points ?? []).map((p) => vertexKey({ x: p.x - dx, z: p.z })).join(';'))
+      .join('|');
+  assert.notEqual(
+    relative('context-traversal-capture', 0),
+    relative('story-east', 600),
+    'the two islands wear the SAME coast — one seed reached both',
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -141,29 +189,39 @@ test('⚠ thirty-five copies of ONE island wear thirty-five DIFFERENT coasts', (
   // The wave is seeded on the island id and `crowdCells` re-stamps that per copy, so the forest
   // stops being a tiled repetition of one silhouette at the moment the coast lands. Before the
   // clip every island is the same shape translated; after it, none of them are.
+  // ⚠ THE ORIGIN IS TAKEN FROM A MAP BUILT IN ONE PASS, never re-found per cell. The obvious
+  // `clipped.find(d => d.island === island)` inside the loop is quadratic over 5,740 descriptors —
+  // 33 million comparisons on the healthy path, and the single largest reason this file's mutants
+  // were coming back as timeouts rather than as verdicts.
   const shapeOf = (cells: readonly InstanceDescriptor[], mode: CoastMode): Set<string> => {
-    const byIsland = new Map<string, string[]>();
     const clipped = clipToCoast(cells, mode);
+    const origin = new Map<string, InstanceDescriptor>();
+    for (const c of clipped) {
+      if (c.island !== undefined && !origin.has(c.island)) origin.set(c.island, c);
+    }
+    const byIsland = new Map<string, string[]>();
     for (const c of clipped) {
       const island = c.island;
       if (island === undefined) continue;
-      const offset = clipped.find((d) => d.island === island)!;
-      const ox = offset.transform.x;
-      const oz = offset.transform.z;
-      const rel = (c.points ?? []).map((p) => vertexKey({ x: p.x - ox, z: p.z - oz })).join(';');
+      const at = origin.get(island)!;
+      const rel = (c.points ?? [])
+        .map((p) => vertexKey({ x: p.x - at.transform.x, z: p.z - at.transform.z }))
+        .join(';');
       const list = byIsland.get(island);
       if (list) list.push(rel);
       else byIsland.set(island, [rel]);
     }
     return new Set([...byIsland.values()].map((r) => r.join('|')));
   };
-  assert.equal(shapeOf(FOREST, REFERENCE_ARM).size, 1, 'before the clip the forest is one shape');
-  assert.equal(shapeOf(FOREST, 'outset').size, 35, 'after it, thirty-five');
+  assert.equal(shapeOf(forestCells(), REFERENCE_ARM).size, 1, 'before the clip the forest is one shape');
+  assert.equal(shapeOf(forestCells(), 'outset').size, 35, 'after it, thirty-five');
 });
 
 test('a coast never reaches into a neighbouring island', () => {
   // The beach is capped well inside the inter-island gap by `jitteredOutset`'s own amplitude, and
   // the fold cap only ever shortens it — so no island's ground may end up inside another's bounds.
+  // ⚠ Asked of the PAIR rather than the forest: the question is "does one island's coast reach its
+  // neighbour", and two islands is the smallest fixture in which that question exists.
   const boxes = (cells: readonly InstanceDescriptor[]): Map<string, [number, number, number, number]> => {
     const out = new Map<string, [number, number, number, number]>();
     for (const c of cells) {
@@ -180,9 +238,9 @@ test('a coast never reaches into a neighbouring island', () => {
     }
     return out;
   };
-  const before = boxes(FOREST);
+  const before = boxes(twoIslands());
   for (const arm of COAST_ARMS) {
-    const after = boxes(clipToCoast(FOREST, arm));
+    const after = boxes(clipToCoast(twoIslands(), arm));
     const ids = [...after.keys()];
     for (let i = 0; i < ids.length; i += 1) {
       for (let j = i + 1; j < ids.length; j += 1) {

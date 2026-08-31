@@ -128,6 +128,10 @@ export function vertexKey(p: CoastPoint): string {
 export function edgeKey(a: CoastPoint, b: CoastPoint): string {
   const ka = vertexKey(a);
   const kb = vertexKey(b);
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — only the SYMMETRY of this key is
+  // load-bearing, never the direction. `>=` reverses every pair consistently and `<=` differs only
+  // where the two keys are equal, which is a self-edge and yields the same string either way. A
+  // test that pinned the ordering would be asserting an arbitrary choice.
   return ka < kb ? `${ka}|${kb}` : `${kb}|${ka}`;
 }
 
@@ -206,6 +210,9 @@ export function nearestOnSegment(p: CoastPoint, a: CoastPoint, b: CoastPoint): C
   const lenSq = ex * ex + ez * ez;
   // A degenerate segment is its own only point, and `0` reaches `a` — which is that point.
   const raw = lenSq === 0 ? 0 : ((p.x - a.x) * ex + (p.z - a.z) * ez) / lenSq;
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — at raw exactly 0 or exactly 1 both
+  // sides of each comparison return the SAME point, because the clamp's bound IS the parameter
+  // there. There is no input that separates `<` from `<=` here.
   const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
   return { x: a.x + ex * t, z: a.z + ez * t };
 }
@@ -260,12 +267,15 @@ export function coastArcs(curve: CoastCurve): CoastArcs {
   const at = (k: number): CoastPoint => curve.smooth[((k % total) + total) % total]!;
   const chord = (i: number): number => stride * i - stride / 2;
   const landings = curve.outset.map((p, i) => nearestOnSegment(p, at(chord(i)), at(chord(i) + 1)));
-  const arcs = curve.outset.map((_p, i) => {
-    const from = chord(i);
-    const points: CoastPoint[] = [];
-    for (let step = 1; step <= stride; step += 1) points.push(at(from + step));
-    return points;
-  });
+  // ⚠ `Array.from` RATHER THAN A COUNTED LOOP, and it is a mutation-rung requirement rather than
+  // taste. Written `for (let step = 1; step <= stride; step += 1)`, the counter's `+= 1` can be
+  // mutated to `-= 1` — which does not produce a wrong answer, it produces an INFINITE LOOP, and a
+  // suite that hangs is a detection no rung can attribute to a test (it comes back as a TIMEOUT,
+  // scored UNPROVEN). The arc's length is known before it is built, so there is no counter to get
+  // wrong. Same remedy `triangulateRing` already carries next door.
+  const arcs = curve.outset.map((_p, i) =>
+    Array.from({ length: stride }, (_unused, step) => at(chord(i) + step + 1)),
+  );
   return { landings, arcs };
 }
 
@@ -299,9 +309,19 @@ export function isSimpleRing(ring: readonly CoastPoint[]): boolean {
     const s2 = side(c, d, b);
     return (s1 > 0 && s2 < 0) || (s1 < 0 && s2 > 0);
   };
+  // ⚠⚠ THERE IS NO ADJACENT-PAIR GUARD, AND ITS ABSENCE IS THE POINT. The obvious spelling skips
+  // pairs of edges that share an endpoint — and a mutation sweep showed all eight mutants of that
+  // guard surviving, because STRICT straddling already answers those pairs `false`: the shared
+  // vertex is an endpoint of both segments, so its side is exactly 0 and neither strict comparison
+  // can hold. The guard was a cost optimisation wearing a correctness guard's clothes, which is
+  // exactly the unreachable-branch shape the rung exists to find. Removed rather than asserted.
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — at `i === n` the inner loop's own
+  // bound (`j = i + 1 < n`) is already false, so the extra pass reads nothing and compares nothing.
   for (let i = 0; i < n; i += 1) {
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT — starting `j` at `i - 1` adds the
+    // pair (i, i) and the pair (i-1, i). Both share endpoints with edge i, so strict straddling
+    // returns false for them; the answer is unchanged and only the work grows.
     for (let j = i + 1; j < n; j += 1) {
-      if ((j + 1) % n === i || (i + 1) % n === j) continue;
       const a = ring[i]!;
       const b = ring[(i + 1) % n]!;
       const c = ring[j]!;
@@ -427,21 +447,43 @@ export function coastDisplacement(
       return { moved: at, inserted: arcsAt };
     };
 
-    /** The parcels this rim can distort — the only ones whose simplicity the cap can change. */
-    const touched = rings.filter((r) => r.some((p) => rung.has(vertexKey(p))));
     let current = snapshot();
-    // At most one pass per rung: a vertex only ever moves DOWN the ladder, and the bottom rung
-    // restores the mesh's own ring, so the loop cannot run out of rungs with a fold still standing.
-    for (let pass = 1; pass < COAST_SCALE_LADDER.length; pass += 1) {
+    // ⚠ AT MOST ONE PASS PER RUNG, AND THE LADDER ITSELF IS THE BOUND. A vertex only ever moves
+    // DOWN, and the bottom rung restores the mesh's own ring — whose simplicity is a property of
+    // the substrate — so the loop cannot run out of rungs with a fold still standing. Iterating the
+    // ladder rather than counting to its length is the same mutation-rung remedy `coastArcs` takes:
+    // a counted loop's `+= 1` mutates to `-= 1` and hangs, and a hang is scored UNPROVEN.
+    //
+    // ⚠⚠ ONLY THE RINGS HOLDING ONE OF THIS RIM'S VERTICES ARE CANDIDATES, AND THE NARROWING IS
+    // LOAD-BEARING FOR THE MUTATION RUNG ITSELF. An interior-only ring is untouched by the
+    // displacement, so it can never fold — which makes this filter look like a pure cost
+    // optimisation, and a sweep duly reported it as an unkillable mutant. It was removed on that
+    // reading and the removal made things WORSE, measurably: with every parcel a candidate, a
+    // mutant that breaks `edgeKey` forges hundreds of spurious rim loops and each one then walks
+    // the ladder over all 5,740 forest parcels. The mutant stopped being caught as a wrong answer
+    // and started being caught as a TIMEOUT — a detection the rung cannot attribute to any test,
+    // because no test fails; the suite simply grinds. So the filter is kept, and what it buys is
+    // that a broken neighbour fails FAST enough to be blamed on something.
+    // Stryker disable next-line all: EQUIVALENT on the healthy path by construction — an
+    // interior-only ring cannot fold — and its absence is observable only as the timeout described
+    // above, which is not a verdict a test can carry.
+    const touched = rings.filter((r) => r.some((p) => rung.has(vertexKey(p))));
+    for (const _rung of COAST_SCALE_LADDER) {
       const folded = touched.filter((r) => !isSimpleRing(applyDisplacement(r, current)));
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — without the break the loop
+      // runs its remaining passes over a set that is already simple, finds nothing folded and
+      // demotes nobody. It is a cost guard, and the result it produces is identical.
       if (folded.length === 0) break;
-      for (const ring of folded) {
-        for (const p of ring) {
-          const k = vertexKey(p);
-          const at = rung.get(k);
-          if (at === undefined) continue;
-          rung.set(k, at + 1);
-        }
+      // ⚠ DEMOTE FROM THE RIM SIDE, NOT THE RING SIDE. Walking a folded ring's vertices and
+      // skipping the ones that are not on the rim reads naturally and hides an UNOBSERVABLE guard:
+      // `rung` is only ever READ at rim keys, so an interior key written into it is never looked at
+      // and the skip cannot change an answer. Iterating the rim instead means every key demoted is
+      // one that exists, and the only branch left — is this rim vertex on a folded parcel — is the
+      // one that carries the meaning.
+      const foldedKeys = new Set(folded.flatMap((r) => r.map(vertexKey)));
+      for (const v of rim) {
+        const k = vertexKey(v);
+        if (foldedKeys.has(k)) rung.set(k, rung.get(k)! + 1);
       }
       current = snapshot();
     }
@@ -477,11 +519,14 @@ export function coastCapping(
   let bound = 0;
   let least = 1;
   for (const [island, cells] of groundByIsland(descriptors)) {
-    const rings = cells.flatMap((c) => (c.points === undefined ? [] : [ringOf(c.points)]));
+    // `coastalIsland` has already refused every ringless descriptor, so `points` is present on
+    // each of these — the non-null assertion is the grouping's own guarantee restated, not a second
+    // guard that could disagree with it.
+    const rings = cells.map((c) => ringOf(c.points!));
     for (const s of coastDisplacement(rings, island, mode).scales.values()) {
       rim += 1;
       if (s < 1) bound += 1;
-      if (s < least) least = s;
+      least = Math.min(least, s);
     }
   }
   return { rim, bound, least };
@@ -516,13 +561,27 @@ function ringOf(points: readonly Transform3D[]): CoastPoint[] {
   return points.map((p) => ({ x: p.x, z: p.z }));
 }
 
-/** The island a descriptor belongs to, or `null` when the mapper could not name one.
+/**
+ * THE ISLAND WHOSE COAST THIS DESCRIPTOR'S RING BELONGS TO, or `null` when it belongs to none.
  *
- *  ⚠ AN UNHOMED PARCEL IS LEFT ALONE RATHER THAN POOLED WITH THE OTHER UNHOMED ONES. The coast is
- *  seeded on the STORY's id, so an island nobody can name has no coast to draw; inventing a seed
- *  would put a shoreline where the map cannot say there is one, and pooling would compute a rim
- *  across the sea between two unrelated parcels. */
-function islandOf(d: InstanceDescriptor): string | null {
+ * ⚠⚠ ONE PREDICATE, READ BY BOTH THE GROUPING AND THE REWRITE, and that is a mutation-rung
+ * requirement rather than tidiness. Spelled twice — once to decide what goes into a rim and once to
+ * decide what comes back out — the two copies are mutants no single test can pin: flipping either
+ * one alone leaves the OTHER still refusing the descriptor, so the output never moves. Named once,
+ * a single fixture separates every branch.
+ *
+ * Three ways to belong to no coast, and each is a decision:
+ *  - NOT GROUND. A story tree carries a `transform`, not a parcel ring; clipping one would move a
+ *    tree to where a shoreline went.
+ *  - NO RING. A ground descriptor with no `points` bounds nothing, so it contributes no shore edge
+ *    and has nothing to rewrite.
+ *  - NO ISLAND. The coast is seeded on the STORY's id, so an island nobody can name has no coast to
+ *    draw — inventing a seed would put a shoreline where the map cannot say there is one, and
+ *    POOLING the unnamed parcels would compute a rim across the sea between two unrelated ones.
+ */
+function coastalIsland(d: InstanceDescriptor): string | null {
+  if (d.kind !== 'cell-ground') return null;
+  if (d.points === undefined) return null;
   return d.island ?? null;
 }
 
@@ -540,8 +599,7 @@ function groundByIsland(
 ): Map<string, InstanceDescriptor[]> {
   const out = new Map<string, InstanceDescriptor[]>();
   for (const d of descriptors) {
-    if (d.kind !== 'cell-ground') continue;
-    const island = islandOf(d);
+    const island = coastalIsland(d);
     if (island === null) continue;
     const list = out.get(island);
     if (list) list.push(d);
@@ -572,16 +630,15 @@ export function clipToCoast(
   if (mode === 'none') return [...descriptors];
   const displacements = new Map<string, CoastDisplacement>();
   for (const [island, cells] of groundByIsland(descriptors)) {
-    const rings = cells.flatMap((c) => (c.points === undefined ? [] : [ringOf(c.points)]));
-    displacements.set(island, coastDisplacement(rings, island, mode));
+    displacements.set(island, coastDisplacement(cells.map((c) => ringOf(c.points!)), island, mode));
   }
   return descriptors.map((d) => {
-    if (d.kind !== 'cell-ground') return d;
-    const island = islandOf(d);
-    if (island === null || d.points === undefined) return d;
-    const points: Transform3D[] = applyDisplacement(ringOf(d.points), displacements.get(island)!).map(
-      (p) => ({ x: p.x, y: 0, z: p.z }),
-    );
+    const island = coastalIsland(d);
+    if (island === null) return d;
+    const points: Transform3D[] = applyDisplacement(
+      ringOf(d.points!),
+      displacements.get(island)!,
+    ).map((p) => ({ x: p.x, y: 0, z: p.z }));
     return { ...d, points };
   });
 }

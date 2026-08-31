@@ -95,12 +95,12 @@ export const ALL_COAST_ARMS: readonly CoastArm[] = [REFERENCE_ARM, ...COAST_ARMS
 
 /** What each arm adds, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
-export const COAST_ARM_CAPTION: Record<CoastArm, string> = {
+export const COAST_ARM_CAPTION = {
   none: 'the shipped map today — the raw hex-union silhouette (CONTROL)',
   outset: '+ the story-seeded beach, every hex corner kept',
   project: '+ each rim vertex moved onto the smoothed curve (corners CUT)',
   subdivide: '+ the curve’s own points along each rim edge (the boundary IS the curve)',
-};
+} satisfies Record<CoastArm, string>;
 
 /** One island, and the thirty-five-island forest. The coast is a per-island silhouette, so ONE is
  *  where it is read — but the forest is where it stops being decorative: thirty-five copies of one
