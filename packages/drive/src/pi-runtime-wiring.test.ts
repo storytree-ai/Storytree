@@ -226,15 +226,33 @@ test("liveLeafLines renders a pi run EXACTLY, and keeps the two wall kinds apart
       cacheCreationInputTokens: 174,
     },
   });
-  author.runs.push({ phase: "IMPLEMENT", source: "pi-leaf", subtype: "success", turns: 3, model: "m" });
+  author.runs.push({
+    phase: "IMPLEMENT",
+    source: "pi-leaf",
+    subtype: "success",
+    turns: 3,
+    model: "m",
+    usage: {
+      inputTokens: 2,
+      outputTokens: 40,
+      cacheReadInputTokens: 11967,
+      cacheCreationInputTokens: 115,
+    },
+  });
+  // A THIRD slice reporting no usage at all. Two-with-usage is what makes the tokens separator
+  // observable; the third is what makes the additive-accounting filter observable. One fixture
+  // cannot do both, which is why there are three rows and not two.
+  author.runs.push({ phase: "IMPLEMENT", source: "pi-leaf", subtype: "refused-preflight", turns: 0, model: "m" });
 
   assert.deepEqual(liveLeafLines(author), [
     "leaf:        pi → Anthropic on the subscription credential (fresh provider id) " +
-      "(AUTHOR_TEST: success, 2 turns; IMPLEMENT: success, 3 turns)",
+      "(AUTHOR_TEST: success, 2 turns; IMPLEMENT: success, 3 turns; " +
+      "IMPLEMENT: refused-preflight, 0 turns)",
     COST,
-    // Only the slice that REPORTED usage appears — accounting is additive, and inventing a zero row
-    // for the other would be a claim about tokens nobody counted.
-    "tokens:      AUTHOR_TEST: 122 out / 2 in / 27974 cache-read / 174 cache-write",
+    // Only the slices that REPORTED usage appear — accounting is additive, and inventing a zero row
+    // for the third would be a claim about tokens nobody counted.
+    "tokens:      AUTHOR_TEST: 122 out / 2 in / 27974 cache-read / 174 cache-write; " +
+      "IMPLEMENT: 40 out / 2 in / 11967 cache-read / 115 cache-write",
     "scope walls: no write refusals",
     "tool surface: no off-surface tool calls",
     FEEDBACK,
@@ -272,9 +290,16 @@ test("liveLeafLines renders a pi run EXACTLY, and keeps the two wall kinds apart
     reason: "write refused by phase scope",
     kind: "scope",
   });
+  author.violations.push({
+    phase: "AUTHOR_TEST",
+    tool: "powershell",
+    path: "(no path)",
+    reason: "not on the authoring tool surface",
+    kind: "tool-surface",
+  });
   const walls = liveLeafLines(author);
   assert.equal(walls[3], "scope walls: AUTHOR_TEST:impl.cjs, IMPLEMENT:unit.test.cjs");
-  assert.equal(walls[4], "tool surface: IMPLEMENT:bash");
+  assert.equal(walls[4], "tool surface: IMPLEMENT:bash, AUTHOR_TEST:powershell");
 });
 
 test("liveLeafLines routes a NON-pi runtime away from the pi branch", () => {
