@@ -726,3 +726,55 @@ test("an-event-kind-carrying-no-surface-is-counted-not-dropped: the census total
     removeTempDir(dir);
   }
 });
+
+test("the multi-adapter replay states WHO STARTED the session, not only what it read", () => {
+  // ADR-0484 D7. This is the render `storytree traversal show` actually calls, so an origin dropped
+  // in the composition would be recorded on disk, shipped to the shared store, and invisible on the
+  // one surface a reader meets — which is the shape where a figure gets attributed to the owner's
+  // prompt anyway. Both directions are asserted: what a declared session says, and that an
+  // undeclared one is STATED rather than left silent.
+  const dir = makeTempDir();
+  try {
+    const cutSession = "session-origin-cut";
+    appendTraversalEvents(
+      [
+        {
+          kind: "front_matter_read",
+          eventId: "event:origin-cut",
+          sessionId: cutSession,
+          at: "2026-08-31T00:00:00.000Z",
+          visitId: "visit-origin-cut",
+          nodeId: "adr-0484",
+        },
+      ],
+      { dir, sessionId: cutSession, grade: "window", origin: "cut", cutBy: "the-predecessor" },
+    );
+
+    const cut = showTraversalSessionAllAdapters(cutSession, { dir });
+    assert.match(cut.body, /^origin: cut —/m);
+    assert.match(cut.body, /handover/i);
+    assert.match(cut.body, /^cut by: the-predecessor$/m);
+
+    const silentSession = "session-origin-silent";
+    appendTraversalEvents(
+      [
+        {
+          kind: "front_matter_read",
+          eventId: "event:origin-silent",
+          sessionId: silentSession,
+          at: "2026-08-31T00:00:01.000Z",
+          visitId: "visit-origin-silent",
+          nodeId: "adr-0484",
+        },
+      ],
+      { dir, sessionId: silentSession, grade: "window" },
+    );
+
+    const silent = showTraversalSessionAllAdapters(silentSession, { dir });
+    assert.match(silent.body, /^origin: unknown —/m);
+    assert.match(silent.body, /NOT a synonym for human/i);
+    assert.doesNotMatch(silent.body, /^cut by:/m);
+  } finally {
+    removeTempDir(dir);
+  }
+});

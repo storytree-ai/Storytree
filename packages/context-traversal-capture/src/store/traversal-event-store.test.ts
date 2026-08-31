@@ -51,6 +51,9 @@ interface FakeRow {
   observed_at: string;
   grade: string | null;
   slot: string | null;
+  origin: string | null;
+  cut_by: string | null;
+  cut_for: string | null;
   event: unknown;
 }
 
@@ -88,7 +91,10 @@ export class FakeTraversalPool implements TraversalPool {
         observed_at: String(values[2]),
         grade: values[3] === null || values[3] === undefined ? null : String(values[3]),
         slot: values[4] === null || values[4] === undefined ? null : String(values[4]),
-        event: JSON.parse(String(values[5])),
+        origin: values[5] === null || values[5] === undefined ? null : String(values[5]),
+        cut_by: values[6] === null || values[6] === undefined ? null : String(values[6]),
+        cut_for: values[7] === null || values[7] === undefined ? null : String(values[7]),
+        event: JSON.parse(String(values[8])),
       });
       return { rows: [] };
     }
@@ -105,7 +111,17 @@ export class FakeTraversalPool implements TraversalPool {
         rows: this.rows
           .filter((row) => row.session_id === sessionId)
           .sort((a, b) => a.seq - b.seq)
-          .map((row) => ({ event: row.event, grade: row.grade, slot: row.slot })),
+          .map((row) => ({
+            event: row.event,
+            grade: row.grade,
+            slot: row.slot,
+            // ALIASED, exactly as `SELECT_SESSION_SQL` aliases them: the double answers in the
+            // camelCase the row schema reads, or the parity suite would prove the store copes with
+            // a shape the driver never hands it.
+            origin: row.origin,
+            cutBy: row.cut_by,
+            cutFor: row.cut_for,
+          })),
       };
     }
 
@@ -119,11 +135,23 @@ export class FakeTraversalPool implements TraversalPool {
   }
 
   /** Overwrite one stored row's identity columns, reachable no other way through the store. */
-  restamp(eventId: string, columns: { grade?: string | null; slot?: string | null }): void {
+  restamp(
+    eventId: string,
+    columns: {
+      grade?: string | null;
+      slot?: string | null;
+      origin?: string | null;
+      cutBy?: string | null;
+      cutFor?: string | null;
+    },
+  ): void {
     const row = this.rows.find((candidate) => candidate.event_id === eventId);
     if (row === undefined) return;
     if (columns.grade !== undefined) row.grade = columns.grade;
     if (columns.slot !== undefined) row.slot = columns.slot;
+    if (columns.origin !== undefined) row.origin = columns.origin;
+    if (columns.cutBy !== undefined) row.cut_by = columns.cutBy;
+    if (columns.cutFor !== undefined) row.cut_for = columns.cutFor;
   }
 }
 
@@ -134,6 +162,9 @@ export function jsonlTraversalEventStore(dir: string): TraversalEventStore {
       let sink: TraversalSinkLocation = { dir, sessionId: location.sessionId };
       if (location.grade !== undefined) sink = { ...sink, grade: location.grade };
       if (location.slot !== undefined) sink = { ...sink, slot: location.slot };
+      if (location.origin !== undefined) sink = { ...sink, origin: location.origin };
+      if (location.cutBy !== undefined) sink = { ...sink, cutBy: location.cutBy };
+      if (location.cutFor !== undefined) sink = { ...sink, cutFor: location.cutFor };
       return appendTraversalEvents(events, sink);
     },
     read: async (sessionId: string) => readTraversalSession({ dir, sessionId }),
@@ -259,6 +290,67 @@ async function lineIdentityIsCarriedAndAnUnstatedGradeIsTheLegacyEra(
   assert.deepEqual(mixedRead.slots, ["worktree-alpha", "worktree-beta"]);
 }
 
+/**
+ * WHO STARTED THE SESSION, held over BOTH backends (ADR-0484 D7).
+ *
+ * Parity matters more here than for `grade`, not less: the shared store is where a fleet-wide figure
+ * is taken, so a Postgres backend that dropped the origin would leave every such figure with no way
+ * to exclude the sessions that were briefed by an agent — while the local JSONL trace, which nobody
+ * queries across machines, kept it and looked fine.
+ */
+async function sessionOriginIsCarriedAndAnUnstatedOriginIsNeverHuman(
+  makeStore: () => TraversalEventStore,
+): Promise<void> {
+  const declared = makeStore();
+  await declared.append(
+    [visit({ eventId: "o1", at: "2026-08-31T00:00:00.000Z", sessionId: "s-cut", visitId: "v1", nodeId: "n" })],
+    { sessionId: "s-cut", grade: "window", origin: "cut", cutBy: "parent-window", cutFor: "some-arc" },
+  );
+  assert.deepEqual((await declared.read("s-cut")).origin, {
+    reading: "cut",
+    cutBy: ["parent-window"],
+    cutFor: ["some-arc"],
+  });
+  // ...and it reaches the INDEX row too, which is where a count is taken.
+  assert.equal((await declared.list())[0]?.origin.reading, "cut");
+
+  const undeclared = makeStore();
+  await undeclared.append(
+    [visit({ eventId: "o2", at: "2026-08-31T00:00:00.000Z", sessionId: "s-silent", visitId: "v1", nodeId: "n" })],
+    { sessionId: "s-silent", grade: "window" },
+  );
+  const silent = await undeclared.read("s-silent");
+  assert.equal(silent.origin.reading, "unknown");
+  assert.notEqual(silent.origin.reading, "human", "the one default this attribute exists to refuse");
+  assert.deepEqual(silent.origin.cutBy, []);
+
+  // A session that declares PARTWAY THROUGH reads as what it declared: its earlier lines said "not
+  // yet", which is an absence rather than a competing claim — the deliberate divergence from the
+  // identity grade beside it, which WOULD read `mixed` here.
+  const late = makeStore();
+  await late.append(
+    [visit({ eventId: "o3", at: "2026-08-31T00:00:00.000Z", sessionId: "s-late", visitId: "v1", nodeId: "n" })],
+    { sessionId: "s-late", grade: "window" },
+  );
+  await late.append(
+    [visit({ eventId: "o4", at: "2026-08-31T00:00:01.000Z", sessionId: "s-late", visitId: "v2", nodeId: "n" })],
+    { sessionId: "s-late", grade: "window", origin: "cut", cutBy: "parent-window" },
+  );
+  assert.equal((await late.read("s-late")).origin.reading, "cut");
+
+  // A genuine contradiction stays visible.
+  const contradictory = makeStore();
+  await contradictory.append(
+    [visit({ eventId: "o5", at: "2026-08-31T00:00:00.000Z", sessionId: "s-both", visitId: "v1", nodeId: "n" })],
+    { sessionId: "s-both", origin: "human" },
+  );
+  await contradictory.append(
+    [visit({ eventId: "o6", at: "2026-08-31T00:00:01.000Z", sessionId: "s-both", visitId: "v2", nodeId: "n" })],
+    { sessionId: "s-both", origin: "cut" },
+  );
+  assert.equal((await contradictory.read("s-both")).origin.reading, "mixed");
+}
+
 async function listReportsEachSessionOnce(store: TraversalEventStore): Promise<void> {
   await store.append(
     [
@@ -314,6 +406,11 @@ test("line-identity-is-carried-and-an-unstated-grade-is-the-legacy-era [jsonl]: 
   lineIdentityIsCarriedAndAnUnstatedGradeIsTheLegacyEra(jsonl));
 test("line-identity-is-carried-and-an-unstated-grade-is-the-legacy-era [postgres]: graded, legacy and mixed", () =>
   lineIdentityIsCarriedAndAnUnstatedGradeIsTheLegacyEra(postgres));
+
+test("session-origin-is-carried-and-an-unstated-origin-is-never-human [jsonl]: declared, undeclared, late and contradictory", () =>
+  sessionOriginIsCarriedAndAnUnstatedOriginIsNeverHuman(jsonl));
+test("session-origin-is-carried-and-an-unstated-origin-is-never-human [postgres]: declared, undeclared, late and contradictory", () =>
+  sessionOriginIsCarriedAndAnUnstatedOriginIsNeverHuman(postgres));
 
 test("list-reports-each-session-once-with-its-count-and-last-observed-time [jsonl]: one row per session", () =>
   listReportsEachSessionOnce(jsonl()));
@@ -491,6 +588,9 @@ test("the-session-list-ignores-a-row-that-does-not-name-a-session: a projection 
     observed_at: "2026-08-30T00:00:01.000Z",
     grade: null,
     slot: null,
+    origin: null,
+    cut_by: null,
+    cut_for: null,
     event: {},
   });
 
@@ -534,6 +634,9 @@ test("the-visit-identity-dedups-independently-of-the-event-identity: two rows, t
     observed_at: "2026-08-30T00:00:01.000Z",
     grade: null,
     slot: null,
+    origin: null,
+    cut_by: null,
+    cut_for: null,
     event: visit({ eventId: "same", at: "2026-08-30T00:00:01.000Z", sessionId: "s-event", visitId: "v2", nodeId: "n" }),
   });
   const byEvent = await otherStore.read("s-event");

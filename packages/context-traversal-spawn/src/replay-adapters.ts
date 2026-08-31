@@ -85,8 +85,8 @@ export function showTraversalSessionAllAdapters(
   sessionId: string,
   opts?: TraversalQueryOptions,
 ): TraversalRenderEnvelope {
-  const { replay, skipped, identity, slots, provenance } = composeReplay(sessionId, opts);
-  const rendered = renderTraversalSession(replay, { skipped, identity, slots });
+  const { replay, skipped, identity, slots, origin, provenance } = composeReplay(sessionId, opts);
+  const rendered = renderTraversalSession(replay, { skipped, identity, slots, origin });
   const caveats = renderCoverageCaveats(AGENT_DESCENT_CAVEATS);
   return {
     ...rendered,
@@ -116,12 +116,18 @@ function composeReplay(
   // only which adapters' coverage is declared. Dropping it would leave the one render the CLI
   // actually calls unable to say whether its session id names a context window or a pooled slot —
   // which is the same outward-moving-composition trap the coverage constant above documents.
-  const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId });
+  //
+  // WHO STARTED THE SESSION rides through for the same reason (ADR-0484 D7). This is the render the
+  // CLI actually calls, so an origin dropped here would be recorded on disk, shipped to the shared
+  // store, and invisible on the one surface a reader meets — which is the shape where a figure gets
+  // attributed to the owner's prompt anyway.
+  const { replay, skipped, identity, slots, origin } = readTraversalSession({ dir, sessionId });
   return {
     replay: { ...replay, coverage: [AGENT_DESCENT_COVERAGE, BUILD_SPAWN_BOUNDARY_COVERAGE] },
     skipped,
     identity,
     slots,
+    origin,
     provenance: composeProvenance(dir, sessionId, replay.events),
   };
 }

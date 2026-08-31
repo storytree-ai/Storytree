@@ -13,6 +13,7 @@
  *   2. tolerant-read-skips-and-counts-bad-lines
  *   3. append-creates-its-directory-and-never-throws
  *   4. invalid-events-never-reach-the-bytes
+ *  15. an-origin-stamped-line-reads-back-as-that-origin-and-an-unstamped-one-is-never-human
  */
 import assert from "node:assert/strict";
 import fs from "node:fs";
@@ -20,7 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { appendTraversalEvents, readTraversalSession } from "./sink.js";
+import { appendTraversalEvents, readTraversalSession, summarizeTraversalSession } from "./sink.js";
 
 function freshDir(prefix: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `traversal-sink-${prefix}-`));
@@ -313,4 +314,107 @@ test("invalid-events-never-reach-the-bytes: an event failing the vocabulary is n
   assert.equal(raw.includes("event:good"), true);
   assert.equal(raw.includes("CANARY-MARKER"), false);
   assert.equal(raw.includes("bad-visit"), false);
+});
+
+test("an-origin-stamped-line-reads-back-as-that-origin-and-an-unstamped-one-is-never-human: an append stamps who started the session, and a fresh reader folds it back", () => {
+  const dir = freshDir("origin");
+  const sessionId = "session-cut";
+
+  appendTraversalEvents([visit(sessionId, 1), visit(sessionId, 2)], {
+    dir,
+    sessionId,
+    grade: "window",
+    slot: "determined-nobel-c9cd12",
+    origin: "cut",
+    cutBy: "parent-window-id",
+    cutFor: "trace-records-whether-a-session-was-cut-or-human-started",
+  });
+
+  // On EVERY line, for the same reason `grade` is: a crash-truncated read replays whatever IS
+  // readable, so an origin that lived on one line could be the line that was lost.
+  const raw = fs.readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8").trim().split("\n");
+  assert.equal(raw.length, 2);
+  for (const line of raw) {
+    const parsed = JSON.parse(line) as { origin?: unknown; cutBy?: unknown; cutFor?: unknown };
+    assert.equal(parsed.origin, "cut");
+    assert.equal(parsed.cutBy, "parent-window-id");
+    assert.equal(parsed.cutFor, "trace-records-whether-a-session-was-cut-or-human-started");
+  }
+
+  const read = readTraversalSession({ dir, sessionId });
+  assert.deepEqual(read.origin, {
+    reading: "cut",
+    cutBy: ["parent-window-id"],
+    cutFor: ["trace-records-whether-a-session-was-cut-or-human-started"],
+  });
+  // The identity attributes are independent: adding origin did not disturb either of them.
+  assert.equal(read.identity, "window");
+  assert.deepEqual(read.slots, ["determined-nobel-c9cd12"]);
+});
+
+test("an-origin-stamped-line-reads-back-as-that-origin-and-an-unstamped-one-is-never-human: an unstamped line reads UNKNOWN, and never human", () => {
+  const dir = freshDir("origin-absent");
+  const sessionId = "session-undeclared";
+
+  // Exactly what the sink wrote before origin existed, and what a session that never declares still
+  // writes: `{v, event}` with no origin key at all.
+  // `null` and `undefined` are BOTH "names nobody" and both write no key — asserted on the bytes,
+  // because a guard that stamped the null would put `"cutBy":null` on every human-started line.
+  appendTraversalEvents([visit(sessionId, 1)], {
+    dir,
+    sessionId,
+    grade: "window",
+    slot: null,
+    cutBy: null,
+    cutFor: null,
+  });
+  const raw = fs.readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8").trim();
+  assert.equal(raw.includes('"origin"'), false, "an undeclared session writes no origin key at all");
+  assert.equal(raw.includes("cutBy"), false, "a null cutter writes no key either");
+  assert.equal(raw.includes("cutFor"), false);
+  assert.equal(raw.includes('"slot"'), false, "and the same rule still holds for the slot beside them");
+
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.replay.events.length, 1, "an unstamped line is fully readable — additive siblings, not a schema bump");
+  assert.equal(read.origin.reading, "unknown");
+  assert.notEqual(read.origin.reading, "human");
+  assert.deepEqual(read.origin.cutBy, []);
+
+  // A session that declares PARTWAY THROUGH reads as what it declared, not as `mixed`: its earlier
+  // lines said "not yet", which is an absence rather than a competing claim.
+  appendTraversalEvents([visit(sessionId, 2)], { dir, sessionId, grade: "window", origin: "human" });
+  assert.equal(readTraversalSession({ dir, sessionId }).origin.reading, "human");
+
+  // A genuine contradiction IS visible.
+  appendTraversalEvents([visit(sessionId, 3)], { dir, sessionId, grade: "window", origin: "cut" });
+  assert.equal(readTraversalSession({ dir, sessionId }).origin.reading, "mixed");
+});
+
+test("an-origin-stamped-line-reads-back-as-that-origin-and-an-unstamped-one-is-never-human: an unrecognised origin word is read as undeclared rather than coerced, and the summary carries the reading", () => {
+  const dir = freshDir("origin-garbage");
+  const sessionId = "session-garbled";
+  const event = visit(sessionId, 1);
+
+  // Hand-written bytes, because nothing in the writer can produce this — a future version, or a file
+  // touched by something else. The reassuring coercion is the one this attribute exists to prevent.
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, `${sessionId}.jsonl`),
+    `${JSON.stringify({ v: 1, event, origin: "operator", cutBy: 7 })}\n`,
+    "utf8",
+  );
+
+  // A session with NO FILE classifies through the same functions rather than a hardcoded answer —
+  // asserted here because it is the only place the empty-input fold is observable.
+  const absent = readTraversalSession({ dir, sessionId: "session-never-written" });
+  assert.equal(absent.identity, "slot");
+  assert.deepEqual(absent.origin, { reading: "unknown", cutBy: [], cutFor: [] });
+
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.replay.events.length, 1, "an unusable origin never rejects the EVENT, which is the part that matters");
+  assert.equal(read.origin.reading, "unknown");
+  assert.deepEqual(read.origin.cutBy, [], "a rider that is not a string names nobody");
+
+  const summary = summarizeTraversalSession(dir, sessionId);
+  assert.equal(summary?.origin.reading, "unknown", "the index row carries the same reading the replay does");
 });

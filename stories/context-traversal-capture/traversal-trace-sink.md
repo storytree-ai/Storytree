@@ -227,6 +227,20 @@ Postgres store is the same seam" is proven rather than asserted in a header.
       permanently empty while every negative assertion passed. The cross-module case goes red if the
       guard and the sink drift onto different variable names — the shape where both halves keep
       working alone and the trigger silently sweeps a directory a caller redirected.
+15. **`an-origin-stamped-line-reads-back-as-that-origin-and-an-unstamped-one-is-never-human`**
+    - **asserts —** WHO STARTED THE SESSION rides the line as a third additive sibling of `grade`
+      and `slot` (ADR-0484 D7): an append stamps `origin`/`cutBy`/`cutFor` on EVERY line, a fresh
+      read folds them into one reading, and an append that declares nothing writes no key at all —
+      so an unstamped line reads `unknown`. A session that declares PARTWAY THROUGH reads as what it
+      declared rather than as `mixed`, while a genuine contradiction still reads `mixed`. Held over
+      BOTH backends by the parity suite, and through the shipper's identity runs.
+    - **falsifiability —** three ways, each in a different direction. It goes red against a reader
+      that folds an absent origin into `human`, which is the reassuring default the attribute exists
+      to refuse; against a classification that counts a blank as a competing claim, which would
+      render nearly every declared session `mixed` and make the reading carry no information; and
+      against a `groupByIdentity` that compares only the attributes that existed first, which would
+      apply the FIRST line's answer to a whole run and ship declared events as undeclared — silently,
+      in the direction that loses the record.
 
 ## Integration evidence
 

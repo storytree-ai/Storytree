@@ -594,6 +594,8 @@
       "packages/context-traversal-capture/src/store/ship.ts": "traversal-trace-sink",
       "packages/context-traversal-capture/src/store/index.ts": "context-traversal-capture",
       "packages/context-traversal-capture/src/session-identity.ts": "terminal-capture-activation",
+      "packages/context-traversal-capture/src/session-origin.ts": "terminal-capture-activation",
+      "packages/context-traversal-capture/src/origin-declaration.ts": "terminal-capture-activation",
       "packages/context-traversal-capture/src/terminal-capture.ts": "terminal-capture-activation",
       "packages/context-traversal-capture/src/node-executable.test-helpers.ts": "context-traversal-capture",
       "packages/context-traversal-capture/src/index.ts": "context-traversal-capture",

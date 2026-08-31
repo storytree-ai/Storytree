@@ -7,7 +7,25 @@
  * hands back the envelope the dispatch already knows how to print. No capability claims it as
  * proof, and nothing here may re-implement a renderer or touch the trace files directly.
  */
-import { listTraversalSessionsRendered, resolveTraversalDir } from "@storytree/context-traversal-capture";
+import {
+  declareSessionOrigin,
+  describeSessionOrigin,
+  listTraversalSessionsRendered,
+  readSessionOriginDeclaration,
+  readTraversalSession,
+  resolveSessionOrigin,
+  resolveTraversalDir,
+  sessionOriginPath,
+  writeSessionOriginDeclaration,
+  CUT_BY_SESSION_ENV,
+  CUT_FOR_UNIT_ENV,
+  SESSION_ORIGIN_ENV,
+} from "@storytree/context-traversal-capture";
+import type {
+  OriginDeclarationRefusal,
+  SessionOrigin,
+  SessionOriginDeclaration,
+} from "@storytree/context-traversal-capture";
 import { shipTraversalBacklog, traversalShipBacklog } from "@storytree/context-traversal-capture/store";
 import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 import { showTraversalSessionAllAdapters } from "@storytree/context-traversal-spawn";
@@ -31,6 +49,14 @@ export function traversalHelp(): Envelope {
       "",
       "  storytree traversal list              the captured sessions, newest observed first",
       "  storytree traversal show <session>    replay one session chronologically",
+      "  storytree traversal origin            how THIS session came to exist — human-started, or",
+      "                                        cut by a predecessor (ADR-0484 D7). Bare, it reports",
+      "                                        and writes nothing; `--origin human`, `--origin cut`",
+      "                                        or `--cut-by <sessionId> [--cut-for <unit>]` declares",
+      "                                        it, and every line written from then on carries it.",
+      "                                        An undeclared session reads `unknown`, which is NOT a",
+      "                                        synonym for human-started — origins are never",
+      "                                        inferred from timing, branch names or worktree reuse.",
       "  storytree traversal ingest <session>  read this session's host transcript windows and",
       "                                        append their per-request context OCCUPANCY",
       "                                        (ADR-0248 D1). Idempotent — re-running appends",
@@ -234,10 +260,205 @@ async function traversalShip(store: TraversalEventStore | null | undefined): Pro
   };
 }
 
+/** The flags `storytree traversal origin` reads, already parsed by the one strict CLI parse. */
+export interface TraversalOptions {
+  /** `--origin human|cut`. Spelled exactly as `STORYTREE_SESSION_ORIGIN`'s two words. */
+  readonly origin?: string | undefined;
+  /** `--cut-by <sessionId>` — the session that cut this one. Implies `cut`. */
+  readonly cutBy?: string | undefined;
+  /** `--cut-for <arc-or-increment-id>` — what this session was cut to drive. */
+  readonly cutFor?: string | undefined;
+}
+
+/**
+ * The operator-facing sentence for each refusal the RULE returns.
+ *
+ * ⚠ THE RULE ITSELF IS NOT HERE, and that is deliberate. `declareSessionOrigin` in
+ * `@storytree/context-traversal-capture` decides which combinations are declarable, beside the
+ * resolver whose rules those are; this table only says each refusal out loud. The first draft
+ * restated all three judgements inside this dispatch, which is two copies of one rule — and two
+ * copies drift silently, leaving the CLI refusing a combination the resolver had started accepting.
+ *
+ * Every sentence names the REASON rather than just the rule, because an operator who is told only
+ * "not allowed" learns nothing and tries the next spelling.
+ */
+const REFUSAL_SENTENCE = {
+  "origin-word-unknown":
+    '--origin must be "human" (an operator started this session) or "cut" (a predecessor session ' +
+    "cut it). There is deliberately no third word: a session that cannot say is left UNDECLARED, " +
+    "which is its own answer.",
+  "human-carries-no-cut-riders":
+    "--origin human carries no --cut-by / --cut-for: a session an operator started was cut by " +
+    "nobody, for nothing. Recording either would put a value on the row that a later reader could " +
+    "quote back as a cut.",
+  "cut-for-alone-declares-nothing":
+    "--cut-for alone declares nothing. A human-started session driving an increment could carry the " +
+    "same value honestly, so treating it as proof of a cut would be an inference rather than a " +
+    "record. Add --origin cut, or --cut-by <the session that cut you>.",
+  // `satisfies`, not an annotation: the annotation discards the literal key set, and the key set is
+  // what makes a NEW refusal code in the rule fail to compile here rather than print `undefined`.
+  //
+  // ⚠ `nothing-to-declare` IS ABSENT ON PURPOSE, and its absence is what removed a second predicate
+  // from this file. That code means every flag was absent — which on this surface is not a refusal
+  // at all, it is a bare `storytree traversal origin`, which REPORTS. The first draft asked the same
+  // question twice, once as its own `declaring` boolean and once inside the rule, and two spellings
+  // of one predicate is exactly what drifts.
+} satisfies Record<Exclude<OriginDeclarationRefusal, "nothing-to-declare">, string>;
+
+type PrintableRefusal = keyof typeof REFUSAL_SENTENCE;
+
+function originRefusal(because: PrintableRefusal): Envelope {
+  return {
+    ok: false,
+    body: REFUSAL_SENTENCE[because],
+    next: ["storytree traversal origin — what this session currently says, and how to declare it"],
+  };
+}
+
+/**
+ * WHICH CHANNEL ANSWERED, said plainly on the report.
+ *
+ * The two are not equally strong and the render says which one spoke: a declaration is keyed by this
+ * session's own id, while an environment variable is inherited by whatever was started under it. And
+ * "nobody" is a first-class third answer rather than a blank — a report that simply omitted the line
+ * would leave the reader supplying the missing word themselves, which on this surface means "human".
+ */
+function whoStated(
+  declaration: SessionOriginDeclaration | null,
+  resolved: SessionOrigin | null,
+): string {
+  if (declaration !== null) {
+    return declaration.declaredAt === null
+      ? "by this session"
+      : `by this session, ${declaration.declaredAt}`;
+  }
+  if (resolved !== null) return "by this session's environment";
+  return "by nobody — and nothing here will guess";
+}
+
+/** The two lines a session hands its successor, and the one it can run itself. */
+function originHowTo(sessionId: string): readonly string[] {
+  return [
+    "Declare it, and every line this session writes from here on carries the answer:",
+    "  storytree traversal origin --origin human",
+    "  storytree traversal origin --cut-by <the session that cut you> [--cut-for <arc-or-increment-id>]",
+    "",
+    "Cutting a successor? Put this line in the brief you author for it — it is the one thing the",
+    "successor cannot work out for itself, and nothing may infer it after the fact:",
+    `  storytree traversal origin --cut-by ${sessionId} --cut-for <arc-or-increment-id>`,
+    "",
+    `A storytree-owned launcher can set ${SESSION_ORIGIN_ENV} / ${CUT_BY_SESSION_ENV} /`,
+    `${CUT_FOR_UNIT_ENV} in the child's environment instead. The declaration wins where both are`,
+    "present: it is keyed by this session's own id, and an exported variable is not.",
+  ];
+}
+
+/**
+ * `storytree traversal origin` — how this session came to exist (ADR-0484 D7).
+ *
+ * WHAT IT IS FOR. A trace records what a session READ; it has never recorded WHO STARTED IT, so
+ * every reading of the data has had to assume. A session cut by a predecessor is BRIEFED by that
+ * predecessor, and its first reads therefore follow an agent-authored handover rather than an
+ * operator's prompt — which means a figure attributing those reads to what the owner asked for is
+ * wrong for an unknown share of them. This verb is the route by which a session says which it is.
+ *
+ * Bare, it REPORTS and writes nothing — including the `unknown` that is the honest answer for a
+ * session which never declared. With flags it writes the declaration, and says plainly how many
+ * events were already recorded WITHOUT it: an origin applies forward only, never backwards.
+ */
+function traversalOrigin(
+  opts: TraversalOptions,
+  sessionId: string | null,
+  now: () => Date,
+): Envelope {
+  if (sessionId === null) {
+    return {
+      ok: false,
+      body: [
+        "storytree traversal origin — this invocation resolves no session identity, so there is no",
+        "session to report on or declare for (the primary checkout, CI, and the lobby all resolve",
+        "none — the same runs that capture no trace at all).",
+        "",
+        "A harness-run session resolves its own context window; an explicit STORYTREE_SESSION_ID",
+        "overrides it.",
+      ].join("\n"),
+      next: ["storytree traversal list — the captured session ids"],
+    };
+  }
+
+  const dir = resolveTraversalDir();
+
+  const asked = declareSessionOrigin(opts, now().toISOString());
+  if ("refusedBecause" in asked && asked.refusedBecause !== "nothing-to-declare") {
+    return originRefusal(asked.refusedBecause);
+  }
+
+  if ("declaration" in asked) {
+    const built = asked;
+    const { replay } = readTraversalSession({ dir, sessionId });
+    const already = replay.events.length;
+    if (!writeSessionOriginDeclaration(dir, sessionId, built.declaration)) {
+      return {
+        ok: false,
+        body: [
+          `could not write the origin declaration to ${sessionOriginPath(dir, sessionId)}.`,
+          "",
+          "Nothing else changed: the session simply stays undeclared, which reads as `unknown` — the",
+          "one thing that never happens is a guessed origin taking its place.",
+        ].join("\n"),
+        next: ["storytree traversal origin — what this session currently says"],
+      };
+    }
+
+    const { origin, cutBy, cutFor } = built.declaration;
+    const lines = [
+      "traversal origin — declared (ADR-0484 D7)",
+      "",
+      `session: ${sessionId}`,
+      `origin:  ${origin} — ${describeSessionOrigin(origin)}`,
+    ];
+    if (cutBy !== null) lines.push(`cut by:  ${cutBy}`);
+    if (cutFor !== null) lines.push(`cut for: ${cutFor}`);
+    lines.push(
+      "",
+      "Every line this session writes from here on carries it.",
+      already === 0
+        ? "Nothing was recorded before this, so the whole trace carries the answer."
+        : `The ${already} event(s) already recorded keep what they were stamped with — an origin is ` +
+          "applied forward, never backwards, because a retrofitted provenance cannot be told apart " +
+          "from a recorded one.",
+    );
+    return { ok: true, body: lines.join("\n"), next: [`storytree traversal show ${sessionId}`] };
+  }
+
+  const declaration = readSessionOriginDeclaration(dir, sessionId);
+  const resolved: SessionOrigin | null = resolveSessionOrigin({ env: process.env, declaration });
+  const reading = resolved?.kind ?? "unknown";
+
+  const lines = [
+    "traversal origin — how this session says it came to exist (ADR-0484 D7)",
+    "",
+    `session: ${sessionId}`,
+    `origin:  ${reading} — ${describeSessionOrigin(reading)}`,
+  ];
+  if (resolved !== null && resolved.cutBy !== null) lines.push(`cut by:  ${resolved.cutBy}`);
+  if (resolved !== null && resolved.cutFor !== null) lines.push(`cut for: ${resolved.cutFor}`);
+  lines.push(`stated:  ${whoStated(declaration, resolved)}`, "", ...originHowTo(sessionId));
+
+  return { ok: true, body: lines.join("\n"), next: [`storytree traversal show ${sessionId}`] };
+}
+
 /** What the `traversal` area needs from the composition root. */
 export interface TraversalDeps {
   /** The shared traversal log — the live `--pg` store, or null/absent when there is none. */
   readonly traversalEvents?: TraversalEventStore | null;
+  /**
+   * This session's trace identity, resolved LAZILY — `origin` is the only sub-command that needs
+   * it, and resolving it shells out to git (ADR-0162's startup budget is what that pays for).
+   */
+  readonly resolveSessionId?: () => string | null;
+  /** Injected clock, so a declaration's `declaredAt` is deterministic under test. */
+  readonly now?: () => Date;
 }
 
 /**
@@ -247,10 +468,16 @@ export interface TraversalDeps {
 export async function traversalCommand(
   sub: string | undefined,
   third: string | undefined,
+  opts: TraversalOptions = {},
   deps: TraversalDeps = {},
 ): Promise<Envelope> {
   if (sub === undefined || sub === "list" || sub === "sessions") {
     return listTraversalSessionsRendered();
+  }
+
+  if (sub === "origin") {
+    const resolveSessionId = deps.resolveSessionId ?? (() => null);
+    return traversalOrigin(opts, resolveSessionId(), deps.now ?? (() => new Date()));
   }
 
   if (sub === "backlog") {
@@ -289,7 +516,7 @@ export async function traversalCommand(
 
   return {
     ok: false,
-    body: `unknown traversal sub-command "${sub}" — expected "list", "show", "ingest", "backlog", or "ship".`,
+    body: `unknown traversal sub-command "${sub}" — expected "list", "show", "origin", "ingest", "backlog", or "ship".`,
     next: ["storytree traversal --help"],
   };
 }

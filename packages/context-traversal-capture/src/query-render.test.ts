@@ -7,27 +7,36 @@
  * real sink actually reads back. Both renderers are pure: no filesystem, no clock, no store — every
  * assertion is over a returned string.
  *
- * Covers the four contracts declared in
+ * Covers the five contracts declared in
  * `stories/context-traversal-capture/traversal-session-query.md`:
  *   1. session-list-is-newest-first-with-counts
  *   2. replay-renders-chronological-visits-with-read-strength
  *   3. capacity-renders-unknown-without-a-model-observation
  *   4. a-partial-replay-states-its-skipped-count
+ *   5. a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unknown
  */
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createContextTraversalTrace, CoverageFeature } from "@storytree/context-traversal-telemetry";
 
+import type { TraceOriginReading } from "./session-origin.js";
 import type { TraversalSessionSummary } from "./sink.js";
 import { FILE_READS_OBSERVE_NOTHING, REPLAY_PATHWAY_NOTE } from "./query-render.js";
 import { renderTraversalSessions, renderTraversalSession } from "./query-render.js";
 
+/**
+ * The origin reading every pre-existing fixture here carries: nobody declared one, which is what a
+ * trace written before ADR-0484 D7 says and what a session that never declares still says. Named
+ * rather than spelled inline so the fixtures state the FACT — undeclared — instead of a shape.
+ */
+const UNDECLARED: TraceOriginReading = { reading: "unknown", cutBy: [], cutFor: [] };
+
 test("session-list-is-newest-first-with-counts: the session index orders newest-observed first with counts, and an empty index renders without error", () => {
   const list: TraversalSessionSummary[] = [
-    { sessionId: "session-older", eventCount: 3, lastObservedAt: "2026-07-20T00:00:00.000Z", identity: "window", slots: [] },
-    { sessionId: "session-newest", eventCount: 5, lastObservedAt: "2026-07-25T00:00:00.000Z", identity: "window", slots: [] },
-    { sessionId: "session-unknown-time", eventCount: 1, lastObservedAt: undefined, identity: "window", slots: [] },
+    { sessionId: "session-older", eventCount: 3, lastObservedAt: "2026-07-20T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [] },
+    { sessionId: "session-newest", eventCount: 5, lastObservedAt: "2026-07-25T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [] },
+    { sessionId: "session-unknown-time", eventCount: 1, lastObservedAt: undefined, origin: UNDECLARED, identity: "window", slots: [] },
   ];
 
   const result = renderTraversalSessions(list);
@@ -69,6 +78,7 @@ test("session-list-is-newest-first-with-counts: every index row states what its 
       lastObservedAt: "2026-08-22T00:00:00.000Z",
       identity: "window",
       slots: ["confident-brahmagupta-b5b8f2"],
+      origin: UNDECLARED,
     },
     {
       sessionId: "clever-mestorf-1041a3",
@@ -76,6 +86,7 @@ test("session-list-is-newest-first-with-counts: every index row states what its 
       lastObservedAt: "2026-08-14T00:00:00.000Z",
       identity: "slot",
       slots: [],
+      origin: UNDECLARED,
     },
   ];
 
@@ -95,7 +106,7 @@ test("session-list-is-newest-first-with-counts: every index row states what its 
 
   // ...and it is CONDITIONAL: a clean index grows no paragraph announcing an absence.
   const cleanIndex = renderTraversalSessions([
-    { sessionId: "window-a", eventCount: 1, lastObservedAt: "2026-08-22T00:00:00.000Z", identity: "window", slots: [] },
+    { sessionId: "window-a", eventCount: 1, lastObservedAt: "2026-08-22T00:00:00.000Z", origin: UNDECLARED, identity: "window", slots: [] },
   ]);
   assert.doesNotMatch(cleanIndex.body, /retrofittable/i);
 });
@@ -290,6 +301,7 @@ test("replay-renders-chronological-visits-with-read-strength: the replay states 
     skipped: 0,
     identity: "window",
     slots: ["confident-brahmagupta-b5b8f2"],
+    origin: UNDECLARED,
   });
   assert.match(windowKeyed.body, /^identity: window —/m);
   assert.doesNotMatch(windowKeyed.body, /retrofittable/i, "a window-keyed replay carries no legacy warning");
@@ -472,4 +484,148 @@ test("a search line says what it FOUND, and names the artifact it was anchored o
   // it would put corpus content in a place ADR-0235 clause 6 keeps clear.
   assert.equal(result.body.includes("adr-0431"), false);
   assert.equal(result.body.includes("adr-0086"), false);
+});
+
+test("a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unknown: the replay says who started the session, and an undeclared one says so rather than going quiet", () => {
+  const sessionId = "session-origin";
+  const trace = createContextTraversalTrace();
+  trace.append({
+    kind: "full_payload_read",
+    eventId: "event:origin-1",
+    sessionId,
+    at: "2026-08-31T00:00:00.000Z",
+    visitId: "visit-origin-1",
+    nodeId: "adr-0484",
+    surfaceId: "library-artifact",
+  });
+  const replay = trace.replay(sessionId);
+
+  const cut = renderTraversalSession(replay, {
+    skipped: 0,
+    identity: "window",
+    slots: [],
+    origin: {
+      reading: "cut",
+      cutBy: ["parent-window-id"],
+      cutFor: ["trace-records-whether-a-session-was-cut-or-human-started"],
+    },
+  });
+  assert.match(cut.body, /^origin: cut —/m, "the reading leads, then what it means");
+  assert.match(cut.body, /handover/i, "and what it means is that these reads followed a brief, not a prompt");
+  assert.match(cut.body, /^cut by: parent-window-id$/m);
+  assert.match(cut.body, /^cut for: trace-records-whether-a-session-was-cut-or-human-started$/m);
+
+  // Two cutters is not a nonsense state — a trace whose lines disagree records both — so the render
+  // lists them separated rather than picking one, and the separator is asserted rather than assumed.
+  const several = renderTraversalSession(replay, {
+    skipped: 0,
+    identity: "window",
+    slots: [],
+    origin: { reading: "mixed", cutBy: ["first-parent", "second-parent"], cutFor: ["arc-a", "arc-b"] },
+  });
+  assert.match(several.body, /^origin: mixed — CONTRADICTORY/m);
+  assert.match(several.body, /^cut by: first-parent, second-parent$/m);
+  assert.match(several.body, /^cut for: arc-a, arc-b$/m);
+
+  // ⚠ THE DELIVERABLE. An undeclared session is STATED, never omitted: a missing line would be read
+  // as "this was the owner's prompt", because that is the assumption already in a reader's head.
+  const undeclared = renderTraversalSession(replay, {
+    skipped: 0,
+    identity: "window",
+    slots: [],
+    origin: UNDECLARED,
+  });
+  assert.match(undeclared.body, /^origin: unknown —/m);
+  assert.match(undeclared.body, /NOT a synonym for human/i);
+  // The riders are never rendered as empty placeholders — an absent value is absent, not lost.
+  assert.doesNotMatch(undeclared.body, /^cut by:/m);
+  assert.doesNotMatch(undeclared.body, /^cut for:/m);
+
+  // A caller holding no reading at all renders no line, and an empty replay has nothing to label —
+  // the same two rules `identity:` already follows.
+  const noOpinion = renderTraversalSession(replay, { skipped: 0, identity: "window", slots: [] });
+  assert.doesNotMatch(noOpinion.body, /^origin:/m);
+  const emptyTrace = createContextTraversalTrace();
+  const empty = renderTraversalSession(emptyTrace.replay("session-empty-origin"), {
+    skipped: 0,
+    identity: "window",
+    slots: [],
+    origin: UNDECLARED,
+  });
+  assert.doesNotMatch(empty.body, /^origin:/m);
+});
+
+test("a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unknown: every index row carries its origin, and the index warns that unknown is not human", () => {
+  const declared: TraceOriginReading = { reading: "cut", cutBy: ["parent-window-id"], cutFor: [] };
+  const list: TraversalSessionSummary[] = [
+    {
+      sessionId: "session-declared",
+      eventCount: 4,
+      lastObservedAt: "2026-08-31T00:00:00.000Z",
+      identity: "window",
+      slots: [],
+      origin: declared,
+    },
+    {
+      sessionId: "session-silent",
+      eventCount: 9,
+      lastObservedAt: "2026-08-30T00:00:00.000Z",
+      identity: "window",
+      slots: [],
+      origin: UNDECLARED,
+    },
+  ];
+
+  const result = renderTraversalSessions(list);
+  const rows = result.body.split("\n");
+  assert.match(rows.find((line) => line.includes("session-declared")) ?? "", /origin: cut/);
+  assert.match(rows.find((line) => line.includes("session-silent")) ?? "", /origin: unknown/);
+
+  // The caveat every figure taken over this index owes, pinned WHOLE: the count is one step from
+  // "how many times the owner asked for X", and those are the same number only if every session was
+  // human-started. A notice half of which had quietly emptied would still match a fragment.
+  // The head is pinned too: a blank first line, or a heading that quietly emptied, is the shape a
+  // fragment-matching assertion never sees.
+  assert.ok(
+    result.body.startsWith("Captured sessions (newest observed first):\n\n- session-declared"),
+    `the index head is not intact:\n${result.body}`,
+  );
+  assert.ok(
+    result.body.includes(
+      [
+        // Anchored on the row ABOVE it, so the blank separator is pinned as a blank: a notice
+        // matched from its own first word would still match with a stray line shoved in front of it.
+        "- session-silent — 9 event(s) — last observed 2026-08-30T00:00:00.000Z — identity: window — origin: unknown",
+        "",
+        "note: 1 of 2 session(s) above never recorded HOW THEY STARTED.",
+        "`origin: unknown` is not `origin: human`. A session cut by a predecessor is briefed by that",
+        "predecessor, so its reads follow an agent-authored handover rather than an operator's prompt —",
+        "and no figure taken over these rows may be attributed to what the owner asked for.",
+        "Origins are never inferred after the fact, so these stay unlabelled permanently.",
+      ].join("\n"),
+    ),
+    `the index notice is not intact:\n${result.body}`,
+  );
+
+  // ...and it is CONDITIONAL, so an index where every session declared grows no paragraph.
+  const allDeclared = renderTraversalSessions([
+    {
+      sessionId: "session-a",
+      eventCount: 1,
+      lastObservedAt: "2026-08-31T00:00:00.000Z",
+      identity: "window",
+      slots: [],
+      origin: declared,
+    },
+  ]);
+  // ...and the clean index is pinned WHOLE, so an all-declared body cannot grow a stray line where
+  // the notice used to be.
+  assert.equal(
+    allDeclared.body,
+    [
+      "Captured sessions (newest observed first):",
+      "",
+      "- session-a — 1 event(s) — last observed 2026-08-31T00:00:00.000Z — identity: window — origin: cut",
+    ].join("\n"),
+  );
 });

@@ -47,6 +47,16 @@ test("EVERY declared string flag is classified prose or literal — a new flag c
   );
 });
 
+test("`traversal origin`'s three flags are LITERAL — an enum word and two canonical ids, never prose", () => {
+  // ADR-0484 D7. Each is named rather than left to the generic sweep above, because the sweep only
+  // asks that a flag be classified SOMEHOW — it would stay green if all three drifted into PROSE,
+  // which would make `--cut-by @notes.md` read a file where a session id belongs.
+  for (const flag of ["origin", "cut-by", "cut-for"]) {
+    assert.equal(LITERAL_FLAGS.has(flag), true, `${flag} must be literal`);
+    assert.equal(PROSE_FLAGS.has(flag), false, `${flag} is an identity or an enum, never a record`);
+  }
+});
+
 test("no flag is classified BOTH prose and literal", () => {
   const both = [...PROSE_FLAGS].filter((f) => LITERAL_FLAGS.has(f));
   assert.deepEqual(both, [], "a flag is expanded or it is not — never both");

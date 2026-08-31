@@ -96,6 +96,8 @@ import {
   type CountCommitsSince,
 } from "@storytree/arc";
 import { traversalCommand, traversalHelp } from "./traversal.js";
+import type { TraversalOptions } from "./traversal.js";
+import { resolveTraceIdentity } from "@storytree/context-traversal-capture";
 import type { TraversalEventStore } from "@storytree/context-traversal-capture/store";
 // `session-cost` — the repeatable session-cost measurement over host transcripts (ADR-0323 D4).
 import { sessionCostCommand, sessionCostHelp, type SessionCostOpts } from "./session-cost.js";
@@ -2550,6 +2552,26 @@ function captureBuildLeafSlices(args: {
 }
 
 /**
+ * The session id a `traversal origin` declaration is written under (ADR-0484 D7).
+ *
+ * ONE ANSWER, THREE CALLERS: this is `resolveTraceIdentity`'s own precedence, the same one `main.ts`
+ * uses to key the session's reads and `captureBuildLeafSlices` uses to key its build lane. A
+ * declaration filed under any other id would describe a session nobody's trace belongs to — and it
+ * would do so silently, since both files would exist and neither would say the other was meant.
+ *
+ * Null is an ordinary outcome (the primary checkout, CI, the lobby): those runs capture no trace at
+ * all, so there is nothing for them to declare an origin FOR.
+ */
+function resolveDeclaringSessionId(): string | null {
+  // ⚠ THE SLOT IS DELIBERATELY NOT DERIVED. `resolveTraceIdentity` records it BESIDE the identity as
+  // a grouping attribute and it never affects the identity itself — which is all this caller wants —
+  // so calling `deriveIdentity()` here would be a `git` shell-out whose answer is thrown away, on a
+  // path ADR-0162's startup budget already watches. Passing `null` is not a downgrade: it is the
+  // honest statement that this caller asked no slot question.
+  return resolveTraceIdentity({ env: process.env, slot: null })?.sessionId ?? null;
+}
+
+/**
  * Classify a bare `build <id>` target by tier (ADR-0118 / ADR-0090): a unit whose spec is a `story`
  * routes to the whole-story chain, anything else (a capability/leaf node — or an unknown id, which
  * `nodeBuild` then guides on) to a single-node build. Pure over the stories dir; the auto-route
@@ -2862,6 +2884,14 @@ export const CLI_OPTIONS = {
   "no-log": { type: "boolean", default: false },
   date: { type: "string" },
   pr: { type: "string" },
+  // `storytree traversal origin --origin human|cut [--cut-by <sessionId>] [--cut-for <unit>]`
+  // (ADR-0484 D7) — how THIS session came to exist. Spelled exactly as the environment channel's
+  // three variables, so one vocabulary serves both routes; `--cut-by` alone implies `cut`, and
+  // `--cut-for` alone declares nothing, because a human-started session driving an increment could
+  // carry the same value honestly.
+  origin: { type: "string" },
+  "cut-by": { type: "string" },
+  "cut-for": { type: "string" },
   threshold: { type: "string" },
   decided: { type: "boolean", default: false },
   current: { type: "boolean", default: false },
@@ -4117,7 +4147,23 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // compositions live in `@storytree/context-traversal-capture`, `-spawn`, and `-transcript`; this
     // branch is declared glue (ADR-0158) and is claimed by no capability.
     if (help) return traversalHelp();
-    return traversalCommand(sub, third, { traversalEvents: deps.traversalEvents ?? null });
+    // One literal, not three conditional spreads: `TraversalOptions` declares each flag as
+    // `?: string | undefined`, so an absent flag and an explicit `undefined` are the same value to
+    // the rule that reads them — and the guards that used to distinguish them changed nothing an
+    // operator could observe.
+    const traversalOpts: TraversalOptions = {
+      origin: values.origin,
+      cutBy: values["cut-by"],
+      cutFor: values["cut-for"],
+    };
+    return traversalCommand(sub, third, traversalOpts, {
+      traversalEvents: deps.traversalEvents ?? null,
+      // LAZY, and passed as a thunk for that reason: `origin` is the only sub-command that needs a
+      // session identity, and deriving one shells out to git. The precedence is
+      // `captureBuildLeafSlices`' precedence and `main.ts`' precedence — the same answer, so a
+      // declaration lands under the same id the session's reads are keyed by.
+      resolveSessionId: resolveDeclaringSessionId,
+    });
   }
 
   if (area === "agents") {
