@@ -1012,13 +1012,13 @@
     {
       "legacyTestId": "proof-binding-integrity#uat-1",
       "reviewedAt": "2026-08-03",
-      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_1ea8471e291f248a3cdf4075` (a valid machine binding exposes its exact chain — full gate id, `observe` kind, literal command argv, matching `gate run` invocation, order-independent) is proven by the contract `proof-binding-outcome-contract`, at `packages/library/src/proof-binding-outcome.test.ts` (\"evidence preserves the resolver's exact eligible gate and literal declared command\"). The module is BUILT (`packages/library/src/proof-binding-outcome.ts`).",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_1ea8471e291f248a3cdf4075` (a valid machine binding exposes its exact chain — full gate id, `observe` kind, literal command argv, matching `gate run` invocation, order-independent) is proven by `proof-binding-outcome-contract` (authored `tier: contract`; re-tiered a CAPABILITY on 2026-08-31 — still below the story rung, so this dated disposition is unaffected), at `packages/library/src/proof-binding-outcome.test.ts` (\"evidence preserves the resolver's exact eligible gate and literal declared command\"). The module is BUILT (`packages/library/src/proof-binding-outcome.ts`).",
       "disposition": "superseded"
     },
     {
       "legacyTestId": "proof-binding-integrity#uat-2",
       "reviewedAt": "2026-08-03",
-      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_ca26fd1c2206e2727626070b` (every invalid machine binding yields one visible refusal with its specific reason, no inferred substitute) is proven by the contract `proof-binding-outcome-contract`, at `packages/library/src/proof-binding-outcome.test.ts` (\"every resolver refusal remains non-runnable with its stable class\" and \"only an evidence branch is accepted by an evidence-only reader\").",
+      "rationale": "Deleted by ADR-0294 D2 (2026-08-03): duplicates lower-tier proof. `uatc_ca26fd1c2206e2727626070b` (every invalid machine binding yields one visible refusal with its specific reason, no inferred substitute) is proven by `proof-binding-outcome-contract` (authored `tier: contract`; re-tiered a CAPABILITY on 2026-08-31 — still below the story rung, so this dated disposition is unaffected), at `packages/library/src/proof-binding-outcome.test.ts` (\"every resolver refusal remains non-runnable with its stable class\" and \"only an evidence branch is accepted by an evidence-only reader\").",
       "disposition": "superseded"
     },
     {

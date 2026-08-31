@@ -119,8 +119,12 @@ reaches forward to a sibling story.
   runs after the gate is green.
 - `merge-presence-retire` → `auto-merge-on-green` — the retire steps are part of the SAME `automerge`
   job, after the `gh pr merge` step (`ci.yml:130-183`); the merge IS the "work done" fact it acts on.
-- `deploy-on-merge` → `auto-merge-on-green` — `deploy-studio.yml` triggers on the `push:main` the
-  auto-merge creates (subject to the GITHUB_TOKEN no-cascade note recorded in that workflow).
+- `deploy-on-merge` → `auto-merge-on-green` — the `automerge` job's LAST step DISPATCHES
+  `deploy-studio.yml` (`gh workflow run … --ref main`) after a studio-affecting merge. *(Corrected
+  2026-08-31: this read "`deploy-studio.yml` triggers on the `push:main` the auto-merge creates
+  (subject to the GITHUB_TOKEN no-cascade note)". That inverted the edge — a `GITHUB_TOKEN` push
+  never triggers `push:main`, so the cascade it named is precisely the thing that does NOT happen.
+  ADR-0061 replaced it with the explicit dispatch, which is what actually makes this edge real.)*
 
 **Cross-story boundary (ADR-0010 §4; direction per ADR-0058 §1, §3) — ci-cd's two OUTBOUND dependencies:**
 - `merge-presence-retire` depends on the **`presence-store`** capability of

@@ -7,7 +7,36 @@ outcome: "At peak overload the storm dims and ONE calm storytree affordance appe
 status: proposed
 proof_mode: operator-attested
 depends_on: [act1-terminal-storm, web-experience-sync]
-decisions: [216, 123]
+decisions: [216, 123, 466]
+# ⚠ CORRECTED 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — THIS CAPABILITY IS SPLIT, AND ONLY
+# ONE HALF WAS EVER A JUDGMENT GAP. Swept into ADR-0465 D1's second pile as "not capability-shaped"; that
+# filing collapsed two unrelated reasons into one label and the increment's own premise correction
+# withdraws it. Read the two halves separately:
+#   • THE FELT HALF stays PERMANENTLY HUMAN. Whether the terminals falling silent, the fragments dropping
+#     as soil and the land fading up are perceived as ONE continuous transformation IN PLACE rather than
+#     a cut, and whether the audio RESOLVES rather than being chopped off — a choreographed moment has no
+#     compiler at any tier, now or as models improve (ADR-0410 D5). This is
+#     `human-witness-is-a-judgment-gap-not-cost`'s genuine case and nothing here touches it.
+#   • THE CHECKABLE HALF is CROSS-REPO, and its route is now SETTLED. That the click TRANSFORMS rather
+#     than navigates (no document load, no URL change), that the deferred Act 2 bundle is first fetched
+#     AT the click and never during Act 1, and that the resolved land is navigable and carries its
+#     onward affordance are all byte-level observables a headless browser decides — the web repo's own
+#     suite already witnessed the lazy-load wall 10/10 at `2869504`. The obstacle was only ever the
+#     boundary: `storytree-web` is not a pnpm workspace member, so the parent gate cannot run red→green
+#     inside it, which is a COST rather than a judgment gap. ADR-0466 (accepted 2026-08-27,
+#     owner-answered *"just trust its result"*) settles the carry: the outside system publishes its own
+#     pass/fail where our build can read it, and a FRESH GREEN published result earns a signed verdict
+#     (D1); D2 applies it to this cross-repo shape, D3 refuses standing a live preview up in every build
+#     run. Story machine leg 6 is what this half feeds.
+# ⚠ NOTHING IMPLEMENTS ADR-0466 YET AND NO ARC OWNS IT (searched 2026-08-31). The route is POLICY, not a
+# mechanism — publishing format, transport and provenance are explicitly undecided (D5). So NOTHING HERE
+# CHANGES TIER, MODE OR STATUS: `proof_mode` stays `operator-attested`, there is still NO `proof:` block
+# and NO `real:` arm, and none may be authored. THIS IS NOT A RETIREMENT — the transform is live and
+# owner-attested. Only the recording is the work.
+# ⚠ ONE OBSERVABLE IS UNSETTLED INDEPENDENTLY OF ALL THIS — story open call 8: ADR-0148 retired the R3F
+# landing island, so a spec for the checkable half must NAME the deferred module it watches on the
+# surface that exists, rather than inheriting "the R3F bundle" from this record. That is a build-time
+# call, not a re-spec of the claim, and ADR-0466 does not answer it.
 # OPERATOR-ATTESTED (ADR-0070) — web-repo work; the transform is a felt, choreographed moment no
 # machine can honestly judge. Its machine floor lives upstream: `experience-rollout-guardrails`'s
 # judge holds the lazy-load wall (the R3F island is reachable from Act 1 ONLY behind a dynamic
@@ -48,6 +77,40 @@ must already be on the site as the synced artifact.
 > green; markers + no eager R3F verified on the live site). The parent pins `web/` @ `6546486`;
 > `check:web-experience` / `check:web-engine` / `check:web-grounding` witnessed OK against the
 > pinned tree. The feel was human-judged end to end; nothing here is self-signed (ADR-0070).
+
+> **⚠ CORRECTION 2026-08-31 — THE CAPABILITY IS TWO HALVES, AND THE CHECKABLE HALF'S PROOF ROUTE IS NOW
+> SETTLED AND UNBUILT (`prove-unproven-capabilities-arc-inc-25`; noted in place per ADR-0139).** The
+> record above reads as though `operator-attested` were the whole and permanent answer. It is right for
+> only one of the two things this node claims, and the other's route has since been decided.
+>
+> - **FELT HALF — permanently human, unchanged.** The exhale: silence, collapse, fragments into soil, the
+>   land fading up as ONE continuous transformation in place, the audio RESOLVING rather than cutting,
+>   and the dimming leaving exactly one quiet thing to do amid ten screaming terminals. A choreographed
+>   moment has no compiler at any tier and none is coming (ADR-0410 D5 keeps taste permanently human).
+>   UAT legs 1, 2 and 4 below are largely this half and stay as written; the story's
+>   [`## The felt thesis`](story.md) item 3 holds the same claim at story tier.
+> - **CHECKABLE HALF — cross-repo, and ADR-0466 settles how it reaches our proof.** That the click
+>   TRANSFORMS rather than navigates — no document load, no URL change — and that the deferred Act 2
+>   bundle is first fetched AT the click and never during Act 1, are byte-level observables; the web
+>   repo's own headless suite already decided the lazy-load wall 10/10 at `2869504` (zero island bytes
+>   pre-click, chunks first fetched at the click). The obstacle was only ever the boundary:
+>   `storytree-web` is not a pnpm workspace member, so the parent prove-it-gate cannot run red→green
+>   inside it — a COST, not a judgment gap (`human-witness-is-a-judgment-gap-not-cost`). **ADR-0466
+>   (accepted 2026-08-27) decides the carry:** the outside system publishes its own pass/fail where our
+>   build can read it, and a FRESH GREEN published result earns a signed verdict (D1); D2 applies it to
+>   this cross-repo shape; D3 refuses standing a live site preview up inside every build run. The owner's
+>   answer was verbatim *"just trust its result."* This closes the story's open modeling call 6.
+>
+> **⚠ NOTHING IMPLEMENTS ADR-0466 AND NO ARC OWNS IT** (searched 2026-08-31). It is POLICY, not a
+> mechanism: format, transport and scope beyond the six named legs are left undecided (D5), and D4's
+> three fences — the result must NAME THE COMMIT it observed, ABSENCE FAILS CLOSED, PROVENANCE RIDES THE
+> VERDICT — have to be built rather than assumed. **So nothing here changes today:** `proof_mode` stays
+> `operator-attested`, there is NO `proof:` block and NO `real:` arm, and none may be authored on the
+> strength of a route that does not exist. **AND THIS IS NOT A RETIREMENT** — the transform is live and
+> owner-attested; the "not capability-shaped" filing is withdrawn. **One thing ADR-0466 does NOT answer:**
+> story open call 8 — ADR-0148 retired the R3F landing island, so whoever specs the checkable half must
+> NAME the deferred module actually on the live surface rather than inheriting "the R3F bundle" from the
+> `6546486` record below.
 
 ## As built (web main `6546486`)
 

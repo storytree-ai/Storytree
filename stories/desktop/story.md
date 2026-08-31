@@ -302,7 +302,7 @@ rubber-stamp ADR-0097 §2 forbids.
 | # | capability | outcome | proof | depends on |
 |---|------------|---------|-------|------------|
 | 1 | [`credential-broker`](credential-broker.md) | The member stores, checks presence of, and removes each of the two runtime credentials through a desktop-only Credentials panel; the main-process broker round-trips the OS keychain and never returns a stored value to the renderer. | contract-test (main-process contracts green) + contract-test (panel component tests) + operator-attested (real OS keychain via panel) | — |
-| 2 | [`electron-shell`](electron-shell.md) | The desktop shell loads the compiled studio bundle and wires the real OS-keychain adapter to the credential broker behind context-isolated `desktopAuth` for the Credentials panel. | operator-attested (ADR-0070) | `credential-broker` |
+| 2 | [`electron-shell`](electron-shell.md) | The desktop shell loads the compiled studio bundle and wires the real OS-keychain adapter to the credential broker behind context-isolated `desktopAuth` for the Credentials panel. | integration-test, UNPROVEN — no proof arm and the two `_electron` specs it needs are unwritten *(flipped from `operator-attested (ADR-0070)` 2026-08-31: every condition it attested is machine-observable, this story's legs 1–3 already say `witness: machine`, ADR-0348 D6 deleted the only taste half, and `apps/desktop/e2e/` drives this shell under xvfb today — the gap was a missing harness, never a missing compiler)* | `credential-broker` |
 | 3 | [`local-backend-boot`](local-backend-boot.md) | The Electron main process composes a local studio backend from the organism drivers and serves it on `127.0.0.1` `/api/*`, replacing the `static-server.ts` 503 stub. | contract-test (CI red→green) | — |
 | 4 | [`boot-read-routes`](boot-read-routes.md) | The local backend adds the studio's remaining BOOT read routes — `me` (a local member identity), `docs` (read from the member's checkout), `comments` (an injected store seam) — re-composed from the organism drivers (never importing the studio server), so the frontend boots and renders the forest instead of an access/error screen (ADR-0119 §2). | contract-test (CI red→green) | `local-backend-boot` |
 | 5 | [`chat-sse-mount`](chat-sse-mount.md) | The local backend adds a `POST /api/chat` route that starts an `orchestrate`-driven session (the CONSUMED chat streaming core `startChatStream` — app-guide's absorbed substrate, ADR-0175, formerly headless-orchestrator's `chat-session-stream`) and streams its events to the renderer as SSE — re-composed from `@storytree/drive` (never importing the studio server), read/propose only (no signing, no build, no PR; ADR-0091). | contract-test (CI red→green) | `local-backend-boot` |
@@ -556,9 +556,19 @@ never speculative breadth).
 > half.** Legs 2, 4, 5 and 10 each carry a real capability suite plus an explicit *"this leg adds …"*
 > residual that no component test can reach (the REAL `contextBridge`, the REAL spawned sidecar, the
 > REAL Electron main's wiring, the REAL launch honouring the gate). Leg 1 has no lower-tier node at all:
-> [`electron-shell`](electron-shell.md) is `operator-attested` with no `proof:` block, and the
+> [`electron-shell`](electron-shell.md) carries no `proof:` block, and the
 > `apps/desktop/e2e/` harness that drives the launch is declared by no capability, is not a `pnpm gate`
-> step, and asserts nothing about the carries-no-source guard the leg actually turns on. **No gate is
+> step, and asserts nothing about the carries-no-source guard the leg actually turns on.
+> *(Corrected 2026-08-31: this clause read "`electron-shell` is `operator-attested` with no `proof:`
+> block". The mode was flipped to `integration-test` that day —
+> `prove-unproven-capabilities-arc-inc-25` — because every condition it attested is machine-observable
+> and this story's own legs 1–3 already say `witness: machine`. **The operative fact is unchanged and
+> so is the disposition:** the missing thing was always the declared proof arm and the two unwritten
+> `_electron` specs, never the label, so leg 1 stays UNBOUND and no gate is minted for it. Two further
+> references to the old mode survive inside criterion bodies — leg 1's, and gate 3's — and were left
+> alone deliberately: editing a criterion's text requires advancing its `(revision-id:)` with
+> `(previous-revision-id:)` lineage, which is a story-tier UAT act rather than a capability
+> adjudication.)* **No gate is
 > minted for any of the five** — answering an unbound leg with a freshly minted check is the rubber
 > stamp ADR-0097 §2 forbids and the reflex ADR-0294's end state point 4 names. Gate 2 stays bound to leg
 > 3, unchanged.

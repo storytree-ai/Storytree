@@ -68,6 +68,39 @@ retro terminal breeds an illegible agent storm, one calm tap collapses the noise
 same single gesture then grows a legible, proof-bearing forest beat by beat to the CTA — with the
 skip and reduced-motion/no-WebGL exits first-class from the first live increment.
 
+> **⚠ CORRECTION 2026-08-31 — ACT 2's BUILT DESIGN IS REDIRECTED AWAY FROM; ACT 1 STANDS
+> (`prove-unproven-capabilities-arc-inc-25`; noted in place per ADR-0139).** Read the outcome above,
+> and every Act 2 description in this file, with this in front of it. On 2026-08-22 the owner
+> chartered `website-refresh-arc` (OPEN) and named the built Act 2 as the FAULT to be replaced —
+> *"I'm not a fan of the in terminal agent being the guide anymore"* — on three separable grounds now
+> settled as **ADR-0453**: the forest was MADE UP (D3 — the public forest is our REAL corpus, and its
+> illegibility is the mechanism rather than a defect); the narrator was a Next button in a costume
+> (D1 — the site's job is excitement, not teaching, and *"attempting both is what produced the
+> narrator the arc already retired"*); and it opened on a fitted view (ADR-0471). **Chapter 1 is
+> UNTOUCHED** — *"I like chapter 1 - leave as is"* — because chapter 1 is ABOUT agents in terminals,
+> so its form matches its content. **Chapter 3 is DROPPED** (ADR-0453 D8): the visitor is handed the
+> desktop app, which onboards itself.
+>
+> **So the phrase "grows a legible, proof-bearing forest beat by beat to the CTA" above no longer
+> describes the live site.** Chapter 2 is now four movements with fixed names — **GROW · TELL · ROAM ·
+> ASK** (ADR-0453 D11) — over the REAL 35-story corpus, four of them landed 2026-08-28/29. That work
+> is owned by `website-refresh-arc`'s increments, NOT by capabilities under this story, and six of its
+> increments are still parked and unbuilt. **Two of this story's capabilities were re-scoped
+> accordingly** — [`act2-guided-walkthrough`](act2-guided-walkthrough.md) and
+> [`act2-guided-forest`](act2-guided-forest.md) — each keeping its full delivery record as true
+> history and each now carrying NO live build obligation. ⚠ **Both LOOK adoptable and neither may be
+> adopted**: adopting a design the owner has rejected would record him accepting risk on it. Neither
+> is retired either — the journey survives under a different owner. **No session may author the
+> replacement design here**; that is `website-refresh-arc`'s call.
+>
+> **What this correction does NOT touch:** Act 1 and the inflection, whose built experiences are live
+> and owner-attested (they carry their own separate 2026-08-31 corrections, about a PROOF ROUTE rather
+> than a design); [`info-pages-triage`](info-pages-triage.md), which executed in full and folded no
+> page into Act 2 at all; and the parent-side LEAFs, including
+> [`act2-beat-director`](act2-beat-director.md), whose disposition is a separate call this pass did
+> NOT make — recorded as a finding: it holds a leaf-proven default script that no shipped surface now
+> walks.
+
 This is ADR-0215's
 website-story frame made buildable, on the guiding idea the frame fixes: **one calm gesture per act —
 same input, opposite outcome.** In Act 1 the visitor's single tap (send a prompt) breeds chaos; in
@@ -177,6 +210,19 @@ none of those legs may ever pretend to carry the felt claim.
    POSITIVE teach that replaced beat 4's wrong-way flag), and the complexity must feel SCAFFOLDED,
    never dumped up front and never hidden.
 
+> **⚠ CORRECTION 2026-08-31 — INTENTS 4 AND 5 DESCRIBE A SURFACE THAT NO LONGER EXISTS; 1, 2 AND 3
+> STAND.** Intents 4 and 5 are stated against the scripted walk over a fictional forest that ADR-0453
+> and `website-refresh-arc` redirected away from (see the correction under this story's Outcome).
+> Neither claim is WRONG and neither is discarded — but "Act 2 reads as Act 1's request answered"
+> presupposes the mock-website proposal, and "a non-expert reads the LAYOUT as the dependency it is"
+> presupposes the three invented stories arranged as a BaaS diamond, and the live site now carries
+> neither. What survives of intent 5 survives better and elsewhere: ROAM answers a clicked trail with
+> its real dependencies in the direction the arrow points, on the real corpus. **Restating these two
+> for the replacement is `website-refresh-arc`'s call, not this story's** — they are left here
+> unedited rather than rewritten, because rewriting them would be authoring product direction this
+> pass has no authority to invent. Intents 1, 2 and 3 (Act 1's overwhelm, the exit's adequacy, the
+> exhale) are untouched: their surfaces are live and unchanged.
+
 **Scope — story tier only.** ADR-0348 D6 does not touch the five ADR-0070 stage-2 `operator-attested`
 appearance nodes at the CAPABILITY tier (the storm, the inflection, the two Act 2 increments, the page
 triage). Those are a different mechanism with a different purpose, and whether the owner's
@@ -241,8 +287,8 @@ owner witnesses it), or CONTENT (owner-attested editorial judgement).
 | 4 | [`act2-beat-director`](act2-beat-director.md) | LEAF | A pure, deterministic, visitor-paced beat director in `forest-world-r3f`: the ONE continuous arc as typed data (the website walk then the UPSTREAM dependency-layer reveal), advancing one tap at a time; a multi-story world where each story carries a `dependsOn` edge set + tri-state status; green appears only with a signed-proof marker (preserved verbatim); the wrong-way road is retired as the teach (ADR-0150). | yes | `r3f-world-spike` |
 | 5 | [`act1-terminal-storm`](act1-terminal-storm.md) | LOOK | One visitor prompt (now **"build me a shopping website"**, reused across both acts) breeds the diegetic terminal storm to the ~10–12 peak — CRT look, canvas grain, gesture-unlocked audio, HUD, unanswerable demands; no WebGL. | (look) | `experience-rollout-guardrails` |
 | 6 | [`storm-to-forest-inflection`](storm-to-forest-inflection.md) | LOOK | At peak, the diegetic finale terminal's transform option (web `281b1e6`); one click transforms — silence, collapse into soil — resolving into the 2.5D calm land (ADR-0148: the R3F landing island retires). | (look) | `act1-terminal-storm`, `web-experience-sync` |
-| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | **Increment G (ADR-0148; reshaped by ADR-0153) — the website-first walk:** the reused prompt opens it, the orchestrator proposes a MOCK website (no backend) in a scripted exchange, and the visitor-paced 2.5D walk (ADR-0145; anchored callouts) grows THAT one website story green to a CTA that CONTINUES into "what's next." ADR-0153: REAL app UI + progressive disclosure, NO escape hatches, step 1 an outcome brief with an example via the orchestrator CHAT AT THE BOTTOM, step 2 routing to the DRIVE MACHINERY (temporary overlays). | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
-| 8 | [`act2-guided-forest`](act2-guided-forest.md) | LOOK | **Increment H (ADR-0150; re-specced by ADR-0153 after H was REFUSED) — the ONE continuous walk grows UPSTREAM:** the visitor keeps walking the same arc (not a separate phase) as the orchestrator guides them into a PROPOSED backend + database the website `dependsOn` (`website→backend→database`, dependent→prerequisite — ADR-0058; the refused build had it BACKWARDS, corrected by ADR-0153; frontend HIGH / foundation BELOW) — the dependency LAYERS shown on the real map ARE the advantage (replacing beat 4's wrong-way flag); REAL app UI, no escape hatches, the deeper drive-machinery diagrams; each inspectable (what/why), walked green progressively, complexity scaffolded. | (look) | `act2-guided-walkthrough` |
+| 7 | [`act2-guided-walkthrough`](act2-guided-walkthrough.md) | LOOK | **⚠ RE-SCOPED 2026-08-31 — the design this row described is REJECTED and carries no live build obligation.** The scripted, visitor-paced walk through a FICTIONAL three-story shopping forest, narrated by a re-creation of our own session orchestrator, was redirected away from by the owner on 2026-08-22 and superseded by ADR-0453 (the forest was made up · the narrator was "a Next button in a costume" · it opened on a fitted view). Chapter 2's opening now belongs to `website-refresh-arc` and is delivered as GROW + TELL + PACE over the REAL corpus. **Not adoptable, not retired** — see the cap's own RE-SCOPED block. | (look) | `storm-to-forest-inflection`, `act2-beat-director`, `web-experience-sync` |
+| 8 | [`act2-guided-forest`](act2-guided-forest.md) | LOOK | **⚠ RE-SCOPED 2026-08-31 — the design this row described is REJECTED and carries no live build obligation.** The same walk continuing upstream into a PROPOSED backend + database on a fictional BaaS diamond fell with its upstream half (ADR-0453). **The TEACH survives and moved:** the dependency layers ARE the advantage, and a visitor now meets them as REAL trails on the REAL corpus via `website-refresh-arc`'s ROAM (landed 2026-08-28) — a clicked trail names its dependencies in the direction the arrow points. The one genuinely undelivered piece is the ARC DRAWER, parked as `website-refresh-arc-arc-drawer`. **Not adoptable, not retired** — see the cap's own RE-SCOPED block. | (look) | `act2-guided-walkthrough` |
 | 9 | [`info-pages-triage`](info-pages-triage.md) | CONTENT | Every legacy info page has an explicit executed disposition — folded into Act 2, discarded, or kept static — with no orphan links and the grounding wire still green; the outcome decides Keystatic's survival. | (content) | `act2-guided-walkthrough`, `act2-guided-forest` |
 
 ## Dependency graph and the incremental rollout plan
@@ -354,6 +400,23 @@ whole (owner decision 6):
   `act2-beat-director` engine and its default script UNTOUCHED (no re-proof). The arc's LAST increment
   remains `info-pages-triage` (increment I), which lands after the Act 2 surface the redesign settles
   is fixed enough to fold pages into.
+
+  > **⚠ CORRECTION 2026-08-31 — INCREMENTS G AND H ARE CLOSED AS HISTORY, NOT AS A ROADMAP
+  > (`prove-unproven-capabilities-arc-inc-25`; noted in place per ADR-0139).** Both entries above are
+  > true accounts of what was built, attested and landed. **Neither is live direction any more.** The
+  > owner redirected away from the design they describe on 2026-08-22 (`website-refresh-arc`,
+  > settled as ADR-0453; see the correction under this story's Outcome), so the chain of re-specs they
+  > record — ADR-0145 → 0148 → 0150 → 0153 → 0157 → 0165, each re-opening the LOOK toward `building`
+  > for a reshaped Act 2 surface — **terminates there and is not continued.** Do not read the trailing
+  > "so the LOOK caps stay `building`/`proposed` for that reshaped surface, NOT terminally closed" as a
+  > standing instruction to build the ADR-0165 redesign: `act2-orchestrator`, `act2-guide`,
+  > `act2-diagram`, `act2-minimap` and `act2-studio` were DELETED on 2026-08-28 (web PR #57), and
+  > `act2-walkthrough` survives with zero callers. Chapter 2's live shape is GROW · TELL · ROAM · ASK
+  > over the REAL corpus (ADR-0453 D11), owned by `website-refresh-arc`'s own increments rather than by
+  > any capability under this story. **Increment I below is unaffected** — it EXECUTED in full on
+  > 2026-07-07 and folded no page into Act 2 at all, so nothing it claims turns on which Act 2 the site
+  > carries.
+
 - **Increment I — `info-pages-triage`** — the surrounding pages fold in, retire, or stay; the
   Keystatic call falls out of the disposition set. It lands after H because the fold targets (e.g. the
   roadmap's "what's coming" behind the pull-back / "what's next") are only concrete once both Act 2
@@ -617,7 +680,7 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    wall run is precedent, not a discharge; and open call 8 leaves the leg's central observable — WHICH
    deferred module the current 2.5D inflection loads — unnamed, so even the instrument is not yet
    specifiable. `resolveWitness` refuses it (`coverage: "refused"`); no gate is minted (ADR-0097 §2).
-8. **The same request, done right — the website-first walk's MECHANICS (increment G).** _(criterion-id: uatc_bbcbc39b8e8010cd76bdd490)_ _(revision-id: uatr1:2a595f6cbdc94e1d)_ _(previous-revision-id: uatr1:c9e571594348cccb)_
+8. **The same request, done right — the website-first walk's MECHANICS (increment G).** _(criterion-id: uatc_bbcbc39b8e8010cd76bdd490)_ _(revision-id: uatr1:8395bcc99ad99d68)_ _(previous-revision-id: uatr1:2a595f6cbdc94e1d)_
    _(witness: machine)(detail: website-experience#uat-8)_ Reshaped by ADR-0153, then ADR-0165. From the calm land carrying the SAME
    "build me a shopping website" request, advance the whole walk to its end, one advance at a time.
    **Success —** the session orchestrator's chat surface is the REAL app's, AT THE BOTTOM, and it
@@ -649,7 +712,19 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
    D2), so the leg stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate is minted
    (ADR-0097 §2) — binding it to the director suite would sign exactly the half the leg does not turn
    on.
-10. **The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.** _(criterion-id: uatc_3a7e33e63e173c566f9dd1e5)_ _(revision-id: uatr1:a8da833f2f6de82a)_ _(previous-revision-id: uatr1:c10c803cfc5b4aa8)_
+   **⚠ ITS SUBJECT IS SUPERSEDED — 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`, noted in place
+   per ADR-0139).** The SITE half of this leg — the real app's chat surface at the bottom, the
+   outcome-brief-with-an-example proposal of a mock local website, progressive disclosure, the absence
+   of a skip — asserts a surface the owner redirected away from on 2026-08-22 and that ADR-0453
+   supersedes; the capability behind it,
+   [`act2-guided-walkthrough`](act2-guided-walkthrough.md), was re-scoped the same day and carries no
+   live build obligation. **So do not spend on binding this half: there is nothing on the live site for
+   it to observe.** The leg is left DECLARED AND UNBOUND rather than rewritten or deleted, deliberately
+   — restating it for chapter 2's replacement (GROW · TELL · ROAM · ASK) would be authoring acceptance
+   criteria for a design `website-refresh-arc` has not finished, and deleting it would discard the
+   record. Whoever authors the replacement's criteria decides its fate; the director half named above
+   is unaffected and still proven one rung down.
+10. **The ONE continuous walk grows upstream — the BaaS dependency layers, MECHANICALLY.** _(criterion-id: uatc_3a7e33e63e173c566f9dd1e5)_ _(revision-id: uatr1:331bda6ec70e62c7)_ _(previous-revision-id: uatr1:a8da833f2f6de82a)_
     _(witness: machine)(detail: website-experience#uat-10)_ Increment H (ADR-0150; re-specced by ADR-0153 then ADR-0157). From the mock
     website's completion, keep advancing, instrumented. **Success —** the SAME session continues — no
     navigation to a new page, no separate CTA-gated phase ("it shouldnt be separate") — still on the
@@ -680,6 +755,19 @@ case. Witnesses marked per leg (ADR-0040 / ADR-0070 / ADR-0209 §1).
     complexity staying HIDDEN until the walk reveals it. A partial duplicate is not a duplicate
     (ADR-0294 D2), so the leg stands; `resolveWitness` refuses it (`coverage: "refused"`), and no gate
     is minted (ADR-0097 §2).
+    **⚠ ITS SUBJECT IS SUPERSEDED — 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`, noted in
+    place per ADR-0139).** The three invented stories this leg asserts — a mock website, a proposed
+    backend and a proposed database arranged as a BaaS diamond — went with the fictional dataset when
+    the owner redirected away from this design on 2026-08-22 (ADR-0453 D3: the public forest is our
+    REAL corpus). The capability behind the leg,
+    [`act2-guided-forest`](act2-guided-forest.md), was re-scoped the same day and carries no live build
+    obligation. **So do not spend on binding this leg's SITE half: there is nothing on the live site
+    for it to observe.** ⚠ The CLAIM underneath it — that a reader can see a dependency's DIRECTION,
+    dependent → prerequisite — is not discarded and is worth more now, not less: `website-refresh-arc`'s
+    ROAM answers a clicked trail with its real dependencies in the direction the arrow points, over the
+    real corpus. Whether that earns a leg is the replacement's author's call, not this pass's. The leg
+    is left DECLARED AND UNBOUND rather than rewritten or deleted; the director half named above is
+    unaffected and still proven one rung down.
 12. **The artifact edge is live.** _(witness: machine)_ `pnpm check:web-engine` (extended) at a clean _(criterion-id: uatc_0b3f09d58d2eb85f3a7dabc8)_ _(revision-id: uatr1:e1c18145b6a3bf04)_ _(previous-revision-id: uatr1:bd510a05369840d6)_
     HEAD. **Success —** green: the site's synced copies of the render core AND the R3F mapper are
     byte-fresh from their parent packages (`@generated`, no drift, no stale leftovers) — the 3D look
@@ -823,7 +911,33 @@ Surfaced rather than guessed — none blocks the first increments:
    story legs above, which the 2026-07-25 re-adjudication renumbered) and flipped live — storytree-web
    PR #18 → web main `3e53f14`, the live front door since; see that cap's proof status for the record.
 
-6. **How a WEB-REPO machine verdict reaches the parent proof spine** — raised by the 2026-07-25
+6. **How a WEB-REPO machine verdict reaches the parent proof spine** — **CLOSED (owner, 2026-08-27,
+   recorded as ADR-0466, accepted): the outside system PUBLISHES its own pass/fail where our build can
+   read it, and a FRESH GREEN published result earns a signed verdict.** The owner's answer was
+   verbatim *"just trust its result."* Of the three candidate shapes this call named, the FIRST is
+   chosen — a published web-side verdict our build reads — and D3 explicitly REFUSES the second
+   (standing a live site preview up inside every build run) on cost and coherence, citing ADR-0311's
+   measured retirement of checks costing more than they caught. **D2 extends the same policy to BOTH
+   boundaries** — a separate repository AND a CI workflow step — so `wisp-as-story-claim`'s twin call 4
+   is closed by the same decision, and this story's six site-behaviour legs (1, 4, 6, 8, 10, 13) are
+   named in it. The precedent already runs here: `check:web-engine` trusts an outside-published fact
+   about this same website.
+   **⚠ WHAT IS DECIDED IS THE POLICY, NOT A MECHANISM — AND NOTHING IMPLEMENTS IT** (searched
+   2026-08-31; no arc owns it, the nearest neighbours being ADR-0440's read-nothing CI identity and the
+   `website-release` process). ADR-0466 D5 leaves the publishing format, the transport, whether one
+   mechanism serves both boundaries, and which legs beyond the six named are in scope all UNDECIDED,
+   and D4's three fences are load-bearing rather than hygiene: **the published result must NAME THE
+   COMMIT it observed** (freshness binds to a revision, never a timestamp — a green outliving the code
+   it watched is the specific way this option fails, and an age check cannot catch it); **ABSENCE FAILS
+   CLOSED** (no result, an unreadable one, or one naming an unknown revision is never a pass); and
+   **PROVENANCE RIDES THE VERDICT** so a reader can see whose observation a green rests on (ADR-0085).
+   Without all three this is strictly WORSE than the honest "never verified by us" state it replaces,
+   because it would look green. **So the six legs are still honestly `machine` and honestly unproven
+   today, and no session may bind them, mint a gate for them, or record the route as available.**
+   Chartering that build lane is real, unclaimed work. *(Corrected in place 2026-08-31 per ADR-0139 —
+   this call read "Owner/build-time call — until it is settled…". It is settled. The candidate list and
+   the framing below are kept as the history of how it was posed.)*
+   *(Original framing, kept as history.)* Raised by the 2026-07-25
    re-adjudication (ADR-0209 §8), and the biggest thing it surfaced. Six of the eight machine legs
    (1, 4, 6, 8, 10, 13) are site-BEHAVIOUR claims whose only honest harness is the `storytree-web`
    repo's own headless Playwright suite. Classifying them `machine` is right — a cross-repo harness is

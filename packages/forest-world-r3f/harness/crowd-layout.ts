@@ -129,6 +129,27 @@ export interface Viewport {
   dpr: number;
 }
 
+/**
+ * THE VIEWPORT EVERY CROWD PICTURE IS TAKEN IN — a 1280x800 CSS window at device-pixel-ratio 2,
+ * i.e. an ordinary laptop. It is fixed across arms and zooms because the reader's SCREEN does not
+ * change when the art does; only what fits inside it changes.
+ *
+ * ⚠ THIS IS THE THING THE ONE-ISLAND PAGES DO NOT HAVE. There, the buffer is sized to the island,
+ * so "2 px per ground unit" is a property of the picture. Here the buffer is the reader's screen
+ * and the px-per-unit falls out of how much forest has to fit in it — which is the only way the
+ * crowd question can be asked honestly.
+ *
+ * ⚠ IT LIVES IN THIS MODULE RATHER THAN BESIDE THE SCENE THAT FIRST HELD IT (moved 2026-08-31).
+ * `fitZoom` / `neighbourhoodZoom` / `visitorZoom` all take a {@link Viewport} and are the reason
+ * the constant exists, and they are HERE — pure arithmetic, no three, no DOM. A second crowd page
+ * (`shipped-crowd-scene.ts`, the SHIPPED ground at forest scale) needs the same screen and must
+ * not reach through a scene module that drags the prop pipeline in behind it. `crowd-scene.ts`
+ * re-exports it, so its own consumers are untouched — the house move-and-re-export rather than a
+ * copy, because two crowd pages framed by two "identical" viewports is exactly how this package
+ * acquired three disagreeing status palettes.
+ */
+export const CROWD_VIEWPORT = { w: 2560, h: 1600, dpr: 2 } as const;
+
 export interface CrowdLayoutOptions {
   /** The island's own on-screen width in ground units, measured off a composed island. */
   islandW: number;

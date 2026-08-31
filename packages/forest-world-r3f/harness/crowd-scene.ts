@@ -32,7 +32,13 @@ import * as THREE from 'three';
 
 import { composeIsland, sharedRenderer } from './IslandView.js';
 import type { IslandViewProps } from './IslandView.js';
-import { ELEV_RAD, crowdLayout, fitZoom, neighbourhoodZoom } from './crowd-layout.js';
+import {
+  CROWD_VIEWPORT,
+  ELEV_RAD,
+  crowdLayout,
+  fitZoom,
+  neighbourhoodZoom,
+} from './crowd-layout.js';
 import type { CrowdIsland, CrowdLayout } from './crowd-layout.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-definition.js';
 import { islandScene } from './island-fixture.js';
@@ -51,16 +57,13 @@ export const MERGE_CONTROL_PAIR: readonly [CrowdArm, CrowdArm] = ['kit', 'kit-me
 export type CrowdZoom = 'forest' | 'neighbourhood' | 'island';
 
 /**
- * THE VIEWPORT EVERY CROWD PICTURE IS TAKEN IN — a 1280x800 CSS window at device-pixel-ratio 2,
- * i.e. an ordinary laptop. It is fixed across arms and zooms because the reader's SCREEN does not
- * change when the art does; only what fits inside it changes.
- *
- * ⚠ THIS IS THE THING THE ONE-ISLAND PAGES DO NOT HAVE. There, the buffer is sized to the island,
- * so "2 px per ground unit" is a property of the picture. Here the buffer is the reader's screen
- * and the px-per-unit falls out of how much forest has to fit in it — which is the only way the
- * crowd question can be asked honestly.
+ * THE VIEWPORT EVERY CROWD PICTURE IS TAKEN IN — re-exported from `crowd-layout.ts`, which is
+ * where it now lives (moved 2026-08-31, so a second crowd page can take the same screen without
+ * importing this module's prop pipeline). Re-exported rather than dropped so this module's own
+ * consumers are untouched, and so the two crowd pages cannot be framed by two viewports that
+ * merely happen to hold the same numbers.
  */
-export const CROWD_VIEWPORT = { w: 2560, h: 1600, dpr: 2 } as const;
+export { CROWD_VIEWPORT } from './crowd-layout.js';
 
 /**
  * The land treatment every arm shares — the arc's endorsed one, and byte-for-byte the base

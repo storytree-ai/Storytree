@@ -27,6 +27,21 @@ decisions: [138, 70, 45, 99]
 # left unanswered — put it to the owner rather than extending D6 by analogy.
 # The capability's own `proof_mode` is unchanged — still the operator-attested UAT node, just a narrower
 # and more honest one.
+# ADJUDICATED 2026-08-31 (`prove-unproven-capabilities-arc-inc-25`) — RECORDED AS CORRECT; NOTHING CHANGES.
+# This capability was swept into ADR-0465 D1's "D6's instrument structurally cannot reach it" pile and
+# routed to story-author for a hierarchy decision. The decision is that there is nothing to decide: it is
+# already correctly tiered and correctly `operator-attested`, PERMANENTLY. Its success condition is TASTE
+# — "does the graded claim-wisp LOOK right?" — and ADR-0410 D5 holds that taste stays permanently human,
+# licensing no machine to judge whether something looks good "now or as models improve". The CLOSED arc
+# `stage-1-absorbs-the-non-taste-arc` measured this exact population, classified this capability as its
+# reason 1 (taste/feel), and said so in terms: *"Not in scope, now or ever."* So: no re-scope, no re-tier,
+# no retirement, no `proof:` block, no `real:` arm. Re-scoping it would be the
+# `corpus-settled-escalation-non-adherence` failure — the answer is already in the log.
+# ⚠ ADR-0466 DOES NOT REACH THIS CAPABILITY. That decision lets an outside system publish a mechanical
+# pass/fail our build trusts; it settles the proof route for this story's CI-observed leg
+# (`ci-clear-on-merge`, adjudicated in the same pass) and for the checkable halves of
+# `website-experience`'s two act capabilities. A published outside result can carry a mechanical fact; it
+# cannot carry a look. Nothing here becomes machine-reachable because that route now exists.
 ---
 
 # Appearance UAT — does the claim-wisp LOOK right?
@@ -49,6 +64,20 @@ walkthrough.
 > thin appearance binding witnessed by a human running the studio against the live store. It is the
 > story's UAT node; the four legs below are the story's four HUMAN legs (4, 6, 8, 11) after the
 > 2026-07-26 witness re-adjudication — the seven `machine` legs are proven elsewhere, not witnessed here.
+
+> **ADJUDICATED 2026-08-31 — RECORDED AS CORRECT; NOTHING CHANGES
+> (`prove-unproven-capabilities-arc-inc-25`).** This capability appeared on ADR-0465 D1's second pile —
+> the ids D6's proving instrument structurally cannot reach — and was routed to story-author for a
+> retire / re-scope / re-tier decision. **The decision is that none of those three applies, and the
+> recording IS the whole of the work.** `operator-attested` here is not a gap waiting to be closed: the
+> claim is TASTE, ADR-0410 D5 keeps taste permanently human, and the CLOSED arc
+> `stage-1-absorbs-the-non-taste-arc` measured this exact population, filed this capability as its reason
+> 1 and wrote *"Not in scope, now or ever."* A later sweep that finds this node unproven and reaches for a
+> `proof:` block, a `real:` arm or a retirement is re-litigating a settled answer
+> (`corpus-settled-escalation-non-adherence`), not finding a hole. **ADR-0466's publish-back route does
+> not reach here** — it carries mechanical facts observed outside our build, and a look is not one; it
+> settles [`ci-clear-on-merge`](ci-clear-on-merge.md), which this capability depends on, and changes
+> nothing about legs a–d below.
 
 ## Guidance
 

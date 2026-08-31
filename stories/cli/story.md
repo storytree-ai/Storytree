@@ -114,7 +114,8 @@ footing and not widening it. Read "occupies", not "admitted": open modeling call
 capability but ends "Confirm this shim-vs-journey split", so the call is still OPEN and these two
 neither resolve it nor lean on it being resolved. Neither re-derives a per-domain command surface,
 because neither has an owning organism: one diagnoses the DEV'S OWN MACHINE, the other judges the
-repo's verification apparatus, and no story in the tree owns either subject.
+repo's verification apparatus — since 2026-08-31 that includes the decision log's grounded claims,
+the subject of its sixth chartered instrument — and no story in the tree owns either subject.
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
@@ -135,7 +136,8 @@ than positions, so a future departure cannot silently re-point a sentence.)*
 `arc-derived-initiative-view` and `increment-freshness-check` were added here on 2026-08-08 by
 `capability-layer-coverage-arc` increment 6, over already-implemented code, and they were always a
 DIFFERENT admission from `guided-setup-repair` / `verification-decay-instruments`. Those two entered
-on the ground that no organism owns a dev's own machine or the repo's verification apparatus. The arc
+on the ground that no organism owns a dev's own machine or the repo's verification apparatus (nor,
+since the sixth instrument joined on 2026-08-31, the grounding of the decision log). The arc
 pair covered the ARC TIER — a deep per-domain journey of exactly the kind the shim-vs-journey rule
 above says belongs to an organism story, with its own library kinds, its own ADR family
 (0183 / 0267 / 0305 / 0314), a studio lens and a desktop mirror. Its organism story was simply

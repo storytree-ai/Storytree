@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the shipped ground at forest scale — the adopted ladder on a crowd — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 100ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 900px; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The shipped ground at forest scale &mdash; the adopted ladder on a crowd</h1>
+      <p>
+        The nine-rung shade ladder the map wears since 2026-08-31, beside the four-rung one it
+        replaced, on <strong>one island</strong> and on <strong>thirty-five</strong>. Same
+        parcels, same relief, same grain, same occlusion field, same buffer, same camera &mdash;
+        the arms differ in the ladder and in nothing else.
+      </p>
+      <h2>Why this page exists, and what it already answered before it drew anything</h2>
+      <p>
+        The increment that asked for it was parked believing the forest map draws
+        <em>many islands, each its own draw call</em>, and that the ladder&rsquo;s measured
+        per-draw cost would therefore multiply across a real map. <strong>That premise is
+        false.</strong> <code>ForestWorldCanvas</code> mounts exactly one
+        <code>&lt;CellGround&gt;</code> over the whole descriptor stream, and a territory is an
+        island &mdash; so the entire forest&rsquo;s ground is one merged buffer wearing one
+        material. <em>One draw call, and one ramp upload per frame however many islands are
+        standing.</em> The driver holds the browser&rsquo;s own
+        <code>renderer.info.render.calls</code> to 1 on the 35-island scene, which is that claim
+        measured rather than read.
+      </p>
+      <p>
+        So the question changed shape. Three things genuinely do grow with a forest, and the three
+        scenes below separate them:
+      </p>
+      <p class="numbers">
+        one&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the island every committed figure on this arc was taken on<br />
+        forest-mono&nbsp;&nbsp;35 islands, all one status &mdash; <em>the extra geometry alone</em><br />
+        forest&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;35 islands in the real forest&rsquo;s six-status mix &mdash; <em>plus the branch spread</em>
+      </p>
+      <p>
+        <strong>Vertex work</strong> is submitted whole at every zoom: one mesh has one bounding
+        sphere, so three frustum-culls the forest as a single object and the thirty-four islands
+        off screen are drawn anyway. <strong>Status diversity</strong> is what
+        <code>forest-mono</code> holds still: the committed single-island figures were taken on an
+        all-<code>healthy</code> island, so every fragment took the same branch of the
+        material&rsquo;s selection chain. <strong>The occlusion field&rsquo;s resolution</strong>
+        is clamped by <code>SHADOW_TEXTURE_MAX</code>; one island gets the full three samples per
+        ground unit, and this is the first thing ever to draw a forest big enough to lose that.
+      </p>
+      <p>
+        The two timed zooms are the arc&rsquo;s own &mdash; 2 and 8 delivered device px per ground
+        unit &mdash; and the buffer is a laptop&rsquo;s screen rather than the island&rsquo;s own
+        bounds, so neither holds the whole forest. That is the honest question: <em>what does the
+        rest of the forest cost me while I am looking at one island of it?</em> The overview at the
+        top is fitted, and is never timed.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedCrowd } from './shipped-crowd-scene.ts';
+      try {
+        mountShippedCrowd(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>
