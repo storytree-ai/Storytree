@@ -203,7 +203,26 @@ function writeStrykerConfig(group: RunGroup, configFile: string, reportFile: str
   plugins: ["@hughescr/stryker-bun-runner"],
 ${SHARED_CONSTRAINTS}
   mutate: ${mutate},
-  bun: { testFiles: ${JSON.stringify(group.testFiles)} },`
+  // \`--timeout\` because the plugin spawns \`bun test\` ITSELF, from the sandbox root, inheriting no
+  // package script — so the suite met bun's 5 s per-test default instead of the 300 s ceiling every
+  // one of this repo's 18 bun-test packages declares in its own \`test\` script. That is not a red,
+  // it is WORSE than one: a legitimately slow test (a pi authoring slice against a closed port,
+  // where pi auto-retries for ~5 s by design) is killed mid-run, the runner reports "some tests may
+  // have been aborted", per-test coverage mapping degrades, and killed mutants come back UNPROVEN —
+  // "no test named" — which the rung correctly refuses to score as either a pass or a survivor.
+  // Measured on \`packages/agent\`: 6 UNPROVEN with the default, 0 with the ceiling, same tests.
+  // A \`bunfig.toml\` \`[test].timeout\` does NOT work — bun 1.4.0 ignores it (probed with
+  // \`timeout = 1\`, which changed nothing), despite the plugin's own doc naming it as the knob.
+  bun: {
+    testFiles: ${JSON.stringify(group.testFiles)},
+    bunArgs: ["--timeout", "300000"],
+    // The plugin's CHILD-PROCESS budget, which is a different clock from the per-test one above and
+    // had to move with it. Its 10 s default was survivable only because the 5 s per-test default was
+    // capping the suite by killing slow tests; lifting that let \`packages/agent\`'s dry run take the
+    // ~43 s it honestly needs, and the run then died as "Dry run timed out" instead. Neither clock
+    // is the runaway guard — Stryker's own \`timeoutMS\` above is, per mutant, and it is unchanged.
+    timeout: 180000,
+  },`
       : `  testRunner: "vitest",
   plugins: ["@stryker-mutator/vitest-runner"],
 ${SHARED_CONSTRAINTS}
