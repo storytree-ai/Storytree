@@ -51,13 +51,45 @@ decisions: [486]
 # null, tripping neither rule) is unprecedented — all 139 `real.sourceFile` values in the corpus sit
 # under one or the other — and would live in no workspace project, so `pnpm -r test` would never run it.
 #
-# ⚠ NOT BUILDABLE YET, DELIBERATELY. The `proof:` block stays REMOVED until that package exists, so
-# `node resolve` reports the unit NOT buildable and `--real` refuses fail-closed — cheaper than a
-# repeat of what the sibling paid: driven to a signed PASS for $2.8028, then refused by
-# `check:boundaries`, because `storytree node resolve` answers "REAL-buildable: yes" BEFORE any
-# boundary rung looks at where the file will land. THIS UNIT HAS NEVER BEEN DRIVEN and no verdict for
-# it exists — the block replaced here claimed a parked branch and a persisted signed PASS, and both
-# belonged to the sibling, not to this unit.
+# ✅ THE BUILDING EXISTS NOW, AND THE `proof:` BLOCK IS RESTORED — 2026-08-31
+# (`prove-unproven-capabilities-arc` inc-28). `packages/ci-cd` was created for this unit and
+# `repo-manifest.json` maps `"@storytree/ci-cd": "ci-cd"` in `packageOwnership.organisms`, so
+# `readDirOwners` now answers `dirOwners["packages/ci-cd"] === "ci-cd"` and the `real.sourceFile`
+# below sits in this story's OWN building — rules 5 and 6 both skip it (`host === story`) rather than
+# being satisfied by an edge or a register entry. That was PROVED with the real `check:boundaries`
+# BEFORE any money was spent, which is the discipline the previous note's incident bought: the
+# sibling was driven to a signed PASS for $2.8028 and only then refused, because
+# `storytree node resolve` answers "REAL-buildable: yes" without ever consulting the landlord rule.
+# Teaching the pre-flight that rule is a real gap and is owned by the boundary tooling, not here.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/ci-cd", "test"]
+  scope:
+    testGlobs: ["packages/ci-cd/src/green-gate-audit.test.ts"]
+    sourceGlobs: ["packages/ci-cd/src/green-gate-audit.ts"]
+  real:
+    testFile: "packages/ci-cd/src/green-gate-audit.test.ts"
+    sourceFile: "packages/ci-cd/src/green-gate-audit.ts"
+    scope:
+      testGlobs: ["packages/ci-cd/src/green-gate-audit.test.ts"]
+      sourceGlobs: ["packages/ci-cd/src/green-gate-audit.ts"]
+    install: true
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/ci-cd", "typecheck"]
+    # ⚠ THE PACKAGE'S OWN RUNNER, DECLARED — never the default. `packages/ci-cd`'s `test` script is
+    # `bun test src/`, and the REAL arm's DEFAULT proof is `node --import tsx --test <testFile>`,
+    # which in a bun-only package dies at LOAD (`Cannot find package 'tsx'`) and prints a tail
+    # byte-indistinguishable from an assertion failure — a CONFIRM_GREEN that could never be reached
+    # and a CONFIRM_RED observed for the wrong reason. Declaring the pnpm command forces
+    # `install: true` (the schema refuses pnpm on a bare worktree), which is the right trade here:
+    # the spine then proves the unit under the SAME runner `pnpm -r test` will run it under, and the
+    # install-bearing backstop also holds the package typecheck green before the verdict is signed.
+    proofCommand:
+      file: pnpm
+      args: ["--filter", "@storytree/ci-cd", "test"]
+    editsExisting: false
 ---
 
 # The green gate — `verify` proves a PR against the merge of branch and main
