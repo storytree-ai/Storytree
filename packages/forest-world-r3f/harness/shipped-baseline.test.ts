@@ -305,10 +305,21 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   // perfectly ordinary set of shadows. What this test is about is unchanged: the field is still
   // derived from THIS scene's own casters, with no flag between it and the mesh.
   assert.match(src, /buildGroundMaterial\(field\)/, 'the material is built from the built field');
+  // ⚠ IT READS `clipped` RATHER THAN `cells` SINCE THE COAST CROSSED (2026-09-01), and the
+  // ORDER is the claim rather than the name. The atlas is packed over the ground's own bounds, so a
+  // field built from the PRE-clip parcels would leave the new shore outside every island's tile and
+  // the beach would wear whatever shadow sat on the atlas's edge texel. What this test is about is
+  // unchanged: the field is derived from THIS scene's own ground, with no flag between it and the
+  // mesh — and it is now derived from the ground the mesh actually draws.
   assert.match(
     src,
-    /buildGroundOcclusionField\(cells, casters\)/,
-    'and that field is built from this scene’s own cells and casters',
+    /const clipped = clipToCoast\(cells, SHIPPED_COAST\);/,
+    'the coast is clipped before anything downstream reads the parcels',
+  );
+  assert.match(
+    src,
+    /buildGroundOcclusionField\(clipped, casters\)/,
+    'and that field is built from this scene’s own CLIPPED cells and casters',
   );
   // ⚠ AND THE SMOOTH MATERIAL IS GONE FROM THE CELL GROUND RATHER THAN LEFT BESIDE IT. Two land
   // materials is the outcome item 6 calls worse than either — and here it would be worse still,

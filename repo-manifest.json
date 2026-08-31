@@ -526,6 +526,7 @@
       "packages/forest-world-r3f/src/world-to-3d.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/ForestWorldCanvas.tsx": "r3f-world-spike",
       "packages/forest-world-r3f/src/cell-ground-geometry.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/coast-clip.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/camera-framing.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-relief.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shade-ladder.ts": "r3f-world-spike",

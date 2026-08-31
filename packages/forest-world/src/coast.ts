@@ -16,8 +16,16 @@ export interface BoundarySeg {
   y2: number;
 }
 
-const COAST_OUTSET = 7; // px the smoothed coast sits beyond the hex tiles — a thin sandy beach
-const COAST_SMOOTH_ITERS = 2; // Chaikin passes: 2 rounds the hex silhouette into an organic blob
+/** Px the smoothed coast sits beyond the hex tiles — a thin sandy beach.
+ *
+ *  ⚠ EXPORTED SINCE 2026-09-01 because the SHIPPED 3D ground now wears this same coast
+ *  (`packages/forest-world-r3f/src/coast-clip.ts`). The two renderers draw one map, so they read
+ *  one beach width; a second constant holding 7 is how the 2D panel and the 3D canvas come to
+ *  disagree about where an island ends. */
+export const COAST_OUTSET = 7;
+/** Chaikin passes: 2 rounds the hex silhouette into an organic blob. Exported for the same
+ *  reason as {@link COAST_OUTSET}. */
+export const COAST_SMOOTH_ITERS = 2;
 const COAST_NOISE_AMP = 0.5; // per-vertex outset wobble (fraction of COAST_OUTSET) — non-uniform coasts
 const COAST_NOISE_WAVES = 3; // low-frequency lobes around the shore (gentle bays, not jaggedness)
 
@@ -93,7 +101,7 @@ export function loopSignedArea(loop: Pt[]): number {
  * can never wander into a neighbour — and (perturbing only the outset MAGNITUDE
  * along the normal) the offset can never self-intersect.
  */
-function jitteredOutset(storyId: string, i: number, n: number): number {
+export function jitteredOutset(storyId: string, i: number, n: number): number {
   const theta = (i / Math.max(n, 1)) * Math.PI * 2;
   const phase = rand01(hash(`${storyId}:coast:phase`)) * Math.PI * 2;
   const wave = Math.sin(theta * COAST_NOISE_WAVES + phase); // [-1,1], coherent

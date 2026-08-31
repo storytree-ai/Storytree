@@ -37,6 +37,7 @@ import {
   type CellGroundGeometryInput,
   type LinearRgb,
 } from './cell-ground-geometry.js';
+import { SHIPPED_COAST, clipToCoast } from './coast-clip.js';
 import { LAND_RELIEF_AMPLITUDE, landRelief } from './land-relief.js';
 import {
   atlasOriginResolver,
@@ -314,6 +315,21 @@ function buildGroundOcclusionField(
  *  ⚠ AND IT WEARS THE GRAIN'S NORMAL HALF, ALSO UNCONDITIONALLY AND FOR THE SAME REASON
  *  (2026-08-30). See {@link BANDED_GROUND} for why only that half of the grain ships.
  *
+ *  ⚠ AND IT IS CLIPPED TO ITS COAST, ALSO UNCONDITIONALLY AND FOR THE SAME REASON (2026-09-01).
+ *  The relaxed substrate pins its outer vertices to the hexes it was built from, so an island used
+ *  to end in 120° corners and read as a cluster of tiles. It now ends on the story-seeded,
+ *  Chaikin-rounded coast the studio's 2D map has drawn all along — the same `smoothCoast` machinery,
+ *  imported rather than transcribed, so the two renderers agree about where an island ends.
+ *  {@link SHIPPED_COAST} names which of the three shapes ships and why; `src/coast-clip.ts` carries
+ *  the fork, and `docs/research/chapter2-shipped-coast-2026-09-01/` carries the pictures.
+ *
+ *  ⚠⚠ WHAT IT COSTS THE MAP'S HONESTY IS NOTHING, AND THAT IS A MEASURED CLAIM RATHER THAN AN
+ *  ASSUMPTION. Every parcel keeps its own capability, its own island and its own status colour; the
+ *  only thing that moves is where the outermost ones end. And the clip is CAPPED so that no parcel
+ *  crosses itself — which it would otherwise do, because the coast the 2D panel draws
+ *  self-intersects twice on this very island and an SVG fill hides what a triangulated ground
+ *  cannot.
+ *
  *  ⚠ SO THE COLOUR ATTRIBUTE IS GONE FROM THE UPLOAD, and `statusIndex` is what replaces it. The
  *  buffer still CARRIES `colors` — the comparison instrument builds the pre-adoption arms out of
  *  it — but uploading an attribute no material reads would be payload the map draws nothing
@@ -326,14 +342,24 @@ function CellGround({
   casters: readonly ShadowCaster[];
 }) {
   const built = useMemo(() => {
+    // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
+    // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
+    // island would leave the new shore outside every tile: the beach would read the atlas's edge
+    // texel and wear whatever shadow happened to sit there. Ordering it here makes that
+    // impossible rather than merely unlikely.
+    //
+    // ⚠ AND IT IS THE GROUND ALONE. `dressMapFromKit` (below) still reads the mapper's own
+    // descriptors, so a tree stands where its parcel put it and the beach grows underneath it.
+    // Moving the props with the shore would have been a second change wearing this one's name.
+    const clipped = clipToCoast(cells, SHIPPED_COAST);
     // ⚠ THE FIELD IS BUILT FIRST AND THE GEOMETRY READS ITS PACKING, which is what makes "the
     // mesh and the material agree about where each island's tile is" true by construction rather
     // than by two calls happening to pack the same way. They disagree silently: every island would
     // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
     // set of shadows belonging to the wrong land.
-    const field = buildGroundOcclusionField(cells, casters);
+    const field = buildGroundOcclusionField(clipped, casters);
     const input: CellGroundGeometryInput = {
-      cells,
+      cells: clipped,
       resolve: linearColourOf,
       index: groundRowOf,
       relief: landRelief,

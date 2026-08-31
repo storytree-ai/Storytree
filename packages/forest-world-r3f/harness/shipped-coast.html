@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the coast clip — three shapes — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The coast clip &mdash; three shapes, one instrument</h1>
+      <p>
+        The shipped 3D ground ends in the raw <strong>hex-union silhouette</strong>: the relaxed mesh
+        pins its outer vertices to the hexes it was built from, so an island finishes in 120&deg;
+        corners and reads as a cluster of tiles rather than as one landmass. The approved treatment
+        asks for &ldquo;grid geometry clipped to a smoothed, gently perturbed coast polygon&rdquo;
+        &mdash; and that coast <em>already exists</em>: <code>smoothCoast()</code> has outset,
+        story-seeded and Chaikin-rounded this boundary all along, and the studio&rsquo;s 2D map is its
+        only caller. The component was never missing. It was unimported.
+      </p>
+      <p class="numbers">
+        none&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the map today &mdash; the raw hex-union silhouette (CONTROL)<br />
+        outset&nbsp;&nbsp;&nbsp;&nbsp;the outset only &mdash; bays and headlands, every hex corner kept, 0 new triangles<br />
+        project&nbsp;&nbsp;&nbsp;every rim vertex moved ONTO the curve &mdash; corners cut, 0 new triangles<br />
+        subdivide&nbsp;the curve&rsquo;s own points along each rim edge &mdash; the boundary IS the curve
+      </p>
+      <p>
+        <strong>Why three arms and not one.</strong> The smoothed coast carries four times the
+        vertices it was handed &mdash; this island&rsquo;s 52 rim vertices become a 208-point curve
+        &mdash; so there is no 1:1 displacement of the mesh&rsquo;s existing boundary to reach for.
+        The three answers give up different things, and only one of them costs triangles.
+      </p>
+      <p>
+        <strong>Every arm shares the ladder, the grain, the relief, the occlusion atlas, the light
+        and the camera.</strong> The only thing that moves is which coast the parcels were clipped
+        to.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; The coast this map has always drawn folds &mdash; and only a mesh can
+        see it.</strong> <code>coast.ts</code> says in terms that perturbing the outset
+        <em>magnitude</em> along the normal means the offset &ldquo;can never self-intersect&rdquo;.
+        That is false for a polygon offset in general, and it is false on this island: the outset
+        coast loop crosses itself <strong>twice</strong>. The studio draws that loop as an SVG fill,
+        and the nonzero fill rule paints a doubled-back region exactly like a single one. A
+        triangulated ground has no such mercy &mdash; the two boundary parcels at a crossing overlap,
+        so one capability&rsquo;s status colour is drawn over ground that belongs to another. Every
+        arm here is therefore capped so no parcel folds, and the caption under each frame reports how
+        many rim vertices the cap bound and how hard. <strong>A folded-parcel count above zero is a
+        misreport and the driver refuses the run.</strong>
+      </p>
+      <p>
+        <strong>&#9888; Read the per-object number, not the frame percentage.</strong> A coast is a
+        thin annulus around an island, so &ldquo;0.4% of the frame changed&rdquo; reads as nothing at
+        all beside two pictures that are obviously different shapes. Every arm is differenced against
+        <code>none</code>, which counts the coast&rsquo;s own pixels exactly, and every percentage is
+        quoted against that as well as against the frame.
+      </p>
+      <p>
+        <strong>&#9888; The beach&rsquo;s delivered width in pixels is printed beside every
+        comparison.</strong> At the fitted zoom a 7-unit beach is under three pixels wide, so an arm
+        that changed the whole silhouette can come back nearly byte-identical there. A null result
+        has to be readable as a null result rather than as agreement.
+      </p>
+      <p>
+        <strong>The forest rows carry a finding of their own.</strong> The coast wave is seeded on
+        the island id, so thirty-five copies of one fixture island wear thirty-five
+        <em>different</em> coasts. The forest stops being a tiled repetition of one shape at the
+        moment the coast lands.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedCoast } from './shipped-coast-scene.ts';
+      try {
+        await mountShippedCoast(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>
