@@ -30,6 +30,7 @@
     "measure-real-map": "node harness/crowd-real-map.mjs",
     "measure-shipped-land": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-land-measure.mjs",
     "measure-shipped-crowd": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-crowd-measure.mjs",
+    "measure-shipped-blooms": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-blooms-measure.mjs",
     "measure-shipped-light": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-light-measure.mjs"
   },
   "dependencies": {

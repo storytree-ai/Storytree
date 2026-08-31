@@ -92,7 +92,7 @@ function gap(a: GPoint, b: GPoint): number {
   return Math.hypot(b.x - a.x, b.z - a.z);
 }
 function cell(points: GPoint[]): LayoutCell {
-  return { points, parcel: undefined, status: 'healthy', cellId: undefined };
+  return { points, parcel: undefined, island: undefined, status: 'healthy', cellId: undefined };
 }
 
 const ISLAND_AREA = CELLS.reduce((s, c) => s + areaOf(c.points), 0);

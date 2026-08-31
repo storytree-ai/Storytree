@@ -78,6 +78,7 @@ function parcel(capId: string, status: string, row: number, cols: number): Layou
         { x: x0, z: z0 + CELL_D },
       ],
       parcel: capId,
+      island: undefined,
       status,
       cellId: `${capId}-${c}`,
     } satisfies LayoutCell;
@@ -495,7 +496,13 @@ test('a degenerate cell is stepped over rather than sampled', () => {
   // a line. `worldTo3D` already refuses to emit one, but the placement takes cells from any
   // caller and must not depend on that.
   const cells: LayoutCell[] = [
-    { points: [{ x: 200, z: 0 }, { x: 201, z: 0 }], parcel: 'cap-0', status: 'healthy', cellId: 'd' },
+    {
+      points: [{ x: 200, z: 0 }, { x: 201, z: 0 }],
+      parcel: 'cap-0',
+      island: undefined,
+      status: 'healthy',
+      cellId: 'd',
+    },
     ...parcel('cap-0', 'healthy', 0, 2),
   ];
   const placements = dress(cells);
@@ -587,6 +594,7 @@ test('a candidate is the cell’s own BILINEAR sample, at the pull the jitter as
       { x: 90, z: 240 },
     ],
     parcel: 'cap-0',
+    island: undefined,
     status: 'healthy',
     cellId: 'skew',
   };
@@ -621,6 +629,7 @@ test('a TRIANGULAR cell closes on its first vertex rather than sampling undefine
       { x: 20, z: 34 },
     ],
     parcel: 'cap-0',
+    island: undefined,
     status: 'healthy',
     cellId: 'tri',
   };
@@ -636,6 +645,7 @@ test('a cell with fewer than three corners is stepped over, and so are no cells 
       { x: 1, z: 0 },
     ],
     parcel: 'cap-0',
+    island: undefined,
     status: 'healthy',
     cellId: 'line',
   };
@@ -787,6 +797,7 @@ test('⚠ a bloom never stands on ground that belongs to no capability', () => {
       { x: 900, z: 930 },
     ],
     parcel: undefined,
+    island: undefined,
     status: 'healthy',
     cellId: 'orphan',
   };
@@ -808,6 +819,7 @@ test('a capability whose cells are ALL degenerate grows nothing, rather than sta
       { x: 401 + c, z: 400 },
     ],
     parcel: 'cap-flat',
+    island: undefined,
     status: 'healthy',
     cellId: `flat-${c}`,
   }));

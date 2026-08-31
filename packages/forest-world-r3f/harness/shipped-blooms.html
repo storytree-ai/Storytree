@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>whose signature is that? — the UAT blooms on the shipped map — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Whose signature is that? &mdash; the UAT blooms on the shipped map</h1>
+      <p>
+        A flower on this map is <strong>one UAT criterion the owner has signed</strong>, and it is a
+        claim about a <em>story</em>. The real forest &mdash; 35 islands in the map&rsquo;s own
+        status mix &mdash; drawn three times. The land is identical in all three: same ladder, same
+        grain, same shadow field, same camera. The one thing that changes is <em>how the dressing is
+        spent</em> &mdash; over the whole map, or island by island.
+      </p>
+      <p>
+        <strong>The trees move a little too, and that is the same change rather than a second
+        one.</strong> A placement is seeded from the capability&rsquo;s position in the list it was
+        handed, so numbering island 12&rsquo;s capabilities from 0 instead of from 132 puts its
+        objects on a different spot inside the same parcel. Every arm stands an object for exactly
+        the same capabilities; what the per-island call buys is that an island now looks the same
+        drawn alone as it does in a crowd of thirty-five.
+      </p>
+      <p class="numbers">
+        none&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the map until 2026-08-31 &mdash; the count pinned at zero, in terms<br />
+        scattered&nbsp;&nbsp;the count read, spent over the WHOLE map &mdash; the misreport the zero stood in for<br />
+        attributed&nbsp;the count spent per island &mdash; what ships now
+      </p>
+      <p>
+        <strong>Read the numbers first.</strong> The defect here is invisible in a frame: nothing
+        about a rendered flower says which story signed it, so a map that spends one story&rsquo;s
+        signatures over its neighbours draws perfectly ordinary islands. The census under the header
+        attributes every placed flower to the island it stands on and compares that against what
+        each story actually signed. <code>MISATTRIBUTED</code> is the count that matters, and
+        <em>stories wearing an unsigned flower</em> is the sharp end &mdash; a story nobody has
+        checked, drawn as though the owner had signed it.
+      </p>
+      <p>
+        <code>scattered</code> is <strong>not a picture of the past</strong>. The map never drew it:
+        the count was pinned at zero precisely so it could not happen, and the pin is what the
+        island id in the descriptor stream has now replaced. It is here because &ldquo;we avoided a
+        misreport&rdquo; is not something a reader can check without seeing the misreport.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedBlooms } from './shipped-blooms-scene.ts';
+      try {
+        await mountShippedBlooms(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

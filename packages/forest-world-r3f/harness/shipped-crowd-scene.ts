@@ -77,6 +77,7 @@ import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { CROWD_POPULATION, CROWD_VIEWPORT, crowdLayout } from './crowd-layout.js';
 import type { CrowdIsland } from './crowd-layout.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
+import { islandCriteria } from './island-fixture.js';
 import { SHIPPED_LIGHTING } from './shipped-baseline.js';
 import {
   GROUND_TOKENS,
@@ -276,7 +277,7 @@ const SHIPPED_VIEW_DIR: THREE.Vector3 = (() => {
  *  `near: 1, far: 4000` around ONE world; a forest 3,500 units across seen from 8,000 units away
  *  needs more, and clipping is not what this page measures. Symmetric and generous, so nothing is
  *  ever clipped out of a frame whose cost is being counted. */
-function orientedCamera(centre: { x: number; z: number }, pxPerUnit: number): THREE.OrthographicCamera {
+export function orientedCamera(centre: { x: number; z: number }, pxPerUnit: number): THREE.OrthographicCamera {
   const halfW = CROWD_VIEWPORT.w / pxPerUnit / 2;
   const halfH = CROWD_VIEWPORT.h / pxPerUnit / 2;
   const camera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, -20000, 20000);
@@ -318,12 +319,27 @@ export function crowdCells(size: CrowdSize): InstanceDescriptor[] {
       const moved: InstanceDescriptor = {
         ...cell,
         material: island.status,
+        // ⚠ THE ISLAND ID IS RE-STAMPED PER COPY, and before 2026-08-31 it could not be: the
+        // descriptor stream carried no island at all, so thirty-five copies of one island's cells
+        // were thirty-five copies of ONE story. Anything reading a per-story quantity off this
+        // crowd would have spent one story's signatures over the whole forest — which is exactly
+        // the misreport `dressMapFromKit` exists to prevent, arriving through the instrument.
+        island: crowdIslandId(island.index),
         transform: {
           ...cell.transform,
           x: cell.transform.x + island.offset.x,
           z: cell.transform.z + island.offset.z,
         },
       };
+      // ⚠⚠ AND THE CAPABILITY IDS ARE RE-STAMPED PER ISLAND TOO, which is a CONFOUND REMOVAL
+      // rather than a nicety. The crowd is one fixture island copied N times, so without this every
+      // island's eleven parcels wear the SAME eleven capIds — and a reader that counts capabilities
+      // over the whole map (`capabilityFactsFrom`) sees eleven on a thirty-five-island forest and
+      // stands eleven objects on it. In the real map a capability belongs to exactly one story and
+      // the ids are distinct, so the shared ids were the INSTRUMENT's artefact; leaving them would
+      // have made a page comparing per-island dressing against whole-map dressing differ by 374
+      // TREES, and that difference would have been the fixture's rather than the dressing's.
+      if (cell.parcel !== undefined) moved.parcel = `${crowdIslandId(island.index)}/${cell.parcel}`;
       if (cell.points !== undefined) {
         moved.points = cell.points.map((p) => ({
           ...p,
@@ -335,6 +351,57 @@ export function crowdCells(size: CrowdSize): InstanceDescriptor[] {
     }
   }
   return out;
+}
+
+/**
+ * THE STORY ID OF THE nTH ISLAND IN THE CROWD.
+ *
+ * The crowd is one fixture island copied N times, so its stories are synthetic — but they are
+ * DISTINCT, which is the whole property a per-story claim needs. A crowd whose islands shared one
+ * id would be a one-story map wearing thirty-five islands, and every per-story reading taken off it
+ * would be wrong in the direction that looks fine.
+ */
+export function crowdIslandId(index: number): string {
+  return `crowd-story-${index.toString().padStart(2, '0')}`;
+}
+
+/**
+ * WHICH STORIES HAVE SIGNED, AND HOW MANY CRITERIA EACH — as `uat-bloom` descriptors, one per
+ * signature, exactly as `worldTo3D` emits them from a real scene.
+ *
+ * ⚠ THE RULE IS THE FIXTURE'S OWN, NOT ONE INVENTED HERE. `islandCriteria` defaults every
+ * criterion to `proven` on a HEALTHY island and to `pending` on any other, because a story's status
+ * IS its own signed UAT verdict (ADR-0033 d.4). So the `forest` crowd — the real map's status mix
+ * — contains stories that have signed everything standing beside stories that have signed nothing,
+ * which is the only arrangement in which a misattributed signature is VISIBLE.
+ *
+ * ⚠ THE POSITION IS THE ISLAND'S OWN CENTRE and is never what places the flower. The kit's
+ * dressing chooses where a bloom stands from the island's ground; these descriptors carry the
+ * CLAIM (which story signed which criterion), and the transform is here because every descriptor
+ * has one.
+ */
+export function crowdBlooms(size: CrowdSize): InstanceDescriptor[] {
+  const out: InstanceDescriptor[] = [];
+  for (const island of crowdIslands(size)) {
+    for (const criterion of islandCriteria({ status: island.status })) {
+      if (criterion.state !== 'proven') continue;
+      out.push({
+        kind: 'uat-bloom',
+        transform: { x: island.offset.x, y: 0, z: island.offset.z },
+        group: 'uat-bloom',
+        material: island.status,
+        island: crowdIslandId(island.index),
+        criterion: `${crowdIslandId(island.index)}/${criterion.id}`,
+      });
+    }
+  }
+  return out;
+}
+
+/** The crowd as ONE descriptor stream — its ground and its signatures together, which is the shape
+ *  `worldTo3D` hands `ForestWorldCanvas` for a multi-island world. */
+export function crowdDescriptors(size: CrowdSize): InstanceDescriptor[] {
+  return [...crowdCells(size), ...crowdBlooms(size)];
 }
 
 /** Everything standing on the forest that darkens it — the shipped island's own casters, once per

@@ -30,11 +30,18 @@ export interface GPoint {
   z: number;
 }
 
-/** One cell's outline in `{x, z}`, plus the capability whose parcel it belongs to and the folded
- *  status it wears. The form everything that stands on the ground works in. */
+/** One cell's outline in `{x, z}`, plus the capability whose parcel it belongs to, the STORY whose
+ *  island it sits on, and the folded status it wears. The form everything that stands on the
+ *  ground works in.
+ *
+ *  ⚠ `parcel` AND `island` ARE TWO DIFFERENT QUESTIONS AND BOTH ARE NEEDED. A capability's tree
+ *  stands on its own parcel; a story's UAT bloom stands anywhere on its own ISLAND and on no
+ *  other. One id cannot answer both, and answering the second with the first is how a story's
+ *  signatures end up scattered over its neighbours. */
 export interface LayoutCell {
   points: GPoint[];
   parcel: string | undefined;
+  island: string | undefined;
   status: string;
   cellId: string | undefined;
 }
@@ -58,6 +65,7 @@ export function parcelCellsFrom(descriptors: readonly Descriptor3D[]): LayoutCel
     const cell: LayoutCell = {
       points: ring.map((p) => ({ x: p.x, z: p.z })),
       parcel: d.parcel,
+      island: d.island,
       status: d.material ?? 'unknown',
       cellId: undefined,
     };
@@ -76,6 +84,27 @@ export function cellsByParcel(cells: readonly LayoutCell[]): Map<string, LayoutC
     const list = out.get(cell.parcel);
     if (list) list.push(cell);
     else out.set(cell.parcel, [cell]);
+  }
+  return out;
+}
+
+/**
+ * Group cells by the STORY whose island they sit on, in first-seen order.
+ *
+ * ⚠ CELLS CARRYING NO ISLAND ARE LEFT OUT, and unlike {@link cellsByParcel}'s absence this one is
+ * fail-CLOSED on purpose. A caller groups by island precisely so a per-story claim lands on the
+ * right story's ground; a bucket of cells the substrate could not attribute is exactly the ground
+ * no such claim may be drawn on. Dropping them here means an unattributed island grows no blooms
+ * rather than growing everyone's — the same choice the shipped call sites were already making with
+ * `blooms: 0`, now made per island instead of for the whole map.
+ */
+export function cellsByIsland(cells: readonly LayoutCell[]): Map<string, LayoutCell[]> {
+  const out = new Map<string, LayoutCell[]>();
+  for (const cell of cells) {
+    if (cell.island === undefined) continue;
+    const list = out.get(cell.island);
+    if (list) list.push(cell);
+    else out.set(cell.island, [cell]);
   }
   return out;
 }

@@ -288,12 +288,19 @@ test('the ramp ROWS and the ramp TOKENS agree, status for status', () => {
   assert.notEqual(GROUND_ROWS.get('unknown'), 0);
 });
 
-test('THE CENSUS: the shipped map draws ONE object, and skips 1,088 that stand on its ground', () => {
+test('THE CENSUS: the shipped map draws a tree and ten signatures, and skips 1,078 more', () => {
   // ⚠ THIS IS THE INCREMENT'S FINDING, and it bounds what a shadow can do here. `contact-shade.ts`
   // was ranked FIRST of ten mechanisms separating the owner's references from our island — but it
   // was ranked on the EXPERIMENT island, which stands 155 props. This map draws a story tree and
   // nothing else, so one contact pool is not what "placed rather than pasted" meant. The shadow is
   // bounded by the map's own emptiness rather than by the field, and it grows when the props do.
+  //
+  // ⚠ THE CENSUS MOVED BY TEN ON 2026-08-31 and the TOTAL is what holds it honest. The mapper now
+  // maps the ten `tall-flower-proven` wrappers — this fixture's ten SIGNED UAT criteria — to
+  // `uat-bloom` instances instead of skipping them, so ten drawables crossed from the skipped
+  // column into the drawn one and NOTHING left the scene. Asserting the parts separately AND their
+  // sum is what makes that readable as a move rather than as a loss: a mapper that simply dropped
+  // ten nodes would satisfy `1078` on its own.
   const descriptors = worldTo3D(islandScene());
   const standing = descriptors.filter(
     (d) =>
@@ -303,8 +310,15 @@ test('THE CENSUS: the shipped map draws ONE object, and skips 1,088 that stand o
   const flowers = descriptors.filter(
     (d) => d.kind === 'skipped' && (d.sceneKind ?? '').startsWith('tall-flower-'),
   );
-  assert.equal(standing.length + flowers.length, 1088, 'the skipped ground-standing census moved');
+  const blooms = descriptors.filter((d) => d.kind === 'uat-bloom');
+  assert.equal(standing.length + flowers.length, 1078, 'the skipped ground-standing census moved');
+  assert.equal(blooms.length, 10, 'the fixture signs ten criteria and the map now draws all ten');
+  assert.equal(
+    standing.length + flowers.length + blooms.length,
+    1088,
+    'ten drawables crossed columns; none may have left the scene',
+  );
   assert.equal(descriptors.filter((d) => d.kind === 'story-tree').length, 1);
-  // And exactly one of them becomes a caster.
+  // And exactly one of them becomes a caster: a bloom is a knee-high flower, not an occluder.
   assert.deepEqual(groundCasters(descriptors), [{ x: 0, z: -6, radius: 7, height: 19 }]);
 });
