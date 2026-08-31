@@ -35,6 +35,36 @@ export {
 } from "./session-identity.js";
 
 export {
+  classifySessionOrigin,
+  declareSessionOrigin,
+  describeSessionOrigin,
+  foldSessionOrigin,
+  parseSessionOriginDeclaration,
+  resolveSessionOrigin,
+  SessionOriginDeclarationDoc,
+  CUT_BY_SESSION_ENV,
+  CUT_FOR_UNIT_ENV,
+  SESSION_ORIGIN_ENV,
+  type OriginDeclarationOutcome,
+  type OriginDeclarationRefusal,
+  type OriginDeclarationRequest,
+  type SessionOrigin,
+  type SessionOriginClaim,
+  type SessionOriginDeclaration,
+  type SessionOriginInput,
+  type SessionOriginKind,
+  type SessionOriginReading,
+  type TraceOriginReading,
+} from "./session-origin.js";
+
+export {
+  readSessionOriginDeclaration,
+  sessionOriginPath,
+  writeSessionOriginDeclaration,
+  SESSION_ORIGIN_EXT,
+} from "./origin-declaration.js";
+
+export {
   AREAS_WITHOUT_CORPUS_READS,
   CLI_READ_VERBS,
   KEY_LENGTHS,

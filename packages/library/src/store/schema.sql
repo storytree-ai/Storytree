@@ -607,8 +607,21 @@ CREATE TABLE IF NOT EXISTS events.traversal_event (
   observed_at TIMESTAMPTZ NOT NULL,   -- the event's own `at`, never the ship time
   grade       TEXT,                   -- window|declared; NULL = the legacy slot era
   slot        TEXT,                   -- the worktree slot, a GROUPING attribute beside the identity
+  origin      TEXT,                   -- human|cut; NULL = UNDECLARED, and never read as `human`
+  cut_by      TEXT,                   -- the session that cut this one, when it named itself
+  cut_for     TEXT,                   -- the arc/increment it was cut to drive (a canonical id)
   event       JSONB NOT NULL,         -- the whole ContextTraversalEvent, validated before it ships
   shipped_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- WHO STARTED THE SESSION (ADR-0484 D7), additive for a store that already holds the table.
+--
+-- ⚠ NULL IS "UNDECLARED", NOT "HUMAN". Every row written before this landing carries NULL and stays
+-- that way: an origin is never inferred after the fact from timing, branch names or worktree reuse,
+-- because a guessed provenance cannot be told apart from a recorded one. Any figure that attributes
+-- a read to what the owner asked for must first exclude the NULL rows rather than absorb them.
+ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS origin  TEXT;
+ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS cut_by  TEXT;
+ALTER TABLE events.traversal_event ADD COLUMN IF NOT EXISTS cut_for TEXT;
 
 CREATE INDEX IF NOT EXISTS traversal_event_session_idx ON events.traversal_event (session_id, seq);

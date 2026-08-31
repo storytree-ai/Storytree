@@ -16,6 +16,15 @@ proof:
   scope:
     testGlobs: ["packages/context-traversal-capture/src/terminal-capture.uat.test.ts"]
     sourceGlobs: ["packages/context-traversal-capture/src/terminal-capture.ts"]
+  # The READ-ONLY coverage surface (ADR-0353) — where this capability's contract tests actually live,
+  # stated without widening the `real` arm's WRITE scope. The session-ORIGIN contracts (6-8) are
+  # proved in-process by these two suites, because their subject is PURE and needs no spawned
+  # process; only contract 9 needs the real CLI, and it stays in the `real` arm above.
+  coverage:
+    testGlobs:
+      - "packages/context-traversal-capture/src/session-origin.test.ts"
+      - "packages/context-traversal-capture/src/origin-declaration.test.ts"
+      - "packages/context-traversal-capture/src/terminal-capture.test.ts"
   real:
     testFile: "packages/context-traversal-capture/src/terminal-capture.uat.test.ts"
     sourceFile: "packages/context-traversal-capture/src/terminal-capture.ts"
@@ -142,6 +151,47 @@ silence it is the wrong fix (ADR-0154).
      ADR-0260 D3 landed the per-invocation offer id; it does not hold between two capture-ON runs
      either. The assertion is on the payload plus the offer-line rule — do not "repair" a failure here
      by re-tightening it to whole-stdout, and do not read the name as the claim.
+
+The session-ORIGIN half (ADR-0484 D7). A trace has always recorded what a session READ and never who
+STARTED it, so every reading of the data has had to assume — and a session cut by a predecessor is
+briefed by that predecessor, which makes the assumption wrong for an unknown share of it. Contracts
+6-8 are proved in-process by `session-origin.test.ts` / `origin-declaration.test.ts` /
+`terminal-capture.test.ts`; contract 9 is the UAT half, through a real spawned process.
+
+6. **`an-undeclared-session-resolves-to-no-origin-and-is-never-defaulted-to-human`**
+   - **asserts —** `resolveSessionOrigin` returns null for an empty environment, for an unrecognised
+     or blank origin word, and for a `STORYTREE_CUT_FOR` with nothing else; `classifySessionOrigin`
+     reads an unstamped line as `unknown` rather than as a competing claim, and
+     `describeSessionOrigin("unknown")` says outright that it is not a synonym for human-started.
+   - **falsifiability —** goes red against any default that turns an absence into `human`. That is
+     the one failure this whole attribute exists to prevent, and it fails in the reassuring
+     direction: a reader who is told "human" stops asking, where one who is told "unknown" excludes
+     the row from a figure about operator intent.
+7. **`a-declaration-wins-over-the-environment-and-neither-is-ever-inferred`**
+   - **asserts —** a persisted declaration outranks `STORYTREE_SESSION_ORIGIN` / `STORYTREE_CUT_BY`
+     in both directions; a `human` origin drops both cut riders from either channel; and a
+     declaration document this reader does not understand — an unknown `v`, an origin word that is
+     neither — is no claim at all rather than a weaker one.
+   - **falsifiability —** goes red against a precedence keyed on recency rather than on precision.
+     The declaration wins because it is keyed by THIS session's id and an exported variable is not:
+     an inherited `STORYTREE_CUT_BY` names a cut that happened to somebody else.
+8. **`an-origin-declaration-survives-the-process-and-fails-silent-in-both-directions`**
+   - **asserts —** a declaration written by `writeSessionOriginDeclaration` is read back by a fresh
+     `readSessionOriginDeclaration` over the same directory and is scoped to its own session; a
+     missing directory is created; an unwritable target returns false rather than throwing; a second
+     declaration replaces the first; and the file's suffix is not the trace index's `.jsonl`.
+   - **falsifiability —** goes red against a write that throws on an unwritable home — telemetry
+     never changes a command's control flow (ADR-0241 D3) — and against a suffix collision, which
+     would put a phantom `<id>.origin` row in `storytree traversal list`.
+9. **`a-declared-session-origin-reaches-the-trace-and-an-undeclared-one-reads-unknown`**
+   - **asserts —** in a REAL spawned CLI session: a read taken before the session declares reads
+     back `unknown`; `storytree traversal origin --cut-by … --cut-for …` exits 0; the NEXT read's
+     line carries `origin`/`cutBy`/`cutFor` in its bytes while the earlier line does not; and
+     `storytree traversal show` states the origin and the cutter on the surface a reader meets.
+   - **falsifiability —** the before/after pair is the load-bearing half. A stamp applied to the
+     whole file would satisfy the "after" assertion alone while retrofitting a provenance onto reads
+     that happened before anyone declared — which is indistinguishable from a recorded one, and is
+     the inference ADR-0484 D7 refuses outright.
 
 ## Integration evidence
 

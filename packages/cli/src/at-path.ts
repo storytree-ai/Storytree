@@ -107,6 +107,13 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `storytree traversal origin --origin human|cut [--cut-by <sessionId>] [--cut-for <unit>]`
+  // (ADR-0484 D7). One ENUM word and two canonical IDENTITIES — a session id and an arc/increment
+  // id. None is a durable prose record: the whole attribute exists so a figure can EXCLUDE the
+  // sessions nobody declared, and a paragraph read out of a file could not serve that.
+  "origin",
+  "cut-by",
+  "cut-for",
   // `storytree adr rebind <n> --refute <key>` (ADR-0438, `grounded-decisions-arc` inc-03): an
   // anchor's IDENTITY key — `<file>#<symbol>` or `<file>@<exact>` — copied from a drift finding.
   // A LOCATOR, never a record: it selects which anchor to close and is stored nowhere. Note the

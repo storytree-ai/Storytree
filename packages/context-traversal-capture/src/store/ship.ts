@@ -45,6 +45,8 @@ import path from "node:path";
 import { ContextTraversalEvent } from "@storytree/context-traversal-telemetry";
 import { z } from "zod";
 
+import type { TraceIdentityGrade } from "../session-identity.js";
+import type { SessionOriginKind } from "../session-origin.js";
 import { TRAVERSAL_TRACE_EXT } from "../sink.js";
 import type { TraversalEventLocation, TraversalEventStore } from "./traversal-event-store.js";
 
@@ -124,6 +126,14 @@ const TraceLineDoc = z.object({
   event: ContextTraversalEvent,
   grade: z.enum(["window", "declared"]).optional().catch(undefined),
   slot: z.string().nullish().catch(null),
+  // The session's ORIGIN and its two riders (ADR-0484 D7), degrading the same way: an unrecognised
+  // origin ships as UNDECLARED rather than as either value it might have been.
+  // Stryker disable next-line StringLiteral: EQUIVALENT — an emptied enum member is not a word any
+  // writer produces, so `.catch(undefined)` answers the same "undeclared" for it either way, which
+  // the `an-unrecognised-origin` case already asserts against real bytes.
+  origin: z.enum(["human", "cut"]).optional().catch(undefined),
+  cutBy: z.string().nullish().catch(null),
+  cutFor: z.string().nullish().catch(null),
 });
 
 type TraceLine = z.infer<typeof TraceLineDoc>;
@@ -296,27 +306,67 @@ interface IdentityRun {
   readonly events: ContextTraversalEvent[];
 }
 
-/** The location a line's identity attributes name, in the shape the store's append takes. */
-function locationOf(sessionId: string, line: TraceLine): TraversalEventLocation {
-  return line.grade === undefined
-    ? { sessionId, slot: line.slot ?? null }
-    : { sessionId, grade: line.grade, slot: line.slot ?? null };
+/**
+ * The WRITABLE draft of the two attributes a line only sometimes carries — the `SinkIdentityDraft`
+ * shape `terminal-capture.ts` already uses, for the same reason: `TraversalEventLocation`'s members
+ * are `readonly`, and an ABSENT key is what says "this line stated nothing".
+ */
+interface OptionalLineAttributes {
+  grade?: TraceIdentityGrade;
+  origin?: SessionOriginKind;
 }
 
 /**
- * Group consecutive lines into runs sharing one `(grade, slot)`, so each run is ONE append.
+ * The location a line's identity attributes name, in the shape the store's append takes.
+ *
+ * The two OPTIONAL attributes are drafted into their own bag and spread, rather than branched over:
+ * with `exactOptionalPropertyTypes` an absent key and an explicit `undefined` are different values,
+ * and `grade` alone already needed a ternary — a second optional would have made it four arms, one
+ * of which nothing would ever exercise.
+ */
+function locationOf(sessionId: string, line: TraceLine): TraversalEventLocation {
+  const optional: OptionalLineAttributes = {};
+  if (line.grade !== undefined) optional.grade = line.grade;
+  if (line.origin !== undefined) optional.origin = line.origin;
+  return {
+    sessionId,
+    slot: line.slot ?? null,
+    cutBy: line.cutBy ?? null,
+    cutFor: line.cutFor ?? null,
+    ...optional,
+  };
+}
+
+/**
+ * Group consecutive lines into runs sharing ONE identity, so each run is one append.
  *
  * The store's append takes one location for a batch, exactly as the JSONL sink stamps one identity
- * per append — so a trace whose grade or slot changed mid-file (a window that moved worktree) must
- * be shipped as several appends rather than have one line's attributes silently applied to its
- * neighbours. Order is preserved, which is the property `seq` then records.
+ * per append — so a trace whose attributes changed mid-file (a window that moved worktree, or a
+ * session that declared its origin partway through) must be shipped as several appends rather than
+ * have one line's attributes silently applied to its neighbours. Order is preserved, which is the
+ * property `seq` then records.
+ *
+ * ⚠ EVERY attribute is compared, not just the two that existed first. A comparison that ignored the
+ * origin would take the FIRST line's answer and apply it to the whole run — which for the ordinary
+ * shape (a session declaring after it had already read something) means shipping declared events as
+ * undeclared, silently, in exactly the direction ADR-0484 D7 exists to prevent.
  */
+function sameIdentity(a: TraversalEventLocation, b: TraversalEventLocation): boolean {
+  return (
+    a.grade === b.grade &&
+    a.slot === b.slot &&
+    a.origin === b.origin &&
+    a.cutBy === b.cutBy &&
+    a.cutFor === b.cutFor
+  );
+}
+
 function groupByIdentity(lines: readonly TraceLine[], sessionId: string): IdentityRun[] {
   const runs: IdentityRun[] = [];
   for (const line of lines) {
     const location = locationOf(sessionId, line);
     const last = runs[runs.length - 1];
-    if (last !== undefined && last.location.grade === location.grade && last.location.slot === location.slot) {
+    if (last !== undefined && sameIdentity(last.location, location)) {
       last.events.push(line.event);
     } else {
       runs.push({ location, events: [line.event] });

@@ -108,6 +108,18 @@ capability needs only the reader's RETURN TYPE, so it can start against a signat
 4. **`a-partial-replay-states-its-skipped-count`**
    - **asserts —** a replay accompanied by a non-zero `skipped` count renders that count as an
      explicit partial-read notice, and the render still returns a complete body rather than throwing.
+5. **`a-reading-states-whether-its-sessions-were-human-started-agent-cut-or-unknown`**
+   - **asserts —** the replay prints an `origin:` line beside `identity:` with what the reading
+     MEANS, renders `cut by:` / `cut for:` only when the lines carried them, and prints the line for
+     an `unknown` reading rather than omitting it; the session index carries each row's origin and,
+     whenever any row is undeclared, a notice sizing them and saying `origin: unknown` is not
+     `origin: human` (ADR-0484 D7, deliverable 4).
+   - **falsifiability —** goes red against an `unknown` origin rendered by SILENCE. That is where
+     this deliberately diverges from `identity:`, which is omitted when the caller holds none: an
+     omitted identity reads as "the render was not given the answer", while an omitted origin reads
+     as "this was the owner's prompt", because that is the assumption already in the reader's head.
+     The conditional half is asserted beside it, so an index where every session declared grows no
+     paragraph announcing an absence.
 
 ## Integration evidence
 

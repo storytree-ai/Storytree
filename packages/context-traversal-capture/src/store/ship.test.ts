@@ -100,7 +100,13 @@ function capture(
   dir: string,
   sessionId: string,
   n: number,
-  identity?: { grade: "window" | "declared"; slot: string },
+  identity?: {
+    grade?: "window" | "declared";
+    slot?: string;
+    origin?: "human" | "cut";
+    cutBy?: string;
+    cutFor?: string;
+  },
 ): void {
   ensureShipBaseline(dir, sessionId);
   const location = identity === undefined ? { dir, sessionId } : { dir, sessionId, ...identity };
@@ -434,6 +440,74 @@ test("line-identity-changes-mid-trace-are-shipped-as-separate-appends-never-smea
     `${sessionId}-e4`,
     `${sessionId}-e5`,
   ]);
+});
+
+test("a-session-that-declares-its-origin-mid-trace-ships-each-run-under-what-its-own-lines-said", async () => {
+  const dir = freshDir("origin-runs");
+  const sessionId = "s-declared-late";
+
+  // The ordinary shape: a session reads something, THEN declares how it came to exist. The two runs
+  // are genuinely different facts and must not be smeared onto one.
+  capture(dir, sessionId, 1, { grade: "window" });
+  capture(dir, sessionId, 2, { grade: "window", origin: "cut", cutBy: "parent-window", cutFor: "some-arc" });
+  // Only the RIDER moves here, so a grouping rule comparing the origin word alone would fold this
+  // into the run above it and ship it under the wrong cutter.
+  capture(dir, sessionId, 3, { grade: "window", origin: "cut", cutBy: "another-parent", cutFor: "some-arc" });
+  // ...and again with only the UNIT moving, so every attribute the grouping compares has something
+  // that moves it alone. A conjunct nothing exercises is a conjunct that can be deleted silently.
+  capture(dir, sessionId, 4, { grade: "window", origin: "cut", cutBy: "another-parent", cutFor: "another-arc" });
+  // ...and finally with only the ORIGIN WORD moving, riders absent on both sides. A session that
+  // corrected itself looks like this, and a grouping rule blind to the word would ship the
+  // correction under the answer it replaced.
+  capture(dir, sessionId, 5, { grade: "window", origin: "human" });
+  capture(dir, sessionId, 6, { grade: "window", origin: "cut" });
+  // ...and one where only the GRADE moves while the origin holds, so this case exercises every
+  // conjunct of the grouping rule on its own rather than only the ones the increment added.
+  capture(dir, sessionId, 7, { grade: "declared", origin: "cut" });
+
+  const store = new RecordingStore();
+  await shipTraversalSession(sessionId, { dir, store, now });
+
+  assert.deepEqual(
+    store.appends.map((entry) => [
+      entry.location.grade,
+      entry.location.origin,
+      entry.location.cutBy,
+      entry.location.cutFor,
+      entry.eventIds.length,
+    ]),
+    [
+      ["window", undefined, null, null, 1],
+      ["window", "cut", "parent-window", "some-arc", 1],
+      ["window", "cut", "another-parent", "some-arc", 1],
+      ["window", "cut", "another-parent", "another-arc", 1],
+      ["window", "human", null, null, 1],
+      ["window", "cut", null, null, 1],
+      ["declared", "cut", null, null, 1],
+    ],
+  );
+  // An undeclared run is an ABSENT key, never an explicit `undefined` — the distinction that keeps
+  // "nobody said" from arriving at the store as a stated value.
+  assert.equal("origin" in (store.appends[0]?.location ?? {}), false);
+});
+
+test("a-line-whose-origin-is-unrecognised-still-ships-as-an-undeclared-one: the reassuring coercion never happens", async () => {
+  const dir = freshDir("odd-origin");
+  const sessionId = "s-odd-origin";
+  ensureShipBaseline(dir, sessionId);
+  fs.appendFileSync(
+    path.join(dir, `${sessionId}.jsonl`),
+    `${JSON.stringify({ v: 1, event: visit(sessionId, 1), origin: "operator", cutBy: 42 })}
+`,
+    "utf8",
+  );
+
+  const store = new RecordingStore();
+  const outcome = await shipTraversalSession(sessionId, { dir, store, now });
+
+  assert.equal(outcome.shipped, 1, "the EVENT is never the casualty of an unusable attribute");
+  assert.equal(store.appends[0]?.location.origin, undefined, "unrecognised is undeclared, never coerced");
+  assert.equal(store.appends[0]?.location.cutBy, null, "and a rider of the wrong shape names nobody");
 });
 
 // ---------------------------------------------------------------------------

@@ -25,6 +25,7 @@ import { test } from "node:test";
 import { isContextVisitEvent } from "@storytree/context-traversal-telemetry";
 
 import { captureCliInvocation, showTraversalSession } from "./terminal-capture.js";
+import { writeSessionOriginDeclaration } from "./origin-declaration.js";
 import { readTraversalSession, appendTraversalEvents } from "./sink.js";
 import { readShipCursor } from "./store/ship.js";
 
@@ -296,4 +297,87 @@ test("captureCliInvocation: a NON-search read is unaffected by result ids the ca
   assert.ok(event !== undefined);
   assert.equal(isContextVisitEvent(event) ? event.nodeId : undefined, "plan");
   assert.equal(JSON.stringify(event).includes("ignored-1"), false);
+});
+
+test("captureCliInvocation: the session's own DECLARATION is what stamps the origin — the composition reads it, nothing infers it", () => {
+  const dir = freshDir("origin-declared");
+  const sessionId = "session-unit-origin";
+
+  // No override: the composition resolves the origin itself, from the declaration file that lives
+  // beside the trace. This is the wiring the increment turns on — without it every other assertion
+  // here would prove only that a value passed in comes back out.
+  writeSessionOriginDeclaration(dir, sessionId, {
+    v: 1,
+    origin: "cut",
+    cutBy: "parent-window-id",
+    cutFor: "trace-records-whether-a-session-was-cut-or-human-started",
+    declaredAt: "2026-08-31T00:00:00.000Z",
+  });
+
+  captureCliInvocation({
+    argv: ["library", "artifact", "adr-0484"],
+    ok: true,
+    sessionId,
+    dir,
+    enabled: true,
+    nextId: () => "visit-origin",
+    now: () => AT,
+  });
+
+  assert.deepEqual(readTraversalSession({ dir, sessionId }).origin, {
+    reading: "cut",
+    cutBy: ["parent-window-id"],
+    cutFor: ["trace-records-whether-a-session-was-cut-or-human-started"],
+  });
+
+  // ...and the replay SAYS so, rather than leaving a reader to attribute the read to an operator.
+  const rendered = showTraversalSession(sessionId, { dir });
+  assert.match(rendered.body, /^origin: cut —/m);
+  assert.match(rendered.body, /^cut by: parent-window-id$/m);
+});
+
+test("captureCliInvocation: an UNDECLARED session stamps no origin at all, and its trace reads back unknown rather than human", () => {
+  const dir = freshDir("origin-absent");
+  const sessionId = "session-unit-undeclared";
+
+  // `origin: null` states the resolution explicitly rather than depending on this test process's
+  // own environment — the same reason `enabled` is passed rather than inherited.
+  captureCliInvocation({
+    argv: ["library", "artifact", "adr-0484"],
+    ok: true,
+    sessionId,
+    dir,
+    enabled: true,
+    origin: null,
+    nextId: () => "visit-undeclared",
+    now: () => AT,
+  });
+
+  const raw = fs.readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8");
+  assert.equal(raw.includes('"origin"'), false, "no key is written, so absence is what the reader meets");
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.origin.reading, "unknown");
+  assert.notEqual(read.origin.reading, "human");
+  assert.match(showTraversalSession(sessionId, { dir }).body, /^origin: unknown —/m);
+});
+
+test("captureCliInvocation: a `human` declaration carries no cut riders onto the line", () => {
+  const dir = freshDir("origin-human");
+  const sessionId = "session-unit-human";
+
+  captureCliInvocation({
+    argv: ["library", "artifact", "adr-0484"],
+    ok: true,
+    sessionId,
+    dir,
+    enabled: true,
+    origin: { kind: "human", cutBy: null, cutFor: null },
+    nextId: () => "visit-human",
+    now: () => AT,
+  });
+
+  const raw = fs.readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8");
+  assert.equal(raw.includes('"origin":"human"'), true);
+  assert.equal(raw.includes("cutBy"), false, "a session an operator started was cut by nobody");
+  assert.equal(readTraversalSession({ dir, sessionId }).origin.reading, "human");
 });

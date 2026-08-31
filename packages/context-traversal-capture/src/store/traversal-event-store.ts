@@ -29,6 +29,8 @@ import { z } from "zod";
 
 import { classifyTraceIdentity } from "../session-identity.js";
 import type { TraceIdentityGrade } from "../session-identity.js";
+import { foldSessionOrigin } from "../session-origin.js";
+import type { SessionOriginClaim, SessionOriginKind } from "../session-origin.js";
 import type { TraversalReadResult, TraversalSessionSummary } from "../sink.js";
 
 /** The narrow query seam a `pg` `Pool` already satisfies structurally. */
@@ -46,6 +48,10 @@ export interface TraversalEventLocation {
   readonly sessionId: string;
   readonly grade?: TraceIdentityGrade;
   readonly slot?: string | null;
+  /** How the session came to exist (ADR-0484 D7). Absent = undeclared, which is never `human`. */
+  readonly origin?: SessionOriginKind;
+  readonly cutBy?: string | null;
+  readonly cutFor?: string | null;
 }
 
 /**
@@ -79,6 +85,12 @@ const TraversalRowDoc = z.object({
   event: ContextTraversalEvent,
   grade: z.enum(["window", "declared"]).nullish().catch(null),
   slot: z.string().nullish().catch(null),
+  // Same `.catch()` rule, and here it carries one more clause: an unrecognised origin word must
+  // become UNDECLARED rather than either of the two it might have been, because the reassuring
+  // coercion is the one this attribute exists to prevent (ADR-0484 D7).
+  origin: z.enum(["human", "cut"]).nullish().catch(null),
+  cutBy: z.string().nullish().catch(null),
+  cutFor: z.string().nullish().catch(null),
 });
 
 /** The `session_id` projection the list query returns. */
@@ -97,6 +109,10 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
   const seenVisitIds = new Set<string>();
   const grades: (TraceIdentityGrade | undefined)[] = [];
   const slots: string[] = [];
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — a seeded junk element answers
+  // `undefined` for every field the fold reads, so it changes neither the reading nor either rider
+  // list. The same call, and the same reason, as the JSONL reader's.
+  const claims: SessionOriginClaim[] = [];
   let skipped = 0;
 
   for (const candidate of rows) {
@@ -105,7 +121,7 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
       skipped += 1;
       continue;
     }
-    const { event, grade, slot } = parsed.data;
+    const { event, grade, slot, origin, cutBy, cutFor } = parsed.data;
     if (seenEventIds.has(event.eventId)) {
       skipped += 1;
       continue;
@@ -123,6 +139,7 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
     }
     seenEventIds.add(event.eventId);
     grades.push(grade ?? undefined);
+    claims.push({ origin: origin ?? undefined, cutBy, cutFor });
     // A slot is a WORKTREE NAME or it is nothing. `null` (the column's own absence) and `""` (a
     // caller that had nothing to say) both name no worktree and must not become an entry a reader
     // could quote back as one.
@@ -130,7 +147,13 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
     trace.append(event);
   }
 
-  return { replay: trace.replay(sessionId), skipped, identity: classifyTraceIdentity(grades), slots };
+  return {
+    replay: trace.replay(sessionId),
+    skipped,
+    identity: classifyTraceIdentity(grades),
+    slots,
+    origin: foldSessionOrigin(claims),
+  };
 }
 
 /**
@@ -144,14 +167,29 @@ function foldRows(sessionId: string, rows: readonly unknown[]): TraversalReadRes
 // routes on the INSERT verb and implements the conflict rule itself, so every other clause here is
 // unobservable. The live proof is the witness, and it is named above rather than implied.
 const INSERT_EVENT_SQL = [
-  "INSERT INTO events.traversal_event (event_id, session_id, observed_at, grade, slot, event)",
-  "VALUES ($1, $2, $3, $4, $5, $6)",
+  "INSERT INTO events.traversal_event",
+  "  (event_id, session_id, observed_at, grade, slot, origin, cut_by, cut_for, event)",
+  "VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)",
   "ON CONFLICT (event_id) DO NOTHING",
 ].join("\n");
 // Stryker restore StringLiteral
 
-const SELECT_SESSION_SQL =
-  "SELECT event, grade, slot FROM events.traversal_event WHERE session_id = $1 ORDER BY seq ASC";
+// The three origin columns are ALIASED back to the camelCase the JSONL line uses, so one row schema
+// (`TraversalRowDoc`) and one fold serve both backends — the alternative was a second shape whose
+// only difference was spelling, which is exactly the hand-mirroring `foldSessionOrigin` exists to
+// prevent.
+//
+// Stryker disable next-line StringLiteral: EQUIVALENT against the in-memory double by construction —
+// it routes on the `WHERE session_id = $1` fragment and answers with the aliased keys itself, so no
+// other token here is observable offline. The live proof is the witness: the columns were read back
+// through this statement against the real store and recorded on the increment, exactly as
+// `INSERT_EVENT_SQL` above is.
+// Stryker disable StringLiteral
+const SELECT_SESSION_SQL = [
+  'SELECT event, grade, slot, origin, cut_by AS "cutBy", cut_for AS "cutFor"',
+  "FROM events.traversal_event WHERE session_id = $1 ORDER BY seq ASC",
+].join("\n");
+// Stryker restore StringLiteral
 
 const SELECT_SESSION_IDS_SQL =
   "SELECT session_id FROM events.traversal_event GROUP BY session_id ORDER BY MAX(seq) ASC";
@@ -198,6 +236,9 @@ export class PgTraversalEventStore implements TraversalEventStore {
           event.at,
           location.grade ?? null,
           location.slot ?? null,
+          location.origin ?? null,
+          location.cutBy ?? null,
+          location.cutFor ?? null,
           JSON.stringify(event),
         ]);
       }
@@ -244,12 +285,13 @@ export class PgTraversalEventStore implements TraversalEventStore {
 
     const summaries: TraversalSessionSummary[] = [];
     for (const sessionId of sessionIds) {
-      const { replay, identity, slots } = await this.read(sessionId);
+      const { replay, identity, slots, origin } = await this.read(sessionId);
       if (replay.events.length === 0) continue;
       const lastEvent = replay.events[replay.events.length - 1];
       summaries.push({
         sessionId,
         eventCount: replay.events.length,
+        origin,
         // Stryker disable next-line OptionalChaining: EQUIVALENT — the zero-event case is skipped
         // above, so this index is valid and `lastEvent` is never undefined. The `?.` satisfies
         // `noUncheckedIndexedAccess`; it is not a runtime guard.

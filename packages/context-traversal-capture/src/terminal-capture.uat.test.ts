@@ -707,3 +707,57 @@ test("an-agents-render-writes-a-parent-linked-descent: a real spawned `agents <n
 // the observer's allowlist, revisit links, the opt-out-clean envelope, context-window keying, and the
 // agent-ref descent.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// 6. a-declared-session-origin-reaches-the-trace-and-an-undeclared-one-reads-unknown
+// ---------------------------------------------------------------------------
+
+test("a-declared-session-origin-reaches-the-trace-and-an-undeclared-one-reads-unknown: a real spawned declaration stamps every later read, and the replay says so", () => {
+  const dir = freshDir("contract6");
+  const sessionId = "session-contract6";
+  const env = { ...baseEnv(), STORYTREE_TRAVERSAL_DIR: dir, STORYTREE_SESSION_ID: sessionId };
+
+  // A read BEFORE the session declares anything: nobody has said how this session came to exist.
+  const before = runCli(["library", "artifact", "plan"], env);
+  assert.equal(before.status, 0, `expected the pre-declaration read to exit 0: ${before.stderr}`);
+  assert.equal(
+    readTraversalSession({ dir, sessionId }).origin.reading,
+    "unknown",
+    "an undeclared session reads UNKNOWN — never human, which is the assumption ADR-0484 D7 removes",
+  );
+
+  // The declaration, run as a real command exactly as a cut session's brief would tell it to.
+  const declared = runCli(
+    ["traversal", "origin", "--cut-by", "the-predecessor", "--cut-for", "linked-session-context-arc"],
+    env,
+  );
+  assert.equal(declared.status, 0, `expected the declaration to exit 0: ${declared.stderr}`);
+  assert.match(declared.stdout, /origin:  cut/);
+
+  // ...and the NEXT read carries it, through the real capture path in a real process.
+  const after = runCli(["tree", "context-traversal-telemetry"], env);
+  assert.equal(after.status, 0, `expected the post-declaration read to exit 0: ${after.stderr}`);
+
+  const read = readTraversalSession({ dir, sessionId });
+  assert.equal(read.origin.reading, "cut");
+  assert.deepEqual(read.origin.cutBy, ["the-predecessor"]);
+  assert.deepEqual(read.origin.cutFor, ["linked-session-context-arc"]);
+
+  // The bytes carry it per line, not in a header — the same rule `grade` follows, and the reason a
+  // crash-truncated trace still says who started the session.
+  const raw = fs.readFileSync(path.join(dir, `${sessionId}.jsonl`), "utf8").trim().split("\n");
+  const stamped = raw.filter((line) => line.includes('"origin":"cut"'));
+  assert.equal(stamped.length >= 1, true, "the post-declaration line carries the origin");
+  assert.equal(
+    stamped.length < raw.length,
+    true,
+    "and the PRE-declaration line does not — an origin applies forward, never backwards",
+  );
+
+  // Finally the surface a reader actually meets states it, rather than leaving the reads to be
+  // attributed to an operator's prompt.
+  const shown = runCli(["traversal", "show", sessionId], env);
+  assert.equal(shown.status, 0, `expected the replay to exit 0: ${shown.stderr}`);
+  assert.match(shown.stdout, /origin: cut —/);
+  assert.match(shown.stdout, /cut by: the-predecessor/);
+});

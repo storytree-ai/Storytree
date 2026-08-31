@@ -23,9 +23,12 @@ import {
   AGENT_DESCENT_COVERAGE,
 } from "./descend-agent-refs.js";
 import { observeCliInvocation } from "./observe-cli.js";
+import { readSessionOriginDeclaration } from "./origin-declaration.js";
 import { renderTraversalSession, renderTraversalSessions } from "./query-render.js";
 import { linkRevisits } from "./revisit-links.js";
 import type { TraceIdentityGrade } from "./session-identity.js";
+import { resolveSessionOrigin } from "./session-origin.js";
+import type { SessionOrigin, SessionOriginKind } from "./session-origin.js";
 import {
   appendTraversalEvents,
   listTraversalSessions,
@@ -87,6 +90,16 @@ export interface CaptureCliInvocationInput {
    * and `slot` — rather than by a branch in the entry point that nothing can reach in a test.
    */
   readonly resultNodeIds?: readonly string[] | undefined;
+  /**
+   * How this session came to exist (ADR-0484 D7), overriding the ambient resolution below.
+   *
+   * Resolved HERE rather than by the CLI — unlike `grade` and `slot` — because half of the answer
+   * is a file that lives in the trace directory this composition already resolves, and splitting one
+   * precedence across two modules is how two answers start disagreeing. The override exists for the
+   * same reason `enabled` and `now` do: so the offline suite decides by value instead of by
+   * environment. `null` states "resolved to nothing", which is different from absent.
+   */
+  readonly origin?: SessionOrigin | null;
 }
 
 /** Where the query composition reads a captured session from. */
@@ -123,6 +136,9 @@ export function isTraversalCaptureEnabled(override?: boolean): boolean {
 interface SinkIdentityDraft {
   grade?: TraceIdentityGrade;
   slot?: string | null;
+  origin?: SessionOriginKind;
+  cutBy?: string | null;
+  cutFor?: string | null;
 }
 
 /**
@@ -192,6 +208,23 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
   const identity: SinkIdentityDraft = {};
   if (input.grade !== undefined) identity.grade = input.grade;
   if (input.slot !== undefined) identity.slot = input.slot;
+  // WHO STARTED THIS SESSION (ADR-0484 D7), stamped on the lines this invocation writes. An
+  // undeclared session resolves to null and stamps NOTHING, which is what makes the read-back answer
+  // `unknown` rather than a reassuring default — the increment's own first fence. Nothing here
+  // infers: both channels are explicit claims, and the earlier lines of a session that declares
+  // late are left exactly as they were written.
+  const origin =
+    input.origin !== undefined
+      ? input.origin
+      : resolveSessionOrigin({
+          env: process.env,
+          declaration: readSessionOriginDeclaration(dir, sessionId),
+        });
+  if (origin !== null) {
+    identity.origin = origin.kind;
+    identity.cutBy = origin.cutBy;
+    identity.cutFor = origin.cutFor;
+  }
   appendTraversalEvents(linkRevisits(descended, replay.events), { dir, sessionId, ...identity });
 }
 
@@ -223,10 +256,10 @@ export function captureCliInvocation(input: CaptureCliInvocationInput): void {
  */
 export function showTraversalSession(sessionId: string, opts?: TraversalQueryOptions): RenderedEnvelope {
   const dir = opts?.dir ?? resolveTraversalDir();
-  const { replay, skipped, identity, slots } = readTraversalSession({ dir, sessionId });
+  const { replay, skipped, identity, slots, origin } = readTraversalSession({ dir, sessionId });
   const rendered = renderTraversalSession(
     { ...replay, coverage: [AGENT_DESCENT_COVERAGE] },
-    { skipped, identity, slots },
+    { skipped, identity, slots, origin },
   );
   const caveats = renderCoverageCaveats(AGENT_DESCENT_CAVEATS);
   return { ...rendered, body: `${rendered.body}\n\ncoverage-caveats:\n${caveats}` };

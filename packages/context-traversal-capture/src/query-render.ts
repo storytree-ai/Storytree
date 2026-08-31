@@ -18,6 +18,8 @@ import type {
 import { computeDecisionPoints, renderDecisionPoints } from "./decision-point-playback.js";
 import { describeTraceIdentity } from "./session-identity.js";
 import type { TraceIdentityKind } from "./session-identity.js";
+import { describeSessionOrigin } from "./session-origin.js";
+import type { TraceOriginReading } from "./session-origin.js";
 import type { TraversalSessionSummary } from "./sink.js";
 
 /**
@@ -200,7 +202,10 @@ export function renderTraversalSessions(list: readonly TraversalSessionSummary[]
   const lines = sorted.map((session) => {
     const observed = session.lastObservedAt ?? "unknown";
     const slots = session.slots.length > 0 ? ` — slot ${session.slots.join(", ")}` : "";
-    return `- ${session.sessionId} — ${session.eventCount} event(s) — last observed ${observed} — identity: ${session.identity}${slots}`;
+    // `origin:` rides EVERY row, `unknown` included — the one value a reader would otherwise supply
+    // from habit. A row that simply omitted it would read as "not applicable" rather than "nobody
+    // recorded how this session started" (ADR-0484 D7).
+    return `- ${session.sessionId} — ${session.eventCount} event(s) — last observed ${observed} — identity: ${session.identity} — origin: ${session.origin.reading}${slots}`;
   });
 
   // WHY EVERY ROW CARRIES ITS IDENTITY KIND, and why the legacy note is CONDITIONAL
@@ -224,7 +229,26 @@ export function renderTraversalSessions(list: readonly TraversalSessionSummary[]
           "than merged with the window-keyed ones.",
         ];
 
-  const body = ["Captured sessions (newest observed first):", "", ...lines, ...notice].join("\n");
+  // THE CAVEAT EVERY FIGURE TAKEN OVER THIS INDEX OWES (ADR-0484 D7, deliverable 4). An index is
+  // where a reader counts, and the count most likely to be taken from it — "how many sessions read
+  // X" — is one step from "how many times the owner asked for X". Those are the same number only if
+  // every session was human-started, which is precisely what the undeclared rows do not say. Printed
+  // whenever ANY row is undeclared, which today is nearly all of them, and it disappears on its own
+  // once sessions declare rather than needing a later edit to remove it.
+  const undeclared = sorted.filter((session) => session.origin.reading === "unknown");
+  const originNotice =
+    undeclared.length === 0
+      ? []
+      : [
+          "",
+          `note: ${undeclared.length} of ${sorted.length} session(s) above never recorded HOW THEY STARTED.`,
+          "`origin: unknown` is not `origin: human`. A session cut by a predecessor is briefed by that",
+          "predecessor, so its reads follow an agent-authored handover rather than an operator's prompt —",
+          "and no figure taken over these rows may be attributed to what the owner asked for.",
+          "Origins are never inferred after the fact, so these stay unlabelled permanently.",
+        ];
+
+  const body = ["Captured sessions (newest observed first):", "", ...lines, ...notice, ...originNotice].join("\n");
   const next = sorted.map(
     (session) => `storytree context-traversal session ${session.sessionId} — replay this session`,
   );
@@ -251,6 +275,16 @@ export function renderTraversalSession(
     readonly identity?: TraceIdentityKind;
     /** The worktree slot(s) the session's lines recorded — a grouping attribute, not an identity. */
     readonly slots?: readonly string[];
+    /**
+     * Who started the session, from the reader (ADR-0484 D7).
+     *
+     * ⚠ UNLIKE `identity`, AN `unknown` READING IS PRINTED RATHER THAN OMITTED, and the asymmetry is
+     * the deliverable. Omitting `identity` when a caller holds none says "this render was not given
+     * the answer"; omitting `origin` would say the same and be read as "this session was the owner's
+     * prompt", because that is the assumption already in every reader's head. The line is only
+     * skipped when the caller passes nothing at all.
+     */
+    readonly origin?: TraceOriginReading;
   },
 ): TraversalRenderEnvelope {
   const lines: string[] = [];
@@ -273,6 +307,21 @@ export function renderTraversalSession(
   }
   if (opts.slots !== undefined && opts.slots.length > 0) {
     lines.push(`worktree slot: ${opts.slots.join(", ")} (a grouping attribute, never the identity)`);
+  }
+
+  // HOW THIS SESSION CAME TO EXIST, said on the picture (ADR-0484 D7). It sits beside `identity:`
+  // because it qualifies the same line from the other side: identity says WHICH window this was,
+  // origin says WHO STARTED IT — and a replay whose first read followed an agent-authored handover
+  // is not evidence of what the owner asked for, however cleanly its visits render.
+  //
+  // The two riders are printed ONLY when the lines actually carried them (`cut by` / `cut for`),
+  // never as a placeholder: a session that knows only "I was cut, by something" is a genuine and
+  // sufficient answer, and an empty `cut by:` line would read as a lost value rather than an
+  // absent one.
+  if (opts.origin !== undefined && replay.events.length > 0) {
+    lines.push(`origin: ${opts.origin.reading} — ${describeSessionOrigin(opts.origin.reading)}`);
+    if (opts.origin.cutBy.length > 0) lines.push(`cut by: ${opts.origin.cutBy.join(", ")}`);
+    if (opts.origin.cutFor.length > 0) lines.push(`cut for: ${opts.origin.cutFor.join(", ")}`);
   }
 
   if (opts.skipped > 0) {

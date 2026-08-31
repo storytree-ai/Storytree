@@ -19,6 +19,8 @@ import type { ContextTraversalReplay } from "@storytree/context-traversal-teleme
 
 import { classifyTraceIdentity } from "./session-identity.js";
 import type { TraceIdentityGrade, TraceIdentityKind } from "./session-identity.js";
+import { foldSessionOrigin } from "./session-origin.js";
+import type { SessionOriginClaim, SessionOriginKind, TraceOriginReading } from "./session-origin.js";
 
 const TRAVERSAL_DIR_ENV = "STORYTREE_TRAVERSAL_DIR";
 const SCHEMA_VERSION = 1;
@@ -43,6 +45,19 @@ export interface TraversalLineIdentity {
   readonly grade?: TraceIdentityGrade;
   /** The worktree slot the window ran in — a GROUPING attribute recorded beside the identity. */
   readonly slot?: string | null;
+  /**
+   * HOW THE SESSION CAME TO EXIST — human-started, or cut by a predecessor (ADR-0484 D7).
+   *
+   * A third additive sibling on the same argument as the two above, and it inherits their absence
+   * rule with one clause added: an absent `origin` is UNKNOWN and is never read as `human`. The
+   * whole point of the increment that added it is that "the session's first read followed the
+   * owner's prompt" was being assumed; a default here would restore the assumption under a new name.
+   */
+  readonly origin?: SessionOriginKind;
+  /** The session that cut this one, when it named itself. Only ever present beside `origin: cut`. */
+  readonly cutBy?: string | null;
+  /** The arc/increment this session was cut to drive — a canonical identity, never free text. */
+  readonly cutFor?: string | null;
 }
 
 export interface TraversalSinkLocation extends TraversalLineIdentity {
@@ -61,6 +76,8 @@ export interface TraversalReadResult {
   readonly identity: TraceIdentityKind;
   /** Every distinct worktree slot the session's lines recorded, in first-seen order. */
   readonly slots: readonly string[];
+  /** Who started the session, as its own lines declared it — `unknown` when none did. */
+  readonly origin: TraceOriginReading;
 }
 
 export interface TraversalSessionSummary {
@@ -71,6 +88,8 @@ export interface TraversalSessionSummary {
   readonly identity: TraceIdentityKind;
   /** Every distinct worktree slot the session's lines recorded, in first-seen order. */
   readonly slots: readonly string[];
+  /** Who started the session ({@link TraversalReadResult.origin}). */
+  readonly origin: TraceOriginReading;
 }
 
 /**
@@ -104,9 +123,26 @@ export function appendTraversalEvents(events: readonly unknown[], location: Trav
   // written to a per-session header: the file is append-only and each line must stand alone, since
   // a crash-truncated read replays whatever IS readable (ADR-0241 D5) — a header would be the one
   // line whose loss silently re-labelled the whole trace.
+  //
+  // ONE RULE FOR ALL FIVE ATTRIBUTES, not five near-identical guards. An attribute is stamped when
+  // it NAMES something and is omitted otherwise, and the omission is the load-bearing half: an
+  // absent `origin` key is what makes a line read back `unknown` rather than `human`, and an absent
+  // `grade` is what makes a legacy line legible as one (ADR-0484 D7 / inc-30). Written five times
+  // over, that rule had five places to drift and no single place to test.
   const identity: Record<string, string> = {};
-  if (location.grade !== undefined) identity["grade"] = location.grade;
-  if (location.slot !== undefined && location.slot !== null) identity["slot"] = location.slot;
+  const stamp = (key: string, value: string | null | undefined): void => {
+    // Stryker disable next-line ConditionalExpression: the `undefined` half is EQUIVALENT and the
+    // `null` half is not. `JSON.stringify` omits a key whose value is `undefined`, so dropping this
+    // conjunct writes the same bytes; dropping the `null` one writes `"cutBy":null` onto every
+    // human-started line, which `a-null-cutter-writes-no-key` asserts against real bytes. Both are
+    // spelled because the RULE is "names something", not "is not undefined".
+    if (value !== undefined && value !== null) identity[key] = value;
+  };
+  stamp("grade", location.grade);
+  stamp("slot", location.slot);
+  stamp("origin", location.origin);
+  stamp("cutBy", location.cutBy);
+  stamp("cutFor", location.cutFor);
 
   const lines: string[] = [];
   for (const candidate of events) {
@@ -133,6 +169,9 @@ interface ParsedLine {
   readonly event: unknown;
   readonly grade?: unknown;
   readonly slot?: unknown;
+  readonly origin?: unknown;
+  readonly cutBy?: unknown;
+  readonly cutFor?: unknown;
 }
 
 function isParsedLineShape(value: unknown): value is ParsedLine {
@@ -146,6 +185,19 @@ function isParsedLineShape(value: unknown): value is ParsedLine {
  */
 function gradeOf(line: ParsedLine): TraceIdentityGrade | undefined {
   return line.grade === "window" || line.grade === "declared" ? line.grade : undefined;
+}
+
+/**
+ * A line's origin claim, on the same rule as {@link gradeOf}: an unrecognised word is read as "this
+ * line declared nothing", never coerced into one of the two origins it might not be. Coercing here
+ * would be the reassuring-direction guess the whole attribute exists to prevent.
+ */
+function claimOf(line: ParsedLine): SessionOriginClaim {
+  const origin = line.origin === "human" || line.origin === "cut" ? line.origin : undefined;
+  // The two RIDERS pass through unjudged. `foldSessionOrigin` is the one place that decides what
+  // names somebody, and it is shared with the Postgres reader — a second `typeof` here would be the
+  // same rule in a second place, which is the shape that drifts.
+  return { origin, cutBy: line.cutBy, cutFor: line.cutFor };
 }
 
 /**
@@ -166,7 +218,17 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
     // other read rather than hardcoded, so the empty case can never drift into its own rule — and
     // the renders below print no identity line at all for a replay with no events, so this value
     // labels nothing.
-    return { replay: trace.replay(location.sessionId), skipped: 0, identity: classifyTraceIdentity([]), slots: [] };
+    return {
+      replay: trace.replay(location.sessionId),
+      skipped: 0,
+      identity: classifyTraceIdentity([]),
+      slots: [],
+      // Stryker disable next-line ArrayDeclaration: EQUIVALENT — the fold reads `.origin` / `.cutBy`
+      // / `.cutFor` off each element, and every element of a junk array answers `undefined`, so any
+      // non-empty literal here folds to the same `unknown` with no riders. Called rather than
+      // hardcoded so the empty case can never drift into its own rule.
+      origin: foldSessionOrigin([]),
+    };
   }
 
   const rawLines = raw.split("\n");
@@ -181,6 +243,10 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
   // corrupt tail can neither add an identity grade nor invent a slot.
   const grades: (TraceIdentityGrade | undefined)[] = [];
   const slots: string[] = [];
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — a seeded junk element answers
+  // `undefined` for all three fields it is read for, so it contributes to neither the reading nor
+  // either rider list. The empty start is what makes the accumulator honest, not what makes it work.
+  const claims: SessionOriginClaim[] = [];
   let skipped = 0;
 
   for (const untrimmed of rawLines) {
@@ -217,6 +283,7 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
     seenEventIds.add(event.eventId);
     if (visitId !== undefined) seenVisitIds.add(visitId);
     grades.push(gradeOf(candidate));
+    claims.push(claimOf(candidate));
     if (typeof candidate.slot === "string" && candidate.slot.length > 0 && !slots.includes(candidate.slot)) {
       slots.push(candidate.slot);
     }
@@ -228,6 +295,7 @@ export function readTraversalSession(location: TraversalSinkLocation): Traversal
     skipped,
     identity: classifyTraceIdentity(grades),
     slots,
+    origin: foldSessionOrigin(claims),
   };
 }
 
@@ -250,12 +318,13 @@ export function summarizeTraversalSession(
   dir: string,
   sessionId: string,
 ): TraversalSessionSummary | null {
-  const { replay, identity, slots } = readTraversalSession({ dir, sessionId });
+  const { replay, identity, slots, origin } = readTraversalSession({ dir, sessionId });
   if (replay.events.length === 0) return null;
   const lastEvent = replay.events[replay.events.length - 1];
   return {
     sessionId,
     eventCount: replay.events.length,
+    origin,
     // Stryker disable next-line OptionalChaining: EQUIVALENT — the zero-event case returned above,
     // so `events.length - 1` is a valid index and `lastEvent` is never undefined here. The `?.` is
     // `noUncheckedIndexedAccess` satisfying the compiler, not a runtime guard.
