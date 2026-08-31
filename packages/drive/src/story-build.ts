@@ -436,6 +436,29 @@ export async function storyBuild(
       next: [`storytree story build ${storyId} --live --runtime ${runtime}`],
     };
   }
+  // ADR-0449 admits pi for the LIVE SMOKE only. Refused HERE as well as in `resolveProveSpec` so
+  // the message names the flag the caller typed — and refused on BOTH build verbs, because a
+  // narrowing that binds on `node build` and not on `story build` is not a narrowing.
+  if (runtime === "pi" && real) {
+    return {
+      ok: false,
+      body:
+        "--runtime pi is admitted for --live only (ADR-0449 authorises ONE trial run through the " +
+        "live smoke, not a promotion path). A --real build authors at real repo paths and promotes " +
+        "a commit toward main; widening pi to that is a separate decision.",
+      next: [`storytree story build ${storyId} --live --runtime pi`],
+    };
+  }
+  if (runtime === "pi" && opts.budgetUsd !== undefined) {
+    return {
+      ok: false,
+      body:
+        "--budget is unavailable with --runtime pi: the run draws on the Claude subscription " +
+        "credential (ADR-0449) and pi reports no honest USD spend. Drop --budget — --max-turns is " +
+        "the leaf's real cost guard.",
+      next: [`storytree story build ${storyId} --live --runtime pi`],
+    };
+  }
   if (runtime === "codex" && opts.budgetUsd !== undefined) {
     return {
       ok: false,

@@ -150,14 +150,35 @@ test("node build parses --runtime, keeps it live-only, and refuses fake Codex co
   assert.equal(unknown.ok, false);
   assert.match(unknown.body, /unknown --runtime "other"/);
 
-  // `pi` is in the `LiveRuntime` TYPE (`PiPhaseAuthor` exists behind the seam and its walls are
-  // proved, `pi-harness-admission-arc` increment 2) and deliberately NOT in the CLI: walking a
-  // real unit with pi, and choosing which endpoint, is increment 3's owner-gated decision. This
-  // assertion is the thing that has to be changed ON PURPOSE when that lands, rather than a path
-  // that opens silently the moment someone widens a union.
-  const pi = await run(["node", "build", "library-cli", "--live", "--runtime", "pi"], deps);
+  // `pi` IS NOW ADMITTED — and this is the deliberate change increment 2 set up. It left
+  // `resolveLiveRuntime` refusing `pi` with an assertion here, precisely so the path could not open
+  // by someone widening a union; ADR-0449 settled the endpoint and increment 3 walked a real unit
+  // on it, so the assertion flips rather than the guard eroding.
+  //
+  // Asserted through the DRY-RUN arm on purpose. `--live --runtime pi` would be admitted all the
+  // way into a real build — which is the point, but it means the assertion cannot be made there
+  // without spending. The dry-run arm refuses for the live-only reason and NOT for "unknown
+  // runtime", which is exactly the discrimination this line exists to make.
+  const pi = await run(["node", "build", "library-cli", "--dry-run", "--runtime", "pi"], deps);
   assert.equal(pi.ok, false);
-  assert.match(pi.body, /unknown --runtime "pi"/);
+  assert.doesNotMatch(pi.body, /unknown --runtime "pi"/);
+  assert.match(pi.body, /valid only with --live or --real/);
+
+  // THE NARROWING DID NOT DISAPPEAR, IT MOVED. ADR-0449 authorised ONE trial run through the live
+  // smoke; `--real` authors at real repo paths and promotes a commit toward main, which is a
+  // separate admission nobody has decided. So pi is refused there, by name.
+  const piReal = await run(["node", "build", "verdict-line", "--real", "--runtime", "pi"], deps);
+  assert.equal(piReal.ok, false);
+  assert.match(piReal.body, /--runtime pi is admitted for --live only/);
+
+  // pi meters nothing this process can read, so a USD cap is the phantom ADR-0232 already refuses
+  // for Codex. The turn ceiling is the real cost guard and stays available.
+  const piBudget = await run(
+    ["node", "build", "library-cli", "--live", "--runtime", "pi", "--budget", "1"],
+    deps,
+  );
+  assert.equal(piBudget.ok, false);
+  assert.match(piBudget.body, /--budget is unavailable with --runtime pi/);
 
   const budget = await run(
     ["node", "build", "library-cli", "--live", "--runtime", "codex", "--budget", "1"],

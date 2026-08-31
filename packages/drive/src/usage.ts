@@ -1,4 +1,4 @@
-import type { CodexRunInfo, SdkRunInfo } from "@storytree/agent";
+import type { CodexRunInfo, PiRunInfo, SdkRunInfo } from "@storytree/agent";
 import { usageEvent } from "@storytree/orchestrator";
 import type { UsageEventDoc } from "@storytree/proof-protocol";
 import type { Store } from "@storytree/storage-protocol";
@@ -28,7 +28,12 @@ export interface UsageRunIds {
  * SKIPPED (capture is additive — there is nothing honest to persist for it); the doc keeps the
  * slice's coarse turns/costUsd accounting alongside the breakdown.
  */
-export type LiveRunInfo = SdkRunInfo | CodexRunInfo;
+/**
+ * The three live leaves' run shapes. Only the SDK leaf carries `costUsd` — Codex and pi both meter
+ * nothing this process can read (ADR-0232 / ADR-0449), so the fold reads that field with an `in`
+ * check rather than a default. A zero would be a claim about spend; absence is the measurement.
+ */
+export type LiveRunInfo = SdkRunInfo | CodexRunInfo | PiRunInfo;
 
 export function sliceUsageDocs(ids: UsageRunIds, runs: readonly LiveRunInfo[]): UsageEventDoc[] {
   const docs: UsageEventDoc[] = [];
