@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { cellsByParcel, parcelCellsFrom } from './parcel-cells.js';
+import { cellsByIsland, cellsByParcel, parcelCellsFrom } from './parcel-cells.js';
 import type { LayoutCell } from './parcel-cells.js';
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
 
@@ -116,9 +116,14 @@ test('the order of the cells is the descriptor stream’s own', () => {
 // grouping
 // ---------------------------------------------------------------------------
 
-const cellOf = (parcel: string | undefined, status = 'healthy'): LayoutCell => ({
+const cellOf = (
+  parcel: string | undefined,
+  status = 'healthy',
+  island: string | undefined = undefined,
+): LayoutCell => ({
   points: [{ x: 0, z: 0 }, { x: 1, z: 0 }, { x: 1, z: 1 }],
   parcel,
+  island,
   status,
   cellId: undefined,
 });
@@ -145,4 +150,63 @@ test('a cell with no parcel joins no group — not a group of unnamed ones', () 
 
 test('an empty input groups to nothing, not to one empty group', () => {
   assert.equal(cellsByParcel([]).size, 0);
+  assert.equal(cellsByIsland([]).size, 0);
+});
+
+// ---------------------------------------------------------------------------
+// the ISLAND identity — a different question from the parcel, and both are carried
+// ---------------------------------------------------------------------------
+
+test('a cell carries the STORY whose island it sits on, alongside the capability whose parcel it is', () => {
+  // ⚠ TWO IDS, TWO QUESTIONS. A capability's tree stands on its own parcel; a story's signed UAT
+  // criterion belongs to the whole island. Carrying only one of them is what pinned the shipped
+  // bloom count at zero.
+  const [got] = parcelCellsFrom([cell({ parcel: 'cap-0', island: 'atlas' })]);
+  assert.ok(got);
+  assert.equal(got.parcel, 'cap-0');
+  assert.equal(got.island, 'atlas');
+});
+
+test('a cell the substrate could not attribute carries an honest absence, and is still KEPT', () => {
+  // The classic extruded-hex substrate has no island group at all. Dropping such a cell would
+  // shrink the ground a prop may stand on; inventing an id for it would attribute work to a story
+  // that does not exist.
+  const cells = parcelCellsFrom([cell({ parcel: 'cap-0' }), cell({ island: 'atlas' })]);
+  assert.equal(cells.length, 2, 'both cells kept');
+  assert.equal(cells[0]!.island, undefined);
+  assert.equal(cells[1]!.parcel, undefined);
+});
+
+test('cells group by their island, in first-seen order, with every attributed cell kept', () => {
+  const grouped = cellsByIsland([
+    cellOf('cap-1', 'healthy', 'beacon'),
+    cellOf('cap-0', 'healthy', 'atlas'),
+    cellOf('cap-2', 'healthy', 'beacon'),
+  ]);
+  assert.deepEqual([...grouped.keys()], ['beacon', 'atlas']);
+  assert.equal(grouped.get('beacon')?.length, 2);
+  assert.equal(grouped.get('atlas')?.length, 1);
+});
+
+test('⚠ an unattributed cell joins no island group — the fail-CLOSED direction', () => {
+  // Unlike the parcel case this one is deliberate about WHICH way it fails: a caller groups by
+  // island precisely so a per-story claim lands on the right story's ground, so ground nobody can
+  // attribute is exactly the ground no such claim may be drawn on. An island bucket that swept up
+  // the orphans would let one story's signatures stand anywhere on the map.
+  const grouped = cellsByIsland([cellOf('cap-0'), cellOf('cap-1', 'healthy', 'atlas'), cellOf(undefined)]);
+  assert.deepEqual([...grouped.keys()], ['atlas']);
+  assert.equal(grouped.size, 1);
+});
+
+test('the island grouping and the parcel grouping partition the SAME cells differently', () => {
+  // ⚠⚠ NON-VACUITY for the whole distinction: one island holding two capabilities must produce
+  // ONE island group and TWO parcel groups. A reader that had quietly collapsed the two ids would
+  // produce the same count twice and every other assertion here would still pass.
+  const cells = [
+    cellOf('cap-a', 'healthy', 'atlas'),
+    cellOf('cap-b', 'healthy', 'atlas'),
+    cellOf('cap-c', 'healthy', 'beacon'),
+  ];
+  assert.equal(cellsByIsland(cells).size, 2);
+  assert.equal(cellsByParcel(cells).size, 3);
 });

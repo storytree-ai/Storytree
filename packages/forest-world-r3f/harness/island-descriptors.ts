@@ -45,6 +45,13 @@ export interface GroundCell {
    *  cannot tell the two apart, and definition can then only be sprayed everywhere — which
    *  is precisely the treatment the owner rejected (`land-definition.ts`). */
   parcel?: string;
+  /** The STORY whose island this cell sits on, taken only from a group that says it IS an island
+   *  (`ground` / `territory` / `tile` — the three the core stamps `id: t.id` on). A capability's
+   *  parcel and a story's island are different questions, and a per-STORY claim (a signed UAT
+   *  criterion) may only be drawn on the second. This reader exists as an INDEPENDENT witness to
+   *  `worldTo3D`'s own answer: the two walk different code over the same scene, so a test can
+   *  assert they partition it identically rather than trusting either alone. */
+  island?: string;
   /** The shape-free cell identity (ADR-0367), when the scene stamped one. */
   cellId?: string;
   /** True for a `cell-wheat` cell — the wheat token overrides the status family. */
@@ -90,6 +97,7 @@ export function groundCellsFrom(
     at: { x: number; y: number },
     status: string | undefined,
     parcel: string | undefined,
+    island: string | undefined,
   ): void => {
     if (node.el === 'g') {
       const t = parseTranslate(node.transform);
@@ -100,8 +108,15 @@ export function groundCellsFrom(
       // carries an `id` for its own reasons (a territory, a trail edge, a hit target), and
       // inheriting one of those would silently partition the land along the wrong lines.
       const here2 = node.kind === 'parcel' ? node.id ?? parcel : parcel;
+      // The STORY's island id, by the same rule and for the same reason, from the three group
+      // kinds the core stamps `id: t.id` on. Mirrors `ISLAND_GROUP_KINDS` in `src/world-to-3d.ts`
+      // deliberately: two readers agreeing is the assertion, so they may not share the code.
+      const here3 =
+        node.kind === 'ground' || node.kind === 'territory' || node.kind === 'tile'
+          ? node.id ?? island
+          : island;
       const inherited = node.status ?? status;
-      for (const child of node.children) walk(child, here, inherited, here2);
+      for (const child of node.children) walk(child, here, inherited, here2, here3);
       return;
     }
     if (node.el !== 'path') return;
@@ -121,11 +136,12 @@ export function groundCellsFrom(
       wheat: node.kind === 'cell-wheat',
     };
     if (parcel !== undefined) cell.parcel = parcel;
+    if (island !== undefined) cell.island = island;
     if (node.cellId !== undefined) cell.cellId = node.cellId;
     out.push(cell);
   };
 
-  walk(scene, { x: 0, y: 0 }, undefined, undefined);
+  walk(scene, { x: 0, y: 0 }, undefined, undefined, undefined);
   return out;
 }
 

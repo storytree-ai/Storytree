@@ -12,6 +12,8 @@
 //   trail-ghost → trail-ghost-strip (the under-island run — surfaces may skip it)
 //   cave        → cave-arch         (the forced-route portal prop at the rim bearing)
 //   wisp        → wisp-sprite       (GPU point / sprite)
+//   tall-flower-proven
+//               → uat-bloom         (ONE signed UAT criterion of the owning STORY)
 //
 // Only the trail FILL pass carries geometry into 3D — the shadow/casing passes are
 // the 2D cased look, which the ribbon supplies itself; they skip explicitly.
@@ -59,7 +61,8 @@ export type InstanceKind =
   | 'trail-strip'
   | 'trail-ghost-strip'
   | 'cave-arch'
-  | 'wisp-sprite';
+  | 'wisp-sprite'
+  | 'uat-bloom';
 
 /** An instance descriptor: maps one core-family scene node to a 3D mesh instance.
  *  The discriminating `kind` is always an InstanceKind (never 'skipped'). */
@@ -99,8 +102,34 @@ export interface InstanceDescriptor {
   /** The cave portal's outward rim normal, radians in the SVG plane (`cave-arch` only).
    *  Under the x→east / y→depth convention, apply as a rotation of -bearing about +Y. */
   bearing?: number;
-  /** The island a cave portal sits on (`cave-arch` only). */
+  /** THE OWNING STORY'S ISLAND ID — which island this instance belongs to.
+   *
+   *  Set on every family that belongs to exactly ONE island: `hex-ground`, `cell-ground`,
+   *  `story-tree` and `uat-bloom` inherit it from the enclosing island-level group; `cave-arch`
+   *  carries its own (`node.island`, the portal's home island — the portal sits on a rim and is
+   *  reached through the trails layer, not through a territory group). Absent on `trail-strip` /
+   *  `trail-ghost-strip` / `wisp-sprite`: a trail spans two islands and belongs to neither, and
+   *  nothing has needed a wisp's.
+   *
+   *  ⚠ IT IS WHAT MAKES A PER-STORY CLAIM DRAWABLE AT ALL. A UAT bloom is one SIGNED criterion of
+   *  one STORY (ADR-0226 D4), so it is a claim about proof state and is bound by the same fence as
+   *  the land's colour (ADR-0392 D5 / ADR-0398 D7). Without this field a consumer holding the
+   *  whole map's descriptors can only scatter every story's signatures over every story's island —
+   *  the map asserting a signature on work nobody signed, which is worse than drawing none. That is
+   *  why both shipped call sites passed `blooms: 0` until this field existed.
+   *
+   *  ⚠ ONLY EVER TAKEN FROM A GROUP THAT SAYS IT IS AN ISLAND — `kind` one of `ground` (the
+   *  relaxed-mesh substrate's per-territory ground group), `territory` (the island's flora group,
+   *  where the UAT markers live) or `tile` (the classic substrate, where a tile IS a territory).
+   *  The core stamps `id: t.id` on all three (`scene.ts:3149` / `:3249` / `:3275`). Every OTHER
+   *  `<g>` on an island carries an `id` for its own reasons — a parcel, a trail edge, a hit target
+   *  — and inheriting one of those would attribute a story's signatures to a capability while
+   *  producing a perfectly ordinary-looking island. Same rule, same reason, as `parcel` below. */
   island?: string;
+  /** The UAT criterion this bloom stands for (`uat-bloom` only) — the criterion id the core
+   *  carried on the marker wrapper. Absent when the scene stamped none. A consumer that counts
+   *  blooms per island can dedupe on it rather than trusting arrival order. */
+  criterion?: string;
   /** THE OWNING CAPABILITY'S ID (`cell-ground` only) — which capability's parcel this
    *  cell belongs to.
    *
@@ -193,6 +222,19 @@ function parseRotate(t: string): number {
   return (parseFloat(m[1]!) * Math.PI) / 180;
 }
 
+/**
+ * THE GROUP KINDS THAT MAY NAME AN ISLAND — the only places `InstanceDescriptor.island` is ever
+ * read from.
+ *
+ * ⚠ A NAMED SET RATHER THAN A CONDITION SPELLED AT EACH SITE, because the failure mode of getting
+ * it wrong is silent: every `<g>` on an island carries an `id`, so widening this by one kind
+ * partitions the map along lines that are not story boundaries and draws a perfectly ordinary
+ * picture. `ground` is the relaxed-mesh substrate's per-territory ground group, `territory` the
+ * island's flora group (the story tree and the UAT markers), `tile` the classic substrate's
+ * hex — and the core stamps the SAME `t.id` on all three.
+ */
+const ISLAND_GROUP_KINDS: ReadonlySet<string> = new Set(['ground', 'territory', 'tile']);
+
 /** Split a comma-joined `data-edges` value into edge keys ('' → []). */
 function edgeKeys(edges: string | undefined): string[] {
   return (edges ?? '').split(',').filter((e) => e.length > 0);
@@ -219,17 +261,28 @@ function edgeKeys(edges: string | undefined): string[] {
  *  that are not capability boundaries — and it would do it invisibly, because the resulting
  *  picture is a perfectly ordinary island. Unlike status there is no per-cell restatement to
  *  prefer: a `cell` path carries no parcel of its own, so the inherited value is the only
- *  value. */
+ *  value.
+ *
+ *  ⚠ `parentIsland` carries the OWNING STORY'S ISLAND ID down by the same rule, taken ONLY from a
+ *  group whose own `kind` is one of {@link ISLAND_GROUP_KINDS}. Three kinds rather than one because
+ *  the core stamps `id: t.id` on three: the ground group the cells hang under, the territory group
+ *  the story tree and the UAT markers hang under, and the classic substrate's tile (where a tile IS
+ *  a territory). They never disagree — all three read the same `t.id` off the same territory — so a
+ *  descriptor's island is the same value whichever of the three it inherited from. Reading `node.id`
+ *  generally instead would attribute a STORY's signed criteria to a capability's parcel, and the
+ *  resulting island would look entirely ordinary. */
 function walkNode(
   node: SceneNode,
   out: Descriptor3D[],
   parentXY: Pt,
   parentStatus?: string,
   parentParcel?: string,
+  parentIsland?: string,
 ): void {
   const kind = node.kind;
   const status = node.status ?? parentStatus;
   const parcel = kind === 'parcel' ? node.id ?? parentParcel : parentParcel;
+  const island = kind !== undefined && ISLAND_GROUP_KINDS.has(kind) ? node.id ?? parentIsland : parentIsland;
 
   // Leaf nodes (path / circle / ellipse / polygon / rect / text) carry no children.
   // The trail FILL pass is the ribbon geometry source (ADR-0169 §4) — one strip per
@@ -289,6 +342,7 @@ function walkNode(
         points: ring,
       };
       if (parcel !== undefined) cellDescriptor.parcel = parcel;
+      if (island !== undefined) cellDescriptor.island = island;
       out.push(cellDescriptor);
       return;
     }
@@ -310,25 +364,56 @@ function walkNode(
       // centroid (exact for a regular hex ring). Material = territory status.
       const top = childPath(node, 'tile-top', 'tile-top-wheat');
       const c = top ? centroidOf(pathPoints(top.d)) : { x: 0, y: 0 };
-      out.push({
+      // ANNOTATED local, then one guarded assignment — the shape
+      // `anti-slop/no-conditional-empty-object-spread` requires.
+      const hex: InstanceDescriptor = {
         kind: 'hex-ground',
         transform: { x: childXY.x + c.x, y: 0, z: childXY.y + c.y },
         group: 'hex-ground',
         material: status ?? 'unknown',
-      });
+      };
+      if (island !== undefined) hex.island = island;
+      out.push(hex);
       break;
     }
 
-    case 'tree':
+    case 'tree': {
       // The central story tree → story-tree instance. The tree group carries a
       // `translate(treeSpot.x treeSpot.y)` which is folded into childXY.
-      out.push({
+      const tree: InstanceDescriptor = {
         kind: 'story-tree',
         transform: { x: childXY.x, y: 0, z: childXY.y },
         group: 'story-tree',
         material: status ?? 'unknown',
-      });
+      };
+      if (island !== undefined) tree.island = island;
+      out.push(tree);
       break;
+    }
+
+    case 'tall-flower-proven': {
+      // ONE SIGNED UAT CRITERION OF THE OWNING STORY → a `uat-bloom` instance (ADR-0226 D4, one
+      // flower per criterion, the verdict read from the FORM). The marker wrapper carries a
+      // `translate(x y) scale(s)` which is folded into childXY; the scale is the 2D marker's own
+      // drawing size and means nothing to a 3D consumer, which stands its own prop here.
+      //
+      // ⚠⚠ ONLY THE `proven` WRAPPER MAPS. `tall-flower-pending` and `tall-flower-failing` keep
+      // falling through to the explicit skip, and that is a fence rather than an omission: a bloom
+      // is the claim "the owner SIGNED this", so a family that emitted one for an unsigned
+      // criterion would be the map asserting a signature nobody gave (ADR-0392 D5 /
+      // ADR-0398 D7). What an unsigned criterion should look like in 3D is a look decision this
+      // family does not own, and drawing nothing is the honest state until it is made.
+      const bloom: InstanceDescriptor = {
+        kind: 'uat-bloom',
+        transform: { x: childXY.x, y: 0, z: childXY.y },
+        group: 'uat-bloom',
+        material: status ?? 'unknown',
+      };
+      if (island !== undefined) bloom.island = island;
+      if (node.id !== undefined) bloom.criterion = node.id;
+      out.push(bloom);
+      break;
+    }
 
     case 'cave': {
       // A forced-route cave portal → a rim-mounted arch prop (ADR-0169 §2/§4). The
@@ -378,7 +463,7 @@ function walkNode(
   // Always recurse into children so every descendant gets its own descriptor
   // (core descendants emit instances; non-core descendants emit skips).
   for (const child of node.children) {
-    walkNode(child, out, childXY, status, parcel);
+    walkNode(child, out, childXY, status, parcel, island);
   }
 }
 
@@ -402,6 +487,13 @@ function walkNode(
  * - `trail-ghost` → `trail-ghost-strip` (the under-island run — surfaces may skip it)
  * - `cave`        → `cave-arch`         (rim portal prop; bearing = rotation about Y)
  * - `wisp`        → `wisp-sprite`       (GPU sprite / point)
+ * - `tall-flower-proven`
+ *                 → `uat-bloom`         (one SIGNED UAT criterion of the owning story)
+ *
+ * Every family that belongs to exactly one island carries that island's id
+ * (`InstanceDescriptor.island`), taken only from a `ground` / `territory` / `tile` group. It is
+ * what lets a consumer holding the WHOLE map's descriptors keep one story's claims on one story's
+ * island; without it a per-story count is a misreport waiting to be drawn.
  *
  * Trail strips are REVEAL METADATA carriers (ADR-0169 §3/§4): every strip lists the
  * `from->to` edge keys routed through it, so a surface filters to a focused island's

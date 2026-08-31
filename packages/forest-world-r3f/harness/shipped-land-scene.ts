@@ -74,8 +74,7 @@ import { SHIPPED_CROWN_COLOUR, SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from '.
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { kitMeshes, loadKit, roleFootprints } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
-import { capabilityFactsFrom, dressIslandFromKit } from '../src/kit-vocabulary.js';
-import { parcelCellsFrom } from '../src/parcel-cells.js';
+import { dressMapFromKit } from '../src/map-dressing.js';
 
 /**
  * THE SIX ARMS — a LADDER WITH ONE FORK, in which every arm differs from the one it names in
@@ -315,24 +314,22 @@ export function setLandKit(kit: LoadedKit): void {
  * THE PROPS THE SHIPPED CANVAS WOULD STAND ON THIS ISLAND — built through the SAME functions, off
  * the SAME descriptors.
  *
- * ⚠ NOT A PAGE-LOCAL APPROXIMATION. `ForestWorldCanvas` calls `parcelCellsFrom` →
- * `capabilityFactsFrom` → `dressIslandFromKit` → `kitMeshes` with the kit's own measured
- * footprints, and so does this. An instrument that dressed the island its own way would be
- * picturing something the product does not draw — the failure the three disagreeing status
- * palettes cost an increment to undo.
+ * ⚠ NOT A PAGE-LOCAL APPROXIMATION. `ForestWorldCanvas` calls `dressMapFromKit` → `kitMeshes` with
+ * the kit's own measured footprints, and so does this. An instrument that dressed the island its
+ * own way would be picturing something the product does not draw — the failure the three
+ * disagreeing status palettes cost an increment to undo.
  *
- * ⚠ `blooms: 0`, matching the canvas and for the canvas's reason: a bloom is a claim about a
- * STORY's signed UAT criteria, and the descriptor stream carries no island attribution, so a count
- * read here would scatter one story's signatures over every other story's island.
+ * ⚠ THE BLOOM COUNT IS NO LONGER PINNED AT ZERO, and this page is where the change is visible. It
+ * used to be, because a bloom is a claim about a STORY's signed UAT criteria and the descriptor
+ * stream carried no island attribution — so a count read here would have scattered one story's
+ * signatures over every other story's island. `worldTo3D` now names the island on every family
+ * that belongs to one, and `dressMapFromKit` spends the signatures per island. This fixture is a
+ * healthy story with ten signed criteria, so it now stands ten flowers it previously did not.
  */
 export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
-  const cells = parcelCellsFrom(worldTo3D(islandScene()));
   return kitMeshes(
     kit,
-    dressIslandFromKit({
-      cells,
-      facts: capabilityFactsFrom(cells),
-      blooms: 0,
+    dressMapFromKit(worldTo3D(islandScene()), {
       relief: LAND_RELIEF_AMPLITUDE,
       footprint: roleFootprints(kit),
     }),
