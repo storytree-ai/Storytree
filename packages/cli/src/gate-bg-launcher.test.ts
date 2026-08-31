@@ -112,11 +112,38 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T> | T): Promise<T> {
   }
 }
 
-/** Poll the sentinel the way a caller would, and return its contents (or null if it never lands). */
+/**
+ * Poll the sentinel the way a caller would, and return its contents once they are COMPLETE.
+ *
+ * ⚠ EXISTENCE IS NOT COMPLETION — the second load-dependent claim this file had to lose, and it
+ * survived the release-file repair above because it sits on the WRITER's side rather than this
+ * one's. `gate-bg.sh` wrote the sentinel `printf … > "$exit_file"`, and `>` CREATES and truncates
+ * the file BEFORE writing into it, so for an instant the sentinel exists and holds nothing. This
+ * helper returned on `existsSync` and read straight through that window. Measured 2026-09-01 on a
+ * box already running a full gate: `'' !== '3'` — a red for a job that had exited 3 correctly, and
+ * the diagnosis plus the re-run cost the session about ten minutes, which is exactly the price the
+ * header above says a false red carries.
+ *
+ * Both sides are fixed, deliberately. The writer now RENAMES the sentinel into place, so the empty
+ * window no longer exists for anyone (`gate-bg.test.ts` fences that in CODE). And this poller no
+ * longer DEPENDS on that being true: it waits for content, so the claim stays load-independent in
+ * the same way the release file makes "the job cannot have finished" load-independent. A helper
+ * whose correctness rests on a microsecond-wide window in another file is a flake waiting for a
+ * busy box.
+ *
+ * The production reader never had the bug and is the model here: `readDispatchHandle` reports an
+ * empty sentinel as `unreadable` with its own reason rather than parsing it as a verdict.
+ *
+ * Returns the trimmed contents, or `null` if nothing complete landed inside the budget — so a
+ * caller's `null` still means "no verdict", never "a verdict I could not read".
+ */
 async function awaitSentinel(exitFile: string, budgetMs = 30_000): Promise<string | null> {
   const deadline = Date.now() + budgetMs;
   while (Date.now() < deadline) {
-    if (existsSync(exitFile)) return readFileSync(exitFile, "utf8").trim();
+    if (existsSync(exitFile)) {
+      const text = readFileSync(exitFile, "utf8").trim();
+      if (text !== "") return text;
+    }
     await delay(250);
   }
   return null;

@@ -69,7 +69,18 @@ printf 'gate:bg command:   %s\n\n' "${cmd[*]}"
 "${cmd[@]}" 2>&1 | tee "$log"
 status="${PIPESTATUS[0]}"
 
-printf '%s\n' "$status" > "$exit_file"
+# THE SENTINEL APPEARS WHOLE, OR NOT AT ALL. `printf ... > "$exit_file"` CREATES the file and only
+# then writes into it, so for an instant the sentinel EXISTS and is EMPTY — and every reader that
+# treats existence as completion reads "" as the verdict. Measured 2026-09-01: that redded a full
+# gate with `'' !== '3'` for a job which had exited 3 correctly, and only on a box already running
+# a gate, because the window is microseconds wide. Writing to a sibling and RENAMING is atomic on
+# both POSIX and NTFS, so the window does not exist rather than merely being narrow. `.exit.tmp` is
+# chosen so it does not match the `*.exit` glob a hand-rolled waiter would use, and the `&&` means
+# a failed write never renames a half-file into place. `storytree dispatch` was never fooled —
+# `readDispatchHandle` reports an empty sentinel as `unreadable` rather than parsing it — but the
+# launcher test's poller, a `cat`, and any hand-rolled waiter all read existence as completion.
+# Do not "simplify" this back to one redirect; gate-bg.test.ts reads the CODE and goes red if you do.
+printf '%s\n' "$status" > "$exit_file.tmp" && mv -f "$exit_file.tmp" "$exit_file"
 
 if [ "$status" -eq 0 ]; then verdict='PASS'; else verdict="FAIL"; fi
 {
