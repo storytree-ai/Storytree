@@ -27,6 +27,11 @@
  *      keep hosted sources. A hosted story ABSENT from it is refused REGARDLESS of declared edges
  *      (a NEW story's code lives in its own package), and a register entry with no hosting evidence
  *      is a stale-register violation — the register is the self-pruning migration worklist.
+ *   7. the ownership-LIVENESS input: the RETIRED story ids from the same `stories/` walk that built
+ *      the declared graph (3). Rule 0 only asserts a package is CLASSIFIED — a KEY in the ownership
+ *      map — and never resolves the VALUE, so a package could outlive its owning story invisibly.
+ *      Handing the judge the retired set plus the total story graph closes both shapes at once: an
+ *      owner RETIRED out from under a live package, and an owner that never existed.
  *
  * Exits non-zero listing every violation, so an undeclared cross-organism coupling (Gap A) — or a
  * cross-story cycle (ADR-0058), or a relative-import / devDep escape — fails the gate. Because the
@@ -362,6 +367,10 @@ function main(): void {
     // ADR-0192 decision 2: the frozen grandfather register — a hosted story off the register is
     // refused regardless of declared edges (packages-forward), and a stale entry fails too.
     hostedStories: readHostedStories(),
+    // Rule 7's arming input: the retired story ids from the SAME `stories/` walk that produced
+    // `storyGraph` above, so the two are always the total, consistent pair the rule requires — a
+    // package whose owner is retired, or absent from that walk entirely, fails the gate.
+    retiredStories: [...retired].sort(),
   });
   if (violations.length > 0) {
     console.error(`✗ organism boundary (ADR-0074): ${violations.length} violation(s)`);
