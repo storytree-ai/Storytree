@@ -1,0 +1,200 @@
+{
+  "identity": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false,
+    "timerQuery": true
+  },
+  "target": 1,
+  "rows": [
+    {
+      "pipeline": "app-today",
+      "probed": {
+        "pipeline": "app-today",
+        "probe": 0.6627450980392157,
+        "scale": 1,
+        "target": 1,
+        "delivered": 0.6627450980392157,
+        "outputColorSpace": "srgb",
+        "toneMapping": 4,
+        "colorManagement": true
+      },
+      "ground": {
+        "2": "2b030:b6f683ef",
+        "8": "2b0e60:b9e69751"
+      },
+      "palette": {
+        "2": {
+          "arm": "shadow",
+          "pxPerUnit": 2,
+          "count": 0,
+          "colours": [],
+          "distinctLand": 5,
+          "authored": 25,
+          "landPixels": 25630
+        },
+        "8": {
+          "arm": "shadow",
+          "pxPerUnit": 8,
+          "count": 0,
+          "colours": [],
+          "distinctLand": 5,
+          "authored": 25,
+          "landPixels": 410396
+        }
+      },
+      "props": {
+        "2": {
+          "arm": "shadow",
+          "pxPerUnit": 2,
+          "changed": 2140,
+          "mean": [
+            75.8392523364486,
+            90.6929906542056,
+            77.17102803738318
+          ],
+          "saturated": 0,
+          "black": 0
+        },
+        "8": {
+          "arm": "shadow",
+          "pxPerUnit": 8,
+          "changed": 36027,
+          "mean": [
+            75.27282316040747,
+            90.67724206844866,
+            76.85216643073251
+          ],
+          "saturated": 0,
+          "black": 0
+        }
+      }
+    },
+    {
+      "pipeline": "exact",
+      "probed": {
+        "pipeline": "exact",
+        "probe": 0.3176470588235294,
+        "scale": 1,
+        "target": 1,
+        "delivered": 0.3176470588235294,
+        "outputColorSpace": "srgb-linear",
+        "toneMapping": 0,
+        "colorManagement": false
+      },
+      "ground": {
+        "2": "2b030:b6f683ef",
+        "8": "2b0e60:b9e69751"
+      },
+      "palette": {
+        "2": {
+          "arm": "shadow",
+          "pxPerUnit": 2,
+          "count": 0,
+          "colours": [],
+          "distinctLand": 5,
+          "authored": 25,
+          "landPixels": 25630
+        },
+        "8": {
+          "arm": "shadow",
+          "pxPerUnit": 8,
+          "count": 0,
+          "colours": [],
+          "distinctLand": 5,
+          "authored": 25,
+          "landPixels": 410396
+        }
+      },
+      "props": {
+        "2": {
+          "arm": "shadow",
+          "pxPerUnit": 2,
+          "changed": 2140,
+          "mean": [
+            21.046261682242992,
+            27.50140186915888,
+            21.41355140186916
+          ],
+          "saturated": 0,
+          "black": 0
+        },
+        "8": {
+          "arm": "shadow",
+          "pxPerUnit": 8,
+          "changed": 36027,
+          "mean": [
+            20.836650290060234,
+            27.506731062814,
+            21.30005273822411
+          ],
+          "saturated": 0,
+          "black": 0
+        }
+      }
+    },
+    {
+      "pipeline": "exact-probe",
+      "probed": {
+        "pipeline": "exact-probe",
+        "probe": 0.3176470588235294,
+        "scale": 3.1481481481481484,
+        "target": 1,
+        "delivered": 1,
+        "outputColorSpace": "srgb-linear",
+        "toneMapping": 0,
+        "colorManagement": false
+      },
+      "ground": {
+        "2": "2b030:b6f683ef",
+        "8": "2b0e60:b9e69751"
+      },
+      "palette": {
+        "2": {
+          "arm": "shadow",
+          "pxPerUnit": 2,
+          "count": 0,
+          "colours": [],
+          "distinctLand": 5,
+          "authored": 25,
+          "landPixels": 25630
+        },
+        "8": {
+          "arm": "shadow",
+          "pxPerUnit": 8,
+          "count": 0,
+          "colours": [],
+          "distinctLand": 5,
+          "authored": 25,
+          "landPixels": 410396
+        }
+      },
+      "props": {
+        "2": {
+          "arm": "shadow",
+          "pxPerUnit": 2,
+          "changed": 2140,
+          "mean": [
+            66.37570093457944,
+            86.58224299065421,
+            67.51635514018692
+          ],
+          "saturated": 0,
+          "black": 0
+        },
+        "8": {
+          "arm": "shadow",
+          "pxPerUnit": 8,
+          "changed": 36027,
+          "mean": [
+            65.70180697809975,
+            86.6237544064174,
+            67.16040747217365
+          ],
+          "saturated": 0,
+          "black": 0
+        }
+      }
+    }
+  ]
+}

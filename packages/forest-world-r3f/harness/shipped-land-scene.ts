@@ -53,6 +53,14 @@ import {
   type GroundGrainMode,
 } from '../src/banded-ground-material.js';
 import { frameWorld } from '../src/camera-framing.js';
+import { configureExactColour } from '../src/exact-colour.js';
+import {
+  buildProbeRig,
+  calibrateLights,
+  readProbePixel,
+  type LightCalibration,
+  type ProbeRig,
+} from '../src/light-calibration.js';
 import { LAND_RELIEF_AMPLITUDE, landHeightRange, landRelief } from '../src/land-relief.js';
 import { buildGroundOcclusion } from '../src/contact-shade.js';
 import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from '../src/ground-casters.js';
@@ -370,6 +378,151 @@ export function linearColourOf(material: string | undefined): LinearRgb {
   return { r: c.r, g: c.g, b: c.b };
 }
 
+/**
+ * THE TRANSFER FUNCTION AN ARM IS DRAWN THROUGH — a second axis, added 2026-08-31, and the reason
+ * it exists is that this instrument had a THIRD one.
+ *
+ * ⚠⚠ Until now three configurations were in play and no two agreed. The approved reference render
+ * (`harness/kit-island-scene.ts` → `chapter2-vocabulary-2026-08-29/island-kit-8px.png`) calls
+ * `configureExactColour` and calibrates. The SHIPPED canvas mounted @react-three/fiber's default
+ * `<Canvas>` — ACES filmic tone mapping, an sRGB output encode, colour management ON — and ran no
+ * probe. And THIS page did neither: a bare `new THREE.WebGLRenderer` is sRGB-out, NO tone mapping,
+ * colour management on. For the GROUND arms that was harmless and remains so, because three
+ * appends neither the tone-mapping nor the colour-space chunk to a raw `ShaderMaterial`, so the
+ * banded material writes its authored bytes whatever the renderer holds — which is exactly why
+ * every published ground figure on this arc reproduces. It stopped being harmless the moment this
+ * page started drawing a DRESSED island: a `MeshStandardMaterial` crown is subject to both, and
+ * the props in those pictures were drawn through a transfer function the product did not have.
+ *
+ * So the pipeline is now something an arm declares, and the default is what SHIPS.
+ */
+export type LandPipeline = 'app-today' | 'exact' | 'exact-probe';
+
+export interface LandPipelineSpec {
+  pipeline: LandPipeline;
+  /** What this pipeline changes relative to the one before it. */
+  adds: string;
+  /** The pipeline it differs from in exactly one thing, or null for the first. */
+  from: LandPipeline | null;
+}
+
+/** A LADDER, like {@link LAND_ARM_SPECS}: each rung differs from its named predecessor in one thing. */
+export const LAND_PIPELINE_SPECS: readonly LandPipelineSpec[] = [
+  {
+    pipeline: 'app-today',
+    adds: "the shipped canvas as it drew on 2026-08-30 — R3F's default ACES + sRGB output, no probe",
+    from: null,
+  },
+  {
+    pipeline: 'exact',
+    adds: 'exact-colour mode — the transfer function the approved reference render was taken in',
+    from: 'app-today',
+  },
+  {
+    pipeline: 'exact-probe',
+    adds: "the measured light calibration — a lit white face lands on the ladder's top rung",
+    from: 'exact',
+  },
+];
+
+export const LAND_PIPELINES: readonly LandPipeline[] = LAND_PIPELINE_SPECS.map((it) => it.pipeline);
+
+/** What each pipeline ADDED and to WHAT — read off the specs, never transcribed. */
+export function pipelineCaption(pipeline: LandPipeline): string {
+  const spec = LAND_PIPELINE_SPECS.find((it) => it.pipeline === pipeline);
+  if (spec === undefined) throw new Error(`shipped-land-scene: no spec for pipeline ${pipeline}`);
+  return spec.from === null ? spec.adds : `${spec.adds} — on top of ${spec.from}`;
+}
+
+/**
+ * The factor both scene lights are multiplied by — 1 until a runner measures one.
+ *
+ * ⚠ A MODULE-LEVEL VALUE RATHER THAN A PARAMETER, deliberately, and it is the same shape as
+ * `setLandKit`. The page builds scenes through `buildLandScene` DIRECTLY as well as through the
+ * runner (for triangle counts and captions), so a scale threaded only through the runner would
+ * light the page's own scenes differently from the ones it measures. One page draws one pipeline;
+ * the driver navigates once per pipeline rather than flipping this mid-run, because
+ * `THREE.ColorManagement` is a global that is read when a `Color` is CONSTRUCTED — a scene built
+ * before a flip keeps the conversion it was built with.
+ */
+let landLightScale = 1;
+
+/** Set by {@link createLandRunner} once it has probed. Exported for the page's own scene builds. */
+export function setLandLightScale(scale: number): void {
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new Error(`shipped-land-scene: a light scale of ${scale} is not a measurement`);
+  }
+  landLightScale = scale;
+}
+
+export function landLightScaleNow(): number {
+  return landLightScale;
+}
+
+/**
+ * Put a renderer into the named pipeline and return the light scale it implies.
+ *
+ * ⚠ `app-today` SETS THE THREE FLAGS EXPLICITLY rather than leaving three's defaults, because
+ * three's defaults are NOT R3F's: a bare `WebGLRenderer` has `NoToneMapping`, and the arm is
+ * supposed to reproduce the CANVAS. Reproducing it by omission is how this instrument came to
+ * measure a fourth configuration in the first place.
+ */
+export function applyLandPipeline(renderer: THREE.WebGLRenderer, pipeline: LandPipeline): void {
+  if (pipeline === 'app-today') {
+    THREE.ColorManagement.enabled = true;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    return;
+  }
+  configureExactColour(renderer);
+}
+
+/**
+ * Configure the renderer and MEASURE what a lit white face delivers in it, before and after the
+ * correction the pipeline implies.
+ *
+ * ⚠ `delivered` IS THE NON-VACUITY, and it is the whole reason this returns two numbers instead of
+ * one. `scale = target / probe` is an arithmetic claim about a LINEAR transfer; re-probing with the
+ * scaled intensities is what checks it against the renderer rather than against the arithmetic that
+ * produced it. In exact-colour mode the two agree to the byte. Through ACES they do not, which is
+ * the finding this axis exists to make visible instead of arguable.
+ */
+export function probePipeline(
+  renderer: THREE.WebGLRenderer,
+  pipeline: LandPipeline,
+): LandPipelineReading {
+  applyLandPipeline(renderer, pipeline);
+  const floor = SHADE_LEVELS[0]!;
+  const target = SHADE_LEVELS[SHADE_LEVELS.length - 1]!;
+  const read = (rig: ProbeRig): number => {
+    try {
+      return readProbePixel(renderer, rig);
+    } finally {
+      rig.dispose();
+    }
+  };
+  const probe = read(buildProbeRig({ floor, target }));
+  // ⚠ ONLY `exact-probe` CALIBRATES, and `calibrateLights` is the thing that decides whether it
+  // MAY: it refuses a renderer whose transfer is not linear in intensity. Calling it here rather
+  // than dividing by hand is what keeps this arm honest about running the product's own code.
+  const cal: LightCalibration =
+    pipeline === 'exact-probe'
+      ? calibrateLights(renderer)
+      : { probe, scale: 1, target, floor };
+  const delivered = read(buildProbeRig({ floor: floor * cal.scale, target: target * cal.scale }));
+  return {
+    pipeline,
+    probe,
+    scale: cal.scale,
+    target,
+    delivered,
+    outputColorSpace: renderer.outputColorSpace,
+    toneMapping: renderer.toneMapping,
+    colorManagement: THREE.ColorManagement.enabled,
+  };
+}
+
+
 /** A ground buffer's extent in CAMERA space — what a fitted orthographic frustum needs.
  *
  *  Computed off the buffer rather than off the ring coordinates, because the relief moves the
@@ -521,8 +674,16 @@ export function buildLandScene(
       props += 1;
     }
   }
-  scene.add(new THREE.AmbientLight(0xffffff, SHIPPED_LIGHTING.ambientIntensity));
-  const sun = new THREE.DirectionalLight(0xffffff, SHIPPED_LIGHTING.directionalIntensity);
+  // ⚠ THE PAIR IS THE SHIPPED ONE TIMES THE MEASURED SCALE. `SHIPPED_LIGHTING` carries the
+  // AUTHORED intent — the ladder's floor and the span from it to the top rung — which is all a
+  // parsed transcription of the canvas can hold, because the correction is a probe of a live
+  // renderer. `landLightScale` is that probe's answer, set by the runner before any scene is
+  // built. At `exact-probe` the two together are exactly what `<CalibratedLights />` hangs.
+  scene.add(new THREE.AmbientLight(0xffffff, SHIPPED_LIGHTING.ambientIntensity * landLightScale));
+  const sun = new THREE.DirectionalLight(
+    0xffffff,
+    SHIPPED_LIGHTING.directionalIntensity * landLightScale,
+  );
   const [lx, ly, lz] = SHIPPED_LIGHTING.directionalPosition;
   sun.position.set(lx, ly, lz);
   scene.add(sun);
@@ -673,6 +834,36 @@ export interface LandPaletteReading {
   landPixels: number;
 }
 
+/** What a runner's own probe measured, and the pipeline it measured it in. */
+export interface LandPipelineReading {
+  pipeline: LandPipeline;
+  /** What a white, fully-lit, fully-rough standard face delivered at the AUTHORED intensities. */
+  probe: number;
+  /** The factor both lights are multiplied by. 1 where the pipeline runs no probe. */
+  scale: number;
+  /** The rung a calibrated pipeline aims a lit white face at. */
+  target: number;
+  /** What a white lit face delivers AFTER the scale is applied — the claim, re-measured. */
+  delivered: number;
+  outputColorSpace: string;
+  toneMapping: number;
+  colorManagement: boolean;
+}
+
+/** The delivered prop pixels at one zoom — see {@link LandRunner.props}. */
+export interface LandPropReading {
+  arm: LandArm;
+  pxPerUnit: number;
+  /** Pixels that differ between the dressed frame and the bare one. */
+  changed: number;
+  /** Their mean delivered channel value, 0-255, over the changed pixels only. */
+  mean: readonly [number, number, number];
+  /** How many of them have a channel pinned at 255 — blown out, carrying no texture detail. */
+  saturated: number;
+  /** How many sit BELOW the ladder's floor times their own frame's darkest ground — crushed. */
+  black: number;
+}
+
 export interface LandRunner {
   identity(): RendererIdentity;
   warm(): void;
@@ -694,9 +885,31 @@ export interface LandRunner {
    *  CANNOT SUPPLY: a frame with no shadow in it is a perfectly ordinary-looking frame, so what
    *  says the field reached the material at all is that the field itself has something in it. */
   occlusion(arm: LandArm, pxPerUnit: number): OcclusionReading;
+  /** The pipeline this runner was configured for, and what its probe measured. */
+  pipeline(): LandPipelineReading;
+  /**
+   * The delivered PROP pixels — every pixel that differs between the dressed island and the same
+   * island bare, at this zoom.
+   *
+   * ⚠ IT IS A DIFF RATHER THAN A COLOUR FILTER, and that is what makes it a measurement of the
+   * props rather than of a guess about which colours belong to a crown. A filter would have to
+   * name the crown's colours, which is the very thing under test.
+   */
+  props(arm: LandArm, pxPerUnit: number): LandPropReading;
   colours(arm: LandArm, pxPerUnit: number): LandColourReading;
   /** Percentage of pixels that differ between two arms at this zoom, on identical frames. */
   changedPct(a: LandArm, b: LandArm, pxPerUnit: number): number;
+  /**
+   * A hash of the GROUND-ONLY frame — the whole delivered buffer, no tree and no props.
+   *
+   * ⚠ IT EXISTS FOR ONE CLAIM AND IT IS THE SAFETY ONE: the ground must deliver the SAME BYTES in
+   * every pipeline. three appends neither the tone-mapping nor the colour-space chunk to a raw
+   * `ShaderMaterial`, so the banded material writes its authored ramp entry whatever the renderer
+   * holds — which is why the map's status reporting (ADR-0392 D5) is untouched by a change to the
+   * transfer function. That is an arithmetic argument about three's internals, and this is what
+   * turns it into a measurement across page loads.
+   */
+  digest(arm: LandArm, pxPerUnit: number): string;
   /** Delivered pixels that are not authored ladder entries — see {@link LandPaletteReading}. */
   offPalette(arm: LandArm, pxPerUnit: number): LandPaletteReading;
   time(arm: LandArm, pxPerUnit: number, batch: number): Promise<LandArmReading>;
@@ -718,20 +931,33 @@ async function elapsedNs(gl: WebGL2RenderingContext, query: WebGLQuery): Promise
   return null;
 }
 
-/** The background packed the way {@link LandRunner.colours} keys pixels, so "not the island" is a
- *  comparison against the colour the shipped canvas actually clears to rather than against black. */
-const BACKGROUND_KEY = (() => {
-  const c = new THREE.Color(SHIPPED_LIGHTING.background);
-  const to8 = (v: number): number => Math.round(Math.min(1, Math.max(0, v)) * 255);
-  const s = c.clone().convertLinearToSRGB();
-  return (to8(s.r) << 16) | (to8(s.g) << 8) | to8(s.b);
-})();
-
-export function createLandRunner(): LandRunner {
+export function createLandRunner(pipeline: LandPipeline = 'exact-probe'): LandRunner {
   const canvas = document.createElement('canvas');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1);
+  // ⚠ THE PIPELINE IS SET BEFORE ANY SCENE IS BUILT, and the order is load-bearing rather than
+  // tidy: `THREE.Color` converts at CONSTRUCTION against the global colour-management flag, so a
+  // material built first keeps the conversion it was built with and does not follow a later flip.
+  const probed = probePipeline(renderer, pipeline);
+  setLandLightScale(probed.scale);
   const gl = renderer.getContext() as WebGL2RenderingContext;
+
+  // ⚠⚠ THE BACKGROUND KEY IS MEASURED, NOT DERIVED, and that changed on 2026-08-31. It used to be
+  // `new THREE.Color('#101418').convertLinearToSRGB()` — an arithmetic guess at what the clear
+  // would deliver, correct only while colour management was on. It is now read off an empty frame
+  // in THIS pipeline, so "not the island" compares against the colour this renderer actually
+  // clears to. A constant that is right in one of three configurations silently miscounts
+  // `landPixels` in the other two, and nothing in the output would say so.
+  const backgroundKey = (() => {
+    const empty = new THREE.Scene();
+    empty.background = new THREE.Color(SHIPPED_LIGHTING.background);
+    const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 10);
+    renderer.setSize(4, 4, false);
+    renderer.render(empty, camera);
+    const px = new Uint8Array(4);
+    gl.readPixels(2, 2, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    return ((px[0] ?? 0) << 16) | ((px[1] ?? 0) << 8) | (px[2] ?? 0);
+  })();
 
   /** The delivered frame, straight out of the renderer's own buffer. */
   const readFrame = (s: LandScene): Uint8Array => {
@@ -789,7 +1015,7 @@ export function createLandRunner(): LandRunner {
       for (let i = 0; i < px.length; i += 4) {
         const key = (px[i]! << 16) | (px[i + 1]! << 8) | px[i + 2]!;
         seen.add(key);
-        if (key !== BACKGROUND_KEY) landPixels += 1;
+        if (key !== backgroundKey) landPixels += 1;
       }
       return { arm, pxPerUnit, distinct: seen.size, landPixels };
     },
@@ -846,7 +1072,7 @@ export function createLandRunner(): LandRunner {
       let landPixels = 0;
       for (let i = 0; i < px.length; i += 4) {
         const key = (px[i]! << 16) | (px[i + 1]! << 8) | px[i + 2]!;
-        if (key === BACKGROUND_KEY) continue;
+        if (key === backgroundKey) continue;
         landPixels += 1;
         land.add(key);
         if (!authored.has(key)) strays.set(key, (strays.get(key) ?? 0) + 1);
@@ -874,6 +1100,48 @@ export function createLandRunner(): LandRunner {
         casters: s.casters,
       };
     },
+    pipeline: () => probed,
+    props(arm, pxPerUnit) {
+      // ⚠ BOTH FRAMES ARE READ BEFORE EITHER IS COMPARED. They are the same size by construction
+      // (the same arm at the same zoom), so a pixel index means the same place in both — the
+      // property `changedPct` already relies on and the reason this can be one pass.
+      const bare = ((): Uint8Array => {
+        const scene = render(arm, pxPerUnit, true, false);
+        return readFrame(scene);
+      })();
+      const dressedScene = render(arm, pxPerUnit, true, true);
+      const dressed = readFrame(dressedScene);
+      if (bare.length !== dressed.length) {
+        throw new Error('shipped-land-scene: the dressed and bare frames are different sizes');
+      }
+      let changed = 0;
+      let saturated = 0;
+      let black = 0;
+      let sr = 0;
+      let sg = 0;
+      let sb = 0;
+      for (let i = 0; i < dressed.length; i += 4) {
+        const dr = dressed[i] ?? 0;
+        const dg = dressed[i + 1] ?? 0;
+        const db = dressed[i + 2] ?? 0;
+        if (dr === (bare[i] ?? 0) && dg === (bare[i + 1] ?? 0) && db === (bare[i + 2] ?? 0)) continue;
+        changed += 1;
+        sr += dr;
+        sg += dg;
+        sb += db;
+        if (dr === 255 || dg === 255 || db === 255) saturated += 1;
+        if (dr + dg + db <= 12) black += 1;
+      }
+      const mean = (total: number): number => (changed === 0 ? 0 : total / changed);
+      return {
+        arm,
+        pxPerUnit,
+        changed,
+        mean: [mean(sr), mean(sg), mean(sb)] as const,
+        saturated,
+        black,
+      };
+    },
     snapshotTreed(arm, pxPerUnit) {
       render(arm, pxPerUnit, true);
       return canvas.toDataURL('image/png');
@@ -881,6 +1149,17 @@ export function createLandRunner(): LandRunner {
     snapshotDressed(arm, pxPerUnit) {
       const s = render(arm, pxPerUnit, true, true);
       return { png: canvas.toDataURL('image/png'), props: s.props, triangles: s.triangles };
+    },
+    digest(arm, pxPerUnit) {
+      const px = readFrame(render(arm, pxPerUnit));
+      // FNV-1a over the whole buffer. A hash rather than the buffer itself because this crosses
+      // the Playwright bridge once per pipeline and the frame is megabytes.
+      let h = 0x811c9dc5;
+      for (const byte of px) {
+        h ^= byte;
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      return `${px.length.toString(16)}:${h.toString(16).padStart(8, '0')}`;
     },
     snapshot(arm, pxPerUnit) {
       render(arm, pxPerUnit);
@@ -934,10 +1213,28 @@ function armCaption(arm: LandArm): string {
 /** Mount the page: every arm at both zooms, side by side, with the runner on `window` for the
  *  driver to reach. */
 export async function mountShippedLand(root: HTMLElement): Promise<void> {
-  // ⚠ THE KIT IS AWAITED BEFORE ANYTHING IS BUILT. `buildLandScene` is synchronous by design, so
-  // a page that started drawing first would cache every arm WITHOUT props and then hand the
-  // driver those cached scenes — a dressed row that quietly showed bare ground, which is exactly
-  // the shape a reader cannot distinguish from "the props look like nothing".
+  // ⚠⚠ THE PIPELINE COMES FIRST AND THE ORDER IS LOAD-BEARING, which is why the runner is now
+  // created BEFORE the kit is awaited rather than after. `THREE.Color` converts against the global
+  // colour-management flag at CONSTRUCTION, and `createLandRunner` is what sets that flag — so
+  // anything built ahead of it keeps the conversion it was built with and does not follow the flip.
+  // Nothing is DRAWN before the kit lands (that is `warm()`, below), which is the property the
+  // paragraph this replaced was protecting: a page that cached every arm without props would hand
+  // the driver a dressed row quietly showing bare ground.
+  const params = new URLSearchParams(globalThis.location.search);
+  const asked = params.get('pipeline');
+  if (asked !== null && !LAND_PIPELINES.includes(asked as LandPipeline)) {
+    throw new Error(
+      `shipped-land: unknown pipeline "${asked}" — expected one of ${LAND_PIPELINES.join(', ')}`,
+    );
+  }
+  const pipeline: LandPipeline = (asked as LandPipeline | null) ?? 'exact-probe';
+  // ⚠ `only=dressed` IS FOR THE LIGHT DRIVER, which loads this page ONCE PER PIPELINE and only
+  // wants the dressed row. Rendering the whole measured ladder three times over would be four
+  // minutes of GPU for pictures nobody reads.
+  const dressedOnly = params.get('only') === 'dressed';
+
+  const runner = createLandRunner(pipeline);
+
   try {
     setLandKit(await loadKit());
   } catch (err) {
@@ -946,13 +1243,25 @@ export async function mountShippedLand(root: HTMLElement): Promise<void> {
     console.error('shipped-land: the bought kit did not load, so the dressed row is bare', err);
   }
 
-  const runner = createLandRunner();
-  runner.warm();
+  if (!dressedOnly) runner.warm();
   const id = runner.identity();
   const head = document.createElement('p');
   head.className = 'numbers';
-  head.textContent = `${id.vendor} — ${id.renderer} · software=${id.software} · timerQuery=${id.timerQuery}`;
+  const probed = runner.pipeline();
+  head.textContent =
+    `${id.vendor} — ${id.renderer} · software=${id.software} · timerQuery=${id.timerQuery}\n` +
+    `pipeline=${probed.pipeline} · outputColorSpace=${probed.outputColorSpace} · ` +
+    `toneMapping=${probed.toneMapping} · colorManagement=${probed.colorManagement}\n` +
+    `a lit white face delivers ${probed.probe.toFixed(4)} at the authored intensities; ` +
+    `x${probed.scale.toFixed(4)} -> ${probed.delivered.toFixed(4)} (target ${probed.target})`;
+  head.style.whiteSpace = 'pre-wrap';
   root.appendChild(head);
+
+  if (dressedOnly) {
+    mountDressedRow(root, runner, pipeline);
+    window.landRunner = runner;
+    return;
+  }
 
   for (const zoom of LAND_ZOOMS) {
     const h2 = document.createElement('h2');
@@ -1000,9 +1309,23 @@ export async function mountShippedLand(root: HTMLElement): Promise<void> {
   // the same reason the tree is: a textured crown's pixels are off the GROUND palette by
   // construction. The prop count is printed in the caption because a kit that failed to parse
   // draws a picture identical to the bare one and says nothing about why.
+  mountDressedRow(root, runner, pipeline);
+
+  window.landRunner = runner;
+}
+
+/**
+ * The dressed island at both zooms, beside the same island bare.
+ *
+ * ⚠ EXTRACTED 2026-08-31 so the light driver can load this page once per PIPELINE and get only
+ * this row. It is outside the measured ladder for the reason it always was — a textured crown's
+ * pixels are off the GROUND palette by construction — but it is no longer only for looking at:
+ * `LandRunner.props` measures exactly the pixels it adds.
+ */
+function mountDressedRow(root: HTMLElement, runner: LandRunner, pipeline: LandPipeline): void {
   const h3 = document.createElement('h2');
   h3.textContent =
-    'with one bought object per capability (ADR-0475) — for looking at, not measured';
+    `with one bought object per capability (ADR-0475) — ${pipelineCaption(pipeline)}`;
   root.appendChild(h3);
   for (const zoom of LAND_ZOOMS) {
     const dressedRow = document.createElement('div');
@@ -1025,8 +1348,6 @@ export async function mountShippedLand(root: HTMLElement): Promise<void> {
     }
     root.appendChild(dressedRow);
   }
-
-  window.landRunner = runner;
 }
 
 /** The runner the driver reaches for. A DECLARED GLOBAL rather than a cast at the assignment: an

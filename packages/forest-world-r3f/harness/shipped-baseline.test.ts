@@ -172,19 +172,47 @@ test('the LIGHT is the light the shipped canvas actually hangs — and it is DER
   // same rule as the direction below: a literal `0.78` in the JSX would agree with this table
   // today and drift the moment the ladder's floor moved, which is the drift every unpinned
   // transcription in this package has made at least once.
+  // ⚠⚠ SINCE 2026-08-31 THE PAIR IS MEASURED, so the derivation moved one step further out and
+  // the assertion follows it. The canvas hangs `<CalibratedLights />`, which reads
+  // `intensitiesFor(calibrateLights(gl))` — the ladder's floor and top are still what "unlit" and
+  // "lit" mean, but they are now scaled by a probe of the renderer that will draw the map. The
+  // canvas therefore no longer mentions `SHADE_LEVELS` at all, and asserting that it does would
+  // fail for the correct file. What the drift-guard has to hold instead is that the numbers are
+  // still COMPUTED rather than written down: a literal pair in `<ambientLight intensity={0.8} />`
+  // is the exact regression this test has existed to refuse since the day the ladder moved.
   assert.ok(
-    src.includes('<ambientLight intensity={SHADE_LEVELS[0]!} />'),
-    "the ambient must be the ladder's FLOOR, read off the ladder",
+    src.includes('<CalibratedLights />'),
+    'the canvas must hang the calibrated lights, not two hand-written intensities',
+  );
+  assert.match(
+    src,
+    /intensitiesFor\(calibrateLights\(gl\)\)/,
+    'the intensities must be a probe of THIS renderer scaled onto the ladder',
+  );
+  assert.ok(
+    !/<ambientLight intensity=\{[\d.]/.test(src) && !/<directionalLight[\s\S]{0,200}intensity=\{[\d.]/.test(src),
+    'neither light may carry a literal intensity',
+  );
+  // ⚠ AND THE TRANSFER FUNCTION THE PROBE IS TAKEN THROUGH IS ASSERTED TOO, because the probe is
+  // only valid inside it. `<Canvas>` carried @react-three/fiber's DEFAULTS until 2026-08-31 — ACES
+  // filmic tone mapping and an sRGB output encode — while the approved reference render and this
+  // package's whole palette-closure proof are taken in exact-colour mode. `calibrateLights`
+  // refuses outside it at runtime; this refuses at build time, where a reviewer can see it.
+  assert.ok(
+    src.includes('{...EXACT_COLOUR_CANVAS_PROPS}'),
+    'the canvas must be in exact-colour mode, spread from the one value that defines it',
+  );
+  assert.ok(
+    !/<Canvas[^>]*\blegacy\b[^>]*>/.test(src.replace('{...EXACT_COLOUR_CANVAS_PROPS}', '')),
+    'the three flags must come from the shared value, not be re-spelled on the element',
   );
   assert.match(
     src,
     /position=\{\[\s*LIGHT_DIRECTION\.x \* (\d+),\s*LIGHT_DIRECTION\.y \* \1,\s*LIGHT_DIRECTION\.z \* \1,?\s*\]\}/,
     'the key light must be aimed along LIGHT_DIRECTION, on all three axes at ONE distance',
   );
-  assert.ok(
-    src.includes('intensity={SHADE_LEVELS[SHADE_LEVELS.length - 1]! - SHADE_LEVELS[0]!}'),
-    'the key light must carry a face from the ladder floor to its top rung, read off the ladder',
-  );
+  // The floor-to-top span is now `intensitiesFor`'s own arithmetic, held by
+  // `src/light-calibration.test.ts` against the ladder rather than by a string match here.
   // The two derivations agree: a fully lit white face lands on the ladder's TOP rung and an unlit
   // one on its FLOOR — the range the ground beside it is quantised into.
   assert.equal(SHIPPED_LIGHTING.ambientIntensity, SHADE_LEVELS[0]);
@@ -211,6 +239,39 @@ test('the LIGHT is the light the shipped canvas actually hangs — and it is DER
   // east. A test that only checked "the two agree" would pass for two copies of the wrong one.
   assert.ok(dx < 0, 'the key light is on the same side as the shadows the ground casts');
   assert.ok(src.includes(`args={['${SHIPPED_LIGHTING.background}']}`), 'the background colour');
+});
+
+test('the product and the APPROVED REFERENCE RENDER are configured by the same two modules', () => {
+  // ⚠⚠ THIS IS THE INCREMENT'S CENTRAL CLAIM AND IT IS A CODE-LEVEL ONE, deliberately, because the
+  // pixel-level version is not available: `island-kit-8px.png` is a picture of the HARNESS island
+  // and the product draws the studio's, so no two frames are comparable pixel for pixel. What IS
+  // comparable is the configuration. The approved reference came out of `kit-island-scene.ts`,
+  // which puts its renderer into exact-colour mode and then calibrates its lights against it. The
+  // shipped canvas now does both, through the SAME two modules rather than through a second
+  // transcription of them — which is the only form of "the same pipeline" that cannot drift.
+  //
+  // Until 2026-08-31 it did neither: a default `<Canvas>` is ACES filmic tone mapping over an sRGB
+  // output encode, and no probe ran. A white fully-lit face delivered 0.66 there against the
+  // ladder's top rung of 1.00 — the crowns read lighter than the reference, which is what the
+  // increment was parked on, by a mechanism nobody had named.
+  const reference = readFileSync(join(HERE, 'kit-island-scene.ts'), 'utf8');
+  assert.match(reference, /configureExactColour\(/, 'the reference render is in exact-colour mode');
+  assert.match(reference, /calibrateLights\(/, 'the reference render calibrates its lights');
+
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(src, /EXACT_COLOUR_CANVAS_PROPS/, 'the product is in exact-colour mode');
+  assert.match(src, /calibrateLights\(/, 'the product calibrates its lights');
+
+  // ⚠ NON-VACUITY, AND IT IS THE HALF THAT ACTUALLY BINDS. Both files could satisfy the four
+  // matches above while importing two different `configureExactColour`s — which is exactly the
+  // fork that gave this package three disagreeing status palettes. So: the reference's own
+  // configuration must reach the SAME module the product's does. `banded-material.ts` re-exports
+  // `src/exact-colour.ts` and `pine-scene.ts` re-exports `src/light-calibration.ts`; the
+  // ADOPTED ledger in `scope-fence.test.ts` is what holds those two re-exports in place.
+  const banded = readFileSync(join(HERE, 'banded-material.ts'), 'utf8');
+  const pine = readFileSync(join(HERE, 'pine-scene.ts'), 'utf8');
+  assert.match(banded, /configureExactColour[\s\S]{0,200}from '\.\.\/src\/exact-colour\.js'/);
+  assert.match(pine, /calibrateLights[\s\S]{0,200}from '\.\.\/src\/light-calibration\.js'/);
 });
 
 test('the shipped ground STANDS ON the relief field — the adoption, read off the file', () => {

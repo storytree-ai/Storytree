@@ -40,7 +40,9 @@ import type { ShadowCaster } from './land-shadow.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh.js';
 import { capabilityFactsFrom, dressIslandFromKit } from './kit-vocabulary.js';
 import { parcelCellsFrom } from './parcel-cells.js';
-import { LIGHT_DIRECTION, SHADE_LEVELS } from './shade-ladder.js';
+import { LIGHT_DIRECTION } from './shade-ladder.js';
+import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour.js';
+import { calibrateLights, intensitiesFor } from './light-calibration.js';
 import {
   GROUND_STATUS_ATTRIBUTE,
   createBandedGroundMaterial,
@@ -519,6 +521,59 @@ function FitOrthographicFraming({ halfHeight }: { halfHeight: number }) {
 }
 
 /**
+ * THE MAP'S TWO LIGHTS, at the strengths a probe of this renderer says they should be.
+ *
+ * ⚠⚠ THE INTENSITIES ARE READ OFF THE LADDER, and they were `0.7` / `1.1` until 2026-08-30. That
+ * pair was chosen when every lit object here was a flat placeholder cone or cylinder whose own
+ * colour WAS the picture; for those, 1.8 of total intensity is merely bright. The bought kit is
+ * the first thing on this map with a TEXTURE, and 1.8 saturates it — the first dressed frame
+ * delivered pale grey needles on PINK trunks, which reads as a broken asset and is an overexposed
+ * one. So a fully lit white face lands on the ladder's TOP rung and an unlit one on its FLOOR: the
+ * same range the ground beside it is quantised into, by derivation rather than by eye.
+ *
+ * ⚠⚠ AND SINCE 2026-08-31 THE PAIR IS MEASURED RATHER THAN MERELY DERIVED. `calibrateLights`
+ * renders a white, fully rough, fully lit standard face in THIS context, reads it back, and scales
+ * both intensities by `target / probe` — the specular term a real `MeshStandardMaterial` carries is
+ * not something the arithmetic on this side can predict. Until then the canvas ran no probe and
+ * hung the authored intent, which is the smaller half of why its crowns did not match
+ * `docs/research/chapter2-vocabulary-2026-08-29/island-kit-8px.png`. The larger half is the
+ * transfer function itself and lives in `exact-colour.ts`.
+ *
+ * ⚠ IT DELIBERATELY DOES NOT RE-CONFIGURE THE RENDERER, IT ASSERTS. `calibrateLights` REFUSES a
+ * renderer that is not in exact-colour mode, because `target / probe` is a one-shot solve that is
+ * exact only where the delivered value is linear in intensity. @react-three/fiber's `configure`
+ * pass runs before children render — `render(children)` awaits it — so by here the `<Canvas>`
+ * spread has already taken. Re-applying it would paper over an ordering change instead of failing
+ * on one.
+ *
+ * ⚠⚠ THE KEY LIGHT IS AIMED ALONG THE LAND'S OWN AUTHORED SUN, and it was not until 2026-08-30.
+ * It sat at `[120, 300, 80]`, which normalises to (+0.36, +0.90, +0.24) — the OPPOSITE SIDE IN X
+ * from `LIGHT_DIRECTION`'s (-0.45, +0.83, +0.35). So every lit object on this map was lit from the
+ * east while the ground beside it was banded, and — once the shadow crossing landed — CAST ITS
+ * SHADOWS from the west. A prop lit from one side and throwing its shadow toward the same side is
+ * the incoherence that reads as "wrong" before anyone can say why, and the bought kit is what made
+ * it matter: the story tree could carry it alone, a stand of trees cannot. It is DERIVED rather
+ * than chosen — the same constant `banded-ground-material.ts` shades with and `land-shadow.ts`
+ * casts along, so the three cannot drift apart. The distance is arbitrary (a directional light has
+ * a direction, not a position) and is large enough to sit outside any world.
+ */
+function CalibratedLights() {
+  const gl = useThree((s) => s.gl);
+  // The probe renders one 8x8 frame and restores the canvas size. Memoised on the renderer, so it
+  // runs once per mount rather than once per frame.
+  const lit = useMemo(() => intensitiesFor(calibrateLights(gl)), [gl]);
+  return (
+    <>
+      <ambientLight intensity={lit.ambient} />
+      <directionalLight
+        position={[LIGHT_DIRECTION.x * 400, LIGHT_DIRECTION.y * 400, LIGHT_DIRECTION.z * 400]}
+        intensity={lit.directional}
+      />
+    </>
+  );
+}
+
+/**
  * The minimal R3F canvas of the spike: descriptors → placeholder meshes under drei
  * `MapControls` (pan / zoom a top-down-ish world map — NOT rotate; the projection is fixed
  * 2.5D isometric per ADR-0380 D6 fence 4). Client-only
@@ -553,37 +608,13 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
        beside `orthographic` is the one way to write this that silently keeps the old projection.
        `near`/`far` now clip along the view direction rather than radially, and the eye sits
        `back * √2` away, so the same 1/4000 range still contains the whole world. */
-    <Canvas orthographic camera={{ position: frame.position, near: 1, far: 4000 }}>
+    <Canvas
+      orthographic
+      {...EXACT_COLOUR_CANVAS_PROPS}
+      camera={{ position: frame.position, near: 1, far: 4000 }}
+    >
       <color attach="background" args={['#101418']} />
-      {/* ⚠⚠ THE INTENSITIES ARE READ OFF THE LADDER, and they were `0.7` / `1.1` until 2026-08-30.
-          That pair was chosen when every lit object here was a flat placeholder cone or cylinder
-          whose own colour WAS the picture; for those, 1.8 of total intensity is merely bright.
-          The bought kit is the first thing on this map with a TEXTURE, and 1.8 saturates it — the
-          first dressed frame delivered pale grey needles on PINK trunks, which reads as a broken
-          asset and is an overexposed one. So a fully lit white face now lands on the ladder's TOP
-          rung and an unlit one on its FLOOR: the same range the ground beside it is quantised
-          into, by derivation rather than by eye.
-          ⚠ This is the authored intent, not a measured calibration: `calibrateLights` also PROBES
-          a live renderer and scales both by `target / probe`, because a standard material's real
-          response carries a specular term this arithmetic does not model. The canvas runs no
-          probe. Named here rather than silently approximated. */}
-      <ambientLight intensity={SHADE_LEVELS[0]!} />
-      {/* ⚠⚠ THE KEY LIGHT IS AIMED ALONG THE LAND'S OWN AUTHORED SUN, and it was not until
-          2026-08-30. It sat at `[120, 300, 80]`, which normalises to (+0.36, +0.90, +0.24) —
-          the OPPOSITE SIDE IN X from `LIGHT_DIRECTION`'s (-0.45, +0.83, +0.35). So every lit
-          object on this map was lit from the east while the ground beside it was banded, and
-          since the shadow crossing landed, CAST ITS SHADOWS, from the west. A prop lit from one
-          side and throwing its shadow toward the same side is the incoherence that reads as
-          "wrong" before anyone can say why, and the bought kit is what made it matter: the story
-          tree could carry it alone, a stand of trees cannot.
-          It is DERIVED rather than chosen — the same constant `banded-ground-material.ts` shades
-          with and `land-shadow.ts` casts along, so the three cannot drift apart. The distance is
-          arbitrary (a directional light has a direction, not a position) and is large enough to
-          sit outside any world. */}
-      <directionalLight
-        position={[LIGHT_DIRECTION.x * 400, LIGHT_DIRECTION.y * 400, LIGHT_DIRECTION.z * 400]}
-        intensity={SHADE_LEVELS[SHADE_LEVELS.length - 1]! - SHADE_LEVELS[0]!}
-      />
+      <CalibratedLights />
       <HexGround tiles={grounds} />
       <CellGround cells={cells} casters={casters} />
       <KitProps cells={cells} />
