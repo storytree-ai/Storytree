@@ -251,11 +251,21 @@ for (const arm of ARMS) {
   if (r.movedVertices <= 0) {
     fail(`the ${arm} arm moved NO ground at all - a landform that falls nowhere is not a landform`);
   }
-  if (r.minHeight >= control.minHeight) {
+  // The fall pulls ground TOWARD the waterline, so where a band reaches a trough DEEPER than the
+  // waterline it RAISES it. The island floor therefore never gets deeper - which is what keeps
+  // every camera framing constant and every shadow reach unmoved by this increment.
+  //
+  // An earlier draft of this refusal had the sign backwards and demanded the floor DROP. It fired
+  // on a correct run: the waterline is -0.62 and this island's sine trough is -3.912, six times
+  // deeper, so the dip cannot lower the minimum and never could.
+  if (r.minHeight < control.minHeight - 1e-9) {
     fail(
-      `the ${arm} arm's lowest ground is ${r.minHeight.toFixed(3)}, no lower than the control's ` +
-        `${control.minHeight.toFixed(3)} - the beach did not dip below the grass line`,
+      `the ${arm} arm deepened the island floor to ${r.minHeight.toFixed(3)} against the control's ` +
+        `${control.minHeight.toFixed(3)} - the fall only ever pulls ground toward the waterline`,
     );
+  }
+  if (r.maxDrop <= 0) {
+    fail(`the ${arm} arm moved ${r.movedVertices} vertices by a maximum of zero - nothing fell`);
   }
 }
 
