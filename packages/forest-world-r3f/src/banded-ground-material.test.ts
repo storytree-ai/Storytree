@@ -820,6 +820,16 @@ test('AN ABSENT ATLAS CHANGES NOTHING — no attribute, no varying, no scale uni
   const bare = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS });
   const rect = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
   for (const m of [bare, rect]) {
+    // ⚠ THE ATTRIBUTE LIST IS ASSERTED WHOLE, not merely searched for a name. Every one of the
+    // atlas's four insertion points is an `atlased ? … : ''`, and the EMPTY branch is a string
+    // literal a mutant can fill with anything at all — including text that contains no spelling
+    // this test would recognise. Byte identity has to be literal or it is not a claim.
+    assert.ok(
+      m.vertexShader.includes(
+        '      attribute float statusIndex;\n      varying float vStatus;\n      varying vec3 vNormal;',
+      ),
+      'an unatlased vertex stage declares the row attribute and NOTHING between it and vStatus',
+    );
     assert.ok(!/atlasOrigin/.test(m.vertexShader), 'no atlas attribute in the vertex stage');
     assert.ok(!/vAtlasOrigin/.test(m.fragmentShader), 'and no atlas varying in the fragment stage');
     assert.ok(!/uShadowAtlasScale/.test(m.fragmentShader));
@@ -894,4 +904,68 @@ test('the uploaded SCALE is the packing’s own derivation, not a second copy of
   assert.equal(scale.x, derived.u);
   assert.equal(scale.y, derived.v);
   assert.equal((m.uniforms['uShadowTex']!.value as DataTexture).image.width, field.w);
+});
+
+test('the ATLAS attribute name is `atlasOrigin` — the second string two files must agree on', () => {
+  // Spelled as a literal for the reason its `statusIndex` neighbour is: every other test names the
+  // constant, so none of them pins what it IS, and a mismatch between the shader's spelling and
+  // the canvas's is silent — every island reads the atlas's top-left tile and wears some other
+  // island's shadow while looking entirely ordinary.
+  assert.equal(GROUND_ATLAS_ATTRIBUTE, 'atlasOrigin');
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadowAtlas: testAtlas() });
+  assert.ok(m.vertexShader.includes('attribute vec2 atlasOrigin;'));
+  assert.ok(m.vertexShader.includes('vAtlasOrigin = atlasOrigin;'));
+});
+
+test('the atlas texture is UPLOADED, not merely constructed', () => {
+  // `needsUpdate` is a write-only setter on three's Texture — it bumps `version`. A texture left
+  // at version 0 is never sent to the GPU, and the island renders unshadowed while every object
+  // on this page looks correctly built.
+  const uploaded = testAtlas();
+  assert.ok(uploaded.texture.version > 0, 'the atlas texture must have been marked for upload');
+});
+
+test('the both-forms refusal says WHICH two forms, not only that there were two', () => {
+  // The message is two concatenated literals and only the second was pinned; a mutant blanking the
+  // first left a refusal that names neither input. A reader who hits this is holding a call site
+  // with two options set and needs to be told which pair is the problem.
+  assert.throws(
+    () =>
+      createBandedGroundMaterial({
+        tokens: SHIPPED_TOKENS,
+        shadow: testShadow(),
+        shadowAtlas: testAtlas(),
+      }),
+    /both a rect occlusion field and a packed atlas were supplied/,
+  );
+});
+
+test('the atlas vertex stage is emitted LINE FOR LINE, comment block included', () => {
+  // ⚠ THE WHOLE BLOCK, not just its last line — the same claim the index stage's own test makes.
+  // A shader that still passes the corner through while having lost the sentence explaining why
+  // the interpolation is exact is the erosion this file exists to refuse.
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadowAtlas: testAtlas() });
+  assert.ok(
+    m.vertexShader.includes(
+      "        // The island's tile corner rides through the interpolator. All three vertices of\n" +
+        '        // a triangle belong to one island and carry the same corner, so the interpolated\n' +
+        '        // value is that corner exactly — the same argument vStatus above makes.\n' +
+        '        vAtlasOrigin = atlasOrigin;',
+    ),
+    'the atlas assignment must arrive with its whole argument attached',
+  );
+  assert.ok(m.vertexShader.includes('\n      attribute vec2 atlasOrigin;'));
+  assert.ok(m.vertexShader.includes('\n      varying vec2 vAtlasOrigin;'));
+});
+
+test('the atlas fragment stage carries its own two-line argument as well', () => {
+  const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadowAtlas: testAtlas() });
+  assert.ok(
+    m.fragmentShader.includes(
+      "        // The atlas form: the island's own tile corner, plus the ground position\n" +
+        "        // scaled into it. Two multiply-adds against the rect form's two subtract-multiplies —\n" +
+        '        // the packing costs the fragment stage nothing, it costs a vec2 on the mesh.\n' +
+        '        vec2 shUv = vAtlasOrigin + vec2(vWorld.x, vWorld.z) * uShadowAtlasScale;',
+    ),
+  );
 });

@@ -506,3 +506,28 @@ test('the refusal names the DOUBLINGS it tried and the distance it reached', () 
     },
   );
 });
+
+test('⚠ THE TEXTURE BUDGET REACHES BOTH TERMS, or the merge would refuse', () => {
+  // `buildGroundOcclusion` resolves the cap ONCE and hands it to both the cast and the contact
+  // field, for the same reason it resolves the resolution once: the merge is index-for-index, and
+  // two fields built under different caps are two different grids. A mutant that dropped it from
+  // either term would not produce a wrong picture — it would produce a REFUSAL, which is the
+  // failure this arrangement is chosen for.
+  // ⚠⚠ THIN, NOT SQUARE, AND THAT IS A MUTATION-RUNG REQUIREMENT. A CLAMPED field is
+  // {@link SHADOW_TEXTURE_MAX} texels on its widest edge whatever the bounds — so a 3000 x 3000
+  // fixture allocates 4.2 million samples three times over, per mutant, and the rung reports the
+  // resulting timeout as UNPROVEN in the same words an attribution gap produces. Long in x and ten
+  // units deep clamps exactly as hard and costs 74 thousand.
+  const wide: GroundBounds = { minX: 0, maxX: 800, minZ: 0, maxZ: 10 };
+  const casters = [{ x: 400, z: 5, radius: 7, height: 19 }];
+  const merged = buildGroundOcclusion({ bounds: wide, relief: 2.2, casters, max: 512 });
+  assert.ok(merged.w <= 512 && merged.h <= 512, 'the explicit cap must bound the merged field');
+  const authored = buildGroundOcclusion({ bounds: wide, relief: 2.2, casters });
+  assert.ok(authored.w > merged.w, 'and the default really is a different, larger grid');
+
+  // The contact term alone takes it too, and a field built under a different cap is a different
+  // grid — which is exactly what `sameGrid` refuses to merge.
+  const contact = buildContactField({ bounds: wide, casters, max: 512 });
+  assert.equal(contact.w, merged.w);
+  assert.ok(!sameGrid(contact, authored));
+});

@@ -22,10 +22,15 @@ import {
 } from './land-shadow.js';
 import {
   ATLAS_REFIT_ATTEMPTS,
+  ATLAS_SHRINK_MARGIN,
   SHADOW_ATLAS_MAX,
   UNHOMED_ISLAND,
   assignCasters,
   atlasBytes,
+  atlasShrink,
+  blitTile,
+  byIslandId,
+  casterWithin,
   atlasCoverage,
   atlasOccupancy,
   atlasOrigin,
@@ -393,4 +398,259 @@ test('atlas coverage measures the packed field, and is HIGHER than the rect form
   let n = 0;
   for (const v of rect.data) if (v / 255 > 0.5) n += 1;
   assert.ok(packed > n / rect.data.length);
+});
+
+// ---------------------------------------------------------------------------------------------
+// THE MUTATION RUNG'S OWN LIST — every claim below is here because `check:mutation-diff` named a
+// mutant this file's first draft could not kill. They are not extra coverage; they are the
+// boundaries, the tie-breaks and the defaults the arithmetic above actually turns on.
+
+test('the unhomed key is the EMPTY string, and a real island can never collide with it', () => {
+  // Asserted as a literal rather than symbolically: every test that spells `UNHOMED_ISLAND` is
+  // satisfied by any value at all, so nothing above pins what the key IS.
+  assert.equal(UNHOMED_ISLAND, '');
+  const bounds = islandGroundBounds([square(undefined, 0, 0, 10)]);
+  assert.equal(bounds[0]?.island, '');
+});
+
+test('a tile begins one PAD outside its island, on both axes', () => {
+  const layout = packShadowAtlas(SIX_BOUNDS);
+  for (const island of SIX_BOUNDS) {
+    const tile = tileOf(layout, island.island);
+    assert.ok(tile);
+    // ⚠ THE SIGN OF THE PAD, PINNED. Flipped, the tile still packs, the UV round trip above still
+    // agrees with itself, and every island's field simply sits four ground units off the land it
+    // describes — a shadow displaced by a quarter of a parcel, which reads as a lighting quirk.
+    assert.equal(tile.minX, island.bounds.minX - OCCLUSION_PAD);
+    assert.equal(tile.minZ, island.bounds.minZ - OCCLUSION_PAD);
+    // And the tile carries the island's own rect, unpadded — what the field is built over.
+    assert.deepEqual(tile.bounds, island.bounds);
+  }
+});
+
+test('byIslandId orders both ways and reports ties — all three branches', () => {
+  assert.equal(byIslandId('a', 'b'), -1);
+  assert.equal(byIslandId('b', 'a'), 1);
+  assert.equal(byIslandId('a', 'a'), 0);
+});
+
+test('EQUAL-HEIGHT tiles are shelved in ISLAND-ID order, whichever order they arrive in', () => {
+  // ⚠ THE TIE-BREAK IS THE WHOLE POINT AND IT IS INVISIBLE UNTIL THE HEIGHTS MATCH. Every island
+  // in the crowd fixture is a copy of one island, so EVERY comparison falls through to this
+  // branch: a comparator that returned a constant would pack in arrival order, and two runs over
+  // the same map would commit two different atlases.
+  const forward: IslandBounds[] = [
+    { island: 'a', bounds: { minX: 0, maxX: 10, minZ: 0, maxZ: 10 } },
+    { island: 'b', bounds: { minX: 40, maxX: 50, minZ: 0, maxZ: 10 } },
+    { island: 'c', bounds: { minX: 80, maxX: 90, minZ: 0, maxZ: 10 } },
+  ];
+  const order = (l: ReturnType<typeof shelfPack>): string[] => (l?.tiles ?? []).map((t) => t.island);
+  assert.deepEqual(order(shelfPack(forward, 1)), ['a', 'b', 'c']);
+  assert.deepEqual(order(shelfPack([...forward].reverse(), 1)), ['a', 'b', 'c']);
+  const shuffled = [forward[1]!, forward[2]!, forward[0]!];
+  assert.deepEqual(order(shelfPack(shuffled, 1)), ['a', 'b', 'c']);
+});
+
+test('a tile that EXACTLY fills the atlas fits — the cap is a ceiling, not a wall one short of it', () => {
+  // 10 units + 2 pads of 2 = 14 units; at 1 sample per unit that is a 14-texel tile.
+  const one: IslandBounds[] = [{ island: 'a', bounds: { minX: 0, maxX: 10, minZ: 0, maxZ: 10 } }];
+  assert.ok(shelfPack(one, 1, 14), 'a tile exactly as wide as the atlas must fit');
+  assert.equal(shelfPack(one, 1, 13), null, 'and one texel wider must not');
+});
+
+test('two tiles that EXACTLY fill a shelf share it — the wrap is a ceiling too', () => {
+  // Tiles 14 texels wide (10 units + two pads of 2, at 1 sample per unit) and 6 tall.
+  const two: IslandBounds[] = [
+    { island: 'a', bounds: { minX: 0, maxX: 10, minZ: 0, maxZ: 2 } },
+    { island: 'b', bounds: { minX: 40, maxX: 50, minZ: 0, maxZ: 2 } },
+  ];
+  const exact = shelfPack(two, 1, 28);
+  assert.ok(exact);
+  assert.equal(exact.h, 6, 'at exactly 28 wide both tiles share ONE shelf');
+  assert.equal(exact.w, 28);
+  const tight = shelfPack(two, 1, 27);
+  assert.ok(tight);
+  assert.equal(tight.h, 12, 'one texel narrower and the second tile wraps to a second shelf');
+});
+
+test('a set that EXACTLY fills the atlas HEIGHT fits, and one texel more does not', () => {
+  // Tiles 14 wide by 10 tall, in a 20-texel atlas: one per shelf, two shelves, exactly 20 rows.
+  const two: IslandBounds[] = [
+    { island: 'a', bounds: { minX: 0, maxX: 10, minZ: 0, maxZ: 6 } },
+    { island: 'b', bounds: { minX: 40, maxX: 50, minZ: 0, maxZ: 6 } },
+  ];
+  const exact = shelfPack(two, 1, 20);
+  assert.ok(exact, 'two 10-row shelves must fit a 20-row atlas exactly');
+  assert.equal(exact.h, 20);
+  assert.equal(shelfPack(two, 1, 19), null, 'and one row short must be refused');
+});
+
+test('atlasShrink on an EMPTY set returns the margin rather than dividing by nothing', () => {
+  assert.equal(atlasShrink([], SHADOW_GRES), ATLAS_SHRINK_MARGIN);
+  // And a real set shrinks by less than 1, or the refit loop would never converge.
+  const shrink = atlasShrink(SIX_BOUNDS, SHADOW_GRES, 64);
+  assert.ok(shrink > 0 && shrink < 1, `shrink out of range: ${shrink}`);
+});
+
+test('an empty atlas is ONE texel and fully occupied — which is why occupancy needs no guard', () => {
+  const empty = shelfPack([], SHADOW_GRES);
+  assert.ok(empty);
+  assert.equal(atlasBytes(empty), 1);
+  assert.equal(atlasOccupancy(empty), 0);
+});
+
+test('⚠ casterWithin: all FOUR bounds, each at the exact pad and one step past it', () => {
+  // Four comparisons, four separate boundaries, and every one of them is a `<` a mutant can turn
+  // into a `<=` or a pad sign it can flip. The predicate decides which island's tile a story
+  // tree's pool is stamped into; a flipped comparison sends it to a neighbour's land.
+  const bounds: GroundBounds = { minX: 0, maxX: 100, minZ: 0, maxZ: 50 };
+  const at = (x: number, z: number): ShadowCaster => ({ x, z, radius: 4, height: 19 });
+  assert.equal(casterWithin(bounds, at(-OCCLUSION_PAD, 25)), true, 'the west pad is inclusive');
+  assert.equal(casterWithin(bounds, at(-OCCLUSION_PAD - 0.001, 25)), false, 'and one step out is not');
+  assert.equal(casterWithin(bounds, at(100 + OCCLUSION_PAD, 25)), true, 'the east pad is inclusive');
+  assert.equal(casterWithin(bounds, at(100 + OCCLUSION_PAD + 0.001, 25)), false);
+  assert.equal(casterWithin(bounds, at(50, -OCCLUSION_PAD)), true, 'the north pad is inclusive');
+  assert.equal(casterWithin(bounds, at(50, -OCCLUSION_PAD - 0.001)), false);
+  assert.equal(casterWithin(bounds, at(50, 50 + OCCLUSION_PAD)), true, 'the south pad is inclusive');
+  assert.equal(casterWithin(bounds, at(50, 50 + OCCLUSION_PAD + 0.001)), false);
+  // The pad is an ARGUMENT, and passing a different one really moves the boundary.
+  assert.equal(casterWithin(bounds, at(-10, 25), 20), true);
+  assert.equal(casterWithin(bounds, at(-10, 25), 5), false);
+});
+
+test('a caster inside TWO islands’ padded bounds is given to BOTH', () => {
+  const overlapping: IslandBounds[] = [
+    { island: 'a', bounds: { minX: 0, maxX: 10, minZ: 0, maxZ: 10 } },
+    { island: 'b', bounds: { minX: 12, maxX: 22, minZ: 0, maxZ: 10 } },
+  ];
+  const between: ShadowCaster = { x: 11, z: 5, radius: 4, height: 19 };
+  const assignment = assignCasters(overlapping, [between]);
+  assert.equal(assignment.byIsland.get('a')?.length, 1);
+  assert.equal(assignment.byIsland.get('b')?.length, 1);
+  assert.equal(assignment.unassigned.length, 0, 'and it is not ALSO reported as homeless');
+});
+
+test('buildAtlasOcclusion honours an explicit gres and an explicit max', () => {
+  // Both defaults are `??`, and a mutant that turns either into `&&` inverts them: the explicit
+  // value is discarded and the authored one used, or vice versa. Only an explicitly-passed value
+  // that DIFFERS from the default can see it.
+  const coarse = buildAtlasOcclusion({ cells: SIX, relief: 2.2, casters: [treeOn(0)], gres: 1 });
+  assert.equal(coarse.gres, 1, 'an explicit gres must be the one delivered');
+  assert.notEqual(coarse.gres, SHADOW_GRES);
+  const capped = buildAtlasOcclusion({ cells: SIX, relief: 2.2, casters: [treeOn(0)], max: 100 });
+  assert.ok(capped.w <= 100 && capped.h <= 100, 'an explicit max must bound the atlas');
+  assert.ok(capped.gres < SHADOW_GRES, 'and it must have cost resolution to get there');
+});
+
+test('⚠ blitTile REFUSES a field that is not its tile’s size', () => {
+  // The defence that used to be a `Math.min`. Clamping absorbs the first disagreement between the
+  // grid arithmetic and the packing arithmetic by dropping a row — one texel of one island's
+  // shadow, invisible and unattributable. Throwing makes it the loudest thing in the run.
+  const layout = packShadowAtlas(SIX_BOUNDS);
+  const tile = layout.tiles[0]!;
+  const wrong = {
+    minX: tile.minX,
+    minZ: tile.minZ,
+    w: tile.w - 1,
+    h: tile.h,
+    gres: layout.gres,
+    data: new Uint8Array((tile.w - 1) * tile.h),
+  };
+  assert.throws(
+    () => blitTile(new Uint8Array(layout.w * layout.h), layout.w, tile, wrong),
+    /the grid arithmetic and the packing arithmetic have parted/,
+  );
+  // NON-VACUITY: the right size does not throw, so the refusal is about the size and not about
+  // the call.
+  const right = { ...wrong, w: tile.w, data: new Uint8Array(tile.w * tile.h) };
+  blitTile(new Uint8Array(layout.w * layout.h), layout.w, tile, right);
+});
+
+test('atlasCoverage counts what the MATERIAL thresholds, at the threshold it is given', () => {
+  // A hand-built field rather than a rendered one, so the expected number is arithmetic rather
+  // than a transcription: four samples, two of them past the material's 0.5.
+  const field = {
+    w: 2,
+    h: 2,
+    gres: 1,
+    data: new Uint8Array([0, 128, 200, 255]),
+    tiles: [],
+    unassigned: 0,
+  };
+  // 128/255 = 0.502 and 200/255 = 0.784 and 255/255 = 1 are past 0.5; 0 is not.
+  assert.equal(atlasCoverage(field), 0.75);
+  // The threshold is a real argument: at 0.9 only the last sample survives.
+  assert.equal(atlasCoverage(field, 0.9), 0.25);
+  // And nothing can be past 1, which is what says the comparison is `>` on a 0..1 scalar rather
+  // than on the raw byte.
+  assert.equal(atlasCoverage(field, 1), 0);
+});
+
+test('a NEIGHBOUR’S tree never reaches this island’s tile — even when it is close enough to try', () => {
+  // ⚠⚠ THE FILTER IS NOT AN OPTIMISATION AT CLOSE RANGE. Handing every island the whole map's
+  // casters is harmless while islands are hundreds of units apart, because a stamp is bounded to
+  // its own caster's box. Put two islands twenty units apart and a story tree's shadow — about
+  // thirteen ground units long — reaches over the water into the NEIGHBOUR's field, and the
+  // neighbour's tile acquires a shadow cast by a tree standing on somebody else's land.
+  // Three ground units of water between them. The authored light throws a shadow along
+  // (+0.789, -0.614) for 13.2 units from a 19-unit tree, and the contact pool alone is 5.6 units
+  // across — so both terms reach `b`'s field, which begins one pad short of `b` at x = 31.
+  const close: InstanceDescriptor[] = [square('a', 0, 0, 30), square('b', 33, 0, 30)];
+  // On island `a`, near its eastern edge — and OUTSIDE `b`'s padded bounds (31 > 29), so it stays
+  // `a`'s caster alone while its shadow leans across the water into `b`'s tile.
+  const edger: ShadowCaster = { x: 29, z: 15, radius: 4, height: 19 };
+  const atlas = buildAtlasOcclusion({ cells: close, relief: 2.2, casters: [edger] });
+  assert.equal(atlas.unassigned, 0, "the tree must belong to `a`");
+  assert.equal(assignCasters(islandGroundBounds(close), [edger]).byIsland.get('b')?.length, 0);
+
+  const tile = atlas.tiles.find((t) => t.island === 'b');
+  assert.ok(tile);
+  let lit = 0;
+  for (const j of Array.from({ length: tile.h }, (_, n) => n)) {
+    for (const i of Array.from({ length: tile.w }, (_, n) => n)) {
+      if (atlas.data[(tile.y + j) * atlas.w + tile.x + i]! > 0) lit += 1;
+    }
+  }
+  assert.equal(lit, 0, `island b's tile carries ${lit} samples of its neighbour's shadow`);
+
+  // NON-VACUITY: the same tree DOES darken its own island, and its shadow really does reach past
+  // that island's own bounds — so the zero above is the filter working, not the tree missing.
+  const own = atlas.tiles.find((t) => t.island === 'a')!;
+  let ownLit = 0;
+  for (const j of Array.from({ length: own.h }, (_, n) => n)) {
+    for (const i of Array.from({ length: own.w }, (_, n) => n)) {
+      if (atlas.data[(own.y + j) * atlas.w + own.x + i]! > 0) ownLit += 1;
+    }
+  }
+  assert.ok(ownLit > 0, "the tree must darken its own island's tile");
+  // ⚠ AND THE UNFILTERED CALL REALLY WOULD HAVE STAMPED `b` — asserted rather than assumed, or
+  // the zero above is satisfied by two islands too far apart to have been a test at all.
+  const spilled = buildGroundOcclusion({
+    bounds: islandGroundBounds(close).find((i) => i.island === 'b')!.bounds,
+    relief: 2.2,
+    casters: [edger],
+  });
+  assert.ok(
+    spilled.data.some((v) => v > 0),
+    "island b's own field, handed the whole map's casters, would carry the neighbour's shadow",
+  );
+});
+
+test('blitTile refuses a HEIGHT mismatch as well as a width one, and says which sizes', () => {
+  const layout = packShadowAtlas(SIX_BOUNDS);
+  const tile = layout.tiles[0]!;
+  const shortField = {
+    minX: tile.minX,
+    minZ: tile.minZ,
+    w: tile.w,
+    h: tile.h - 1,
+    gres: layout.gres,
+    data: new Uint8Array(tile.w * (tile.h - 1)),
+  };
+  assert.throws(
+    () => blitTile(new Uint8Array(layout.w * layout.h), layout.w, tile, shortField),
+    // ⚠ THE MESSAGE'S FIRST HALF TOO, not only its verdict. A reader who hits this is holding two
+    // pieces of arithmetic that have parted and needs the four numbers to see which way.
+    new RegExp(`island "${tile.island}" built a ${tile.w}x${tile.h - 1} field for a ${tile.w}x${tile.h} tile`),
+  );
 });

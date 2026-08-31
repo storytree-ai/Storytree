@@ -46,6 +46,7 @@ import {
   indices,
   type GroundBounds,
   type ShadowCaster,
+  type ShadowField,
 } from './land-shadow.js';
 
 /**
@@ -88,6 +89,14 @@ export interface AtlasTile {
   /** Ground coordinate the tile's texel (0, 0) sits at — the island's bounds, less the pad. */
   minX: number;
   minZ: number;
+  /** The island's OWN rect, unpadded.
+   *
+   *  ⚠ CARRIED RATHER THAN LOOKED UP, and that is a mutation-rung finding as much as a
+   *  convenience. A builder that took a layout and then re-found each tile's island in the list it
+   *  was packed from needed an `if (island === undefined) continue` for a case that cannot arise —
+   *  an unreachable branch, which is a survivor no test can ever kill and which reads to a later
+   *  reader as a case somebody handled. */
+  bounds: GroundBounds;
 }
 
 /** Where every island sits in one packed texture. */
@@ -132,7 +141,16 @@ export function islandGroundBounds(cells: readonly InstanceDescriptor[]): Island
   }
   return [...byIsland.entries()]
     .map(([island, bounds]) => ({ island, bounds }))
-    .sort((a, b) => (a.island < b.island ? -1 : a.island > b.island ? 1 : 0));
+    .sort((a, b) => byIslandId(a.island, b.island));
+}
+
+/** Order two island ids. ONE function rather than the same ternary in two sorts: written twice,
+ *  each copy's `<` and `>` are separate mutants, and a test that pins the order in one place
+ *  proves nothing about the other. */
+export function byIslandId(a: string, b: string): number {
+  if (a < b) return -1;
+  if (a > b) return 1;
+  return 0;
 }
 
 /** The key cells carrying no island id are grouped under. A real id, so a tile lookup for it
@@ -173,12 +191,13 @@ export function shelfPack(
   const sized = islands
     .map((i) => ({
       island: i.island,
+      bounds: i.bounds,
       minX: i.bounds.minX - OCCLUSION_PAD,
       minZ: i.bounds.minZ - OCCLUSION_PAD,
       w: tileEdge(axisSpan(i.bounds.minX, i.bounds.maxX), gres),
       h: tileEdge(axisSpan(i.bounds.minZ, i.bounds.maxZ), gres),
     }))
-    .sort((a, b) => b.h - a.h || (a.island < b.island ? -1 : a.island > b.island ? 1 : 0));
+    .sort((a, b) => b.h - a.h || byIslandId(a.island, b.island));
 
   const tiles: AtlasTile[] = [];
   let penX = 0;
@@ -195,7 +214,16 @@ export function shelfPack(
       shelfH = 0;
     }
     if (shelfY + t.h > max) return null;
-    tiles.push({ island: t.island, x: penX, y: shelfY, w: t.w, h: t.h, minX: t.minX, minZ: t.minZ });
+    tiles.push({
+      island: t.island,
+      x: penX,
+      y: shelfY,
+      w: t.w,
+      h: t.h,
+      minX: t.minX,
+      minZ: t.minZ,
+      bounds: t.bounds,
+    });
     penX += t.w;
     widest = Math.max(widest, penX);
     shelfH = Math.max(shelfH, t.h);
@@ -254,7 +282,10 @@ export function atlasShrink(
       tileEdge(axisSpan(i.bounds.minX, i.bounds.maxX), gres) *
       tileEdge(axisSpan(i.bounds.minZ, i.bounds.maxZ), gres);
   }
-  if (need <= 0) return ATLAS_SHRINK_MARGIN;
+  // ⚠ NO EMPTY-SET GUARD, and its absence is arithmetic rather than bravery: an empty set gives
+  // `need` of 0, `max² / 0` is Infinity, `Math.min(1, Infinity)` is 1, and the margin comes back
+  // unchanged — which is exactly what a guard would have returned. Written, it was a branch no
+  // test could ever distinguish from its absence.
   return Math.min(1, Math.sqrt((max * max) / need)) * ATLAS_SHRINK_MARGIN;
 }
 
@@ -274,7 +305,11 @@ export function atlasBytes(layout: AtlasLayout): number {
 export function atlasOccupancy(layout: AtlasLayout): number {
   let used = 0;
   for (const t of layout.tiles) used += t.w * t.h;
-  return atlasBytes(layout) === 0 ? 0 : used / atlasBytes(layout);
+  // ⚠ NO DIVIDE-BY-ZERO GUARD, and its absence is deliberate. {@link shelfPack} floors both edges
+  // at one sample, so an atlas is never zero texels — even the empty one is 1 x 1. A guard here
+  // would be an unreachable branch: a mutant no test can kill, reading to a later reader as a case
+  // somebody had handled.
+  return used / atlasBytes(layout);
 }
 
 /** The tile an island landed in, or `undefined` for an island the layout never saw. */
@@ -334,32 +369,50 @@ export interface CasterAssignment {
 }
 
 /**
- * ASSIGN EVERY CASTER TO THE ISLAND IT STANDS ON.
+ * DOES THIS CASTER STAND ON THIS ISLAND? Against the PADDED bounds, so a tree on the very rim
+ * belongs to it — {@link OCCLUSION_PAD} is exactly how far the island's own field extends past its
+ * coast, so a caster inside that margin has somewhere for its pool to land.
  *
- * ⚠ AGAINST THE PADDED BOUNDS, so a tree on the very rim of an island belongs to it. A caster in
- * two islands' padded bounds — which needs two islands within four ground units of each other —
- * goes to the FIRST in the sorted order, and that is a real tie-break rather than an oversight:
- * the two tiles overlap in ground space, so either answer draws the pool on the same land.
+ * ⚠ ONE FUNCTION, FOUR COMPARISONS, AND IT IS THE ONLY PLACE THEY ARE WRITTEN. Spelled inline at
+ * each call site, each copy carries its own `>=`-vs-`>` and its own `-`-vs-`+` on the pad; a
+ * boundary test that pins one copy proves nothing about the others, and the copies are exactly
+ * where they would silently disagree.
+ */
+export function casterWithin(
+  bounds: GroundBounds,
+  caster: ShadowCaster,
+  pad: number = OCCLUSION_PAD,
+): boolean {
+  if (caster.x < bounds.minX - pad) return false;
+  if (caster.x > bounds.maxX + pad) return false;
+  if (caster.z < bounds.minZ - pad) return false;
+  if (caster.z > bounds.maxZ + pad) return false;
+  return true;
+}
+
+/**
+ * ASSIGN EVERY CASTER TO THE ISLAND(S) IT STANDS ON.
+ *
+ * ⚠ A CASTER IN TWO ISLANDS' PADDED BOUNDS GOES TO BOTH, which needs two islands within four
+ * ground units of each other and is correct rather than tolerated: the two tiles OVERLAP in ground
+ * space there, so both draw the pool on the same land, and dropping it from one would leave a hole
+ * on whichever tile the fragment happened to sample.
  */
 export function assignCasters(
   islands: readonly IslandBounds[],
   casters: readonly ShadowCaster[],
 ): CasterAssignment {
   const byIsland = new Map<string, ShadowCaster[]>();
-  for (const i of islands) byIsland.set(i.island, []);
-  const unassigned: ShadowCaster[] = [];
-  for (const c of casters) {
-    const home = islands.find(
-      (i) =>
-        c.x >= i.bounds.minX - OCCLUSION_PAD &&
-        c.x <= i.bounds.maxX + OCCLUSION_PAD &&
-        c.z >= i.bounds.minZ - OCCLUSION_PAD &&
-        c.z <= i.bounds.maxZ + OCCLUSION_PAD,
+  for (const i of islands) {
+    byIsland.set(
+      i.island,
+      casters.filter((c) => casterWithin(i.bounds, c)),
     );
-    if (home === undefined) unassigned.push(c);
-    else byIsland.get(home.island)?.push(c);
   }
-  return { byIsland, unassigned };
+  return {
+    byIsland,
+    unassigned: casters.filter((c) => !islands.some((i) => casterWithin(i.bounds, c))),
+  };
 }
 
 /** One packed occlusion texture: the atlas layout plus the bytes to upload. */
@@ -407,25 +460,13 @@ export function buildAtlasOcclusion(opts: AtlasOcclusionOptions): AtlasField {
   const data = new Uint8Array(layout.w * layout.h);
 
   for (const tile of layout.tiles) {
-    const island = islands.find((i) => i.island === tile.island);
-    if (island === undefined) continue;
     const field = buildGroundOcclusion({
-      bounds: island.bounds,
+      bounds: tile.bounds,
       relief: opts.relief,
-      casters: assignment.byIsland.get(tile.island) ?? [],
+      casters: opts.casters.filter((c) => casterWithin(tile.bounds, c)),
       gres: layout.gres,
     });
-    // ⚠ THE COPY IS BOUNDED BY BOTH, never by the tile alone. `occlusionGrid` rounds a field's
-    // edges UP to whole samples and `tileEdge` rounds the tile's up the same way, so the two
-    // agree today — and a copy that trusted that agreement would, the first time one of the two
-    // roundings moved, write a row of one island's shadow into the row above it in the atlas.
-    const rows = Math.min(field.h, tile.h);
-    const cols = Math.min(field.w, tile.w);
-    for (const j of indices(rows)) {
-      const from = j * field.w;
-      const to = (tile.y + j) * layout.w + tile.x;
-      data.set(field.data.subarray(from, from + cols), to);
-    }
+    blitTile(data, layout.w, tile, field);
   }
 
   return {
@@ -436,6 +477,35 @@ export function buildAtlasOcclusion(opts: AtlasOcclusionOptions): AtlasField {
     tiles: layout.tiles,
     unassigned: assignment.unassigned.length,
   };
+}
+
+/**
+ * Copy one island's field into its tile in the atlas.
+ *
+ * ⚠⚠ IT REFUSES ON A SIZE MISMATCH RATHER THAN CLAMPING TO THE SMALLER, and the difference is
+ * whether a later reader can see a defect at all. `occlusionGrid` rounds a field's edges UP to
+ * whole samples and {@link tileEdge} rounds the tile's up the same way, so the two agree — today,
+ * and by two independent pieces of arithmetic. A `Math.min` bound would silently absorb the first
+ * disagreement by dropping a row, and the result is a shadow one texel short along one edge of one
+ * island: invisible, unattributable, and a mutant no assertion about the delivered atlas can kill.
+ * A throw makes the same event loud.
+ */
+export function blitTile(
+  data: Uint8Array,
+  atlasW: number,
+  tile: AtlasTile,
+  field: ShadowField,
+): void {
+  if (field.w !== tile.w || field.h !== tile.h) {
+    throw new Error(
+      `shadow-atlas: island "${tile.island}" built a ${field.w}x${field.h} field for a ` +
+        `${tile.w}x${tile.h} tile — the grid arithmetic and the packing arithmetic have parted`,
+    );
+  }
+  for (const j of indices(field.h)) {
+    const from = j * field.w;
+    data.set(field.data.subarray(from, from + field.w), (tile.y + j) * atlasW + tile.x);
+  }
 }
 
 /** How much of the atlas is occluded past the material's own threshold — the same measurement

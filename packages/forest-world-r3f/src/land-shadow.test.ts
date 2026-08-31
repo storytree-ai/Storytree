@@ -572,3 +572,32 @@ test('a range runs LO to HI inclusive, and an inverted one is empty', () => {
   assert.deepEqual(indices(0), []);
   assert.deepEqual(indices(-9), [], 'a negative count is no samples, not a throw');
 });
+
+test('⚠ THE TEXTURE BUDGET IS AN ARGUMENT, and passing one really changes the grid', () => {
+  // `cappedEdge`, `occlusionGrid`, `buildCanopyShadowField` and `buildGroundOcclusion` each default
+  // it with `??`. A mutant turning any of those into `&&` discards the caller's value and uses the
+  // authored one — which is invisible unless a test passes a value that DIFFERS from the default.
+  // The comparison instrument is the only caller that does, and this is what stands behind it.
+  // ⚠⚠ THIN, NOT SQUARE, AND THAT IS A MUTATION-RUNG REQUIREMENT. A CLAMPED field is
+  // {@link SHADOW_TEXTURE_MAX} texels on its widest edge whatever the bounds — so a 3000 x 3000
+  // fixture allocates 4.2 million samples three times over, per mutant, and the rung reports the
+  // resulting timeout as UNPROVEN in the same words an attribution gap produces. Long in x and ten
+  // units deep clamps exactly as hard and costs 74 thousand.
+  const wide: GroundBounds = { minX: 0, maxX: 800, minZ: 0, maxZ: 10 };
+  assert.equal(cappedEdge(5000), SHADOW_TEXTURE_MAX, 'the default cap is the authored one');
+  assert.equal(cappedEdge(5000, 4096), 4096, 'and an explicit cap is the one applied');
+
+  const authored = occlusionGrid(wide);
+  const raised = occlusionGrid(wide, SHADOW_GRES, 8192);
+  assert.ok(raised.gres > authored.gres, 'a bigger budget must buy resolution');
+  assert.ok(raised.w > authored.w, 'and a bigger field');
+
+  const field = buildCanopyShadowField({
+    bounds: wide,
+    relief: 2.2,
+    casters: [{ x: 400, z: 5, radius: 7, height: 19 }],
+    max: 512,
+  });
+  assert.ok(field.w <= 512 && field.h <= 512, 'an explicit max must bound the built field');
+  assert.ok(field.gres < SHADOW_GRES, 'and cost resolution to get there');
+});

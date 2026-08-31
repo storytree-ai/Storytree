@@ -77,6 +77,7 @@ import {
   atlasCoverage,
   atlasOriginResolver,
   buildAtlasOcclusion,
+  casterWithin,
   islandGroundBounds,
   packShadowAtlas,
   UNHOMED_ISLAND,
@@ -297,20 +298,16 @@ export function cellsByIsland(cells: readonly InstanceDescriptor[]): Map<string,
   return out;
 }
 
-/** Casters standing inside a rect, padded — the per-island arm's own assignment, which is
- *  `assignCasters` applied one island at a time. */
+/** Casters standing inside a rect — the per-island arm's own assignment.
+ *
+ *  ⚠ IT DELEGATES TO `casterWithin` RATHER THAN SPELLING THE FOUR COMPARISONS AGAIN. A copy here
+ *  would be an arm that assigned its casters by a slightly different rule from the arm it is being
+ *  compared against — which is the one difference a comparison page may not have. */
 export function castersWithin(
   bounds: GroundBounds,
   casters: readonly ShadowCaster[],
-  pad = 2,
 ): ShadowCaster[] {
-  return casters.filter(
-    (c) =>
-      c.x >= bounds.minX - pad &&
-      c.x <= bounds.maxX + pad &&
-      c.z >= bounds.minZ - pad &&
-      c.z <= bounds.maxZ + pad,
-  );
+  return casters.filter((c) => casterWithin(bounds, c));
 }
 
 export interface ShadowLandScene {
