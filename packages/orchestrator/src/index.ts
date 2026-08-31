@@ -108,6 +108,14 @@ export {
   scriptedWriterModel,
   DRY_RUN_TEST_REL,
   DRY_RUN_IMPL_REL,
+  // The pi leaf's one admitted endpoint (ADR-0449) — composed here, at the composition root, so
+  // the leaf itself reads no environment variable for its credential.
+  composePiSubscriptionEndpoint,
+  PI_SUBSCRIPTION_PROVIDER_ID,
+  PI_SUBSCRIPTION_BASE_URL,
+  PI_SUBSCRIPTION_DEFAULT_MODEL,
+  PI_SUBSCRIPTION_CONTEXT_WINDOW,
+  PI_SUBSCRIPTION_MAX_TOKENS,
 } from "./resolve-prove-spec.js";
 
 export type {

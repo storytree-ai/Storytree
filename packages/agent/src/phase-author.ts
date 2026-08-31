@@ -18,14 +18,14 @@
 export type AuthoringPhase = "AUTHOR_TEST" | "IMPLEMENT";
 
 /**
- * The admitted live leaves (ADR-0232), plus pi (`pi-harness-admission-arc`).
+ * The admitted live leaves (ADR-0232), plus pi (`pi-harness-admission-arc`, ADR-0449).
  *
- * `"pi"` is in the TYPE before it is in the CLI, deliberately. Increment 2 built `PiPhaseAuthor`
- * behind this seam and proved its walls hold; increment 3 walks one real unit through the gate and
- * decides which endpoint, which is an owner-gated call this vocabulary must not pre-empt. So
- * `resolveLiveRuntime` (`packages/drive/src/node-build.ts`) still REFUSES `--runtime pi`, and a
- * test asserts that refusal — the day the wiring lands, that test is what has to be changed on
- * purpose rather than a silent path opening.
+ * `"pi"` WAS in the type before it was in the CLI, deliberately — increment 2 built `PiPhaseAuthor`
+ * behind this seam and proved its walls hold while `resolveLiveRuntime` still REFUSED `--runtime
+ * pi`, with a test asserting that refusal, so the path could only open by someone changing that
+ * test on purpose. Increment 3 is that deliberate change: `--runtime pi` now resolves, and the
+ * narrowing moved to where it still binds — pi is admitted for `--live` and REFUSED for `--real`,
+ * because ADR-0449 authorised one trial run through the live smoke and not a promotion path.
  */
 export type LiveRuntime = "claude" | "codex" | "pi";
 

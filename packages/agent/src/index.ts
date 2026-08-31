@@ -159,7 +159,10 @@ export {
 // none — an explicit per-slice value hydrated from nowhere, held to `validatePiCredential`, which
 // refuses anything that is not a Claude SUBSCRIPTION token. The absent field was the old form of
 // "no metered call is reachable"; the refusal is the new one.
-// `--runtime pi` is still refused by `resolveLiveRuntime`: wiring it is the rest of increment 3.
+// `--runtime pi` is WIRED (increment 3): `resolveLiveRuntime` admits it for `--live` and refuses it
+// for `--real`, and one real unit has been walked through the gate on it — AUTHOR_TEST →
+// CONFIRM_RED → IMPLEMENT → CONFIRM_GREEN → GATE, with the fence's refusal of an out-of-scope write
+// observed against a control proving the same write LANDS unfenced.
 export type {
   PiEndpoint,
   PiEndpointDecision,

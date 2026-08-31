@@ -6,6 +6,8 @@ import {
   CodexPhaseAuthor,
   FileToolExecutor,
   FILE_WRITE_TOOLS,
+  PI_CREDENTIAL_API,
+  PiPhaseAuthor,
   ScriptedModel,
 } from "@storytree/agent";
 import type {
@@ -16,6 +18,8 @@ import type {
   LiveRuntime,
   ModelResponse,
   PhaseAuthor,
+  PiEndpoint,
+  PiPhaseAuthorArgs,
 } from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import type { ContractDecl } from "@storytree/library";
@@ -326,7 +330,94 @@ export type ResolveOptions =
   | RealResolveOptions;
 
 /** The admitted subscription leaves behind the runtime-neutral phase-author seam. */
-export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor;
+export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor | PiPhaseAuthor;
+
+// ── The pi leaf's one admitted endpoint (ADR-0449) ──────────────────────────
+
+/**
+ * The provider id the pi leaf registers Anthropic under, and it is deliberately NOT `anthropic`.
+ *
+ * ADR-0449 says the trial run points at Anthropic; {@link validatePiEndpoint} (wall 1) refuses a
+ * `providerId` that is a pi BUILT-IN, and `anthropic` is one. Both are right, and the resolution is
+ * not to widen wall 1 — re-registering pi's built-in would compose over pi's own provider and
+ * inherit its environment-variable key resolution, which is the exact door the leaf exists to shut.
+ *
+ * A FRESH id works because pi's OAuth dispatch keys on the TOKEN VALUE, never on `model.provider`:
+ * `pi-ai`'s `dist/api/anthropic-messages.js` decides with `isOAuthToken(apiKey)` —
+ * `apiKey.includes("sk-ant-oat")` — and takes the subscription path (an `Authorization: Bearer`
+ * client plus the Claude Code identity betas) for ANY provider id. So this endpoint composes over
+ * no built-in, inherits no ambient auth, and still reaches the subscription path. MEASURED, not
+ * inferred: driven live 2026-09-01 through this exact composition, `PiPhaseAuthor` authored a file
+ * and returned `{ ok: true }`.
+ */
+export const PI_SUBSCRIPTION_PROVIDER_ID = "storytree-claude-subscription";
+
+/** Anthropic's API root. pi's `anthropic-messages` adapter appends the Messages path itself. */
+export const PI_SUBSCRIPTION_BASE_URL = "https://api.anthropic.com";
+
+/**
+ * The model the pi trial run resolves against by default — the same one `ClaudeAgentAuthor` uses,
+ * so a pi/Claude comparison is not confounded by a different model.
+ *
+ * ⚠ AND THE GAP ADR-0449 REQUIRES NAMED RATHER THAN SILENTLY DROPPED: this is a FRONTIER model. The
+ * run therefore answers "does pi's fence hold under a capable model" and says NOTHING about whether
+ * it holds under the weaker local open-weight model pi would actually run day to day — which is the
+ * kind of model the whole trial exists to find an alternative to. Accepted knowingly by ADR-0449,
+ * and it must appear in the admission record.
+ */
+export const PI_SUBSCRIPTION_DEFAULT_MODEL = "claude-sonnet-5";
+
+/** Declared window/output for the registered model. pi requires both on a registered provider. */
+export const PI_SUBSCRIPTION_CONTEXT_WINDOW = 200_000;
+export const PI_SUBSCRIPTION_MAX_TOKENS = 8_192;
+
+/**
+ * Compose the ONE endpoint a pi slice may talk to (ADR-0449), reading the subscription credential
+ * at the COMPOSITION ROOT rather than inside the leaf.
+ *
+ * The split is the point, not an accident of layering. {@link PiEndpoint.apiKey} is documented as an
+ * explicit per-slice value that the leaf resolves from NO environment variable, because the metered
+ * fallback the leaf exists to make unreachable is precisely pi's built-in providers reading keys out
+ * of `process.env`; a slot that did its own env read would rebuild that door one layer up. So the
+ * read happens HERE, once, where the CLI has already hydrated the variable
+ * (`packages/drive/src/secrets.ts`, called from the CLI entry point), and the leaf receives a value.
+ *
+ * Fail-closed on absence AND on blankness: `VAR=` is how a shell says "not configured", and a blank
+ * credential that reached wall 5 would be refused there anyway — this refusal simply names the
+ * variable, which the wall cannot.
+ */
+export function composePiSubscriptionEndpoint(
+  args: { model?: string; env?: NodeJS.ProcessEnv } = {},
+): { ok: true; endpoint: PiEndpoint } | { ok: false; reason: string } {
+  const raw = (args.env ?? process.env)["CLAUDE_CODE_OAUTH_TOKEN"];
+  const token = typeof raw === "string" ? raw.trim() : "";
+  if (token === "") {
+    return {
+      ok: false,
+      reason:
+        "--runtime pi needs CLAUDE_CODE_OAUTH_TOKEN — the subscription credential ADR-0449 admits " +
+        "this leaf's one real trial run on. It is auto-hydrated from ~/.storytree/secrets.json by " +
+        "`pnpm storytree ...`; a bare `node`/`tsx` invocation hydrates nothing. pi is NEVER pointed " +
+        "at a metered per-token key (ADR-0198), so there is no fallback to reach for.",
+    };
+  }
+  return {
+    ok: true,
+    endpoint: {
+      providerId: PI_SUBSCRIPTION_PROVIDER_ID,
+      baseUrl: PI_SUBSCRIPTION_BASE_URL,
+      modelId: args.model ?? PI_SUBSCRIPTION_DEFAULT_MODEL,
+      modelName: "Claude (storytree subscription, via pi)",
+      // Load-bearing, and not merely "the right adapter for Anthropic": wall 5 refuses a credential
+      // under any OTHER dialect, because pi inspects the token's shape ONLY here. Elsewhere the same
+      // string goes out as a plain bearer key — the metered wire shape wearing the right string.
+      api: PI_CREDENTIAL_API,
+      contextWindow: PI_SUBSCRIPTION_CONTEXT_WINDOW,
+      maxTokens: PI_SUBSCRIPTION_MAX_TOKENS,
+      apiKey: token,
+    },
+  };
+}
 
 /**
  * Resolution outcome: the full ProveSpec (plus, in live mode, the live author for cost/violation
@@ -420,7 +511,35 @@ export function resolveProveSpec(
     author = ownedAuthor;
     prompts = assemblePrompts(spec);
   } else {
-    if ((opts.runtime ?? "claude") === "codex") {
+    const liveRuntime = opts.runtime ?? "claude";
+    if (liveRuntime === "pi") {
+      // ADR-0449's admitted trial run. No USD ceiling and no field for one — pi meters nothing this
+      // process can read, and the Codex leaf already refuses a fake cap for the same reason
+      // (ADR-0232): a dollar figure this runtime cannot meter is a phantom.
+      if (opts.maxBudgetUsd !== undefined) {
+        return {
+          ok: false,
+          reason:
+            "pi runs have no honest USD budget control; omit maxBudgetUsd or select Claude. The " +
+            "turn ceiling (--max-turns) is the leaf's real cost guard.",
+          registered: registeredNodeIds(),
+        };
+      }
+      const composed = composePiSubscriptionEndpoint(
+        opts.model === undefined ? {} : { model: opts.model },
+      );
+      if (!composed.ok) {
+        return { ok: false, reason: composed.reason, registered: registeredNodeIds() };
+      }
+      const piArgs: PiPhaseAuthorArgs = {
+        cwd: opts.workspace,
+        isWriteAllowed: (phase, relPath) => scope.isWriteAllowed(phase, relPath),
+        endpoint: composed.endpoint,
+      };
+      if (opts.phasePrompts !== undefined) piArgs.phasePrompts = opts.phasePrompts;
+      if (opts.maxTurns !== undefined) piArgs.maxTurns = opts.maxTurns;
+      liveAuthor = new PiPhaseAuthor(piArgs);
+    } else if (liveRuntime === "codex") {
       if (opts.maxBudgetUsd !== undefined) {
         return {
           ok: false,
@@ -647,6 +766,21 @@ function resolveReal(
     author = opts.authorOverride;
     liveAuthor = opts.liveAuthorOverride;
   } else {
+    // ADR-0449 admits pi for the LIVE SMOKE and nothing wider. A `--real` build authors at real repo
+    // paths and PROMOTES a commit toward main; admitting an as-yet-unproven third harness to that
+    // path is a separate decision this arc never asked, and taking it silently is exactly the
+    // half-landed harness ADR-0177/ADR-0198 retired the Cursor leaf over. Refused by name, so the
+    // narrowing is visible rather than inferred from a missing branch.
+    if ((opts.runtime ?? "claude") === "pi") {
+      return {
+        ok: false,
+        reason:
+          "--runtime pi is admitted for --live only (ADR-0449 authorises ONE trial run through the " +
+          "live smoke). A --real build authors at real repo paths and promotes a commit; widening " +
+          "pi to it is a separate decision, not this one. Use --live, or select claude/codex.",
+        registered: realBuildableNodeIds(),
+      };
+    }
     if ((opts.runtime ?? "claude") === "codex") {
       if (opts.maxBudgetUsd !== undefined) {
         return {

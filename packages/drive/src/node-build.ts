@@ -4,7 +4,13 @@ import * as os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import type { ClaudeAgentAuthor, CodexPhaseAuthor, LiveRuntime, PhaseAuthor } from "@storytree/agent";
+import type {
+  ClaudeAgentAuthor,
+  CodexPhaseAuthor,
+  LiveRuntime,
+  PhaseAuthor,
+  PiPhaseAuthor,
+} from "@storytree/agent";
 import type { Store } from "@storytree/storage-protocol";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import {
@@ -186,7 +192,9 @@ function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unitId: str
   const leaf =
     runtime === "codex"
       ? "the Codex CLI with saved ChatGPT subscription authentication"
-      : "the Claude Agent SDK with subscription authentication";
+      : runtime === "pi"
+        ? "the pi agent loop against Anthropic on the subscription credential\n(ADR-0449), under pi's in-process tool_call fence"
+        : "the Claude Agent SDK with subscription authentication";
   return (
     `honest framing: a live smoke proves the LIVE LOOP through the gate — ${leaf}\n` +
     "(ADR-0030/0232) genuinely authored the test and impl under phase-enforced write\n" +
@@ -194,7 +202,17 @@ function honestFramingLive(persisted: boolean, runtime: LiveRuntime, unitId: str
     (isCodexMultifileRuntimeSeam(unitId)
       ? "the synthetic exact two-implementation-file fixture in a temp workspace.\n"
       : "the synthetic add(2,3) pair in a temp workspace — the node's REAL proof command was not run (Phase F).\n") +
-    `The node's authored status is untouched; ${verdictFate(persisted)}.`
+    `The node's authored status is untouched; ${verdictFate(persisted)}.` +
+    // ADR-0449 requires this gap be NAMED in the admission record rather than silently dropped.
+    // A pass here says the fence holds under a FRONTIER model; it says nothing about the weak local
+    // open-weight model pi would run day to day — which is the kind of model the trial exists to
+    // find an alternative to.
+    (runtime === "pi"
+      ? "\nADR-0449 GAP, NAMED: this run exercised pi's fence under a FRONTIER model (the\n" +
+        "subscription Claude endpoint), NOT the weaker local open-weight model pi would run day\n" +
+        "to day — which is the kind of model the trial exists to find an alternative to. A pass\n" +
+        "here is evidence about the fence under a capable model only."
+      : "")
   );
 }
 
@@ -636,18 +654,29 @@ export function resolveAddDepsGroup(
 
 // ── The single-node drive (shared by `node build` and `story build`) ────────
 
-/** The two admitted live authors behind the runtime-neutral PhaseAuthor seam. */
-export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor;
+/** The three admitted live authors behind the runtime-neutral PhaseAuthor seam. */
+export type LiveAuthor = ClaudeAgentAuthor | CodexPhaseAuthor | PiPhaseAuthor;
 
-/** Validate the CLI/runtime boundary once; every internal caller receives a closed union. */
+/**
+ * Validate the CLI/runtime boundary once; every internal caller receives a closed union.
+ *
+ * `pi` JOINED THIS LIST ON PURPOSE (ADR-0449, `pi-harness-admission-arc` increment 3). Increments 1
+ * and 2 built the fence and the leaf and left this function REFUSING `pi`, with a test asserting the
+ * refusal, so that the day the endpoint decision landed the path would have to be opened
+ * deliberately rather than by someone widening a union. This is that deliberate change; the test
+ * that asserted the refusal now asserts admission, and the narrowing moved to where it still binds —
+ * `--real` refuses pi (`resolveProveSpec`), because ADR-0449 authorised a live-smoke trial run and
+ * not a promotion path.
+ */
 export function resolveLiveRuntime(
   value: string | undefined,
 ): { ok: true; runtime: LiveRuntime } | { ok: false; reason: string } {
   if (value === undefined || value === "claude") return { ok: true, runtime: "claude" };
   if (value === "codex") return { ok: true, runtime: "codex" };
+  if (value === "pi") return { ok: true, runtime: "pi" };
   return {
     ok: false,
-    reason: `unknown --runtime "${value}" — choose "claude" or "codex"`,
+    reason: `unknown --runtime "${value}" — choose "claude", "codex" or "pi"`,
   };
 }
 
@@ -866,8 +895,37 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
   }
 }
 
+/**
+ * How the pi leaf's endpoint is named in a build envelope. It says "fresh provider id" because that
+ * is the load-bearing half: pi's built-in `anthropic` provider is REFUSED by wall 1, and this run
+ * reaches the subscription path anyway because pi's OAuth dispatch keys on the token value.
+ */
+const PI_LEAF_ENDPOINT_LABEL = "→ Anthropic on the subscription credential (fresh provider id)";
+
 /** The per-node leaf summary lines shared by the node and story envelopes. */
 export function liveLeafLines(liveAuthor: LiveAuthor): string[] {
+  if (liveAuthor.runtime === "pi") {
+    return [
+      `leaf:        pi ${PI_LEAF_ENDPOINT_LABEL} (${liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`).join("; ") || "no slices ran"})`,
+      "cost:        not metered — Claude subscription draw via CLAUDE_CODE_OAUTH_TOKEN (ADR-0449; no API/list-price USD asserted)",
+      ...(liveAuthor.runs.some((r) => r.usage !== undefined)
+        ? [
+            `tokens:      ${liveAuthor.runs
+              .flatMap((r) => (r.usage === undefined ? [] : [{ phase: r.phase, u: r.usage }]))
+              .map(
+                ({ phase, u }) =>
+                  `${phase}: ${u.outputTokens} out / ${u.inputTokens} in / ${u.cacheReadInputTokens} cache-read / ${u.cacheCreationInputTokens} cache-write`,
+              )
+              .join("; ")}`,
+          ]
+        : []),
+      // Split the way the ADR-0446 sink splits them: a tool-surface refusal carries NO path and is
+      // not a write-fence firing, so folding it in would inflate the one count that line reports.
+      `scope walls: ${liveAuthor.violations.filter((v) => v.kind !== "tool-surface").length === 0 ? "no write refusals" : liveAuthor.violations.filter((v) => v.kind !== "tool-surface").map((v) => `${v.phase}:${v.path}`).join(", ")}`,
+      `tool surface: ${liveAuthor.violations.filter((v) => v.kind === "tool-surface").length === 0 ? "no off-surface tool calls" : liveAuthor.violations.filter((v) => v.kind === "tool-surface").map((v) => `${v.phase}:${v.tool}`).join(", ")}`,
+      "feedback:    none — the spine reruns every registered proof command out of band",
+    ];
+  }
   if (liveAuthor.runtime === "codex") {
     return [
       `leaf:        Codex CLI / ChatGPT subscription (${liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turn`).join("; ") || "no slices ran"})`,
@@ -1312,6 +1370,28 @@ export async function nodeBuild(
       ok: false,
       body: "--runtime selects a live subscription leaf and is valid only with --live or --real",
       next: [`storytree node build ${unitId} --live --runtime ${runtime}`],
+    };
+  }
+  // ADR-0449 admits pi for the LIVE SMOKE only. Refused HERE as well as in `resolveProveSpec` so
+  // the message names the flag the caller typed rather than surfacing as a resolver reason.
+  if (runtime === "pi" && real) {
+    return {
+      ok: false,
+      body:
+        "--runtime pi is admitted for --live only (ADR-0449 authorises ONE trial run through the " +
+        "live smoke, not a promotion path). A --real build authors at real repo paths and promotes " +
+        "a commit toward main; widening pi to that is a separate decision.",
+      next: [`storytree node build ${unitId} --live --runtime pi`],
+    };
+  }
+  if (runtime === "pi" && opts.budgetUsd !== undefined) {
+    return {
+      ok: false,
+      body:
+        "--budget is unavailable with --runtime pi: the run draws on the Claude subscription " +
+        "credential (ADR-0449) and pi reports no honest USD spend. Drop --budget — --max-turns is " +
+        "the leaf's real cost guard.",
+      next: [`storytree node build ${unitId} --live --runtime pi`],
     };
   }
   if (runtime === "codex" && opts.budgetUsd !== undefined) {
