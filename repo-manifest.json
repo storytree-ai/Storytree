@@ -517,6 +517,7 @@
       "apps/desktop/src/backend/advisory.ts": "advisory-overlay-reads",
       "apps/desktop/src/backend/open-link-policy.ts": "desktop",
       "apps/desktop/src/backend/orchestrator-turns.ts": "desktop",
+      "apps/desktop/src/backend/attestations-route.ts": "local-backend-boot",
       "apps/desktop/src/backend/*-mirror-probe.ts": "mirrored-route-conformance",
 
       "$section_world_and_art": "The render core, the shared app surface, the R3F website engine and the art factory.",
@@ -610,6 +611,7 @@
       "packages/context-traversal-transcript/src/transcript-occupancy.ts": "transcript-occupancy-extraction",
       "packages/context-traversal-transcript/src/decision-reads.ts": "transcript-decision-read-extraction",
       "packages/context-traversal-transcript/src/ingest-decision-reads.ts": "transcript-decision-read-ingest",
+      "packages/context-traversal-transcript/src/ingest-receipt.ts": "context-traversal-transcript",
       "packages/context-traversal-transcript/src/index.ts": "context-traversal-transcript",
       "$comment_aperture": "NINTH BLOCK — the extension-aperture widening (`ownership-walk-extension-aperture`, 2026-08-18). `gatherSourceFiles` (packages/cli/src/ownership.ts) widened from `.ts`/`.tsx`-only to also walk `.mts`/`.cts`/`.mjs`/`.cjs` (test variants excluded, `.d.*` included, matching the pre-existing `.d.ts` treatment). The entries below are the newly-visible files this widening exposed, each declared per rule (1)/(7): capability grain ONLY where an existing capability's OWN scope.sourceGlobs already names the file (`camera-rasterisation-probe` for measure-camera-rasterisation.mjs), story grain everywhere else because no capability's stated proof reaches these author-time/harness/e2e scripts. This is a SEPARATE authoring pass from the eight numbered blocks above (those predate the aperture and cover only `.ts`/`.tsx`); it is deliberately not folded into the numbered rules, which is why it is its own top-level comment rather than a ninth numbered rule there.",
       "packages/cli/*.mjs": "cli",
@@ -740,6 +742,42 @@
           "checkout"
         ],
         "because": "the studio half of the same conformance harness; it must answer for the code in this diff."
+      },
+      "apps/desktop/src/backend/tree-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe over a fixture tree — and on this pair the fixture carries BOTH arms, a `stories/` tree and a work-hierarchy snapshot, because `/api/tree` is the route where the two clocks meet. Its subject is still this commit's two surfaces agreeing, never which clock is right."
+      },
+      "apps/desktop/src/backend/attestations-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe over a fixture tree — its subject is this commit's two surfaces, not the live store."
+      },
+      "apps/studio/server/treeMirrorProbe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the studio half of the `/api/tree` conformance pair; it must answer for the code in this diff."
+      },
+      "apps/studio/server/attestationsMirrorProbe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the studio half of the `/api/attestations` conformance pair; it must answer for the code in this diff."
+      },
+      "apps/desktop/src/backend/attestations-route.ts": {
+        "camp": "render",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a LIVE desktop read route, so it must agree with NOW — the same camp as `tree-verdicts.ts` beside it, and for the same reason: the surface it feeds is the running app, not a proof run.",
+        "fallback": "it reads the checkout's `stories/` for one story's authored UAT legs. There is no live-projection arm here and that is not an omission: the projection carries each criterion's `criterionId` and `revisionId` but not the leg PROSE or its `(detail:)` pointer, which are what this route puts on the wire. It therefore inherits the desktop's build-freshness skew for those fields exactly as ADR-0445 D1 describes, and the mirror row proves only that the studio inherits it identically."
       },
       "docs/research/chapter2-healthy-island-2026-08-16/census_healthy.ts": {
         "camp": "prove",

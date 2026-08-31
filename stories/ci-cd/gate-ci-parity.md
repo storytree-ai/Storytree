@@ -7,6 +7,56 @@ outcome: "The local pnpm gate and the CI verify invariant sets stand in one decl
 status: proposed
 proof_mode: integration-test
 depends_on: [green-gate]
+decisions: [486, 304, 195]
+# THE DECIDING ADR EXISTS NOW — ADR-0486 (accepted 2026-08-31), which this unit realises. It settles
+# the contract for how far the local gate may differ from CI: one declared two-way delta (D1), the
+# permitted delta classes CLOSED at three (D2), every member asserted BOTH ways (D3), both sides read
+# from their REAL definitions at runtime (D4), and a SKIP is not an absence (D5). The old "no deciding
+# ADR yet (owner escalation)" note is WITHDRAWN in place below: measured against `owner-fork-bar` the
+# question cleared none of its three tests — reversible, internal, and a pure engineering tradeoff —
+# and ADR-0304 D2 had already settled the direction.
+#
+# ⚠⚠ BLOCKED BY ADR-0192 — DO NOT SPEND A `--real` RUN ON THIS UNIT UNTIL ITS SOURCE HAS A HOME.
+# Measured 2026-08-31, the expensive way: this unit WAS driven `--real` on 2026-08-31 and PASSED — phase trail AUTHOR_TEST → CONFIRM_RED → IMPLEMENT →
+# CONFIRM_GREEN → GATE, verdict PASS, coverage 3/3 contracts, $2.8028. `check:boundaries`
+# then REFUSED the result on two rules at once:
+#   - the hosted-story landlord rule (ADR-0074 §4) — story "ci-cd" claimed a unit source file inside
+#     "cli"'s building (`packages/cli`) with no declared edge; and
+#   - the ADR-0192 PACKAGES-FORWARD REFUSAL — "ci-cd" is NOT in the frozen `hostedStories` register,
+#     and a NEW story cannot host in a foreign building AT ALL, regardless of any declared edge.
+# The register holds 15 entries, DOWN from the frozen 18, because its whole purpose is to SHRINK as
+# stories migrate out (ADR-0192 D3). Adding "ci-cd" to it would reverse the decision's direction and
+# is described by the refusal itself as a deliberate owner-reviewed grandfathering — not a session's
+# call to make on the way past.
+#
+# THE ROOT CAUSE IS THAT "ci-cd" OWNS NO WORKSPACE PACKAGE. Verified against `repo-manifest.json`:
+# `sourceOwnership` gives it ZERO subtrees. Its capabilities were all Class C (no `proof:` block at
+# all), so none had ever declared a `real.sourceFile` — which is why no hosting evidence existed and
+# why the register never listed it. Authoring the first one CREATED the first hosting relationship,
+# and ADR-0192 refused it on sight. That is the rule working, not a defect.
+#
+# ⚠ THE PRE-FLIGHT DOES NOT CATCH THIS, AND THAT IS THE COSTLY PART. `storytree node resolve`
+# reported "REAL-buildable: yes" and the build ran to a signed PASS before any boundary rung looked
+# at where the file landed. So the money is spent BEFORE the refusal is discoverable. Anyone adding a
+# `real.sourceFile` to a story that owns no package will pay the same ~$2.80 for an unlandable verdict.
+#
+# ⚠ THE WORK IS NOT LOST — DO NOT RE-DRIVE IT FROM SCRATCH. The leaf's authored pair is parked on
+# `origin/claude/real/gate-ci-parity-real-mtghoj67`: `packages/cli/src/gate-ci-parity.ts` and `packages/cli/src/gate-ci-parity.test.ts`. It is good work — pure functions, the CI
+# job scoped correctly, both real definitions read at runtime — and the signed PASS persists in
+# `events.verdict`. Re-home those two files into a package "ci-cd" legitimately owns, repoint the
+# arm, and re-prove; do not re-author.
+#
+# THE FORK, for story-author / an architecture decision — NOT an owner fork (ADR-0192 already
+# settled the rule; what is open is only WHICH remedy):
+#   (a) give "ci-cd" its own workspace package and re-home the unit's source there; or
+#   (b) re-home the CAPABILITY to the "cli" story, whose building already hosts the repo's checking
+#       apparatus (`verification-decay-instruments` owns check sources there today) — the subject is
+#       the gate/CI relationship, but the ARTEFACT is one more `check:*` rung; or
+#   (c) an owner-reviewed grandfathering of "ci-cd" onto the shrinking register — the direction
+#       ADR-0192 exists to reverse, and the weakest of the three.
+# Until one is chosen, the `proof:` block is REMOVED so `node resolve` reports the unit
+# NOT buildable and `--real` refuses fail-closed. That refusal is the point: it is cheaper than
+# another unlandable verdict.
 ---
 
 # Gate↔CI parity — the local gate and CI verify stand in one declared two-way delta, checkable
@@ -19,12 +69,17 @@ tree / HEAD while `verify` runs on the merge-with-`main` ref — and a branch th
 becomes a checkable fact about a declared **shared content floor** plus two declared deltas: the
 **two-way content delta** and the **merge-ref**.
 
-> **No deciding ADR yet (owner escalation).** This is the only genuinely NEW capability in the story
-> — today the parity invariant lives ONLY in CLAUDE.md prose ("a green local `pnpm gate` does NOT
-> guarantee a green CI … CI adds `pnpm -r build` … tests the merge of your branch with `main`") and
-> session memory. It may warrant its own ADR: the *contract for how far the local gate is allowed to
-> differ from CI* is arguably an architectural decision. Flagged in the story's "Open modeling calls".
-> Authored regardless, because the friction is real (per CLAUDE.md it stranded three PRs at once).
+> **✅ THE DECIDING ADR IS ADR-0486** (accepted 2026-08-31), and this unit realises it. The escalation
+> note that stood here — *"No deciding ADR yet (owner escalation) … the contract for how far the local
+> gate is allowed to differ from CI is arguably an architectural decision"* — is WITHDRAWN, not merely
+> answered. Measured against `owner-fork-bar` the question cleared NONE of its three tests: the
+> relationship is REVERSIBLE (a constant and a check over our own tooling), INTERNAL rather than
+> outward-facing, and an ENGINEERING tradeoff rather than a value call — and both of the bar's own
+> below-the-bar tells fire (the rationale is purely engineering; it cannot be put to the owner in one
+> plain sentence without an ADR number). The DIRECTION was already settled one level up by ADR-0304 D2,
+> which requires the gate and CI to share ONE affected-scope classifier precisely so a local pass
+> predicts a CI pass. The friction remains real (per CLAUDE.md it stranded three PRs at once); what
+> changed is that it is now a decided standard rather than an open question.
 
 ## Guidance
 
@@ -64,14 +119,19 @@ becomes a checkable fact about a declared **shared content floor** plus two decl
 ## Contracts (3)
 
 1. **`declared-content-delta-is-two-way`** — the two invariant sets differ in BOTH directions, by named steps
-   - **asserts —** the local `gate` and the CI `verify` job share a content floor of eight checks
-     present in BOTH sets, and every step outside that floor is a declared named constant on one side
-     or the other: the CI-only steps (`pnpm -r build`, the two PR-only guards, the pinned
-     web-submodule checkout, affected-scope selection) are present in `verify` and ABSENT from the
-     local plan, while `check:verification-decay` is present in the local plan and ABSENT from
-     `verify`. Each direction is asserted BOTH ways — present here AND absent there — so a check
-     added to one side without the other, or MIGRATING between the two sides, FAILS the parity check,
-     which names the divergent step. There is no allowed undeclared difference in either direction.
+   - **asserts —** `gateCiParity` reads the local `GATE_PLAN` and the CI `verify` job and reports a
+     shared content floor present in BOTH sets, with every step outside that floor belonging to
+     exactly one declared class — CI-ONLY ENVIRONMENTAL or LOCAL-ONLY SESSION-DISCIPLINE (ADR-0486 D2)
+     — and every member asserted BOTH ways, present on the side that owns it AND absent from the
+     other, so a step added to one side alone, or MIGRATING between sides, fails and is NAMED. A step
+     matching no declared class fails as undeclared; there is no allowed undeclared difference in
+     either direction.
+     ⚠ **THE SET SIZES ARE READ, NEVER TRANSCRIBED** (ADR-0486 D4). This bullet deliberately pins no
+     count: until 2026-08-31 it declared "a content floor of EIGHT checks" and named
+     `check:verification-decay` as the sole local-only step, while the measured floor was 21 and the
+     local-only set had THREE members (`check:desktop-route-coverage`, `check:verification-decay`,
+     `check:definition-adjudication`). A test written from the old prose would have pinned a delta
+     that does not exist. The judge derives both sets at runtime from their real definitions.
 2. **`ref-delta-is-declared`** — HEAD-vs-merge-ref is a named, expected difference
    - **asserts —** the relationship records that `gate` runs on the working tree / HEAD while `verify`
      runs on the branch-merged-with-`main` ref, as the second declared delta — so a green local gate

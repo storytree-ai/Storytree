@@ -83,6 +83,16 @@ export {
   type IngestedDecisionSession,
 } from "./ingest-decision-reads.js";
 
+// The harness ingest's RECEIPT (ADR-0484 D5 deliverable 4). The WRITER lives here because only this
+// organism knows an ingest ran; the READER is the replay composition in
+// `@storytree/context-traversal-spawn`; the FORMAT is neither's — it is declared once in
+// `@storytree/context-traversal-telemetry`, the package all three already depend on.
+export {
+  readHarnessIngestReceipt,
+  recordHarnessIngestRun,
+  type RecordHarnessIngestArgs,
+} from "./ingest-receipt.js";
+
 export {
   ingestTranscriptOccupancy,
   HOST_TRANSCRIPT_COVERAGE,

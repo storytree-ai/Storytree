@@ -14,8 +14,12 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { appendTraversalEvents, AGENT_DESCENT_COVERAGE } from "@storytree/context-traversal-capture";
-import { CoverageFeature } from "@storytree/context-traversal-telemetry";
+import {
+  appendTraversalEvents,
+  AGENT_DESCENT_COVERAGE,
+  CLI_READ_VERBS,
+} from "@storytree/context-traversal-capture";
+import { CoverageFeature, traversalProvenanceOf } from "@storytree/context-traversal-telemetry";
 import type { CoverageFeature as CoverageFeatureValue } from "@storytree/context-traversal-telemetry";
 
 import { BUILD_SPAWN_BOUNDARY_COVERAGE } from "./observe-leaf-slices.js";
@@ -388,6 +392,336 @@ test("a session with no captured file at all replays empty, with no coverage-blo
     assert.ok(result.body.includes("(no events observed)"));
     assert.ok(result.body.includes(`coverage: adapter=${AGENT_DESCENT_COVERAGE.adapterId}`));
     assert.ok(result.body.includes(`coverage: adapter=${BUILD_SPAWN_BOUNDARY_COVERAGE.adapterId}`));
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0484 D5 — the two recorders, labelled at the point of use
+// ---------------------------------------------------------------------------
+
+/** One own-log read and two harness-derived ones, in the same session file. */
+function writeMixedProvenanceFixture(dir: string, sessionId: string): void {
+  const events: unknown[] = [
+    {
+      kind: "full_payload_read",
+      eventId: "event:own-1",
+      sessionId,
+      visitId: "visit-own-1",
+      nodeId: "adr-0484",
+      surfaceId: "library-artifact",
+      at: "2026-08-30T10:00:00.000Z",
+    },
+    {
+      kind: "full_payload_read",
+      eventId: "event:harness-1",
+      sessionId,
+      visitId: "visit-harness-1",
+      nodeId: "doc:decisions/0403-a.md",
+      surfaceId: "host-transcript-file-read",
+      at: "2026-08-30T10:00:01.000Z",
+    },
+    {
+      kind: "full_payload_read",
+      eventId: "event:harness-2",
+      sessionId,
+      visitId: "visit-harness-2",
+      nodeId: "adr-0403",
+      surfaceId: "host-transcript-cli-read",
+      at: "2026-08-30T10:00:02.000Z",
+    },
+  ];
+  assert.equal(appendTraversalEvents(events, { dir, sessionId }), true);
+}
+
+test("the-replay-counts-the-two-recorders-apart: a mixed trace reports its own log and the harness tier separately, and never as one total", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-mixed";
+  try {
+    writeMixedProvenanceFixture(dir, sessionId);
+
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.provenance.census.own, 1);
+    assert.equal(view.provenance.census.harness, 2);
+    assert.equal(view.provenance.census.unclassified, 0);
+    assert.equal(view.provenance.census.total, 3);
+    // Three reads of which two are secondary must never be readable as three of ours.
+    assert.notEqual(view.provenance.census.own, view.provenance.census.total);
+
+    const body = showTraversalSessionAllAdapters(sessionId, { dir }).body;
+    assert.match(body, /provenance: which recorder wrote these observations/);
+    assert.match(body, /1 from storytree/);
+    assert.match(body, /2 harness-derived/);
+    assert.match(body, /storytree log is authoritative/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("the-replay-states-each-harness-surfaces-narrowness: the count is printed with what that surface can observe, so it cannot read as general tool capture", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-scope";
+  try {
+    writeMixedProvenanceFixture(dir, sessionId);
+    const body = showTraversalSessionAllAdapters(sessionId, { dir }).body;
+
+    assert.match(body, /\[HARNESS-DERIVED\] host-transcript-file-read x1/);
+    // Deliverable 3: the surface that reads most like "files the agent read" says what it really is.
+    assert.match(body, /DECISION RECORD opened with the harness/);
+    assert.match(body, /and NOTHING ELSE/);
+    // Deliverable 2: the one surface that duplicates our own log says so, on its own row.
+    assert.match(body, /OVERLAPS library-artifact/);
+    assert.match(body, /count distinct reads by surface, never by summing/);
+    // …and our own rows carry NO scope line, which is what keeps the four that matter visible.
+    assert.match(body, /\[storytree-own \] library-artifact x1\n/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("a-trace-with-no-harness-event-still-prints-the-block-and-the-never-run-line: an unmeasured absence never renders as a measured zero", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-own-only";
+  try {
+    writeMixedFixture(dir, sessionId);
+
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.provenance.census.harness, 0);
+    assert.equal(view.provenance.ingestRan, false);
+
+    const body = showTraversalSessionAllAdapters(sessionId, { dir }).body;
+    // Unconditional: a block that appeared only when a harness event was present would be missing on
+    // exactly the traces most likely to be mistaken for complete.
+    assert.match(body, /provenance: which recorder wrote these observations/);
+    assert.match(body, /harness ingest: NEVER RUN for this session/);
+    assert.match(body, /UNMEASURED, not zero/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("a-receipt-beside-the-trace-turns-the-absence-into-a-measured-zero: once an ingest has run, the same empty harness census reads differently", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-receipted";
+  try {
+    writeMixedFixture(dir, sessionId);
+    // The RECEIPT, written the way the harness adapter writes it — beside the trace, not in it.
+    fs.writeFileSync(
+      path.join(dir, `${sessionId}.ingest.json`),
+      JSON.stringify({
+        runs: {
+          "host-transcript-decision-read": { at: "2026-08-31T09:00:00.000Z", observed: 0, appended: 0 },
+        },
+      }),
+    );
+
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.provenance.census.harness, 0, "still nothing harness-derived in the trace");
+    assert.equal(view.provenance.ingestRan, true, "but somebody has now looked");
+
+    const body = showTraversalSessionAllAdapters(sessionId, { dir }).body;
+    assert.doesNotMatch(body, /NEVER RUN/);
+    assert.match(body, /host-transcript-decision-read last ran 2026-08-31T09:00:00\.000Z/);
+    // The adapter that has NOT run is named too, rather than left silent.
+    assert.match(body, /host-transcript-occupancy never run/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("a-corrupt-receipt-reads-as-never-run: a sidecar that will not parse must never certify that somebody looked", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-corrupt-receipt";
+  try {
+    writeMixedFixture(dir, sessionId);
+    fs.writeFileSync(path.join(dir, `${sessionId}.ingest.json`), "{not json");
+
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.provenance.ingestRan, false);
+    assert.match(view.provenance.ingestNote, /NEVER RUN/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("every-live-observer-surface-classifies-as-our-own: the provenance table cannot fall behind the allowlist it labels", () => {
+  // THE DRIFT GUARD FOR THE OWN HALF. `CLI_READ_VERBS` is the allowlist of every read-shaped verb
+  // storytree owns, and the classification lives in the vocabulary package, which is a ROOT and can
+  // never import it back. This is the one place both are visible. A verb added there whose surface
+  // is not classified here would render `unclassified` — our own read, on our own log, reported as
+  // a reading nobody can weigh.
+  const surfaces = new Set<string>();
+  for (const spec of Object.values(CLI_READ_VERBS)) {
+    if (spec.observes === "nothing") continue;
+    surfaces.add(spec.surfaceId);
+  }
+  assert.ok(surfaces.size > 0, "an empty allowlist would make this assertion vacuous");
+
+  for (const surfaceId of surfaces) {
+    const row = traversalProvenanceOf(surfaceId);
+    assert.equal(row.provenance, "storytree-own", `${surfaceId} is not classified as our own log`);
+  }
+  // The `agents` descent mints visits on its own surface name too; assert it explicitly so a future
+  // move of that constant out of the allowlist cannot silently drop it from the classified set.
+  assert.equal(traversalProvenanceOf("agents").provenance, "storytree-own");
+});
+
+test("the-occupancy-declaration-names-its-tier: the one series the playhead bar plots is harness-derived and says so", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-occupancy";
+  try {
+    writeMixedFixture(dir, sessionId);
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.occupancy.seriesProvenance, "harness-derived");
+    assert.match(view.occupancy.note, /HARNESS-DERIVED/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("an-empty-trace-censuses-without-attributing-anything: a session with no readable event claims neither tier", () => {
+  const dir = makeTempDir();
+  try {
+    const view = replayTraversalSessionAllAdapters("session-that-was-never-written", { dir });
+    assert.equal(view.events.length, 0);
+    assert.equal(view.provenance.census.total, 0);
+    assert.equal(view.provenance.census.own, 0);
+    assert.equal(view.provenance.census.harness, 0);
+    assert.equal(view.provenance.ingestRan, false);
+
+    const body = showTraversalSessionAllAdapters("session-that-was-never-written", { dir }).body;
+    assert.match(body, /no observation here carries a surface/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("the-census-line-carries-every-tier-and-its-denominator: a reader can see what was NOT attributable, not only what was", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-denominator";
+  try {
+    // Two own reads, one on a surface nothing classifies, and three events carrying no surface at
+    // all — so every one of the four counts is non-zero and none can be dropped unnoticed.
+    assert.equal(
+      appendTraversalEvents(
+        [
+          {
+            kind: "full_payload_read",
+            eventId: "event:own",
+            sessionId,
+            visitId: "visit-own",
+            nodeId: "adr-0484",
+            surfaceId: "library-artifact",
+            at: "2026-08-30T10:00:00.000Z",
+          },
+          {
+            kind: "full_payload_read",
+            eventId: "event:strange",
+            sessionId,
+            visitId: "visit-strange",
+            nodeId: "node-x",
+            surfaceId: "some-adapter-nobody-declared",
+            at: "2026-08-30T10:00:01.000Z",
+          },
+          {
+            kind: "model_context",
+            eventId: "event:model",
+            sessionId,
+            at: "2026-08-30T10:00:02.000Z",
+            cumulativeInputTokens: 10,
+            addedInputTokens: 10,
+          },
+        ],
+        { dir, sessionId },
+      ),
+      true,
+    );
+
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.provenance.census.unclassified, 1);
+    assert.equal(view.provenance.census.withoutSurface, 1);
+
+    const body = showTraversalSessionAllAdapters(sessionId, { dir }).body;
+    assert.match(body, /1 unclassified · 1 carrying no surface/);
+    assert.match(body, /3 observation\(s\) in total/);
+    // The UNCLASSIFIED tier gets its own label rather than falling into either real one.
+    assert.match(body, /\[unclassified {2}\] some-adapter-nobody-declared x1/);
+    assert.doesNotMatch(body, /\[HARNESS-DERIVED\] some-adapter-nobody-declared/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("the-block-does-not-announce-an-absence-it-does-not-have: the no-surface line prints ONLY when nothing carries one", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-has-surfaces";
+  try {
+    writeMixedProvenanceFixture(dir, sessionId);
+    const body = showTraversalSessionAllAdapters(sessionId, { dir }).body;
+    assert.doesNotMatch(body, /no observation here carries a surface/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("our-own-rows-carry-no-scope-line-and-no-overlap-line: the qualifications ride only the tiers a reader can misread", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-own-rows-plain";
+  try {
+    writeMixedProvenanceFixture(dir, sessionId);
+    const body = showTraversalSessionAllAdapters(sessionId, { dir }).body;
+
+    // The own surfaces' scope sentence must NOT appear: printing it on all twelve of our own rows
+    // would bury the four harness rows the block exists for.
+    assert.doesNotMatch(body, /the argv shape IS the observation/);
+    // And an OVERLAPS line is printed only for a surface that HAS one — never with a blank target.
+    assert.doesNotMatch(body, /OVERLAPS undefined/);
+    const overlaps = body.match(/OVERLAPS /g) ?? [];
+    assert.equal(overlaps.length, 1, "only host-transcript-cli-read overlaps our own log");
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("a-receipt-with-no-runs-in-it-is-still-never-run: an empty record is not evidence that anybody looked", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-empty-receipt";
+  try {
+    writeMixedFixture(dir, sessionId);
+    fs.writeFileSync(path.join(dir, `${sessionId}.ingest.json`), JSON.stringify({ runs: {} }));
+
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.provenance.ingestRan, false, "a receipt file is not the same as a recorded run");
+    assert.match(view.provenance.ingestNote, /NEVER RUN/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("the-occupancy-note-says-where-the-series-would-come-from: harness-derived, and not recorded by us", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-occupancy-note";
+  try {
+    writeMixedFixture(dir, sessionId);
+    const note = replayTraversalSessionAllAdapters(sessionId, { dir }).occupancy.note;
+    assert.match(note, /HARNESS-DERIVED/);
+    assert.match(note, /read back out of the host harness's transcript rather than recorded by storytree/);
+  } finally {
+    removeTempDir(dir);
+  }
+});
+
+test("an-event-kind-carrying-no-surface-is-counted-not-dropped: the census total matches the replay's own length", () => {
+  const dir = makeTempDir();
+  const sessionId = "session-provenance-total";
+  try {
+    // The mixed fixture is one visit plus a spawn/model/return triple — four events, one surface.
+    writeMixedFixture(dir, sessionId);
+    const view = replayTraversalSessionAllAdapters(sessionId, { dir });
+    assert.equal(view.provenance.census.total, view.events.length);
+    assert.equal(view.provenance.census.own, 1);
+    assert.equal(view.provenance.census.withoutSurface, 3);
   } finally {
     removeTempDir(dir);
   }

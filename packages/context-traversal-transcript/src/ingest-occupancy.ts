@@ -49,6 +49,7 @@ import {
 } from "@storytree/context-traversal-telemetry";
 
 import { correlateTranscripts } from "./correlate-transcripts.js";
+import { recordHarnessIngestRun } from "./ingest-receipt.js";
 import { readTranscriptWindow } from "./transcript-occupancy.js";
 
 export interface IngestedWindow {
@@ -74,6 +75,18 @@ export interface TranscriptIngestResult {
    * adapter observes parent windows, and this is how many windows it reached and did not observe.
    */
   readonly sidechainFiles: number;
+  /**
+   * The traces this run stamped with an ingest RECEIPT (ADR-0484 D5 deliverable 4) — the requested
+   * session plus every window the occupancy landed in.
+   *
+   * The stamp is what lets a later replay tell *this session was measured and had nothing* from
+   * *nobody ever ran the ingest here*, which a trace alone cannot say about itself: this adapter is
+   * not ambient, and a run recovering nothing writes no event. It is therefore written even when
+   * {@link TranscriptIngestResult.appended} is zero, which is precisely the case it exists for.
+   */
+  readonly receipted: readonly string[];
+  /** Traces whose receipt could not be written. Reported, never swallowed — the run still stands. */
+  readonly receiptFailures: readonly string[];
 }
 
 export interface IngestTranscriptOccupancyArgs {
@@ -82,6 +95,12 @@ export interface IngestTranscriptOccupancyArgs {
   readonly traceDir: string;
   /** The host transcript root to scan — supplied, never resolved here. */
   readonly transcriptDir: string;
+  /**
+   * The clock the receipt is stamped from, ISO-8601. Injected so this module stays deterministic —
+   * every other timestamp it writes originates at the observation, and this one originates at the
+   * RUN, which is the one fact a receipt is about.
+   */
+  readonly now?: () => string;
 }
 
 function eventIdFor(windowId: string, requestId: string): string {
@@ -173,6 +192,41 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
     windows.push({ windowId, observed: read.observations.length, appended: appendedForWindow });
   }
 
+  // THE RECEIPT (ADR-0484 D5 deliverable 4). Stamped for the trace the caller ASKED about and for
+  // every window the series actually landed in, because those are two different traces and a reader
+  // holding either one is entitled to know whether anybody ever looked.
+  //
+  // The requested session is stamped with the run's TOTALS and each window with its own. Where the
+  // requested session IS one of the windows, the window's own numbers are the ones that stand —
+  // `Map.set` overwrites, and the more specific fact about that trace is the honest one to keep.
+  const at = (input.now ?? (() => new Date().toISOString()))();
+  const stamps = new Map<string, { observed: number; appended: number }>([
+    [
+      sessionId,
+      {
+        observed: windows.reduce((sum, window) => sum + window.observed, 0),
+        appended: appendedCount,
+      },
+    ],
+  ]);
+  for (const window of windows) {
+    stamps.set(window.windowId, { observed: window.observed, appended: window.appended });
+  }
+
+  const receipted: string[] = [];
+  const receiptFailures: string[] = [];
+  for (const [traceId, counts] of stamps) {
+    const ok = recordHarnessIngestRun({
+      traceDir,
+      sessionId: traceId,
+      adapter: "host-transcript-occupancy",
+      observed: counts.observed,
+      appended: counts.appended,
+      at,
+    });
+    (ok ? receipted : receiptFailures).push(traceId);
+  }
+
   return {
     sessionId,
     windows,
@@ -181,6 +235,8 @@ export function ingestTranscriptOccupancy(input: IngestTranscriptOccupancyArgs):
     skippedLines,
     sidechainRequests,
     sidechainFiles: correlation.sidechainFiles,
+    receipted,
+    receiptFailures,
   };
 }
 

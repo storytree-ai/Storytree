@@ -13,8 +13,8 @@
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createServer } from "node:http";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import { createServer, IncomingMessage, ServerResponse } from "node:http";
+import { Socket } from "node:net";
 import type { AddressInfo } from "node:net";
 import { readFileSync, promises as fsp } from "node:fs";
 import os from "node:os";
@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 import { Verdict, criterionRevisionId } from "@storytree/proof-protocol";
 import { canonicalUatCriterionContent } from "@storytree/library";
 
-import { createLocalBackend, createBrokerForestWriter } from "./local-backend.js";
+import { createLocalBackend, createBrokerForestWriter, resetHierarchyCache } from "./local-backend.js";
 import type { LocalBackendDeps, ForestWriter } from "./local-backend.js";
 import type { ForestWrite } from "./forest-readiness.js";
 
@@ -1429,5 +1429,92 @@ test("local-backend: the write path imports no pg connector and no studio server
   assert.ok(
     !/PgWorkStore|PgBackend|PgPresenceStore/.test(importLines),
     "must not import a direct pg store into the desktop write path",
+  );
+});
+
+// The process-lifetime hierarchy cache (ADR-0445 D2) and the seam that clears it.
+//
+// WHY THE SEAM EXISTS AT ALL, since a production process never calls it: `selectDesktopHierarchy`
+// degrades live → CACHE → disk, and the studio has no cache (live → disk). A probe replaying a LIVE
+// arm and then a DISK arm in one process would therefore compare the studio's disk walk against this
+// surface's cache — two different reads, a divergence in neither. The `/api/tree` mirror row's
+// `tree-mirror-probe.ts` resets between arms so each arm's comparison is the one it claims to be.
+//
+// PINNED HERE because the seam is otherwise proved by nothing this suite runs: the probe is spawned
+// in its own process by a gate step, so `pnpm --filter desktop test` would stay green through a
+// `resetHierarchyCache` that cleared nothing — and the failure it would cause is a mirror row
+// reporting a divergence that is not one, which is the reading that teaches people to distrust a rung.
+test("local-backend: resetHierarchyCache actually clears what the live read cached", async () => {
+  const snapshot = {
+    schemaVersion: 1,
+    commitSha: "sha-live",
+    storiesTreeSha: "tree-live",
+    generatedAt: "2026-08-31T00:00:00.000Z",
+    generator: "test",
+    stories: [
+      {
+        id: "cached-story",
+        title: "Cached story",
+        outcome: "read from the live projection",
+        status: "proposed" as const,
+        proofMode: "UAT",
+        uatWitness: null,
+        dependsOn: [],
+        consumedBy: [],
+        decisions: [],
+        building: false,
+        capabilities: [],
+        uatTestCriteria: [],
+        reliabilityGates: [],
+      },
+    ],
+    capabilities: [],
+  };
+
+  // Driven through the handler DIRECTLY rather than through `withServer`, unlike its neighbours in
+  // this file. Three servers per call, in a test that calls it three times, is nine socket
+  // lifecycles — and this file is in the mutation rung's witness set, where every STATIC mutant
+  // re-runs it end to end. That turned assertion-kills into 60s timeouts under load, which the rung
+  // scores UNPROVEN and reports as "no test named", reading exactly like a coverage gap it is not.
+  const storyIdsFrom = async (live: boolean): Promise<string[]> => {
+    const handler = createLocalBackend({
+      storiesDir: NO_STORIES_DIR,
+      docsDir: NO_DOCS_DIR,
+      store: "json",
+      backend: live ? { ...stubBackend(), workHierarchy: async () => snapshot } : stubBackend(),
+    });
+    // REAL node objects with only `end` swapped for a capture — the idiom the mirror probes use
+    // (anti-slop-adoption-arc inc-03: no `as unknown as` fake claiming to be something it shares
+    // nothing with). Nothing writes to the socket; the route ends synchronously.
+    const req = new IncomingMessage(new Socket());
+    req.method = "GET";
+    req.url = "/api/tree";
+    let raw = "";
+    const res = new ServerResponse(new IncomingMessage(new Socket()));
+    res.end = ((chunk?: unknown): ServerResponse => {
+      raw = typeof chunk === "string" ? chunk : "";
+      return res;
+    }) as ServerResponse["end"];
+    await handler(req, res);
+    return (JSON.parse(raw) as { stories: { id: string }[] }).stories.map((story) => story.id);
+  };
+
+  // 1. A live read populates the module-scoped cache.
+  assert.deepEqual(await storyIdsFrom(true), ["cached-story"], "the live projection is served");
+
+  // 2. With NO live seam and an empty stories dir, the cache is what answers — this is the state
+  //    that would silently corrupt a probe's disk arm, so it is asserted rather than assumed.
+  assert.deepEqual(
+    await storyIdsFrom(false),
+    ["cached-story"],
+    "without a reset, a degraded read is served from the cache, not from disk",
+  );
+
+  // 3. After the reset it falls all the way through to disk, which here is empty.
+  resetHierarchyCache();
+  assert.deepEqual(
+    await storyIdsFrom(false),
+    [],
+    "after the reset the degraded read reaches disk — the cache is genuinely gone",
   );
 });

@@ -402,8 +402,23 @@ test("a main-checkout transcript and a prefix-named worktree are scanned and nev
   assert.deepEqual([...windowIds].sort(), [WINDOW_A, WINDOW_B].sort());
 
   // The directory holds the two correlated windows and nothing else — so a future adapter cannot
-  // quietly add a third file here and leave this leg reporting a clean separation.
-  assert.deepEqual(fs.readdirSync(fixture.traceDir).sort(), [`${WINDOW_A}.jsonl`, `${WINDOW_B}.jsonl`].sort());
+  // quietly add a third file here and leave this leg reporting a clean separation. The set is
+  // spelled WHOLE rather than filtered to `.jsonl`, which is what keeps that teeth.
+  //
+  // Three `.ingest.json` RECEIPTS joined it with ADR-0484 D5: the ingest stamps the trace the caller
+  // asked about and every window the series landed in, so a later replay can tell a MEASURED zero
+  // from a session nobody ever ingested. They are sidecars, not traces — note there is still no
+  // `${SESSION}.jsonl`, which is the inc-32 property this leg exists to hold.
+  assert.deepEqual(
+    fs.readdirSync(fixture.traceDir).sort(),
+    [
+      `${WINDOW_A}.jsonl`,
+      `${WINDOW_B}.jsonl`,
+      `${SESSION}.ingest.json`,
+      `${WINDOW_A}.ingest.json`,
+      `${WINDOW_B}.ingest.json`,
+    ].sort(),
+  );
 
   // The denominator is what makes "2 of 4" honest rather than indistinguishable from "nothing to
   // scan": an uncorrelated file is REPORTED, never silently dropped.
@@ -415,6 +430,9 @@ test("a main-checkout transcript and a prefix-named worktree are scanned and nev
   assert.match(stranger.stdout, /scanned 4 transcript file\(s\); correlated 0 window\(s\)/);
   assert.match(stranger.stdout, /appended 0 occupancy event\(s\)/);
   assert.equal(fs.existsSync(path.join(fixture.traceDir, "some-other-session.jsonl")), false);
+  // …and it IS stamped as measured (ADR-0484 D5 deliverable 4). No event was written, so without the
+  // receipt this quiet-but-real result would be indistinguishable from a session nobody ever ingested.
+  assert.equal(fs.existsSync(path.join(fixture.traceDir, "some-other-session.ingest.json")), true);
 
   fs.rmSync(path.dirname(fixture.traceDir), { recursive: true, force: true });
 });
