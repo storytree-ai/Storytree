@@ -4,18 +4,57 @@ tier: capability
 story: studio
 title: "Resolve and reopen a comment"
 outcome: "An operator resolves a comment with the resolved state persisted across every surface."
-status: "proposed"
+status: "retired"
 proof_mode: "integration-test"
 depends_on: [dev-server-persistence-backbone]
 ---
 
 # Resolve and reopen a comment
 
+> ## ⚠ RETIRED, 2026-08-31 — ADR-0425 dec 1, recorded by `prove-unproven-capabilities-arc` inc-25
+>
+> **This capability's outcome names an OPERATOR, and there is no longer any operator-reachable way to
+> resolve a comment.** ADR-0425 dec 1 retired studio commenting deliberately — not by neglect —
+> naming MULTIPLAYER as the revival trigger, on the owner's own evidence that he never adopted it and
+> grounds his conversations against the Library from Claude Code or Codex instead.
+>
+> **Verified at source, 2026-08-31, in this worktree.** Every surface this spec's twelve contracts and
+> its eight-step integration walkthrough name is deleted:
+> - `apps/studio/src/components/CommentPanel.tsx` — absent. It owned the ONLY write
+>   (`toggleResolved`), the header open-count badge, the row class + pill, the `hide resolved`
+>   toggle, and the Resolve/Reopen button label — contracts 5–9.
+> - `apps/studio/src/lib/useAnnotations.tsx` — absent (the section-heading badge, contract 10).
+> - `apps/studio/src/lib/annotate.ts` — absent (the gutter tick, contract 11).
+> - No component anywhere under `apps/studio/src` calls `api.updateComment`; grepped 2026-08-31, the
+>   only two hits in `src/` are the client method's own definition and a prose comment about its
+>   retirement.
+>
+> **THIS IS A RETIREMENT OF THE CAPABILITY, NOT OF THE CODE UNDERNEATH IT — and the distinction is
+> ADR-0425 dec 5, which must not be read backwards.** The server-side comment store, the
+> `PATCH /api/comments?id` route and its `resolvedAt` stamp/clear, the client methods
+> `api.createComment` / `updateComment` / `deleteComment`, and the proven `InlineCommentThread` +
+> `ReviewBlocks` pair are all DELIBERATELY KEPT as the foundation a multiplayer revival would build
+> on; dec 5 says so in terms, and adds that finding them costly is a reason to revisit that clause in
+> place rather than to delete the store on the way past. So a later session must NOT read this
+> retirement as licence to sweep `api.updateComment` out of `apps/studio/src/api.ts`: a client method
+> with no caller is exactly what dec 5 chose to carry, and it costs nothing at rest.
+>
+> What is retired is the CAPABILITY — a unit whose outcome is an operator act nobody can perform.
+> When multiplayer arrives, the revival re-mounts a resolve affordance and re-authors this unit
+> against whatever surface it lands on; it does not un-retire this spec, whose every file citation is
+> dead.
+>
+> **The story UAT already records the other half of this.** `studio#uat-13` asserts `comments.json`
+> comes back byte-identical after the whole walkthrough — the standing machine proof that no studio
+> surface writes a comment anywhere (ADR-0425 dec 3).
+>
+> **Everything below is kept verbatim as HISTORY.** Read no path in it as current.
+
 **Outcome —** An operator resolves a comment with the resolved state persisted across every surface.
 
 **Depends on —** [`dev-server-persistence-backbone`](dev-server-persistence-backbone.md)
 
-> **Proof status (honest) —** CODE EXISTS AND RUNS, NO AUTOMATED PROOF. All cited behaviours work in the live app under `pnpm --filter studio dev`: toggleResolved PATCHes and refreshes (CommentPanel.tsx:89-92), the dev-API stamps/clears resolvedAt and 404s on unknown id (devApi.ts:225-240), and every propagation surface (header badge CommentPanel.tsx:54,104; hide-resolved toggle :106; row class+pill :185,190; button label :208; section heading badge useAnnotations.tsx:248-255; gutter tick annotate.ts:271,277; sidebar openCount appData.ts:27-28) is wired off the single resolved flag. NONE of the 12 contracts and NO integration test exist as runnable artifacts — no test runner, no jsdom config, no scripted/recorded integration test. RETROSPECTIVE spec; UNPROVEN by any automated check or executed walkthrough. Manual verification (clicking Resolve/Reopen and inspecting comments.json) is the only proof to date.
+> **Proof status (honest, as written in 2026-06 — every file it cites is now deleted) —** CODE EXISTS AND RUNS, NO AUTOMATED PROOF. All cited behaviours work in the live app under `pnpm --filter studio dev`: toggleResolved PATCHes and refreshes (CommentPanel.tsx:89-92), the dev-API stamps/clears resolvedAt and 404s on unknown id (devApi.ts:225-240), and every propagation surface (header badge CommentPanel.tsx:54,104; hide-resolved toggle :106; row class+pill :185,190; button label :208; section heading badge useAnnotations.tsx:248-255; gutter tick annotate.ts:271,277; sidebar openCount appData.ts:27-28) is wired off the single resolved flag. NONE of the 12 contracts and NO integration test exist as runnable artifacts — no test runner, no jsdom config, no scripted/recorded integration test. RETROSPECTIVE spec; UNPROVEN by any automated check or executed walkthrough. Manual verification (clicking Resolve/Reopen and inspecting comments.json) is the only proof to date.
 
 ## Guidance
 

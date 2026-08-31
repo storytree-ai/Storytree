@@ -76,10 +76,12 @@ plumbing without an application affordance cannot complete credential hosting.
 The main-process broker speaks to a narrow **`KeychainPort`** (`set` / `get` / `delete` verbs) rather
 than to any concrete secret store. CI uses `InMemoryKeychain` plus an injected environment for
 contracts 1–4, and an injected `window.desktopAuth` fake for contracts 5–9 — every automated contract
-is offline and cannot touch a real credential. The thin `@napi-rs/keyring` binding and a real
-OS-keychain round-trip through the panel remain operator-attested (ADR-0070 / ADR-0179 §5); the shell
-binding lives on [`electron-shell`](electron-shell.md), the panel's real OS-keychain leg is attested
-below.
+is offline and cannot touch a real credential. The thin `@napi-rs/keyring` binding lives on
+[`electron-shell`](electron-shell.md) and is **machine-provable there** *(pointer corrected 2026-08-31:
+that capability was flipped `operator-attested` → `integration-test` by
+`prove-unproven-capabilities-arc-inc-25`, so it no longer attests anything — its real OS-keychain
+round-trip is an `_electron` spec that is specified but unwritten)*; the panel's real OS-keychain leg
+is attested below.
 
 ## Proof walkthrough — contract-test
 
@@ -174,10 +176,15 @@ and stubbed operation runners:
   main/preload signatures; the studio typecheck must declare a matching renderer-side
   `DesktopAuth` / `window.desktopAuth` type with the same kind union and boolean-only read surfaces.
 - **What is NOT proven here (honest scope).** The real `@napi-rs/keyring` adapter — actually writing
-  into Keychain / Credential Manager / libsecret — is thin glue proven by **operator attestation**
-  (ADR-0070), not by CI; it round-trips the real OS keychain that CI cannot drive. The shell binding
-  attestation lives on [`electron-shell`](electron-shell.md); the panel's real OS-keychain store/remove
-  leg is operator-attested below (ADR-0179 §5). Automated proof never reads or migrates any
+  into Keychain / Credential Manager / libsecret — is thin glue proven on
+  [`electron-shell`](electron-shell.md), not here. *(Corrected 2026-08-31: this read "proven by
+  **operator attestation** (ADR-0070), not by CI; it round-trips the real OS keychain that CI cannot
+  drive." That last clause is a CI statement rather than a harness statement — the same one ADR-0348 D1
+  struck from this story's UAT leg 3 on 2026-08-13 — and `electron-shell` was re-scoped to
+  `integration-test` on the strength of it. `apps/desktop/e2e/` launches the real packaged app under
+  xvfb, and `electron/main.ts:131` binds `NapiKeychain` unconditionally, so a launched spec DOES reach
+  the real credential store. The spec is unwritten; that is a build task, not an attestation.)* The
+  panel's real OS-keychain store/remove leg is operator-attested below (ADR-0179 §5). Automated proof never reads or migrates any
   user-level secrets file; `credentialedBuildRunner` tests represent the file tier with an
   already-hydrated injected environment.
 
@@ -250,8 +257,9 @@ and stubbed operation runners:
 
 ## Proof — operator-attested (ADR-0070 / ADR-0179 §5)
 
-Contracts 1–4 and the shell's first OAuth round-trip are CI-honest or attested on
-[`electron-shell`](electron-shell.md). The **real desktop Credentials panel** leg is operator-attested:
+Contracts 1–4 are CI-honest, and the shell's first OAuth round-trip is
+[`electron-shell`](electron-shell.md)'s — machine-provable there since 2026-08-31, not attested. The
+**real desktop Credentials panel** leg is operator-attested:
 a human runs the built desktop app, opens the Credentials panel, enters a replacement Claude
 subscription token (`oauth`) without any disclosure of a prior value, observes saved status, restarts
 and observes status persist, then removes it and observes unsigned status. That witnessed

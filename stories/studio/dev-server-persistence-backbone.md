@@ -2,143 +2,253 @@
 id: "dev-server-persistence-backbone"
 tier: capability
 story: studio
-title: "Dev-server persistence backbone"
-outcome: "Data written through the studio's API survives a dev-server restart."
+title: "The studio's API backbone — one route table, two mounts, a swappable store"
+outcome: "Every studio surface reaches its data through one /api/* route table that claims the namespace before the SPA fallback, answers a failure as a typed JSON envelope rather than an HTML shell, and persists through a store seam whose writes survive the process that made them."
 status: "proposed"
 proof_mode: "integration-test"
 depends_on: []
 ---
 
-# Dev-server persistence backbone
+# The studio's API backbone — one route table, two mounts, a swappable store
 
-**Outcome —** Data written through the studio's API survives a dev-server restart.
+**Outcome —** Every studio surface reaches its data through one `/api/*` route table that claims the
+namespace before the SPA fallback, answers a failure as a typed JSON envelope rather than an HTML
+shell, and persists through a store seam whose writes survive the process that made them.
 
 **Depends on —** *(none — a root capability)*
 
-> **Proof status (honest) —** CODE EXISTS AND RUNS; NO AUTOMATED PROOF. Fully implemented and live under `pnpm --filter studio dev` (vite.config.ts mounts the plugin; the server logs the data-api line on boot; assets.json holds 88 seeded records served through the real readStore path). Exercised by hand via the UI during development. But package.json defines only dev/build/preview/typecheck; no vitest/jest; zero .test/.spec files; no scripted integration test. NOT proven, NOT verified-green — all 15 contracts and the integration test are retrospective specs awaiting a runner.
+> ## ⚠ RE-SCOPED, 2026-08-31 — `prove-unproven-capabilities-arc` inc-25, Group 2
 >
-> **Historical note (librarian pass, 2026-07-18):** the `assets.json` / `seed.assets.mjs` machinery
-> described above is **retired** — `seed.assets.mjs` gave way to the `build-corpus.mjs` generator at
-> ADR-0018, artifact state became live Cloud SQL-canonical at ADR-0023, and the last committed
-> `assets.json` + the `build-corpus.mjs` generator were retired at ADR-0210. The studio's Library tier
-> is now DB-backed (the offline backend derives its view at runtime from the library's committed
-> FIXTURE corpus, `@storytree/library/fixture`, plus `@storytree/library` `libraryTemplates()` —
-> ADR-0302 D1 deleted the `knowledge.json` that seed used to read, and the fixture is a small sandbox
-> seed, not a copy of the Library). This stays a retrospective spec of the original JSON-store era —
-> kept as history, not current code.
+> **This capability was routed here rather than adopted, and the routing reason is worth keeping.**
+> Increment 22 sorted it into the ADOPT pile on the strength of `apps/studio` now running
+> `vitest run src/ server/` over dozens of suites — which is true, and which is not the same as this
+> unit being proven. Increment 23 corrected it: all fifteen contracts cited line ranges in
+> `apps/studio/server/devApi.ts`, and that file holds none of the code they describe. Adopting on
+> that basis would have attached a signed verdict to a claim false in the specific way ADR-0465 D2 is
+> least able to tolerate.
 >
-> **Correction 2026-08-31 (`prove-unproven-capabilities-arc` inc-23) — one clause above is now false,
-> and the capability is ROUTED, not adopted.** "package.json defines only dev/build/preview/typecheck;
-> no vitest/jest; zero .test/.spec files" has not been true for a long time: `apps/studio` runs
-> `vitest run src/ server/` over dozens of suites. But **that does not make this capability
-> adopt-eligible**, and the reason is worth writing down rather than rediscovering. Every one of the
-> 15 contracts below cites a line range in `apps/studio/server/devApi.ts`, and that file no longer
-> holds any of the code they describe: the whole route table moved to `server/apiRouter.ts` under the
-> studio-cloud `serve-mode` capability (`devApi.ts` is now 123 lines of Vite wiring that re-exports
-> three handlers), and `readStore`/`writeStore` moved into `server/libraryBackend.ts` as private
-> functions of the JSON backend — which is itself no longer the default store. Some of the OUTCOME is
-> genuinely exercised today by the integration suites; several named contracts (the readStore
-> blank-file fallback, the writeStore round-trip, the /api-namespace-precedes-SPA-fallback middleware
-> ordering, and `api.ts`'s `http<T>` error-envelope unwrap) are exercised by nothing, and the
-> HttpError→JSON mapping the integration suites appear to cover is **re-implemented inline in each
-> suite** rather than driven through the real one.
+> **What actually moved (verified at source, 2026-08-31, in this worktree):**
+> - **The route table left.** `handleApiRequest` and every handler — docs, assets, comments, users,
+>   attestations, health, activity, claims, tree, arcs, traversal, suggestions, the write-broker —
+>   live in `apps/studio/server/apiRouter.ts`, together with `readAssetInput`, `safeDocPath`, the
+>   central `catch`, and the status mapping. That table is owned by `studio-cloud`'s `serve-mode`
+>   capability: ONE table for two mounts.
+> - **`devApi.ts` is now 123 lines of VITE WIRING.** It resolves paths, picks the backend, primes
+>   three lazy imports and the pg pool, installs the dev-server resilience guard, logs the data-api
+>   line, tears the pool down on close, and registers ONE middleware that delegates to
+>   `handleApiRequest`. It re-exports three handlers for existing tests. Nothing else.
+> - **`readStore` / `writeStore` are gone from the API layer entirely.** They are now
+>   module-private functions of `apps/studio/server/libraryBackend.ts`, used only by `JsonBackend`.
+> - **The JSON store is no longer the default.** `selectedStore()` returns `pg` unless
+>   `STORYTREE_STUDIO_STORE=json`. `apps/studio/data/assets.json` does not exist; the offline backend
+>   writes a GITIGNORED `assets.runtime.json` it derives on first read, and `apps/studio/data/` holds
+>   two files, `comments.json` and `unit-status.json`.
+> - **So "survives a dev-server restart" is no longer the whole outcome, or even the usual one.** In
+>   the default posture durability is Cloud SQL's, and the interesting property is the SEAM — that
+>   two backends answer one `LibraryBackend` interface and every surface reaches data through it —
+>   not a JSON file surviving a `kill`.
 >
-> Adopting on that basis would attach a signed verdict to a claim that is false in the specific way
-> ADR-0465 D2 is least able to tolerate. So this goes to `story-author` for a re-scope against the
-> surface that actually exists — the decomposition into `apiRouter.ts` + `libraryBackend.ts`, and an
-> honest contract set for the store backbone as it is now — and it is deliberately given **no
-> `proof:` block** in the meantime. That absence is the finding, not an omission.
+> **NO `proof:` BLOCK IS AUTHORED HERE, AND THE ABSENCE IS THE FINDING — but read the gap precisely,
+> because it is narrower than "unproven".** Real coverage exists and is substantial; it is named
+> under § Coverage below with what it does and does not reach. Naming a command that only looks like
+> it exercises this unit is the failure this re-scope exists to avoid.
 
 ## Guidance
 
-WHY THIS IS A CAPABILITY, NOT A STORY OR CONTRACT: its honest proof is one integration test — POST, restart the process, GET — run over the real wire against real fs and the git-tracked JSON (real in-story collaborators, no stubs). No single isolated contract captures 'survives restart'; that needs two processes sharing one disk. But it is not a story either: it has no operator-facing outcome of its own — it is the persistence organ the React capabilities lean on. Everything bundled here shares ONE file mechanism (readStore/writeStore), ONE namespace seam, and that ONE integration path.
+**WHY THIS IS STILL A CAPABILITY, NOT A STORY OR A CONTRACT.** No isolated contract captures
+"reaches its data through one table" or "survives the process that wrote it" — the first needs the
+real dispatch and the second needs two readers that share no memory. But it has no operator-facing
+outcome of its own: it is the organ the surface capabilities lean on. Everything bundled here shares
+ONE dispatch seam, ONE store interface, and ONE integration path.
 
-RESTART-SURVIVAL IS IMPLICIT, NOT EXPLICIT: there is no snapshot/flush/WAL code. Durability falls out of the architecture — every mutation calls writeStore synchronously to disk (devApi.ts:221,238,246,299,311,319) and every read calls readStore from disk (no in-memory cache anywhere). State lives ONLY in apps/studio/data/*.json, so a new process re-reads it. To rebuild: never add an in-memory cache without write-through, or restart-survival silently breaks.
+**THE NAME IS NOW HALF WRONG AND IS KEPT ON PURPOSE.** "dev-server" was accurate when
+`configureServer` was the only mount. The same table is mounted by `server/serve.ts` for the hosted
+studio behind IAP, so this capability is not dev-scoped any more. The id is left alone because it is
+referenced by three sibling specs and by the story's dependency graph; renaming it would be a
+graph-wide edit for a cosmetic gain. Read `dev-server` as historical.
 
-REGISTRATION ORDER IS LOAD-BEARING: the middleware is added directly inside configureServer (devApi.ts:358), NOT in a returned post-hook. Vite runs returned hooks AFTER its SPA history-fallback (which rewrites everything to index.html). Registering directly means /api/* is matched first. Get this wrong and every /api call returns the HTML shell with 200 — a failure the contracts can't catch (they call handlers directly), so it must be asserted by the integration test against the real running server.
+**REGISTRATION ORDER IS STILL LOAD-BEARING, AND IT SURVIVED THE MOVE VERBATIM.** The middleware is
+added directly inside `configureServer`, NOT in a returned post-hook: Vite runs returned hooks AFTER
+its SPA history fallback, which rewrites everything to `index.html`. Registering directly means
+`/api/*` is matched first. Get this wrong and every `/api` call returns the HTML shell with 200 — a
+failure no handler-level contract can catch, because the handlers are never reached. The middleware's
+own rule is one line: a pathname not starting with `/api/` calls `next()`, everything else goes to
+`handleApiRequest`.
 
-DEV-ONLY BY DESIGN: this backbone exists only under `vite` dev (configureServer never runs in `vite build`; see devApi.ts:8-10). Scope is exactly `pnpm --filter studio dev`; do not run the integration test against a built/preview bundle expecting persistence.
+**THE ERROR ENVELOPE IS ONE CENTRAL `catch` WITH FOUR ARMS, and the two middle ones are the
+interesting ones.** `HttpError` → its own status + `{error, ...details}`; a `LastAdminError`,
+identified by `name` alone so neither the route layer nor the JSON backend has to import the store's
+class, → 409; `isConnectionError` → 503 carrying the "start the DB" remedy, so the UI can tell a
+stopped store from a server bug; anything else → 500. An unmatched path throws
+`HttpError(404,'unknown endpoint')` into the same catch.
 
-PATCH RE-VALIDATES THE WHOLE MERGED RECORD: asset PATCH (devApi.ts:308) spreads existing+patch+`id:existing.id` back through readAssetInput, re-locking the id AND re-running every guard on the merged result. createdAt is preserved by explicit carry-over (devApi.ts:309), not by the validator.
+**THE STORE SEAM IS THE `LibraryBackend` INTERFACE, AND `selectedStore()` IS THE FORK.**
+`createBackend` returns `PgBackend` (Cloud SQL, the default) or `JsonBackend` (the offline opt-out,
+`STORYTREE_STUDIO_STORE=json`: no DB, $0, per-worktree state). Every handler talks to the interface,
+never to a file or a pool — which is what lets one route table serve both postures and lets an
+integration test pin the offline seam (ADR-0010 §5) without stubbing anything inside the organism.
 
-KNOWN DRIFT HAZARD: ASSET_CATEGORIES is hand-duplicated at devApi.ts:25-33 from src/types.ts:128-136 (the server can't trivially import a src value in plugin context). Contract dpb-asset-categories-allowlist-matches-types exists solely to fail if they diverge. (Verified: both arrays are ['definition','principle','pattern','guardrail','techstack','template','adr'] — 7 entries, including the seeded `template` category and the defined-but-unseeded `adr` category.)
+**DURABILITY IN THE JSON POSTURE IS STILL IMPLICIT, NOT EXPLICIT.** There is no snapshot, flush or
+WAL. Every mutation calls `writeStore` synchronously to disk and every read calls `readStore` from
+disk; there is no in-memory cache anywhere in `JsonBackend`. State lives only in
+`apps/studio/data/*.json`, so a new reader re-reads it. To rebuild: never add a cache without
+write-through, or restart-survival silently breaks. `readStore` falls back for a MISSING file and,
+separately, for a present-but-BLANK one — `raw.trim() ? JSON.parse(raw) : fallback` — so a truncated
+write degrades to empty rather than throwing a parse error at the handler.
 
-SEED-STATE FOR THE INTEGRATION TEST: comments.json ships as [] and assets.json ships with 88 records (verified). The test must delete its probe rows at the end — these are git-tracked files and residue dirties the tree. Use collision-unlikely probe ids (e.g. 'it-probe').
+**THE SEED IS DERIVE-ON-FIRST-READ AND MUST STAY IDEMPOTENT.** `JsonBackend` seeds
+`assets.runtime.json` from `loadSeedUnits` on a cold store only; a present store is never re-seeded,
+which is what lets an operator's edit survive a restart. Without a loader, an absent store reads
+empty — the pre-ADR-0210 behaviour the integration tests rely on.
 
-NO HARNESS EXISTS YET: package.json has no test runner; zero .test/.spec files. Contracts describe the isolated unit test that WOULD prove each leaf (pure functions or handler calls with readStore/writeStore/fetch stubbed); the integration test is the across-the-wire restart walkthrough against the real fs and the real connect server. Implementing either means first adding a runner (e.g. vitest) — net-new work, not a recording of something already green.
+**KNOWN DRIFT HAZARD — IT SURVIVED THE MOVE, AND SO MUST ITS GUARD.** `ASSET_CATEGORIES` is still
+hand-duplicated: `apps/studio/server/apiRouter.ts` vs `apps/studio/src/types.ts`. The server cannot
+trivially import a `src` value in plugin context. Do NOT re-pin the list's LENGTH in a contract the
+way the old text did (it said seven; the set has grown since) — assert the two arrays are equal, which
+is the only assertion that cannot go stale.
+
+**THE MEMO AND ITS VALIDATORS ARE `map-server-memo`'s, NOT THIS UNIT'S.** `/api/docs` and `/api/tree`
+answer through `memoizeCorpusWalk` with `no-cache` + `ETag`; that capability proves it. This one owns
+the dispatch those routes ride, and must leave their bodies unchanged.
+
+**PATHS.** `resolveStudioPaths` puts the JSON store at `apps/studio/data/`:
+`assets.runtime.json` (gitignored), `comments.json`, `users.json`, `attestations.json`. A probe row
+in a git-tracked file is residue; use `assets.runtime.json` or a temp dir, and collision-unlikely ids.
+
+## Coverage — what exists today, and what does not
+
+Recorded so the gap is visible rather than inferred, and so nobody re-litigates the increment-22
+adopt call. This is NOT a proof claim.
+
+**Genuinely exercised through the REAL route table, over a REAL socket** (`pnpm --filter studio
+test`): nine suites build a server through `createStudioServer` (or drive `handleApiRequest`
+directly) and therefore run the real dispatch, the real gate and the real central error mapping —
+`serveApi`, `reviewFeedApi`, `writeBrokerApi`, `uatAttestApi`, `storeDoorApi`, `suggestionCreateApi`,
+`suggestionDecisionApi`, `suggestionAcceptApplyApi`, and `mapServerMemo`. That is real, load-bearing
+coverage of this capability's dispatch-and-envelope half, and it is why this unit is not described as
+unproven.
+
+**The store seam's own durability IS proven, at the backend grain:**
+`server/libraryBackend.seed.test.ts` seeds a cold store, writes an asset through `createAsset`, then
+opens a SECOND `JsonBackend` over the same directory and reads the edit back — a real
+`writeStore` → `readStore` round trip across readers that share no memory, plus the
+absent-store-reads-empty fallback.
+
+**Exercised by NOTHING — and this is the specific list, not a general disclaimer:**
+- **The Vite middleware's own ordering rule.** Every suite above mounts `server/serve.ts`; none
+  mounts the `configureServer` plugin. So "`/api/*` is claimed before the SPA fallback, and a
+  non-`/api` url calls `next()` exactly once" — the failure mode that returns an HTML shell with
+  200 — is asserted nowhere.
+- **`readStore`'s BLANK-file arm.** The seed suite covers the ABSENT file; the `raw.trim()` fallback
+  for a present-but-empty file is untouched.
+- **`api.ts`'s `http<T>` error-envelope unwrap** — that a non-ok response rejects with the server's
+  `{error}` message rather than a status string, and that an empty body parses to null.
+- **`isConnectionError` → 503 and `isLastAdminError` → 409** as behaviours of the central catch. Note
+  the trap here: eight of the seventeen `*.integration.test.ts` suites build their own miniature
+  server and RE-IMPLEMENT the `HttpError`→JSON mapping inline (`arcsApi.integration.test.ts` does it
+  in four lines). Those suites prove their own handler; they do not exercise this catch, and reading
+  the file list as if they did is how this capability came to look adopt-eligible.
+- **The `ASSET_CATEGORIES` drift guard.** The duplication is live and nothing compares the two lists.
 
 ## Integration test
 
-**Goal —** Prove that data written through the studio's /api survives a dev-server restart — the load-bearing persistence seam every React capability leans on.
+**Goal —** Prove that every studio surface reaches its data through ONE `/api/*` table that claims
+the namespace ahead of the SPA fallback, that a failure comes back as a typed JSON envelope rather
+than an HTML shell, and that a write made through it is read back by a process that never held it.
 
-The integration test exercises this capability against its **real in-story
-collaborators** — the real connect-middleware seam, the real fs, and the git-tracked JSON
-stores — with **no stubs within the organism** (ADR-0010 §2/§5). It spans two processes
-sharing one disk, which is exactly why this is an integration test and not a single
-isolated contract: no one assertion captures "survives restart". (The `depends_on` is
-empty — this is a root capability, so the test rides nothing else in-story.)
+The integration test exercises this capability against its **real in-story collaborators** — the real
+Vite middleware registration, the real route table, the real store seam and a real filesystem — with
+**no stubs within the organism** (ADR-0010 §2/§5). It pins the offline JSON seam
+(`STORYTREE_STUDIO_STORE=json`, permitted by ADR-0010 §5) over a TEMP data dir, so it spans two
+processes without touching the shared store or dirtying a git-tracked file. (`depends_on` is empty —
+this is a root capability, so the test rides nothing else in-story.) It would:
 
-The integration test would, against the real running backbone:
+1. Start the Vite dev server over a temp data dir and assert it logs the
+   `storytree data api: docs ← …/ · library/comments → …` line naming the SELECTED store — proving
+   the plugin mounted on the real connect server and picked a backend.
+2. THE ORDERING LEG, and the reason this is an integration test at all. `GET /api/nope` must answer
+   **404 with `content-type: application/json` and a `{"error":"unknown endpoint"}` body** — NOT a
+   200 carrying the `index.html` shell. Then `GET /` must answer the SPA shell, proving the
+   middleware passed a non-`/api` url through with `next()` rather than swallowing the namespace.
+   Assert on the content type, not only the status: an HTML shell served at 200 is exactly the
+   failure this leg exists to catch, and a status-only assertion would miss it.
+3. `GET /api/assets` → 200 with the derived offline seed (its size read from the derivation seam,
+   never pinned — the fixture drifts by design, ADR-0302 D1). `GET /api/comments` → 200 `[]`.
+4. POST a probe artifact → 201 with `createdAt === updatedAt`. POST the same id again → **409**,
+   carrying the store's conflict message through `assetWriteError` — the envelope, not a throw.
+5. POST a comment → 201 with a server-stamped id, ISO `createdAt`, `resolved:false`. PATCH it
+   `{resolved:true}` → 200 with a non-null `resolvedAt`; PATCH `{resolved:false}` → `resolvedAt`
+   back to null. (The comment STORE and its routes are deliberately retained by ADR-0425 dec 5 even
+   though no studio surface writes a comment; this leg is what keeps that retention honest rather
+   than dead.)
+6. PATCH the probe artifact with a body carrying a DIFFERENT id → 200, and the stored id is
+   unchanged: the query-string id is spread last.
+7. Stop the process, discarding all in-memory state — the only survivor is what is on disk.
+8. Start a SECOND process over the same temp data dir and, without any prior write,
+   `GET /api/assets` and `GET /api/comments`. Assert the probe artifact is present with its edit and
+   the comment with its `resolvedAt`. This is the core proof: a write made before the restart is read
+   back after it, by a process that never held it.
+9. Blank one store file to whitespace and `GET` it: assert an EMPTY collection, not a 500 — the
+   `readStore` fallback degrading a truncated write rather than throwing a parse error at the
+   handler.
+10. DELETE both probe rows → 200 `{ok:true}` each; DELETE either again → 404. Assert the temp stores
+    are back to their seeded state, so the walk leaves no residue.
 
-1. Start the dev server: `pnpm --filter studio dev`; assert it logs the `storytree data api: ... store → apps/studio/data/` line (devApi.ts:353-355), proving the plugin mounted on the real connect server.
-2. GET http://localhost:5173/api/comments → 200 with [] (seeded-empty store read through readStore's real-file path, devApi.ts:186-196); GET /api/assets → 200 with the 88 seeded records, proving the store is served from disk, not memory.
-3. POST /api/comments with { topicKind:'doc', topicId:'decisions/0002-work-hierarchy-story-capability-contract.md', body:'restart-proof note', anchor:{kind:'topic'} } → 201; capture the server-stamped id (randomUUID) and assert resolved:false, createdAt set (devApi.ts:209-222).
-4. POST /api/assets with a fresh kebab id { id:'it-probe', category:'pattern', title:'Probe', description:'d', body:'b', references:[] } → 201 with createdAt===updatedAt (devApi.ts:296-300).
-5. GET /api/comments?topicId=decisions/0002-work-hierarchy-story-capability-contract.md → 200 returning exactly the comment just posted, proving the topicId query filter selects the new row (devApi.ts:189-196).
-6. PATCH /api/comments?id=<captured-id> with { resolved:true } → 200; assert resolved:true and a non-null resolvedAt (devApi.ts:233-239). PATCH /api/assets?id=it-probe with { title:'Probe 2' } → 200 with the same createdAt but a bumped updatedAt (devApi.ts:303-312).
-7. Stop the dev server (kill the Vite process) — discarding ALL in-memory state; the only survivor is the JSON on disk.
-8. Restart `pnpm --filter studio dev` (a brand-new process).
-9. GET /api/comments?topicId=decisions/0002-work-hierarchy-story-capability-contract.md → 200 and assert the comment is STILL there with resolved:true and its resolvedAt; GET /api/assets → the 88 seeds PLUS it-probe with title 'Probe 2'. This is the core proof: the write made before the restart is read back after it.
-10. DELETE /api/comments?id=<captured-id> → 200 {ok:true}; DELETE /api/assets?id=it-probe → 200 {ok:true}. GET both again → the probe rows are gone and assets.json is back to its 88 seeded records, leaving the git-tracked stores clean (devApi.ts:242-248, 315-321).
+## Contracts (14)
 
-## Contracts (15)
+The test-proven leaf behaviours — each **one isolated automated test** with collaborators stubbed
+(ADR-0002). The `covers —` lines are the CURRENT homes, re-verified 2026-08-31; the fifteen this spec
+carried before all cited `apps/studio/server/devApi.ts`, which holds none of this code. Where a
+contract has a real test today it says so; the rest are the gap recorded under § Coverage.
 
-The test-proven leaf behaviours — each **one isolated automated test** with
-collaborators stubbed (ADR-0002). No automated tests exist yet; each entry is the
-assertion a contract test *would* prove, with the real code it covers.
+1. **`dpb-api-namespace-precedes-spa-fallback`** — The Vite middleware claims `/api/*` and passes everything else through
+   - **asserts —** The middleware registered by `configureServer` routes a request whose url starts with `/api/` into `handleApiRequest` and does NOT call `next()`; a non-`/api` url (e.g. `/index.html`) calls `next()` exactly once and reaches no handler. Registration happens directly in `configureServer`, not in a returned post-hook.
+   - **covers —** `apps/studio/server/devApi.ts` `configureServer` (the middleware)
+2. **`dpb-httperror-becomes-json-envelope`** — A thrown HttpError is serialised to its status + `{error}` JSON
+   - **asserts —** When a routed handler throws `new HttpError(404,'unknown endpoint')`, the response is 404 with body `{"error":"unknown endpoint"}`; an `HttpError` carrying `details` merges them into the same object; an unrecognised throw yields 500 with its message.
+   - **covers —** `apps/studio/server/apiRouter.ts` `handleApiRequest` (the central catch)
+3. **`dpb-connection-failure-becomes-503-with-remedy`** — A store-down error is 503, not 500
+   - **asserts —** `isConnectionError` returns true for the pg admin-shutdown / connection codes and the socket codes, and false for an `HttpError`, an `AssetConflictError`, a `ZodError` and a `LastAdminError`; the catch answers such an error 503 carrying the "start the DB" remedy so the UI can offer the button.
+   - **covers —** `apps/studio/server/apiRouter.ts` `isConnectionError` + the central catch
+4. **`dpb-last-admin-violation-becomes-409-by-name`** — A last-admin guard violation is 409, identified by `name` alone
+   - **asserts —** An error whose `name` is `LastAdminError` — thrown as the real class by the pg store and as a tagged `Error` by the JSON backend — is answered 409 with its message, without either layer importing the store's class.
+   - **covers —** `apps/studio/server/apiRouter.ts` `isLastAdminError` + the central catch
+5. **`dpb-readstore-falls-back-when-absent-or-blank`** — readStore returns the fallback for a missing OR blank file
+   - **asserts —** `readStore(<nonexistent>, [])` resolves to `[]`, and `readStore(<whitespace-only file>, [])` also resolves to `[]` rather than throwing a JSON parse error.
+   - **covers —** `apps/studio/server/libraryBackend.ts` `readStore` (module-private) — the ABSENT arm has a test via `server/libraryBackend.seed.test.ts`; the BLANK arm has none
+6. **`dpb-writestore-then-readstore-roundtrip-persists`** — writeStore persists pretty JSON that readStore reads back identically
+   - **asserts —** After `writeStore(tmpFile,[{a:1}])` — creating parent dirs as needed — `readStore(tmpFile,[])` deep-equals `[{a:1}]`, and the file content is 2-space-indented JSON terminated by a newline.
+   - **covers —** `apps/studio/server/libraryBackend.ts` `writeStore` — HAS A TEST at the backend grain: `server/libraryBackend.seed.test.ts` (create → reopen → read back)
+7. **`dpb-json-seed-is-cold-store-only`** — The derive-on-first-read seed never clobbers a present store
+   - **asserts —** `JsonBackend` with a seed loader derives and writes the runtime store on a cold read; a SECOND backend over the same dir does not re-seed, so an asset created through the first is still there; with no loader, an absent store reads `[]`.
+   - **covers —** `apps/studio/server/libraryBackend.ts` `JsonBackend` — HAS A TEST: `server/libraryBackend.seed.test.ts`
+8. **`dpb-selectedstore-forks-the-backend`** — The store fork is one env var and the default is pg
+   - **asserts —** `selectedStore()` returns `'json'` only for `STORYTREE_STUDIO_STORE === 'json'` and `'pg'` for unset, empty, or any other value; `createBackend` returns a `JsonBackend` for the former and a `PgBackend` for the latter, and both satisfy the `LibraryBackend` interface.
+   - **covers —** `apps/studio/server/libraryBackend.ts` `selectedStore` / `createBackend`
+9. **`dpb-comments-get-filters-by-topic`** — GET /api/comments filters by topicId
+   - **asserts —** Given comments across two topicIds, `handleComments` on a GET carrying `?topicId=X` returns only the X comments; with no query params it returns all.
+   - **covers —** `apps/studio/server/apiRouter.ts` `handleComments`
+10. **`dpb-comments-post-stamps-server-fields-and-validates`** — POST /api/comments stamps the server fields and rejects bad input
+   - **asserts —** A valid POST yields 201 with a generated id, ISO `createdAt`, `resolved:false` / `resolvedAt:null`, persisted once; a `topicKind` outside `{doc,asset}`, an empty body and an empty topicId each throw their specific 400.
+   - **covers —** `apps/studio/server/apiRouter.ts` `handleComments`
+11. **`dpb-comments-patch-resolved-sets-and-clears-resolvedat`** — PATCH toggles resolved and stamps/clears resolvedAt; an unknown id 404s
+   - **asserts —** `{resolved:true}` returns the comment with a non-null `resolvedAt`; `{resolved:false}` clears it to null; a BODY-ONLY patch leaves `resolved` and `resolvedAt` untouched; PATCH or DELETE with an id matching no row throws 404 and persists nothing. (Retained deliberately under ADR-0425 dec 5 — the store outlives the retired surface.)
+   - **covers —** `apps/studio/server/apiRouter.ts` `handleComments`
+12. **`dpb-asset-input-validates-slug-category-and-either-body-or-fields`** — readAssetInput's guard, including the either/or that replaced "body is required"
+   - **asserts —** `HttpError(400)` for a non-kebab id, for a category outside `ASSET_CATEGORIES`, for an empty title and for an empty description; and a 400 only when BOTH `body` and `fields` are empty — a fields-only structured input and a body-only one both pass.
+   - **covers —** `apps/studio/server/apiRouter.ts` `readAssetInput`
+13. **`dpb-asset-patch-relocks-id-from-the-query-string`** — PATCH re-locks the id to the route's and 404s an unknown one
+   - **asserts —** `handleAssets` PATCH for `?id=x` with a body carrying `{id:'y'}` calls `updateAsset('x', …)` with an input whose id is `'x'`; a backend returning null yields `HttpError(404,'asset not found')`.
+   - **covers —** `apps/studio/server/apiRouter.ts` `handleAssets`
+14. **`dpb-asset-categories-allowlist-matches-types`** — The server allow-list equals the canonical client list
+   - **asserts —** `ASSET_CATEGORIES` in `server/apiRouter.ts` deep-equals `ASSET_CATEGORIES` exported from `src/types.ts`. Assert EQUALITY, never a pinned length or a literal list — the set grows, and a pinned count is a guard that goes stale in the reassuring direction.
+   - **covers —** `apps/studio/server/apiRouter.ts` + `apps/studio/src/types.ts`
 
-1. **`dpb-api-namespace-precedes-spa-fallback`** — The /api middleware claims the /api/* namespace and passes everything else through
-   - **asserts —** Invoking the middleware registered by configureServer with a request whose url starts with /api/ routes into a handler (does NOT call next), while a non-/api url (e.g. /index.html) calls next() exactly once — proving /api is owned before Vite's SPA fallback.
-   - **covers —** `apps/studio/server/devApi.ts:358-371`
-2. **`dpb-error-thrown-becomes-json-envelope`** — A thrown HttpError is serialised to its status + {error} JSON
-   - **asserts —** When a routed handler throws new HttpError(404,'unknown endpoint'), the response statusCode is 404 and the body is {"error":"unknown endpoint"}; a non-HttpError throw yields statusCode 500 with its message.
-   - **covers —** `apps/studio/server/devApi.ts:372-375`
-3. **`dpb-readstore-falls-back-when-absent-or-blank`** — readStore returns the fallback for a missing or blank file
-   - **asserts —** readStore(<nonexistent path>, []) resolves to [], and readStore(<whitespace-only file>, []) also resolves to [] rather than throwing a JSON parse error.
-   - **covers —** `apps/studio/server/devApi.ts:83-87`
-4. **`dpb-writestore-then-readstore-roundtrip-persists`** — writeStore persists pretty JSON that readStore reads back identically
-   - **asserts —** After writeStore(tmpFile,[{a:1}]) — creating parent dirs as needed — readStore(tmpFile,[]) deep-equals [{a:1}], and the file content is 2-space-indented JSON terminated by a newline.
-   - **covers —** `apps/studio/server/devApi.ts:89-92`
-5. **`dpb-comments-get-filters-by-topic`** — GET /api/comments filters by topicId and topicKind
-   - **asserts —** Given a store of comments across two topicIds, handleComments on a GET whose url carries ?topicId=X returns only the X comments; with no query params it returns all.
-   - **covers —** `apps/studio/server/devApi.ts:188-196`
-6. **`dpb-comments-post-stamps-server-fields`** — POST /api/comments stamps id, createdAt, resolved=false and persists
-   - **asserts —** A valid POST body produces a 201 whose returned comment has a generated id, ISO createdAt, resolved=false/resolvedAt=null, and writeStore is called once with the new comment appended.
-   - **covers —** `apps/studio/server/devApi.ts:199-222`
-7. **`dpb-comments-post-rejects-bad-topickind`** — POST /api/comments rejects a topicKind outside {doc,asset} and missing body/topicId
-   - **asserts —** A POST with topicKind='channel' throws HttpError(400,'topicKind must be "doc" or "asset"'); an empty body throws 400 'comment body is required'; an empty topicId throws 400 'topicId is required'.
-   - **covers —** `apps/studio/server/devApi.ts:204-208`
-8. **`dpb-comments-patch-resolved-sets-resolvedat`** — PATCH /api/comments?id toggles resolved and stamps/clears resolvedAt
-   - **asserts —** Patching an existing comment with {resolved:true} returns it with resolved=true and a non-null resolvedAt; patching {resolved:false} returns resolvedAt=null; a body-only patch leaves resolved untouched.
-   - **covers —** `apps/studio/server/devApi.ts:225-239`
-9. **`dpb-comments-mutate-unknown-id-404`** — PATCH/DELETE on an unknown comment id is a 404
-   - **asserts —** handleComments PATCH or DELETE with ?id=missing (no matching row) throws HttpError(404,'comment not found') and does not call writeStore.
-   - **covers —** `apps/studio/server/devApi.ts:227-228, 242-245`
-10. **`dpb-asset-input-requires-kebab-slug`** — readAssetInput rejects a non-kebab-case id
-   - **asserts —** readAssetInput({id:'Not Slug',...valid}) throws HttpError(400,'id must be a kebab-case slug (a-z, 0-9, hyphens)'); a clean slug like 'deep-modules' passes the isValidSlug gate.
-   - **covers —** `apps/studio/server/devApi.ts:253-254, 263`
-11. **`dpb-asset-input-requires-known-category-and-fields`** — readAssetInput rejects an unknown category and missing title/description/body
-   - **asserts —** A category not in ASSET_CATEGORIES throws 400 'invalid category'; empty title/description/body each throw their specific 400 ('title is required', etc.).
-   - **covers —** `apps/studio/server/devApi.ts:264-267`
-12. **`dpb-asset-post-duplicate-id-409`** — POST /api/assets with an existing id is a 409
-   - **asserts —** handleAssets POST whose validated id already exists in the store throws HttpError(409,'an asset with id "<id>" already exists') and does not call writeStore.
-   - **covers —** `apps/studio/server/devApi.ts:293-294`
-13. **`dpb-asset-patch-relocks-id-preserves-createdat`** — PATCH /api/assets re-locks id to the existing row and preserves createdAt while bumping updatedAt
-   - **asserts —** Patching asset 'x' with a body that also carries {id:'y'} returns an asset whose id is still 'x', whose createdAt equals the original, and whose updatedAt differs from createdAt.
-   - **covers —** `apps/studio/server/devApi.ts:303-312`
-14. **`dpb-asset-categories-allowlist-matches-types`** — The server ASSET_CATEGORIES allow-list equals the canonical types.ts list
-   - **asserts —** The ASSET_CATEGORIES array in server/devApi.ts deep-equals ASSET_CATEGORIES exported from src/types.ts — both the 7-entry list ['definition','principle','pattern','guardrail','techstack','template','adr'] — a guard against the duplicated allow-list drifting.
-   - **covers —** `apps/studio/server/devApi.ts:25-33`
-15. **`dpb-api-client-unwraps-error-envelope`** — api.ts http<T> throws the server's {error} message on a non-ok response
-   - **asserts —** http<T> given a stubbed fetch returning {ok:false,status:409,text:()=>'{"error":"dup"}'} rejects with Error('dup'); on ok it resolves to the parsed body; an empty body parses to null.
-   - **covers —** `apps/studio/src/api.ts:12-24`
+**One contract of the old fifteen is homeless and is recorded rather than dropped.**
+`dpb-api-client-unwraps-error-envelope` — that `http<T>` in `apps/studio/src/api.ts` rejects with the
+server's `{error}` message on a non-ok response and parses an empty body to null — is the CLIENT half
+of contract 2 and is exercised by nothing. It is left out of the numbered set because `api.ts` is
+story-grain infrastructure no capability owns (the same shape `arc-orientation-lens` records for
+`api.ts` / `poll.ts` / `types.ts` / `route.ts`), and quietly annexing it here would invent an
+ownership claim rather than record one. The honest state is: the envelope has a server author and no
+client author.
