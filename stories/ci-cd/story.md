@@ -14,7 +14,21 @@ proof_mode: UAT
 # ci-cd has zero inbound edges. Verified acyclic: studio-cloud (depends_on: [studio, library]) and
 # notice-board (depends_on: [library, drive-machinery]) never reach back to ci-cd. (library is the
 # genuine trunk — a root every story depends on.)
-capabilities: [green-gate, repo-surface-manifest, adr-health-gate, gate-ci-parity, auto-merge-on-green, merge-presence-retire, deploy-on-merge]
+capabilities: [green-gate, repo-surface-manifest, adr-health-gate, auto-merge-on-green, merge-presence-retire, deploy-on-merge]
+# `gate-ci-parity` LEFT this story on 2026-08-31 for `stories/cli`, with its code — the same shape as
+# `arc-explicit-id-fidelity`'s departure from `cli` under ADR-0369, and for a related reason. Its
+# ARTEFACT is a pure judge invoked by a `check:*` rung, which is a capability class `cli` already
+# hosts three times (`organism-boundary-tooling`, `work-hierarchy-camp-fence`,
+# `verification-decay-instruments`), and its judge must read the `GATE_PLAN` literal out of
+# `packages/cli/src/gate-order.ts` — so half its subject is `cli`'s own source. The line that decided
+# it, and that this story keeps: **ci-cd owns the PIPELINE — that a step runs, that it blocks, that it
+# sits on the merge ref, that `automerge` needs it. `cli` owns the JUDGE a `check:*` rung invokes.**
+# `check:boundaries` is the precedent already in the tree: a `verify` step this story enumerates in
+# `green-gate`, whose ANALYSER has always been a `cli` capability. What did NOT leave with it: UAT leg
+# 3 and Reliability Gate 3, which assert the local/CI relationship as repository-owned evidence on
+# this story's own journey — a story's UAT never had to mirror its capability list, and both ordinals
+# are burned and carry signed history, so neither moves. `green-gate` did NOT follow it; see that
+# file's frontmatter for why the same wall got the opposite answer.
 depends_on: [studio-cloud, notice-board]
 # ADR-0166 artifact edges: the deliberate NON-IMPORT seams among the depends_on above (build-artifact /
 # write-target / hosted-seam consumption, narrated per-edge in the comments/body of this spec) — the
@@ -48,16 +62,21 @@ deciding ADRs are ADR-0022 (the green gate +
 auto-merge-on-green, inside free Actions because GitHub-native auto-merge is paywalled on private
 repos) and ADR-0046 (merge→deploy CD).
 
-> **This story is the first WORK-TRACKED home for two things that currently live only in CLAUDE.md
-> prose + session memory:** (1) the **gate↔CI parity** invariant — that `pnpm gate` locally and the
-> CI `verify` job share a content floor of eight checks, while CI adds `pnpm -r build`, the PR-only
-> merged-branch guard, the web-submodule checkout, affected-scope selection and the *merge-with-main*
-> ref, and the local plan adds `check:verification-decay` (the recurring "local-green / CI-red" surprise
-> lives in that two-way delta); and (2) the **merge-ceremony
-> discipline** (green unit → non-draft PR → CI auto-merges; never a manual `gh pr merge`). The
-> `gate-ci-parity` capability below pins (1) into a checkable relationship; the ceremony (2) is the
-> `session-orchestrator` operating discipline these caps mechanise. Neither has an ADR of its own —
-> `gate-ci-parity` may warrant one (an owner escalation, flagged in its file and below).
+> **This story is the first WORK-TRACKED home for the merge-ceremony discipline** (green unit →
+> non-draft PR → CI auto-merges; never a manual `gh pr merge`) — the `session-orchestrator` operating
+> discipline the capabilities below mechanise.
+>
+> *(Rewritten 2026-08-31. This paragraph also claimed the **gate↔CI parity** invariant as this story's
+> to home, and closed "`gate-ci-parity` may warrant [an ADR] — an owner escalation". Both halves are
+> now false. The capability MOVED to [`stories/cli`](../cli/gate-ci-parity.md) with its code (see the
+> frontmatter note above), and the escalation was answered: **ADR-0486** (accepted 2026-08-31) settles
+> the parity contract, and the question was measured against `owner-fork-bar` and cleared none of its
+> three tests. The paragraph also enumerated the delta as "a content floor of eight checks … and the
+> local plan adds `check:verification-decay`" — measured false on 2026-08-31: the floor is 21 and the
+> local-only set has THREE members. The counts are struck rather than restated, because ADR-0486 D4
+> requires both sets be READ from their real definitions at runtime, never transcribed into prose that
+> goes stale. The live relationship is `ci.yml` vs the `GATE_PLAN` literal, and the judge that reads
+> them is now `cli`'s.)*
 
 ## Design floor
 
@@ -68,18 +87,27 @@ repos) and ADR-0046 (merge→deploy CD).
   (GitHub's PR merge ref), so a unit is proven against the trunk it will actually land on — a clean
   branch can still fail on something that landed on `main` *after* it was cut. This is the load-bearing
   reason a green local `pnpm gate` does not guarantee a green CI.
-- **The gate and CI share a content floor; each keeps steps the other does not.** They overlap on
-  EIGHT checks — `check:boundaries`, `check:mirror-conformance`, `check:web-grounding`,
-  `check:web-engine`, typecheck, test, `check:guidance`, `check:agents`. CI additionally runs
-  `pnpm -r build`, the PR-only merged-branch guard, the pinned web submodule checkout, affected-scope
-  selection, and the merge-ref; the local plan additionally runs
-  `check:verification-decay`. So it is a two-way delta, **not** "gate = CI − build" — that older
-  equality was true once and is not now. The relationship is DECLARED and checkable
-  (`gate-ci-parity`), not tribal knowledge, and the two lists are read from their own sources: CI's
-  from [`ci.yml`](../../.github/workflows/ci.yml), the local plan's from `GATE_PLAN` in
+- **The gate and CI share a content floor; each keeps steps the other does not.** It is a TWO-WAY
+  delta — **not** "gate = CI − build", an equality that was true once and is not now. CI keeps steps
+  the local plan does not (`pnpm -r build`, the PR-only merged-branch guard, the pinned web submodule
+  checkout, affected-scope selection, and the merge-ref); the local plan keeps steps CI does not. The
+  relationship is DECLARED and checkable rather than tribal knowledge, and both lists are READ from
+  their own sources at runtime: CI's from [`ci.yml`](../../.github/workflows/ci.yml), the local plan's
+  from the `GATE_PLAN` literal in
   [`packages/cli/src/gate-order.ts`](../../packages/cli/src/gate-order.ts) — never from the root
-  `gate` script's text, which is now just the runner invocation and names zero steps, so any
-  substring test against it is vacuous.
+  `gate` script's text, which is now just the runner invocation and names zero steps, so any substring
+  test against it is vacuous.
+  **The judge that reads them is [`cli`'s `gate-ci-parity`](../cli/gate-ci-parity.md)**, not this
+  story's: `ci-cd` owns that the steps RUN and BLOCK on the merge ref, `cli` owns the analyser behind
+  the rung — the same split `check:boundaries` has always had. This story still walks the
+  relationship at its own tier (UAT leg 3, Reliability Gate 3).
+  *(Counts struck 2026-08-31. This bullet enumerated "EIGHT checks" by name and said the local plan
+  adds only `check:verification-decay`. Measured that day: the shared floor is 21 and the local-only
+  set has THREE members — `check:desktop-route-coverage`, `check:verification-decay`,
+  `check:definition-adjudication`. ADR-0486 D4 requires both sets be derived from their real
+  definitions at runtime, so the membership is deliberately NOT restated here; a spec that enumerates
+  gate steps goes false every time the gate is re-decided, which is the standing lesson open modeling
+  call 3 below already records.)*
 - **Auto-merge is a consequence of green, never a decision.** A non-draft, non-`hold` PR merges the
   instant `verify` passes. Draft / `hold` is the only opt-out, and it is temporary — flip to ready on
   green. Humans approve by making the PR ready, not by clicking merge.
@@ -91,30 +119,33 @@ repos) and ADR-0046 (merge→deploy CD).
   Identity Federation (ADR-0021) — GitHub OIDC → the `github-actions` WIF pool → a least-privilege
   service account. No JSON key sits in a secret.
 
-## Capabilities (7)
+## Capabilities (6)
 
 Listed roots-first (a capability appears after everything it depends on). The first three are
-independent roots (the three orthogonal content gates `verify` runs); `gate-ci-parity` and
-`auto-merge-on-green` build on `green-gate`; the two leaves add the post-merge side effects and each
-reaches forward to a sibling story.
+independent roots (the three orthogonal content gates `verify` runs); `auto-merge-on-green` builds on
+`green-gate`; the two leaves add the post-merge side effects and each reaches forward to a sibling
+story.
+
+*(Was seven until 2026-08-31, when `gate-ci-parity` left for `stories/cli` with its code — see the
+frontmatter note. Row numbers here are positional and safe to renumber: nothing outside this file
+cites a capability by row number, and the prose above names capabilities rather than positions. This
+is the opposite of the open modeling calls below, whose numbers ARE cited from other files and are
+therefore never reused or shifted.)*
 
 | # | capability | outcome | status | depends on |
 |---|---|---|---|---|
 | 1 | [`green-gate`](green-gate.md) | A PR's `verify` job proves it against the merge of branch+main — organism boundaries, cross-surface mirror conformance, the two web checks, typecheck, test, build, and root CLAUDE.md + AGENTS.md plus all four harness-native specialist agent views in sync — and a red anything blocks the merge. | proposed | — |
 | 2 | [`repo-surface-manifest`](repo-surface-manifest.md) | `pnpm check:manifest` refuses any tracked root entry or loose doc not declared in `repo-manifest.json`, so ad-hoc junk can't merge. | proposed | — |
 | 3 | [`adr-health-gate`](adr-health-gate.md) | Decision-binding hygiene on the dev-repo path: atomic ADR-number allocation + the full adr-health suite (frontmatter, edges, supersede, story-decisions, green-flip, number-uniqueness) reddens a PR, plus a cross-open-PR collision check. | proposed | — |
-| 4 | [`gate-ci-parity`](gate-ci-parity.md) | The local `pnpm gate` and the CI `verify` invariant sets stand in one declared, checkable relationship — a shared content floor of eight checks, a two-way content delta (CI keeps steps the local plan does not, and the local plan keeps one CI does not), and HEAD vs merge-ref; a stale-behind-main branch is surfaced. | proposed | `green-gate` |
-| 5 | [`auto-merge-on-green`](auto-merge-on-green.md) | A non-draft, non-`hold` PR auto-merges the instant `verify` is green — never a manual merge. | proposed | `green-gate` |
-| 6 | [`merge-presence-retire`](merge-presence-retire.md) | On merge, the merged session's presence row is authoritatively retired (the SessionEnd-miss backstop), keyless and fail-soft. | proposed | `auto-merge-on-green` |
-| 7 | [`deploy-on-merge`](deploy-on-merge.md) | A studio-touching merge to `main` redeploys the live studio to Cloud Run — keyless WIF → Cloud Build image → `gcloud run deploy` with the full IAP posture. | proposed | `auto-merge-on-green` |
+| 4 | [`auto-merge-on-green`](auto-merge-on-green.md) | A non-draft, non-`hold` PR auto-merges the instant `verify` is green — never a manual merge. | proposed | `green-gate` |
+| 5 | [`merge-presence-retire`](merge-presence-retire.md) | On merge, the merged session's presence row is authoritatively retired (the SessionEnd-miss backstop), keyless and fail-soft. | proposed | `auto-merge-on-green` |
+| 6 | [`deploy-on-merge`](deploy-on-merge.md) | A studio-touching merge to `main` redeploys the live studio to Cloud Run — keyless WIF → Cloud Build image → `gcloud run deploy` with the full IAP posture. | proposed | `auto-merge-on-green` |
 
 ## Dependency graph
 
 **Within-story** edges, read off the real pipeline (the `verify` → `automerge` job ordering in
 `ci.yml` and the `push:main` trigger of `deploy-studio.yml`):
 
-- `gate-ci-parity` → `green-gate` — parity is defined relative to the `verify` job's invariant set;
-  it asserts the local-gate set equals that set minus `pnpm -r build`.
 - `auto-merge-on-green` → `green-gate` — the `automerge` job `needs: verify` (`ci.yml:96`); it only
   runs after the gate is green.
 - `merge-presence-retire` → `auto-merge-on-green` — the retire steps are part of the SAME `automerge`
@@ -125,6 +156,18 @@ reaches forward to a sibling story.
   (subject to the GITHUB_TOKEN no-cascade note)". That inverted the edge — a `GITHUB_TOKEN` push
   never triggers `push:main`, so the cascade it named is precisely the thing that does NOT happen.
   ADR-0061 replaced it with the explicit dispatch, which is what actually makes this edge real.)*
+
+*(A fourth bullet, `gate-ci-parity` → `green-gate`, was REMOVED on 2026-08-31 — and it did not merely
+relocate to `stories/cli` with the capability, because the edge was FALSE. Run the
+`cross-story-dependency` test literally, both ways: that unit needs the `verify` job to EXIST IN
+`ci.yml`, a repository fact it reads with `node:fs` — never `green-gate`'s DELIVERED OUTCOME consumed
+through `green-gate`'s boundary, which is what an edge asserts. None of its three contracts consumes
+anything `green-gate` delivers; each derives its own answer at runtime and would pass or fail
+identically whether or not `green-gate` is ever signed. The bullet's own wording gave it away — "parity
+is defined relative to the `verify` job's invariant set" is a DEFINITIONAL relationship (shared
+subject), which the DAG does not encode. False both ways, so no `consumed_by: [cli]` is owed here
+either, and `ci-cd` keeps its zero inbound edges — the reasoning below is unchanged, not merely
+still-passing.)*
 
 **Cross-story boundary (ADR-0010 §4; direction per ADR-0058 §1, §3) — ci-cd's two OUTBOUND dependencies:**
 - `merge-presence-retire` depends on the **`presence-store`** capability of
@@ -339,14 +382,25 @@ witness. Opening the PR is now the session's own ceremony, not a repository seam
 
 Surfaced rather than guessed — plain files, cheap to revise.
 
-1. **`gate-ci-parity` has no deciding ADR (escalation).** It is the only genuinely NEW capability
-   here — the recurring "local-green / CI-red" friction lives today only in CLAUDE.md prose and
-   session memory. I authored it regardless (the friction is real and stranded three PRs at once per
-   CLAUDE.md), but the parity invariant — *what the local gate is contractually allowed to differ
-   from CI by* — is arguably an architectural decision that deserves its own ADR. **Call:** record
-   gate↔CI parity as an ADR (and add it to this story's `decisions:`), or leave it as a
-   capability-level contract. I did not pick a number (no `storytree adr new` from this authoring
-   role); flagging for the owner / orchestrator.
+1. **~~`gate-ci-parity` has no deciding ADR (escalation)~~ — CLOSED 2026-08-31, and the capability has
+   since LEFT this story.** Struck in place, never deleted or renumbered: this list's numbers are
+   cited from other files, so a closed item stands where it is or every later number shifts under its
+   citers.
+
+   **What it asked.** Whether the parity invariant — *what the local gate is contractually allowed to
+   differ from CI by* — deserved its own ADR, or should stay a capability-level contract. It was
+   flagged for the owner because the authoring role could not allocate a number.
+
+   **How it was answered — on BOTH halves.** (i) The ADR exists: **ADR-0486**, accepted 2026-08-31,
+   settles the contract (one declared two-way delta; the permitted delta classes closed at three;
+   every member asserted both ways; both sides read from their real definitions at runtime; a SKIP is
+   not an absence). (ii) It was NOT an owner escalation and should not have been raised as one —
+   measured against `owner-fork-bar` the question clears none of its three tests (reversible,
+   internal, a pure engineering tradeoff), and ADR-0304 D2 had already settled the direction by
+   requiring the gate and CI to share one affected-scope classifier. The escalation is WITHDRAWN, not
+   merely answered. (iii) The capability itself moved to [`stories/cli`](../cli/gate-ci-parity.md) on
+   2026-08-31 with its code — so this story's `decisions:` does NOT acquire 486; the capability
+   carries it. See the frontmatter note for the merits.
 2. **RESOLVED (owner, 2026-06-15 — ADR-0058).**
    The earlier "trunk with two forward leaf edges" framing was a modelling error. By the
    dependency-direction rule (ADR-0058 §1) ci-cd needs both sibling surfaces delivered to pass its own
@@ -405,5 +459,12 @@ Surfaced rather than guessed — plain files, cheap to revise.
    one isolated test proves the whole relationship, and Reliability Gate leg 3 above already asserts
    both directions in one command — one contract mirrors the proof shape that exists. The
    capability's title, frontmatter `outcome`, body Outcome paragraph and contract 2's caveat clause
-   were brought into line, as was row 4 of the capabilities table above; the capability stays at
+   were brought into line, as was its row in the capabilities table above; the capability stays at
    three contracts.
+
+   *(Two pointers repaired 2026-08-31, the resolution itself unchanged. The capability MOVED to
+   [`stories/cli`](../cli/gate-ci-parity.md), so this item is history about a unit another story now
+   owns — kept here because the decision was made here and the number is cited. And "row 4 of the
+   capabilities table above" was re-worded to name the capability instead: row 4 is now
+   `auto-merge-on-green`, so the positional reference had silently re-pointed. Reliability Gate 3 and
+   UAT leg 3 are unaffected — both stayed with this story.)*
