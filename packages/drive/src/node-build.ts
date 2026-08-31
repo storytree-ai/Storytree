@@ -902,6 +902,19 @@ export async function driveNode(spec: NodeSpec, args: DriveNodeArgs): Promise<Dr
   }
 }
 
+/** One slice's token breakdown, in the shape all three leaves report it. */
+function formatUsage(u: {
+  outputTokens: number;
+  inputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+}): string {
+  return (
+    `${u.outputTokens} out / ${u.inputTokens} in / ` +
+    `${u.cacheReadInputTokens} cache-read / ${u.cacheCreationInputTokens} cache-write`
+  );
+}
+
 /**
  * How the pi leaf's endpoint is named in a build envelope. It says "fresh provider id" because that
  * is the load-bearing half: pi's built-in `anthropic` provider is REFUSED by wall 1, and this run
@@ -912,24 +925,24 @@ export const PI_LEAF_ENDPOINT_LABEL = "→ Anthropic on the subscription credent
 /** The per-node leaf summary lines shared by the node and story envelopes. */
 export function liveLeafLines(liveAuthor: LiveAuthor): string[] {
   if (liveAuthor.runtime === "pi") {
+    // Split ONCE, the way the ADR-0446 sink splits them: a tool-surface refusal carries NO path and
+    // is not a write-fence firing, so folding it into the write count would inflate the one number
+    // that line exists to report. Bound to names rather than re-filtered per branch — the two arms
+    // of each line must read the SAME list, and re-deriving it is how they come to disagree.
+    const writeRefusals = liveAuthor.violations.filter((v) => v.kind !== "tool-surface");
+    const surfaceRefusals = liveAuthor.violations.filter((v) => v.kind === "tool-surface");
+    const slices = liveAuthor.runs
+      .map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`)
+      .join("; ");
+    const metered = liveAuthor.runs.flatMap((r) =>
+      r.usage === undefined ? [] : [`${r.phase}: ${formatUsage(r.usage)}`],
+    );
     return [
-      `leaf:        pi ${PI_LEAF_ENDPOINT_LABEL} (${liveAuthor.runs.map((r) => `${r.phase}: ${r.subtype}, ${r.turns} turns`).join("; ") || "no slices ran"})`,
+      `leaf:        pi ${PI_LEAF_ENDPOINT_LABEL} (${slices === "" ? "no slices ran" : slices})`,
       "cost:        not metered — Claude subscription draw via CLAUDE_CODE_OAUTH_TOKEN (ADR-0449; no API/list-price USD asserted)",
-      ...(liveAuthor.runs.some((r) => r.usage !== undefined)
-        ? [
-            `tokens:      ${liveAuthor.runs
-              .flatMap((r) => (r.usage === undefined ? [] : [{ phase: r.phase, u: r.usage }]))
-              .map(
-                ({ phase, u }) =>
-                  `${phase}: ${u.outputTokens} out / ${u.inputTokens} in / ${u.cacheReadInputTokens} cache-read / ${u.cacheCreationInputTokens} cache-write`,
-              )
-              .join("; ")}`,
-          ]
-        : []),
-      // Split the way the ADR-0446 sink splits them: a tool-surface refusal carries NO path and is
-      // not a write-fence firing, so folding it in would inflate the one count that line reports.
-      `scope walls: ${liveAuthor.violations.filter((v) => v.kind !== "tool-surface").length === 0 ? "no write refusals" : liveAuthor.violations.filter((v) => v.kind !== "tool-surface").map((v) => `${v.phase}:${v.path}`).join(", ")}`,
-      `tool surface: ${liveAuthor.violations.filter((v) => v.kind === "tool-surface").length === 0 ? "no off-surface tool calls" : liveAuthor.violations.filter((v) => v.kind === "tool-surface").map((v) => `${v.phase}:${v.tool}`).join(", ")}`,
+      ...(metered.length === 0 ? [] : [`tokens:      ${metered.join("; ")}`]),
+      `scope walls: ${writeRefusals.length === 0 ? "no write refusals" : writeRefusals.map((v) => `${v.phase}:${v.path}`).join(", ")}`,
+      `tool surface: ${surfaceRefusals.length === 0 ? "no off-surface tool calls" : surfaceRefusals.map((v) => `${v.phase}:${v.tool}`).join(", ")}`,
       "feedback:    none — the spine reruns every registered proof command out of band",
     ];
   }

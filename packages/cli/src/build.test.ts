@@ -103,3 +103,20 @@ test("build node (bare) and build story (bare) surface their primitive help", as
   assert.equal(story.ok, true);
   assert.match(story.body, /storytree story/);
 });
+
+/**
+ * The `storytree build` flag list is a USER SURFACE, and until this test it had none: the two lines
+ * naming the runtimes and their constraints could be deleted whole and nothing noticed. That matters
+ * more than a help string usually would here, because the line is where an operator learns that
+ * `--runtime pi` is `--live` only (ADR-0449) — the constraint the flag itself enforces, stated
+ * where someone reads it before typing the command rather than only in the refusal afterwards.
+ */
+test("build --help names all three runtimes and the constraints that bind them", async () => {
+  const help = await run(["build", "--help"], { store: await seeded() });
+  assert.equal(help.ok, true);
+  assert.match(help.body, /--runtime claude\|codex\|pi \(default: claude\)/);
+  assert.match(help.body, /--model <runtime-model-id>/);
+  // The two cost-guard constraints, each naming which runtime it binds.
+  assert.match(help.body, /--budget <usd> \(Claude only\)/);
+  assert.match(help.body, /--runtime pi is --live only \(ADR-0449\)/);
+});

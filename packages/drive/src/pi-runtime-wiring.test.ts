@@ -43,8 +43,10 @@ import {
   PI_LEAF_ENDPOINT_LABEL,
   honestFramingLive,
   liveLeafLines,
+  nodeBuild,
   resolveLiveRuntime,
 } from "./node-build.js";
+import { storyBuild } from "./story-build.js";
 
 /** A token shaped like the real subscription credential. NOT a credential — no such account. */
 const FAKE_SUBSCRIPTION_TOKEN = "sk-ant-oat01-not-a-real-token-fixture";
@@ -138,18 +140,29 @@ test("the pi build envelope NAMES ADR-0449's frontier-model gap — the requirem
   // it is discharged by a MECHANISM (printed on every pi build) rather than by whoever writes the
   // admission up remembering. Deleting the clause reds this test.
   const pi = honestFramingLive(false, "pi", "library-cli");
-  assert.match(pi, /ADR-0449 GAP, NAMED/);
-  assert.match(pi, /FRONTIER model/);
-  assert.match(pi, /NOT the weaker local open-weight model/);
+  // The WHOLE clause, newlines collapsed — asserted as one sentence rather than three keywords,
+  // because a keyword set survives having most of the sentence deleted around it.
+  assert.match(
+    pi.replace(/\s+/g, " "),
+    /ADR-0449 GAP, NAMED: this run exercised pi's fence under a FRONTIER model \(the subscription Claude endpoint\), NOT the weaker local open-weight model pi would run day to day — which is the kind of model the trial exists to find an alternative to\. A pass here is evidence about the fence under a capable model only\./,
+  );
   // And it names the leaf that actually ran, not the Claude default.
   assert.match(pi, /pi agent loop against Anthropic on the subscription credential/);
+  assert.match(pi, /under pi's in-process tool_call fence/);
+  // The shared tail is still present — the gap is APPENDED to the framing, never a replacement.
+  assert.match(pi, /The node's authored status is untouched/);
+  assert.match(pi, /the verdict landed in an in-memory store and is gone/);
+  assert.match(honestFramingLive(true, "pi", "library-cli"), /signed verdict PERSISTED/);
 
-  // The gap clause is pi-SPECIFIC: the other two runtimes do not carry a claim about pi's fence.
-  for (const runtime of ["claude", "codex"] as const) {
-    const other = honestFramingLive(false, runtime, "library-cli");
-    assert.doesNotMatch(other, /ADR-0449 GAP/);
-    assert.doesNotMatch(other, /pi agent loop/);
-  }
+  // The gap clause is pi-SPECIFIC: the other two runtimes do not carry a claim about pi's fence,
+  // and each still names its OWN leaf (so "no pi text" is not satisfied by an empty framing).
+  const claude = honestFramingLive(false, "claude", "library-cli");
+  assert.doesNotMatch(claude, /ADR-0449 GAP/);
+  assert.doesNotMatch(claude, /pi agent loop/);
+  assert.match(claude, /the Claude Agent SDK with subscription authentication/);
+  const codex = honestFramingLive(false, "codex", "library-cli");
+  assert.doesNotMatch(codex, /ADR-0449 GAP/);
+  assert.match(codex, /the Codex CLI with saved ChatGPT subscription authentication/);
 });
 
 test("liveLeafLines reports a pi run as subscription-drawn, and splits the two wall kinds apart", () => {
@@ -169,13 +182,38 @@ test("liveLeafLines reports a pi run as subscription-drawn, and splits the two w
       apiKey: FAKE_SUBSCRIPTION_TOKEN,
     },
   });
-  author.runs.push({ phase: "AUTHOR_TEST", source: "pi-leaf", subtype: "success", turns: 2, model: "m" });
+  // BEFORE any slice: the empty-runs fallback. A leaf that ran nothing must SAY so — an empty
+  // parenthesis would read as a run that happened and reported nothing.
+  const empty = liveLeafLines(author).join("\n");
+  assert.match(empty, /\(no slices ran\)/);
+  assert.doesNotMatch(empty, /^tokens:/m, "no slice reported usage, so there is no tokens line");
+
+  author.runs.push({
+    phase: "AUTHOR_TEST",
+    source: "pi-leaf",
+    subtype: "success",
+    turns: 2,
+    model: "m",
+    usage: {
+      inputTokens: 2,
+      outputTokens: 122,
+      cacheReadInputTokens: 27974,
+      cacheCreationInputTokens: 174,
+    },
+  });
 
   const clean = liveLeafLines(author).join("\n");
   assert.match(clean, /leaf: *pi/);
   assert.ok(
     clean.includes(PI_LEAF_ENDPOINT_LABEL),
     `the leaf line must name the endpoint: ${clean}`,
+  );
+  assert.match(clean, /AUTHOR_TEST: success, 2 turns/);
+  assert.doesNotMatch(clean, /no slices ran/);
+  // The token breakdown, in full — every field, so dropping one is caught.
+  assert.match(
+    clean,
+    /tokens: +AUTHOR_TEST: 122 out \/ 2 in \/ 27974 cache-read \/ 174 cache-write/,
   );
   // NEVER a USD figure: pi meters nothing this process can read, and printing a zero would be a
   // claim about spend rather than the absence of one (ADR-0232's reasoning, ADR-0449's credential).
@@ -208,4 +246,77 @@ test("liveLeafLines reports a pi run as subscription-drawn, and splits the two w
   assert.doesNotMatch(scopeLine, /bash/, "a tool-surface refusal must not appear as a write refusal");
   assert.match(surfaceLine, /bash/);
   assert.doesNotMatch(surfaceLine, /impl\.cjs/);
+});
+
+// ── The narrowing, asserted IN THIS PACKAGE ────────────────────────────────────────────────────
+//
+// `packages/cli` drives both verbs through `run()` and asserts the same refusals. These are not
+// duplicates of those: the refusals LIVE here, and a guard whose only test sits in another package
+// is one the mutation rung cannot attribute — it reported these very lines as reached by nothing.
+// Same reason the fence's scope predicate is proved where it is consumed rather than where it is
+// declared. Neither call spends: both refuse before any leaf is constructed.
+
+test("nodeBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", async () => {
+  const real = await nodeBuild("library-cli", {
+    dryRun: false,
+    real: true,
+    runtime: "pi",
+    actor: "t@example.com",
+  });
+  assert.equal(real.ok, false);
+  assert.match(real.body, /--runtime pi is admitted for --live only/);
+  assert.match(real.body, /ADR-0449/);
+  // The refusal must say what it is protecting, not just say no.
+  assert.match(real.body, /promotes\s+a commit toward main/);
+
+  const budget = await nodeBuild("library-cli", {
+    dryRun: false,
+    live: true,
+    runtime: "pi",
+    budgetUsd: 1,
+    actor: "t@example.com",
+  });
+  assert.equal(budget.ok, false);
+  assert.match(budget.body, /--budget is unavailable with --runtime pi/);
+  assert.match(budget.body, /--max-turns is\s+the leaf's real cost guard/);
+
+  // The SAME flags on claude are NOT refused by these guards — so the refusals are pi-specific
+  // rather than a blanket block that would read identically from outside.
+  const claude = await nodeBuild("library-cli", {
+    dryRun: false,
+    real: true,
+    runtime: "claude",
+    actor: "t@example.com",
+  });
+  assert.doesNotMatch(claude.body, /--runtime pi is admitted/);
+});
+
+test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", async () => {
+  const real = await storyBuild("library", {
+    dryRun: false,
+    real: true,
+    runtime: "pi",
+    actor: "t@example.com",
+  });
+  assert.equal(real.ok, false);
+  assert.match(real.body, /--runtime pi is admitted for --live only/);
+  assert.match(real.body, /ADR-0449/);
+
+  const budget = await storyBuild("library", {
+    dryRun: false,
+    live: true,
+    runtime: "pi",
+    budgetUsd: 1,
+    actor: "t@example.com",
+  });
+  assert.equal(budget.ok, false);
+  assert.match(budget.body, /--budget is unavailable with --runtime pi/);
+
+  const claude = await storyBuild("library", {
+    dryRun: false,
+    real: true,
+    runtime: "claude",
+    actor: "t@example.com",
+  });
+  assert.doesNotMatch(claude.body, /--runtime pi is admitted/);
 });
