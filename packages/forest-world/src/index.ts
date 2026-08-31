@@ -64,7 +64,10 @@ export {
 
 export {
   type BoundarySeg,
+  COAST_OUTSET,
+  COAST_SMOOTH_ITERS,
   boundaryRingLoops,
+  jitteredOutset,
   loopSignedArea,
   outsetLoop,
   chaikinClosed,
