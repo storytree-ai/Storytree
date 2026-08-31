@@ -111,11 +111,18 @@ export const SHORE_DIP = 0.62;
  * module — so every figure about what the shore fall moved has a denominator that is a picture
  * somebody actually took. The three real arms differ in the band WIDTH and in nothing else.
  */
-export type ShoreArm = 'none' | 'authored' | 'beach' | 'shelf';
+export type ShoreArm = 'none' | 'authored' | 'beach' | 'shelf' | 'ring' | 'ring-pair';
 
 /** Every arm, control first. A list rather than a union re-spelled at each call site, so an arm
  *  cannot be added to the type and quietly left out of the comparison. */
-export const SHORE_ARMS: readonly ShoreArm[] = ['none', 'authored', 'beach', 'shelf'];
+export const SHORE_ARMS: readonly ShoreArm[] = [
+  'none',
+  'authored',
+  'beach',
+  'shelf',
+  'ring',
+  'ring-pair',
+];
 
 /**
  * The band width each arm draws, in ground units.
@@ -136,12 +143,21 @@ export const SHORE_ARMS: readonly ShoreArm[] = ['none', 'authored', 'beach', 'sh
  * width would buy if the mesh could carry it: 315 vertices moved against 253, 239 rung flips
  * against 208. It is NOT the shipped arm, and the reason is measured rather than aesthetic — see
  * {@link SHIPPED_SHORE}.
+ *
+ * ⚠⚠ `ring` AND `ring-pair` MOVE A DIFFERENT VARIABLE, AND THEIR WIDTH IS DELIBERATELY `beach`'s.
+ * They are the answer to the void above rather than another guess at the width: both draw the
+ * SAME 7-unit band as `beach` and differ from it only in that the mesh gains vertices INSIDE that
+ * band for the falloff to bend through (`src/shore-ring.ts` owns which insets, and
+ * `SHORE_ARM_INSETS` is the table). So `beach` is their control and the comparison is one thing
+ * apart, exactly as `authored` against `beach` is one thing apart on the width axis.
  */
 export const SHORE_ARM_WIDTH = {
   none: 0,
   authored: AUTHORED_SHORE_WIDTH,
   beach: COAST_OUTSET,
   shelf: 16.5,
+  ring: COAST_OUTSET,
+  'ring-pair': COAST_OUTSET,
 } satisfies Record<ShoreArm, number>;
 
 /**
