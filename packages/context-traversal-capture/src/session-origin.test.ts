@@ -19,7 +19,9 @@ import {
   describeSessionOrigin,
   foldSessionOrigin,
   parseSessionOriginDeclaration,
+  censusSessionOrigins,
   resolveSessionOrigin,
+  undeclaredOriginNudge,
   CUT_BY_SESSION_ENV,
   CUT_FOR_UNIT_ENV,
   SESSION_ORIGIN_ENV,
@@ -295,4 +297,124 @@ test("a-declaration-wins-over-the-environment-and-neither-is-ever-inferred: decl
     assert.equal(resolved?.kind, outcome.declaration.origin);
     assert.deepEqual(resolveSessionOrigin({ env: request as Record<string, string>, declaration: null }), null);
   }
+});
+
+// ---------------------------------------------------------------------------
+// undeclaredOriginNudge — the SessionStart ask (ADR-0487)
+// ---------------------------------------------------------------------------
+
+/** A declared origin, in the shape the resolver returns one. */
+const DECLARED_HUMAN = { kind: "human", cutBy: null, cutFor: null } as const;
+
+/**
+ * The whole ask, pinned verbatim.
+ *
+ * A golden rather than a handful of `assert.match` probes, because this line is CONCATENATED from
+ * six string literals and each one is separately mutable to `""` — a regex kills only the segment it
+ * quotes and leaves the rest able to empty silently. Every clause here is load-bearing: the session
+ * id, both declaration shapes, the sentence saying where the answer is legible (without which the
+ * ask invites the guess this module exists to refuse), and the closing refusal to infer. It is
+ * deliberately brittle — rewording the ask is meant to fail here.
+ */
+const ORIGIN_NUDGE_LINE =
+  '[storytree] Session "window-abc" has NOT declared its ORIGIN (ADR-0487) — so every line it ' +
+  "traces reads `unknown`, which is never a synonym for human-started. You can answer this from " +
+  "your own opening: an operator's prompt means `human`, a predecessor's brief means `cut`. " +
+  "Declare it once, and every line from here on carries the answer: pnpm storytree traversal " +
+  "origin --origin human — or, if a predecessor briefed you, pnpm storytree traversal origin " +
+  "--cut-by <the session that cut you, when its brief names it> [--cut-for <arc-or-increment-id>]. " +
+  "Nothing infers this, and nothing may: an origin nobody stated stays absent rather than guessed.\n";
+
+test("undeclaredOriginNudge: an undeclared session with a trace identity is ASKED, and the whole ask is pinned", () => {
+  assert.equal(undeclaredOriginNudge({ sessionId: "window-abc", origin: null }), ORIGIN_NUDGE_LINE);
+  // SessionStart stdout is line-oriented — the claim nudge beside this one ends the same way, and a
+  // missing terminator would run the two asks together into one unreadable paragraph.
+  assert.ok(ORIGIN_NUDGE_LINE.endsWith("\n"));
+});
+
+test("undeclaredOriginNudge: SILENT once answered — by a declaration or by the environment", () => {
+  assert.equal(
+    undeclaredOriginNudge({ sessionId: "window-abc", origin: DECLARED_HUMAN }),
+    "",
+    "a session that already declared is not asked again",
+  );
+  // The environment channel resolves to the same shape, so a launcher-set origin silences it too —
+  // asserted through the real resolver rather than a hand-built literal, so the two cannot drift.
+  const fromLauncher = resolveSessionOrigin({
+    env: { [SESSION_ORIGIN_ENV]: "cut", [CUT_BY_SESSION_ENV]: "predecessor" },
+    declaration: null,
+  });
+  assert.notEqual(fromLauncher, null, "precondition: the environment channel resolves an origin");
+  assert.equal(
+    undeclaredOriginNudge({ sessionId: "window-abc", origin: fromLauncher }),
+    "",
+    "a launcher that set the environment has already answered; the ask would be noise",
+  );
+});
+
+test("undeclaredOriginNudge: a session resolving NO trace identity is not asked at all", () => {
+  // The primary checkout, CI and the lobby resolve no session id — and those are exactly the runs
+  // that capture no trace, so there is no row for an origin to label. Asking there would spend a
+  // line of every such start's context on a question with nothing to answer for.
+  assert.equal(undeclaredOriginNudge({ sessionId: null, origin: null }), "");
+  assert.equal(undeclaredOriginNudge({ sessionId: null, origin: DECLARED_HUMAN }), "");
+});
+
+test("undeclaredOriginNudge: PURE — the same inputs give the same line, and it reads no ambient state", () => {
+  const once = undeclaredOriginNudge({ sessionId: "window-abc", origin: null });
+  const twice = undeclaredOriginNudge({ sessionId: "window-abc", origin: null });
+  assert.equal(once, twice);
+  // Two different sessions get two different lines, which is the only thing that varies: the ask is
+  // otherwise static, so it can be emitted by a hook that opens no store and reads no clock.
+  assert.notEqual(once, undeclaredOriginNudge({ sessionId: "window-xyz", origin: null }));
+});
+
+// ---------------------------------------------------------------------------
+// censusSessionOrigins — the coverage reading (ADR-0487)
+// ---------------------------------------------------------------------------
+
+test("censusSessionOrigins: the four counts PARTITION the population exactly", () => {
+  const census = censusSessionOrigins(["human", "cut", "cut", "unknown", "unknown", "unknown", "mixed"]);
+
+  assert.equal(census.total, 7);
+  assert.equal(census.human, 1);
+  assert.equal(census.cut, 2);
+  assert.equal(census.unknown, 3);
+  assert.equal(census.mixed, 1);
+  // The property that makes the reading trustworthy: no session is counted twice and none is
+  // dropped. A census whose parts did not sum to its whole could report any share at all.
+  assert.equal(census.human + census.cut + census.unknown + census.mixed, census.total);
+});
+
+test("censusSessionOrigins: the share counts only QUOTABLE origins — `mixed` is excluded, `unknown` is never subtracted", () => {
+  const census = censusSessionOrigins(["human", "cut", "mixed", "unknown"]);
+  // 2 of 4, not 3 of 4 (mixed inflating it) and not 2 of 3 (unknown quietly dropped from the
+  // denominator). Dropping `unknown` is the specific dishonesty this figure exists to prevent: it
+  // would report 100% coverage the moment two sessions declared.
+  assert.equal(census.quotableShare, 0.5);
+
+  assert.equal(censusSessionOrigins(["mixed", "mixed"]).quotableShare, 0, "a contradiction is not coverage");
+  assert.equal(censusSessionOrigins(["unknown", "unknown"]).quotableShare, 0);
+  assert.equal(censusSessionOrigins(["human", "cut"]).quotableShare, 1);
+});
+
+test("censusSessionOrigins: an EMPTY population reads zero rather than dividing by zero", () => {
+  assert.deepEqual(censusSessionOrigins([]), {
+    total: 0,
+    human: 0,
+    cut: 0,
+    unknown: 0,
+    mixed: 0,
+    quotableShare: 0,
+  });
+});
+
+test("censusSessionOrigins: today's real shape — a wholly undeclared population reads 0, and says so as `unknown` rather than as `human`", () => {
+  // The state this landed into: 811 traces, not one declaration. The census must report that as a
+  // fully UNKNOWN population — the moment it reported it as human-started, every downstream figure
+  // would inherit the assumption ADR-0484 D7 was built to remove.
+  const census = censusSessionOrigins(new Array(811).fill("unknown"));
+  assert.equal(census.unknown, 811);
+  assert.equal(census.human, 0);
+  assert.equal(census.quotableShare, 0);
 });

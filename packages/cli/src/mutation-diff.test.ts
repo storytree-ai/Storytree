@@ -15,6 +15,7 @@ import {
   formatNarrowingLines,
   entryPointsFromMirrorRegistry,
   entryPointsFromScripts,
+  entryPointsFromShellScripts,
   formatMutationVerdict,
   isTestFile,
   type MutationReport,
@@ -2400,5 +2401,46 @@ test("mutation-diff: the hand-check instruction says WHY the wrong span proves n
       "[m] mutants of one mutator, and replacing the wrong one disproves a mutant nobody reported.",
     ),
     lines.join("\n"),
+  );
+});
+
+// ── entryPointsFromShellScripts — the third exemption source ─────────────────
+
+test("entryPointsFromShellScripts: finds the .ts entry a shell script invokes, however it is quoted", () => {
+  // The REAL shape, from `scripts/presence-hook.sh`: the path is a quoted assignment, later
+  // interpolated. No package.json script names it, which is exactly why the other two derivations
+  // cannot see it — and mutating it aborts the whole rung rather than merely scoring badly.
+  const entries = entryPointsFromShellScripts([
+    [
+      'rel_tsx="packages/cli/node_modules/.bin/tsx"',
+      'rel_entry="packages/cli/src/ambient-presence-entry.ts"',
+      'exec "${rel_tsx}" "${rel_entry}" "$@"',
+    ].join("\n"),
+  ]);
+
+  assert.deepEqual(entries, ["packages/cli/src/ambient-presence-entry.ts"]);
+});
+
+test("entryPointsFromShellScripts: the `tsx` BINARY is not mistaken for a .ts file", () => {
+  // Without the word boundary this matches `.bin/tsx` and exempts a node_modules directory — a
+  // silent widening of the exemption, which is the one direction this derivation must never fail in.
+  assert.deepEqual(entryPointsFromShellScripts(['x="node_modules/.bin/tsx"']), []);
+  assert.deepEqual(entryPointsFromShellScripts(["run tsx src/thing.tsx"]), []);
+});
+
+test("entryPointsFromShellScripts: a bare name with no directory is not a repo path", () => {
+  // A word in a comment must not exempt a file that happens to share its name.
+  assert.deepEqual(entryPointsFromShellScripts(["# see notes.ts for why"]), []);
+  assert.deepEqual(entryPointsFromShellScripts(["# see ./src/notes.ts"]), ["src/notes.ts"]);
+});
+
+test("entryPointsFromShellScripts: dedupes and sorts across scripts, and an empty set is empty", () => {
+  assert.deepEqual(entryPointsFromShellScripts([]), []);
+  assert.deepEqual(
+    entryPointsFromShellScripts([
+      "node packages/cli/src/z.ts",
+      "node packages/cli/src/z.ts\nnode packages/cli/src/a.ts",
+    ]),
+    ["packages/cli/src/a.ts", "packages/cli/src/z.ts"],
   );
 });

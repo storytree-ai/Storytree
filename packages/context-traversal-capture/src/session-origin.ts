@@ -316,3 +316,115 @@ export function describeSessionOrigin(reading: SessionOriginReading): string {
       return "CONTRADICTORY — this session's lines claim BOTH a human start and an agent cut; neither may be quoted as its origin";
   }
 }
+
+// ---------------------------------------------------------------------------
+// The coverage reading (ADR-0487)
+// ---------------------------------------------------------------------------
+
+/** How many sessions say what about their own origin. Counts partition the population exactly. */
+export interface SessionOriginCensus {
+  readonly total: number;
+  readonly human: number;
+  readonly cut: number;
+  readonly unknown: number;
+  readonly mixed: number;
+  /**
+   * The share of sessions carrying a QUOTABLE origin — `(human + cut) / total`, and `0` for an empty
+   * population rather than a division by zero. `mixed` is excluded on purpose: those sessions did
+   * state something, but nothing a reader may quote, so counting them here would inflate exactly the
+   * figure this census exists to keep honest.
+   */
+  readonly quotableShare: number;
+}
+
+/**
+ * Fold a population of per-session readings into a coverage census (ADR-0487 deliverable 3).
+ *
+ * ⚠ THIS IS A READING, NOT A COMPLIANCE GRADE, and the distinction is load-bearing rather than
+ * decorative. Its purpose is to make the PARTIALITY of origin coverage visible in the data instead
+ * of assumed away: any figure computed over origins is computed over the declared subset, and
+ * without this number a reader cannot tell how big that subset is. It is deliberately not a gate
+ * rung — a compliance gate over a judgment ceremony manufactures the very theatre
+ * `a-compliance-gate-turns-a-judgment-ceremony-into-theatre` names, and it could not score the
+ * honest case (a session that simply never ran the verb) as anything but a failure.
+ *
+ * `unknown` is counted, never subtracted or defaulted. It is the honest majority for as long as the
+ * pre-declaration history is in the population, and quietly dropping it would restore the reassuring
+ * reading ADR-0484 D7 removed.
+ */
+export function censusSessionOrigins(
+  readings: readonly SessionOriginReading[],
+): SessionOriginCensus {
+  let human = 0;
+  let cut = 0;
+  let unknown = 0;
+  let mixed = 0;
+  for (const reading of readings) {
+    if (reading === "human") human += 1;
+    else if (reading === "cut") cut += 1;
+    else if (reading === "mixed") mixed += 1;
+    else unknown += 1;
+  }
+  const total = readings.length;
+  return {
+    total,
+    human,
+    cut,
+    unknown,
+    mixed,
+    quotableShare: total === 0 ? 0 : (human + cut) / total,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// The SessionStart ask (ADR-0487)
+// ---------------------------------------------------------------------------
+
+/** What {@link undeclaredOriginNudge} needs. Both fields are RESOLVED by the caller, never read here. */
+export interface OriginNudgeInput {
+  /** This session's trace identity, or null when the invocation resolves none. */
+  readonly sessionId: string | null;
+  /** The origin already established, by declaration or environment — null when none is. */
+  readonly origin: SessionOrigin | null;
+}
+
+/**
+ * THE ONE LINE THAT ASKS A SESSION FOR ITS OWN ORIGIN — the SessionStart channel (ADR-0487).
+ *
+ * ADR-0484 D7 built two channels and neither had a producer, so every trace since read `unknown`:
+ * the environment channel needs a launcher storytree does not own (a cut is a desktop `spawn_task`
+ * chip), and the declaration verb needs somebody to run it. ADR-0487 settles WHICH side is asked —
+ * the SUCCESSOR, from its own side, rather than a mandated line in every cut brief.
+ *
+ * ⚠ WHY THE SUCCESSOR AND NOT THE CUTTER, since the CLI's own render leans the other way. Whether a
+ * session was cut AT ALL is the one part it can answer for itself: it need only look at its own
+ * opening — an operator's prompt, or a predecessor's brief. Only the cutter's IDENTITY is
+ * genuinely unavailable, and asking the cutter for it buys the difference between "usually" and
+ * "always", because a brief already names its predecessor for unrelated reasons. The decisive half
+ * is arithmetic rather than taste: a cutter-side mandate can only ever produce `cut` labels, so
+ * `unknown` keeps conflating human-started with undeclared-cut and the SHARE ADR-0484 D7 exists to
+ * measure has no denominator. Asking every session yields both populations.
+ *
+ * SILENT ONCE ANSWERED, and silent where there is nothing to answer. A session that has already
+ * declared — or whose launcher set the environment — costs no line, so this is a question asked
+ * until it is answered rather than a standing tax on every start. A session resolving NO trace
+ * identity (the primary checkout, CI, the lobby) is not asked at all, because those are exactly the
+ * runs that capture no trace: there is no row for an origin to label.
+ *
+ * PURE, like its {@link undeclaredSessionNudge} sibling in `drive` and like everything else in this
+ * module: no clock, no filesystem, no ambient `process.env`. The caller resolves both inputs.
+ */
+export function undeclaredOriginNudge(input: OriginNudgeInput): string {
+  if (input.sessionId === null) return "";
+  if (input.origin !== null) return "";
+  return (
+    `[storytree] Session "${input.sessionId}" has NOT declared its ORIGIN (ADR-0487) — so every ` +
+    "line it traces reads `unknown`, which is never a synonym for human-started. You can answer " +
+    "this from your own opening: an operator's prompt means `human`, a predecessor's brief means " +
+    "`cut`. Declare it once, and every line from here on carries the answer: " +
+    "pnpm storytree traversal origin --origin human — or, if a predecessor briefed you, " +
+    "pnpm storytree traversal origin --cut-by <the session that cut you, when its brief names it> " +
+    "[--cut-for <arc-or-increment-id>]. Nothing infers this, and nothing may: an origin nobody " +
+    "stated stays absent rather than guessed.\n"
+  );
+}

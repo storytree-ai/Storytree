@@ -293,6 +293,52 @@ export function entryPointsFromScripts(scripts: Readonly<Record<string, string>>
  * Typed structurally rather than by importing `MirrorTarget`: this module is the pure core and must
  * not grow a dependency on the registry it reads a shape from.
  */
+/**
+ * The executable ENTRY POINTS a repo shell script invokes — the THIRD kind, exempt for the reason
+ * the other two are.
+ *
+ * WHY A THIRD SOURCE WAS NEEDED, measured 2026-08-31. The two derivations beside this one see a file
+ * a root `package.json` script names, and a probe the mirror registry spawns. Neither can see
+ * `packages/cli/src/ambient-presence-entry.ts`, which is invoked by `scripts/presence-hook.sh` —
+ * itself named in `.claude/settings.json`'s `SessionStart` block. It is an entry point by every
+ * property that matters here (nothing imports it, and it ends `void main().finally(() =>
+ * process.exit(0))`), and it was invisible to the exemption purely because its invoker is a shell
+ * script rather than an npm script.
+ *
+ * ⚠ THE FAILURE IT PRODUCES NAMES NOTHING, which is why this is worth a derivation rather than a
+ * note. Adding that file to the mutate set makes the runner LOAD it, its module-scope
+ * `process.exit(0)` kills the bun test process before a single test is discovered, and the rung
+ * aborts with `No tests were found` — pointing at the test configuration, which is fine. It does not
+ * even need a mutant: reproduced with the file instrumented to **0 mutant(s)** and the run still
+ * died. That is the same whole-rung abort {@link entryPointsFromMirrorRegistry} exists to prevent,
+ * arriving through a door it does not watch.
+ *
+ * DERIVED, NOT DECLARED, on the same rule as its siblings: a file is exempt only because a script in
+ * the repo INVOKES it. There is no opt-out comment and no ignore list — the only way into this set is
+ * to add a real invocation to a real script, and every exemption is printed by the rung.
+ *
+ * Takes the scripts' CONTENTS rather than their paths so it stays pure and testable offline; the
+ * caller does the read. The filenames are not passed because nothing here needs them: an exemption is
+ * a fact about the file being INVOKED, never about which script invoked it.
+ */
+export function entryPointsFromShellScripts(scriptContents: readonly string[]): string[] {
+  const found = new Set<string>();
+  // A path-shaped token ending in `.ts`. The `\b` matters: without it this also matches the `tsx`
+  // binary path every hook launcher resolves (`packages/cli/node_modules/.bin/tsx`), exempting a
+  // directory rather than an entry point. Quotes and `$`-interpolation are not path characters, so
+  // the class ends the match for us and `rel_entry="packages/cli/src/x.ts"` yields the bare path.
+  const pathish = /[A-Za-z0-9_./-]+\.ts\b/g;
+  for (const contents of scriptContents) {
+    for (const [token] of contents.matchAll(pathish)) {
+      // A bare `foo.ts` with no directory is not a repo path a script could invoke; requiring the
+      // separator keeps a word in a comment from exempting a file that happens to share its name.
+      if (!token.includes("/")) continue;
+      found.add(normalise(token));
+    }
+  }
+  return [...found].sort();
+}
+
 export function entryPointsFromMirrorRegistry(
   targets: readonly { readonly reference: { readonly file: string }; readonly mirror: { readonly file: string } }[],
 ): string[] {

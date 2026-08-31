@@ -4,6 +4,13 @@ import * as os from "node:os";
 import path from "node:path";
 import process from "node:process";
 
+import {
+  readSessionOriginDeclaration,
+  resolveSessionOrigin,
+  resolveTraceIdentity,
+  resolveTraversalDir,
+  undeclaredOriginNudge,
+} from "@storytree/context-traversal-capture";
 import { statuslineGlance, undeclaredSessionNudge } from "@storytree/drive";
 import type { AmbientClaimsLike, AmbientDeps, HeartbeatState } from "@storytree/drive";
 import { deriveIdentity } from "@storytree/drive";
@@ -93,6 +100,35 @@ function fileHeartbeatState(sessionId: string): HeartbeatState {
   };
 }
 
+/**
+ * The ADR-0487 origin ask, resolved against this session's real state — or `""` on any failure.
+ *
+ * The COMPOSITION half of a pure question: `undeclaredOriginNudge` decides what to say, and this
+ * resolves the two things it needs. The session id is `resolveDeclaringSessionId`'s answer in
+ * `commands.ts` — deliberately the same one, so the hook asks about exactly the id a declaration
+ * would land under and a read would be keyed by. It passes `slot: null` for that function's own
+ * reason: the slot is a grouping attribute that never affects the identity, so deriving it would be
+ * a `git` shell-out on the startup path whose answer is thrown away (ADR-0162's budget).
+ *
+ * FAIL-SILENT, on the hook's hard contract: an unreadable declaration, a missing home, anything at
+ * all — the session simply is not asked this start. Staying quiet is the safe direction, because the
+ * only cost of a missed ask is one undeclared session, while a throw here would surface into a
+ * session's context as a hook error.
+ */
+function originNudge(): string {
+  try {
+    const sessionId = resolveTraceIdentity({ env: process.env, slot: null })?.sessionId ?? null;
+    if (sessionId === null) return "";
+    const declaration = readSessionOriginDeclaration(resolveTraversalDir(), sessionId);
+    return undeclaredOriginNudge({
+      sessionId,
+      origin: resolveSessionOrigin({ env: process.env, declaration }),
+    });
+  } catch {
+    return "";
+  }
+}
+
 async function main(): Promise<void> {
   const mode = process.argv[2];
   if (mode !== "start" && mode !== "statusline") return;
@@ -105,6 +141,16 @@ async function main(): Promise<void> {
     // The one deliberate SessionStart print (ADR-0143 / ADR-0200 D3): inject the claim-ledger
     // anchor ceremony into the fresh session's context. PURE and offline — no store, no declare.
     process.stdout.write(undeclaredSessionNudge(identity));
+    // And the SECOND ask (ADR-0487): how this session came to exist. It rides this channel because
+    // ADR-0484 D7 built both capture channels with no producer for the case that dominates — a cut
+    // through the desktop's `spawn_task`, whose environment the harness owns — so every trace since
+    // has read `unknown`. Asking the SUCCESSOR rather than mandating a line in the cutting ceremony
+    // is what yields BOTH populations, and therefore a share rather than a bare count.
+    //
+    // Still offline and still bounded: one small local file read, no store and no clock. It goes
+    // silent the moment the session answers, so it is a question asked until answered rather than a
+    // standing tax — which is the whole reason a second SessionStart line is affordable at all.
+    process.stdout.write(originNudge());
     return;
   }
 

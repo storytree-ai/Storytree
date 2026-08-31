@@ -8,8 +8,10 @@
  * proof, and nothing here may re-implement a renderer or touch the trace files directly.
  */
 import {
+  censusSessionOrigins,
   declareSessionOrigin,
   describeSessionOrigin,
+  listTraversalSessions,
   listTraversalSessionsRendered,
   readSessionOriginDeclaration,
   readTraversalSession,
@@ -57,6 +59,11 @@ export function traversalHelp(): Envelope {
       "                                        An undeclared session reads `unknown`, which is NOT a",
       "                                        synonym for human-started — origins are never",
       "                                        inferred from timing, branch names or worktree reuse.",
+      "  storytree traversal origin --census   how much of this store's population declared at all",
+      "                                        (ADR-0487). A READING of coverage, never a compliance",
+      "                                        score: read every origin-derived figure against the",
+      "                                        share it reports, because that share is the subset",
+      "                                        such a figure was actually computed over.",
       "  storytree traversal ingest <session>  read this session's host transcript windows and",
       "                                        append their per-request context OCCUPANCY",
       "                                        (ADR-0248 D1). Idempotent — re-running appends",
@@ -268,6 +275,8 @@ export interface TraversalOptions {
   readonly cutBy?: string | undefined;
   /** `--cut-for <arc-or-increment-id>` — what this session was cut to drive. */
   readonly cutFor?: string | undefined;
+  /** `--census` — report coverage across the whole local store instead of this one session. */
+  readonly census?: boolean | undefined;
 }
 
 /**
@@ -351,6 +360,58 @@ function originHowTo(sessionId: string): readonly string[] {
     `${CUT_FOR_UNIT_ENV} in the child's environment instead. The declaration wins where both are`,
     "present: it is keyed by this session's own id, and an exported variable is not.",
   ];
+}
+
+/**
+ * `storytree traversal origin --census` — how much of the store's population declared (ADR-0487).
+ *
+ * ⚠ A READING, NOT A COMPLIANCE GRADE. It exists so that the partiality of origin coverage is
+ * visible in the data rather than assumed away: every figure computed over origins is computed over
+ * the DECLARED subset, and without this number a reader cannot tell how large that subset is. It is
+ * deliberately not a gate rung and must not become one — a gate over a judgment ceremony is
+ * `a-compliance-gate-turns-a-judgment-ceremony-into-theatre`, and this one could not score the
+ * honest case (a session that never ran the verb) as anything but a failure.
+ *
+ * It reads the ORIGIN STAMPED ON THE LINES, not the declaration files, and the difference is the
+ * point: a declaration applies FORWARD only, so what a trace can actually be read as is what its
+ * lines say. A session that declared late reads `unknown` for the events that preceded it, and this
+ * census reports that honestly rather than crediting the whole session to the later answer.
+ */
+function traversalOriginCensus(): Envelope {
+  const summaries = listTraversalSessions({ dir: resolveTraversalDir() });
+  const census = censusSessionOrigins(summaries.map((s) => s.origin.reading));
+  const pct = (n: number): string =>
+    census.total === 0 ? "—" : `${((n / census.total) * 100).toFixed(1)}%`;
+
+  const lines = [
+    "traversal origin --census — who started the sessions in this store (ADR-0487)",
+    "",
+    `sessions: ${census.total} with at least one captured event`,
+    "",
+    `  human:   ${census.human}  (${pct(census.human)})  started by an operator`,
+    `  cut:     ${census.cut}  (${pct(census.cut)})  cut by a predecessor session`,
+    `  unknown: ${census.unknown}  (${pct(census.unknown)})  never declared — NOT a synonym for human-started`,
+    `  mixed:   ${census.mixed}  (${pct(census.mixed)})  contradictory; neither answer may be quoted`,
+    "",
+    `quotable: ${(census.quotableShare * 100).toFixed(1)}% of sessions carry an origin a reader may quote.`,
+  ];
+
+  if (census.quotableShare < 1) {
+    lines.push(
+      "",
+      "READ EVERY ORIGIN-DERIVED FIGURE AGAINST THAT SHARE. The remainder is not a population with",
+      "no origin — it is one whose origin nobody recorded, and nothing here will guess it. This is a",
+      "reading of coverage and never a compliance score: a session that did not declare is not in",
+      "breach of anything, and the honest response to a low share is to distrust the derived figure,",
+      "not to chase the sessions.",
+    );
+  }
+
+  return {
+    ok: true,
+    body: lines.join("\n"),
+    next: ["storytree traversal origin — what THIS session says, and how to declare it"],
+  };
 }
 
 /**
@@ -476,6 +537,10 @@ export async function traversalCommand(
   }
 
   if (sub === "origin") {
+    // BEFORE the identity resolve, deliberately: a census is about the STORE, so it neither needs
+    // this session's id nor should be refused when there is none. Resolving first would make the
+    // reading unavailable in exactly the runs (the lobby, CI) most likely to want to ask for it.
+    if (opts.census === true) return traversalOriginCensus();
     const resolveSessionId = deps.resolveSessionId ?? (() => null);
     return traversalOrigin(opts, resolveSessionId(), deps.now ?? (() => new Date()));
   }
