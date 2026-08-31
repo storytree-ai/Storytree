@@ -149,12 +149,17 @@ export {
   decidePiToolCall,
 } from "./pi-fence.js";
 
-// The pi LEAF (`pi-harness-admission-arc` increment 2): the third PhaseAuthor, alongside the
-// Claude and Codex leaves. Still nothing that can bill by surprise — the leaf carries no
-// credential field, refuses unless exactly one endpoint is configured, refuses outright if any
-// OTHER provider is authenticated in the process, and reaches pi's runtime through a DYNAMIC
-// import so importing this barrel loads no pi at all (pi stays a devDependency, ADR-0198).
-// `--runtime pi` is still refused by `resolveLiveRuntime`: wiring it is increment 3.
+// The pi LEAF (`pi-harness-admission-arc` increments 2-3): the third PhaseAuthor, alongside the
+// Claude and Codex leaves. Still nothing that can bill by surprise — it refuses unless exactly one
+// endpoint is configured, refuses outright if any OTHER provider is authenticated in the process,
+// and reaches pi's runtime through a DYNAMIC import so importing this barrel loads no pi at all
+// (pi stays a devDependency, ADR-0198).
+//
+// It now HAS a credential slot (`PiEndpoint.apiKey`, ADR-0449) where increment 2 deliberately had
+// none — an explicit per-slice value hydrated from nowhere, held to `validatePiCredential`, which
+// refuses anything that is not a Claude SUBSCRIPTION token. The absent field was the old form of
+// "no metered call is reachable"; the refusal is the new one.
+// `--runtime pi` is still refused by `resolveLiveRuntime`: wiring it is the rest of increment 3.
 export type {
   PiEndpoint,
   PiEndpointDecision,
@@ -166,12 +171,18 @@ export type {
 } from "./pi-author.js";
 export {
   PiPhaseAuthor,
+  PI_CREDENTIAL_API,
+  PI_DEFAULT_API,
   PI_LOCAL_PLACEHOLDER_KEY,
   PI_METERED_AUTH_ENV,
+  PI_SUBSCRIPTION_TOKEN_MARKER,
   classifyPiSliceOutcome,
   createPiTurnCeiling,
   decidePiPreflight,
+  isPiSubscriptionToken,
+  resolvePiCredential,
   scrubMeteredPiAuth,
   scrubMeteredPiAuthEnv,
+  validatePiCredential,
   validatePiEndpoint,
 } from "./pi-author.js";

@@ -27,7 +27,7 @@
  *    `OPENAI_API_KEY` and ~40 more, in `pi-ai`'s own `env-api-keys.js`. An ambient key on the box
  *    is a live, billable provider inside the leaf's process.
  *
- * Four walls, in the order they fire, none of them configuration:
+ * Five walls, in the order they fire, none of them configuration:
  *
  *  1. **A CONFIGURED ENDPOINT IS REQUIRED.** {@link validatePiEndpoint} refuses an absent endpoint,
  *     a non-http(s) URL, and a `providerId` that collides with a pi built-in. There is no default
@@ -48,10 +48,34 @@
  *     `model`; the leaf then refuses on pi's own `modelFallbackMessage` and re-checks that
  *     `session.model` is provider-for-provider and id-for-id the one it asked for. A substitution
  *     is the reroute, so it is checked rather than assumed away.
+ *  5. **A CREDENTIAL, IF ONE IS SUPPLIED AT ALL, MUST BE A SUBSCRIPTION TOKEN**
+ *     ({@link validatePiCredential}, ADR-0449). The slot added for the arc's one real trial run
+ *     accepts a Claude subscription OAuth token and REFUSES a metered per-token API key — not as
+ *     policy, but because pi's own dispatch keys on the token's shape and would otherwise put the
+ *     same string on the wire as `x-api-key`, which IS the metered call.
  *
- * The leaf carries NO CREDENTIAL and has no field to put one in — see {@link PI_LOCAL_PLACEHOLDER_KEY}
- * for the one non-secret constant and why it is not one. Nothing here can be pointed at a metered
- * provider by supplying a key, and there is nothing for a different runtime to pick up (end state 4).
+ * ## THE CREDENTIAL SLOT (ADR-0449), AND THE WALL IT DID *NOT* NEED
+ *
+ * Increment 2 shipped this leaf with no credential field at all, and said so as a guarantee. ADR-0449
+ * then decided the arc's one real trial run points at ANTHROPIC through the existing
+ * subscription-funded `CLAUDE_CODE_OAUTH_TOKEN` — never a metered key, never a local model — which
+ * authorises a slot. {@link PiEndpoint.apiKey} is it: an EXPLICIT value on the endpoint, never an
+ * environment lookup, absent by default, and constrained by wall 5.
+ *
+ * ⚠ ADR-0449 ALSO PROJECTED THAT WALL 3 WOULD NEED A NAMED EXCEPTION. IT DOES NOT, AND THAT WAS
+ * MEASURED RATHER THAN ARGUED. Wall 3 asks pi's own `ModelRuntime.getAvailable()` what is
+ * authenticated, BEFORE registration, and excludes the configured endpoint's own id by construction.
+ * pi resolves `anthropic` from `ANTHROPIC_AUTH_TOKEN` / `ANTHROPIC_OAUTH_TOKEN` / `ANTHROPIC_API_KEY`
+ * (`pi-ai`'s `env-api-keys.js`) and from nothing else — `CLAUDE_CODE_OAUTH_TOKEN` is not among them,
+ * and all three of the names that ARE have already been removed by wall 2 when wall 3 reads. Measured
+ * on a fresh `ModelRuntime`, three runs of three, WITH the positive control that proves the reading is
+ * not blind: `CLAUDE_CODE_OAUTH_TOKEN` alone → `[]`; `ANTHROPIC_API_KEY` alone → `[anthropic]`, 13
+ * models. So the subscription token opens no ambient provider, wall 3 passes clean, and it is left
+ * COMPLETELY UNEDITED — the general "refuse if any paid provider is reachable" guarantee is not merely
+ * un-weakened, it is not touched. The deliberate loosening ADR-0449 authorised is real, but it lands
+ * at the credential slot under wall 5, which is where it can be checked. `pi-author.test.ts` pins the
+ * measurement WITH its control, so a pi release that starts reading `CLAUDE_CODE_OAUTH_TOKEN` reds
+ * this rather than silently making wall 3 refuse every slice.
  *
  * ## FAILURE IS NOT A THROWN EXCEPTION, AND THAT IS THE TRAP
  *
@@ -118,13 +142,86 @@ const DEFAULT_PI_MAX_TURNS = 16;
  * llama.cpp, Ollama, LM Studio — ignore the value. So a fixed, public, meaningless string
  * satisfies pi's precondition without any secret existing.
  *
- * It is a CONSTANT rather than a field on {@link PiEndpoint} deliberately (end state 4: "no
- * credential hydrated for it that a different runtime could pick up"). There is nothing to rotate,
- * nothing to leak, and no way to point this leaf at a metered provider by supplying a key: sent to
- * one, it is simply rejected. Whether pi ever gets a real credential is the owner-gated decision in
- * increment 3, and it is a decision, not a default.
+ * It remains the DEFAULT, and a slice that supplies no {@link PiEndpoint.apiKey} still runs on this
+ * and nothing else — which is every local endpoint. There is nothing to rotate and nothing to leak:
+ * sent to a metered provider, it is simply rejected.
+ *
+ * ⚠ WHAT CHANGED, AND WHAT DID NOT. This used to add "there is no way to point this leaf at a metered
+ * provider by supplying a key", because there was no field to put one in — and that the question was
+ * "the owner-gated decision in increment 3". That decision has been MADE (ADR-0449): the arc's one
+ * real trial run points at Anthropic through the existing SUBSCRIPTION credential. So the field now
+ * exists. The guarantee it carried is not surrendered, it is re-bought in the form a leaf that
+ * carries a credential can satisfy — {@link validatePiCredential} refuses anything that is not a
+ * subscription token, so "no metered call is reachable" survives as a checked refusal instead of an
+ * absent field. End state 4 survives too: the value is passed in per slice by the caller and hydrated
+ * from nowhere, so there is still nothing on this leaf for a different runtime to pick up.
  */
 export const PI_LOCAL_PLACEHOLDER_KEY = "storytree-local-no-credential";
+
+/**
+ * The substring pi's OWN `anthropic-messages` adapter uses to recognise a Claude SUBSCRIPTION OAuth
+ * token — `isOAuthToken(apiKey)` is `apiKey.includes("sk-ant-oat")` (`pi-ai`'s
+ * `dist/api/anthropic-messages.js`, 0.84.3).
+ *
+ * TRANSCRIBED FROM pi RATHER THAN INVENTED, and that is what makes wall 5 a real check rather than a
+ * guess about token strings. pi branches on this one predicate: matched, it builds its client with
+ * `authToken` (an `Authorization: Bearer` header) plus the Claude Code identity betas, which is the
+ * SUBSCRIPTION call; unmatched, it builds the same client with `apiKey`, which goes out as
+ * `x-api-key` — the METERED call ADR-0449 forbids. So wall 5 is not asserting a naming convention, it
+ * is asserting which of pi's two code paths this slice will take.
+ *
+ * BEST-EFFORT IN THE SAME WAY {@link PI_METERED_AUTH_ENV} IS: a hand-kept copy of someone else's
+ * predicate goes stale if they change it. The consequence of staleness here is FAIL-CLOSED in the
+ * safe direction — a subscription token pi stopped recognising is refused by wall 5 and the slice
+ * does not run.
+ */
+export const PI_SUBSCRIPTION_TOKEN_MARKER = "sk-ant-oat";
+
+/**
+ * The only pi wire dialect a credential may be supplied under.
+ *
+ * {@link PI_SUBSCRIPTION_TOKEN_MARKER} is recognised ONLY by pi's `anthropic-messages` adapter. Under
+ * any other dialect — `openai-completions`, the leaf's default, included — the identical string is
+ * forwarded as an ordinary bearer key to whatever `baseUrl` is configured, with no subscription
+ * semantics anywhere in the path. That is indistinguishable at the wire from the metered shape, so a
+ * credential outside this dialect is refused rather than sent.
+ */
+export const PI_CREDENTIAL_API = "anthropic-messages";
+
+/**
+ * The wire dialect a {@link PiEndpoint} uses when it names none — pi's OpenAI-compatible adapter,
+ * which is what a local llama.cpp / Ollama / LM Studio server speaks.
+ *
+ * NAMED ONCE BECAUSE IT WAS SPELLED THREE TIMES, and the mutation rung is what found that: the copy
+ * inside wall 5's condition was behaviourally DEAD — any string that is not
+ * {@link PI_CREDENTIAL_API} produces the same refusal, so mutating that copy to `""` changed nothing
+ * a test could observe. Three literals where one belongs is also how the condition and the refusal
+ * message drift apart, which would leave an operator reading a dialect name the check never used.
+ */
+export const PI_DEFAULT_API = "openai-completions";
+
+/** Whether a credential is a Claude subscription OAuth token, by pi's own predicate. */
+export function isPiSubscriptionToken(apiKey: string): boolean {
+  return apiKey.includes(PI_SUBSCRIPTION_TOKEN_MARKER);
+}
+
+/**
+ * What the leaf hands pi as the endpoint's API key: the configured credential, or the placeholder.
+ *
+ * PULLED OUT OF THE `registerProvider` CALL SO IT CAN BE ASSERTED. Buried inline it was a one-line
+ * `??` that no offline test could reach — whether the slot's value actually arrives at pi would have
+ * been observable only on the wire, i.e. only by spending. The interesting half is the DEGRADATION:
+ * a credential that silently fell through to {@link PI_LOCAL_PLACEHOLDER_KEY} would run a slice
+ * pointed at a REAL endpoint while looking exactly like a local one, which is the failure this leaf
+ * exists to prevent, wearing a passing test.
+ *
+ * `??` and not `||` for that reason: `||` would treat a blank credential as absent and fall through.
+ * Wall 5 refuses a blank one before this is ever reached, so the two agree — but they agree because
+ * both are fail-closed, not because either is relying on the other.
+ */
+export function resolvePiCredential(endpoint: PiEndpoint): string {
+  return endpoint.apiKey ?? PI_LOCAL_PLACEHOLDER_KEY;
+}
 
 /**
  * The metered-provider API-key environment variables removed from `process.env` for the duration of
@@ -229,8 +326,8 @@ export function scrubMeteredPiAuthEnv(env: NodeJS.ProcessEnv = process.env): () 
 }
 
 /**
- * The endpoint a pi slice is allowed to talk to. There is exactly one, it is explicit, and it
- * carries no credential field — see {@link PI_LOCAL_PLACEHOLDER_KEY}.
+ * The endpoint a pi slice is allowed to talk to. There is exactly one and it is explicit — including
+ * its credential, if it has one at all ({@link PiEndpoint.apiKey}).
  */
 export interface PiEndpoint {
   /**
@@ -251,6 +348,21 @@ export interface PiEndpoint {
   contextWindow: number;
   /** The model's declared max output tokens. */
   maxTokens: number;
+  /**
+   * THE CREDENTIAL SLOT (ADR-0449). Absent by default — a local endpoint needs none, and gets
+   * {@link PI_LOCAL_PLACEHOLDER_KEY} instead.
+   *
+   * AN EXPLICIT VALUE, NEVER AN ENVIRONMENT LOOKUP, and that is the whole shape of the field rather
+   * than a note about how to use it. The metered fallback this leaf exists to make unreachable is
+   * pi's built-in providers resolving keys straight out of `process.env`; a slot that did its own
+   * `process.env[...]` read would rebuild that door one layer up, and would make the leaf's
+   * credential depend on ambient state a caller cannot see. So the value is passed in per slice by
+   * whoever composed the endpoint, and this file reads no variable to fill it.
+   *
+   * Constrained by wall 5 ({@link validatePiCredential}): a subscription OAuth token under
+   * {@link PI_CREDENTIAL_API}, or nothing. A metered per-token API key is REFUSED.
+   */
+  apiKey?: string;
 }
 
 /**
@@ -354,6 +466,67 @@ export function validatePiEndpoint(endpoint: PiEndpoint | undefined): PiEndpoint
   }
   if (!Number.isInteger(endpoint.maxTokens) || endpoint.maxTokens <= 0) {
     return { ok: false, error: "pi leaf refused: endpoint maxTokens must be a positive integer" };
+  }
+  // Wall 5 last, and RETURNED DIRECTLY rather than branched on: it answers `{ ok: true, endpoint }`
+  // for an acceptable credential, which is exactly this function's own success value. An
+  // `if (!credential.ok) return credential;` ahead of a duplicate success return said the same thing
+  // twice, and the mutation rung is what showed that up — negating the branch produced a mutant no
+  // test could ever kill, because both arms were already identical.
+  return validatePiCredential(endpoint);
+}
+
+/**
+ * Wall 5: if a credential is supplied at all, it must be one that pi will spend as a SUBSCRIPTION
+ * rather than meter (ADR-0449).
+ *
+ * Absent is the ordinary case and always passes — every local endpoint runs on
+ * {@link PI_LOCAL_PLACEHOLDER_KEY} and nothing here applies to it.
+ *
+ * ⚠ WHY A CHECK AND NOT A COMMENT. ADR-0449 authorised exactly one thing: the arc's one real trial
+ * run against Anthropic on the existing subscription credential, "never a metered per-token key". A
+ * slot that accepted any string would leave that clause resting on whoever composes the endpoint
+ * getting it right, for the rest of the leaf's life — which is precisely the shape ADR-0198 was
+ * written about, where a path that LOOKED subscription-funded was metered billing and the owner met
+ * the difference on an invoice. The distinction is mechanical on pi's side
+ * ({@link PI_SUBSCRIPTION_TOKEN_MARKER}), so it is checked here rather than trusted.
+ *
+ * Both clauses are load-bearing and neither implies the other: the TOKEN decides whether pi sends
+ * `Authorization: Bearer` or `x-api-key`, and the DIALECT decides whether pi looks at the token's
+ * shape at all. A subscription token under `openai-completions` is spent as a plain bearer key with
+ * no subscription semantics in the path — the metered wire shape wearing the right string — so it is
+ * refused as firmly as a metered key is.
+ */
+export function validatePiCredential(endpoint: PiEndpoint): PiEndpointDecision {
+  const apiKey = endpoint.apiKey;
+  if (apiKey === undefined) return { ok: true, endpoint };
+  if (apiKey.trim().length === 0) {
+    return {
+      ok: false,
+      error:
+        "pi leaf refused: endpoint apiKey is present but blank. An empty credential is a " +
+        "half-configured slice — omit the field to run on the local placeholder instead.",
+    };
+  }
+  if (!isPiSubscriptionToken(apiKey)) {
+    return {
+      ok: false,
+      error:
+        "pi leaf refused: the endpoint credential is not a Claude subscription token. ADR-0449 " +
+        "admits this leaf's one real trial run on the subscription credential and NEVER a metered " +
+        "per-token API key; pi sends anything it does not recognise as OAuth via `x-api-key`, " +
+        "which is the metered call (ADR-0198).",
+    };
+  }
+  const api = endpoint.api ?? PI_DEFAULT_API;
+  if (api !== PI_CREDENTIAL_API) {
+    return {
+      ok: false,
+      error:
+        `pi leaf refused: a credential requires api '${PI_CREDENTIAL_API}', not ` +
+        `'${api}'. Only that adapter recognises a subscription ` +
+        "token as one; under any other dialect pi forwards it as an ordinary bearer key, which is " +
+        "indistinguishable at the wire from the metered call.",
+    };
   }
   return { ok: true, endpoint };
 }
@@ -728,8 +901,8 @@ export class PiPhaseAuthor implements PhaseAuthor {
       modelRuntime.registerProvider(endpoint.providerId, {
         name: `storytree pi endpoint (${endpoint.providerId})`,
         baseUrl: endpoint.baseUrl,
-        apiKey: PI_LOCAL_PLACEHOLDER_KEY,
-        api: endpoint.api ?? "openai-completions",
+        apiKey: resolvePiCredential(endpoint),
+        api: endpoint.api ?? PI_DEFAULT_API,
         models: [
           {
             id: endpoint.modelId,
