@@ -21,6 +21,7 @@ function node(rowId: string, kind: string, reason: LinkageNode["edgeFreeReason"]
     referenceCount: 0,
     danglingOut: 0,
     repoFileOut: 0,
+    unwalkedPointerFields: [],
     edgeFreeReason: reason,
   };
 }
