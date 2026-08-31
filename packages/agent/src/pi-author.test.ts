@@ -12,14 +12,20 @@ import type { AssistantMessage } from "@earendil-works/pi-ai";
 import { ModelRuntime, createWriteTool } from "@earendil-works/pi-coding-agent";
 
 import {
+  PI_CREDENTIAL_API,
+  PI_DEFAULT_API,
   PI_LOCAL_PLACEHOLDER_KEY,
   PI_METERED_AUTH_ENV,
+  PI_SUBSCRIPTION_TOKEN_MARKER,
   PiPhaseAuthor,
   classifyPiSliceOutcome,
   createPiTurnCeiling,
   decidePiPreflight,
+  isPiSubscriptionToken,
+  resolvePiCredential,
   scrubMeteredPiAuth,
   scrubMeteredPiAuthEnv,
+  validatePiCredential,
   validatePiEndpoint,
 } from "./pi-author.js";
 import type { PiEndpoint } from "./pi-author.js";
@@ -115,13 +121,188 @@ test("validatePiEndpoint refuses a malformed endpoint rather than half-configuri
   }
 });
 
-test("the leaf carries NO credential field — there is nothing to hydrate and nothing to leak", () => {
-  // End state 4: "no credential hydrated for it that a different runtime could pick up". pi refuses
-  // to send a request with neither key nor header, so the leaf supplies one fixed, public,
-  // meaningless string. It is a constant, not configuration: there is no way to point this leaf at
-  // a metered provider by supplying a key.
+// ── Wall 5: the credential slot (ADR-0449) ──────────────────────────────────
+//
+// ⚠ THIS BLOCK REPLACES AN ASSERTION THAT WAS TRUE AND IS DELIBERATELY NO LONGER TRUE, which is the
+// same shape as `resolveLiveRuntime`'s `--runtime pi` refusal test: increment 2 asserted
+// `Object.hasOwn(ENDPOINT, "apiKey") === false` and documented it as the guarantee that no metered
+// call was reachable, BECAUSE there was nowhere to put a credential. ADR-0449 decided the arc's one
+// real trial run points at Anthropic on the existing SUBSCRIPTION credential, so the field now
+// exists. The guarantee is not dropped — it is re-bought as a REFUSAL that a test can exercise,
+// which the absent field never could. The tests below are that refusal, from both sides.
+
+test("a slice with NO credential is unchanged — the local default is still the placeholder", () => {
+  // The regression half. Every local endpoint takes this branch and nothing above applies to it.
   assert.equal(Object.hasOwn(ENDPOINT, "apiKey"), false);
   assert.match(PI_LOCAL_PLACEHOLDER_KEY, /no-credential/);
+  assert.equal(validatePiEndpoint(ENDPOINT).ok, true);
+});
+
+test("the credential slot ACCEPTS a Claude subscription token under the anthropic dialect", () => {
+  // What ADR-0449 authorised, and the only thing it authorised.
+  const decision = validatePiEndpoint({
+    ...ENDPOINT,
+    providerId: "storytree-anthropic-trial",
+    baseUrl: "https://api.anthropic.com",
+    api: PI_CREDENTIAL_API,
+    apiKey: "sk-ant-oat01-NOT-A-REAL-TOKEN",
+  });
+  assert.equal(decision.ok, true, errorOf(decision));
+});
+
+test("the credential slot REFUSES a metered per-token API key — ADR-0449's clause, mechanically", () => {
+  // The clause is "never a metered per-token key". A slot that took any string would leave that
+  // resting on whoever composes the endpoint getting it right forever, which is how ADR-0198
+  // happened. pi branches on the token's shape, so this is checkable rather than trusted.
+  const decision = validatePiEndpoint({
+    ...ENDPOINT,
+    providerId: "storytree-anthropic-trial",
+    baseUrl: "https://api.anthropic.com",
+    api: PI_CREDENTIAL_API,
+    apiKey: "sk-ant-api03-NOT-A-REAL-KEY",
+  });
+  assert.equal(decision.ok, false, "a metered key must be refused, not spent");
+  // The MESSAGE is asserted in full, not sampled. A fail-closed refusal is only as good as what the
+  // operator reads off it: the reason, the decision that authorises the narrow case, the mechanism
+  // (pi sends an unrecognised token as `x-api-key`), and the decision that says why that matters.
+  const metered = errorOf(decision);
+  for (const fragment of [
+    "not a Claude subscription token",
+    "ADR-0449",
+    "NEVER a metered",
+    "per-token API key",
+    "x-api-key",
+    "which is the metered call",
+    "ADR-0198",
+  ]) {
+    assert.ok(metered.includes(fragment), `the refusal must say ${JSON.stringify(fragment)}: ${metered}`);
+  }
+});
+
+test("the credential slot REFUSES a subscription token under any OTHER dialect", () => {
+  // Both clauses are load-bearing and neither implies the other. Only `anthropic-messages` looks at
+  // the token's shape; under `openai-completions` the identical string goes out as a plain bearer
+  // key with no subscription semantics in the path — the metered wire shape wearing the right
+  // string. Refused as firmly as a metered key.
+  const base: PiEndpoint = {
+    ...ENDPOINT,
+    providerId: "storytree-anthropic-trial",
+    baseUrl: "https://api.anthropic.com",
+    apiKey: "sk-ant-oat01-NOT-A-REAL-TOKEN",
+  };
+  // The DEFAULT dialect first — the case a caller reaches by simply not setting `api` at all, and
+  // therefore the one most likely to be met by accident.
+  assert.equal(validatePiEndpoint(base).ok, false, "the default dialect must be refused");
+  const defaulted = errorOf(validatePiEndpoint(base));
+  // ⚠ THE MESSAGE MUST NAME THE DIALECT IT ACTUALLY GOT, and for the default case that means naming
+  // the DEFAULT rather than "undefined". An operator who set no `api` at all is the likeliest one to
+  // meet this refusal, and "not 'undefined'" tells them nothing about what to change.
+  for (const fragment of [
+    "requires api 'anthropic-messages'",
+    `not '${PI_DEFAULT_API}'`,
+    "Only that adapter recognises a subscription",
+    "ordinary bearer key",
+    "indistinguishable at the wire from the metered call",
+  ]) {
+    assert.ok(defaulted.includes(fragment), `the refusal must say ${JSON.stringify(fragment)}: ${defaulted}`);
+  }
+  for (const api of ["openai-completions", "openai-responses"]) {
+    const decision = validatePiEndpoint({ ...base, api });
+    assert.equal(decision.ok, false, `api '${api}' must be refused`);
+    assert.match(errorOf(decision), /requires api 'anthropic-messages'/);
+    assert.ok(errorOf(decision).includes(`not '${api}'`), "the refusal names the dialect it got");
+  }
+});
+
+test("a BLANK credential is a refusal, never a silent fall-through to the placeholder", () => {
+  // The dangerous degradation: a blank credential that fell through to `PI_LOCAL_PLACEHOLDER_KEY`
+  // would run a slice pointed at a REAL endpoint while reporting like a local one. `??` in the
+  // leaf's `registerProvider` call is what makes this reachable rather than swallowed by `||`.
+  for (const apiKey of ["", "   "]) {
+    const decision = validatePiEndpoint({ ...ENDPOINT, api: PI_CREDENTIAL_API, apiKey });
+    assert.equal(decision.ok, false, `apiKey ${JSON.stringify(apiKey)} must be refused`);
+    assert.match(errorOf(decision), /present but blank/);
+    // Names the remedy, not just the fault: omitting the field is what a local endpoint should do.
+    assert.ok(
+      errorOf(decision).includes("omit the field to run on the local placeholder instead"),
+      `the refusal must name the remedy: ${errorOf(decision)}`,
+    );
+  }
+});
+
+test("WALL 1 STILL BINDS OVER A VALID CREDENTIAL — 'anthropic' is refused as a providerId", () => {
+  // The collision ADR-0449 walks into on its naive reading: it says point at Anthropic, and wall 1
+  // refuses `providerId: "anthropic"` because re-registering a pi built-in composes over pi's own
+  // provider and inherits its environment-variable auth resolution. That refusal is CORRECT and is
+  // not widened; the shape that satisfies both is a FRESH provider id carrying the credential
+  // explicitly. A perfect credential must not buy a way past this.
+  const decision = validatePiEndpoint({
+    ...ENDPOINT,
+    providerId: "anthropic",
+    baseUrl: "https://api.anthropic.com",
+    api: PI_CREDENTIAL_API,
+    apiKey: "sk-ant-oat01-NOT-A-REAL-TOKEN",
+  });
+  assert.equal(decision.ok, false, "a credential must not open the built-in door");
+  assert.match(errorOf(decision), /is a pi built-in/);
+});
+
+test("the subscription predicate is pi's OWN, not a naming convention we invented", () => {
+  // `isOAuthToken(apiKey)` is `apiKey.includes("sk-ant-oat")` in pi-ai's `anthropic-messages`
+  // adapter (0.84.3). Transcribed rather than guessed: matched, pi builds its client with
+  // `authToken` (Authorization: Bearer) plus the Claude Code identity betas — the SUBSCRIPTION
+  // call; unmatched, with `apiKey`, which goes out as `x-api-key` — the METERED one. Wall 5
+  // asserts which of pi's two code paths the slice will take, not how a string is spelled.
+  assert.equal(PI_SUBSCRIPTION_TOKEN_MARKER, "sk-ant-oat");
+  assert.equal(isPiSubscriptionToken("sk-ant-oat01-abc"), true);
+  assert.equal(isPiSubscriptionToken("sk-ant-api03-abc"), false);
+  assert.equal(isPiSubscriptionToken(PI_LOCAL_PLACEHOLDER_KEY), false);
+});
+
+test("the configured credential is what REACHES pi — it does not degrade to the placeholder", () => {
+  // The value `registerProvider` is handed, asserted directly. Left inline as a `??` this was the
+  // one link in the chain no offline test could reach: whether the slot's value actually arrives at
+  // pi would have been observable only on the wire, i.e. only by spending. The interesting half is
+  // the DEGRADATION — a credential that silently fell through to the placeholder would run a slice
+  // against a REAL endpoint while looking exactly like a local one.
+  assert.equal(resolvePiCredential(ENDPOINT), PI_LOCAL_PLACEHOLDER_KEY, "no credential → placeholder");
+  assert.equal(
+    resolvePiCredential({ ...ENDPOINT, api: PI_CREDENTIAL_API, apiKey: "sk-ant-oat01-NOT-REAL" }),
+    "sk-ant-oat01-NOT-REAL",
+    "a configured credential must be the value pi is handed, verbatim",
+  );
+});
+
+test("the credential is EXPLICIT — no environment variable of any name can fill the slot", () => {
+  // End state 4 survives the new field: "no credential hydrated for it that a different runtime
+  // could pick up". The metered fallback this leaf exists to close is pi's built-ins reading
+  // `process.env`; a slot that did its own env read would rebuild that door one layer up. So the
+  // value is passed in per slice and this file reads no variable to fill it — asserted by setting
+  // every plausible name and observing that the endpoint stays credential-free.
+  const names = [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_OAUTH_TOKEN",
+    "CLAUDE_CODE_OAUTH_TOKEN",
+    "PI_API_KEY",
+    "STORYTREE_PI_API_KEY",
+  ];
+  const had = new Map(names.map((n) => [n, process.env[n]]));
+  for (const n of names) process.env[n] = "sk-ant-oat01-AMBIENT-NOT-A-REAL-TOKEN";
+  try {
+    const decision = validatePiEndpoint(ENDPOINT);
+    assert.equal(decision.ok, true);
+    assert.equal(
+      decision.ok ? decision.endpoint.apiKey : "unreachable",
+      undefined,
+      "an ambient variable must never become the slice's credential",
+    );
+    assert.equal(validatePiCredential(ENDPOINT).ok, true);
+  } finally {
+    for (const [n, v] of had) {
+      if (v === undefined) delete process.env[n];
+      else process.env[n] = v;
+    }
+  }
 });
 
 // ── Wall 2: the metered environment, with its control ────────────────────────
@@ -244,6 +425,71 @@ async function availableProviderIds(): Promise<string[]> {
     fs.rmSync(agentDir, { recursive: true, force: true });
   }
 }
+
+test("ADR-0449's SUBSCRIPTION TOKEN OPENS NO AMBIENT PROVIDER — so wall 3 needs no exception", async () => {
+  // ⚠ THIS IS THE MEASUREMENT THAT DECIDED THE SHAPE OF THIS LANDING, PINNED SO IT CANNOT ROT.
+  //
+  // ADR-0449 projected that admitting the subscription credential would require wall 3 — "refuse if
+  // ANY paid provider is reachable" — to be relaxed by a deliberate named exception. It does not,
+  // and that is measured rather than argued. pi resolves `anthropic` from ANTHROPIC_AUTH_TOKEN /
+  // ANTHROPIC_OAUTH_TOKEN / ANTHROPIC_API_KEY (`pi-ai`'s `env-api-keys.js`) and from nothing else.
+  // `CLAUDE_CODE_OAUTH_TOKEN` is not among them — and the CLI auto-hydrates that name into the
+  // environment, which is exactly why it had to be measured rather than assumed either way.
+  //
+  // So wall 3 is left COMPLETELY UNEDITED and the general guarantee is not touched. The deliberate
+  // loosening ADR-0449 authorised lands at the credential slot, under wall 5, where it is checked.
+  //
+  // ⚠⚠ THE POSITIVE CONTROL IS THE WHOLE TEST. An assertion that a fresh runtime reports `[]` would
+  // pass just as well against a probe that can never report anything — the "green check that
+  // verified nothing" shape, and it would be reading a `[]` produced by its own blindness. So the
+  // same probe, same process, is first shown REPORTING anthropic off `ANTHROPIC_API_KEY`. Only then
+  // does its silence about `CLAUDE_CODE_OAUTH_TOKEN` mean something.
+  const names = ["CLAUDE_CODE_OAUTH_TOKEN", "ANTHROPIC_API_KEY"];
+  const had = new Map(names.map((n) => [n, process.env[n]]));
+  const clear = (): void => {
+    for (const n of names) delete process.env[n];
+  };
+  try {
+    clear();
+    assert.deepEqual(await availableProviderIds(), [], "baseline: nothing authenticated");
+
+    // CONTROL: the probe CAN see anthropic. If this ever stops holding, the assertion below is
+    // meaningless and this test is telling you so rather than passing.
+    process.env["ANTHROPIC_API_KEY"] = "sk-ant-fake-not-a-real-key";
+    assert.deepEqual(
+      await availableProviderIds(),
+      ["anthropic"],
+      "CONTROL: an ambient metered key MUST show up, or the reading below proves nothing",
+    );
+
+    // THE MEASUREMENT: the subscription token, alone, opens nothing.
+    clear();
+    process.env["CLAUDE_CODE_OAUTH_TOKEN"] = "sk-ant-oat01-NOT-A-REAL-TOKEN";
+    assert.deepEqual(
+      await availableProviderIds(),
+      [],
+      "CLAUDE_CODE_OAUTH_TOKEN must open no ambient provider — if pi starts reading it, wall 3 " +
+        "would refuse every slice on a box that has it hydrated, and THAT is when an exception " +
+        "becomes the right answer",
+    );
+
+    // And wall 3's verdict over that reading, which is the thing the leaf actually computes.
+    assert.equal(
+      decidePiPreflight({
+        endpointProviderId: "storytree-anthropic-trial",
+        ambientProviderIds: await availableProviderIds(),
+        modelFound: true,
+      }).ok,
+      true,
+      "the preflight passes clean, unedited, with the subscription token present",
+    );
+  } finally {
+    for (const [n, v] of had) {
+      if (v === undefined) delete process.env[n];
+      else process.env[n] = v;
+    }
+  }
+});
 
 // ── Wall 3: the preflight, which is what actually holds the line ─────────────
 
