@@ -28,6 +28,7 @@ import {
   probeTexel,
   probeValueOf,
   readProbePixel,
+  type ProbeRenderer,
   type ProbeRig,
 } from './light-calibration.js';
 import { LEGACY_SHADE_LEVELS, SHADE_LEVELS } from './shade-ladder.js';
@@ -82,10 +83,7 @@ const deliverExact = (linear: number): number => linear;
 const deliverAces = (linear: number): number => srgbEncode(acesFilmic(linear));
 
 /** Run the whole calibration loop against a modelled transfer, and report what it lands on. */
-function calibrateThrough(
-  deliver: (linear: number) => number,
-  levels: readonly number[] = SHADE_LEVELS,
-): { probe: number; scale: number; delivered: number; target: number } {
+function calibrateThrough(deliver: (linear: number) => number, levels: readonly number[] = SHADE_LEVELS) {
   const floor = levels[0]!;
   const target = levels[levels.length - 1]!;
   const probe = deliver(litWhite(floor, target - floor));
@@ -329,10 +327,30 @@ test('a read-back byte becomes the [0, 1] value the arithmetic is over', () => {
 
 // ─────────────────────────────────────────────────────────────── the composition
 
-/** A renderer stub. Only the fields `calibrateLights` reads before reaching its seam. */
-function stubRenderer(): THREE.WebGLRenderer {
-  return { outputColorSpace: THREE.SRGBColorSpace, toneMapping: THREE.ACESFilmicToneMapping } as
-    unknown as THREE.WebGLRenderer;
+/**
+ * A renderer stub carrying only what `calibrateLights` reads before it reaches its seam.
+ *
+ * ⚠ IT IS A `ProbeRenderer`, NOT A CAST `WebGLRenderer`. The module declares the four methods it
+ * depends on precisely so a stub can satisfy them honestly; an `as unknown as` chain here would
+ * discard that and would also stop the compiler noticing if the module started reaching for a fifth.
+ * The three render methods throw: the exact-colour refusal must fire BEFORE any of them is called,
+ * and a stub that returned quietly would let a regression pass as a pass.
+ */
+function stubRenderer(): ProbeRenderer {
+  return {
+    outputColorSpace: THREE.SRGBColorSpace,
+    toneMapping: THREE.ACESFilmicToneMapping,
+    getSize: (target) => target.set(1400, 900),
+    getContext: () => {
+      throw new Error('stubRenderer: the seam should have been used instead of a live context');
+    },
+    setSize: () => {
+      throw new Error('stubRenderer: nothing may resize the canvas behind the seam');
+    },
+    render: () => {
+      throw new Error('stubRenderer: nothing may render behind the seam');
+    },
+  };
 }
 
 test('calibrateLights REFUSES a renderer that is not in exact-colour mode', () => {
@@ -416,12 +434,7 @@ test('calibrateLights carries the ladder it was given all the way through', () =
  * restores. Both are observable against a stub. Only the delivered byte is the GPU's, and that is
  * the thing the whole module treats as an input.
  */
-function recordingRenderer(byte: number): {
-  renderer: THREE.WebGLRenderer;
-  log: string[];
-  sizes: [number, number, boolean][];
-  reads: [number, number][];
-} {
+function recordingRenderer(byte: number) {
   const log: string[] = [];
   const sizes: [number, number, boolean][] = [];
   const reads: [number, number][] = [];
@@ -440,7 +453,9 @@ function recordingRenderer(byte: number): {
       px[3] = 255;
     },
   };
-  const renderer = {
+  const renderer: ProbeRenderer = {
+    outputColorSpace: THREE.LinearSRGBColorSpace,
+    toneMapping: THREE.NoToneMapping,
     getSize(target: THREE.Vector2) {
       log.push('getSize');
       // The size the map is drawn at, so a failure to restore is visible as a wrong number rather
@@ -455,7 +470,7 @@ function recordingRenderer(byte: number): {
     render() {
       log.push('render');
     },
-  } as unknown as THREE.WebGLRenderer;
+  };
   return { renderer, log, sizes, reads };
 }
 

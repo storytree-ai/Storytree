@@ -117,6 +117,38 @@ export function intensitiesFor(cal: LightCalibration): CalibratedIntensities {
   };
 }
 
+/**
+ * THE RENDERER THIS MODULE ACTUALLY NEEDS — four methods, not a `WebGLRenderer`.
+ *
+ * ⚠ NAMED RATHER THAN CAST. The probe is the one browser-bound inch here, and the tempting way to
+ * test it is `{...} as unknown as THREE.WebGLRenderer` — a chain the house standard refuses because
+ * it discards exactly the evidence a reader needs. Declaring the seam instead says what the module
+ * depends on (it never touches the scene graph, the render lists or the XR state), lets a recording
+ * stub satisfy it honestly, and a real `THREE.WebGLRenderer` satisfies it structurally.
+ */
+export interface ProbeRenderer extends ColourConfigurableRenderer {
+  getSize(target: THREE.Vector2): THREE.Vector2;
+  getContext(): ProbeContext;
+  setSize(width: number, height: number, updateStyle?: boolean): void;
+  render(scene: THREE.Object3D, camera: THREE.Camera): void;
+}
+
+/** The four things the probe asks of a GL context. A real WebGL2 context satisfies it. */
+export interface ProbeContext {
+  readonly RGBA: number;
+  readonly UNSIGNED_BYTE: number;
+  finish(): void;
+  readPixels(
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    format: number,
+    type: number,
+    pixels: Uint8Array,
+  ): void;
+}
+
 /** The probe scene: the smallest thing that answers "what does a lit white face deliver here?" */
 export interface ProbeRig {
   scene: THREE.Scene;
@@ -182,7 +214,12 @@ export const PROBE_SIZE = 8;
  * shape this package has now paid for three times. The rig fills the whole frame, so any interior
  * texel would do; reading the CENTRE is what keeps that true if the plane ever stops filling it.
  */
-export function probeTexel(size: number = PROBE_SIZE): { x: number; y: number } {
+export interface ProbeTexel {
+  x: number;
+  y: number;
+}
+
+export function probeTexel(size: number = PROBE_SIZE): ProbeTexel {
   if (!Number.isInteger(size) || size < 1) {
     throw new Error(`light-calibration: a ${size}-texel probe frame has no centre to read`);
   }
@@ -196,7 +233,7 @@ export function probeValueOf(byte: number | undefined): number {
 }
 
 /** The one inch of this module that needs a live context. Seamed so its callers do not. */
-export type ProbeReader = (renderer: THREE.WebGLRenderer, rig: ProbeRig) => number;
+export type ProbeReader = (renderer: ProbeRenderer, rig: ProbeRig) => number;
 
 /**
  * Render the rig and read the centre texel back, as a [0, 1] red channel.
@@ -207,7 +244,7 @@ export type ProbeReader = (renderer: THREE.WebGLRenderer, rig: ProbeRig) => numb
 export const readProbePixel: ProbeReader = (renderer, rig) => {
   const size = new THREE.Vector2();
   renderer.getSize(size);
-  const gl = renderer.getContext() as WebGL2RenderingContext;
+  const gl = renderer.getContext();
   const { x, y } = probeTexel();
   renderer.setSize(PROBE_SIZE, PROBE_SIZE, false);
   renderer.render(rig.scene, rig.camera);
@@ -226,7 +263,7 @@ export const readProbePixel: ProbeReader = (renderer, rig) => {
  * @param read the browser inch, seamed for tests
  */
 export function calibrateLights(
-  renderer: THREE.WebGLRenderer,
+  renderer: ProbeRenderer,
   levels: readonly number[] = SHADE_LEVELS,
   read: ProbeReader = readProbePixel,
 ): LightCalibration {
