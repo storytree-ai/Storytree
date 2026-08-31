@@ -245,8 +245,32 @@ const CEILINGS = {
    * excluded from CI. So the −1 actually FENCES a route — a divergence in `/api/activity` now reds a
    * gate — while the +2 only makes two long-standing unobserved pairs visible. Widening the sweep
    * bought discovery, not enforcement; only a `MIRRORS` row buys enforcement.
+   *
+   * TIGHTENED 11 → 6 (2026-08-31, `unscored-guards-arc` / `register-deep-mirror-pairs`), and MOST OF
+   * THAT MOVE IS OVERDUE BOOKKEEPING rather than this landing's work. The instrument had been sitting
+   * at 11 while its located population fell to 8: `/api/arcs`, `/api/floor-health`, the three
+   * traversal paths and `/api/comments` were each registered without anyone lowering the number after
+   * them. A ceiling that stops tracking its own drains is a ratchet that has quietly stopped —
+   * tightening is always permitted (ADR-0269 gates only the UPWARD move), so it is taken here in one
+   * step with the arithmetic written down rather than left as slack nobody can attribute:
+   *   11  the standing baseline, last moved 2026-07-29
+   *   −3  the drains already landed and never subtracted (`/api/arcs`, `/api/floor-health`,
+   *       `/api/comments`; the three traversal paths ride ONE row and were already inside the 8)
+   *   = 8 what the sweep actually located on 2026-08-31 before this landing
+   *   −1  `/api/tree` REGISTERED — the widest pair in the registry, and the first run of its row
+   *       found two real, present divergences (`building`, `decisions`) and fixed them
+   *   −1  `/api/attestations` REGISTERED — which first required EXTRACTING the desktop half out of
+   *       `electron/backend-entry.ts`, where no probe could reach it; its first run found three,
+   *       including a path-traversal exposure that answered differently from a missing story
+   *   = 6 the located population now, and the new ceiling
+   * The six that remain are `/api/assets`, `/api/claims`, `/api/docs/content`, `/api/health`,
+   * `/api/me` and `/api/uat/attest`. Two of those are known REFUTATIONS rather than debt —
+   * `/api/me` is a deliberate narrowing (a constant local identity against the IAP caller's) and
+   * `/api/assets` is a one-line pass-through on both sides whose only re-composed half needs a
+   * database — so the honest floor is lower than six, and lowering it further means recording those
+   * refusals somewhere the instrument can read rather than shrinking the number on their strength.
    */
-  [MIRROR_PAIR_DRIFT]: 11,
+  [MIRROR_PAIR_DRIFT]: 6,
   /**
    * Baselined 2026-07-27 at the 7 test FILES that sweep located across 424 test files and 4043
    * observed tests — each holding one or more options-form-skipped tests the repo's own classifier

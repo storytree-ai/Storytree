@@ -64,6 +64,9 @@ importers:
       '@storytree/proof-protocol':
         specifier: workspace:*
         version: link:../../packages/proof-protocol
+      '@storytree/uat-criterion':
+        specifier: workspace:*
+        version: link:../../packages/uat-criterion
       '@xterm/addon-serialize':
         specifier: ^0.14.0
         version: 0.14.0

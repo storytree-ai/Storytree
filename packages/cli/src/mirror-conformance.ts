@@ -104,6 +104,29 @@ export interface Probe {
  *   composes for itself is the query-string PARSE, so the parse is what the payload has to make
  *   visible. A fixture that returned a fixed comment list instead would compare two stores and stay
  *   green through a parse that disagreed.
+ * - `tree-fixtures` — argv is fixture DIRECTORIES (a `stories/` tree plus `tree.json`, carrying the
+ *   four reads the tree fold makes — the work-hierarchy seam and the three advisory proof layers —
+ *   plus the request list both probes replay). Each probe prints `{ [label]: { status, body } }`,
+ *   which {@link projectTreePayload} turns into entries. TWO inputs rather than one because this
+ *   route's question has two sources: the live projection (ADR-0445 D1) and the disk walk behind it,
+ *   and each surface re-composes BOTH independently — so a fixture that supplied only one would
+ *   leave half the pair uncompared.
+ *
+ *   The proof layers ride the fixture ALREADY SHAPED (a verdict map, a raw signing-event stream, a
+ *   build list) for the reason `activity-fixtures` carries raw claim rows: they are the INPUT, and
+ *   what is under test is each surface's fold OF them. The verdict events are real signed `Verdict`
+ *   documents, because the shared rollup compute parses them and a shape it rejects grants nothing —
+ *   a fixture of plausible-looking stubs would leave every crown grey on both surfaces and compare
+ *   two blanks.
+ * - `attestations-fixtures` — argv is fixture DIRECTORIES (a `stories/` tree plus the RAW
+ *   `events.attestation` and `events.verdict` streams the route joins, and the request list both
+ *   probes replay). Each probe prints `{ [label]: { status, body } }`, which
+ *   {@link projectAttestationsPayload} turns into entries. The streams are RAW because the two
+ *   surfaces draw their store seam at different LEVELS — the studio's backend method folds
+ *   `events.attestation` through `deriveAttestations`, the desktop folds it inside the route — so
+ *   supplying one raw stream and letting each probe present it at its own surface's level is what
+ *   keeps the comparison on the route composition rather than on where the seam was drawn. That
+ *   layer mismatch is precisely what manufactured a false finding on `/api/health`.
  * - `floor-health-fixtures` — argv is fixture JSON PATHS (`{ docs, events, requests }` — the two
  *   reads the floor-health composition makes, plus the request list both probes replay). Each probe
  *   prints `{ [label]: { status, body } }`, which {@link projectFloorHealthPayload} turns into
@@ -118,7 +141,9 @@ export type MirrorInputSet =
   | "arc-fixtures"
   | "floor-health-fixtures"
   | "traversal-fixtures"
-  | "comments-fixtures";
+  | "comments-fixtures"
+  | "tree-fixtures"
+  | "attestations-fixtures";
 
 /** One registered mirrored payload: the rules, the input protocol, plus the two probes. */
 export interface MirrorTarget {
@@ -407,6 +432,123 @@ export const MIRRORS: readonly MirrorTarget[] = [
     mirror: {
       appDir: "apps/desktop",
       file: "apps/desktop/src/backend/comments-mirror-probe.ts",
+    },
+  },
+  {
+    // THE WIDEST PAIR IN THE REGISTRY, and the one whose absence has already cost something
+    // measurable. Commit `71f68d2b` folded `parseAdrWireSignals` into the studio's `listDocs` and
+    // left the desktop's copy alone — silently dropping `loadBearing` from 88 ADRs and `references`
+    // from 168 with nothing anywhere going red. That was `/api/docs`, a shallower pair than this one,
+    // and it is the incident the whole harness's header cites.
+    //
+    // WHAT IS AT RISK, and here almost everything is. On the other five rows the SUBSTANCE is shared
+    // code and only the ENVELOPE is hand-copied. On this route the substance is hand-copied too:
+    //   · `readTree` (apps/studio/server/apiRouter.ts) and `readTreeWithCaps`
+    //     (apps/desktop/src/backend/tree-verdicts.ts) are two independent walks of one `stories/`
+    //     tree, each parsing specs, each collecting the same three obligation maps;
+    //   · `foldedToTreeWalk` (apiRouter.ts) and `toDesktopTree` (hierarchy-live.ts) are two
+    //     independent adapters over the ONE shared projection fold (`foldWorkHierarchy`, ADR-0445 D1);
+    //   · the enrichment exists once on each surface — the own-verdict attach, `applyUatCriteria`,
+    //     `applyCapCoverage` and `applyUatCrowns` — the desktop's copies living in `tree-verdicts.ts`
+    //     behind `foldVerdicts`.
+    // What is genuinely shared, and therefore NOT what this row proves, is the layer under all of
+    // that: `foldWorkHierarchy` in @storytree/library and the rollup compute in
+    // @storytree/orchestrator, both called by both surfaces and owned by their own suites.
+    //
+    // ESTABLISHED BY RESPONSE DIFF, NOT BY READING THE TWO FOLDS — the method
+    // `establish-remaining-mirror-pairs` settled after a handler-body diff manufactured a false
+    // finding on `/api/health`. Each surface's own composition was stood up in its own process over
+    // one fixture and the composed RESULTS diffed.
+    //
+    // AND IT FOUND TWO REAL, PRESENT DIVERGENCES on the disk arm, both fixed in the landing that
+    // registered this row (the mirror follows the reference, as `/api/comments` did):
+    //   · `building` — the studio always emitted it (`false` for an ordinary story), the desktop only
+    //     when true, so every non-building story carried the key on one surface and not the other;
+    //   · `decisions` — the studio's node literal carries `[]`, the desktop's did not, so a story
+    //     whose `story.md` FAILED TO PARSE arrived with `decisions: []` on one surface and no
+    //     `decisions` key at all on the other. The error path is exactly where a reader is least
+    //     likely to look and most likely to `.map` over it.
+    // Neither changed a rendered pixel today, which is the point: a wire that disagrees on absence is
+    // one field's default away from a reader that throws, and nothing was watching.
+    spec: {
+      surface: "GET /api/tree (the forest map's hierarchy + its verdict overlay)",
+      route: "/api/tree",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<label>` / `<label>#<jsonPath>`), not a payload
+      // field — see `projectTreePayload`. Spelled literally like the rows above; `TREE_KEY` is
+      // declared below this table.
+      key: "_key",
+      // EMPTY BY DESIGN: the desktop serves the COMPILED STUDIO BUNDLE against this backend, so the
+      // same world renderer reads this wire on both surfaces and every field it draws must be
+      // present on both. A difference here is a defect, never a deliberate narrowing.
+      referenceOnlyFields: [],
+    },
+    inputs: "tree-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/treeMirrorProbe.ts" },
+    mirror: {
+      appDir: "apps/desktop",
+      file: "apps/desktop/src/backend/tree-mirror-probe.ts",
+    },
+  },
+  {
+    // THE PAIR THAT DECLARED ITS OWN DUPLICATION IN A COMMENT AND WAS WATCHED BY NOTHING. The
+    // desktop's mount carried "same logic as uatContextForStory in apiRouter.ts" — a stated copy,
+    // unobserved for as long as it existed.
+    //
+    // IT WAS UNREACHABLE UNTIL THE LANDING THAT REGISTERED IT. The desktop half was an inline closure
+    // inside `apps/desktop/electron/backend-entry.ts`'s `main()`, so calling it meant booting the
+    // whole Electron backend — a live pg pool, a real attestation store, the launch sequence — and no
+    // probe could get near it. `mirror-pair-drift` had been naming the pair since ADR-0269's
+    // re-baseline widened the sweep to `apps/desktop/electron` (10 → 11, where it entered the count
+    // as newly VISIBLE rather than newly broken). The mount was extracted verbatim to
+    // `apps/desktop/src/backend/attestations-route.ts`, which is what made this row possible; the
+    // `tree-verdicts.ts` precedent, same shape, same reason.
+    //
+    // WHAT IS AT RISK. The compute is genuinely shared and carries no re-composition risk —
+    // `loadNodeSpec`, `deriveAttestations`, `resolvedWitnessOf` / `unresolvedUatLegs`,
+    // `rollupCriterionStatus` / `rollupStoryUat`, all from @storytree/orchestrator, all called by
+    // both. What is hand-copied is the READ and the ENVELOPE: which file a `storyId` resolves to,
+    // the 400 that makes it required, the row assembly, and which of `storyUat` /
+    // `unresolvedWitnesses` / `proven` / `detailArtifactId` reach the wire at all.
+    //
+    // AND THE FIRST COMPARISON FOUND THREE REAL, PRESENT DIVERGENCES, all on the desktop side, all
+    // fixed in the same landing (the mirror follows the reference, as `/api/comments` did):
+    //   · a PATH-TRAVERSAL exposure. The desktop resolved the id with `findNodeSpecFile`, which
+    //     applies no containment guard, so `?storyId=../…` reached a `path.join`. The studio refuses
+    //     such an id through `containedPath` and answers exactly as if the story were missing. The
+    //     defect is not only that a path escapes — it is that the escape ANSWERS DIFFERENTLY from an
+    //     absence, which is what turns a member-readable route into a filesystem existence oracle;
+    //   · `findNodeSpecFile`'s second behaviour: it falls back to `<story>/<unitId>.md`, so
+    //     `?storyId=<a capability id>` served that CAPABILITY's criteria here and none on the studio.
+    //     This route's whole vocabulary is stories;
+    //   · `detailArtifactId` (ADR-0209 D7) was attached by the studio and by nothing here, so the
+    //     SHARED `UatTestCriteriaSection` — the desktop loads the studio's compiled bundle — rendered
+    //     every leg on this surface with no link to the artifact explaining it.
+    //
+    // ⚠ THE WRITE HALF IS DELIBERATELY OUT OF SCOPE, and the fixture replays no POST. The studio's
+    // POST records an attestation (201); the desktop serves none and answers 405. That is a sanctioned
+    // difference — the `/api/me` shape — so comparing it would red this row forever on a correct
+    // answer. A method NEITHER surface serves (`DELETE`) IS replayed, so the guard itself is compared.
+    spec: {
+      surface: "GET /api/attestations (a story's UAT legs, their vouch marks and proven state)",
+      route: "/api/attestations",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<label>` / `<label>#<jsonPath>`), not a payload
+      // field — see `projectAttestationsPayload`. Spelled literally like the rows above.
+      key: "_key",
+      // EMPTY BY DESIGN: both surfaces serve this wire to the SAME compiled `UatTestCriteriaSection`,
+      // which reads every field from either. A difference here is a defect, never a deliberate
+      // narrowing — the one genuinely deliberate difference on this path is the WRITE, and it has no
+      // row rather than an exemption.
+      referenceOnlyFields: [],
+    },
+    inputs: "attestations-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/attestationsMirrorProbe.ts" },
+    mirror: {
+      appDir: "apps/desktop",
+      file: "apps/desktop/src/backend/attestations-mirror-probe.ts",
     },
   },
 ];
@@ -791,18 +933,30 @@ function flattenJson(value: unknown, prefix: string, into: Map<string, unknown>)
 // Stryker restore ConditionalExpression,LogicalOperator
 
 /**
+ * The `/api/tree` projection's key field — the SAME synthetic name again, aliased for the same
+ * reason {@link ARCS_KEY} is: one naming convention across every projection here.
+ */
+export const TREE_KEY = ACTIVITY_KEY;
+
+/**
  * `{ [label]: { status, body } }` → comparable entries: one for the RESPONSE (its status and
  * top-level shape) and one per JSON leaf of its body.
  *
- * The status is a first-class entry rather than a field on the body, because on these three routes
- * half the envelope IS the status: 400 refuses a bad id BY NAME, 404 says "no trace here", 200-with-
+ * The status is a first-class entry rather than a field on the body, because on these routes half
+ * the envelope IS the status: 400 refuses a bad id BY NAME, 404 says "no trace here", 200-with-
  * `skipped` says "the trace was unreadable but present", and 405 says read-only. A projection that
  * compared bodies alone would pass a mirror that answered every one of them 500.
+ *
+ * SHARED BY TWO ROWS RATHER THAN COPIED INTO EACH, and the reason is this file's own subject: a
+ * second hand-written copy of one projection is exactly the duplication class the registry exists to
+ * fence, and it would sit inside the instrument. `/api/traversal` and `/api/tree` print the same
+ * `{ label: { status, body } }` protocol and want the same treatment of it; `noun` is only what the
+ * two guards call the payload when they refuse a broken probe.
  */
-export function projectTraversalPayload(body: unknown): Entry[] {
+function projectStatusAndLeaves(body: unknown, noun: string): Entry[] {
   if (body === null || typeof body !== "object" || Array.isArray(body)) {
     throw new Error(
-      `traversal payload must be a JSON object keyed by request label, got ${render(body)}`,
+      `${noun} payload must be a JSON object keyed by request label, got ${render(body)}`,
     );
   }
   const out: Entry[] = [];
@@ -817,7 +971,7 @@ export function projectTraversalPayload(body: unknown): Entry[] {
     // disabled, and the "not keyed by request label" case asserts the throw directly.
     if (answer === null || typeof answer !== "object" || Array.isArray(answer)) {
       throw new Error(
-        `traversal answer "${label}" must be a { status, body } object, got ${render(answer)}`,
+        `${noun} answer "${label}" must be a { status, body } object, got ${render(answer)}`,
       );
     }
     const { status, body: payload } = answer as { status?: unknown; body?: unknown };
@@ -839,6 +993,60 @@ export function projectTraversalPayload(body: unknown): Entry[] {
     }
   }
   return out;
+}
+
+/**
+ * PURE: project a `GET /api/traversal` · `/api/traversal/sessions` · `/api/context-windows` probe
+ * payload. See {@link projectStatusAndLeaves} for the shape and why it is shared.
+ */
+export function projectTraversalPayload(body: unknown): Entry[] {
+  return projectStatusAndLeaves(body, "traversal");
+}
+
+/**
+ * PURE: project a `GET /api/tree` probe payload — `{ [label]: { status, body } }`, one entry per
+ * request plus one per JSON leaf of the forest-map payload it answered.
+ *
+ * WHY THE FLATTENING SHAPE RATHER THAN THE PER-FIELD ONE the activity/arcs/floor-health projections
+ * use. Those payloads are shallow envelopes around one figure. A tree payload is the deepest
+ * document either surface serves: `{ stories: [ { …, capabilities: [ { …, verdict } ], uatCriteria:
+ * [ … ] } ], builds? }`. Compared as whole entries, a capability's `testCount` drifting would be
+ * reported as one unreadable diff of an entire story; compared by top-level key alone it would not
+ * be reported at all. Flattened, a divergence names the exact JSON path — `stories[3].capabilities
+ * [1].testCount` — which is the difference between a finding someone can act on and a wall of JSON.
+ *
+ * IT ALSO CATCHES PRESENT-VS-ABSENT, which on this route is where the drift actually was. Each
+ * object contributes a `{}` entry listing its sorted key set, so a field one surface emits and the
+ * other omits diverges on that entry as well as on the leaf itself — and `[]` entries carry array
+ * LENGTH, so a story silently dropped from one payload is a divergence rather than a quiet shift of
+ * every subsequent index.
+ */
+export function projectTreePayload(body: unknown): Entry[] {
+  return projectStatusAndLeaves(body, "tree");
+}
+
+/**
+ * The `/api/attestations` projection's key field — the SAME synthetic name again, see {@link ARCS_KEY}.
+ */
+export const ATTESTATIONS_KEY = ACTIVITY_KEY;
+
+/**
+ * PURE: project a `GET /api/attestations` probe payload — `{ [label]: { status, body } }`, one entry
+ * per replayed request plus one per JSON leaf of the UAT-leg envelope it answered.
+ *
+ * THE FLATTENING SHAPE for the reason {@link projectTreePayload} takes it: the body is a list of
+ * rows, each a UAT leg spread together with its vouch marks and its optional `proven` /
+ * `detailArtifactId` keys, so a divergence has to name a path (`read#.tests[1].detailArtifactId`)
+ * rather than diff a row.
+ *
+ * AND THE STATUS BESIDE IT, because on this route much of what is hand-copied IS a status: the 400
+ * that makes `storyId` required, the 200-with-no-legs that answers an unknown story (a 404 there
+ * would read as "no such route"), and the refusal of an id that escapes the stories root — which
+ * must be INDISTINGUISHABLE from a missing story, since a refusal that reads differently is what
+ * makes a filesystem existence oracle.
+ */
+export function projectAttestationsPayload(body: unknown): Entry[] {
+  return projectStatusAndLeaves(body, "attestations");
 }
 
 /** JSON-compare one field value; `undefined` for an absent key (distinct from an explicit null). */

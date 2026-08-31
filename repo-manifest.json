@@ -517,6 +517,7 @@
       "apps/desktop/src/backend/advisory.ts": "advisory-overlay-reads",
       "apps/desktop/src/backend/open-link-policy.ts": "desktop",
       "apps/desktop/src/backend/orchestrator-turns.ts": "desktop",
+      "apps/desktop/src/backend/attestations-route.ts": "local-backend-boot",
       "apps/desktop/src/backend/*-mirror-probe.ts": "mirrored-route-conformance",
 
       "$section_world_and_art": "The render core, the shared app surface, the R3F website engine and the art factory.",
@@ -738,6 +739,42 @@
           "checkout"
         ],
         "because": "the studio half of the same conformance harness; it must answer for the code in this diff."
+      },
+      "apps/desktop/src/backend/tree-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe over a fixture tree — and on this pair the fixture carries BOTH arms, a `stories/` tree and a work-hierarchy snapshot, because `/api/tree` is the route where the two clocks meet. Its subject is still this commit's two surfaces agreeing, never which clock is right."
+      },
+      "apps/desktop/src/backend/attestations-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe over a fixture tree — its subject is this commit's two surfaces, not the live store."
+      },
+      "apps/studio/server/treeMirrorProbe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the studio half of the `/api/tree` conformance pair; it must answer for the code in this diff."
+      },
+      "apps/studio/server/attestationsMirrorProbe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the studio half of the `/api/attestations` conformance pair; it must answer for the code in this diff."
+      },
+      "apps/desktop/src/backend/attestations-route.ts": {
+        "camp": "render",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a LIVE desktop read route, so it must agree with NOW — the same camp as `tree-verdicts.ts` beside it, and for the same reason: the surface it feeds is the running app, not a proof run.",
+        "fallback": "it reads the checkout's `stories/` for one story's authored UAT legs. There is no live-projection arm here and that is not an omission: the projection carries each criterion's `criterionId` and `revisionId` but not the leg PROSE or its `(detail:)` pointer, which are what this route puts on the wire. It therefore inherits the desktop's build-freshness skew for those fields exactly as ADR-0445 D1 describes, and the mirror row proves only that the studio inherits it identically."
       },
       "docs/research/chapter2-healthy-island-2026-08-16/census_healthy.ts": {
         "camp": "prove",
