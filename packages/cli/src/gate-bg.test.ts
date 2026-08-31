@@ -18,7 +18,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -317,4 +324,55 @@ test("propagation survives losing pipefail — PIPESTATUS is doing the work, not
   } finally {
     rmSync(dir, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
+});
+
+// ---------- the sentinel APPEARS WHOLE: existence must imply completion ----------
+//
+// THE MEASURED FAILURE, 2026-09-01. `packages/cli/src/gate-bg-launcher.test.ts` redded a full gate
+// with `'' !== '3'` for a job that had exited 3 perfectly. The sentinel was written
+// `printf '%s\n' "$status" > "$exit_file"`, and `>` CREATES (and truncates) the file BEFORE
+// anything is written into it — so between those two steps the sentinel exists and is EMPTY. A
+// reader that treats existence as completion reads "" and reports it as the verdict. The window is
+// microseconds wide, which is why it surfaced only on a box already running a full gate: this is
+// the same class as the load-dependent claim `gate-bg-launcher.test.ts`'s header describes losing
+// once already, and it survived that repair because it sits on the WRITER's side.
+//
+// The remedy is at the writer, so no reader anywhere has to know: the status lands in a sibling
+// temp file and is RENAMED into place, and a same-directory rename is atomic on both POSIX and
+// NTFS. `storytree dispatch` was never fooled — `readDispatchHandle` reports an empty sentinel as
+// `unreadable` with its own reason rather than parsing it — but a hand-rolled waiter, a `cat`, and
+// the launcher test's own poller all read existence as completion, and two of those are outside
+// this repo's control.
+//
+// The structural fence reads CODE, never comments, for the reason the PIPESTATUS fences above give
+// at length: a source grep that matches a surviving comment fences nothing.
+
+test("the sentinel is RENAMED into place in CODE — never a bare redirect that leaves it briefly empty", () => {
+  const code = scriptCode(readFileSync(script, "utf8"));
+  assert.doesNotMatch(
+    code,
+    /printf[^\n]*>\s*"\$exit_file"/,
+    'the status must not be redirected straight into "$exit_file": `>` creates the file empty and fills it after, so a reader can observe a sentinel that exists and holds nothing',
+  );
+  assert.match(
+    code,
+    /mv\s+-f\s+"\$exit_file\.tmp"\s+"\$exit_file"/,
+    "the sentinel must arrive by rename, so it is observable only complete",
+  );
+});
+
+test("a finished run leaves the sentinel complete and no temp residue beside it", () => {
+  withTempLog((logPath) => {
+    const res = spawnSync(bash, [script, "sh", "-c", "exit 4"], {
+      encoding: "utf8",
+      env: { ...process.env, GATE_BG_LOG: logPath },
+    });
+    assert.equal(res.error, undefined, `spawning bash failed: ${String(res.error)}`);
+    assert.equal(readFileSync(`${logPath}.exit`, "utf8").trim(), "4");
+    assert.equal(
+      existsSync(`${logPath}.exit.tmp`),
+      false,
+      "the rename must consume the temp file — a surviving .exit.tmp means the sentinel never moved into place",
+    );
+  });
 });
