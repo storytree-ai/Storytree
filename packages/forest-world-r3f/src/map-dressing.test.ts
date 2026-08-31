@@ -126,6 +126,21 @@ function twoStoryMap(
 const dress = (descriptors: readonly Descriptor3D[]) =>
   dressMapFromKit(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: FOOT });
 
+/**
+ * THE SIGNATURE COUNT, ASSERTED AS A WHOLE MAP — a cheap witness repeated across the tests below.
+ *
+ * ⚠⚠ IT IS REPEATED ON PURPOSE, and the reason is the rung rather than the reader. The line it
+ * witnesses is `if (d.kind !== 'uat-bloom') continue` — the filter that keeps GROUND out of a count
+ * of SIGNATURES. Mutate it either way and every cell-ground descriptor becomes a signature, so this
+ * map goes from a handful to hundreds. Both mutants are killed by any one of these calls; CI's Bun
+ * reporter could name NO killing test for either, twice, while every other mutant on the branch
+ * resolved at least one. A mutant killed by many independent tests survives that reporter's
+ * name-resolution gaps; a mutant killed by one does not.
+ */
+const assertSignatures = (map: readonly Descriptor3D[], want: Record<string, number>): void => {
+  assert.deepEqual(Object.fromEntries(signedCriteriaByIsland(map)), want);
+};
+
 // ---------------------------------------------------------------------------
 // the fixture is honest before anything is asserted about the dressing
 // ---------------------------------------------------------------------------
@@ -143,6 +158,9 @@ test('NON-VACUITY: the fixture really is two islands, with cells and signatures 
     const cells = map.filter((d) => d.kind === 'cell-ground' && d.island === story);
     assert.ok(cells.length > 3, `${story} drew only ${cells.length} cells`);
   }
+  // ⚠ The same ground the count must NOT include. Asserting both here is what makes this a
+  // non-vacuity check for the filter as well as for the fixture.
+  assertSignatures(map, { [STORY_A]: 4, [STORY_B]: 2 });
 });
 
 // ---------------------------------------------------------------------------
@@ -171,6 +189,7 @@ test('⚠⚠ EVERY BLOOM STANDS ON THE ISLAND OF THE STORY THAT SIGNED IT', () =
   // flower belongs to, so this is asked of the geometry: a bloom placed for atlas must land inside
   // atlas's own ground, and atlas's ground and beacon's do not overlap.
   const map = twoStoryMap({ total: 6, signed: 4 }, { total: 5, signed: 2 });
+  assertSignatures(map, { [STORY_A]: 4, [STORY_B]: 2 });
   const placements = dress(map);
   const blooms = placements.filter((p) => p.role === 'bloom');
   assert.equal(blooms.length, 6, 'four signatures on atlas and two on beacon');
@@ -198,6 +217,7 @@ test('a story that signed NOTHING grows nothing, even beside one that signed eve
   // signatures held by atlas were scattered over every cell on the map, so beacon — which had
   // signed nothing — grew flowers. The picture asserted a signature nobody gave.
   const map = twoStoryMap({ total: 6, signed: 6 }, { total: 5, signed: 0 });
+  assertSignatures(map, { [STORY_A]: 6 });
   const blooms = dress(map).filter((p) => p.role === 'bloom');
   assert.equal(blooms.length, 6);
   const bXs = map
@@ -212,7 +232,9 @@ test('a story that signed NOTHING grows nothing, even beside one that signed eve
 test('the map still grows ONE object per capability, on the capability’s own parcel', () => {
   // Per-island dressing must not cost the ADR-0475 vocabulary anything: three capabilities across
   // two islands are still three trees, each carrying its own capId.
-  const placements = dress(twoStoryMap());
+  const map = twoStoryMap();
+  assertSignatures(map, { [STORY_A]: 4, [STORY_B]: 2 });
+  const placements = dress(map);
   const caps = placements.filter((p) => p.role !== 'bloom').map((p) => p.capId);
   assert.deepEqual([...caps].sort(), ['atlas-parse', 'atlas-store', 'beacon-emit']);
 });
@@ -310,5 +332,19 @@ test('an island is dressed against its OWN occupancy — it looks the same alone
 });
 
 test('the dressing is deterministic — the same map dresses identically twice', () => {
+  assertSignatures(twoStoryMap(), { [STORY_A]: 4, [STORY_B]: 2 });
   assert.deepEqual(dress(twoStoryMap()), dress(twoStoryMap()));
+});
+
+test('GROUND IS NOT A SIGNATURE — a map of nothing but cells signs nothing', () => {
+  // ⚠ The filter's own claim, stated with no bloom in the stream at all: a `cell-ground` carries an
+  // island and no criterion, so a reader that let ground through would report one signature per
+  // cell — a story asserted to hold 164 signed criteria because its land has 164 parcels.
+  const ground = twoStoryMap({ total: 6, signed: 0 }, { total: 5, signed: 0 });
+  assert.ok(
+    ground.filter((d) => d.kind === 'cell-ground').length > 10,
+    'the fixture must carry ground for this to say anything',
+  );
+  assert.equal(ground.filter((d) => d.kind === 'uat-bloom').length, 0, 'and no signature at all');
+  assertSignatures(ground, {});
 });
