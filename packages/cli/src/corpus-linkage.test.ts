@@ -6,6 +6,8 @@ import {
   evaluateCorpusLinkage,
   linkageNodeId,
   resolvePointer,
+  carriesUnwalkedPointer,
+  WALKED_POINTER_FIELDS,
   type LinkageSource,
 } from "./corpus-linkage.js";
 
@@ -523,3 +525,221 @@ test("EACH off-graph term can carry the sum on its own, against a cancelling par
   assert.equal(anchorAndSuperseded.supersedesIn, 1);
 });
 
+
+// ── THE FIELD SCOPE: which fields produced the figure, and what the walk cannot see ──────────
+//
+// `connect-the-fifty-eight-and-fix-the-denominator`. The headline sentence "70% of the library has
+// no recorded connection to anything else: nothing points at it and it points at nothing" is FALSE
+// AS WRITTEN, and measurably so: this instrument walks `dependsOn` plus the `asset:` half of
+// `cites` and NOTHING ELSE, while every increment carries `arcRef`, 88 friction items are named by
+// some increment's `frictionRefs`, and 222 of 477 decisions carry `arcRef` — the field `arc show`
+// itself derives an arc's decision list from. A node reachable only by one of those reads as
+// "connected to nothing" here, which is the instrument's scope talking, not the corpus.
+//
+// `a-corpus-count-inherits-one-querys-field-scope` is the general shape and its rule is the reason
+// the tally below is DISCOVERED rather than declared: "never assume which fields can hold a
+// pointer — `dischargedBy` carried two, and nobody would have listed it."
+
+test("WALKED_POINTER_FIELDS states the walk's scope, and it is exactly two fields", () => {
+  // The one declared list in this module, and it is declared because it IS the walk's definition.
+  // Everything else about the pointer surface is discovered from the rows.
+  assert.deepEqual([...WALKED_POINTER_FIELDS], ["cites", "dependsOn"]);
+});
+
+test("a node whose ONLY pointer is `arcRef` is UNLINKED and yet points at something real", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("some-arc", "arc", {}),
+    row("inc-01", "increment", { arcRef: "asset:some-arc" }),
+  ]);
+  const inc = verdict.nodes.find((n) => n.nodeId === "inc-01");
+  assert.ok(inc !== undefined);
+  // UNLINKED: `arcRef` is not a walked field, so it buys no degree — this is the true half.
+  assert.equal(inc.outDegree, 0);
+  assert.equal(inc.inDegree, 0);
+  assert.notEqual(inc.edgeFreeReason, null);
+  // AND YET: it names a row this corpus holds. That is the half the bare headline erases.
+  assert.deepEqual([...inc.unwalkedPointerFields], ["arcRef"]);
+  assert.equal(carriesUnwalkedPointer(inc), true);
+});
+
+test("unlinkedWithTypedPointer separates `no edge` from `connected to nothing`", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("some-arc", "arc", {}),
+    row("inc-01", "increment", { arcRef: "asset:some-arc" }),
+    row("alone", "principle", {}),
+  ]);
+  // Three unlinked nodes — the arc itself is pointed at by nothing WALKED, so it is unlinked too.
+  assert.equal(verdict.unlinked, 3);
+  // ...but only ONE of them carries a typed pointer at something real.
+  assert.equal(verdict.unlinkedWithTypedPointer, 1);
+  const alone = verdict.nodes.find((n) => n.nodeId === "alone");
+  assert.ok(alone !== undefined);
+  assert.equal(carriesUnwalkedPointer(alone), false);
+});
+
+test("the field tally reports walked and unwalked fields APART, never as one total", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("target", "principle", {}),
+    row("f-1", "friction", {}),
+    row("f-2", "friction", {}),
+    row("some-arc", "arc", {}),
+    row("inc-01", "increment", { arcRef: "asset:some-arc", frictionRefs: ["asset:f-1", "asset:f-2"] }),
+    row("guide", "process", { dependsOn: ["asset:target"] }),
+  ]);
+  const byField = new Map(verdict.pointerFields.map((f) => [f.field, f]));
+
+  // WALKED — what makes a node "linked".
+  assert.deepEqual(byField.get("dependsOn"), {
+    field: "dependsOn",
+    walked: true,
+    pointers: 1,
+    nodes: 1,
+  });
+  // UNWALKED — real, typed, and invisible to every figure above.
+  assert.deepEqual(byField.get("arcRef"), { field: "arcRef", walked: false, pointers: 1, nodes: 1 });
+  assert.deepEqual(byField.get("frictionRefs"), {
+    field: "frictionRefs",
+    walked: false,
+    pointers: 2,
+    nodes: 1,
+  });
+});
+
+test("the field tally counts POINTERS and NODES apart — one node may carry many", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("f-1", "friction", {}),
+    row("f-2", "friction", {}),
+    row("f-3", "friction", {}),
+    row("inc-01", "increment", { frictionRefs: ["asset:f-1", "asset:f-2", "asset:f-3"] }),
+    row("inc-02", "increment", { frictionRefs: ["asset:f-1"] }),
+  ]);
+  const refs = verdict.pointerFields.find((f) => f.field === "frictionRefs");
+  // Four pointers across two nodes. Summing them into one figure is what hides that one increment
+  // carries three-quarters of the relationship.
+  assert.deepEqual(refs, { field: "frictionRefs", walked: false, pointers: 4, nodes: 2 });
+});
+
+test("an unwalked field naming NOTHING HELD records nothing — a dangling value is not a pointer", () => {
+  const verdict = evaluateCorpusLinkage([row("inc-01", "increment", { arcRef: "asset:no-such-arc" })]);
+  assert.equal(verdict.pointerFields.length, 0);
+  assert.equal(verdict.unlinkedWithTypedPointer, 0);
+  const inc = verdict.nodes[0];
+  assert.ok(inc !== undefined);
+  assert.deepEqual([...inc.unwalkedPointerFields], []);
+});
+
+test("a SELF-pointer in an unwalked field records nothing, exactly as in a walked one", () => {
+  // The same rule the walk already applies: pointing at yourself is not a connection to anything.
+  const verdict = evaluateCorpusLinkage([row("inc-01", "increment", { arcRef: "asset:inc-01" })]);
+  assert.equal(verdict.pointerFields.length, 0);
+  assert.equal(verdict.unlinkedWithTypedPointer, 0);
+});
+
+test("an unwalked pointer resolves a DECISION row through the same collapse the walk uses", () => {
+  // `arcRef` on a decision names an arc; but a field naming `adr-NNNN` must land on the decision
+  // NODE, or the two halves of this instrument disagree about the same string.
+  const verdict = evaluateCorpusLinkage([
+    row("adr-0449", "adr", {}),
+    row("inc-01", "increment", { supersededByDecision: "asset:adr-0449" }),
+  ]);
+  const refs = verdict.pointerFields.find((f) => f.field === "supersededByDecision");
+  assert.deepEqual(refs, { field: "supersededByDecision", walked: false, pointers: 1, nodes: 1 });
+});
+
+test("a `story:` cite counts as pointing outside the corpus, not as connected to nothing", () => {
+  const verdict = evaluateCorpusLinkage([row("crit", "uat-criterion", { cites: ["story:desktop"] })]);
+  const node = verdict.nodes[0];
+  assert.ok(node !== undefined);
+  assert.equal(node.anchorOut, 1);
+  assert.notEqual(node.edgeFreeReason, null);
+  // The anchor is the `story:`/`capability:` half of `cites` — unwalked, and a real destination.
+  assert.equal(carriesUnwalkedPointer(node), true);
+  assert.equal(verdict.unlinkedWithTypedPointer, 1);
+});
+
+test("the field tally sorts by POINTERS descending, ties by field name", () => {
+  // ⚠ THE INSERTION ORDER IS DELIBERATELY NOT THE SORTED ORDER. Authored the other way round first,
+  // and every one of the four sort mutants survived — `Object.entries` had already produced the
+  // expected sequence, so removing the sort, blanking the comparator or flipping its subtraction
+  // all left the assertion true. A sort assertion whose fixture arrives pre-sorted tests nothing.
+  const verdict = evaluateCorpusLinkage([
+    row("a", "principle", {}),
+    row("b", "principle", {}),
+    row("c", "principle", {}),
+    row("src", "process", {
+      bbb: ["asset:a"],
+      zzz: ["asset:a", "asset:b", "asset:c"],
+      aaa: ["asset:a"],
+    }),
+  ]);
+  assert.deepEqual(
+    verdict.pointerFields.map((f) => f.field),
+    ["zzz", "aaa", "bbb"],
+  );
+});
+
+test("a node's unwalkedPointerFields are SORTED, not left in authoring order", () => {
+  // Same trap one level down: `zRef` is authored first, so an unsorted list would read
+  // `["zRef", "aRef"]` and a fixture authored alphabetically could never tell.
+  const verdict = evaluateCorpusLinkage([
+    row("x", "principle", {}),
+    row("y", "principle", {}),
+    row("src", "increment", { zRef: "asset:x", aRef: "asset:y" }),
+  ]);
+  const src = verdict.nodes.find((n) => n.nodeId === "src");
+  assert.ok(src !== undefined);
+  assert.deepEqual([...src.unwalkedPointerFields], ["aRef", "zRef"]);
+});
+
+test("unlinkedWithTypedPointer counts only the UNLINKED — a linked node with an arcRef is excluded", () => {
+  // The term exists to qualify `unlinked`, so a LINKED node carrying an unwalked pointer must not
+  // enter it: counting one would make the refutation larger than the population it refutes.
+  const verdict = evaluateCorpusLinkage([
+    row("target", "principle", {}),
+    row("some-arc", "arc", {}),
+    row("src", "increment", { dependsOn: ["asset:target"], arcRef: "asset:some-arc" }),
+  ]);
+  const src = verdict.nodes.find((n) => n.nodeId === "src");
+  assert.ok(src !== undefined);
+  assert.equal(src.edgeFreeReason, null, "src is LINKED — it carries a walked dependsOn edge");
+  assert.equal(carriesUnwalkedPointer(src), true, "...and it also carries an unwalked arcRef");
+  // `some-arc` and `target` are the unlinked ones, and neither points anywhere.
+  assert.equal(verdict.unlinkedWithTypedPointer, 0);
+});
+
+test("a walked field never appears in a node's unwalkedPointerFields", () => {
+  const verdict = evaluateCorpusLinkage([
+    row("target", "principle", {}),
+    row("src", "process", { dependsOn: ["asset:target"], cites: ["asset:target"] }),
+  ]);
+  const src = verdict.nodes.find((n) => n.nodeId === "src");
+  assert.ok(src !== undefined);
+  assert.deepEqual([...src.unwalkedPointerFields], []);
+  assert.equal(carriesUnwalkedPointer(src), false);
+});
+
+test("a BARE row name is NOT a pointer — the `category` false positive, pinned", () => {
+  // MEASURED, not assumed (live corpus, 2,776 rows, 2026-08-31): accepting a bare row name made
+  // `category` the single biggest "pointer field" in the corpus at 2,448 across 2,448 nodes, and
+  // every one was an artifact of rendering — `renderStoredDoc` stamps the row's KIND into
+  // `category`, and `increment` is itself a definition row. `unlinkedWithTypedPointer` read 1,899
+  // of 1,948 on the strength of it: a refutation manufactured out of the renderer.
+  const verdict = evaluateCorpusLinkage([
+    row("increment", "definition", {}),
+    row("inc-01", "increment", { category: "increment" }),
+  ]);
+  assert.deepEqual(verdict.pointerFields, []);
+  assert.equal(verdict.unlinkedWithTypedPointer, 0);
+});
+
+test("a scheme-carrying value IS a pointer in ANY field, named or not", () => {
+  // The rule is the SCHEME, never a list of blessed field names — `dischargedBy` carried two
+  // pointers and nobody would have listed it (`a-corpus-count-inherits-one-querys-field-scope`).
+  const verdict = evaluateCorpusLinkage([
+    row("decision-note", "principle", {}),
+    row("src", "process", { dischargedBy: ["doc:docs/x.md", "asset:decision-note"] }),
+  ]);
+  assert.deepEqual(verdict.pointerFields, [
+    { field: "dischargedBy", walked: false, pointers: 1, nodes: 1 },
+  ]);
+});
