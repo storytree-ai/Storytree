@@ -47,7 +47,12 @@ import {
 import { renderStoredDoc } from "@storytree/library/store";
 
 import { buildCohorts, coReadNeighbours, RECORD_TIERS } from "./corpus-cohorts.js";
-import { evaluateCorpusLinkage, linkageNodeId, type LinkageSource } from "./corpus-linkage.js";
+import {
+  evaluateCorpusLinkage,
+  linkageNodeId,
+  WALKED_POINTER_FIELDS,
+  type LinkageSource,
+} from "./corpus-linkage.js";
 import {
   foldReadObservations,
   readFloorNotes,
@@ -307,8 +312,25 @@ async function main(): Promise<void> {
     );
     console.log("");
     console.log("THE HEADLINE");
+    // THE SPLIT LEADS, AND THE BLENDED RATIO IS LABELLED AS BLENDED. The two tiers differ by an
+    // order of magnitude (93.7% against 8.2% on 2026-08-31), so their average describes neither and
+    // is the figure that got quoted as "70% of the library". A denominator mixing a knowledge
+    // artifact with an increment is not a denominator anyone asked a question about.
+    const recordNodes = verdict.nodes.filter((node) => RECORD_TIERS.has(node.kind));
+    const knowledgeNodes = verdict.nodes.filter((node) => !RECORD_TIERS.has(node.kind));
+    const recordUnlinked = recordNodes.filter((node) => node.edgeFreeReason !== null).length;
+    const knowledgeUnlinked = knowledgeNodes.filter((node) => node.edgeFreeReason !== null).length;
     console.log(
-      `  linked: ${verdict.linked}   unlinked: ${verdict.unlinked} ` +
+      `  knowledge tiers (everything else): ${knowledgeUnlinked} of ${knowledgeNodes.length} ` +
+        `unlinked (${pct(knowledgeUnlinked, knowledgeNodes.length)})`,
+    );
+    console.log(
+      `  record tiers    (${[...RECORD_TIERS].sort().join(", ")}): ${recordUnlinked} of ` +
+        `${recordNodes.length} unlinked (${pct(recordUnlinked, recordNodes.length)})`,
+    );
+    console.log(
+      `  ⚠ BLENDED, and reported last because it describes NEITHER tier: ` +
+        `linked ${verdict.linked} / unlinked ${verdict.unlinked} ` +
         `(${pct(verdict.unlinked, verdict.population)} of ${verdict.population}) over ` +
         `${verdict.walkableEdges} distinct walkable edges`,
     );
@@ -318,17 +340,66 @@ async function main(): Promise<void> {
         : `  ⚠ the RAW rows disagree with the wire: ${rawVerdict.unlinked} unlinked of ` +
           `${rawVerdict.population}. Run \`pnpm probe:depth-from-work\`, which owns that diff.`,
     );
-    const recordNodes = verdict.nodes.filter((node) => RECORD_TIERS.has(node.kind));
-    const knowledgeNodes = verdict.nodes.filter((node) => !RECORD_TIERS.has(node.kind));
-    const recordUnlinked = recordNodes.filter((node) => node.edgeFreeReason !== null).length;
-    const knowledgeUnlinked = knowledgeNodes.filter((node) => node.edgeFreeReason !== null).length;
+    console.log("");
+    console.log("THE FIELD SCOPE — which fields produced every figure above");
+    const walkedFields = verdict.pointerFields.filter((f) => f.walked);
+    const unwalkedFields = verdict.pointerFields.filter((f) => !f.walked);
     console.log(
-      `  record tiers    (${[...RECORD_TIERS].sort().join(", ")}): ${recordUnlinked} of ` +
-        `${recordNodes.length} unlinked (${pct(recordUnlinked, recordNodes.length)})`,
+      `  WALKED (${WALKED_POINTER_FIELDS.join(" + ")}) — these and ONLY these make a node "linked":`,
+    );
+    for (const f of walkedFields) {
+      console.log(
+        `    ${f.field.padEnd(28)}${String(f.pointers).padStart(7)} pointers across ` +
+          `${String(f.nodes).padStart(6)} nodes`,
+      );
+    }
+    console.log(
+      `  TYPED BUT NOT WALKED — a node carrying ONLY these still reads as "unlinked" above:`,
+    );
+    for (const f of unwalkedFields) {
+      console.log(
+        `    ${f.field.padEnd(28)}${String(f.pointers).padStart(7)} pointers across ` +
+          `${String(f.nodes).padStart(6)} nodes`,
+      );
+    }
+    console.log(
+      `    ${"cites (story:/capability:)".padEnd(28)}${String(verdict.anchorPointers).padStart(7)} ` +
+        `pointers — the half of a WALKED field that leaves this corpus`,
+    );
+    // THE SECOND LIMIT ON THE SCOPE, and it is not the field set — it is the WIRE. This probe reads
+    // the RENDERED doc on purpose (a field a reader never meets is not a link a reader can follow),
+    // and rendering DROPS the schema-level pointer fields. `frictionRefs` is the measured case: 98
+    // authored pointers, every one naming a held row, 0 of them on the rendered wire. Reporting the
+    // rendered reading alone would print that relation as though it did not exist.
+    const renderedFields = new Set(verdict.pointerFields.map((f) => f.field));
+    const droppedByRender = rawVerdict.pointerFields.filter((f) => !renderedFields.has(f.field));
+    if (droppedByRender.length > 0) {
+      console.log(
+        `  AUTHORED BUT DROPPED BY RENDERING — present on the stored row, absent from the wire above:`,
+      );
+      for (const f of droppedByRender) {
+        console.log(
+          `    ${f.field.padEnd(28)}${String(f.pointers).padStart(7)} pointers across ` +
+            `${String(f.nodes).padStart(6)} nodes (raw rows)`,
+        );
+      }
+    }
+    console.log(
+      `  ⚠ SO THE HEADLINE IS "carries no dependency edge", NEVER "is connected to nothing": ` +
+        `${verdict.unlinkedWithTypedPointer} of the ${verdict.unlinked} unlinked nodes ` +
+        `(${pct(verdict.unlinkedWithTypedPointer, verdict.unlinked)}) point at something this ` +
+        `corpus holds, by a field the walk does not follow.`,
     );
     console.log(
-      `  knowledge tiers (everything else): ${knowledgeUnlinked} of ${knowledgeNodes.length} ` +
-        `unlinked (${pct(knowledgeUnlinked, knowledgeNodes.length)}) — the single ratio hides this split`,
+      `    Quote the figure WITH this line or not at all — the sentence "nothing points at it and ` +
+        `it points at nothing" is false of every one of those ${verdict.unlinkedWithTypedPointer}.`,
+    );
+    console.log(
+      `  AND THIS SECTION HAS ITS OWN FLOOR: a pointer is recognised by its SCHEME, so a relation ` +
+        `authored as a BARE row id is invisible here too — \`frictionRefs\` is the measured case ` +
+        `(98 pointers, all naming held rows). Accepting bare ids instead made \`category\` read as ` +
+        `2,448 pointers, every one the row's own KIND naming the definition of that kind, so the ` +
+        `rule is scheme-only ON PURPOSE and this line is the cost.`,
     );
 
     console.log("");
