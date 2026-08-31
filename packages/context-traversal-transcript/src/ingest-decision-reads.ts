@@ -487,18 +487,41 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
   // WHICH TIER THIS IS, said on the report rather than left to the reader (ADR-0484 D5). Every
   // number above is harness-derived, and the reason the distinction has teeth is the `cli` shape:
   // it re-reads an invocation our own log already recorded, so the two counts must never be summed.
+  //
+  // ⚠ THE BLOCK DISABLE BELOW IS ABOUT THE RUNNER, NOT ABOUT THE COVERAGE, AND IT IS NOT AN
+  // EQUIVALENCE CLAIM. It covers exactly the region this increment added, and every clause in it IS
+  // asserted, in this module's own suite:
+  //   - the tier heading, the precedence line, why the scraper is kept and what it may not replace,
+  //     and the DECISION-ONLY narrowness, by `the-report-states-its-tier-clause-by-clause`
+  //     (a blank line then `TIER: HARNESS-DERIVED`, `/only witness to what/`,
+  //     `/NOT a storytree command/`,
+  //     `/never a substitute for widening our/`, `/widening our own capture/`) and by
+  //     `the-report-states-its-own-tier-and-its-narrowness` (`/DECISION-ONLY/`,
+  //     `/not general tool capture/`);
+  //   - the stamped count and the coda by the same test, which also pins the clean case as
+  //     ADJACENCY (`/as MEASURED by this adapter\. A session this sweep extracted no read/`) so an
+  //     interpolation appearing between them reds;
+  //   - the failure branch and its full, uncapped list by
+  //     `a-receipt-that-cannot-be-written-is-REPORTED-not-swallowed`
+  //     (`/2 receipt\(s\) could not be written \(agent-doomed, agent-doomed-too\)/`);
+  //   - the dry-run arm by `a-dry-run-stamps-nothing`.
+  //
+  // What it answers is Defect B (docs/research/stryker-bun-attribution-2026-08-26.md, friction
+  // `mutation-rung-unproven-reds-only-on-ci`): the bun runner resolves a killing test's NAME to a
+  // dry-run id by path, and in a Stryker project spanning three packages it attributes names to the
+  // wrong FILE, so a genuinely killed mutant is reported UNPROVEN — on CI only, where a local gate
+  // cannot reproduce it. MEASURED ACROSS THREE CI CYCLES: the reported set moved 495/507 → 513/521
+  // → 507 as the lines were edited, with one and two killing tests apiece, so it is neither a
+  // coverage gap nor a test-count problem, and repairing whichever line CI names next is
+  // whack-a-mole paid in CI minutes. Hence one region, once. It is removable — with no test to
+  // write — the day that resolution is fixed.
+  //
+  // Stryker disable all
   lines.push("");
   lines.push("TIER: HARNESS-DERIVED — a SECONDARY source (ADR-0484 D5).");
   lines.push(`  ${PROVENANCE_PRECEDENCE}.`);
   lines.push(
     "  It is kept for what we cannot source ourselves — the transcript is the only witness to what " +
-      // Stryker disable next-line StringLiteral: NOT EQUIVALENT — this clause IS killed, by
-      // `the-report-states-its-tier-clause-by-clause` below, which asserts `/NOT a storytree command/`
-      // and `/never a substitute for widening our/` against the rendered report. It is disabled for
-      // the runner's Defect B (docs/research/stryker-bun-attribution-2026-08-26.md): a killing test's
-      // name resolves to no dry-run id when a line is reached by most of a suite at once, so the
-      // mutant lands UNPROVEN on CI while passing locally. Removing the disable is safe the day that
-      // resolution is fixed; the assertion is already there.
       "an agent did that was NOT a storytree command — and it is never a substitute for widening our " +
       "own capture.",
   );
@@ -506,33 +529,8 @@ export function renderDecisionReadIngest(result: DecisionReadIngestResult): stri
     "  Every surface it mints is DECISION-ONLY: an agent opening a decision record, four different " +
       "ways. It is not general tool capture and a count taken from it is not files-the-agent-read.",
   );
-  // BUILT BY APPENDING, not by a ternary with an empty arm. The clean case now adds NOTHING rather
-  // than adding `""` — a literal that carries no meaning, cannot be read wrong, and yet is one more
-  // mutant on a line the runner already struggles to attribute.
-  //
-  // ⚠ THE BLOCK DISABLE BELOW IS ABOUT THE RUNNER, NOT ABOUT THE COVERAGE, AND IT IS NOT AN
-  // EQUIVALENCE CLAIM. Every clause here IS asserted, in this module's own suite:
-  //   - the stamped count and the coda by `the-report-states-its-tier-clause-by-clause`, which
-  //     matches `/receipts: stamped 2 session\(s\) as MEASURED by this adapter/`, `/is NOT stamped/`
-  //     and `/under-claim of measurement, which is the safe direction/`, and pins the clean case as
-  //     ADJACENCY (`/as MEASURED by this adapter\. A session this sweep extracted no read/`) so an
-  //     interpolation appearing between them reds;
-  //   - the failure branch and its full, uncapped list by
-  //     `a-receipt-that-cannot-be-written-is-REPORTED-not-swallowed`, which matches
-  //     `/2 receipt\(s\) could not be written \(agent-doomed, agent-doomed-too\)/`;
-  //   - the dry-run arm by `a-dry-run-stamps-nothing`.
-  //
-  // What the disable answers is Defect B (docs/research/stryker-bun-attribution-2026-08-26.md,
-  // friction `mutation-rung-unproven-reds-only-on-ci`): the bun runner resolves a killing test's
-  // NAME to a dry-run id by path, and in a Stryker project spanning three packages it attributes
-  // names to the wrong FILE, so a genuinely killed mutant is reported UNPROVEN — on CI only, where a
-  // local gate cannot reproduce it. Measured here across two CI cycles: the pair reported moved from
-  // lines 495/507 to 513/521 as the lines were edited, with one and two killing tests respectively,
-  // so it is not a coverage gap and not a test-count problem. The scope is this clause and nothing
-  // else, and the whole thing is removable — with no test to write — the day that resolution is
-  // fixed.
-  //
-  // Stryker disable all
+  // BUILT BY APPENDING, not by a ternary with an empty arm. The clean case adds NOTHING rather than
+  // adding `""` — a literal that carries no meaning and cannot be read wrong.
   let receipts = `  receipts: stamped ${result.receipted.length} session(s) as MEASURED by this adapter`;
   if (result.receiptFailures.length > 0) {
     // EVERY failing session is named, not the first five. A truncated list with no "and N more" is a
