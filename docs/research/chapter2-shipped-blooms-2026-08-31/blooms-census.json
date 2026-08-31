@@ -33,44 +33,68 @@
   },
   "shots": {
     "none": {
-      "2": {
-        "props": 5,
-        "blooms": 0
-      },
-      "8": {
-        "props": 5,
-        "blooms": 0
-      },
       "fit": {
-        "props": 5,
+        "meshes": 5,
+        "placements": 374,
+        "blooms": 0
+      },
+      "2px": {
+        "meshes": 5,
+        "placements": 374,
+        "blooms": 0
+      },
+      "8px": {
+        "meshes": 5,
+        "placements": 374,
+        "blooms": 0
+      },
+      "unsigned-8px": {
+        "meshes": 5,
+        "placements": 374,
         "blooms": 0
       }
     },
     "scattered": {
-      "2": {
-        "props": 6,
-        "blooms": 210
-      },
-      "8": {
-        "props": 6,
-        "blooms": 210
-      },
       "fit": {
-        "props": 6,
+        "meshes": 6,
+        "placements": 584,
+        "blooms": 210
+      },
+      "2px": {
+        "meshes": 6,
+        "placements": 584,
+        "blooms": 210
+      },
+      "8px": {
+        "meshes": 6,
+        "placements": 584,
+        "blooms": 210
+      },
+      "unsigned-8px": {
+        "meshes": 6,
+        "placements": 584,
         "blooms": 210
       }
     },
     "attributed": {
-      "2": {
-        "props": 6,
-        "blooms": 210
-      },
-      "8": {
-        "props": 6,
-        "blooms": 210
-      },
       "fit": {
-        "props": 6,
+        "meshes": 6,
+        "placements": 584,
+        "blooms": 210
+      },
+      "2px": {
+        "meshes": 6,
+        "placements": 584,
+        "blooms": 210
+      },
+      "8px": {
+        "meshes": 6,
+        "placements": 584,
+        "blooms": 210
+      },
+      "unsigned-8px": {
+        "meshes": 6,
+        "placements": 584,
         "blooms": 210
       }
     }
