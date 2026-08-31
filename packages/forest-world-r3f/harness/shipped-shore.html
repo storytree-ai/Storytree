@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the landform falls to the shore — three widths — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The landform that falls to the shore &mdash; three widths, one instrument</h1>
+      <p>
+        The shipped 3D ground now ends on a real coastline, but the land does not
+        <em>fall</em> to it. <code>landRelief</code> is an unbounded sum of three sine waves and a
+        function of position only &mdash; there is no shore term anywhere in it &mdash; so the beach
+        the coast clip added on 2026-09-01 stands at whatever height the sine sum happens to give it,
+        and an island can finish at a vertical cut several units above the waterline. The approved
+        treatment&rsquo;s second component is &ldquo;a landform that falls to the shore&rdquo;, and
+        its generator&rsquo;s own comment says why: <em>an island whose ground is flat right up to a
+        vertical cut has no shore, and a shore is most of what makes a coast read.</em>
+      </p>
+      <p>
+        <strong>The numbers here are the approved render&rsquo;s own, not taste.</strong>
+        <code>docs/research/chapter2-land-idiom-2026-08-27/build_land.py</code> is the script that
+        produced the picture the owner stamped. Its landform is four lines: a shore band
+        <code>BEACH&nbsp;=&nbsp;3.1</code> ground units wide, a smoothstep across it, the relief
+        multiplied by that, and the beach dipped <code>0.62</code> units below the grass line. The
+        two scales agree &mdash; the generator sizes its island from &ldquo;the real island&rsquo;s
+        ground footprint&rdquo;, 233.8 units, and the shipped island measures 234 &mdash; so both
+        constants transfer as authored rather than being re-tuned.
+      </p>
+      <p class="numbers">
+        none&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the map today &mdash; full height right up to the waterline (CONTROL)<br />
+        authored&nbsp;a 3.1-unit band &mdash; the generator&rsquo;s own number, under half our beach<br />
+        beach&nbsp;&nbsp;&nbsp;&nbsp;a 7-unit band &mdash; exactly the land the coast clip added<br />
+        shelf&nbsp;&nbsp;&nbsp;&nbsp;a 16.5-unit band &mdash; one whole parcel inland, a shelf not a lip
+      </p>
+      <p>
+        <strong>&#9888;&#9888; Why three arms: the fork is a number mismatch, not a design choice.</strong>
+        The reference&rsquo;s shore band is 3.1 units wide. The beach <em>this</em> map draws is
+        <code>COAST_OUTSET</code> = 7 units, more than twice that. So transcribing the authored
+        number faithfully leaves over half of our own beach standing at full height, and the honest
+        thing is to show all three and let the picture decide. <strong>Only the width moves.</strong>
+        Every arm is clipped to the same shipped coast, carries the same 0.62 dip, and wears the same
+        ladder, grain, occlusion atlas, light and camera.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; The geometry counters are identical on every arm, and that is the
+        result rather than an oversight.</strong> The fall moves vertices in Y and creates none, so it
+        cannot move a triangle, a ring vertex, an attribute byte or a square unit of land &mdash; the
+        component is exactly free in every count the coast increment spent. A triangle delta reported
+        on this page would be a bug, and the driver refuses the run. What the captions report instead
+        is what the fall <em>does</em> move: how many vertices it touched, how far the ground dropped,
+        and how many of them changed <strong>shade rung</strong>.
+      </p>
+      <p>
+        <strong>&#9888; The rung flips are the only number a viewer can actually see.</strong> The
+        banded material quantises <code>dot(n,&nbsp;L)</code> onto the authored ladder, so a moved
+        normal is a moved rung is a different delivered colour. A band that moved a lot of geometry
+        but flipped no rung would be invisible on the shipped material however deep its drop, and a
+        geometry figure alone cannot tell those two apart. The count is a <em>lower bound</em>: it is
+        taken per vertex, while the shader quantises per fragment, so rung boundaries also fall
+        between vertices where this cannot see them.
+      </p>
+      <p>
+        <strong>&#9888; The normal carries the product rule, which is this component&rsquo;s whole
+        risk.</strong> Scaling the height by a falloff without differentiating the falloff too gives a
+        surface lit for the shape it had <em>before</em> the shore was cut &mdash; and on a banded
+        material a slightly-wrong normal is not a slightly-wrong colour, it is a different rung. That
+        mistake is invisible in the bounds, the silhouette and the picture. The suite holds the
+        analytic normal to a central difference of the height the same object returns.
+      </p>
+      <p>
+        <strong>&#9888; Read the per-object number, not the frame percentage.</strong> A shore band is
+        a thin annulus, so &ldquo;0.4% of the frame changed&rdquo; reads as nothing beside two
+        pictures that are obviously different lands. Here the control and the reference are the same
+        arm, so an arm-vs-control figure already <em>is</em> the band&rsquo;s own footprint; the
+        denominator earns its keep on the arm-vs-arm table, where 3.1 against 7 against 16.5 is the
+        actual question.
+      </p>
+      <p>
+        <strong>&#9888; And the band&rsquo;s delivered width in pixels is printed beside every
+        comparison.</strong> At the fitted zoom a 7-unit band is under three pixels, so an arm that
+        changed the whole landform can come back nearly byte-identical there. A null result has to be
+        readable as a null result rather than as agreement.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedShore } from './shipped-shore-scene.ts';
+      try {
+        await mountShippedShore(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

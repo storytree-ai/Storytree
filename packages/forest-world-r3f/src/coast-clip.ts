@@ -570,6 +570,12 @@ function ringOf(points: readonly Transform3D[]): CoastPoint[] {
  * one alone leaves the OTHER still refusing the descriptor, so the output never moves. Named once,
  * a single fixture separates every branch.
  *
+ * ⚠ EXPORTED SINCE THE SHORE FALL (2026-09-01) FOR THAT SAME REASON, one seam wider. The
+ * shore field measures distance to the boundary of exactly these descriptors, so a second
+ * spelling there would be a third mutant no single test pins — and worse than the two above,
+ * because a shore drawn round a different set of parcels than the coast was cut from is a
+ * waterline in the wrong place rather than merely an unmoved output.
+ *
  * Three ways to belong to no coast, and each is a decision:
  *  - NOT GROUND. A story tree carries a `transform`, not a parcel ring; clipping one would move a
  *    tree to where a shoreline went.
@@ -579,7 +585,7 @@ function ringOf(points: readonly Transform3D[]): CoastPoint[] {
  *    draw — inventing a seed would put a shoreline where the map cannot say there is one, and
  *    POOLING the unnamed parcels would compute a rim across the sea between two unrelated ones.
  */
-function coastalIsland(d: InstanceDescriptor): string | null {
+export function coastalIsland(d: InstanceDescriptor): string | null {
   if (d.kind !== 'cell-ground') return null;
   if (d.points === undefined) return null;
   return d.island ?? null;
