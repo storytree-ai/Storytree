@@ -35,12 +35,14 @@ export {
 } from "./session-identity.js";
 
 export {
+  censusSessionOrigins,
   classifySessionOrigin,
   declareSessionOrigin,
   describeSessionOrigin,
   foldSessionOrigin,
   parseSessionOriginDeclaration,
   resolveSessionOrigin,
+  undeclaredOriginNudge,
   SessionOriginDeclarationDoc,
   CUT_BY_SESSION_ENV,
   CUT_FOR_UNIT_ENV,
@@ -48,7 +50,9 @@ export {
   type OriginDeclarationOutcome,
   type OriginDeclarationRefusal,
   type OriginDeclarationRequest,
+  type OriginNudgeInput,
   type SessionOrigin,
+  type SessionOriginCensus,
   type SessionOriginClaim,
   type SessionOriginDeclaration,
   type SessionOriginInput,

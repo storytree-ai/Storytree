@@ -21,7 +21,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { readSessionOriginDeclaration } from "@storytree/context-traversal-capture";
+import { appendTraversalEvents, readSessionOriginDeclaration } from "@storytree/context-traversal-capture";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
 import { run } from "./commands.js";
@@ -474,3 +474,174 @@ test("traversal ship: the injected store reaches the verb, and its absence is wh
   assert.equal(withoutStore.ok, false);
   assert.match(withoutStore.body, /needs --pg/);
 });
+
+// ---------------------------------------------------------------------------
+// `traversal origin --census` — the coverage reading (ADR-0487)
+// ---------------------------------------------------------------------------
+
+/**
+ * The WHOLE census render for an empty store, pinned verbatim.
+ *
+ * A golden body rather than a handful of `assert.match` probes, on this suite's own stated rule
+ * and on a measured one: a render is mostly string literals, so every prose line is its own
+ * mutant, and a regex kills only the words it quotes while every other literal stands. Pinning the
+ * body kills that whole class in one assertion. It is deliberately brittle — changing this wording
+ * is MEANT to fail here, because the caveat below is the verb's entire reason for existing and a
+ * silent edit to it would leave a coverage figure reading as a compliance score.
+ */
+const CENSUS_EMPTY_BODY = [
+    "traversal origin --census \u2014 who started the sessions in this store (ADR-0487)",
+    "",
+    "sessions: 0 with at least one captured event",
+    "",
+    "  human:   0  (\u2014)  started by an operator",
+    "  cut:     0  (\u2014)  cut by a predecessor session",
+    "  unknown: 0  (\u2014)  never declared \u2014 NOT a synonym for human-started",
+    "  mixed:   0  (\u2014)  contradictory; neither answer may be quoted",
+    "",
+    "quotable: 0.0% of sessions carry an origin a reader may quote.",
+    "",
+    "READ EVERY ORIGIN-DERIVED FIGURE AGAINST THAT SHARE. The remainder is not a population with",
+    "no origin \u2014 it is one whose origin nobody recorded, and nothing here will guess it. This is a",
+    "reading of coverage and never a compliance score: a session that did not declare is not in",
+    "breach of anything, and the honest response to a low share is to distrust the derived figure,",
+    "not to chase the sessions.",
+  ].join("\n");
+
+/** The whole `traversal` help body, pinned for the same reason. */
+const TRAVERSAL_HELP_BODY = [
+    "storytree traversal \u2014 replay this machine's captured context-traversal traces.",
+    "",
+    "Traces are local, per-session, metadata-only JSONL under ~/.storytree/traces",
+    "(override with STORYTREE_TRAVERSAL_DIR). Capture is on by default and opts out",
+    "with STORYTREE_TRAVERSAL=off (ADR-0241).",
+    "",
+    "  storytree traversal list              the captured sessions, newest observed first",
+    "  storytree traversal show <session>    replay one session chronologically",
+    "  storytree traversal origin            how THIS session came to exist \u2014 human-started, or",
+    "                                        cut by a predecessor (ADR-0484 D7). Bare, it reports",
+    "                                        and writes nothing; `--origin human`, `--origin cut`",
+    "                                        or `--cut-by <sessionId> [--cut-for <unit>]` declares",
+    "                                        it, and every line written from then on carries it.",
+    "                                        An undeclared session reads `unknown`, which is NOT a",
+    "                                        synonym for human-started \u2014 origins are never",
+    "                                        inferred from timing, branch names or worktree reuse.",
+    "  storytree traversal origin --census   how much of this store's population declared at all",
+    "                                        (ADR-0487). A READING of coverage, never a compliance",
+    "                                        score: read every origin-derived figure against the",
+    "                                        share it reports, because that share is the subset",
+    "                                        such a figure was actually computed over.",
+    "  storytree traversal ingest <session>  read this session's host transcript windows and",
+    "                                        append their per-request context OCCUPANCY",
+    "                                        (ADR-0248 D1). Idempotent \u2014 re-running appends",
+    "                                        nothing. Transcripts are read from",
+    "                                        ~/.claude/projects (STORYTREE_TRANSCRIPT_DIR).",
+    "  storytree traversal backlog           what has NOT reached the shared store yet, and",
+    "                                        since when. Offline \u2014 reads the local cursors.",
+    "  storytree traversal ship --pg         drain the local traces into the shared store",
+    "                                        (ADR-0484). Runs out of band; a command never",
+    "                                        waits on it. Retries are the cursor, so re-running",
+    "                                        after a failure is the normal repair.",
+    "",
+    "The shared log holds what was traced FORWARD from 2026-08-30 (ADR-0484 D6): a session's",
+    "pre-existing local history stays local and is never backfilled, so a question spanning the",
+    "change reads both stores.",
+  ].join("\n");
+
+
+test("origin --census: the EMPTY-store render is pinned WHOLE — every count, every percent, every caveat line", () => {
+  return origin({ census: true }, null, freshDir("census-empty")).then(({ envelope }) => {
+    assert.equal(envelope.ok, true);
+    assert.equal(envelope.body, CENSUS_EMPTY_BODY);
+    // `null` is what the primary checkout, CI and the lobby all resolve: the census branch runs
+    // BEFORE the identity resolve, so the reading is available in exactly the runs most likely to
+    // want it. Were it after, this call would be refused for a reason unrelated to the question.
+    assert.deepEqual(envelope.next, ["storytree traversal origin \u2014 what THIS session says, and how to declare it"]);
+  });
+});
+
+test("traversal help: the whole body is pinned, including the --census line", () => {
+  assert.equal(traversalHelp().body, TRAVERSAL_HELP_BODY);
+});
+
+test("origin --census: a FULLY declared store drops the partiality caveat — it is a caveat, not a footer", () => {
+  // The other half of the branch the empty-store golden pins. The caveat exists to stop a coverage
+  // figure being read as complete; at 100% there is nothing to caveat, and printing it anyway would
+  // train a reader to skip the line in exactly the case where it matters.
+  const dir = freshDir("census-full");
+  for (const [id, kind] of [
+    ["window-h", "human"],
+    ["window-c", "cut"],
+  ] as const) {
+    appendTraversalEvents([visit(id, 1)], { dir, sessionId: id, grade: "window", origin: kind });
+  }
+
+  return origin({ census: true }, null, dir).then(({ envelope }) => {
+    assert.match(envelope.body, /quotable: 100\.0% of sessions/);
+    assert.doesNotMatch(envelope.body, /READ EVERY ORIGIN-DERIVED FIGURE/);
+    assert.doesNotMatch(envelope.body, /not to chase the sessions/);
+  });
+});
+
+test("run: `traversal origin --census` reaches the census through the real dispatch", async () => {
+  // The flag has to survive the ONE strict CLI parse and be handed across as a boolean; the tests
+  // above all call `traversalCommand` directly and would stay green if `--census` were dropped in
+  // `commands.ts` and every invocation silently reported this session's own origin instead.
+  const envelope = await withEnv({ [TRAVERSAL_DIR_ENV]: freshDir("census-run") }, () =>
+    run(["traversal", "origin", "--census"], { store: new InMemoryStore() }),
+  );
+
+  assert.equal(envelope.ok, true);
+  assert.match(envelope.body, /who started the sessions in this store/);
+  assert.match(envelope.body, /sessions: 0 with at least one captured event/);
+});
+
+/** One captured read, in the shape the sink writes them. */
+function visit(sessionId: string, n: number) {
+  return {
+    kind: "full_payload_read",
+    eventId: `event:${sessionId}-${n}`,
+    sessionId,
+    at: `2026-08-31T00:0${n}:00.000Z`,
+    visitId: `visit-${sessionId}-${n}`,
+    nodeId: `node-${n}`,
+  };
+}
+
+test("origin --census: a populated store counts each class and reports the QUOTABLE share", async () => {
+  // THREE sessions — one human, one cut, one that never declared — so the arithmetic is observable
+  // rather than merely a shape. The reading this pins is the one the whole verb exists for: the
+  // undeclared session is counted in the DENOMINATOR and is never folded into `human`, so the
+  // quotable share is 2 of 3 and not 2 of 2.
+  const dir = freshDir("census-mixed");
+  appendTraversalEvents([visit("window-human", 1)], {
+    dir,
+    sessionId: "window-human",
+    grade: "window",
+    origin: "human",
+  });
+  appendTraversalEvents([visit("window-cut", 1)], {
+    dir,
+    sessionId: "window-cut",
+    grade: "window",
+    origin: "cut",
+    cutBy: "predecessor-window",
+  });
+  // No `origin` at all — the ordinary case today, and the one that must not read as human-started.
+  appendTraversalEvents([visit("window-silent", 1)], {
+    dir,
+    sessionId: "window-silent",
+    grade: "window",
+  });
+
+  const { envelope } = await origin({ census: true }, null, dir);
+
+  assert.match(envelope.body, /sessions: 3 with at least one captured event/);
+  // The percentages exercise the non-empty arm of the render's own divide — the arm an empty-store
+  // golden can never reach, and where an inverted operator would otherwise go unnoticed.
+  assert.match(envelope.body, /human: {3}1 {2}\(33\.3%\)/);
+  assert.match(envelope.body, /cut: {5}1 {2}\(33\.3%\)/);
+  assert.match(envelope.body, /unknown: 1 {2}\(33\.3%\)/);
+  assert.match(envelope.body, /quotable: 66\.7% of sessions/);
+});
+

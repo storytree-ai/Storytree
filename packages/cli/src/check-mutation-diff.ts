@@ -20,7 +20,7 @@
 // `discoverWorkspaceProjects` and nothing else.
 
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +33,7 @@ import {
   declaredTestRoots,
   entryPointsFromMirrorRegistry,
   entryPointsFromScripts,
+  entryPointsFromShellScripts,
   formatMutationVerdict,
   formatNarrowingLines,
   isTestFile,
@@ -182,6 +183,35 @@ const SHARED_CONSTRAINTS = `  // Constraint 2: without perTest there is no per-t
   // killedBy holds only whichever covering test ran first — the branch's own new test can be
   // missing from it even though it also kills, and the rung would red a landing that did its job.
   disableBail: true,`;
+
+/**
+ * The CONTENTS of every `scripts/*.sh` in the repo, for {@link entryPointsFromShellScripts}.
+ *
+ * The IMPURE half, kept here so the derivation itself stays a pure function of text. Fail-soft by
+ * design: a missing directory or an unreadable script yields no exemptions rather than throwing, on
+ * the same reasoning the rung applies elsewhere — an exemption that cannot be derived leaves a file
+ * IN the mutate set, which is the conservative direction (a red the author can see), where throwing
+ * would take down a rung over a file-permissions accident.
+ */
+function readShellScripts(): string[] {
+  const dir = path.join(repoRoot, "scripts");
+  const out: string[] = [];
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return out;
+  }
+  for (const entry of entries) {
+    if (!entry.endsWith(".sh")) continue;
+    try {
+      out.push(readFileSync(path.join(dir, entry), "utf8"));
+    } catch {
+      // unreadable script — no exemption from it, and the rung carries on
+    }
+  }
+  return out;
+}
 
 /**
  * The Stryker config for one group, generated rather than committed.
@@ -435,6 +465,12 @@ function main(): void {
     exemptFiles: new Set([
       ...entryPointsFromScripts(rootScripts ?? {}),
       ...entryPointsFromMirrorRegistry(MIRRORS),
+      // The THIRD kind: an entry a repo SHELL script invokes. `ambient-presence-entry.ts` is the
+      // measured case — `scripts/presence-hook.sh` execs it from the SessionStart hook, so no
+      // package.json script names it, and mutating it aborted the whole rung with `No tests were
+      // found` (it ends in `process.exit(0)` at module scope, so merely LOADING it kills the test
+      // process — reproduced at 0 mutants).
+      ...entryPointsFromShellScripts(readShellScripts()),
     ]),
     // Each project's OWN answer to "which directories do my tests live in", so a file dropped from
     // a directory the project itself declares it tests can be named as the real gap it is rather

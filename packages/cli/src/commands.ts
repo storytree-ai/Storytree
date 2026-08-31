@@ -2892,6 +2892,10 @@ export const CLI_OPTIONS = {
   origin: { type: "string" },
   "cut-by": { type: "string" },
   "cut-for": { type: "string" },
+  // `storytree traversal origin --census` (ADR-0487): the coverage READING over the whole local
+  // trace store, rather than this session's own origin. A reading and never a grade — it exists so
+  // the partiality of origin coverage is visible in the data instead of assumed away.
+  census: { type: "boolean", default: false },
   threshold: { type: "string" },
   decided: { type: "boolean", default: false },
   current: { type: "boolean", default: false },
@@ -4155,6 +4159,7 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       origin: values.origin,
       cutBy: values["cut-by"],
       cutFor: values["cut-for"],
+      census: values.census === true,
     };
     return traversalCommand(sub, third, traversalOpts, {
       traversalEvents: deps.traversalEvents ?? null,
