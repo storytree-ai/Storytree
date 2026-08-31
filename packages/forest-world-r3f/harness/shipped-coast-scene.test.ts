@@ -30,12 +30,56 @@ import {
   type CoastPoint,
 } from '../src/coast-clip.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
-import { ALL_COAST_ARMS, COAST_ARMS, REFERENCE_ARM, coastPlan } from './shipped-coast-scene.js';
+import {
+  ALL_COAST_ARMS,
+  COAST_ARMS,
+  REFERENCE_ARM,
+  coastPlan,
+  type CoastPlan,
+} from './shipped-coast-scene.js';
 import { crowdCells, crowdSize } from './shipped-crowd-scene.js';
 import { shippedParcels } from './shipped-land-scene.js';
 
-/** The island the studio actually ships, as the mapper emits it. */
-const ISLAND: InstanceDescriptor[] = shippedParcels();
+/**
+ * The island the studio actually ships, as the mapper emits it — built LAZILY.
+ *
+ * ⚠ LAZY FOR THE SAME MEASURED REASON {@link forestCells} IS, one rung down. `check:mutation-diff`
+ * re-imports this module once PER MUTANT, and a module-scope `shippedParcels()` is paid on every
+ * one of those imports whether or not the mutant's covering test ever touches the island. The
+ * witnesses are the rung's own cost, and §10 of the playbook is to make them cheap.
+ */
+let island: InstanceDescriptor[] | null = null;
+function shippedIsland(): InstanceDescriptor[] {
+  island ??= shippedParcels();
+  return island;
+}
+
+/**
+ * `coastPlan` memoised per `(fixture, arm)`.
+ *
+ * ⚠ THE CACHE IS KEYED ON THE FIXTURE'S IDENTITY, NOT ITS CONTENT, and that is safe here for one
+ * reason worth stating: every fixture below is a memoised singleton, so identity IS content. A
+ * future caller passing a freshly-built array gets a fresh entry rather than a wrong one — the
+ * failure mode is a miss, never a stale hit.
+ *
+ * WHY AT ALL: `coastPlan` runs a full clip, and `coastCapping` runs a second one inside it. The
+ * tests below ask for the same `(island, arm)` plan a dozen times over. Under the mutation rung
+ * that dozen is multiplied by the mutant count.
+ */
+const PLANS = new Map<readonly InstanceDescriptor[], Map<CoastMode, CoastPlan>>();
+function planOf(cells: readonly InstanceDescriptor[], mode: CoastMode): CoastPlan {
+  let byArm = PLANS.get(cells);
+  if (byArm === undefined) {
+    byArm = new Map();
+    PLANS.set(cells, byArm);
+  }
+  let plan = byArm.get(mode);
+  if (plan === undefined) {
+    plan = coastPlan(cells, mode);
+    byArm.set(mode, plan);
+  }
+  return plan;
+}
 /**
  * THE THIRTY-FIVE-ISLAND FOREST — built LAZILY and used by exactly ONE test.
  *
@@ -58,8 +102,8 @@ function forestCells(): InstanceDescriptor[] {
 let pair: InstanceDescriptor[] | null = null;
 function twoIslands(): InstanceDescriptor[] {
   pair ??= [
-    ...ISLAND,
-    ...ISLAND.map((c) => {
+    ...shippedIsland(),
+    ...shippedIsland().map((c) => {
       const moved: InstanceDescriptor = {
         ...c,
         island: 'story-east',
@@ -82,8 +126,8 @@ function ringsOf(cells: readonly InstanceDescriptor[]): CoastPoint[][] {
 // ---------------------------------------------------------------------------
 
 test('the shipped island ends in ONE rim loop of 52 vertices', () => {
-  const loops = rimLoops(ringsOf(ISLAND));
-  assert.equal(ISLAND.length, 164);
+  const loops = rimLoops(ringsOf(shippedIsland()));
+  assert.equal(shippedIsland().length, 164);
   assert.equal(loops.length, 1);
   assert.equal(loops[0]!.length, 52);
 });
@@ -93,7 +137,7 @@ test('⚠ THE PREMISE: the coast this map already draws SELF-INTERSECTS', () => 
   // perturbed, along the normal. On the island the studio ships, it crosses itself twice. The 2D
   // panel draws that loop as an SVG fill and the nonzero rule hides it; a triangulated ground
   // cannot, which is the whole reason `coastDisplacement` carries a fold cap.
-  const rim = rimLoops(ringsOf(ISLAND))[0]!;
+  const rim = rimLoops(ringsOf(shippedIsland()))[0]!;
   assert.equal(isSimpleRing(rim), true, 'the raw hex silhouette should be simple');
   const curve = coastCurve(rim, 'context-traversal-capture');
   assert.equal(isSimpleRing(curve.outset), false, 'the outset coast should fold — the cap exists for this');
@@ -101,11 +145,11 @@ test('⚠ THE PREMISE: the coast this map already draws SELF-INTERSECTS', () => 
 });
 
 test('the control is the map with no coast at all', () => {
-  const plan = coastPlan(ISLAND, REFERENCE_ARM);
+  const plan = planOf(shippedIsland(), REFERENCE_ARM);
   assert.equal(plan.capRim, 0);
   assert.equal(plan.capBound, 0);
   assert.equal(plan.foldedParcels, 0);
-  assert.deepEqual(clipToCoast(ISLAND, REFERENCE_ARM), ISLAND);
+  assert.deepEqual(clipToCoast(shippedIsland(), REFERENCE_ARM), shippedIsland());
 });
 
 // ---------------------------------------------------------------------------
@@ -116,17 +160,17 @@ test('⚠⚠ NO PARCEL FOLDS, on any arm, on the island OR the forest', () => {
   // A folded parcel paints one capability's status colour over ground belonging to another. This
   // is the assertion the driver's first refusal reads, and it is the reason the cap exists.
   for (const arm of ALL_COAST_ARMS) {
-    assert.equal(coastPlan(ISLAND, arm).foldedParcels, 0, `${arm} folded a parcel on one island`);
-    assert.equal(coastPlan(twoIslands(), arm).foldedParcels, 0, `${arm} folded a parcel beside a neighbour`);
+    assert.equal(planOf(shippedIsland(), arm).foldedParcels, 0, `${arm} folded a parcel on one island`);
+    assert.equal(planOf(twoIslands(), arm).foldedParcels, 0, `${arm} folded a parcel beside a neighbour`);
   }
 });
 
 test('the fold cap binds on a handful of rim vertices, and says so', () => {
   // Pinned rather than bounded: the cap is a visible notch in the shore, so a change that made it
   // bind on twice as many vertices is a change to the picture and has to be looked at.
-  assert.deepEqual(coastCapping(ISLAND, 'outset'), { rim: 52, bound: 4, least: 0.7 });
-  assert.deepEqual(coastCapping(ISLAND, 'project'), { rim: 52, bound: 2, least: 0.9 });
-  assert.deepEqual(coastCapping(ISLAND, 'subdivide'), { rim: 52, bound: 3, least: 0.6 });
+  assert.deepEqual(coastCapping(shippedIsland(), 'outset'), { rim: 52, bound: 4, least: 0.7 });
+  assert.deepEqual(coastCapping(shippedIsland(), 'project'), { rim: 52, bound: 2, least: 0.9 });
+  assert.deepEqual(coastCapping(shippedIsland(), 'subdivide'), { rim: 52, bound: 3, least: 0.6 });
 });
 
 test('EVERY island is capped, not just the first', () => {
@@ -154,9 +198,9 @@ test('EVERY island is capped, not just the first', () => {
 // ---------------------------------------------------------------------------
 
 test('the free arms are free — no triangle, no ring vertex', () => {
-  const control = coastPlan(ISLAND, REFERENCE_ARM);
+  const control = planOf(shippedIsland(), REFERENCE_ARM);
   for (const arm of ['outset', 'project'] as const) {
-    const plan = coastPlan(ISLAND, arm);
+    const plan = planOf(shippedIsland(), arm);
     assert.equal(plan.triangles, control.triangles, arm);
     assert.equal(plan.ringVertices, control.ringVertices, arm);
     assert.equal(plan.attributeBytes, control.attributeBytes, arm);
@@ -164,16 +208,16 @@ test('the free arms are free — no triangle, no ring vertex', () => {
 });
 
 test('subdivide spends exactly the curve — four points per rim vertex, once', () => {
-  const control = coastPlan(ISLAND, REFERENCE_ARM);
-  const plan = coastPlan(ISLAND, 'subdivide');
-  const rim = rimLoops(ringsOf(ISLAND))[0]!.length;
+  const control = planOf(shippedIsland(), REFERENCE_ARM);
+  const plan = planOf(shippedIsland(), 'subdivide');
+  const rim = rimLoops(ringsOf(shippedIsland()))[0]!.length;
   assert.equal(plan.ringVertices - control.ringVertices, rim * 4);
   // Every parcel prism is `ringLength * 3 - 2` triangles, so the extra vertices cost three each.
   assert.equal(plan.triangles - control.triangles, rim * 4 * 3);
 });
 
 test('every arm GROWS the island, and the three grow it by different amounts', () => {
-  const areas = new Map(COAST_MODES.map((m) => [m, coastPlan(ISLAND, m).groundArea]));
+  const areas = new Map(COAST_MODES.map((m) => [m, planOf(shippedIsland(), m).groundArea]));
   const control = areas.get(REFERENCE_ARM)!;
   for (const arm of COAST_ARMS) {
     assert.ok(areas.get(arm)! > control, `${arm} added no land`);

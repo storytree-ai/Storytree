@@ -38,7 +38,8 @@ import {
   type LinearRgb,
 } from './cell-ground-geometry.js';
 import { SHIPPED_COAST, clipToCoast } from './coast-clip.js';
-import { LAND_RELIEF_AMPLITUDE, landRelief } from './land-relief.js';
+import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
+import { SHIPPED_SHORE, shoreRelief } from './shore-fall.js';
 import {
   atlasOriginResolver,
   buildAtlasOcclusion,
@@ -362,7 +363,17 @@ function CellGround({
       cells: clipped,
       resolve: linearColourOf,
       index: groundRowOf,
-      relief: landRelief,
+      // ⚠⚠ THE SHORE FALL READS THE CLIPPED PARCELS, AND THAT ORDERING IS THE COMPONENT.
+      // After `clipToCoast` the boundary of this mesh IS the coast, so the distance to the
+      // mesh's own rim is the distance to the shore — one coastline, not two to keep in step.
+      // Handed the pre-clip descriptors it would measure to the hex silhouette and put the
+      // waterline a beach's width inland of the water.
+      //
+      // ⚠ IT IS A STRICT EXTENSION OF `landRelief`, WHICH IS WHY THIS LINE REPLACES IT RATHER
+      // THAN JOINING IT. Inland of the band the field returns `landHeight` to the last bit, so
+      // the whole interior of every island draws exactly what it drew before; only the beach
+      // the coast clip added is new ground, and only there does the land move.
+      relief: shoreRelief(clipped, SHIPPED_SHORE),
     };
     // By statement rather than a conditional spread: under `exactOptionalPropertyTypes` an absent
     // `atlasOrigin` and an `atlasOrigin: undefined` are different inputs, and only the first
