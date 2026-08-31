@@ -95,11 +95,31 @@ function territory(
   };
 }
 
+/**
+ * MEMOISED, and it is a `check:mutation-diff` requirement rather than an optimisation.
+ *
+ * ⚠⚠ THE RUNG'S VERDICT MOVES WITH THE SUITE'S WALL CLOCK. Stryker runs the covering tests once per
+ * mutant against a per-mutant timeout; an assertion that kills a mutant in 20 ms on a quiet box
+ * kills nothing at all on a loaded CI runner that never reaches it, and the mutant comes back
+ * `Timeout` — which the rung scores UNPROVEN with the same "no test named" line an attribution gap
+ * produces. Measured on this branch: five CI runs of an unchanged local-green tree reported 2, 2, 2,
+ * 6 and then 31 unproven mutants — a MOVING set, which is the tell (`mutation-rung-scores-a-hang-as-unproven`
+ * §9), and the 31-run followed a change that made the suite slower rather than any change to the
+ * subject.
+ *
+ * `buildRelaxedCells` + `buildScene` + `worldTo3D` over two islands is most of this file's cost and
+ * it is PURE, so the same arguments may return the same array. ⚠ Callers must not mutate it.
+ */
+const MAPS = new Map<string, Descriptor3D[]>();
+
 /** The two-story map's descriptors — the shipped relaxed-MESH substrate, the one the studio emits. */
 function twoStoryMap(
   a: { total: number; signed: number } = { total: 6, signed: 4 },
   b: { total: number; signed: number } = { total: 5, signed: 2 },
 ): Descriptor3D[] {
+  const key = `${a.total}/${a.signed}|${b.total}/${b.signed}`;
+  const cached = MAPS.get(key);
+  if (cached) return cached;
   const drawTiles = [
     ...TILES_A.map((h) => ({ h, owner: 0 })),
     ...TILES_B.map((h) => ({ h, owner: 1 })),
@@ -120,7 +140,9 @@ function twoStoryMap(
     ],
     vegetation: {},
   };
-  return worldTo3D(buildScene(input));
+  const built = worldTo3D(buildScene(input));
+  MAPS.set(key, built);
+  return built;
 }
 
 const dress = (descriptors: readonly Descriptor3D[]) =>

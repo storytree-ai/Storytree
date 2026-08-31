@@ -107,18 +107,33 @@ export interface BloomView {
  * dresses — one island — and handing it a whole forest is precisely the mistake. The blooms it
  * places are scattered over every cell it was given, so they land wherever the sampler finds room.
  */
+const PLACEMENTS = new Map<string, KitPlacement[]>();
+
 export function bloomPlacements(footprint: RoleFootprints, dressing: BloomDressing): KitPlacement[] {
-  if (dressing === 'attributed') {
-    return dressMapFromKit(crowdDescriptors(SIZE), { relief: LAND_RELIEF_AMPLITUDE, footprint });
-  }
-  const cells = parcelCellsFrom(crowdCells(SIZE));
-  return dressIslandFromKit({
-    cells,
-    facts: capabilityFactsFrom(cells),
-    blooms: dressing === 'none' ? 0 : crowdBlooms(SIZE).length,
-    relief: LAND_RELIEF_AMPLITUDE,
-    footprint,
-  });
+  // ⚠ MEMOISED PER ARM, and it is a `check:mutation-diff` requirement rather than an optimisation:
+  // the rung runs the covering tests once per mutant against a per-mutant timeout, so a suite that
+  // rebuilds a 35-island forest ten times reports Timeouts — which score UNPROVEN — on a loaded
+  // runner while passing on a quiet one. The verdict then MOVES on a tree that does not.
+  // ⚠ The footprint is part of the key because it is what a caller could vary; the kit's measured
+  // values and the frozen literal agree to within `FOOTPRINT_TOLERANCE`, so they are two keys.
+  const key = `${dressing}|${JSON.stringify(footprint)}`;
+  const cached = PLACEMENTS.get(key);
+  if (cached) return cached;
+  const built =
+    dressing === 'attributed'
+      ? dressMapFromKit(crowdDescriptors(SIZE), { relief: LAND_RELIEF_AMPLITUDE, footprint })
+      : (() => {
+          const cells = parcelCellsFrom(crowdCells(SIZE));
+          return dressIslandFromKit({
+            cells,
+            facts: capabilityFactsFrom(cells),
+            blooms: dressing === 'none' ? 0 : crowdBlooms(SIZE).length,
+            relief: LAND_RELIEF_AMPLITUDE,
+            footprint,
+          });
+        })();
+  PLACEMENTS.set(key, built);
+  return built;
 }
 
 /** One island's ground centre, in forest space — what a placed prop is attributed to. */

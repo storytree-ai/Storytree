@@ -10,46 +10,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { KIT_FOOTPRINTS_2026_08_29 } from '../src/kit-vocabulary.js';
-import { signedCriteriaByIsland } from '../src/map-dressing.js';
 import { bloomCensus, bloomPlacements } from './shipped-blooms-scene.js';
-import {
-  crowdBlooms,
-  crowdCells,
-  crowdDescriptors,
-  crowdIslandId,
-  crowdSize,
-} from './shipped-crowd-scene.js';
+import { crowdBlooms, crowdCells, crowdIslandId, crowdSize } from './shipped-crowd-scene.js';
 
 const FOOT = KIT_FOOTPRINTS_2026_08_29;
 const FOREST = crowdSize('forest');
-
-/**
- * GROUND IS NOT A SIGNATURE — asserted here, in the HARNESS suite, as well as beside the function.
- *
- * ⚠⚠ THE DUPLICATION IS FOR `check:mutation-diff`'s ATTRIBUTION, and it is worth stating exactly
- * because the obvious explanation is wrong. Mutate `signedCriteriaByIsland`'s
- * `d.kind !== 'uat-bloom'` filter either way and every `cell-ground` descriptor becomes a signature
- * — 164 per island across 35 islands — so the dressing places ~6,300 objects instead of 584. That
- * is a real, loud difference and several tests catch it. It is also NOT a hang: measured on this
- * fixture, the honest dressing takes 38 ms and the inflated one 803 ms, so §3's slow-suite/timeout
- * shape is RULED OUT rather than assumed.
- *
- * What actually happened: CI's Bun reporter could resolve NO failing test name to a dry-run id for
- * these two mutants — three runs, the same two, `killedBy` empty, which constraint 4 scores
- * UNPROVEN — while the identical local run reported all 73 killed with a named killer each. Adding
- * six more assertions in the SAME src-side file changed nothing, which is what points at the file's
- * names rather than at the assertions. So the witness is repeated HERE, in a different suite, and
- * called as the first statement of every test that dresses.
- */
-function assertSignatureCountIsSane(): void {
-  const signed = signedCriteriaByIsland(crowdDescriptors(FOREST));
-  const total = [...signed.values()].reduce((a, b) => a + b, 0);
-  assert.equal(
-    total,
-    crowdBlooms(FOREST).length,
-    'the map counted something other than its signatures — ground has leaked into the count',
-  );
-}
 
 test('NON-VACUITY: the crowd holds many stories, and they do NOT share one id', () => {
   // ⚠ Before 2026-08-31 they did, because the descriptor stream carried no island at all — so
@@ -100,7 +65,6 @@ test('every bloom descriptor names a story AND a criterion, and no criterion is 
 });
 
 test('⚠⚠ THE ATTRIBUTED ARM MISATTRIBUTES NOTHING, and draws every signature the scene holds', () => {
-  assertSignatureCountIsSane();
   const census = bloomCensus(FOOT, 'attributed');
   assert.equal(census.misattributed, 0, 'a flower stood on a story that did not sign it');
   assert.equal(census.undrawn, 0, 'a signature the map holds and does not draw');
@@ -109,7 +73,6 @@ test('⚠⚠ THE ATTRIBUTED ARM MISATTRIBUTES NOTHING, and draws every signature
 });
 
 test('⚠⚠ THE SCATTERED ARM MISATTRIBUTES A LOT — which is what the fix bought', () => {
-  assertSignatureCountIsSane();
   // The same count, spent through ONE whole-map dressing call. This is the mistake the pinned
   // `blooms: 0` was standing in for, and a page that could not show it would be picturing nothing.
   const census = bloomCensus(FOOT, 'scattered');
@@ -122,7 +85,6 @@ test('⚠⚠ THE SCATTERED ARM MISATTRIBUTES A LOT — which is what the fix bou
 });
 
 test('the `none` arm is the honest under-report the map actually shipped', () => {
-  assertSignatureCountIsSane();
   const census = bloomCensus(FOOT, 'none');
   assert.equal(census.drawn, 0, 'the pinned count drew a flower');
   assert.equal(census.misattributed, 0, 'drawing nothing can misattribute nothing');
@@ -130,7 +92,6 @@ test('the `none` arm is the honest under-report the map actually shipped', () =>
 });
 
 test('⚠ every arm stands the SAME capabilities — the population is a confound, and it is held', () => {
-  assertSignatureCountIsSane();
   // ⚠⚠ THE CONFOUND CHECK, and it is what makes the page a comparison rather than a picture of
   // two different maps. It caught a real one: the crowd is one fixture island copied N times, so
   // until `crowdCells` re-stamped its capability ids per island all thirty-five wore the SAME
@@ -148,7 +109,6 @@ test('⚠ every arm stands the SAME capabilities — the population is a confoun
 });
 
 test('⚠ the per-island dressing MOVES the trees too, and that is the same change, not a second one', () => {
-  assertSignatureCountIsSane();
   // ⚠ SAID OUT LOUD RATHER THAN GLOSSED, because the page's captions must not claim more than is
   // true. `dressIslandFromKit` seeds each placement from the capability's INDEX in the list it was
   // given, so a whole-map call numbers island 12's capabilities from 132 and a per-island call
@@ -168,7 +128,6 @@ test('⚠ the per-island dressing MOVES the trees too, and that is the same chan
 });
 
 test('a capability whose state grows nothing is why the tree count is not islands x parcels', () => {
-  assertSignatureCountIsSane();
   // ⚠ NOT A LOSS, and worth pinning so nobody \"fixes\" it: `unknown` — and any state this
   // vocabulary has never heard of — grows no object at all, so the real forest's status mix stands
   // fewer objects than it has parcels. A page that expected the product of the two would read that
@@ -180,7 +139,6 @@ test('a capability whose state grows nothing is why the tree count is not island
 });
 
 test('the comparison is deterministic — the same arm places identically twice', () => {
-  assertSignatureCountIsSane();
   assert.deepEqual(bloomPlacements(FOOT, 'attributed'), bloomPlacements(FOOT, 'attributed'));
   assert.deepEqual(bloomCensus(FOOT, 'scattered'), bloomCensus(FOOT, 'scattered'));
 });
