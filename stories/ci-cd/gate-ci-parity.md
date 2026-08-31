@@ -7,6 +7,32 @@ outcome: "The local pnpm gate and the CI verify invariant sets stand in one decl
 status: proposed
 proof_mode: integration-test
 depends_on: [green-gate]
+decisions: [486, 304, 195]
+# THE DECIDING ADR EXISTS NOW — ADR-0486 (accepted 2026-08-31), which this unit realises. It settles
+# the contract for how far the local gate may differ from CI: one declared two-way delta (D1), the
+# permitted delta classes CLOSED at three (D2), every member asserted BOTH ways (D3), both sides read
+# from their REAL definitions at runtime and never transcribed (D4), and a SKIP is not an absence (D5).
+# The old "no deciding ADR yet (owner escalation)" note is WITHDRAWN in place below: measured against
+# `owner-fork-bar` the question cleared none of its three tests — reversible, internal, and a pure
+# engineering tradeoff — and ADR-0304 D2 had already settled the direction.
+proof:
+  command:
+    file: pnpm
+    args: ["--filter", "@storytree/cli", "test"]
+  scope:
+    testGlobs: ["packages/cli/src/gate-ci-parity.test.ts"]
+    sourceGlobs: ["packages/cli/src/gate-ci-parity.ts"]
+  real:
+    testFile: "packages/cli/src/gate-ci-parity.test.ts"
+    sourceFile: "packages/cli/src/gate-ci-parity.ts"
+    scope:
+      testGlobs: ["packages/cli/src/gate-ci-parity.test.ts"]
+      sourceGlobs: ["packages/cli/src/gate-ci-parity.ts"]
+    install: false
+    typecheck:
+      file: pnpm
+      args: ["--filter", "@storytree/cli", "typecheck"]
+    editsExisting: false
 ---
 
 # Gate↔CI parity — the local gate and CI verify stand in one declared two-way delta, checkable
@@ -19,12 +45,17 @@ tree / HEAD while `verify` runs on the merge-with-`main` ref — and a branch th
 becomes a checkable fact about a declared **shared content floor** plus two declared deltas: the
 **two-way content delta** and the **merge-ref**.
 
-> **No deciding ADR yet (owner escalation).** This is the only genuinely NEW capability in the story
-> — today the parity invariant lives ONLY in CLAUDE.md prose ("a green local `pnpm gate` does NOT
-> guarantee a green CI … CI adds `pnpm -r build` … tests the merge of your branch with `main`") and
-> session memory. It may warrant its own ADR: the *contract for how far the local gate is allowed to
-> differ from CI* is arguably an architectural decision. Flagged in the story's "Open modeling calls".
-> Authored regardless, because the friction is real (per CLAUDE.md it stranded three PRs at once).
+> **✅ THE DECIDING ADR IS ADR-0486** (accepted 2026-08-31), and this unit realises it. The escalation
+> note that stood here — *"No deciding ADR yet (owner escalation) … the contract for how far the local
+> gate is allowed to differ from CI is arguably an architectural decision"* — is WITHDRAWN, not merely
+> answered. Measured against `owner-fork-bar` the question cleared NONE of its three tests: the
+> relationship is REVERSIBLE (a constant and a check over our own tooling), INTERNAL rather than
+> outward-facing, and an ENGINEERING tradeoff rather than a value call — and both of the bar's own
+> below-the-bar tells fire (the rationale is purely engineering; it cannot be put to the owner in one
+> plain sentence without an ADR number). The DIRECTION was already settled one level up by ADR-0304 D2,
+> which requires the gate and CI to share ONE affected-scope classifier precisely so a local pass
+> predicts a CI pass. The friction remains real (per CLAUDE.md it stranded three PRs at once); what
+> changed is that it is now a decided standard rather than an open question.
 
 ## Guidance
 
@@ -64,14 +95,19 @@ becomes a checkable fact about a declared **shared content floor** plus two decl
 ## Contracts (3)
 
 1. **`declared-content-delta-is-two-way`** — the two invariant sets differ in BOTH directions, by named steps
-   - **asserts —** the local `gate` and the CI `verify` job share a content floor of eight checks
-     present in BOTH sets, and every step outside that floor is a declared named constant on one side
-     or the other: the CI-only steps (`pnpm -r build`, the two PR-only guards, the pinned
-     web-submodule checkout, affected-scope selection) are present in `verify` and ABSENT from the
-     local plan, while `check:verification-decay` is present in the local plan and ABSENT from
-     `verify`. Each direction is asserted BOTH ways — present here AND absent there — so a check
-     added to one side without the other, or MIGRATING between the two sides, FAILS the parity check,
-     which names the divergent step. There is no allowed undeclared difference in either direction.
+   - **asserts —** `gateCiParity` reads the local `GATE_PLAN` and the CI `verify` job and reports a
+     shared content floor present in BOTH sets, with every step outside that floor belonging to
+     exactly one declared class — CI-ONLY ENVIRONMENTAL or LOCAL-ONLY SESSION-DISCIPLINE (ADR-0486 D2)
+     — and every member asserted BOTH ways, present on the side that owns it AND absent from the
+     other, so a step added to one side alone, or MIGRATING between sides, fails and is NAMED. A step
+     matching no declared class fails as undeclared; there is no allowed undeclared difference in
+     either direction.
+     ⚠ **THE SET SIZES ARE READ, NEVER TRANSCRIBED** (ADR-0486 D4). This bullet deliberately pins no
+     count: until 2026-08-31 it declared "a content floor of EIGHT checks" and named
+     `check:verification-decay` as the sole local-only step, while the measured floor was 21 and the
+     local-only set had THREE members (`check:desktop-route-coverage`, `check:verification-decay`,
+     `check:definition-adjudication`). A test written from the old prose would have pinned a delta
+     that does not exist. The judge derives both sets at runtime from their real definitions.
 2. **`ref-delta-is-declared`** — HEAD-vs-merge-ref is a named, expected difference
    - **asserts —** the relationship records that `gate` runs on the working tree / HEAD while `verify`
      runs on the branch-merged-with-`main` ref, as the second declared delta — so a green local gate
