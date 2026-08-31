@@ -177,12 +177,20 @@ test("traversal-routes: GET /api/traversal?session= replays one session with its
       events: unknown[];
       skipped: number;
       decisionPoints: unknown;
+      provenance: { census: { own: number; harness: number }; ingestRan: boolean; ingestNote: string };
     };
     assert.equal(body.events.length, 1);
     assert.equal(body.skipped, 0);
     // `decisionPoints` rides the SAME payload rather than a second fetch: an offer fan drawn without
     // its denominator over-reports how often a session stayed inside the asset graph (ADR-0312 D6).
     assert.notEqual(body.decisionPoints, undefined);
+    // And so does WHICH RECORDER wrote each observation (ADR-0484 D5), for the same reason: this
+    // route serves the same panel the studio does, so a harness-derived reading must be labellable
+    // here too or the desktop copy would draw a secondary source as our own log.
+    assert.notEqual(body.provenance, undefined);
+    assert.equal(body.provenance.census.harness, 0);
+    assert.equal(body.provenance.ingestRan, false);
+    assert.match(body.provenance.ingestNote, /NEVER RUN/);
   } finally {
     await h.close();
   }

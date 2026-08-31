@@ -246,6 +246,47 @@ describe('GET /api/traversal?session=<id>', () => {
     expect(occupancy.declared).toBe(false);
   });
 
+  it('carries WHICH RECORDER wrote each observation, so the panel can label a secondary source (ADR-0484 D5)', async () => {
+    writeFixture(traceDir, SESSION);
+
+    const res = await fetch(`${base}/api/traversal?session=${SESSION}`);
+    const body = (await res.json()) as Record<string, unknown>;
+
+    // It rides the SAME payload as `skipped` and `occupancy`, and for the same reason: a picture
+    // that mixes our own log with the harness scraper and does not say so is over-reporting, so the
+    // thing that makes it honest can never be an optional extra fetch.
+    const provenance = body['provenance'] as {
+      census: { own: number; harness: number; unclassified: number; total: number; surfaces: unknown[] };
+      precedence: string;
+      ingestRan: boolean;
+      ingestNote: string;
+    };
+    expect(provenance).toBeDefined();
+    // The fixture is wholly our own log: two visits on `tree` and `library-artifact`, plus three
+    // events carrying no surface at all.
+    expect(provenance.census.own).toBe(2);
+    expect(provenance.census.harness).toBe(0);
+    expect(provenance.census.unclassified).toBe(0);
+    expect(provenance.census.total).toBe(5);
+    expect(provenance.precedence).toContain('storytree log is authoritative');
+    // Nobody has ingested this fixture, so the empty harness count is UNMEASURED rather than zero.
+    expect(provenance.ingestRan).toBe(false);
+    expect(provenance.ingestNote).toContain('NEVER RUN');
+  });
+
+  it('names the occupancy series own recorder — the bar plots a harness reading (ADR-0484 D5)', async () => {
+    writeFixture(traceDir, SESSION);
+
+    const res = await fetch(`${base}/api/traversal?session=${SESSION}`);
+    const body = (await res.json()) as Record<string, unknown>;
+    const occupancy = body['occupancy'] as { seriesProvenance: string; note: string };
+
+    // `residentInputTokens` has one producer, so the series the playhead bar plots is harness-derived
+    // whether or not this trace happens to carry one.
+    expect(occupancy.seriesProvenance).toBe('harness-derived');
+    expect(occupancy.note).toContain('HARNESS-DERIVED');
+  });
+
   it('counts an ingested occupancy observation, and still reports it as undeclared by these adapters', async () => {
     writeFixture(traceDir, SESSION);
     // What `traversal ingest` appends: a per-REQUEST observation carrying resident tokens. Written
