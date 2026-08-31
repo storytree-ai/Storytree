@@ -164,6 +164,11 @@ test("the pi build envelope NAMES ADR-0449's frontier-model gap — the requirem
   const codex = honestFramingLive(false, "codex", "library-cli");
   assert.doesNotMatch(codex, /ADR-0449 GAP/);
   assert.match(codex, /the Codex CLI with saved ChatGPT subscription authentication/);
+  // The non-pi framings must end with NOTHING appended — `doesNotMatch(/ADR-0449 GAP/)` alone would
+  // hold while some other string was being tacked on. Asserted as an exact ending.
+  const tail = "the verdict landed in an in-memory store and is gone.";
+  assert.ok(claude.endsWith(tail), `claude framing must end at ${tail}, got: ${claude.slice(-120)}`);
+  assert.ok(codex.endsWith(tail), `codex framing must end at ${tail}, got: ${codex.slice(-120)}`);
 });
 
 test("liveLeafLines renders a pi run EXACTLY, and keeps the two wall kinds apart", () => {
@@ -205,6 +210,9 @@ test("liveLeafLines renders a pi run EXACTLY, and keeps the two wall kinds apart
     FEEDBACK,
   ]);
 
+  // TWO slices, and deliberately only ONE of them reporting usage. A single row cannot observe a
+  // join separator (nothing to join) and cannot observe the usage filter at all (every row looks
+  // the same), so a one-row fixture leaves both silently unproven.
   author.runs.push({
     phase: "AUTHOR_TEST",
     source: "pi-leaf",
@@ -218,11 +226,14 @@ test("liveLeafLines renders a pi run EXACTLY, and keeps the two wall kinds apart
       cacheCreationInputTokens: 174,
     },
   });
+  author.runs.push({ phase: "IMPLEMENT", source: "pi-leaf", subtype: "success", turns: 3, model: "m" });
 
   assert.deepEqual(liveLeafLines(author), [
     "leaf:        pi → Anthropic on the subscription credential (fresh provider id) " +
-      "(AUTHOR_TEST: success, 2 turns)",
+      "(AUTHOR_TEST: success, 2 turns; IMPLEMENT: success, 3 turns)",
     COST,
+    // Only the slice that REPORTED usage appears — accounting is additive, and inventing a zero row
+    // for the other would be a claim about tokens nobody counted.
     "tokens:      AUTHOR_TEST: 122 out / 2 in / 27974 cache-read / 174 cache-write",
     "scope walls: no write refusals",
     "tool surface: no off-surface tool calls",
@@ -254,8 +265,15 @@ test("liveLeafLines renders a pi run EXACTLY, and keeps the two wall kinds apart
     reason: "not on the authoring tool surface",
     kind: "tool-surface",
   });
+  author.violations.push({
+    phase: "IMPLEMENT",
+    tool: "edit",
+    path: "unit.test.cjs",
+    reason: "write refused by phase scope",
+    kind: "scope",
+  });
   const walls = liveLeafLines(author);
-  assert.equal(walls[3], "scope walls: AUTHOR_TEST:impl.cjs");
+  assert.equal(walls[3], "scope walls: AUTHOR_TEST:impl.cjs, IMPLEMENT:unit.test.cjs");
   assert.equal(walls[4], "tool surface: IMPLEMENT:bash");
 });
 
@@ -286,10 +304,14 @@ test("nodeBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", 
     actor: "t@example.com",
   });
   assert.equal(real.ok, false);
-  assert.match(real.body, /--runtime pi is admitted for --live only/);
-  assert.match(real.body, /ADR-0449/);
-  // The refusal must say what it is protecting, not just say no.
-  assert.match(real.body, /promotes\s+a commit toward main/);
+  // The WHOLE message. A regex on its first clause leaves the continuation strings unpinned, and
+  // the refusal's value is precisely that it says what it is protecting rather than just saying no.
+  assert.equal(
+    real.body,
+    "--runtime pi is admitted for --live only (ADR-0449 authorises ONE trial run through the "
+      + "live smoke, not a promotion path). A --real build authors at real repo paths and promotes "
+      + "a commit toward main; widening pi to that is a separate decision.",
+  );
 
   const budget = await nodeBuild("library-cli", {
     dryRun: false,
@@ -299,8 +321,26 @@ test("nodeBuild REFUSES --runtime pi with --real, and refuses a USD cap on it", 
     actor: "t@example.com",
   });
   assert.equal(budget.ok, false);
-  assert.match(budget.body, /--budget is unavailable with --runtime pi/);
-  assert.match(budget.body, /--max-turns is\s+the leaf's real cost guard/);
+  assert.equal(
+    budget.body,
+    "--budget is unavailable with --runtime pi: the run draws on the Claude subscription "
+      + "credential (ADR-0449) and pi reports no honest USD spend. Drop --budget — --max-turns is "
+      + "the leaf's real cost guard.",
+  );
+
+  // CONTROL for the budget guard: pi + --live with NO budget must fall THROUGH it. An unknown node
+  // id is what makes that free — the "no node spec" refusal sits just past these guards, so this
+  // never reaches a leaf. Under a mutant that drops the `budgetUsd !== undefined` test, this would
+  // be refused by the budget guard instead, and the assertions below are that discrimination.
+  const piNoBudget = await nodeBuild("no-such-node-fixture", {
+    dryRun: false,
+    live: true,
+    runtime: "pi",
+    actor: "t@example.com",
+  });
+  assert.equal(piNoBudget.ok, false);
+  assert.doesNotMatch(piNoBudget.body, /--budget is unavailable/);
+  assert.match(piNoBudget.body, /no node spec "no-such-node-fixture"/);
 
   // The retry hint must point at the shape that WORKS. A refusal that names no way forward is the
   // thing this repo's envelopes exist to avoid.
@@ -343,8 +383,12 @@ test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it",
     actor: "t@example.com",
   });
   assert.equal(real.ok, false);
-  assert.match(real.body, /--runtime pi is admitted for --live only/);
-  assert.match(real.body, /ADR-0449/);
+  assert.equal(
+    real.body,
+    "--runtime pi is admitted for --live only (ADR-0449 authorises ONE trial run through the "
+      + "live smoke, not a promotion path). A --real build authors at real repo paths and promotes "
+      + "a commit toward main; widening pi to that is a separate decision.",
+  );
 
   const budget = await storyBuild("library", {
     dryRun: false,
@@ -354,7 +398,22 @@ test("storyBuild REFUSES --runtime pi with --real, and refuses a USD cap on it",
     actor: "t@example.com",
   });
   assert.equal(budget.ok, false);
-  assert.match(budget.body, /--budget is unavailable with --runtime pi/);
+  assert.equal(
+    budget.body,
+    "--budget is unavailable with --runtime pi: the run draws on the Claude subscription "
+      + "credential (ADR-0449) and pi reports no honest USD spend. Drop --budget — --max-turns is "
+      + "the leaf's real cost guard.",
+  );
+
+  // The same free control as the node arm: an unknown story id refuses just past these guards.
+  const piNoBudget = await storyBuild("no-such-story-fixture", {
+    dryRun: false,
+    live: true,
+    runtime: "pi",
+    actor: "t@example.com",
+  });
+  assert.equal(piNoBudget.ok, false);
+  assert.doesNotMatch(piNoBudget.body, /--budget is unavailable/);
 
   assert.ok(
     (real.next ?? []).some((n) => n.includes("--live") && n.includes("--runtime pi")),
