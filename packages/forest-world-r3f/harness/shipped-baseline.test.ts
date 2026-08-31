@@ -280,10 +280,32 @@ test('the shipped ground STANDS ON the relief field — the adoption, read off t
   // UNCONDITIONALLY — no prop, no default-off, nothing a caller has to opt into. A later session
   // that reintroduces a flag here has re-opened a decision the owner closed on 2026-08-29.
   const src = readFileSync(SHIPPED, 'utf8');
-  assert.match(src, /relief:\s*landRelief/, 'CellGround must build its geometry on the field');
+  // ⚠ THE FIELD IT STANDS ON GAINED A SHORE ON 2026-09-01, AND THIS TEST FOLLOWED IT RATHER THAN
+  // BEING DELETED. `shoreRelief` is a STRICT EXTENSION of `landRelief` — inland of the shore band
+  // it returns `landHeight` to the last bit, which `src/shore-fall.test.ts` asserts with
+  // `assert.equal` — so the claim this test makes is the same claim: the shipped ground stands on
+  // the relief field, unconditionally. What changed is only that the field now falls to the coast.
+  //
+  // ⚠⚠ AND IT MUST BE THE CLIPPED PARCELS IT IS BUILT FROM, which is why the argument is matched
+  // rather than just the call. The shore is measured to the mesh's own rim, and after
+  // `clipToCoast` that rim IS the coast; built from `cells` instead it would measure to the hex
+  // silhouette and put the waterline a beach's width inland of the water — a picture that still
+  // looks like an island, which is precisely why a source-text match earns its keep here.
+  assert.match(
+    src,
+    /relief:\s*shoreRelief\(clipped,\s*SHIPPED_SHORE\)/,
+    'CellGround must build its geometry on the shore-fall field, over the CLIPPED parcels',
+  );
   assert.ok(
     !/relief\??\s*[:=][^,;)]*\?\?/.test(src),
     'the relief must not be behind a caller-supplied fallback — that is the flag item 6 forbids',
+  );
+  // The arm is a CONSTANT, not a prop: `SHIPPED_SHORE` names which band ships and is the whole
+  // change if the owner prefers another. A canvas that took it as an argument would be item 6's
+  // flag wearing a different name.
+  assert.ok(
+    !/SHIPPED_SHORE\s*[?:]?=/.test(src),
+    'the shore arm must not become a caller-supplied prop',
   );
 });
 

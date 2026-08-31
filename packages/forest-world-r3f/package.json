@@ -32,6 +32,7 @@
     "measure-shipped-crowd": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-crowd-measure.mjs",
     "measure-shipped-blooms": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-blooms-measure.mjs",
     "measure-shipped-shadow": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-shadow-measure.mjs",
+    "measure-shipped-shore": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-shore-measure.mjs",
     "measure-shipped-coast": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-coast-measure.mjs",
     "measure-shipped-light": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-light-measure.mjs"
   },
