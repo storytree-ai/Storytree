@@ -233,16 +233,25 @@ test('a bloom the substrate could not attribute is DROPPED, never spread', () =>
 });
 
 test('the same criterion twice is ONE signature; unstamped markers are counted individually', () => {
+  // ⚠⚠ THE SHAPE OF THIS FIXTURE IS ARITHMETIC, NOT TASTE — 4 named of which 2 are distinct, and
+  // 2 unnamed, so the honest answer is 4. Every nearby fixture is satisfied by a reader that has
+  // the two branches CONFUSED, and `check:mutation-diff` found each of them in turn:
+  //   · with 1 unnamed, treating an unnamed marker as a named one gives {a, b, undefined} = 3,
+  //     which is what 2 distinct + 1 unnamed also gives;
+  //   · with 3 named and 2 unnamed, SWAPPING the branches gives 3 + 1 = 4, and so does 2 + 2.
+  // Here the four readings separate: correct 4, branches swapped 5, unnamed treated as named 3,
+  // named treated as unnamed 6.
   const doubled: Descriptor3D[] = [
     { kind: 'uat-bloom', transform: { x: 0, y: 0, z: 0 }, group: 'uat-bloom', island: 'home', criterion: 'a' },
     { kind: 'uat-bloom', transform: { x: 1, y: 0, z: 0 }, group: 'uat-bloom', island: 'home', criterion: 'a' },
-    { kind: 'uat-bloom', transform: { x: 2, y: 0, z: 0 }, group: 'uat-bloom', island: 'home', criterion: 'b' },
+    { kind: 'uat-bloom', transform: { x: 2, y: 0, z: 0 }, group: 'uat-bloom', island: 'home', criterion: 'a' },
+    { kind: 'uat-bloom', transform: { x: 3, y: 0, z: 0 }, group: 'uat-bloom', island: 'home', criterion: 'b' },
     // No id at all: a distinct marker the core simply did not stamp. Folding these onto one absent
     // key would UNDER-report, which is the opposite error from the one this module guards.
-    { kind: 'uat-bloom', transform: { x: 3, y: 0, z: 0 }, group: 'uat-bloom', island: 'home' },
     { kind: 'uat-bloom', transform: { x: 4, y: 0, z: 0 }, group: 'uat-bloom', island: 'home' },
+    { kind: 'uat-bloom', transform: { x: 5, y: 0, z: 0 }, group: 'uat-bloom', island: 'home' },
   ];
-  assert.equal(signedCriteriaByIsland(doubled).get('home'), 4, 'two named + two unnamed');
+  assert.equal(signedCriteriaByIsland(doubled).get('home'), 4, 'two distinct named + two unnamed');
 });
 
 test('cells the substrate cannot attribute still grow their capabilities’ trees, and no blooms', () => {

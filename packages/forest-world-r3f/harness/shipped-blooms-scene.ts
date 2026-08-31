@@ -224,7 +224,7 @@ export function bloomCensus(footprint: RoleFootprints, dressing: BloomDressing):
  * so that every story signed something, this THROWS rather than quietly framing a story that did
  * sign and picturing nothing.
  */
-function unsignedIslandCentre(): { x: number; z: number } {
+function unsignedIslandCentre() {
   const signing = new Set(crowdBlooms(SIZE).map((b) => b.island));
   for (const island of crowdIslands(SIZE)) {
     if (!signing.has(crowdIslandId(island.index))) return { x: island.offset.x, z: island.offset.z };

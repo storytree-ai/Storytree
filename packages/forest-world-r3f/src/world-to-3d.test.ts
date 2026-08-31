@@ -851,6 +851,9 @@ test('⚠ the island id is taken ONLY from a group that says it IS an island', (
     children: [{ el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 Z' }],
   };
   assert.deepEqual(islandsOf(parcelOnly, 'cell-ground'), [undefined], 'a parcel is not an island');
+  for (const d of worldTo3D(parcelOnly).filter(asInstance)) {
+    assert.ok(!('island' in d), 'a parcel id leaked in as an island');
+  }
 
   // An anonymous wrapper carrying an id is not an island either.
   const wrapper: SceneG = {
@@ -882,6 +885,87 @@ test('the tree, the tiles and the blooms all name their island — the whole per
     ['sig-1', 'sig-2'],
     'each bloom names the criterion it stands for',
   );
+});
+
+test('⚠ NO island group ⇒ the field is ABSENT, on every one of the four families', () => {
+  // ⚠⚠ ABSENT AND `undefined` ARE DIFFERENT DESCRIPTORS, and the difference is the whole reason the
+  // assignment is guarded. Under `exactOptionalPropertyTypes` a consumer distinguishes "this
+  // substrate does not say which story this is" from "this story is undefined" by asking `'island'
+  // in d` — so a mapper that always assigned would hand every unattributed instance a key whose
+  // value is undefined, and `cellsByIsland` would still drop it while every `in` check flipped.
+  const marks: SceneNode[] = [
+    { el: 'path', kind: 'tall-flower-petal', d: 'M 0 0 L 1 1' },
+  ];
+  const orphans: SceneG = {
+    el: 'g',
+    kind: 'hits-layer',
+    status: 'healthy',
+    children: [
+      { el: 'g', kind: 'parcel', id: 'cap-a', children: [{ el: 'path', kind: 'cell', d: 'M 0.0 0.0 L 0.0 10.0 L 10.0 10.0 Z' }] },
+      { el: 'g', kind: 'tree', children: [] },
+      { el: 'g', kind: 'tall-flower-proven', id: 'sig-orphan', children: marks },
+    ],
+  };
+  const got = worldTo3D(orphans).filter(asInstance);
+  assert.deepEqual(got.map((d) => d.kind).sort(), ['cell-ground', 'story-tree', 'uat-bloom']);
+  for (const d of got) assert.ok(!('island' in d), `${d.kind} invented an island`);
+
+  // The classic substrate's tile is the fourth: a `tile` group is an island only when it says which.
+  const namelessTile: SceneG = {
+    el: 'g',
+    kind: 'tile',
+    status: 'healthy',
+    children: [{ el: 'path', kind: 'tile-top', d: 'M 0 0 L 10 0 L 10 10 L 0 10 Z' }],
+  };
+  const hex = worldTo3D(namelessTile).filter(asInstance).find((d) => d.kind === 'hex-ground');
+  assert.ok(hex, 'the tile still becomes a hex-ground');
+  assert.ok(!('island' in hex), 'hex-ground invented an island');
+});
+
+test('a uat-bloom stands where the scene put its marker, in the family and status of its island', () => {
+  // ⚠ The kit places its own flowers, so nothing downstream reads this transform today. It is
+  // asserted because the descriptor is the map's RECORD of a signature: a bloom that reported the
+  // origin, or an empty group string, would be a claim about a story with no place and no family.
+  const scene: SceneG = {
+    el: 'g',
+    kind: 'territory',
+    id: 'atlas',
+    status: 'unhealthy',
+    transform: 'translate(100 200)',
+    children: [
+      {
+        el: 'g',
+        kind: 'tall-flower-proven',
+        id: 'sig-7',
+        transform: 'translate(30 40) scale(1.4)',
+        children: [{ el: 'path', kind: 'tall-flower-stem', d: 'M 0 0 L 1 1' }],
+      },
+    ],
+  };
+  const bloom = worldTo3D(scene)
+    .filter(asInstance)
+    .find((d) => d.kind === 'uat-bloom');
+  assert.ok(bloom);
+  assert.deepEqual(bloom.transform, { x: 130, y: 0, z: 240 }, 'the marker carries its ancestor translate');
+  assert.equal(bloom.group, 'uat-bloom', 'the instancing group names the family');
+  assert.equal(bloom.material, 'unhealthy', 'the bloom wears its ISLAND’s folded status');
+  assert.equal(bloom.island, 'atlas');
+  assert.equal(bloom.criterion, 'sig-7');
+});
+
+test('a uat-bloom with no status anywhere falls back to unknown, never to undefined or empty', () => {
+  // The same rule every status-bearing family follows. `unknown` is the one state that means "no
+  // data"; an empty string would be a status nothing in the palette can resolve.
+  const bare: SceneG = {
+    el: 'g',
+    kind: 'tall-flower-proven',
+    children: [{ el: 'path', kind: 'tall-flower-stem', d: 'M 0 0 L 1 1' }],
+  };
+  const bloom = worldTo3D(bare)
+    .filter(asInstance)
+    .find((d) => d.kind === 'uat-bloom');
+  assert.equal(bloom?.material, 'unknown');
+  assert.ok(!('criterion' in (bloom ?? {})), 'an unstamped marker names no criterion');
 });
 
 test('a family that spans islands carries NO island — a trail belongs to neither end', () => {

@@ -33,14 +33,14 @@ export interface MapDressingOptions {
   relief: number;
   /** The ground width each role occupies, measured off the LOADED kit (`roleFootprints`). */
   footprint: RoleFootprints;
-  /** The placement seed, passed through to every island unchanged.
-   *
-   *  ⚠ ONE SEED FOR EVERY ISLAND IS NOT A CLONE. The candidate points a placement chooses between
-   *  are sampled from the island's OWN cells, so two islands with the same seed and different
-   *  ground produce different placements. Deriving a per-island seed would change every committed
-   *  picture of the single-island instrument for no property this module needs. */
-  seed?: number;
 }
+
+// ⚠ THERE IS NO `seed` HERE, AND ITS ABSENCE IS DELIBERATE. `dressIslandFromKit` carries its own
+// default and every island is dressed with it, which is not a clone: the candidate points a
+// placement chooses between are sampled from the island's OWN cells, so two islands with the same
+// seed and different ground place differently. A pass-through nobody calls would be speculative
+// API AND an untestable branch — `check:mutation-diff` reads `opts.seed !== undefined ? {…, seed} :
+// {…}` as unkillable, because passing `seed: undefined` and omitting it behave identically.
 
 /**
  * HOW MANY UAT CRITERIA EACH STORY HAS SIGNED, read off the map's own descriptors.
@@ -98,22 +98,26 @@ export function dressMapFromKit(
   const out: KitPlacement[] = [];
 
   const dress = (group: readonly LayoutCell[], blooms: number): void => {
-    // ANNOTATED local, then one guarded assignment — `anti-slop/no-conditional-empty-object-spread`.
-    const options = {
-      cells: group,
-      facts: capabilityFactsFrom(group),
-      blooms,
-      relief: opts.relief,
-      footprint: opts.footprint,
-    };
-    if (opts.seed !== undefined) out.push(...dressIslandFromKit({ ...options, seed: opts.seed }));
-    else out.push(...dressIslandFromKit(options));
+    out.push(
+      ...dressIslandFromKit({
+        cells: group,
+        facts: capabilityFactsFrom(group),
+        blooms,
+        relief: opts.relief,
+        footprint: opts.footprint,
+      }),
+    );
   };
 
   for (const [island, group] of cellsByIsland(cells)) dress(group, signed.get(island) ?? 0);
 
-  const unattributed = cells.filter((c) => c.island === undefined);
-  if (unattributed.length) dress(unattributed, 0);
+  // ⚠ CALLED UNCONDITIONALLY, EVEN WHEN THERE IS NOTHING TO DRESS. An `if (unattributed.length)`
+  // guard reads as thrift and is a branch no test can kill: dressing an empty cell set names no
+  // capability and places no bloom, so it appends nothing and the two paths are indistinguishable.
+  dress(
+    cells.filter((c) => c.island === undefined),
+    0,
+  );
 
   return out;
 }

@@ -232,8 +232,13 @@ function parseRotate(t: string): number {
  * picture. `ground` is the relaxed-mesh substrate's per-territory ground group, `territory` the
  * island's flora group (the story tree and the UAT markers), `tile` the classic substrate's
  * hex — and the core stamps the SAME `t.id` on all three.
+ *
+ * ⚠ TYPED `string | undefined` SO THE LOOKUP NEEDS NO GUARD. An anonymous `<g>` carries no kind at
+ * all, and a `kind !== undefined &&` in front of `.has(kind)` is a TYPE guard with no runtime
+ * meaning — a Set of strings answers `false` for `undefined` on its own. `check:mutation-diff`
+ * reads such a guard exactly right: it can be replaced by `true` and no test can notice.
  */
-const ISLAND_GROUP_KINDS: ReadonlySet<string> = new Set(['ground', 'territory', 'tile']);
+const ISLAND_GROUP_KINDS: ReadonlySet<string | undefined> = new Set(['ground', 'territory', 'tile']);
 
 /** Split a comma-joined `data-edges` value into edge keys ('' → []). */
 function edgeKeys(edges: string | undefined): string[] {
@@ -282,7 +287,7 @@ function walkNode(
   const kind = node.kind;
   const status = node.status ?? parentStatus;
   const parcel = kind === 'parcel' ? node.id ?? parentParcel : parentParcel;
-  const island = kind !== undefined && ISLAND_GROUP_KINDS.has(kind) ? node.id ?? parentIsland : parentIsland;
+  const island = ISLAND_GROUP_KINDS.has(kind) ? node.id ?? parentIsland : parentIsland;
 
   // Leaf nodes (path / circle / ellipse / polygon / rect / text) carry no children.
   // The trail FILL pass is the ribbon geometry source (ADR-0169 §4) — one strip per
