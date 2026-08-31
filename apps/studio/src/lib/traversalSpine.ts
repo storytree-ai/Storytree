@@ -29,7 +29,12 @@
 // scale is built from every instant the picture places — marks, lane ends, and offer points — while the
 // marks themselves remain exactly what they were.
 
-import type { TraversalEventEnvelope, TraversalReplayPayload } from '../types';
+import type {
+  TraversalEventEnvelope,
+  TraversalProvenance,
+  TraversalProvenanceSurface,
+  TraversalReplayPayload,
+} from '../types';
 import { computeTraversalDepth, drawnDepth, type TraversalDepthModel } from './traversalDepth';
 import { buildTraversalLanes, laneInstants, type TraversalLaneModel } from './traversalLanes';
 import { buildOccupancySeries, type OccupancySeries } from './traversalOccupancy';
@@ -76,6 +81,30 @@ export interface TraversalMark {
    * (`traversalOfferRings.ts`, ADR-0482 D4).
    */
   readonly visitId: string | null;
+  /**
+   * WHICH RECORDER wrote this observation (ADR-0484 D5).
+   *
+   * A trace mixes storytree's own CLI observer with the harness transcript scraper, and the picture
+   * drew them identically — one mark, one edge, no way to tell a reading we RECORDED from one we
+   * RECOVERED after the fact from a secondary source. It rides the mark so the label reaches the
+   * point of use, which is the deliverable.
+   *
+   * LOOKED UP, NEVER DERIVED: the classification is folded server-side by the same composition
+   * `storytree traversal show` renders from and arrives on the payload. A copy of that table in the
+   * browser is how the panel and the CLI would come to disagree about one trace.
+   */
+  readonly provenance: TraversalProvenance;
+  /** What that surface can observe at all — carried for the hover, so a count cannot over-read. */
+  readonly provenanceScope: string | null;
+  /**
+   * The surface this observation was recorded on, or `null` where the event recorded none.
+   *
+   * Carried because "no surface was recorded" and "a surface nothing classifies" are DIFFERENT
+   * facts that both fall to `unclassified`, and only the second is a drift worth shouting about: the
+   * first is an old event from before surfaces were stamped, the second is an adapter minting a
+   * surface nobody has told a reader how to weigh.
+   */
+  readonly surfaceId: string | null;
 }
 
 export interface TraversalEdge {
@@ -150,6 +179,13 @@ export function buildTraversalSpine(
 
   const depth = computeTraversalDepth(replay.events);
 
+  // The server's own provenance classification, indexed for lookup (ADR-0484 D5) — never recomputed
+  // here. A surface the payload did not classify falls to `unclassified`, which is the honest
+  // reading of "nobody has told you how to weigh this" and never a confident "ours".
+  const bySurface = new Map<string, TraversalProvenanceSurface>(
+    replay.provenance.census.surfaces.map((surface) => [surface.surfaceId, surface]),
+  );
+
   const marks: TraversalMark[] = dated.map((item, index) => ({
     id: identityOf(item.event, index),
     atMs: item.atMs,
@@ -159,6 +195,7 @@ export function buildTraversalSpine(
     label: labelOf(item.event),
     nodeId: nodeIdOf(item.event),
     visitId: visitIdOf(item.event),
+    ...provenanceOf(item.event, bySurface),
   }));
 
   const edges: TraversalEdge[] = [];
@@ -231,6 +268,49 @@ function visitIdOf(event: TraversalEventEnvelope): string | null {
 function nodeIdOf(event: TraversalEventEnvelope): string | null {
   if (event.kind === 'full_payload_read' || event.kind === 'front_matter_read') return event.nodeId;
   return null;
+}
+
+/**
+ * The event field a surface is recorded under, as the shape every event either has or lacks.
+ *
+ * ONE PROPERTY READ RATHER THAN A KIND LIST, matching the server-side fold. Narrowing by kind READ
+ * as a runtime rule and was not one — `model_context`, `followed_edge` and the two spawn edges
+ * answer `undefined` whichever branch they take, because they do not carry the field at all — so the
+ * chain asserted a distinction it did not make, and could fall behind a new kind that does carry one.
+ */
+type SurfaceBearing = { readonly kind: string; readonly surfaceId?: string | undefined };
+
+/** The surface an event was recorded on — the key the provenance lookup uses. */
+function surfaceIdOf(event: TraversalEventEnvelope): string | undefined {
+  const bearing: SurfaceBearing = event;
+  return bearing.surfaceId;
+}
+
+/**
+ * The three provenance fields a mark carries. A slice of {@link TraversalMark} rather than an
+ * anonymous shape, so the lookup below and the mark it fills can never drift apart.
+ */
+type MarkProvenance = Pick<TraversalMark, 'provenance' | 'provenanceScope' | 'surfaceId'>;
+
+/**
+ * The server's classification of one surface, or the unclassified reading.
+ *
+ * UNCLASSIFIED IS THE FALLBACK, never `storytree-own`. A mark whose surface the payload did not
+ * classify is one nobody has told a reader how to weigh, and drawing it as our own log would be the
+ * exact collapse ADR-0484 D5 exists to prevent.
+ */
+function provenanceOf(
+  event: TraversalEventEnvelope,
+  bySurface: ReadonlyMap<string, TraversalProvenanceSurface>,
+): MarkProvenance {
+  const recorded = surfaceIdOf(event);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — `Map.get(undefined)` answers
+  // `undefined` at runtime exactly as this guard does, so taking the lookup unconditionally is
+  // indistinguishable. The guard is kept because the map's key type is `string`.
+  const row = recorded === undefined ? undefined : bySurface.get(recorded);
+  const surfaceId = recorded ?? null;
+  if (row === undefined) return { provenance: 'unclassified', provenanceScope: null, surfaceId };
+  return { provenance: row.provenance, provenanceScope: row.scope, surfaceId };
 }
 
 function labelOf(event: TraversalEventEnvelope): string {

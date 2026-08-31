@@ -20,8 +20,13 @@ import path from "node:path";
 import { test } from "node:test";
 
 import { readTraversalSession } from "@storytree/context-traversal-capture";
-import { ContextTraversalCoverage } from "@storytree/context-traversal-telemetry";
+import {
+  ContextTraversalCoverage,
+  traversalProvenanceOf,
+} from "@storytree/context-traversal-telemetry";
 
+import { DECISION_READ_SURFACES } from "./decision-reads.js";
+import { readHarnessIngestReceipt, recordHarnessIngestRun } from "./ingest-receipt.js";
 import { HOST_TRANSCRIPT_COVERAGE } from "./ingest-occupancy.js";
 import {
   DECISION_READ_COVERAGE,
@@ -414,4 +419,185 @@ test("the-store-route-declines-are-sized-apart-from-the-shell-declines: a storyt
   // Folding the two together would report `adr list` under "NAMED a decision record", which it did
   // not — a small false claim, and exactly the kind this module exists to stop making.
   assert.match(renderDecisionReadIngest(result), /1 storytree invocation\(s\) that reached the decision log/);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0484 D5 — the tier, and whether anyone ever looked
+// ---------------------------------------------------------------------------
+
+test("every-surface-this-ingest-mints-classifies-harness-derived: the provenance table names all four, so nothing this adapter writes can reach a surface unlabelled", () => {
+  // THE DRIFT GUARD, and it is here because this is the one place both halves are visible: the
+  // surface ids are minted by `DECISION_READ_SURFACES` in this organism, and the classification
+  // lives in the vocabulary package, which is a ROOT and can never import back. A surface added
+  // there and not classified would otherwise read `unclassified` on every render — silently, and
+  // on exactly the tier a reader is most likely to over-trust.
+  const minted = Object.values(DECISION_READ_SURFACES);
+  assert.equal(minted.length, 4, "a fifth shape needs a fifth row in the provenance table");
+  for (const surfaceId of minted) {
+    const row = traversalProvenanceOf(surfaceId);
+    assert.equal(row.provenance, "harness-derived", `${surfaceId} is not classified harness-derived`);
+    assert.notEqual(row.provenance, "unclassified", `${surfaceId} is not in the provenance table at all`);
+    assert.match(row.scope, /decision|DECISION/, `${surfaceId} does not state its decision-only narrowness`);
+  }
+});
+
+test("the-report-states-its-own-tier-and-its-narrowness: the count is printed under HARNESS-DERIVED, with the precedence and the decision-only scope beside it", () => {
+  const { transcriptDir, traceDir } = twoWindowFixture();
+  const rendered = renderDecisionReadIngest(ingestDecisionReads({ traceDir, transcriptDir }));
+
+  assert.match(rendered, /TIER: HARNESS-DERIVED/);
+  assert.match(rendered, /SECONDARY/);
+  assert.match(rendered, /storytree log is authoritative/);
+  // Deliverable 3: a reader must not take these four surfaces for general tool capture.
+  assert.match(rendered, /DECISION-ONLY/);
+  assert.match(rendered, /not general tool capture/);
+});
+
+test("the-sweep-stamps-a-receipt-per-session-it-measured: a session it swept is recorded as MEASURED, so a later replay can tell that from never-looked-at", () => {
+  const { transcriptDir, traceDir } = twoWindowFixture();
+
+  const result = ingestDecisionReads({ traceDir, transcriptDir, now: () => "2026-08-31T05:00:00.000Z" });
+
+  assert.deepEqual([...result.receipted].sort(), ["agent-alpha", "agent-beta"]);
+  assert.deepEqual(result.receiptFailures, []);
+
+  const receipt = readHarnessIngestReceipt(traceDir, "agent-alpha");
+  assert.notEqual(receipt, null, "the receipt must reach disk, not just the result object");
+  assert.deepEqual(receipt?.runs["host-transcript-decision-read"], {
+    at: "2026-08-31T05:00:00.000Z",
+    observed: 4,
+    appended: 4,
+  });
+  // A session this sweep never reached has none, and that is the honest never-run answer.
+  assert.equal(readHarnessIngestReceipt(traceDir, "agent-never-swept"), null);
+});
+
+test("a-re-ingest-still-stamps-the-receipt: the fact recorded is that the adapter LOOKED, which a zero-append re-run did", () => {
+  const { transcriptDir, traceDir } = twoWindowFixture();
+  ingestDecisionReads({ traceDir, transcriptDir, now: () => "2026-08-31T05:00:00.000Z" });
+
+  const second = ingestDecisionReads({ traceDir, transcriptDir, now: () => "2026-08-31T06:00:00.000Z" });
+  assert.equal(second.appended, 0, "idempotence: the second run appends nothing");
+  assert.deepEqual([...second.receipted].sort(), ["agent-alpha", "agent-beta"]);
+
+  // The stamp MOVED, because the look is more recent even though nothing was written. A receipt
+  // that only advanced on an append would answer "last looked" with the date of the last FIND.
+  assert.deepEqual(readHarnessIngestReceipt(traceDir, "agent-alpha")?.runs["host-transcript-decision-read"], {
+    at: "2026-08-31T06:00:00.000Z",
+    observed: 4,
+    appended: 0,
+  });
+});
+
+test("a-dry-run-stamps-nothing: it declares it writes no byte, so it may not record a session as measured", () => {
+  const { transcriptDir, traceDir } = twoWindowFixture();
+
+  const result = ingestDecisionReads({ traceDir, transcriptDir, dryRun: true, now: () => "2026-08-31T05:00:00.000Z" });
+
+  assert.deepEqual(result.receipted, []);
+  assert.equal(readHarnessIngestReceipt(traceDir, "agent-alpha"), null);
+  assert.match(renderDecisionReadIngest(result), /receipts: none — a dry run writes no byte/);
+});
+
+test("the-two-adapters-receipts-survive-each-other: an occupancy stamp on the same trace is not erased by this sweep", () => {
+  const { transcriptDir, traceDir } = twoWindowFixture();
+  recordHarnessIngestRun({
+    traceDir,
+    sessionId: "agent-alpha",
+    adapter: "host-transcript-occupancy",
+    observed: 9,
+    appended: 9,
+    at: "2026-08-30T00:00:00.000Z",
+  });
+
+  ingestDecisionReads({ traceDir, transcriptDir, now: () => "2026-08-31T05:00:00.000Z" });
+
+  const receipt = readHarnessIngestReceipt(traceDir, "agent-alpha");
+  assert.deepEqual(receipt?.runs["host-transcript-occupancy"], {
+    at: "2026-08-30T00:00:00.000Z",
+    observed: 9,
+    appended: 9,
+  });
+  assert.equal(receipt?.runs["host-transcript-decision-read"]?.observed, 4);
+});
+
+test("the-default-clock-stamps-a-real-instant: an ingest run without an injected clock still dates its receipt", () => {
+  // The clock is injected so the tests are exact, which leaves the DEFAULT unexercised unless
+  // something asks for it — and a default that produced no timestamp would write a receipt the
+  // reader refuses, turning every measured session back into a never-run one.
+  const { transcriptDir, traceDir } = twoWindowFixture();
+  const before = Date.now();
+
+  ingestDecisionReads({ traceDir, transcriptDir });
+
+  const at = readHarnessIngestReceipt(traceDir, "agent-alpha")?.runs["host-transcript-decision-read"]?.at;
+  assert.ok(at !== undefined, "the default clock must produce a timestamp");
+  const stamped = Date.parse(at);
+  assert.ok(!Number.isNaN(stamped), `"${at}" is not an instant`);
+  assert.ok(stamped >= before - 1000 && stamped <= Date.now() + 1000, `"${at}" is not this run's time`);
+});
+
+test("a-receipt-that-cannot-be-written-is-REPORTED-not-swallowed: the run still stands, and the report says which sessions lost their stamp", () => {
+  // A trace directory that is a FILE: nothing can be written under it, so every receipt fails while
+  // the sweep itself completes. The point is that "we have no data" stays distinguishable from
+  // "nothing happened" even when the bookkeeping is what broke.
+  const transcriptDir = freshDir("receipt-fail-transcripts");
+  const parent = freshDir("receipt-fail-parent");
+  const traceDir = path.join(parent, "not-a-directory");
+  fs.writeFileSync(traceDir, "");
+
+  // TWO sessions, so the rendered list is a real list: a single name reads identically however the
+  // sessions are joined, and a report that lost its separator would go unnoticed on one.
+  writeTranscript(path.join(transcriptDir, "proj", "w.jsonl"), [
+    toolUseLine({
+      cwd: worktreeCwd("agent-doomed"),
+      timestamp: "2026-08-22T10:00:00.000Z",
+      toolUseId: "toolu_f1",
+      name: "Read",
+      input: { file_path: "docs/decisions/0403-a.md" },
+    }),
+    toolUseLine({
+      cwd: worktreeCwd("agent-doomed-too"),
+      timestamp: "2026-08-22T10:01:00.000Z",
+      toolUseId: "toolu_f2",
+      name: "Read",
+      input: { file_path: "docs/decisions/0139-c.md" },
+    }),
+  ]);
+
+  const result = ingestDecisionReads({ traceDir, transcriptDir, now: () => "2026-08-31T05:00:00.000Z" });
+
+  assert.equal(result.extracted, 2, "the sweep itself still ran");
+  assert.deepEqual(result.receipted, []);
+  assert.deepEqual(result.receiptFailures, ["agent-doomed", "agent-doomed-too"]);
+
+  const rendered = renderDecisionReadIngest(result);
+  assert.match(rendered, /receipts: stamped 0 session\(s\) as MEASURED/);
+  // EVERY failing session is named — a truncated list with no "and N more" would hide exactly the
+  // sessions whose measurement was lost, which is what this line exists to report.
+  assert.match(rendered, /2 receipt\(s\) could not be written \(agent-doomed, agent-doomed-too\)/);
+});
+
+test("the-report-states-its-tier-clause-by-clause: why the scraper is kept, what it cannot replace, and what it is not", () => {
+  const { transcriptDir, traceDir } = twoWindowFixture();
+  const rendered = renderDecisionReadIngest(
+    ingestDecisionReads({ traceDir, transcriptDir, now: () => "2026-08-31T05:00:00.000Z" }),
+  );
+
+  // A blank line separates the tier block from the omissions above it — run together, the tier
+  // statement reads as one more omission rather than as a statement about the whole report.
+  assert.match(rendered, /\n\nTIER: HARNESS-DERIVED/);
+  // Why it is kept (ADR-0484 D5), and the fence that stops it growing into a substitute.
+  assert.match(rendered, /only witness to what/);
+  assert.match(rendered, /NOT a storytree command/);
+  assert.match(rendered, /never a substitute for widening our/);
+  assert.match(rendered, /widening our own capture/);
+  // The receipts line, and its own declared floor.
+  assert.match(rendered, /receipts: stamped 2 session\(s\) as MEASURED by this adapter/);
+  assert.match(rendered, /is NOT stamped/);
+  assert.match(rendered, /under-claim of measurement, which is the safe direction/);
+  // A clean run prints NOTHING between the count and the coda — not "0 failures", and not any other
+  // interpolation. Asserted as adjacency, because "no failure clause" is otherwise unfalsifiable.
+  assert.match(rendered, /as MEASURED by this adapter\. A session this sweep extracted no read/);
+  assert.doesNotMatch(rendered, /could not be written/);
 });

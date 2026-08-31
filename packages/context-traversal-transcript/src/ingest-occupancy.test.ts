@@ -25,6 +25,7 @@ import { test } from "node:test";
 import { readTraversalSession } from "@storytree/context-traversal-capture";
 import { ContextTraversalCoverage, ContextTraversalEvent, CoverageFeature } from "@storytree/context-traversal-telemetry";
 
+import { readHarnessIngestReceipt } from "./ingest-receipt.js";
 import { HOST_TRANSCRIPT_COVERAGE, ingestTranscriptOccupancy } from "./ingest-occupancy.js";
 
 function freshDir(prefix: string): string {
@@ -500,4 +501,181 @@ test("the-adapter-declares-its-own-exhaustive-coverage: HOST_TRANSCRIPT_COVERAGE
     assert.notEqual(onSupported, onOmitted);
   }
   assert.equal(parsed.supported.length + parsed.omitted.length, CoverageFeature.options.length);
+});
+
+// ---------------------------------------------------------------------------
+// ADR-0484 D5 deliverable 4 — whether anyone ever ran this ingest
+// ---------------------------------------------------------------------------
+
+test("the-ingest-stamps-a-receipt-on-the-session-and-on-every-window: the traces it is a statement about record that it RAN, which none of them can say about itself", () => {
+  const sessionId = "session-receipt-basic";
+  const cwd = worktreeCwd(sessionId);
+  const transcriptDir = freshDir("receipt-transcripts");
+  const traceDir = freshDir("receipt-trace");
+
+  writeFile(path.join(transcriptDir, "window-a.jsonl"), [
+    assistantLine({
+      cwd,
+      sessionId: "host-r1",
+      timestamp: "2026-07-20T00:00:00.000Z",
+      id: "msg_1",
+      usage: { input_tokens: 60 },
+    }),
+    assistantLine({
+      cwd,
+      sessionId: "host-r1",
+      timestamp: "2026-07-20T00:01:00.000Z",
+      id: "msg_2",
+      usage: { input_tokens: 50 },
+    }),
+  ]);
+
+  const result = ingestTranscriptOccupancy({
+    sessionId,
+    traceDir,
+    transcriptDir,
+    now: () => "2026-08-31T07:00:00.000Z",
+  });
+
+  assert.deepEqual(result.receipted, [sessionId, "host-r1"]);
+  assert.deepEqual(result.receiptFailures, []);
+
+  // The window carries its OWN numbers, and the requested session carries the run's totals — two
+  // different traces, and a reader holding either is entitled to know somebody looked.
+  assert.deepEqual(readHarnessIngestReceipt(traceDir, "host-r1")?.runs["host-transcript-occupancy"], {
+    at: "2026-08-31T07:00:00.000Z",
+    observed: 2,
+    appended: 2,
+  });
+  assert.deepEqual(readHarnessIngestReceipt(traceDir, sessionId)?.runs["host-transcript-occupancy"], {
+    at: "2026-08-31T07:00:00.000Z",
+    observed: 2,
+    appended: 2,
+  });
+});
+
+test("an-ingest-that-correlated-nothing-still-stamps-a-receipt: a MEASURED zero is the whole case this exists for, and it writes no event to say so", () => {
+  const sessionId = "session-receipt-empty";
+  const transcriptDir = freshDir("receipt-empty-transcripts");
+  const traceDir = freshDir("receipt-empty-trace");
+
+  // A transcript belonging to a DIFFERENT session, so this one correlates nothing at all.
+  writeFile(path.join(transcriptDir, "elsewhere.jsonl"), [
+    assistantLine({
+      cwd: worktreeCwd("some-other-session"),
+      sessionId: "host-elsewhere",
+      timestamp: "2026-07-20T00:00:00.000Z",
+      id: "msg_1",
+      usage: { input_tokens: 10 },
+    }),
+  ]);
+
+  const result = ingestTranscriptOccupancy({
+    sessionId,
+    traceDir,
+    transcriptDir,
+    now: () => "2026-08-31T07:30:00.000Z",
+  });
+
+  assert.deepEqual(result.windows, []);
+  assert.equal(result.appended, 0);
+  // No event was written — so WITHOUT the receipt this trace would be indistinguishable from one
+  // nobody ever ingested, which is the absence-versus-zero fault the receipt removes.
+  assert.deepEqual(result.receipted, [sessionId]);
+  assert.deepEqual(readHarnessIngestReceipt(traceDir, sessionId)?.runs["host-transcript-occupancy"], {
+    at: "2026-08-31T07:30:00.000Z",
+    observed: 0,
+    appended: 0,
+  });
+  assert.equal(readHarnessIngestReceipt(traceDir, "some-other-session"), null);
+});
+
+test("a-re-ingest-moves-the-stamp-though-it-appends-nothing: the receipt records the LOOK, not the find", () => {
+  const sessionId = "session-receipt-reingest";
+  const cwd = worktreeCwd(sessionId);
+  const transcriptDir = freshDir("receipt-reingest-transcripts");
+  const traceDir = freshDir("receipt-reingest-trace");
+
+  writeFile(path.join(transcriptDir, "window-a.jsonl"), [
+    assistantLine({
+      cwd,
+      sessionId: "host-rr1",
+      timestamp: "2026-07-20T00:00:00.000Z",
+      id: "msg_1",
+      usage: { input_tokens: 60 },
+    }),
+  ]);
+
+  ingestTranscriptOccupancy({ sessionId, traceDir, transcriptDir, now: () => "2026-08-31T07:00:00.000Z" });
+  const second = ingestTranscriptOccupancy({
+    sessionId,
+    traceDir,
+    transcriptDir,
+    now: () => "2026-08-31T08:00:00.000Z",
+  });
+
+  assert.equal(second.appended, 0, "idempotence: the second run appends nothing");
+  assert.deepEqual(readHarnessIngestReceipt(traceDir, "host-rr1")?.runs["host-transcript-occupancy"], {
+    at: "2026-08-31T08:00:00.000Z",
+    observed: 1,
+    appended: 0,
+  });
+});
+
+test("where-the-requested-session-IS-the-window-the-windows-own-numbers-stand: one trace never gets two contradictory stamps", () => {
+  const sessionId = "host-same-id";
+  const transcriptDir = freshDir("receipt-same-transcripts");
+  const traceDir = freshDir("receipt-same-trace");
+
+  writeFile(path.join(transcriptDir, "window-a.jsonl"), [
+    assistantLine({
+      cwd: worktreeCwd(sessionId),
+      sessionId,
+      timestamp: "2026-07-20T00:00:00.000Z",
+      id: "msg_1",
+      usage: { input_tokens: 60 },
+    }),
+  ]);
+
+  const result = ingestTranscriptOccupancy({
+    sessionId,
+    traceDir,
+    transcriptDir,
+    now: () => "2026-08-31T09:00:00.000Z",
+  });
+
+  // Stamped ONCE, not twice: the more specific fact about that trace is the one that stands.
+  assert.deepEqual(result.receipted, [sessionId]);
+  assert.deepEqual(readHarnessIngestReceipt(traceDir, sessionId)?.runs["host-transcript-occupancy"], {
+    at: "2026-08-31T09:00:00.000Z",
+    observed: 1,
+    appended: 1,
+  });
+});
+
+test("the-default-clock-stamps-a-real-instant: an ingest run without an injected clock still dates its receipt", () => {
+  // The clock is injected so these tests are exact, which leaves the DEFAULT unexercised unless
+  // something asks for it — and a default that produced no timestamp would write a receipt the
+  // reader refuses, turning every measured session back into a never-run one.
+  const sessionId = "session-default-clock";
+  const transcriptDir = freshDir("default-clock-transcripts");
+  const traceDir = freshDir("default-clock-trace");
+  writeFile(path.join(transcriptDir, "window-a.jsonl"), [
+    assistantLine({
+      cwd: worktreeCwd(sessionId),
+      sessionId: "host-dc1",
+      timestamp: "2026-07-20T00:00:00.000Z",
+      id: "msg_1",
+      usage: { input_tokens: 60 },
+    }),
+  ]);
+
+  const before = Date.now();
+  ingestTranscriptOccupancy({ sessionId, traceDir, transcriptDir });
+
+  const at = readHarnessIngestReceipt(traceDir, sessionId)?.runs["host-transcript-occupancy"]?.at;
+  assert.ok(at !== undefined, "the default clock must produce a timestamp");
+  const stamped = Date.parse(at);
+  assert.ok(!Number.isNaN(stamped), `"${at}" is not an instant`);
+  assert.ok(stamped >= before - 1000 && stamped <= Date.now() + 1000, `"${at}" is not this run's time`);
 });

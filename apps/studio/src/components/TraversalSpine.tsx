@@ -57,6 +57,7 @@ import {
   markKnowledgeDepth,
   reportKnowledgeDepth,
   type KnowledgeDepthModel,
+  type MarkKnowledgeDepth,
 } from '../lib/knowledgeDepth';
 import {
   axisCaption,
@@ -384,6 +385,7 @@ export function TraversalSpine({
             {axis.measured ? 'depth ↓ corpus distance' : 'depth ↓ unmeasured'}
           </span>
           <KnowledgeChip replay={replay} knowledge={knowledge} />
+          <ProvenanceChip replay={replay} />
         </div>
 
         {nothingToDraw ? (
@@ -574,6 +576,51 @@ function KnowledgeChip({
       knowledge {report.placed}/{report.visited} placed
       {report.placed > 0 ? ` · deepest ${report.maxDepth}` : ''} · {knowledge.verdict.knowledgeLinked}
       /{knowledge.verdict.knowledgeScanned} linked
+    </span>
+  );
+}
+
+/**
+ * WHICH RECORDER wrote this trace, as one chip in the picture's own meta line (ADR-0484 D5).
+ *
+ * IT IS A CHIP, NOT A PARAGRAPH, and that distinction is the whole of how it sits beside ADR-0393
+ * D1: the owner deleted every prose block BELOW the picture at the LOOK. This is the same class of
+ * object as the mark/fold count and the knowledge chip already in that line — a compact reading in
+ * the picture's own chrome, with the full sentence on hover.
+ *
+ * IT RENDERS ONLY WHEN THERE IS SOMETHING TO QUALIFY: a trace holding nothing harness-derived, and
+ * on which somebody HAS run the ingest, grows no chip — there are then no secondary readings to
+ * label and no unmeasured absence to warn about. The never-run case DOES render, because that is the
+ * absence a reader would otherwise take for a measured zero.
+ */
+function ProvenanceChip({ replay }: { replay: TraversalReplayPayload }): React.JSX.Element | null {
+  const { census, ingestRan, ingestNote, precedence } = replay.provenance;
+  const secondary = census.harness + census.unclassified;
+  if (secondary === 0 && ingestRan) return null;
+
+  const scopes = census.surfaces
+    .filter((surface) => surface.provenance !== 'storytree-own')
+    .map((surface) => `${surface.surfaceId} (x${surface.count}) — ${surface.scope}`);
+
+  return (
+    <span
+      className="traversal-axis-note small muted"
+      data-testid="traversal-provenance-chip"
+      data-own={census.own}
+      data-harness={census.harness}
+      data-unclassified={census.unclassified}
+      data-ingest-ran={ingestRan ? 'true' : 'false'}
+      title={`${census.own} of these observations were recorded by storytree's own CLI as the command ran; ${census.harness} were read back out of the host harness transcript afterwards${
+        census.unclassified > 0 ? `; ${census.unclassified} came from a surface nothing here classifies` : ''
+      }. ${precedence}. ${scopes.join(' · ')}${scopes.length > 0 ? '. ' : ''}${ingestNote}`}
+    >
+      {/* The two secondary tiers are NAMED apart, never summed into one word: a reading nobody has
+          classified is not the same claim as one we know came from the harness. */}
+      {census.harness > 0 || census.unclassified > 0
+        ? `${census.own} own` +
+          (census.harness > 0 ? ` · ${census.harness} harness-derived` : '') +
+          (census.unclassified > 0 ? ` · ${census.unclassified} unclassified` : '')
+        : 'harness ingest never run'}
     </span>
   );
 }
@@ -795,6 +842,33 @@ function RowLabels({
  * assertable. The distribution an operator reads is the tab strip's meta chip (ADR-0393 D1 deleted
  * every paragraph that used to sit below the picture).
  */
+/**
+ * What an operator reads on hover: identity, the knowledge reading when there is one, and — for any
+ * observation that is NOT our own log — WHICH RECORDER wrote it and what that surface can observe
+ * (ADR-0484 D5 deliverables 1 and 3).
+ *
+ * THE TIER CLAUSE IS APPENDED ONLY WHERE A READER CAN GET IT WRONG. Our own log is the default
+ * expectation, and stamping "storytree-own" on every circle would bury the marks that are not — the
+ * same reason the CLI's provenance block carries a scope line on the harness rows and not on ours.
+ *
+ * THE TWO UNCLASSIFIED CASES ARE SAID DIFFERENTLY, because they are different facts. An event that
+ * recorded NO surface is an old one from before surfaces were stamped: nothing attributes it, and
+ * saying so plainly is all that can be said. An event carrying a surface the payload does not
+ * classify is an adapter minting a reading nobody has been told how to weigh — a drift, and the one
+ * worth shouting about.
+ */
+function markTitle(mark: TraversalMark, reading: MarkKnowledgeDepth | null): string {
+  const base = reading ? `${mark.label} · ${reading.label}` : mark.label;
+  if (mark.provenance === 'storytree-own') return base;
+  if (mark.provenance === 'unclassified') {
+    return mark.surfaceId === null
+      ? `${base} · recorder unrecorded — this observation carries no surface, so nothing attributes it to one`
+      : `${base} · UNCLASSIFIED RECORDER — surface "${mark.surfaceId}" is in no provenance table, so weigh it as neither tier`;
+  }
+  const scope = mark.provenanceScope === null ? '' : ` — ${mark.provenanceScope}`;
+  return `${base} · HARNESS-DERIVED: a SECONDARY source, read back out of the host harness transcript after the fact rather than recorded by storytree${scope}`;
+}
+
 function Mark({
   mark,
   geometry,
@@ -828,8 +902,13 @@ function Mark({
       // are never comparable — see `surface-depth.ts`'s header before summing or contrasting them.
       data-depth={mark.depth}
       {...(reading ? { 'data-knowledge-depth': reading.attr } : {})}
+      // WHICH RECORDER wrote this observation (ADR-0484 D5). It rides an attribute and the hover
+      // rather than the drawn grammar: ADR-0354 clause 5 keeps marks plain, so a second colour or a
+      // second shape for the harness tier is exactly what may not be added without an owner LOOK.
+      // The attribute is what makes it assertable, and the hover is where an operator reads it.
+      data-provenance={mark.provenance}
     >
-      <title>{reading ? `${mark.label} · ${reading.label}` : mark.label}</title>
+      <title>{markTitle(mark, reading)}</title>
       {mark.strength === 'search' ? (
         // The only non-circular mark in the grammar: a small magnifying glass.
         <>
@@ -956,6 +1035,16 @@ function OfferRings({
  * host-transcript adapter, which is not ambient. A flat zero bar would say the window was empty,
  * which is a claim about the session, not about the observation.
  */
+/**
+ * WHICH RECORDER the occupancy reading came from (ADR-0484 D5), said on the reading itself.
+ *
+ * One constant, used on both the observed and the unobserved label, so the bar cannot state its tier
+ * one way when it has a number and another way when it does not.
+ */
+const OCCUPANCY_TIER =
+  'This reading is HARNESS-DERIVED: it is read out of the host harness’s own transcript, not ' +
+  'recorded by storytree.';
+
 function OccupancyTrack({
   observed,
   scaleTokens,
@@ -983,8 +1072,8 @@ function OccupancyTrack({
           role="img"
           aria-label={
             note === ''
-              ? 'no context occupancy was observed for this session'
-              : `no context occupancy was observed for this session — ${note}`
+              ? `no context occupancy was observed for this session. ${OCCUPANCY_TIER}`
+              : `no context occupancy was observed for this session — ${note}. ${OCCUPANCY_TIER}`
           }
         />
         <span className="traversal-occupancy-readout is-unobserved">
@@ -1007,7 +1096,12 @@ function OccupancyTrack({
         aria-label={
           observed === null
             ? 'no context observation yet at the playhead'
-            : `${formatTokens(observed)} tokens resident in the session window at the playhead — ${bandGuidance(bandOf(observed))}`
+            : // The tier rides the reading itself (ADR-0484 D5 deliverable 1). This bar is the
+              // panel's most prominent number and is HARNESS-DERIVED whichever way it was filled —
+              // `residentInputTokens` has one producer, the host-transcript adapter, and the
+              // window's own transcript the mount prefers (ADR-0456 D2) is the SAME harness file.
+              // There is no storytree-recorded occupancy for it to be confused with.
+              `${formatTokens(observed)} tokens resident in the session window at the playhead — ${bandGuidance(bandOf(observed))}. ${OCCUPANCY_TIER}`
         }
       >
         {fill !== null && (

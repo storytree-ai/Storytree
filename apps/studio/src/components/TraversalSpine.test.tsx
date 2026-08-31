@@ -24,6 +24,8 @@ import type {
   GuidanceAsset,
   TraversalDecisionPointReport,
   TraversalEventEnvelope,
+  TraversalProvenanceDeclaration,
+  TraversalProvenanceSurface,
   TraversalReplayPayload,
 } from '../types';
 import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
@@ -119,9 +121,30 @@ function result(edgeId: string, offsetMs: number, ok = true): TraversalEventEnve
   };
 }
 
+/**
+ * The provenance declaration the server folds (ADR-0484 D5). EMPTY by default rather than derived
+ * from the events: a fixture that classified surfaces itself would be a second copy of the server's
+ * table, which is exactly the drift the payload-carried classification exists to prevent.
+ */
+function provenance(
+  surfaces: TraversalProvenanceSurface[] = [],
+  ingestRan = false,
+): TraversalProvenanceDeclaration {
+  const own = surfaces.filter((s) => s.provenance === 'storytree-own').reduce((n, s) => n + s.count, 0);
+  const harness = surfaces.filter((s) => s.provenance === 'harness-derived').reduce((n, s) => n + s.count, 0);
+  const unclassified = surfaces.filter((s) => s.provenance === 'unclassified').reduce((n, s) => n + s.count, 0);
+  return {
+    census: { total: own + harness + unclassified, own, harness, unclassified, withoutSurface: 0, surfaces },
+    precedence: 'the storytree log is authoritative',
+    ingestRan,
+    ingestNote: ingestRan ? 'harness ingest: ran' : 'harness ingest: NEVER RUN',
+  };
+}
+
 function replay(
   events: TraversalEventEnvelope[],
   decisionPoints: TraversalDecisionPointReport = { points: [], orphanFollows: [] },
+  provenanceDeclaration: TraversalProvenanceDeclaration = provenance(),
 ): TraversalReplayPayload {
   return {
     sessionId: SESSION,
@@ -131,8 +154,15 @@ function replay(
     coverageCaveats: [],
     skipped: 0,
     partial: false,
-    occupancy: { modelContextCount: 0, observationCount: 0, declared: false, note: 'note' },
+    occupancy: {
+      seriesProvenance: 'harness-derived',
+      modelContextCount: 0,
+      observationCount: 0,
+      declared: false,
+      note: 'note',
+    },
     decisionPoints,
+    provenance: provenanceDeclaration,
   };
 }
 
@@ -314,7 +344,11 @@ describe('the one playhead occupancy bar', () => {
     // window was empty, which is a claim about the session rather than about the observation.
     const track = document.querySelector('.traversal-occupancy.is-unobserved');
     expect(track).not.toBeNull();
-    expect(track?.querySelector('[aria-label="no context occupancy was observed for this session"]')).not.toBeNull();
+    const absentLabel = track?.querySelector('[role="img"]')?.getAttribute('aria-label');
+    expect(absentLabel).toContain('no context occupancy was observed for this session');
+    // …and it says WHOSE observation is missing (ADR-0484 D5): the series has one producer, the host
+    // harness transcript, so the absence is an absence in a SECONDARY source and not in our own log.
+    expect(absentLabel).toContain('HARNESS-DERIVED');
     expect(track?.textContent).toContain('none');
     expect(track?.textContent).toContain('observed');
     // And the deleted paragraph really is deleted, not merely hidden.
@@ -1188,7 +1222,13 @@ describe('knowledge depth from the surface is a SECOND axis, joined read-only at
     expect(attrs).toEqual(['1', '2', 'unlinked', 'absent']);
 
     const titles = screen.getAllByTestId('traversal-mark').map((mark) => mark.querySelector('title')?.textContent);
-    expect(titles[0]).toBe('ceremony · full payload · knowledge depth 1 — 1 hop below the surface');
+    // The knowledge reading leads, and the ADR-0484 D5 recorder clause follows it. These fixture
+    // visits record NO surface, so the clause says exactly that rather than naming a tier — the
+    // shorter of the two unclassified readings, kept apart from the drift one on purpose.
+    expect(titles[0]).toBe(
+      'ceremony · full payload · knowledge depth 1 — 1 hop below the surface' +
+        ' · recorder unrecorded — this observation carries no surface, so nothing attributes it to one',
+    );
     // The grammar clause survives every trim: the mark itself stays plain. Identity and read
     // strength are all it draws.
     expect(screen.getAllByTestId('traversal-mark')[0]?.querySelectorAll('text')).toHaveLength(0);
@@ -1307,5 +1347,119 @@ describe('knowledge depth from the surface is a SECOND axis, joined read-only at
     // 1 → 2 → unmeasured → unmeasured. This trace resolves NO parent link, so under the old rule every
     // one of these was `level`; the moves are evidence the edges follow the same rows the marks do.
     expect(moves).toEqual(['descend', 'descend', 'level']);
+  });
+});
+
+describe('the picture says which recorder wrote what it draws (ADR-0484 D5)', () => {
+  const HARNESS: TraversalProvenanceSurface = {
+    surfaceId: 'host-transcript-file-read',
+    count: 2,
+    provenance: 'harness-derived',
+    scope: 'a DECISION RECORD opened with the harness file tool, and NOTHING ELSE — not general file capture',
+  };
+  const OWN: TraversalProvenanceSurface = {
+    surfaceId: 'library-artifact',
+    count: 1,
+    provenance: 'storytree-own',
+    scope: 'one storytree read verb, recorded as it ran',
+  };
+
+  function onSurface(surfaceId: string, offsetMs: number, nodeId: string): TraversalEventEnvelope {
+    return {
+      kind: 'full_payload_read',
+      eventId: `event:${nodeId}:${offsetMs}`,
+      sessionId: SESSION,
+      at: at(offsetMs),
+      visitId: `visit:${nodeId}:${offsetMs}`,
+      nodeId,
+      surfaceId,
+    };
+  }
+
+  const MIXED = replay(
+    [
+      onSurface('library-artifact', 0, 'adr-0484'),
+      onSurface('host-transcript-file-read', 30_000, 'doc:decisions/0403-a.md'),
+      onSurface('host-transcript-file-read', 60_000, 'doc:decisions/0139-c.md'),
+    ],
+    { points: [], orphanFollows: [] },
+    provenance([OWN, HARNESS], true),
+  );
+
+  it('stamps each mark with its tier, so a harness reading is never drawn as one of ours', () => {
+    render(<TraversalSpine replay={MIXED} />);
+    fireEvent.click(screen.getByTestId('traversal-play'));
+    const tiers = screen.getAllByTestId('traversal-mark').map((mark) => mark.getAttribute('data-provenance'));
+    expect(tiers).toEqual(['storytree-own', 'harness-derived', 'harness-derived']);
+  });
+
+  it('puts the tier and its narrowness on the hover of a harness mark, and leaves our own plain', () => {
+    render(<TraversalSpine replay={MIXED} />);
+    const titles = screen.getAllByTestId('traversal-mark').map((mark) => mark.querySelector('title')?.textContent);
+
+    // Ours carries identity and nothing else — stamping the default tier on every circle would bury
+    // the marks that are not ours.
+    expect(titles[0]).toBe('adr-0484 · full payload');
+    expect(titles[1]).toContain('HARNESS-DERIVED');
+    expect(titles[1]).toContain('SECONDARY source');
+    // Deliverable 3: the surface that reads most like "files the agent read" says what it really is.
+    expect(titles[1]).toContain('not general file capture');
+  });
+
+  it('counts the two recorders apart in the meta chip, and never sums them', () => {
+    render(<TraversalSpine replay={MIXED} />);
+    const chip = screen.getByTestId('traversal-provenance-chip');
+    expect(chip.getAttribute('data-own')).toBe('1');
+    expect(chip.getAttribute('data-harness')).toBe('2');
+    expect(chip.textContent).toContain('1 own');
+    expect(chip.textContent).toContain('2 harness-derived');
+    // Three observations of which two are secondary must never read as three of ours.
+    expect(chip.textContent).not.toContain('3 own');
+    expect(chip.getAttribute('title')).toContain('the storytree log is authoritative');
+  });
+
+  it('says the harness ingest was never run rather than letting an unmeasured absence read as zero', () => {
+    const ownOnly = replay(
+      [onSurface('library-artifact', 0, 'adr-0484')],
+      { points: [], orphanFollows: [] },
+      provenance([OWN], false),
+    );
+    render(<TraversalSpine replay={ownOnly} />);
+    const chip = screen.getByTestId('traversal-provenance-chip');
+    expect(chip.getAttribute('data-ingest-ran')).toBe('false');
+    expect(chip.textContent).toContain('harness ingest never run');
+    expect(chip.getAttribute('title')).toContain('NEVER RUN');
+  });
+
+  it('grows no chip on a trace that is wholly our own AND has been ingested — nothing left to qualify', () => {
+    const clean = replay(
+      [onSurface('library-artifact', 0, 'adr-0484')],
+      { points: [], orphanFollows: [] },
+      provenance([OWN], true),
+    );
+    render(<TraversalSpine replay={clean} />);
+    expect(screen.queryByTestId('traversal-provenance-chip')).toBeNull();
+  });
+});
+
+describe('the occupancy bar names its own recorder (ADR-0484 D5)', () => {
+  it('says the reading is harness-derived, on the reading itself', () => {
+    // The bar is the panel's most prominent number and it is harness-derived whichever way it was
+    // filled: `residentInputTokens` has one producer, and the window's own transcript the mount
+    // prefers (ADR-0456 D2) is the SAME harness file. Nothing storytree records can fill it.
+    render(
+      <TraversalSpine
+        replay={replay([
+          visit('full_payload_read', 0, 'arc'),
+          occupancyEvent(1_000, 120_000),
+          visit('full_payload_read', 20_000, 'plan'),
+        ])}
+      />,
+    );
+    scrubTo(1);
+    const label = document.querySelector('.traversal-occupancy-track')?.getAttribute('aria-label');
+    expect(label).toContain('HARNESS-DERIVED');
+    expect(label).toContain('not');
+    expect(label).toContain('recorded by storytree');
   });
 });
