@@ -1,0 +1,18 @@
+{
+  "name": "@storytree/ci-cd",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "The ci-cd story's own building (ADR-0192 packages-forward). It holds this story's PIPELINE judges — pure, dependency-free readers of `.github/workflows/ci.yml` — starting with `green-gate`'s static-YAML audit. Deliberately NOT the home of a `check:*` rung's analyser: `ci-cd` owns the pipeline, `cli` owns the judge a rung invokes (see stories/cli/gate-ci-parity.md).",
+  "exports": {
+    ".": "./src/green-gate-audit.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test --timeout 300000 src/"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.7",
+    "typescript": "~7.0.2"
+  }
+}
