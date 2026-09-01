@@ -284,7 +284,10 @@ test('the CONTROL arm is the map exactly as it drew before this module', () => {
 });
 
 test('every arm is declared, control first, and the widths are the authored ones', () => {
-  assert.deepEqual([...SHORE_ARMS], ['none', 'authored', 'beach', 'shelf']);
+  assert.deepEqual(
+    [...SHORE_ARMS],
+    ['none', 'authored', 'beach', 'shelf', 'ring', 'ring-pair'],
+  );
   assert.equal(SHORE_ARM_WIDTH.none, 0);
   assert.equal(SHORE_ARM_WIDTH.authored, AUTHORED_SHORE_WIDTH);
   assert.equal(AUTHORED_SHORE_WIDTH, 3.1, "the reference generator's own BEACH");
@@ -292,6 +295,24 @@ test('every arm is declared, control first, and the widths are the authored ones
   assert.equal(SHORE_ARM_WIDTH.beach, 7, 'COAST_OUTSET — the beach this map actually draws');
   assert.equal(SHORE_ARM_WIDTH.shelf, 16.5, 'the mean parcel diameter');
   assert.ok(SHORE_ARMS.includes(SHIPPED_SHORE));
+});
+
+test('⚠ THE RING ARMS MOVE THE MESH AND NOT THE BAND — their width is `beach`\'s, exactly', () => {
+  // The page carries two axes meeting at one arm, and this is the half that lives in THIS module.
+  // `beach → ring → ring-pair` holds the falloff fixed and changes what the mesh can carry; if a
+  // ring arm's width ever drifted from `beach`'s, every picture on that axis would be moving two
+  // things and the comparison would attribute a mesh's work to a band.
+  assert.equal(SHORE_ARM_WIDTH.ring, SHORE_ARM_WIDTH.beach);
+  assert.equal(SHORE_ARM_WIDTH['ring-pair'], SHORE_ARM_WIDTH.beach);
+  // And the falloff they deliver is `beach`'s own, to the last bit — the only difference between
+  // these arms is WHERE the mesh samples it.
+  for (const arm of ['ring', 'ring-pair'] as const) {
+    assert.equal(
+      shoreRelief([square()], arm).height(3, 50),
+      shoreRelief([square()], 'beach').height(3, 50),
+      `${arm} changed the falloff as well as the mesh`,
+    );
+  }
 });
 
 test('⚠ THE ARMS ARE THREE DIFFERENT LANDS, and the authored width leaves our own beach standing', () => {
