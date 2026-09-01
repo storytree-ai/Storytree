@@ -1,7 +1,9 @@
 // Derive the offline studio corpus from the structured knowledge seed — the in-memory replacement
-// for the retired `apps/studio/data/build-corpus.mjs` (ADR-0210). Each `knowledge.json` unit renders
-// to a GuidanceAsset via the library's `renderBody`; the `template` artifacts come from
-// `libraryTemplates()`. The offline `JsonBackend` seeds its GITIGNORED runtime store from this on
+// for the retired `apps/studio/data/build-corpus.mjs` (ADR-0210). Each seed unit renders to a
+// GuidanceAsset via the library's `renderBody`; the `template` artifacts come from
+// `libraryTemplates()`. The units are the library's committed FIXTURE corpus — they were
+// `apps/studio/data/knowledge.json` until ADR-0302 D1 deleted that file (see
+// {@link loadFixtureSeedUnits}). The offline `JsonBackend` seeds its GITIGNORED runtime store on
 // first run, so no committed generated file (the retired `assets.json`) has to stand in for the
 // DB-backed corpus. The hosted/default studio reads the live Postgres store and never touches this.
 
@@ -43,7 +45,7 @@ export interface KnowledgeUnitLike {
 
 /**
  * The offline corpus: every structured knowledge unit rendered to a GuidanceAsset, then the generated
- * `template` artifacts. Ordering is knowledge.json order followed by the templates — the offline
+ * `template` artifacts. Ordering is seed-unit order followed by the templates — the offline
  * browse UI sorts and filters, so exact historical ordering is not load-bearing.
  *
  * ASYNC on purpose: `@storytree/library` is imported DYNAMICALLY (the `loadOrchestrator` pattern in
