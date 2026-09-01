@@ -1,0 +1,26 @@
+renderer: ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+vendor:   Google Inc. (NVIDIA Corporation)
+repeats=7  batch=30  layer arm="grass-amplified"
+
+== one island(s) at 8 px per ground unit ==
+  flat             mix —      octaves    0  tris 5562  calls 1  cover 14.1%  n=7
+  grass            mix 0.2    octaves   23  tris 5562  calls 1  cover 14.1%  n=7
+  grass-amplified  mix 0.2    octaves  184  tris 5562  calls 1  cover 14.1%  n=7
+  flat             0.1645 ms/frame  spread 0.4785  (the control)
+  grass            0.5861 ms/frame  spread 1.4809  UNRESOLVED — under this run's 1.4809 ms noise floor, so the cost is unknown below that and is NOT zero
+  grass-amplified  4.2213 ms/frame  spread 0.1265  +4.0569 ms
+  rung: BUDGET   status: FAIL
+  FAIL — 7 layers at this layer's measured cost come to 28.563 ms/frame, which is 171.4% of a 16.67 ms frame. The stack does not fit the frame even before anything that is not the ground is drawn.
+    FAILURE: 7 layers at "grass-amplified"'s measured +4.0569 ms come to 28.563 ms/frame, over the 16.67 ms frame. This is an EXTRAPOLATION from one layer — the other six are not built, and this one is the heaviest described so far, so it most likely overstates the stack
+
+== forest island(s) at 8 px per ground unit ==
+  flat             mix —      octaves    0  tris 194630  calls 1  cover 14.2%  n=7
+  grass            mix 0.2    octaves   23  tris 194630  calls 1  cover 14.2%  n=7
+  grass-amplified  mix 0.2    octaves  184  tris 194630  calls 1  cover 14.2%  n=7
+  flat             0.2505 ms/frame  spread 0.0023  (the control)
+  grass            0.6715 ms/frame  spread 0.0083  +0.4209 ms
+  grass-amplified  4.3147 ms/frame  spread 0.0067  +4.0642 ms
+  rung: BUDGET   status: FAIL
+  FAIL — 7 layers at this layer's measured cost come to 28.700 ms/frame, which is 172.2% of a 16.67 ms frame. The stack does not fit the frame even before anything that is not the ground is drawn.
+    FAILURE: 7 layers at "grass-amplified"'s measured +4.0642 ms come to 28.700 ms/frame, over the 16.67 ms frame. This is an EXTRAPOLATION from one layer — the other six are not built, and this one is the heaviest described so far, so it most likely overstates the stack
+
