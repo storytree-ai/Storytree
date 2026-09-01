@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>layer 1 — the grass base — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      p.finding { border-left: 3px solid #e0a458; background: #33291f; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Layer 1 &mdash; the grass base and its cool/warm hue drift</h1>
+      <p>
+        The approved ground is <strong>seven layers</strong>, and this is the first: three noise
+        octaves feeding two three-stop grass ramps, chosen between by a slow hue drift. It is the
+        floor the sand, the path, the rock and the grain all composite over, so nothing above it
+        can be judged until it lands. Every constant is transcribed from
+        <code>build_land.py</code>&rsquo;s <code>mat_attribute()</code> &mdash; the script that
+        produced the render the owner stamped &mdash; and cited by line.
+      </p>
+      <p>
+        <strong>The gap this arc exists to close.</strong> Counting colour families that hold at
+        least half a percent of the island, five bits per channel: the shipped ground has
+        <strong>9</strong>, one green holding 27.8% and three shades holding 63.3%. The approved
+        render has <strong>36</strong>, none above 5.2%. That is not a green in need of adjustment;
+        it is six absent colour layers.
+      </p>
+      <p class="numbers">
+        flat&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the map today &mdash; status colour + the grain&rsquo;s normal half (CONTROL and DENOMINATOR)<br />
+        admissible&nbsp;&nbsp;&nbsp;&nbsp;grass at 0.005 &mdash; the most the reader model admits on the SHIPPED ladder<br />
+        ladder-limit&nbsp;&nbsp;grass at 0.20 &mdash; the most that leaves any shading depth at all<br />
+        visible&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;grass at 0.35 &mdash; the least a viewer can actually see
+      </p>
+      <p class="numbers finding">
+        <strong>&#9888;&#9888; THE FINDING, AND IT IS WHY THE ARMS ARE THESE ARMS.</strong> The three
+        numbers do not overlap. Measured exhaustively over every colour this layer can deliver,
+        against all six shipped ground tokens on all ten ladder rungs:<br /><br />
+        &nbsp;&nbsp;fac&nbsp;0.005&nbsp;&nbsp;every status still reads as itself &mdash; and the layer is invisible<br />
+        &nbsp;&nbsp;fac&nbsp;0.10&nbsp;&nbsp;&nbsp;the two darkest rungs break: a shadowed <em>building</em> parcel reads as <em>healthy</em><br />
+        &nbsp;&nbsp;fac&nbsp;0.20&nbsp;&nbsp;&nbsp;five of ten rungs break; a ladder of 0.88&ndash;1.00 is all that survives<br />
+        &nbsp;&nbsp;fac&nbsp;0.35&nbsp;&nbsp;&nbsp;no ladder survives at all &mdash; and this is the first fac you can SEE<br /><br />
+        The factor needed to see the layer is <strong>seventy times</strong> the factor at which the
+        map still reports. So the question these pictures put is not which arm looks best. It is
+        what the middle two cost, and whether the fourth has stopped telling the truth.
+      </p>
+      <p>
+        <strong>&#9888; What binds is the LADDER, not the palette.</strong> The reader holds one
+        reference per status &mdash; what lit flat ground looks like, at rung 0.90 &mdash; so a
+        rung&rsquo;s margin is spent by its distance from 0.90 in <em>both</em> directions. The
+        shipped ladder reaches down to 0.77 for the shadow rung, and at 0.77 the
+        <em>proposed</em>/<em>building</em> yellow already sits 0.93 weighted channel units from
+        reading as <em>healthy</em> green before any grass exists. The same wall the grain&rsquo;s
+        colour half met, at the same place, for the same reason.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; The verdict is not &ldquo;it renders&rdquo;, and it is not
+        &ldquo;pixels changed&rdquo;.</strong> An arm is judged on pixels that move more than
+        <strong>20/255</strong>. The touched-pixel count is printed as context and carries no
+        verdict: it scores a 1/255 shift the same as a 164/255 one, and it overstated two increments
+        on this arc roughly fourfold before the owner caught it by eye.
+      </p>
+      <p>
+        <strong>&#9888; The reference is an IMAGE, not a scene.</strong> It is a path tracer&rsquo;s
+        output at a different resolution, framing and camera, carrying all seven layers rather than
+        one. Its colour-family count and its <code>MICRO</code>/<code>STRUCT</code> are comparable
+        to ours on the same axes; its <em>pixels</em> are comparable to nothing. It is measured and
+        never differenced.
+      </p>
+      <p>
+        <strong>Every arm is the shipped map with one number changed.</strong> The coast clip, the
+        relief, the shore fall, the inset ring, the stepped skirt, the ladder, the grain and the
+        occlusion atlas are not re-created here &mdash; the page calls
+        <code>shippedGroundBuild</code>, the same function the product&rsquo;s own
+        <code>CellGround</code> calls, so the control arm cannot quietly become an older map when a
+        sibling lands.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedGrass } from './shipped-grass-scene.ts';
+      try {
+        await mountShippedGrass(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

@@ -66,6 +66,7 @@ import {
   createBandedGroundMaterial,
   groundAtlasTexture,
   type BandedGroundMaterialOptions,
+  type GroundGrassLayer,
 } from './banded-ground-material.js';
 
 /** THE DECIDED GROUND VOCABULARY — five colours over six states.
@@ -290,10 +291,14 @@ const groundRowOf = (material: string | undefined): number =>
  * headroom is 3.0 weighted channel units and it is the PALETTE's tightness, not the shadow's
  * greed — the same wall the grain's colour half met.
  */
-function buildGroundMaterial(field: AtlasField | null) {
+export function buildGroundMaterial(field: AtlasField | null, grass?: GroundGrassLayer) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
   const shadow = field === null ? null : groundAtlasTexture(field);
   if (shadow !== null) opts.shadowAtlas = shadow;
+  // ⚠ BY STATEMENT, and absent means ABSENT: under `exactOptionalPropertyTypes` a `grass:
+  // undefined` is a different input from no key at all, and only the second leaves the emitted
+  // shader byte-identical to the one every measured figure about this ground was taken against.
+  if (grass !== undefined) opts.grass = grass;
   return { material: createBandedGroundMaterial(opts), shadow };
 }
 
@@ -368,6 +373,92 @@ function buildGroundOcclusionField(
   return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters });
 }
 
+/**
+ * THE SHIPPED GROUND'S GEOMETRY INPUT, BUILT IN EXACTLY ONE PLACE.
+ *
+ * ⚠⚠ IT IS EXPORTED, AND THAT IS THE WHOLE POINT — it is the structural answer to the hazard
+ * `comparison-baseline-moves-under-the-page` records, which cost `adopt-the-land-into-the-
+ * shipped-map-arc` a confidently wrong result on PR #1782. A comparison page that constructs its
+ * OWN scene has a CONTROL ARM that silently becomes the map as it stood the day the page was
+ * written: when a sibling lands, the arm keeps returning byte-identical numbers, which reads as
+ * reassurance, and the page then reports the PREVIOUS component's effect as the new one's.
+ *
+ * `land-ground-stack-arc` parks FIVE layers landing one after another onto this exact function,
+ * so every one of them inherits that hazard. Asserting "the arm passes every key `CellGround`
+ * passes" would be a check someone has to keep true; calling the same builder makes it true by
+ * construction, and there is nothing left for a later layer to forget.
+ *
+ * ⚠ THE OCCLUSION FIELD COMES BACK WITH THE INPUT rather than being rebuilt by the caller. The
+ * mesh's atlas origins and the material's atlas are two halves of one packing; a caller that
+ * packed its own would draw every island through some other island's corner of the atlas, which
+ * looks like an ordinary set of shadows belonging to the wrong land.
+ */
+export interface ShippedGroundBuild {
+  /** The packed occlusion field the geometry's atlas origins were resolved from — `null` when the
+   *  parcel set bounds nothing, which is the one case that must not become a one-texel field every
+   *  fragment then samples. */
+  field: AtlasField | null;
+  input: CellGroundGeometryInput;
+}
+
+export function shippedGroundBuild(
+  cells: InstanceDescriptor[],
+  casters: readonly ShadowCaster[],
+): ShippedGroundBuild {
+  // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
+  // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
+  // island would leave the new shore outside every tile: the beach would read the atlas's edge
+  // texel and wear whatever shadow happened to sit there. Ordering it here makes that
+  // impossible rather than merely unlikely.
+  //
+  // ⚠ AND IT IS THE GROUND ALONE. `dressMapFromKit` (below) still reads the mapper's own
+  // descriptors, so a tree stands where its parcel put it and the beach grows underneath it.
+  // Moving the props with the shore would have been a second change wearing this one's name.
+  const clipped = clipToCoast(cells, SHIPPED_COAST);
+  // ⚠ THE FIELD IS BUILT FIRST AND THE GEOMETRY READS ITS PACKING, which is what makes "the
+  // mesh and the material agree about where each island's tile is" true by construction rather
+  // than by two calls happening to pack the same way. They disagree silently: every island would
+  // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
+  // set of shadows belonging to the wrong land.
+  const field = buildGroundOcclusionField(clipped, casters);
+  const input: CellGroundGeometryInput = {
+    cells: clipped,
+    resolve: linearColourOf,
+    index: groundRowOf,
+    // ⚠⚠ THE SHORE FALL READS THE CLIPPED PARCELS, AND THAT ORDERING IS THE COMPONENT.
+    // After `clipToCoast` the boundary of this mesh IS the coast, so the distance to the
+    // mesh's own rim is the distance to the shore — one coastline, not two to keep in step.
+    // Handed the pre-clip descriptors it would measure to the hex silhouette and put the
+    // waterline a beach's width inland of the water.
+    //
+    // ⚠ IT IS A STRICT EXTENSION OF `landRelief`, WHICH IS WHY THIS LINE REPLACES IT RATHER
+    // THAN JOINING IT. Inland of the band the field returns `landHeight` to the last bit, so
+    // the whole interior of every island draws exactly what it drew before; only the beach
+    // the coast clip added is new ground, and only there does the land move.
+    relief: shoreRelief(clipped, SHIPPED_SHORE),
+    // ⚠⚠ THE STEPPED SKIRT, AND IT READS THE CLIPPED PARCELS FOR THE SAME REASON THE SHORE FALL
+    // DOES. After `clipToCoast` the boundary of this mesh IS the coast, so the edges used once
+    // are the shore's own edges. Handed the pre-clip descriptors the cliff would be cut into the
+    // hex silhouette and then the beach would grow OUTSIDE it — a rock wall standing in the
+    // middle of the sand.
+    skirt: shippedSkirt(clipped),
+    // ⚠⚠ THE SAME ARM SUPPLIES THE MESH, AND IT HAS TO. The shore fall is an analytic field; the
+    // ring is the vertices that let a triangulation carry its shape. Reading the band from one
+    // arm and the ring from another would draw a falloff bending through chains placed for a
+    // different band, and nothing downstream could tell.
+    //
+    // ⚠ ON AN ARM WITH NO RINGS THIS RESOLVES TO EVERY PARCEL'S OWN RING, so the line is the
+    // pre-ring buffer verbatim — which is what keeps `SHIPPED_SHORE` a single switch over the
+    // whole comparison rather than two that could disagree.
+    decompose: shoreArmRingPlan(clipped, SHIPPED_SHORE).decompose,
+  };
+  // By statement rather than a conditional spread: under `exactOptionalPropertyTypes` an absent
+  // `atlasOrigin` and an `atlasOrigin: undefined` are different inputs, and only the first
+  // leaves the emitted buffer the one every pre-adoption figure was taken on.
+  if (field !== null) input.atlasOrigin = atlasOriginResolver(field);
+  return { field, input };
+}
+
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
  *
  *  ⚠ THIS IS THE SUBSTRATE THE STUDIO ACTUALLY SHIPS, and until 2026-08-28 this canvas drew
@@ -425,57 +516,7 @@ function CellGround({
   casters: readonly ShadowCaster[];
 }) {
   const built = useMemo(() => {
-    // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
-    // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
-    // island would leave the new shore outside every tile: the beach would read the atlas's edge
-    // texel and wear whatever shadow happened to sit there. Ordering it here makes that
-    // impossible rather than merely unlikely.
-    //
-    // ⚠ AND IT IS THE GROUND ALONE. `dressMapFromKit` (below) still reads the mapper's own
-    // descriptors, so a tree stands where its parcel put it and the beach grows underneath it.
-    // Moving the props with the shore would have been a second change wearing this one's name.
-    const clipped = clipToCoast(cells, SHIPPED_COAST);
-    // ⚠ THE FIELD IS BUILT FIRST AND THE GEOMETRY READS ITS PACKING, which is what makes "the
-    // mesh and the material agree about where each island's tile is" true by construction rather
-    // than by two calls happening to pack the same way. They disagree silently: every island would
-    // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
-    // set of shadows belonging to the wrong land.
-    const field = buildGroundOcclusionField(clipped, casters);
-    const input: CellGroundGeometryInput = {
-      cells: clipped,
-      resolve: linearColourOf,
-      index: groundRowOf,
-      // ⚠⚠ THE SHORE FALL READS THE CLIPPED PARCELS, AND THAT ORDERING IS THE COMPONENT.
-      // After `clipToCoast` the boundary of this mesh IS the coast, so the distance to the
-      // mesh's own rim is the distance to the shore — one coastline, not two to keep in step.
-      // Handed the pre-clip descriptors it would measure to the hex silhouette and put the
-      // waterline a beach's width inland of the water.
-      //
-      // ⚠ IT IS A STRICT EXTENSION OF `landRelief`, WHICH IS WHY THIS LINE REPLACES IT RATHER
-      // THAN JOINING IT. Inland of the band the field returns `landHeight` to the last bit, so
-      // the whole interior of every island draws exactly what it drew before; only the beach
-      // the coast clip added is new ground, and only there does the land move.
-      relief: shoreRelief(clipped, SHIPPED_SHORE),
-      // ⚠⚠ THE STEPPED SKIRT, AND IT READS THE CLIPPED PARCELS FOR THE SAME REASON THE SHORE FALL
-      // DOES. After `clipToCoast` the boundary of this mesh IS the coast, so the edges used once
-      // are the shore's own edges. Handed the pre-clip descriptors the cliff would be cut into the
-      // hex silhouette and then the beach would grow OUTSIDE it — a rock wall standing in the
-      // middle of the sand.
-      skirt: shippedSkirt(clipped),
-      // ⚠⚠ THE SAME ARM SUPPLIES THE MESH, AND IT HAS TO. The shore fall is an analytic field; the
-      // ring is the vertices that let a triangulation carry its shape. Reading the band from one
-      // arm and the ring from another would draw a falloff bending through chains placed for a
-      // different band, and nothing downstream could tell.
-      //
-      // ⚠ ON AN ARM WITH NO RINGS THIS RESOLVES TO EVERY PARCEL'S OWN RING, so the line is the
-      // pre-ring buffer verbatim — which is what keeps `SHIPPED_SHORE` a single switch over the
-      // whole comparison rather than two that could disagree.
-      decompose: shoreArmRingPlan(clipped, SHIPPED_SHORE).decompose,
-    };
-    // By statement rather than a conditional spread: under `exactOptionalPropertyTypes` an absent
-    // `atlasOrigin` and an `atlasOrigin: undefined` are different inputs, and only the first
-    // leaves the emitted buffer the one every pre-adoption figure was taken on.
-    if (field !== null) input.atlasOrigin = atlasOriginResolver(field);
+    const { field, input } = shippedGroundBuild(cells, casters);
     const geo = cellGroundGeometry(input);
     return { geo, ...buildGroundMaterial(field) };
   }, [cells, casters]);

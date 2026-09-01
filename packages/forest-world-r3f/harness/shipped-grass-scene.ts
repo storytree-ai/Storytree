@@ -1,0 +1,584 @@
+// shipped-grass-scene.ts — LAYER 1 OF THE APPROVED GROUND, FOUR STRENGTHS, AGAINST THE PICTURE
+// THE OWNER APPROVED.
+//
+// THE INCREMENT: `layer-1-grass-base-and-hue-drift` on `land-ground-stack-arc` — the floor every
+// other layer of the approved ground composites over (ADR-0490 D3), so nothing above it can be
+// judged until it lands.
+//
+// ⚠⚠ THE ARMS DIFFER IN EXACTLY ONE NUMBER, AND NOTHING ELSE ON THE PAGE IS ARM-SPECIFIC. Every
+// arm is `shippedGroundBuild` — the SHIPPED canvas's own builder, imported from `src/` — over the
+// same parcels, the same casters, the same framing and the same material factory. The only thing
+// an arm chooses is `grass.mix`. So a pixel difference between two arms is attributable to the
+// grass and to nothing else.
+//
+// ⚠⚠ AND THAT IS THE STRUCTURAL FIX FOR THE HAZARD THIS ARC NAMES SECOND, not a claim about care.
+// `comparison-baseline-moves-under-the-page`: the skirt's comparison page built its own scene, so
+// after a sibling merged its `flat` CONTROL arm was quietly the map as it stood an hour earlier —
+// 2,264 triangles against the real 2,962 — and the symptom was a re-run returning BYTE-IDENTICAL
+// numbers, which reads as reassurance. On a five-layer chain landing one after another onto one
+// composition root that is the single most likely way to produce a confident false result. The
+// remedy here is not an assertion someone has to keep true: the control arm CALLS THE FUNCTION
+// `CellGround` CALLS, so it cannot be a different scene. `shipped-grass-scene.test.ts` states
+// that as a property of the source.
+//
+// ⚠ THE VERDICT IS NOT "IT RENDERS", AND IT IS NOT "PIXELS CHANGED". ADR-0490 D6 retires the
+// touched-pixel count as a headline — it scores a 1/255 shift the same as a 164/255 one and
+// overstated two increments roughly fourfold before the owner caught it by eye. An arm is judged
+// on pixels that move MORE THAN 20/255, and on the arc's own gap metric: colour families holding
+// >=0.5% of the island, 5 bits per channel (shipped 9, approved 36).
+//
+// ⚠ THE REFERENCE ARM IS AN IMAGE, NOT A SCENE, and that is stated rather than hidden — the same
+// discipline `shipped-skirt-scene.ts` records. The approved Cycles render is a path tracer's
+// output at a different resolution, framing and camera: its MICRO/STRUCT/family numbers are
+// comparable to the live arms' on the same axes and its PIXEL DIFFERENCES are comparable to
+// nothing. It is measured and never differenced.
+//
+// THE PAGE ADOPTS NOTHING. `harness/` only — it produces EVIDENCE about the `src/` module it
+// imports.
+
+import * as THREE from 'three';
+
+import { buildGroundMaterial, shippedGroundBuild } from '../src/ForestWorldCanvas.js';
+import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
+import {
+  GROUND_ATLAS_ATTRIBUTE,
+  GROUND_STATUS_ATTRIBUTE,
+} from '../src/banded-ground-material.js';
+import { GRASS_OCTAVES } from '../src/land-grass.js';
+import type { InstanceDescriptor } from '../src/world-to-3d.js';
+import { CROWD_VIEWPORT } from './crowd-layout.js';
+import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
+import { imageStats, type ImageStats } from './shipped-skirt-scene.js';
+import { SHIPPED_LIGHTING } from './shipped-baseline.js';
+import {
+  CROWD_ZOOMS,
+  FIT_ZOOM,
+  crowdCasters,
+  crowdCells,
+  crowdPxPerUnit,
+  crowdSize,
+  orientedCamera,
+  type CrowdSize,
+  type CrowdSizeId,
+  type CrowdZoom,
+} from './shipped-crowd-scene.js';
+
+/**
+ * THE FOUR ARMS — one control and three strengths, and the three are CHOSEN BY THE MEASUREMENT
+ * rather than picked to look like a ladder. `harness/grass-status-reading.ts` walks every colour
+ * layer 1 can deliver against the house reader model and reports two things per mix factor: does
+ * every status still read as itself, and which ladder rungs survive if not.
+ */
+export type GrassArm = 'flat' | 'admissible' | 'ladder-limit' | 'visible';
+
+/** The arm every pixel figure is read against: the shipped map exactly as it draws today, with no
+ *  grass at all. */
+export const CONTROL_ARM: GrassArm = 'flat';
+
+export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'admissible', 'ladder-limit', 'visible'];
+
+/**
+ * WHAT EACH ARM MIXES IN. `null` is the control — no grass option at all, so the material it
+ * builds is byte-identical to the shipped one rather than "the shipped one at zero".
+ *
+ * ⚠ THE THREE NUMBERS ARE MEASUREMENTS, AND THE EVIDENCE SHEET PRINTS WHERE EACH CAME FROM:
+ *
+ *   0.005  the largest factor at which EVERY reachable colour still reads as its own status on
+ *          the SHIPPED ladder (`admissibleGrassMixCeiling`). The reader model's own ceiling.
+ *   0.20   the largest factor that leaves ANY contiguous ladder around flat ground
+ *          (`admissibleGrassLevelBand` -> [0.88, 1.08]); above it no shading depth survives.
+ *   0.35   the smallest factor whose spatial variation across one island clears the 20/255
+ *          threshold this arc judges an arm by — measured at 26 units of red between the 2nd and
+ *          98th percentile of the delivered ground.
+ *
+ * ⚠⚠ THOSE THREE DO NOT OVERLAP, AND THAT IS THE FINDING THIS PAGE EXISTS TO SHOW. The factor
+ * needed to SEE the layer is seventy times the factor at which the map still reports. Read the
+ * pictures with that in mind: the question is not which arm looks best, it is what the middle two
+ * cost and whether the fourth has stopped telling the truth.
+ */
+export const GRASS_ARM_MIX = {
+  flat: null,
+  admissible: 0.005,
+  'ladder-limit': 0.2,
+  visible: 0.35,
+} satisfies Record<GrassArm, number | null>;
+
+/** What each arm IS, as the caption under its own picture — beside the arm rather than in the
+ *  HTML, so an arm cannot be added without a reader being told what it is. */
+export const GRASS_ARM_CAPTION = {
+  flat: 'the shipped map today — the status colour, the grain’s normal half, no grass (CONTROL)',
+  admissible:
+    'grass at 0.005 — the most the reader model admits on the shipped ladder, shadow rung included',
+  'ladder-limit':
+    'grass at 0.20 — the most that leaves any shading depth at all; the ladder shrinks to 0.88–1.00',
+  visible: 'grass at 0.35 — the least that a viewer can actually see, and no ladder survives it',
+} satisfies Record<GrassArm, string>;
+
+/** One island, and the thirty-five-island forest. A ground treatment is read at BOTH: a layer that
+ *  survives one island and dissolves in the forest has not answered the question. */
+export const GRASS_SIZES: readonly CrowdSize[] = [crowdSize('one'), crowdSize('forest')];
+
+/** The two zooms every comparison on this arc is taken at, plus the fitted overview — a CONTEXT
+ *  picture and never a timing, because it delivers a different px/unit per scene. */
+export const GRASS_ZOOMS: readonly number[] = [...CROWD_ZOOMS];
+export const GRASS_PICTURE_ZOOMS: readonly CrowdZoom[] = [...GRASS_ZOOMS, FIT_ZOOM];
+
+/** What one arm costs, in numbers a picture cannot carry.
+ *
+ *  ⚠ THE TRIANGLE COUNT IS HERE PRECISELY BECAUSE IT MUST NOT MOVE. Layer 1 is a FRAGMENT-stage
+ *  layer: it adds no geometry, so an arm whose triangle count differs from the control's is a
+ *  page that changed something else and called it the grass. That is the first hazard this arc
+ *  names — every layer is priced against a repository the previous layer moved — inverted into a
+ *  check: this component's correct triangle delta is ZERO, and the measure driver refuses a run
+ *  where it is not. */
+export interface GrassPlan {
+  triangles: number;
+  /** Lattice-noise octaves this arm evaluates per ground fragment, over the grain's own. The
+   *  frame-cost question in one number, and the reason it is an arm's property rather than a
+   *  footnote: ADR-0490's stated cost is that nothing argues the full stack is affordable. */
+  octaves: number;
+  mix: number | null;
+}
+
+export interface GrassScene {
+  scene: THREE.Scene;
+  camera: THREE.OrthographicCamera;
+  width: number;
+  height: number;
+  pxPerUnit: number;
+  islands: number;
+  plan: GrassPlan;
+}
+
+/** The grass option one arm wears — `undefined` for the control, which is what makes its material
+ *  byte-identical to the shipped one rather than a grassed material set to zero. */
+export function armGrass(arm: GrassArm): { mix: number } | undefined {
+  const mix = GRASS_ARM_MIX[arm];
+  if (mix === null) return undefined;
+  return { mix };
+}
+
+/**
+ * ONE ARM'S SCENE — the SHIPPED pipeline entire, with the grass mix as the only moving part.
+ *
+ * Coast clip, relief, shore fall, inset ring, stepped skirt, ladder, grain and the packed
+ * occlusion atlas are all exactly what `CellGround` builds, because they are literally what
+ * `CellGround` builds: {@link shippedGroundBuild} is the function it calls.
+ */
+export function buildGrassScene(arm: GrassArm, size: CrowdSize, zoom: CrowdZoom): GrassScene {
+  const cells: InstanceDescriptor[] = crowdCells(size);
+  const casters = crowdCasters(size);
+  const { field, input } = shippedGroundBuild(cells, casters);
+  const geo = cellGroundGeometry(input);
+  if (geo.triangles === 0) throw new Error('shipped-grass-scene: the crowd drew no ground');
+
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(geo.positions, 3));
+  geometry.setAttribute('normal', new THREE.BufferAttribute(geo.normals, 3));
+  geometry.setAttribute(GROUND_STATUS_ATTRIBUTE, new THREE.BufferAttribute(geo.statuses, 1));
+  if (geo.atlasOrigins.length > 0) {
+    geometry.setAttribute(GROUND_ATLAS_ATTRIBUTE, new THREE.BufferAttribute(geo.atlasOrigins, 2));
+  }
+
+  // ⚠ THE MATERIAL FACTORY IS THE SHIPPED ONE TOO, handed the same occlusion field the geometry's
+  // atlas origins were packed from. A page that built its own material could disagree with the
+  // map about the ladder, the tokens or the shadow rung and report the difference as the grass's.
+  const grass = armGrass(arm);
+  const { material } = buildGroundMaterial(field, grass);
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
+  scene.add(new THREE.Mesh(geometry, material));
+  scene.add(new THREE.AmbientLight(0xffffff, SHIPPED_LIGHTING.ambientIntensity));
+  const sun = new THREE.DirectionalLight(0xffffff, SHIPPED_LIGHTING.directionalIntensity);
+  const [lx, ly, lz] = SHIPPED_LIGHTING.directionalPosition;
+  sun.position.set(lx, ly, lz);
+  scene.add(sun);
+
+  const pxPerUnit = crowdPxPerUnit(size, zoom);
+  return {
+    scene,
+    camera: orientedCamera({ x: 0, z: 0 }, pxPerUnit),
+    width: CROWD_VIEWPORT.w,
+    height: CROWD_VIEWPORT.h,
+    pxPerUnit,
+    islands: size.islands,
+    plan: {
+      triangles: geo.triangles,
+      octaves: grass === undefined ? 0 : GRASS_OCTAVES,
+      mix: GRASS_ARM_MIX[arm],
+    },
+  };
+}
+
+/**
+ * THE APPROVED RENDER, carried as a REFERENCE ARM.
+ *
+ * ⚠ IT IS THE STANDARD THE OWNER SET, restated on 2026-09-01: *"the image that I stamped as
+ * looking awesome was done in isolation and now we trying to do the same with the app constraints
+ * in place"*. So every crossing on this arc is judged against the APPROVED PICTURE and not
+ * against its own best harness arm, and the gap is printed rather than inferred.
+ */
+export const REFERENCE_IMAGE = '/reference/chapter2-land-idiom-2026-08-27/land-combined-1948px.png';
+
+/** The gap this arc exists to close, as the two numbers ADR-0490's context table states — carried
+ *  here so the evidence sheet can print the arc's own target beside what an arm delivered, rather
+ *  than a reader having to fetch it.
+ *
+ *  ⚠⚠ THEY ARE THE ARC'S FIGURES AND THEY ARE RE-MEASURED, NEVER INHERITED. The driver computes
+ *  the shipped count from the CONTROL ARM it just rendered and prints both — a figure quoted from
+ *  a decision is a figure as at the day it was written, which is the first hazard this arc names.
+ *  A disagreement between the two is a finding about the map having moved, not a defect. */
+export const ARC_FAMILY_TARGET = { shippedAsWritten: 9, approvedAsWritten: 36 } as const;
+
+// ---------------------------------------------------------------- the instrument
+
+/**
+ * THE THRESHOLD AN ARM IS JUDGED ON — ADR-0490 D6. Pixels whose largest channel move exceeds
+ * 20/255. The touched-pixel count is reported as CONTEXT and may not carry a verdict: it scores a
+ * 1/255 shift identically to a 164/255 one, and it overstated two increments on this arc roughly
+ * fourfold before the owner caught it by eye.
+ */
+export const VISIBLE_DELTA = 20;
+
+/** The colour-family quantiser ADR-0490's context table uses: 5 bits per channel. */
+export function colourFamily(r: number, g: number, b: number): number {
+  return ((r >> 3) << 10) | ((g >> 3) << 5) | (b >> 3);
+}
+
+/** The share of a frame's LAND pixels a family must hold to be counted, matching the table's
+ *  ">=0.5% of the island". A family below it is noise the picture does not read as a colour. */
+export const FAMILY_FLOOR = 0.005;
+
+/**
+ * COLOUR FAMILIES OVER THE ISLAND'S OWN PIXELS — the arc's gap metric, computed on a frame.
+ *
+ * ⚠⚠ THE MASK IS THE BACKGROUND COLOUR, NOT ALPHA, and getting that wrong is a measured bug on
+ * this page's sibling rather than a hypothetical. The frames are opaque — the sea is painted —
+ * so an alpha mask selects the WHOLE FRAME, and a large perfectly flat region then dominates
+ * every statistic and makes all four arms look identical: a null result manufactured by the
+ * instrument. `shipped-skirt-scene.ts`'s runner records the same trap in its `bg` comment,
+ * including that routing the authored hex through `THREE.Color` linearises it and matches
+ * nothing.
+ */
+export interface FamilyCensus {
+  /** Pixels that are not the painted sea — the denominator every share below is taken over. */
+  land: number;
+  /** Families holding at least {@link FAMILY_FLOOR} of them. */
+  families: number;
+  largestShare: number;
+  topThreeShare: number;
+}
+
+export function familyCensus(rgba: Uint8ClampedArray, bg: readonly [number, number, number]): FamilyCensus {
+  const counts = new Map<number, number>();
+  let land = 0;
+  for (let i = 0; i < rgba.length; i += 4) {
+    const r = rgba[i]!;
+    const g = rgba[i + 1]!;
+    const b = rgba[i + 2]!;
+    if (r === bg[0] && g === bg[1] && b === bg[2]) continue;
+    land += 1;
+    const key = colourFamily(r, g, b);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  if (land === 0) return { land: 0, families: 0, largestShare: 0, topThreeShare: 0 };
+  const sorted = [...counts.values()].sort(descending);
+  const held = sorted.filter((n) => n / land >= FAMILY_FLOOR);
+  const top3 = sorted.slice(0, 3).reduce(sum, 0);
+  return {
+    land,
+    families: held.length,
+    largestShare: (sorted[0] ?? 0) / land,
+    topThreeShare: top3 / land,
+  };
+}
+
+/** Named comparators/folds — the mutation rung cannot attribute a mutant inside an inline arrow
+ *  body to the test that kills it. */
+function descending(a: number, b: number): number {
+  return b - a;
+}
+function sum(a: number, b: number): number {
+  return a + b;
+}
+
+/** The scene background as the FRAMEBUFFER holds it — parsed from the authored hex, never routed
+ *  through `THREE.Color`, which converts sRGB to linear on construction and would make the mask
+ *  match nothing (see {@link familyCensus}). */
+export function backgroundBytes(): readonly [number, number, number] {
+  const hex = SHIPPED_LIGHTING.background.replace('#', '');
+  return [
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16),
+  ] as const;
+}
+
+/** What one arm delivered, on one frame — everything a row of the evidence table needs. */
+export interface GrassReading {
+  arm: GrassArm;
+  pxPerUnit: number;
+  triangles: number;
+  drawCalls: number;
+  octaves: number;
+  stats: ImageStats;
+  /** Land pixels, colour families holding >=0.5% of them, and how concentrated they are. */
+  land: number;
+  families: number;
+  largestShare: number;
+  topThreeShare: number;
+  /** Against the CONTROL arm. `touched` is context only (ADR-0490 D6). */
+  touched: number;
+  visible: number;
+}
+
+/** The approved render put through this page's own instrument. */
+export interface ReferenceReading {
+  stats: ImageStats;
+  families: number;
+  largestShare: number;
+}
+
+export interface GrassRunner {
+  identity(): RendererIdentity;
+  warm(): void;
+  read(arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): GrassReading;
+  snapshot(arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): string;
+  reference(url: string): Promise<ReferenceReading>;
+}
+
+/**
+ * ONE WebGL CONTEXT FOR THE WHOLE PAGE, and every arm rendered through it.
+ *
+ * ⚠ A CONTEXT PER ARM WOULD BE THE OBVIOUS SHAPE AND IS WRONG HERE: browsers cap simultaneous
+ * WebGL contexts near sixteen and silently LOSE the oldest, and a lost canvas contributes zero
+ * pixels — which can never break a check, only make one pass for the wrong reason
+ * (`capture.mjs`'s own header records paying for exactly that).
+ */
+export function createGrassRunner(): GrassRunner {
+  const canvas = document.createElement('canvas');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1);
+  const gl = renderer.getContext() as WebGL2RenderingContext;
+  const bg = backgroundBytes();
+
+  const cache = new Map<string, GrassScene>();
+  const sceneFor = (arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): GrassScene => {
+    const k = `${arm}|${size}|${zoom}`;
+    const hit = cache.get(k);
+    if (hit !== undefined) return hit;
+    const built = buildGrassScene(arm, crowdSize(size), zoom);
+    cache.set(k, built);
+    return built;
+  };
+
+  const render = (arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): GrassScene => {
+    const s = sceneFor(arm, size, zoom);
+    renderer.setSize(s.width, s.height, false);
+    renderer.render(s.scene, s.camera);
+    return s;
+  };
+
+  const pixels = (arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): Uint8ClampedArray => {
+    const s = render(arm, size, zoom);
+    const buf = new Uint8Array(s.width * s.height * 4);
+    gl.readPixels(0, 0, s.width, s.height, gl.RGBA, gl.UNSIGNED_BYTE, buf);
+    return new Uint8ClampedArray(buf.buffer);
+  };
+
+  /** Pixels whose largest channel move exceeds `threshold`. At 0 this is the TOUCHED count. */
+  const differing = (
+    arm: GrassArm,
+    size: CrowdSizeId,
+    zoom: CrowdZoom,
+    threshold: number,
+  ): number => {
+    const pa = pixels(arm, size, zoom);
+    const pb = pixels(CONTROL_ARM, size, zoom);
+    let n = 0;
+    for (let i = 0; i < pa.length; i += 4) {
+      const d = Math.max(
+        Math.abs(pa[i]! - pb[i]!),
+        Math.abs(pa[i + 1]! - pb[i + 1]!),
+        Math.abs(pa[i + 2]! - pb[i + 2]!),
+      );
+      if (d > threshold) n += 1;
+    }
+    return n;
+  };
+
+  return {
+    identity: () => readIdentity(gl),
+    warm() {
+      for (const arm of GRASS_ARMS) render(arm, 'one', GRASS_ZOOMS[0]!);
+    },
+    read(arm, size, zoom) {
+      const s = render(arm, size, zoom);
+      const info = renderer.info.render;
+      const buf = pixels(arm, size, zoom);
+      const census = familyCensus(buf, bg);
+      return {
+        arm,
+        pxPerUnit: s.pxPerUnit,
+        triangles: s.plan.triangles,
+        drawCalls: info.calls,
+        octaves: s.plan.octaves,
+        stats: imageStats(buf, s.width, s.height, bg),
+        land: census.land,
+        families: census.families,
+        largestShare: census.largestShare,
+        topThreeShare: census.topThreeShare,
+        touched: differing(arm, size, zoom, 0),
+        visible: differing(arm, size, zoom, VISIBLE_DELTA),
+      };
+    },
+    snapshot(arm, size, zoom) {
+      render(arm, size, zoom);
+      return canvas.toDataURL('image/png');
+    },
+    async reference(url) {
+      const img = new Image();
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error(`shipped-grass-scene: the reference ${url} did not load`));
+        img.src = url;
+      });
+      const c = document.createElement('canvas');
+      c.width = img.naturalWidth;
+      c.height = img.naturalHeight;
+      const ctx = c.getContext('2d');
+      if (ctx === null) throw new Error('shipped-grass-scene: no 2d context for the reference');
+      ctx.drawImage(img, 0, 0);
+      const data = ctx.getImageData(0, 0, c.width, c.height).data;
+      const buf = new Uint8ClampedArray(data.buffer.slice(0));
+      // ⚠ THE REFERENCE IS MASKED ON ALPHA, NOT ON OUR BACKGROUND. It is a Cycles render with a
+      // transparent sea; our frames paint theirs. Using one mask for both would count the
+      // reference's whole canvas as land and report a family count about transparency.
+      const census = referenceFamilies(buf);
+      return {
+        stats: imageStats(buf, c.width, c.height, REFERENCE_TRANSPARENT),
+        families: census.families,
+        largestShare: census.largestShare,
+      };
+    },
+  };
+}
+
+/** The sentinel `imageStats` is handed for the reference — a colour no opaque pixel of a Cycles
+ *  render holds, so the mask falls back to alpha via {@link referenceFamilies} and this triple
+ *  excludes nothing it should keep. */
+const REFERENCE_TRANSPARENT: readonly [number, number, number] = [-1, -1, -1];
+
+/** The reference's own family census, masked on ALPHA. */
+export interface ReferenceFamilies {
+  families: number;
+  largestShare: number;
+}
+
+export function referenceFamilies(rgba: Uint8ClampedArray): ReferenceFamilies {
+  const counts = new Map<number, number>();
+  let land = 0;
+  for (let i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3]! < 128) continue;
+    land += 1;
+    const key = colourFamily(rgba[i]!, rgba[i + 1]!, rgba[i + 2]!);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  if (land === 0) return { families: 0, largestShare: 0 };
+  const sorted = [...counts.values()].sort(descending);
+  return {
+    families: sorted.filter((n) => n / land >= FAMILY_FLOOR).length,
+    largestShare: (sorted[0] ?? 0) / land,
+  };
+}
+
+// ---------------------------------------------------------------- the page
+
+/** Render the whole comparison into `root`. The DOM half only — every number it prints comes from
+ *  {@link createGrassRunner}, so the page and `shipped-grass-measure.mjs` cannot disagree. */
+export async function mountShippedGrass(root: HTMLElement): Promise<void> {
+  const runner = createGrassRunner();
+  runner.warm();
+  // ⚠ THE DRIVER READS THE PAGE'S OWN RUNNER rather than building a second one, so the numbers in
+  // the committed evidence and the numbers under the pictures cannot be two measurements that
+  // agree today. `shipped-grass-measure.mjs` waits on exactly this handle.
+  window.grassRunner = runner;
+  const id = runner.identity();
+  const head = document.createElement('p');
+  head.className = 'numbers';
+  head.textContent = `${id.vendor} — ${id.renderer} · software=${id.software}`;
+  root.appendChild(head);
+
+  // ⚠⚠ THE REFERENCE GOES FIRST, and its position is the argument: this arc's standing rule is
+  // that a crossing is judged against the picture the owner approved rather than against its own
+  // best arm, so the approved render is what a reader sees before any of ours.
+  const refHead = document.createElement('h2');
+  refHead.textContent =
+    'THE REFERENCE — the render the owner stamped (Blender/Cycles, no frame budget, not differenced)';
+  root.appendChild(refHead);
+  const refRow = document.createElement('div');
+  refRow.className = 'row';
+  const refFig = document.createElement('figure');
+  const refImg = document.createElement('img');
+  refImg.src = REFERENCE_IMAGE;
+  refImg.width = 760;
+  const refCap = document.createElement('figcaption');
+  refCap.textContent = 'land-combined — the approved ground (all seven layers, path-traced)';
+  try {
+    const r = await runner.reference(REFERENCE_IMAGE);
+    refCap.textContent =
+      `land-combined (APPROVED) — colour families ${r.families} · largest holds ` +
+      `${(r.largestShare * 100).toFixed(1)}% · MICRO ${r.stats.micro.toFixed(2)} · ` +
+      `STRUCT ${r.stats.struct.toFixed(2)}`;
+  } catch {
+    // A missing reference is reported in the caption rather than thrown: the live arms below are
+    // still worth looking at, and a page that renders nothing hides them for an unrelated reason.
+    refCap.textContent = 'land-combined (APPROVED) — ⚠ NOT MEASURED (the image did not load)';
+  }
+  refFig.append(refImg, refCap);
+  refRow.appendChild(refFig);
+  root.appendChild(refRow);
+
+  const overview = document.createElement('h2');
+  overview.textContent = 'the whole forest, fitted to a laptop screen';
+  root.appendChild(overview);
+  root.appendChild(armRow(runner, 'forest', FIT_ZOOM));
+
+  for (const zoom of GRASS_ZOOMS) {
+    for (const size of GRASS_SIZES) {
+      const h2 = document.createElement('h2');
+      h2.textContent = `${zoom} delivered px per ground unit — ${size.what}`;
+      root.appendChild(h2);
+      root.appendChild(armRow(runner, size.id, zoom));
+    }
+  }
+}
+
+/** One row of four arms at one size and zoom, each with its own numbers under it. */
+function armRow(runner: GrassRunner, size: CrowdSizeId, zoom: CrowdZoom): HTMLElement {
+  const row = document.createElement('div');
+  row.className = 'row';
+  for (const arm of GRASS_ARMS) {
+    const r = runner.read(arm, size, zoom);
+    const fig = document.createElement('figure');
+    const img = document.createElement('img');
+    img.src = runner.snapshot(arm, size, zoom);
+    img.width = 620;
+    const cap = document.createElement('figcaption');
+    cap.textContent =
+      `${arm} · families ${r.families} (largest ${(r.largestShare * 100).toFixed(1)}%, ` +
+      `top three ${(r.topThreeShare * 100).toFixed(1)}%) · MICRO ${r.stats.micro.toFixed(2)} · ` +
+      `STRUCT ${r.stats.struct.toFixed(2)} · vs control: ${r.visible} px moved >${VISIBLE_DELTA}/255 ` +
+      `(${r.touched} touched) — ${GRASS_ARM_CAPTION[arm]}`;
+    fig.append(img, cap);
+    row.appendChild(fig);
+  }
+  return row;
+}
+
+declare global {
+  interface Window {
+    grassRunner?: GrassRunner;
+  }
+}

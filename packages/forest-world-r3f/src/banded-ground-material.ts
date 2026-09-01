@@ -59,6 +59,7 @@ import {
   grainGlsl,
   grainStops,
 } from './land-grain.js';
+import { grassGlsl } from './land-grass.js';
 import { type ShadowField } from './land-shadow.js';
 import { atlasScale, type AtlasField } from './shadow-atlas.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, deliveredForLevel } from './shade-ladder.js';
@@ -104,6 +105,35 @@ export const GROUND_ATLAS_ATTRIBUTE = 'atlasOrigin';
  */
 export type GroundGrainMode = 'normal' | 'both';
 
+/**
+ * LAYER 1 OF THE APPROVED GROUND, as this material wears it: the grass base and its cool/warm
+ * hue drift (`src/land-grass.ts`, transcribed from `build_land.py`'s `mat_attribute()`).
+ *
+ * ⚠⚠ IT IS OFF-PALETTE BY CONSTRUCTION, AND THAT IS WHAT ADR-0490 D5 AUTHORISES RATHER THAN AN
+ * OVERSIGHT. The decision names this exact seam — "every layer here enters through the same seam
+ * the grain already uses (`uGrainColourMix`) — as a mix INTO the selected status colour, not as
+ * a replacement for it" — and a mix into the delivered colour is not a `uRamp` entry. So a
+ * grassed material makes `grainKeepsPaletteClosed` report OPEN, correctly, and
+ * `banded-ground-material.test.ts` asserts that rather than working around it.
+ *
+ * ⚠⚠ WHAT REPLACES THE CLOSURE IS A MEASUREMENT AND THEN A LOOK, NOT NOTHING. ADR-0489 D3/D4
+ * moved the fence from composition to outcome: the ground may carry colours that report nothing,
+ * and the test is whether a viewer can still tell what state an island is in.
+ * `harness/grass-status-reading.ts` answers the arithmetic half exhaustively — which mix factors
+ * leave every reachable colour reading as its own status — and the session adding the layer
+ * applies the look to the picture. Neither half is optional.
+ *
+ * ⚠ ABSENT MEANS THE EMITTED SOURCE IS BYTE-IDENTICAL to the one this file produced before the
+ * grass existed, which is the claim every measured figure about the banded ground rests on.
+ */
+export interface GroundGrassLayer {
+  /** How much of the grass colour enters the delivered pixel — the `fac` of
+   *  `mix(statusColour, grassColour, fac)`. There is no default on purpose: the admissible value
+   *  is a measurement about the palette this material was handed, so a caller that has not made
+   *  one has nothing to inherit. */
+  mix: number;
+}
+
 export interface BandedGroundMaterialOptions {
   /** The authored `#rrggbb` ground token for each ramp ROW, in row order. Row `i` is what a
    *  vertex carrying `statusIndex === i` wears. The caller owns the ordering and must use the
@@ -115,6 +145,16 @@ export interface BandedGroundMaterialOptions {
    *  `harness/banded-material.ts` makes about its own options, and
    *  `banded-ground-material.test.ts` asserts it rather than stating it. */
   grain?: GroundGrainMode;
+  /** WEAR the approved ground's LAYER 1 — the grass base and its hue drift. See
+   *  {@link GroundGrassLayer}; absent leaves the emitted source byte-identical.
+   *
+   *  ⚠ IT REQUIRES {@link grain}, and the material REFUSES the combination without it rather
+   *  than emitting a shader that will not link. `grassGlsl()` calls `st_grainOctave`, which
+   *  `grainGlsl()` declares — one lattice hash serving both layers, because two spellings of one
+   *  field in one shader is a GLSL redefinition error at best and a silent divergence at worst.
+   *  Every material this map builds is grained already, so the constraint costs a real caller
+   *  nothing; what it buys is that the failure is a message rather than a black island. */
+  grass?: GroundGrassLayer;
   /** RECEIVE the ground-space occlusion field — the cast shadows and contact pools of whatever
    *  stands on this land, merged into one scalar. Absent means this material is not shadowed and
    *  its ramp stays the four authored rungs, so an unshadowed island delivers exactly the pixels
@@ -345,6 +385,18 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   const grainNormal = opts.grain === 'normal' || opts.grain === 'both';
   const grainColour = opts.grain === 'both';
   const grained = grainNormal || grainColour;
+  const grass = opts.grass;
+  // ⚠ REFUSED, NOT SILENTLY REPAIRED BY EMITTING A SECOND LATTICE HASH. `grassGlsl()` calls
+  // `st_grainOctave`, which only `grainGlsl()` declares. Emitting a grass-named copy would put
+  // two spellings of one field in one shader — which is how this package once acquired three
+  // disagreeing status palettes — and repairing it by turning the grain on would silently give
+  // the caller a component it did not ask for.
+  if (grass !== undefined && !grained) {
+    throw new Error(
+      'banded-ground-material: the grass layer needs the grain — it evaluates its octaves ' +
+        'through `st_grainOctave`, which only the grain source declares',
+    );
+  }
   const shadowed = ladder !== null;
   const [grainDark, grainLight] = grainStops();
 
@@ -375,6 +427,13 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   const grainUniforms: Record<string, { value: number }> = {};
   if (grainNormal) grainUniforms['uGrainNormalStrength'] = { value: GRAIN_NORMAL_STRENGTH };
   if (grainColour) grainUniforms['uGrainColourMix'] = { value: GRAIN_COLOUR_MIX };
+  // The grass layer's own factor, by statement for the same two reasons: an ungrassed material
+  // must carry NO `uGrass*` uniform at all, and the shorter spellings are refused by the
+  // anti-slop rules. It is UPLOADED rather than written into the source, unlike the grain's mix,
+  // because it is the one number on this layer a comparison arm varies — a page carrying four
+  // facs would otherwise compile four shaders that differ in a constant.
+  const grassUniforms: Record<string, { value: number }> = {};
+  if (grass !== undefined) grassUniforms['uGrassMix'] = { value: grass.mix };
   // The occlusion field's two uniforms follow the same by-statement shape, for the same two
   // reasons: an unshadowed material must carry NO `uShadow*` uniform at all, and both shorter
   // spellings are refused by the anti-slop rules.
@@ -410,10 +469,15 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
       value: new Vector3(LIGHT_DIRECTION.x, LIGHT_DIRECTION.y, LIGHT_DIRECTION.z),
     },
     ...grainUniforms,
+    ...grassUniforms,
     ...shadowUniforms,
   };
 
   const grainSource = grained ? `\n      ${grainGlsl().split('\n').join('\n      ')}\n` : '';
+  // APPENDED AFTER THE GRAIN'S SOURCE, and the order is a requirement rather than a habit: GLSL
+  // ES 1.0 resolves calls against declarations already seen, and every grass octave calls
+  // `st_grainOctave`.
+  const grassSource = grass === undefined ? '' : `      ${grassGlsl().split('\n').join('\n      ')}\n`;
   // The two grain uniforms are declared as ONE appended string rather than as two
   // interpolated ternaries, and that IS the byte-identity claim rather than a formatting
   // preference: a `${cond ? x : ''}` sitting on its own line leaves that line's indentation
@@ -422,6 +486,8 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   const grainUniformDecls =
     (grainNormal ? '\n      uniform float uGrainNormalStrength;' : '') +
     (grainColour ? '\n      uniform float uGrainColourMix;' : '');
+  // Appended after the grain's, so an ungrassed shader is byte-identical.
+  const grassUniformDecls = grass === undefined ? '' : '\n      uniform float uGrassMix;';
   // Same appended-string shape, same reason: an unshadowed shader must not merely fail to USE
   // these, it must not declare them.
   const shadowUniformDecls =
@@ -459,6 +525,21 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         n = normalize(n - uGrainNormalStrength * vec3(gradient.x, 0.0, gradient.y));
 `
     : '';
+  // LAYER 1, COMPOSITED BETWEEN THE RAMP SELECTION AND THE WRITE — which is the recipe's own
+  // order and not merely a convenient place. In `mat_attribute()` the grass is the BASE and the
+  // grain is applied LAST, over everything; here the base is the parcel's status colour, so the
+  // grass mixes into that and the grain's colour half (when a comparison arm asks for it) mixes
+  // over the result. Composing them the other way round would grain the status colour and then
+  // paint grass over the grain, which is a different picture wearing the same two names.
+  const grassStage =
+    grass === undefined
+      ? ''
+      : `        // LAYER 1 — the grass base and its cool/warm hue drift (ADR-0490 D2 row 1),
+        // transcribed from build_land.py:836-868 and generated by src/land-grass.ts.
+        // ⚠ THIS IS THE LINE THAT LEAVES THE PALETTE. It is authorised by ADR-0490 D5, which
+        // names this seam, and fenced by ADR-0489 D3's outcome test rather than by the closure.
+        c = mix(c, st_grassColour(vWorld.xz), uGrassMix);
+`;
   const writeColour = grainColour
     ? `        // THE GRAIN'S COLOUR HALF — the mechanism Cycles used, and the one that BREAKS THE
         // CLOSURE. Mixing anything into the delivered colour produces a value that is not an
@@ -522,9 +603,9 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     `,
     fragmentShader: `
       ${bandGlsl(lit).split('\n').join('\n      ')}
-${grainSource}
+${grainSource}${grassSource}
       uniform vec3 uRamp[${ramp.length}];
-      uniform vec3 uLightDir;${grainUniformDecls}${shadowUniformDecls}
+      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${shadowUniformDecls}
       varying float vStatus;
       varying vec3 vNormal;${worldVarying}${atlasVarying}
 
@@ -536,7 +617,7 @@ ${grainNormalStage}        // Half-lambert: wrapped so the terminator lands insi
         float lambert = dot(n, normalize(uLightDir)) * 0.5 + 0.5;
 ${indexStage}
         ${rampSelectGlsl(ramp.length)}
-${writeColour}
+${grassStage}${writeColour}
       }
     `,
   });
