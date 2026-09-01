@@ -260,6 +260,8 @@ import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
 import { libraryInbound, libraryInboundHelp } from "./inbound.js";
+import { libraryRepoint, libraryRepointHelp } from "./repoint.js";
+import { readStoryDecisionFiles } from "./adr-health.js";
 import { findDependents, findInboundRefs } from "./retire.js";
 import { typeMismatchRefusal } from "./set-value.js";
 import {
@@ -1960,6 +1962,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library search \"<terms>\"          ranked search across every title, description and body",
       "  storytree library related <id> --unlinked  what else is about this that nothing links to it",
       "  storytree library inbound <id>             what points at this, and through which field (the retirement pre-check)",
+      "  storytree library repoint <from> --to <to> move every inbound reference to a successor (dry run by default)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library artifact retire <id>     retire it (needs --pg) — where a lifecycle-tier row goes to die",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
@@ -2938,6 +2941,9 @@ export const CLI_OPTIONS = {
   change: { type: "string", multiple: true },
   reason: { type: "string" },
   "superseded-by": { type: "string" },
+  // `storytree library repoint <from> --to <to> --confirm <token>` (ADR-0498 D4): the token names
+  // the edit set the dry run printed, so a confirmation cannot carry across a corpus that moved.
+  confirm: { type: "string" },
   "memory-dir": { type: "string" },
   // `storytree library graduate park` — the lease override in days (ADR-0202; default 60). Reused by
   // `storytree question new --lease-days` (ADR-0358 Option 2B; default 7) — same shape, same flag name.
@@ -4788,6 +4794,26 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // so a second guard here would be a duplicate no fixture can distinguish from the first.
     if (help) return libraryInboundHelp();
     return libraryInbound(deps.store, third);
+  }
+  // `library repoint <from> --to <to>` (ADR-0498 D3/D4) — move every inbound reference to a
+  // successor. A DRY RUN unless `--confirm <token>` names the plan it printed; the confirmed write
+  // needs `--pg` like every other one.
+  if (sub === "repoint") {
+    // No `third === undefined` arm — `libraryRepoint` already answers a missing id with its own
+    // help, so a second guard here would be a duplicate no fixture can tell from the first.
+    if (help) return libraryRepointHelp();
+    const storiesDir = path.join(repoRoot(), "stories");
+    return libraryRepoint(
+      {
+        store: deps.store,
+        writable: deps.writable,
+        actor: deps.actor,
+        readStories: () => readStoryDecisionFiles(storiesDir),
+        writeStory: (file, content) => writeFileSync(path.join(repoRoot(), file), content),
+      },
+      third,
+      { to: values.to, confirm: values.confirm },
+    );
   }
   if (sub === "related") {
     if (third === undefined || help) return libraryRelatedHelp();

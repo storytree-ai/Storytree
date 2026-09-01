@@ -334,6 +334,10 @@ export const CLI_READ_VERBS = {
     surfaceId: LIBRARY_INBOUND_SURFACE,
     allowsTrailing: true,
   }),
+  // A WRITE verb, even though its default arm writes nothing: what its dry run reads is the WHOLE
+  // corpus looking for inbound refs, not an artifact somebody went to for context, so recording it
+  // as a read would put a node in the traversal nobody navigated to (ADR-0235 clause 6's spirit).
+  "library repoint": silent("write — moves every inbound ref to a successor across both substrates"),
   "library graduate": silent("reads per-machine agent memory, not the corpus"),
 
   // --- tree ----------------------------------------------------------------

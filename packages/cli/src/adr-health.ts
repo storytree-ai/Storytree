@@ -414,3 +414,77 @@ export function loadStoryDecisions(storiesDir: string): StoryDecisionsView[] {
   }
   return out;
 }
+
+/**
+ * Every UNIT under `stories/` that names deciding decisions, with its repo-relative path and raw
+ * bytes — what `library repoint` needs to plan and then perform a byte-preserving frontmatter edit
+ * (ADR-0498 D3).
+ *
+ * ⚠ IT WALKS EVERY `*.md`, NOT JUST `story.md`, and that width is the point rather than an
+ * indulgence. {@link loadStoryDecisions} above reads `<dir>/story.md` alone because the gate rung it
+ * feeds judges stories; but `decisions:` is authored on CAPABILITY and CONTRACT units too, and a
+ * repoint that moved only the story files would leave the rest naming a decision that no longer
+ * decides anything — an incomplete move reported as a complete one, which is precisely the
+ * fails-toward-reassurance shape this arc exists to close.
+ *
+ * Measured 2026-09-01 against this checkout: **20** units carry ADR-0004 as a deciding decision —
+ * 13 `story.md` and 7 capability/contract files. That 20 is the number ADR-0497 cites as the scale a
+ * repoint must handle, so reading only stories would have covered 13 of it and said so confidently.
+ *
+ * Beside {@link loadStoryDecisions} rather than replacing it: the gate rung wants a judgement view
+ * over stories and would be paying to read every file's bytes for nothing. A unit whose spec will
+ * not parse is SKIPPED rather than throwing — the repoint verb must still plan what it can read, and
+ * an unparseable spec is `check:adr-health`'s finding to report, not this reader's.
+ */
+export function readStoryDecisionFiles(storiesDir: string): StoryDecisionsFileView[] {
+  const out: StoryDecisionsFileView[] = [];
+  const walk = (dir: string, relPrefix: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = path.join(dir, entry.name);
+      const rel = `${relPrefix}/${entry.name}`;
+      if (entry.isDirectory()) {
+        walk(abs, rel);
+        continue;
+      }
+      if (!entry.name.endsWith(".md")) continue;
+      // The refusal is a RETURNED null rather than a `continue` inside a catch: a catch whose body
+      // only continues does the same thing as falling out of the block, so emptying it changes
+      // nothing and nothing could tell. Returning null makes the unreadable case a value the next
+      // line has to handle.
+      const spec = readUnitSpec(abs);
+      if (spec === null) continue;
+      if (spec.decisions.length === 0) continue;
+      out.push({ file: rel, storyId: spec.id, decisions: spec.decisions, raw: readFileSync(abs, "utf8") });
+    }
+  };
+  walk(storiesDir, "stories");
+  // Returned in FILESYSTEM order, deliberately unsorted. `readdirSync` happens to come back
+  // alphabetically on this dev box's NTFS and does NOT promise that anywhere — so a sort here would
+  // be a no-op locally (nothing could tell it was working) while a CALLER that depended on order
+  // would still be relying on the filesystem. The one consumer that renders these sorts its own
+  // edits, which is where the ordering guarantee belongs and where it is tested.
+  return out;
+}
+
+/**
+ * One unit spec's id + deciding decisions, or `null` when the file will not parse as a unit at all
+ * (a README, a stray note). An unparseable spec is `check:adr-health`'s finding to report, not this
+ * reader's — it must not stop the repoint verb planning the units it CAN read.
+ */
+function readUnitSpec(file: string): { id: string; decisions: readonly number[] } | null {
+  try {
+    const spec = loadNodeSpec(file);
+    return { id: spec.id, decisions: spec.decisions };
+  } catch {
+    return null;
+  }
+}
+
+/** A unit's `decisions:` list, with the path and bytes a frontmatter rewrite needs. */
+export interface StoryDecisionsFileView {
+  /** Repo-relative, forward-slashed. */
+  readonly file: string;
+  readonly storyId: string;
+  readonly decisions: readonly number[];
+  readonly raw: string;
+}
