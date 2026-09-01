@@ -12,6 +12,10 @@ export {
   editArtifact,
 } from "./commands.js";
 export type { RunDeps } from "./commands.js";
+// The honest inbound-reference reader + the one walk it shares with the retire wall (ADR-0498 D1).
+export { libraryInbound, libraryInboundHelp } from "./inbound.js";
+export { findInboundRefs, findDependents, referencedAssetIds, referencedAssetSites } from "./retire.js";
+export type { AssetRefSite, InboundRef } from "./retire.js";
 export { formatEnvelope } from "./envelope.js";
 export type { Envelope } from "./envelope.js";
 export {
