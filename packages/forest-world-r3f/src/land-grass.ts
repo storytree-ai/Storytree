@@ -139,6 +139,32 @@ export const GRASS_WARM: readonly RampStop[] = [
  */
 export const GRASS_DRIFT_RAMP: readonly [number, number] = [0.38, 0.62];
 
+/**
+ * WHICH GROUND STATUSES WEAR THIS LAYER — ADR-0492 D1, and the ONE spelling of that gate.
+ *
+ * ⚠⚠ IT IS NOT A TRANSCRIPTION. Every other constant in this module is copied from
+ * `mat_attribute()`; this one is a DELIVERY decision the recipe knows nothing about, and it is
+ * here rather than in the canvas or the harness because BOTH of them need it and two copies of
+ * a gate is how an instrument comes to measure a layer the map does not draw. The canvas turns
+ * these names into ramp ROWS and the shader tests `vStatus` against them; the harness grasses
+ * exactly these statuses' bases and leaves the rest alone. One list, two readers.
+ *
+ * ⚠ WHY ONLY `healthy`. The layer's admissible mix factor is a per-token property, not a
+ * property of the layer: measured against the shipped ladder, `healthy` admits 0.406 while the
+ * `building`/`proposed` yellow admits 0.0095, because at the ladder's darkest rungs a grassed
+ * yellow walks into `healthy`'s green — an in-progress parcel reporting as signed off
+ * (ADR-0392 D5 / ADR-0398 D7). Gating the layer to the green DISSOLVES that conflict rather than
+ * trading against it: every other token renders exactly as it does today, flat and
+ * colour-accurate, and no island's reported state changes. The 14 yellow islands are a DEPLOY
+ * gate (ADR-0492 D3), not a debt this layer owes.
+ *
+ * ⚠ THE CEILINGS ARE PALETTE-DERIVED AND MOVE WHEN THE PALETTE DOES. They are a function of
+ * `SHIPPED_GROUND_COLOUR` and the shadow ladder, so any token edit or any ladder rung added
+ * re-opens both this gate and the factor below it. `harness/grass-status-reading.ts` re-derives
+ * them; nothing here may be inherited from a table.
+ */
+export const GRASS_STATUS_GATE: readonly string[] = ['healthy'];
+
 // ---------------------------------------------------------------- the field
 
 /** The lattice spacing one Cycles noise delivers, in ground units. */

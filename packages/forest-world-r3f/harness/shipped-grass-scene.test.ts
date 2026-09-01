@@ -5,6 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { GRASS_OCTAVES } from '../src/land-grass.js';
+import { GRASS_GATE_ROWS, SHIPPED_GRASS_MIX } from '../src/ForestWorldCanvas.js';
 import {
   ARC_FAMILY_TARGET,
   CONTROL_ARM,
@@ -79,15 +80,25 @@ test('the control arm asks for NO grass, rather than for grass at zero', () => {
 
 test('every non-control arm carries a mix, and they are ordered and distinct', () => {
   const mixes = GRASS_ARMS.filter((a) => a !== CONTROL_ARM).map((a) => GRASS_ARM_MIX[a]);
-  assert.deepEqual(mixes, [0.005, 0.2, 0.35]);
+  assert.deepEqual(mixes, [0.13, 0.32, 0.4065]);
+  // ⚠ THE SHIPPED ARM IS THE SHIPPED CONSTANT, not a copy of its value. An arm captioned "what
+  // ships" that has come to be an arm that once did is the comparison failure this arc names —
+  // a page reporting a layer the map does not draw, with nothing in the frames to reveal it.
+  assert.equal(GRASS_ARM_MIX.adopted, SHIPPED_GRASS_MIX);
   for (const arm of GRASS_ARMS) {
     assert.ok(GRASS_ARM_CAPTION[arm].length > 20, `arm ${arm} has no caption a reader can use`);
   }
 });
 
-test('an arm`s grass option is the mix and nothing else', () => {
-  assert.deepEqual(armGrass('visible'), { mix: 0.35 });
-  assert.deepEqual(armGrass('admissible'), { mix: 0.005 });
+test('an arm`s grass option is the mix and the SHIPPED gate — arms differ in exactly one thing', () => {
+  assert.deepEqual(armGrass('ceiling'), { mix: 0.4065, rows: GRASS_GATE_ROWS });
+  assert.deepEqual(armGrass('authored'), { mix: 0.13, rows: GRASS_GATE_ROWS });
+  // ⚠ AND THE CONTROL CARRIES NO OPTION AT ALL rather than a mix of zero, which is what makes its
+  // material byte-identical to the pre-layer-1 one instead of "the new one, turned down".
+  assert.equal(armGrass(CONTROL_ARM), undefined);
+  // Every grassed arm gates the SAME rows, so the only moving part between arms is the factor.
+  const gates = GRASS_ARMS.filter((a) => a !== CONTROL_ARM).map((a) => armGrass(a)?.rows);
+  for (const g of gates) assert.deepEqual(g, GRASS_GATE_ROWS);
 });
 
 test('the verdict threshold is ADR-0490 D6`s, not the touched count', () => {

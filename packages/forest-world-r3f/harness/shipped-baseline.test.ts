@@ -326,7 +326,14 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   // when it broke every island would read another island's corner of the atlas while drawing a
   // perfectly ordinary set of shadows. What this test is about is unchanged: the field is still
   // derived from THIS scene's own casters, with no flag between it and the mesh.
-  assert.match(src, /buildGroundMaterial\(field\)/, 'the material is built from the built field');
+  // ⚠ AND IT NOW CARRIES LAYER 1 (2026-09-02). The grass is passed as a second argument rather
+  // than defaulted inside the builder, so the CANVAS states what the shipped ground wears and the
+  // builder stays the thing a comparison arm can drive with any factor.
+  assert.match(
+    src,
+    /buildGroundMaterial\(field, SHIPPED_GRASS\)/,
+    'the material is built from the built field, wearing the shipped grass layer',
+  );
   // ⚠ IT READS `clipped` RATHER THAN `cells` SINCE THE COAST CROSSED (2026-09-01), and the
   // ORDER is the claim rather than the name. The atlas is packed over the ground's own bounds, so a
   // field built from the PRE-clip parcels would leave the new shore outside every island's tile and
@@ -378,6 +385,47 @@ test('the shipped ground WEARS THE GRAIN OCTAVE — normal half only, unconditio
     "the shipped canvas must not wear the grain's COLOUR half — it is measured inadmissible on " +
       'this palette, and adopting it is an owner decision rather than a shader edit',
   );
+});
+
+test('the shipped ground WEARS LAYER 1 — gated per token, unconditionally, item 6 again', () => {
+  // The approved ground's BASE layer, crossed 2026-09-02 (ADR-0490 D2 row 1, adopted under
+  // ADR-0492 D1). Same fence as the four components before it: no prop, no default-off, no flag
+  // nobody flips — the layer sat built, green and SWITCHED OFF for a day on exactly that shape.
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(
+    src,
+    /export const SHIPPED_GRASS: GroundGrassLayer = \{/,
+    'the shipped canvas must name what the ground wears as a CONSTANT, not take it as a prop',
+  );
+  assert.ok(
+    !/SHIPPED_GRASS\s*[?:]?=\s*props|grass\??:\s*GroundGrassLayer[^=]*=>/.test(src),
+    'layer 1 must not become a caller-supplied prop — that is item 6’s flag under another name',
+  );
+  // ⚠⚠ THE GATE IS DERIVED FROM THE ROW RESOLVER, NEVER WRITTEN OUT. `GROUND_ROWS` is built from
+  // `GROUND_COLOUR`'s insertion order, so a literal `rows: [0]` here would be a SECOND ordering
+  // that agrees today — and when it stopped agreeing the layer would dress a different status's
+  // parcels and look entirely correct. This file warns about that failure twice already.
+  assert.match(
+    src,
+    /GRASS_GATE_ROWS: readonly number\[\] = GRASS_STATUS_GATE\.map\(groundRowOf\)/,
+    'the gated rows must be resolved through the same groundRowOf the geometry indexes with',
+  );
+  assert.ok(
+    !/rows:\s*\[\s*\d/.test(src),
+    'no literal row list — the gate is derived from GRASS_STATUS_GATE or it is a second ordering',
+  );
+  // ⚠⚠ AND THE FACTOR MUST STAY UNDER THE MEASURED FENCE. 0.4065 is where a reachable green on
+  // the darkest rung walks out of its own family; the instrument refuses above it and there is no
+  // override. Asserted here as well as in the instrument because THIS is the value that ships,
+  // and a constant edited in this file is the one edit no reading test would otherwise see.
+  const mix = /export const SHIPPED_GRASS_MIX = ([0-9.]+);/.exec(src);
+  assert.ok(mix !== null, 'the shipped mix factor must be a named constant');
+  const fac = Number(mix[1]);
+  assert.ok(fac < 0.4065, `the shipped factor ${fac} is at or above the measured fence`);
+  // ⚠ AND ABOVE THE FLOOR. At the recipe's authored 0.13 the maximum channel shift on green is
+  // 11/255, so by ADR-0490 D6's own rule nothing moves: a factor there is an adoption that
+  // changes nothing visible while reading as a clean landing.
+  assert.ok(fac > 0.13, `the shipped factor ${fac} is at or below the provably invisible 0.13`);
 });
 
 test('the shipped ground WEARS THE OCCLUSION FIELD — unconditionally, item 6 again', () => {

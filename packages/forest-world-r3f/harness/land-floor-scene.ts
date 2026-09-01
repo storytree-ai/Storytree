@@ -68,11 +68,16 @@ export const AMPLIFY_FACTOR = 8;
  * ⚠ IT IS THE COST QUESTION, SO THE STRENGTH BARELY MATTERS AND THE CHOICE IS STATED ANYWAY. The
  * shader evaluates all 23 octaves whatever `uGrassMix` is — the mix is a uniform multiplying an
  * already-computed colour, not a branch around computing it — so every strength costs the same and
- * the arm could wear any of them. It wears `ladder-limit` (0.20) because that is the strongest mix
- * `shipped-grass-scene.ts` measured as leaving ANY shading depth at all, and pricing the layer at a
- * strength nobody would ship would invite the number to be dismissed on that ground.
+ * the arm could wear any of them. It wears `adopted`, the strength the map now DRAWS, so the price
+ * this floor reports is the price actually being paid rather than one nobody would ship.
+ *
+ * ⚠⚠ AND THE GATE DOES NOT CHANGE IT, which is worth saying because it reads as though it should.
+ * ADR-0492's per-token gate multiplies the mix by zero on the ungated rows — it does not branch
+ * around the octaves, and it cannot: GLSL evaluates `st_grassColour` before the multiply. So a
+ * yellow island costs exactly what a green one costs, and the gate buys reading margin rather than
+ * frame time. A cost measured on the mono-healthy crowd is therefore the whole forest's cost.
  */
-export const LAYER_ARM_MIX: GrassArm = 'ladder-limit';
+export const LAYER_ARM_MIX: GrassArm = 'adopted';
 
 /**
  * The line the grass enters the shipped fragment shader on, emitted by

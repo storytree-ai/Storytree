@@ -132,6 +132,24 @@ export interface GroundGrassLayer {
    *  is a measurement about the palette this material was handed, so a caller that has not made
    *  one has nothing to inherit. */
   mix: number;
+  /**
+   * WHICH RAMP ROWS WEAR THE LAYER — ADR-0492 D1's per-token gate, as this material spells it.
+   * Row `i` here is the same row `i` {@link BandedGroundMaterialOptions.tokens} indexes, so the
+   * caller that owns the token ordering owns this too rather than a second list agreeing with it.
+   *
+   * ⚠⚠ THE GATE IS WHAT MAKES THE LAYER ADMISSIBLE AT A VISIBLE STRENGTH, not a refinement of
+   * it. The admissible mix factor is a per-TOKEN property: `healthy` admits 0.4065 while the
+   * `building`/`proposed` yellow admits 0.0095, because at the ladder's darkest rungs a grassed
+   * yellow walks into `healthy`'s green and an in-progress parcel reports as signed off. A
+   * material handed every row has to hold the yellow's ceiling for all of them, which is forty
+   * times smaller and provably invisible. Ungated, this layer cannot ship.
+   *
+   * ⚠ NO DEFAULT, AND EMPTY IS REFUSED — the same argument {@link mix} makes. "Every row" is not
+   * a safe fallback here but the precise input the measurement forbids, and an empty list is a
+   * layer that is switched on and gates everything out, which costs a full shader's fragment
+   * work to deliver the pixels it delivered before.
+   */
+  rows: readonly number[];
 }
 
 export interface BandedGroundMaterialOptions {
@@ -311,6 +329,27 @@ export function rampSelectGlsl(entries: number): string {
   return ['vec3 c = uRamp[0];', ...rest].join('\n        ');
 }
 
+/**
+ * THE PER-TOKEN GATE, as GLSL — one scalar that is 1.0 on the rows the layer dresses and 0.0
+ * everywhere else, so the mix below it is a multiply rather than a branch around the write.
+ *
+ * ⚠ THE ROWS ARE WRITTEN INTO THE SOURCE RATHER THAN UPLOADED, unlike the mix factor, and the
+ * reason is the same one {@link rampSelectGlsl} exists for: GLSL ES 1.0 will not let a fragment
+ * shader index a uniform array with a computed index, so a `uGrassRows[row]` lookup is not
+ * available to write even if it were wanted. It is also the right shape — the mix factor is the
+ * one number a comparison arm varies, while WHICH tokens wear the layer is structural, so
+ * writing it in keeps a four-arm page compiling one shader per factor rather than per gate.
+ *
+ * ⚠ THE ROW TEST IS `int(vStatus + 0.5)`, THE SAME SPELLING THE RAMP INDEX USES, and that is
+ * load-bearing rather than tidy: `vStatus` arrives interpolated, so a bare cast would read
+ * 1.9999998 as row 1 and gate the wrong token — dressing a foreign status and leaving the green
+ * flat, which is precisely the misreport the gate exists to prevent.
+ */
+export function grassGateGlsl(rows: readonly number[]): string {
+  const tests = rows.map((row) => `if (int(vStatus + 0.5) == ${row}) grassGate = 1.0;`);
+  return ['float grassGate = 0.0;', ...tests].join('\n        ');
+}
+
 /** One line of the LIT-rung remap. A named function rather than an expression inside a callback:
  *  the mutation rung cannot attribute a mutant inside an inline arrow body to the test that kills
  *  it, and an unattributable mutant reds the rung from inside well-covered arithmetic. */
@@ -395,6 +434,27 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     throw new Error(
       'banded-ground-material: the grass layer needs the grain — it evaluates its octaves ' +
         'through `st_grainOctave`, which only the grain source declares',
+    );
+  }
+  // ⚠ AN EMPTY GATE IS REFUSED RATHER THAN TREATED AS "EVERY ROW". Both readings are defensible
+  // from the value alone, which is exactly why neither may be guessed: "every row" is the input
+  // ADR-0492's measurement forbids, and "no row" is a layer that is switched on, pays a full
+  // shader's fragment work, and delivers the pixels the ground drew before it — a landing that
+  // looks clean and changes nothing, which is this arc's named failure shape.
+  if (grass !== undefined && grass.rows.length === 0) {
+    throw new Error(
+      'banded-ground-material: the grass layer was given no rows to dress — a gate that ' +
+        'matches nothing draws the ungrassed ground at the grassed ground’s cost',
+    );
+  }
+  // ⚠ AND A ROW OUTSIDE THE RAMP IS REFUSED TOO, because it fails INVISIBLY: the emitted test
+  // simply never matches, so the shader compiles, the island draws, and the layer is silently
+  // absent from a map that reports it as adopted.
+  const strayRow = grass?.rows.find((row) => !Number.isInteger(row) || row < 0 || row >= opts.tokens.length);
+  if (strayRow !== undefined) {
+    throw new Error(
+      `banded-ground-material: the grass layer names row ${strayRow}, which is not a ramp row ` +
+        `of the ${opts.tokens.length} this material was handed`,
     );
   }
   const shadowed = ladder !== null;
@@ -538,7 +598,14 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         // transcribed from build_land.py:836-868 and generated by src/land-grass.ts.
         // ⚠ THIS IS THE LINE THAT LEAVES THE PALETTE. It is authorised by ADR-0490 D5, which
         // names this seam, and fenced by ADR-0489 D3's outcome test rather than by the closure.
-        c = mix(c, st_grassColour(vWorld.xz), uGrassMix);
+        //
+        // ⚠⚠ GATED PER TOKEN (ADR-0492 D1), AND THE GATE IS WHAT MAKES THE FACTOR ABOVE LEGAL.
+        // Ungated, this layer has to hold the tightest token's ceiling — the yellow's 0.0095,
+        // at which the maximum channel shift is under 1/255 and nothing moves. On the rows the
+        // gate names, the same measurement admits 0.4065. Every other row multiplies the mix by
+        // zero and delivers exactly the pixel it delivered before this layer existed.
+        ${grassGateGlsl(grass.rows)}
+        c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);
 `;
   const writeColour = grainColour
     ? `        // THE GRAIN'S COLOUR HALF — the mechanism Cycles used, and the one that BREAKS THE
