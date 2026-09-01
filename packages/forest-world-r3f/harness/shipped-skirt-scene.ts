@@ -46,6 +46,7 @@ import { groundBounds } from '../src/ground-casters.js';
 import { LAND_RELIEF_AMPLITUDE } from '../src/land-relief.js';
 import { SHADOW_GRES } from '../src/land-shadow.js';
 import { SHIPPED_SHORE, shoreRelief } from '../src/shore-fall.js';
+import { shoreArmRingPlan } from '../src/shore-ring.js';
 import {
   SKIRT_ROCK,
   SKIRT_ROWS,
@@ -196,9 +197,15 @@ export function skirtPlan(cells: readonly InstanceDescriptor[], arm: SkirtArm): 
   const clipped = clipToCoast(cells, SHIPPED_COAST);
   const skirt = armSkirt(arm, clipped);
   const geo = buildSkirtGeometry(clipped, skirt);
+  // ⚠ COUNTED OFF THE WALL RING THE DECOMPOSITION PRODUCES, never off the parcel's own corners.
+  // The inset ring inserts vertices along rim edges inside the shore band, so the island's outline
+  // carries more edges than `c.points` does — and every one of them is a cliff edge. Counting the
+  // raw ring here would report a cost the geometry does not have, which is the same disagreement
+  // `cell-ground-geometry.ts` had to resolve in its own sizing loop.
+  const plan = shoreArmRingPlan(clipped, SHIPPED_SHORE);
   let rimEdges = 0;
   for (const c of clipped) {
-    const ring = c.points ?? [];
+    const ring = plan.decompose(c).wall;
     if (ring.length < 3) continue;
     for (let i = 0; i < ring.length; i += 1) {
       if (skirt.isRim(ring[i]!, ring[(i + 1) % ring.length]!)) rimEdges += 1;
@@ -222,6 +229,13 @@ function buildSkirtGeometry(clipped: readonly InstanceDescriptor[], skirt: Groun
     resolve: linearColourOf,
     index: groundRowOf,
     relief: shoreRelief(clipped, SHIPPED_SHORE),
+    // ⚠⚠ THE INSET RING IS ON EVERY ARM, INCLUDING THE CONTROL, AND THAT IS WHAT MAKES THE
+    // CONTROL THE SHIPPED MAP. It landed on `main` (PR #1780) while this page was being built, and
+    // it changes the very thing the skirt is cut into: it inserts vertices along rim edges inside
+    // the shore band, so the island's outline has MORE edges than the parcels' own corners supply.
+    // A page that left it out would measure a cliff cut into a boundary the map no longer has, and
+    // would under-report this component's cost while calling the difference the skirt's.
+    decompose: shoreArmRingPlan(clipped, SHIPPED_SHORE).decompose,
     skirt,
   };
   if (groundBounds(clipped) !== null) {

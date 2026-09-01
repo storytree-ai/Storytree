@@ -21,7 +21,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { SKIRT_ROCK } from '../src/stepped-skirt.js';
+import { SKIRT_ROCK, rimEdgeKeys } from '../src/stepped-skirt.js';
+import { SHIPPED_COAST, clipToCoast, edgeKey } from '../src/coast-clip.js';
+import { SHIPPED_SHORE } from '../src/shore-fall.js';
+import { shoreArmRingPlan } from '../src/shore-ring.js';
+import { crowdCells, crowdSize } from './shipped-crowd-scene.js';
 import { SHADE_LEVELS, deliveredForLevel, parseHex, toHex, type Rgb255 } from '../src/shade-ladder.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
 import { SKIRT_GROUND_TOKENS, SKIRT_ROCK_ROW } from './shipped-skirt-scene.js';
@@ -124,4 +128,44 @@ test('the rock is the LAST ramp row, so no status was renumbered to make room fo
 
 test('the rock parses to the measured median of the approved render’s own skirt pixels', () => {
   assert.deepEqual(parseHex(SKIRT_ROCK), { r: 77, g: 77, b: 79 });
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────
+// AND THE ONE THAT GUARDS THE SEAM BETWEEN THIS COMPONENT AND ITS NEIGHBOUR.
+
+test('⚠ every rim edge the geometry WALKS is a rim edge the census MARKS', () => {
+  // ⚠⚠ THE FAILURE THIS FORBIDS IS SILENT AND LOOKS LIKE ART. The rim census is taken over the
+  // parcels' own rings; the wall loop walks the ring `decompose` produces. Those are the same loop
+  // today only because the inset ring (PR #1780) inserts its points on INTERIOR edges — it is an
+  // INSET ring, inside the coast rather than on it. A decomposition that inserted a point on a RIM
+  // edge would split it into two sub-edges whose keys are in neither census, so both halves would
+  // silently take the FLAT wall: a length of coast with no cliff, in the middle of a cliff, which
+  // reads as a modelling choice rather than as a bug.
+  //
+  // Measured on the shipped fixture when this was written: 864 parcel-ring edges, 970 wall-ring
+  // edges (106 inserted), and 260 rim edges by BOTH routes.
+  const clipped = clipToCoast(crowdCells(crowdSize('one')), SHIPPED_COAST);
+  const plan = shoreArmRingPlan(clipped, SHIPPED_SHORE);
+  const fromCells = rimEdgeKeys(clipped);
+
+  const uses = new Map<string, number>();
+  for (const c of clipped) {
+    const wall = plan.decompose(c).wall;
+    if (wall.length < 3) continue;
+    for (let i = 0; i < wall.length; i += 1) {
+      const k = edgeKey(wall[i]!, wall[(i + 1) % wall.length]!);
+      uses.set(k, (uses.get(k) ?? 0) + 1);
+    }
+  }
+  const fromWalls = new Set([...uses].filter(([, n]) => n === 1).map(([k]) => k));
+
+  assert.ok(fromCells.size > 0, 'the fixture has no rim at all — the check would be vacuous');
+  assert.deepEqual(
+    [...fromWalls].filter((k) => !fromCells.has(k)).sort(),
+    [],
+    'the decomposition produced boundary edges the rim census does not know about, so that stretch ' +
+      'of coast will take the flat wall while its neighbours take the cliff. Build the census over ' +
+      'the WALL rings rather than over the parcels’ own rings.',
+  );
+  assert.equal(fromWalls.size, fromCells.size);
 });

@@ -16,6 +16,18 @@ pnpm --filter @storytree/forest-world-r3f exec vite harness --port 5312 --strict
 ST_SKIRT_URL=http://localhost:5312/shipped-skirt.html pnpm --filter @storytree/forest-world-r3f measure-shipped-skirt
 ```
 
+**⚠ EVERY ARM CARRIES THE INSET RING (PR #1780), INCLUDING THE CONTROL.** It landed on `main`
+while this page was being built, and it changes the very boundary the skirt is cut into. The numbers
+below were re-taken after merging it: leaving it out would have measured a cliff cut into an outline
+the map no longer has. It moves the baseline (one island 2,264 -> 2,962 triangles) and does not move
+this component's own delta.
+
+**⚠ AND IT INSERTS ON INTERIOR EDGES ONLY, WHICH IS CHECKED RATHER THAN ASSUMED.** Measured on the
+shipped fixture: 864 parcel-ring edges, 970 wall-ring edges (106 inserted), and **260 rim edges by
+both routes**. Had it inserted on a rim edge, that edge's two halves would have belonged to neither
+census and would have silently taken the flat wall — a length of coast with no cliff, in the middle
+of a cliff, reading as a modelling choice rather than a bug. `skirt-rock-separation.test.ts` pins it.
+
 Renderer for every number here: **ANGLE / Qualcomm Adreno X1-85, D3D11** — a real GPU, not
 SwiftShader. `skirt-measurements.txt` is the run verbatim; `skirt-measurements.json` is the same
 data.
@@ -82,22 +94,22 @@ justification rests on. That is why the live numbers below can be trusted agains
 
 At one island, 8 delivered px per ground unit (the zoom the cliff is read at):
 
-| arm | triangles | cliff px | anchor | MICRO | STRUCT | GPU µs |
+| arm | triangles | cliff px | anchor | MICRO | STRUCT | GPU us |
 |---|---|---|---|---|---|---|
-| `flat` | 2,264 | 0 | 134.36 | 0.923 | 8.037 | 1401.4 |
-| `stepped` | 4,864 | 33,329 | 134.36 | 0.994 | **7.265** | 1439.5 |
-| `rock` | 4,864 | 35,434 | **69.14** | 1.044 | **20.143** | 1439.3 |
-| `soil-over-rock` | 4,864 | 34,486 | 69.14 | 1.036 | 19.921 | 1439.3 |
+| `flat` | 2,962 | 0 | 134.36 | 0.900 | 8.685 | 1465.8 |
+| `stepped` | 5,562 | 33,329 | 134.36 | 0.970 | **7.996** | 1515.0 |
+| `rock` | 5,562 | 35,434 | **69.14** | 1.021 | **20.381** | 1518.7 |
+| `soil-over-rock` | 5,562 | 34,486 | 69.14 | 1.012 | 20.163 | 1520.9 |
 
 **⚠⚠ OPTION C IS DISPOSED OF ON EVIDENCE, AND IT IS THE PAGE'S SHARPEST RESULT.** The stepped shape
-*in the parcel's own colour* moves STRUCT **8.04 → 7.26, which is −9.6%**. It does not merely buy
+*in the parcel's own colour* moves STRUCT **8.69 → 8.00, which is −7.9%**. It does not merely buy
 less than the rock; on the axis the component exists to move it is **slightly worse than doing
 nothing**, because six ledges of the same green are six more surfaces at nearly the same lightness.
 Option C was the free answer that needed no decision from the owner, and it turns out to buy
 nothing. **The material is the component, not the shape** — which is exactly what the original
 research said and what nobody had checked in the live renderer.
 
-**The rock moves the anchor 134.4 → 69.1 and STRUCT 8.04 → 20.14 (+150.6%).** The island stops
+**The rock moves the anchor 134.4 → 69.1 and STRUCT 8.69 → 20.38 (+134.7%).** The island stops
 looking like a cut-out sticker and starts standing on something.
 
 **A over B, decided here rather than by the recommendation.** `soil-over-rock` lands within 1.1% of
@@ -157,7 +169,7 @@ an ornament's colour is chosen well off that axis (ADR-0406 D4).
 
 The arc priced this component at "**six rows ≈ 624 extra triangles on the reference island**",
 derived from **52 rim edges**. Measured now: the island has **260 rim edges** and the skirt costs
-**+2,600 triangles** (2,264 → 4,864). The forest costs **+90,820** (79,240 → 170,060).
+**+2,600 triangles** (2,962 → 5,562). The forest costs **+90,820** (103,810 → 194,630).
 
 **Nothing drifted — component 1 landed.** The coast clip ships in `subdivide` mode, which inserts
 the smoothed curve's own points along each rim edge; a 52-vertex rim became a ~260-edge one, and
@@ -167,18 +179,18 @@ stood on the day it was written, and this arc's own increments keep changing tha
 sizing anything here."* This is that, arriving on the next component.
 
 **It does not matter, and the numbers say why.** The ground is still **ONE draw call** on every arm
-at every size — the driver refuses the run otherwise. The cost is **+2.7% of GPU frame time**
-(1401.4 → 1439.3 µs at one island; 1459.5 → 1499.5 µs across the whole forest), and the whole-forest
-ground at 170,060 triangles is nowhere near ADR-0380 D2's floor, which is draw-call bound rather
-than triangle bound.
+at every size — the driver refuses the run otherwise. The cost is **+3.6% of GPU frame time**
+(1465.8 -> 1518.7 us at one island; 1536.2 -> 1579.7 us across the whole forest), and the
+whole-forest ground at 194,630 triangles is nowhere near ADR-0380 D2's floor, which is draw-call
+bound rather than triangle bound.
 
 ## 7. The gap to the approved picture — what "the app's constraints" still cost
 
 | | shipped (`rock`) | approved render | ours as % |
 |---|---|---|---|
 | anchor | 69.1 | 42.7 | **26.5 luma lighter** |
-| STRUCT | 20.14 | 30.05 | **67%** |
-| MICRO | 1.04 | 2.54 | **41%** |
+| STRUCT | 20.38 | 30.05 | **68%** |
+| MICRO | 1.02 | 2.54 | **40%** |
 
 The cliff arrives, closes two thirds of the structural-contrast gap, and does **not** reach the
 render's depth. The mechanism is known and is arithmetic rather than opinion: the approved skirt
@@ -189,7 +201,7 @@ house remedy already exists — the prop palette gives a material with a lit fac
 move if the owner wants the gap closed further. It is not taken here: this landing crosses the
 component and measures what it delivered, and a second token is a second change.
 
-**MICRO at 41% is the sharper of the two gaps**, and it is the same finding the grain octave
+**MICRO at 40% is the sharper of the two gaps**, and it is the same finding the grain octave
 already recorded — the pixel-scale read is where the browser's constraints cost most.
 
 ## 8. Files
@@ -202,5 +214,5 @@ already recorded — the pixel-scale read is where the browser's constraints cos
 | `harness/shipped-skirt-scene.ts` | the four arms and the three measurements |
 | `harness/shipped-skirt.html` | the page |
 | `harness/shipped-skirt-measure.mjs` | the driver and its refusals |
-| `harness/skirt-rock-separation.test.ts` | no rock ledge may deliver a status colour |
+| `harness/skirt-rock-separation.test.ts` | no rock ledge may deliver a status colour; and every rim edge the geometry walks is one the census marks |
 | `*-one-8.png` / `*-forest-fit.png` | the frames, one per arm per size |
