@@ -1,0 +1,24 @@
+renderer: ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+vendor:   Google Inc. (NVIDIA Corporation)
+repeats=7  batch=30  layer arm="grass"
+
+== one island(s) at 8 px per ground unit ==
+  flat             mix —      octaves    0  tris 5562  calls 1  cover 14.1%  n=7
+  grass            mix 0.2    octaves   23  tris 5562  calls 1  cover 14.1%  n=7
+  grass-amplified  mix 0.2    octaves  184  tris 5562  calls 1  cover 14.1%  n=7
+  flat             0.1645 ms/frame  spread 0.0083  (the control)
+  grass            0.5861 ms/frame  spread 0.0259  +0.4216 ms
+  grass-amplified  4.2196 ms/frame  spread 0.0750  +4.0552 ms
+  rung: BUDGET   status: PASS
+  PASS — 7 layers at this layer's measured cost come to 3.116 ms/frame, 18.7% of a 16.67 ms frame. That is a NECESSARY condition and not a sufficient one: the budget compared against is the WHOLE frame, which still has to draw the plants, the props, the water and the UI.
+
+== forest island(s) at 8 px per ground unit ==
+  flat             mix —      octaves    0  tris 194630  calls 1  cover 14.2%  n=7
+  grass            mix 0.2    octaves   23  tris 194630  calls 1  cover 14.2%  n=7
+  grass-amplified  mix 0.2    octaves  184  tris 194630  calls 1  cover 14.2%  n=7
+  flat             0.2499 ms/frame  spread 0.0019  (the control)
+  grass            0.6711 ms/frame  spread 0.0021  +0.4212 ms
+  grass-amplified  4.3128 ms/frame  spread 0.0041  +4.0629 ms
+  rung: BUDGET   status: PASS
+  PASS — 7 layers at this layer's measured cost come to 3.198 ms/frame, 19.2% of a 16.67 ms frame. That is a NECESSARY condition and not a sufficient one: the budget compared against is the WHOLE frame, which still has to draw the plants, the props, the water and the UI.
+

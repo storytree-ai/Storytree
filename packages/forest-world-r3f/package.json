@@ -36,7 +36,8 @@
     "measure-shipped-coast": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-coast-measure.mjs",
     "measure-shipped-grass": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-grass-measure.mjs",
     "measure-shipped-skirt": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-skirt-measure.mjs",
-    "measure-shipped-light": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-light-measure.mjs"
+    "measure-shipped-light": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-light-measure.mjs",
+    "measure-land-floor": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/land-floor-measure.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
