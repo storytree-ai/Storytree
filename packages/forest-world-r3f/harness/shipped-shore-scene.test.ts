@@ -30,6 +30,9 @@ import {
   REFERENCE_ARM,
   SHORE_ARM_CAPTION,
   SHORE_TREATMENT_ARMS,
+  SHORE_WIDTH_ARMS,
+  SHORE_RING_ARMS,
+  RING_REFERENCE_ARM,
   shorePlan,
   type ShorePlan,
 } from './shipped-shore-scene.js';
@@ -82,22 +85,125 @@ test('the island the band is measured on is the one the mapper emits', () => {
 // ⚠⚠ The headline: the component is exactly free
 // ---------------------------------------------------------------------------
 
-test('⚠⚠ EVERY ARM IS EXACTLY FREE — no triangle, no ring vertex, no byte, no square unit', () => {
-  // THE CLAIM THIS INCREMENT LEADS WITH, and the one most likely to be believed rather than
-  // checked. A vertical fall moves vertices in Y and creates none, so a moving column here is a BUG
-  // and not a cost. The driver refuses a run in which any of these differ; this is the same
-  // assertion off the GPU, where it costs a few milliseconds instead of a browser.
+test('⚠⚠ EVERY WIDTH ARM IS EXACTLY FREE — no triangle, no ring vertex, no byte, no square unit', () => {
+  // THE CLAIM THE SHORE FALL LED WITH, and the one most likely to be believed rather than checked.
+  // A vertical fall moves vertices in Y and creates none, so a moving column here is a BUG and not
+  // a cost. The driver refuses a run in which any of these differ; this is the same assertion off
+  // the GPU, where it costs a few milliseconds instead of a browser.
+  //
+  // ⚠⚠ SCOPED TO THE WIDTH AXIS, AND THE NARROWING IS THE NEXT INCREMENT RATHER THAN A WEAKENING.
+  // The RING arms divide the mesh, so they are supposed to spend triangles — the test below is
+  // theirs, and it is stricter about the one thing a division must not move.
   const control = planOf(REFERENCE_ARM);
-  for (const arm of SHORE_TREATMENT_ARMS) {
+  for (const arm of SHORE_WIDTH_ARMS.filter((a) => a !== REFERENCE_ARM)) {
     const plan = planOf(arm);
     assert.equal(plan.triangles, control.triangles, `${arm} moved the triangle count`);
     assert.equal(plan.ringVertices, control.ringVertices, `${arm} moved the ring-vertex count`);
     assert.equal(plan.attributeBytes, control.attributeBytes, `${arm} moved the attribute bytes`);
     assert.equal(plan.vertices, control.vertices, `${arm} moved the distinct-vertex count`);
+    assert.equal(plan.dividedParcels, 0, `${arm} divided a parcel — it has no ring`);
     assert.ok(
       Math.abs(plan.groundArea - control.groundArea) < 1e-9,
       `${arm} changed how much land there is: ${plan.groundArea} against ${control.groundArea}`,
     );
+  }
+});
+
+test('⚠⚠ A RING BUYS ITS SHAPE WITH TRIANGLES AND WITH NOTHING ELSE — the land itself is conserved', () => {
+  // THE CLAIM THE INSET RING LEADS WITH, and it is two claims that have to hold together. A
+  // division that lost or double-counted ground would move `groundArea` by exactly the ground it
+  // got wrong — and on a map whose colour reports a capability's status, ground drawn twice is one
+  // capability's status painted over another's (ADR-0392 D5 / ADR-0398 D7). So the area is the
+  // check, and the triangles are the price.
+  const control = planOf(RING_REFERENCE_ARM);
+  for (const arm of SHORE_RING_ARMS) {
+    const plan = planOf(arm);
+    assert.ok(plan.triangles > control.triangles, `${arm} divided nothing — it cost no triangles`);
+    assert.ok(plan.ringVertices > control.ringVertices, `${arm} inserted no wall vertices`);
+    assert.ok(plan.dividedParcels > 0, `${arm} divided no parcel at all`);
+    assert.equal(
+      plan.insertedVertices,
+      plan.ringVertices - control.ringVertices,
+      `${arm}'s census disagrees with the wall rings it actually produced`,
+    );
+    // ⚠ THE AREA IS ASSERTED EXACTLY, not within a tolerance of the arm's own size: the sub-faces
+    // share their vertices with the wall ring, so in exact arithmetic the sum IS the whole, and
+    // the only slack admitted is the shoelace's own accumulated rounding.
+    assert.ok(
+      Math.abs(plan.groundArea - control.groundArea) < 1e-6,
+      `${arm} changed how much land there is: ${plan.groundArea} against ${control.groundArea}`,
+    );
+    assert.equal(plan.foldedParcels, 0, `${arm} folded a parcel`);
+  }
+});
+
+test('⚠⚠⚠ THE RING IS WHAT MAKES THE FALLOFF’S SHAPE DELIVERABLE — the sag falls, and by how much', () => {
+  // THE INCREMENT'S OWN QUESTION, asked as a property of the SURFACE rather than of a picture.
+  // `shoreRelief` is analytic — it answers the smoothstep at every point — but what the map DRAWS
+  // is a triangulation that samples it at vertices and interpolates flat between them. With no
+  // vertex between the coastline and the first interior corner 8.66 units inland, the drawn shore
+  // is a straight ramp and the falloff's shape is not coarse but ABSENT. The sag is that gap.
+  //
+  // ⚠ A RING THAT COST TRIANGLES AND DID NOT MOVE THIS BOUGHT NOTHING, which is the answer this
+  // increment was chartered to be willing to give. It did not have to come out this way.
+  const control = planOf(RING_REFERENCE_ARM);
+  assert.ok(control.bandTriangles > 0, 'the control has no band to be wrong about');
+  assert.ok(control.maxSag > 1, 'the undivided band already tracks the land — nothing to fix');
+  for (const arm of SHORE_RING_ARMS) {
+    const plan = planOf(arm);
+    assert.ok(
+      plan.bandTriangles > control.bandTriangles,
+      `${arm} put no extra triangles inside the band`,
+    );
+    assert.ok(plan.meanSag < control.meanSag, `${arm} did not reduce the mean sag`);
+    assert.ok(plan.maxSag < control.maxSag, `${arm} did not reduce the worst sag`);
+  }
+  // And a SECOND ring keeps paying — the question `ring-pair` exists to answer, and the reason the
+  // page shows both rather than arguing from one.
+  assert.ok(planOf('ring-pair').meanSag < planOf('ring').meanSag);
+});
+
+test('⚠⚠ THE SAG SEPARATES TWO ARMS THAT DELIVER THE IDENTICAL LAND — and that is the point of it', () => {
+  // ⚠ THE FIXED REGION IS WHAT MAKES THIS READABLE, and its first draft was not. Measured over each
+  // arm's OWN band, `authored` (3.1 units) came back with a LOWER mean sag than `beach` (7) and read
+  // as the better arm; only the denominator had moved. Over a FIXED region the comparison is real.
+  //
+  // ⚠⚠ AND WHAT IT THEN SHOWS IS SHARPER THAN EQUALITY. These two arms deliver the BIT-IDENTICAL
+  // land — same mesh, same vertices, same heights, the void finding — and yet their sags differ,
+  // because the sag is measured against each arm's own ANALYTIC field and those fields are not the
+  // same function. `authored`'s smoothstep finishes in 3.1 units where `beach`'s takes 7, so the
+  // straight ramp this mesh is forced to draw departs from it FURTHER. The narrower the authored
+  // band, the more of its shape the mesh fails to carry. That is the void finding stated as a
+  // quantity rather than as an identity, and it is the reason the ring exists.
+  const authored = planOf('authored');
+  const beach = planOf('beach');
+  // The MESH is the same, over the same fixed region.
+  assert.equal(authored.bandTriangles, beach.bandTriangles);
+  assert.equal(authored.movedVertices, beach.movedVertices);
+  assert.equal(authored.maxDrop, beach.maxDrop);
+  assert.equal(authored.rungFlips, beach.rungFlips);
+  // The SHAPE it is failing to carry is not.
+  assert.ok(
+    authored.maxSag > beach.maxSag,
+    `authored's sharper band should be harder to carry: ${authored.maxSag} against ${beach.maxSag}`,
+  );
+  // And the CONTROL has a sag of its own there — the sine relief's own chordal error over the same
+  // ground. An empty control row would make every other number unreadable as an improvement.
+  const control = planOf(REFERENCE_ARM);
+  assert.ok(control.bandTriangles > 0, 'the control covers none of the region — it is not a baseline');
+  assert.ok(control.meanSag > 0, 'the control tracks the land exactly, which the sine sum does not');
+});
+
+test('the ladder’s cap is REPORTED, never silent — a coast can turn tighter than its ring', () => {
+  // `coastCapping`'s own argument, one dimension over: a cap nobody can see is indistinguishable
+  // from a shore that never needed one. An inward offset self-intersects as soon as it exceeds the
+  // curve's radius of curvature, and this coast is noise-perturbed, so some headlands do.
+  for (const arm of SHORE_RING_ARMS) {
+    const plan = planOf(arm);
+    assert.ok(plan.cappedParcels > 0, `${arm} capped nothing — has the coast stopped turning?`);
+    assert.ok(plan.cappedParcels < plan.dividedParcels, `${arm} capped every parcel it divided`);
+    assert.ok(plan.leastScale > 0, `${arm} kept a parcel at zero depth — that band draws nothing`);
+    assert.ok(plan.leastScale < 1, `${arm} reports a cap it did not apply`);
   }
 });
 
@@ -156,13 +262,15 @@ test('⚠ AND THE FIRST WIDTH IT CAN READ DOES REACH FURTHER — the void has an
 test('every arm moves ground, and none of them moves all of it', () => {
   // A band that touched EVERY vertex would not be a shore band, it would be a global scaling — and
   // it would silently lower the ground under every prop on the island.
-  const total = planOf(REFERENCE_ARM).vertices;
   for (const arm of SHORE_TREATMENT_ARMS) {
     const plan = planOf(arm);
     assert.ok(plan.movedVertices > 0, `${arm} moved nothing`);
+    // ⚠ AGAINST ITS OWN VERTEX COUNT, never the control's. A ring arm has a finer mesh, so holding
+    // it to the control's total would report a mesh with more vertices as a band that reaches
+    // further — the two numbers would not be about the same thing.
     assert.ok(
-      plan.movedVertices < total,
-      `${arm} moved all ${total} vertices — that is a global scaling, not a shore`,
+      plan.movedVertices < plan.vertices,
+      `${arm} moved all ${plan.vertices} of its vertices — that is a global scaling, not a shore`,
     );
   }
 });
@@ -241,13 +349,54 @@ test('⚠ THE CONSTANTS ARE THE APPROVED RENDER’S OWN, transcribed rather than
   );
 });
 
-test('the SHIPPED arm is the one whose band matches the beach the coast draws', () => {
-  assert.equal(SHIPPED_SHORE, 'beach');
+test('the SHIPPED arm draws the beach’s own width, and now has vertices inside it', () => {
+  // ⚠ THE WIDTH IS STILL `COAST_OUTSET`, and that half has not moved: the fall covers exactly the
+  // land the coast clip added and stops at the pre-coast boundary, where the ground carries props.
+  // What changed is that the mesh can now CARRY that band's shape.
+  assert.equal(SHIPPED_SHORE, 'ring');
   assert.equal(SHORE_ARM_WIDTH[SHIPPED_SHORE], 7);
+  assert.equal(SHORE_ARM_WIDTH[SHIPPED_SHORE], SHORE_ARM_WIDTH[RING_REFERENCE_ARM]);
+  assert.ok(SHORE_RING_ARMS.includes(SHIPPED_SHORE), 'the shipped arm draws no ring');
+});
+
+test('⚠⚠ THE SHIPPED ARM REACHES MOST OF THE SHORE — which is why it is not `ring-pair`', () => {
+  // THE ADOPTION ARGUMENT, ASSERTED RATHER THAN WRITTEN DOWN. `ring-pair` has the better average by
+  // a distance and its cost is nowhere near a hardware floor, which is the only ground ADR-0415 D1
+  // leaves for rejecting detail. What it loses is COVERAGE: its outer chain folds on coasts that
+  // turn tighter than 4.67 units, so it leaves a fifth of the shore with no band at all, and a
+  // band that keeps stopping reads worse than one that is uniformly gentler.
+  //
+  // ⚠ THIS IS A PROPERTY OF THE LADDER RATHER THAN OF TWO RINGS. It degrades a chain's DEPTH and
+  // not the ring COUNT, so a parcel that cannot carry the outer chain falls back to no chain
+  // instead of to the inner one. Fixing that would very likely invert this test, which is the point
+  // of stating the reason: the refusal is revisitable, not final.
+  const shipped = planOf(SHIPPED_SHORE);
+  const pair = planOf('ring-pair');
+  assert.equal(shipped.coastalParcels, pair.coastalParcels, 'the shore is the same shore');
+  assert.ok(
+    shipped.dividedParcels > pair.dividedParcels,
+    `the shipped arm reaches less of the shore than ring-pair: ${shipped.dividedParcels} against ` +
+      `${pair.dividedParcels} of ${shipped.coastalParcels}`,
+  );
+  assert.ok(
+    shipped.dividedParcels > shipped.coastalParcels * 0.8,
+    `the shipped arm banded ${shipped.dividedParcels} of ${shipped.coastalParcels} coastal parcels`,
+  );
+  // And `ring-pair` still wins on the average, which is what makes this a trade rather than a
+  // dominance — if it ever stopped winning there, the coverage argument would be moot.
+  assert.ok(pair.meanSag < shipped.meanSag);
 });
 
 test('every arm is captioned, control first, and nothing is offered without being explained', () => {
-  assert.deepEqual([...ALL_SHORE_ARMS], ['none', 'authored', 'beach', 'shelf']);
+  assert.deepEqual(
+    [...ALL_SHORE_ARMS],
+    ['none', 'authored', 'beach', 'shelf', 'ring', 'ring-pair'],
+  );
+  // The two axes partition the arms: every arm is on exactly one of them, and they meet at
+  // `beach`, which is the width axis's last rung and the ring axis's control.
+  assert.deepEqual([...SHORE_WIDTH_ARMS], ['none', 'authored', 'beach', 'shelf']);
+  assert.deepEqual([...SHORE_RING_ARMS], ['ring', 'ring-pair']);
+  assert.ok(SHORE_WIDTH_ARMS.includes(RING_REFERENCE_ARM));
   assert.equal(ALL_SHORE_ARMS[0], REFERENCE_ARM);
   for (const arm of ALL_SHORE_ARMS) {
     assert.ok(SHORE_ARM_CAPTION[arm].length > 20, `${arm} has no caption worth reading`);

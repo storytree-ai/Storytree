@@ -40,6 +40,7 @@ import {
 import { SHIPPED_COAST, clipToCoast } from './coast-clip.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
 import { SHIPPED_SHORE, shoreRelief } from './shore-fall.js';
+import { shoreArmRingPlan } from './shore-ring.js';
 import {
   SKIRT_ROCK,
   SKIRT_ROWS,
@@ -461,6 +462,15 @@ function CellGround({
       // hex silhouette and then the beach would grow OUTSIDE it — a rock wall standing in the
       // middle of the sand.
       skirt: shippedSkirt(clipped),
+      // ⚠⚠ THE SAME ARM SUPPLIES THE MESH, AND IT HAS TO. The shore fall is an analytic field; the
+      // ring is the vertices that let a triangulation carry its shape. Reading the band from one
+      // arm and the ring from another would draw a falloff bending through chains placed for a
+      // different band, and nothing downstream could tell.
+      //
+      // ⚠ ON AN ARM WITH NO RINGS THIS RESOLVES TO EVERY PARCEL'S OWN RING, so the line is the
+      // pre-ring buffer verbatim — which is what keeps `SHIPPED_SHORE` a single switch over the
+      // whole comparison rather than two that could disagree.
+      decompose: shoreArmRingPlan(clipped, SHIPPED_SHORE).decompose,
     };
     // By statement rather than a conditional spread: under `exactOptionalPropertyTypes` an absent
     // `atlasOrigin` and an `atlasOrigin: undefined` are different inputs, and only the first

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>the landform falls to the shore — three widths — chapter2 (dev-only)</title>
+    <title>the landform falls to the shore — widths and inset rings — chapter2 (dev-only)</title>
     <style>
       :root { color-scheme: dark; }
       html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
@@ -22,7 +22,7 @@
   </head>
   <body>
     <main>
-      <h1>The landform that falls to the shore &mdash; three widths, one instrument</h1>
+      <h1>The landform that falls to the shore &mdash; three widths, and two inset rings</h1>
       <p>
         The shipped 3D ground now ends on a real coastline, but the land does not
         <em>fall</em> to it. <code>landRelief</code> is an unbounded sum of three sine waves and a
@@ -44,10 +44,55 @@
         constants transfer as authored rather than being re-tuned.
       </p>
       <p class="numbers">
-        none&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the map today &mdash; full height right up to the waterline (CONTROL)<br />
-        authored&nbsp;a 3.1-unit band &mdash; the generator&rsquo;s own number, under half our beach<br />
-        beach&nbsp;&nbsp;&nbsp;&nbsp;a 7-unit band &mdash; exactly the land the coast clip added<br />
-        shelf&nbsp;&nbsp;&nbsp;&nbsp;a 16.5-unit band &mdash; one whole parcel inland, a shelf not a lip
+        THE WIDTH AXIS &mdash; how far inland the fall reaches<br />
+        none&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the map today &mdash; full height right up to the waterline (CONTROL)<br />
+        authored&nbsp;&nbsp;a 3.1-unit band &mdash; the generator&rsquo;s own number, under half our beach<br />
+        beach&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a 7-unit band &mdash; exactly the land the coast clip added<br />
+        shelf&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;a 16.5-unit band &mdash; one whole parcel inland, a shelf not a lip<br />
+        <br />
+        THE RING AXIS &mdash; the SAME 7-unit band, with vertices inside it to bend through<br />
+        ring&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ one inset ring at 3.5 units, the band&rsquo;s midpoint<br />
+        ring-pair&nbsp;+ two inset rings at the band&rsquo;s thirds
+      </p>
+      <p>
+        <strong>&#9888;&#9888; The width turned out not to be a knob, and that is why the ring axis
+        exists.</strong> On the shipped island <strong>253 of 392 distinct ground vertices lie exactly
+        on the coast, the nearest interior vertex is 8.66 ground units away, and there is nothing in
+        between.</strong> Every band narrower than that void acts on the rim vertices alone, so
+        <code>authored</code> (3.1) and <code>beach</code> (7) deliver the bit-identical land &mdash;
+        same moved count, same drops, same rung flips, and the two committed PNGs are the same file.
+        The cause is structural: the approved render&rsquo;s generator displaces a
+        <strong>0.55-unit grid</strong>, while this ground is parcels ~16.5 units across whose only
+        vertices are their corners. The mesh is about thirty times coarser than the surface every
+        transcribed constant was authored on. The remedy for a geometry-valued component is not a
+        different constant &mdash; it is more vertices.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; So the ring arms move the MESH and hold the band fixed.</strong> They
+        divide each coastal parcel&rsquo;s top face along a chain of vertices at a fixed shore
+        distance, so the falloff has something to bend through. <code>beach</code> is their control:
+        same 7-unit band, same dip, same everything, one mesh apart. <strong>It costs
+        triangles</strong>, which the fall itself did not, so this page carries a cost table it did
+        not need before &mdash; and the honest outcome a refusal is written for is that a ring which
+        cost triangles and delivered no visible change is a refinement to <em>decline</em>.
+      </p>
+      <p>
+        <strong>&#9888; The wall follows the divided outline too, and that is the half a reader would
+        not think to check.</strong> A top face that bends through a point on an edge, over a wall
+        that spans that edge straight, is a hairline crack running the length of the shore. And where
+        two parcels share an edge, both must insert the <em>same</em> point: the rule is
+        edge-local &mdash; a point goes on an edge exactly when the inset lies between its two
+        endpoints&rsquo; shore distances, bisected in the edge&rsquo;s canonical orientation &mdash;
+        so two parcels computing it independently get the identical float.
+      </p>
+      <p>
+        <strong>&#9888; A coast can turn tighter than its own ring, and the cap says so.</strong> An
+        inward offset of a curve self-intersects as soon as it exceeds the curve&rsquo;s radius of
+        curvature, and this coast is a noise-perturbed Chaikin curve whose headlands sometimes do. The
+        chain is then demoted down the coast clip&rsquo;s own scale ladder until it holds, keeping a
+        shallower band rather than none &mdash; and the captions report how many parcels were capped
+        and how far, because a cap nobody can see is indistinguishable from a shore that never needed
+        one.
       </p>
       <p>
         <strong>&#9888;&#9888; Why three arms: the fork is a number mismatch, not a design choice.</strong>
@@ -59,13 +104,27 @@
         ladder, grain, occlusion atlas, light and camera.
       </p>
       <p>
-        <strong>&#9888;&#9888; The geometry counters are identical on every arm, and that is the
-        result rather than an oversight.</strong> The fall moves vertices in Y and creates none, so it
-        cannot move a triangle, a ring vertex, an attribute byte or a square unit of land &mdash; the
-        component is exactly free in every count the coast increment spent. A triangle delta reported
-        on this page would be a bug, and the driver refuses the run. What the captions report instead
-        is what the fall <em>does</em> move: how many vertices it touched, how far the ground dropped,
-        and how many of them changed <strong>shade rung</strong>.
+        <strong>&#9888;&#9888; The geometry counters are identical across the WIDTH arms, and that is
+        the result rather than an oversight.</strong> The fall moves vertices in Y and creates none,
+        so it cannot move a triangle, a ring vertex, an attribute byte or a square unit of land
+        &mdash; the component is exactly free in every count the coast increment spent. A triangle
+        delta on a width arm would be a bug, and the driver refuses the run. The <strong>ring</strong>
+        arms are the mirror image: they must spend triangles, and they must not move
+        <em>one square unit of land</em>. Ground lost is a hole in the island; ground drawn twice is
+        one capability&rsquo;s status colour painted over another&rsquo;s, which is the one way this
+        component could do real harm. Conserved area is the evidence that a divided parcel is still
+        the same parcel.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; And the sag is the number this increment exists to move.</strong>
+        <code>shoreRelief</code> is analytic &mdash; it answers the smoothstep at every point &mdash;
+        but what the map <em>draws</em> is a triangulation that samples it at the vertices and
+        interpolates flat between them. With no vertex inside the band, the drawn shore is a straight
+        ramp from the waterline to the first corner 8.66 units inland, and the falloff&rsquo;s shape
+        is not coarse but <em>absent</em>. The sag is that gap, measured per band triangle between its
+        own plane and the field at its centroid. It is the honest form of &ldquo;did the shape become
+        visible&rdquo;, because it is a property of the surface rather than of the pictures &mdash;
+        and the pixel columns beside it are what say a viewer would actually see the difference.
       </p>
       <p>
         <strong>&#9888; The rung flips are the only number a viewer can actually see.</strong> The

@@ -57,8 +57,36 @@ export interface LinearRgb {
  *  thickness because they are the same ground in two representations. */
 export const CELL_GROUND_DEPTH = 3;
 
-/** Triangles in ONE parcel prism of `ringLength` vertices: a triangulated top face
- *  (`ringLength - 2`, the count ANY simple polygon triangulates to) plus two per wall quad.
+/**
+ * A PARCEL'S GROUND, AS THE TWO BOUNDARIES A PRISM ACTUALLY NEEDS — which are the same loop
+ * until something asks for vertices the parcel's own corners do not supply.
+ *
+ * ⚠⚠ THE SPLIT EXISTS BECAUSE A TOP FACE AND A WALL MUST AGREE ALONG THE SAME EDGE. The shore
+ * band needs vertices between the coastline and the parcel's first interior corner, 8.66 ground
+ * units inland (`src/shore-ring.ts` measures the void and explains why it is structural). Adding
+ * them to the top face alone would leave the wall spanning the edge straight while the top face
+ * bends through the new point — a hairline crack down the shore, at exactly the place this arc is
+ * trying to make read. So {@link wall} carries every inserted point too, and its extra cost is two
+ * triangles apiece rather than the whole parcel's worth a second ring would cost.
+ *
+ * ⚠ THE FACES MUST TILE THE WALL RING EXACTLY — same ground, no overlap, no gap. Nothing here
+ * enforces it, because the check belongs to whoever builds a decomposition and can say what to do
+ * when it fails; `shoreRingFaces` asserts area conservation and falls back to the undivided ring.
+ */
+export interface GroundFaces {
+  /** The boundary the WALLS follow — the parcel's own ring, with any inserted points on the edges
+   *  they were inserted into, so the skirt hangs from the very outline the top face ends at. */
+  wall: readonly P2[];
+  /** The TOP face, as one or more sub-rings whose union is {@link wall}'s interior. One entry is
+   *  the undivided parcel, which is what every caller that asks for no decomposition gets. */
+  faces: readonly (readonly P2[])[];
+}
+
+/** Triangles in ONE parcel prism: its top face, however it is divided, plus two per wall quad.
+ *
+ *  ⚠ THE WALL COUNT IS DRIVEN BY THE WALL RING AND THE TOP COUNT BY THE FACES, which is the
+ *  whole reason this takes two arguments rather than one length. A decomposition that divided the
+ *  top without lengthening the wall would be counted correctly here and would draw a crack.
  *
  *  ⚠ THERE IS NO BOTTOM CAP, and that is a decision rather than an oversight. The map is
  *  viewed from above, the parcels tile the island with no gaps, and a cap would cost another
@@ -66,9 +94,30 @@ export const CELL_GROUND_DEPTH = 3;
  *  `cylinderGeometry` prism DOES carry one, because three generates it and the shipped file
  *  does not ask it not to — so the two substrates differ by exactly this, and
  *  `shipped-baseline.ts` records both rather than pretending they match. */
+export function groundFaceTriangles(
+  wallLength: number,
+  faceLengths: readonly number[],
+): number {
+  if (wallLength < 3) return 0;
+  let top = 0;
+  for (const n of faceLengths) {
+    // ⚠ A SUB-FACE OF FEWER THAN THREE VERTICES BOUNDS NO AREA AND CONTRIBUTES NOTHING. It is not
+    // an error — `triangulateRing` emits nothing for one — and the guard is here so the arithmetic
+    // cannot go NEGATIVE on one, which would under-size the buffer the caller then writes into.
+    if (n >= 3) top += n - 2;
+  }
+  return top + wallLength * 2;
+}
+
+/** Triangles in ONE UNDIVIDED parcel prism of `ringLength` vertices: a triangulated top face
+ *  (`ringLength - 2`, the count ANY simple polygon triangulates to) plus two per wall quad.
+ *
+ *  ⚠ EXPRESSED THROUGH {@link groundFaceTriangles} RATHER THAN BESIDE IT. The undivided parcel is
+ *  the decomposition with one face, so writing `3n - 2` here a second time would be a second
+ *  arithmetic that could disagree with the first — and the disagreement would show up as a buffer
+ *  sized for a different mesh than the one written into it. */
 export function cellGroundTriangles(ringLength: number): number {
-  if (ringLength < 3) return 0;
-  return ringLength * 3 - 2;
+  return groundFaceTriangles(ringLength, [ringLength]);
 }
 
 /** Everything {@link cellGroundGeometry} needs. Named rather than a positional list because
@@ -145,6 +194,21 @@ export interface CellGroundGeometryInput {
    *  See `src/stepped-skirt.ts` for the settlement and the outcome test that replaced the
    *  every-colour-reports rule. */
   skirt?: GroundSkirt | undefined;
+  /** How to DIVIDE a parcel's top face, and which boundary its wall then follows.
+   *
+   *  ⚠ OPTIONAL, AND ITS ABSENCE IS THE UNDIVIDED PARCEL VERBATIM — the same shape `relief` and
+   *  `index` take, and for the same reason: the before/after on this arc has to be the same
+   *  function called twice, differing in one input. A caller that supplies none gets the buffer it
+   *  always got, byte for byte.
+   *
+   *  ⚠ IT RETURNS A WALL RING AS WELL AS FACES, and the wall is the half a caller forgets. See
+   *  {@link GroundFaces}: a top face divided along an edge the wall does not know about draws a
+   *  hairline crack there.
+   *
+   *  ⚠ THE FACES ARE TRUSTED. This module does not check that they tile the wall ring — it
+   *  cannot say what to do when they do not, and a decomposition that fails the check has a
+   *  meaningful fallback (its own undivided ring) that only its author knows how to reach. */
+  decompose?: ((cell: InstanceDescriptor) => GroundFaces) | undefined;
 }
 
 /** Where an island's tile begins in a packed occlusion atlas, in UV. A structural pair rather
@@ -383,11 +447,24 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   // ⚠ Mapped from the descriptors THEMSELVES, never re-indexed alongside a parallel array: an
   // index lookup here would be a second way to get the material wrong, and the parcel's colour is
   // what the map reports a capability's state with.
-  const rings = input.cells.flatMap((c) =>
-    c.points !== undefined && c.points.length >= 3
-      ? [{ pts: c.points, material: c.material, island: c.island }]
-      : [],
-  );
+  // ⚠ THE DECOMPOSITION IS RESOLVED ONCE PER PARCEL, HERE, and carried — never asked for again
+  // further down. It is the one input on this list that is expensive (the shore ring bisects the
+  // distance field along every edge that crosses the band), and asking twice would also let the
+  // sizing pass and the writing pass disagree about how many triangles a parcel has, which is the
+  // one way this buffer can overrun.
+  const rings = input.cells.flatMap((c) => {
+    if (c.points === undefined || c.points.length < 3) return [];
+    const ring: P2[] = c.points.map((p) => ({ x: p.x, z: p.z }));
+    const divided = input.decompose?.(c);
+    return [
+      {
+        wall: divided?.wall ?? ring,
+        faces: divided?.faces ?? [ring],
+        material: c.material,
+        island: c.island,
+      },
+    ];
+  });
 
   // ⚠ THE SKIRT'S LEDGES ARE RESOLVED ONCE, NOT PER EDGE. `skirtLedges` is a pure function of the
   // row count, so calling it inside the wall loop would rebuild the same six-element profile for
@@ -397,12 +474,24 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   const ledges = skirtLedges(skirt?.rows ?? 1);
   let triangles = 0;
   for (const r of rings) {
-    triangles += cellGroundTriangles(r.pts.length);
-    // ⚠ COUNTED OFF THE RAW RING, WHICH IS SAFE BECAUSE `isRim` IS ORIENTATION-BLIND. The fill
-    // loop below asks the same question of the NORMALISED ring, and `edgeKey` sorts its two
-    // endpoints, so a seam traversed one way here and the other way there is one edge either way.
+    triangles += groundFaceTriangles(
+      r.wall.length,
+      r.faces.map((f) => f.length),
+    );
+    // ⚠⚠ THE SKIRT COUNTS OFF THE WALL RING, WHICH IS THE DECOMPOSITION'S OUTPUT AND NOT THE
+    // PARCEL'S OWN OUTLINE — and that is the whole reason the two components compose instead of
+    // fighting. `decompose` may INSERT points along a rim edge (the shore ring does, inside the
+    // band), and every edge it inserts is still an edge of the island's outline, so it is still a
+    // cliff edge. Counting off the parcel's raw ring would size the buffer for fewer ledges than
+    // the fill loop below then writes, and a merged buffer that overruns is not a visible defect
+    // — it is a `RangeError` on a typed array, or silently dropped triangles.
+    //
+    // ⚠ COUNTED WITH THE RING UN-NORMALISED, WHICH IS SAFE BECAUSE `isRim` IS ORIENTATION-BLIND.
+    // The fill loop asks the same question of the NORMALISED ring, and `edgeKey` sorts an edge's
+    // two endpoints, so a seam traversed one way here and the other way there is ONE edge either
+    // way. The two loops therefore cannot disagree about how many edges are rim.
     if (skirt !== undefined) {
-      triangles += skirtExtraTriangles(rimEdgeCount(r.pts, skirt.isRim), skirt.rows);
+      triangles += skirtExtraTriangles(rimEdgeCount(r.wall, skirt.isRim), skirt.rows);
     }
   }
 
@@ -511,19 +600,25 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     // its own material, and ZERO_ORIGIN when the caller asked for no origins — a value that
     // reaches only a zero-length array.
     const origin = input.atlasOrigin?.(ring.island) ?? ZERO_ORIGIN;
-    const pts = normalisedRing(ring.pts.map((p) => ({ x: p.x, z: p.z })));
+    const pts = normalisedRing(ring.wall);
     const n = pts.length;
 
     // The top face, standing on the relief field. `lift` and `facing` are the identity for a
     // caller that supplies none, so this line is the flat ground verbatim when relief is absent.
-    for (const [a, b, c] of triangulateRing(pts)) {
-      pushTriangleWithNormals(
-        [lift(a), lift(b), lift(c)],
-        [facing(a), facing(b), facing(c)],
-        colour,
-        row,
-        origin,
-      );
+    //
+    // ⚠ EACH SUB-FACE IS TRIANGULATED ON ITS OWN, and `triangulateRing` normalises each one, so a
+    // decomposition handed in wound either way emits upward-facing triangles. Undivided, this loop
+    // runs once over the parcel's own ring — the line it was before a decomposition existed.
+    for (const face of ring.faces) {
+      for (const [a, b, c] of triangulateRing(face)) {
+        pushTriangleWithNormals(
+          [lift(a), lift(b), lift(c)],
+          [facing(a), facing(b), facing(c)],
+          colour,
+          row,
+          origin,
+        );
+      }
     }
 
     // The walls. ⚠ THE OUTWARD DIRECTION IS READ OFF THE RING'S OWN WINDING, not off the parcel's

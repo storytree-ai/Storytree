@@ -1,10 +1,20 @@
-// shipped-shore-measure.mjs - DRIVER for "the landform that falls to the shore": three widths of
-// shore band over one island and one forest, differing ONLY in how far inland the fall reaches.
+// shipped-shore-measure.mjs - DRIVER for "the landform that falls to the shore", now carrying TWO
+// axes that meet at one arm, over one island and one forest.
 //
+// THE WIDTH AXIS - how far inland the fall reaches, and nothing else:
 //   none      the map as it ships - full height right up to the waterline (CONTROL and DENOMINATOR)
 //   authored  a 3.1-unit band - the approved render's generator's own BEACH constant
 //   beach     a 7-unit band - COAST_OUTSET, exactly the land the coast clip added
 //   shelf     a 16.5-unit band - one mean parcel diameter, a shelf rather than a lip
+//
+// THE RING AXIS - the SAME 7-unit band, with vertices inside it for the falloff to bend through:
+//   ring      + one inset ring at 3.5 units, the band's midpoint
+//   ring-pair + two inset rings at the band's thirds
+//
+// WARNING - THE TWO AXES MEET AT `beach`, AND EVERY REFUSAL BELOW IS SCOPED TO ONE OF THEM. The
+// width arms must be EXACTLY FREE - a vertical fall creates no geometry, so a moving triangle count
+// there is a bug. The ring arms must COST triangles and must NOT move one square unit of land. A
+// refusal that demanded either rule of both axes would fire on a correct run.
 //
 // THE INCREMENT: the landform that falls to the shore, on `adopt-the-land-into-the-shipped-map-arc`
 // - the SECOND of the approved treatment's six components and the one the arc's own start-order
@@ -19,15 +29,22 @@
 // quarter of a unit - so both constants transfer as authored, and the only open question is that
 // our beach is 7 units wide against the reference's 3.1. The arms are three answers to that.
 //
-// WARNING - THE REFUSALS ARE WHERE THIS PAGE'S HONESTY LIVES, and the sharpest one is that this
-// component is supposed to be FREE. A vertical fall moves vertices in Y and creates none, so a
-// triangle, a ring vertex, an attribute byte or a square unit of land that MOVED is a bug rather
-// than a cost - and "it is free" is exactly the class of claim that gets believed rather than
-// checked. The driver refuses any run in which a geometry counter differs between arms.
+// WARNING - AND THE WIDTH TURNED OUT NOT TO BE A KNOB, WHICH IS WHY THE RING AXIS EXISTS. On the
+// shipped island 253 of 392 distinct ground vertices lie EXACTLY on the coast and the nearest
+// interior vertex is 8.66 units away, with nothing in between: every band narrower than that void
+// acts on the rim alone, so `authored` (3.1) and `beach` (7) render byte-identically. The mesh is
+// about thirty times coarser than the 0.55-unit grid the reference constants were authored on. The
+// remedy for a geometry-valued component is not a different constant, it is more vertices.
+//
+// WARNING - THE REFUSALS ARE WHERE THIS PAGE'S HONESTY LIVES, and the sharpest pair is per-axis.
+// The WIDTH arms are supposed to be FREE, so a triangle, a ring vertex, an attribute byte or a
+// square unit of land that MOVED there is a bug rather than a cost. The RING arms are supposed to
+// SPEND triangles and to conserve the land EXACTLY - ground drawn twice is one capability's status
+// painted over another's, which is the one way this component could do real harm.
 //
 // Reproduce (needs a real GPU - every committed frame figure comes off the Mint box):
-//   pnpm --filter @storytree/forest-world-r3f exec vite harness --port 5300 --strictPort
-//   DISPLAY=:0 ST_SHORE_URL=http://localhost:5300/shipped-shore.html \
+//   pnpm --filter @storytree/forest-world-r3f exec vite harness --port 5302 --strictPort
+//   DISPLAY=:0 ST_SHORE_URL=http://localhost:5302/shipped-shore.html \
 //     pnpm --filter @storytree/forest-world-r3f measure-shipped-shore
 //
 // A SHELL ON PURPOSE. This is `.mjs`, so it is NOT typechecked. Every number it prints is computed
@@ -44,22 +61,40 @@ import { chromium } from '@playwright/test';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_SHORE_URL'] ?? 'http://localhost:5300/shipped-shore.html';
+// ⚠ A NEW DIRECTORY PER INCREMENT, never a rewrite of the last one. The shore fall's own evidence
+// (`chapter2-shipped-shore-2026-09-01`) is what this increment's numbers are read AGAINST, and the
+// owner has not seen it yet - a driver that overwrote it would delete the denominator.
 const OUT =
   process.env['ST_SHORE_OUT'] ??
-  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-shipped-shore-2026-09-01');
+  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-shore-ring-2026-09-01');
 const ANGLE = process.env['ST_SHORE_ANGLE'] ?? 'gl';
 const ALLOW_SOFTWARE = process.env['ST_SHORE_ALLOW_SOFTWARE'] === '1';
 const BATCH = Number(process.env['ST_SHORE_BATCH'] ?? '30');
 const REPEATS = Number(process.env['ST_SHORE_REPEATS'] ?? '5');
 
-/** The land with NO fall at all - not a fourth option, the CONTROL and the DENOMINATOR. */
+/** The land with NO fall at all - not another option, the CONTROL and the DENOMINATOR. */
 const REFERENCE = 'none';
-const ARMS = ['authored', 'beach', 'shelf'];
+/** The arms on the WIDTH axis, control excluded - the ones that must be exactly free. */
+const WIDTH_ARMS = ['authored', 'beach', 'shelf'];
+/** The arms on the RING axis - the ones that divide the mesh and must pay for it. */
+const RING_ARMS = ['ring', 'ring-pair'];
+/** The arm the RING axis is read against: the same band, the mesh the map has today. */
+const RING_REFERENCE = 'beach';
+const ARMS = [...WIDTH_ARMS, ...RING_ARMS];
 const ALL_ARMS = [REFERENCE, ...ARMS];
 /** Each arm's band width in ground units, mirrored from `SHORE_ARM_WIDTH` so the printed table can
  *  name it. The scene module is the source; a disagreement here is caught by the refusal below,
  *  which reads the width off the page rather than off this line. */
-const ARM_WIDTH = { none: 0, authored: 3.1, beach: 7, shelf: 16.5 };
+const ARM_WIDTH = { none: 0, authored: 3.1, beach: 7, shelf: 16.5, ring: 7, 'ring-pair': 7 };
+/** Each arm's inset rings, for the table. Same mirroring, same caveat. */
+const ARM_RINGS = {
+  none: '-',
+  authored: '-',
+  beach: '-',
+  shelf: '-',
+  ring: '3.50',
+  'ring-pair': '2.33,4.67',
+};
 const SIZES = ['one', 'forest'];
 const ZOOMS = [2, 8, 'fit'];
 const FIT = 'fit';
@@ -187,11 +222,28 @@ for (const size of SIZES) {
         ([s, z]) => window.shoreRunner.changedPixels('beach', 'shelf', s, z),
         [size, zoom],
       ),
+      // THE RING AXIS'S OWN PAIRS, read against `beach` - same band, same everything, one mesh
+      // apart. This is the number that answers "did the falloff's shape become VISIBLE", as
+      // opposed to the sag, which answers whether it became DELIVERABLE.
+      'beach|ring': await page.evaluate(
+        ([s, z]) => window.shoreRunner.changedPixels('beach', 'ring', s, z),
+        [size, zoom],
+      ),
+      'ring|ring-pair': await page.evaluate(
+        ([s, z]) => window.shoreRunner.changedPixels('ring', 'ring-pair', s, z),
+        [size, zoom],
+      ),
     };
   }
 }
 
 // ── THE PICTURES.
+
+// ⚠ THE PICTURES ARE THE RING AXIS'S, PLUS THE CONTROL. `authored` and `shelf` are the WIDTH
+// axis's own finding and this increment does not move them - their arms carry no ring, so they
+// render byte-identically to the shore fall's committed set and re-taking them would be four
+// megabytes saying the same thing twice. `chapter2-shipped-shore-2026-09-01` holds them.
+const PICTURE_ARMS = [REFERENCE, RING_REFERENCE, ...RING_ARMS];
 
 const shots = [];
 for (const [size, zoom] of [
@@ -201,12 +253,12 @@ for (const [size, zoom] of [
   ['one', 2],
   ['one', 8],
 ]) {
-  for (const arm of ALL_ARMS) {
+  for (const arm of PICTURE_ARMS) {
     const png = await page.evaluate(
       ([a, s, z]) => window.shoreRunner.snapshot(a, s, z),
       [arm, size, zoom],
     );
-    const name = `shore-${size}-${zoom}px-${arm}.png`;
+    const name = `ring-${size}-${zoom}px-${arm}.png`;
     writeFileSync(join(OUT, name), Buffer.from(png.split(',')[1], 'base64'));
     shots.push(name);
   }
@@ -288,6 +340,9 @@ for (const arm of ARMS) {
 //    replaced, and the honest one.
 //
 //    The backwards-falloff check is not lost, it has moved to the one pair the mesh CAN separate.
+//    WARNING - AND THIS REFUSAL IS SCOPED TO THE WIDTH AXIS BY CONSTRUCTION. Both arms named below
+//    are width arms; a RING arm fills the very void this asserts, so holding one to it would refuse
+//    the increment for working.
 const inVoid = ['authored', 'beach'];
 /** How many vertices the two in-void bands may deliver differently on the FOREST, in a fixed count
  *  rather than a percentage. Measured at ONE out of 8884 across 35 differently-seeded coasts; a
@@ -350,13 +405,24 @@ if (between['one'][READ_ZOOM]['authored|beach'] !== 0) {
   );
 }
 
-// 6. WARNING - EVERY ARM MUST BE EXACTLY FREE, AND THIS IS THE HEADLINE CLAIM RATHER THAN A
-//    FOOTNOTE. A vertical fall moves vertices in Y and creates none, so a triangle, a ring vertex,
-//    an attribute byte or a square unit of land that MOVED is a bug and not a cost. "It is free" is
-//    exactly the class of claim that gets believed rather than checked, so it is checked - on every
-//    arm, at every size, against the control.
+// 5b. THE RING MUST CHANGE THE PICTURE, and it is a different claim from changing the surface. The
+//     sag below says the mesh can now CARRY the falloff's shape; this says a viewer would see it.
+//     Both are needed: a ring that halved the sag and moved no pixel would have bought a property
+//     nobody can look at, and this arc's whole subject is the look.
+if (between['one'][READ_ZOOM]['beach|ring'] <= 0) {
+  fail(
+    `beach and ring are BYTE-IDENTICAL at ${READ_ZOOM} px/unit. The ring divided the mesh and ` +
+      'changed nothing a viewer can see - that is a refinement to decline, not to ship.',
+  );
+}
+
+// 6. WARNING - EVERY WIDTH ARM MUST BE EXACTLY FREE, AND THIS IS THE SHORE FALL'S HEADLINE CLAIM
+//    RATHER THAN A FOOTNOTE. A vertical fall moves vertices in Y and creates none, so a triangle, a
+//    ring vertex, an attribute byte or a square unit of land that MOVED is a bug and not a cost.
+//    "It is free" is exactly the class of claim that gets believed rather than checked, so it is
+//    checked - on every width arm, at every size, against the control.
 for (const size of SIZES) {
-  for (const arm of ARMS) {
+  for (const arm of WIDTH_ARMS) {
     const r = at(size, READ_ZOOM, arm);
     const c = at(size, READ_ZOOM, REFERENCE);
     for (const [what, got, want] of [
@@ -376,6 +442,88 @@ for (const size of SIZES) {
       fail(
         `the ${arm} arm bounds ${r.groundArea.toFixed(3)} sq units against the control's ` +
           `${c.groundArea.toFixed(3)} - a vertical fall cannot change how much land there is`,
+      );
+    }
+  }
+}
+
+// 6b. WARNING - A RING ARM MUST SPEND TRIANGLES AND MUST NOT SPEND ONE SQUARE UNIT OF LAND. The
+//     mirror of the refusal above, and the sharper half is the area: the ring DIVIDES parcels, so
+//     ground lost is a hole in the island and ground double-counted is one capability's status
+//     colour drawn over another's (ADR-0392 D5 / ADR-0398 D7). Either shows up here exactly.
+for (const size of SIZES) {
+  for (const arm of RING_ARMS) {
+    const r = at(size, READ_ZOOM, arm);
+    const c = at(size, READ_ZOOM, RING_REFERENCE);
+    if (r.triangles <= c.triangles) {
+      fail(
+        `the ${arm} arm drew ${r.triangles} triangles against ${RING_REFERENCE}'s ${c.triangles} ` +
+          'on the ' + size + ' map - it divided nothing, so it can have delivered nothing',
+      );
+    }
+    if (r.dividedParcels <= 0) {
+      fail(`the ${arm} arm divided NO parcel on the ${size} map`);
+    }
+    // AND IT MUST REACH MOST OF THE SHORE, not a scattering of it. A band delivered on half the
+    // coastal parcels reads as a shore that keeps stopping, which is worse than one that is
+    // uniformly abrupt - so the coverage is a number the report prints rather than a side effect.
+    if (r.dividedParcels * 2 <= r.coastalParcels) {
+      fail(
+        `the ${arm} arm divided ${r.dividedParcels} of ${r.coastalParcels} coastal parcels on the ` +
+          `${size} map - under half the shore, which draws as a band that keeps stopping`,
+      );
+    }
+    if (Math.abs(r.groundArea - c.groundArea) > 1e-6) {
+      fail(
+        `the ${arm} arm bounds ${r.groundArea.toFixed(3)} sq units against ${RING_REFERENCE}'s ` +
+          `${c.groundArea.toFixed(3)} - a division that changes how much land there is has ` +
+          'either lost ground or drawn some of it twice, and the map has stopped reporting',
+      );
+    }
+    if (r.leastScale <= 0) {
+      fail(
+        `the ${arm} arm kept a parcel's chain at zero depth on the ${size} map - that band ` +
+          'delivers no shape and still costs its triangles',
+      );
+    }
+  }
+}
+
+// 6c. WARNING - THE RING MUST MAKE THE FALLOFF DELIVERABLE, WHICH IS THE INCREMENT'S OWN QUESTION.
+//     `shoreRelief` answers the smoothstep at every point; what the map DRAWS is a triangulation
+//     that samples it at vertices and interpolates flat between. The SAG is the gap between the two
+//     inside the band. A ring that cost triangles and did not move it bought nothing - and this
+//     refusal is written so that outcome REPORTS rather than passes quietly.
+for (const size of SIZES) {
+  const c = at(size, READ_ZOOM, RING_REFERENCE);
+  if (c.bandTriangles <= 0) {
+    fail(`the ${RING_REFERENCE} arm has no band triangles on the ${size} map - nothing to improve`);
+  }
+  // AND THE TWO IN-VOID WIDTHS MUST REPORT THE IDENTICAL SAG over that fixed region - the void
+  // finding, arriving on the new instrument. If they ever diverge the mesh has gained vertices and
+  // both this page's findings are stale.
+  const inVoidSag = [at(size, READ_ZOOM, 'authored'), at(size, READ_ZOOM, 'beach')];
+  if (inVoidSag[0].bandTriangles !== inVoidSag[1].bandTriangles) {
+    fail(
+      `authored and beach cover ${inVoidSag[0].bandTriangles} and ${inVoidSag[1].bandTriangles} ` +
+        `band triangles on the ${size} map. The sag region is FIXED, so these are the same ground ` +
+        'and the same mesh - a difference means the region stopped being fixed.',
+    );
+  }
+  for (const arm of RING_ARMS) {
+    const r = at(size, READ_ZOOM, arm);
+    if (r.bandTriangles <= c.bandTriangles) {
+      fail(
+        `the ${arm} arm put ${r.bandTriangles} triangles in the band against ` +
+          `${RING_REFERENCE}'s ${c.bandTriangles} on the ${size} map - the ring is not inside it`,
+      );
+    }
+    if (r.meanSag >= c.meanSag || r.maxSag >= c.maxSag) {
+      fail(
+        `the ${arm} arm's sag is ${r.meanSag.toFixed(4)} mean / ${r.maxSag.toFixed(4)} max ` +
+          `against ${RING_REFERENCE}'s ${c.meanSag.toFixed(4)} / ${c.maxSag.toFixed(4)} on the ` +
+          `${size} map. The mesh is no closer to the land it is approximating, so the ring cost ` +
+          'triangles and delivered no shape - decline it rather than shipping it.',
       );
     }
   }
@@ -418,31 +566,96 @@ const pct = (n, d) => (d === 0 ? 'n/a' : `${((n / d) * 100).toFixed(1)}%`);
 const ms = (r) => (r.gpuNs === null ? '     n/a' : (r.gpuNs / 1e6).toFixed(4).padStart(8));
 
 const lines = [];
-lines.push(`# the landform that falls to the shore — three widths, one instrument`);
+lines.push(`# the landform that falls to the shore — three widths and two inset rings`);
 lines.push('');
 lines.push(`renderer: ${identity.vendor} — ${identity.renderer}`);
 lines.push(`software rasteriser: ${identity.software}${identity.software ? '  ⚠ FIGURES NOT COMMITTABLE' : ''}`);
 lines.push(`timer query: ${identity.timerQuery} · batch ${BATCH} · ${REPEATS} repeats, median reported`);
 lines.push('');
-lines.push('## what each arm costs — every column identical by construction, and checked');
+lines.push('## what each arm costs — flat across the WIDTH axis, and paid on the RING axis');
 lines.push('');
-lines.push('⚠ THE POINT OF THIS TABLE IS THAT IT DOES NOT VARY. A vertical fall creates no geometry,');
-lines.push('so a moving column here would be a BUG rather than a cost, and the driver refuses the run.');
+lines.push('⚠ READ THIS TABLE AS TWO. The four width arms must be identical down every column — a');
+lines.push('vertical fall creates no geometry, so a moving column there is a BUG and the driver refuses');
+lines.push('the run. The two ring arms must MOVE the triangles and must NOT move `sq units`: they divide');
+lines.push('parcels, and a division that changed how much land there is has either lost ground or drawn');
+lines.push('some of it twice — which on this map is one capability\'s status painted over another\'s.');
 lines.push('');
-lines.push('size    arm         band  tris  ringVerts  vertexKB  sq units  draws');
+lines.push('size    arm         band  rings        tris     +%  ringVerts  vertexKB  sq units  draws');
 for (const size of SIZES) {
+  const base = at(size, READ_ZOOM, RING_REFERENCE).triangles;
   for (const arm of ALL_ARMS) {
     const r = at(size, READ_ZOOM, arm);
+    const grew = r.triangles === base ? '  —' : `${(((r.triangles - base) / base) * 100).toFixed(1)}`;
     lines.push(
       [
         size.padEnd(7),
         arm.padEnd(11),
         String(ARM_WIDTH[arm]).padStart(5),
-        String(r.triangles).padStart(5),
+        ARM_RINGS[arm].padStart(10),
+        String(r.triangles).padStart(7),
+        grew.padStart(6),
         String(r.ringVertices).padStart(10),
         (r.attributeBytes / 1024).toFixed(1).padStart(9),
         r.groundArea.toFixed(0).padStart(9),
         String(r.drawCalls).padStart(6),
+      ].join(' '),
+    );
+  }
+}
+lines.push('');
+lines.push('## ⚠⚠ DOES THE MESH CARRY THE FALLOFF\'S SHAPE? — the sag, in ground units');
+lines.push('');
+lines.push('`shoreRelief` is analytic: it answers the smoothstep at every point. What the map DRAWS is a');
+lines.push('triangulation that samples it at the vertices and interpolates flat between them. With no');
+lines.push('vertex between the coastline and the first interior corner 8.66 units inland, the drawn shore');
+lines.push('is a straight ramp and the falloff\'s shape is not coarse but ABSENT. The sag is that gap,');
+lines.push('measured per band triangle between its own plane and the field at its centroid.');
+lines.push('');
+lines.push('⚠ THE REGION IS FIXED at the 7-unit beach for EVERY arm, never the arm\'s own band. Measured');
+lines.push('over its own band, `authored` reported a LOWER sag than `beach` and read as the better arm —');
+lines.push('but only the denominator had moved. Fixed, the order inverts, and `none` becomes a real');
+lines.push('baseline: the sine relief\'s own chordal error over the same ground, with no band at all.');
+lines.push('');
+lines.push('⚠⚠ AND THE FIXED REGION SEPARATES TWO ARMS THAT DELIVER THE BIT-IDENTICAL LAND. `authored`');
+lines.push('and `beach` move the same vertices by the same amounts — the void finding — and still report');
+lines.push('different sags, because each is measured against its OWN analytic field: `authored`\'s');
+lines.push('smoothstep finishes in 3.1 units where `beach`\'s takes 7, so the straight ramp this mesh is');
+lines.push('forced to draw departs from it further. The narrower the authored band, the more of its shape');
+lines.push('the mesh fails to carry. That is the void finding as a quantity rather than as an identity.');
+lines.push('');
+lines.push('⚠ SO A LOW SAG DOES NOT BY ITSELF SELECT AN ARM, and `shelf` is the reason to say so: its band');
+lines.push('is so wide that the falloff is gentle enough for even this mesh, which is why it reports the');
+lines.push('lowest sag of the four width arms. It is still REFUSED, and for a reason this column cannot');
+lines.push('see — it lowers ground inland of the pre-coast boundary, and that ground carries props.');
+lines.push('');
+lines.push('⚠ A RING THAT COST TRIANGLES AND DID NOT MOVE THIS BOUGHT NOTHING. That outcome was a live');
+lines.push('possibility when this page was written, and the driver refuses the run rather than shipping it.');
+lines.push('');
+lines.push('⚠ `coastal` EXCLUDES the parcels this module refuses on principle rather than on geometry:');
+lines.push('one whose vertices are ALL on the coast, and one meeting the coast in two separate runs (five');
+lines.push('in 1,854 on the forest). The denominator is the parcels a single band COULD reach.');
+lines.push('');
+lines.push('size    arm         bandTris  maxSag  meanSag   vs beach  divided/coastal  capped  least  inserted');
+for (const size of SIZES) {
+  const c = at(size, READ_ZOOM, RING_REFERENCE);
+  for (const arm of ALL_ARMS) {
+    const r = at(size, READ_ZOOM, arm);
+    const rel =
+      arm === REFERENCE || c.meanSag === 0
+        ? '     —'
+        : `${(((r.meanSag - c.meanSag) / c.meanSag) * 100).toFixed(1)}%`;
+    lines.push(
+      [
+        size.padEnd(7),
+        arm.padEnd(11),
+        String(r.bandTriangles).padStart(8),
+        r.maxSag.toFixed(3).padStart(7),
+        r.meanSag.toFixed(3).padStart(8),
+        rel.padStart(10),
+        `${r.dividedParcels}/${r.coastalParcels}`.padStart(15),
+        String(r.cappedParcels).padStart(7),
+        r.leastScale.toFixed(1).padStart(6),
+        String(r.insertedVertices).padStart(9),
       ].join(' '),
     );
   }
@@ -498,17 +711,23 @@ for (const size of SIZES) {
   }
 }
 lines.push('');
-lines.push('## are the three shapes actually three shapes?');
+lines.push('## are these actually different lands? — pixels between adjacent arms');
 lines.push('');
-lines.push('size    zoom  authored vs beach   beach vs shelf   (pixels)');
+lines.push('⚠ `authored vs beach` is expected to be ZERO and is the width axis\'s own finding: both');
+lines.push('bands sit inside the vertex void, so the mesh delivers the bit-identical land and the two');
+lines.push('committed PNGs are the same file. The ring columns are the ones this increment turns on.');
+lines.push('');
+lines.push('size    zoom  authored|beach   beach|shelf   beach|ring   ring|ring-pair   (pixels)');
 for (const size of SIZES) {
   for (const zoom of ZOOMS) {
     lines.push(
       [
         size.padEnd(7),
         String(zoom).padStart(4),
-        String(between[size][zoom]['authored|beach']).padStart(18),
-        String(between[size][zoom]['beach|shelf']).padStart(16),
+        String(between[size][zoom]['authored|beach']).padStart(15),
+        String(between[size][zoom]['beach|shelf']).padStart(13),
+        String(between[size][zoom]['beach|ring']).padStart(12),
+        String(between[size][zoom]['ring|ring-pair']).padStart(16),
       ].join(' '),
     );
   }
@@ -555,8 +774,14 @@ for (const size of SIZES) {
         : w > BEACH_GROUND_WIDTH
           ? `reaches ${(w - BEACH_GROUND_WIDTH).toFixed(1)} units INLAND of the pre-coast boundary`
           : 'covers exactly the land the coast added, and no more';
+    const rings =
+      ARM_RINGS[arm] === '-'
+        ? 'no ring — the band has no vertex to bend through'
+        : `rings at ${ARM_RINGS[arm]} units, sag ${r.meanSag.toFixed(3)} mean over ` +
+          `${r.bandTriangles} band triangles`;
     lines.push(
       `${size.padEnd(7)} ${arm.padEnd(11)} band ${String(w).padStart(4)} units — ${verdict}; ` +
+        `${rings}; ` +
         `${r.movedVertices}/${r.vertices} vertices moved (${pct(r.movedVertices, r.vertices)}), ` +
         `${r.rungFlips} rung flips`,
     );
