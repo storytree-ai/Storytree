@@ -68,8 +68,14 @@ is the dependency test in both directions: neither of them needs anything from t
 > bookkeeping (`:142-143`). FOUR of the nine carry that classification — this rung, both `-r` legs and
 > `check:verification-decay` — so the discriminating count is the narrower one: of the seven STANDALONE
 > `check:*` rungs it is one of only TWO proof-integrity rungs, the other five being factory bookkeeping
-> (the full classification is `:137-160`). It spawns all eight probes in their own processes over
-> one shared fixture set and compares the real decoded payloads. That is a genuine integration proof
+> (the full classification is `:137-160`). It spawns every registered pair's two probes in their own
+> processes over one shared fixture set and compares the real decoded payloads. ⚠ The counts in this
+> region are DELIBERATELY not spelled out any more: the registry has grown from four rows to nine
+> since this was written, and each restated total was stale within an increment. Ask
+> `packages/cli/src/mirror-conformance.ts`'s `MIRRORS`, which is the only place the number lives.
+> ⚠ Since ADR-0496 D1 this rung has a SIBLING, `check:mirror-conformance-live`, which runs the same
+> instrument's `/api/activity` row over a snapshot of the real ledger and therefore holds a live-store
+> credential. Everything below describes the DB-free arm unless it says otherwise. That is a genuine integration proof
 > against real in-story collaborators — the desktop's own `/api/*` dispatcher and route handlers, run
 > for real — not a unit test over doubles. It has a recorded catch: `gate-order.ts:142-143` cites
 > commit `3ef84c96`, a studio-only docs change that produced 256+4 divergences.
@@ -98,7 +104,7 @@ is the dependency test in both directions: neither of them needs anything from t
 > **The other un-asserted pocket, named rather than implied.** The GATHER — `runProbe`'s spawn,
 > `decodePayload`, and the fail-closed `ProbeError` paths in
 > `packages/cli/src/check-mirror-conformance.ts:529-604` — has no offline assertion. It is exercised
-> on every gate run (eight spawns, four input sets) but only on the success path; no test drives a
+> on every gate run (two spawns per registered row) but only on the success path; no test drives a
 > probe that dies, prints garbage, or returns an empty payload for a non-empty input. The
 > never-vacuous rule at `:632-642` is therefore DESIGNED and RUN but not ASSERTED. This is the same
 > pure-core / real-effects-wiring shape [`pinned-runtime-apply`](pinned-runtime-apply.md) records for
@@ -123,7 +129,7 @@ independent grounds:
   capabilities; it produces one capability and two units that are illegal to author.
 - **Neither half is independently viable.** Delete the probes and the judge has no input, and
   recovering one would require importing across the ADR-0176 wall — the thing the design exists to
-  avoid. Delete the judge and eight probes print into the void. Delete the driver and neither ever
+  avoid. Delete the judge and every probe prints into the void. Delete the driver and neither ever
   meets the other. That is the organ test.
 - **Both triggers of the splitting-rule pass for the fused unit.** Its outcome states in one sentence
   without a conjunction (above), and its proof shares one precondition (one shared fixture set, built
@@ -226,8 +232,8 @@ The command is the honest one because it is the only one that runs the outcome; 
 it is the disjointness recorded under **The stated gap** above.
 
 **WHY THE ALLOWLIST IS EMPTY ON ALL FOUR ROWS, AND WHY THAT IS NOT A MISSING FEATURE.** Every
-`referenceOnlyFields` is `[]` by design, and each row says why in its own comment: all four payloads
-are served to the SAME compiled renderer from either surface, so a difference is a defect rather than
+`referenceOnlyFields` is `[]` by design, and each row says why in its own comment: every payload here
+is served to the SAME compiled renderer from either surface, so a difference is a defect rather than
 a deliberate narrowing. The allowlist is the escape hatch, and it is self-pruning (contract 5) — an
 entry the mirror actually emits, or one the reference never emits, is itself a divergence — so it can
 only ever describe a difference that is still real. An allowlist nobody prunes decays into a blanket
@@ -239,7 +245,12 @@ full here, but the shape matters for anyone extending it: `/api/activity` proves
 over raw `events.node_claim` rows, and cannot see a column leaving a SELECT upstream of the fold
 (that half is fenced inside the desktop instead, by deriving `IN_FLIGHT_CLAIMS_SQL` from
 `CLAIM_ROW_COLUMNS`); its `builds` layer rides the fixture already folded because the desktop's fold
-is inline in a `pg` closure this DB-free gate cannot reach. `/api/arcs` proves the ENVELOPE — the
+is inline in a `pg` closure that would require THAT SURFACE to open a connection, which ADR-0117
+d.1/d.5 forbids. ⚠ That reason used to read "this DB-free gate cannot reach", and the gate's
+DB-freedom was never the binding constraint — it was placement, not necessity (ADR-0495 /
+ADR-0496 D1). `check:mirror-conformance-live` now folds this row over the REAL `events.node_claim`
+ledger, snapshotted by the HARNESS and handed to both probes as one fixture, so `builds` is still
+uncovered while the claim fold is exercised against rows nobody chose. `/api/arcs` proves the ENVELOPE — the
 method guard, the two no-store answers, the unknown-id answer, the id decode, the `{ arcs }` key —
 because the join itself is shared `@storytree/drive` code with no drift class.
 

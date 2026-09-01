@@ -15,8 +15,11 @@
  * point: the originating defect was THIS surface's re-composed SELECT losing the ADR-0200 `grade`
  * column (claim-activity.ts's own header records it), so a harness that injected already-folded
  * claims would have compared two pass-throughs and stayed green through exactly the drift it exists
- * to catch. Both folds are pure (rows + now in, activities out), so this stays DB-free and runs in
- * CI.
+ * to catch. Both folds are pure (rows + now in, activities out), so THIS PROBE opens no connection —
+ * which is what lets the same probe serve both arms. Read that as a property of the probe, never of
+ * the gate: the harness's live arm (ADR-0496 D2) hands it a SNAPSHOT of the real `events.node_claim`
+ * ledger in exactly this fixture shape, and it is the harness that holds the credential. The probe
+ * cannot be the one to dial the store — ADR-0117 d.1/d.5 forbids this surface a DB connection.
  *
  * `builds` and `departures` ride the fixture ALREADY FOLDED — a stated limit, not an oversight:
  * `departures` is shared package code (`foldDepartures` in @storytree/notice-board) so no drift
