@@ -38,7 +38,13 @@
 
 import * as THREE from 'three';
 
-import { buildGroundMaterial, shippedGroundBuild } from '../src/ForestWorldCanvas.js';
+import {
+  buildGroundMaterial,
+  shippedGroundBuild,
+  GRASS_GATE_ROWS,
+  SHIPPED_GRASS_MIX,
+} from '../src/ForestWorldCanvas.js';
+import type { GroundGrassLayer } from '../src/banded-ground-material.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
 import {
   GROUND_ATLAS_ATTRIBUTE,
@@ -75,13 +81,13 @@ import {
  * layer 1 can deliver against the house reader model and reports two things per mix factor: does
  * every status still read as itself, and which ladder rungs survive if not.
  */
-export type GrassArm = 'flat' | 'admissible' | 'ladder-limit' | 'visible';
+export type GrassArm = 'flat' | 'authored' | 'adopted' | 'ceiling';
 
 /** The arm every pixel figure is read against: the shipped map exactly as it draws today, with no
  *  grass at all. */
 export const CONTROL_ARM: GrassArm = 'flat';
 
-export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'admissible', 'ladder-limit', 'visible'];
+export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'authored', 'adopted', 'ceiling'];
 
 /**
  * WHAT EACH ARM MIXES IN. `null` is the control — no grass option at all, so the material it
@@ -104,20 +110,22 @@ export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'admissible', 'ladder-li
  */
 export const GRASS_ARM_MIX = {
   flat: null,
-  admissible: 0.005,
-  'ladder-limit': 0.2,
-  visible: 0.35,
+  authored: 0.13,
+  adopted: SHIPPED_GRASS_MIX,
+  ceiling: 0.4065,
 } satisfies Record<GrassArm, number | null>;
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
 export const GRASS_ARM_CAPTION = {
-  flat: 'the shipped map today — the status colour, the grain’s normal half, no grass (CONTROL)',
-  admissible:
-    'grass at 0.005 — the most the reader model admits on the shipped ladder, shadow rung included',
-  'ladder-limit':
-    'grass at 0.20 — the most that leaves any shading depth at all; the ladder shrinks to 0.88–1.00',
-  visible: 'grass at 0.35 — the least that a viewer can actually see, and no ladder survives it',
+  flat: 'the map before layer 1 — status colour + the grain’s normal half, no grass (CONTROL)',
+  authored:
+    'grass at 0.13, the RECIPE’S OWN factor — carried to show that it is invisible here: the ' +
+    'maximum channel shift it can produce on green is 11/255, under the 20/255 rule',
+  adopted: `grass at ${SHIPPED_GRASS_MIX} — WHAT SHIPS, and 79% of the measured 0.4065 fence`,
+  ceiling:
+    'grass at 0.4065 — the fence itself, the largest factor at which every reachable green still ' +
+    'reads as healthy. Carried to show what the headroom above the shipped arm buys, not to ship',
 } satisfies Record<GrassArm, string>;
 
 /** One island, and the thirty-five-island forest. A ground treatment is read at BOTH: a layer that
@@ -157,11 +165,19 @@ export interface GrassScene {
 }
 
 /** The grass option one arm wears — `undefined` for the control, which is what makes its material
- *  byte-identical to the shipped one rather than a grassed material set to zero. */
-export function armGrass(arm: GrassArm): { mix: number } | undefined {
+ *  byte-identical to the PRE-LAYER-1 one rather than a grassed material set to zero.
+ *
+ *  ⚠ EVERY GRASSED ARM WEARS THE SHIPPED GATE, `GRASS_GATE_ROWS`, rather than a list of its own.
+ *  The arms differ in exactly ONE thing — the mix factor — which is this arc's standing rule for a
+ *  comparison, and a page that gated its arms differently from the map would be measuring a layer
+ *  the map does not draw while reporting it as this one's.
+ *
+ *  ⚠ AND THE `adopted` ARM READS {@link SHIPPED_GRASS_MIX} rather than repeating its value, so the
+ *  arm captioned "what ships" cannot come to be an arm that once did. */
+export function armGrass(arm: GrassArm): GroundGrassLayer | undefined {
   const mix = GRASS_ARM_MIX[arm];
   if (mix === null) return undefined;
-  return { mix };
+  return { mix, rows: GRASS_GATE_ROWS };
 }
 
 /**

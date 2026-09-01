@@ -60,6 +60,7 @@ import type { ShadowCaster } from './land-shadow.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh.js';
 import { dressMapFromKit } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
+import { GRASS_STATUS_GATE } from './land-grass.js';
 import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour.js';
 import { calibrateLights, intensitiesFor } from './light-calibration.js';
 import {
@@ -263,6 +264,49 @@ const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
  *  classify, and it would do it in the form hardest to notice: a plausible colour. */
 const groundRowOf = (material: string | undefined): number =>
   GROUND_ROWS.get(material ?? UNKNOWN_STATUS) ?? GROUND_ROWS.get(UNKNOWN_STATUS)!;
+
+/** THE RAMP ROWS LAYER 1 DRESSES — {@link GRASS_STATUS_GATE} resolved through the SAME
+ *  {@link groundRowOf} the geometry indexes with, so the rows the shader gates on and the rows
+ *  the mesh writes can never be two orderings that agree today. A hand-written `[0]` here would
+ *  be exactly that second ordering, and it would fail the way this file warns about twice
+ *  already: by dressing a different status's parcels and looking entirely correct. */
+export const GRASS_GATE_ROWS: readonly number[] = GRASS_STATUS_GATE.map(groundRowOf);
+
+/**
+ * HOW MUCH GRASS THE SHIPPED GROUND WEARS — the delivered strength of layer 1, an AGENT art call
+ * inside a measured fence (ADR-0492 D2, as corrected: agents make the art calls until the island
+ * is whole; the owner attests the WHOLE island once, not each layer's constant).
+ *
+ * ⚠⚠ THE FENCE IS 0.4065 AND IT IS NOT A TARGET. `harness/grass-status-reading.ts` re-derives it
+ * per token on a 0.0005 grid; above it a reachable grass colour on `healthy`'s darkest rung
+ * walks out of its own family. This value is 79% of the fence, and the headroom is the point —
+ * the ceiling is a function of `SHIPPED_GROUND_COLOUR` and the shadow ladder, so a palette nudge
+ * or one more rung moves it, and a constant parked ON the fence would be retuned by any of them.
+ *
+ * ⚠⚠ AND THE MARGIN IS A BUDGET FOUR MORE LAYERS DRAW ON. `healthy`'s UNGRASSED worst reading
+ * margin is 12.35; at this factor the grassed worst is 6.44, so layer 1 spends about half the
+ * green's reading headroom and banks the other half. Layers 2, 3, 4 and 6 composite through the
+ * same seam onto the same tokens, and a layer 1 built at the fence would leave them 6% of the
+ * budget — which is how a serial chain of five layers spends its whole margin on the first one.
+ *
+ * ⚠ WHY NOT LOWER, AND THE AUTHORED 0.13 IN PARTICULAR. Measured over every colour this layer can
+ * deliver on every shipped rung, the MAXIMUM channel shift at 0.13 is 11/255, so by ADR-0490 D6's
+ * own >20/255 rule NOT ONE PIXEL can move: the recipe's own strength is invisible on the shipped
+ * ladder, and adopting it would be a clean landing that changed nothing. At this factor the
+ * maximum shift is 28/255 and 8.0% of the reachable set moves visibly.
+ *
+ * ⚠ WHY NOT HIGHER. The margin has a knee here: 0.32 -> 0.34 costs 28% of the remaining reading
+ * margin (6.44 -> 4.64) to buy 2.9 points of visible share. Past it the layer is paying reading
+ * headroom faster than it buys colour, which is the wrong side of a trade this map may not lose.
+ */
+export const SHIPPED_GRASS_MIX = 0.32;
+
+/** LAYER 1 AS THE SHIPPED GROUND WEARS IT — the factor and the gate in one value, so the canvas
+ *  and every comparison arm read one object rather than reassembling two halves. */
+export const SHIPPED_GRASS: GroundGrassLayer = {
+  mix: SHIPPED_GRASS_MIX,
+  rows: GRASS_GATE_ROWS,
+};
 
 /** The ONE banded ground material, built once for the module rather than per canvas: it holds
  *  only the authored ramp, the authored light and the authored grain, all of which are constants,
@@ -542,7 +586,13 @@ function CellGround({
   const built = useMemo(() => {
     const { field, input } = shippedGroundBuild(cells, casters);
     const geo = cellGroundGeometry(input);
-    return { geo, ...buildGroundMaterial(field) };
+    // ⚠ LAYER 1 IS WORN UNCONDITIONALLY AND WITH NO FLAG, like the relief, the ladder, the grain
+    // and the shadow before it — this arc's end-state item 6 is explicit that a flag nobody
+    // flips is not adoption, and the layer sat built-but-switched-off for a day on exactly that
+    // shape. It is gated per TOKEN rather than by a flag: {@link SHIPPED_GRASS} dresses the green
+    // and multiplies every other row's mix by zero, so those rows deliver the pixel they
+    // delivered before it existed (ADR-0492 D1).
+    return { geo, ...buildGroundMaterial(field, SHIPPED_GRASS) };
   }, [cells, casters]);
   // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
   // TO BE. The occlusion field is about 107 KB of GPU memory for one island, and a canvas that

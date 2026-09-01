@@ -152,15 +152,34 @@ export interface GrassReadVerdict {
  * `grain-status-reading.ts` records paying for: an instrument that keeps asking about the
  * four-rung ladder does not fail, it answers a question nobody is asking any more. The shadow
  * rung sits BELOW the four, which is precisely where the tightest margin already lives.
+ *
+ * ⚠⚠ `statuses` IS WHICH TOKENS THE LAYER IS APPLIED TO, AND IT IS THE ARM THIS INSTRUMENT
+ * LACKED. Every function here used to iterate all six and take the MINIMUM, which answers "what
+ * factor does the whole map admit" — a question nobody asks once ADR-0492 D1 gates the layer per
+ * token. A minimum over a set was read as a property of the set's members, and that misreading
+ * cost this arc an escalation: the whole-map 0.0095 is a property of exactly ONE token, the
+ * `building`/`proposed` yellow, while `healthy` admits forty times more. Narrowing `statuses`
+ * asks the question the shipped shader actually poses.
+ *
+ * ⚠⚠ AND `table` IS DELIBERATELY NOT NARROWED WITH IT. The statuses whose bases get grassed and
+ * the references a viewer reads them against are two different sets: under the gate, `healthy`
+ * wears the grass and every other token stays flat, so a grassed green must still be told apart
+ * from an UNGRASSED yellow, slate and grey. Narrowing the reader table to the gated set would
+ * ask whether grassed-healthy is distinguishable from itself, which is vacuously true and would
+ * report every factor up to 1.0 as admissible. The full table is also the CONSERVATIVE choice in
+ * the one place the two readings differ: it keeps `healthy`'s reference UNGRASSED, so the walk
+ * asks whether a grassed green still lands nearer flat green than any foreign token — a stricter
+ * test than comparing it against the grassed green a viewer would actually have learned.
  */
 export function grassLayerReadings(
   fac: number,
   table: Record<string, Rgb255[]> = shippedReaderTable(),
   levels: readonly number[] = shippedLadder(),
+  statuses: readonly string[] = SHIPPED_STATUSES,
 ): GrassReadVerdict[] {
   const reach = grassReachableColours();
   const out: GrassReadVerdict[] = [];
-  for (const status of SHIPPED_STATUSES) {
+  for (const status of statuses) {
     const family = ownFamily(status);
     for (const level of levels) {
       const base = deliveredForLevel(statusToken(status), level);
@@ -212,8 +231,9 @@ export function grassLayerVerdict(
   fac: number,
   table: Record<string, Rgb255[]> = shippedReaderTable(),
   levels: readonly number[] = shippedLadder(),
+  statuses: readonly string[] = SHIPPED_STATUSES,
 ): GrassClosureVerdict {
-  const readings = grassLayerReadings(fac, table, levels);
+  const readings = grassLayerReadings(fac, table, levels, statuses);
   let worst = Infinity;
   let worstAt = '';
   let plain = Infinity;
@@ -260,15 +280,43 @@ export function admissibleGrassMixCeiling(
   step = 0.005,
   ceiling = 1.0,
   levels: readonly number[] = shippedLadder(),
+  statuses: readonly string[] = SHIPPED_STATUSES,
 ): number {
   const table = shippedReaderTable();
   let best = 0;
   for (let fac = step; fac <= ceiling + 1e-9; fac += step) {
     const rounded = Math.round(fac * 10000) / 10000;
-    if (!grassLayerVerdict(rounded, table, levels).admissible) break;
+    if (!grassLayerVerdict(rounded, table, levels, statuses).admissible) break;
     best = rounded;
   }
   return best;
+}
+
+/**
+ * THE CEILING FOR EACH TOKEN ON ITS OWN — the table ADR-0492's per-token gate rests on, DERIVED
+ * rather than quoted.
+ *
+ * ⚠⚠ IT EXISTS BECAUSE THE QUOTED TABLE WAS BACKED BY NOTHING COMMITTED. ADR-0492's per-token
+ * figures were computed ad hoc while the decision was being written, at a time when every
+ * function here took the six-token minimum — so asking the committed instrument about `healthy`
+ * returned 0.0095, the superseded whole-map answer wearing a clean run. That is the shape of
+ * failure this arc names first: a plausible number from the wrong question.
+ *
+ * ⚠ THE GRID IS THE ANSWER'S RESOLUTION AND IT IS REPORTED WITH IT. `admissibleGrassMixCeiling`
+ * walks a fixed step and returns the last rung that held, so a coarser step reports a SMALLER
+ * ceiling — ADR-0492's whole-map 0.008 is this walk on a 0.002 grid, where a 0.0005 grid says
+ * 0.0095. Neither is wrong; a ceiling without its step is what makes two honest runs disagree.
+ */
+export function grassCeilingByStatus(
+  step = 0.005,
+  ceiling = 1.0,
+  levels: readonly number[] = shippedLadder(),
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const status of SHIPPED_STATUSES) {
+    out.set(status, admissibleGrassMixCeiling(step, ceiling, levels, [status]));
+  }
+  return out;
 }
 
 /**
@@ -301,10 +349,14 @@ function LIT_LADDER(): readonly number[] {
  * numbers are not the same measurement and are never compared: this one answers "how many
  * families can this layer reach at all", which is an upper bound the render then spends.
  */
-export function grassFamiliesReachable(fac: number, levels: readonly number[] = shippedLadder()): number {
+export function grassFamiliesReachable(
+  fac: number,
+  levels: readonly number[] = shippedLadder(),
+  statuses: readonly string[] = SHIPPED_STATUSES,
+): number {
   const families = new Set<number>();
   const reach = grassReachableColours();
-  for (const status of SHIPPED_STATUSES) {
+  for (const status of statuses) {
     for (const level of levels) {
       const base = deliveredForLevel(statusToken(status), level);
       for (const grass of reach) {
@@ -314,6 +366,53 @@ export function grassFamiliesReachable(fac: number, levels: readonly number[] = 
     }
   }
   return families.size;
+}
+
+/**
+ * HOW FAR THE DARKEST GROUND PIXEL THIS LAYER CAN DELIVER STANDS CLEAR OF THE SEA, in luma.
+ *
+ * ⚠⚠ IT EXISTS BECAUSE THE FAMILY/CONTRAST METRICS CANNOT ASK IT, AND REWARD GETTING IT WRONG.
+ * `imageStats` anchors on the 2nd percentile of luma over the ISLAND'S OWN pixels, with the
+ * background excluded BY COLOUR — so it scores an island in isolation and never asks whether
+ * those pixels separate from the water behind them. The darker a surface is painted, the better
+ * that anchor scores, right up to the point of invisibility. That is not hypothetical: the
+ * cliff's second rock token (PR #1792) delivered luma 25.7-31.7 against a background of 19.4,
+ * merged twelve of the cliff's eighteen pixels into the sea, and was reported as HALVING the
+ * error against the approved render. The metric rewarded it.
+ *
+ * ⚠ SO THE FENCE IS AGAINST THE BACKGROUND, NOT AGAINST THE APPROVED RENDER. A colour lifted
+ * from `land-combined-1948px.png` is only valid against whatever composites it — that image is
+ * 53.8% transparent, and its dark values never sat against our sea.
+ *
+ * ⚠ AND IT IS HERE, ON LAYER 1, FOR THE LAYERS ABOVE IT. Layer 1 passes with ~97 luma to spare
+ * and could not plausibly fail; layers 2 (shore sand), 3 (the worn path) and 4 (rock on slope)
+ * composite through this same seam onto this same ground and are exactly the darkening ones.
+ * A fence that only exists once the layer that needs it arrives is a fence nobody wrote.
+ */
+export function grassSeaSeparation(
+  fac: number,
+  background: Rgb255,
+  levels: readonly number[] = shippedLadder(),
+  statuses: readonly string[] = SHIPPED_STATUSES,
+): number {
+  const reach = grassReachableColours();
+  const bg = relativeLuma(background);
+  let closest = Infinity;
+  for (const status of statuses) {
+    for (const level of levels) {
+      const base = deliveredForLevel(statusToken(status), level);
+      for (const grass of reach) {
+        closest = Math.min(closest, relativeLuma(grassMixedColour(base, grass, fac)) - bg);
+      }
+    }
+  }
+  return closest;
+}
+
+/** Rec.709 relative luminance over delivered 0..255 channels — the same weighting `imageStats`
+ *  reads its own anchor with, so the two cannot disagree about which pixel is darkest. */
+export function relativeLuma(c: Rgb255): number {
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
 }
 
 /** The two ramps' delivered ENDPOINTS, for the evidence sheet — the layer's palette stated as
@@ -357,6 +456,7 @@ export function admissibleGrassLevelBand(
   table: Record<string, Rgb255[]> = shippedReaderTable(),
   step = 0.01,
   span: readonly [number, number] = [0.5, 1.5],
+  statuses: readonly string[] = SHIPPED_STATUSES,
 ): readonly [number, number] | null {
   const ok = new Set<number>();
   const [from, to] = span;
@@ -364,7 +464,7 @@ export function admissibleGrassLevelBand(
   for (let n = 0; n <= Math.ceil(count); n += 1) {
     const level = Math.round((from + n * step) * 10000) / 10000;
     if (level > to) break;
-    if (grassLevelSurvives(level, fac, table)) ok.add(level);
+    if (grassLevelSurvives(level, fac, table, statuses)) ok.add(level);
   }
   const flat = Math.round(FLAT_GROUND_LEVEL * 10000) / 10000;
   if (!ok.has(flat)) return null;
@@ -380,9 +480,10 @@ export function grassLevelSurvives(
   level: number,
   fac: number,
   table: Record<string, Rgb255[]> = shippedReaderTable(),
+  statuses: readonly string[] = SHIPPED_STATUSES,
 ): boolean {
   const reach = grassReachableColours();
-  for (const status of SHIPPED_STATUSES) {
+  for (const status of statuses) {
     const family = ownFamily(status);
     const base = deliveredForLevel(statusToken(status), level);
     for (const grass of reach) {

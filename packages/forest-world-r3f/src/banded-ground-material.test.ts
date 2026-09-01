@@ -21,6 +21,7 @@ import {
   groundRamp,
   groundShadowTexture,
   litRemapGlsl,
+  grassGateGlsl,
   rampSelectGlsl,
   shadowDarkenGlsl,
 } from './banded-ground-material.js';
@@ -1003,7 +1004,7 @@ test('the grass REFUSES to be built without the grain, rather than emitting a sh
   // `/grass layer needs the grain/` match stayed green — leaving a refusal that names the
   // constraint and not the REASON, which is the half a reader actually needs to act on.
   assert.throws(
-    () => createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grass: { mix: 0.1 } }),
+    () => createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grass: { mix: 0.1, rows: [0] } }),
     (e: unknown) => {
       assert.ok(e instanceof Error);
       assert.equal(
@@ -1017,7 +1018,7 @@ test('the grass REFUSES to be built without the grain, rather than emitting a sh
   // And the refusal is about the DEPENDENCY, not about the grass being unwelcome: with the grain
   // present the same options build.
   assert.doesNotThrow(() =>
-    createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal', grass: { mix: 0.1 } }),
+    createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal', grass: { mix: 0.1, rows: [0] } }),
   );
 });
 
@@ -1025,11 +1026,13 @@ test('a GRASSED material uploads the caller`s mix and splices the generated laye
   const m = createBandedGroundMaterial({
     tokens: SHIPPED_TOKENS,
     grain: 'normal',
-    grass: { mix: 0.17 },
+    grass: { mix: 0.17, rows: [0] },
   });
   assert.equal(m.uniforms['uGrassMix']?.value, 0.17, 'the fac is UPLOADED, never written in');
   assert.ok(/uniform float uGrassMix;/.test(m.fragmentShader));
-  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix);'));
+  assert.ok(
+    m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'),
+  );
   // ⚠ THE BLOCK, INDENTED, RATHER THAN LINE BY LINE. A per-line `includes()` sweep is
   // satisfied by the whole module CONCATENATED ONTO ONE LINE - every line is still a substring -
   // and `check:mutation-diff` found exactly that by blanking the join separator, which would ship
@@ -1046,11 +1049,123 @@ test('a GRASSED material uploads the caller`s mix and splices the generated laye
   );
 });
 
+test('grassGateGlsl emits the row tests EXACTLY, and reads the row the ramp index reads', () => {
+  // ⚠ AN EXACT GOLDEN, not a containment sweep — the same finding `rampGlsl` records. Every line
+  // of an emitter is a string literal, so a mutant that blanks one leaves a gate that still
+  // CONTAINS `grassGate` and every row number a looser assertion looks for, while gating nothing.
+  assert.equal(
+    grassGateGlsl([0]),
+    ['float grassGate = 0.0;', 'if (int(vStatus + 0.5) == 0) grassGate = 1.0;'].join('\n        '),
+  );
+  assert.equal(
+    grassGateGlsl([2, 5]),
+    [
+      'float grassGate = 0.0;',
+      'if (int(vStatus + 0.5) == 2) grassGate = 1.0;',
+      'if (int(vStatus + 0.5) == 5) grassGate = 1.0;',
+    ].join('\n        '),
+  );
+  // ⚠⚠ THE `+ 0.5` IS THE LOAD-BEARING HALF AND IT IS PINNED SEPARATELY, because a gate that
+  // drops it still compiles, still gates ONE row, and gates the WRONG one for any fragment whose
+  // interpolated status arrives a hair under its integer — dressing a foreign token and leaving
+  // the green flat, which is the exact misreport ADR-0492's gate exists to prevent.
+  assert.ok(!grassGateGlsl([1]).includes('int(vStatus) =='), 'a bare cast truncates, it must round');
+});
+
+test('the grass gate DRESSES ONLY the named rows, and every other row is byte-identical to ungrassed', () => {
+  const gated = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+  });
+  // The gate is present, names row 0, and names NO other row — the second half is what a
+  // containment check cannot see, and it is the whole difference between a per-token layer and a
+  // whole-map one wearing the same uniform.
+  assert.ok(gated.fragmentShader.includes('if (int(vStatus + 0.5) == 0) grassGate = 1.0;'));
+  assert.equal(
+    [...gated.fragmentShader.matchAll(/grassGate = 1\.0;/g)].length,
+    1,
+    'exactly one row is dressed — a second would be a token the measurement never admitted',
+  );
+  // ⚠ AND THE MIX IS MULTIPLIED BY IT rather than merely computed beside it. A gate that is
+  // emitted and then not applied is the failure that looks most like success: the shader
+  // compiles, the source contains every line a reviewer greps for, and the yellow wears the
+  // grass anyway.
+  assert.ok(
+    gated.fragmentShader.includes('uGrassMix * grassGate'),
+    'the gate must multiply the mix, not sit unused beside it',
+  );
+});
+
+test('the grass gate REFUSES an empty row list and a row outside the ramp', () => {
+  // Empty: two defensible readings ("all rows" / "no rows"), so neither may be guessed.
+  assert.throws(
+    () =>
+      createBandedGroundMaterial({
+        tokens: SHIPPED_TOKENS,
+        grain: 'normal',
+        grass: { mix: 0.32, rows: [] },
+      }),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the grass layer was given no rows to dress — a gate that ' +
+          'matches nothing draws the ungrassed ground at the grassed ground’s cost',
+      );
+      return true;
+    },
+  );
+  // Out of range: the emitted test never matches, so the layer is silently absent from a map
+  // that reports it as adopted — a failure with no symptom at all.
+  //
+  // ⚠ ALL THREE WAYS A ROW CAN BE OUT OF RANGE, not just the obvious one. `check:mutation-diff`
+  // found the first version of this test covered only `row >= tokens.length`: with the other two
+  // disjuncts replaced by `false`, and with `||` swapped for `&&`, every assertion here stayed
+  // green. A negative row and a fractional one both reach `int(vStatus + 0.5) == <row>` in the
+  // emitted GLSL, where the first compiles to a test nothing can satisfy and the second is a
+  // type error — so the guard's job is to catch them here, and only a case each proves it does.
+  const strays: readonly [number, string][] = [
+    [SHIPPED_TOKENS.length, 'past the last row'],
+    [-1, 'negative'],
+    [1.5, 'fractional — not a row at all'],
+  ];
+  for (const [row, why] of strays) {
+    assert.throws(
+      () =>
+        createBandedGroundMaterial({
+          tokens: SHIPPED_TOKENS,
+          grain: 'normal',
+          grass: { mix: 0.32, rows: [0, row] },
+        }),
+      (e: unknown) => {
+        assert.ok(e instanceof Error);
+        assert.equal(
+          e.message,
+          `banded-ground-material: the grass layer names row ${row}, which is ` +
+            `not a ramp row of the ${SHIPPED_TOKENS.length} this material was handed`,
+          `a ${why} row must be refused, and named in the refusal`,
+        );
+        return true;
+      },
+    );
+  }
+  // ⚠ AND THE LAST ROW IS ACCEPTED. Without this the guard could refuse everything and every
+  // assertion above would still pass — an off-by-one that reads as strictness.
+  assert.doesNotThrow(() =>
+    createBandedGroundMaterial({
+      tokens: SHIPPED_TOKENS,
+      grain: 'normal',
+      grass: { mix: 0.32, rows: [SHIPPED_TOKENS.length - 1] },
+    }),
+  );
+});
+
 test('the grass BREAKS the closure — asserted, because that is what ADR-0490 D5 authorises', () => {
   const m = createBandedGroundMaterial({
     tokens: SHIPPED_TOKENS,
     grain: 'normal',
-    grass: { mix: 0.1 },
+    grass: { mix: 0.1, rows: [0] },
   });
   assert.ok(
     !grainKeepsPaletteClosed(m.fragmentShader),
@@ -1065,7 +1180,7 @@ test('the grass composites in the RECIPE`S ORDER: after the ramp selection, befo
   const m = createBandedGroundMaterial({
     tokens: SHIPPED_TOKENS,
     grain: 'both',
-    grass: { mix: 0.1 },
+    grass: { mix: 0.1, rows: [0] },
   });
   const body = m.fragmentShader.slice(m.fragmentShader.indexOf('void main('));
   const select = body.indexOf('vec3 c = uRamp[0];');
@@ -1079,7 +1194,7 @@ test('the grass source is declared AFTER the grain`s, because it calls st_grainO
   const m = createBandedGroundMaterial({
     tokens: SHIPPED_TOKENS,
     grain: 'normal',
-    grass: { mix: 0.1 },
+    grass: { mix: 0.1, rows: [0] },
   });
   const hash = m.fragmentShader.indexOf('float st_grainHash(');
   const octave = m.fragmentShader.indexOf('float st_grainOctave(');
