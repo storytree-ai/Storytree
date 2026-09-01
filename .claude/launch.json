@@ -62,6 +62,28 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@storytree/forest-world-r3f", "dev"],
       "port": 5184
+    },
+    {
+      "name": "web-preview-4488",
+      "runtimeExecutable": "node",
+      "runtimeArgs": [
+        "web/node_modules/astro/astro.js",
+        "preview",
+        "--root",
+        "web",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "4488"
+      ],
+      "port": 4488
+    },
+    {
+      "name": "web-preview-4329",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "web", "run", "preview", "--", "--host", "127.0.0.1", "--port", "4329", "--strictPort"],
+      "port": 4329,
+      "url": "http://127.0.0.1:4329"
     }
   ]
 }
