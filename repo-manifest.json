@@ -531,6 +531,7 @@
       "packages/forest-world-r3f/src/land-relief.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shore-fall.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shore-ring.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/stepped-skirt.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shade-ladder.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/banded-ground-material.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-grain.ts": "r3f-world-spike",

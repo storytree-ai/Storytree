@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the stepped skirt — four edges — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The stepped skirt &mdash; four edges, one instrument</h1>
+      <p>
+        The shipped island&rsquo;s edge is <strong>one flat wall</strong>, one storey high: a single
+        quad per rim edge, generated from the parcel above it and wearing that parcel&rsquo;s health
+        colour, darkened for being near-vertical. The render the owner approved has that edge cut
+        into <strong>six rock ledges</strong>. This is the sixth and last component of the approved
+        land treatment, and the only one that needed a decision from him before it could be built.
+      </p>
+      <p class="numbers">
+        flat&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the map today &mdash; ONE wall, the parcel&rsquo;s status colour (CONTROL and DENOMINATOR)<br />
+        stepped&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;six ledges, still the status colour &mdash; the SHAPE without the rock (his option C)<br />
+        rock&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;six ledges, all rock &mdash; the approved picture&rsquo;s cliff (his option A)<br />
+        soil-over-rock&nbsp;six ledges, the TOP one keeping the status tint (his option B)
+      </p>
+      <p>
+        <strong>&#9888;&#9888; What the owner settled, and how much of it he gave away.</strong>
+        Every colour on this map&rsquo;s ground is a capability&rsquo;s proof state, and the edge
+        wall inherits the parcel&rsquo;s tint &mdash; so a rock cliff would be the first ground
+        surface that reports nothing. He stamped it on 2026-09-01 and granted more than was asked:
+        <em>&ldquo;the test should be overall themse color, so we should have flexibility for session
+        to add additional colors as needed, the session should just look at the final and ask itself
+        can I tell what state this island is in.&rdquo;</em> So the fence moved from
+        <strong>composition</strong> (every colour must report) to <strong>outcome</strong> (the
+        state must still be readable) &mdash; and applying it is the build&rsquo;s own job, on these
+        pictures, rather than a question to send back.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; The verdict is not &ldquo;it renders&rdquo;.</strong> This arc&rsquo;s
+        standing rule is that every crossing is judged against the <em>approved picture</em> and not
+        against its own best arm &mdash; <em>&ldquo;the image that I stamped as looking awesome was
+        done in isolation and now we trying to do the same with the app constraints in place&rdquo;</em>.
+        So the approved Cycles render sits at the top of this page and goes through the
+        <em>same</em> instrument as the live frames.
+      </p>
+      <p>
+        <strong>&#9888; The reference is an IMAGE, not a scene, and that limits what may be said of
+        it.</strong> It is a path tracer&rsquo;s output at a different resolution, framing and
+        camera. Its <code>anchor</code> / <code>MICRO</code> / <code>STRUCT</code> are comparable to
+        ours on the same axes; its <em>pixels</em> are comparable to nothing. It is measured and
+        never differenced.
+      </p>
+      <p>
+        <strong>&#9888; Read the cliff&rsquo;s own pixel count, not the frame percentage.</strong> A
+        cliff is a thin band around an island, so &ldquo;2% of the frame changed&rdquo; reads as
+        nothing at all beside two pictures whose edges are obviously different. Every arm is
+        differenced against <code>flat</code>, which counts the cliff&rsquo;s own pixels exactly.
+      </p>
+      <p class="numbers">
+        anchor&nbsp;&nbsp;the 2nd percentile of luma over the island&rsquo;s own pixels &mdash; its DARKEST value,<br />
+        &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;and the quantity the research says the kit&rsquo;s cliff exists to supply<br />
+        MICRO&nbsp;&nbsp;&nbsp;mean |&Delta;luma| between neighbouring pixels &mdash; contrast at the pixel scale<br />
+        STRUCT&nbsp;&nbsp;std-dev of luma after a 4-px box blur &mdash; contrast at the scale an overview still has
+      </p>
+      <p>
+        <strong>Where the numbers come from.</strong> The research measured that swapping the
+        kit&rsquo;s cliff for a competent procedural rock costs <strong>9.8% of structural
+        contrast</strong> and lifts the island&rsquo;s dark anchor by <strong>7.0 luma</strong>. Those
+        are <code>measure_land.py</code>&rsquo;s definitions, re-implemented here so the live frames
+        and the approved render pass through one instrument rather than two that agree today.
+      </p>
+      <p>
+        <strong>Every arm shares the coast clip, the shore fall, the relief, the ladder, the grain,
+        the occlusion atlas, the light and the camera.</strong> The only thing that moves is the
+        island&rsquo;s edge.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedSkirt } from './shipped-skirt-scene.ts';
+      try {
+        await mountShippedSkirt(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

@@ -425,7 +425,24 @@ test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
   // wrong, plausible, and undetectable by eye. Both are derived from `GROUND_COLOUR` here, so
   // the two orders are the same object rather than two lists that agree today.
   const src = readFileSync(SHIPPED, 'utf8');
-  assert.match(src, /GROUND_TOKENS[^=]*=\s*\[\.\.\.GROUND_COLOUR\.values\(\)\]/);
+  // ⚠⚠ THE RAMP MAY NOW CARRY MORE ROWS THAN THERE ARE STATUSES, and this assertion was widened
+  // for it rather than around it (2026-09-01, the stepped skirt). The rock the cliff wears is a
+  // family-less token — it reports nothing, which is what the owner settled — so it is a seventh
+  // ROW without being a seventh STATE. What must not move is where the statuses sit, so the pin is
+  // now on the PREFIX: `GROUND_COLOUR.values()` must open the list, and anything else must follow
+  // it. That is strictly stronger than the old exact-match, because the old one had nothing to say
+  // about a token added in the wrong place — it simply forbade adding one at all, which is a
+  // different and now-false claim.
+  assert.match(src, /GROUND_TOKENS[^=]*=\s*\[\.\.\.GROUND_COLOUR\.values\(\)(,[^\]]*)?\]/);
+  assert.ok(
+    !/GROUND_TOKENS[^=]*=\s*\[[^\]]+,\s*\.\.\.GROUND_COLOUR\.values\(\)/.test(src),
+    'a token PREPENDED to the ramp renumbers every status: row 0 stops being `healthy` and every ' +
+      'parcel on the map is painted a different status’s colour',
+  );
+  // And an appended row's own index is DERIVED from the list rather than written down. A literal
+  // `6` here would be a second place the ordering lives, free to disagree with the first the next
+  // time a status is added — and the disagreement draws as rock-coloured ground.
+  assert.match(src, /SKIRT_ROCK_ROW\s*=\s*GROUND_TOKENS\.length - 1/);
   assert.match(src, /GROUND_ROWS[^=]*=[\s\S]{0,120}\[\.\.\.GROUND_COLOUR\.keys\(\)\]/);
   assert.match(src, /BandedGroundMaterialOptions = \{ tokens: GROUND_TOKENS[,}]/);
   assert.match(src, /createBandedGroundMaterial\(opts\)/);

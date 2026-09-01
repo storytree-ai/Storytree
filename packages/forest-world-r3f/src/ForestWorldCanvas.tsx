@@ -42,6 +42,13 @@ import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
 import { SHIPPED_SHORE, shoreRelief } from './shore-fall.js';
 import { shoreArmRingPlan } from './shore-ring.js';
 import {
+  SKIRT_ROCK,
+  SKIRT_ROWS,
+  isRimEdge,
+  rimEdgeKeys,
+  type GroundSkirt,
+} from './stepped-skirt.js';
+import {
   atlasOriginResolver,
   buildAtlasOcclusion,
   type AtlasField,
@@ -184,17 +191,49 @@ function HexGround({ tiles }: { tiles: InstanceDescriptor[] }) {
  *  does: `harness/shipped-land-scene.ts` builds the pre-adoption arms — the map as it drew on
  *  2026-08-29 and again on 2026-08-30 — from the same function with the same resolver, which is
  *  what makes those arms the shipped map rather than a reconstruction of it. */
-const linearColourOf = (material: string | undefined): LinearRgb => {
-  const c = new Color(groundColourOf(material));
+/** An authored `#rrggbb` in the buffer's LINEAR space, through three's own transfer function.
+ *  Split out of {@link linearColourOf} rather than duplicated, because the skirt's rock is a token
+ *  that belongs to NO status and so has no material name to look up — and a second `new Color(...)`
+ *  beside this one would be a second chance for the two to convert differently. */
+const linearColourOfHex = (hex: string): LinearRgb => {
+  const c = new Color(hex);
   return { r: c.r, g: c.g, b: c.b };
 };
+
+const linearColourOf = (material: string | undefined): LinearRgb =>
+  linearColourOfHex(groundColourOf(material));
 
 /** THE RAMP ROWS, IN ONE ORDER, DERIVED FROM ONE MAP. `GROUND_TOKENS[i]` is the authored token a
  *  vertex carrying `statusIndex === i` wears, and {@link groundRowOf} is the inverse. Both come
  *  off {@link GROUND_COLOUR}'s own insertion order rather than from two hand-kept lists that
  *  agree today: a geometry indexing one order and a material uploading another would paint every
  *  parcel a DIFFERENT status's colour — the one failure this surface may never have. */
-const GROUND_TOKENS: readonly string[] = [...GROUND_COLOUR.values()];
+/** ⚠⚠ THE ROCK IS ONE MORE ROW ON THE SAME RAMP, APPENDED LAST — the sixth component of the
+ *  approved land treatment, and the first ground colour on this map that reports nothing.
+ *
+ *  The owner settled it on 2026-09-01 and moved the fence with it: "the test should be overall
+ *  themse color, so we should have flexibility for session to add additional colors as needed, the
+ *  session should just look at the final and ask itself can I tell what state this island is in."
+ *  So ADR-0414 D1's "every ground colour is a report" is no longer absolute — the constraint is the
+ *  OUTCOME (the island's state must still be readable), and applying it is this build's own job.
+ *  `src/stepped-skirt.ts` carries the settlement; `docs/research/chapter2-shipped-skirt-2026-09-01/`
+ *  carries the picture it was applied to.
+ *
+ *  ⚠ APPENDED, NEVER INSERTED. Row `i` is what a vertex carrying `statusIndex === i` wears, and
+ *  {@link groundRowOf} is the inverse over `GROUND_COLOUR`'s own order — so putting the rock
+ *  anywhere but the end would renumber a status and paint every parcel a DIFFERENT status's
+ *  colour, which is the one failure this surface may never have. Appending leaves every status
+ *  row exactly where it was.
+ *
+ *  ⚠ AND `GROUND_COLOUR` IS UNTOUCHED, which is why `pnpm check:palette-transcription` still
+ *  passes. That check reads the status map off three surfaces — this file, the app's CSS and the
+ *  harness's transcription — and refuses any disagreement. The rock is not a status, does not
+ *  belong in that map, and joining it there would have made a decoration look like a seventh
+ *  state to every reader of all three. */
+const GROUND_TOKENS: readonly string[] = [...GROUND_COLOUR.values(), SKIRT_ROCK];
+/** The rock's own row — DERIVED from where it was appended rather than written down, so the
+ *  geometry's row and the material's token cannot drift to different indices. */
+const SKIRT_ROCK_ROW = GROUND_TOKENS.length - 1;
 const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
   [...GROUND_COLOUR.keys()].map((status, i) => [status, i]),
 );
@@ -279,6 +318,48 @@ function buildGroundMaterial(field: AtlasField | null) {
  * edge), a field and a material PER ISLAND (35 draw calls with the whole forest on screen), and
  * this one — is `docs/research/chapter2-shipped-shadow-2026-08-31/`.
  */
+/**
+ * HOW MANY LEDGES KEEP THE PARCEL'S OWN STATUS TINT before the rock starts — the shipped answer to
+ * the fork the owner declined to pick between.
+ *
+ * His settled question offered "all six ledges are rock" (A) and "the top ledge keeps the health
+ * tint, the five below are rock" (B), and he answered neither: he stamped the rock and handed the
+ * session the outcome test instead. ZERO is A, and it is what ships, decided against the pictures
+ * in `docs/research/chapter2-shipped-skirt-2026-09-01/` rather than against the recommendation:
+ *
+ *  - THE STATE IS STILL READABLE WITHOUT THE BAND. The parcel's TOP FACE is the status surface and
+ *    it is ~93% of the island's own pixels; the cliff is the remaining ~7%, seen edge-on. Asking
+ *    the owner's question of arm A's picture — can I tell what state this island is in — the answer
+ *    is yes, and it is not a close call.
+ *  - B'S BAND BUYS LESS THAN IT COSTS. The top ledge is cut ~0.40 units INBOARD of the rim, so from
+ *    a 2.5D isometric camera it is the ledge most hidden by the parcel above it — the one place a
+ *    status band is least readable, which is the opposite of the reason B was recommended.
+ *  - AND B SPENDS THE THING THE COMPONENT IS FOR. The research measured the kit's cliff as worth
+ *    9.8% of the picture's structural contrast because it supplies the island's DARK ANCHOR; a
+ *    lit status band across the top course is exactly what lifts that anchor again.
+ *
+ * ⚠ IT IS A NUMBER RATHER THAN A BOOLEAN so B stays one edit away, and `stepped-skirt.test.ts`
+ * holds both arms. Nothing about the fence turns on which is chosen — the owner's test is the
+ * fence now, and both arms pass it.
+ */
+const SHIPPED_SOIL_LEDGES = 0;
+
+/** The skirt the shipped map wears, over the parcels it will actually draw.
+ *
+ *  ⚠ THE RIM CENSUS IS TAKEN ONCE PER BUILD, NOT ONCE PER PARCEL. It is a whole-island question —
+ *  an edge is rim because NO OTHER parcel uses it — so a per-parcel answer is not merely slower,
+ *  it is unanswerable: a parcel cannot see its neighbours. */
+function shippedSkirt(cells: readonly InstanceDescriptor[]): GroundSkirt {
+  const rim = rimEdgeKeys(cells);
+  return {
+    rows: SKIRT_ROWS,
+    row: SKIRT_ROCK_ROW,
+    colour: linearColourOfHex(SKIRT_ROCK),
+    soilLedges: SHIPPED_SOIL_LEDGES,
+    isRim: (a, b) => isRimEdge(rim, a, b),
+  };
+}
+
 function buildGroundOcclusionField(
   cells: readonly InstanceDescriptor[],
   casters: readonly ShadowCaster[],
@@ -375,6 +456,12 @@ function CellGround({
       // the whole interior of every island draws exactly what it drew before; only the beach
       // the coast clip added is new ground, and only there does the land move.
       relief: shoreRelief(clipped, SHIPPED_SHORE),
+      // ⚠⚠ THE STEPPED SKIRT, AND IT READS THE CLIPPED PARCELS FOR THE SAME REASON THE SHORE FALL
+      // DOES. After `clipToCoast` the boundary of this mesh IS the coast, so the edges used once
+      // are the shore's own edges. Handed the pre-clip descriptors the cliff would be cut into the
+      // hex silhouette and then the beach would grow OUTSIDE it — a rock wall standing in the
+      // middle of the sand.
+      skirt: shippedSkirt(clipped),
       // ⚠⚠ THE SAME ARM SUPPLIES THE MESH, AND IT HAS TO. The shore fall is an analytic field; the
       // ring is the vertices that let a triangulation carry its shape. Reading the band from one
       // arm and the ring from another would draw a falloff bending through chains placed for a
