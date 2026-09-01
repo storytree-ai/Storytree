@@ -131,6 +131,7 @@ const OWN_SURFACE_IDS = [
   "library-search",
   "library-query",
   "library-tree-focus",
+  "library-inbound",
   "tree",
   "agents",
   "arc",

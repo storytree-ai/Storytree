@@ -155,6 +155,7 @@ const LIBRARY_DASHBOARD_SURFACE = "library-dashboard";
 const LIBRARY_SEARCH_SURFACE = "library-search";
 const LIBRARY_QUERY_SURFACE = "library-query";
 const LIBRARY_TREE_FOCUS_SURFACE = "library-tree-focus";
+const LIBRARY_INBOUND_SURFACE = "library-inbound";
 const AGENTS_SURFACE = "agents";
 const ARC_SURFACE = "arc";
 const ADR_SURFACE = "adr";
@@ -320,6 +321,17 @@ export const CLI_READ_VERBS = {
   "library tree focus *": visit({
     strength: "front_matter_read",
     surfaceId: LIBRARY_TREE_FOCUS_SURFACE,
+    allowsTrailing: true,
+  }),
+  "library inbound": silent("no id — the CLI answers with usage"),
+  // `library inbound <id>` (ADR-0498 D1) — the same graph read as `tree focus`, asked honestly: it
+  // resolves ONE canonical artifact and renders its inbound neighbours' titles, so it classifies
+  // exactly as `tree focus` does. Its OWN surface, not tree-focus's: they answer different questions
+  // (authored edges vs the population the retire wall enforces) and folding them onto one id
+  // because both render a neighbour list is what ADR-0484 D3 deliverable 3 refuses.
+  "library inbound *": visit({
+    strength: "front_matter_read",
+    surfaceId: LIBRARY_INBOUND_SURFACE,
     allowsTrailing: true,
   }),
   "library graduate": silent("reads per-machine agent memory, not the corpus"),

@@ -432,6 +432,9 @@ test("every other read-shaped verb ADR-0484 D3 names is observed, on its OWN sur
     { argv: ["friction", "list"], kind: "search", surfaceId: "friction", operation: "friction_list" },
     { argv: ["library", "query", "--kind", "adr"], kind: "search", surfaceId: "library-query", operation: "library_query" },
     { argv: ["library", "tree", "focus", "adr-0484"], kind: "front_matter_read", surfaceId: "library-tree-focus", nodeId: "adr-0484" },
+    // ADR-0498 D1 — the honest inbound reader asks `tree focus`'s question over the retire wall's
+    // full population, so it observes the same way and on its OWN surface, never folded onto that one.
+    { argv: ["library", "inbound", "adr-0028"], kind: "front_matter_read", surfaceId: "library-inbound", nodeId: "adr-0028" },
   ];
   for (const c of cases) {
     const events = observeCliInvocation(c.argv, { ...harness().deps, resultNodeIds: [] });

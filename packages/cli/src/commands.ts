@@ -259,7 +259,8 @@ import type { ClaimUniverseLoader } from "@storytree/drive";
 import type { ClaimHistoryStoreLike } from "@storytree/drive";
 import type { SessionClaimStoreLike, SessionIdentity } from "@storytree/drive";
 import type { ClaimDocT } from "@storytree/notice-board";
-import { findDependents } from "./retire.js";
+import { libraryInbound, libraryInboundHelp } from "./inbound.js";
+import { findDependents, findInboundRefs } from "./retire.js";
 import { typeMismatchRefusal } from "./set-value.js";
 import {
   bannerRefusal,
@@ -1630,6 +1631,14 @@ export async function retireArtifact(
  * was and deliberately so: it now shows edges somebody AUTHORED rather than every artifact ever
  * consulted, which is ADR-0464 D2's whole point. What no edge reaches is found with
  * `library search` / `library related --unlinked`, never by widening this walk.
+ *
+ * ⚠ ADR-0498 D2 — THE AUTHORED VIEW STAYS, ITS SOLE HEADLINE DOES NOT. Being sparser is legitimate;
+ * being the reader a session reaches for to answer "is anything standing on this?" while under-
+ * reporting is not. Measured 2026-09-01: this view printed `(none yet)` for adr-0028 and
+ * `library artifact retire adr-0028` then REFUSED, naming adr-0018 — whose edge sits in
+ * `references[13]`, residue from the very field ADR-0477 retired, on a row carrying no `dependsOn`
+ * at all. So the render now carries a SECOND block over the wall's full population, and the note
+ * points at `library inbound <id>`. The authored block itself is untouched: it is what this is FOR.
  */
 export async function treeFocus(store: Store, id: string | undefined): Promise<Envelope> {
   if (id === undefined) {
@@ -1665,12 +1674,26 @@ export async function treeFocus(store: Store, id: string | undefined): Promise<E
   }
 
   const needle = `asset:${id}`;
-  const inbound = all
+  const authoredIn = all
     .filter((d) => d.id !== id && refsOf(d).includes(needle))
-    .sort((a, b) => a.id.localeCompare(b.id))
-    .map((d) => `  ← ${d.id}  ${fieldOf(d, "title")}  [${d.kind}]`);
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const inbound = authoredIn.map((d) => `  ← ${d.id}  ${fieldOf(d, "title")}  [${d.kind}]`);
 
-  const hasLibraryEdge = outbound.some((l) => l.includes("(library)")) || inbound.length > 0;
+  // ADR-0498 D2. The authored-edge block above is UNCHANGED — it has legitimate uses and is what
+  // `tree focus` is for. What ends here is its rendering ALONE under a heading that reads as an
+  // answer to the retire wall's question. On 2026-09-01 that heading said `(none yet)` for adr-0028
+  // while the wall refused naming adr-0018, whose edge sat in `references[13]`. Putting the wider
+  // population on the same page means an empty authored block can never again read as CLEAR.
+  const authoredIds = new Set(authoredIn.map((d) => d.id));
+  const alsoRef = findInboundRefs(id, all)
+    .filter((r) => !authoredIds.has(r.doc.id))
+    .map(
+      (r) =>
+        `  ← ${r.doc.id}  ${fieldOf(r.doc, "title")}  [${r.doc.kind}]   via ${r.paths.join(", ")}`,
+    );
+
+  const hasLibraryEdge =
+    outbound.some((l) => l.includes("(library)")) || inbound.length > 0 || alsoRef.length > 0;
   const lines: string[] = [
     `# ${fieldOf(stored, "title")}    [${stored.kind}]   — tree focus`,
     `id: ${id}`,
@@ -1678,8 +1701,13 @@ export async function treeFocus(store: Store, id: string | undefined): Promise<E
     "outbound  (what this stands on — its authored depends_on):",
     ...(outbound.length > 0 ? outbound : ["  (none)"]),
     "",
-    "inbound  (what stands on this):",
+    "inbound  (authored depends_on — the edges somebody DECLARED):",
     ...(inbound.length > 0 ? inbound : ["  (none yet)"]),
+    "",
+    "also referenced by  (other reference-bearing fields — the population `retire` enforces):",
+    ...(alsoRef.length > 0 ? alsoRef : ["  (none)"]),
+    "",
+    `note: neither block alone is a retirement pre-check — \`storytree library inbound ${id}\` is.`,
   ];
   if (!hasLibraryEdge) {
     lines.push(
@@ -1702,6 +1730,10 @@ function treeHelp(): Envelope {
       "storytree library tree — navigate the DAG, one node at a time.",
       "",
       "  storytree library tree focus <id>   the local DAG of one artifact (in/out edges)",
+      "",
+      "  For \"is anything standing on this?\" — the retirement pre-check — reach for",
+      "  `storytree library inbound <id>`, which reads every reference-bearing field rather",
+      "  than the authored depends_on edge alone (ADR-0498).",
     ].join("\n"),
     next: ["storytree library"],
   };
@@ -1927,6 +1959,7 @@ async function libraryHelp(store: Store): Promise<Envelope> {
       "  storytree library query --kind <k>         ad-hoc predicate read (--where, --count, --field)",
       "  storytree library search \"<terms>\"          ranked search across every title, description and body",
       "  storytree library related <id> --unlinked  what else is about this that nothing links to it",
+      "  storytree library inbound <id>             what points at this, and through which field (the retirement pre-check)",
       "  storytree library tree focus <id>          the local DAG of one artifact",
       "  storytree library artifact retire <id>     retire it (needs --pg) — where a lifecycle-tier row goes to die",
       "  storytree library graduate [--review]      agent-memory → Library worklist (ADR-0095)",
@@ -4746,6 +4779,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       limit: values.limit,
       all: values.all === true,
     });
+  }
+  // `library inbound <id>` (ADR-0498 D1) — what points at this artifact and THROUGH WHICH FIELD,
+  // over the same population the retire wall enforces. The retirement pre-check `tree focus` was
+  // being mistaken for. A READ, so no `--pg`.
+  if (sub === "inbound") {
+    if (third === undefined || help) return libraryInboundHelp();
+    return libraryInbound(deps.store, third);
   }
   if (sub === "related") {
     if (third === undefined || help) return libraryRelatedHelp();
