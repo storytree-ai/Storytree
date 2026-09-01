@@ -17,6 +17,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 import type { Store, StoredDoc } from "@storytree/storage-protocol";
 
 import { readStoryDecisionFiles } from "./adr-health.js";
+import { LITERAL_FLAGS, PROSE_FLAGS } from "./at-path.js";
 import { run } from "./commands.js";
 import {
   adrNumberOf,
@@ -161,6 +162,14 @@ test("repointDecisions is fail-closed on a file it cannot read confidently", () 
     ok: false,
     reason: "no inline `decisions:` list in the frontmatter",
   });
+});
+
+test("--confirm is a LITERAL flag: the token is taken as typed, never read from a file", () => {
+  // A digest exists to be compared byte-for-byte against a freshly recomputed plan. Making it
+  // `@path`-expandable would let a STALE token live on disk and be replayed — the one thing the
+  // token is there to prevent — so the classification is part of the guarantee, not bookkeeping.
+  assert.ok(LITERAL_FLAGS.has("confirm"));
+  assert.ok(!PROSE_FLAGS.has("confirm"));
 });
 
 test("adrNumberOf reads the number out of a decision id, and only a decision id", () => {

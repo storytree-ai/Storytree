@@ -461,6 +461,18 @@ test("every other read-shaped verb ADR-0484 D3 names is observed, on its OWN sur
   }
 });
 
+test("`library repoint` is classified silent, and its silence carries a stated reason", () => {
+  // ADR-0498 D3. The classification is a JUDGEMENT — this verb reads the whole corpus and could
+  // plausibly have been called a search — so the row's REASON is the part a later reader needs, and
+  // a blank one turns a decision back into an unexplained default.
+  const spec = verbSpecFor("library repoint");
+  assert.equal(spec?.observes, "nothing");
+  assert.ok(
+    spec?.observes === "nothing" && /write/i.test(spec.why) && spec.why.trim().length > 20,
+    `library repoint needs a stated reason for its silence, got ${JSON.stringify(spec)}`,
+  );
+});
+
 test("a WRITE in a read-bearing area is still silent — the widened allowlist did not widen into writes", () => {
   const { deps } = harness();
   for (const argv of [
@@ -473,6 +485,10 @@ test("a WRITE in a read-bearing area is still silent — the widened allowlist d
     ["friction", "new", "--file", "f.json", "--pg"],
     ["friction", "route", "fr-1", "--route", "guidance", "--pg"],
     ["library", "graduate", "park", "some-memory", "--reason", "it stays"],
+    // `library repoint` (ADR-0498 D3). Its dry run READS the whole corpus looking for inbound
+    // refs, which is not a node anybody navigated to — and its confirmed form is a bulk write.
+    ["library", "repoint", "adr-0028", "--to", "adr-0500"],
+    ["library", "repoint", "adr-0028", "--to", "adr-0500", "--confirm", "a1b2c3d4", "--pg"],
     // A verb word is never an id: these must not be read as artifacts called "focus" or "spec".
     ["library", "tree"],
     ["library", "tree", "focus"],
