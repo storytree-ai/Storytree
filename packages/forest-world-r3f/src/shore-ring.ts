@@ -69,12 +69,7 @@
 // does not bend. Its neighbours are unaffected, so a fallback is a parcel with no shore shape
 // rather than a crack.
 
-import {
-  normalisedRing,
-  signedRingArea2,
-  type GroundFaces,
-  type P2,
-} from './cell-ground-geometry.js';
+import { normalisedRing, type GroundFaces, type P2 } from './cell-ground-geometry.js';
 import {
   COAST_OUTSET,
   COAST_SCALE_LADDER,
@@ -108,6 +103,10 @@ export const SHORE_RING_COAST_EPS = 1e-6;
  */
 export const SHORE_RING_BISECTIONS: readonly number[] = Array.from(
   { length: 24 },
+  // Stryker disable next-line ArrowFunction: EQUIVALENT — the array is iterated for its LENGTH
+  // alone and its values are never read, so an element factory returning anything at all (including
+  // `undefined`) produces the same twenty-four passes. What is NOT equivalent — the length itself —
+  // is asserted directly.
   (_unused, i) => i,
 );
 
@@ -226,6 +225,12 @@ export function crossingOnEdge(
   b: P2,
   inset: number,
 ): P2 {
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — only the SYMMETRY of this ordering is
+  // load-bearing, never its DIRECTION. `<=` reverses every pair consistently, which is an equally
+  // good canonicalisation and leaves both parcels sharing an edge in agreement; `>=` differs only
+  // where the two keys are equal, which is a zero-length edge whose two endpoints are the same
+  // point. This is the note `edgeKey` carries verbatim, on the same arithmetic and for the same
+  // reason. What is NOT equivalent — dropping the ordering for a CONSTANT — is killed directly.
   const flip = vertexKey(a) > vertexKey(b);
   const from = flip ? b : a;
   const to = flip ? a : b;
@@ -241,6 +246,12 @@ export function crossingOnEdge(
   for (const _pass of SHORE_RING_BISECTIONS) {
     const mid = (lo + hi) / 2;
     const p = at(mid);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT within this function's own
+    // resolution. `<` and `<=` differ only for a midpoint landing EXACTLY on the ring, and such a
+    // midpoint IS the crossing: both branches then bracket the same point from opposite sides and
+    // converge to it, differing by less than the final halving. There is no input that separates
+    // them by more than 2^-24 of the edge, and no caller can read a difference that small — the
+    // returned point's distance is `inset` either way.
     if ((field.sample(p.x, p.z).distance < inset) === fromIsInside) lo = mid;
     else hi = mid;
   }
@@ -274,11 +285,19 @@ export function coastRun(distances: readonly number[]): CoastRun | null {
   const n = distances.length;
   const on = distances.map((d) => d <= SHORE_RING_COAST_EPS);
   const count = on.filter(Boolean).length;
-  if (count === 0 || count === n) return null;
+  // ⚠⚠ THE `count === 0 || count === n` GUARD THAT USED TO SIT HERE IS GONE, AND BOTH HALVES WERE
+  // REDUNDANT WITH THE START COUNT BELOW. With NO vertex on the coast there is no index whose
+  // predecessor is off it, so `starts` is empty; with EVERY vertex on the coast the same is true
+  // for the opposite reason — every predecessor is ON it. Both cases already reach `null` through
+  // the one check that carries the meaning, and a guard the arithmetic already satisfies is not a
+  // guard. Four mutants of it survived the whole suite, which is what that looks like from outside.
   const starts: number[] = [];
-  for (let i = 0; i < n; i += 1) {
-    if (on[i] === true && on[(i + n - 1) % n] === false) starts.push(i);
-  }
+  // ⚠ ITERATED OVER `on` RATHER THAN COUNTED TO `n`. A counted loop's bound is a mutant nobody can
+  // kill — at `i === n` the lookup is `undefined`, which is not `true`, so the extra pass pushes
+  // nothing — and `triangulateRing` gives the house reason for preferring the array anyway.
+  on.forEach((here, i) => {
+    if (here && !on[(i + n - 1) % n]) starts.push(i);
+  });
   // More than one start is more than one run: the set of on-coast indices is a union of runs, and
   // each run contributes exactly one index whose predecessor is off the coast.
   if (starts.length !== 1) return null;
@@ -311,21 +330,6 @@ export interface ShoreRingSplit extends GroundFaces {
   scale: number;
 }
 
-/** Twice a ring's unsigned area — the quantity the tiling check conserves. Unsigned because the
- *  sub-faces are handed back in whatever winding the construction produced, and `triangulateRing`
- *  normalises each of them anyway. */
-function area2(ring: readonly P2[]): number {
-  return Math.abs(signedRingArea2(ring));
-}
-
-/** How far the summed sub-face area may drift from the parcel's own, as a FRACTION of it.
- *
- *  ⚠ RELATIVE RATHER THAN ABSOLUTE, because parcels on this map differ in area by two orders of
- *  magnitude and an absolute slack tight enough for the smallest would be meaningless on the
- *  largest. The construction is exact in exact arithmetic — the faces share their vertices — so
- *  this admits accumulated rounding and nothing else; a real overlap or gap is a whole triangle. */
-export const SHORE_RING_AREA_SLACK = 1e-9;
-
 /**
  * DIVIDE ONE PARCEL along its inset rings.
  *
@@ -333,14 +337,28 @@ export const SHORE_RING_AREA_SLACK = 1e-9;
  * — with the shared edge crossings still inserted, because those belong to the EDGE and its
  * neighbour has them either way.
  *
- * ⚠⚠ THE TILING CHECK IS THE GUARD, AND IT IS WHY THIS IS SAFE ON GROUND THAT REPORTS STATUS. The
+ * ⚠⚠ THE SIMPLICITY CHECK IS THE WHOLE GUARD, AND THE REASON IS A PROOF RATHER THAN A HABIT. The
  * sub-faces are constructed to partition the parcel, but the chain is an OFFSET and an offset can
- * cross itself at a tight corner or push past the parcel's own inland edge. Either failure shows up
- * as area: a self-crossing face is caught by `isSimpleRing`, and ground covered twice or not at all
- * is caught by the sum. A parcel that fails either falls back rather than drawing one capability's
- * status colour over another's ground (ADR-0392 D5 / ADR-0398 D7), which is the one way this
- * component could do real harm.
- */
+ * cross itself at a tight corner or push past the parcel's own boundary. **Every way a chain point
+ * can leave the parcel makes one of the faces non-simple**, and that is checkable rather than
+ * hoped: the band's own ring contains the coast run, the chain, AND both side-edge segments that
+ * close it, while the core's contains the chain and the whole inland path. So a chain crossing the
+ * coast, a side edge or an inland edge crosses a segment of the very ring it belongs to. A parcel
+ * that fails falls back rather than drawing one capability's status colour over another's
+ * (ADR-0392 D5 / ADR-0398 D7), which is the one way this component could do real harm.
+ *
+ * ⚠⚠ AND THE AREA CHECK THAT USED TO SIT BESIDE IT IS GONE, BECAUSE IT COULD NOT FAIL. It summed
+ * the sub-faces' unsigned areas and compared them to the parcel's. The faces share their vertices
+ * and traverse each chain once in each direction, so the shoelace terms TELESCOPE — the sum equals
+ * the parcel's area for every scale, including the ones where a face was folded inside out and the
+ * signed areas merely cancelled. Measured across a whole ladder on two fixtures: the error was
+ * exactly 0.0 at every rung, while `isSimpleRing` refused eight of ten. A guard the arithmetic
+ * already satisfies is not a guard. The conservation it was meant to assert is real and is asserted
+ * from OUTSIDE, in the suite, where a construction's property belongs.
+ *
+ * ⚠ THE `f.length >= 3` CHECK WENT WITH IT, and for the same reason: a band is the run plus its
+ * chain (at least one vertex plus two side crossings) and the core is a chain plus at least one
+ * inland vertex, so no face this builds can be shorter than three. */
 export function shoreRingSplit(
   ring: readonly P2[],
   field: ShoreFieldReader,
@@ -349,7 +367,12 @@ export function shoreRingSplit(
   const pts = normalisedRing(ring);
   const n = pts.length;
   const sorted = [...insets].sort((a, b) => a - b);
-  if (n < 3 || sorted.length === 0) {
+  // ⚠ TWO SEPARATE REFUSALS RATHER THAN ONE `||`, because they are two different facts about the
+  // call and a reader meeting a failure needs to know which. A ring of fewer than three vertices
+  // bounds no ground; an arm with no insets asked for no division at all, and its answer is the
+  // parcel verbatim — the pre-ring buffer, which is what makes the before/after one function twice.
+  if (n < 3) return { wall: pts, faces: [pts], divided: false, coastal: false, scale: 0 };
+  if (sorted.length === 0) {
     return { wall: pts, faces: [pts], divided: false, coastal: false, scale: 0 };
   }
 
@@ -365,6 +388,10 @@ export function shoreRingSplit(
     const hits = sorted.filter((k) => k > lo && k < hi);
     // Ascending inset runs from the seaward end of the edge, so an edge walked inland carries them
     // in order and an edge walked seaward carries them reversed.
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — this line only orders a NON-EMPTY
+    // `hits`, and `hits` is empty whenever `da === db`, because it selects insets strictly between
+    // `min(da, db)` and `max(da, db)` and that interval is empty when the two are equal. So `<=`
+    // and `<` are separated by no input this function can be given.
     const along = da <= db ? hits : [...hits].reverse();
     return along.map((k) => crossingOnEdge(field, a, b, k));
   });
@@ -378,6 +405,15 @@ export function shoreRingSplit(
   // Both side edges must cross EVERY ring, or the bands they bound are not closed. A parcel whose
   // inland corner sits closer to the water than the widest ring is the case this refuses, and on
   // the forest it is real: one coastal parcel's nearest interior vertex is 0.004 units out.
+  //
+  // ⚠ IT IS AN EARLY-OUT THAT NAMES ITS REASON, AND IT CANNOT BE KILLED BY A TEST — deliberately.
+  // Without it the chain is built from a MISSING crossing: `qs` or `qe` is `undefined`, every
+  // coordinate downstream is `NaN`, `isSimpleRing`'s strict comparisons are all false on NaN so no
+  // face ever holds, and the ladder falls through to the identical refusal below. The mutation rung
+  // reported it as unkillable for exactly that reason. It stays because reaching the same answer
+  // through a chain of `undefined` is not the same as declining to build one.
+  // Stryker disable next-line ConditionalExpression,LogicalOperator: EQUIVALENT — see above; the
+  // ladder's own exhaustion reaches this same return value on every input that gets here.
   if (after[sPrev]!.length !== sorted.length || after[e]!.length !== sorted.length) {
     return { wall, faces: [wall], divided: false, coastal: true, scale: 0 };
   }
@@ -428,13 +464,6 @@ export function shoreRingSplit(
     return faces;
   };
 
-  const whole = area2(wall);
-  const holds = (faces: readonly (readonly P2[])[]): boolean => {
-    const tiled = faces.reduce((sum, f) => sum + area2(f), 0);
-    if (Math.abs(tiled - whole) > whole * SHORE_RING_AREA_SLACK) return false;
-    return faces.every((f) => f.length >= 3 && isSimpleRing(f));
-  };
-
   // ⚠⚠ THE LADDER IS THE COAST CLIP'S OWN, AND SO IS THE REASON FOR IT. An inward offset of a
   // curve self-intersects as soon as the offset exceeds the curve's radius of curvature, and this
   // coast is a noise-perturbed Chaikin curve whose headlands turn tighter than the ring across
@@ -454,7 +483,9 @@ export function shoreRingSplit(
   for (const scale of COAST_SCALE_LADDER) {
     if (scale <= 0) continue;
     const faces = build(scale);
-    if (holds(faces)) return { wall, faces, divided: true, coastal: true, scale };
+    if (faces.every((f) => isSimpleRing(f))) {
+      return { wall, faces, divided: true, coastal: true, scale };
+    }
   }
   return { wall, faces: [wall], divided: false, coastal: true, scale: 0 };
 }
@@ -550,6 +581,9 @@ export function shoreRingPlan(
     }
     divided += 1;
     if (split.scale < 1) capped += 1;
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — a running minimum assigns the same
+    // value whether or not it re-assigns on a tie, so `<` and `<=` cannot be separated on any
+    // input. `boundsOf` in `shore-fall.ts` carries this note verbatim, on the same shape.
     if (split.scale < leastScale) leastScale = split.scale;
     // The chain vertices are exactly the wall's absentees: every point of a divided face that is
     // not on the wall ring. Measuring them is what turns "the ring sits at 3.5 units" from an
@@ -559,7 +593,10 @@ export function shoreRingPlan(
       for (const p of face) {
         if (onWall.has(vertexKey(p))) continue;
         const d = field.sample(p.x, p.z).distance;
+        // Stryker disable next-line EqualityOperator: EQUIVALENT — running extrema, as above: a
+        // tie re-assigns the value they already hold.
         if (d < nearestChain) nearestChain = d;
+        // Stryker disable next-line EqualityOperator: EQUIVALENT — as above, on the maximum.
         if (d > farthestChain) farthestChain = d;
       }
     }

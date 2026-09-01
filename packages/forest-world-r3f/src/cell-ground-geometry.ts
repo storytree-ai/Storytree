@@ -91,6 +91,9 @@ export function groundFaceTriangles(
   if (wallLength < 3) return 0;
   let top = 0;
   for (const n of faceLengths) {
+    // ⚠ A SUB-FACE OF FEWER THAN THREE VERTICES BOUNDS NO AREA AND CONTRIBUTES NOTHING. It is not
+    // an error — `triangulateRing` emits nothing for one — and the guard is here so the arithmetic
+    // cannot go NEGATIVE on one, which would under-size the buffer the caller then writes into.
     if (n >= 3) top += n - 2;
   }
   return top + wallLength * 2;
