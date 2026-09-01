@@ -29,6 +29,16 @@
 // here: the coast clip, the stepped skirt, and the grain octave — the last of which is a
 // fragment-stage field and belongs to the material, not to a vertex buffer.
 
+import {
+  FLAT_WALL,
+  ZERO_NORMAL,
+  insetPoint,
+  outwardNormal,
+  rimEdgeCount,
+  skirtExtraTriangles,
+  skirtLedges,
+  type GroundSkirt,
+} from './stepped-skirt.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
 /** A linear-space colour triple. ⚠ LINEAR, not sRGB: three converts a hex string through
@@ -121,6 +131,20 @@ export interface CellGroundGeometryInput {
    *  interpolator returns it exactly — the argument `banded-ground-material.ts` already makes
    *  about the ramp row. */
   atlasOrigin?: ((island: string | undefined) => AtlasOrigin) | undefined;
+  /** THE STEPPED CLIFF SKIRT — the sixth and last component of the approved land treatment.
+   *
+   *  ⚠ OPTIONAL, AND OMITTING IT IS THE SINGLE-QUAD WALL VERBATIM — the same argument
+   *  {@link CellGroundGeometryInput.relief} makes, and for the same reason: the before/after is
+   *  this function called twice over the same parcels, differing in exactly this one input, rather
+   *  than a comparison between two implementations. `stepped-skirt.test.ts` pins that a one-ledge
+   *  skirt and no skirt at all emit byte-identical buffers, so the control arm on the comparison
+   *  page is the shipped map rather than a reconstruction of it.
+   *
+   *  ⚠ IT IS THE ONE INPUT THAT WRITES A ROW AND A COLOUR THIS FUNCTION DID NOT GET FROM THE
+   *  PARCEL, which is exactly what the owner settled on 2026-09-01 and nothing else here may do.
+   *  See `src/stepped-skirt.ts` for the settlement and the outcome test that replaced the
+   *  every-colour-reports rule. */
+  skirt?: GroundSkirt | undefined;
 }
 
 /** Where an island's tile begins in a packed occlusion atlas, in UV. A structural pair rather
@@ -365,8 +389,22 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       : [],
   );
 
+  // ⚠ THE SKIRT'S LEDGES ARE RESOLVED ONCE, NOT PER EDGE. `skirtLedges` is a pure function of the
+  // row count, so calling it inside the wall loop would rebuild the same six-element profile for
+  // every one of the island's ~350 edges. It is also what the SIZING loop below counts against, so
+  // hoisting it makes "the buffer was sized for the profile that was written" true by construction.
+  const skirt = input.skirt;
+  const ledges = skirtLedges(skirt?.rows ?? 1);
   let triangles = 0;
-  for (const r of rings) triangles += cellGroundTriangles(r.pts.length);
+  for (const r of rings) {
+    triangles += cellGroundTriangles(r.pts.length);
+    // ⚠ COUNTED OFF THE RAW RING, WHICH IS SAFE BECAUSE `isRim` IS ORIENTATION-BLIND. The fill
+    // loop below asks the same question of the NORMALISED ring, and `edgeKey` sorts its two
+    // endpoints, so a seam traversed one way here and the other way there is one edge either way.
+    if (skirt !== undefined) {
+      triangles += skirtExtraTriangles(rimEdgeCount(r.pts, skirt.isRim), skirt.rows);
+    }
+  }
 
   const positions = new Float32Array(triangles * 9);
   const normals = new Float32Array(triangles * 9);
@@ -500,15 +538,54 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     // wherever the land dips — every wall there inside out, and the parcel gone from above.
     // A constant-thickness slab also keeps the two substrates telling the same story: the
     // classic hex prism is `TILE_HEIGHT` thick and so is this, everywhere.
+    //
+    // ⚠⚠ AND THE WALL IS NOW A LADDER OF LEDGES RATHER THAN ONE QUAD — the sixth component of the
+    // approved treatment (`src/stepped-skirt.ts`). With no skirt the ladder has ONE rung at inset
+    // 0 and full drop, which is the quad this loop always emitted, arithmetic included; the
+    // stepped cliff is the general case and the flat wall is its special case, exactly as the flat
+    // ground became a special case of the relief field above.
     for (let i = 0; i < n; i += 1) {
       const a = pts[i]!;
       const b = pts[(i + 1) % n]!;
       const top = lift(a);
       const topNext = lift(b);
-      const bot: P3 = { x: top.x, y: top.y - depth, z: top.z };
-      const botNext: P3 = { x: topNext.x, y: topNext.y - depth, z: topNext.z };
-      pushTriangle(topNext, top, botNext, colour, row, origin);
-      pushTriangle(botNext, top, bot, colour, row, origin);
+      // ⚠ ONLY THE RIM IS CUT. Every parcel walls every edge and all but the rim are buried; six
+      // inset ledges on a buried seam would pull two neighbours apart along the seam they share.
+      const rim = skirt !== undefined && skirt.isRim(a, b);
+      const rungs = rim ? ledges : FLAT_WALL;
+      // A zero normal for an uncut edge, so an inset of 0 is `p - 0 * 0` and the emitted vertex is
+      // the ring's own coordinate to the bit — which is what makes the no-skirt buffer identical
+      // rather than merely equal to within a rounding.
+      const outward = rim ? outwardNormal(a, b) : ZERO_NORMAL;
+      let upper = top;
+      let upperNext = topNext;
+      for (let li = 0; li < rungs.length; li += 1) {
+        const ledge = rungs[li]!;
+        const ia = insetPoint(a, outward, ledge.inset);
+        const ib = insetPoint(b, outward, ledge.inset);
+        // ⚠ THE LEDGE HANGS FROM ITS OWN RING VERTEX'S HEIGHT, NOT FROM THE RELIEF AT THE INSET
+        // POINT. The prism is constant-thickness on purpose (see the note above), and sampling
+        // the field at the cut-back position would make the cliff's foot wander relative to the
+        // top face — so the bottom ledge would no longer sit exactly `depth` under the ground and
+        // the two substrates would stop being the same ground in two representations.
+        const lower: P3 = { x: ia.x, y: top.y - depth * ledge.drop, z: ia.z };
+        const lowerNext: P3 = { x: ib.x, y: topNext.y - depth * ledge.drop, z: ib.z };
+        // ⚠ THE ROCK IS SELECTED BY LEDGE INDEX, AND `soilLedges` IS THE OWNER'S OPTION B. Ledges
+        // above the boundary keep the parcel's own status tint; everything below wears the rock.
+        // At `soilLedges: 0` the whole cliff is rock (his option A) and at `rows: 1` the single
+        // ledge is always soil, so a caller that asked for no skirt can never deliver one.
+        // ⚠ `rim &&` IS LOAD-BEARING, NOT BELT-AND-BRACES. A buried seam takes the one-rung flat
+        // wall, and at `soilLedges: 0` its single ledge would otherwise satisfy `li >= 0` and every
+        // interior wall in the island would be painted rock. Invisible, and still wrong: the colour
+        // buffer is what the comparison arms are built from, so it would move a measurement.
+        const rock = rim && skirt !== undefined && li >= skirt.soilLedges;
+        const ledgeColour = rock ? skirt.colour : colour;
+        const ledgeRow = rock ? skirt.row : row;
+        pushTriangle(upperNext, upper, lowerNext, ledgeColour, ledgeRow, origin);
+        pushTriangle(lowerNext, upper, lower, ledgeColour, ledgeRow, origin);
+        upper = lower;
+        upperNext = lowerNext;
+      }
     }
   }
 

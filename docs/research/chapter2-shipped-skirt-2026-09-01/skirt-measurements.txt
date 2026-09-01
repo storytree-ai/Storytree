@@ -1,0 +1,53 @@
+renderer: Google Inc. (Qualcomm) — ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+software=false timerQuery=true batch=30
+
+THE REFERENCE — the approved Cycles render, through this page’s own instrument
+  arm        anchor    MICRO   STRUCT     mean    pixels
+  combined   42.65    2.543   30.045   131.82   1143245
+  strata     53.65    2.497   27.295   134.37   1143260
+  bare       46.37    1.368   23.621   139.82   1142113
+
+  ⚠ THE FINDING RE-DERIVED RATHER THAN QUOTED. `combined` and `strata` are the same render
+    differing in NOTHING but the skirt material, so the gap between them is what the kit’s
+    cliff is worth:
+      STRUCT  30.05 → 27.29 (-9.2% when the kit’s rock is swapped out)
+      anchor  42.65 → 53.65 (+11.0 luma — a pale skirt spends the island’s dark anchor)
+    The research reported −9.8% of structural contrast and +7.0 luma of anchor for that swap.
+
+one · 2 px per ground unit
+  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
+  flat                 2264        +0   260          0     0.00   134.36    3.184    6.535     204.8
+  stepped              4864     +2600   260       2098     0.05   134.36    3.380    5.677     217.6
+  rock                 4864     +2600   260       2209     0.05    69.14    3.527   18.078     217.2
+  soil-over-rock       4864     +2600   260       2170     0.05    69.14    3.500   17.929     216.9
+
+one · 8 px per ground unit
+  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
+  flat                 2264        +0   260          0     0.00   134.36    0.923    8.037    1401.4
+  stepped              4864     +2600   260      33329     0.81   134.36    0.994    7.265    1439.5
+  rock                 4864     +2600   260      35434     0.87    69.14    1.044   20.143    1439.3
+  soil-over-rock       4864     +2600   260      34486     0.84    69.14    1.036   19.921    1439.3
+
+forest · 2 px per ground unit
+  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
+  flat                79240        +0  9082          0     0.00    94.88    3.203   24.498     908.3
+  stepped            170060    +90820  9082       8727     0.21    98.23    3.371   24.343     987.4
+  rock               170060    +90820  9082       9274     0.23    69.14    3.505   28.386     986.1
+  soil-over-rock     170060    +90820  9082       9032     0.22    71.14    3.492   28.270     986.7
+
+forest · 8 px per ground unit
+  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
+  flat                79240        +0  9082          0     0.00   134.36    0.922    8.020    1459.5
+  stepped            170060    +90820  9082      33669     0.82   134.36    0.993    7.225    1499.6
+  rock               170060    +90820  9082      35543     0.87    69.14    1.043   20.038    1499.5
+  soil-over-rock     170060    +90820  9082      34609     0.84    69.14    1.035   19.820    1499.4
+
+WHAT THE ARMS SETTLE, at one island and the read zoom:
+  the SHAPE alone (his option C) moves STRUCT 8.04 → 7.26 (-9.6%) — six ledges in the parcel’s own colour buy no structural contrast at all.
+  the ROCK (his option A) moves it to 20.14 (150.6%), and the anchor 134.4 → 69.1.
+  SOIL OVER ROCK (his option B) lands at STRUCT 19.92 and anchor 69.1 — -1.1% of A, for 948 px of status band.
+
+THE GAP TO THE APPROVED PICTURE, which is the verdict this arc asks for:
+  anchor  ours 69.1 vs the render’s 42.7 — 26.5 luma LIGHTER, so the cliff arrives and does not reach the render’s depth.
+  STRUCT  ours 20.14 vs 30.05 — 67% of it.
+  MICRO   ours 1.04 vs 2.54 — 41% of it. The pixel-scale read is where the app’s constraints still cost the most.
