@@ -1,11 +1,19 @@
-// shipped-skirt-measure.mjs — DRIVER for "the stepped skirt": the island's edge four ways, over one
-// island and one forest, differing only in how that edge is cut and what it wears.
+// shipped-skirt-measure.mjs — DRIVER for "the island's edge": five ways of cutting and colouring
+// it, over one island and one forest, differing only in how that edge is cut and what it wears.
 //
-//   flat            the map as it ships — ONE wall per rim edge, the parcel's status colour
-//                   (CONTROL and DENOMINATOR)
+//   flat            the map before ANY cliff — ONE wall per rim edge, the parcel's status colour
 //   stepped         six ledges, still the status colour — the SHAPE without the rock (option C)
-//   rock            six ledges, all rock — the approved picture's cliff (option A)
+//   rock            six ledges, all rock — the approved picture's cliff (option A), SHIPPED 2026-09-01
 //   soil-over-rock  six ledges, the TOP one keeping the status tint (option B)
+//   two-token-lit   a LIT rock and a SHADED one split by LIGHTING — the obvious rule
+//   two-token-deep  the same pair split by DEPTH — the cliff's lower half wears the shaded rock
+//
+// ⚠⚠ TWO QUESTIONS, TWO DENOMINATORS, AND THE PAGE NO LONGER HAS ONE CONTROL. The first four arms
+// answer *should the island's edge be a rock cliff at all*, and their denominator is `flat`. The
+// fifth answers a question that only exists once the fourth shipped — *can ONE token span the
+// cliff's tonal range* — so its denominator is `rock`. Reading it against `flat` would credit the
+// second token with everything the first already delivered. `ARM_CONTROL` in the scene module owns
+// that mapping and this driver reads it rather than restating it.
 //
 // THE INCREMENT: the stepped cliff skirt on `adopt-the-land-into-the-shipped-map-arc` — the SIXTH
 // and last component of the approved treatment, and the only one that could not be built at all
@@ -52,15 +60,21 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_SKIRT_URL'] ?? 'http://localhost:5312/shipped-skirt.html';
 const OUT =
   process.env['ST_SKIRT_OUT'] ??
-  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-shipped-skirt-2026-09-01');
+  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-skirt-tonal-range-2026-09-01');
 const ALLOW_SOFTWARE = process.env['ST_SKIRT_ALLOW_SOFTWARE'] === '1';
 const BATCH = Number(process.env['ST_SKIRT_BATCH'] ?? '30');
 
-/** The arm every pixel figure is read against: the map before this component. */
+/** The arm the FIRST FOUR are read against: the map before any cliff at all. */
 const CONTROL = 'flat';
-const ARMS = ['flat', 'stepped', 'rock', 'soil-over-rock'];
+const ARMS = ['flat', 'stepped', 'rock', 'soil-over-rock', 'two-token-lit', 'two-token-deep'];
 /** The arm that SHIPS. Its refusals are the strict ones. */
-const SHIPPED_ARM = 'rock';
+const SHIPPED_ARM = 'two-token-deep';
+/** The rule that LOST, kept as an arm so the measurement that rejected it is on the page rather
+ *  than only in a comment. It is NOT held to the shipped arm's refusals — a refusal on a losing
+ *  arm would stop the page being able to publish a negative result. */
+const REJECTED_ARM = 'two-token-lit';
+/** What SHIPPED before it — the arm the two-token cliff must beat, and its own denominator. */
+const PRIOR_ARM = 'rock';
 const SIZES = ['one', 'forest'];
 const ZOOMS = [2, 8];
 const FIT = 'fit';
@@ -121,9 +135,20 @@ const result = await page.evaluate(
             drawCalls: t.drawCalls,
             trianglesSubmitted: t.trianglesSubmitted,
             gpuNs: t.gpuNs,
+            control: r.controlOf(arm),
             cliffPixels: r.cliffPixels(arm, size, zoom),
             visiblePixels: r.visiblePixels(arm, size, zoom),
             changedPctVsControl: r.changedPct(arm, 'flat', size, zoom),
+            // the whole magnitude distribution against this arm's OWN denominator — the shape
+            // ADR-0490 D6's headline count is a summary of, and which a bare count discards
+            bands: r.delta(arm, size, zoom).bands.map((b) => ({
+              label: b.label,
+              pixels: b.pixels,
+              visible: b.visible,
+            })),
+            p50Move: r.delta(arm, size, zoom).p50,
+            maxMove: r.delta(arm, size, zoom).max,
+            overstatement: r.delta(arm, size, zoom).overstatement,
             anchor: t.stats.anchor,
             micro: t.stats.micro,
             struct: t.stats.struct,
@@ -196,6 +221,7 @@ for (const size of SIZES) {
 // it supplies the island's DARK ANCHOR, so an arm that ships without moving that number has not
 // delivered the component whatever its triangle count says.
 const shipped = at(SHIPPED_ARM, 'one', READ_ZOOM);
+const prior = at(PRIOR_ARM, 'one', READ_ZOOM);
 const control = at(CONTROL, 'one', READ_ZOOM);
 if (!(shipped.anchor < control.anchor - 5)) {
   fail(
@@ -214,7 +240,23 @@ if (result.sensitivity.length > 0) {
 }
 
 if (shipped.cliffPixels === 0) {
-  fail(`the ${SHIPPED_ARM} arm is byte-identical to the control — the cliff is drawing nothing.`);
+  fail(
+    `the ${SHIPPED_ARM} arm is byte-identical to ${PRIOR_ARM}, its own denominator — the second ` +
+      'token is drawing nothing.',
+  );
+}
+
+// ⚠⚠ AND THE FENCE THAT IS THIS INCREMENT'S OWN, RATHER THAN THE COMPONENT'S. The cliff already
+// ships; the claim being tested here is narrower — that a SECOND token reaches deeper than the
+// first one could. A pair that moves pixels but not the anchor has repainted the cliff without
+// extending its range, which is a change and not the change. Judged against `rock`, never against
+// `flat`, because `flat` has no cliff to be deeper than.
+if (!(shipped.anchor < prior.anchor - 5)) {
+  fail(
+    `the ${SHIPPED_ARM} arm's dark anchor is ${shipped.anchor.toFixed(1)} against ${PRIOR_ARM}'s ` +
+      `${prior.anchor.toFixed(1)}. The second token exists to reach BELOW the ladder's floor, ` +
+      'where one token cannot go; if the anchor has not moved, it has not.',
+  );
 }
 // ⚠ AND IT MUST MOVE PIXELS A READER CAN SEE, NOT MERELY PIXELS. ADR-0490 D6 exists because two
 // increments on this arc were scored ~4x too generously by the touched count, and the owner caught
@@ -268,12 +310,13 @@ for (const size of SIZES) {
   for (const zoom of ZOOMS) {
     say(`${size} · ${zoom} px per ground unit`);
     say(
-      '  arm              triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs',
+      '  arm              vs         triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs',
     );
     for (const arm of ARMS) {
       const r = at(arm, size, zoom);
       say(
-        `  ${arm.padEnd(15)} ${String(r.triangles).padStart(9)} ${String('+' + r.skirtTriangles).padStart(9)} ` +
+        `  ${arm.padEnd(15)} ${r.control.padEnd(10)} ${String(r.triangles).padStart(9)} ` +
+          `${String('+' + r.skirtTriangles).padStart(9)} ` +
           `${String(r.rimEdges).padStart(5)} ${String(r.visiblePixels).padStart(11)} ` +
           `${String(r.cliffPixels).padStart(8)} ${r.anchor.toFixed(2).padStart(8)} ` +
           `${r.micro.toFixed(3).padStart(8)} ${r.struct.toFixed(3).padStart(8)} ` +
@@ -287,9 +330,10 @@ for (const size of SIZES) {
 const stepped = at('stepped', 'one', READ_ZOOM);
 const soil = at('soil-over-rock', 'one', READ_ZOOM);
 say(
-  `⚠ EVERY PIXEL COLUMN ABOVE IS AGAINST THE CONTROL. "VISIBLE" counts pixels whose largest ` +
-    `channel moved by more than ${VISIBLE_DELTA}/255 (ADR-0490 D6); "touched" counts pixels that ` +
-    'changed at all, and is printed beside it only so the two can be compared.',
+  `⚠ EVERY PIXEL COLUMN ABOVE IS AGAINST THE ARM'S OWN DENOMINATOR, named in the "vs" column. ` +
+    `"VISIBLE" counts pixels whose largest channel moved by more than ${VISIBLE_DELTA}/255 ` +
+    '(ADR-0490 D6); "touched" counts pixels that changed at all, and is printed beside it only so ' +
+    'the two can be compared.',
 );
 say('');
 say('WHAT THE ARMS SETTLE, at one island and the read zoom:');
@@ -298,27 +342,86 @@ say(
     `${stepped.struct.toFixed(2)} (${pct(stepped.struct, control.struct).toFixed(1)}%) — ` +
     'six ledges in the parcel’s own colour buy no structural contrast at all.',
 );
+// ⚠ THESE THREE SENTENCES ARE ABOUT THE OWNER'S OPTIONS A/B/C AND MUST READ `prior`, NEVER
+// `shipped`. They were written when the rock WAS the shipped arm and would silently re-label the
+// two-token cliff as "his option A" the moment `SHIPPED_ARM` moved — a true number under a false
+// name, which is the failure this arc's own instrument header warns about in prose form.
 say(
-  `  the ROCK (his option A) moves it to ${shipped.struct.toFixed(2)} ` +
-    `(${pct(shipped.struct, control.struct).toFixed(1)}%), and the anchor ` +
-    `${control.anchor.toFixed(1)} → ${shipped.anchor.toFixed(1)}.`,
+  `  the ROCK (his option A) moves it to ${prior.struct.toFixed(2)} ` +
+    `(${pct(prior.struct, control.struct).toFixed(1)}%), and the anchor ` +
+    `${control.anchor.toFixed(1)} → ${prior.anchor.toFixed(1)}.`,
 );
 say(
   `  SOIL OVER ROCK (his option B) lands at STRUCT ${soil.struct.toFixed(2)} and anchor ` +
-    `${soil.anchor.toFixed(1)} — ${pct(soil.struct, shipped.struct).toFixed(1)}% of A, ` +
-    `for ${shipped.visiblePixels - soil.visiblePixels} px of status band.`,
+    `${soil.anchor.toFixed(1)} — ${pct(soil.struct, prior.struct).toFixed(1)}% of A, ` +
+    `for ${prior.visiblePixels - soil.visiblePixels} px of status band.`,
 );
 say(
-  `  and the ROCK arm moves ${shipped.visiblePixels} px by more than ${VISIBLE_DELTA}/255, which is ` +
-    `${((shipped.visiblePixels / shipped.cliffPixels) * 100).toFixed(0)}% of the pixels it touches — ` +
+  `  and the ROCK arm moves ${prior.visiblePixels} px by more than ${VISIBLE_DELTA}/255, which is ` +
+    `${((prior.visiblePixels / prior.cliffPixels) * 100).toFixed(0)}% of the pixels it touches — ` +
     'so this component is not in the class ADR-0490 D6 was written for.',
+);
+const rejected = at(REJECTED_ARM, 'one', READ_ZOOM);
+say('');
+say('⚠⚠ THE SECOND TOKEN — the increment this run exists for, judged against `rock` and NOT `flat`:');
+say(
+  `  the single-token cliff reaches anchor ${prior.anchor.toFixed(1)}, STRUCT ` +
+    `${prior.struct.toFixed(2)}, MICRO ${prior.micro.toFixed(2)}.`,
+);
+say(
+  `  the PAIR reaches anchor ${shipped.anchor.toFixed(1)} (${(shipped.anchor - prior.anchor).toFixed(1)} ` +
+    `luma), STRUCT ${shipped.struct.toFixed(2)} (${pct(shipped.struct, prior.struct).toFixed(1)}%), ` +
+    `MICRO ${shipped.micro.toFixed(2)} (${pct(shipped.micro, prior.micro).toFixed(1)}%).`,
+);
+say(
+  `  and it moves ${shipped.visiblePixels} px of the ${shipped.cliffPixels} it touches by more than ` +
+    `${VISIBLE_DELTA}/255 — overstatement ` +
+    `${shipped.overstatement === null ? 'n/a' : shipped.overstatement.toFixed(2)}x, median move ` +
+    `${shipped.p50Move}, max ${shipped.maxMove}.`,
+);
+say('  the magnitude distribution, which the count above is only a summary of:');
+for (const b of shipped.bands) {
+  if (b.pixels === 0) continue;
+  say(
+    `    ${b.label.padEnd(16)} ${String(b.pixels).padStart(8)} px  ` +
+      `${b.visible ? 'VISIBLE' : 'sub-threshold'}`,
+  );
+}
+say('');
+say('');
+say('  ⚠⚠ AND THE RULE THAT LOST, MEASURED RATHER THAN ARGUED. Selecting the shaded faces by');
+say('     LIGHTING — the ones the ladder has saturated — is the obvious rule. It selects the');
+say('     UNDERCUT courses, which this camera sees nearly edge-on:');
+say(
+  `       ${REJECTED_ARM.padEnd(15)} anchor ${rejected.anchor.toFixed(1)} · STRUCT ` +
+    `${rejected.struct.toFixed(2)} · MICRO ${rejected.micro.toFixed(2)} · ` +
+    `${rejected.visiblePixels} visible px vs ${PRIOR_ARM}`,
+);
+say(
+  `       ${SHIPPED_ARM.padEnd(15)} anchor ${shipped.anchor.toFixed(1)} · STRUCT ` +
+    `${shipped.struct.toFixed(2)} · MICRO ${shipped.micro.toFixed(2)} · ` +
+    `${shipped.visiblePixels} visible px vs ${PRIOR_ARM}`,
+);
+say(
+  `       the lighting rule moves the anchor ${(rejected.anchor - prior.anchor).toFixed(1)} luma ` +
+    `and the depth rule ${(shipped.anchor - prior.anchor).toFixed(1)}.`,
+);
+say('');
+say('  ⚠ THE TRIANGLE COUNT DOES NOT MOVE. The second token is a ramp ROW, not geometry:');
+say(
+  `    ${PRIOR_ARM} ${prior.triangles} triangles, ${SHIPPED_ARM} ${shipped.triangles} — ` +
+    `${prior.triangles === shipped.triangles ? 'identical' : '⚠ THEY DIFFER'}. The whole tonal ` +
+    'range is bought in the material.',
 );
 say('');
 say('THE GAP TO THE APPROVED PICTURE, which is the verdict this arc asks for:');
+// ⚠ THE DIRECTION IS COMPUTED, NOT WRITTEN DOWN. This read "luma LIGHTER" unconditionally, from
+// a landing where the cliff could only be too light; the pair can overshoot, and a hardcoded
+// direction would print a sign-flipped sentence beside a correct number.
 say(
   `  anchor  ours ${shipped.anchor.toFixed(1)} vs the render’s ${kit.anchor.toFixed(1)} — ` +
-    `${(shipped.anchor - kit.anchor).toFixed(1)} luma LIGHTER, so the cliff arrives and does not ` +
-    'reach the render’s depth.',
+    `${Math.abs(shipped.anchor - kit.anchor).toFixed(1)} luma ` +
+    `${shipped.anchor > kit.anchor ? 'LIGHTER' : 'DARKER'} than the picture the owner stamped.`,
 );
 say(
   `  STRUCT  ours ${shipped.struct.toFixed(2)} vs ${kit.struct.toFixed(2)} — ` +
@@ -328,6 +431,23 @@ say(
   `  MICRO   ours ${shipped.micro.toFixed(2)} vs ${kit.micro.toFixed(2)} — ` +
     `${((shipped.micro / kit.micro) * 100).toFixed(0)}% of it. The pixel-scale read is where the ` +
     'app’s constraints still cost the most.',
+);
+say('');
+say('  and the same three numbers for the cliff that shipped BEFORE this increment, so the');
+say('  movement toward the approved picture is readable rather than asserted:');
+say(
+  `    anchor  ${PRIOR_ARM} ${prior.anchor.toFixed(1)} (${(prior.anchor - kit.anchor).toFixed(1)}) → ` +
+    `${SHIPPED_ARM} ${shipped.anchor.toFixed(1)} (${(shipped.anchor - kit.anchor).toFixed(1)}) ` +
+    `— |error| ${Math.abs(prior.anchor - kit.anchor).toFixed(1)} → ` +
+    `${Math.abs(shipped.anchor - kit.anchor).toFixed(1)}`,
+);
+say(
+  `    STRUCT  ${((prior.struct / kit.struct) * 100).toFixed(0)}% → ` +
+    `${((shipped.struct / kit.struct) * 100).toFixed(0)}% of the render's`,
+);
+say(
+  `    MICRO   ${((prior.micro / kit.micro) * 100).toFixed(0)}% → ` +
+    `${((shipped.micro / kit.micro) * 100).toFixed(0)}% of the render's`,
 );
 
 for (const [name, dataUrl] of Object.entries(result.shots)) {
