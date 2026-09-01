@@ -1024,7 +1024,18 @@ export function buildUatVerdict(
 export async function handleUatAttest(
   req: IncomingMessage,
   res: ServerResponse,
-  ctx: { paths: Paths; backend: Pick<LibraryBackend, 'signUatVerdict' | 'verdictEvents'> },
+  ctx: {
+    paths: Paths;
+    backend: Pick<LibraryBackend, 'signUatVerdict' | 'verdictEvents'>;
+    /**
+     * ISO sign time. Defaults to the wall clock; INJECTED by `uatAttestMirrorProbe.ts` for the same
+     * reason `buildUatVerdict` already takes `at` — the conformance harness compares this composed
+     * verdict against the desktop's, and the two probes are separate processes at different moments,
+     * so a wall-clock read here is nondeterminism ACROSS the payloads being compared (the trap
+     * `floor-health-fixtures` records). Not a policy seam: nothing in production passes it.
+     */
+    now?: () => string;
+  },
   caller: string | null,
   commitSha: string | null,
 ): Promise<void> {
@@ -1068,7 +1079,7 @@ export async function handleUatAttest(
   // HONESTY WALL: the sign-time trust guard (checkUatProof) — refuse a machine-witness test / an
   // agent self-attestation BEFORE any write. The compute is the orchestrator's single source.
   const { checkUatProof, rollupStoryUat } = await loadOrchestrator();
-  const verdictInput: UatVerdictInput = { test, outcome, signer, commitSha, at: new Date().toISOString() };
+  const verdictInput: UatVerdictInput = { test, outcome, signer, commitSha, at: (ctx.now ?? (() => new Date().toISOString()))() };
   if (note) verdictInput.note = note;
   const built = buildUatVerdict(verdictInput, checkUatProof);
   if (!built.ok) throw new HttpError(422, `refused — ${built.reason}`);

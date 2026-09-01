@@ -509,6 +509,7 @@
       "apps/desktop/src/backend/local-backend.ts": "local-backend-boot",
       "apps/desktop/src/backend/loopback-guard.ts": "local-backend-boot",
       "apps/desktop/src/backend/local-uat-attest.ts": "brokered-local-uat-signing",
+      "apps/desktop/src/backend/uat-attest-route.ts": "brokered-local-uat-signing",
       "apps/desktop/src/backend/pty-session-manager.ts": "pty-session-manager",
       "apps/desktop/src/backend/repo-selection.ts": "repo-selection",
       "apps/desktop/src/backend/sidecar-startup.ts": "electron-shell",
@@ -787,6 +788,28 @@
           "checkout"
         ],
         "because": "the studio half of the `/api/attestations` conformance pair; it must answer for the code in this diff."
+      },
+      "apps/studio/server/uatAttestMirrorProbe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the studio half of the `/api/uat/attest` conformance pair — the registry's only WRITE pair; it must answer for the code in this diff."
+      },
+      "apps/desktop/src/backend/uat-attest-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the desktop half of the same WRITE pair, and its stories tree is a fixture the harness builds — its subject is this commit's two surfaces, not the live store."
+      },
+      "apps/desktop/src/backend/uat-attest-route.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "PROVE, unlike the `attestations-route.ts` READ beside it, and the difference is what this camp exists to make explicit. That route renders a panel and must agree with NOW; this one SIGNS — it resolves the criterion whose `revisionId` the verdict binds and pins the commit the operator observed, so it must agree with the checkout it is attesting. A live projection is the wrong clock here by construction: a verdict signed against a criterion revision the operator was not looking at is a false green, which is the failure ADR-0082's binding exists to prevent.",
+        "fallback": "no live-projection arm, and none is wanted: the projection carries `criterionId` and `revisionId` but the signature must bind the revision as authored in the tree the operator is running, which is what the desktop's clean-tree wall already forces."
       },
       "apps/desktop/src/backend/attestations-route.ts": {
         "camp": "render",

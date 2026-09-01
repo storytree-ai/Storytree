@@ -25,8 +25,13 @@
  *        equality between two implementations over the same input, not against a recorded value.
  *
  *   `activity-fixtures` — `GET /api/activity`, compared over two synthetic fixtures. There is no
- *     "real corpus" arm here and that is structural, not an omission: this payload's real input is
- *     `events.node_claim` in Cloud SQL, and CI is DB-free. So the fixtures carry RAW claim rows and
+ *     "real corpus" arm here yet, and the reason once given for that — "this payload's real input is
+ *     `events.node_claim` in Cloud SQL, and CI is DB-free" — WAS FALSE (ADR-0495). CI authenticates
+ *     to the live store with a keyless WIF step, and ADR-0302 dropped offline support outright; this
+ *     check is DB-free by PLACEMENT (it runs ahead of that auth step in `ci.yml`), not by necessity.
+ *     Moving it and giving this arm a real-corpus companion is parked as
+ *     `unscored-guards-arc-ci-db-free-refuted` — so read the missing arm as UNDONE, not as
+ *     impossible. The fixtures carry RAW claim rows and
  *     a FIXED `now`, which each probe folds through its own surface's re-composed fold — the grade
  *     defect is inside the assertion rather than upstream of it — and they cover both the populated
  *     shape (every ADR-0200 grade branch, the back-compat absent/unknown grade, a stale row both
@@ -98,6 +103,7 @@ import {
   projectTraversalPayload,
   projectTreePayload,
   projectAttestationsPayload,
+  projectUatAttestPayload,
   type Divergence,
   type Entry,
   type MirrorInputSet,
@@ -824,9 +830,12 @@ function assertCriteriaParse(storyId: string, body: string, expected: number): v
  * for a doc it cannot parse, so a fixture of plausible-looking stubs would leave every crown grey on
  * both surfaces and compare two blanks — the vacuous pass this whole harness exists to refuse.
  *
- * There is deliberately no "real corpus" arm. The live projection lives in Cloud SQL and CI is
- * DB-free, so the honest input is a fixture rather than a store nobody can reach; the real
- * `stories/` tree is already walked by each surface's own suite.
+ * There is no "real corpus" arm, and the reason once given — "the live projection lives in Cloud SQL
+ * and CI is DB-free" — carries the same false premise the `activity-fixtures` note above corrects:
+ * this check is DB-free by PLACEMENT, not by necessity (ADR-0495). What survives that correction is
+ * the weaker, still-true half — the real `stories/` tree is already walked by each surface's own
+ * suite, so a live arm here would buy less than it does on `/api/activity`, whose fold nothing else
+ * exercises against real rows.
  */
 function buildTreeFixtures() {
   const root = mkdtempSync(join(tmpdir(), "storytree-tree-"));
@@ -1492,6 +1501,192 @@ function buildAttestationsFixtures() {
   };
 }
 
+/**
+ * The `uat-attest-fixtures` input set: ONE fixture DIRECTORY — a `stories/` tree, an escaped story
+ * OUTSIDE it, and `attest.json` carrying the injected sign inputs plus the request list both probes
+ * replay as POST bodies.
+ *
+ * THE ONLY WRITE PAIR IN THIS HARNESS (ADR-0495), and the reason it needs no database: each probe
+ * wires its surface's own PERSISTENCE SEAM to a CAPTURE — the studio's `signUatVerdict` backend
+ * method, the desktop's injected `ForestWriter` — and prints what that surface COMPOSED. The
+ * `MIRRORS` row carries the full argument; the two facts that shape THIS fixture are:
+ *
+ *   · THE SIGN INPUTS RIDE THE FIXTURE, injected identically into both surfaces. Where a signer or a
+ *     commit comes from is correctly different on the two surfaces (a verified IAP caller against a
+ *     resolved local operator; a served deployment against a local checkout), so a fixture that let
+ *     each surface resolve its own would compare two identity providers instead of the composition
+ *     under test. The sign CLOCK rides it for a harder reason: the two probes are separate processes
+ *     at different moments, so a wall-clock `at` is nondeterminism ACROSS the payloads being
+ *     compared — the trap `floor-health-fixtures` records, and the reason both surfaces take an
+ *     injected sign time.
+ *
+ *   · `clean: true` ON EVERY ARM. The desktop refuses to attest a dirty working tree and the studio
+ *     has no such wall — correctly, since a studio member cannot dirty the deployment they observe.
+ *     A dirty arm would have one surface compose a whole verdict where the other composes nothing,
+ *     which is a divergence in the ENTRY SET and would need the arm exempted wholesale. The wall is
+ *     proved by `apps/desktop/src/backend/local-uat-attest.test.ts` instead; the row's
+ *     `correctDifferences` records that as a `fenced-elsewhere` clause rather than leaving it silent.
+ *
+ * THE SEVEN ARMS, each here for one thing the two wrappers decide separately:
+ *   - `sign-human-pass` — the ordinary signature: an explicit `human` leg, a note carrying padding
+ *     (both surfaces trim it, and a non-blank note rides as evidence), outcome `pass`;
+ *   - `sign-either-fail` — an `either` leg with NO note and outcome `fail`, so the evidence-without-
+ *     note branch and the failing outcome are both composed. It is also the arm on the one axis where
+ *     the two surfaces feed the trust guard DIFFERENTLY: the studio hands `checkUatProof` the
+ *     DECLARED witness, the desktop the RESOLVED one. They agree today for all three declared values
+ *     and would fork the moment `resolveWitness`'s asymmetric rule changed, which is exactly what a
+ *     mirror row is for;
+ *   - `refuse-machine-witness` — a `machine` leg bound to a real observe gate. The shared guard
+ *     refuses on both: a click can never stand in for a machine proof (ADR-0082 d.2);
+ *   - `refuse-sandbox-signer` — the same human leg signed by a `sandbox:` identity, refused on both
+ *     by the shared no-self-attest wall (ADR-0007). The signer is overridden per-request, which is
+ *     the only input this fixture varies between arms;
+ *   - `refuse-missing-criterion` — a blank `criterionId`. BOTH surfaces answer with the IDENTICAL
+ *     string, so this is the arm whose `refusedBecause` stays COMPARED — it is what keeps the
+ *     refusal-wording exemption from being a blanket over every refusal;
+ *   - `refuse-unknown-criterion` — an id the story does not declare: a typo must never mint a
+ *     verdict against nothing;
+ *   - `refuse-escaped-story` — `storyId: "../escaped"`, resolving to a REAL story with a REAL leg
+ *     outside the stories root. Content is what makes an escape observable: against a story with no
+ *     legs, a containment hole and a missing story both compose nothing and the arm would pass
+ *     either way. This is the WRITE-side twin of the path-traversal the `/api/attestations` row
+ *     measured on the read next door.
+ */
+function buildUatAttestFixtures() {
+  const dir = mkdtempSync(join(tmpdir(), "storytree-uat-attest-"));
+
+  const AT = "2026-09-01T09:00:00.000Z";
+  const COMMIT = "ab".repeat(20);
+  const SIGNER = "operator@example.com";
+  const C_HUMAN = `uatc_${"0".repeat(23)}1`;
+  const C_EITHER = `uatc_${"0".repeat(23)}2`;
+  const C_MACHINE = `uatc_${"0".repeat(23)}3`;
+  const C_ESCAPED = `uatc_${"0".repeat(23)}4`;
+  const C_UNKNOWN = `uatc_${"0".repeat(23)}9`;
+
+  /**
+   * One authored criterion LINE carrying CONTENT tags as well as prose.
+   *
+   * `canonicalUatCriterionContent` strips only the IDENTITY tags, so `(witness:)` and
+   * `(proof-gate:)` are content and must be inside the text the revision is computed from — the same
+   * trap `criterionItemText` records for `(detail:)`, which produced a vacuous arm before it was
+   * fixed. A revision computed from the prose alone does not bind an item that carries a witness
+   * tag, `parseUatTestCriteria` then refuses the whole story, and BOTH surfaces answer with no legs.
+   */
+  const tagged = (ordinal: number, criterionId: string, prose: string, tags: string): string => {
+    const item = `${ordinal}. ${prose}${tags}`;
+    const revision = criterionRevisionId(canonicalUatCriterionContent(item));
+    return `${item} (criterion-id: ${criterionId})(revision-id: ${revision})`;
+  };
+
+  const HUMAN_LEG = "**The crown greens from a look** — an operator sees the map paint and signs.";
+  const EITHER_LEG = "**The undecided leg** — declared `either`, resolved toward the human.";
+  const MACHINE_LEG = "**The machine leg** — a suite proves it, and no click ever can.";
+  const ESCAPED_LEG = "**The leg outside the root** — reachable only through a containment hole.";
+
+  const alpha = [
+    "---",
+    'id: "alpha"',
+    "tier: story",
+    'title: "Alpha - the signing surface"',
+    'outcome: "the alpha outcome"',
+    "status: proposed",
+    "proof_mode: UAT",
+    "---",
+    "",
+    "# Alpha",
+    "",
+    "## Story UAT",
+    "",
+    tagged(1, C_HUMAN, HUMAN_LEG, " _(witness: human)_ _(witness-basis: only a person can say the map reads right)_"),
+    tagged(2, C_EITHER, EITHER_LEG, ""),
+    tagged(3, C_MACHINE, MACHINE_LEG, " _(witness: machine)_ _(proof-gate: alpha#gate-1)_"),
+    "",
+    "## Reliability Gates",
+    "",
+    "1. **The suite is green** _(gate: observe)_ `pnpm test`.",
+  ].join("\n");
+  assertCriteriaParse("alpha", alpha, 3);
+  mkdirSync(join(dir, "stories", "alpha"), { recursive: true });
+  writeFileSync(join(dir, "stories", "alpha", "story.md"), alpha, "utf8");
+
+  // OUTSIDE `stories/`, and carrying a real leg — see the `refuse-escaped-story` arm above.
+  const escaped = [
+    "---",
+    'id: "escaped"',
+    "tier: story",
+    'title: "Escaped - outside the stories root"',
+    'outcome: "the escaped outcome"',
+    "status: proposed",
+    "proof_mode: UAT",
+    "---",
+    "",
+    "# Escaped",
+    "",
+    "## Story UAT",
+    "",
+    tagged(1, C_ESCAPED, ESCAPED_LEG, " _(witness: human)_ _(witness-basis: a person must reach it)_"),
+  ].join("\n");
+  assertCriteriaParse("escaped", escaped, 1);
+  mkdirSync(join(dir, "escaped"), { recursive: true });
+  writeFileSync(join(dir, "escaped", "story.md"), escaped, "utf8");
+
+  const requests = [
+    {
+      label: "sign-human-pass",
+      body: {
+        storyId: "alpha",
+        criterionId: C_HUMAN,
+        outcome: "pass",
+        note: "   saw the crown green on the live map   ",
+      },
+    },
+    { label: "sign-either-fail", body: { storyId: "alpha", criterionId: C_EITHER, outcome: "fail" } },
+    {
+      // THE FORGERY ARM. Its body carries a `signer` and a `commitSha` no surface may read: the
+      // studio signs as the VERIFIED IAP caller and the desktop as its RESOLVED local operator, and
+      // both pin the commit their own surface resolved. Neither field exists in either wire contract,
+      // which is exactly why this arm is here — a wall nothing exercises is a wall nothing proves,
+      // and a surface that started trusting either field would still compose a well-formed verdict
+      // that every other arm agrees with. Measured: without this arm, seeding the desktop mount to
+      // take its signer from the request body left the whole comparison GREEN.
+      label: "sign-ignores-forged-fields",
+      body: {
+        storyId: "alpha",
+        criterionId: C_HUMAN,
+        outcome: "pass",
+        signer: "forged@attacker.example",
+        commitSha: "cd".repeat(20),
+      },
+    },
+    { label: "refuse-machine-witness", body: { storyId: "alpha", criterionId: C_MACHINE, outcome: "pass" } },
+    {
+      label: "refuse-sandbox-signer",
+      signer: "sandbox:agent-7",
+      body: { storyId: "alpha", criterionId: C_HUMAN, outcome: "pass" },
+    },
+    { label: "refuse-missing-criterion", body: { storyId: "alpha", criterionId: "", outcome: "pass" } },
+    { label: "refuse-unknown-criterion", body: { storyId: "alpha", criterionId: C_UNKNOWN, outcome: "pass" } },
+    { label: "refuse-escaped-story", body: { storyId: "../escaped", criterionId: C_ESCAPED, outcome: "pass" } },
+    // THE ARM THAT CAUGHT THIS ROW'S FIRST REAL DIVERGENCE, and the plainest request in the set: a
+    // story id that is perfectly well-formed and simply does not exist. The desktop's mount paired
+    // its containment guard with a BARE `loadNodeSpec`, which THROWS on a missing file, so an
+    // ordinary typo'd story crashed the signing route there while the studio answered 400. Present
+    // in `main` for as long as the route had existed, and invisible: the escaped-id arm above does
+    // not reach it (a `../` id is refused before any file is opened), and nothing else could call
+    // the mount at all. Fixed in the same landing by routing through the shared `loadStorySpec`.
+    { label: "refuse-missing-story", body: { storyId: "nowhere", criterionId: C_HUMAN, outcome: "pass" } },
+  ];
+
+  writeFileSync(
+    join(dir, "attest.json"),
+    JSON.stringify({ signer: SIGNER, agentIdentity: "desktop-storytree", commitSha: COMMIT, clean: true, at: AT, requests }),
+    "utf8",
+  );
+
+  return { dir, inputs: [{ label: "uat-attest", arg: dir }] };
+}
+
 function buildInputSets() {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
@@ -1501,6 +1696,7 @@ function buildInputSets() {
   const comments = buildCommentsFixtures();
   const tree = buildTreeFixtures();
   const attestations = buildAttestationsFixtures();
+  const uatAttest = buildUatAttestFixtures();
   return {
     sets: {
       "docs-trees": [
@@ -1514,6 +1710,7 @@ function buildInputSets() {
       "comments-fixtures": comments.inputs,
       "tree-fixtures": tree.inputs,
       "attestations-fixtures": attestations.inputs,
+      "uat-attest-fixtures": uatAttest.inputs,
     },
     cleanup: () => {
       rmSync(docsFixture, { recursive: true, force: true });
@@ -1524,6 +1721,7 @@ function buildInputSets() {
       rmSync(comments.dir, { recursive: true, force: true });
       rmSync(tree.dir, { recursive: true, force: true });
       rmSync(attestations.dir, { recursive: true, force: true });
+      rmSync(uatAttest.dir, { recursive: true, force: true });
     },
   };
 }
@@ -1585,6 +1783,12 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
     case "attestations-fixtures":
       try {
         return projectAttestationsPayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
+    case "uat-attest-fixtures":
+      try {
+        return projectUatAttestPayload(payload);
       } catch (err) {
         throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
       }
@@ -1691,8 +1895,10 @@ function main(): void {
     console.error(
       "A surface that re-composes another's route must serve the SAME payload. Re-compose the\n" +
         "missing logic verbatim into the mirror (never import the reference — ADR-0176), or, if the\n" +
-        "difference is deliberate, declare it in that mirror's `referenceOnlyFields` allowlist in\n" +
-        "packages/cli/src/mirror-conformance.ts.",
+        "difference is deliberate, declare it in packages/cli/src/mirror-conformance.ts: a field the\n" +
+        "reference carries and the mirror does not goes in that row's `referenceOnlyFields`, and a\n" +
+        "difference in VALUES goes in its `correctDifferences` — with the argument for why it is\n" +
+        "correct, and under that rule's binding stopping condition (ADR-0495 D5).",
     );
     process.exit(1);
   }

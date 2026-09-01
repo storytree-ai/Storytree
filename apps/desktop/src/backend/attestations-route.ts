@@ -279,12 +279,24 @@ export function loadStorySpec(
 /**
  * `<storiesDir>/<storyId>/story.md`, or `null` if that escapes the root or does not exist.
  *
- * EXPORTED because a second request path needs it: `electron/backend-entry.ts`'s
- * `POST /api/uat/attest` resolved its `storyId` through the same unguarded `findNodeSpecFile` and
- * would sign a verdict against a spec from OUTSIDE the stories root. That route is not part of the
- * mirror row (it is a write, and whether write pairs should be compared at all is
- * `oq-mirror-harness-write-pairs`), but the containment hole is the same one, found in the same
- * sweep, and one guard shared beats two written separately.
+ * EXPORTED, but no longer CALLED outside this module — and the difference is the point. It was
+ * exported for `POST /api/uat/attest`, which resolved its `storyId` through the same unguarded
+ * `findNodeSpecFile` and would have signed a verdict against a spec from OUTSIDE the stories root.
+ * That route now calls {@link loadStorySpec} instead, because taking the containment guard alone
+ * turned out to be HALF the guard: it does not existence-check (see the note below), so a
+ * well-formed but missing `storyId` threw out of that mount while the studio answered 400. Measured
+ * 2026-09-01, when the `uat-attest` mirror row and the extraction that enabled it made the mount
+ * reachable for the first time.
+ *
+ * The export stays because the pairing is what is dangerous, not the function: a future caller that
+ * genuinely wants containment WITHOUT a load has an honest reason to reach for it, and the note
+ * below now says outright what it does not do. Both of today's callers are in this module, and both
+ * catch.
+ *
+ * That route has a mirror row of its own now, so both request paths are watched rather than one:
+ * `oq-mirror-harness-write-pairs` — whether write pairs should be compared at all — was answered YES
+ * (ADR-0495), and its arms replay a `../escaped` id against a story with a REAL leg outside the root
+ * as well as an ordinary missing one.
  */
 export function containedStoryFile(storiesDir: string, storyId: string): string | null {
   const root = path.resolve(storiesDir);

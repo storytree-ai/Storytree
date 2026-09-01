@@ -26,10 +26,13 @@ import {
   projectFloorHealthPayload,
   projectTraversalPayload,
   projectTreePayload,
+  projectUatAttestPayload,
   registeredMirrorRoutes,
   REPORT_LIMIT,
   TRAVERSAL_KEY,
   TREE_KEY,
+  UAT_ATTEST_KEY,
+  type CorrectDifference,
   type Entry,
   type MirrorSpec,
 } from "./mirror-conformance.js";
@@ -46,6 +49,9 @@ const SPEC: MirrorSpec = {
 const spec = (referenceOnlyFields: string[]): MirrorSpec => ({ ...SPEC, referenceOnlyFields });
 
 const doc = (id: string, extra: Entry = {}): Entry => ({ id, title: `T ${id}`, ...extra });
+
+/** The repo root — every registry pointer this file resolves (probe modules, fenced-by suites). */
+const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
 
 test("identical payloads are conformant — no divergences", () => {
   const payload = [doc("a"), doc("b", { loadBearing: true })];
@@ -177,6 +183,7 @@ test("the registry exposes its routes as DATA, so a second reader never scrapes 
       "/api/traversal",
       "/api/traversal/sessions",
       "/api/tree",
+      "/api/uat/attest",
     ],
     "registeredMirrorRoutes must union every row's `route` with its `additionalRoutes`",
   );
@@ -210,7 +217,6 @@ test("the registry exposes its routes as DATA, so a second reader never scrapes 
  * closed but is not the same as being checked.
  */
 test("every MIRRORS row names probes that EXIST, under the app dir it declares", () => {
-  const repoRoot = fileURLToPath(new URL("../../../", import.meta.url));
   for (const target of MIRRORS) {
     for (const [side, probe] of [
       ["reference", target.reference],
@@ -249,6 +255,7 @@ test("every MIRRORS row declares a usable comparison key, input set and surface 
     "comments-fixtures",
     "tree-fixtures",
     "attestations-fixtures",
+    "uat-attest-fixtures",
   ]);
   for (const { spec, inputs } of MIRRORS) {
     assert.ok(inputSets.has(inputs), `${spec.surface}: unknown input set "${inputs}"`);
@@ -1013,4 +1020,264 @@ test("formatDivergences reports a per-field census and elides past the limit", (
   assert.match(report, new RegExp(`fields that diverged: loadBearing \\(${n}\\)`));
   assert.match(report, /… and 5 more/);
   assert.equal(formatDivergences(SPEC, []), ""); // nothing to say when conformant
+});
+
+// ---------------------------------------------------------------------------
+// The written correct-difference rule (ADR-0495 D4/D5) — the second sanctioned-difference
+// mechanism, and the one that exempts whole ENTRIES rather than a field across all of them.
+// ---------------------------------------------------------------------------
+
+/** A spec carrying a written correct-difference rule, over the flattened `_key`/`value` shape. */
+const ruled = (correctDifferences: CorrectDifference[]): MirrorSpec => ({
+  ...SPEC,
+  key: "_key",
+  correctDifferences,
+});
+
+/** One flattened leaf entry, the shape every projection here emits. */
+const leaf = (key: string, value: unknown): Entry => ({ _key: key, value });
+
+const RUN_ID_CLAUSE: CorrectDifference = {
+  disposition: "exempt",
+  keys: ["sign#.composed.runId"],
+  difference: "the runId names the surface that signed",
+  why: "two different runs on two different surfaces",
+};
+
+test("a declared correct difference is not a divergence — the exempted entry is skipped", () => {
+  const found = compareMirrors(
+    [leaf("sign#.composed.runId", "studio-uat-attest:T"), leaf("sign#.composed.signer", "op")],
+    [leaf("sign#.composed.runId", "local-uat-attest:T"), leaf("sign#.composed.signer", "op")],
+    ruled([RUN_ID_CLAUSE]),
+    "fixture",
+  );
+  assert.deepEqual(found, []);
+});
+
+test("the exemption is SCOPED to its named keys — a neighbouring entry still diverges", () => {
+  // The failure this pins is the blunt-exemption one: a rule that covered a whole ARM, or a field
+  // name across every arm, would take the signer with it and this pair's highest-stakes field would
+  // stop being compared while the check still reported conformance.
+  const found = compareMirrors(
+    [leaf("sign#.composed.runId", "studio-uat-attest:T"), leaf("sign#.composed.signer", "op")],
+    [leaf("sign#.composed.runId", "local-uat-attest:T"), leaf("sign#.composed.signer", "forged")],
+    ruled([RUN_ID_CLAUSE]),
+    "fixture",
+  );
+  assert.equal(found.length, 1);
+  assert.equal(found[0]?.kind, "field");
+  assert.equal(found[0].key, "sign#.composed.signer");
+});
+
+test("the rule is self-pruning — a difference that has been REPAIRED reds as stale", () => {
+  // Exactly the `stale-allowlist` discipline, and it matters more here: this exemption covers a
+  // whole entry, so one left standing after the two surfaces converged would hide every future
+  // divergence at that entry rather than just one field of it.
+  const found = compareMirrors(
+    [leaf("sign#.composed.runId", "same")],
+    [leaf("sign#.composed.runId", "same")],
+    ruled([RUN_ID_CLAUSE]),
+    "fixture",
+  );
+  assert.equal(found.length, 1);
+  assert.equal(found[0]?.kind, "stale-correct-difference");
+  assert.equal(found[0].key, "sign#.composed.runId");
+  assert.match(found[0].reason, /agree here/);
+  assert.match(formatDivergence(ruled([RUN_ID_CLAUSE]), found[0]), /stale correctDifferences key/);
+});
+
+test("a key NEITHER surface emits reds as stale — the rule describes something that is gone", () => {
+  const found = compareMirrors(
+    [leaf("sign#.composed.signer", "op")],
+    [leaf("sign#.composed.signer", "op")],
+    ruled([RUN_ID_CLAUSE]),
+    "fixture",
+  );
+  assert.equal(found.length, 1);
+  assert.equal(found[0]?.kind, "stale-correct-difference");
+  assert.match(found[0].reason, /neither surface emits/);
+});
+
+test("a key ONE surface stopped emitting is reported ONCE, as the missing entry it is", () => {
+  // Two vocabularies for one fact is a worse report than either alone: the operator would be told
+  // the rule had rotted when what actually happened is that a surface stopped emitting a field.
+  // BOTH DIRECTIONS, because the stale check's "neither emits it" guard is a conjunction and a
+  // single direction leaves half of it able to fire on a key that one surface still emits.
+  const missing = compareMirrors(
+    [leaf("sign#.composed.runId", "studio-uat-attest:T")],
+    [],
+    ruled([RUN_ID_CLAUSE]),
+    "fixture",
+  );
+  assert.deepEqual(missing.map((d) => d.kind), ["missing-entry"]);
+
+  const extra = compareMirrors(
+    [],
+    [leaf("sign#.composed.runId", "local-uat-attest:T")],
+    ruled([RUN_ID_CLAUSE]),
+    "fixture",
+  );
+  assert.deepEqual(extra.map((d) => d.kind), ["extra-entry"]);
+});
+
+test("held-constant and fenced-elsewhere clauses exempt NOTHING — they are declarations", () => {
+  // They are in the data so a reader can argue with them, not so the judge can skip work. A
+  // disposition that silently exempted would be the blanket this whole mechanism exists to avoid.
+  const found = compareMirrors(
+    [leaf("sign#.composed.runId", "a")],
+    [leaf("sign#.composed.runId", "b")],
+    ruled([
+      { disposition: "held-constant", difference: "the signer source", how: "injected", why: "transport" },
+      { disposition: "fenced-elsewhere", difference: "the clean wall", provenBy: "x.test.ts", why: "one-sided" },
+    ]),
+    "fixture",
+  );
+  assert.equal(found.length, 1);
+  assert.equal(found[0]?.kind, "field");
+});
+
+test("every registered correct-difference clause carries its argument, and its pointers resolve", () => {
+  // The rot this catches is a clause whose `provenBy` names a suite that has been deleted or
+  // renamed: the difference then reads as fenced by something that no longer exists, which is worse
+  // than an undeclared difference because it looks answered.
+  for (const target of MIRRORS) {
+    for (const clause of target.spec.correctDifferences ?? []) {
+      assert.ok(clause.difference.trim().length > 0, `${target.spec.surface}: a clause names no difference`);
+      assert.ok(
+        clause.why.trim().length > 0,
+        `${target.spec.surface}: "${clause.difference}" states no reason — a clause must argue that a difference is CORRECT, never merely that it is tolerated`,
+      );
+      if (clause.disposition === "exempt") {
+        assert.ok(clause.keys.length > 0, `${target.spec.surface}: an exempt clause names no keys`);
+        for (const key of clause.keys) {
+          assert.match(key, /^[a-z0-9-]+#\./, `${target.spec.surface}: "${key}" is not a projected entry key`);
+        }
+      }
+      if (clause.disposition === "fenced-elsewhere") {
+        assert.ok(
+          existsSync(join(repoRoot, clause.provenBy)),
+          `${target.spec.surface}: "${clause.difference}" is fenced by ${clause.provenBy}, which does not exist`,
+        );
+      }
+    }
+  }
+});
+
+test("the WRITE pair's exempt keys are spelled out here, so emptying one is a two-place edit", () => {
+  // ⚠ THE EXPECTATION BELOW IS HAND-AUTHORED, AND THAT IS THE POINT — the same call
+  // `registeredMirrorRoutes` makes above. An assertion computed from `correctDifferences` itself
+  // agrees with the registry whatever the registry says, so emptying a clause's `keys` would leave
+  // it green while the gate started reporting a CORRECT difference as drift on every signing arm.
+  //
+  // Only the KEYS are pinned. The `difference` and `why` prose is not — it is documentation, and
+  // pinning its bytes here would be that same self-derived expectation wearing a different hat. What
+  // this file asserts about the prose is that it EXISTS and is non-empty, one test below.
+  const write = MIRRORS.find((m) => m.spec.route === "/api/uat/attest");
+  assert.ok(write, "the operator-attested write pair must stay registered");
+  const exempt = (write.spec.correctDifferences ?? [])
+    .filter((c) => c.disposition === "exempt")
+    .map((c) => [...c.keys].sort());
+  assert.deepEqual(exempt, [
+    [
+      "sign-either-fail#.composed.runId",
+      "sign-human-pass#.composed.runId",
+      "sign-ignores-forged-fields#.composed.runId",
+    ],
+    [
+      "refuse-escaped-story#.refusedBecause",
+      "refuse-machine-witness#.refusedBecause",
+      "refuse-missing-story#.refusedBecause",
+      "refuse-sandbox-signer#.refusedBecause",
+      "refuse-unknown-criterion#.refusedBecause",
+    ],
+  ]);
+  // `refuse-missing-criterion` is deliberately NOT in the second set: both surfaces answer it with
+  // the identical string, and leaving it compared is what keeps that clause from being a blanket
+  // over every refusal. Spelled as its own assertion because it is the one absence a reader of the
+  // list above would not notice.
+  assert.ok(
+    !exempt.flat().includes("refuse-missing-criterion#.refusedBecause"),
+    "the arm where both surfaces word the refusal identically must stay COMPARED",
+  );
+});
+
+test("the correct-difference rule stays within its stopping condition (ADR-0495 D5)", () => {
+  // THE TRIPWIRE, spelled as an assertion rather than left to a reader's judgement. It counts only
+  // the clauses that EXEMPT something, because those are the ones that shrink what is compared;
+  // `held-constant` and `fenced-elsewhere` describe the fixture and another suite. Crossing it is
+  // not a licence to raise the number: ADR-0495 D5 says STOP and raise the divergence as its own
+  // question, because a long list is evidence the two paths have drifted further than intended.
+  for (const target of MIRRORS) {
+    const exempting = (target.spec.correctDifferences ?? []).filter((c) => c.disposition === "exempt");
+    assert.ok(
+      exempting.length <= 3,
+      `${target.spec.surface} exempts ${exempting.length} differences — past the stopping condition. Do NOT raise this bound: the remedy is to look at why the two paths diverged (ADR-0495 D5).`,
+    );
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The `POST /api/uat/attest` projection — the only WRITE pair, and the only projection here that
+// deliberately carries no status.
+// ---------------------------------------------------------------------------
+
+test("the uat-attest projection reports whether a verdict was COMPOSED, per arm", () => {
+  const entries = projectUatAttestPayload({
+    "sign-human-pass": { composed: { signer: "op", runId: "studio-uat-attest:T" }, refusedBecause: null },
+    "refuse-machine-witness": { composed: null, refusedBecause: "a machine-witness UAT test cannot be greened" },
+    // An arm whose probe reported NO `composed` key at all, distinct from an explicit `null`: both
+    // mean nothing was composed, and a `signed` that told them apart would diverge for a reason
+    // that is about the probe's serialisation rather than about the surface.
+    "refuse-crashed": { refusedBecause: "went sideways" },
+  });
+  const signed = entries.filter((e) => "signed" in e);
+  assert.deepEqual(
+    signed.map((e) => [e[UAT_ATTEST_KEY], e["signed"]]),
+    [
+      ["response:refuse-crashed", false],
+      ["response:refuse-machine-witness", false],
+      ["response:sign-human-pass", true],
+    ],
+    "arms are ordered by label, and `signed` is derived by the third party rather than reported by each probe",
+  );
+});
+
+test("the projection flattens what was composed — sorted by path, with the leaf VALUES carried", () => {
+  // The order is asserted, not just the membership: two probes can build one body in different key
+  // orders, and an unsorted projection would report that as an `order` divergence on every arm. The
+  // VALUES are asserted for the same reason the paths are — a projection that emitted every leaf as
+  // `null` would compare two blanks and pass.
+  const entries = projectUatAttestPayload({
+    sign: { composed: { signer: "op", evidence: [{ kind: "operator-attested" }] }, refusedBecause: null },
+  });
+  assert.deepEqual(
+    entries.filter((e) => !("signed" in e)).map((e) => [e[UAT_ATTEST_KEY], e["value"]]),
+    [
+      ["sign#.composed.evidence[0].kind", "operator-attested"],
+      ["sign#.composed.evidence[0]{}", "kind"],
+      ["sign#.composed.evidence[]", "length:1"],
+      ["sign#.composed.signer", "op"],
+      ["sign#.composed{}", "evidence,signer"],
+      ["sign#.refusedBecause", null],
+      ["sign#{}", "composed,refusedBecause"],
+    ],
+  );
+});
+
+test("a probe answer that is not a { composed, refusedBecause } object is a FAILURE, not a pass", () => {
+  // Fail-closed: two silent surfaces agree perfectly. The gate turns this throw into a probe
+  // failure rather than a skip. Each REFUSED SHAPE is spelled out rather than one standing for the
+  // rest — the guard is a disjunction, and a single case leaves its other branches able to admit a
+  // payload that then compares nothing.
+  assert.throws(() => projectUatAttestPayload([]), /keyed by request label/);
+  assert.throws(() => projectUatAttestPayload(null), /keyed by request label/);
+  assert.throws(() => projectUatAttestPayload("signed!"), /keyed by request label/);
+  assert.throws(() => projectUatAttestPayload({ sign: "signed!" }), /must be a \{ composed, refusedBecause \} object/);
+  assert.throws(() => projectUatAttestPayload({ sign: null }), /must be a \{ composed, refusedBecause \} object/);
+  assert.throws(() => projectUatAttestPayload({ sign: [] }), /must be a \{ composed, refusedBecause \} object/);
+});
+
+test("an arm that composed NOTHING on both sides still projects entries — never a vacuous pass", () => {
+  const entries = projectUatAttestPayload({ refuse: { composed: null, refusedBecause: "no" } });
+  assert.ok(entries.length >= 2, "a refused arm must still be compared on its refusal, not skipped");
 });

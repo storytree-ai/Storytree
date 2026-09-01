@@ -41,7 +41,7 @@ import {
 import type { InspectSurfaceDeps } from "@storytree/drive";
 
 import { createAdvisoryReader } from "../src/backend/advisory.js";
-import { containedStoryFile, createAttestationsMount } from "../src/backend/attestations-route.js";
+import { createAttestationsMount } from "../src/backend/attestations-route.js";
 import {
   IN_FLIGHT_CLAIMS_SQL,
   claimRowsToActivity,
@@ -54,8 +54,6 @@ import { createLocalBackend } from "../src/backend/local-backend.js";
 import type { ForestWriter, LocalBackendBackend } from "../src/backend/local-backend.js";
 import { writeToForestBroker } from "../src/backend/forest-readiness.js";
 import type { BrokerPostFn } from "../src/backend/forest-readiness.js";
-import { attestLocalUat } from "../src/backend/local-uat-attest.js";
-import type { AttestLocalUatInput } from "../src/backend/local-uat-attest.js";
 import {
   describeLaunchRefusal,
   ensureLaunchPreconditions,
@@ -65,6 +63,7 @@ import { guardHttpRequest } from "../src/backend/loopback-guard.js";
 import { createChatSseMount } from "../src/backend/chat-sse-mount.js";
 import { createTraversalRoutes, primeTraversalRoutes } from "../src/backend/traversal-routes.js";
 import { createChatResetMount } from "../src/backend/chat-reset-route.js";
+import { createUatAttestMount } from "../src/backend/uat-attest-route.js";
 import type { ChatSseMountDeps } from "../src/backend/chat-sse-mount.js";
 import { resolveOrchestratorMaxTurns } from "../src/backend/orchestrator-turns.js";
 import { CredentialBroker } from "../src/credential/broker.js";
@@ -265,34 +264,9 @@ const brokeredForestWriter: ForestWriter = {
   write: (write) => writeToForestBroker(mainBrokerPost, write, { timeoutMs: 125_000 }),
 };
 
-function readJsonObject(req: IncomingMessage): Promise<Record<string, unknown>> {
-  return new Promise((resolveBody, rejectBody) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > 64 * 1024) {
-        rejectBody(new Error("request body is too large"));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-    req.on("end", () => {
-      try {
-        const value = JSON.parse(Buffer.concat(chunks).toString("utf8")) as unknown;
-        if (typeof value !== "object" || value === null || Array.isArray(value)) {
-          rejectBody(new Error("request body must be a JSON object"));
-          return;
-        }
-        resolveBody(value as Record<string, unknown>);
-      } catch {
-        rejectBody(new Error("request body must be valid JSON"));
-      }
-    });
-    req.on("error", rejectBody);
-  });
-}
+// `readJsonObject` MOVED with the only route that called it — see
+// ../src/backend/uat-attest-route.ts. Left as a pointer rather than deleted silently: a body
+// reader declared here reads as a route still parsing its request in this file.
 
 function currentGitState() {
   const commitSha = execFileSync("git", ["rev-parse", "HEAD"], {
@@ -583,74 +557,23 @@ async function main(): Promise<void> {
   });
 
   // ---------- /api/uat/attest (POST — local human proof, persisted through IAP broker) ----------
-  const uatAttestMount = async (
-    req: IncomingMessage,
-    res: ServerResponse,
-    pathname: string,
-  ): Promise<boolean> => {
-    if (pathname !== "/api/uat/attest") return false;
-    if ((req.method ?? "GET") !== "POST") {
-      res.statusCode = 405;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: `method ${req.method ?? "GET"} not allowed` }));
-      return true;
-    }
-
-    const body = await readJsonObject(req);
-    const storyId = typeof body["storyId"] === "string" ? body["storyId"].trim() : "";
-    const criterionId =
-      typeof body["criterionId"] === "string" ? body["criterionId"].trim() : "";
-    if (storyId.length === 0 || criterionId.length === 0) {
-      res.statusCode = 400;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: "storyId and criterionId are required" }));
-      return true;
-    }
-
-    const { loadNodeSpec, resolvedWitnessOf } = await import("@storytree/orchestrator");
-    // CONTAINED, not `findNodeSpecFile`: that helper applies no containment guard, so a `storyId` of
-    // `../…` reached a `path.join` and this route would sign a real verdict against a spec from
-    // OUTSIDE the stories root. Found by the `/api/attestations` mirror row, which measured the same
-    // hole on the READ next door (2026-08-31); the guard is shared rather than written twice.
-    const specFile = containedStoryFile(storiesDir, storyId);
-    const spec = specFile === null ? null : loadNodeSpec(specFile);
-    if (spec === null || spec.tier !== "story") {
-      res.statusCode = 400;
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.end(JSON.stringify({ error: `story "${storyId}" was not found` }));
-      return true;
-    }
-
-    const signer = await requestElectronMain<string>({ type: "broker:identity" });
-    const attestingSession = deriveChatIdentity(repoRoot);
-    const attestInput: AttestLocalUatInput = {
-      criterionId,
-      outcome: body["outcome"] === "fail" ? "fail" : "pass",
-      at: new Date().toISOString(),
-      tests: spec.uatTestCriteria.map((test) => ({
-        criterionId: test.criterionId,
-        revisionId: test.revisionId,
-        witness: resolvedWitnessOf(test, spec.reliabilityGates),
-      })),
-      signer,
-      git: currentGitState(),
-      forestWriter: brokeredForestWriter,
-    };
-    const note = body["note"];
-    if (typeof note === "string") attestInput.note = note;
-    if (attestingSession !== null) attestInput.agentIdentity = attestingSession.sessionId;
-    const result = await attestLocalUat(attestInput);
-
-    res.setHeader("Content-Type", "application/json; charset=utf-8");
-    if (!result.ok) {
-      res.statusCode = 422;
-      res.end(JSON.stringify({ error: result.reason }));
-      return true;
-    }
-    res.statusCode = 201;
-    res.end(JSON.stringify({ verdict: result.verdict }));
-    return true;
-  };
+  //
+  // EXTRACTED, not re-implemented: the whole mount moved verbatim to
+  // apps/desktop/src/backend/uat-attest-route.ts and is COMPOSED here over this process's live
+  // seams. It was an inline closure in this function, so nothing outside a booted Electron backend
+  // could call it — which is why `check:mirror-conformance` had no way to compare the highest-stakes
+  // WRITE in the system against the studio's `POST /api/uat/attest` that it is a hand-written copy
+  // of (ADR-0495 / `unscored-guards-arc`). The `attestations-route.ts` extraction one increment
+  // earlier had exactly this shape, for exactly this reason.
+  const uatAttestMount = createUatAttestMount({
+    storiesDir,
+    // The broker identity, asked of the Electron main process — never a request field.
+    resolveSigner: () => requestElectronMain<string>({ type: "broker:identity" }),
+    gitState: currentGitState,
+    agentIdentity: () => deriveChatIdentity(repoRoot)?.sessionId ?? null,
+    forestWriter: brokeredForestWriter,
+    now: () => new Date().toISOString(),
+  });
 
   // ---------- /api/attestations (GET — member-readable UAT test list) ----------
   //
