@@ -1,0 +1,33 @@
+renderer: ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+vendor:   Google Inc. (Qualcomm)
+runs=2  repeats=7  batch=30  layer arm="grass"
+
+== reproducibility across 2 run(s) ==
+  Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped.
+  flat@one@8                   1.0515 vs 1.0391  gap 0.0124 (1.2%)  tol 0.4516  reproduced
+  grass@one@8                  2.1114 vs 2.1046  gap 0.0068 (0.3%)  tol 0.6117  reproduced
+  grass-amplified@one@8        8.7393 vs 8.6481  gap 0.0912 (1.1%)  tol 0.2177  reproduced
+  flat@forest@8                2.9578 vs 2.8094  gap 0.1484 (5.3%)  tol 0.3083  reproduced
+  grass@forest@8               4.0576 vs 3.9199  gap 0.1377 (3.5%)  tol 0.2403  reproduced
+  grass-amplified@forest@8     10.6591 vs 10.5385  gap 0.1207 (1.1%)  tol 0.3456  reproduced
+
+== one island(s) at 8 px per ground unit ==
+  flat             mix —      octaves    0  tris 5562  calls 1  cover 14.1%  n=14
+  grass            mix 0.32   octaves   23  tris 5562  calls 1  cover 14.1%  n=14
+  grass-amplified  mix 0.32   octaves  184  tris 5562  calls 1  cover 14.1%  n=14
+  flat             1.0487 ms/frame  spread 0.4540  (the control)
+  grass            2.1051 ms/frame  spread 0.6117  +1.0564 ms
+  grass-amplified  8.7043 ms/frame  spread 0.2341  +7.6556 ms
+  rung: BUDGET   status: PASS
+  PASS — 7 layers at this layer's measured cost come to 8.443 ms/frame, 50.7% of a 16.67 ms frame. That is a NECESSARY condition and not a sufficient one: the budget compared against is the WHOLE frame, which still has to draw the plants, the props, the water and the UI.
+
+== forest island(s) at 8 px per ground unit ==
+  flat             mix —      octaves    0  tris 194630  calls 1  cover 14.2%  n=14
+  grass            mix 0.32   octaves   23  tris 194630  calls 1  cover 14.2%  n=14
+  grass-amplified  mix 0.32   octaves  184  tris 194630  calls 1  cover 14.2%  n=14
+  flat             2.8974 ms/frame  spread 0.3083  (the control)
+  grass            4.0299 ms/frame  spread 0.2633  +1.1325 ms
+  grass-amplified  10.6579 ms/frame  spread 0.3456  +7.7605 ms
+  rung: BUDGET   status: PASS
+  PASS — 7 layers at this layer's measured cost come to 10.825 ms/frame, 64.9% of a 16.67 ms frame. That is a NECESSARY condition and not a sufficient one: the budget compared against is the WHOLE frame, which still has to draw the plants, the props, the water and the UI.
+

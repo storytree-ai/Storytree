@@ -1,0 +1,45 @@
+renderer: Google Inc. (Qualcomm) — ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+software=false
+
+THE REFERENCE — the approved Cycles render, through this page’s own family census
+  land-combined: colour families 36 · largest holds 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution, framing and camera, and all SEVEN layers.
+
+── one @ 2 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            11    27.9%  62.5%   3.56   22.69         0        0   5562    0
+authored        17    29.6%  57.8%   3.20   21.69         0    33790   5562   23
+adopted         20    20.9%  42.4%   2.69   20.55      2689    33790   5562   23
+ceiling         21    16.2%  38.5%   2.45   20.18      7549    33790   5562   23
+
+── one @ 8 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            11    27.7%  62.4%   1.05   25.46         0        0   5562    0
+authored        17    29.6%  57.7%   0.97   24.34         0   540563   5562   23
+adopted         20    21.0%  42.4%   0.84   23.01     42760   540563   5562   23
+ceiling         22    16.3%  38.5%   0.78   22.55    120890   540563   5562   23
+
+── forest @ 2 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            25    12.6%  31.3%   3.52   31.00         0        0  194630    0
+authored        27    12.6%  29.0%   3.37   30.79         0    68420  194630   23
+adopted         33    12.6%  26.2%   3.16   30.71      2814    68420  194630   23
+ceiling         34    12.6%  25.6%   3.06   30.77      7930    68420  194630   23
+
+── forest @ 8 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            11    27.3%  61.6%   1.05   25.37         0        0  194630    0
+authored        17    29.3%  57.3%   0.96   24.22         0   547100  194630   23
+adopted         18    20.8%  42.6%   0.83   22.86     44905   547100  194630   23
+ceiling         22    16.2%  38.4%   0.77   22.37    126160   547100  194630   23
+
+THE GAP THAT REMAINS, at the read zoom on one island:
+  shipped 11 families → adopted 20 → approved 36. Largest family: 27.7% → 21.0% → 5.2%.
+
+THE PER-TOKEN GATE, IN PIXELS (ADR-0492 D1) — the share of land the shipped arm dressed:
+  @2 px/unit: all-green island 93.9% · real-mix forest 38.6% — the difference is the yellow islands, drawing exactly what they drew before this layer.
+  @8 px/unit: NOT ASKED — the forest frame here holds 582580 land px against the single island's 575962, i.e. the same re-centred green island. A gate difference at this zoom would be a claim the framing forbids.
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet — a cost sentence in a parked row is a cost as at
+  the day it was parked, and this arc has already been sized 5x wrong that way once.

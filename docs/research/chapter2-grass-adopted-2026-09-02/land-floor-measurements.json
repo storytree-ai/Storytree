@@ -1,0 +1,396 @@
+{
+  "identity": {
+    "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "vendor": "Google Inc. (Qualcomm)",
+    "software": false,
+    "timerQuery": true
+  },
+  "views": [
+    {
+      "key": "one@8",
+      "size": "one",
+      "zoom": 8
+    },
+    {
+      "key": "forest@8",
+      "size": "forest",
+      "zoom": 8
+    }
+  ],
+  "layerArm": "grass",
+  "runs": 2,
+  "repeats": 7,
+  "batch": 30,
+  "agreement": {
+    "status": "AGREED",
+    "runs": 2,
+    "rows": [
+      {
+        "key": "flat@one@8",
+        "medians": [
+          1.0514826000000002,
+          1.0390781
+        ],
+        "spreads": [
+          0.45159723333333335,
+          0.03867880000000001
+        ],
+        "gapMs": 0.012404500000000152,
+        "gapPct": 1.1937986182174518,
+        "toleranceMs": 0.45159723333333335,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "grass@one@8",
+        "medians": [
+          2.1113732333333335,
+          2.1046093666666668
+        ],
+        "spreads": [
+          0.6117256666666671,
+          0.07105556666666679
+        ],
+        "gapMs": 0.006763866666666729,
+        "gapPct": 0.32138347257189637,
+        "toleranceMs": 0.6117256666666671,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "grass-amplified@one@8",
+        "medians": [
+          8.739272566666667,
+          8.648072899999999
+        ],
+        "spreads": [
+          0.2177395999999998,
+          0.11767016666666663
+        ],
+        "gapMs": 0.09119966666666812,
+        "gapPct": 1.0545663493038795,
+        "toleranceMs": 0.2177395999999998,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "flat@forest@8",
+        "medians": [
+          2.9577916666666666,
+          2.809359366666667
+        ],
+        "spreads": [
+          0.2551128666666669,
+          0.30831770000000036
+        ],
+        "gapMs": 0.14843229999999963,
+        "gapPct": 5.2834928048424095,
+        "toleranceMs": 0.30831770000000036,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "grass@forest@8",
+        "medians": [
+          4.057619766666667,
+          3.919934
+        ],
+        "spreads": [
+          0.11844096666666681,
+          0.24026039999999993
+        ],
+        "gapMs": 0.13768576666666688,
+        "gapPct": 3.5124511450107803,
+        "toleranceMs": 0.24026039999999993,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "grass-amplified@forest@8",
+        "medians": [
+          10.659131933333333,
+          10.538473933333334
+        ],
+        "spreads": [
+          0.09104166666666558,
+          0.34559720000000205
+        ],
+        "gapMs": 0.12065799999999882,
+        "gapPct": 1.1449285803929918,
+        "toleranceMs": 0.34559720000000205,
+        "agreed": true,
+        "identical": false
+      }
+    ],
+    "droppedKeys": [],
+    "dropped": [],
+    "suspectIdentical": false,
+    "prose": "Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped."
+  },
+  "rowsByView": {
+    "one@8": [
+      {
+        "label": "flat",
+        "samples": [
+          1.4817361,
+          1.0359687333333334,
+          1.0588368000000001,
+          1.0301388666666667,
+          1.0503315666666666,
+          1.0664392333333332,
+          1.0514826000000002,
+          1.0469861,
+          1.0276927,
+          1.0368038,
+          1.0345173333333333,
+          1.0663715,
+          1.0559444333333332,
+          1.0390781
+        ],
+        "triangles": 5562,
+        "drawCalls": 1,
+        "octaves": 0,
+        "software": false,
+        "hidden": false,
+        "timerQueryAvailable": true,
+        "groundCoveragePct": 14.09375,
+        "discardedDisjoint": 0,
+        "discardedUnavailable": 0,
+        "reproduced": true
+      },
+      {
+        "label": "grass",
+        "samples": [
+          2.6856440666666668,
+          2.1113732333333335,
+          2.093338533333333,
+          2.0739183999999997,
+          2.0961684000000003,
+          2.1194496333333332,
+          2.121576366666667,
+          2.0840503333333333,
+          2.1055052,
+          2.0787187333333335,
+          2.1046093666666668,
+          2.133156233333333,
+          2.1481059,
+          2.077050333333333
+        ],
+        "triangles": 5562,
+        "drawCalls": 1,
+        "octaves": 23,
+        "software": false,
+        "hidden": false,
+        "timerQueryAvailable": true,
+        "groundCoveragePct": 14.09375,
+        "discardedDisjoint": 0,
+        "discardedUnavailable": 0,
+        "reproduced": true
+      },
+      {
+        "label": "grass-amplified",
+        "samples": [
+          8.651394066666667,
+          8.7460729,
+          8.6978472,
+          8.7582413,
+          8.710737833333333,
+          8.739272566666667,
+          8.869133666666666,
+          8.6350399,
+          8.640756933333334,
+          8.648072899999999,
+          8.752710066666667,
+          8.7219184,
+          8.694463533333334,
+          8.642777766666667
+        ],
+        "triangles": 5562,
+        "drawCalls": 1,
+        "octaves": 184,
+        "software": false,
+        "hidden": false,
+        "timerQueryAvailable": true,
+        "groundCoveragePct": 14.09375,
+        "discardedDisjoint": 0,
+        "discardedUnavailable": 0,
+        "reproduced": true
+      }
+    ],
+    "forest@8": [
+      {
+        "label": "flat",
+        "samples": [
+          2.9577916666666666,
+          2.783184,
+          3.0382968666666668,
+          2.9216892333333333,
+          3.0086510333333334,
+          3.009656233333333,
+          2.873052066666667,
+          3.0575798333333335,
+          3.0097100666666665,
+          2.749262133333333,
+          2.8218350666666665,
+          2.809359366666667,
+          2.7813350666666663,
+          2.8066805333333336
+        ],
+        "triangles": 194630,
+        "drawCalls": 1,
+        "octaves": 0,
+        "software": false,
+        "hidden": false,
+        "timerQueryAvailable": true,
+        "groundCoveragePct": 14.231250000000001,
+        "discardedDisjoint": 0,
+        "discardedUnavailable": 0,
+        "reproduced": true
+      },
+      {
+        "label": "grass",
+        "samples": [
+          4.057864566666667,
+          4.1006076333333334,
+          3.9870156,
+          4.105456566666667,
+          4.057619766666667,
+          4.046519066666667,
+          4.013208333333333,
+          4.082369766666667,
+          4.0488992999999995,
+          3.8686822666666667,
+          3.919934,
+          3.9365520666666667,
+          3.8662986,
+          3.842109366666667
+        ],
+        "triangles": 194630,
+        "drawCalls": 1,
+        "octaves": 23,
+        "software": false,
+        "hidden": false,
+        "timerQueryAvailable": true,
+        "groundCoveragePct": 14.231250000000001,
+        "discardedDisjoint": 0,
+        "discardedUnavailable": 0,
+        "reproduced": true
+      },
+      {
+        "label": "grass-amplified",
+        "samples": [
+          10.659131933333333,
+          10.682138866666666,
+          10.5910972,
+          10.6339479,
+          10.675623233333333,
+          10.656598933333333,
+          10.664706566666666,
+          10.736947899999999,
+          10.664522566666667,
+          10.741998233333334,
+          10.494322899999998,
+          10.538473933333334,
+          10.396401033333332,
+          10.497439233333333
+        ],
+        "triangles": 194630,
+        "drawCalls": 1,
+        "octaves": 184,
+        "software": false,
+        "hidden": false,
+        "timerQueryAvailable": true,
+        "groundCoveragePct": 14.231250000000001,
+        "discardedDisjoint": 0,
+        "discardedUnavailable": 0,
+        "reproduced": true
+      }
+    ]
+  },
+  "verdicts": {
+    "one@8": {
+      "status": "PASS",
+      "rung": "BUDGET",
+      "budgetMs": 16.666666666666668,
+      "layers": 7,
+      "costs": [
+        {
+          "label": "flat",
+          "gpuMsPerFrame": 1.0486588333333333,
+          "spreadMs": 0.4540434,
+          "samples": 14,
+          "octaves": 0,
+          "deltaMs": null,
+          "resolved": false,
+          "noiseFloorMs": 0.4540434
+        },
+        {
+          "label": "grass",
+          "gpuMsPerFrame": 2.105057283333333,
+          "spreadMs": 0.6117256666666671,
+          "samples": 14,
+          "octaves": 23,
+          "deltaMs": 1.0563984499999999,
+          "resolved": true,
+          "noiseFloorMs": 0.6117256666666671
+        },
+        {
+          "label": "grass-amplified",
+          "gpuMsPerFrame": 8.704292516666666,
+          "spreadMs": 0.23409376666666581,
+          "samples": 14,
+          "octaves": 184,
+          "deltaMs": 7.655633683333332,
+          "resolved": true,
+          "noiseFloorMs": 0.4540434
+        }
+      ],
+      "stackMsPerFrame": 8.443447983333332,
+      "unverified": [],
+      "failures": [],
+      "prose": "PASS — 7 layers at this layer's measured cost come to 8.443 ms/frame, 50.7% of a 16.67 ms frame. That is a NECESSARY condition and not a sufficient one: the budget compared against is the WHOLE frame, which still has to draw the plants, the props, the water and the UI."
+    },
+    "forest@8": {
+      "status": "PASS",
+      "rung": "BUDGET",
+      "budgetMs": 16.666666666666668,
+      "layers": 7,
+      "costs": [
+        {
+          "label": "flat",
+          "gpuMsPerFrame": 2.89737065,
+          "spreadMs": 0.30831770000000036,
+          "samples": 14,
+          "octaves": 0,
+          "deltaMs": null,
+          "resolved": false,
+          "noiseFloorMs": 0.30831770000000036
+        },
+        {
+          "label": "grass",
+          "gpuMsPerFrame": 4.0298637,
+          "spreadMs": 0.26334719999999967,
+          "samples": 14,
+          "octaves": 23,
+          "deltaMs": 1.13249305,
+          "resolved": true,
+          "noiseFloorMs": 0.30831770000000036
+        },
+        {
+          "label": "grass-amplified",
+          "gpuMsPerFrame": 10.657865433333333,
+          "spreadMs": 0.34559720000000205,
+          "samples": 14,
+          "octaves": 184,
+          "deltaMs": 7.760494783333333,
+          "resolved": true,
+          "noiseFloorMs": 0.34559720000000205
+        }
+      ],
+      "stackMsPerFrame": 10.824822,
+      "unverified": [],
+      "failures": [],
+      "prose": "PASS — 7 layers at this layer's measured cost come to 10.825 ms/frame, 64.9% of a 16.67 ms frame. That is a NECESSARY condition and not a sufficient one: the budget compared against is the WHOLE frame, which still has to draw the plants, the props, the water and the UI."
+    }
+  }
+}

@@ -1,21 +1,27 @@
-// shipped-grass-measure.mjs — DRIVER for "layer 1: the grass base": the shipped map's ground with
-// the approved grass mixed in at four strengths, over one island and one forest.
+// shipped-grass-measure.mjs — DRIVER for "layer 1: the grass base, ADOPTED": the shipped map's
+// ground with the approved grass mixed in at four strengths, over one island and one forest.
 //
-//   flat          the map as it ships — status colour + the grain's normal half (CONTROL)
-//   admissible    grass at 0.005 — the most the reader model admits on the SHIPPED ladder
-//   ladder-limit  grass at 0.20  — the most that leaves any shading depth at all
-//   visible       grass at 0.35  — the least a viewer can actually see
+//   flat      the map BEFORE layer 1 — status colour + the grain's normal half (CONTROL)
+//   authored  grass at 0.13   — the recipe's own factor, carried to show it is INVISIBLE here
+//   adopted   grass at 0.32   — WHAT SHIPS
+//   ceiling   grass at 0.4065 — the measured fence, carried to show what the headroom buys
 //
-// THE INCREMENT: `layer-1-grass-base-and-hue-drift` on `land-ground-stack-arc` — the floor every
-// other layer of the approved ground composites over (ADR-0490 D3).
+// THE INCREMENT: `layer-1-adopted-on-green-under-the-per-token-gate` on `land-ground-stack-arc` —
+// the floor every other layer of the approved ground composites over (ADR-0490 D3).
 //
-// ⚠⚠ THIS DRIVER EXISTS TO PUT A CONFLICT IN FRONT OF SOMEONE, not to bless a component. The
-// three facs above were chosen by `harness/grass-status-reading.ts` and they do not overlap: the
-// factor needed to SEE the layer is seventy times the factor at which every status still reads as
-// itself. So the refusals below are shaped around that rather than around "did it draw" — they
-// check that the control is a control, that the layer costs no geometry, and that the two claims
-// the report makes (invisible-but-honest, visible-but-not) are both actually true of the frames
-// rather than of the arithmetic.
+// ⚠⚠ THE QUESTION THIS DRIVER ASKS HAS CHANGED, AND ITS ARMS CHANGED WITH IT. Until ADR-0492 the
+// arms were 0.005 / 0.20 / 0.35, framed around a CONFLICT: the factor needed to see the layer was
+// seventy times the factor at which every status still read as itself, so the page existed to put
+// an owner fork in front of someone. That premise was refuted. The 0.008 whole-map ceiling it
+// rested on is a MINIMUM OVER SIX TOKENS and is a property of exactly one of them — the yellow;
+// `healthy` alone admits 0.4065. Gated to the green (ADR-0492 D1) the conflict does not arise, so
+// this page now shows an ADOPTION: what ships, what the recipe's own factor would have delivered
+// (nothing), and what the remaining headroom looks like.
+//
+// The refusals below are shaped around that: the control is a control, the layer costs no
+// geometry, the shipped arm is VISIBLE where the authored one provably is not, and — the claim
+// unique to the per-token gate — the ungated tokens are untouched IN THE FRAMES rather than only
+// in the arithmetic.
 //
 // ⚠ THE REFERENCE ARM IS THE STANDARD. Every crossing on this arc is judged against the picture
 // the owner approved rather than against its own best arm — "the image that I stamped as looking
@@ -57,11 +63,16 @@ const OUT =
 const ALLOW_SOFTWARE = process.env['ST_GRASS_ALLOW_SOFTWARE'] === '1';
 
 const CONTROL = 'flat';
-const ARMS = ['flat', 'admissible', 'ladder-limit', 'visible'];
-/** The arm whose whole claim is that it can be SEEN. Its refusals are the strict ones. */
-const VISIBLE_ARM = 'visible';
-/** The arm whose whole claim is that it CANNOT — the reader model's own ceiling. */
-const ADMISSIBLE_ARM = 'admissible';
+const ARMS = ['flat', 'authored', 'adopted', 'ceiling'];
+/** The arm that SHIPS, and whose claim is that a viewer can see it. Its refusals are the strict
+ *  ones, because it is the only arm whose numbers describe the map people will look at. */
+const VISIBLE_ARM = 'adopted';
+/** The arm whose whole claim is that it CANNOT be seen — the recipe's own authored factor, which
+ *  on the shipped ladder cannot move any pixel past the 20/255 bar. It is carried precisely so
+ *  that "we adopted the recipe's constant" is visibly a landing that would have changed nothing. */
+const ADMISSIBLE_ARM = 'authored';
+/** The forest arm wears the REAL status mix — 21 green, 14 yellow — so the per-token gate's claim
+ *  is answerable in pixels here and nowhere else. `one` is mono-healthy. */
 const SIZES = ['one', 'forest'];
 const ZOOMS = [2, 8];
 const FIT = 'fit';
@@ -211,25 +222,75 @@ for (const size of SIZES) {
 }
 
 // ⚠ THE TWO CLAIMS THE REPORT RESTS ON, CHECKED AGAINST THE FRAMES RATHER THAN THE ARITHMETIC.
-// `grass-status-reading.ts` says the admissible fac is invisible and the visible fac is not
-// admissible. Both halves are claims about PICTURES, and a driver that printed them without
-// looking would be quoting its own model back at itself.
+// `grass-status-reading.ts` says the authored fac cannot move a pixel and the shipped one can.
+// Both halves are claims about PICTURES, and a driver that printed them without looking would be
+// quoting its own model back at itself.
 const visible = at(VISIBLE_ARM, 'one', READ_ZOOM);
 const admissible = at(ADMISSIBLE_ARM, 'one', READ_ZOOM);
 if (visible.visible === 0) {
   fail(
     `the ${VISIBLE_ARM} arm touched ${visible.touched} px and moved NONE of them by more than ` +
-      `${VISIBLE_DELTA}/255. The whole report says this fac is the one a viewer can see; if the ` +
-      'frames disagree, the report is wrong and not the frames (ADR-0490 D6).',
+      `${VISIBLE_DELTA}/255. This is the arm that SHIPS; an adoption that moves no pixel a viewer ` +
+      'can see is the clean landing that changed nothing (ADR-0490 D6).',
   );
 }
 if (admissible.visible > visible.visible / 10) {
   fail(
     `the ${ADMISSIBLE_ARM} arm moved ${admissible.visible} px visibly against ${VISIBLE_ARM}'s ` +
-      `${visible.visible}. The report's claim is that the model-admissible fac is invisible; a ` +
-      'tenth of the visible arm is not invisible, and the conflict this page exists to show would ' +
-      'be overstated.',
+      `${visible.visible}. The report's claim is that the RECIPE'S OWN factor is invisible on the ` +
+      'shipped ladder — the reason the delivered strength was re-derived rather than transcribed ' +
+      '(ADR-0492 D2). If 0.13 is visible here, that reasoning does not hold.',
   );
+}
+
+// ⚠⚠ THE PER-TOKEN GATE, PROVED IN PIXELS. This is the claim unique to ADR-0492 D1 and the one
+// the arithmetic alone cannot settle: the shader multiplies the mix by zero on every ungated row,
+// so the yellow islands must draw EXACTLY what they drew before layer 1 existed. The `one` scene
+// is mono-healthy and the `forest` scene wears the real 21-green/14-yellow mix, so if the gate is
+// working the forest touches a strictly smaller SHARE of its land than the single green island
+// does — and if the gate were dropped, both shares would be ~1 and this check is what notices.
+//
+// ⚠ IT IS A SHARE, NOT A COUNT. The two scenes show different amounts of land at the same zoom,
+// so comparing raw touched pixels would compare two framings and call the difference a gate.
+//
+// ⚠⚠ AND IT IS ONLY ASKABLE AT A ZOOM WHOSE FRAME ACTUALLY HOLDS MORE THAN ONE ISLAND. Every
+// scene here is RE-CENTRED on the island nearest the forest's middle, and that island is green;
+// at 8 px/unit the buffer holds about 320x200 ground units, i.e. that island and little else. So
+// the "forest" frame there is the SAME GREEN ISLAND as the mono frame — measured, 582,580 land px
+// against 575,962 — and both are grassed over 93.9% of their land whether the gate works or not.
+// Asserting a difference at that zoom asserts something the framing forbids. The qualifying zooms
+// are DERIVED from the land each frame actually shows rather than hard-coded, so a change to the
+// viewport or the crowd layout moves the check instead of quietly falsifying it.
+const MULTI_ISLAND_LAND = 1.5;
+const gateZooms = ZOOMS.filter(
+  (zoom) => at(VISIBLE_ARM, 'forest', zoom).land > at(VISIBLE_ARM, 'one', zoom).land * MULTI_ISLAND_LAND,
+);
+if (gateZooms.length === 0) {
+  fail(
+    'no zoom in this run framed more than one island, so the per-token gate could not be checked ' +
+      'in pixels at all. The check must not silently vanish: widen ZOOMS or the viewport.',
+  );
+}
+for (const zoom of gateZooms) {
+  const green = at(VISIBLE_ARM, 'one', zoom);
+  const mixed = at(VISIBLE_ARM, 'forest', zoom);
+  const greenShare = green.touched / green.land;
+  const mixedShare = mixed.touched / mixed.land;
+  if (greenShare < 0.5) {
+    fail(
+      `the mono-healthy island at ${zoom} px/unit was grassed over only ` +
+        `${(greenShare * 100).toFixed(1)}% of its land. Every parcel there is healthy, so the ` +
+        'gate should dress all of it — a low share means the gate is naming the wrong row.',
+    );
+  }
+  if (mixedShare >= greenShare) {
+    fail(
+      `at ${zoom} px/unit the real-mix forest was grassed over ${(mixedShare * 100).toFixed(1)}% ` +
+        `of its land against the all-green island's ${(greenShare * 100).toFixed(1)}%. The ` +
+        'per-token gate (ADR-0492 D1) must leave the yellow islands untouched; equal shares mean ' +
+        'the layer is dressing every token and the map is reporting states it does not hold.',
+    );
+  }
 }
 if (visible.families <= at(CONTROL, 'one', READ_ZOOM).families) {
   fail(
@@ -282,10 +343,29 @@ for (const size of SIZES) {
 say('THE GAP THAT REMAINS, at the read zoom on one island:');
 const c1 = at(CONTROL, 'one', READ_ZOOM);
 say(
-  `  shipped ${c1.families} families → visible arm ${visible.families} → approved ` +
+  `  shipped ${c1.families} families → adopted ${visible.families} → approved ` +
     `${result.reference.families}. Largest family: ${(c1.largestShare * 100).toFixed(1)}% → ` +
     `${(visible.largestShare * 100).toFixed(1)}% → ${(result.reference.largestShare * 100).toFixed(1)}%.`,
 );
+say('');
+say('THE PER-TOKEN GATE, IN PIXELS (ADR-0492 D1) — the share of land the shipped arm dressed:');
+for (const zoom of gateZooms) {
+  const green = at(VISIBLE_ARM, 'one', zoom);
+  const mixed = at(VISIBLE_ARM, 'forest', zoom);
+  say(
+    `  @${zoom} px/unit: all-green island ${((green.touched / green.land) * 100).toFixed(1)}% · ` +
+      `real-mix forest ${((mixed.touched / mixed.land) * 100).toFixed(1)}% — the difference is ` +
+      'the yellow islands, drawing exactly what they drew before this layer.',
+  );
+}
+for (const zoom of ZOOMS.filter((z) => !gateZooms.includes(z))) {
+  say(
+    `  @${zoom} px/unit: NOT ASKED — the forest frame here holds ` +
+      `${at(VISIBLE_ARM, 'forest', zoom).land} land px against the single island's ` +
+      `${at(VISIBLE_ARM, 'one', zoom).land}, i.e. the same re-centred green island. A gate ` +
+      'difference at this zoom would be a claim the framing forbids.',
+  );
+}
 say('');
 say('⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,');
 say('  an arc intent or an earlier evidence sheet — a cost sentence in a parked row is a cost as at');

@@ -5000,14 +5000,32 @@ button.legend-tile:hover {
 .tree-detail-section-body {
   padding: 0 2px 12px;
 }
+/* ⚠ IT PANS. IT DOES NOT SCROLL (ADR-0502). The owner, on this exact panel: *"also be nice if we
+   could get rid of the ugly scroll bars and instead have it a pannable surface."* These are the same
+   four properties `.world-viewport` above carries for the map itself — written there on the SAME
+   feedback, and never generalised, which is precisely why the graph sitting beside the map still had
+   bars months later.
+
+   ⚠ `touch-action: none` IS THE CLAUSE THAT GETS DROPPED WHEN THIS IS COPIED, and without it the
+   PANEL scrolls under a reader's finger while they try to pan the graph.
+
+   ⚠ AND `overflow: hidden` ON ITS OWN WOULD BE WORSE THAN THE SCROLLBAR. A bar promised that
+   everything was reachable; hiding it without a gesture strands every node past the edge. The
+   gesture is `usePannable` in `lib/pannable.ts`, whose clamp bounds the drag to exactly the range
+   this scrollbar used to cover — so nothing can be dragged out of reach. */
 .tree-subdag-frame {
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface-2);
   padding: 16px;
-  overflow: auto;
+  overflow: hidden; /* no scrollbar — the drag navigates */
+  touch-action: none; /* the gesture drives the surface, not the panel */
+  cursor: grab;
+  user-select: none;
   max-height: 46vh;
-  scrollbar-gutter: stable;
+}
+.tree-subdag-frame.is-grabbing {
+  cursor: grabbing;
 }
 .tree-subdag {
   display: block;
