@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>what a ground layer costs the shipped map — the land frame floor (dev-only)</title>
+    <style>
+      body {
+        margin: 0;
+        background: #0b0e13;
+        color: #e6e9ef;
+        font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+        padding: 20px;
+      }
+      p {
+        max-width: 78ch;
+        color: #aab2c0;
+      }
+      code {
+        color: #d7c07a;
+      }
+      strong {
+        color: #e6e9ef;
+      }
+      canvas {
+        border: 1px solid #2a3038;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>the land frame floor — a ground layer, on the GPU's own clock</h1>
+    <p>
+      Three arms over <strong>the shipped map</strong>, built by the same
+      <code>shippedGroundBuild</code> the canvas itself calls, so the control arm cannot quietly
+      stop being the map:
+    </p>
+    <p>
+      <code>flat</code> — the ground as it draws today.<br />
+      <code>grass</code> — plus layer 1 of the approved ground: <strong>zero extra triangles</strong>,
+      23 extra lattice-noise octaves per ground fragment.<br />
+      <code>grass-amplified</code> — the same layer evaluated <strong>8x over</strong>, geometry
+      untouched. This is the <em>sensitivity control</em>: if the clock cannot see it move, the run
+      is UNVERIFIED rather than cheap.
+    </p>
+    <p>
+      The page does nothing on its own. <code>harness/land-floor-measure.mjs</code> drives it,
+      calling <code>window.__stLandFloor(spec)</code> once per sample, round-robin across the arms.
+      Timing is <code>EXT_disjoint_timer_query_webgl2</code> and nothing else — the
+      <code>gl.finish()</code> wall clock the older <code>hardware-floor</code> page reports was
+      measured blind to an 8.7x change in real GPU work, so it is deliberately absent here.
+    </p>
+    <div id="root"></div>
+    <script type="module">
+      import { mountLandFloor } from './land-floor-scene.ts';
+      mountLandFloor(document.getElementById('root'));
+    </script>
+  </body>
+</html>
