@@ -272,6 +272,18 @@ test('pixels that did not move are counted in no band', () => {
     reading.bands.reduce((sum, band) => sum + band.pixels, 0),
     5,
   );
+  // ⚠ THE DENOMINATOR IS THE MOVED PIXELS, NEVER THE FRAME, and this case is the only one that can
+  // tell the two apart: half the frame is still, so a frame-denominated share would read 0.5 where
+  // the truth is that ALL of the movement sits in this band. Every other case in this file moves
+  // every pixel, where the two denominators coincide and the distinction is invisible.
+  const band = reading.bands.find((b) => b.label === '2-4x')!;
+  assert.equal(band.pixels, 5);
+  assert.equal(band.shareOfMoved, 1);
+  assert.equal(
+    reading.bands.reduce((sum, b) => sum + b.shareOfMoved, 0),
+    1,
+    'the shares must sum to one over the MOVED pixels',
+  );
 });
 
 test('percentiles describe the moved pixels, not the frame', () => {
@@ -383,6 +395,21 @@ test('a BLIND comparator is caught, and the reason says what the null actually m
   const reasons = sensitivityReasons(flat(64, 100), VISIBLE_DELTA, blindReader);
   assert.ok(reasons.some((r) => /one MORE than the bar/.test(r)));
   assert.ok(reasons.some((r) => /same null a blind instrument returns/.test(r)));
+});
+
+// ⚠⚠ THE PARTIALLY BLIND CASE, WHICH IS THE ONE A WEAKER RUNG WOULD MISS. A comparator that
+// walked only part of the buffer — a stride bug, an early exit, a half-read framebuffer — reports
+// SOME movement, so a rung asking merely "did anything register?" passes it and every count on the
+// page is quietly short. The rung demands EVERY pixel because the probe moved every pixel.
+test('a comparator that sees only SOME of the frame is caught', () => {
+  const halfReader = (a: Frame, b: Frame, threshold: number): VisibleDeltaReading => {
+    const honest = visibleDeltaDistribution(a, b, threshold);
+    return { ...honest, visible: Math.floor(honest.visible / 2), touched: honest.touched };
+  };
+  const reasons = sensitivityReasons(flat(64, 100), VISIBLE_DELTA, halfReader);
+  assert.equal(reasons.length, 1);
+  assert.match(reasons[0]!, /registered 32 of 64 pixels as visible/);
+  assert.match(reasons[0]!, /same null a blind instrument returns/);
 });
 
 test('an OFF-BY-ONE at the bar is caught — `>=` where ADR-0490 D6 says `>`', () => {

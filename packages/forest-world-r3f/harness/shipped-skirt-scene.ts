@@ -583,16 +583,30 @@ export function createSkirtRunner(): SkirtRunner {
     return new Uint8ClampedArray(buf.buffer);
   };
 
-  /** Pixels whose largest channel move exceeds `threshold`. At 0 this is the TOUCHED count. */
-  /** Two arms through the ONE instrument that owns the ADR-0490 D6 metric. The `touched` and
-   *  `visible` counts below are summaries of {@link VisibleDeltaReading}, which is now returned
-   *  whole so a report can print the distribution rather than a scalar. */
+  /**
+   * Two arms through the ONE instrument that owns the ADR-0490 D6 metric. The `touched` and
+   * `visible` counts below are summaries of {@link VisibleDeltaReading}, which is now returned
+   * whole so a report can print the distribution rather than a scalar.
+   *
+   * ⚠ MEMOISED, AND THAT IS A SPEED-UP RATHER THAN A NEW COST. `pixels()` RE-RENDERS AND
+   * RE-READS on every call — it caches nothing — so the mount's per-figure pair of `cliffPixels`
+   * + `visiblePixels` used to cost FOUR renders and four `readPixels` round trips to answer two
+   * questions about one comparison. One distribution answers both, so the pair now costs two.
+   */
+  const deltaCache = new Map<string, VisibleDeltaReading>();
   const deltaOf = (
     a: SkirtArm,
     b: SkirtArm,
     size: CrowdSizeId,
     zoom: CrowdZoom,
-  ): VisibleDeltaReading => visibleDeltaDistribution(pixels(a, size, zoom), pixels(b, size, zoom));
+  ): VisibleDeltaReading => {
+    const k = `${a}|${b}|${size}|${zoom}`;
+    const hit = deltaCache.get(k);
+    if (hit !== undefined) return hit;
+    const reading = visibleDeltaDistribution(pixels(a, size, zoom), pixels(b, size, zoom));
+    deltaCache.set(k, reading);
+    return reading;
+  };
 
   const differing = (
     a: SkirtArm,
