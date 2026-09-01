@@ -22,6 +22,22 @@
 // them — the same "wider of the two" rule `frame-budget.ts` uses for a delta's noise floor, so the
 // instrument holds one idea of noise rather than two.
 //
+// ⚠⚠ WHAT THIS CANNOT SEE: DRIFT BETWEEN INVOCATIONS. It compares runs taken minutes apart inside
+// ONE invocation, which is where the 170-530% failure lived. It says nothing about the same box an
+// hour later, and that gap is MEASURED rather than hypothetical — three invocations on the RTX
+// 2060 on 2026-09-01:
+//
+//   flat@one@8    0.1644 · 0.1644 · 0.1460      grass@one@8   0.5862 · 0.5862 · 0.5178
+//
+// Every pair reproduced tightly WITHIN its own invocation and the third sat ~12% below the first
+// two. The cause is the device's clock state, not the shader: the control moved by the same
+// fraction as the treatment, so the RATIO held — grass/flat was 3.57 then 3.55, and the layer's
+// delta was 2.57x then 2.55x the control. So an ABSOLUTE ms figure carries the box's clock state
+// with it and must be quoted with the invocation that produced it; a ratio against the control
+// travels. `forest@8`'s delta was the most stable figure of all (0.4205 · 0.4212 · 0.4212),
+// which is worth knowing when choosing a view to quote: the larger scene appears to hold the GPU
+// in a steadier clock state than the tiny one-island one.
+//
 // ⚠⚠ AGREEMENT IS NOT A STRENGTH CLAIM ON ITS OWN, AND MUST BE READ BESIDE THE COST RUNG. Because
 // the bar is the runs' own noise, a NOISY run clears it trivially: measured on the Adreno dev box,
 // a control arm whose within-run spread was 1.48 ms "reproduced" a between-run gap of 11.3%. That

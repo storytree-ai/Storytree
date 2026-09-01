@@ -74,6 +74,18 @@ per timed batch, GPU clock only.
 | `grass` (mix 0.20) | 23 | 194,630 | 1 | 0.6710 | 0.6711 | **+0.4205 / +0.4212** | 0.01% |
 | `grass-amplified` (8x) | 184 | 194,630 | 1 | 4.3149 | 4.3128 | +4.0643 / +4.0629 | 0.05% |
 
+> ⚠ **CORRECTED IN PLACE 2026-09-01, by `land-cost-instrument-arc-inc-03`.** The two runs below
+> reproduced each other to 0.25%, and that is true — but they were taken minutes apart inside one
+> invocation. A THIRD invocation on the same box an hour later measured `flat@one@8` at 0.1460 and
+> `grass@one@8` at 0.5178, both ~12% below these. **The four-significant-figure precision here does
+> not survive across invocations, and the absolute ms figures should be read as ±~12%.** The cause
+> is the device's clock state rather than the shader: the control moved by the same fraction as the
+> treatment, so the RATIO held (grass/flat 3.57 then 3.55; the layer's delta 2.57x then 2.55x the
+> control). `forest@8`'s delta was stable across all three invocations (0.4205 · 0.4212 · 0.4212)
+> and is the figure to quote. **The headline is unaffected** — the stack comes to 16.5–19.2% of a
+> frame depending on the invocation, and the conclusion that cost rules nothing out holds at either
+> end. Detail: `harness/run-agreement.ts`'s header, and `../chapter2-land-agreement-2026-09-01/`.
+
 **Every row reproduced within 0.25%. Nothing was dropped.** The arc's rule is that rows disagreeing
 beyond tolerance are dropped and said to be dropped; on the last land increment the forest rows came
 back 170–530% apart. None of that arose here.
