@@ -155,28 +155,28 @@ describe('the fill splits at each of the two marks, and only the excess above on
     const atSoft = occupancyFill(SOFT_MARK_TOKENS, SCALE);
     expect(atSoft.softFraction).toBe(0);
     expect(atSoft.hardFraction).toBe(0);
-    expect(atSoft.calmFraction).toBe(0.4);
+    expect(atSoft.calmFraction).toBe(0.7);
 
     const atHard = occupancyFill(HARD_MARK_TOKENS, SCALE);
     expect(atHard.hardFraction).toBe(0);
-    expect(atHard.calmFraction).toBe(0.4);
-    expect(atHard.softFraction).toBeCloseTo(0.1, 10);
+    expect(atHard.calmFraction).toBe(0.7);
+    expect(atHard.softFraction).toBeCloseTo(0.15, 10);
   });
 
   it('colours the middle band between the marks and nothing above it', () => {
-    const fill = occupancyFill(450_000, SCALE);
-    expect(fill.calmFraction).toBe(0.4);
+    const fill = occupancyFill(750_000, SCALE);
+    expect(fill.calmFraction).toBe(0.7);
     expect(fill.softFraction).toBeCloseTo(0.05, 10);
     expect(fill.hardFraction).toBe(0);
-    expect(fill.softStartFraction).toBe(0.4);
+    expect(fill.softStartFraction).toBe(0.7);
   });
 
   it('reddens only the portion past the hard mark', () => {
-    const fill = occupancyFill(600_000, SCALE);
-    expect(fill.calmFraction).toBe(0.4);
-    expect(fill.softFraction).toBeCloseTo(0.1, 10);
+    const fill = occupancyFill(950_000, SCALE);
+    expect(fill.calmFraction).toBe(0.7);
+    expect(fill.softFraction).toBeCloseTo(0.15, 10);
     expect(fill.hardFraction).toBeCloseTo(0.1, 10);
-    expect(fill.hardStartFraction).toBe(0.5);
+    expect(fill.hardStartFraction).toBe(0.85);
   });
 
   it('leaves a reading under the soft mark entirely calm', () => {
@@ -187,16 +187,38 @@ describe('the fill splits at each of the two marks, and only the excess above on
   });
 
   it('the three portions sum to the reading — no band double-counts another', () => {
-    const fill = occupancyFill(575_000, SCALE);
-    expect(fill.calmFraction + fill.softFraction + fill.hardFraction).toBeCloseTo(0.575, 10);
+    // Above the HARD mark on purpose, so all three portions are non-zero and the sum is actually
+    // testing that they partition the reading rather than that two of them are 0.
+    const fill = occupancyFill(900_000, SCALE);
+    expect(fill.calmFraction).toBeGreaterThan(0);
+    expect(fill.softFraction).toBeGreaterThan(0);
+    expect(fill.hardFraction).toBeGreaterThan(0);
+    expect(fill.calmFraction + fill.softFraction + fill.hardFraction).toBeCloseTo(0.9, 10);
+  });
+
+  it('keeps the HARD band on the track — the base ceiling is above the hard mark, not at it', () => {
+    // The regression this guards is the one ADR-0499 D1's tune would otherwise have caused. The base
+    // ceiling was 600k for a 500k hard mark; against the tuned 850k mark it would put
+    // hardStartFraction at min(1, 850/600) = 1, sliding the red band off the end of the track and
+    // drawing a merely-calm 600k window as completely full. Asserted through the public surface
+    // because BASE_SCALE_TOKENS is module-private: a series below the base gets the base ceiling.
+    const series = buildOccupancySeries([modelContext({ atMs: T0, resident: 120_000 })], SESSION);
+    const atBase = occupancyFill(HARD_MARK_TOKENS, series.scaleTokens);
+    expect(atBase.hardStartFraction).toBeLessThan(1);
+    expect(occupancyFill(SOFT_MARK_TOKENS, series.scaleTokens).softStartFraction).toBeLessThan(
+      atBase.hardStartFraction,
+    );
   });
 
   it('keeps a typical window legible against the base ceiling rather than scaled for nothing', () => {
-    // The measured peaks this bar now plots run 149k–616k (30 newest traces, 2026-08-26). A ceiling
-    // chosen for a figure real work never reaches would draw every one of them as a sliver.
+    // The base ceiling is now the real 1M window size (ADR-0499 D1 moved it up with the marks), so a
+    // 250k window reads at a quarter of the track. The property is that it stays a legible portion
+    // rather than a sliver — the threshold moved with the ceiling, the guard did not weaken. The
+    // measured peaks behind the old 600k ceiling ran 149k–616k (30 newest traces, 2026-08-26); under
+    // marks that let a session run to 850k they will be higher, and have not been re-measured.
     const series = buildOccupancySeries([modelContext({ atMs: T0, resident: 250_000 })], SESSION);
     const fill = occupancyFill(250_000, series.scaleTokens);
-    expect(fill.calmFraction).toBeGreaterThan(0.4);
+    expect(fill.calmFraction).toBeGreaterThan(0.2);
   });
 
   it('grows the track ceiling STRICTLY past a series that runs above the base scale', () => {
@@ -531,7 +553,7 @@ describe('the readout', () => {
   it('reads the marks from the one shared copy, never a second declaration', () => {
     // ADR-0411 D8 says the marks may be TUNED. Two copies of a tunable constant is how one surface
     // comes to say "soft" while the other says "calm" about the same window.
-    expect(SOFT_MARK_TOKENS).toBe(400_000);
-    expect(HARD_MARK_TOKENS).toBe(500_000);
+    expect(SOFT_MARK_TOKENS).toBe(700_000);
+    expect(HARD_MARK_TOKENS).toBe(850_000);
   });
 });

@@ -53,9 +53,10 @@
 //   ingested traces do not regress. It is ONE bar with a stated source — never two displays of one
 //   quantity, which is the duplication ADR-0456 exists to remove.
 //
-// ★★ THE MARKS ARE ADR-0411 D3'S, IMPORTED RATHER THAN DECLARED. The soft mark (~400K) is "take on no
-//   NEW increment — finish what you hold, then hand over"; the hard mark (500K) is "land what is
-//   green, write the handover, let a fresh session continue". They come from
+// ★★ THE MARKS ARE ADR-0411 D3'S, IMPORTED RATHER THAN DECLARED. The soft mark (~700K) is "take on no
+//   NEW increment — finish what you hold, then hand over"; the hard mark (850K) is "land what is
+//   green, write the handover, let a fresh session continue". Both govern whether a session takes the
+//   NEXT unit and never how carefully it does the one in hand (ADR-0499 D2). They come from
 //   `@storytree/context-traversal-transcript/marks`, the one copy `storytree context` also reads,
 //   because ADR-0411 D8 says out loud they may be TUNED and two copies of a tunable constant is how
 //   one surface comes to say "soft" while the other says "calm" about the same window.
@@ -83,15 +84,24 @@ export type { ContextBand };
 /**
  * The track's base ceiling.
  *
- * Deliberately ABOVE the hard mark rather than a multiple of it: at a ceiling of exactly 500K a
- * window that reached the hard mark fills the whole track, so "at the limit" and "past it" would draw
- * identically — and past-the-limit is the state the mark exists to make visible. At 600K the hard
- * mark sits at 83% with headroom left to see, and a typical 250K window still reads at 42% rather
- * than disappearing into the bottom of a track scaled for a figure nothing reaches. (It was 1M — two
- * times a single 500K threshold — while the bar had one mark and no real data to draw; the measured
- * peaks it now plots run 149K–616K.)
+ * Deliberately ABOVE the hard mark rather than a multiple of it: at a ceiling of exactly the hard
+ * mark a window that reached it fills the whole track, so "at the limit" and "past it" would draw
+ * identically — and past-the-limit is the state the mark exists to make visible.
+ *
+ * ★ IT MOVED WITH THE MARKS (ADR-0499 D1), AND IT HAD TO. It was 600K, chosen so the old 500K hard
+ * mark sat at 83% with headroom left to see. Against the tuned 850K hard mark that same 600K puts
+ * `hardStartFraction` at `min(1, 850/600)` = **1** — the red band falls off the end of the track and
+ * a merely CALM 600K window draws as completely full. A constant bump that left this behind would
+ * have silently broken the bar's one job. At 1M the hard mark sits at 85% and the soft at 70%, the
+ * same shape the 600K ceiling gave the old pair.
+ *
+ * The ceiling is now the real window size rather than a headroom multiple, which is also why the
+ * earlier 1M is not simply being restored: that value was two times a single 500K threshold, picked
+ * while the bar had one mark and no real data to draw. (Measured peaks under the OLD marks ran
+ * 149K–616K; under marks that let a session run to 850K they will be higher, and the base ceiling
+ * still grows past 1M in {@link SCALE_STEP_TOKENS} steps for any series that exceeds it.)
  */
-const BASE_SCALE_TOKENS = 600_000;
+const BASE_SCALE_TOKENS = 1_000_000;
 
 /** Ceiling growth granularity, so a series peaking above the base still gets a stable track. */
 const SCALE_STEP_TOKENS = 100_000;
