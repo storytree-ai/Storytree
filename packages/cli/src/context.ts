@@ -2,8 +2,8 @@
 //
 // THE QUESTION IT ANSWERS, which nothing answered before (`linked-session-context-arc`, increment
 // `hand-a-running-session-its-own-occupancy`). ADR-0411 D3 makes a session's own occupancy the input
-// to a real scheduling decision: past the SOFT mark (~400K) take on no NEW increment, at the HARD
-// mark (500K) land what is green and hand over — checked at an increment boundary, never mid-unit
+// to a real scheduling decision: past the SOFT mark (~700K) take on no NEW increment, at the HARD
+// mark (850K) land what is green and hand over — checked at an increment boundary, never mid-unit
 // (D5). D6 then says outright that a session without a real figure must announce that it ESTIMATED.
 // Nothing fed that figure to a running session, so sessions have been estimating — including the one
 // that landed this arc's increment 32 and the one that authored
@@ -35,6 +35,7 @@ import { deriveIdentity, IDENTITY_REFUSAL_BODY } from "@storytree/drive";
 import {
   bandGuidance,
   HARD_MARK_TOKENS,
+  MARKS_GOVERN_THE_NEXT_UNIT,
   readOwnContextWindow,
   SOFT_MARK_TOKENS,
   type ContextBand,
@@ -153,8 +154,12 @@ function renderAbsence(read: OwnWindowRead): Envelope {
       ...scanLines(read),
       "",
       "Fall back to ADR-0411 D6: judge your own headroom and SAY IN THE DEBRIEF that you estimated",
-      "it. The marks are unchanged — no new increment past ~400k, hand over at 500k, checked at an",
-      "increment boundary.",
+      `it. The marks are unchanged by the absence — no new increment past ~${thousands(SOFT_MARK_TOKENS)},` +
+        ` hand over at ${thousands(HARD_MARK_TOKENS)}, checked at an increment boundary.`,
+      // Carries its own leading blank line so no bare "" spacer sits on a changed span: an empty
+      // string literal is a mutant no assertion can honestly kill, while this one dies with the clause.
+      `
+${MARKS_GOVERN_THE_NEXT_UNIT}`,
     ].join("\n"),
     next: ["storytree context", "storytree own"],
   };
@@ -186,7 +191,7 @@ function renderReading(read: OwnWindowRead, nowMs: number): Envelope {
       `  resident:   ${groupDigits(window.residentTokens)} tokens  (${thousands(window.residentTokens)})`,
       `  peak:       ${groupDigits(window.peakTokens)} tokens  (${thousands(window.peakTokens)})`,
       `  band:       ${BAND_LABEL[band]} — ${bandGuidance(band)}`,
-      `  marks:      soft ~${thousands(SOFT_MARK_TOKENS)} · hard ${thousands(HARD_MARK_TOKENS)}  (ADR-0411 D3)`,
+      `  marks:      soft ~${thousands(SOFT_MARK_TOKENS)} · hard ${thousands(HARD_MARK_TOKENS)}  (ADR-0411 D3, tuned by ADR-0499 D1)`,
       "",
       `  read from:  ${window.observationCount} model request${window.observationCount === 1 ? "" : "s"}` +
         `, last ${ageLabel(window.lastObservedAt, nowMs)}${excluded}`,
@@ -210,6 +215,10 @@ function renderReading(read: OwnWindowRead, nowMs: number): Envelope {
         : []),
       "It advises, it does not stop you (ADR-0411 D8). Check it at an INCREMENT BOUNDARY — the",
       "question is “do I have room for the next one?”, never “should I stop right now?” (D5).",
+      // Carries its own leading blank line so no bare "" spacer sits on a changed span: an empty
+      // string literal is a mutant no assertion can honestly kill, while this one dies with the clause.
+      `
+${MARKS_GOVERN_THE_NEXT_UNIT}`,
     ].join("\n"),
     next: ["storytree arc show <arc-id> --pg", "storytree own"],
   };
@@ -228,6 +237,10 @@ export function contextHelp(): Envelope {
       `(~${thousands(SOFT_MARK_TOKENS)}) take on no NEW increment; at the hard mark (${thousands(HARD_MARK_TOKENS)})` +
         " land what is green, write",
       "the handover onto the owning arc, release your claims, and let a fresh session continue.",
+      // Carries its own leading blank line so no bare "" spacer sits on a changed span: an empty
+      // string literal is a mutant no assertion can honestly kill, while this one dies with the clause.
+      `
+${MARKS_GOVERN_THE_NEXT_UNIT}`,
       "",
       "It reads and never enforces (D8). D6's point is that the judgement is INFORMED rather than",
       "guessed — where this prints no reading, say in your debrief that you ESTIMATED.",

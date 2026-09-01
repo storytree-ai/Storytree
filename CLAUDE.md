@@ -656,6 +656,17 @@ a decided ADR is overtaken, ask *did the DECISION change?*
 - **Yes → SUPERSEDE-AND-REPLACE.** A genuine re-decision is a NEW ADR (allocated below) that
   `supersedes` the old; the old flips to `superseded` and is KEPT as a browsable row.
 
+**RETIREMENT IS THE THIRD OPERATION, AND WHAT GATES IT IS REFERENCES, NOT KIND.** `library artifact
+retire` works on ANY artifact, decisions included — it is not an open-question verb, and reading it
+as one is the measured cause of a false owner escalation (ADR-0497). But it DELETES the row, so any
+inbound `asset:` edge hard-refuses it, and the OLDEST decisions are the most-referenced nodes in the
+graph — retirement gets harder the older the record, not easier. `superseded` KEEPS the row, so every
+inbound edge stays valid: **that is why superseding works exactly where retiring fails.** Retire only
+what nothing points at. For a record that is FINISHED BUSINESS rather than overtaken, the exit is a
+**CONSOLIDATING SUPERSESSION** — one new decision supersedes N spent records at once and restates
+verbatim what is still true, so nothing is read out of a dead shell (ADR-0497 D1; ADR-0431 is the
+exemplar). A consolidation that supersedes without restating is worse than leaving the rows alone.
+
 Status flips, edge fixes, typos, and the `load_bearing` tag also stay in-place. When in doubt, treat
 it as a re-decision or surface it — never silently rewrite what was decided. **The full standard —
 the dividing question, the archive seam that recovers prior text on either side of the 2026-08-22
