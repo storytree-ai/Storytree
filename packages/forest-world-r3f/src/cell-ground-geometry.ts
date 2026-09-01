@@ -696,7 +696,14 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
         // ring edge, and a quad whose two triangles picked different ROCKS would split along its
         // own diagonal — a tear rather than a facet.
         const rock = rim && li >= skirt.soilLedges;
-        const shaded = rock && skirt.isShaded(ledge, outward, depth);
+        // ⚠ NO `rock &&` HERE, AND IT WAS WRITTEN WITH ONE. A hand-seeded mutant deleting that
+        // guard SURVIVED the whole suite, which is what an equivalent guard looks like from
+        // outside — and it is equivalent by construction: `pick` is read only through the two
+        // `rock ? … : …` expressions below, so a buried seam computing `shaded` cannot deliver a
+        // rock however the rule answers. This is the same finding, and the same removal, that
+        // `skirtLedges`'s absent row guard and the absent `skirt !== undefined` check already
+        // record. What IS load-bearing is `rim &&` on the line above; that stays.
+        const shaded = skirt.isShaded(ledge, outward, depth);
         const pick = shaded ? skirt.shaded : skirt.lit;
         const ledgeColour = rock ? pick.colour : colour;
         const ledgeRow = rock ? pick.row : row;

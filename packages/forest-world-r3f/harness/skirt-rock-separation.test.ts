@@ -26,6 +26,8 @@ import {
   SKIRT_ROCK_LIT,
   SKIRT_ROCK_SHADED,
   rimEdgeKeys,
+  shadeBelowHalfDepth,
+  shadeBelowLadderFloor,
 } from '../src/stepped-skirt.js';
 import { SHIPPED_COAST, clipToCoast, edgeKey } from '../src/coast-clip.js';
 import { SHIPPED_SHORE } from '../src/shore-fall.js';
@@ -34,10 +36,15 @@ import { crowdCells, crowdSize } from './shipped-crowd-scene.js';
 import { SHADE_LEVELS, deliveredForLevel, parseHex, toHex, type Rgb255 } from '../src/shade-ladder.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
 import {
+  ARM_CONTROL,
+  CONTROL_ARM,
+  SKIRT_ARMS,
   SKIRT_GROUND_TOKENS,
   SKIRT_ROCK_LIT_ROW,
   SKIRT_ROCK_ROW,
   SKIRT_ROCK_SHADED_ROW,
+  armSkirt,
+  type SkirtArm,
 } from './shipped-skirt-scene.js';
 
 /**
@@ -260,4 +267,68 @@ test('⚠ every rim edge the geometry WALKS is a rim edge the census MARKS', () 
       'the WALL rings rather than over the parcels’ own rings.',
   );
   assert.equal(fromWalls.size, fromCells.size);
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────
+// ⚠⚠ AND THE COMPARISON PAGE'S OWN INTEGRITY — the half no `src/` test can reach.
+//
+// `check:mutation-diff` mutates a project's `src/` only, so every line of `shipped-skirt-scene.ts`
+// comes back explicitly UNPROVEN and the arm tables there are guarded by nothing at all. A
+// hand-seeded sweep run when the two-token cliff landed found exactly two faults that no test
+// named, and both of them turn a comparison into a null result while the page still renders and
+// still prints numbers. These are those two.
+
+test('⚠⚠ THE TWO CANDIDATE ARMS MUST USE DIFFERENT RULES, or the page compares an arm with itself', () => {
+  // ⚠⚠ THE FAILURE IS SILENT AND READS AS A RESULT. `two-token-lit` and `two-token-deep` exist to
+  // put two SELECTION RULES beside each other — they carry the same two rocks and differ only in
+  // which ledges wear which. Pointing both at one rule leaves a page that renders, moves pixels,
+  // and prints two identical rows under a heading that says they are different, which is a stronger
+  // claim than a blank page and is false. Seeded by hand: the mutant SURVIVED the whole suite.
+  const cells = clipToCoast(crowdCells(crowdSize('one')), SHIPPED_COAST);
+  const lit = armSkirt('two-token-lit', cells);
+  const deep = armSkirt('two-token-deep', cells);
+  assert.notEqual(lit.isShaded, deep.isShaded, 'both candidate arms wear the same shade rule');
+  // they differ in the RULE and in nothing else, which is what makes the difference attributable
+  assert.deepEqual(lit.lit, deep.lit);
+  assert.deepEqual(lit.shaded, deep.shaded);
+  assert.equal(lit.rows, deep.rows);
+  assert.equal(lit.soilLedges, deep.soilLedges);
+  // and the winning arm is the rule the shipped map actually wears
+  assert.equal(deep.isShaded, shadeBelowHalfDepth);
+  assert.equal(lit.isShaded, shadeBelowLadderFloor);
+});
+
+test('⚠⚠ A TWO-TOKEN ARM IS READ AGAINST A ONE-TOKEN CLIFF, never against the no-cliff map', () => {
+  // ⚠⚠ THE OVER-CLAIM THIS FORBIDS IS THE ARC'S OWN RECURRING ONE. An arm's denominator must
+  // differ from it in exactly the thing under test. A two-token arm read against `flat` — which
+  // has no cliff at all — would be credited with everything the SINGLE token already delivered,
+  // reporting a second increment's worth of movement for the first one's work. Seeded by hand
+  // (`ARM_CONTROL['two-token-deep'] = 'flat'`): the mutant SURVIVED.
+  //
+  // It is asserted as a PROPERTY rather than as a transcription of the table, so an arm added
+  // later is held to it without anyone remembering to extend a list.
+  const cells = clipToCoast(crowdCells(crowdSize('one')), SHIPPED_COAST);
+  const isPair = (arm: SkirtArm): boolean => {
+    const s = armSkirt(arm, cells);
+    return s.lit.row !== s.shaded.row;
+  };
+  const pairs = SKIRT_ARMS.filter(isPair);
+  assert.ok(pairs.length > 0, 'no arm carries two rocks — this check would be vacuous');
+  for (const arm of SKIRT_ARMS) {
+    const control = ARM_CONTROL[arm];
+    if (arm !== CONTROL_ARM) {
+      assert.notEqual(control, arm, `${arm} is its own denominator, so it can only ever read zero`);
+    }
+    if (!isPair(arm)) continue;
+    assert.ok(!isPair(control), `${arm}'s denominator ${control} already carries two rocks`);
+    const a = armSkirt(arm, cells);
+    const c = armSkirt(control, cells);
+    assert.equal(
+      c.rows,
+      a.rows,
+      `${arm} is read against ${control}, which cuts ${c.rows} ledges rather than ${a.rows} — the ` +
+        'difference between them is the SHAPE as well as the second token, so neither is measured',
+    );
+    assert.equal(c.soilLedges, a.soilLedges, `${arm} and ${control} disagree about the soil band`);
+  }
 });
