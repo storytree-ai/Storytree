@@ -63,17 +63,27 @@ const OUT =
 const ALLOW_SOFTWARE = process.env['ST_GRASS_ALLOW_SOFTWARE'] === '1';
 
 const CONTROL = 'flat';
-const ARMS = ['flat', 'authored', 'adopted', 'ceiling'];
+const ARMS = ['flat', 'honest', 'authored'];
 /** The arm that SHIPS, and whose claim is that a viewer can see it. Its refusals are the strict
  *  ones, because it is the only arm whose numbers describe the map people will look at. */
-const VISIBLE_ARM = 'adopted';
+const VISIBLE_ARM = 'authored';
 /** The arm whose whole claim is that it CANNOT be seen — the recipe's own authored factor, which
  *  on the shipped ladder cannot move any pixel past the 20/255 bar. It is carried precisely so
  *  that "we adopted the recipe's constant" is visibly a landing that would have changed nothing. */
-const ADMISSIBLE_ARM = 'authored';
-/** The forest arm wears the REAL status mix — 21 green, 14 yellow — so the per-token gate's claim
- *  is answerable in pixels here and nowhere else. `one` is mono-healthy. */
-const SIZES = ['one', 'forest'];
+const ADMISSIBLE_ARM = 'honest';
+/**
+ * ⚠⚠ ONE ISLAND ONLY FOR THIS INCREMENT, AND THE REASON IS A MEASUREMENT RATHER THAN A SHORTCUT.
+ * Layer 2's carrier costs 730 ms to build for one island and **49.7 s for the 35-island forest** —
+ * `shoreField.sample()` is O(coast edges) per texel over a 5.4 M-texel atlas. Four forest-scale
+ * sanded scenes is over three minutes of field building before a frame is drawn, and the first
+ * attempt at this page duly hung. The fork these frames exist to show is a PER-PIXEL reading
+ * property, fully visible on one island, so the forest buys nothing here that it costs.
+ *
+ * ⚠ THE FOREST IS NOT DROPPED FROM THE ARC, only from this run: layer 1's own evidence
+ * (`chapter2-grass-adopted-2026-09-02/`) carries both sizes, and the field's build cost is itself
+ * recorded as a blocker on adopting layer 2.
+ */
+const SIZES = ['one'];
 const ZOOMS = [2, 8];
 const FIT = 'fit';
 /** The zoom the ground's own texture is read at. */
@@ -195,8 +205,18 @@ for (const size of SIZES) {
           'denominator is not a denominator and no figure on this page means anything.',
       );
     }
-    if (control.octaves !== 0) {
-      fail(`the CONTROL arm reports ${control.octaves} grass octaves; it must evaluate none.`);
+    // ⚠ THE CONTROL IS LAYER 1 NOW, NOT BARE GROUND, so "evaluates no octaves" is the wrong
+    // question — it would fail on the correct control. What must be zero is layer 2's own
+    // octaves; layer 1's must be PRESENT, or the control is not the map as it ships and every
+    // difference on this page would be layer 1's effect wearing layer 2's name.
+    if (control.sandOctaves !== 0) {
+      fail(`the CONTROL arm reports ${control.sandOctaves} SAND octaves; it must evaluate none.`);
+    }
+    if (control.octaves === 0) {
+      fail(
+        'the CONTROL arm evaluates NO grass octaves. Layer 1 ships, so the control must wear it — ' +
+          'a bare-ground control would report layer 1 + layer 2 as this increment`s effect.',
+      );
     }
   }
 }
@@ -234,12 +254,21 @@ if (visible.visible === 0) {
       'can see is the clean landing that changed nothing (ADR-0490 D6).',
   );
 }
-if (admissible.visible > visible.visible / 10) {
+// ⚠⚠ THE `honest` ARM IS NOT AN INVISIBILITY CLAIM, and checking it as one (which this driver did
+// for layer 1) fails on a correct run. It differs from the control in TWO ways — a dimmer layer 1
+// AND the sand — so most of what it moves is the GRASS coming down from 0.32 to 0.235, not the
+// beach. Measured: it moves 18,516 px against `authored`'s 32,585, and that gap is the trade
+// rather than a claim about sand.
+//
+// What this page DOES claim, and what is checked here: being honest costs visible ground. If the
+// honest arm ever moved as much as the authored one, the fork this page exists to show would not
+// exist and the arms would be measuring nothing.
+if (admissible.visible >= visible.visible) {
   fail(
-    `the ${ADMISSIBLE_ARM} arm moved ${admissible.visible} px visibly against ${VISIBLE_ARM}'s ` +
-      `${visible.visible}. The report's claim is that the RECIPE'S OWN factor is invisible on the ` +
-      'shipped ladder — the reason the delivered strength was re-derived rather than transcribed ' +
-      '(ADR-0492 D2). If 0.13 is visible here, that reasoning does not hold.',
+    `the honest arm moved ${admissible.visible} px visibly against the authored arm's ` +
+      `${visible.visible}. This page's whole finding is that the strength which lets the beach be ` +
+      'SEEN is above the strength at which the map still reports correctly; equal movement means ' +
+      'there is no trade here and the arms are not measuring what they claim.',
   );
 }
 
@@ -262,10 +291,17 @@ if (admissible.visible > visible.visible / 10) {
 // are DERIVED from the land each frame actually shows rather than hard-coded, so a change to the
 // viewport or the crowd layout moves the check instead of quietly falsifying it.
 const MULTI_ISLAND_LAND = 1.5;
-const gateZooms = ZOOMS.filter(
-  (zoom) => at(VISIBLE_ARM, 'forest', zoom).land > at(VISIBLE_ARM, 'one', zoom).land * MULTI_ISLAND_LAND,
-);
-if (gateZooms.length === 0) {
+const HAS_MULTI_ISLAND = SIZES.includes('forest');
+const gateZooms = !HAS_MULTI_ISLAND
+  ? []
+  : ZOOMS.filter(
+      (zoom) => at(VISIBLE_ARM, 'forest', zoom).land > at(VISIBLE_ARM, 'one', zoom).land * MULTI_ISLAND_LAND,
+    );
+// ⚠ THE DISTINCTION IS DELIBERATE. A run that CARRIES a multi-island size and still frames only
+// one island is a broken check and FAILS. A run scoped to one island on purpose — as this one is,
+// for the field's build cost — cannot ask the question at all, and says so rather than failing or
+// silently passing. The gate itself is layer 1's and was proved in pixels on its own evidence.
+if (gateZooms.length === 0 && HAS_MULTI_ISLAND) {
   fail(
     'no zoom in this run framed more than one island, so the per-token gate could not be checked ' +
       'in pixels at all. The check must not silently vanish: widen ZOOMS or the viewport.',
@@ -358,12 +394,11 @@ for (const zoom of gateZooms) {
       'the yellow islands, drawing exactly what they drew before this layer.',
   );
 }
-for (const zoom of ZOOMS.filter((z) => !gateZooms.includes(z))) {
+if (!HAS_MULTI_ISLAND) {
   say(
-    `  @${zoom} px/unit: NOT ASKED — the forest frame here holds ` +
-      `${at(VISIBLE_ARM, 'forest', zoom).land} land px against the single island's ` +
-      `${at(VISIBLE_ARM, 'one', zoom).land}, i.e. the same re-centred green island. A gate ` +
-      'difference at this zoom would be a claim the framing forbids.',
+    '  NOT ASKED — this run is scoped to one island (layer 2`s field costs 49.7 s to build at ' +
+      'forest scale). The per-token gate is layer 1`s and was proved in pixels on its own ' +
+      'evidence: 93.9% of an all-green island dressed against 38.6% of the real-mix forest.',
   );
 }
 say('');

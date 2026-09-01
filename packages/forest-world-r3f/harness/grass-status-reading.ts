@@ -39,6 +39,7 @@ import {
   type RampStop,
 } from '../src/land-grass.js';
 import { SHADE_LEVELS, deliveredForLevel, type Rgb255 } from '../src/shade-ladder.js';
+import { sandColourOf } from '../src/land-sand.js';
 import {
   SHIPPED_STATUSES,
   marginAgainst,
@@ -176,8 +177,9 @@ export function grassLayerReadings(
   table: Record<string, Rgb255[]> = shippedReaderTable(),
   levels: readonly number[] = shippedLadder(),
   statuses: readonly string[] = SHIPPED_STATUSES,
+  reachSet: readonly Rgb255[] = grassReachableColours(),
 ): GrassReadVerdict[] {
-  const reach = grassReachableColours();
+  const reach = reachSet;
   const out: GrassReadVerdict[] = [];
   for (const status of statuses) {
     const family = ownFamily(status);
@@ -232,8 +234,9 @@ export function grassLayerVerdict(
   table: Record<string, Rgb255[]> = shippedReaderTable(),
   levels: readonly number[] = shippedLadder(),
   statuses: readonly string[] = SHIPPED_STATUSES,
+  reachSet: readonly Rgb255[] = grassReachableColours(),
 ): GrassClosureVerdict {
-  const readings = grassLayerReadings(fac, table, levels, statuses);
+  const readings = grassLayerReadings(fac, table, levels, statuses, reachSet);
   let worst = Infinity;
   let worstAt = '';
   let plain = Infinity;
@@ -491,4 +494,71 @@ export function grassLevelSurvives(
     }
   }
   return true;
+}
+
+/**
+ * EVERY COLOUR LAYERS 1 AND 2 CAN DELIVER TOGETHER, deduplicated — the reachable set once the
+ * shore sand is composited into the grass.
+ *
+ * ⚠⚠ IT IS THE HONEST FORM OF "LAYER 2 CARRIES NO TRUTH COST", WHICH IS AN ASSUMPTION UNTIL IT IS
+ * MEASURED. Layers 2-4 are often described as free because they are PARTIAL — they cover only a
+ * band of an island, so a parcel's interior keeps reporting whatever it reported. That argument is
+ * about AREA and the reading guarantee is about COLOUR: a sand pixel is still a ground pixel, and
+ * if a sand-coloured `healthy` lands nearer some other token's family than its own, the island
+ * misreports along its whole coast. Area does not rescue that. So the reachable set is widened and
+ * the same walk is run again.
+ *
+ * ⚠ THE BAND IS A THIRD AXIS. Layer 2 delivers `mix(sand(t), grass(t, d), band)` for band in
+ * [0, 1] — not merely the two endpoints — because a fragment anywhere across the beach sits at an
+ * intermediate band value, and the segment between two admissible colours is not guaranteed
+ * admissible when the reader's own families are not convex.
+ *
+ * ⚠ AND `t` IS SHARED, NOT INDEPENDENT. The sand ramp is driven by layer 1's OWN base scalar
+ * (`build_land.py:887`), so a fragment's sand and its grass are read at the SAME `t`. Walking them
+ * independently would enumerate pairs the shader cannot produce and report a ceiling lower than
+ * the truth — a false red, which is the failure mode that looks like diligence.
+ */
+let sandReachMemo: readonly Rgb255[] | null = null;
+export function sandReachableColours(): readonly Rgb255[] {
+  if (sandReachMemo !== null) return sandReachMemo;
+  const seen = new Map<number, Rgb255>();
+  for (let i = 0; i <= GRASS_REACH_T_STEPS; i += 1) {
+    const t = i / GRASS_REACH_T_STEPS;
+    const sand = sandColourOf(t);
+    for (let j = 0; j <= GRASS_REACH_D_STEPS; j += 1) {
+      const grass = grassColourOf(t, j / GRASS_REACH_D_STEPS);
+      for (let b = 0; b <= SAND_BAND_STEPS; b += 1) {
+        const c = grassMixedColour(sand, grass, b / SAND_BAND_STEPS);
+        seen.set(c.r * 65536 + c.g * 256 + c.b, c);
+      }
+    }
+  }
+  sandReachMemo = [...seen.values()];
+  return sandReachMemo;
+}
+
+/**
+ * THE BAND AXIS'S RESOLUTION — chosen so consecutive samples cannot differ by a whole channel
+ * unit, the same rule {@link GRASS_REACH_T_STEPS} is sized by.
+ *
+ * The widest gap between a sand colour and its grass twin is under 160 delivered units on any
+ * channel, so 200 steps puts consecutive samples 0.8 units apart. `grass-status-reading.test.ts`
+ * asserts that rather than trusting it.
+ */
+export const SAND_BAND_STEPS = 200;
+
+/** The widest delivered-channel distance between a sand colour and the grass colour it blends
+ *  with at the same `t` — what {@link SAND_BAND_STEPS} is sized against, derived rather than
+ *  asserted so a retuned ramp moves the claim instead of leaving a stale one. */
+export function sandGrassWidestGap(): number {
+  let widest = 0;
+  for (let i = 0; i <= GRASS_REACH_T_STEPS; i += 1) {
+    const t = i / GRASS_REACH_T_STEPS;
+    const sand = sandColourOf(t);
+    for (let j = 0; j <= GRASS_REACH_D_STEPS; j += 1) {
+      const g = grassColourOf(t, j / GRASS_REACH_D_STEPS);
+      widest = Math.max(widest, Math.abs(g.r - sand.r), Math.abs(g.g - sand.g), Math.abs(g.b - sand.b));
+    }
+  }
+  return widest;
 }
