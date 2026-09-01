@@ -4784,7 +4784,9 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
   // over the same population the retire wall enforces. The retirement pre-check `tree focus` was
   // being mistaken for. A READ, so no `--pg`.
   if (sub === "inbound") {
-    if (third === undefined || help) return libraryInboundHelp();
+    // No `third === undefined` arm: `libraryInbound` already answers a missing id with its own help,
+    // so a second guard here would be a duplicate no fixture can distinguish from the first.
+    if (help) return libraryInboundHelp();
     return libraryInbound(deps.store, third);
   }
   if (sub === "related") {

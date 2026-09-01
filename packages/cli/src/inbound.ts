@@ -37,18 +37,26 @@ import type { Envelope } from "@storytree/drive";
 
 import { findInboundRefs } from "./retire.js";
 
-/** An authored `dependsOn` edge — the narrow population `tree focus` renders. */
+/**
+ * An authored `dependsOn` edge — the narrow population `tree focus` renders. Paths from that field
+ * are always indexed (`dependsOn[0]`), since the schema declares it an array; the prefix covers the
+ * whole field rather than enumerating an arity no document has.
+ */
 function isAuthoredEdge(path: string): boolean {
-  return path === "dependsOn" || path.startsWith("dependsOn[");
+  return path.startsWith("dependsOn");
 }
 
+/**
+ * A row's title, or `""` when it has none.
+ *
+ * `StoredDoc.doc` is `unknown` at the seam, so this has to survive a body that is null, absent, or
+ * not an object at all. The optional chain covers all three in one expression — an explicit
+ * `typeof doc === "object" && doc !== null` guard reads as more careful and is not: for every body a
+ * store can hold, its two halves have the same answer as the chain, so half of it is unprovable.
+ */
 function titleOf(stored: StoredDoc): string {
-  const doc = stored.doc;
-  if (typeof doc === "object" && doc !== null) {
-    const v = (doc as Record<string, unknown>).title;
-    if (typeof v === "string") return v;
-  }
-  return "";
+  const title = (stored.doc as Record<string, unknown> | null | undefined)?.title;
+  return typeof title === "string" ? title : "";
 }
 
 /**

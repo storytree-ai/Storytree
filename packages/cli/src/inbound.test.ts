@@ -226,3 +226,92 @@ test("inbound with no id prints its help", async () => {
   const env = await run(["library", "inbound"], { store });
   assert.match(env.body, /storytree library inbound <id>/);
 });
+
+test("an EMPTY id prints the help too, rather than searching for an artifact named ''", async () => {
+  const store = await seed([doc("p1", "principle")]);
+  const env = await run(["library", "inbound", ""], { store });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /storytree library inbound <id>/);
+  assert.doesNotMatch(env.body, /no artifact/, "an empty id is a missing id, not a missing artifact");
+});
+
+test("`--help` WITH an id prints the help rather than the artifact's inbound refs", async () => {
+  const store = await seed(REPRO);
+  const env = await run(["library", "inbound", "adr-0028", "--help"], { store });
+  assert.match(env.body, /storytree library inbound <id>/);
+  // NOT `/via references/` — the help quotes `via references[13]` as its own worked example, so
+  // that probe passes on the help and proves nothing. Match a line only a RESULT can carry.
+  assert.doesNotMatch(env.body, /authored depends_on edges:/, "the help never renders a result");
+});
+
+test("an artifact NEVER appears in its own inbound, even when it references itself", async () => {
+  // The self-exclusion is one line and the shape is real: a doc can name its own id in a ref field.
+  // Without this fixture, dropping the guard shows the target standing on itself and nothing fails.
+  const store = await seed([
+    doc("narcissus", "adr", { dependsOn: ["asset:narcissus"] }),
+    doc("elsewhere", "principle"),
+  ]);
+  const env = await run(["library", "inbound", "narcissus"], { store });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /nothing references narcissus/);
+  assert.doesNotMatch(env.body, /← narcissus/);
+});
+
+test("a referrer reaching the target through BOTH an authored and an unauthored field counts once, as authored", async () => {
+  // `authoredCount` asks whether ANY of a referrer's paths is an authored edge. Asking whether ALL
+  // of them are gives a different number on exactly this shape and on no other.
+  const store = await seed([
+    doc("target", "pattern"),
+    doc("both-ways", "agent", { dependsOn: ["asset:target"], rules: ["asset:target"] }),
+    doc("residue-only", "adr", { references: ["asset:target"] }),
+  ]);
+  const env = await run(["library", "inbound", "target"], { store });
+  assert.match(env.body, /via dependsOn\[0\], rules\[0\]/, "both sites are listed, on one row");
+  assert.match(env.body, /authored depends_on edges: 1 of 2/);
+});
+
+test("a referrer with no title renders its id and kind rather than throwing", async () => {
+  const store = new InMemoryStore();
+  await store.upsertDoc({ id: "target", kind: "pattern", doc: { id: "target", kind: "pattern" } });
+  await store.upsertDoc({
+    id: "untitled",
+    kind: "adr",
+    doc: { id: "untitled", kind: "adr", dependsOn: ["asset:target"] },
+  });
+  const env = await run(["library", "inbound", "target"], { store });
+  assert.equal(env.ok, true);
+  // The title slot collapses to nothing, leaving the two separators either side of it adjacent.
+  assert.match(env.body, /← untitled {4}\[adr\]/, "an empty title collapses, the row survives");
+  assert.match(env.body, /^target — {4}\[pattern\]/m, "and the header too");
+});
+
+test("a stored body that is not an object at all is rendered, not thrown over", async () => {
+  // The defensive arm in `titleOf`. `StoredDoc.doc` is `unknown` at the seam, so a row that did not
+  // come through the validated write path can carry a scalar; the reader must survive it.
+  const store = new InMemoryStore();
+  await store.upsertDoc({ id: "target", kind: "pattern", doc: "not an object at all" as unknown });
+  await store.upsertDoc({
+    id: "points-at-it",
+    kind: "adr",
+    doc: { id: "points-at-it", kind: "adr", dependsOn: ["asset:target"] },
+  });
+  const env = await run(["library", "inbound", "target"], { store });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /← points-at-it/);
+});
+
+test("a NULL stored body is rendered too — the arm a scalar body cannot reach", async () => {
+  // A scalar body proves less than it looks: `"str".title` is merely `undefined`, so dropping the
+  // guard still yields an empty title and nothing fails. `null` is the one value where the guard is
+  // load-bearing — reading a property off it THROWS — so this is what makes the arm provable.
+  const store = new InMemoryStore();
+  await store.upsertDoc({ id: "target", kind: "pattern", doc: null as unknown });
+  await store.upsertDoc({
+    id: "points-at-it",
+    kind: "adr",
+    doc: { id: "points-at-it", kind: "adr", dependsOn: ["asset:target"] },
+  });
+  const env = await run(["library", "inbound", "target"], { store });
+  assert.equal(env.ok, true);
+  assert.match(env.body, /← points-at-it/);
+});
