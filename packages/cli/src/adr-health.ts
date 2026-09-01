@@ -458,9 +458,11 @@ export function readStoryDecisionFiles(storiesDir: string): StoryDecisionsFileVi
     }
   };
   walk(storiesDir, "stories");
-  // No sort: `readdirSync` is already ordered, and the one consumer that renders these — the repoint
-  // plan — sorts its own edits. A second sort here could only ever be a no-op, which is to say
-  // something nothing could tell was working.
+  // Returned in FILESYSTEM order, deliberately unsorted. `readdirSync` happens to come back
+  // alphabetically on this dev box's NTFS and does NOT promise that anywhere — so a sort here would
+  // be a no-op locally (nothing could tell it was working) while a CALLER that depended on order
+  // would still be relying on the filesystem. The one consumer that renders these sorts its own
+  // edits, which is where the ordering guarantee belongs and where it is tested.
   return out;
 }
 

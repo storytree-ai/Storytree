@@ -18,6 +18,7 @@ import type { Store, StoredDoc } from "@storytree/storage-protocol";
 
 import { readStoryDecisionFiles } from "./adr-health.js";
 import { LITERAL_FLAGS, PROSE_FLAGS } from "./at-path.js";
+import { defaultCliActor } from "./cli-actor.js";
 import { run } from "./commands.js";
 import {
   adrNumberOf,
@@ -501,13 +502,17 @@ test("readStoryDecisionFiles reads EVERY unit that names decisions, not only sto
     writeFileSync(path.join(dir, "a-story", "story.txt"), lines("---", ...story("a-txt-unit", [4]), "---", "", "# b", ""));
 
     const read = readStoryDecisionFiles(dir);
+    // Compared as a SET. The reader returns filesystem order, which is alphabetical on this dev
+    // box's NTFS and not promised to be anywhere — asserting the order here passed locally and
+    // failed on CI's ext4, which is the whole reason the ordering guarantee lives in the caller.
     assert.deepEqual(
-      read.map((r) => r.file),
+      read.map((r) => r.file).sort(),
       ["stories/a-story/a-capability.md", "stories/a-story/story.md", "stories/b-story/story.md"],
-      "sorted by path; the capability is read; the README, the .txt and the decision-free unit are not",
+      "the capability is read; the README, the .txt and the decision-free unit are not",
     );
-    assert.equal(typeof read[0]?.raw, "string", "the bytes come back as TEXT, not a Buffer");
-    assert.ok(read[0]?.raw.includes("decisions: [4]"), "and it carries the raw bytes the rewrite needs");
+    const capability = read.find((r) => r.file.endsWith("a-capability.md"));
+    assert.equal(typeof capability?.raw, "string", "the bytes come back as TEXT, not a Buffer");
+    assert.ok(capability?.raw.includes("decisions: [4]"), "and it carries the raw bytes the rewrite needs");
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -1010,9 +1015,11 @@ test("a confirmed write with no injected actor still carries branch attribution"
   const digest = /--confirm ([0-9a-f]{8})/.exec(dry.body)?.[1];
   await libraryRepoint(d, "adr-0028", { to: "adr-0500", confirm: digest });
   const events = await store.readEvents({ id: "a-decision" });
-  const actor = events.at(-1)?.actor ?? "";
-  assert.notEqual(actor, "", "a write with no actor is the shape `branchOfActor` reads as UNATTRIBUTED");
-  assert.match(actor, /@/, "defaultCliActor stamps an identity, not a bare literal");
+  // Compared to `defaultCliActor()` itself, not to a SHAPE. The actor's format is environment-
+  // dependent (it carries a branch, and CI's differs from a dev box's), so asserting it looks a
+  // certain way passed here and failed there. The claim is which resolver supplied it.
+  assert.equal(events.at(-1)?.actor, defaultCliActor());
+  assert.notEqual(defaultCliActor(), "", "and that resolver never yields the empty attribution");
 });
 
 test("survivingSites survives a doc body that is not an object", () => {
