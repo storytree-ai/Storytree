@@ -32,6 +32,7 @@ import {
   SKIRT_ROCK,
   SKIRT_ROWS,
   NO_SKIRT,
+  ZERO_NORMAL,
   flatSkirt,
   insetPoint,
   isRimEdge,
@@ -151,6 +152,16 @@ test('⚠ THE NORMAL IS NORMALISED — asserted on an edge whose length is NOT 1
 
 test('a degenerate edge has no direction, and the zero vector is the honest answer', () => {
   assert.deepEqual(outwardNormal({ x: 3, z: 4 }, { x: 3, z: 4 }), { x: 0, z: 0 });
+  // ⚠ AND `ZERO_NORMAL` IS THAT SAME VECTOR, ASSERTED HERE RATHER THAN INFERRED. It is what an
+  // UNCUT edge is inset along, so both of its components being exactly 0 is what makes
+  // `insetPoint(p, ZERO_NORMAL, 0)` return `p` TO THE BIT — which is the whole basis of the
+  // "a one-ledge skirt and no skirt emit the same bytes" claim below. Emptying the literal was
+  // caught only by a test file this branch never touched, so the discrimination is stated here.
+  assert.deepEqual(ZERO_NORMAL, { x: 0, z: 0 });
+  assert.equal(ZERO_NORMAL.x, 0);
+  assert.equal(ZERO_NORMAL.z, 0);
+  const p: P2 = { x: 7.25, z: -3.5 };
+  assert.deepEqual(insetPoint(p, ZERO_NORMAL, 4), p, 'an inset along the zero normal moved a point');
 });
 
 test('a POSITIVE inset cuts INWARD — the sign `build_land.py` subtracts with', () => {
