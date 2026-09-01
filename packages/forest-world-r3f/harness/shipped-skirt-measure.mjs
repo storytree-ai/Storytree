@@ -42,6 +42,12 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+/** ADR-0490 D6: an arm is judged on pixels that MOVED by more than this, never on pixels touched.
+ *  The owner looked at two arms scored by the touched count and said they did not look meaningfully
+ *  different; recomputing by magnitude showed no pixel had moved more than 37/255.
+ *  ⚠ IMPORTED, NOT RE-DECLARED — see `visible-delta.ts`'s header for the four copies this replaced. */
+import { VISIBLE_DELTA } from './visible-delta.ts';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_SKIRT_URL'] ?? 'http://localhost:5312/shipped-skirt.html';
 const OUT =
@@ -60,10 +66,7 @@ const ZOOMS = [2, 8];
 const FIT = 'fit';
 /** The zoom the cliff is actually read at — a 3-unit-deep edge is 24 px here and 6 px at zoom 2. */
 const READ_ZOOM = 8;
-/** ADR-0490 D6: an arm is judged on pixels that MOVED by more than this, never on pixels touched.
- *  The owner looked at two arms scored by the touched count and said they did not look meaningfully
- *  different; recomputing by magnitude showed no pixel had moved more than 37/255. */
-const VISIBLE_DELTA = 20;
+
 
 const fail = (why) => {
   console.error(`REFUSED: ${why}`);
@@ -145,7 +148,7 @@ const result = await page.evaluate(
         shots[`${arm}-${size}-8`] = r.snapshot(arm, size, 8);
       }
     }
-    return { id, rows, refs, shots };
+    return { id, rows, refs, shots, sensitivity: r.sensitivity(sizes[0], zooms[zooms.length - 1]) };
   },
   [ARMS, SIZES, ZOOMS, FIT, BATCH],
 );
@@ -201,6 +204,15 @@ if (!(shipped.anchor < control.anchor - 5)) {
       'has not moved it, the component is in the code and not in the picture.',
   );
 }
+// ⚠⚠ RUNG 2 BEFORE ANY READING IS QUOTED — see the grass driver's copy of this comment. An
+// instrument that cannot resolve the cited boundary returns the same null as two identical arms.
+if (result.sensitivity.length > 0) {
+  fail(
+    `the visible-delta instrument failed its own sensitivity rung, so no reading below means ` +
+      `anything:\n  ${result.sensitivity.join('\n  ')}`,
+  );
+}
+
 if (shipped.cliffPixels === 0) {
   fail(`the ${SHIPPED_ARM} arm is byte-identical to the control — the cliff is drawing nothing.`);
 }

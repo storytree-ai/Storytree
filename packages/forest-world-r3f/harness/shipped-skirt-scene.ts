@@ -67,6 +67,12 @@ import { CROWD_VIEWPORT } from './crowd-layout.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import {
+  VISIBLE_DELTA,
+  sensitivityReasons,
+  visibleDeltaDistribution,
+  type VisibleDeltaReading,
+} from './visible-delta.js';
+import {
   CROWD_ZOOMS,
   FIT_ZOOM,
   crowdCasters,
@@ -483,6 +489,16 @@ export interface SkirtRunner {
    * under the touched metric, and only one of those is visible.
    */
   visiblePixels(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): number;
+  /** The WHOLE magnitude distribution against {@link CONTROL_ARM} — what the two counts above are
+   *  summaries of. ADR-0490 D6's headline is defensible only beside it: a bare count over a
+   *  threshold discards exactly the information whose absence made the touched count misleading. */
+  delta(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): VisibleDeltaReading;
+  /**
+   * RUNG 2 over the pixels this run actually captured: can this instrument resolve the cited
+   * boundary at all? Empty means it can. Without it, "these arms look alike" and "this comparison
+   * never saw two different frames" are the same report.
+   */
+  sensitivity(size: CrowdSizeId, zoom: CrowdZoom): string[];
   snapshot(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): string;
   /** The reference render's own numbers, through the same {@link imageStats}. */
   reference(url: string): Promise<ImageStats>;
@@ -490,8 +506,15 @@ export interface SkirtRunner {
   dispose(): void;
 }
 
-/** How far a channel must move before a reader is credited with seeing it (ADR-0490 D6). */
-export const VISIBLE_DELTA = 20;
+/**
+ * How far a channel must move before a reader is credited with seeing it (ADR-0490 D6) —
+ * RE-EXPORTED FROM THE ONE MODULE THAT OWNS IT.
+ *
+ * ⚠ THIS PAGE USED TO DECLARE ITS OWN COPY, and so did the grass page and both of their drivers:
+ * four spellings of one authored number. A re-export cannot drift from its source; a second
+ * `= 20` can, and neither page would notice.
+ */
+export { VISIBLE_DELTA } from './visible-delta.js';
 
 const GPU_TIMER = 'EXT_disjoint_timer_query_webgl2';
 
@@ -561,6 +584,16 @@ export function createSkirtRunner(): SkirtRunner {
   };
 
   /** Pixels whose largest channel move exceeds `threshold`. At 0 this is the TOUCHED count. */
+  /** Two arms through the ONE instrument that owns the ADR-0490 D6 metric. The `touched` and
+   *  `visible` counts below are summaries of {@link VisibleDeltaReading}, which is now returned
+   *  whole so a report can print the distribution rather than a scalar. */
+  const deltaOf = (
+    a: SkirtArm,
+    b: SkirtArm,
+    size: CrowdSizeId,
+    zoom: CrowdZoom,
+  ): VisibleDeltaReading => visibleDeltaDistribution(pixels(a, size, zoom), pixels(b, size, zoom));
+
   const differing = (
     a: SkirtArm,
     b: SkirtArm,
@@ -568,18 +601,8 @@ export function createSkirtRunner(): SkirtRunner {
     zoom: CrowdZoom,
     threshold = 0,
   ): number => {
-    const pa = pixels(a, size, zoom);
-    const pb = pixels(b, size, zoom);
-    let n = 0;
-    for (let i = 0; i < pa.length; i += 4) {
-      const d = Math.max(
-        Math.abs(pa[i]! - pb[i]!),
-        Math.abs(pa[i + 1]! - pb[i + 1]!),
-        Math.abs(pa[i + 2]! - pb[i + 2]!),
-      );
-      if (d > threshold) n += 1;
-    }
-    return n;
+    const reading = deltaOf(a, b, size, zoom);
+    return threshold === 0 ? reading.touched : reading.visible;
   };
 
   return {
@@ -616,6 +639,12 @@ export function createSkirtRunner(): SkirtRunner {
     },
     visiblePixels(arm, size, zoom) {
       return differing(arm, CONTROL_ARM, size, zoom, VISIBLE_DELTA);
+    },
+    delta(arm, size, zoom) {
+      return deltaOf(arm, CONTROL_ARM, size, zoom);
+    },
+    sensitivity(size, zoom) {
+      return sensitivityReasons(pixels(CONTROL_ARM, size, zoom));
     },
     snapshot(arm, size, zoom) {
       render(arm, size, zoom);

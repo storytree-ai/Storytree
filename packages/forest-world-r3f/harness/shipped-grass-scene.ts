@@ -51,6 +51,12 @@ import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { imageStats, type ImageStats } from './shipped-skirt-scene.js';
 import { SHIPPED_LIGHTING } from './shipped-baseline.js';
 import {
+  VISIBLE_DELTA,
+  sensitivityReasons,
+  visibleDeltaDistribution,
+  type VisibleDeltaReading,
+} from './visible-delta.js';
+import {
   CROWD_ZOOMS,
   FIT_ZOOM,
   crowdCasters,
@@ -234,12 +240,13 @@ export const ARC_FAMILY_TARGET = { shippedAsWritten: 9, approvedAsWritten: 36 } 
 // ---------------------------------------------------------------- the instrument
 
 /**
- * THE THRESHOLD AN ARM IS JUDGED ON — ADR-0490 D6. Pixels whose largest channel move exceeds
- * 20/255. The touched-pixel count is reported as CONTEXT and may not carry a verdict: it scores a
- * 1/255 shift identically to a 164/255 one, and it overstated two increments on this arc roughly
- * fourfold before the owner caught it by eye.
+ * THE THRESHOLD AN ARM IS JUDGED ON — ADR-0490 D6, RE-EXPORTED FROM THE ONE MODULE THAT OWNS IT.
+ *
+ * ⚠ THIS PAGE USED TO DECLARE ITS OWN COPY, and so did the skirt page and both of their drivers:
+ * four spellings of one authored number, which is how two pages stop agreeing without anyone
+ * editing either. A re-export cannot drift from its source by construction; a second `= 20` can.
  */
-export const VISIBLE_DELTA = 20;
+export { VISIBLE_DELTA } from './visible-delta.js';
 
 /** The colour-family quantiser ADR-0490's context table uses: 5 bits per channel. */
 export function colourFamily(r: number, g: number, b: number): number {
@@ -331,6 +338,10 @@ export interface GrassReading {
   /** Against the CONTROL arm. `touched` is context only (ADR-0490 D6). */
   touched: number;
   visible: number;
+  /** The WHOLE magnitude distribution the two counts above are summaries of — the half that makes
+   *  the metric defensible, since a bare count over a threshold discards exactly the information
+   *  whose absence made the touched count misleading. */
+  delta: VisibleDeltaReading;
 }
 
 /** The approved render put through this page's own instrument. */
@@ -344,6 +355,12 @@ export interface GrassRunner {
   identity(): RendererIdentity;
   warm(): void;
   read(arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): GrassReading;
+  /**
+   * RUNG 2 over the pixels this run actually captured: can this instrument resolve the cited
+   * boundary at all? Empty means it can. A driver that skips this cannot tell "the arms look
+   * alike" from "this comparison never saw two different frames".
+   */
+  sensitivity(size: CrowdSizeId, zoom: CrowdZoom): string[];
   snapshot(arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): string;
   reference(url: string): Promise<ReferenceReading>;
 }
@@ -388,25 +405,11 @@ export function createGrassRunner(): GrassRunner {
   };
 
   /** Pixels whose largest channel move exceeds `threshold`. At 0 this is the TOUCHED count. */
-  const differing = (
-    arm: GrassArm,
-    size: CrowdSizeId,
-    zoom: CrowdZoom,
-    threshold: number,
-  ): number => {
-    const pa = pixels(arm, size, zoom);
-    const pb = pixels(CONTROL_ARM, size, zoom);
-    let n = 0;
-    for (let i = 0; i < pa.length; i += 4) {
-      const d = Math.max(
-        Math.abs(pa[i]! - pb[i]!),
-        Math.abs(pa[i + 1]! - pb[i + 1]!),
-        Math.abs(pa[i + 2]! - pb[i + 2]!),
-      );
-      if (d > threshold) n += 1;
-    }
-    return n;
-  };
+  /** This arm against the CONTROL, through the ONE instrument that owns the ADR-0490 D6 metric.
+   *  One pass now yields the whole magnitude distribution where two passes previously yielded two
+   *  counts. */
+  const deltaOf = (arm: GrassArm, size: CrowdSizeId, zoom: CrowdZoom): VisibleDeltaReading =>
+    visibleDeltaDistribution(pixels(arm, size, zoom), pixels(CONTROL_ARM, size, zoom));
 
   return {
     identity: () => readIdentity(gl),
@@ -418,6 +421,7 @@ export function createGrassRunner(): GrassRunner {
       const info = renderer.info.render;
       const buf = pixels(arm, size, zoom);
       const census = familyCensus(buf, bg);
+      const delta = deltaOf(arm, size, zoom);
       return {
         arm,
         pxPerUnit: s.pxPerUnit,
@@ -429,9 +433,13 @@ export function createGrassRunner(): GrassRunner {
         families: census.families,
         largestShare: census.largestShare,
         topThreeShare: census.topThreeShare,
-        touched: differing(arm, size, zoom, 0),
-        visible: differing(arm, size, zoom, VISIBLE_DELTA),
+        touched: delta.touched,
+        visible: delta.visible,
+        delta,
       };
+    },
+    sensitivity(size, zoom) {
+      return sensitivityReasons(pixels(CONTROL_ARM, size, zoom));
     },
     snapshot(arm, size, zoom) {
       render(arm, size, zoom);
