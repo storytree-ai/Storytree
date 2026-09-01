@@ -30,42 +30,102 @@ import type { StoredDoc } from "@storytree/storage-protocol";
  * (`tree focus`'s inbound view reads only `dependsOn`, so it is still the narrower of the two.)
  *
  * ADR-0477 D1 NARROWED THIS WALL WITHOUT AN EDIT, which is the point of walking every string rather
- * than a per-kind list: the retired `references` citation list simply stopped being present, so the
- * wall now guards the authored edges alone. It guards LESS than it did — an artifact whose only
- * inbound pointer was a citation is now retirable — and that is the retirement's intent, not a
+ * than a per-kind list: the retired `references` citation list stopped being WRITTEN, so new rows
+ * carry only the authored edges. It guards LESS than it did on those rows — an artifact whose only
+ * inbound pointer was a fresh citation is now retirable — and that is the retirement's intent, not a
  * regression: a citation was never a dependency.
+ *
+ * ⚠ BUT THE FIELD IS NOT GONE FROM THE DATA, and reading it as gone is how ADR-0498's defect was
+ * missed for as long as it was. Measured 2026-09-01: `adr-0018` still carries a 20-entry
+ * `references` array and no `dependsOn` field at all, and it is that residue — `references[13]` —
+ * that hard-refuses the retire of `adr-0028`. Walking every string is what keeps the wall correct
+ * over rows the retirement never rewrote.
+ *
+ * THIS MODULE IS ALSO THE HONEST INBOUND READER'S WALK (ADR-0498 D1), and deliberately the SAME
+ * one. `referencedAssetSites` is the single traversal; `referencedAssetIds` is its id projection and
+ * `findDependents` is `findInboundRefs`'s `.doc` projection, so the wall and the reader cannot
+ * disagree about what counts as an edge. Two implementations would diverge silently and in the
+ * flattering direction — which is the exact failure `inbound.ts` exists to close.
  */
 
 /** The `asset:<id>` shape — mirrors `AssetRef` in @storytree/library (knowledge.ts). Anchored. */
 const ASSET_REF = /^asset:([A-Za-z0-9_-]+)$/;
 
+/** One `asset:<id>` edge, and the field path in the referring doc body that carries it. */
+export interface AssetRefSite {
+  /** The referenced artifact id — the `<id>` in `asset:<id>`. */
+  readonly id: string;
+  /** Where the ref sits, e.g. `dependsOn[0]`, `stepRefs[2].refs[1]`, `arcRef`, `references[13]`. */
+  readonly path: string;
+}
+
 /**
- * Every library `asset:<id>` this doc body references as an EDGE: walk all string values (recursing
- * into arrays/objects) and take the ones that ARE a ref. Order-free, deduped (a Set).
+ * THE ONE WALK. Every library `asset:<id>` this doc body references as an EDGE, each with the field
+ * path it was found at: walk all string values (recursing into arrays/objects) and take the ones
+ * that ARE a ref. Document order, NOT deduped — the same id referenced from two fields is two sites,
+ * which is exactly what a caller planning a repoint needs to see.
+ *
+ * The path is what turns an opaque refusal into a diagnosis. `via references[13]` says at a glance
+ * that the edge is residue from the field ADR-0477 retired; `via arcRef` says it is a containment
+ * pointer and not an argument. A bare list of referring ids can say neither.
  */
-export function referencedAssetIds(doc: unknown): Set<string> {
-  const ids = new Set<string>();
-  const visit = (v: unknown): void => {
+export function referencedAssetSites(doc: unknown): AssetRefSite[] {
+  const sites: AssetRefSite[] = [];
+  const visit = (v: unknown, path: string): void => {
     if (typeof v === "string") {
       const m = ASSET_REF.exec(v.trim());
-      if (m?.[1] !== undefined) ids.add(m[1]);
+      if (m?.[1] !== undefined) sites.push({ id: m[1], path });
     } else if (Array.isArray(v)) {
-      for (const item of v) visit(item);
+      v.forEach((item, i) => visit(item, `${path}[${i}]`));
     } else if (typeof v === "object" && v !== null) {
-      for (const item of Object.values(v)) visit(item);
+      for (const [k, item] of Object.entries(v)) visit(item, path === "" ? k : `${path}.${k}`);
     }
   };
-  visit(doc);
-  return ids;
+  visit(doc, "");
+  return sites;
+}
+
+/**
+ * Every library `asset:<id>` this doc body references as an EDGE. The id PROJECTION of the one walk
+ * above — never its own traversal, so the wall this feeds and the reader in `inbound.ts` cannot
+ * drift apart. Order-free, deduped (a Set).
+ */
+export function referencedAssetIds(doc: unknown): Set<string> {
+  return new Set(referencedAssetSites(doc).map((s) => s.id));
+}
+
+/** A referring artifact, and every field path in it that points at the target. */
+export interface InboundRef {
+  readonly doc: StoredDoc;
+  /** Every site in `doc` carrying an `asset:<targetId>` edge, in document order. Never empty. */
+  readonly paths: readonly string[];
+}
+
+/**
+ * Every artifact that references `targetId`, with the field paths that do it — the honest inbound
+ * population (ADR-0498 D1) and, projected to its docs, the retire wall's dependent list. Excludes
+ * the target itself; sorted by id for a stable listing.
+ */
+export function findInboundRefs(targetId: string, docs: readonly StoredDoc[]): InboundRef[] {
+  const found: InboundRef[] = [];
+  for (const d of docs) {
+    if (d.id === targetId) continue;
+    const paths = referencedAssetSites(d.doc)
+      .filter((s) => s.id === targetId)
+      .map((s) => s.path);
+    if (paths.length > 0) found.push({ doc: d, paths });
+  }
+  return found.sort((a, b) => a.doc.id.localeCompare(b.doc.id));
 }
 
 /**
  * The other artifacts that reference `targetId` via an `asset:<targetId>` edge — the dependents that
- * must be re-pointed or retired before `targetId` can be retired. Excludes the target itself; sorted
- * by id for a stable refusal listing.
+ * must be re-pointed or retired before `targetId` can be retired.
+ *
+ * The `.doc` projection of `findInboundRefs`, and that is load-bearing rather than incidental: it is
+ * what makes "the reader and the wall see the same population" true by construction instead of by
+ * two implementations agreeing today (ADR-0498 D1).
  */
 export function findDependents(targetId: string, docs: readonly StoredDoc[]): StoredDoc[] {
-  return docs
-    .filter((d) => d.id !== targetId && referencedAssetIds(d.doc).has(targetId))
-    .sort((a, b) => a.id.localeCompare(b.id));
+  return findInboundRefs(targetId, docs).map((r) => r.doc);
 }
