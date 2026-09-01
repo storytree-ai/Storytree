@@ -139,20 +139,6 @@ export const GRASS_WARM: readonly RampStop[] = [
  */
 export const GRASS_DRIFT_RAMP: readonly [number, number] = [0.38, 0.62];
 
-/**
- * THE RAMP IS LINEAR, NOT SMOOTHSTEPPED — and this is a DELIBERATE divergence from
- * `land-grain.ts`, stated here because a reader comparing the two modules will otherwise take
- * one of them for a bug.
- *
- * Blender's `ShaderNodeValToRGB` defaults to `interpolation = 'LINEAR'` and `_ramp` at
- * `build_land.py:663-672` never sets it, so every ramp in the script is piecewise linear.
- * `land-grain.ts` evaluates its own two-stop ramp with a smoothstep (`fade` / GLSL
- * `smoothstep`), which is a slightly different curve on the same stops. That module's choice is
- * not this module's to change — it was measured and crossed as it stands — but transcribing it
- * HERE would be copying a divergence rather than the source (ADR-0490 D1).
- */
-export const GRASS_RAMP_IS_LINEAR = true;
-
 // ---------------------------------------------------------------- the field
 
 /** The lattice spacing one Cycles noise delivers, in ground units. */
@@ -259,6 +245,15 @@ export type LinearRgb = readonly [number, number, number];
 
 /**
  * A piecewise-linear colour ramp evaluated in LINEAR space, as Blender evaluates it.
+ *
+ * ⚠ LINEAR, NOT SMOOTHSTEPPED — a DELIBERATE divergence from `land-grain.ts`, stated here
+ * because a reader comparing the two modules will otherwise take one of them for a bug.
+ * Blender's `ShaderNodeValToRGB` defaults to `interpolation = 'LINEAR'` and `_ramp` at
+ * `build_land.py:663-672` never sets it, so every ramp in the script is piecewise linear.
+ * `land-grain.ts` evaluates its own two-stop ramp with a smoothstep (`fade` / GLSL
+ * `smoothstep`), a slightly different curve on the same stops. That module's choice is not this
+ * module's to change — it was measured and crossed as it stands — but transcribing it HERE
+ * would be copying a divergence rather than the source (ADR-0490 D1).
  *
  * The chained-clamped-mix form rather than a search for the bracketing pair, and it is the SAME
  * arithmetic the generated GLSL performs rather than a second spelling of it: for stops sorted
@@ -373,8 +368,11 @@ function glslLinear(c: LinearRgb): string {
 /** The GLSL body of one Cycles noise: the octaves UNROLLED at generation time, because the
  *  octave count is a TypeScript constant and GLSL ES 1.0 wants constant loop bounds. Generating
  *  the unroll is also what stops the shader and this module disagreeing about how many octaves
- *  there are. */
-function noiseGlsl(name: string, noise: CyclesNoise): string[] {
+ *  there are.
+ *
+ *  ⚠ EXPORTED for the reason {@link rampGlsl} gives: an emitter is all string literals, and only
+ *  an exact golden distinguishes a blanked line from a present one. */
+export function noiseGlsl(name: string, noise: CyclesNoise): string[] {
   const octaves = grassTerms(noise).map(
     (term) => `  s += ${term.amp.toFixed(6)} * st_grainOctave(p * ${term.freq.toFixed(6)});`,
   );
@@ -390,21 +388,34 @@ function noiseGlsl(name: string, noise: CyclesNoise): string[] {
 }
 
 /** The GLSL for one piecewise-linear colour ramp — the chained-clamped-mix form, which is the
- *  same fold {@link rampLinear} performs rather than a second spelling of it. */
-function rampGlsl(name: string, stops: readonly RampStop[]): string[] {
+ *  same fold {@link rampLinear} performs rather than a second spelling of it.
+ *
+ *  ⚠ EXPORTED SO IT CAN BE HELD TO AN EXACT GOLDEN, which is a `check:mutation-diff` finding
+ *  rather than a preference: every line of an emitter is a string literal, and a mutant that
+ *  blanks one produces a shader that still contains all the CONSTANTS a `includes()` test looks
+ *  for. Only asserting the emitted text exactly can see the difference. */
+export function rampGlsl(name: string, stops: readonly RampStop[]): string[] {
   const first = stops[0];
   if (first === undefined) throw new Error('land-grass: a colour ramp with no stops');
-  const lines: string[] = [`float ${name}_f;`, `  vec3 ${name}_c = ${glslLinear(first.linear)};`];
+  const body: string[] = [
+    `  float ${name}_f;`,
+    `  vec3 ${name}_c = ${glslLinear(first.linear)};`,
+  ];
   let prev = first.at;
   for (const stop of stops.slice(1)) {
     const span = stop.at - prev;
-    lines.push(
+    body.push(
       `  ${name}_f = clamp((t - ${prev.toFixed(6)}) / ${span.toFixed(6)}, 0.0, 1.0);`,
       `  ${name}_c = mix(${name}_c, ${glslLinear(stop.linear)}, ${name}_f);`,
     );
     prev = stop.at;
   }
-  return [`vec3 ${name}(float t) {`, `  ${lines.join('\n  ')}`, `  return ${name}_c;`, '}'];
+  // ONE ARRAY ELEMENT PER LINE, rather than the body joined into a single element. The GLSL is
+  // identical, and it is what lets `land-grass.test.ts` hold this emitter to an exact golden a
+  // reader can check by eye — the only kind of assertion that can see a BLANKED literal.
+  // `check:mutation-diff` emptied forty string literals in this file one at a time and every
+  // containment test stayed green, because a shader missing a line still contains the constants.
+  return [`vec3 ${name}(float t) {`, ...body, `  return ${name}_c;`, '}'];
 }
 
 /**

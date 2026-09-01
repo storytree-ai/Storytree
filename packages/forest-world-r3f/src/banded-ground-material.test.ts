@@ -999,9 +999,20 @@ test('an UNGRASSED material is byte-identical — the grass adds nothing at any 
 });
 
 test('the grass REFUSES to be built without the grain, rather than emitting a shader that cannot link', () => {
+  // ⚠ THE WHOLE MESSAGE, BOTH HALVES. `check:mutation-diff` blanked the second line of it and a
+  // `/grass layer needs the grain/` match stayed green — leaving a refusal that names the
+  // constraint and not the REASON, which is the half a reader actually needs to act on.
   assert.throws(
     () => createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grass: { mix: 0.1 } }),
-    /grass layer needs the grain/,
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the grass layer needs the grain — it evaluates its octaves ' +
+          'through `st_grainOctave`, which only the grain source declares',
+      );
+      return true;
+    },
   );
   // And the refusal is about the DEPENDENCY, not about the grass being unwelcome: with the grain
   // present the same options build.
@@ -1019,10 +1030,20 @@ test('a GRASSED material uploads the caller`s mix and splices the generated laye
   assert.equal(m.uniforms['uGrassMix']?.value, 0.17, 'the fac is UPLOADED, never written in');
   assert.ok(/uniform float uGrassMix;/.test(m.fragmentShader));
   assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix);'));
-  // The generated source is the module's, spliced whole — not a hand-typed subset of it.
-  for (const line of grassGlsl().split('\n')) {
-    assert.ok(m.fragmentShader.includes(line), `the shader is missing a generated line: ${line}`);
-  }
+  // ⚠ THE BLOCK, INDENTED, RATHER THAN LINE BY LINE. A per-line `includes()` sweep is
+  // satisfied by the whole module CONCATENATED ONTO ONE LINE - every line is still a substring -
+  // and `check:mutation-diff` found exactly that by blanking the join separator, which would ship
+  // a shader whose `//` comments swallow the code after them. Asserting the spliced BLOCK with its
+  // own indentation is what separates the two.
+  const spliced = grassGlsl().split('\n').join('\n      ');
+  assert.ok(
+    m.fragmentShader.includes(spliced),
+    'the grass source is not spliced with its lines intact',
+  );
+  assert.ok(
+    m.fragmentShader.includes('\n      // GENERATED from land-grass.ts'),
+    'the grass block must be indented into the shader, not flattened',
+  );
 });
 
 test('the grass BREAKS the closure — asserted, because that is what ADR-0490 D5 authorises', () => {

@@ -4,7 +4,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { linearToSrgb255 } from './land-grain.js';
+import { grainOctave, linearToSrgb255 } from './land-grain.js';
 import {
   CYCLES_ISLAND_SPAN,
   GRASS_BROAD,
@@ -25,12 +25,15 @@ import {
   grassGlsl,
   grassLattice,
   grassLinearAt,
+  grassLinearOf,
   grassMixedAt,
   grassNoiseField,
   grassOctaveAmplitude,
   grassOctaveFrequency,
   grassScalar,
   grassTerms,
+  noiseGlsl,
+  rampGlsl,
   rampLinear,
 } from './land-grass.js';
 
@@ -188,6 +191,61 @@ test('the ramp is flat outside its stops and linear between them', () => {
   assert.equal(mid[2], 0);
   // Exactly ON the middle stop.
   assert.deepEqual(rampLinear(stops, 0.5), [1, 0.5, 0]);
+});
+
+test('the field is the OCTAVE FOLD, not merely a number in range', () => {
+  // ⚠⚠ A RANGE ASSERTION SURVIVES A FREQUENCY INVERSION. `check:mutation-diff` swapped
+  // `x * term.freq` for `x / term.freq` — a field six thousand times too coarse — and every
+  // "is it in [0,1]" test stayed green. So the composition is asserted against `grainOctave`
+  // with the frequencies written out as LITERALS, not re-derived from the module.
+  const x = 11.25;
+  const z = -7.5;
+  const lattice = 233.8 / 2.7; // GRASS_DRIFT's own spacing, spelled out
+  const terms = [
+    { amp: 1, freq: 1 / lattice },
+    { amp: 0.4, freq: 2 / lattice },
+    { amp: 0.4 ** 2, freq: 4 / lattice },
+  ];
+  let sum = 0;
+  for (const t of terms) sum += t.amp * grainOctave(x * t.freq, z * t.freq);
+  const expected = sum / (1 + 0.4 + 0.4 ** 2);
+  assert.equal(grassNoiseField(GRASS_DRIFT, x, z), expected);
+  // And the inverted spelling really is different here, so the assertion above is load-bearing.
+  let wrong = 0;
+  for (const t of terms) wrong += t.amp * grainOctave(x / t.freq, z / t.freq);
+  assert.notEqual(wrong / (1 + 0.4 + 0.4 ** 2), expected);
+});
+
+test('the drift is the authored remap, not merely a number in [0, 1]', () => {
+  // Same reason: `(raw - lo) / (hi - lo)` survived three arithmetic mutations under a range-only
+  // assertion. The span is written out from the authored stops rather than read back.
+  for (const [x, z] of [
+    [0, 0],
+    [31.5, -12.25],
+    [-88.75, 40.5],
+  ] as const) {
+    const raw = grassNoiseField(GRASS_DRIFT, x, z);
+    const expected = clamp01((raw - 0.38) / (0.62 - 0.38));
+    assert.equal(grassDrift(x, z), expected, `drift disagreed at ${x},${z}`);
+  }
+});
+
+test('the two ramps are selected between by a MIX, at the drift`s own ends and midpoint', () => {
+  // ⚠ THE SELECTION SURVIVED NINE MUTATIONS under the composition test alone — `+` for `-`,
+  // `*` for `/`, and `warm + cool` for `warm - cool` all deliver plausible colours. Pinning the
+  // two ends and the midpoint separates every one of them.
+  const t = 0.55;
+  assert.deepEqual(grassLinearOf(t, 0), rampLinear(GRASS_COOL, t), 'drift 0 is the COOL ramp');
+  assert.deepEqual(grassLinearOf(t, 1), rampLinear(GRASS_WARM, t), 'drift 1 is the WARM ramp');
+  const cool = rampLinear(GRASS_COOL, t);
+  const warm = rampLinear(GRASS_WARM, t);
+  const half = grassLinearOf(t, 0.5);
+  for (let i = 0; i < 3; i += 1) {
+    assert.ok(
+      Math.abs(half[i]! - (cool[i]! + warm[i]!) / 2) < 1e-12,
+      `channel ${i} is not the midpoint of the two ramps`,
+    );
+  }
 });
 
 test('the ramp is evaluated LINEARLY, not smoothstepped — the divergence from land-grain.ts', () => {
@@ -365,4 +423,115 @@ test('the shader`s sRGB transfer agrees with linearToSrgb255 at the knee it is w
   assert.ok(src.includes('12.92'));
   assert.ok(src.includes('1.055'));
   assert.ok(src.includes('1.0 / 2.4'));
+});
+
+// ---------------------------------------------------------------- the emitters, EXACTLY
+//
+// ⚠⚠ WHY THESE ARE GOLDENS AND NOT `includes()` CHECKS. Every line of a GLSL emitter is a string
+// literal, and `check:mutation-diff` blanked forty of them one at a time. A shader with a blanked
+// line still contains every CONSTANT a containment test looks for — the mutants all survived a
+// suite that asserted the numbers were present. Only asserting the emitted TEXT can tell a
+// present line from an absent one, so the two emitters are held to exact output on inputs small
+// enough for a reader to check by eye, and `grassGlsl` is held to CONTAINING what they emit.
+
+test('noiseGlsl emits exactly the unrolled octave sum, header and all', () => {
+  // A two-octave noise at a scale that makes the lattice a round 100 units: 233.8 / 2.338.
+  const noise = { scale: 2.338, detail: 2, roughness: 0.5 };
+  assert.deepEqual(noiseGlsl('st_probe', noise), [
+    '// st_probe: Cycles scale 2.338 -> 100.00 ground units,',
+    '// 2 octaves, roughness 0.5.',
+    'float st_probe(vec2 p) {',
+    '  float s = 0.0;',
+    '  s += 1.000000 * st_grainOctave(p * 0.010000);',
+    '  s += 0.500000 * st_grainOctave(p * 0.020000);',
+    '  return s / 1.500000;',
+    '}',
+  ]);
+});
+
+test('rampGlsl emits exactly the chained-clamped-mix form, one segment per stop pair', () => {
+  const stops = [
+    { at: 0.25, linear: [0, 0, 0] as const },
+    { at: 0.75, linear: [1, 0.5, 0.25] as const },
+  ];
+  assert.deepEqual(rampGlsl('st_probeRamp', stops), [
+    'vec3 st_probeRamp(float t) {',
+    '  float st_probeRamp_f;',
+    '  vec3 st_probeRamp_c = vec3(0.000000, 0.000000, 0.000000);',
+    '  st_probeRamp_f = clamp((t - 0.250000) / 0.500000, 0.0, 1.0);',
+    '  st_probeRamp_c = mix(st_probeRamp_c, vec3(1.000000, 0.500000, 0.250000), st_probeRamp_f);',
+    '  return st_probeRamp_c;',
+    '}',
+  ]);
+});
+
+test('rampGlsl walks the TAIL of the stops — a segment per pair, never one per stop', () => {
+  // `stops.slice(1)` -> `stops` survived: it emits a degenerate zero-width first segment whose
+  // divisor is 0, which delivers NaN on a GPU and reads as black ground. Counting the segments
+  // is what separates them.
+  const three = rampGlsl('st_r', GRASS_COOL).join('\n');
+  assert.equal([...three.matchAll(/= clamp\(/g)].length, 2, 'three stops make TWO segments');
+  const two = rampGlsl('st_r', GRASS_COOL.slice(0, 2)).join('\n');
+  assert.equal([...two.matchAll(/= clamp\(/g)].length, 1);
+  // And no segment may have a zero span — the shape a slice-off-by-one produces.
+  assert.ok(!/\/ 0\.000000/.test(three), 'a zero-width segment divides by zero');
+});
+
+test('rampGlsl spans are the DIFFERENCE between adjacent stops, not their sum', () => {
+  const src = rampGlsl('st_r', GRASS_COOL).join('\n');
+  assert.ok(src.includes('(t - 0.280000) / 0.220000'), 'first segment: 0.50 - 0.28');
+  assert.ok(src.includes('(t - 0.500000) / 0.240000'), 'second segment: 0.74 - 0.50');
+  assert.ok(!src.includes('/ 0.780000'), 'a summed span would be 0.28 + 0.50');
+});
+
+test('a GLSL ramp with no stops is refused rather than emitting an empty function', () => {
+  assert.throws(() => rampGlsl('st_r', []), /no stops/);
+});
+
+test('grassGlsl SPLICES the emitters` own output — it does not re-spell any of it', () => {
+  const src = grassGlsl();
+  for (const [name, noise] of [
+    ['st_grassBroad', GRASS_BROAD],
+    ['st_grassMid', GRASS_MID],
+    ['st_grassFine', GRASS_FINE],
+    ['st_grassDrift', GRASS_DRIFT],
+  ] as const) {
+    assert.ok(src.includes(noiseGlsl(name, noise).join('\n')), `${name} is not spliced verbatim`);
+  }
+  assert.ok(src.includes(rampGlsl('st_grassCool', GRASS_COOL).join('\n')));
+  assert.ok(src.includes(rampGlsl('st_grassWarm', GRASS_WARM).join('\n')));
+});
+
+test('grassGlsl`s OWN lines — the fold, the transfer and the colour — are emitted exactly', () => {
+  const src = grassGlsl();
+  for (const line of [
+    '// GENERATED from land-grass.ts — do not hand-edit these constants.',
+    '// Layer 1 of the approved ground: build_land.py:836-868, mat_attribute().',
+    'float st_grassScalar(vec2 p) {',
+    '  float mA = mix(st_grassBroad(p), st_grassMid(p), 0.420000);',
+    '  return mix(mA, st_grassFine(p), 0.200000);',
+    'vec3 st_grassSrgb(vec3 c) {',
+    '  vec3 lo = c * 12.92;',
+    '  vec3 hi = 1.055 * pow(max(c, vec3(0.0)), vec3(1.0 / 2.4)) - 0.055;',
+    '  return mix(lo, hi, step(vec3(0.0031308), c));',
+    'vec3 st_grassColour(vec2 p) {',
+    '  float t = st_grassScalar(p);',
+    '  float d = clamp((st_grassDrift(p) - 0.380000) / 0.240000, 0.0, 1.0);',
+    '  vec3 lin = mix(st_grassCool(t), st_grassWarm(t), d);',
+    '  return st_grassSrgb(lin);',
+  ]) {
+    assert.ok(src.includes(line), `the shader is missing its own line: ${line}`);
+  }
+  // ⚠ THE DRIFT SPAN IS A DIFFERENCE, and the summed spelling is a plausible-looking mutant:
+  // 0.62 + 0.38 is 1.0, which would flatten the hue drift to almost nothing while compiling.
+  assert.ok(!src.includes('0.380000) / 1.000000'), 'the drift span must be 0.62 - 0.38');
+});
+
+test('every line grassGlsl emits is either code or a deliberate blank separator', () => {
+  // The blanked-literal mutants all produce an EMPTY line where content was. Counting them pins
+  // every one at once: the separators are the only empty lines the emitter authors.
+  const lines = grassGlsl().split('\n');
+  const blanks = lines.filter((l) => l.length === 0).length;
+  assert.equal(blanks, 8, 'eight blank separators: after four noises, two ramps and two helpers');
+  assert.ok(lines.length > 60, `the emitter produced only ${lines.length} lines`);
 });
