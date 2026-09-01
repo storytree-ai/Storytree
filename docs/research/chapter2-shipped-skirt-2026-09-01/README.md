@@ -53,6 +53,18 @@ longer absolute — the fence moved from **composition** (every colour must enco
 It does not cap the number of colours, does not require each to encode something, and does not send
 the judgement back to him. **This build applied it.** The verdict is §4.
 
+**⚠ IT IS RECORDED AS ADR-0489, AND ADR-0490 D5 CARRIES IT FORWARD FOR EVERY LATER LAYER** — *"its
+outcome test … is applied by the session adding each layer, at the moment it adds it."* So this is
+the first application of a standard that now governs the whole ground stack, not a one-off for the
+cliff.
+
+**⚠ AND THE RIM IS OUTSIDE D5'S SEAM, DELIBERATELY.** D5 requires every layer of the GROUND stack to
+enter as a mix INTO the status-selected colour through `uGrainColourMix`, never as a replacement.
+The skirt does replace — a rock ledge wears the rock's ramp row outright. That is not an exception
+taken here: ADR-0490's own closing paragraph places the skirt outside the ground stack because it
+composites on the rim rather than over the ground, and ADR-0489 is what permits a rim surface to
+carry no report at all. Nothing on the island's TOP face changes colour by one bit in this landing.
+
 ## 2. The arms
 
 | arm | what it is | whose option |
@@ -94,12 +106,21 @@ justification rests on. That is why the live numbers below can be trusted agains
 
 At one island, 8 delivered px per ground unit (the zoom the cliff is read at):
 
-| arm | triangles | cliff px | anchor | MICRO | STRUCT | GPU us |
-|---|---|---|---|---|---|---|
-| `flat` | 2,962 | 0 | 134.36 | 0.900 | 8.685 | 1465.8 |
-| `stepped` | 5,562 | 33,329 | 134.36 | 0.970 | **7.996** | 1515.0 |
-| `rock` | 5,562 | 35,434 | **69.14** | 1.021 | **20.381** | 1518.7 |
-| `soil-over-rock` | 5,562 | 34,486 | 69.14 | 1.012 | 20.163 | 1520.9 |
+| arm | triangles | VISIBLE px | touched px | anchor | MICRO | STRUCT | GPU us |
+|---|---|---|---|---|---|---|---|
+| `flat` | 2,962 | 0 | 0 | 134.36 | 0.900 | 8.685 | 1465.8 |
+| `stepped` | 5,562 | 21,821 | 33,329 | 134.36 | 0.970 | **7.996** | 1525.1 |
+| `rock` | 5,562 | **35,434** | 35,434 | **69.14** | 1.021 | **20.381** | 1523.5 |
+| `soil-over-rock` | 5,562 | 34,486 | 34,486 | 69.14 | 1.012 | 20.163 | 1526.7 |
+
+**⚠ VISIBLE, NOT TOUCHED — ADR-0490 D6.** A pixel counts as moved only if its largest channel moved
+by more than **20/255**. The touched count is printed beside it as context and carries no verdict:
+it is the metric that scored two earlier increments on this arc about 4× too generously, which the
+owner caught by *looking* and saying the arms did not seem meaningfully different.
+
+**This component is not in that class.** `rock` moves **100%** of the pixels it touches by more than
+20/255 — the cliff is a colour change of ~65 luma, not a last-bit shuffle. Even the shape-only arm
+moves 65% of its touched pixels visibly; what it does not do is move them usefully.
 
 **⚠⚠ OPTION C IS DISPOSED OF ON EVIDENCE, AND IT IS THE PAGE'S SHARPEST RESULT.** The stepped shape
 *in the parcel's own colour* moves STRUCT **8.69 → 8.00, which is −7.9%**. It does not merely buy
@@ -113,7 +134,7 @@ research said and what nobody had checked in the live renderer.
 looking like a cut-out sticker and starts standing on something.
 
 **A over B, decided here rather than by the recommendation.** `soil-over-rock` lands within 1.1% of
-`rock` on STRUCT and identically on the anchor, buying **948 px** of status band. Three reasons A
+`rock` on STRUCT and identically on the anchor, buying **948 visible px** of status band. Three reasons A
 ships:
 
 1. **The state is still readable without the band** — see the verdict below.

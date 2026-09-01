@@ -471,12 +471,27 @@ export interface SkirtRunner {
    * frame changed" reads as nothing at all beside two pictures whose edges are obviously different.
    */
   cliffPixels(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): number;
+  /**
+   * How many pixels this arm MOVED BY MORE THAN {@link VISIBLE_DELTA} — the metric ADR-0490 D6
+   * makes the headline, in place of the touched-pixel count above.
+   *
+   * ⚠⚠ THE TWO ARE NOT THE SAME NUMBER AND THE DIFFERENCE HAS ALREADY MISLED THIS ARC. Counting
+   * pixels that CHANGED AT ALL scored two increments about 4x higher than a reader would credit:
+   * the owner looked at their pictures and said the arms did not look meaningfully different, and
+   * recomputing by MAGNITUDE showed no pixel had moved more than 37/255 with a typical move of 8.
+   * A one-unit change in the last bit of a channel counts identically to a black-to-white flip
+   * under the touched metric, and only one of those is visible.
+   */
+  visiblePixels(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): number;
   snapshot(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): string;
   /** The reference render's own numbers, through the same {@link imageStats}. */
   reference(url: string): Promise<ImageStats>;
   time(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom, batch: number): Promise<SkirtReading>;
   dispose(): void;
 }
+
+/** How far a channel must move before a reader is credited with seeing it (ADR-0490 D6). */
+export const VISIBLE_DELTA = 20;
 
 const GPU_TIMER = 'EXT_disjoint_timer_query_webgl2';
 
@@ -545,12 +560,24 @@ export function createSkirtRunner(): SkirtRunner {
     return new Uint8ClampedArray(buf.buffer);
   };
 
-  const differing = (a: SkirtArm, b: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): number => {
+  /** Pixels whose largest channel move exceeds `threshold`. At 0 this is the TOUCHED count. */
+  const differing = (
+    a: SkirtArm,
+    b: SkirtArm,
+    size: CrowdSizeId,
+    zoom: CrowdZoom,
+    threshold = 0,
+  ): number => {
     const pa = pixels(a, size, zoom);
     const pb = pixels(b, size, zoom);
     let n = 0;
     for (let i = 0; i < pa.length; i += 4) {
-      if (pa[i] !== pb[i] || pa[i + 1] !== pb[i + 1] || pa[i + 2] !== pb[i + 2]) n += 1;
+      const d = Math.max(
+        Math.abs(pa[i]! - pb[i]!),
+        Math.abs(pa[i + 1]! - pb[i + 1]!),
+        Math.abs(pa[i + 2]! - pb[i + 2]!),
+      );
+      if (d > threshold) n += 1;
     }
     return n;
   };
@@ -586,6 +613,9 @@ export function createSkirtRunner(): SkirtRunner {
     },
     cliffPixels(arm, size, zoom) {
       return differing(arm, CONTROL_ARM, size, zoom);
+    },
+    visiblePixels(arm, size, zoom) {
+      return differing(arm, CONTROL_ARM, size, zoom, VISIBLE_DELTA);
     },
     snapshot(arm, size, zoom) {
       render(arm, size, zoom);
@@ -726,9 +756,11 @@ export async function mountShippedSkirt(root: HTMLElement): Promise<void> {
         img.width = 620;
         const cap = document.createElement('figcaption');
         const cliff = runner.cliffPixels(arm, size.id, zoom);
+        const visible = runner.visiblePixels(arm, size.id, zoom);
         cap.textContent =
           `${arm} · ${g.triangles} triangles (+${g.skirtTriangles} skirt over ${g.rimEdges} rim edges) · ` +
-          `${g.drawCalls} draw call${g.drawCalls === 1 ? '' : 's'} · cliff ${cliff} px · ` +
+          `${g.drawCalls} draw call${g.drawCalls === 1 ? '' : 's'} · ` +
+          `cliff ${visible} px moved >${VISIBLE_DELTA}/255 (${cliff} touched) · ` +
           `anchor ${g.stats.anchor.toFixed(1)} · MICRO ${g.stats.micro.toFixed(2)} · ` +
           `STRUCT ${g.stats.struct.toFixed(2)}`;
         fig.append(img, cap);

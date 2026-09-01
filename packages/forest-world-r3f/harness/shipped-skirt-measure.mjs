@@ -60,6 +60,10 @@ const ZOOMS = [2, 8];
 const FIT = 'fit';
 /** The zoom the cliff is actually read at — a 3-unit-deep edge is 24 px here and 6 px at zoom 2. */
 const READ_ZOOM = 8;
+/** ADR-0490 D6: an arm is judged on pixels that MOVED by more than this, never on pixels touched.
+ *  The owner looked at two arms scored by the touched count and said they did not look meaningfully
+ *  different; recomputing by magnitude showed no pixel had moved more than 37/255. */
+const VISIBLE_DELTA = 20;
 
 const fail = (why) => {
   console.error(`REFUSED: ${why}`);
@@ -115,6 +119,7 @@ const result = await page.evaluate(
             trianglesSubmitted: t.trianglesSubmitted,
             gpuNs: t.gpuNs,
             cliffPixels: r.cliffPixels(arm, size, zoom),
+            visiblePixels: r.visiblePixels(arm, size, zoom),
             changedPctVsControl: r.changedPct(arm, 'flat', size, zoom),
             anchor: t.stats.anchor,
             micro: t.stats.micro,
@@ -199,6 +204,16 @@ if (!(shipped.anchor < control.anchor - 5)) {
 if (shipped.cliffPixels === 0) {
   fail(`the ${SHIPPED_ARM} arm is byte-identical to the control — the cliff is drawing nothing.`);
 }
+// ⚠ AND IT MUST MOVE PIXELS A READER CAN SEE, NOT MERELY PIXELS. ADR-0490 D6 exists because two
+// increments on this arc were scored ~4x too generously by the touched count, and the owner caught
+// it by LOOKING. An arm whose every pixel moved by less than a fifth of a channel has changed the
+// buffer and not the picture.
+if (shipped.visiblePixels === 0) {
+  fail(
+    `the ${SHIPPED_ARM} arm touched ${shipped.cliffPixels} px and moved NONE of them by more than ` +
+      `${VISIBLE_DELTA}/255. That is a change to the buffer rather than to the picture (ADR-0490 D6).`,
+  );
+}
 
 // ── THE REPORT ─────────────────────────────────────────────────────────────────────────────────
 
@@ -241,14 +256,14 @@ for (const size of SIZES) {
   for (const zoom of ZOOMS) {
     say(`${size} · ${zoom} px per ground unit`);
     say(
-      '  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs',
+      '  arm              triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs',
     );
     for (const arm of ARMS) {
       const r = at(arm, size, zoom);
       say(
         `  ${arm.padEnd(15)} ${String(r.triangles).padStart(9)} ${String('+' + r.skirtTriangles).padStart(9)} ` +
-          `${String(r.rimEdges).padStart(5)} ${String(r.cliffPixels).padStart(10)} ` +
-          `${r.changedPctVsControl.toFixed(2).padStart(8)} ${r.anchor.toFixed(2).padStart(8)} ` +
+          `${String(r.rimEdges).padStart(5)} ${String(r.visiblePixels).padStart(11)} ` +
+          `${String(r.cliffPixels).padStart(8)} ${r.anchor.toFixed(2).padStart(8)} ` +
           `${r.micro.toFixed(3).padStart(8)} ${r.struct.toFixed(3).padStart(8)} ` +
           `${(r.gpuNs === null ? '—' : (r.gpuNs / 1000).toFixed(1)).padStart(9)}`,
       );
@@ -259,6 +274,12 @@ for (const size of SIZES) {
 
 const stepped = at('stepped', 'one', READ_ZOOM);
 const soil = at('soil-over-rock', 'one', READ_ZOOM);
+say(
+  `⚠ EVERY PIXEL COLUMN ABOVE IS AGAINST THE CONTROL. "VISIBLE" counts pixels whose largest ` +
+    `channel moved by more than ${VISIBLE_DELTA}/255 (ADR-0490 D6); "touched" counts pixels that ` +
+    'changed at all, and is printed beside it only so the two can be compared.',
+);
+say('');
 say('WHAT THE ARMS SETTLE, at one island and the read zoom:');
 say(
   `  the SHAPE alone (his option C) moves STRUCT ${control.struct.toFixed(2)} → ` +
@@ -273,7 +294,12 @@ say(
 say(
   `  SOIL OVER ROCK (his option B) lands at STRUCT ${soil.struct.toFixed(2)} and anchor ` +
     `${soil.anchor.toFixed(1)} — ${pct(soil.struct, shipped.struct).toFixed(1)}% of A, ` +
-    `for ${shipped.cliffPixels - soil.cliffPixels} px of status band.`,
+    `for ${shipped.visiblePixels - soil.visiblePixels} px of status band.`,
+);
+say(
+  `  and the ROCK arm moves ${shipped.visiblePixels} px by more than ${VISIBLE_DELTA}/255, which is ` +
+    `${((shipped.visiblePixels / shipped.cliffPixels) * 100).toFixed(0)}% of the pixels it touches — ` +
+    'so this component is not in the class ADR-0490 D6 was written for.',
 );
 say('');
 say('THE GAP TO THE APPROVED PICTURE, which is the verdict this arc asks for:');

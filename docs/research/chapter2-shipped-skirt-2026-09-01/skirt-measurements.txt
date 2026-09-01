@@ -15,37 +15,40 @@ THE REFERENCE — the approved Cycles render, through this page’s own instrume
     The research reported −9.8% of structural contrast and +7.0 luma of anchor for that swap.
 
 one · 2 px per ground unit
-  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
-  flat                 2962        +0   260          0     0.00   134.36    3.101    7.251     226.0
-  stepped              5562     +2600   260       2098     0.05   134.36    3.296    6.547     240.6
-  rock                 5562     +2600   260       2209     0.05    69.14    3.444   18.283     242.9
-  soil-over-rock       5562     +2600   260       2170     0.05    69.14    3.418   18.140     238.1
+  arm              triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat                 2962        +0   260           0        0   134.36    3.101    7.251     225.5
+  stepped              5562     +2600   260        1351     2098   134.36    3.296    6.547     241.3
+  rock                 5562     +2600   260        2209     2209    69.14    3.444   18.283     239.6
+  soil-over-rock       5562     +2600   260        2170     2170    69.14    3.418   18.140     242.7
 
 one · 8 px per ground unit
-  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
-  flat                 2962        +0   260          0     0.00   134.36    0.900    8.685    1465.8
-  stepped              5562     +2600   260      33329     0.81   134.36    0.970    7.996    1515.0
-  rock                 5562     +2600   260      35434     0.87    69.14    1.021   20.381    1518.7
-  soil-over-rock       5562     +2600   260      34486     0.84    69.14    1.012   20.163    1520.9
+  arm              triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat                 2962        +0   260           0        0   134.36    0.900    8.685    1475.7
+  stepped              5562     +2600   260       21821    33329   134.36    0.970    7.996    1525.1
+  rock                 5562     +2600   260       35434    35434    69.14    1.021   20.381    1523.5
+  soil-over-rock       5562     +2600   260       34486    34486    69.14    1.012   20.163    1526.7
 
 forest · 2 px per ground unit
-  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
-  flat               103810        +0  9082          0     0.00    94.88    3.111   24.715    1017.4
-  stepped            194630    +90820  9082       8712     0.21    98.23    3.280   24.566    1105.7
-  rock               194630    +90820  9082       9259     0.23    69.14    3.412   28.547    1109.8
-  soil-over-rock     194630    +90820  9082       9017     0.22    71.14    3.399   28.432    1099.7
+  arm              triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat               103810        +0  9082           0        0    94.88    3.111   24.715    1029.8
+  stepped            194630    +90820  9082        6194     8712    98.23    3.280   24.566    1121.1
+  rock               194630    +90820  9082        9259     9259    69.14    3.412   28.547    1124.1
+  soil-over-rock     194630    +90820  9082        9017     9017    71.14    3.399   28.432    1113.9
 
 forest · 8 px per ground unit
-  arm              triangles  (+skirt)  rim   cliff px   frame%   anchor    MICRO   STRUCT    GPU µs
-  flat               103810        +0  9082          0     0.00   134.36    0.899    8.777    1536.2
-  stepped            194630    +90820  9082      33669     0.82   134.36    0.970    8.081    1574.8
-  rock               194630    +90820  9082      35543     0.87    69.14    1.020   20.317    1579.7
-  soil-over-rock     194630    +90820  9082      34609     0.84    69.14    1.011   20.104    1577.0
+  arm              triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat               103810        +0  9082           0        0   134.36    0.899    8.777    1539.7
+  stepped            194630    +90820  9082       22091    33669   134.36    0.970    8.081    1576.1
+  rock               194630    +90820  9082       35543    35543    69.14    1.020   20.317    1580.0
+  soil-over-rock     194630    +90820  9082       34609    34609    69.14    1.011   20.104    1582.0
+
+⚠ EVERY PIXEL COLUMN ABOVE IS AGAINST THE CONTROL. "VISIBLE" counts pixels whose largest channel moved by more than 20/255 (ADR-0490 D6); "touched" counts pixels that changed at all, and is printed beside it only so the two can be compared.
 
 WHAT THE ARMS SETTLE, at one island and the read zoom:
   the SHAPE alone (his option C) moves STRUCT 8.69 → 8.00 (-7.9%) — six ledges in the parcel’s own colour buy no structural contrast at all.
   the ROCK (his option A) moves it to 20.38 (134.7%), and the anchor 134.4 → 69.1.
   SOIL OVER ROCK (his option B) lands at STRUCT 20.16 and anchor 69.1 — -1.1% of A, for 948 px of status band.
+  and the ROCK arm moves 35434 px by more than 20/255, which is 100% of the pixels it touches — so this component is not in the class ADR-0490 D6 was written for.
 
 THE GAP TO THE APPROVED PICTURE, which is the verdict this arc asks for:
   anchor  ours 69.1 vs the render’s 42.7 — 26.5 luma LIGHTER, so the cliff arrives and does not reach the render’s depth.
