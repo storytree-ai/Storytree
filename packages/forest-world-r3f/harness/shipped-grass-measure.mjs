@@ -42,6 +42,13 @@ import { fileURLToPath } from 'node:url';
 
 import { chromium } from '@playwright/test';
 
+/** ADR-0490 D6: an arm is judged on pixels that MOVED by more than this, never on pixels touched.
+ *  ⚠ IMPORTED, NOT RE-DECLARED. This driver used to carry its own `= 20`, and so did the skirt
+ *  driver and both of their pages — four spellings of one number. The two driver copies were the
+ *  worse pair, because they appear only inside REPORT SENTENCES: prose saying "20" over a page
+ *  that had moved to 30 is a false claim about a true number, and no assertion reads prose. */
+import { VISIBLE_DELTA } from './visible-delta.ts';
+
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_GRASS_URL'] ?? 'http://localhost:5316/shipped-grass.html';
 const OUT =
@@ -60,8 +67,6 @@ const ZOOMS = [2, 8];
 const FIT = 'fit';
 /** The zoom the ground's own texture is read at. */
 const READ_ZOOM = 8;
-/** ADR-0490 D6: an arm is judged on pixels that MOVED by more than this, never on pixels touched. */
-const VISIBLE_DELTA = 20;
 
 const fail = (why) => {
   console.error(`REFUSED: ${why}`);
@@ -117,7 +122,7 @@ const result = await page.evaluate(
         shots[`${arm}-${size}-${readZoom}`] = r.snapshot(arm, size, readZoom);
       }
     }
-    return { id: r.identity(), rows, reference, shots };
+    return { id: r.identity(), rows, reference, shots, sensitivity: r.sensitivity('one', readZoom) };
   },
   [ARMS, SIZES, ZOOMS, FIT, READ_ZOOM],
 );
@@ -129,6 +134,17 @@ if (result.id.software && !ALLOW_SOFTWARE) {
       'wears is measurably renderer-specific — 24.5% of grained pixels land on a different ladder ' +
       'rung between SwiftShader and an RTX 2060. Set ST_GRASS_ALLOW_SOFTWARE=1 to take the ' +
       'GEOMETRY and FAMILY numbers anyway, and do not quote them as this map’s picture.',
+  );
+}
+
+// ⚠⚠ RUNG 2 BEFORE ANY READING IS QUOTED. The instrument must prove, on the pixels THIS run
+// captured, that it resolves the ADR-0490 D6 boundary: a move of 21/255 visible, a move of exactly
+// 20/255 not. Without it "the admissible arm is invisible" and "this comparison never saw two
+// different frames" are the same report — and the second one reads as reassurance.
+if (result.sensitivity.length > 0) {
+  fail(
+    `the visible-delta instrument failed its own sensitivity rung, so no reading below means ` +
+      `anything:\n  ${result.sensitivity.join('\n  ')}`,
   );
 }
 
