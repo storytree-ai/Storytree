@@ -32,10 +32,12 @@
 // back to SwiftShader on this box, silently. The renderer string is read out of the live context
 // and the run REFUSES on a software rasteriser — this instrument's entire output is frame times.
 //
-// ⚠ COMMITTED FIGURES COME OFF THE RTX 2060 BOX, AND TWO RUNS ARE DIFFED ROW BY ROW. On the last
-// land increment the forest rows came back 170–530% apart between runs and were DROPPED rather
-// than averaged. Enforcing that INSIDE the tool is the arc's end-state item 3 and is NOT this
-// increment — until it lands, take two runs and diff them by hand.
+// ⚠ COMMITTED FIGURES COME OFF THE RTX 2060 BOX. TWO RUNS ARE TAKEN AND DIFFED ROW BY ROW BY THIS
+// DRIVER — you no longer do it by hand, and you can no longer forget to. On the last land
+// increment the forest rows came back 170–530% apart between runs and were dropped rather than
+// averaged; `run-agreement.ts` now enforces that, with the tolerance DERIVED from the runs' own
+// within-run spread rather than authored. A single-run invocation is loudly labelled and exits 4
+// (arc end-state item 3, landed by `land-cost-instrument-arc-inc-03`).
 
 import { chromium } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -43,7 +45,9 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { GPU_TIMER_EXTENSION, acceptSamples, isInterleaved, roundRobinPlan } from './frame-cost.ts';
+import { median, spread } from './frame-budget.ts';
 import { landFloorVerdict } from './land-floor.ts';
+import { MIN_RUNS_FOR_AGREEMENT, runAgreement } from './run-agreement.ts';
 import {
   AMPLIFY_FACTOR,
   LAND_FLOOR_AMPLIFIED,
@@ -61,6 +65,22 @@ const OUT =
 
 const REPEATS = Number(process.env['ST_LAND_FLOOR_REPEATS'] ?? 7);
 const BATCH = Number(process.env['ST_LAND_FLOOR_BATCH'] ?? 30);
+
+/**
+ * HOW MANY WHOLE SWEEPS TO TAKE, AND WHY THE DEFAULT IS TWO RATHER THAN ONE.
+ *
+ * ⚠⚠ REPEATS AND RUNS ARE NOT THE SAME GUARD, and conflating them is what let the old failure
+ * through. `REPEATS` is variance WITHIN one sweep — it produces the noise floor a delta must clear.
+ * `RUNS` is whether the whole measurement REPRODUCES, which no amount of repeating inside a single
+ * sweep can answer: a sweep that is systematically wrong is wrong consistently. On the land
+ * increment before this one the forest rows came back 170-530% apart BETWEEN runs while each run
+ * looked internally tidy.
+ *
+ * Setting this to 1 does not quietly weaken the report — `run-agreement.ts` returns SINGLE_RUN,
+ * the report says so in those words, and the driver exits 4. That is the arc's end-state item 3:
+ * "a single-run invocation refuses or is loudly labelled".
+ */
+const RUNS = Number(process.env['ST_LAND_FLOOR_RUNS'] ?? MIN_RUNS_FOR_AGREEMENT);
 
 function fail(msg) {
   console.error(`REFUSED: ${msg}`);
@@ -228,34 +248,58 @@ if (!isInterleaved(PLAN, CONFIGS)) {
 }
 
 console.log(
-  `\nsweep: ${CONFIGS.length} configurations x ${REPEATS} interleaved repeats, ` +
+  `\n${RUNS} run(s) of: ${CONFIGS.length} configurations x ${REPEATS} interleaved repeats, ` +
     `${BATCH} renders per timed batch, views ${VIEWS.map((v) => v.key).join(' ')}, ` +
     `layer arm "${LAYER_ARM}"\n`,
 );
 
-const samples = new Map(CONFIGS.map((c) => [c.key, []]));
-const meta = new Map();
-for (const config of PLAN) {
-  const r = await page.evaluate((spec) => window.__stLandFloor(spec), {
-    arm: config.arm,
-    size: config.size,
-    zoom: config.zoom,
-    batch: BATCH,
-  });
-  // `acceptSamples` reads a `TimingSample`. There is no wall-clock route on this instrument, so
-  // the field it would carry is zeroed and never reported — see the page's own header.
-  samples.get(config.key).push({
-    gpuMsPerFrame: r.gpuMsPerFrame,
-    disjoint: r.disjoint,
-    wallMsPerFrame: 0,
-  });
-  meta.set(config.key, r);
+/** ONE WHOLE SWEEP. Called `RUNS` times so the runs can be compared against each other, which is
+ *  the one question repeating inside a single sweep cannot answer. */
+async function sweep(pass) {
+  const samples = new Map(CONFIGS.map((c) => [c.key, []]));
+  const meta = new Map();
+  for (const config of PLAN) {
+    const r = await page.evaluate((spec) => window.__stLandFloor(spec), {
+      arm: config.arm,
+      size: config.size,
+      zoom: config.zoom,
+      batch: BATCH,
+    });
+    // `acceptSamples` reads a `TimingSample`. There is no wall-clock route on this instrument, so
+    // the field it would carry is zeroed and never reported — see the page's own header.
+    samples.get(config.key).push({
+      gpuMsPerFrame: r.gpuMsPerFrame,
+      disjoint: r.disjoint,
+      wallMsPerFrame: 0,
+    });
+    meta.set(config.key, r);
+  }
+  console.log(`  run ${pass + 1}/${RUNS} done`);
+  return { samples, meta };
 }
+
+const sweeps = [];
+for (let pass = 0; pass < RUNS; pass++) sweeps.push(await sweep(pass));
 
 await browser.close();
 if (consoleErrors.length) {
   fail(`the page logged ${consoleErrors.length} error(s):\n  ${consoleErrors.join('\n  ')}`);
 }
+
+// --- DID IT REPRODUCE? -------------------------------------------------------------------------
+//
+// ⚠⚠ THIS RUNS BEFORE ANY COST IS QUOTED, and that ordering is the increment. A figure that has
+// not been shown to reproduce is not a weaker figure — on the last land increment such rows sat
+// 170-530% apart — so the budget verdict is never computed for a view whose rows did not survive.
+// The tolerance is derived from the runs' own within-run spread, never authored: `run-agreement.ts`.
+const agreement = runAgreement(
+  sweeps.map((s) =>
+    CONFIGS.map((c) => {
+      const gpu = acceptSamples(s.samples.get(c.key)).gpu;
+      return { key: c.key, medianMs: median(gpu), spreadMs: spread(gpu) };
+    }),
+  ),
+);
 
 // --- judge each view on its own ----------------------------------------------------------------
 const verdicts = {};
@@ -263,11 +307,32 @@ const rowsByView = {};
 for (const view of VIEWS) {
   const arms = LAND_FLOOR_ARMS.map((arm) => {
     const key = `${arm}@${view.key}`;
-    const accepted = acceptSamples(samples.get(key));
-    const m = meta.get(key);
+    // EVERY run's accepted samples, pooled. Pooling widens `spread` and therefore the noise floor
+    // a delta must clear, so it is the conservative direction: a cost that survives the pooled
+    // floor survived both runs' noise rather than the friendlier of the two.
+    //
+    // ⚠⚠ THE SAMPLES ARE KEPT EVEN WHEN THE ROW IS DROPPED, AND THAT IS DELIBERATE. The first
+    // version emptied them so `land-floor.ts`'s voidness rung would refuse the view — which worked,
+    // and then reported "carries 0 accepted sample(s)". That is a refusal NAMING THE WRONG CAUSE:
+    // the samples exist and the GPU clock was fine; what failed was reproducibility. This
+    // neighbourhood has already paid an hour for a refusal that blamed an innocent component, so
+    // the drop is enforced BELOW, by withholding the budget verdict, and the numbers stay visible
+    // so a reader can see what disagreed.
+    const dropped = agreement.droppedKeys.includes(key) || agreement.status === 'SINGLE_RUN';
+    const pooled = sweeps
+      .map((s) => acceptSamples(s.samples.get(key)))
+      .reduce(
+        (acc, a) => ({
+          gpu: [...acc.gpu, ...a.gpu],
+          discardedDisjoint: acc.discardedDisjoint + a.discardedDisjoint,
+          discardedUnavailable: acc.discardedUnavailable + a.discardedUnavailable,
+        }),
+        { gpu: [], discardedDisjoint: 0, discardedUnavailable: 0 },
+      );
+    const m = sweeps[sweeps.length - 1].meta.get(key);
     return {
       label: arm,
-      samples: accepted.gpu,
+      samples: pooled.gpu,
       triangles: m.triangles,
       drawCalls: m.drawCalls,
       octaves: m.octaves,
@@ -275,11 +340,40 @@ for (const view of VIEWS) {
       hidden: m.hidden,
       timerQueryAvailable: m.timerQueryAvailable,
       groundCoveragePct: coverage.get(key) ?? null,
-      discardedDisjoint: accepted.discardedDisjoint,
-      discardedUnavailable: accepted.discardedUnavailable,
+      discardedDisjoint: pooled.discardedDisjoint,
+      discardedUnavailable: pooled.discardedUnavailable,
+      reproduced: !dropped,
     };
   });
   rowsByView[view.key] = arms;
+
+  // THE BUDGET VERDICT IS WITHHELD, NOT FAKED, when this view's rows did not reproduce. Its own
+  // rung name says reproducibility rather than borrowing voidness's vocabulary, so the report
+  // never blames the GPU for a run-to-run disagreement.
+  const unreproduced = arms.filter((a) => !a.reproduced).map((a) => a.label);
+  if (unreproduced.length > 0) {
+    verdicts[view.key] = {
+      status: 'UNVERIFIED',
+      rung: 'REPRODUCIBILITY',
+      budgetMs: null,
+      layers: null,
+      costs: [],
+      stackMsPerFrame: null,
+      failures: [],
+      unverified: [
+        agreement.status === 'SINGLE_RUN'
+          ? `only ${RUNS} run was taken, so ${unreproduced.join(', ')} have not been shown to ` +
+            'reproduce — the measurement is sound, the reproducibility question was never asked'
+          : `${unreproduced.join(', ')} did not reproduce across ${RUNS} runs (see the ` +
+            'reproducibility section above), so no cost from this view may be quoted',
+      ],
+      prose:
+        'UNVERIFIED — this view was measured but did not reproduce, so nothing may be concluded ' +
+        'from it, including that it passed.',
+    };
+    continue;
+  }
+
   verdicts[view.key] = landFloorVerdict({
     arms,
     controlLabel: LAND_FLOOR_CONTROL,
@@ -298,7 +392,26 @@ function say(s) {
 
 say(`renderer: ${identity.renderer}`);
 say(`vendor:   ${identity.vendor}`);
-say(`repeats=${REPEATS}  batch=${BATCH}  layer arm="${LAYER_ARM}"`);
+say(`runs=${RUNS}  repeats=${REPEATS}  batch=${BATCH}  layer arm="${LAYER_ARM}"`);
+say('');
+
+// REPRODUCIBILITY FIRST, because it decides whether anything below may be quoted at all.
+say(`== reproducibility across ${RUNS} run(s) ==`);
+say(`  ${agreement.prose}`);
+for (const r of agreement.rows) {
+  // ⚠ WITH ONE RUN THERE IS NO GAP, and printing `gap 0.0000 (0.0%)` would read as perfect
+  // agreement — the exact misreading the SINGLE_RUN status exists to prevent. Say `n/a`.
+  const comparison =
+    RUNS < MIN_RUNS_FOR_AGREEMENT
+      ? 'gap n/a — nothing to compare against'
+      : `gap ${r.gapMs.toFixed(4)} (${r.gapPct.toFixed(1)}%)  tol ${r.toleranceMs.toFixed(4)}  ` +
+        `${r.agreed ? 'reproduced' : 'DROPPED'}${r.identical ? '  [identical]' : ''}`;
+  say(`  ${r.key.padEnd(28)} ${r.medians.map((m) => m.toFixed(4)).join(' vs ')}  ${comparison}`);
+}
+for (const d of agreement.dropped) say(`    DROPPED: ${d}`);
+if (agreement.suspectIdentical) {
+  say('    ⚠ EVERY row is bit-identical across runs — suspect the second sweep did not run.');
+}
 say('');
 
 for (const view of VIEWS) {
@@ -346,8 +459,10 @@ writeFileSync(
       identity,
       views: VIEWS,
       layerArm: LAYER_ARM,
+      runs: RUNS,
       repeats: REPEATS,
       batch: BATCH,
+      agreement,
       rowsByView,
       verdicts,
     },
@@ -358,9 +473,22 @@ writeFileSync(
 );
 console.log(`report: ${join(OUT, 'land-floor-report.txt')}`);
 
-// EXIT CODES. UNVERIFIED is a verdict about the MEASUREMENT and OUTRANKS a fail: a number already
-// declared meaningless cannot fail a run either, and must never be read as a pass. A FAIL exits 3
-// so a caller can tell "the instrument refused to measure" from "the layer is unaffordable".
+// EXIT CODES, most-outranking first. UNVERIFIED is a verdict about the MEASUREMENT and OUTRANKS a
+// fail: a number already declared meaningless cannot fail a run either, and must never be read as
+// a pass. Distinct codes so a caller can tell the four apart:
+//
+//   4  SINGLE RUN — the reproducibility question was never asked. Not a pass.
+//   1  UNVERIFIED — asked and unanswerable (void, un-isolated, blind, or rows that did not repeat)
+//   3  FAIL       — measured, reproduced, and over budget
+//   0  PASS
+//
+// ⚠ 4 IS NOT A SOFTER 0. A single-run invocation is exactly the shape the arc's end-state item 3
+// exists to stop being quoted, so it exits non-zero and says why in the report above.
+if (agreement.status === 'SINGLE_RUN') {
+  console.error(`\n${agreement.prose}`);
+  process.exit(4);
+}
+if (agreement.status === 'NO_RUNS') process.exit(1);
 for (const view of VIEWS) {
   if (verdicts[view.key].status === 'UNVERIFIED') process.exit(1);
 }
