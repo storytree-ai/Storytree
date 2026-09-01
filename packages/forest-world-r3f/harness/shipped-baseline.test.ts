@@ -433,7 +433,7 @@ test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
   // it. That is strictly stronger than the old exact-match, because the old one had nothing to say
   // about a token added in the wrong place — it simply forbade adding one at all, which is a
   // different and now-false claim.
-  assert.match(src, /GROUND_TOKENS[^=]*=\s*\[\.\.\.GROUND_COLOUR\.values\(\)(,[^\]]*)?\]/);
+  assert.match(src, /GROUND_TOKENS[^=]*=\s*\[\s*\.\.\.GROUND_COLOUR\.values\(\)(,[^\]]*)?\]/);
   assert.ok(
     !/GROUND_TOKENS[^=]*=\s*\[[^\]]+,\s*\.\.\.GROUND_COLOUR\.values\(\)/.test(src),
     'a token PREPENDED to the ramp renumbers every status: row 0 stops being `healthy` and every ' +
@@ -442,7 +442,24 @@ test('the ramp ROWS and the ramp TOKENS come off ONE map, in one order', () => {
   // And an appended row's own index is DERIVED from the list rather than written down. A literal
   // `6` here would be a second place the ordering lives, free to disagree with the first the next
   // time a status is added — and the disagreement draws as rock-coloured ground.
-  assert.match(src, /SKIRT_ROCK_ROW\s*=\s*GROUND_TOKENS\.length - 1/);
+  //
+  // ⚠⚠ TWO ROCK ROWS SINCE 2026-09-01, AND THE PIN MOVED WITH THEM RATHER THAN BEING
+  // DROPPED. This read `SKIRT_ROCK_ROW = GROUND_TOKENS.length - 1` and went red when the second
+  // token landed, which is the check doing its job: a source-text assertion that survives a rename
+  // by being loosened until it matches anything has stopped asking its question. Both rows are
+  // pinned, both relative to the END, and a literal is refused outright below — so this is
+  // strictly stronger than the single-row form it replaces.
+  assert.match(src, /SKIRT_ROCK_LIT_ROW\s*=\s*GROUND_TOKENS\.length - 2/);
+  assert.match(src, /SKIRT_ROCK_SHADED_ROW\s*=\s*GROUND_TOKENS\.length - 1/);
+  for (const row of ['SKIRT_ROCK_LIT_ROW', 'SKIRT_ROCK_SHADED_ROW']) {
+    assert.ok(
+      !new RegExp(`${row}\\s*=\\s*\\d`).test(src),
+      `${row} is written as a literal. The ramp's order would then live in two places, free to ` +
+        'disagree the next time a status is added — and the disagreement draws as ground painted ' +
+        'the cliff’s colour.',
+    );
+    assert.ok(src.includes(`row: ${row}`), `${row} is derived but never handed to the geometry`);
+  }
   assert.match(src, /GROUND_ROWS[^=]*=[\s\S]{0,120}\[\.\.\.GROUND_COLOUR\.keys\(\)\]/);
   assert.match(src, /BandedGroundMaterialOptions = \{ tokens: GROUND_TOKENS[,}]/);
   assert.match(src, /createBandedGroundMaterial\(opts\)/);

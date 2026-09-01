@@ -278,8 +278,10 @@ export interface CellGroundGeometry {
 // `if (rings.length === 0) return …` guard sat here until a mutation sweep showed it could be
 // deleted without any test noticing, which is what an unreachable branch looks like from outside.
 
-/** A 3D point in the merged buffer's own terms. */
-interface P3 {
+/** A 3D point in the merged buffer's own terms. Exported for the same reason {@link P2} is: it is
+ *  the type the module's own primitives are stated in, and `stepped-skirt.ts` states a ledge's
+ *  face direction in it rather than declaring a second three-number shape beside this one. */
+export interface P3 {
   x: number;
   y: number;
   z: number;
@@ -680,9 +682,31 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
         // ⚠ AND THERE IS NO `skirt !== undefined` HERE, WHICH THERE WAS. `rim` is already false
         // whenever the skirt is absent, so the extra check could never fire — mutating it to `true`
         // changed nothing and SURVIVED the mutation rung. `NO_SKIRT` carries the absence instead.
+        // ⚠⚠ AND WHICH ROCK IS THE LADDER'S OWN ANSWER, NOT A SECOND ART DECISION. A ledge whose
+        // face falls BELOW `SHADE_LEVELS[0]` is one the quantiser has saturated — it is delivered
+        // at the darkest rung however much darker its true lighting is — so a token is the only
+        // lever left on it, and that is exactly the set the shaded rock carries. Measured over 36
+        // rim azimuths: all three DOWN-facing ledges are saturated at every azimuth, and the
+        // UP-facing ones at 19, 17 and 15 of 36. A one-token cliff hands `oneRock` the same rock
+        // twice, so this selection still runs and its two answers agree — which is what keeps the
+        // pre-adoption map on this very code path rather than on a branch beside it.
+        //
+        // ⚠ THE NORMAL IS THE LEDGE'S IDEALISED ONE, PER QUAD, never the winding-derived normal
+        // `pushTriangle` writes per triangle. Those two disagree wherever the relief tilts the
+        // ring edge, and a quad whose two triangles picked different ROCKS would split along its
+        // own diagonal — a tear rather than a facet.
         const rock = rim && li >= skirt.soilLedges;
-        const ledgeColour = rock ? skirt.colour : colour;
-        const ledgeRow = rock ? skirt.row : row;
+        // ⚠ NO `rock &&` HERE, AND IT WAS WRITTEN WITH ONE. A hand-seeded mutant deleting that
+        // guard SURVIVED the whole suite, which is what an equivalent guard looks like from
+        // outside — and it is equivalent by construction: `pick` is read only through the two
+        // `rock ? … : …` expressions below, so a buried seam computing `shaded` cannot deliver a
+        // rock however the rule answers. This is the same finding, and the same removal, that
+        // `skirtLedges`'s absent row guard and the absent `skirt !== undefined` check already
+        // record. What IS load-bearing is `rim &&` on the line above; that stays.
+        const shaded = skirt.isShaded(ledge, outward, depth);
+        const pick = shaded ? skirt.shaded : skirt.lit;
+        const ledgeColour = rock ? pick.colour : colour;
+        const ledgeRow = rock ? pick.row : row;
         pushTriangle(upperNext, upper, lowerNext, ledgeColour, ledgeRow, origin);
         pushTriangle(lowerNext, upper, lower, ledgeColour, ledgeRow, origin);
         upper = lower;

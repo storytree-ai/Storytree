@@ -49,11 +49,17 @@ import { SHIPPED_SHORE, shoreRelief } from '../src/shore-fall.js';
 import { shoreArmRingPlan } from '../src/shore-ring.js';
 import {
   SKIRT_ROCK,
+  SKIRT_ROCK_LIT,
+  SKIRT_ROCK_SHADED,
   SKIRT_ROWS,
   isRimEdge,
+  oneRock,
   rimEdgeKeys,
+  shadeBelowHalfDepth,
+  shadeBelowLadderFloor,
   skirtExtraTriangles,
   type GroundSkirt,
+  type SkirtRock,
 } from '../src/stepped-skirt.js';
 import {
   SHADOW_ATLAS_MAX,
@@ -94,13 +100,47 @@ import { groundRowOf, linearColourOf } from './shipped-land-scene.js';
  * variant of `rock` rather than an addition to it. Naming a predecessor for each would assert a
  * sequence that does not exist.
  */
-export type SkirtArm = 'flat' | 'stepped' | 'rock' | 'soil-over-rock';
+export type SkirtArm =
+  | 'flat'
+  | 'stepped'
+  | 'rock'
+  | 'soil-over-rock'
+  | 'two-token-lit'
+  | 'two-token-deep';
 
-/** The arm every pixel figure is read against: the map exactly as it drew before this component —
+/** The arm the FIRST four are read against: the map exactly as it drew before this component —
  *  ONE flat quad per rim edge, wearing the parcel's own status colour. */
 export const CONTROL_ARM: SkirtArm = 'flat';
 
-export const SKIRT_ARMS: readonly SkirtArm[] = ['flat', 'stepped', 'rock', 'soil-over-rock'];
+export const SKIRT_ARMS: readonly SkirtArm[] = [
+  'flat',
+  'stepped',
+  'rock',
+  'soil-over-rock',
+  'two-token-lit',
+  'two-token-deep',
+];
+
+/**
+ * THE DENOMINATOR EACH ARM'S PIXEL FIGURES ARE READ AGAINST — data rather than one fixed constant,
+ * because this page now answers TWO questions and they have different controls.
+ *
+ * ⚠⚠ A COMPARISON AGAINST THE WRONG CONTROL IS NOT A SMALLER RESULT, IT IS A DIFFERENT CLAIM.
+ * The owner's options A/B/C asked *should the island's edge be a rock cliff at all*, and their
+ * denominator is the map before any cliff (`flat`). `two-token` asks a question that only exists
+ * once A shipped — *can one rock token span the cliff's tonal range* — so its denominator is the
+ * SHIPPED CLIFF. Reading it against `flat` would credit the second token with everything the first
+ * one already delivered, which is the shape of over-claim this arc's own instrument exists to
+ * refuse.
+ */
+export const ARM_CONTROL = {
+  flat: 'flat',
+  stepped: 'flat',
+  rock: 'flat',
+  'soil-over-rock': 'flat',
+  'two-token-lit': 'rock',
+  'two-token-deep': 'rock',
+} satisfies Record<SkirtArm, SkirtArm>;
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the HTML,
  *  so an arm cannot be added without a reader being told what it is. */
@@ -109,6 +149,12 @@ export const SKIRT_ARM_CAPTION = {
   stepped: 'six ledges, still the parcel’s status colour — the SHAPE without the rock (his option C)',
   rock: 'six ledges, all of them rock — the approved picture’s cliff (his option A)',
   'soil-over-rock': 'six ledges, the TOP one keeping the status tint (his option B)',
+  'two-token-lit':
+    'a LIT rock and a SHADED one, split by LIGHTING — the faces the ladder has SATURATED wear the ' +
+    'shaded rock (read against `rock`, not against `flat`)',
+  'two-token-deep':
+    'the same pair split by DEPTH — the cliff’s lower half wears the shaded rock (read against ' +
+    '`rock`, not against `flat`)',
 } satisfies Record<SkirtArm, string>;
 
 /** How many ledges from the top keep the parcel's status tint, per arm. `flat` is one ledge and it
@@ -118,6 +164,8 @@ export const ARM_SOIL_LEDGES = {
   stepped: SKIRT_ROWS,
   rock: 0,
   'soil-over-rock': 1,
+  'two-token-lit': 0,
+  'two-token-deep': 0,
 } satisfies Record<SkirtArm, number>;
 
 /** Ledges per rim edge, per arm. */
@@ -126,6 +174,8 @@ export const ARM_ROWS = {
   stepped: SKIRT_ROWS,
   rock: SKIRT_ROWS,
   'soil-over-rock': SKIRT_ROWS,
+  'two-token-lit': SKIRT_ROWS,
+  'two-token-deep': SKIRT_ROWS,
 } satisfies Record<SkirtArm, number>;
 
 /**
@@ -145,13 +195,24 @@ export const REFERENCE_STRATA_IMAGE = '/reference/chapter2-land-idiom-2026-08-27
 /** The ramp rows this page's material uploads: the shipped statuses, then the rock appended LAST —
  *  the same order `ForestWorldCanvas.tsx` derives, and derived the same way rather than transcribed,
  *  so a status added to the map cannot leave this page painting parcels the wrong colour. */
+/** ⚠ ALL THREE ROCKS RIDE ONE TABLE, so every arm on this page uploads the SAME ramp and an arm
+ *  differs from its neighbour only in which rows its geometry selects. Two tables would make a
+ *  pixel difference between two arms attributable to the material as well as to the cliff, which
+ *  is exactly the confound this page's "only the edge moves" claim rests on not having. */
 export const SKIRT_GROUND_TOKENS: readonly string[] = [
   ...SHIPPED_GROUND_COLOUR.values(),
   SKIRT_ROCK,
+  SKIRT_ROCK_LIT,
+  SKIRT_ROCK_SHADED,
 ];
 
-/** The rock's row — derived from where it was appended, never written down. */
-export const SKIRT_ROCK_ROW = SKIRT_GROUND_TOKENS.length - 1;
+/** Each rock's row — LOOKED UP in the table rather than written down, so a token added to it
+ *  cannot leave an arm selecting a neighbour's colour. `indexOf` is exact here because the three
+ *  rocks are distinct hexes, which `skirt-rock-separation.test.ts` asserts rather than assumes. */
+const rockRow = (token: string): number => SKIRT_GROUND_TOKENS.indexOf(token);
+export const SKIRT_ROCK_ROW = rockRow(SKIRT_ROCK);
+export const SKIRT_ROCK_LIT_ROW = rockRow(SKIRT_ROCK_LIT);
+export const SKIRT_ROCK_SHADED_ROW = rockRow(SKIRT_ROCK_SHADED);
 
 /** One island, and the thirty-five-island forest. A cliff is a per-island silhouette, so ONE is
  *  where it is read — and the forest is where a component either survives being small or does not. */
@@ -170,18 +231,42 @@ const GROUND_FLOATS_PER_VERTEX = 3 + 3 + 1 + 2;
 /** The rock in the buffer's LINEAR space, through three's own transfer function — the same route
  *  `ForestWorldCanvas.tsx` converts it by, so the arm this page photographs and the map that ships
  *  cannot deliver the token at two different lightnesses. */
-const ROCK_LINEAR = (() => {
-  const c = new THREE.Color(SKIRT_ROCK);
-  return { r: c.r, g: c.g, b: c.b };
-})();
+const linearRock = (token: string): SkirtRock => {
+  const c = new THREE.Color(token);
+  return { row: rockRow(token), colour: { r: c.r, g: c.g, b: c.b } };
+};
+
+/**
+ * THE ROCK PAIR EACH ARM WEARS.
+ *
+ * ⚠ THE FOUR ORIGINAL ARMS HAND THE SAME ROCK TWICE, through {@link oneRock}, and that is what
+ * keeps them the arms whose numbers this page already published: the selection still runs on every
+ * ledge and both of its answers are the median rock, so their buffers are the buffers they were.
+ * `two-token` is the only arm whose two entries differ.
+ */
+const ARM_ROCK = {
+  flat: oneRock(linearRock(SKIRT_ROCK)),
+  stepped: oneRock(linearRock(SKIRT_ROCK)),
+  rock: oneRock(linearRock(SKIRT_ROCK)),
+  'soil-over-rock': oneRock(linearRock(SKIRT_ROCK)),
+  'two-token-lit': {
+    lit: linearRock(SKIRT_ROCK_LIT),
+    shaded: linearRock(SKIRT_ROCK_SHADED),
+    isShaded: shadeBelowLadderFloor,
+  },
+  'two-token-deep': {
+    lit: linearRock(SKIRT_ROCK_LIT),
+    shaded: linearRock(SKIRT_ROCK_SHADED),
+    isShaded: shadeBelowHalfDepth,
+  },
+} satisfies Record<SkirtArm, Pick<GroundSkirt, 'lit' | 'shaded' | 'isShaded'>>;
 
 /** The skirt one arm wears, over the parcels it will actually draw. */
 export function armSkirt(arm: SkirtArm, cells: readonly InstanceDescriptor[]): GroundSkirt {
   const rim = rimEdgeKeys(cells);
   return {
     rows: ARM_ROWS[arm],
-    row: SKIRT_ROCK_ROW,
-    colour: ROCK_LINEAR,
+    ...ARM_ROCK[arm],
     soilLedges: ARM_SOIL_LEDGES[arm],
     isRim: (a, b) => isRimEdge(rim, a, b),
   };
@@ -477,6 +562,16 @@ export interface SkirtRunner {
    * frame changed" reads as nothing at all beside two pictures whose edges are obviously different.
    */
   cliffPixels(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): number;
+  /** The magnitude distribution between ANY two arms — the general form of {@link SkirtRunner.delta},
+   *  which is the same question asked with {@link ARM_CONTROL}'s answer already substituted. */
+  deltaBetween(a: SkirtArm, b: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): VisibleDeltaReading;
+  /** The denominator this runner read that arm against.
+   *
+   *  ⚠ ASKED OF THE PAGE RATHER THAN RESTATED BY THE DRIVER, so a report can never name a
+   *  denominator the measurement did not use. The driver is `.mjs` and therefore untypechecked; a
+   *  second copy of this mapping there would be prose beside a number, which is exactly the class
+   *  `visible-delta.ts`'s header records four copies of. */
+  controlOf(arm: SkirtArm): SkirtArm;
   /**
    * How many pixels this arm MOVED BY MORE THAN {@link VISIBLE_DELTA} — the metric ADR-0490 D6
    * makes the headline, in place of the touched-pixel count above.
@@ -649,13 +744,19 @@ export function createSkirtRunner(): SkirtRunner {
       return (differing(a, b, size, zoom) / (s.width * s.height)) * 100;
     },
     cliffPixels(arm, size, zoom) {
-      return differing(arm, CONTROL_ARM, size, zoom);
+      return differing(arm, ARM_CONTROL[arm], size, zoom);
     },
     visiblePixels(arm, size, zoom) {
-      return differing(arm, CONTROL_ARM, size, zoom, VISIBLE_DELTA);
+      return differing(arm, ARM_CONTROL[arm], size, zoom, VISIBLE_DELTA);
     },
     delta(arm, size, zoom) {
-      return deltaOf(arm, CONTROL_ARM, size, zoom);
+      return deltaOf(arm, ARM_CONTROL[arm], size, zoom);
+    },
+    deltaBetween(a, b, size, zoom) {
+      return deltaOf(a, b, size, zoom);
+    },
+    controlOf(arm) {
+      return ARM_CONTROL[arm];
     },
     sensitivity(size, zoom) {
       return sensitivityReasons(pixels(CONTROL_ARM, size, zoom));
@@ -803,7 +904,7 @@ export async function mountShippedSkirt(root: HTMLElement): Promise<void> {
         cap.textContent =
           `${arm} · ${g.triangles} triangles (+${g.skirtTriangles} skirt over ${g.rimEdges} rim edges) · ` +
           `${g.drawCalls} draw call${g.drawCalls === 1 ? '' : 's'} · ` +
-          `cliff ${visible} px moved >${VISIBLE_DELTA}/255 (${cliff} touched) · ` +
+          `vs ${ARM_CONTROL[arm]}: ${visible} px moved >${VISIBLE_DELTA}/255 (${cliff} touched) · ` +
           `anchor ${g.stats.anchor.toFixed(1)} · MICRO ${g.stats.micro.toFixed(2)} · ` +
           `STRUCT ${g.stats.struct.toFixed(2)}`;
         fig.append(img, cap);
