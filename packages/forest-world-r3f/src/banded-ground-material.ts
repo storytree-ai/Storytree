@@ -60,6 +60,8 @@ import {
   grainStops,
 } from './land-grain.js';
 import { grassGlsl } from './land-grass.js';
+import { sandGlsl } from './land-sand.js';
+import { SAND_FIELD_WIDTH } from './shore-atlas.js';
 import { type ShadowField } from './land-shadow.js';
 import { atlasScale, type AtlasField } from './shadow-atlas.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, deliveredForLevel } from './shade-ladder.js';
@@ -152,6 +154,35 @@ export interface GroundGrassLayer {
   rows: readonly number[];
 }
 
+/**
+ * LAYER 2 OF THE APPROVED GROUND: the shore sand and the band that carries it
+ * (`src/land-sand.ts`, transcribed from `build_land.py`'s `mat_attribute()`).
+ *
+ * ⚠⚠ IT DOES NOT ADD A SECOND MIX — IT CHANGES WHAT LAYER 1 MIXES IN, and that is the recipe's
+ * own structure rather than a saving. In `mat_attribute()` the sand blend's OUTPUT is what the
+ * grass output was, and everything downstream composites over it; the beach is not painted on top
+ * of the grass, it is the ground being a different colour there. So the delivered pixel is still
+ * `mix(statusColour, layerColour, uGrassMix)` — the same seam, at the same strength, through the
+ * same ADR-0490 D5 fence — with `layerColour` now `mix(sand, grass, band)` instead of bare grass.
+ *
+ * ⚠⚠ AND IT THEREFORE INHERITS LAYER 1'S PER-TOKEN GATE, which is the honest answer to "does
+ * layer 2 carry a truth cost?" rather than an assumption. Riding `uGrassMix * grassGate` means an
+ * ungated row multiplies the whole layer by zero and delivers exactly the pixel it delivered
+ * before — so no ungated token's reading can move, by construction. What is NOT free is the GATED
+ * token: sand is a genuinely new colour family on the green, and whether green still reads as
+ * green through it is a measurement (`harness/grass-status-reading.ts`), not an inference.
+ *
+ * ⚠ IT NEEDS THE PACKED ATLAS, not the rect occlusion form, and is refused without it. The shore
+ * field is sampled through the SAME `shUv` the shadow uses — one tile corner on the mesh, one
+ * scale on the material — so a second packing cannot disagree with the first about where an
+ * island sits. Under the rect form there is no per-island tile to ride.
+ */
+export interface GroundSandLayer {
+  /** The packed distance-to-coast field, over the OCCLUSION atlas's own tiles
+   *  (`buildAtlasShore`). Single-channel bytes; the shader decodes to ground units. */
+  shore: Texture;
+}
+
 export interface BandedGroundMaterialOptions {
   /** The authored `#rrggbb` ground token for each ramp ROW, in row order. Row `i` is what a
    *  vertex carrying `statusIndex === i` wears. The caller owns the ordering and must use the
@@ -173,6 +204,13 @@ export interface BandedGroundMaterialOptions {
    *  Every material this map builds is grained already, so the constraint costs a real caller
    *  nothing; what it buys is that the failure is a message rather than a black island. */
   grass?: GroundGrassLayer;
+  /** WEAR the approved ground's LAYER 2 — the shore sand and its band. See
+   *  {@link GroundSandLayer}; absent leaves the emitted source byte-identical.
+   *
+   *  ⚠ IT REQUIRES {@link grass} AND {@link shadowAtlas}, and the material refuses either
+   *  combination rather than emitting a shader that will not link or one that samples a field
+   *  through coordinates nothing computed. */
+  sand?: GroundSandLayer;
   /** RECEIVE the ground-space occlusion field — the cast shadows and contact pools of whatever
    *  stands on this land, merged into one scalar. Absent means this material is not shadowed and
    *  its ramp stays the four authored rungs, so an unshadowed island delivers exactly the pixels
@@ -450,6 +488,27 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // ⚠ AND A ROW OUTSIDE THE RAMP IS REFUSED TOO, because it fails INVISIBLY: the emitted test
   // simply never matches, so the shader compiles, the island draws, and the layer is silently
   // absent from a map that reports it as adopted.
+  const sand = opts.sand;
+  // ⚠ REFUSED FOR THE SAME REASON THE GRASS IS. `sandGlsl()` calls `st_grassScalar` (the sand ramp
+  // is driven by layer 1's own base scalar) and `st_grassSrgb` — both of which only `grassGlsl()`
+  // declares. Emitting a sand-named copy of either would put two spellings of one field in one
+  // shader, and the beach would drift away from the grass it is supposed to be part of.
+  if (sand !== undefined && grass === undefined) {
+    throw new Error(
+      'banded-ground-material: the sand layer needs the grass — its ramp is driven by layer 1’s ' +
+        'own base scalar, which only the grass source declares',
+    );
+  }
+  // ⚠ AND IT NEEDS THE PACKED ATLAS. The shore field is sampled through the SAME `shUv` the
+  // shadow computes, so without the atlas form there is no per-island tile to ride and no
+  // coordinate to sample through. Refused rather than silently falling back to the rect form,
+  // which would sample one island's stretch of coast for the whole map.
+  if (sand !== undefined && opts.shadowAtlas === undefined) {
+    throw new Error(
+      'banded-ground-material: the sand layer needs the PACKED occlusion atlas — it rides that ' +
+        'atlas’s own tiles, and there is no per-island coordinate without it',
+    );
+  }
   const strayRow = grass?.rows.find((row) => !Number.isInteger(row) || row < 0 || row >= opts.tokens.length);
   if (strayRow !== undefined) {
     throw new Error(
@@ -494,6 +553,10 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // facs would otherwise compile four shaders that differ in a constant.
   const grassUniforms: Record<string, { value: number }> = {};
   if (grass !== undefined) grassUniforms['uGrassMix'] = { value: grass.mix };
+  // Layer 2's field, by statement for the same two reasons: an unsanded material must carry NO
+  // `uShore*` uniform at all, and the shorter spellings are refused by the anti-slop rules.
+  const sandUniforms: Record<string, { value: Texture }> = {};
+  if (sand !== undefined) sandUniforms['uShoreTex'] = { value: sand.shore };
   // The occlusion field's two uniforms follow the same by-statement shape, for the same two
   // reasons: an unshadowed material must carry NO `uShadow*` uniform at all, and both shorter
   // spellings are refused by the anti-slop rules.
@@ -530,6 +593,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     },
     ...grainUniforms,
     ...grassUniforms,
+    ...sandUniforms,
     ...shadowUniforms,
   };
 
@@ -538,6 +602,9 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // ES 1.0 resolves calls against declarations already seen, and every grass octave calls
   // `st_grainOctave`.
   const grassSource = grass === undefined ? '' : `      ${grassGlsl().split('\n').join('\n      ')}\n`;
+  // Appended AFTER the grass source, because `sandGlsl()` calls `st_grassScalar` and
+  // `st_grassSrgb`, and GLSL ES 1.0 resolves calls against declarations already seen.
+  const sandSource = sand === undefined ? '' : `      ${sandGlsl().split('\n').join('\n      ')}\n`;
   // The two grain uniforms are declared as ONE appended string rather than as two
   // interpolated ternaries, and that IS the byte-identity claim rather than a formatting
   // preference: a `${cond ? x : ''}` sitting on its own line leaves that line's indentation
@@ -548,6 +615,8 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     (grainColour ? '\n      uniform float uGrainColourMix;' : '');
   // Appended after the grain's, so an ungrassed shader is byte-identical.
   const grassUniformDecls = grass === undefined ? '' : '\n      uniform float uGrassMix;';
+  // Appended after the grass's, so an unsanded shader is byte-identical.
+  const sandUniformDecls = sand === undefined ? '' : '\n      uniform sampler2D uShoreTex;';
   // Same appended-string shape, same reason: an unshadowed shader must not merely fail to USE
   // these, it must not declare them.
   const shadowUniformDecls =
@@ -605,8 +674,29 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         // gate names, the same measurement admits 0.4065. Every other row multiplies the mix by
         // zero and delivers exactly the pixel it delivered before this layer existed.
         ${grassGateGlsl(grass.rows)}
-        c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);
-`;
+${
+  sand === undefined
+    ? '        c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);\n'
+    : `        // LAYER 2 — the shore sand, composited INTO layer 1 rather than over it
+        // (build_land.py:869-893). In mat_attribute() the sand blend's OUTPUT is what the grass
+        // output was and everything downstream reads it, so the beach is the ground being a
+        // different colour there rather than a decal on top of the grass. The delivered pixel is
+        // still mix(statusColour, layer, uGrassMix) — the same ADR-0490 D5 seam, at the same
+        // strength — with the layer now sand-to-grass across the band.
+        //
+        // ⚠ THE SHORE FIELD RIDES THE SHADOW ATLAS'S OWN COORDINATE. shUv is the tile corner plus
+        // the scaled ground position; sampling a second packing here would be a second answer to
+        // "where is this island" and every coast would belong to the wrong land.
+        //
+        // ⚠ AND THE TEXEL IS DECODED TO GROUND UNITS BEFORE THE RECIPE TOUCHES IT. st_sandBand
+        // divides by BEACH + 0.9, which is an arithmetic in ground units; handing it a raw 0..1
+        // texel would be the same expression meaning something else entirely.
+        float shoreUnits = texture2D(uShoreTex, shUv).r * ${SAND_FIELD_WIDTH.toFixed(6)};
+        float sandBand = st_sandBand(vWorld.xz, shoreUnits);
+        vec3 layerCol = mix(st_sandColour(vWorld.xz), st_grassColour(vWorld.xz), sandBand);
+        c = mix(c, layerCol, uGrassMix * grassGate);
+`
+}`;
   const writeColour = grainColour
     ? `        // THE GRAIN'S COLOUR HALF — the mechanism Cycles used, and the one that BREAKS THE
         // CLOSURE. Mixing anything into the delivered colour produces a value that is not an
@@ -670,9 +760,9 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     `,
     fragmentShader: `
       ${bandGlsl(lit).split('\n').join('\n      ')}
-${grainSource}${grassSource}
+${grainSource}${grassSource}${sandSource}
       uniform vec3 uRamp[${ramp.length}];
-      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${shadowUniformDecls}
+      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${sandUniformDecls}${shadowUniformDecls}
       varying float vStatus;
       varying vec3 vNormal;${worldVarying}${atlasVarying}
 

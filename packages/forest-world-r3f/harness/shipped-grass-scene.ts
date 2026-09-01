@@ -1,9 +1,12 @@
-// shipped-grass-scene.ts — LAYER 1 OF THE APPROVED GROUND, FOUR STRENGTHS, AGAINST THE PICTURE
-// THE OWNER APPROVED.
+// shipped-grass-scene.ts — LAYER 2 OF THE APPROVED GROUND, AND THE FORK IT ARRIVES WITH.
 //
-// THE INCREMENT: `layer-1-grass-base-and-hue-drift` on `land-ground-stack-arc` — the floor every
-// other layer of the approved ground composites over (ADR-0490 D3), so nothing above it can be
-// judged until it lands.
+// THE INCREMENT: `layer-2-shore-sand-as-a-ground-field` on `land-ground-stack-arc`. Layer 1 SHIPS
+// (PR #1798) and is the control here; this page asks whether the shore sand can join it.
+//
+// ⚠⚠ THE ARMS SHOW A TRADE THAT DOES NOT CLOSE, which is the finding rather than a staging
+// accident. Measured over every colour layers 1+2 can deliver together, the sand is VISIBLE only
+// at or above ~0.22 and HONEST only at or below ~0.15 — so no single strength is both. `honest`
+// and `authored` are the two ends of that gap, and `flat` is what ships today.
 //
 // ⚠⚠ THE ARMS DIFFER IN EXACTLY ONE NUMBER, AND NOTHING ELSE ON THE PAGE IS ARM-SPECIFIC. Every
 // arm is `shippedGroundBuild` — the SHIPPED canvas's own builder, imported from `src/` — over the
@@ -51,6 +54,7 @@ import {
   GROUND_STATUS_ATTRIBUTE,
 } from '../src/banded-ground-material.js';
 import { GRASS_OCTAVES } from '../src/land-grass.js';
+import { SAND_OCTAVES } from '../src/land-sand.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
@@ -81,56 +85,72 @@ import {
  * layer 1 can deliver against the house reader model and reports two things per mix factor: does
  * every status still read as itself, and which ladder rungs survive if not.
  */
-export type GrassArm = 'flat' | 'authored' | 'adopted' | 'ceiling';
+export type GrassArm = 'flat' | 'honest' | 'authored';
 
 /** The arm every pixel figure is read against: the shipped map exactly as it draws today, with no
  *  grass at all. */
 export const CONTROL_ARM: GrassArm = 'flat';
 
-export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'authored', 'adopted', 'ceiling'];
+export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'honest', 'authored'];
 
 /**
- * WHAT EACH ARM MIXES IN. `null` is the control — no grass option at all, so the material it
- * builds is byte-identical to the shipped one rather than "the shipped one at zero".
+ * WHAT EACH ARM MIXES IN — the seam strength layers 1 and 2 BOTH enter through.
  *
- * ⚠ THE THREE NUMBERS ARE MEASUREMENTS, AND THE EVIDENCE SHEET PRINTS WHERE EACH CAME FROM:
+ * ⚠⚠ `flat` AND `authored` SHARE A MIX FACTOR AND DIFFER ONLY IN THE SAND. That is what makes the
+ * pair attributable: any pixel between them is layer 2 and nothing else. `honest` differs in the
+ * factor as well, and it has to — it is the largest strength at which the sanded ground still
+ * reads correctly, so its whole point is that it is dimmer.
  *
- *   0.005  the largest factor at which EVERY reachable colour still reads as its own status on
- *          the SHIPPED ladder (`admissibleGrassMixCeiling`). The reader model's own ceiling.
- *   0.20   the largest factor that leaves ANY contiguous ladder around flat ground
- *          (`admissibleGrassLevelBand` -> [0.88, 1.08]); above it no shading depth survives.
- *   0.35   the smallest factor whose spatial variation across one island clears the 20/255
- *          threshold this arc judges an arm by — measured at 26 units of red between the 2nd and
- *          98th percentile of the delivered ground.
+ *   0.32   what layer 1 ships at today (`SHIPPED_GRASS_MIX`), read from the constant rather than
+ *          repeated, so the control cannot drift away from the map.
+ *   0.235  the joint ceiling of layers 1+2 on `healthy`, re-derived on a 0.0005 grid. Above it a
+ *          lit sand pixel walks into the `building`/`proposed` yellow at the ladder's two
+ *          brightest rungs — a signed-off capability reporting as in-progress work.
  *
- * ⚠⚠ THOSE THREE DO NOT OVERLAP, AND THAT IS THE FINDING THIS PAGE EXISTS TO SHOW. The factor
- * needed to SEE the layer is seventy times the factor at which the map still reports. Read the
- * pictures with that in mind: the question is not which arm looks best, it is what the middle two
- * cost and whether the fourth has stopped telling the truth.
+ * ⚠ AT 0.235 THE SAND MOVES NO PIXEL PAST 20/255, and at 0.32 it moves 69% of the reachable set.
+ * The two do not overlap. That is the fork this page exists to put in front of someone, and it is
+ * NOT the same fork ADR-0492 dissolved: that one was a property of one TOKEN and the per-token
+ * gate removed it, while this one is a property of how far the LADDER reaches and layer 2 already
+ * inherits the gate.
  */
 export const GRASS_ARM_MIX = {
-  flat: null,
-  authored: 0.13,
-  adopted: SHIPPED_GRASS_MIX,
-  ceiling: 0.4065,
+  flat: SHIPPED_GRASS_MIX,
+  honest: 0.235,
+  authored: SHIPPED_GRASS_MIX,
 } satisfies Record<GrassArm, number | null>;
+
+/** Which arms wear LAYER 2. `flat` is the CONTROL — the map exactly as it ships today, layer 1
+ *  and no sand — so the comparison is layer 2 against what is drawn now rather than against bare
+ *  ground. */
+export const GRASS_ARM_SAND = {
+  flat: false,
+  honest: true,
+  authored: true,
+} satisfies Record<GrassArm, boolean>;
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
 export const GRASS_ARM_CAPTION = {
-  flat: 'the map before layer 1 — status colour + the grain’s normal half, no grass (CONTROL)',
+  flat:
+    'the map as it SHIPS today — layer 1 at 0.32 on the green islands, no sand (CONTROL)',
+  honest:
+    'layers 1+2 at 0.235 — the largest strength at which every reachable colour still reads as ' +
+    'its own status. Honest, and the beach moves no pixel past the 20/255 bar',
   authored:
-    'grass at 0.13, the RECIPE’S OWN factor — carried to show that it is invisible here: the ' +
-    'maximum channel shift it can produce on green is 11/255, under the 20/255 rule',
-  adopted: `grass at ${SHIPPED_GRASS_MIX} — WHAT SHIPS, and 79% of the measured 0.4065 fence`,
-  ceiling:
-    'grass at 0.4065 — the fence itself, the largest factor at which every reachable green still ' +
-    'reads as healthy. Carried to show what the headroom above the shipped arm buys, not to ship',
+    'layers 1+2 at 0.32 — the strength layer 1 already ships at. The beach is VISIBLE, and at the ' +
+    'ladder`s two brightest rungs a lit sand pixel on a HEALTHY island reads as proposed yellow',
 } satisfies Record<GrassArm, string>;
 
 /** One island, and the thirty-five-island forest. A ground treatment is read at BOTH: a layer that
  *  survives one island and dissolves in the forest has not answered the question. */
-export const GRASS_SIZES: readonly CrowdSize[] = [crowdSize('one'), crowdSize('forest')];
+/**
+ * ⚠⚠ ONE ISLAND FOR THIS INCREMENT. Layer 2's carrier costs 730 ms to build for one island and
+ * **49.7 s for the 35-island forest** (`shoreField.sample()` is O(coast edges) per texel over a
+ * 5.4 M-texel atlas), so warming the sanded forest arms hangs this page outright — measured, it
+ * did. The fork these arms exist to show is a PER-PIXEL reading property and is fully visible on
+ * one island. Layer 1's own evidence carries both sizes.
+ */
+export const GRASS_SIZES: readonly CrowdSize[] = [crowdSize('one')];
 
 /** The two zooms every comparison on this arc is taken at, plus the fitted overview — a CONTEXT
  *  picture and never a timing, because it delivers a different px/unit per scene. */
@@ -151,6 +171,8 @@ export interface GrassPlan {
    *  frame-cost question in one number, and the reason it is an arm's property rather than a
    *  footnote: ADR-0490's stated cost is that nothing argues the full stack is affordable. */
   octaves: number;
+  /** Layer 2's own octaves per ground fragment, over layer 1's. Zero on the control. */
+  sandOctaves: number;
   mix: number | null;
 }
 
@@ -172,12 +194,19 @@ export interface GrassScene {
  *  comparison, and a page that gated its arms differently from the map would be measuring a layer
  *  the map does not draw while reporting it as this one's.
  *
- *  ⚠ AND THE `adopted` ARM READS {@link SHIPPED_GRASS_MIX} rather than repeating its value, so the
- *  arm captioned "what ships" cannot come to be an arm that once did. */
+ *  ⚠ AND THE `flat` AND `authored` ARMS READ {@link SHIPPED_GRASS_MIX} rather than repeating its
+ *  value, so the pair that differs ONLY in the sand cannot come apart on the grass as well. */
 export function armGrass(arm: GrassArm): GroundGrassLayer | undefined {
   const mix = GRASS_ARM_MIX[arm];
   if (mix === null) return undefined;
   return { mix, rows: GRASS_GATE_ROWS };
+}
+
+/** Does this arm wear LAYER 2? Separate from {@link armGrass} because the two vary independently
+ *  across this page: `flat` and `authored` share a mix factor and differ ONLY in the sand, which
+ *  is what makes them a pair a reader can attribute. */
+export function armWearsSand(arm: GrassArm): boolean {
+  return GRASS_ARM_SAND[arm];
 }
 
 /**
@@ -187,10 +216,26 @@ export function armGrass(arm: GrassArm): GroundGrassLayer | undefined {
  * occlusion atlas are all exactly what `CellGround` builds, because they are literally what
  * `CellGround` builds: {@link shippedGroundBuild} is the function it calls.
  */
-export function buildGrassScene(arm: GrassArm, size: CrowdSize, zoom: CrowdZoom): GrassScene {
+export function buildGrassScene(
+  arm: GrassArm,
+  size: CrowdSize,
+  zoom: CrowdZoom,
+  /**
+   * FORCE THE LAYERS OFF, whatever the arm says — the one override this builder takes, and it
+   * exists for a page that asks a DIFFERENT question off the same arm vocabulary.
+   *
+   * ⚠⚠ IT IS HERE BECAUSE THE SHARED `flat` ALREADY BROKE ONCE. `land-floor-scene.ts` prices what
+   * evaluating the layer COSTS, so its control must evaluate none of it; this page's `flat` means
+   * "the map as it ships", which since PR #1798 is a GRASSED shader. Mapping one onto the other
+   * made the frame-cost control price layer 1 against itself and report ~0 ms — a green run
+   * carrying a number that could only ever be zero. A frame-cost baseline and a look-comparison
+   * baseline are different objects that happened to share a name.
+   */
+  bare = false,
+): GrassScene {
   const cells: InstanceDescriptor[] = crowdCells(size);
   const casters = crowdCasters(size);
-  const { field, input } = shippedGroundBuild(cells, casters);
+  const { field, shore, input } = shippedGroundBuild(cells, casters);
   const geo = cellGroundGeometry(input);
   if (geo.triangles === 0) throw new Error('shipped-grass-scene: the crowd drew no ground');
 
@@ -205,8 +250,13 @@ export function buildGrassScene(arm: GrassArm, size: CrowdSize, zoom: CrowdZoom)
   // ⚠ THE MATERIAL FACTORY IS THE SHIPPED ONE TOO, handed the same occlusion field the geometry's
   // atlas origins were packed from. A page that built its own material could disagree with the
   // map about the ladder, the tokens or the shadow rung and report the difference as the grass's.
-  const grass = armGrass(arm);
-  const { material } = buildGroundMaterial(field, grass);
+  const grass = bare ? undefined : armGrass(arm);
+  // ⚠ THE SHORE FIELD COMES FROM `shippedGroundBuild` TOO, so an arm cannot be handed a coast the
+  // map does not have — the same structural answer to the stale-control hazard the occlusion field
+  // already gets. It is offered only to the arms that wear layer 2.
+  // ⚠ THE THUNK IS CALLED ONLY FOR AN ARM THAT WEARS LAYER 2 — the field costs 54 s at forest
+  // scale, so an eager call here would make even the CONTROL arm pay for a layer it does not draw.
+  const { material } = buildGroundMaterial(field, grass, !bare && armWearsSand(arm) ? shore() : null);
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
@@ -228,6 +278,10 @@ export function buildGrassScene(arm: GrassArm, size: CrowdSize, zoom: CrowdZoom)
     plan: {
       triangles: geo.triangles,
       octaves: grass === undefined ? 0 : GRASS_OCTAVES,
+      // ⚠ REPORTED SEPARATELY from layer 1's, because the CONTROL now wears layer 1 and a single
+      // total cannot say which layer an arm is carrying. The control's correct sand count is 0
+      // while its grass count is 23 — one number could not express that.
+      sandOctaves: !bare && armWearsSand(arm) ? SAND_OCTAVES : 0,
       mix: GRASS_ARM_MIX[arm],
     },
   };
@@ -345,6 +399,8 @@ export interface GrassReading {
   triangles: number;
   drawCalls: number;
   octaves: number;
+  /** Layer 2's own octaves, over layer 1's. Zero on the control, which wears layer 1 only. */
+  sandOctaves: number;
   stats: ImageStats;
   /** Land pixels, colour families holding >=0.5% of them, and how concentrated they are. */
   land: number;
@@ -444,6 +500,7 @@ export function createGrassRunner(): GrassRunner {
         triangles: s.plan.triangles,
         drawCalls: info.calls,
         octaves: s.plan.octaves,
+        sandOctaves: s.plan.sandOctaves,
         stats: imageStats(buf, s.width, s.height, bg),
         land: census.land,
         families: census.families,
@@ -523,11 +580,18 @@ export function referenceFamilies(rgba: Uint8ClampedArray): ReferenceFamilies {
  *  {@link createGrassRunner}, so the page and `shipped-grass-measure.mjs` cannot disagree. */
 export async function mountShippedGrass(root: HTMLElement): Promise<void> {
   const runner = createGrassRunner();
-  runner.warm();
   // ⚠ THE DRIVER READS THE PAGE'S OWN RUNNER rather than building a second one, so the numbers in
   // the committed evidence and the numbers under the pictures cannot be two measurements that
   // agree today. `shipped-grass-measure.mjs` waits on exactly this handle.
+  //
+  // ⚠⚠ PUBLISHED BEFORE `warm()`, NOT AFTER, AND THE ORDER IS LOAD-BEARING. Warming builds every
+  // arm, and a layer whose field is slow to build makes that take minutes — during which the
+  // handle did not exist and the driver's `waitForFunction` timed out against a page that was
+  // working perfectly. A slow page then reads exactly like a broken one, which is how layer 2's
+  // first render attempt was misdiagnosed. Publishing first means the driver waits for the work
+  // rather than for a symptom of it.
   window.grassRunner = runner;
+  runner.warm();
   const id = runner.identity();
   const head = document.createElement('p');
   head.className = 'numbers';

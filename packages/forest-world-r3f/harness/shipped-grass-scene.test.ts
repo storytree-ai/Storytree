@@ -13,8 +13,10 @@ import {
   GRASS_ARMS,
   GRASS_ARM_CAPTION,
   GRASS_ARM_MIX,
+  GRASS_ARM_SAND,
   VISIBLE_DELTA,
   armGrass,
+  armWearsSand,
   backgroundBytes,
   colourFamily,
   familyCensus,
@@ -69,36 +71,49 @@ test('the SHIPPED canvas holds exactly one geometry-input construction, inside t
 
 // ---------------------------------------------------------------- the arms
 
-test('the control arm asks for NO grass, rather than for grass at zero', () => {
-  assert.equal(GRASS_ARM_MIX[CONTROL_ARM], null);
-  assert.equal(
-    armGrass(CONTROL_ARM),
-    undefined,
-    'absent is what keeps the control material byte-identical to the shipped one',
-  );
+test('the control arm asks for NO SAND, rather than for sand at zero', () => {
+  // ⚠ THE BYTE-IDENTITY CLAIM MOVED UP A LAYER WITH THE CONTROL. It used to be about the grass;
+  // layer 1 now SHIPS, so what the control must be byte-identical to is the map as it draws today
+  // — layer 1 present, layer 2 absent. Absent means no `sand` key at all rather than a sand option
+  // the shader multiplies by zero: the second still emits `sandGlsl()`, still declares `uShoreTex`
+  // and still costs six octaves a fragment, so it is not the ground the map is drawing.
+  assert.equal(armWearsSand(CONTROL_ARM), false);
+  assert.equal(GRASS_ARM_SAND[CONTROL_ARM], false);
+  // And it DOES wear layer 1, at exactly the shipped strength — read from the constant, so the
+  // control cannot come apart from the map it is standing in for.
+  assert.deepEqual(armGrass(CONTROL_ARM), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
 });
 
-test('every non-control arm carries a mix, and they are ordered and distinct', () => {
-  const mixes = GRASS_ARMS.filter((a) => a !== CONTROL_ARM).map((a) => GRASS_ARM_MIX[a]);
-  assert.deepEqual(mixes, [0.13, 0.32, 0.4065]);
-  // ⚠ THE SHIPPED ARM IS THE SHIPPED CONSTANT, not a copy of its value. An arm captioned "what
-  // ships" that has come to be an arm that once did is the comparison failure this arc names —
-  // a page reporting a layer the map does not draw, with nothing in the frames to reveal it.
-  assert.equal(GRASS_ARM_MIX.adopted, SHIPPED_GRASS_MIX);
+test('the CONTROL is the map as it ships, and every arm carries a caption', () => {
+  // ⚠ THE CONTROL IS NO LONGER "no grass". Layer 1 SHIPS (PR #1798), so the thing layer 2 is
+  // measured against is the map WITH layer 1 — a control of bare ground would report layer 1's
+  // effect as layer 2's, which is this arc's second named hazard arriving through the arms.
+  assert.equal(GRASS_ARM_MIX[CONTROL_ARM], SHIPPED_GRASS_MIX);
+  assert.equal(GRASS_ARM_SAND[CONTROL_ARM], false, 'the control must wear no sand');
   for (const arm of GRASS_ARMS) {
     assert.ok(GRASS_ARM_CAPTION[arm].length > 20, `arm ${arm} has no caption a reader can use`);
   }
 });
 
-test('an arm`s grass option is the mix and the SHIPPED gate — arms differ in exactly one thing', () => {
-  assert.deepEqual(armGrass('ceiling'), { mix: 0.4065, rows: GRASS_GATE_ROWS });
-  assert.deepEqual(armGrass('authored'), { mix: 0.13, rows: GRASS_GATE_ROWS });
-  // ⚠ AND THE CONTROL CARRIES NO OPTION AT ALL rather than a mix of zero, which is what makes its
-  // material byte-identical to the pre-layer-1 one instead of "the new one, turned down".
-  assert.equal(armGrass(CONTROL_ARM), undefined);
-  // Every grassed arm gates the SAME rows, so the only moving part between arms is the factor.
-  const gates = GRASS_ARMS.filter((a) => a !== CONTROL_ARM).map((a) => armGrass(a)?.rows);
-  for (const g of gates) assert.deepEqual(g, GRASS_GATE_ROWS);
+test('⚠ `flat` and `authored` differ in EXACTLY the sand — same factor, opposite sand', () => {
+  // The attributable pair. Any pixel between these two arms is layer 2 and nothing else; if they
+  // drifted apart on the mix factor as well, every difference would be unattributable and the page
+  // would be reporting a sum while captioning it as a component.
+  assert.equal(GRASS_ARM_MIX.authored, GRASS_ARM_MIX.flat);
+  assert.equal(GRASS_ARM_MIX.authored, SHIPPED_GRASS_MIX);
+  assert.notEqual(GRASS_ARM_SAND.authored, GRASS_ARM_SAND.flat);
+  // And `honest` is the one that is allowed to differ in both, because being dimmer IS its claim.
+  assert.ok(GRASS_ARM_MIX.honest < SHIPPED_GRASS_MIX);
+  assert.equal(GRASS_ARM_SAND.honest, true);
+});
+
+test('an arm`s grass option is the mix and the SHIPPED gate — the gate never varies', () => {
+  assert.deepEqual(armGrass('authored'), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
+  assert.deepEqual(armGrass('honest'), { mix: 0.235, rows: GRASS_GATE_ROWS });
+  // Every arm gates the SAME rows, control included — the gate is not a variable on this page.
+  for (const arm of GRASS_ARMS) assert.deepEqual(armGrass(arm)?.rows, GRASS_GATE_ROWS);
+  // And the sand flags are exactly the two the fork needs plus the control.
+  assert.deepEqual(GRASS_ARMS.map(armWearsSand), [false, true, true]);
 });
 
 test('the verdict threshold is ADR-0490 D6`s, not the touched count', () => {

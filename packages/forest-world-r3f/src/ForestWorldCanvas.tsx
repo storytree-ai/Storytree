@@ -61,6 +61,7 @@ import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './ki
 import { dressMapFromKit } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
+import { buildAtlasShore } from './shore-atlas.js';
 import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour.js';
 import { calibrateLights, intensitiesFor } from './light-calibration.js';
 import {
@@ -353,7 +354,11 @@ export const SHIPPED_GRASS: GroundGrassLayer = {
  * headroom is 3.0 weighted channel units and it is the PALETTE's tightness, not the shadow's
  * greed — the same wall the grain's colour half met.
  */
-export function buildGroundMaterial(field: AtlasField | null, grass?: GroundGrassLayer) {
+export function buildGroundMaterial(
+  field: AtlasField | null,
+  grass?: GroundGrassLayer,
+  shore?: AtlasField | null,
+) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
   const shadow = field === null ? null : groundAtlasTexture(field);
   if (shadow !== null) opts.shadowAtlas = shadow;
@@ -361,7 +366,12 @@ export function buildGroundMaterial(field: AtlasField | null, grass?: GroundGras
   // undefined` is a different input from no key at all, and only the second leaves the emitted
   // shader byte-identical to the one every measured figure about this ground was taken against.
   if (grass !== undefined) opts.grass = grass;
-  return { material: createBandedGroundMaterial(opts), shadow };
+  // ⚠ LAYER 2 RIDES LAYER 1, so it is offered only when there is a layer 1 to ride and an atlas to
+  // sample through — the material refuses either combination anyway, and refusing here as well
+  // would turn an ordinary "this arm wears no grass" into a throw.
+  const shoreTex = shore === null || shore === undefined ? null : groundAtlasTexture(shore);
+  if (shoreTex !== null && grass !== undefined) opts.sand = { shore: shoreTex.texture };
+  return { material: createBandedGroundMaterial(opts), shadow, shoreTex };
 }
 
 /**
@@ -466,6 +476,30 @@ export interface ShippedGroundBuild {
    *  parcel set bounds nothing, which is the one case that must not become a one-texel field every
    *  fragment then samples. */
   field: AtlasField | null;
+  /** LAYER 2's carrier: the distance-to-coast field, packed over {@link field}'s OWN tiles.
+   *
+   *  ⚠ IT COMES BACK FROM HERE rather than being built by the caller, for the same reason the
+   *  occlusion field does: the two atlases must agree about where each island's tile sits, and
+   *  `buildAtlasShore` makes that structural by reading the occlusion field's tiles. A caller that
+   *  packed its own would draw every island's beach against another island's coastline.
+   *
+   *  ⚠ AND IT IS THE HAZARD-PROOFING THIS INTERFACE EXISTS FOR. Every comparison arm calls
+   *  `shippedGroundBuild`, so a new layer's field reaches every arm the moment it is added here —
+   *  which is what stops a control arm quietly becoming the map as it stood before this layer.
+   *
+   *  ⚠⚠ IT IS A THUNK, NOT A VALUE, AND THAT IS A MEASUREMENT RATHER THAN A STYLE. Building it
+   *  costs **859 ms for one island and 54 s for the 35-island forest** (measured 2026-09-02):
+   *  `shoreField.sample()` is O(coast edges) per texel and the atlas is 5.4 M texels, most of them
+   *  sea. Layer 2 is NOT adopted, so an eager field here would put 54 seconds into the shipped
+   *  canvas's mount for a value nothing reads — a severe regression delivered by dead code. Lazy,
+   *  it costs nothing until a comparison arm asks.
+   *
+   *  ⚠ AND THAT COST IS A BLOCKER ON ADOPTING LAYER 2 AT ALL, recorded on the arc rather than
+   *  worked around here. The remedy is a distance TRANSFORM over a rasterised island mask (a
+   *  two-pass chamfer or jump-flood, O(texels) instead of O(texels x edges)); the per-texel
+   *  polygon query this builds on is correct and is what proved the rest of the layer, but it is
+   *  not what can ship. */
+  shore: () => AtlasField | null;
   input: CellGroundGeometryInput;
 }
 
@@ -524,7 +558,18 @@ export function shippedGroundBuild(
   // `atlasOrigin` and an `atlasOrigin: undefined` are different inputs, and only the first
   // leaves the emitted buffer the one every pre-adoption figure was taken on.
   if (field !== null) input.atlasOrigin = atlasOriginResolver(field);
-  return { field, input };
+  // ⚠ BUILT FROM THE OCCLUSION FIELD'S OWN TILES, and from the CLIPPED parcels for the same
+  // reason everything else here reads them: after `clipToCoast` the boundary of this mesh IS the
+  // coast, so the distance to the mesh's rim is the distance to the water. Handed the pre-clip
+  // descriptors the sand would trace the hex silhouette and sit a beach's width inland of the sea.
+  // ⚠ MEMOISED BEHIND THE THUNK so two arms asking twice pay once — the build is 54 s at forest
+  // scale, so "called more than once" is not a theoretical concern on a page with three arms.
+  let shoreMemo: AtlasField | null | undefined;
+  const shore = (): AtlasField | null => {
+    if (shoreMemo === undefined) shoreMemo = field === null ? null : buildAtlasShore(clipped, field);
+    return shoreMemo;
+  };
+  return { field, shore, input };
 }
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
@@ -592,6 +637,24 @@ function CellGround({
     // shape. It is gated per TOKEN rather than by a flag: {@link SHIPPED_GRASS} dresses the green
     // and multiplies every other row's mix by zero, so those rows deliver the pixel they
     // delivered before it existed (ADR-0492 D1).
+    // ⚠⚠ LAYER 2 IS BUILT AND MEASURED BUT NOT WORN, AND THAT IS A BLOCKED ADOPTION RATHER THAN
+    // A FORGOTTEN FLAG. The distinction matters because this arc's end-state item 6 rightly calls
+    // a flag nobody flips "not adoption" — but what stops layer 2 here is not inertia, it is a
+    // measurement: on the shipped ladder the sand is VISIBLE only at or above ~0.22 and HONEST
+    // only at or below ~0.15, and the two miss each other. At the strength that can be seen, a
+    // lit beach on a HEALTHY island reads as `building`/`proposed` yellow at the ladder's two
+    // brightest rungs — a signed-off capability reporting as in-progress work, which ADR-0392 D5
+    // and ADR-0398 D7 do not permit whatever it looks like.
+    //
+    // ⚠ THE PER-TOKEN GATE CANNOT RESCUE IT A SECOND TIME. ADR-0492 dissolved layer 1's version of
+    // this conflict by gating the layer to `healthy`; layer 2 already inherits that gate, so the
+    // move is spent and the binding constraint is now how far the LADDER reaches rather than which
+    // token wears the layer.
+    //
+    // The fork is authored as an open question on `land-ground-stack-arc`. Everything below it —
+    // `shore-atlas.ts`, `land-sand.ts`, the material's sand seam and the instrument's sand arm —
+    // is landed, green, and is what any of the answers will be built from. `shore` is still
+    // returned by `shippedGroundBuild` so every comparison arm gets it without remembering to.
     return { geo, ...buildGroundMaterial(field, SHIPPED_GRASS) };
   }, [cells, casters]);
   // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
@@ -602,6 +665,10 @@ function CellGround({
     () => () => {
       built.material.dispose();
       built.shadow?.texture.dispose();
+      // ⚠ THE SHORE FIELD IS A SECOND TEXTURE OF THE SAME SIZE, so it doubles the leak this
+      // effect exists to prevent if it is not disposed with the first — about 107 KB per island
+      // per re-mount, invisible until a long session runs out of texture memory.
+      built.shoreTex?.texture.dispose();
     },
     [built],
   );

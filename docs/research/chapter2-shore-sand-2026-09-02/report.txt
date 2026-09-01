@@ -1,0 +1,28 @@
+renderer: Google Inc. (Qualcomm) — ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+software=false
+
+THE REFERENCE — the approved Cycles render, through this page’s own family census
+  land-combined: colour families 36 · largest holds 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution, framing and camera, and all SEVEN layers.
+
+── one @ 2 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            20    20.9%  42.4%   2.69   20.55         0        0   5562   23
+honest          21    18.9%  46.4%   2.95   21.14      1157    33774   5562   23
+authored        22    18.8%  38.0%   2.74   20.82      2033     3894   5562   23
+
+── one @ 8 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            20    21.0%  42.4%   0.84   23.01         0        0   5562   23
+honest          21    18.9%  46.4%   0.91   23.97     18516   540225   5562   23
+authored        22    18.9%  37.8%   0.86   23.67     32585    62402   5562   23
+
+THE GAP THAT REMAINS, at the read zoom on one island:
+  shipped 20 families → adopted 22 → approved 36. Largest family: 21.0% → 18.9% → 5.2%.
+
+THE PER-TOKEN GATE, IN PIXELS (ADR-0492 D1) — the share of land the shipped arm dressed:
+  NOT ASKED — this run is scoped to one island (layer 2`s field costs 49.7 s to build at forest scale). The per-token gate is layer 1`s and was proved in pixels on its own evidence: 93.9% of an all-green island dressed against 38.6% of the real-mix forest.
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet — a cost sentence in a parked row is a cost as at
+  the day it was parked, and this arc has already been sized 5x wrong that way once.

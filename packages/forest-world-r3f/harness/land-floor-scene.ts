@@ -68,7 +68,7 @@ export const AMPLIFY_FACTOR = 8;
  * ⚠ IT IS THE COST QUESTION, SO THE STRENGTH BARELY MATTERS AND THE CHOICE IS STATED ANYWAY. The
  * shader evaluates all 23 octaves whatever `uGrassMix` is — the mix is a uniform multiplying an
  * already-computed colour, not a branch around computing it — so every strength costs the same and
- * the arm could wear any of them. It wears `adopted`, the strength the map now DRAWS, so the price
+ * the arm could wear any of them. It wears `authored`, the strength the map now DRAWS for layer 1, so the price
  * this floor reports is the price actually being paid rather than one nobody would ship.
  *
  * ⚠⚠ AND THE GATE DOES NOT CHANGE IT, which is worth saying because it reads as though it should.
@@ -77,7 +77,7 @@ export const AMPLIFY_FACTOR = 8;
  * yellow island costs exactly what a green one costs, and the gate buys reading margin rather than
  * frame time. A cost measured on the mono-healthy crowd is therefore the whole forest's cost.
  */
-export const LAYER_ARM_MIX: GrassArm = 'adopted';
+export const LAYER_ARM_MIX: GrassArm = 'authored';
 
 /**
  * The line the grass enters the shipped fragment shader on, emitted by
@@ -164,7 +164,10 @@ export function buildLandFloorScene(
   size: CrowdSizeId,
   zoom: CrowdZoom,
 ): LandFloorScene {
-  const built = buildGrassScene(grassArmFor(arm), crowdSize(size), zoom);
+  // ⚠ THE CONTROL IS BUILT BARE — genuinely ungrassed — rather than by naming the comparison
+  // page's `flat`. Since layer 1 landed, that arm means "the map as it ships" and IS grassed, so
+  // borrowing it would price the layer against itself.
+  const built = buildGrassScene(grassArmFor(arm), crowdSize(size), zoom, arm === 'flat');
   let octaves = built.plan.octaves;
 
   if (arm === 'grass-amplified') {
@@ -380,8 +383,20 @@ export function mountLandFloor(root: HTMLElement): void {
 
 /** The mixes the arms wear, exported so the report can print what was measured rather than a
  *  reader having to open two files. */
+/**
+ * ⚠⚠ THIS PAGE'S CONTROL IS `null` — GENUINELY UNGRASSED — AND IT IS NOT THE COMPARISON PAGE'S
+ * CONTROL. The two pages ask different questions off one arm vocabulary, and that coupling has
+ * already broken once: `shipped-grass-scene.ts`'s `flat` used to mean "no grass" and now means
+ * "the map as it ships", because layer 1 LANDED and layer 2's comparison is measured against it.
+ * Borrowing `GRASS_ARM_MIX.flat` here silently made this page's control a GRASSED shader, which
+ * would price layer 1 against itself and report its cost as ~0 ms.
+ *
+ * So the control is stated here rather than inherited. What this page prices is the cost of
+ * evaluating the layer AT ALL, so its control must evaluate none of it — a frame-cost baseline and
+ * a look-comparison baseline are different objects that happened to share a name.
+ */
 export const LAND_FLOOR_ARM_MIX = {
-  flat: GRASS_ARM_MIX.flat,
+  flat: null,
   grass: GRASS_ARM_MIX[LAYER_ARM_MIX],
   'grass-amplified': GRASS_ARM_MIX[LAYER_ARM_MIX],
 } satisfies Record<LandFloorArm, number | null>;

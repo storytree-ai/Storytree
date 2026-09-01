@@ -27,6 +27,8 @@ import {
 } from './banded-ground-material.js';
 import { buildGroundOcclusion } from './contact-shade.js';
 import { atlasScale, buildAtlasOcclusion } from './shadow-atlas.js';
+import { buildAtlasShore, SAND_FIELD_WIDTH } from './shore-atlas.js';
+import { sandGlsl } from './land-sand.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 import { occlusionGrid } from './land-shadow.js';
 import { shadowLadderFor } from './shadow-rung.js';
@@ -1207,4 +1209,163 @@ test('the grass source is declared AFTER the grain`s, because it calls st_grainO
   // ONE lattice hash in the shader, not two. A grass-named copy would be a redefinition error at
   // best and a silent divergence at worst.
   assert.equal([...m.fragmentShader.matchAll(/float st_grainHash\(/g)].length, 1);
+});
+
+// ─── LAYER 2: the shore sand ────────────────────────────────────────────────────────────────────
+
+/** The shore field over the same atlas the shadow rides — built once, for the same reason
+ *  `testAtlas` is. */
+const testShore = (): ReturnType<typeof groundAtlasTexture> =>
+  groundAtlasTexture(
+    buildAtlasShore(
+      [ATLAS_CELL_A, ATLAS_CELL_B],
+      buildAtlasOcclusion({
+        cells: [ATLAS_CELL_A, ATLAS_CELL_B],
+        relief: 2.2,
+        casters: [{ x: 10, z: 10, radius: 5, height: 19 }],
+      }),
+    ),
+  );
+
+const sanded = () =>
+  createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+    shadowAtlas: testAtlas(),
+    sand: { shore: testShore().texture },
+  });
+
+test('the sand REFUSES without the grass, and without the packed atlas', () => {
+  assert.throws(
+    () =>
+      createBandedGroundMaterial({
+        tokens: SHIPPED_TOKENS,
+        grain: 'normal',
+        shadowAtlas: testAtlas(),
+        sand: { shore: testShore().texture },
+      }),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the sand layer needs the grass — its ramp is driven by layer 1’s ' +
+          'own base scalar, which only the grass source declares',
+      );
+      return true;
+    },
+  );
+  // ⚠ AND WITHOUT THE PACKED ATLAS. The shore field is sampled through the shadow's own `shUv`,
+  // so an unatlased material has no per-island coordinate to sample through — falling back to the
+  // rect form would give the whole map one island's stretch of coast.
+  assert.throws(
+    () =>
+      createBandedGroundMaterial({
+        tokens: SHIPPED_TOKENS,
+        grain: 'normal',
+        grass: { mix: 0.32, rows: [0] },
+        sand: { shore: testShore().texture },
+      }),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the sand layer needs the PACKED occlusion atlas — it rides that ' +
+          'atlas’s own tiles, and there is no per-island coordinate without it',
+      );
+      return true;
+    },
+  );
+});
+
+test('a SANDED material uploads the shore field and splices layer 2 in after layer 1', () => {
+  const m = sanded();
+  // ⚠ THE VALUE, NOT JUST THE KEY. `check:mutation-diff` replaced `{ value: sand.shore }` with an
+  // empty object and a presence check stayed green — leaving a declared sampler bound to nothing,
+  // which samples black and delivers a beach over the whole island.
+  const shoreTex = testShore().texture;
+  const m2 = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+    shadowAtlas: testAtlas(),
+    sand: { shore: shoreTex },
+  });
+  assert.equal(
+    m2.uniforms['uShoreTex']?.value,
+    shoreTex,
+    'the uniform must carry the caller`s own texture, not merely exist',
+  );
+  assert.ok(m.uniforms['uShoreTex'] !== undefined, 'the shore field must be uploaded');
+  assert.ok(/uniform sampler2D uShoreTex;/.test(m.fragmentShader));
+  // The block, indented, rather than line by line — the same argument the grass splice makes: a
+  // per-line `includes()` sweep is satisfied by the whole module concatenated onto ONE line.
+  assert.ok(
+    m.fragmentShader.includes(sandGlsl().split('\n').join('\n      ')),
+    'the sand source is not spliced with its lines intact',
+  );
+  // ⚠ DECLARATION ORDER IS LOAD-BEARING. `sandGlsl()` calls `st_grassScalar` and `st_grassSrgb`,
+  // and GLSL ES 1.0 resolves against declarations already seen — so the sand must come after.
+  const grassDecl = m.fragmentShader.indexOf('float st_grassScalar(');
+  const srgbDecl = m.fragmentShader.indexOf('vec3 st_grassSrgb(');
+  const sandDecl = m.fragmentShader.indexOf('float st_sandEdge(');
+  assert.ok(grassDecl >= 0 && srgbDecl >= 0, 'layer 1 must declare the scalar and the transfer');
+  assert.ok(sandDecl > grassDecl && sandDecl > srgbDecl, 'the sand source must come AFTER layer 1');
+  // ONE copy of each shared helper, not two — a sand-named duplicate is a redefinition error at
+  // best and a silent divergence at worst.
+  assert.equal([...m.fragmentShader.matchAll(/vec3 st_grassSrgb\(/g)].length, 1);
+  assert.equal([...m.fragmentShader.matchAll(/float st_grainHash\(/g)].length, 1);
+});
+
+test('⚠ the sand composites INTO layer 1 — one mix at the seam, not a second one over it', () => {
+  const m = sanded();
+  // The delivered pixel is still mix(statusColour, layer, uGrassMix * grassGate) — the same
+  // ADR-0490 D5 seam at the same strength — with the layer now sand-to-grass across the band.
+  assert.ok(m.fragmentShader.includes('c = mix(c, layerCol, uGrassMix * grassGate);'));
+  assert.ok(
+    m.fragmentShader.includes(
+      'vec3 layerCol = mix(st_sandColour(vWorld.xz), st_grassColour(vWorld.xz), sandBand);',
+    ),
+  );
+  // ⚠⚠ AND THE PLAIN LAYER-1 LINE IS GONE, not sitting beside it. Both present would mix the
+  // grass in and then mix the sand-blended layer in again — the beach would be half strength and
+  // the grass double, and every arm would still draw something plausible.
+  assert.ok(
+    !m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'),
+    'layer 2 must REPLACE layer 1`s composite line, not be appended after it',
+  );
+  assert.equal([...m.fragmentShader.matchAll(/c = mix\(c, /g)].length, 1, 'exactly one seam mix');
+});
+
+test('⚠ the shore texel is decoded to GROUND UNITS before the recipe divides it', () => {
+  const m = sanded();
+  // `st_sandBand` divides by BEACH + 0.9, an arithmetic in ground units. Handing it a raw 0..1
+  // texel would be the same expression meaning something else — the band would collapse to a
+  // hairline at the waterline and read as "the sand layer barely does anything".
+  assert.ok(
+    m.fragmentShader.includes(
+      `float shoreUnits = texture2D(uShoreTex, shUv).r * ${SAND_FIELD_WIDTH.toFixed(6)};`,
+    ),
+    'the texel must be scaled by the field width before st_sandBand sees it',
+  );
+  assert.ok(m.fragmentShader.includes('float sandBand = st_sandBand(vWorld.xz, shoreUnits);'));
+  // ⚠ AND IT RIDES THE SHADOW'S OWN COORDINATE. A second packing would be a second answer to
+  // "where is this island", and every coast would belong to the wrong land.
+  assert.ok(m.fragmentShader.includes('texture2D(uShoreTex, shUv)'));
+  assert.equal([...m.fragmentShader.matchAll(/vec2 shUv =/g)].length, 1, 'one atlas coordinate');
+});
+
+test('an UNSANDED material carries no uShore uniform and no sand source at all', () => {
+  // Absent means ABSENT — the claim every measured figure about layer 1 was taken against.
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+    shadowAtlas: testAtlas(),
+  });
+  assert.equal(m.uniforms['uShoreTex'], undefined);
+  assert.ok(!/uShoreTex/.test(m.fragmentShader));
+  assert.ok(!/st_sandEdge|st_sandRamp|st_sandBand|st_sandColour/.test(m.fragmentShader));
+  // And it still carries layer 1's own composite line, unchanged.
+  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'));
 });
