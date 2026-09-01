@@ -191,6 +191,7 @@
       "packages/cli/src/repair-planner.ts": "guided-setup-repair",
       "packages/cli/src/retire.ts": "library-cli",
       "packages/cli/src/inbound.ts": "library-cli",
+      "packages/cli/src/repoint.ts": "library-cli",
       "packages/cli/src/context.ts": "cli",
       "packages/cli/src/vocabulary.ts": "cli",
       "packages/cli/src/session-cost.ts": "cli",

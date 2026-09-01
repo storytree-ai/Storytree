@@ -107,6 +107,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `storytree library repoint <from> --to <to> --confirm <token>` (ADR-0498 D4). An eight-hex
+  // digest the dry run printed and the caller pastes back — the shortest possible literal, and one
+  // whose whole job is to be compared byte-for-byte against a freshly recomputed plan. Reading it
+  // from a file would let a stale token live on disk, which is the one thing it exists to prevent.
+  "confirm",
   // `storytree traversal origin --origin human|cut [--cut-by <sessionId>] [--cut-for <unit>]`
   // (ADR-0484 D7). One ENUM word and two canonical IDENTITIES — a session id and an arc/increment
   // id. None is a durable prose record: the whole attribute exists so a figure can EXCLUDE the
