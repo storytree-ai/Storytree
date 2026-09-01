@@ -50,6 +50,7 @@ import dagre from '@dagrejs/dagre';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { unresolvedAssetReason, unresolvedDocReason } from '../lib/docsIndex';
+import { usePannable } from '../lib/pannable';
 import { readPayloadCache, writeTreeCache } from '../lib/payloadCache';
 import { anyRecentLanding, isBuildInFlight, verdictBloom, type VerdictBloom } from '../lib/activity.js';
 import { useBuildActivity, useClaimActivity } from '../lib/buildActivity';
@@ -6007,6 +6008,16 @@ function StoryPanel({
   onClose: () => void;
 }): React.JSX.Element {
   const layout = useMemo(() => layoutSubdag(story), [story]);
+  // ⚠ THE SUB-DAG PANS RATHER THAN SCROLLS (ADR-0502). The owner, seeing this exact panel: *"also be
+  // nice if we could get rid of the ugly scroll bars and instead have it a pannable surface."* The
+  // map's own viewport was given that treatment on the same feedback long ago and it was never
+  // generalised, which is why the graph beside it still had bars. The four CSS properties are on
+  // `.tree-subdag-frame`; this is the half that keeps removing the bar SAFE, because
+  // `overflow: hidden` with no gesture behind it would strand every node past the frame's edge.
+  const { frameRef: subdagFrameRef, surfaceRef: subdagSurfaceRef } = usePannable<
+    HTMLDivElement,
+    SVGSVGElement
+  >(story.id);
   // The node's FULL declared connection set (ADR-0074 §4): outbound depends_on AND
   // the unioned/derived inbound — own consumed_by ∪ every story whose depends_on
   // names it. Resolved from the whole story list so the inverse is recovered (the
@@ -6193,9 +6204,10 @@ function StoryPanel({
         defaultOpen
         className="tree-capabilities"
       >
-      <div className="tree-subdag-frame">
+      <div className="tree-subdag-frame" ref={subdagFrameRef}>
         <svg
           className="tree-subdag"
+          ref={subdagSurfaceRef}
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           style={{
             width: Math.ceil(layout.width * SUB_RENDER_SCALE),
