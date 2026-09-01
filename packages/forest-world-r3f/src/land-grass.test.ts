@@ -1,0 +1,368 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import test from 'node:test';
+import { fileURLToPath } from 'node:url';
+
+import { linearToSrgb255 } from './land-grain.js';
+import {
+  CYCLES_ISLAND_SPAN,
+  GRASS_BROAD,
+  GRASS_COOL,
+  GRASS_DRIFT,
+  GRASS_DRIFT_RAMP,
+  GRASS_FINE,
+  GRASS_MID,
+  GRASS_MIX_BROAD_MID,
+  GRASS_MIX_INTO_FINE,
+  GRASS_OCTAVES,
+  GRASS_WARM,
+  clamp01,
+  cyclesMixFloat,
+  grassAmplitudeSum,
+  grassColourAt,
+  grassDrift,
+  grassGlsl,
+  grassLattice,
+  grassLinearAt,
+  grassMixedAt,
+  grassNoiseField,
+  grassOctaveAmplitude,
+  grassOctaveFrequency,
+  grassScalar,
+  grassTerms,
+  rampLinear,
+} from './land-grass.js';
+
+// ---------------------------------------------------------------- the transcription
+
+// ⚠⚠ EVERY CONSTANT IS ASSERTED AS ITS OWN LITERAL, NEVER RE-DERIVED FROM THE MODULE. A test
+// that computed the expected value the same way the module does would pass on the DECOY's
+// numbers exactly as happily as on these — which is the one failure this file exists to prevent
+// (ADR-0490 D2). The literals below were read off `build_land.py`'s `mat_attribute()` by hand.
+
+test('the three base octaves are mat_attribute()`s own, not mat_procedural()`s', () => {
+  assert.deepEqual(GRASS_BROAD, { scale: 1.9, detail: 8, roughness: 0.62 });
+  assert.deepEqual(GRASS_MID, { scale: 6.8, detail: 8, roughness: 0.55 });
+  assert.deepEqual(GRASS_FINE, { scale: 28.0, detail: 4, roughness: 0.5 });
+  assert.deepEqual(GRASS_DRIFT, { scale: 2.7, detail: 3, roughness: 0.4 });
+});
+
+test('the two float mixes carry the authored factors in the authored order', () => {
+  assert.equal(GRASS_MIX_BROAD_MID, 0.42);
+  assert.equal(GRASS_MIX_INTO_FINE, 0.2);
+});
+
+test('the cool ramp is the APPROVED variant`s, and differs from the decoy exactly where it should', () => {
+  assert.deepEqual(GRASS_COOL, [
+    { at: 0.28, linear: [0.052, 0.126, 0.052] },
+    { at: 0.5, linear: [0.124, 0.258, 0.086] },
+    { at: 0.74, linear: [0.268, 0.432, 0.14] },
+  ]);
+  // The decoy's own first stop, spelled out so the guard is a comparison rather than a memory:
+  // `mat_procedural()` opens at 0.30 with (0.054, 0.130, 0.054). If a later transcription drifts
+  // onto it, THIS is the assertion that fires.
+  const decoyFirst = { at: 0.3, linear: [0.054, 0.13, 0.054] };
+  assert.notDeepEqual(GRASS_COOL[0], decoyFirst);
+});
+
+test('the warm ramp is the authored one', () => {
+  assert.deepEqual(GRASS_WARM, [
+    { at: 0.28, linear: [0.095, 0.118, 0.04] },
+    { at: 0.5, linear: [0.21, 0.248, 0.078] },
+    { at: 0.74, linear: [0.362, 0.388, 0.144] },
+  ]);
+});
+
+test('the drift ramp spans the authored 0.38 to 0.62', () => {
+  assert.deepEqual([...GRASS_DRIFT_RAMP], [0.38, 0.62]);
+});
+
+test('the transcribed constants are the ones actually in build_land.py`s mat_attribute()', () => {
+  // ⚠ THE SOURCE IS READ AND SLICED TO THE ENCLOSING FUNCTION, which is the whole discipline
+  // ADR-0490 D2 asks for: a substring search over the whole file would find `mat_procedural()`'s
+  // byte-identical first line and pass on the losing variant.
+  const here = dirname(fileURLToPath(import.meta.url));
+  const script = readFileSync(
+    join(here, '..', '..', '..', 'docs', 'research', 'chapter2-land-idiom-2026-08-27', 'build_land.py'),
+    'utf8',
+  );
+  const start = script.indexOf('def mat_attribute(');
+  assert.ok(start > 0, 'mat_attribute() is missing from build_land.py');
+  const decoy = script.indexOf('def mat_procedural(');
+  assert.ok(decoy > 0 && decoy < start, 'the decoy is expected to sit ABOVE mat_attribute()');
+  const end = script.indexOf('\ndef ', start + 1);
+  const body = script.slice(start, end);
+  for (const line of [
+    'broad = _noise(nt, 1.9, 8.0, 0.62)',
+    'mid = _noise(nt, 6.8, 8.0, 0.55)',
+    'fine = _noise(nt, 28.0, 4.0)',
+    'hue_drift = _noise(nt, 2.7, 3.0, 0.4)',
+    '(0.28, (0.052, 0.126, 0.052, 1.0))',
+    '(0.50, (0.124, 0.258, 0.086, 1.0))',
+    '(0.74, (0.268, 0.432, 0.140, 1.0))',
+    '(0.28, (0.095, 0.118, 0.040, 1.0))',
+    '(0.50, (0.210, 0.248, 0.078, 1.0))',
+    '(0.74, (0.362, 0.388, 0.144, 1.0))',
+    '[(0.38, (0, 0, 0, 1)), (0.62, (1, 1, 1, 1))]',
+  ]) {
+    assert.ok(body.includes(line), `mat_attribute() no longer contains: ${line}`);
+  }
+  // And the decoy really does carry different numbers — so the slice above is load-bearing
+  // rather than defensive.
+  const decoyBody = script.slice(decoy, start);
+  assert.ok(decoyBody.includes('(0.30, (0.054, 0.130, 0.054, 1.0))'));
+  assert.ok(!decoyBody.includes('(0.28, (0.052, 0.126, 0.052, 1.0))'));
+});
+
+// ---------------------------------------------------------------- the lattice conversion
+
+test('a Cycles Scale becomes a lattice spacing by dividing the island span', () => {
+  assert.equal(CYCLES_ISLAND_SPAN, 233.8);
+  assert.equal(grassLattice(GRASS_BROAD), 233.8 / 1.9);
+  assert.equal(grassLattice(GRASS_MID), 233.8 / 6.8);
+  assert.equal(grassLattice(GRASS_FINE), 233.8 / 28.0);
+  assert.equal(grassLattice(GRASS_DRIFT), 233.8 / 2.7);
+});
+
+test('the delivered spacings are the ladder land-grain.ts already describes', () => {
+  // land-grain.ts's header, written before this layer was transcribed: "the landform at ~123
+  // units, the mid octave at ~34, the fine one at ~8". An independent confirmation of the
+  // conversion rather than a restatement of it.
+  assert.ok(Math.abs(grassLattice(GRASS_BROAD) - 123) < 1);
+  assert.ok(Math.abs(grassLattice(GRASS_MID) - 34) < 1);
+  assert.ok(Math.abs(grassLattice(GRASS_FINE) - 8) < 1);
+});
+
+test('octave amplitude compounds the roughness and frequency doubles the lattice', () => {
+  assert.equal(grassOctaveAmplitude(GRASS_MID, 0), 1);
+  assert.equal(grassOctaveAmplitude(GRASS_MID, 1), 0.55);
+  assert.equal(grassOctaveAmplitude(GRASS_MID, 2), 0.55 ** 2);
+  assert.equal(grassOctaveFrequency(GRASS_MID, 0), 1 / (233.8 / 6.8));
+  assert.equal(grassOctaveFrequency(GRASS_MID, 1), 2 / (233.8 / 6.8));
+});
+
+test('a noise carries exactly `detail` octaves and normalises by their amplitude sum', () => {
+  assert.equal(grassTerms(GRASS_BROAD).length, 8);
+  assert.equal(grassTerms(GRASS_FINE).length, 4);
+  assert.equal(grassTerms(GRASS_DRIFT).length, 3);
+  assert.equal(grassAmplitudeSum(GRASS_DRIFT), 1 + 0.4 + 0.4 ** 2);
+});
+
+test('GRASS_OCTAVES is the summed per-fragment octave load', () => {
+  assert.equal(GRASS_OCTAVES, 8 + 8 + 4 + 3);
+});
+
+// ---------------------------------------------------------------- the arithmetic
+
+test('Blender`s Mix/FLOAT is A + (B - A) * factor, in that order', () => {
+  assert.equal(cyclesMixFloat(0, 1, 0.42), 0.42);
+  // The reversed operands must give the COMPLEMENT — a tolerance rather than an equality only
+  // because 1 + (0 - 1) * 0.42 is not exactly representable, which is a property of binary
+  // floats and not of the arithmetic being asserted.
+  assert.ok(Math.abs(cyclesMixFloat(1, 0, 0.42) - 0.58) < 1e-12);
+  assert.equal(cyclesMixFloat(0.2, 0.8, 0), 0.2);
+  assert.equal(cyclesMixFloat(0.2, 0.8, 1), 0.8);
+});
+
+test('clamp01 pins both ends and passes the interior', () => {
+  assert.equal(clamp01(-3), 0);
+  assert.equal(clamp01(0.37), 0.37);
+  assert.equal(clamp01(4), 1);
+});
+
+test('the ramp is flat outside its stops and linear between them', () => {
+  const stops = [
+    { at: 0.28, linear: [0, 0, 0] as const },
+    { at: 0.5, linear: [1, 0.5, 0] as const },
+    { at: 0.74, linear: [1, 1, 1] as const },
+  ];
+  assert.deepEqual(rampLinear(stops, 0), [0, 0, 0]);
+  assert.deepEqual(rampLinear(stops, 0.28), [0, 0, 0]);
+  assert.deepEqual(rampLinear(stops, 1), [1, 1, 1]);
+  assert.deepEqual(rampLinear(stops, 0.74), [1, 1, 1]);
+  // Halfway along the FIRST segment: 0.28 + 0.11 = 0.39.
+  const mid = rampLinear(stops, 0.39);
+  assert.ok(Math.abs(mid[0] - 0.5) < 1e-9);
+  assert.ok(Math.abs(mid[1] - 0.25) < 1e-9);
+  assert.equal(mid[2], 0);
+  // Exactly ON the middle stop.
+  assert.deepEqual(rampLinear(stops, 0.5), [1, 0.5, 0]);
+});
+
+test('the ramp is evaluated LINEARLY, not smoothstepped — the divergence from land-grain.ts', () => {
+  const stops = [
+    { at: 0, linear: [0, 0, 0] as const },
+    { at: 1, linear: [1, 1, 1] as const },
+  ];
+  // A smoothstep would deliver 3t^2 - 2t^3 = 0.15625 at t = 0.25. Linear delivers 0.25.
+  assert.equal(rampLinear(stops, 0.25)[0], 0.25);
+});
+
+test('a ramp with no stops is refused rather than delivering black', () => {
+  assert.throws(() => rampLinear([], 0.5), /no stops/);
+});
+
+// ---------------------------------------------------------------- the field
+
+test('every noise field lands in [0, 1]', () => {
+  for (let i = 0; i < 40; i += 1) {
+    const x = i * 7.3 - 120;
+    const z = i * -3.1 + 44;
+    for (const noise of [GRASS_BROAD, GRASS_MID, GRASS_FINE, GRASS_DRIFT]) {
+      const v = grassNoiseField(noise, x, z);
+      assert.ok(v >= 0 && v <= 1, `${v} out of range at ${x},${z}`);
+    }
+  }
+});
+
+test('the base scalar is the two mixes applied in order', () => {
+  const x = 17.5;
+  const z = -8.25;
+  const broad = grassNoiseField(GRASS_BROAD, x, z);
+  const mid = grassNoiseField(GRASS_MID, x, z);
+  const fine = grassNoiseField(GRASS_FINE, x, z);
+  const expected = cyclesMixFloat(
+    cyclesMixFloat(broad, mid, GRASS_MIX_BROAD_MID),
+    fine,
+    GRASS_MIX_INTO_FINE,
+  );
+  assert.equal(grassScalar(x, z), expected);
+});
+
+test('the drift is remapped across its ramp and clamped to [0, 1]', () => {
+  for (let i = 0; i < 60; i += 1) {
+    const d = grassDrift(i * 11.7, i * -5.3);
+    assert.ok(d >= 0 && d <= 1);
+  }
+});
+
+// ---------------------------------------------------------------- the delivered colour
+
+test('the delivered colour is the linear ramp converted, not the stops converted then mixed', () => {
+  const x = 3.5;
+  const z = 21.75;
+  const lin = grassLinearAt(x, z);
+  assert.deepEqual(grassColourAt(x, z), {
+    r: linearToSrgb255(lin[0]),
+    g: linearToSrgb255(lin[1]),
+    b: linearToSrgb255(lin[2]),
+  });
+});
+
+test('the ramp ends deliver the authored stop colours through the transfer', () => {
+  // At the top of both ramps the drift cannot change the answer only if both agree; it does not,
+  // so this asserts each ramp's own end directly.
+  assert.deepEqual(rampLinear(GRASS_COOL, 1), [0.268, 0.432, 0.14]);
+  assert.deepEqual(rampLinear(GRASS_WARM, 0), [0.095, 0.118, 0.04]);
+  // ⚠ NOT a transcribed byte here — `linearToSrgb255` is `land-grain.ts`'s and is tested there.
+  // What this file owns is that the ramp's ENDS are ordered and separated once converted: a ramp
+  // whose dark and light stops delivered the same pixel would satisfy every literal above and
+  // still be a flat green.
+  const dark = linearToSrgb255(GRASS_COOL[0]!.linear[1]);
+  const light = linearToSrgb255(GRASS_COOL[2]!.linear[1]);
+  assert.ok(light > dark, 'the cool ramp runs dark to light');
+  assert.ok(light - dark > 20, `the cool ramp spans only ${light - dark}/255 in green`);
+});
+
+test('the mix seam returns the base at fac 0 and the grass at fac 1', () => {
+  const base = '#4f7a3a';
+  const x = -12.5;
+  const z = 6.5;
+  assert.deepEqual(grassMixedAt(base, x, z, 0), { r: 0x4f, g: 0x7a, b: 0x3a });
+  assert.deepEqual(grassMixedAt(base, x, z, 1), grassColourAt(x, z));
+});
+
+test('the mix seam moves the base TOWARD the grass, monotonically', () => {
+  const base = '#d8c069';
+  const x = 40.5;
+  const z = -22.5;
+  const grass = grassColourAt(x, z);
+  let previous = Math.abs(0xd8 - grass.r);
+  for (const fac of [0.1, 0.2, 0.4, 0.8]) {
+    const d = Math.abs(grassMixedAt(base, x, z, fac).r - grass.r);
+    assert.ok(d <= previous, `fac ${fac} moved away from the grass`);
+    previous = d;
+  }
+});
+
+// ---------------------------------------------------------------- the layer's own premise
+
+test('THE PREMISE: the grass field delivers many colour families where the shipped ground has one', () => {
+  // ⚠ THIS IS THE INCREMENT'S REASON TO EXIST, ASSERTED RATHER THAN ASSUMED. The arc's gap is
+  // measured as colour families holding >=0.5% of the island, quantised to 5 bits per channel:
+  // 9 for what ships, 36 for the approved render. A layer that delivered one flat colour would
+  // pass every transcription test above and close none of that gap — the premise refutable at
+  // its own source.
+  const families = new Set<number>();
+  for (let i = 0; i < 120; i += 1) {
+    for (let j = 0; j < 120; j += 1) {
+      // A 2-unit step over a 240-unit island: the footprint the fields are authored against.
+      const c = grassColourAt(i * 2 - 120, j * 2 - 120);
+      families.add(((c.r >> 3) << 10) | ((c.g >> 3) << 5) | (c.b >> 3));
+    }
+  }
+  assert.ok(families.size >= 20, `the grass delivers only ${families.size} colour families`);
+});
+
+test('THE PREMISE: the two ramps are separated by more than the visibility threshold', () => {
+  // The hue drift is the layer's second half, and it is worth nothing if cool and warm deliver
+  // the same pixel. 20/255 is the threshold this arc judges an arm by (ADR-0490 D6).
+  const cool = rampLinear(GRASS_COOL, 0.5);
+  const warm = rampLinear(GRASS_WARM, 0.5);
+  const dr = Math.abs(linearToSrgb255(cool[0]) - linearToSrgb255(warm[0]));
+  assert.ok(dr > 20, `cool and warm differ by only ${dr}/255 in red at the middle stop`);
+});
+
+// ---------------------------------------------------------------- the GLSL
+
+test('the shader source carries the constants from this module rather than hand-typed ones', () => {
+  const src = grassGlsl();
+  assert.match(src, /GENERATED from land-grass\.ts/);
+  // The mix factors, written in.
+  assert.ok(src.includes(GRASS_MIX_BROAD_MID.toFixed(6)));
+  assert.ok(src.includes(GRASS_MIX_INTO_FINE.toFixed(6)));
+  // Every ramp stop, in LINEAR space, written in.
+  for (const stop of [...GRASS_COOL, ...GRASS_WARM]) {
+    assert.ok(
+      src.includes(`vec3(${stop.linear[0].toFixed(6)}, ${stop.linear[1].toFixed(6)}, ${stop.linear[2].toFixed(6)})`),
+      `the shader is missing the stop ${stop.linear.join(', ')}`,
+    );
+  }
+});
+
+test('the shader unrolls exactly the octaves this module declares', () => {
+  const src = grassGlsl();
+  const taps = [...src.matchAll(/st_grainOctave\(/g)].length;
+  assert.equal(taps, GRASS_OCTAVES);
+});
+
+test('the shader declares every function the fragment stage calls, and calls st_grainOctave', () => {
+  const src = grassGlsl();
+  for (const fn of [
+    'st_grassBroad',
+    'st_grassMid',
+    'st_grassFine',
+    'st_grassDrift',
+    'st_grassScalar',
+    'st_grassCool',
+    'st_grassWarm',
+    'st_grassSrgb',
+    'st_grassColour',
+  ]) {
+    assert.ok(src.includes(`${fn}(`), `the shader never declares ${fn}`);
+  }
+  // ⚠ The lattice octave is BORROWED from grainGlsl() rather than re-emitted: two spellings of
+  // one hash in one shader is a redefinition error at best and a silent divergence at worst.
+  // `createBandedGroundMaterial` refuses `grass` without `grain` for exactly this reason.
+  assert.ok(src.includes('st_grainOctave('));
+  assert.ok(!src.includes('st_grassHash'), 'the grass must not carry a second lattice hash');
+});
+
+test('the shader`s sRGB transfer agrees with linearToSrgb255 at the knee it is written around', () => {
+  const src = grassGlsl();
+  assert.ok(src.includes('0.0031308'));
+  assert.ok(src.includes('12.92'));
+  assert.ok(src.includes('1.055'));
+  assert.ok(src.includes('1.0 / 2.4'));
+});

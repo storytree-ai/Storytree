@@ -36,6 +36,7 @@ import {
   grainKeepsPaletteClosed,
   grainStops,
 } from './land-grain.js';
+import { grassGlsl } from './land-grass.js';
 import {
   LEGACY_SHADE_LEVELS,
   LIGHT_DIRECTION,
@@ -968,4 +969,106 @@ test('the atlas fragment stage carries its own two-line argument as well', () =>
         '        vec2 shUv = vAtlasOrigin + vec2(vWorld.x, vWorld.z) * uShadowAtlasScale;',
     ),
   );
+});
+
+// ---------------------------------------------------------------- LAYER 1: the grass base
+//
+// ⚠⚠ THIS LAYER LEAVES THE PALETTE ON PURPOSE, and these tests state that rather than working
+// around it. ADR-0490 D5 names the mix seam as the way every approved-ground layer enters, and
+// ADR-0489 D3/D4 moved the fence from composition (a closed palette) to outcome (can a viewer
+// still tell what state the island is in). So the assertions below are: the closure is broken,
+// measurably and only when asked for; nothing changes when it is not asked for; and the layer
+// composites where the recipe puts it.
+
+test('an UNGRASSED material is byte-identical — the grass adds nothing at any of its four sites', () => {
+  const grained = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal' });
+  assert.ok(!/uGrass/.test(grained.fragmentShader), 'no grass uniform declared');
+  assert.ok(!/st_grass/.test(grained.fragmentShader), 'no grass helper spliced in');
+  assert.equal(grained.uniforms['uGrassMix'], undefined, 'and none uploaded');
+  // ⚠ THE INDENTATION RESIDUE CHECK, the same one the grain's own byte-identity test makes: a
+  // `${cond ? x : ''}` on its own line leaves that line's whitespace behind when false. Naming
+  // what each site JOINS TO is what catches it; sweeping for `st_grass` cannot.
+  assert.ok(
+    grained.fragmentShader.includes(`}\n\n      uniform vec3 uRamp[`),
+    'the grass source site must close straight onto the ramp declaration',
+  );
+  assert.ok(
+    /\n        vec3 c = uRamp\[0\];/.test(grained.fragmentShader),
+    'the ramp selection must be reached with no grass stage before it',
+  );
+});
+
+test('the grass REFUSES to be built without the grain, rather than emitting a shader that cannot link', () => {
+  assert.throws(
+    () => createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grass: { mix: 0.1 } }),
+    /grass layer needs the grain/,
+  );
+  // And the refusal is about the DEPENDENCY, not about the grass being unwelcome: with the grain
+  // present the same options build.
+  assert.doesNotThrow(() =>
+    createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal', grass: { mix: 0.1 } }),
+  );
+});
+
+test('a GRASSED material uploads the caller`s mix and splices the generated layer in', () => {
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.17 },
+  });
+  assert.equal(m.uniforms['uGrassMix']?.value, 0.17, 'the fac is UPLOADED, never written in');
+  assert.ok(/uniform float uGrassMix;/.test(m.fragmentShader));
+  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix);'));
+  // The generated source is the module's, spliced whole — not a hand-typed subset of it.
+  for (const line of grassGlsl().split('\n')) {
+    assert.ok(m.fragmentShader.includes(line), `the shader is missing a generated line: ${line}`);
+  }
+});
+
+test('the grass BREAKS the closure — asserted, because that is what ADR-0490 D5 authorises', () => {
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.1 },
+  });
+  assert.ok(
+    !grainKeepsPaletteClosed(m.fragmentShader),
+    'a grassed shader mixes into the delivered colour and is therefore off-palette',
+  );
+  // ⚠ AND THE NORMAL HALF IS UNAFFECTED. The grain still perturbs the lambert before the
+  // quantiser, so the layer that broke the closure is the grass and nothing else moved.
+  assert.ok(/st_grainGradient\(vWorld\.xz\)/.test(m.fragmentShader));
+});
+
+test('the grass composites in the RECIPE`S ORDER: after the ramp selection, before the grain`s colour half', () => {
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'both',
+    grass: { mix: 0.1 },
+  });
+  const body = m.fragmentShader.slice(m.fragmentShader.indexOf('void main('));
+  const select = body.indexOf('vec3 c = uRamp[0];');
+  const grassAt = body.indexOf('st_grassColour(vWorld.xz)');
+  const grainAt = body.indexOf('uGrainColourMix');
+  assert.ok(select >= 0 && grassAt > select, 'the grass must composite over a SELECTED status colour');
+  assert.ok(grainAt > grassAt, 'the grain is layer 5 and goes on LAST, over the grass');
+});
+
+test('the grass source is declared AFTER the grain`s, because it calls st_grainOctave', () => {
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.1 },
+  });
+  const hash = m.fragmentShader.indexOf('float st_grainHash(');
+  const octave = m.fragmentShader.indexOf('float st_grainOctave(');
+  const firstGrassCall = m.fragmentShader.indexOf('float st_grassBroad(');
+  assert.ok(hash >= 0 && octave > hash, 'the lattice hash and octave are the grain`s to declare');
+  assert.ok(
+    firstGrassCall > octave,
+    'GLSL ES 1.0 resolves against declarations already seen — the grass must come after',
+  );
+  // ONE lattice hash in the shader, not two. A grass-named copy would be a redefinition error at
+  // best and a silent divergence at worst.
+  assert.equal([...m.fragmentShader.matchAll(/float st_grainHash\(/g)].length, 1);
 });
