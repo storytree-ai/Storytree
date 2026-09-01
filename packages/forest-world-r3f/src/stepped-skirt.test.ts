@@ -21,7 +21,9 @@ import {
   type CellGroundGeometryInput,
   type LinearRgb,
   type P2,
+  type P3,
 } from './cell-ground-geometry.js';
+import { SHADE_LEVELS, lambertOfNormal, parseHex } from './shade-ladder.js';
 import {
   SKIRT_INSET_IN,
   SKIRT_INSET_OUT,
@@ -30,12 +32,21 @@ import {
   SKIRT_JITTER_BASE,
   SKIRT_JITTER_SPAN,
   SKIRT_ROCK,
+  SKIRT_ROCK_LIT,
+  SKIRT_ROCK_SHADED,
   SKIRT_ROWS,
   NO_SKIRT,
   ZERO_NORMAL,
   flatSkirt,
   insetPoint,
   isRimEdge,
+  ledgeBelowLadderFloor,
+  ledgeNormal,
+  oneRock,
+  shadeBelowHalfDepth,
+  shadeBelowLadderFloor,
+  shadeNever,
+  type SkirtShadeRule,
   outwardNormal,
   rimEdgeCount,
   rimEdgeKeys,
@@ -108,7 +119,7 @@ test('row 0 is the parcel ring itself, not a ledge, so it takes no inset', () =>
 });
 
 test('ONE ledge is the shipped wall EXACTLY — same code path, no inset, full drop', () => {
-  assert.deepEqual(skirtLedges(1), [{ row: 1, inset: 0, drop: 1 }]);
+  assert.deepEqual(skirtLedges(1), [{ row: 1, inset: 0, drop: 1, step: 0, fall: 1 }]);
   assert.deepEqual(skirtLedges(0), []);
 });
 
@@ -289,7 +300,7 @@ test('⚠ A ONE-LEDGE SKIRT AND NO SKIRT AT ALL EMIT THE SAME BYTES', () => {
   // and this is what makes that true. `flatSkirt` runs the LEDGE loop; `undefined` runs it with the
   // module's own `FLAT_WALL`. Both must land on the very floats every pre-skirt figure was taken on.
   const none = build();
-  const flat = build(flatSkirt({ row: ROCK_ROW, colour: ROCK, isRim: rimOf() }));
+  const flat = build(flatSkirt({ ...oneRock({ row: ROCK_ROW, colour: ROCK }), isRim: rimOf() }));
   assert.equal(flat.triangles, none.triangles);
   assert.deepEqual([...flat.positions], [...none.positions], 'a flat skirt moved a vertex');
   assert.deepEqual([...flat.normals], [...none.normals], 'a flat skirt turned a face');
@@ -300,8 +311,7 @@ test('⚠ A ONE-LEDGE SKIRT AND NO SKIRT AT ALL EMIT THE SAME BYTES', () => {
 test('the buffer is SIZED for exactly what is written — no overrun, no zeroed tail', () => {
   const stepped = build({
     rows: SKIRT_ROWS,
-    row: ROCK_ROW,
-    colour: ROCK,
+    ...oneRock({ row: ROCK_ROW, colour: ROCK }),
     soilLedges: 0,
     isRim: rimOf(),
   });
@@ -337,8 +347,7 @@ test('the ledges are CONTINUOUS — each hangs from the one above, so the cliff 
 test('the ROCK reaches the RIM and nothing else — a buried seam keeps its status colour', () => {
   const stepped = build({
     rows: SKIRT_ROWS,
-    row: ROCK_ROW,
-    colour: ROCK,
+    ...oneRock({ row: ROCK_ROW, colour: ROCK }),
     soilLedges: 0,
     isRim: rimOf(),
   });
@@ -352,10 +361,20 @@ test('the ROCK reaches the RIM and nothing else — a buried seam keeps its stat
 });
 
 test('`soilLedges` is the owner`s option B: the top ledge keeps the health tint', () => {
-  const b = build({ rows: SKIRT_ROWS, row: ROCK_ROW, colour: ROCK, soilLedges: 1, isRim: rimOf() });
+  const b = build({
+    rows: SKIRT_ROWS,
+    ...oneRock({ row: ROCK_ROW, colour: ROCK }),
+    soilLedges: 1,
+    isRim: rimOf(),
+  });
   const rockVerts = [...b.statuses].filter((r) => r === ROCK_ROW).length;
   assert.equal(rockVerts, 6 * (SKIRT_ROWS - 1) * 2 * 3, 'the top ledge is not soil');
-  const a = build({ rows: SKIRT_ROWS, row: ROCK_ROW, colour: ROCK, soilLedges: 0, isRim: rimOf() });
+  const a = build({
+    rows: SKIRT_ROWS,
+    ...oneRock({ row: ROCK_ROW, colour: ROCK }),
+    soilLedges: 0,
+    isRim: rimOf(),
+  });
   assert.ok(
     [...a.statuses].filter((r) => r === ROCK_ROW).length > rockVerts,
     'option A delivers no more rock than option B',
@@ -369,8 +388,7 @@ test('⚠ EVERY LEDGE HANGS BELOW THE GROUND, at exactly the fraction of depth i
   // wall above the land rather than falling to the sea, so the whole ladder is pinned, not its foot.
   const stepped = build({
     rows: SKIRT_ROWS,
-    row: ROCK_ROW,
-    colour: ROCK,
+    ...oneRock({ row: ROCK_ROW, colour: ROCK }),
     soilLedges: 0,
     isRim: rimOf(),
   });
@@ -397,7 +415,7 @@ test('NO_SKIRT marks NO edge as rim, which is why its colour can never be delive
   assert.equal(NO_SKIRT.isRim({ x: -9, z: 4 }, { x: 2, z: -7 }), false);
   assert.equal(NO_SKIRT.rows, 1, 'more than one ledge would move the no-skirt buffer');
   assert.equal(NO_SKIRT.soilLedges, 1, 'a zero here would make the single ledge rock');
-  assert.deepEqual(skirtLedges(NO_SKIRT.rows), [{ row: 1, inset: 0, drop: 1 }]);
+  assert.deepEqual(skirtLedges(NO_SKIRT.rows), [{ row: 1, inset: 0, drop: 1, step: 0, fall: 1 }]);
   // and the cost it implies is nothing, on both factors
   assert.equal(skirtExtraTriangles(rimEdgeCount(square(0, 0), NO_SKIRT.isRim), NO_SKIRT.rows), 0);
 
@@ -414,16 +432,304 @@ test('NO_SKIRT marks NO edge as rim, which is why its colour can never be delive
       break;
     }
   }
-  assert.ok(sawBlack, 'NO_SKIRT.colour is not the black the module says it is');
+  assert.ok(sawBlack, 'NO_SKIRT’s rocks are not the black the module says they are');
 });
 
 test('the FLAT skirt changes nothing — one ledge, no rock, no inset', () => {
   const flat = flatSkirt({
-    row: 3,
-    colour: { r: 0, g: 0, b: 0 },
+    ...oneRock({ row: 3, colour: { r: 0, g: 0, b: 0 } }),
     isRim: () => true,
   });
   assert.equal(flat.rows, 1);
   assert.equal(flat.soilLedges, 1, 'the one ledge keeps the parcel tint, so no rock is delivered');
-  assert.deepEqual(skirtLedges(flat.rows), [{ row: 1, inset: 0, drop: 1 }]);
+  assert.deepEqual(skirtLedges(flat.rows), [{ row: 1, inset: 0, drop: 1, step: 0, fall: 1 }]);
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────
+// THE SECOND TOKEN: why one rock cannot span the cliff, and which faces the second one carries.
+
+test('⚠⚠ ONE TOKEN CANNOT SPAN THE APPROVED SKIRT, AND THE PAIR CAN — the arithmetic, stated', () => {
+  // ⚠⚠ THIS IS THE INCREMENT'S WHOLE PREMISE AS AN ASSERTION RATHER THAN AS PROSE. The approved
+  // skirt spans luma 20.7 (p2) to 117.6 (p90) — a 5.7x range, because a path tracer lights it.
+  // A single token stepped down THIS ladder spans `SHADE_LEVELS`'s own ratio and nothing more,
+  // whatever colour the token is, so no re-pick closes the gap. If the ladder is ever refined the
+  // premise moves, and this fails rather than the claim quietly becoming false in a comment.
+  const APPROVED_SPAN = 117.6 / 20.7;
+  const ladderSpan = SHADE_LEVELS[SHADE_LEVELS.length - 1]! / SHADE_LEVELS[0]!;
+  assert.ok(ladderSpan < 1.3, `the ladder spans ${ladderSpan.toFixed(3)}x`);
+  assert.ok(
+    ladderSpan < APPROVED_SPAN,
+    'one token now reaches the approved skirt s range — the second token s premise is gone',
+  );
+
+  // and the pair does reach it: a token ratio times the ladder's own is the achievable span.
+  const lum = (hex: string): number => {
+    const c = parseHex(hex);
+    return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  };
+  const pairSpan = (lum(SKIRT_ROCK_LIT) * SHADE_LEVELS[SHADE_LEVELS.length - 1]!) /
+    (lum(SKIRT_ROCK_SHADED) * SHADE_LEVELS[0]!);
+  assert.ok(
+    pairSpan > 4,
+    `the pair spans only ${pairSpan.toFixed(2)}x, against the single token's ${ladderSpan.toFixed(2)}x`,
+  );
+});
+
+test('the ledges alternate UNDERCUT and PROUD — each step is the run from the one above', () => {
+  // The zigzag IS the bedding-plane read: `SKIRT_INSET_IN` cuts odd rows back and
+  // `SKIRT_INSET_OUT` stands even rows proud, so every ledge crosses the whole gap rather than
+  // taking half of it. `step` is that crossing, and it is what decides which rock a ledge wears.
+  const ledges = skirtLedges();
+  const signs = ledges.map((l) => Math.sign(l.step));
+  assert.deepEqual(signs, [1, -1, 1, -1, 1, -1], 'the profile stopped alternating');
+  // each ledge's step is measured from its PREDECESSOR, and the insets from the ring — so the
+  // steps must sum back to the last ledge's own inset, or the two views have drifted apart.
+  const summed = ledges.reduce((acc, l) => acc + l.step, 0);
+  assert.ok(Math.abs(summed - ledges[ledges.length - 1]!.inset) < 1e-12);
+  // every ledge falls the same fraction, and the falls reach the whole prism exactly once
+  assert.deepEqual([...new Set(ledges.map((l) => l.fall))], [1 / SKIRT_ROWS]);
+  assert.ok(Math.abs(ledges.reduce((a, l) => a + l.fall, 0) - 1) < 1e-12);
+});
+
+test('⚠ ledgeNormal: a ledge that steps INWARD as it falls points DOWN, and one that steps OUT points UP', () => {
+  const out: P2 = { x: 1, z: 0 };
+  // an undercut: half a unit down, half a unit inward -> 45 degrees, facing down and outward
+  const under = ledgeNormal(out, 0.5, 0.5);
+  assert.ok(Math.abs(under.x - Math.SQRT1_2) < 1e-12, `x was ${under.x}`);
+  assert.ok(Math.abs(under.y + Math.SQRT1_2) < 1e-12, `y was ${under.y}`);
+  assert.equal(under.z, 0);
+  // the mirror: standing proud, so the same face turned up
+  const proud = ledgeNormal(out, -0.5, 0.5);
+  assert.ok(Math.abs(proud.y - Math.SQRT1_2) < 1e-12, `y was ${proud.y}`);
+  // it is a UNIT normal, which the lighting term depends on and no caller re-normalises
+  for (const n of [under, proud, ledgeNormal({ x: 0.6, z: -0.8 }, 0.3, 0.9)]) {
+    assert.ok(Math.abs(Math.hypot(n.x, n.y, n.z) - 1) < 1e-12, 'ledgeNormal is not unit length');
+  }
+  // ⚠ THE FLAT WALL IS THE ZERO-STEP CASE AND IT IS VERTICAL — the outward normal itself. This is
+  // what makes a one-ledge skirt the wall the map always drew, in the normal as well as in the
+  // position, so the shipped control arm stays byte-identical.
+  // ⚠ COMPARED WITH `===` RATHER THAN `deepEqual`, because a zero step divides to NEGATIVE zero
+  // and `deepStrictEqual` separates -0 from 0 while every consumer of this value does not:
+  // `lambertOfNormal` multiplies it and both signs of zero sum identically. Asserting the
+  // distinction would be pinning a fact about the spelling rather than about the direction.
+  const vertical = ledgeNormal(out, 0, 1);
+  assert.ok(vertical.x === 1 && vertical.y === 0 && vertical.z === 0, `${JSON.stringify(vertical)}`);
+  // ⚠ AND A FACE OF NO EXTENT HAS NO DIRECTION: the honest answer is the edge's own outward
+  // normal rather than a NaN propagated into a lighting term by a division by zero.
+  assert.deepEqual(ledgeNormal(out, 0, 0), { x: 1, y: 0, z: 0 });
+  assert.deepEqual(ledgeNormal(ZERO_NORMAL, 0, 0), { x: 0, y: 0, z: 0 });
+  assert.ok(Number.isFinite(lambertOfNormal(ledgeNormal(out, 0, 0))), 'a zero face lit to NaN');
+});
+
+test('⚠⚠ THE MEASUREMENT THAT CHOSE THE RULE: the ladder saturates on more than half the cliff', () => {
+  // ⚠⚠ RE-DERIVED HERE RATHER THAN QUOTED FROM THE EVIDENCE PAGE, because it is the reason the
+  // second token is selected by SATURATION rather than by row parity or by "the shaded side".
+  // Swept over 36 rim azimuths: every DOWN-facing ledge falls below the ladder's floor at EVERY
+  // azimuth — the quantiser delivers them all at one lightness however much darker their true
+  // lighting is — and the UP-facing ones fall below it on the half of the island facing away from
+  // the light. A rule keyed on row parity would reach the first group and miss the second.
+  const AZIMUTHS = 36;
+  const saturated = skirtLedges().map((ledge) => {
+    let n = 0;
+    for (const k of Array.from({ length: AZIMUTHS }, (_, i) => i)) {
+      const t = (k / AZIMUTHS) * Math.PI * 2;
+      const outward: P2 = { x: Math.cos(t), z: Math.sin(t) };
+      if (ledgeBelowLadderFloor(ledgeNormal(outward, ledge.step, CELL_GROUND_DEPTH * ledge.fall))) {
+        n += 1;
+      }
+    }
+    return n;
+  });
+  // the three undercut ledges: saturated everywhere, with no azimuth the ladder can express
+  assert.deepEqual([saturated[0], saturated[2], saturated[4]], [AZIMUTHS, AZIMUTHS, AZIMUTHS]);
+  // the three proud ones: saturated on the away-from-light half, and NOT on the lit half — which
+  // is the group row parity cannot reach, and the reason the rule reads the lighting term.
+  for (const i of [1, 3, 5]) {
+    assert.ok(saturated[i]! > 0, `proud ledge ${i + 1} is never saturated`);
+    assert.ok(saturated[i]! < AZIMUTHS, `proud ledge ${i + 1} is saturated at every azimuth`);
+  }
+  const total = saturated.reduce((a, b) => a + b, 0);
+  assert.ok(
+    total > (AZIMUTHS * SKIRT_ROWS) / 2,
+    `only ${total} of ${AZIMUTHS * SKIRT_ROWS} ledge-azimuths saturate; a second token would be ` +
+      'reaching a minority of the cliff',
+  );
+});
+
+test('⚠ the ladder FLOOR is the boundary, and a face sitting exactly on it keeps the lit rock', () => {
+  // ⚠ THE TIE IS DECIDED WITH AN INJECTED FLOOR, for the reason the module states: over the
+  // authored `SHADE_LEVELS[0]` no reachable face lands on an exact tie, so the `<` rule is
+  // unobservable there. The floor is taken from `lambertOfNormal` itself rather than typed out, so
+  // the tie is exact by construction rather than to within a rounding.
+  const up: P3 = { x: 0, y: 1, z: 0 };
+  const exactly = lambertOfNormal(up);
+  assert.equal(ledgeBelowLadderFloor(up, exactly), false, 'a face ON the floor read as below it');
+  assert.equal(ledgeBelowLadderFloor(up, exactly + 1e-9), true);
+  assert.equal(ledgeBelowLadderFloor(up, exactly - 1e-9), false);
+  // and the authored default is the ladder's darkest rung, not its first BIN: a face at 0.81 is
+  // representable (it quantises to rung 0 by rounding) and must keep the lit rock.
+  assert.ok(SHADE_LEVELS[0]! < 0.8125, 'the ladder floor and the first bin edge have converged');
+});
+
+// ────────────────────────────────────────────────────────────────────────────────────────────
+// AND WHAT THE BUILDER DOES WITH IT.
+
+/** The rows a two-token cliff selects, over the same two-parcel fixture. */
+const SHADED_ROW = 11;
+const pair = (isShaded: SkirtShadeRule = shadeBelowLadderFloor) => ({
+  rows: SKIRT_ROWS,
+  lit: { row: ROCK_ROW, colour: ROCK },
+  shaded: { row: SHADED_ROW, colour: { r: 0.09, g: 0.1, b: 0.12 } },
+  isShaded,
+  soilLedges: 0,
+  isRim: rimOf(),
+});
+
+test('⚠⚠ A ONE-TOKEN CLIFF IS BYTE-IDENTICAL TO THE PAIR HANDED THE SAME ROCK TWICE', () => {
+  // ⚠⚠ THIS IS WHAT MAKES THE COMPARISON PAGE'S `rock` ARM THE SHIPPED MAP RATHER THAN A
+  // RECONSTRUCTION OF IT. The selection runs on every ledge of both, and the degenerate pair's two
+  // answers are the same rock — so a cliff that wants one colour goes down the very same code path
+  // and lands on the very same floats. If this ever fails, the control arm has stopped being a
+  // control and every number measured against it is a comparison of two different changes.
+  const one = build({ rows: SKIRT_ROWS, ...oneRock({ row: ROCK_ROW, colour: ROCK }), soilLedges: 0, isRim: rimOf() });
+  const spelled = build({
+    rows: SKIRT_ROWS,
+    lit: { row: ROCK_ROW, colour: ROCK },
+    shaded: { row: ROCK_ROW, colour: ROCK },
+    isShaded: shadeNever,
+    soilLedges: 0,
+    isRim: rimOf(),
+  });
+  assert.deepEqual([...one.colors], [...spelled.colors]);
+  assert.deepEqual([...one.statuses], [...spelled.statuses]);
+  assert.deepEqual([...one.positions], [...spelled.positions]);
+});
+
+test('⚠ A TWO-TOKEN CLIFF DELIVERS BOTH ROCKS, and which one is the pure predicate’s own answer', () => {
+  // ⚠⚠ THIS IS THE SEAM BETWEEN THE PREDICATE AND THE BUILDER, CHECKED RATHER THAN ASSUMED. The
+  // expected count is computed HERE from `ledgeNormal` + `ledgeBelowLadderFloor` over the fixture's
+  // own rim edges, and compared against what the builder actually wrote. A builder that sized off
+  // one rule and painted off another — the exact failure `rimEdgeCount` exists to prevent for the
+  // buffer — would pass a "both rows appear" assertion and fail this one.
+  const two = build(pair());
+  const rows = [...two.statuses];
+  const litVerts = rows.filter((r) => r === ROCK_ROW).length;
+  const shadedVerts = rows.filter((r) => r === SHADED_ROW).length;
+  assert.ok(litVerts > 0, 'the cliff delivered no LIT rock at all');
+  assert.ok(shadedVerts > 0, 'the cliff delivered no SHADED rock at all');
+
+  const isRim = rimOf();
+  const ledges = skirtLedges();
+  let expectedShaded = 0;
+  for (const c of [square(0, 0), square(1, 0)]) {
+    for (const [i, a] of c.entries()) {
+      const b = c[(i + 1) % c.length]!;
+      if (!isRim(a, b)) continue;
+      const outward = outwardNormal(a, b);
+      for (const ledge of ledges) {
+        const n = ledgeNormal(outward, ledge.step, CELL_GROUND_DEPTH * ledge.fall);
+        if (ledgeBelowLadderFloor(n)) expectedShaded += 1;
+      }
+    }
+  }
+  // each ledge quad is 2 triangles x 3 vertices
+  assert.equal(shadedVerts, expectedShaded * 6, 'the builder and the predicate disagree');
+  assert.equal(litVerts + shadedVerts, 6 * SKIRT_ROWS * 2 * 3, 'a rim ledge wears neither rock');
+});
+
+test('⚠ A BURIED SEAM TAKES NEITHER ROCK — the rim guard, asked of the SHADED half too', () => {
+  // ⚠⚠ `rim &&` GUARDS THE SELECTION, NOT ONLY THE ROCK. A buried seam takes the one-rung flat
+  // wall, whose step is 0 and whose normal is therefore the horizontal outward one — a lambert
+  // well under the floor, so it would be SHADED at every azimuth. Without the guard every interior
+  // wall in the island would be painted the dark rock: invisible from outside, and still wrong,
+  // because the colour buffer is what the comparison arms are built from.
+  const two = build(pair());
+  const rows = [...two.statuses];
+  const soilVerts = rows.filter((r) => r === SOIL_ROW).length;
+  // the shared seam is 2 quads = 4 triangles = 12 vertices of wall, plus both top faces
+  assert.ok(soilVerts > 0, 'the buried seam lost its status colour');
+  assert.equal(
+    soilVerts + rows.filter((r) => r === ROCK_ROW || r === SHADED_ROW).length,
+    rows.length,
+    'a vertex wears no row at all',
+  );
+  // and asking for no skirt still delivers no rock of either kind
+  const none = build();
+  assert.deepEqual([...new Set([...none.statuses])], [SOIL_ROW]);
+});
+
+test('NO_SKIRT’s SHADED rock is as unreachable as its lit one, and is the same black', () => {
+  // The lit half of the pair is driven by the test above; this drives the OTHER half, because
+  // `NO_SKIRT` now carries two colours and a mutant emptying only the shaded one would otherwise
+  // survive. Making it reachable states what a leak would look like: an island edged in black.
+  assert.deepEqual(NO_SKIRT.shaded.colour, { r: 0, g: 0, b: 0 });
+  assert.deepEqual(NO_SKIRT.lit.colour, NO_SKIRT.shaded.colour);
+  assert.equal(NO_SKIRT.lit.row, NO_SKIRT.shaded.row);
+});
+
+test('oneRock is the degenerate pair, and it is the same object on both sides', () => {
+  const rock = { row: 4, colour: { r: 0.1, g: 0.2, b: 0.3 } };
+  const p = oneRock(rock);
+  assert.equal(p.lit, rock);
+  assert.equal(p.shaded, rock);
+});
+
+test('⚠⚠ THE TWO RULES SELECT DIFFERENT COURSES, AND THE DEPTH RULE IS THE ONE ON THE VISIBLE ONES', () => {
+  // ⚠⚠ THE FINDING THAT CHOSE THE SHIPPED RULE, AS AN ASSERTION. `shadeBelowLadderFloor` is the
+  // obvious rule and it puts the shaded rock on the UNDERCUT courses — 1, 3 and 5 — which on this
+  // map's fixed 2.5D camera are back-facing and contribute essentially no projected area (measured
+  // on the shipped fixture: 15.4, 0.0 and 0.0 units against the proud courses' 200.7, 267.0 and
+  // 333.3). `shadeBelowHalfDepth` splits by depth instead, so it reaches courses 4 and 6, which are
+  // two of the three the camera can actually see.
+  const ledges = skirtLedges();
+  const out: P2 = { x: 0, z: 1 };
+  const lit = ledges.filter((l) => shadeBelowLadderFloor(l, out, CELL_GROUND_DEPTH)).map((l) => l.row);
+  const deep = ledges.filter((l) => shadeBelowHalfDepth(l, out, CELL_GROUND_DEPTH)).map((l) => l.row);
+  // every UNDERCUT course saturates at every azimuth, so the lighting rule always contains them
+  for (const row of [1, 3, 5]) assert.ok(lit.includes(row), `course ${row} is not saturated`);
+  // the depth rule is the cliff's own lower half, and it contains two PROUD courses
+  assert.deepEqual(deep, [4, 5, 6]);
+  for (const row of [4, 6]) {
+    assert.ok(ledges[row - 1]!.step < 0, `course ${row} is not a proud course any more`);
+  }
+  // and they are genuinely different rules, so the comparison page has two arms rather than one
+  assert.notDeepEqual(lit, deep);
+  // ⚠ THE DEPTH RULE READS THE LEDGE ALONE. It must not consult the edge it is cut into, or the
+  // cliff's banding would change around the island and stop reading as strata.
+  for (const t of [0, 1, 2, 3]) {
+    const az = (t / 4) * Math.PI * 2;
+    const o: P2 = { x: Math.cos(az), z: Math.sin(az) };
+    assert.deepEqual(
+      ledges.filter((l) => shadeBelowHalfDepth(l, o, CELL_GROUND_DEPTH)).map((l) => l.row),
+      deep,
+      'the depth rule moved with the azimuth',
+    );
+  }
+  // shadeNever is the one-token cliff and selects nothing, at any azimuth or depth
+  assert.deepEqual(ledges.filter((l) => shadeNever(l, out, CELL_GROUND_DEPTH)), []);
+  // ⚠ AND IT RETURNS `false`, NOT MERELY SOMETHING FALSY — asserted strictly because
+  // `check:mutation-diff` replaced its body with `() => undefined` and the filter above could not
+  // tell. A `SkirtShadeRule` is declared to return a boolean and the mutant compiles only because
+  // the rung does not typecheck; strict equality is what makes the contract observable.
+  for (const l of ledges) assert.equal(shadeNever(l, out, CELL_GROUND_DEPTH), false);
+});
+
+test('the DEPTH rule puts the shaded rock on the cliff’s lower half in the BUFFER too', () => {
+  const two = build(pair(shadeBelowHalfDepth));
+  const rows = [...two.statuses];
+  const shadedVerts = rows.filter((r) => r === SHADED_ROW).length;
+  // 6 rim edges x 3 shaded courses x 2 triangles x 3 vertices
+  assert.equal(shadedVerts, 6 * 3 * 2 * 3);
+  assert.equal(rows.filter((r) => r === ROCK_ROW).length, 6 * 3 * 2 * 3);
+  // and the shaded vertices are the DEEP ones: none of them sits above half depth
+  const deepest = -CELL_GROUND_DEPTH * 0.5;
+  for (let t = 0; t < two.triangles; t += 1) {
+    if (rows[t * 3] !== SHADED_ROW) continue;
+    for (const v of [0, 1, 2]) {
+      assert.ok(
+        two.positions[t * 9 + v * 3 + 1]! <= deepest + 1e-9,
+        'a shaded ledge reaches above the cliff’s half depth',
+      );
+    }
+  }
 });

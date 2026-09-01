@@ -42,10 +42,12 @@ import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
 import { SHIPPED_SHORE, shoreRelief } from './shore-fall.js';
 import { shoreArmRingPlan } from './shore-ring.js';
 import {
-  SKIRT_ROCK,
+  SKIRT_ROCK_LIT,
+  SKIRT_ROCK_SHADED,
   SKIRT_ROWS,
   isRimEdge,
   rimEdgeKeys,
+  shadeBelowHalfDepth,
   type GroundSkirt,
 } from './stepped-skirt.js';
 import {
@@ -231,10 +233,26 @@ const linearColourOf = (material: string | undefined): LinearRgb =>
  *  harness's transcription — and refuses any disagreement. The rock is not a status, does not
  *  belong in that map, and joining it there would have made a decoration look like a seventh
  *  state to every reader of all three. */
-const GROUND_TOKENS: readonly string[] = [...GROUND_COLOUR.values(), SKIRT_ROCK];
-/** The rock's own row — DERIVED from where it was appended rather than written down, so the
- *  geometry's row and the material's token cannot drift to different indices. */
-const SKIRT_ROCK_ROW = GROUND_TOKENS.length - 1;
+/** ⚠⚠ TWO ROCK ROWS SINCE 2026-09-01, NOT ONE — a LIT rock and a SHADED one, because a single
+ *  token provably cannot span the cliff's tonal range. The approved skirt spans a 5.7x range and
+ *  this ladder spans 1.25x, so the arithmetic forbids one token reaching it; and measured over the
+ *  rim's azimuths, more than half the cliff is piled on the ladder's DARKEST rung, where a rung
+ *  cannot move it and only a token can. `src/stepped-skirt.ts` carries the measurement and the
+ *  selection rule; `docs/research/chapter2-skirt-tonal-range-2026-09-01/` carries the pictures. */
+const GROUND_TOKENS: readonly string[] = [
+  ...GROUND_COLOUR.values(),
+  SKIRT_ROCK_LIT,
+  SKIRT_ROCK_SHADED,
+];
+/** The rocks' own rows — DERIVED from where they were appended rather than written down, so the
+ *  geometry's row and the material's token cannot drift to different indices.
+ *
+ *  ⚠ RELATIVE TO THE END, so appending a THIRD family-less token later moves neither of these by
+ *  accident: the lit rock is the second-from-last row and the shaded rock the last, which is the
+ *  order `GROUND_TOKENS` is written in above and the only order these two expressions can agree
+ *  with. */
+const SKIRT_ROCK_SHADED_ROW = GROUND_TOKENS.length - 1;
+const SKIRT_ROCK_LIT_ROW = GROUND_TOKENS.length - 2;
 const GROUND_ROWS: ReadonlyMap<string, number> = new Map(
   [...GROUND_COLOUR.keys()].map((status, i) => [status, i]),
 );
@@ -358,8 +376,14 @@ function shippedSkirt(cells: readonly InstanceDescriptor[]): GroundSkirt {
   const rim = rimEdgeKeys(cells);
   return {
     rows: SKIRT_ROWS,
-    row: SKIRT_ROCK_ROW,
-    colour: linearColourOfHex(SKIRT_ROCK),
+    lit: { row: SKIRT_ROCK_LIT_ROW, colour: linearColourOfHex(SKIRT_ROCK_LIT) },
+    shaded: { row: SKIRT_ROCK_SHADED_ROW, colour: linearColourOfHex(SKIRT_ROCK_SHADED) },
+    // ⚠ THE CLIFF'S LOWER HALF WEARS THE SHADED ROCK, decided against the pictures in
+    // `docs/research/chapter2-skirt-tonal-range-2026-09-01/` rather than by argument. The obvious
+    // rule — shade what the LADDER cannot express — is built and measured there too, and it loses:
+    // the faces it selects are seen nearly edge-on and cover 1% of the island, so the island's dark
+    // anchor cannot see them. `shadeBelowLadderFloor` carries that measurement.
+    isShaded: shadeBelowHalfDepth,
     soilLedges: SHIPPED_SOIL_LEDGES,
     isRim: (a, b) => isRimEdge(rim, a, b),
   };

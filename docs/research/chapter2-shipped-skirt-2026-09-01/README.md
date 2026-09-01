@@ -2,6 +2,22 @@
 
 `adopt-the-land-into-the-shipped-map-arc` · 2026-09-01 · `packages/forest-world-r3f`
 
+> **⚠ OVERTAKEN IN PART, SAME DAY — §7's gap has been closed by half.** The cliff described here is a
+> ONE-TOKEN cliff, and this page's own §7 named the reason it could not reach the approved render:
+> the ladder spans 1.25x and the render's skirt spans 5.7x. The second token it calls "the obvious
+> next move" was built, and the page for it is
+> **`docs/research/chapter2-skirt-tonal-range-2026-09-01/`**. What SHIPS is now a lit rock and a
+> shaded one, split at the cliff's half-depth; the single median rock survives as this page's `rock`
+> arm and as the denominator that increment is measured against. Every number below is still true
+> **of that arm** and is what it was measured as. Two things here are now stale as descriptions of
+> the shipped map and are corrected there rather than rewritten here: §4's `rock` row is no longer
+> what ships, and §4's "honest residual" — the 9.0 RGB clearance from `unhealthy` — is the single
+> rock's; the pair clears by 20.9 and 58.2.
+>
+> ⚠ AND ITS REPRODUCE COMMAND NOW WRITES TO THE NEW DIRECTORY. `measure-shipped-skirt` drives SIX
+> arms and its default output moved with them, so re-running it will not refresh the frames below.
+> They are the record of PR #1782 and are meant to stay that way.
+
 The approved land treatment is six components. This is the last of them: **the asset kit's cliff on
 a six-row stepped skirt**. It is also the only one that could not be built at all until the owner
 decided, because it is the first ground surface on this map that reports nothing.
