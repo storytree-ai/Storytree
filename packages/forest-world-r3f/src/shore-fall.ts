@@ -111,11 +111,18 @@ export const SHORE_DIP = 0.62;
  * module — so every figure about what the shore fall moved has a denominator that is a picture
  * somebody actually took. The three real arms differ in the band WIDTH and in nothing else.
  */
-export type ShoreArm = 'none' | 'authored' | 'beach' | 'shelf';
+export type ShoreArm = 'none' | 'authored' | 'beach' | 'shelf' | 'ring' | 'ring-pair';
 
 /** Every arm, control first. A list rather than a union re-spelled at each call site, so an arm
  *  cannot be added to the type and quietly left out of the comparison. */
-export const SHORE_ARMS: readonly ShoreArm[] = ['none', 'authored', 'beach', 'shelf'];
+export const SHORE_ARMS: readonly ShoreArm[] = [
+  'none',
+  'authored',
+  'beach',
+  'shelf',
+  'ring',
+  'ring-pair',
+];
 
 /**
  * The band width each arm draws, in ground units.
@@ -136,12 +143,21 @@ export const SHORE_ARMS: readonly ShoreArm[] = ['none', 'authored', 'beach', 'sh
  * width would buy if the mesh could carry it: 315 vertices moved against 253, 239 rung flips
  * against 208. It is NOT the shipped arm, and the reason is measured rather than aesthetic — see
  * {@link SHIPPED_SHORE}.
+ *
+ * ⚠⚠ `ring` AND `ring-pair` MOVE A DIFFERENT VARIABLE, AND THEIR WIDTH IS DELIBERATELY `beach`'s.
+ * They are the answer to the void above rather than another guess at the width: both draw the
+ * SAME 7-unit band as `beach` and differ from it only in that the mesh gains vertices INSIDE that
+ * band for the falloff to bend through (`src/shore-ring.ts` owns which insets, and
+ * `SHORE_ARM_INSETS` is the table). So `beach` is their control and the comparison is one thing
+ * apart, exactly as `authored` against `beach` is one thing apart on the width axis.
  */
 export const SHORE_ARM_WIDTH = {
   none: 0,
   authored: AUTHORED_SHORE_WIDTH,
   beach: COAST_OUTSET,
   shelf: 16.5,
+  ring: COAST_OUTSET,
+  'ring-pair': COAST_OUTSET,
 } satisfies Record<ShoreArm, number>;
 
 /**
@@ -152,6 +168,27 @@ export const SHORE_ARM_WIDTH = {
  * gains vertices inside the band (the next increment), the fall covers exactly the land the coast
  * added and stops.
  *
+ * ⚠⚠ THE MESH DID GAIN THEM, AND THE SHIPPED ARM IS NOW `ring` — the SAME 7-unit band with one
+ * inset chain at its midpoint (`src/shore-ring.ts`). Measured on the Mint box, 2026-09-01, against
+ * `beach` on the shipped island: the mesh's departure from the analytic land inside the beach falls
+ * from 0.420 to 0.286 ground units mean (−31.9%), 176,784 delivered pixels change at 8 px/unit —
+ * MORE than widening the band from 7 to 16.5 changes (130,106) — for 2,264 → 2,962 triangles
+ * (+30.8%) and one draw call still.
+ *
+ * ⚠⚠ AND `ring-pair` IS REFUSED FOR A MEASURED REASON RATHER THAN FOR ITS COST. It has the better
+ * average by a distance (mean sag 0.138, −67.1%) and its frame cost is nowhere near a hardware
+ * floor, which is the only ground ADR-0415 D1 leaves for rejecting detail. What it loses is
+ * COVERAGE: its outer chain at 4.67 units folds on coasts that turn tighter than that, so it
+ * divides 36 of the island's 53 coastal parcels against `ring`'s 47 (1,313 of 1,854 against 1,657
+ * on the forest). A band delivered on 68% of the shore and absent on the rest reads as a coast that
+ * keeps stopping, and a uniformly gentler shore is worth more than a sharper one with gaps.
+ *
+ * ⚠ THAT IS A PROPERTY OF THIS IMPLEMENTATION AND NOT OF TWO RINGS. The ladder degrades a chain's
+ * DEPTH and not the ring COUNT, so a parcel that cannot carry the outer chain falls back to no
+ * chain at all rather than to the inner one. Degrading in count would very likely make `ring-pair`
+ * the better arm on both measures; it is a separate increment, named here so the refusal is
+ * revisitable rather than final.
+ *
  * ⚠⚠ `shelf` IS REFUSED FOR A MEASURED REASON AND NOT A LOOK. It lowers ground INLAND of the
  * pre-coast boundary — its highest vertex comes back at 3.871 against the control's 4.034 — and
  * that ground carries PROPS. `dressMapFromKit` still reads the mapper's own descriptors (the coast
@@ -159,7 +196,7 @@ export const SHORE_ARM_WIDTH = {
  * ground beneath it moves. `beach` cannot do that: at `COAST_OUTSET` the fall reaches exactly the
  * pre-coast boundary and no further, where the falloff is 1 and the ground has not moved at all.
  */
-export const SHIPPED_SHORE: ShoreArm = 'beach';
+export const SHIPPED_SHORE: ShoreArm = 'ring';
 
 // ---------------------------------------------------------------------------
 // The falloff itself

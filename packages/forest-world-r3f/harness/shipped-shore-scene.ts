@@ -70,7 +70,7 @@ import {
   groundAtlasTexture,
   type BandedGroundMaterialOptions,
 } from '../src/banded-ground-material.js';
-import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
+import { cellGroundGeometry, triangulateRing } from '../src/cell-ground-geometry.js';
 import {
   COAST_OUTSET,
   SHIPPED_COAST,
@@ -84,9 +84,11 @@ import { rungOfNormal } from '../src/shade-ladder.js';
 import {
   SHORE_ARMS,
   SHORE_ARM_WIDTH,
+  shoreField,
   shoreRelief,
   type ShoreArm,
 } from '../src/shore-fall.js';
+import { SHORE_ARM_INSETS, armHasRing, shoreArmRingPlan } from '../src/shore-ring.js';
 import { SHADOW_GRES } from '../src/land-shadow.js';
 import { SHADOW_ATLAS_MAX, buildAtlasOcclusion, atlasOriginResolver, islandGroundBounds, packShadowAtlas } from '../src/shadow-atlas.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
@@ -115,10 +117,29 @@ export const REFERENCE_ARM: ShoreArm = 'none';
  *  left silently out of the comparison. */
 export const ALL_SHORE_ARMS: readonly ShoreArm[] = SHORE_ARMS;
 
-/** The arms this page COMPARES - the control is deliberately not one of them. */
+/** The arms this page COMPARES — the control is deliberately not one of them. */
 export const SHORE_TREATMENT_ARMS: readonly ShoreArm[] = SHORE_ARMS.filter(
   (a) => a !== REFERENCE_ARM,
 );
+
+/**
+ * The arms on the WIDTH axis — those that move the band and nothing else.
+ *
+ * ⚠⚠ THIS PAGE NOW CARRIES TWO AXES MEETING AT ONE ARM, and saying which is which is what keeps
+ * every refusal below meaningful. `none → authored → beach → shelf` moves the band's WIDTH and
+ * creates no geometry, so its counters must be identical across all four. `beach → ring →
+ * ring-pair` holds the width at 7 and moves the MESH, so its counters must differ — and a refusal
+ * that demanded identity across every arm would now fire on the increment doing its job.
+ */
+export const SHORE_WIDTH_ARMS: readonly ShoreArm[] = SHORE_ARMS.filter((a) => !armHasRing(a));
+
+/** The arms that insert an inset ring. `beach` is their control: same band, same everything, one
+ *  mesh apart. DERIVED from the module's own table, so an arm cannot gain a ring and be compared
+ *  against the wrong denominator. */
+export const SHORE_RING_ARMS: readonly ShoreArm[] = SHORE_ARMS.filter((a) => armHasRing(a));
+
+/** The arm every ring arm is read against — the shipped shore band with the mesh the map has. */
+export const RING_REFERENCE_ARM: ShoreArm = 'beach';
 
 /** What each arm adds, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
@@ -126,7 +147,9 @@ export const SHORE_ARM_CAPTION = {
   none: 'the shipped map today - the land stands full height right up to the waterline (CONTROL)',
   authored: `+ the generator's own ${SHORE_ARM_WIDTH.authored}-unit band (under half the beach)`,
   beach: `+ a ${SHORE_ARM_WIDTH.beach}-unit band - exactly the land the coast clip added`,
-  shelf: `+ a ${SHORE_ARM_WIDTH.shelf}-unit band - a whole parcel inland, a shelf not a lip`,
+  shelf: `+ a ${SHORE_ARM_WIDTH.shelf}-unit band — a whole parcel inland, a shelf not a lip`,
+  ring: `beach + ONE inset ring at ${SHORE_ARM_INSETS.ring[0]!} units — the band gains vertices to bend through`,
+  'ring-pair': `beach + TWO inset rings at the band's thirds — does a second ring keep paying?`,
 } satisfies Record<ShoreArm, string>;
 
 /** One island, and the thirty-five-island forest. The shore band is a per-island annulus, so ONE
@@ -146,6 +169,23 @@ export const SHORE_PICTURE_ZOOMS: readonly CrowdZoom[] = [...SHORE_ZOOMS, FIT_ZO
 export const BEACH_GROUND_WIDTH = COAST_OUTSET;
 
 /**
+ * THE REGION EVERY ARM'S SAG IS MEASURED OVER, in ground units from the shore — FIXED, and the
+ * same for all six.
+ *
+ * ⚠⚠ IT IS NOT THE ARM'S OWN BAND, AND THE FIRST DRAFT'S USE OF THAT WAS A COMPARISON THAT COULD
+ * NOT BE READ. Measured over its own band, `authored` (3.1 units) came back with a LOWER mean sag
+ * than `beach` (7) — 0.268 against 0.420 — and a reader would take that as the narrower band
+ * tracking the land better. It is not: the two deliver the BIT-IDENTICAL land (they sit inside the
+ * same vertex void), and the only thing that differed was how much of the shore each number was
+ * averaged over. A statistic whose denominator moves with the arm is not a comparison.
+ *
+ * ⚠ FIXED AT THE BEACH THE COAST CLIP ACTUALLY ADDED, which is the ground this whole component is
+ * about, and which makes `none` a real baseline rather than an empty row: the unfallen land has a
+ * sag of its own there — the sine relief's chordal error — and every fall is read against it.
+ */
+export const SAG_REGION = COAST_OUTSET;
+
+/**
  * What one arm costs and what it CHANGED, in numbers a picture cannot carry.
  *
  * ⚠⚠ THE FIRST FIVE ARE EXPECTED TO BE IDENTICAL ON EVERY ARM, AND THAT IS A RESULT RATHER THAN AN
@@ -156,15 +196,23 @@ export const BEACH_GROUND_WIDTH = COAST_OUTSET;
  * geometry would otherwise land silently.
  */
 export interface ShorePlan {
-  /** Triangles in the merged ground buffer. Identical on every arm. */
+  /** Triangles in the merged ground buffer. Identical across the WIDTH arms; the whole cost of a
+   *  ring arm. */
   triangles: number;
-  /** Ring vertices across every parcel. Identical on every arm. */
+  /** Ring vertices across every parcel — the WALL rings, which is what a ring arm lengthens.
+   *  Identical across the width arms. */
   ringVertices: number;
   /** Bytes of vertex attribute the merged buffer uploads (position + normal + row + atlas origin).
-   *  Identical on every arm. */
+   *  Identical across the width arms; a ring arm's second cost after the triangles. */
   attributeBytes: number;
-  /** The island's summed parcel area, in square ground units. Identical on every arm — the fall is
-   *  vertical, so there is nowhere it changes how much land there IS. */
+  /** The island's summed parcel area, in square ground units.
+   *
+   *  ⚠⚠ IDENTICAL ON EVERY ARM INCLUDING THE RING ARMS, AND THAT IS THE RING'S SHARPEST CHECK
+   *  RATHER THAN A LEFTOVER. The fall is vertical, so the width axis cannot move it. The ring axis
+   *  DIVIDES parcels, and a division that lost or double-counted ground would move this number by
+   *  exactly the ground it got wrong — which on a map whose colour reports a capability's status
+   *  is a misreport (ADR-0392 D5 / ADR-0398 D7). Conserved area is the evidence that a divided
+   *  parcel is still the same parcel. */
   groundArea: number;
   /** Parcels whose ring crosses itself. The coast clip's fold cap owns this; it must be zero on
    *  every arm and the driver refuses a run where it is not. Carried through rather than dropped
@@ -188,6 +236,47 @@ export interface ShorePlan {
   /** The lowest and highest ground the arm delivers, in ground units. */
   minHeight: number;
   maxHeight: number;
+  // ---- what the INSET RING costs, and what it buys -------------------------------------------
+
+  /** Parcels that meet the coast — the denominator {@link dividedParcels} is read against, since
+   *  an island is mostly interior and a bare divided count says nothing about how much of the SHORE
+   *  gained a band. 0 on every width arm, which did not look. */
+  coastalParcels: number;
+  /** Parcels whose top face was divided along an inset ring. 0 on every width arm. */
+  dividedParcels: number;
+  /** Divided parcels whose chain the ladder had to DEMOTE — a coast turning tighter than the ring.
+   *  The cap's own report: a cap nobody can see reads as a shore that never needed one. */
+  cappedParcels: number;
+  /** The shallowest depth any divided parcel's chain kept, as a fraction of the authored inset.
+   *  1 when nothing was demoted. */
+  leastScale: number;
+  /** Vertices the ring inserted into wall rings — the shared, edge-local half of the division, and
+   *  the part that costs two triangles apiece rather than a whole parcel's worth. */
+  insertedVertices: number;
+  /** Top-face triangles whose centroid lies within {@link SAG_REGION} of the shore — the ones the
+   *  ring exists to create, and the denominator {@link meanSag} is averaged over. The region is
+   *  FIXED across arms, so this column is comparable and a growing count means a finer mesh rather
+   *  than a wider band. */
+  bandTriangles: number;
+  /**
+   * ⚠⚠ HOW FAR THE TRIANGULATED SURFACE DEPARTS FROM THE LAND IT IS APPROXIMATING, inside the
+   * band, in ground units — THE NUMBER THIS INCREMENT EXISTS TO MOVE.
+   *
+   * The shore fall is an analytic field: `shoreRelief` answers at every point, smoothstep and all.
+   * What the map DRAWS is a triangulation that samples that field at its vertices and interpolates
+   * flat between them, so where the mesh has no vertices the falloff's shape is not merely coarse —
+   * it is absent, replaced by a straight ramp from the waterline to the first interior corner 8.66
+   * units inland. This is that gap, measured per triangle as the sag between its plane and the
+   * field at its own centroid: the classic chordal error of a piecewise-linear approximation.
+   *
+   * ⚠ IT IS THE HONEST FORM OF THE QUESTION "did the shape become visible", because it is a
+   * property of the SURFACE rather than of the pictures. A rung flip says a viewer would see a
+   * different colour somewhere; this says how much of the authored landform the mesh is capable of
+   * carrying at all. A ring that cost triangles and did not move this bought nothing.
+   */
+  maxSag: number;
+  meanSag: number;
+
   /**
    * Vertices whose SHADE RUNG changed against the control.
    *
@@ -214,33 +303,72 @@ export function shorePlan(cells: readonly InstanceDescriptor[], arm: ShoreArm): 
   const clipped = clipToCoast(cells, SHIPPED_COAST);
   const relief = shoreRelief(clipped, arm);
   const control = shoreRelief(clipped, REFERENCE_ARM);
+  // ⚠ THE RING PLAN IS BUILT ONCE AND READ TWICE — by the geometry and by the counters below. It
+  // divides every parcel up front, so asking it again would repeat the whole distance-field sweep
+  // and could, if anything about it were non-deterministic, hand the buffer and the report two
+  // different meshes to describe.
+  const ring = shoreArmRingPlan(clipped, arm);
   const geo = cellGroundGeometry({
     cells: clipped,
     resolve: linearColourOf,
     index: groundRowOf,
     relief,
+    decompose: ring.decompose,
   });
+  // ⚠ A FIELD OF ITS OWN, capped at {@link SAG_REGION} — the FIXED region every arm's sag is taken
+  // over, never the arm's own band. `shoreRelief` holds a field too and does not expose it; sharing
+  // one would couple this page to that module's internals for no saving a profile has ever shown.
+  const field = shoreField(clipped, SAG_REGION);
 
   let ringVertices = 0;
   let groundArea = 0;
   let foldedParcels = 0;
+  let bandTriangles = 0;
+  let maxSag = 0;
+  let sagSum = 0;
   // ⚠ DISTINCT GROUND VERTICES, keyed by `vertexKey` — the coast module's own key, so "a vertex"
   // means the same thing on both pages. The relaxed substrate interns its vertices, so a corner
   // shared by three parcels is ONE piece of ground: counting it three times would report the same
   // band as reaching further into a finely-divided island than into a coarse one.
+  //
+  // ⚠⚠ ON A RING ARM THIS SET IS LARGER, AND EVERY RATIO BELOW IS AGAINST ITS OWN DENOMINATOR.
+  // `movedVertices / vertices` compares an arm to itself; comparing a ring arm's moved COUNT to a
+  // width arm's would report a finer mesh as a wider band.
   const seen = new Map<string, { x: number; z: number }>();
   for (const c of clipped) {
-    const ring = (c.points ?? []).map((p) => ({ x: p.x, z: p.z }));
-    ringVertices += ring.length;
-    if (ring.length >= 3 && !isSimpleRing(ring)) foldedParcels += 1;
+    if (c.points === undefined || c.points.length < 3) continue;
+    const faces = ring.decompose(c);
+    const wall = faces.wall;
+    ringVertices += wall.length;
+    if (wall.length >= 3 && !isSimpleRing(wall)) foldedParcels += 1;
     let shoelace = 0;
-    for (let i = 0; i < ring.length; i += 1) {
-      const p = ring[i]!;
-      const q = ring[(i + 1) % ring.length]!;
+    for (let i = 0; i < wall.length; i += 1) {
+      const p = wall[i]!;
+      const q = wall[(i + 1) % wall.length]!;
       shoelace += p.x * q.z - q.x * p.z;
       seen.set(vertexKey(p), p);
     }
     groundArea += Math.abs(shoelace) / 2;
+    // ⚠⚠ THE SAG IS COMPUTED FROM THE DECOMPOSITION RATHER THAN FROM THE BUFFER, and that is what
+    // keeps it a TOP-FACE measure. Walls are in the buffer too; their centroids sit halfway down a
+    // vertical quad, nowhere near the surface, and a scan of the merged positions would have to
+    // separate them by their normals — a threshold where none is needed. Triangulating the faces
+    // here is the same `triangulateRing` the builder calls, so these are the very triangles drawn.
+    for (const face of faces.faces) {
+      for (const [a, b, cc] of triangulateRing(face)) {
+        const cx = (a.x + b.x + cc.x) / 3;
+        const cz = (a.z + b.z + cc.z) / 3;
+        if (field.sample(cx, cz).distance >= SAG_REGION) continue;
+        // The plane's height at the centroid IS the mean of its corners' heights, so no barycentric
+        // arithmetic is needed and none can be got wrong.
+        const plane = (relief.height(a.x, a.z) + relief.height(b.x, b.z) + relief.height(cc.x, cc.z)) / 3;
+        const sag = Math.abs(plane - relief.height(cx, cz));
+        bandTriangles += 1;
+        sagSum += sag;
+        if (sag > maxSag) maxSag = sag;
+      }
+      for (const p of face) seen.set(vertexKey(p), p);
+    }
   }
 
   let movedVertices = 0;
@@ -273,6 +401,14 @@ export function shorePlan(cells: readonly InstanceDescriptor[], arm: ShoreArm): 
     attributeBytes: geo.triangles * 3 * GROUND_FLOATS_PER_VERTEX * 4,
     groundArea,
     foldedParcels,
+    coastalParcels: ring.census.coastal,
+    dividedParcels: ring.census.divided,
+    cappedParcels: ring.census.capped,
+    leastScale: ring.census.leastScale,
+    insertedVertices: ring.census.inserted,
+    bandTriangles,
+    maxSag,
+    meanSag: bandTriangles === 0 ? 0 : sagSum / bandTriangles,
     movedVertices,
     vertices: seen.size,
     maxDrop,
@@ -319,6 +455,10 @@ export function buildShoreScene(arm: ShoreArm, size: CrowdSize, zoom: CrowdZoom)
     resolve: linearColourOf,
     index: groundRowOf,
     relief: shoreRelief(cells, arm),
+    // ⚠ THE SAME ARM DRIVES BOTH, and it has to: the relief supplies the falloff and the
+    // decomposition supplies the vertices for it to bend through. An arm whose ring came from one
+    // place and whose band came from another would be two variables wearing one name.
+    decompose: shoreArmRingPlan(cells, arm).decompose,
     atlasOrigin: atlasOriginResolver(
       packShadowAtlas(islandGroundBounds(cells), SHADOW_GRES, SHADOW_ATLAS_MAX),
     ),
@@ -380,6 +520,14 @@ export interface ShoreReading {
   attributeBytes: number;
   groundArea: number;
   foldedParcels: number;
+  coastalParcels: number;
+  dividedParcels: number;
+  cappedParcels: number;
+  leastScale: number;
+  insertedVertices: number;
+  bandTriangles: number;
+  maxSag: number;
+  meanSag: number;
   movedVertices: number;
   vertices: number;
   maxDrop: number;
@@ -501,6 +649,14 @@ export function createShoreRunner(): ShoreRunner {
     attributeBytes: s.plan.attributeBytes,
     groundArea: s.plan.groundArea,
     foldedParcels: s.plan.foldedParcels,
+    coastalParcels: s.plan.coastalParcels,
+    dividedParcels: s.plan.dividedParcels,
+    cappedParcels: s.plan.cappedParcels,
+    leastScale: s.plan.leastScale,
+    insertedVertices: s.plan.insertedVertices,
+    bandTriangles: s.plan.bandTriangles,
+    maxSag: s.plan.maxSag,
+    meanSag: s.plan.meanSag,
     movedVertices: s.plan.movedVertices,
     vertices: s.plan.vertices,
     maxDrop: s.plan.maxDrop,
@@ -628,11 +784,17 @@ export function mountShippedShore(root: HTMLElement): void {
         // separate the arms.
         cap.textContent =
           `${arm} · band ${SHORE_ARM_WIDTH[arm]} units · ` +
+          `rings [${SHORE_ARM_INSETS[arm].map((i) => i.toFixed(2)).join(', ')}] · ` +
           `moved ${s.plan.movedVertices}/${s.plan.vertices} vertices · ` +
           `max drop ${s.plan.maxDrop.toFixed(2)} (mean ${s.plan.meanDrop.toFixed(2)}) · ` +
           `${s.plan.rungFlips} rung flips · ` +
+          `SAG max ${s.plan.maxSag.toFixed(3)} mean ${s.plan.meanSag.toFixed(3)} over ` +
+          `${s.plan.bandTriangles} band triangles · ` +
           `height ${s.plan.minHeight.toFixed(2)}…${s.plan.maxHeight.toFixed(2)} · ` +
-          `${s.plan.triangles} triangles (identical on every arm) · ` +
+          `${s.plan.triangles} triangles · ` +
+          `${s.plan.dividedParcels}/${s.plan.coastalParcels} coastal parcels divided ` +
+          `(${s.plan.cappedParcels} capped, least ` +
+          `${s.plan.leastScale.toFixed(1)}) · ` +
           `${s.plan.foldedParcels} folded parcels`;
         fig.append(img, cap);
         row.appendChild(fig);

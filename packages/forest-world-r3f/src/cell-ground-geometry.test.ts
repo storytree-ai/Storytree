@@ -15,6 +15,7 @@ import {
   CELL_GROUND_DEPTH,
   cellGroundGeometry,
   cellGroundTriangles,
+  groundFaceTriangles,
   normalisedRing,
   pointInTriangle,
   signedRingArea2,
@@ -103,6 +104,31 @@ test('a ring of n vertices costs 3n-2 triangles — a triangulated top plus two 
   // Below three there is no area to bound, so there is nothing to draw.
   assert.equal(cellGroundTriangles(2), 0);
   assert.equal(cellGroundTriangles(0), 0);
+});
+
+test('⚠⚠ A DIVIDED TOP IS COUNTED FROM ITS FACES AND ITS WALL SEPARATELY', () => {
+  // THE BUFFER IS SIZED FROM THIS. A decomposition that divided the top without lengthening the
+  // wall would draw a crack; one counted with the wrong arithmetic would size the buffer for a mesh
+  // the writer does not produce. Both halves are asked for here, on the same call.
+  //
+  // A six-vertex wall divided into a four-vertex band and a four-vertex core: 2 + 2 top triangles,
+  // and 12 wall triangles for the six edges.
+  assert.equal(groundFaceTriangles(6, [4, 4]), 2 + 2 + 12);
+  // The undivided parcel is the one-face case, and `cellGroundTriangles` IS that case.
+  assert.equal(groundFaceTriangles(6, [6]), cellGroundTriangles(6));
+  assert.equal(groundFaceTriangles(4, [4]), 4 * 3 - 2);
+  // ⚠ A SUB-FACE THAT BOUNDS NO AREA CONTRIBUTES NOTHING, and must not contribute a NEGATIVE.
+  // `triangulateRing` emits nothing for a ring of fewer than three vertices; an unguarded
+  // `length - 2` would take two triangles OFF the count for each one and under-size the buffer the
+  // caller then writes into.
+  assert.equal(groundFaceTriangles(4, [4, 2]), groundFaceTriangles(4, [4]));
+  assert.equal(groundFaceTriangles(4, [4, 1]), groundFaceTriangles(4, [4]));
+  assert.equal(groundFaceTriangles(4, [4, 0]), groundFaceTriangles(4, [4]));
+  // A face of exactly three IS a triangle and contributes one.
+  assert.equal(groundFaceTriangles(4, [4, 3]), groundFaceTriangles(4, [4]) + 1);
+  // A wall that bounds no area is no parcel at all, whatever faces are claimed for it.
+  assert.equal(groundFaceTriangles(2, [4, 4]), 0);
+  assert.equal(groundFaceTriangles(0, []), 0);
 });
 
 test('the buffer is non-indexed and self-consistent: 3 vertices and 9 floats per triangle', () => {
