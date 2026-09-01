@@ -121,8 +121,10 @@ test("retire is HARD-REFUSED while another artifact references it (the only gate
 });
 
 test("the gate catches an agent refList dependency (not just references[])", async () => {
-  // The trap: tree-focus's inbound scan only reads references[]; an agent inlines an asset via a
-  // refList field. The retire gate must see it, or it would wave through the most common dependency.
+  // The trap: tree-focus's inbound scan reads only the authored `dependsOn` edge; an agent inlines
+  // an asset via a refList field. The retire gate must see it, or it would wave through the most
+  // common dependency. `library inbound <id>` is the reader that sees the same population the gate
+  // does (ADR-0498 D1) — see `inbound.test.ts` for the two-instrument fence.
   const store = await seed([
     doc("inlined-asset", "pattern"),
     doc("an-agent", "agent", { rules: ["asset:inlined-asset"] }),
