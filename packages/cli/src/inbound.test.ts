@@ -289,7 +289,7 @@ test("a stored body that is not an object at all is rendered, not thrown over", 
   // The defensive arm in `titleOf`. `StoredDoc.doc` is `unknown` at the seam, so a row that did not
   // come through the validated write path can carry a scalar; the reader must survive it.
   const store = new InMemoryStore();
-  await store.upsertDoc({ id: "target", kind: "pattern", doc: "not an object at all" as unknown });
+  await store.upsertDoc({ id: "target", kind: "pattern", doc: "not an object at all" });
   await store.upsertDoc({
     id: "points-at-it",
     kind: "adr",
@@ -305,7 +305,7 @@ test("a NULL stored body is rendered too — the arm a scalar body cannot reach"
   // guard still yields an empty title and nothing fails. `null` is the one value where the guard is
   // load-bearing — reading a property off it THROWS — so this is what makes the arm provable.
   const store = new InMemoryStore();
-  await store.upsertDoc({ id: "target", kind: "pattern", doc: null as unknown });
+  await store.upsertDoc({ id: "target", kind: "pattern", doc: null });
   await store.upsertDoc({
     id: "points-at-it",
     kind: "adr",
