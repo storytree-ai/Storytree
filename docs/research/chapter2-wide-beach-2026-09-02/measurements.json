@@ -1,0 +1,302 @@
+[
+  {
+    "size": "one",
+    "zoom": 2,
+    "arm": "flat",
+    "pxPerUnit": 2,
+    "triangles": 5562,
+    "drawCalls": 1,
+    "octaves": 23,
+    "sandOctaves": 0,
+    "stats": {
+      "pixels": 35995,
+      "anchor": 29.651,
+      "micro": 2.686080597680623,
+      "struct": 20.553359318427088,
+      "mean": 135.28903418252767
+    },
+    "land": 35995,
+    "families": 20,
+    "largestShare": 0.20914015835532712,
+    "topThreeShare": 0.4243367134324212,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 2,
+    "arm": "authored",
+    "pxPerUnit": 2,
+    "triangles": 5562,
+    "drawCalls": 1,
+    "octaves": 23,
+    "sandOctaves": 6,
+    "stats": {
+      "pixels": 35995,
+      "anchor": 29.651,
+      "micro": 2.6461266112845374,
+      "struct": 20.778412467780697,
+      "mean": 136.29791005973317
+    },
+    "land": 35995,
+    "families": 26,
+    "largestShare": 0.16068898458119182,
+    "topThreeShare": 0.31659952771218225,
+    "touched": 10058,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 10058,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 10058,
+          "shareOfMoved": 1
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 9,
+      "p90": 12,
+      "p99": 13,
+      "max": 14
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "flat",
+    "pxPerUnit": 8,
+    "triangles": 5562,
+    "drawCalls": 1,
+    "octaves": 23,
+    "sandOctaves": 0,
+    "stats": {
+      "pixels": 575962,
+      "anchor": 29.651,
+      "micro": 0.8354663317385426,
+      "struct": 23.014852392579233,
+      "mean": 135.2821323849447
+    },
+    "land": 575962,
+    "families": 20,
+    "largestShare": 0.20948777870762308,
+    "topThreeShare": 0.4235939176542897,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "authored",
+    "pxPerUnit": 8,
+    "triangles": 5562,
+    "drawCalls": 1,
+    "octaves": 23,
+    "sandOctaves": 6,
+    "stats": {
+      "pixels": 575962,
+      "anchor": 29.651,
+      "micro": 0.8276369587467822,
+      "struct": 23.353072225535477,
+      "mean": 136.29140835947197
+    },
+    "land": 575962,
+    "families": 26,
+    "largestShare": 0.16021369465346672,
+    "topThreeShare": 0.3167778429826968,
+    "touched": 161029,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 161029,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 161029,
+          "shareOfMoved": 1
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 9,
+      "p90": 12,
+      "p99": 13,
+      "max": 14
+    }
+  }
+]

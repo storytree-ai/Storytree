@@ -102,18 +102,19 @@ test('⚠ `flat` and `authored` differ in EXACTLY the sand — same factor, oppo
   assert.equal(GRASS_ARM_MIX.authored, GRASS_ARM_MIX.flat);
   assert.equal(GRASS_ARM_MIX.authored, SHIPPED_GRASS_MIX);
   assert.notEqual(GRASS_ARM_SAND.authored, GRASS_ARM_SAND.flat);
-  // And `honest` is the one that is allowed to differ in both, because being dimmer IS its claim.
-  assert.ok(GRASS_ARM_MIX.honest < SHIPPED_GRASS_MIX);
-  assert.equal(GRASS_ARM_SAND.honest, true);
+  // ⚠ AND THE PAIR IS THE WHOLE PAGE NOW. Layer 2 ships with its OWN factor, so it no longer
+  // trades against layer 1's — there is no dimmer arm to carry, and the only variable left is
+  // whether the sand is there.
+  assert.equal(GRASS_ARMS.length, 2);
 });
 
 test('an arm`s grass option is the mix and the SHIPPED gate — the gate never varies', () => {
   assert.deepEqual(armGrass('authored'), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
-  assert.deepEqual(armGrass('honest'), { mix: 0.235, rows: GRASS_GATE_ROWS });
+  assert.deepEqual(armGrass('flat'), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
   // Every arm gates the SAME rows, control included — the gate is not a variable on this page.
   for (const arm of GRASS_ARMS) assert.deepEqual(armGrass(arm)?.rows, GRASS_GATE_ROWS);
   // And the sand flags are exactly the two the fork needs plus the control.
-  assert.deepEqual(GRASS_ARMS.map(armWearsSand), [false, true, true]);
+  assert.deepEqual(GRASS_ARMS.map(armWearsSand), [false, true]);
 });
 
 test('the verdict threshold is ADR-0490 D6`s, not the touched count', () => {

@@ -181,6 +181,30 @@ export interface GroundSandLayer {
   /** The packed distance-to-coast field, over the OCCLUSION atlas's own tiles
    *  (`buildAtlasShore`). Single-channel bytes; the shader decodes to ground units. */
   shore: Texture;
+  /**
+   * How much of the sand colour enters the delivered pixel, INSIDE the band.
+   *
+   * ⚠⚠ ITS OWN FACTOR, SEPARATE FROM LAYER 1'S, AND THAT SEPARATION IS WHAT MAKES THE LAYER
+   * ADMISSIBLE AT ALL. Under one shared factor the two layers have one joint ceiling — 0.235 —
+   * which is BELOW layer 1's shipped 0.32, so adopting the sand that way would have quietly
+   * dimmed the grass that already ships. Fenced on its own, the sand's ceiling with layer 1 held
+   * at 0.32 is 0.16, and layer 1 is untouched. Same argument as ADR-0492's, one level down: do
+   * not force one component's ceiling onto another's.
+   */
+  mix: number;
+  /**
+   * The beach's width in ground units, as the `BEACH + 0.9` divisor the recipe applies.
+   *
+   * ⚠ A UNIFORM RATHER THAN A WRITTEN-IN CONSTANT, so a page varying the width compiles ONE
+   * shader and its arms differ in one number — which is what makes a difference between two arms
+   * attributable to the width their captions name.
+   *
+   * ⚠⚠ IT MUST EQUAL THE WIDTH THE SHORE FIELD WAS BUILT FOR. The field caps its distances at its
+   * own band, so a wider divisor here reads a field that has already flattened, and the beach
+   * stops dead at the old width — a hard step that looks like a bug in the edge noise rather than
+   * a mismatch between two numbers.
+   */
+  width: number;
 }
 
 export interface BandedGroundMaterialOptions {
@@ -555,8 +579,12 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   if (grass !== undefined) grassUniforms['uGrassMix'] = { value: grass.mix };
   // Layer 2's field, by statement for the same two reasons: an unsanded material must carry NO
   // `uShore*` uniform at all, and the shorter spellings are refused by the anti-slop rules.
-  const sandUniforms: Record<string, { value: Texture }> = {};
-  if (sand !== undefined) sandUniforms['uShoreTex'] = { value: sand.shore };
+  const sandUniforms: Record<string, { value: Texture } | { value: number }> = {};
+  if (sand !== undefined) {
+    sandUniforms['uShoreTex'] = { value: sand.shore };
+    sandUniforms['uSandMix'] = { value: sand.mix };
+    sandUniforms['uSandWidth'] = { value: sand.width };
+  }
   // The occlusion field's two uniforms follow the same by-statement shape, for the same two
   // reasons: an unshadowed material must carry NO `uShadow*` uniform at all, and both shorter
   // spellings are refused by the anti-slop rules.
@@ -616,7 +644,12 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // Appended after the grain's, so an ungrassed shader is byte-identical.
   const grassUniformDecls = grass === undefined ? '' : '\n      uniform float uGrassMix;';
   // Appended after the grass's, so an unsanded shader is byte-identical.
-  const sandUniformDecls = sand === undefined ? '' : '\n      uniform sampler2D uShoreTex;';
+  const sandUniformDecls =
+    sand === undefined
+      ? ''
+      : '\n      uniform sampler2D uShoreTex;' +
+        '\n      uniform float uSandMix;' +
+        '\n      uniform float uSandWidth;';
   // Same appended-string shape, same reason: an unshadowed shader must not merely fail to USE
   // these, it must not declare them.
   const shadowUniformDecls =
@@ -677,24 +710,32 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
 ${
   sand === undefined
     ? '        c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);\n'
-    : `        // LAYER 2 — the shore sand, composited INTO layer 1 rather than over it
-        // (build_land.py:869-893). In mat_attribute() the sand blend's OUTPUT is what the grass
-        // output was and everything downstream reads it, so the beach is the ground being a
-        // different colour there rather than a decal on top of the grass. The delivered pixel is
-        // still mix(statusColour, layer, uGrassMix) — the same ADR-0490 D5 seam, at the same
-        // strength — with the layer now sand-to-grass across the band.
+    : `        c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);
+        // LAYER 2 — the shore sand, over layer 1 and masked to the beach (build_land.py:869-893).
+        //
+        // ⚠⚠ A SECOND SEAM RATHER THAN A BLEND INSIDE LAYER 1'S, AND THE DIFFERENCE IS THE WHOLE
+        // REASON THIS LAYER CAN SHIP. The recipe blends sand and grass and mixes the result in
+        // ONCE, which forces both layers through one factor — and one factor has one joint
+        // ceiling, 0.235, BELOW the 0.32 layer 1 already ships at. Composited that way, adopting
+        // the sand would have quietly dimmed the grass on the live map. Given its own factor the
+        // sand is fenced on its own measurement (0.16 at layer 1's 0.32) and layer 1's delivered
+        // pixel above is byte-identical to the one that ships today. ADR-0490 D5 names the SEAM,
+        // not the arity: layer 5's grain already enters as a second mix over the result.
+        //
+        // ⚠ AND IT INHERITS THE PER-TOKEN GATE — grassGate again, not a gate of its own. An
+        // ungated row multiplies the whole layer by zero, so the yellow, red, slate and grey
+        // islands deliver exactly the pixel they delivered before this layer existed.
         //
         // ⚠ THE SHORE FIELD RIDES THE SHADOW ATLAS'S OWN COORDINATE. shUv is the tile corner plus
         // the scaled ground position; sampling a second packing here would be a second answer to
         // "where is this island" and every coast would belong to the wrong land.
         //
-        // ⚠ AND THE TEXEL IS DECODED TO GROUND UNITS BEFORE THE RECIPE TOUCHES IT. st_sandBand
-        // divides by BEACH + 0.9, which is an arithmetic in ground units; handing it a raw 0..1
-        // texel would be the same expression meaning something else entirely.
-        float shoreUnits = texture2D(uShoreTex, shUv).r * ${SAND_FIELD_WIDTH.toFixed(6)};
-        float sandBand = st_sandBand(vWorld.xz, shoreUnits);
-        vec3 layerCol = mix(st_sandColour(vWorld.xz), st_grassColour(vWorld.xz), sandBand);
-        c = mix(c, layerCol, uGrassMix * grassGate);
+        // ⚠ AND THE TEXEL IS DECODED TO GROUND UNITS BEFORE THE RECIPE TOUCHES IT, through the
+        // SAME width the field was built for. st_sandBand divides by BEACH + 0.9, an arithmetic in
+        // ground units; a raw 0..1 texel would be the same expression meaning something else.
+        float shoreUnits = texture2D(uShoreTex, shUv).r * uSandWidth;
+        float sandBand = st_sandBand(vWorld.xz, shoreUnits, uSandWidth);
+        c = mix(c, st_sandColour(vWorld.xz), uSandMix * (1.0 - sandBand) * grassGate);
 `
 }`;
   const writeColour = grainColour

@@ -189,7 +189,20 @@ test('sandGlsl emits the band and the ramp EXACTLY, with its constants written i
   // ⚠ THE DIVISOR AND BOTH RAMP STOPS AS EMITTED TEXT. Every line of an emitter is a string
   // literal, so a mutant that blanks one leaves a shader that still contains the identifiers a
   // looser test looks for while computing something else.
-  assert.ok(glsl.includes(`float t = (shore + st_sandEdge(p)) / ${SAND_DIVISOR.toFixed(6)};`));
+  // ⚠ THE DIVISOR IS A UNIFORM, NOT WRITTEN IN — it is the one constant on this layer the owner
+  // moves, and a page comparing beach widths must vary a number rather than compile a shader per
+  // width. Asserting the uniform NAME here is what stops it silently reverting to a literal.
+  assert.ok(glsl.includes('float t = (shore + st_sandEdge(p)) / width;'));
+  // ⚠⚠ AND THE WIDTH IS A PARAMETER RATHER THAN A UNIFORM THIS BLOCK READS. The source is spliced
+  // ABOVE the shader's uniform declarations, so a `uSandWidth` in here is used before it is
+  // declared and the material FAILS TO COMPILE — which a containment test cannot see, because the
+  // source still contains every token it looks for. Found on a real GPU, not in this file.
+  assert.ok(!glsl.includes('uSandWidth'), 'the emitted source must declare no uniform of its own');
+  assert.ok(!/uniform/.test(glsl), 'the emitter is spliced above the uniform block');
+  assert.ok(
+    !/\/ \d+\.\d+;/.test(glsl.slice(glsl.indexOf('st_sandBand'))),
+    'the band must not divide by a written-in constant',
+  );
   assert.ok(
     glsl.includes(
       `return clamp((t - ${SAND_BAND_RAMP[0].toFixed(6)}) / ${(
@@ -251,8 +264,8 @@ test('sandGlsl is held to an EXACT GOLDEN — the only assertion that sees a bla
       '// THE BAND FACTOR: 0 is pure sand at the water, 1 is pure grass inland.',
       '// The MULTIPLY_ADD at build_land.py:872-876 pins its multiplier to 1.0, so the edge noise',
       '// DISPLACES the distance rather than scaling it.',
-      'float st_sandBand(vec2 p, float shore) {',
-      '  float t = (shore + st_sandEdge(p)) / 4.000000;',
+      'float st_sandBand(vec2 p, float shore, float width) {',
+      '  float t = (shore + st_sandEdge(p)) / width;',
       '  return clamp((t - 0.340000) / 0.360000, 0.0, 1.0);',
       '}',
       '',

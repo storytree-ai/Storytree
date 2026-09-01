@@ -541,6 +541,7 @@
       "packages/forest-world-r3f/src/land-grain.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-grass.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-sand.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/shore-grid.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shore-atlas.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-shadow.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shadow-atlas.ts": "r3f-world-spike",

@@ -94,6 +94,7 @@
 import { COAST_OUTSET, type CoastPoint, coastalIsland, rimLoops } from './coast-clip.js';
 import { landGradient, landHeight } from './land-relief.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
+import { buildEdgeGrid } from './shore-grid.js';
 
 /** The reference generator's own `BEACH` — the width of the band over which the land rises from
  *  the waterline to its full swell, in ground units. */
@@ -383,27 +384,41 @@ export function shoreField(
     rings.push(d.points!.map((p) => ({ x: p.x, z: p.z })));
   }
   const bounds = rimLoops(rings).map(boundsOf);
+  const grid = buildEdgeGrid(rimLoops(rings), width);
   return {
     width,
     loops: bounds.length,
     sample(x: number, z: number): ShoreSample {
+      // ⚠⚠ THE FAR-FIELD ANSWER IS RETURNED WITHOUT TOUCHING AN EDGE, and it is most of the map.
+      // `sample` caps at `width`, so any point whose 3x3 cell neighbourhood holds no edge is
+      // already capped and its gradient is zero — the same value the walk below would have
+      // computed, at a fraction of the cost. This is EXACT rather than a heuristic: the grid's
+      // cell is exactly `width`, so an empty neighbourhood puts every edge at least one whole
+      // cell away. {@link edgeGridFarField} states that argument where a test can reach it.
+      //
+      // ⚠ ONE `candidates` CALL SERVES BOTH THE SHORT-CIRCUIT AND THE WALK. Asking `near` first
+      // and `candidates` after runs the neighbourhood scan TWICE per sample, which at 5.4 M texels
+      // is half the field's build time spent re-deriving a list it already had.
+      const candidates = grid.candidates(x, z);
+      // Stryker disable next-line ConditionalExpression: EQUIVALENT — this is the SHORT-CIRCUIT.
+      // Never taking it walks an empty candidate list and returns the same capped distance with
+      // the same zero gradient, because `best` starts AT `width`. It is a cost decision by
+      // construction, so no assertion about `sample`'s output can reach it; what CAN be asserted
+      // is the argument it rests on, which `edgeGridFarField` states and its test pins.
+      if (candidates.length === 0) return { distance: width, gx: 0, gz: 0 };
       let best = width;
       let nx = 0;
       let nz = 0;
-      for (const loop of bounds) {
-        // EXACT, not heuristic: `boxDistance` is a lower bound on the distance to every point of
-        // the loop, so a loop whose box is already further than the best answer cannot beat it.
-        //
-        // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT — this line
-        // is the PRUNE. Never taking it (`false`) walks more loops and returns the same answer;
-        // taking it on a tie (`>` vs `>=`) skips a loop that could only have equalled `best`. It is
-        // a cost decision by construction, so no assertion about `sample`'s OUTPUT can reach it —
-        // which is why its soundness is asserted directly against `boxDistance` instead.
-        if (boxDistance(loop, x, z) >= best) continue;
-        const pts = loop.points;
-        for (let i = 0; i < pts.length; i += 1) {
-          const a = pts[i]!;
-          const b = pts[(i + 1) % pts.length]!;
+      // ⚠⚠ THE CANDIDATES ARE THE EDGES IN THE POINT'S OWN 3x3 CELL NEIGHBOURHOOD, AND SKIPPING
+      // THE REST IS EXACT. Every edge outside that block is at least one cell — one `width` — away
+      // (`edgeGridFarField`), and `best` starts AT `width` with a strict `d >= best` reject, so no
+      // omitted edge could have improved the answer. This replaces a walk over every loop's whole
+      // ring, which is what made the packed shore field cost 26 s over the forest.
+      {
+        for (const n of candidates) {
+          const e = grid.edges[n]!;
+          const a = { x: e.ax, z: e.az };
+          const b = { x: e.bx, z: e.bz };
           const ex = b.x - a.x;
           const ez = b.z - a.z;
           const lenSq = ex * ex + ez * ez;

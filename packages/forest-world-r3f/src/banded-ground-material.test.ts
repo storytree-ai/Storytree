@@ -1233,7 +1233,7 @@ const sanded = () =>
     grain: 'normal',
     grass: { mix: 0.32, rows: [0] },
     shadowAtlas: testAtlas(),
-    sand: { shore: testShore().texture },
+    sand: { shore: testShore().texture, mix: 0.16, width: SAND_FIELD_WIDTH },
   });
 
 test('the sand REFUSES without the grass, and without the packed atlas', () => {
@@ -1243,7 +1243,7 @@ test('the sand REFUSES without the grass, and without the packed atlas', () => {
         tokens: SHIPPED_TOKENS,
         grain: 'normal',
         shadowAtlas: testAtlas(),
-        sand: { shore: testShore().texture },
+        sand: { shore: testShore().texture, mix: 0.16, width: SAND_FIELD_WIDTH },
       }),
     (e: unknown) => {
       assert.ok(e instanceof Error);
@@ -1264,7 +1264,7 @@ test('the sand REFUSES without the grass, and without the packed atlas', () => {
         tokens: SHIPPED_TOKENS,
         grain: 'normal',
         grass: { mix: 0.32, rows: [0] },
-        sand: { shore: testShore().texture },
+        sand: { shore: testShore().texture, mix: 0.16, width: SAND_FIELD_WIDTH },
       }),
     (e: unknown) => {
       assert.ok(e instanceof Error);
@@ -1289,7 +1289,7 @@ test('a SANDED material uploads the shore field and splices layer 2 in after lay
     grain: 'normal',
     grass: { mix: 0.32, rows: [0] },
     shadowAtlas: testAtlas(),
-    sand: { shore: shoreTex },
+    sand: { shore: shoreTex, mix: 0.16, width: SAND_FIELD_WIDTH },
   });
   assert.equal(
     m2.uniforms['uShoreTex']?.value,
@@ -1297,7 +1297,12 @@ test('a SANDED material uploads the shore field and splices layer 2 in after lay
     'the uniform must carry the caller`s own texture, not merely exist',
   );
   assert.ok(m.uniforms['uShoreTex'] !== undefined, 'the shore field must be uploaded');
+  // ⚠ ALL THREE DECLARATIONS AS TEXT. `check:mutation-diff` blanked the `uSandMix` decl and every
+  // assertion about the UNIFORM OBJECT stayed green — the material still carries the value, and
+  // only the shader source loses the declaration, so it compiles nowhere and passes here.
   assert.ok(/uniform sampler2D uShoreTex;/.test(m.fragmentShader));
+  assert.ok(/uniform float uSandMix;/.test(m.fragmentShader));
+  assert.ok(/uniform float uSandWidth;/.test(m.fragmentShader));
   // The block, indented, rather than line by line — the same argument the grass splice makes: a
   // per-line `includes()` sweep is satisfied by the whole module concatenated onto ONE line.
   assert.ok(
@@ -1317,38 +1322,66 @@ test('a SANDED material uploads the shore field and splices layer 2 in after lay
   assert.equal([...m.fragmentShader.matchAll(/float st_grainHash\(/g)].length, 1);
 });
 
-test('⚠ the sand composites INTO layer 1 — one mix at the seam, not a second one over it', () => {
+test('⚠⚠ THE SAND IS A SECOND SEAM, AND LAYER 1`S LINE IS UNTOUCHED BY IT', () => {
   const m = sanded();
-  // The delivered pixel is still mix(statusColour, layer, uGrassMix * grassGate) — the same
-  // ADR-0490 D5 seam at the same strength — with the layer now sand-to-grass across the band.
-  assert.ok(m.fragmentShader.includes('c = mix(c, layerCol, uGrassMix * grassGate);'));
+  // ⚠⚠ THIS IS THE PROPERTY THAT LETS LAYER 2 SHIP AT ALL. Blended INSIDE layer 1's mix, both
+  // layers share one factor and therefore one joint ceiling — 0.235, BELOW the 0.32 layer 1
+  // already ships at — so adopting the sand would have quietly dimmed the live map's grass. As a
+  // second seam the sand is fenced on its own measurement and layer 1's delivered pixel is exactly
+  // the one that shipped before this layer existed.
+  assert.ok(
+    m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'),
+    'layer 1`s composite line must be byte-identical to the unsanded one',
+  );
   assert.ok(
     m.fragmentShader.includes(
-      'vec3 layerCol = mix(st_sandColour(vWorld.xz), st_grassColour(vWorld.xz), sandBand);',
+      'c = mix(c, st_sandColour(vWorld.xz), uSandMix * (1.0 - sandBand) * grassGate);',
     ),
+    'layer 2 must enter as its own mix, with its own factor',
   );
-  // ⚠⚠ AND THE PLAIN LAYER-1 LINE IS GONE, not sitting beside it. Both present would mix the
-  // grass in and then mix the sand-blended layer in again — the beach would be half strength and
-  // the grass double, and every arm would still draw something plausible.
-  assert.ok(
-    !m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'),
-    'layer 2 must REPLACE layer 1`s composite line, not be appended after it',
+  // Two seams into `c`, in order: the grass first, the sand over it.
+  const grassAt = m.fragmentShader.indexOf('c = mix(c, st_grassColour');
+  const sandAt = m.fragmentShader.indexOf('c = mix(c, st_sandColour');
+  assert.ok(grassAt >= 0 && sandAt > grassAt, 'the sand must composite OVER layer 1, not under it');
+  // ⚠ AND THE SAND CARRIES THE SAME GATE. Without `grassGate` the beach would appear on every
+  // token — including the yellow islands ADR-0492 D1 leaves flat — and those islands would start
+  // reporting a state they do not hold along their whole coast.
+  assert.equal(
+    [...m.fragmentShader.matchAll(/grassGate\)?;/g)].length,
+    2,
+    'both seams must be gated, and by the same gate',
   );
-  assert.equal([...m.fragmentShader.matchAll(/c = mix\(c, /g)].length, 1, 'exactly one seam mix');
+  // ⚠ THE BAND IS INVERTED FOR THE SAND. `st_sandBand` returns 0 at the water and 1 inland, and
+  // the sand belongs at the WATER — so it enters through (1 - band). Dropping the inversion puts
+  // the beach in the island's interior and leaves the coast green, which still looks like a beach.
+  assert.ok(m.fragmentShader.includes('(1.0 - sandBand)'), 'the sand rides the INVERTED band');
 });
 
-test('⚠ the shore texel is decoded to GROUND UNITS before the recipe divides it', () => {
+test('⚠ the shore texel is decoded to GROUND UNITS through the SAME width the field was built for', () => {
   const m = sanded();
   // `st_sandBand` divides by BEACH + 0.9, an arithmetic in ground units. Handing it a raw 0..1
   // texel would be the same expression meaning something else — the band would collapse to a
   // hairline at the waterline and read as "the sand layer barely does anything".
   assert.ok(
-    m.fragmentShader.includes(
-      `float shoreUnits = texture2D(uShoreTex, shUv).r * ${SAND_FIELD_WIDTH.toFixed(6)};`,
-    ),
+    m.fragmentShader.includes('float shoreUnits = texture2D(uShoreTex, shUv).r * uSandWidth;'),
     'the texel must be scaled by the field width before st_sandBand sees it',
   );
-  assert.ok(m.fragmentShader.includes('float sandBand = st_sandBand(vWorld.xz, shoreUnits);'));
+  assert.ok(
+    m.fragmentShader.includes('float sandBand = st_sandBand(vWorld.xz, shoreUnits, uSandWidth);'),
+  );
+  // ⚠⚠ ONE WIDTH, NOT TWO. The decode above and the divisor inside `st_sandBand` are the SAME
+  // uniform, so a widened beach cannot read a field that was built narrower — which would deliver
+  // a beach that stops dead at the old width and steps, looking like a bug in the edge noise.
+  // ⚠ THE DECODE AND THE BAND GET THE SAME UNIFORM AT THE SAME CALL SITE. The band takes it as a
+  // PARAMETER (the emitted source sits above the uniform block and cannot read one), so "one
+  // width" is a property of this line rather than of two constants agreeing.
+  assert.equal(
+    [...m.fragmentShader.matchAll(/uSandWidth/g)].length,
+    3,
+    'the width appears exactly at its declaration, the decode, and the band call',
+  );
+  assert.equal(m.uniforms['uSandWidth']?.value, SAND_FIELD_WIDTH);
+  assert.equal(m.uniforms['uSandMix']?.value, 0.16);
   // ⚠ AND IT RIDES THE SHADOW'S OWN COORDINATE. A second packing would be a second answer to
   // "where is this island", and every coast would belong to the wrong land.
   assert.ok(m.fragmentShader.includes('texture2D(uShoreTex, shUv)'));

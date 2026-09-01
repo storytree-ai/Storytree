@@ -6,8 +6,11 @@ import test from 'node:test';
 import { buildAtlasOcclusion } from './shadow-atlas.js';
 import { AUTHORED_SHORE_WIDTH, shoreField } from './shore-fall.js';
 import { SHADOW_GRES } from './land-shadow.js';
+import { SAND_SHIPPED_BEACH_WIDTH, SAND_SHIPPED_DIVISOR } from './land-sand.js';
 import {
+  bucketByIsland,
   SAND_FIELD_WIDTH,
+  SAND_RECIPE_FIELD_WIDTH,
   buildAtlasShore,
   decodeShore,
   encodeShore,
@@ -47,23 +50,27 @@ const RAGGED: InstanceDescriptor[] = [
 ];
 const RAGGED_OCC = buildAtlasOcclusion({ cells: RAGGED, relief: 2.2, casters: [] });
 
-test('the field width is DERIVED from the recipe`s own divisor, not chosen', () => {
-  // `build_land.py:880` divides by BEACH + 0.9, and BEACH is what `shore-fall.ts` already
-  // transcribed as AUTHORED_SHORE_WIDTH. A literal here would be a second copy of a constant the
-  // repo already holds — and one that could drift from the divisor the shader uses.
-  assert.equal(SAND_FIELD_WIDTH, AUTHORED_SHORE_WIDTH + 0.9);
+test('the field width is the SHIPPED band`s divisor, and the recipe`s is kept beside it', () => {
+  // ⚠⚠ THE FIELD'S CAP AND THE SHADER'S DIVISOR ARE ONE NUMBER. `shoreField` caps its distances at
+  // the band it was built for, so a field built to the recipe's 3.1 feeding a shader divided by
+  // the owner's 9 would deliver a beach that stops at the old width and STEPS — a hard edge that
+  // reads as a defect in the noise rather than as two constants disagreeing.
+  assert.equal(SAND_FIELD_WIDTH, SAND_SHIPPED_DIVISOR);
+  assert.equal(SAND_SHIPPED_DIVISOR, SAND_SHIPPED_BEACH_WIDTH + 0.9);
+  // The recipe's own is kept so an arm can build the transcribed band on the same instrument.
+  assert.equal(SAND_RECIPE_FIELD_WIDTH, AUTHORED_SHORE_WIDTH + 0.9);
   assert.equal(AUTHORED_SHORE_WIDTH, 3.1);
-  // ⚠ AND IT MUST EXCEED THE RAMP'S TOP STOP TIMES THE DIVISOR — 0.70 * 4.0 = 2.8 — with room for
-  // the 0..1 noise the recipe adds BEFORE dividing. Capping at 2.8 would clip exactly the
-  // break-up the noise exists to create, and it would show as a sand line going subtly straight.
-  // The ramp's top stop is 0.70 of the divisor, and the noise the recipe adds before dividing
-  // spans a full 1.0 unit — so the field has to reach at least that far past the ramp's top.
-  const rampTopDistance = 0.7 * SAND_FIELD_WIDTH;
-  const edgeNoiseSpan = 1.0;
+  // ⚠ AND THE OWNER'S BAND IS WIDER THAN THE RECIPE'S — the whole point of the departure. If these
+  // ever met again the widening would have been silently reverted.
   assert.ok(
-    SAND_FIELD_WIDTH - rampTopDistance >= edgeNoiseSpan,
-    `the field reaches ${SAND_FIELD_WIDTH} but the ramp tops out at ${rampTopDistance} — ` +
-      'less than the edge noise can displace, so the break-up would be clipped',
+    SAND_SHIPPED_BEACH_WIDTH > AUTHORED_SHORE_WIDTH,
+    'the shipped beach must be wider than the transcribed one — that is the owner-directed change',
+  );
+  // The field still has to reach past the ramp's top by more than the edge noise can displace.
+  const rampTopDistance = 0.7 * SAND_FIELD_WIDTH;
+  assert.ok(
+    SAND_FIELD_WIDTH - rampTopDistance >= 1.0,
+    `the field reaches ${SAND_FIELD_WIDTH} but the ramp tops out at ${rampTopDistance}`,
   );
 });
 
@@ -203,4 +210,50 @@ test('every island gets its OWN coast, not the nearest one on the map', () => {
     assert.ok(vals.includes(0), `${id} has no waterline in its own tile`);
     assert.ok(vals.includes(255), `${id} has no capped interior in its own tile`);
   }
+});
+
+test('⚠ a tile whose island has no cells falls back to the WHOLE map, not to an empty coast', () => {
+  // ⚠⚠ THE FALLBACK IS THE DIFFERENCE BETWEEN "SLOWER" AND "NO BEACH". The per-island bucketing is
+  // a COST optimisation — a tile handed the whole map's cells computes the identical field, just
+  // more slowly — so almost every way it can break is invisible in the output. The one way that is
+  // NOT invisible is handing a tile an EMPTY coast: every texel then reads "far inland", and that
+  // island silently loses its entire shore while every other island looks right.
+  //
+  // Built by giving the occlusion atlas an island id the shore call cannot resolve.
+  const occ = buildAtlasOcclusion({ cells: TWO, relief: 2.2, casters: [] });
+  const renamed = TWO.map((d) => ({ ...d, island: `${d.island}-moved` }));
+  const shore = buildAtlasShore(renamed, occ);
+  const tile = shore.tiles.find((t) => t.island === 'isle-a')!;
+  const vals: number[] = [];
+  for (let j = 0; j < tile.h; j += 1) {
+    for (let i = 0; i < tile.w; i += 1) vals.push(shore.data[(tile.y + j) * shore.w + (tile.x + i)]!);
+  }
+  assert.ok(vals.includes(0), 'the tile lost its waterline — the fallback handed it no coast');
+  assert.ok(
+    vals.some((v) => v > 0 && v < 255),
+    'the tile has no band at all, only capped values — its coast went missing',
+  );
+});
+
+test('bucketByIsland groups EVERY cell under its own island, and keeps them all', () => {
+  // ⚠ EVERY MUTANT IN THIS GROUPING USED TO SURVIVE, because `buildAtlasShore` falls back to the
+  // whole map when a lookup misses — so a broken grouping computed the identical field, slower.
+  // The fallback is what makes a mistake invisible, not what makes it harmless: the grouping is
+  // also what stops each texel paying 35 box tests, and a silently-degraded one puts the 50-second
+  // build back without changing a pixel.
+  const cells = [island('a', 0, 0, 10), island('b', 100, 0, 10), island('a', 40, 40, 10)];
+  const grouped = bucketByIsland(cells);
+  assert.equal(grouped.size, 2, 'two distinct islands');
+  assert.equal(grouped.get('a')?.length, 2, 'both of a`s cells must land in a`s bucket');
+  assert.equal(grouped.get('b')?.length, 1);
+  // ⚠ THE SECOND CELL IS APPENDED, NOT DISCARDED. Dropping it leaves half an island's coast out of
+  // its own reader — a beach that traces only part of the shore, which looks like noise.
+  assert.deepEqual(grouped.get('a'), [cells[0], cells[2]]);
+  // Nothing is lost overall.
+  assert.equal([...grouped.values()].flat().length, cells.length);
+  // ⚠ AND AN ISLAND-LESS CELL IS KEPT UNDER THE EMPTY STRING rather than dropped — the shipped
+  // stream can contain one, and dropping it would erase that ground's coast entirely.
+  const { island: _dropped, ...homeless } = island('x', 0, 0, 10);
+  const unhomed = bucketByIsland([homeless]);
+  assert.equal(unhomed.get('')?.length, 1);
 });

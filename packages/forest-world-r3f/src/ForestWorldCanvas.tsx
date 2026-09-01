@@ -61,7 +61,7 @@ import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './ki
 import { dressMapFromKit } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
-import { buildAtlasShore } from './shore-atlas.js';
+import { SAND_FIELD_WIDTH, buildAtlasShore } from './shore-atlas.js';
 import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour.js';
 import { calibrateLights, intensitiesFor } from './light-calibration.js';
 import {
@@ -309,6 +309,31 @@ export const SHIPPED_GRASS: GroundGrassLayer = {
   rows: GRASS_GATE_ROWS,
 };
 
+/**
+ * HOW MUCH SAND THE SHIPPED BEACH WEARS — layer 2's own strength, and it sits ON its measured
+ * ceiling rather than under it.
+ *
+ * ⚠⚠ 0.16 IS THE FENCE, MEASURED WITH LAYER 1 HELD AT ITS SHIPPED 0.32: at 0.17 the lightest sand
+ * on the ladder's brightest rung walks into the `building`/`proposed` yellow, and a sunlit beach on
+ * a FINISHED capability would report as in-progress work (ADR-0392 D5 / ADR-0398 D7). So unlike
+ * layer 1 — where the strength was an art call inside a band and headroom was banked for the
+ * layers above — this number has no room to spend and is not a taste.
+ *
+ * ⚠⚠ THE OWNER ASKED FOR MORE SAND AND GOT IT ON THE OTHER AXIS. *"The sand looks quite nice,
+ * could probably use more of it to make it more noticable"* (2026-09-02), and, once the two levers
+ * were priced separately, he chose WIDTH over STRENGTH. That was the right lever and not a
+ * compromise: the band decides how many pixels wear the sand and never which colours exist, so
+ * {@link SAND_SHIPPED_BEACH_WIDTH} buys area at zero cost to the reading guarantee while this
+ * number cannot move at all. More sand, same truth.
+ *
+ * ⚠ IT DOES NOT CLEAR THE 20/255 BAR ON ITS OWN — the largest channel shift it can produce is
+ * 15/255. That bar (ADR-0490 D6) scores an ARM's per-pixel movement, and it is the wrong
+ * instrument for a wide contiguous band: ADR-0489 D3 makes the OUTCOME the fence, and the owner
+ * has looked at this beach and asked for more of it. The honest statement is that the sand is
+ * gentle per pixel and broad in area, which is what he chose.
+ */
+export const SHIPPED_SAND_MIX = 0.16;
+
 /** The ONE banded ground material, built once for the module rather than per canvas: it holds
  *  only the authored ramp, the authored light and the authored grain, all of which are constants,
  *  so a second instance would be a second copy of the same 24 colours with a second chance to
@@ -370,7 +395,9 @@ export function buildGroundMaterial(
   // sample through — the material refuses either combination anyway, and refusing here as well
   // would turn an ordinary "this arm wears no grass" into a throw.
   const shoreTex = shore === null || shore === undefined ? null : groundAtlasTexture(shore);
-  if (shoreTex !== null && grass !== undefined) opts.sand = { shore: shoreTex.texture };
+  if (shoreTex !== null && grass !== undefined) {
+    opts.sand = { shore: shoreTex.texture, mix: SHIPPED_SAND_MIX, width: SAND_FIELD_WIDTH };
+  }
   return { material: createBandedGroundMaterial(opts), shadow, shoreTex };
 }
 
@@ -629,7 +656,7 @@ function CellGround({
   casters: readonly ShadowCaster[];
 }) {
   const built = useMemo(() => {
-    const { field, input } = shippedGroundBuild(cells, casters);
+    const { field, shore, input } = shippedGroundBuild(cells, casters);
     const geo = cellGroundGeometry(input);
     // ⚠ LAYER 1 IS WORN UNCONDITIONALLY AND WITH NO FLAG, like the relief, the ladder, the grain
     // and the shadow before it — this arc's end-state item 6 is explicit that a flag nobody
@@ -637,25 +664,12 @@ function CellGround({
     // shape. It is gated per TOKEN rather than by a flag: {@link SHIPPED_GRASS} dresses the green
     // and multiplies every other row's mix by zero, so those rows deliver the pixel they
     // delivered before it existed (ADR-0492 D1).
-    // ⚠⚠ LAYER 2 IS BUILT AND MEASURED BUT NOT WORN, AND THAT IS A BLOCKED ADOPTION RATHER THAN
-    // A FORGOTTEN FLAG. The distinction matters because this arc's end-state item 6 rightly calls
-    // a flag nobody flips "not adoption" — but what stops layer 2 here is not inertia, it is a
-    // measurement: on the shipped ladder the sand is VISIBLE only at or above ~0.22 and HONEST
-    // only at or below ~0.15, and the two miss each other. At the strength that can be seen, a
-    // lit beach on a HEALTHY island reads as `building`/`proposed` yellow at the ladder's two
-    // brightest rungs — a signed-off capability reporting as in-progress work, which ADR-0392 D5
-    // and ADR-0398 D7 do not permit whatever it looks like.
-    //
-    // ⚠ THE PER-TOKEN GATE CANNOT RESCUE IT A SECOND TIME. ADR-0492 dissolved layer 1's version of
-    // this conflict by gating the layer to `healthy`; layer 2 already inherits that gate, so the
-    // move is spent and the binding constraint is now how far the LADDER reaches rather than which
-    // token wears the layer.
-    //
-    // The fork is authored as an open question on `land-ground-stack-arc`. Everything below it —
-    // `shore-atlas.ts`, `land-sand.ts`, the material's sand seam and the instrument's sand arm —
-    // is landed, green, and is what any of the answers will be built from. `shore` is still
-    // returned by `shippedGroundBuild` so every comparison arm gets it without remembering to.
-    return { geo, ...buildGroundMaterial(field, SHIPPED_GRASS) };
+    // ⚠ LAYER 2 IS NOW WORN TOO — unconditionally, no prop, no flag (end-state item 6). It was
+    // held back on 2026-09-02 because under ONE shared factor it could not be both seen and
+    // honest; given its own factor it is fenced on its own measurement (0.16 with layer 1 at
+    // 0.32) and layer 1's delivered pixel is unchanged. The owner asked for a wider beach, which
+    // is the axis that costs the reading guarantee nothing.
+    return { geo, ...buildGroundMaterial(field, SHIPPED_GRASS, shore()) };
   }, [cells, casters]);
   // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
   // TO BE. The occlusion field is about 107 KB of GPU memory for one island, and a canvas that

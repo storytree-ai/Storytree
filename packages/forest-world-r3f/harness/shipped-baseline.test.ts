@@ -331,8 +331,8 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   // builder stays the thing a comparison arm can drive with any factor.
   assert.match(
     src,
-    /buildGroundMaterial\(field, SHIPPED_GRASS\)/,
-    'the material is built from the built field, wearing the shipped grass layer',
+    /buildGroundMaterial\(field, SHIPPED_GRASS, shore\(\)\)/,
+    'the material is built from the built field, wearing layers 1 AND 2',
   );
   // ⚠ IT READS `clipped` RATHER THAN `cells` SINCE THE COAST CROSSED (2026-09-01), and the
   // ORDER is the claim rather than the name. The atlas is packed over the ground's own bounds, so a

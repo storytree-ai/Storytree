@@ -85,13 +85,13 @@ import {
  * layer 1 can deliver against the house reader model and reports two things per mix factor: does
  * every status still read as itself, and which ladder rungs survive if not.
  */
-export type GrassArm = 'flat' | 'honest' | 'authored';
+export type GrassArm = 'flat' | 'authored';
 
 /** The arm every pixel figure is read against: the shipped map exactly as it draws today, with no
  *  grass at all. */
 export const CONTROL_ARM: GrassArm = 'flat';
 
-export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'honest', 'authored'];
+export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'authored'];
 
 /**
  * WHAT EACH ARM MIXES IN — the seam strength layers 1 and 2 BOTH enter through.
@@ -115,7 +115,6 @@ export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'honest', 'authored'];
  */
 export const GRASS_ARM_MIX = {
   flat: SHIPPED_GRASS_MIX,
-  honest: 0.235,
   authored: SHIPPED_GRASS_MIX,
 } satisfies Record<GrassArm, number | null>;
 
@@ -124,21 +123,16 @@ export const GRASS_ARM_MIX = {
  *  ground. */
 export const GRASS_ARM_SAND = {
   flat: false,
-  honest: true,
   authored: true,
 } satisfies Record<GrassArm, boolean>;
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
 export const GRASS_ARM_CAPTION = {
-  flat:
-    'the map as it SHIPS today — layer 1 at 0.32 on the green islands, no sand (CONTROL)',
-  honest:
-    'layers 1+2 at 0.235 — the largest strength at which every reachable colour still reads as ' +
-    'its own status. Honest, and the beach moves no pixel past the 20/255 bar',
+  flat: 'the map as it SHIPPED before layer 2 — layer 1 at 0.32 on the green islands (CONTROL)',
   authored:
-    'layers 1+2 at 0.32 — the strength layer 1 already ships at. The beach is VISIBLE, and at the ' +
-    'ladder`s two brightest rungs a lit sand pixel on a HEALTHY island reads as proposed yellow',
+    'layers 1+2 — the grass unchanged at 0.32, plus the shore sand at its measured ceiling 0.16 ' +
+    'over the owner-directed 9-unit beach. Every colour still reads as its own status',
 } satisfies Record<GrassArm, string>;
 
 /** One island, and the thirty-five-island forest. A ground treatment is read at BOTH: a layer that
