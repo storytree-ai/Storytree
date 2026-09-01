@@ -263,14 +263,34 @@ const CEILINGS = {
    *       `electron/backend-entry.ts`, where no probe could reach it; its first run found three,
    *       including a path-traversal exposure that answered differently from a missing story
    *   = 6 the located population now, and the new ceiling
-   * The six that remain are `/api/assets`, `/api/claims`, `/api/docs/content`, `/api/health`,
-   * `/api/me` and `/api/uat/attest`. Two of those are known REFUTATIONS rather than debt —
-   * `/api/me` is a deliberate narrowing (a constant local identity against the IAP caller's) and
-   * `/api/assets` is a one-line pass-through on both sides whose only re-composed half needs a
-   * database — so the honest floor is lower than six, and lowering it further means recording those
-   * refusals somewhere the instrument can read rather than shrinking the number on their strength.
+   * TIGHTENED 6 → 5 (2026-09-01, `unscored-guards-arc` / `unscored-guards-arc-write-pair`), and this
+   * one is a plain drain with no bookkeeping in it:
+   *   6  the standing baseline, set 2026-08-31
+   *   −1  `/api/uat/attest` REGISTERED — the FIRST WRITE in the registry and the highest-stakes route
+   *       in the system: the `operator-attested` verdict that greens a story crown. Registering it
+   *       first required EXTRACTING the desktop mount out of `electron/backend-entry.ts`, where no
+   *       probe could reach it (the `/api/attestations` shape, one increment earlier), and settling
+   *       HOW a write is isolated — ADR-0495 D3: each surface's own persistence seam, never a
+   *       database, because `events.verdict` is append-only in the SHARED live store and a CI step
+   *       exercising the real write would append verdicts nobody signed
+   *   = 5 the located population now, and the new ceiling
+   * The five that remain are `/api/assets`, `/api/claims`, `/api/docs/content`, `/api/health` and
+   * `/api/me`. Two are known REFUTATIONS rather than debt — `/api/me` is a deliberate narrowing (a
+   * constant local identity against the IAP caller's) and `/api/assets` is a one-line pass-through on
+   * both sides whose only re-composed half needs a database — so the honest floor is lower than five,
+   * and lowering it further means recording those refusals somewhere the instrument can read rather
+   * than shrinking the number on their strength.
+   *
+   * ⚠ THE "NEEDS A DATABASE, SO IT IS UNREACHABLE" HALF OF THAT PARAGRAPH RESTS ON A PREMISE NOW
+   * KNOWN TO BE FALSE, and it is not settled: CI authenticates to the live store (`ci.yml`'s keyless
+   * WIF step) and ADR-0302 dropped offline support outright, so `check:mirror-conformance` is DB-free
+   * by PLACEMENT rather than by necessity. Re-examining `/api/assets` and `/api/claims` on that
+   * corrected footing is parked as `unscored-guards-arc-ci-db-free-refuted` (ADR-0495 D6). Until it
+   * runs, do not read those two as settled refutations. ⚠ And note what does NOT follow: the WRITE
+   * pair above is isolated at its injection seam for reasons a credential does not touch (D3), so a
+   * live-store connection is not an improvement available to it.
    */
-  [MIRROR_PAIR_DRIFT]: 6,
+  [MIRROR_PAIR_DRIFT]: 5,
   /**
    * Baselined 2026-07-27 at the 7 test FILES that sweep located across 424 test files and 4043
    * observed tests — each holding one or more options-form-skipped tests the repo's own classifier

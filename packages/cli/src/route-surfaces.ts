@@ -34,10 +34,17 @@ export const REFERENCE_SURFACE: RouteSurface = { surface: "studio", dirs: ["apps
 /**
  * THE DESKTOP IS TWO DIRECTORIES, and reading only the first was `mirror-pair-drift`'s own blind spot
  * — a guard measuring a smaller world than the one it guards. The desktop serves `/api/*` from BOTH
- * `src/backend` (the headless, node:test-provable factories) and `electron/` (the mounts that need
- * the live pool — `backend-entry.ts` mounts `/api/attestations` and `/api/uat/attest`). The split is
- * a WIRING boundary, not a re-composition boundary, so scanning one dir dropped real routes while
- * the instrument still reported a complete sweep.
+ * `src/backend` (the headless, node:test-provable factories) and `electron/` (the wiring that needs
+ * the live pool). The split is a WIRING boundary, not a re-composition boundary, so scanning one dir
+ * dropped real routes while the instrument still reported a complete sweep.
+ *
+ * ⚠ BOTH DIRS STILL HAVE TO BE SCANNED, and the two routes that first proved it no longer show it.
+ * `backend-entry.ts` mounted `/api/attestations` and `/api/uat/attest` inline when this widening was
+ * measured; both have since been EXTRACTED to `src/backend` so a conformance probe could reach them
+ * (`attestations-route.ts`, `uat-attest-route.ts`), which means the surface's own witnesses have
+ * moved out from under it. Narrowing back to one dir on the strength of that would re-open the blind
+ * spot the moment the next mount is wired in `electron/` — where wiring that needs the live pool
+ * still belongs.
  */
 export const MIRROR_SURFACE: RouteSurface = {
   surface: "desktop",

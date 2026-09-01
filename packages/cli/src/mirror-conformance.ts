@@ -29,6 +29,66 @@
  *      someone has to keep true.
  */
 
+/**
+ * ONE DECLARED CORRECT DIFFERENCE between a mirrored pair — the written rule ADR-0495 D4 requires,
+ * as DATA a later reader can argue with rather than as conditionals scattered through a judge.
+ *
+ * ⚠ IT CARRIES A BINDING TRIPWIRE (ADR-0495 D5). If a pair's list grows past roughly a HANDFUL of
+ * clauses, STOP and raise it as its own question — do not push through to a green. A long list is
+ * evidence that two paths which are required to agree have drifted further than anyone intends, and
+ * encoding that drift here BLESSES it: the check then reports conformance over a pair it has mostly
+ * exempted. The bar is semantic, not row-count — one difference expressed at four entry keys is ONE
+ * clause, and {@link ExemptDifference.keys} is plural for that reason.
+ *
+ * Every clause states WHY the difference is correct, never merely that it is tolerated. The three
+ * dispositions are the three honest things a harness can do about a difference, and only the first
+ * changes what {@link compareMirrors} asserts:
+ *  - `exempt` — the entries diverge and that is correct; the judge skips exactly the named keys, and
+ *    the declaration SELF-PRUNES (a key that matches no entry, or whose two sides agree, is stale
+ *    and reds — the same discipline {@link MirrorSpec.referenceOnlyFields} is held to);
+ *  - `held-constant` — the difference is in an INPUT, and the fixture injects the same value on both
+ *    sides so the comparison lands on what each surface DOES with it rather than on where it came
+ *    from. Nothing is exempted, because nothing diverges;
+ *  - `fenced-elsewhere` — the difference is a wall one surface has and the other correctly does not,
+ *    so no arm of a fixture can compare it. {@link FencedDifference.provenBy} names the suite that
+ *    DOES prove it, and a unit test asserts that file still exists — a clause pointing at a deleted
+ *    module is a rule that has quietly stopped being true.
+ */
+export type CorrectDifference = ExemptDifference | HeldConstantDifference | FencedDifference;
+
+/** The shared half of every clause: what differs, and why that is correct. */
+interface DifferenceClaim {
+  /** What differs, in one phrase. */
+  difference: string;
+  /** WHY it is correct — the argument, not the observation. */
+  why: string;
+}
+
+/** A difference the judge SKIPS at named entry keys, and self-prunes when it stops being real. */
+export interface ExemptDifference extends DifferenceClaim {
+  disposition: "exempt";
+  /**
+   * The projected entry keys this clause covers, spelled exactly (`<label>#<jsonPath>`). Plural
+   * because one difference can surface at several arms; each key self-prunes independently, so a
+   * clause cannot keep an entry exempt after that entry stops diverging.
+   */
+  keys: readonly string[];
+}
+
+/** A difference in an INPUT, which the fixture holds constant so it never reaches the comparison. */
+export interface HeldConstantDifference extends DifferenceClaim {
+  disposition: "held-constant";
+  /** How the fixture holds it constant — what both probes are handed. */
+  how: string;
+}
+
+/** A wall one surface has and the other correctly does not — proved by that surface's own suite. */
+export interface FencedDifference extends DifferenceClaim {
+  disposition: "fenced-elsewhere";
+  /** Repo-relative path of the suite that proves it. Asserted to exist by this module's tests. */
+  provenBy: string;
+}
+
 /** One mirrored payload's conformance rules. */
 export interface MirrorSpec {
   /** Human name of the mirrored payload, e.g. `GET /api/docs`. Used in the failure report. */
@@ -71,6 +131,15 @@ export interface MirrorSpec {
    * byte-identical.
    */
   referenceOnlyFields: readonly string[];
+  /**
+   * The written CORRECT-DIFFERENCE RULE for this pair (ADR-0495 D4) — every difference between the
+   * two surfaces that is correct, each with the argument for why. Absent on a pair that has none,
+   * which is most of them: the rows below whose `referenceOnlyFields` is empty by design have no
+   * sanctioned difference at all, and an empty rule is the honest statement of that.
+   *
+   * ⚠ Read {@link CorrectDifference}'s tripwire before adding a clause.
+   */
+  correctDifferences?: readonly CorrectDifference[];
 }
 
 /** One surface's probe: the app dir it runs from, and the probe module it executes. */
@@ -127,6 +196,16 @@ export interface Probe {
  *   supplying one raw stream and letting each probe present it at its own surface's level is what
  *   keeps the comparison on the route composition rather than on where the seam was drawn. That
  *   layer mismatch is precisely what manufactured a false finding on `/api/health`.
+ * - `uat-attest-fixtures` — argv is fixture DIRECTORIES (a `stories/` tree plus `attest.json`,
+ *   carrying the injected sign inputs — signer, agent identity, commit, clean flag, sign clock — and
+ *   the request list both probes replay as POST bodies). Each probe prints
+ *   `{ [label]: { composed, refusedBecause } }`, which {@link projectUatAttestPayload} turns into
+ *   entries. THE ONLY WRITE PAIR IN THIS REGISTRY, and the one input set whose probes capture at a
+ *   PERSISTENCE SEAM rather than replaying a read: the studio's capturing `signUatVerdict` backend
+ *   and the desktop's capturing `ForestWriter` (ADR-0495 D3). The sign inputs ride the fixture
+ *   because they are each surface's own INPUT — where an identity or a commit comes from is
+ *   correctly different on the two surfaces, and what each surface DOES with it is what must agree.
+ *
  * - `floor-health-fixtures` — argv is fixture JSON PATHS (`{ docs, events, requests }` — the two
  *   reads the floor-health composition makes, plus the request list both probes replay). Each probe
  *   prints `{ [label]: { status, body } }`, which {@link projectFloorHealthPayload} turns into
@@ -143,7 +222,8 @@ export type MirrorInputSet =
   | "traversal-fixtures"
   | "comments-fixtures"
   | "tree-fixtures"
-  | "attestations-fixtures";
+  | "attestations-fixtures"
+  | "uat-attest-fixtures";
 
 /** One registered mirrored payload: the rules, the input protocol, plus the two probes. */
 export interface MirrorTarget {
@@ -551,6 +631,176 @@ export const MIRRORS: readonly MirrorTarget[] = [
       file: "apps/desktop/src/backend/attestations-mirror-probe.ts",
     },
   },
+  {
+    // THE FIRST WRITE IN THIS REGISTRY, and the highest-stakes one in the system: the
+    // `operator-attested` verdict — the "I saw it work" signature that greens a story crown through
+    // `rollupStoryUat` (ADR-0082). Seven read routes were watched here and this had never been.
+    //
+    // ADR-0495 SETTLED WHETHER TO WATCH IT AT ALL. The row above says the write half is "deliberately
+    // out of scope … whether write pairs should be compared at all is `oq-mirror-harness-write-pairs`";
+    // the owner answered that question — extend the harness — and delegated the isolation mechanism.
+    //
+    // ⚠ THE ISOLATION IS EACH SURFACE'S OWN PERSISTENCE SEAM, NOT A DATABASE (ADR-0495 D3), and this
+    // looks like the harder path to anyone who has just learned that CI holds live-store credentials
+    // (`ci.yml`'s keyless WIF auth step). It is the right one, on grounds a credential does not touch:
+    //   · `events.verdict` is APPEND-ONLY in the SHARED live store and is what green is MADE of. A CI
+    //     step exercising the real write on every PR would append operator-attested verdicts nobody
+    //     signed — the exact failure already fenced by `--store pg` being refused for dry-runs,
+    //     because a scripted PASS persisted is a forged healthy;
+    //   · the step holds NO credential this way, so no crash, timeout or misconfiguration can reach
+    //     production, and there is nothing to create, drop or clean up after an interrupted run;
+    //   · the desktop CANNOT be compared through a database at all — it is architecturally forbidden
+    //     from opening one (ADR-0117 d.1/d.5) and persists through an injected `ForestWriter`. A
+    //     DB-backed comparison would have to break that wall or compare only one side.
+    // So the studio's `signUatVerdict` backend and the desktop's `ForestWriter` are both wired to
+    // CAPTURE, and what each surface COMPOSED is diffed. Both seams already existed: this row
+    // invents no machinery, it uses the one both surfaces were built around.
+    //
+    // WHAT IS AND IS NOT AT RISK. `checkUatProof` — the sign-time trust guard — is shared
+    // @storytree/orchestrator code both surfaces call, with its own suite, so the HONESTY RULE
+    // carries no re-composition risk. WHAT IS DUPLICATED IS THE WRAPPER, and that is the drift
+    // surface: which story spec an id resolves to and whether the resolution is CONTAINED, which
+    // witness the guard is fed (the studio hands it the DECLARED witness, the desktop the RESOLVED
+    // one — the same answer today for all three declared values, and a genuine fork the moment
+    // `resolveWitness`'s asymmetric rule changes), what the built verdict carries, and whether a
+    // verdict is composed for persistence at all.
+    //
+    // AND THE COMPARISON IS ON THE BUILT VERDICT, NOT A RECEIPT AND NOT A ROW (ADR-0495 D2) — see
+    // `projectUatAttestPayload` for what that excludes and why the status is not in it.
+    //
+    // ITS FIRST RUN FOUND A REAL, PRESENT DIVERGENCE, on the desktop side, fixed in the landing that
+    // registered it — the fifth this harness has caught and the first on a write. The desktop mount
+    // paired its containment guard with a BARE `loadNodeSpec`, which THROWS on a missing file: a
+    // perfectly ordinary typo'd `storyId` crashed the signing route here while the studio answered
+    // 400. It had been in `electron/backend-entry.ts` for as long as the route existed, unreachable
+    // by any test, and the escaped-id arm cannot see it — a `../` id is refused before a file is
+    // opened. `refuse-missing-story` is the arm that names it.
+    //
+    // ⚠ A RESIDUAL GAP, NAMED RATHER THAN CLOSED: this compares what each surface COMPOSED, not that
+    // the broker DELIVERED it. Delivery failure already refuses rather than forging a green (the
+    // desktop reports success only on `persisted: true`; the studio 503s when the backend cannot
+    // sign), but a broker that MANGLES a verdict in transit is out of scope here and is not claimed
+    // to be covered.
+    spec: {
+      surface: "POST /api/uat/attest (the operator-attested verdict composed for persistence)",
+      route: "/api/uat/attest",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<label>` / `<label>#<jsonPath>`), not a payload
+      // field — see `projectUatAttestPayload`. Spelled literally like the rows above.
+      key: "_key",
+      // EMPTY BY DESIGN, and it stays empty even though this pair has a written correct-difference
+      // rule: `referenceOnlyFields` answers "which field does the reference emit that the mirror
+      // does not", and the answer here is none — both surfaces compose the same verdict SHAPE. The
+      // differences this pair does have are about VALUES and about walls, so they are declared in
+      // `correctDifferences` below, where each one carries its argument.
+      referenceOnlyFields: [],
+      // THE WRITTEN CORRECT-DIFFERENCE RULE (ADR-0495 D4). FIVE clauses, against D5's stopping
+      // condition of "roughly a handful" — so read the shape, not just the count: only TWO of them
+      // exempt anything the comparison would otherwise see, and both of those are provenance or
+      // wording rather than substance. The other three are experimental design — an input the
+      // fixture holds constant, and a wall that no fixture arm can compare. If a sixth clause of the
+      // FIRST kind appears, that is the tripwire: stop and raise it.
+      // Stryker disable StringLiteral: the `difference` and
+      // `why` PROSE below is human-facing documentation — it is read in a failure report and by the
+      // next editor, and nothing computes over its bytes. Pinning them exactly would be an
+      // expectation copied from its own subject, which cannot fail for the right reason. What CAN
+      // rot is asserted instead (`mirror-conformance.test.ts`): every clause carries a non-empty
+      // `why`, every exempt `keys` entry is a well-formed projected key, and every
+      // `fenced-elsewhere` `provenBy` names a file that still exists. The `keys` and `provenBy`
+      // VALUES are not prose and are not disabled — a mutant on either is caught by this row's own
+      // arms or by that suite. Same call `route-surfaces.ts` makes for its surface labels.
+      correctDifferences: [
+        {
+          disposition: "exempt",
+          keys: [
+            "sign-either-fail#.composed.runId",
+            "sign-human-pass#.composed.runId",
+            "sign-ignores-forged-fields#.composed.runId",
+          ],
+          difference:
+            "the verdict's `runId` is stamped with the SURFACE that signed — `studio-uat-attest:<at>` against `local-uat-attest:<at>`",
+          why:
+            "a runId identifies the run that produced a verdict, and these are two different runs on " +
+            "two different surfaces. Making them equal would erase the one field that says where a " +
+            "signature came from, on the one write where provenance is the whole point. The `<at>` " +
+            "half is compared — it rides `.composed.at`, which is NOT exempt — so a surface that " +
+            "stopped deriving the runId from the sign time still diverges there.",
+        },
+        {
+          disposition: "exempt",
+          keys: [
+            "refuse-escaped-story#.refusedBecause",
+            "refuse-machine-witness#.refusedBecause",
+            "refuse-missing-story#.refusedBecause",
+            "refuse-sandbox-signer#.refusedBecause",
+            "refuse-unknown-criterion#.refusedBecause",
+          ],
+          difference:
+            "a refusal's WORDING, where each surface frames the same refusal for its own reader and its own transport",
+          why:
+            "the studio's refusals are HTTP error messages read by a hosted member (`refused — <reason>`); " +
+            "the desktop's are returned in-process and read by a local operator, and its story-lookup " +
+            "refusals name the story rather than the criterion. Forcing one wording on both would " +
+            "make one surface's message wrong for its reader. What is NOT exempted is the fact of " +
+            "refusal: `signed` is compared strictly on every arm, so a wall firing on one surface " +
+            "and not the other still reds. Nor is every wording exempt — `refuse-missing-criterion` " +
+            "is left compared precisely because both surfaces answer it with the identical string, " +
+            "which keeps this from being a blanket. THE COST, stated: two surfaces that both refuse " +
+            "for DIFFERENT reasons are not distinguished at these four keys.",
+        },
+        {
+          disposition: "held-constant",
+          difference:
+            "the SIGNER SOURCE — the studio signs as the verified IAP caller, the desktop as a resolved local operator identity",
+          how:
+            "both probes are handed the SAME signer from the fixture (and the desktop additionally the " +
+            "same agent identity, which the studio's guard call does not take — an agent holds no IAP " +
+            "identity, so on the studio there is nothing to compare it against).",
+          why:
+            "where an identity comes from is a transport concern each surface correctly owns, and " +
+            "neither takes it from the request body — that is the shared honesty rule. What must " +
+            "agree is what each surface DOES with the identity it resolved: trims it, stamps it into " +
+            "`signer` and into the evidence `ref`, and feeds it to the trust guard. Injecting it is " +
+            "what puts the comparison on that, instead of on two identity providers.",
+        },
+        {
+          disposition: "held-constant",
+          difference:
+            "the COMMIT PINNED — the studio pins the commit it is SERVING (git HEAD or STORYTREE_STUDIO_COMMIT), the desktop the session repo's HEAD",
+          how: "both probes are handed the same commit SHA from the fixture.",
+          why:
+            "the two surfaces observe different things — a deployed build against a local checkout — " +
+            "so they must resolve different commits. What must agree is that the resolved commit is " +
+            "PINNED into the verdict unchanged, which `.composed.commitSha` compares directly.",
+        },
+        {
+          disposition: "fenced-elsewhere",
+          difference:
+            "the CLEAN-TREE wall: the desktop refuses to attest while the working tree is dirty, and the studio has no such wall",
+          provenBy: "apps/desktop/src/backend/local-uat-attest.test.ts",
+          why:
+            "it is correct that only one surface has it — a local operator can dirty the very tree " +
+            "they are attesting, so pinning a commit they are not looking at is a real hazard there, " +
+            "while a studio member observes a deployed build they cannot modify. No fixture arm can " +
+            "compare a wall only one side has: an arm with a dirty tree would have the desktop " +
+            "compose nothing where the studio composes a whole verdict, which is a divergence in the " +
+            "ENTRY SET and would need a whole arm exempted — the blunt kind of exemption that starts " +
+            "blessing drift. The fixture therefore holds `clean: true`, and the wall is proved by the " +
+            "desktop's own suite. The persistence contract is fenced the same way and in the same " +
+            "file (only `persisted: true` is reported as success), with the studio's " +
+            "503-when-the-backend-cannot-sign in `apps/studio/server/uatAttestApi.integration.test.ts`.",
+        },
+      ],
+      // Stryker restore StringLiteral
+    },
+    inputs: "uat-attest-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/uatAttestMirrorProbe.ts" },
+    mirror: {
+      appDir: "apps/desktop",
+      file: "apps/desktop/src/backend/uat-attest-mirror-probe.ts",
+    },
+  },
 ];
 
 /**
@@ -666,7 +916,13 @@ export type Divergence =
   /** A shared entry whose field values disagree (JSON-compared). */
   | { kind: "field"; where: string; key: string; field: string; reference: string; mirror: string }
   /** An allowlisted field that is not, in fact, reference-only — the allowlist has rotted. */
-  | { kind: "stale-allowlist"; where: string; field: string; reason: string };
+  | { kind: "stale-allowlist"; where: string; field: string; reason: string }
+  /**
+   * A declared CORRECT DIFFERENCE that is no longer a difference — the written rule has rotted.
+   * Same discipline as `stale-allowlist`, and for the same reason: a sanctioned-difference list
+   * nobody prunes decays into a blanket exemption, and this one exempts whole entries.
+   */
+  | { kind: "stale-correct-difference"; where: string; key: string; difference: string; reason: string };
 
 /** A decoded payload entry — an arbitrary JSON record keyed by the spec's `key` field. */
 export type Entry = Record<string, unknown>;
@@ -1049,6 +1305,63 @@ export function projectAttestationsPayload(body: unknown): Entry[] {
   return projectStatusAndLeaves(body, "attestations");
 }
 
+/** The `POST /api/uat/attest` projection's key field — the SAME synthetic name again, see {@link ARCS_KEY}. */
+export const UAT_ATTEST_KEY = ACTIVITY_KEY;
+
+/**
+ * PURE: project a `POST /api/uat/attest` probe payload — `{ [label]: { composed, refusedBecause } }`
+ * — into one `signed:` entry per replayed request plus one per JSON leaf of what that surface
+ * COMPOSED FOR PERSISTENCE.
+ *
+ * ⚠ THE STATUS IS DELIBERATELY ABSENT HERE, and this is the only projection in the file of which
+ * that is true. Every other status-bearing row includes it because on a READ route half the envelope
+ * IS the status. On this pair, ADR-0495 D2 narrows the comparison to the BUILT VERDICT — "the
+ * verdict is the artifact; a row is a serialisation of it and a receipt is neither" — and a status
+ * code is the receipt. The two surfaces do not even share a transport for it: the studio's refusals
+ * are `HttpError` statuses raised out of an HTTP handler, the desktop's are a refusal OBJECT its
+ * mount then renders. Including the status would have compared two transports and reported their
+ * (correct) difference as drift on every refusal arm.
+ *
+ * WHAT SURVIVES THAT NARROWING, and it is the half that matters: `signed` — did this surface compose
+ * a verdict for persistence at all? — is compared STRICTLY on every arm. That is the wall-presence
+ * assertion: a wall that fires on one surface and not the other diverges here, which is the failure
+ * an operator-attested write must never have. `refusedBecause` rides alongside it so a refusal's
+ * reason is compared wherever the two surfaces genuinely share it.
+ *
+ * The leaves are flattened for the reason {@link projectTreePayload} flattens: a divergence names
+ * the exact field (`sign-human-pass#.composed.commitSha`) rather than diffing a whole verdict, and
+ * the `{}` key-set entries catch a field one surface emits and the other omits — which on a signed
+ * verdict is the difference between a document the store accepts and one it rejects.
+ */
+export function projectUatAttestPayload(body: unknown): Entry[] {
+  if (body === null || typeof body !== "object" || Array.isArray(body)) {
+    throw new Error(
+      `uat-attest payload must be a JSON object keyed by request label, got ${render(body)}`,
+    );
+  }
+  const out: Entry[] = [];
+  // Sorted so the entry order is the request SET, never the probe's iteration order.
+  for (const label of Object.keys(body as Record<string, unknown>).sort()) {
+    const answer = (body as Record<string, unknown>)[label];
+    if (answer === null || typeof answer !== "object" || Array.isArray(answer)) {
+      throw new Error(
+        `uat-attest answer "${label}" must be a { composed, refusedBecause } object, got ${render(answer)}`,
+      );
+    }
+    const { composed } = answer as { composed?: unknown };
+    // `signed` is derived HERE, on the third party, rather than reported by each probe: two probes
+    // each deciding what counts as "it signed" is the drift class this file exists to fence,
+    // arriving inside the instrument.
+    out.push({ [UAT_ATTEST_KEY]: `response:${label}`, signed: composed !== null && composed !== undefined });
+    const leaves = new Map<string, unknown>();
+    flattenJson(answer, "", leaves);
+    for (const path of [...leaves.keys()].sort()) {
+      out.push({ [UAT_ATTEST_KEY]: `${label}#${path}`, value: leaves.get(path) ?? null });
+    }
+  }
+  return out;
+}
+
 /** JSON-compare one field value; `undefined` for an absent key (distinct from an explicit null). */
 function render(value: unknown): string {
   return value === undefined ? "(absent)" : JSON.stringify(value);
@@ -1077,6 +1390,19 @@ export function compareMirrors(
 ): Divergence[] {
   const out: Divergence[] = [];
   const allowlist = new Set(spec.referenceOnlyFields);
+  // The declared correct-difference rule, indexed by the entry key each clause exempts. Only the
+  // `exempt` disposition reaches the judge at all — `held-constant` and `fenced-elsewhere` are
+  // statements about the FIXTURE and about another suite, and exempt nothing here by construction.
+  const exemptByKey = new Map<string, ExemptDifference>();
+  // An `if` rather than `for (… of spec.correctDifferences ?? [])`: with the `??` fallback, a mutant
+  // replacing the empty array is EQUIVALENT — whatever it iterates is skipped by the disposition
+  // guard below — so the fallback form is a line no assertion can reach. Most rows carry no rule.
+  if (spec.correctDifferences !== undefined) {
+    for (const clause of spec.correctDifferences) {
+      if (clause.disposition !== "exempt") continue;
+      for (const key of clause.keys) exemptByKey.set(key, clause);
+    }
+  }
 
   const refByKey = new Map(reference.map((e) => [keyOf(e, spec), e]));
   const mirrorByKey = new Map(mirror.map((e) => [keyOf(e, spec), e]));
@@ -1106,6 +1432,10 @@ export function compareMirrors(
   for (const [key, refEntry] of refByKey) {
     const mirrorEntry = mirrorByKey.get(key);
     if (mirrorEntry === undefined) continue;
+    // A declared correct difference exempts the WHOLE entry: the projections that carry one put a
+    // single `value` on each leaf entry, so exempting the key and exempting its field are the same
+    // act, and naming the key is what a reader of the rule can check against a failure report.
+    if (exemptByKey.has(key)) continue;
     const fields = new Set([...Object.keys(refEntry), ...Object.keys(mirrorEntry)]);
     for (const field of fields) {
       if (allowlist.has(field)) continue;
@@ -1139,6 +1469,44 @@ export function compareMirrors(
     }
   }
 
+  // The correct-difference rule is self-pruning too, and per KEY rather than per clause: a clause
+  // may cover several arms, and one of them ceasing to diverge is exactly the rot worth catching.
+  // A key that names no entry is a rule about something that no longer exists; a key whose two
+  // sides AGREE is a difference that has been repaired, and leaving it declared would keep a real
+  // future divergence at that entry permanently invisible.
+  for (const [key, clause] of exemptByKey) {
+    const refEntry = refByKey.get(key);
+    const mirrorEntry = mirrorByKey.get(key);
+    if (refEntry === undefined || mirrorEntry === undefined) {
+      // Only reportable where the entry is absent from BOTH — a key present on one side alone is
+      // already a missing/extra-entry divergence above, and reporting it twice would name the same
+      // fact in two vocabularies.
+      if (refEntry === undefined && mirrorEntry === undefined) {
+        out.push({
+          kind: "stale-correct-difference",
+          where,
+          key,
+          difference: clause.difference,
+          reason: "neither surface emits this entry — the rule describes something that is gone",
+        });
+      }
+      continue;
+    }
+    const fields = new Set([...Object.keys(refEntry), ...Object.keys(mirrorEntry)]);
+    const differs = [...fields].some(
+      (field) => !allowlist.has(field) && render(refEntry[field]) !== render(mirrorEntry[field]),
+    );
+    if (!differs) {
+      out.push({
+        kind: "stale-correct-difference",
+        where,
+        key,
+        difference: clause.difference,
+        reason: `${spec.reference} and ${spec.mirror} agree here — the difference is gone, so the exemption now hides any future one`,
+      });
+    }
+  }
+
   return out;
 }
 
@@ -1155,6 +1523,8 @@ export function formatDivergence(spec: MirrorSpec, d: Divergence): string {
       return `[${d.where}] ${d.key} field \`${d.field}\`: ${spec.reference}=${d.reference}  ${spec.mirror}=${d.mirror}`;
     case "stale-allowlist":
       return `[${d.where}] stale referenceOnlyFields entry \`${d.field}\`: ${d.reason}`;
+    case "stale-correct-difference":
+      return `[${d.where}] stale correctDifferences key \`${d.key}\` (${d.difference}): ${d.reason}`;
   }
 }
 
