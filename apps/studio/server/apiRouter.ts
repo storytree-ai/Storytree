@@ -15,8 +15,11 @@
 // SIGNPOST — the data/*.json files are a PRE-DB stopgap, not the system of record:
 //   • the Library's STRUCTURED SOURCE is the live store (ADR-0302 D1).
 //   • The offline JsonBackend serves a GITIGNORED apps/studio/data/assets.runtime.json, SEEDED on
-//     first read by deriving the corpus from knowledge.json + the library templates (ADR-0210 — the
-//     committed, generated assets.json was retired; nothing hand-edits or commits this runtime store).
+//     first read by deriving the corpus from the library's committed FIXTURE corpus
+//     (`@storytree/library/fixture`) + the library templates (ADR-0210 — the committed, generated
+//     assets.json was retired; nothing hand-edits or commits this runtime store). That seed was
+//     `apps/studio/data/knowledge.json` until ADR-0302 D1 deleted the file; see the `assetsFile`
+//     comment below and `libraryBackend.ts`'s `#loadSeedUnits`, which say the same thing.
 //   • The Library is ALSO migrated into the shared Cloud SQL Postgres store
 //     (packages/library/store) — the pg backend is the default (oq-studio-store-default → B).
 
