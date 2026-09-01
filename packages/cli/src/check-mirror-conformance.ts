@@ -24,19 +24,26 @@
  *        fixture author didn't think of. Content changes can't destabilise it — the assertion is
  *        equality between two implementations over the same input, not against a recorded value.
  *
- *   `activity-fixtures` — `GET /api/activity`, compared over two synthetic fixtures. There is no
- *     "real corpus" arm here yet, and the reason once given for that — "this payload's real input is
- *     `events.node_claim` in Cloud SQL, and CI is DB-free" — WAS FALSE (ADR-0495). CI authenticates
- *     to the live store with a keyless WIF step, and ADR-0302 dropped offline support outright; this
- *     check is DB-free by PLACEMENT (it runs ahead of that auth step in `ci.yml`), not by necessity.
- *     Moving it and giving this arm a real-corpus companion is parked as
- *     `unscored-guards-arc-ci-db-free-refuted` — so read the missing arm as UNDONE, not as
- *     impossible. The fixtures carry RAW claim rows and
- *     a FIXED `now`, which each probe folds through its own surface's re-composed fold — the grade
- *     defect is inside the assertion rather than upstream of it — and they cover both the populated
- *     shape (every ADR-0200 grade branch, the back-compat absent/unknown grade, a stale row both
- *     folds must drop) and the ADVISORY-ABSENCE shape (`null` layers, zero rows), which is the arm
- *     that catches a route emitting `[]` where its mirror emits `null`.
+ *   `activity-fixtures` — `GET /api/activity`, compared over two SYNTHETIC fixtures under
+ *     `--arm fixtures`, and over a THIRD, real-corpus input under `--arm live`. The fixtures carry
+ *     RAW claim rows and a FIXED `now`, which each probe folds through its own surface's
+ *     re-composed fold — the grade defect is inside the assertion rather than upstream of it — and
+ *     they cover both the populated shape (every ADR-0200 grade branch, the back-compat
+ *     absent/unknown grade, a stale row both folds must drop) and the ADVISORY-ABSENCE shape
+ *     (`null` layers, zero rows), which is the arm that catches a route emitting `[]` where its
+ *     mirror emits `null`.
+ *
+ *     ⚠ THE SYNTHETIC ARMS ARE NOT MADE REDUNDANT BY THE LIVE ONE AND MUST NOT BE DELETED. They
+ *     exercise branches the corpus need not currently contain — measured 2026-09-01, every row in
+ *     the live ledger was past the stale window, so the live arm folded them all away and reached
+ *     no grade branch at all. The live arm adds what the fixture author did not think of; it
+ *     removes nothing. Same relationship as `docs-trees`' two arms.
+ *
+ *     THE REASON THERE WAS NO LIVE ARM UNTIL 2026-09-01 WAS FALSE: "this payload's real input is
+ *     `events.node_claim` in Cloud SQL, and CI is DB-free". CI authenticates to the live store with
+ *     a keyless WIF step, and ADR-0302 dropped offline support outright; this check was DB-free by
+ *     PLACEMENT (it ran ahead of that auth step in `ci.yml`), not by necessity — ADR-0495 recorded
+ *     the refutation and ADR-0496 reclaimed what it cost.
  *
  *   `arc-fixtures` — `GET /api/arcs`, compared over two synthetic fixture DIRECTORIES. Each carries
  *     the three inputs the arc rollup joins over (a doc set, a `docs/decisions` tree, a `stories/`
@@ -78,6 +85,35 @@
  * EMPTY payload for a non-empty input is a FAILURE, not a skip: two silent surfaces agree
  * perfectly, and "a proof that cannot fail is not a proof" is the class this arc exists to fence.
  * The judge that owns the comparison rules is the pure {@link file://./mirror-conformance.ts}.
+ *
+ * TWO ARMS, TWO GATE STEPS, AND THE SPLIT IS THE DECISION (`--arm`, ADR-0496 D1).
+ *
+ *   `--arm fixtures` (the default, and what `pnpm check:mirror-conformance` runs) — every registered
+ *     pair over the synthetic inputs above. Opens no connection, holds no credential, needs no
+ *     network. Stays in the gate's OWN-WORK block and ahead of CI's auth step, where it always was.
+ *
+ *   `--arm live` (`pnpm check:mirror-conformance-live`) — the `/api/activity` pair ONLY, over a
+ *     SNAPSHOT of the real `events.node_claim` ledger. Runs in the gate's SHARED-ENVIRONMENT block
+ *     and below CI's keyless-WIF auth step, because it can red for a reason that is not this diff.
+ *
+ * WHY NOT ONE STEP THAT DOES BOTH. Giving the whole harness a live source would move ALL its rows
+ * into the shared-environment block by the gate's own ordering rule (`gate-order.ts` axis 2: a step
+ * that is sometimes not yours must not gate the arrival of a step that is always yours) — nine rows
+ * losing their early feedback to buy one arm a connection. Worse, it would make every mirror red
+ * ambiguous in SUBJECT: the per-step scoreboard exists so a reader can tell whose red it is, and a
+ * row that is own-work eight times out of nine answers that question with a shrug.
+ *
+ * WHY THE HARNESS SNAPSHOTS AND THE PROBES DO NOT. The rows are read ONCE, here, and handed to both
+ * probes as an ordinary fixture path — so the two surfaces fold IDENTICAL bytes. Two probes each
+ * dialling the store would be separate processes at different moments, which is nondeterminism
+ * ACROSS the payloads being compared (the trap `floor-health-fixtures` already records) and would
+ * report a sibling's heartbeat as cross-surface drift. It is also the only shape the DESKTOP side
+ * can have at all: that surface is architecturally forbidden from opening a DB connection
+ * (ADR-0117 d.1/d.5), so a probe that dialled the store could not be its mirror.
+ *
+ * THE LIVE ARM FAILS LOUDLY ON AN UNREACHABLE STORE and never falls back to the synthetic fixtures.
+ * A fallback would report health for a comparison that never happened — ADR-0302's lesson, and the
+ * posture `check:hierarchy-drift` and `build:guidance` already take.
  */
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from "node:fs";
@@ -103,6 +139,7 @@ import {
   projectTraversalPayload,
   projectTreePayload,
   projectAttestationsPayload,
+  projectClaimsPayload,
   projectUatAttestPayload,
   type Divergence,
   type Entry,
@@ -259,6 +296,106 @@ function buildActivityFixtures() {
 }
 
 /**
+ * Build the three synthetic `/api/claims` fixtures both probes replay — the claim-ledger DOCK view
+ * (ADR-0200 D7), registered by ADR-0496 D3.
+ *
+ * WHY THIS ROW EXISTS AT ALL, since neither the query nor the fold is re-composed: what the two
+ * surfaces hand-copy is the ENVELOPE. `PgClaimStore.listLiveClaims` is one shared implementation
+ * both call, and `groupClaimsBySession` is one shared fold both call — so the drift surface is the
+ * 405 that makes the route read-only, the advisory `{ sessions: null }` a down store or a seam-less
+ * backend must answer INSTEAD of a 503, and the `null`-versus-`[]` distinction the dock renders as
+ * two different sentences. That is the `/api/arcs` argument exactly, and it was registered on it.
+ *
+ * THREE ARMS, and the two absence arms are what carry the row. Without them both surfaces agree on
+ * every populated request and a `[]`-for-`null` swap ships. `advisory-null` (a seam that ANSWERS
+ * null) and `seam-absent` (a backend that does not OFFER `sessionClaims`) are different code paths
+ * — `?.()` versus the null check — and both are postures the surfaces promise.
+ *
+ * THE TIMESTAMPS ARE MINTED HERE RATHER THAN WRITTEN DOWN, and that is forced rather than stylish.
+ * Neither route takes an injectable clock: both call `groupClaimsBySession(claims, new Date())`. A
+ * fixture carrying fixed dates would age past the 2 h stale window and silently stop exercising the
+ * live branch — the arm would keep passing while proving strictly less every day, which is the
+ * decaying-proof shape this whole harness exists to refuse. So the rows are minted relative to NOW,
+ * an hour clear of the boundary on the live side and four hours clear on the stale side.
+ *
+ * AND `now` RIDES THE FIXTURE, which is what makes the arm deterministic rather than merely fresh.
+ * Each probe pins its own clock to it before replaying anything (`freezeClockAt`), so the grouped
+ * payload's `ageMs` / `heartbeatAgeMs` leaves are decided by the data. Without it the two probes —
+ * separate processes launched one after the other — diverged on eight leaves by the 307 ms between
+ * their launches, and the row reported cross-surface drift where the only difference was elapsed
+ * time. That is the `activity-fixtures` rule ("a FIXED `now`, so the window is decided by data,
+ * never by wall-clock") reaching a route whose fold sits inside the handler instead of behind the
+ * seam.
+ */
+function buildClaimsFixtures() {
+  const dir = mkdtempSync(join(tmpdir(), "storytree-claims-"));
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  const ago = (ms: number): string => new Date(now - ms).toISOString();
+  const HOUR = 60 * 60 * 1_000;
+
+  // The SAME requests against every arm — the point of the absence arms is that an identical ask
+  // gives a different honest answer, so asking something different would defeat them.
+  const requests = [
+    { label: "read", method: "GET", path: "/api/claims" },
+    // Read-only is a DECISION on this route, and a status is the only place it is expressed.
+    { label: "write", method: "POST", path: "/api/claims" },
+  ];
+
+  const claim = (over: Record<string, unknown>) => ({
+    unitId: "notice-board",
+    sessionId: "sess-1",
+    branch: "claude/dock",
+    intent: "wiring the dock",
+    grade: "work",
+    claimedAt: ago(HOUR),
+    heartbeatAt: ago(HOUR),
+    ...over,
+  });
+
+  const fixtures = [
+    {
+      label: "populated",
+      file: "claims-populated.json",
+      body: {
+        now: nowIso,
+        seamAbsent: false,
+        claims: [
+          // Two claims on ONE session — the fold's grouping is what the dock renders.
+          claim({ unitId: "notice-board", grade: "work" }),
+          claim({ unitId: "library", grade: "exploring", intent: "reading" }),
+          // A SECOND session, so a fold that collapsed sessions would be visible.
+          claim({ unitId: "cli", sessionId: "sess-2", branch: "claude/other", grade: "waiting" }),
+          // Past the 2 h reclaim window — both surfaces must drop a crashed holder's row.
+          claim({ unitId: "drive", sessionId: "sess-stale", claimedAt: ago(6 * HOUR), heartbeatAt: ago(6 * HOUR) }),
+        ],
+        requests,
+      },
+    },
+    {
+      // The seam ANSWERS null — a stopped store, or the json backend. 200 `{ sessions: null }`.
+      label: "advisory-null",
+      file: "claims-advisory-null.json",
+      body: { now: nowIso, seamAbsent: false, claims: null, requests },
+    },
+    {
+      // The seam is not OFFERED at all — a narrow backend. A different branch (`?.()`), same answer.
+      label: "seam-absent",
+      file: "claims-seam-absent.json",
+      body: { now: nowIso, seamAbsent: true, claims: null, requests },
+    },
+  ];
+
+  const inputs: { label: string; arg: string }[] = [];
+  for (const f of fixtures) {
+    const path = join(dir, f.file);
+    writeFileSync(path, JSON.stringify(f.body), "utf8");
+    inputs.push({ label: f.label, arg: path });
+  }
+  return { dir, inputs };
+}
+
+/**
  * Build the two synthetic `/api/arcs` fixtures both probes replay. Each is a DIRECTORY carrying the
  * three inputs the arc rollup joins over — a doc set (`arcs.json`), a `docs/decisions` tree and a
  * `stories/` tree — plus the REQUEST LIST both probes replay against it.
@@ -275,8 +412,12 @@ function buildActivityFixtures() {
  * precisely what the compiled arc lens renders differently ("needs the live store" vs "no arcs").
  * Without it, both surfaces would agree on every populated request and the defect would ship.
  *
- * There is deliberately no "real corpus" arm: arcs are live-canonical (ADR-0183) and CI is DB-free,
- * so the honest input is a fixture rather than a store nobody can reach.
+ * There is no "real corpus" arm, and the reason is NOT that the store cannot be reached — it can,
+ * from the gate and from CI alike (ADR-0495 / ADR-0496 D2, which built one for `/api/activity`).
+ * It is that this row compares the ENVELOPE and the join itself is shared `@storytree/arc` code
+ * both surfaces call, so a live arm would re-measure agreement that no drift class threatens —
+ * while the two arms that carry this row's value, `no-store` and the unknown-id miss, are states a
+ * live store cannot be put into at all.
  */
 function buildArcFixtures() {
   const root = mkdtempSync(join(tmpdir(), "storytree-arcs-"));
@@ -423,8 +564,11 @@ function buildArcFixtures() {
  * presented as "all clear" is the exact failure ADR-0316's band exists to avoid. Without them, both
  * surfaces would agree on every populated request and the defect would ship.
  *
- * There is deliberately no "real corpus" arm: friction is live-canonical and CI is DB-free, so the
- * honest input is a fixture rather than a store nobody can reach.
+ * There is no "real corpus" arm, and — as for `arc-fixtures` above — the reason is NOT that the
+ * store is out of reach (ADR-0496 D2 built one for `/api/activity`). The reading is shared
+ * `@storytree/drive` code both surfaces call, so what is compared here is the envelope; and the two
+ * arms that carry this row's value, `quiet` and `no-store`, are states the live floor cannot be put
+ * into on demand.
  */
 function buildFloorHealthFixtures() {
   const dir = mkdtempSync(join(tmpdir(), "storytree-floor-health-"));
@@ -1690,6 +1834,7 @@ function buildUatAttestFixtures() {
 function buildInputSets() {
   const docsFixture = buildDocsFixture();
   const activity = buildActivityFixtures();
+  const claims = buildClaimsFixtures();
   const arcs = buildArcFixtures();
   const floorHealth = buildFloorHealthFixtures();
   const traversal = buildTraversalFixtures();
@@ -1704,6 +1849,7 @@ function buildInputSets() {
         { label: "docs/", arg: join(repoRoot, "docs") },
       ],
       "activity-fixtures": activity.inputs,
+      "claims-fixtures": claims.inputs,
       "arc-fixtures": arcs.inputs,
       "floor-health-fixtures": floorHealth.inputs,
       "traversal-fixtures": traversal.inputs,
@@ -1715,6 +1861,7 @@ function buildInputSets() {
     cleanup: () => {
       rmSync(docsFixture, { recursive: true, force: true });
       rmSync(activity.dir, { recursive: true, force: true });
+      rmSync(claims.dir, { recursive: true, force: true });
       rmSync(arcs.dir, { recursive: true, force: true });
       rmSync(floorHealth.dir, { recursive: true, force: true });
       rmSync(traversal.dir, { recursive: true, force: true });
@@ -1780,6 +1927,12 @@ function decodePayload(probe: Probe, inputs: MirrorInputSet, payload: unknown, a
       } catch (err) {
         throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
       }
+    case "claims-fixtures":
+      try {
+        return projectClaimsPayload(payload);
+      } catch (err) {
+        throw new ProbeError(`${probe.file} returned an unusable payload for ${arg}: ${(err as Error).message}`);
+      }
     case "attestations-fixtures":
       try {
         return projectAttestationsPayload(payload);
@@ -1839,9 +1992,172 @@ function runProbe(probe: Probe, inputs: MirrorInputSet, args: string[]) {
   return out satisfies Record<string, Entry[]>;
 }
 
+// ---------- the live-corpus arm ----------
+
+/**
+ * The columns the live snapshot reads from `events.node_claim` — the SAME seven the desktop's
+ * `CLAIM_ROW_COLUMNS` builds its query from, declared again here rather than imported.
+ *
+ * THE COPY IS SOUND, AND FOR A REASON THAT DOES NOT GENERALISE. `packages/cli` may not import
+ * `apps/desktop` (ADR-0176 / `check:boundaries`), so a shared constant is not available; and a copy
+ * that DRIFTED could not manufacture a false red, because both probes are handed the SAME rows. A
+ * column missing here reaches both folds as an absent field and both normalise it identically —
+ * the arm would narrow silently, never lie. It is the one place in this file where a hand-copy is
+ * safe, and the narrowing is what the printed row count makes visible.
+ *
+ * NO STALENESS FILTER, deliberately: the fold is what is under test, and dropping an aged-out row
+ * is one of its branches. Filtering in SQL would decide that branch upstream of the assertion —
+ * the same mistake as injecting already-folded claims.
+ */
+const LIVE_CLAIM_ROW_COLUMNS = [
+  "unit_id",
+  "session_id",
+  "grade",
+  "branch",
+  "intent",
+  "claimed_at",
+  "heartbeat_at",
+] as const;
+
+/** One live-arm snapshot: the fixture both probes fold, and how many real rows it carries. */
+interface LiveSnapshot {
+  readonly dir: string;
+  readonly path: string;
+  readonly rows: number;
+}
+
+/**
+ * Read the real `events.node_claim` ledger ONCE and write it as an ordinary `activity-fixtures`
+ * fixture — raw rows plus a FIXED `now`, the shape both probes already consume unchanged.
+ *
+ * `builds` and `departures` ride as `null`. That is the ADVISORY-ABSENCE value, not a gap: the
+ * desktop's builds fold is inline inside a `pg` closure in `apps/desktop/electron/backend-entry.ts`
+ * and cannot be reached without that surface opening a connection, and `departures` is shared
+ * `@storytree/notice-board` code with no drift class. The claim fold is the one this arm is for.
+ *
+ * THROWS on an unreachable store, and the caller turns that into a LOUD failure. There is no
+ * fallback to the synthetic fixtures by design: a check that quietly compared something else would
+ * report health for the comparison it did not make (ADR-0302's lesson).
+ */
+async function snapshotLiveActivity(): Promise<LiveSnapshot> {
+  // Loaded lazily so `--arm fixtures` never pulls `pg` or the Cloud SQL connector into the process
+  // at all — that arm holds no credential and must stay able to run where none exists.
+  const { createPool, closePool } = await import("@storytree/library/store");
+  const handle = await createPool();
+  let claimRows: unknown[];
+  try {
+    const result = await handle.pool.query(
+      `SELECT ${LIVE_CLAIM_ROW_COLUMNS.join(", ")} FROM events.node_claim`,
+    );
+    claimRows = result.rows as unknown[];
+  } finally {
+    await closePool(handle.pool, handle.connector);
+  }
+
+  const dir = mkdtempSync(join(tmpdir(), "storytree-activity-live-"));
+  const path = join(dir, "activity-live-corpus.json");
+  writeFileSync(
+    path,
+    JSON.stringify({ now: new Date().toISOString(), claimRows, builds: null, departures: null }),
+    "utf8",
+  );
+  return { dir, path, rows: claimRows.length };
+}
+
+/**
+ * `--arm live`: the `/api/activity` pair over the real ledger. One row, one input, and the same
+ * comparison rules the fixture arm uses — the only thing that changes is where the rows came from.
+ */
+async function runLiveArm(): Promise<void> {
+  const target = MIRRORS.find((m) => m.inputs === "activity-fixtures");
+  if (target === undefined) {
+    // Fail CLOSED: the registry moved under this arm and it has nothing to run. Reporting a pass
+    // would make it a step that cannot fail.
+    console.error("✗ live mirror conformance: no registered pair uses `activity-fixtures`");
+    process.exit(1);
+  }
+  const { spec } = target;
+
+  let snapshot: LiveSnapshot;
+  try {
+    snapshot = await snapshotLiveActivity();
+  } catch (err) {
+    console.error(
+      `✗ live mirror conformance: the live store did not answer — ${(err as Error).message}\n\n` +
+        "This arm folds the REAL `events.node_claim` ledger through both surfaces, so an\n" +
+        "unreachable store means the comparison did not happen. It fails rather than falling back\n" +
+        "to the synthetic fixtures, which would report health for a check that verified nothing\n" +
+        "(ADR-0302). Bring the store up (`pnpm db:up`) and re-run; in CI this step sits below the\n" +
+        "keyless-WIF auth step and carries STORYTREE_DB_USER.",
+    );
+    process.exit(1);
+  }
+
+  try {
+    let reference: Record<string, Entry[]>;
+    let mirror: Record<string, Entry[]>;
+    try {
+      reference = runProbe(target.reference, target.inputs, [snapshot.path]);
+      mirror = runProbe(target.mirror, target.inputs, [snapshot.path]);
+    } catch (err) {
+      console.error(`✗ ${spec.surface}: probe failure — ${(err as Error).message}`);
+      process.exit(1);
+    }
+
+    const ref = reference[snapshot.path] ?? [];
+    const mir = mirror[snapshot.path] ?? [];
+    if (ref.length === 0) {
+      console.error(
+        `✗ ${spec.surface}: ${spec.reference} returned an EMPTY payload for live-corpus — ` +
+          "a vacuous comparison is not a pass",
+      );
+      process.exit(1);
+    }
+
+    const divergences: Divergence[] = compareMirrors(ref, mir, spec, "live-corpus");
+    if (divergences.length > 0) {
+      console.error(`\n✗ live mirror conformance: the two surfaces fold the real ledger differently\n`);
+      console.error(`${formatDivergences(spec, divergences)}\n`);
+      process.exit(1);
+    }
+
+    console.log(
+      `✓ ${spec.surface}: ${spec.mirror} matches ${spec.reference} over live-corpus ` +
+        `(${snapshot.rows} claim row(s), ${ref.length} entries)`,
+    );
+    if (snapshot.rows === 0) {
+      // NARROWED, not skipped — and not red either. The envelope WAS compared (the three `layer:`
+      // markers), so this arm did real work; what it could not reach is the fold, because the
+      // ledger holds nothing to fold. An empty ledger is an honest state of the world — nobody is
+      // working — so failing here would be a false red, and staying silent would let a comparison
+      // that touched no row read as one that did. Same posture as `check:ground-space`'s narrowing.
+      console.log(
+        "  NARROWED — the live ledger held ZERO claim rows, so only the envelope was compared;\n" +
+          "  no grade, back-compat or staleness branch of either fold was exercised by this arm.\n" +
+          "  The synthetic arms in `pnpm check:mirror-conformance` cover those and always run.",
+      );
+    }
+  } finally {
+    rmSync(snapshot.dir, { recursive: true, force: true });
+  }
+}
+
 // ---------- the check ----------
 
-function main(): void {
+/**
+ * Which arm to run. Unknown input REFUSES rather than defaulting: a typo'd `--arm liv` silently
+ * running the fixture arm would report a green the live comparison never earned.
+ */
+function parseArm(argv: readonly string[]): "fixtures" | "live" {
+  const i = argv.indexOf("--arm");
+  if (i === -1) return "fixtures";
+  const value = argv[i + 1];
+  if (value === "fixtures" || value === "live") return value;
+  console.error(`check:mirror-conformance: --arm expects \`fixtures\` or \`live\`, got ${String(value)}`);
+  process.exit(2);
+}
+
+function runFixtureArm(): void {
   const { sets, cleanup } = buildInputSets();
 
   const failures: string[] = [];
@@ -1905,4 +2221,14 @@ function main(): void {
   console.log("✓ cross-surface mirror conformance: every mirrored payload matches its reference");
 }
 
-main();
+async function main(): Promise<void> {
+  if (parseArm(process.argv.slice(2)) === "live") return runLiveArm();
+  runFixtureArm();
+}
+
+// Fail CLOSED on anything the arms did not catch themselves: an unhandled rejection that exited 0
+// would be a conformance check reporting a pass it never computed.
+main().catch((err: unknown) => {
+  console.error(`✗ mirror conformance: ${err instanceof Error ? err.stack ?? err.message : String(err)}`);
+  process.exit(1);
+});

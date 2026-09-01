@@ -161,6 +161,19 @@ export interface Probe {
  *   each probe prints the route's response body VERBATIM, which
  *   {@link projectActivityPayload} turns into entries. The projection lives here, on the third
  *   party, so the two probes cannot drift in how they reshape what they measured.
+ * - `claims-fixtures` — argv is fixture JSON PATHS (`{ claims, seamAbsent, requests }` — what the
+ *   `sessionClaims` seam yields, plus the request list both probes replay). Each probe prints
+ *   `{ [label]: { status, body } }`, which {@link projectClaimsPayload} turns into entries. The
+ *   fixture injects at `sessionClaims` because that is exactly where the two surfaces stop sharing
+ *   code: the query (`PgClaimStore.listLiveClaims`) and the fold (`groupClaimsBySession`) are both
+ *   shared package code, so what each surface writes for itself is the ENVELOPE — the 405, the
+ *   advisory `{ sessions: null }`, and the `null`-versus-`[]` distinction.
+ *
+ *   The rows' timestamps are minted by the harness at fixture-write time rather than written down,
+ *   because neither route takes an injectable `now` — both call `groupClaimsBySession(claims,
+ *   new Date())`. Fixed dates would age into staleness and silently stop exercising the live branch;
+ *   minted ones sit far from the 2 h boundary in both directions, and both probes read the SAME
+ *   bytes, so two processes running seconds apart cannot disagree about which rows are live.
  * - `arc-fixtures` — argv is fixture DIRECTORIES (a doc set, a `docs/decisions` tree and a
  *   `stories/` tree — the three inputs the arc rollup joins over — plus the REQUEST LIST both
  *   probes replay). Each probe prints `{ [label]: { status, body } }` for those requests, which
@@ -217,6 +230,7 @@ export interface Probe {
 export type MirrorInputSet =
   | "docs-trees"
   | "activity-fixtures"
+  | "claims-fixtures"
   | "arc-fixtures"
   | "floor-health-fixtures"
   | "traversal-fixtures"
@@ -315,6 +329,46 @@ export const MIRRORS: readonly MirrorTarget[] = [
     inputs: "activity-fixtures",
     reference: { appDir: "apps/studio", file: "apps/studio/server/activityMirrorProbe.ts" },
     mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/activity-mirror-probe.ts" },
+  },
+  {
+    // `/api/claims` — the claim-ledger DOCK view (ADR-0200 D7), and the row whose REFUTATION was
+    // withdrawn (ADR-0496 D3). It sat unregistered on the finding that "the divergent part is the
+    // SELECT behind `sessionClaims()`, which a DB-free probe cannot reach". BOTH HALVES OF THAT WERE
+    // WRONG, and the second one is what makes this row cheap:
+    //
+    //   · There IS no second SELECT. The studio calls `new PgClaimStore(pool).listLiveClaims()`
+    //     (libraryBackend.ts) and the desktop calls `claimLedger.listLiveClaims()` on an instance of
+    //     the SAME class from @storytree/notice-board (electron/backend-entry.ts). One query, one
+    //     implementation, its own tests. Nothing there can drift apart.
+    //   · The store was never out of reach anyway — ADR-0495 refuted "CI is DB-free".
+    //
+    // WHAT IS ACTUALLY HAND-COPIED IS THE ENVELOPE, and it is the `/api/arcs` shape exactly: the fold
+    // (`groupClaimsBySession`) is shared @storytree/notice-board code both surfaces call, so what
+    // each surface writes for itself is the 405 that makes the route read-only, the advisory
+    // `{ sessions: null }` a down store or a seam-less backend must answer INSTEAD of a 503, and the
+    // `null`-versus-`[]` distinction the dock renders as "no ledger here" against "nobody working".
+    // `/api/arcs` was registered on precisely that argument and it holds identically here.
+    //
+    // THREE ARMS, and the two absence arms are the ones that carry the row. `populated` proves the
+    // grouping reaches the wire; `advisory-null` is a seam that ANSWERS null; `seam-absent` is a
+    // backend that does not offer `sessionClaims` at all — a different code path (`?.()`), and the
+    // json/narrow-stub posture both surfaces promise. Without them both surfaces would agree on
+    // every populated request and a `[]`-for-`null` swap would ship.
+    spec: {
+      surface: "GET /api/claims ({sessions})",
+      route: "/api/claims",
+      reference: "studio",
+      mirror: "desktop",
+      // The projection's synthetic key (`response:<label>` / `<label>#<json-path>`), not a payload
+      // field — see `projectClaimsPayload`.
+      key: "_key",
+      // EMPTY BY DESIGN: both surfaces serve this wire to the SAME compiled session dock, which
+      // reads every field from either. A difference here is a defect, never a deliberate narrowing.
+      referenceOnlyFields: [],
+    },
+    inputs: "claims-fixtures",
+    reference: { appDir: "apps/studio", file: "apps/studio/server/claimsMirrorProbe.ts" },
+    mirror: { appDir: "apps/desktop", file: "apps/desktop/src/backend/claims-mirror-probe.ts" },
   },
   {
     // THE THIRD ROW, registered in the SAME branch that created the pair — the moment the desktop
@@ -1303,6 +1357,25 @@ export const ATTESTATIONS_KEY = ACTIVITY_KEY;
  */
 export function projectAttestationsPayload(body: unknown): Entry[] {
   return projectStatusAndLeaves(body, "attestations");
+}
+
+/** The `/api/claims` projection's key field — the SAME synthetic name again, see {@link ARCS_KEY}. */
+export const CLAIMS_KEY = ACTIVITY_KEY;
+
+/**
+ * PURE: project a `GET /api/claims` probe payload. See {@link projectStatusAndLeaves} for the shape
+ * and why it is shared rather than copied per row.
+ *
+ * THE STATUS IS HALF THE ASSERTION HERE, which is why this row takes the status-bearing shape rather
+ * than the activity projection's body-only one. Every difference this pair can express is a status
+ * or a shape: 405 makes the route read-only rather than merely unimplemented, and 200 with
+ * `{ sessions: null }` is the advisory-absence answer both surfaces promise where a 503 would tell
+ * the dock the whole surface was broken. A projection over bodies alone would pass a mirror that
+ * answered the method guard 500, or that swapped `null` for `[]` — and `[]` renders as "nobody is
+ * working" where `null` renders as "there is no ledger here".
+ */
+export function projectClaimsPayload(body: unknown): Entry[] {
+  return projectStatusAndLeaves(body, "claims");
 }
 
 /** The `POST /api/uat/attest` projection's key field — the SAME synthetic name again, see {@link ARCS_KEY}. */

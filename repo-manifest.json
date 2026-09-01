@@ -761,6 +761,20 @@
         ],
         "because": "the studio half of the same conformance harness; it must answer for the code in this diff."
       },
+      "apps/desktop/src/backend/claims-mirror-probe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "a `check:mirror-conformance` probe for `/api/claims` (ADR-0496 D3). It names a stories path only because the local-backend deps shape requires one — no request it replays reads the hierarchy at all — and its subject is this commit's two surfaces agreeing, never the live ledger."
+      },
+      "apps/studio/server/claimsMirrorProbe.ts": {
+        "camp": "prove",
+        "reads": [
+          "checkout"
+        ],
+        "because": "the studio half of the same `/api/claims` pair; it must answer for the code in this diff, and the claim rows it folds come from a fixture rather than from the store."
+      },
       "apps/desktop/src/backend/tree-mirror-probe.ts": {
         "camp": "prove",
         "reads": [

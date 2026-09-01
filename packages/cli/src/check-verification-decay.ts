@@ -274,23 +274,44 @@ const CEILINGS = {
    *       database, because `events.verdict` is append-only in the SHARED live store and a CI step
    *       exercising the real write would append verdicts nobody signed
    *   = 5 the located population now, and the new ceiling
-   * The five that remain are `/api/assets`, `/api/claims`, `/api/docs/content`, `/api/health` and
-   * `/api/me`. Two are known REFUTATIONS rather than debt — `/api/me` is a deliberate narrowing (a
-   * constant local identity against the IAP caller's) and `/api/assets` is a one-line pass-through on
-   * both sides whose only re-composed half needs a database — so the honest floor is lower than five,
-   * and lowering it further means recording those refusals somewhere the instrument can read rather
-   * than shrinking the number on their strength.
+   * TIGHTENED 5 → 4 (2026-09-01, `unscored-guards-arc` / `unscored-guards-arc-ci-db-free-refuted`),
+   * and this one is a plain drain too:
+   *   5  the standing baseline, set 2026-09-01
+   *   −1  `/api/claims` REGISTERED — the claim-ledger dock view (ADR-0496 D3). It had been refuted,
+   *       and the refutation was WITHDRAWN rather than merely re-scoped: see below
+   *   = 4 the located population now, and the new ceiling
+   * The four that remain are `/api/assets`, `/api/docs/content`, `/api/health` and `/api/me`.
    *
-   * ⚠ THE "NEEDS A DATABASE, SO IT IS UNREACHABLE" HALF OF THAT PARAGRAPH RESTS ON A PREMISE NOW
-   * KNOWN TO BE FALSE, and it is not settled: CI authenticates to the live store (`ci.yml`'s keyless
-   * WIF step) and ADR-0302 dropped offline support outright, so `check:mirror-conformance` is DB-free
-   * by PLACEMENT rather than by necessity. Re-examining `/api/assets` and `/api/claims` on that
-   * corrected footing is parked as `unscored-guards-arc-ci-db-free-refuted` (ADR-0495 D6). Until it
-   * runs, do not read those two as settled refutations. ⚠ And note what does NOT follow: the WRITE
-   * pair above is isolated at its injection seam for reasons a credential does not touch (D3), so a
-   * live-store connection is not an improvement available to it.
+   * ⚠ TWO OF THE FOUR ARE RECORDED REFUTATIONS RATHER THAN DEBT, AND THEY ARE RECORDED HERE — where
+   * a reader of this number will find them — RATHER THAN SUBTRACTED FROM IT. `mirror-pair-drift`
+   * locates a missing OBSERVER, not a present defect, so "these two agree today" leaves the located
+   * signal fully intact and shrinking the ceiling on its strength would be an unearned drain.
+   *
+   * - `/api/me` — a DELIBERATE narrowing: the desktop serves a constant local identity, the studio
+   *   serves the IAP caller's. These MUST differ; a row here would red the gate on a correct
+   *   difference forever.
+   * - `/api/assets` — both route halves are one-line pass-throughs, and the re-composition one layer
+   *   down (the studio's `toGuidanceAsset(renderStoredDoc(d))` against the desktop's bare
+   *   `renderStoredDoc(d)`) AGREES. ⚠ MEASURED, not argued, 2026-09-01 against the live store over
+   *   all 2,833 artifacts: identical key populations on all seventeen keys, and 0 of 2,833 rows
+   *   differing on any field. The reason previously given for this refutation — "the backing query
+   *   needs a database and is therefore outside a CI-runnable harness" — was wrong twice and is
+   *   CORRECTED IN PLACE here: the query is the SAME shared `PgLibraryStore.queryDocs()` on both
+   *   surfaces (there is no second SELECT), and the harness was DB-free by PLACEMENT rather than by
+   *   necessity anyway (ADR-0495, ADR-0496 D1). Anyone re-opening this should re-run the payload
+   *   comparison, not go looking for a credential.
+   *
+   * ⚠ `/api/claims`' refutation was withdrawn for the SAME first reason, and it is why that row now
+   * exists: it too rested on "the divergent part is the SELECT behind `sessionClaims()`", and both
+   * surfaces in fact call the SAME `PgClaimStore.listLiveClaims()`. What each hand-copies is the
+   * ENVELOPE — the 405, the advisory `{ sessions: null }`, the `null`-versus-`[]` distinction — which
+   * is the `/api/arcs` argument exactly, and needs no database at all (ADR-0496 D3).
+   *
+   * ⚠ And note what does NOT follow from any of this: the WRITE pair above is isolated at its
+   * injection seam for reasons a credential does not touch (ADR-0495 D3, reaffirmed as ADR-0496 D6),
+   * so a live-store connection is not an improvement available to it.
    */
-  [MIRROR_PAIR_DRIFT]: 5,
+  [MIRROR_PAIR_DRIFT]: 4,
   /**
    * Baselined 2026-07-27 at the 7 test FILES that sweep located across 424 test files and 4043
    * observed tests — each holding one or more options-form-skipped tests the repo's own classifier

@@ -410,6 +410,7 @@ const DECLARED_SHARED_FLOOR = [
   "check:land-art",
   "check:library-dag-acyclic",
   "check:mirror-conformance",
+  "check:mirror-conformance-live",
   "check:mutation-diff",
   "check:ownership-totality",
   "check:palette-transcription",
