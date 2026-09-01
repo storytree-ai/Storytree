@@ -271,7 +271,14 @@ export function skirtLedges(rows: number = SKIRT_ROWS): readonly SkirtLedge[] {
     // previous position is spelled as `skirtInset(row - 1)` rather than read back out of an array
     // being built. `skirtInset(0)` is 0 by its own documented contract, so the top ledge's step is
     // its whole inset and no boundary case is written down twice.
-    const prevInset = rows === 1 ? 0 : skirtInset(row - 1);
+    //
+    // ⚠ AND THERE IS NO `rows === 1 ?` HERE, WHICH THERE WAS — it read `rows === 1 ? 0 :
+    // skirtInset(row - 1)`, and `check:mutation-diff` showed the condition could be replaced by
+    // `false` with no test noticing. That is what a guard against a case the callee already handles
+    // looks like from outside: the single-row skirt's only row is 1, and `skirtInset(0)` is 0. The
+    // line above it still needs its guard — a lone ledge must take NO inset of its own — so the two
+    // are deliberately not symmetrical.
+    const prevInset = skirtInset(row - 1);
     return { row, inset, drop: row / rows, step: inset - prevInset, fall: 1 / rows };
   });
 }

@@ -707,6 +707,11 @@ test('⚠⚠ THE TWO RULES SELECT DIFFERENT COURSES, AND THE DEPTH RULE IS THE O
   }
   // shadeNever is the one-token cliff and selects nothing, at any azimuth or depth
   assert.deepEqual(ledges.filter((l) => shadeNever(l, out, CELL_GROUND_DEPTH)), []);
+  // ⚠ AND IT RETURNS `false`, NOT MERELY SOMETHING FALSY — asserted strictly because
+  // `check:mutation-diff` replaced its body with `() => undefined` and the filter above could not
+  // tell. A `SkirtShadeRule` is declared to return a boolean and the mutant compiles only because
+  // the rung does not typecheck; strict equality is what makes the contract observable.
+  for (const l of ledges) assert.equal(shadeNever(l, out, CELL_GROUND_DEPTH), false);
 });
 
 test('the DEPTH rule puts the shaded rock on the cliff’s lower half in the BUFFER too', () => {
