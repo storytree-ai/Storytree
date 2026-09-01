@@ -31,10 +31,12 @@ import {
   SKIRT_JITTER_SPAN,
   SKIRT_ROCK,
   SKIRT_ROWS,
+  NO_SKIRT,
   flatSkirt,
   insetPoint,
   isRimEdge,
   outwardNormal,
+  rimEdgeCount,
   rimEdgeKeys,
   skirtExtraTriangles,
   skirtInset,
@@ -134,6 +136,19 @@ test('the outward normal is UNIT, PERPENDICULAR, and points away from a normalis
   }
 });
 
+test('⚠ THE NORMAL IS NORMALISED — asserted on an edge whose length is NOT 1', () => {
+  // ⚠⚠ THE UNIT SQUARE ABOVE CANNOT SEE THIS. On an edge of length 1, dividing by the length and
+  // MULTIPLYING by it give the same vector, so `-dz / len` -> `-dz * len` survived every assertion
+  // in this file until `check:mutation-diff` named it. A 3-4-5 edge separates them by a factor of 25.
+  const n = outwardNormal({ x: 0, z: 0 }, { x: 3, z: 4 });
+  assert.ok(Math.abs(Math.hypot(n.x, n.z) - 1) < 1e-12, `length ${Math.hypot(n.x, n.z)}`);
+  assert.ok(Math.abs(n.x - -0.8) < 1e-12, `x was ${n.x}`);
+  assert.ok(Math.abs(n.z - 0.6) < 1e-12, `z was ${n.z}`);
+  // and the inset it drives is therefore in GROUND UNITS rather than in units-times-edge-length
+  const cut = insetPoint({ x: 0, z: 0 }, n, 5);
+  assert.ok(Math.abs(Math.hypot(cut.x, cut.z) - 5) < 1e-12, 'a 5-unit inset did not move 5 units');
+});
+
 test('a degenerate edge has no direction, and the zero vector is the honest answer', () => {
   assert.deepEqual(outwardNormal({ x: 3, z: 4 }, { x: 3, z: 4 }), { x: 0, z: 0 });
 });
@@ -177,6 +192,39 @@ test('the rim census ignores rings that bound no area', () => {
 
 test('a lone parcel is ALL rim — nothing is buried when there is no neighbour', () => {
   assert.equal(rimEdgeKeys([cell(square(0, 0))]).size, 4);
+});
+
+test('⚠ A TRIANGLE IS A PARCEL — the smallest ring that bounds area, and the `< 3` boundary', () => {
+  // ⚠⚠ THE SQUARE FIXTURES ABOVE CANNOT SEE THIS. Every ring in this file had four vertices, so
+  // `ring.length < 3` -> `ring.length <= 3` changed nothing anywhere and survived — named by
+  // `check:mutation-diff`. Under that mutant a triangular parcel silently bounds no area: it
+  // contributes no rim edges, gets no cliff, and the buffer is sized for a parcel that then draws.
+  const tri: readonly P2[] = [
+    { x: 0, z: 0 },
+    { x: 4, z: 0 },
+    { x: 0, z: 3 },
+  ];
+  assert.equal(rimEdgeKeys([cell(tri)]).size, 3, 'a triangular parcel contributed no rim');
+  assert.equal(rimEdgeCount(tri, () => true), 3, 'a triangular ring counted no edges');
+  // and TWO vertices really do bound nothing, on both routes
+  assert.equal(rimEdgeCount([{ x: 0, z: 0 }, { x: 1, z: 0 }], () => true), 0);
+});
+
+test('the skirt`s cost is arithmetic at every boundary, and refuses to go NEGATIVE', () => {
+  // The guard these replaced was an equivalent-mutant farm: at `rimEdges === 0` and `rows === 1`
+  // the product is already 0, so every mutation of the branch survived. What a branch CAN decide is
+  // the negative case, and that is what is asserted now.
+  assert.equal(skirtExtraTriangles(52, SKIRT_ROWS), 520);
+  assert.equal(skirtExtraTriangles(0, SKIRT_ROWS), 0);
+  assert.equal(skirtExtraTriangles(52, 1), 0);
+  assert.equal(skirtExtraTriangles(52, 0), 0, 'zero rows must not owe negative triangles');
+  assert.equal(skirtExtraTriangles(-4, SKIRT_ROWS), 0, 'a negative rim must not owe negative triangles');
+  assert.equal(skirtExtraTriangles(52, -3), 0, 'negative rows must not owe negative triangles');
+});
+
+test('skirtLedges emits nothing for a non-positive row count, with no guard to do it', () => {
+  assert.deepEqual(skirtLedges(0), []);
+  assert.deepEqual(skirtLedges(-5), []);
 });
 
 test('the skirt costs the RIM only, as a delta over the wall already drawn', () => {
@@ -303,7 +351,11 @@ test('`soilLedges` is the owner`s option B: the top ledge keeps the health tint'
   );
 });
 
-test('the cliff ends exactly at the prism depth — the two substrates stay the same thickness', () => {
+test('⚠ EVERY LEDGE HANGS BELOW THE GROUND, at exactly the fraction of depth it declares', () => {
+  // ⚠⚠ THE OLD VERSION OF THIS TEST ONLY CHECKED THE LOWEST POINT, and the mutation rung showed
+  // that was not this branch's own discrimination: `top.y - depth * drop` -> `top.y + depth * drop`
+  // was killed only by a test file this branch never touched. A cliff built UPWARD would stand as a
+  // wall above the land rather than falling to the sea, so the whole ladder is pinned, not its foot.
   const stepped = build({
     rows: SKIRT_ROWS,
     row: ROCK_ROW,
@@ -311,9 +363,47 @@ test('the cliff ends exactly at the prism depth — the two substrates stay the 
     soilLedges: 0,
     isRim: rimOf(),
   });
-  let lowest = 0;
-  for (let i = 1; i < stepped.positions.length; i += 3) lowest = Math.min(lowest, stepped.positions[i]!);
-  assert.equal(lowest, -CELL_GROUND_DEPTH, `the cliff bottoms out at ${lowest}`);
+  const ys = new Set<number>();
+  for (let i = 1; i < stepped.positions.length; i += 3) ys.add(stepped.positions[i]!);
+  const above = [...ys].filter((y) => y > 0);
+  assert.deepEqual(above, [], `the cliff rose ABOVE the ground plane at y=${above.join(', ')}`);
+  for (const ledge of skirtLedges()) {
+    const expected = -CELL_GROUND_DEPTH * ledge.drop;
+    assert.ok(
+      [...ys].some((y) => Math.abs(y - expected) < 1e-12),
+      `no vertex sits at ledge ${ledge.row}'s height ${expected}`,
+    );
+  }
+  assert.equal(Math.min(...ys), -CELL_GROUND_DEPTH, 'the cliff does not bottom out at the depth');
+});
+
+test('NO_SKIRT marks NO edge as rim, which is why its colour can never be delivered', () => {
+  // ⚠ THE UNREACHABILITY IS ASSERTED, NOT ASSUMED. `cellGroundGeometry` substitutes `NO_SKIRT` when
+  // the caller supplies none, and the wall loop reads `skirt.colour` behind `rim && …`. If `isRim`
+  // ever answered true here, every uncut island edge would be painted the placeholder BLACK — a
+  // failure that looks like a lighting bug rather than like a missing input.
+  assert.equal(NO_SKIRT.isRim({ x: 0, z: 0 }, { x: 1, z: 0 }), false);
+  assert.equal(NO_SKIRT.isRim({ x: -9, z: 4 }, { x: 2, z: -7 }), false);
+  assert.equal(NO_SKIRT.rows, 1, 'more than one ledge would move the no-skirt buffer');
+  assert.equal(NO_SKIRT.soilLedges, 1, 'a zero here would make the single ledge rock');
+  assert.deepEqual(skirtLedges(NO_SKIRT.rows), [{ row: 1, inset: 0, drop: 1 }]);
+  // and the cost it implies is nothing, on both factors
+  assert.equal(skirtExtraTriangles(rimEdgeCount(square(0, 0), NO_SKIRT.isRim), NO_SKIRT.rows), 0);
+
+  // ⚠⚠ AND ITS COLOUR IS A REAL VALUE, DRIVEN HERE RATHER THAN LEFT AS AN UNOBSERVABLE
+  // PLACEHOLDER. Emptying it changed nothing anywhere and SURVIVED the mutation rung — the
+  // signature of a value no fixture reaches. Handing the builder the same skirt with `isRim`
+  // answering TRUE makes it reachable, which both kills the mutant and states what the placeholder
+  // would look like if `NO_SKIRT` ever leaked: an island edged in black.
+  const leaked = build({ ...NO_SKIRT, soilLedges: 0, isRim: () => true });
+  let sawBlack = false;
+  for (let i = 0; i < leaked.colors.length; i += 3) {
+    if (leaked.colors[i] === 0 && leaked.colors[i + 1] === 0 && leaked.colors[i + 2] === 0) {
+      sawBlack = true;
+      break;
+    }
+  }
+  assert.ok(sawBlack, 'NO_SKIRT.colour is not the black the module says it is');
 });
 
 test('the FLAT skirt changes nothing — one ledge, no rock, no inset', () => {

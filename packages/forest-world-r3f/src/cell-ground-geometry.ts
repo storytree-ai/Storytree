@@ -31,6 +31,7 @@
 
 import {
   FLAT_WALL,
+  NO_SKIRT,
   ZERO_NORMAL,
   insetPoint,
   outwardNormal,
@@ -470,8 +471,11 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
   // row count, so calling it inside the wall loop would rebuild the same six-element profile for
   // every one of the island's ~350 edges. It is also what the SIZING loop below counts against, so
   // hoisting it makes "the buffer was sized for the profile that was written" true by construction.
-  const skirt = input.skirt;
-  const ledges = skirtLedges(skirt?.rows ?? 1);
+  // ⚠ THE ABSENCE IS A VALUE, NOT A NULL CHECK. `NO_SKIRT` marks no edge as rim, so every branch
+  // below is reached with a real skirt and there is nothing to test for — which is what removes the
+  // second `skirt !== undefined` the mutation rung found could never fire.
+  const skirt = input.skirt ?? NO_SKIRT;
+  const ledges = skirtLedges(skirt.rows);
   let triangles = 0;
   for (const r of rings) {
     triangles += groundFaceTriangles(
@@ -490,9 +494,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     // The fill loop asks the same question of the NORMALISED ring, and `edgeKey` sorts an edge's
     // two endpoints, so a seam traversed one way here and the other way there is ONE edge either
     // way. The two loops therefore cannot disagree about how many edges are rim.
-    if (skirt !== undefined) {
-      triangles += skirtExtraTriangles(rimEdgeCount(r.wall, skirt.isRim), skirt.rows);
-    }
+    triangles += skirtExtraTriangles(rimEdgeCount(r.wall, skirt.isRim), skirt.rows);
   }
 
   const positions = new Float32Array(triangles * 9);
@@ -646,7 +648,7 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       const topNext = lift(b);
       // ⚠ ONLY THE RIM IS CUT. Every parcel walls every edge and all but the rim are buried; six
       // inset ledges on a buried seam would pull two neighbours apart along the seam they share.
-      const rim = skirt !== undefined && skirt.isRim(a, b);
+      const rim = skirt.isRim(a, b);
       const rungs = rim ? ledges : FLAT_WALL;
       // A zero normal for an uncut edge, so an inset of 0 is `p - 0 * 0` and the emitted vertex is
       // the ring's own coordinate to the bit — which is what makes the no-skirt buffer identical
@@ -654,8 +656,9 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
       const outward = rim ? outwardNormal(a, b) : ZERO_NORMAL;
       let upper = top;
       let upperNext = topNext;
-      for (let li = 0; li < rungs.length; li += 1) {
-        const ledge = rungs[li]!;
+      // ⚠ `entries()` RATHER THAN A COUNTER, for the reason `stepped-skirt.ts`'s `indices` gives:
+      // a mutated counter does not fail, it HANGS, and the rung scores a hang as UNPROVEN.
+      for (const [li, ledge] of rungs.entries()) {
         const ia = insetPoint(a, outward, ledge.inset);
         const ib = insetPoint(b, outward, ledge.inset);
         // ⚠ THE LEDGE HANGS FROM ITS OWN RING VERTEX'S HEIGHT, NOT FROM THE RELIEF AT THE INSET
@@ -673,7 +676,11 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
         // wall, and at `soilLedges: 0` its single ledge would otherwise satisfy `li >= 0` and every
         // interior wall in the island would be painted rock. Invisible, and still wrong: the colour
         // buffer is what the comparison arms are built from, so it would move a measurement.
-        const rock = rim && skirt !== undefined && li >= skirt.soilLedges;
+        //
+        // ⚠ AND THERE IS NO `skirt !== undefined` HERE, WHICH THERE WAS. `rim` is already false
+        // whenever the skirt is absent, so the extra check could never fire — mutating it to `true`
+        // changed nothing and SURVIVED the mutation rung. `NO_SKIRT` carries the absence instead.
+        const rock = rim && li >= skirt.soilLedges;
         const ledgeColour = rock ? skirt.colour : colour;
         const ledgeRow = rock ? skirt.row : row;
         pushTriangle(upperNext, upper, lowerNext, ledgeColour, ledgeRow, origin);

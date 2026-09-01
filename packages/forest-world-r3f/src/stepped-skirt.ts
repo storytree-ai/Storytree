@@ -63,6 +63,25 @@
 // simplification would silently move the cliff at any other row count.
 
 import { edgeKey, type CoastPoint } from './coast-clip.js';
+
+/**
+ * THE INDICES 0..count-1, MATERIALISED — so every loop in this module is a `for … of` and carries
+ * no counter to mutate.
+ *
+ * ⚠⚠ IT IS HERE FOR THE MUTATION RUNG, AND THE REASON IS SPECIFIC. `for (let i = 0; i < n; i += 1)`
+ * carries mutants that flip `+=` to `-=` and `<=` to `>`. NEITHER FAILS AN ASSERTION — both run
+ * forever, Stryker scores the timeout as `Timeout`, and `check:mutation-diff` maps that to UNPROVEN:
+ * neither a pass nor a survivor, and it reds the rung. Three of this module's mutants landed there,
+ * printing `no test named`, which reads exactly like a coverage-attribution problem and is not one.
+ * A materialised range has nothing to mutate into a hang, so the mutants stop existing rather than
+ * needing a `Stryker disable` somebody would have to justify.
+ *
+ * `Math.max(0, count)` is the only decision left, and it is a real one: a negative count would make
+ * `Array.from` throw rather than yield nothing.
+ */
+function indices(count: number): number[] {
+  return Array.from({ length: Math.max(0, count) }, (_, i) => i);
+}
 import type { P2 } from './cell-ground-geometry.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
@@ -157,15 +176,18 @@ export function skirtInset(row: number): number {
  * always drawn, emitted by the same code path. The flat arm is not a second implementation.
  */
 export function skirtLedges(rows: number = SKIRT_ROWS): readonly SkirtLedge[] {
-  if (rows < 1) return [];
-  const out: SkirtLedge[] = [];
-  for (let row = 1; row <= rows; row += 1) {
+  // ⚠ THERE IS NO `rows < 1` GUARD, AND ADDING ONE BACK WOULD BE DEAD CODE. The loop below runs
+  // from 1 to `rows`, so a row count of 0 or less emits nothing by construction. A guard sat here
+  // until `check:mutation-diff` showed it could be deleted — or inverted to `false` — without any
+  // test noticing, which is what an unreachable branch looks like from outside. Same argument, and
+  // the same evidence, as `cellGroundGeometry`'s absent empty-input guard.
+  return indices(rows).map((i) => {
+    const row = i + 1;
     // ⚠ THE SINGLE-ROW CASE TAKES NO INSET AT ALL. A lone ledge cut back from its own ring would
     // be a shipped map that moved when nothing was added to it, which would make every "byte
     // identical without the skirt" claim on the comparison page false.
-    out.push({ row, inset: rows === 1 ? 0 : skirtInset(row), drop: row / rows });
-  }
-  return out;
+    return { row, inset: rows === 1 ? 0 : skirtInset(row), drop: row / rows };
+  });
 }
 
 /**
@@ -212,10 +234,8 @@ export function rimEdgeKeys(cells: readonly InstanceDescriptor[]): ReadonlySet<s
   for (const cell of cells) {
     const pts = cell.points;
     if (pts === undefined || pts.length < 3) continue;
-    for (let i = 0; i < pts.length; i += 1) {
-      const a = pts[i]!;
-      const b = pts[(i + 1) % pts.length]!;
-      const k = edgeKey(a, b);
+    for (const [i, a] of pts.entries()) {
+      const k = edgeKey(a, pts[(i + 1) % pts.length]!);
       uses.set(k, (uses.get(k) ?? 0) + 1);
     }
   }
@@ -237,11 +257,7 @@ export function isRimEdge(rim: ReadonlySet<string>, a: CoastPoint, b: CoastPoint
  *  leave a tail of zeroed vertices, which draws as a black triangle at the origin. */
 export function rimEdgeCount(ring: readonly P2[], isRim: (a: P2, b: P2) => boolean): number {
   if (ring.length < 3) return 0;
-  let n = 0;
-  for (let i = 0; i < ring.length; i += 1) {
-    if (isRim(ring[i]!, ring[(i + 1) % ring.length]!)) n += 1;
-  }
-  return n;
+  return ring.filter((a, i) => isRim(a, ring[(i + 1) % ring.length]!)).length;
 }
 
 /**
@@ -252,8 +268,14 @@ export function rimEdgeCount(ring: readonly P2[], isRim: (a: P2, b: P2) => boole
  * arithmetic out of the shared count every other component's buffer is sized by.
  */
 export function skirtExtraTriangles(rimEdges: number, rows: number): number {
-  if (rimEdges <= 0 || rows <= 1) return 0;
-  return rimEdges * (rows - 1) * 2;
+  // ⚠ THE ZERO CASES ARE ARITHMETIC, NOT BRANCHES, and that is a correction rather than a
+  // flourish. This read `if (rimEdges <= 0 || rows <= 1) return 0;` and every mutation of that line
+  // SURVIVED — `<=` to `<`, and the whole condition to `false` — because at the boundary the
+  // arithmetic already returns 0: one row means `rows - 1` is 0, and no rim edges means the product
+  // is 0. A guard whose every mutant is equivalent is a guard that tests nothing, and it hid the one
+  // case that IS a real decision: a NEGATIVE count, which the product would happily turn into a
+  // negative triangle budget and under-size the buffer a caller then writes into.
+  return Math.max(0, rimEdges) * Math.max(0, rows - 1) * 2;
 }
 
 /**
@@ -293,6 +315,27 @@ export const FLAT_WALL: readonly SkirtLedge[] = skirtLedges(1);
  *  bit rather than to within a rounding — which is what lets the no-skirt buffer be byte-identical
  *  to the one every pre-skirt figure was measured on. */
 export const ZERO_NORMAL: P2 = { x: 0, z: 0 };
+
+/**
+ * THE ABSENT SKIRT, AS A VALUE — what {@link cellGroundGeometry} uses when the caller supplies none.
+ *
+ * ⚠⚠ IT EXISTS SO THE WALL LOOP HAS NO NULL CHECK AT ALL, and that is a mutation finding rather
+ * than a style preference. The loop used to ask `skirt !== undefined` a second time, INSIDE a branch
+ * that already implied it — a check that could never fire, so mutating it to `true` changed nothing
+ * and survived. Spelling the absence as a skirt whose `isRim` is always false makes the same fact
+ * true by construction: no edge is rim, so no ledge is rock, so the rock's colour is never read.
+ *
+ * ⚠ ITS COLOUR IS UNREACHABLE AND THAT IS ASSERTED RATHER THAN ASSUMED — `stepped-skirt.test.ts`
+ * drives {@link NO_SKIRT.isRim} directly, so "never read" is a claim a test makes rather than one a
+ * reader has to trace.
+ */
+export const NO_SKIRT: GroundSkirt = {
+  rows: 1,
+  row: 0,
+  colour: { r: 0, g: 0, b: 0 },
+  soilLedges: 1,
+  isRim: () => false,
+};
 
 /** A skirt that changes nothing: one ledge, no inset, the parcel's own tint. Named rather than
  *  spelled inline wherever a control arm is built, so "the flat wall" has one definition. */
