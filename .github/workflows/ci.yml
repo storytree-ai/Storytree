@@ -240,6 +240,12 @@ jobs:
       # its own probe in its own process over one shared input and the JSON is diffed. Deliberately
       # a ROOT step, OUTSIDE the ADR-0195 affected-only narrowing below: drift is introduced by
       # editing EITHER surface, and the affected filter would run only the edited one's suite.
+      #
+      # THIS STEP STAYS HERE, AHEAD OF THE AUTH BLOCK, AND THAT IS NOW A DECISION RATHER THAN AN
+      # ACCIDENT (ADR-0496 D1). It ran here because a stale header claimed "CI is DB-free"; that
+      # claim was false, and its live companion `Cross-surface mirror conformance (live ledger)`
+      # below now holds the credential. Splitting them is what keeps these nine fixture rows'
+      # feedback early: they need no store, and a red here can only be this branch's.
       - name: Cross-surface mirror conformance
         run: pnpm check:mirror-conformance
 
@@ -431,6 +437,22 @@ jobs:
         env:
           STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
         run: pnpm check:web-grounding
+
+      # The live half of the cross-surface mirror harness (ADR-0496 D2). Its block-A sibling above
+      # proves every registered pair over SYNTHETIC fixtures and holds no credential; this folds the
+      # REAL `events.node_claim` ledger through both surfaces' independently re-composed
+      # `/api/activity` claim folds — the pair whose originating defect was a re-composed SELECT that
+      # lost the ADR-0200 `grade` column, and the one arm whose input nobody chose.
+      #
+      # DOWN HERE FOR THE SAME REASON AS ITS FOUR NEIGHBOURS: it needs the auth step above, and its
+      # subject is shared live state, so a sibling's landing can move it under this branch. The
+      # HARNESS reads the ledger once and hands both probes one identical fixture — neither surface
+      # opens a connection, which is also what keeps the desktop probe inside ADR-0117 d.1/d.5.
+      # An unreachable store FAILS this step; it never falls back to the fixtures (ADR-0302).
+      - name: Cross-surface mirror conformance (live ledger)
+        env:
+          STORYTREE_DB_USER: storytree-ci-presence@storytree-498613.iam
+        run: pnpm check:mirror-conformance-live
 
       # ADR-0223 D3: the authored `dependsOn` dependency edge must stay acyclic. Live-store like its
       # two neighbours above, and here for the same reason — the corpus is the shared thing a branch

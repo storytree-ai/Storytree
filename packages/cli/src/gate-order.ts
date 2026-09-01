@@ -188,6 +188,15 @@ export interface GatePlanStep extends GateStep {
  *   branch is not at), and nothing sits between the author and either.
  * - check:mirror-conformance — PROOF INTEGRITY. Commit 3ef84c96 records a historical studio-only
  *   docs change producing 256+4 divergences; without it desktop and studio behavior diverge.
+ * - check:mirror-conformance-live — PROOF INTEGRITY (ADR-0496 D2, added 2026-09-01). The same
+ *   instrument as the rung above, over the REAL `events.node_claim` ledger instead of a fixture.
+ *   Its catch-evidence is INHERITED rather than its own, and honestly so: `/api/activity` is the
+ *   pair whose originating defect was a re-composed SELECT that lost the ADR-0200 `grade` column,
+ *   and this is the only arm that folds rows the fixture author did not write. What it adds is the
+ *   input nobody chose — the fixture proves the branches someone thought of, and a corpus supplies
+ *   the ones nobody did (the `docs-trees` two-arm precedent, where the real `docs/` tree is exactly
+ *   that second arm). It exists at all because the reason there had never been one — "CI is
+ *   DB-free" — was measured FALSE (ADR-0495 / ADR-0496 D1).
  * - check:palette-transcription — PROOF INTEGRITY (added 2026-08-28,
  *   `the-shipped-canvas-third-status-palette` on adopt-the-land-into-the-shipped-map-arc).
  *   CATCH-EVIDENCED, not preventive: the drift it watches for had already landed three times and
@@ -416,6 +425,13 @@ export const GATE_PLAN: readonly GatePlanStep[] = [
     subject: "shared-environment",
     cost: "seconds",
     why: "reds when a `definition` row is neither carrying an authored dependsOn edge nor named as deliberately carrying none (ADR-0468 D3). It sits beside check:library-dag-acyclic for the same reason: the tier it judges is live state, so ANY session's artifact edit can red it even on a branch that touched no corpus. Deliberately NOT the weaker `every definition carries an edge` — that shape prices the tier toward padding, which is the failure ADR-0464's candidate-D refusal names",
+  },
+  {
+    command: "pnpm check:mirror-conformance-live",
+    check: "check:mirror-conformance-live",
+    subject: "shared-environment",
+    cost: "seconds",
+    why: "the SAME `/api/activity` pair its block-A sibling proves over fixtures, folded over a snapshot of the REAL `events.node_claim` ledger (ADR-0496 D2). It is a SECOND STEP rather than an extra arm on the first because the two differ in SUBJECT: a live arm can red on a row this branch did not author, and axis 2 is explicit that a step which is sometimes not yours must not gate the arrival of one that always is — folding it into `check:mirror-conformance` would drag all nine of that step's rows into block C to buy one arm a connection, and would make every mirror red ambiguous about whose it is. It fails LOUDLY on an unreachable store rather than falling back to the fixtures, the same posture as its `check:hierarchy-drift` neighbour and for the same reason (ADR-0302)",
   },
   {
     command: "pnpm check:hierarchy-drift",
@@ -925,6 +941,10 @@ export const PRE_EXPENSIVE_CHECKS: ReadonlySet<string> = new Set([
  */
 export const SHARED_ENVIRONMENT_CHECKS: ReadonlySet<string> = new Set([
   "check:web-grounding",
+  // ⚠ NOT its `check:mirror-conformance` sibling, which stays in PRE_EXPENSIVE_CHECKS. The two run
+  // the same instrument over different INPUTS, and the input is what decides the subject: fixtures
+  // are this branch's, the live ledger is everyone's (ADR-0496 D1).
+  "check:mirror-conformance-live",
   "check:adr-health",
   "check:guidance",
   "check:agents",

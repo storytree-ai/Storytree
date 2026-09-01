@@ -22,6 +22,8 @@ import {
   projectActivityPayload,
   projectArcsPayload,
   projectAttestationsPayload,
+  projectClaimsPayload,
+  CLAIMS_KEY,
   projectCommentsPayload,
   projectFloorHealthPayload,
   projectTraversalPayload,
@@ -176,6 +178,7 @@ test("the registry exposes its routes as DATA, so a second reader never scrapes 
       "/api/activity",
       "/api/arcs",
       "/api/attestations",
+      "/api/claims",
       "/api/comments",
       "/api/context-windows",
       "/api/docs",
@@ -249,6 +252,7 @@ test("every MIRRORS row declares a usable comparison key, input set and surface 
   const inputSets = new Set([
     "docs-trees",
     "activity-fixtures",
+    "claims-fixtures",
     "arc-fixtures",
     "floor-health-fixtures",
     "traversal-fixtures",
@@ -466,6 +470,50 @@ test("projectTreePayload: a story DROPPED from one payload is a divergence, neve
       .some((line) => line.includes("read#.stories[]")),
     "the array LENGTH marker is what names it",
   );
+});
+
+// ---------- projectClaimsPayload: the `/api/claims` projection ----------
+
+const CLAIMS_SPEC: MirrorSpec = {
+  surface: "GET /api/claims",
+  route: "/api/claims",
+  reference: "studio",
+  mirror: "desktop",
+  key: CLAIMS_KEY,
+  referenceOnlyFields: [],
+};
+
+test("projectClaimsPayload shares one projection with its three status-bearing siblings", () => {
+  // Four rows, one `{ label: { status, body } }` protocol, one function. A hand-written fourth copy
+  // would be this registry's own subject arriving inside the instrument.
+  const payload = { read: { status: 200, body: { sessions: [] } } };
+  assert.deepEqual(projectClaimsPayload(payload), projectTreePayload(payload));
+});
+
+test("projectClaimsPayload: a refused payload is named as a CLAIMS payload", () => {
+  assert.throws(() => projectClaimsPayload(7), /claims payload must be a JSON object/);
+  assert.throws(() => projectClaimsPayload({ read: [] }), /claims answer "read"/);
+});
+
+test("projectClaimsPayload: `{ sessions: null }` and `{ sessions: [] }` are a DIVERGENCE", () => {
+  // THE DEFECT THE TWO ABSENCE ARMS EXIST FOR, and the one this route can most plausibly grow: the
+  // dock renders `null` as "there is no ledger here" and `[]` as "nobody is working". Both
+  // contribute zero rows, so a projection that only walked the sessions list would compare two
+  // empties and pass. Seeded live into the desktop handler on 2026-09-01, it red both absence arms
+  // and left `populated` green (ADR-0496 D3).
+  const studio = projectClaimsPayload({ read: { status: 200, body: { sessions: null } } });
+  const desktop = projectClaimsPayload({ read: { status: 200, body: { sessions: [] } } });
+  const divergences = compareMirrors(studio, desktop, CLAIMS_SPEC, "advisory-null");
+  assert.ok(divergences.length > 0, "a null-for-empty swap must be reported, never absorbed");
+});
+
+test("projectClaimsPayload: the 405 that makes this route read-only is compared", () => {
+  // Half this pair's envelope IS a status — read-only is a DECISION here, not an omission. A
+  // projection over bodies alone would pass a mirror that served the method guard as a 200.
+  const refused = projectClaimsPayload({ write: { status: 405, body: { error: "method not allowed" } } });
+  const served = projectClaimsPayload({ write: { status: 200, body: { error: "method not allowed" } } });
+  const divergences = compareMirrors(refused, served, CLAIMS_SPEC, "write");
+  assert.ok(divergences.length > 0, "a mirror that stopped refusing a write must be reported");
 });
 
 // ---------- projectAttestationsPayload: the `/api/attestations` projection ----------
