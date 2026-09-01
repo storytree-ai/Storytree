@@ -168,6 +168,27 @@ export const SHORE_ARM_WIDTH = {
  * gains vertices inside the band (the next increment), the fall covers exactly the land the coast
  * added and stops.
  *
+ * ⚠⚠ THE MESH DID GAIN THEM, AND THE SHIPPED ARM IS NOW `ring` — the SAME 7-unit band with one
+ * inset chain at its midpoint (`src/shore-ring.ts`). Measured on the Mint box, 2026-09-01, against
+ * `beach` on the shipped island: the mesh's departure from the analytic land inside the beach falls
+ * from 0.420 to 0.286 ground units mean (−31.9%), 176,784 delivered pixels change at 8 px/unit —
+ * MORE than widening the band from 7 to 16.5 changes (130,106) — for 2,264 → 2,962 triangles
+ * (+30.8%) and one draw call still.
+ *
+ * ⚠⚠ AND `ring-pair` IS REFUSED FOR A MEASURED REASON RATHER THAN FOR ITS COST. It has the better
+ * average by a distance (mean sag 0.138, −67.1%) and its frame cost is nowhere near a hardware
+ * floor, which is the only ground ADR-0415 D1 leaves for rejecting detail. What it loses is
+ * COVERAGE: its outer chain at 4.67 units folds on coasts that turn tighter than that, so it
+ * divides 36 of the island's 53 coastal parcels against `ring`'s 47 (1,313 of 1,854 against 1,657
+ * on the forest). A band delivered on 68% of the shore and absent on the rest reads as a coast that
+ * keeps stopping, and a uniformly gentler shore is worth more than a sharper one with gaps.
+ *
+ * ⚠ THAT IS A PROPERTY OF THIS IMPLEMENTATION AND NOT OF TWO RINGS. The ladder degrades a chain's
+ * DEPTH and not the ring COUNT, so a parcel that cannot carry the outer chain falls back to no
+ * chain at all rather than to the inner one. Degrading in count would very likely make `ring-pair`
+ * the better arm on both measures; it is a separate increment, named here so the refusal is
+ * revisitable rather than final.
+ *
  * ⚠⚠ `shelf` IS REFUSED FOR A MEASURED REASON AND NOT A LOOK. It lowers ground INLAND of the
  * pre-coast boundary — its highest vertex comes back at 3.871 against the control's 4.034 — and
  * that ground carries PROPS. `dressMapFromKit` still reads the mapper's own descriptors (the coast
@@ -175,7 +196,7 @@ export const SHORE_ARM_WIDTH = {
  * ground beneath it moves. `beach` cannot do that: at `COAST_OUTSET` the fall reaches exactly the
  * pre-coast boundary and no further, where the falloff is 1 and the ground has not moved at all.
  */
-export const SHIPPED_SHORE: ShoreArm = 'beach';
+export const SHIPPED_SHORE: ShoreArm = 'ring';
 
 // ---------------------------------------------------------------------------
 // The falloff itself

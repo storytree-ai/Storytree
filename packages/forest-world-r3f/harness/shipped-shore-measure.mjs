@@ -464,6 +464,15 @@ for (const size of SIZES) {
     if (r.dividedParcels <= 0) {
       fail(`the ${arm} arm divided NO parcel on the ${size} map`);
     }
+    // AND IT MUST REACH MOST OF THE SHORE, not a scattering of it. A band delivered on half the
+    // coastal parcels reads as a shore that keeps stopping, which is worse than one that is
+    // uniformly abrupt - so the coverage is a number the report prints rather than a side effect.
+    if (r.dividedParcels * 2 <= r.coastalParcels) {
+      fail(
+        `the ${arm} arm divided ${r.dividedParcels} of ${r.coastalParcels} coastal parcels on the ` +
+          `${size} map - under half the shore, which draws as a band that keeps stopping`,
+      );
+    }
     if (Math.abs(r.groundArea - c.groundArea) > 1e-6) {
       fail(
         `the ${arm} arm bounds ${r.groundArea.toFixed(3)} sq units against ${RING_REFERENCE}'s ` +
@@ -489,6 +498,17 @@ for (const size of SIZES) {
   const c = at(size, READ_ZOOM, RING_REFERENCE);
   if (c.bandTriangles <= 0) {
     fail(`the ${RING_REFERENCE} arm has no band triangles on the ${size} map - nothing to improve`);
+  }
+  // AND THE TWO IN-VOID WIDTHS MUST REPORT THE IDENTICAL SAG over that fixed region - the void
+  // finding, arriving on the new instrument. If they ever diverge the mesh has gained vertices and
+  // both this page's findings are stale.
+  const inVoidSag = [at(size, READ_ZOOM, 'authored'), at(size, READ_ZOOM, 'beach')];
+  if (inVoidSag[0].bandTriangles !== inVoidSag[1].bandTriangles) {
+    fail(
+      `authored and beach cover ${inVoidSag[0].bandTriangles} and ${inVoidSag[1].bandTriangles} ` +
+        `band triangles on the ${size} map. The sag region is FIXED, so these are the same ground ` +
+        'and the same mesh - a difference means the region stopped being fixed.',
+    );
   }
   for (const arm of RING_ARMS) {
     const r = at(size, READ_ZOOM, arm);
@@ -591,10 +611,15 @@ lines.push('vertex between the coastline and the first interior corner 8.66 unit
 lines.push('is a straight ramp and the falloff\'s shape is not coarse but ABSENT. The sag is that gap,');
 lines.push('measured per band triangle between its own plane and the field at its centroid.');
 lines.push('');
+lines.push('⚠ THE REGION IS FIXED at the 7-unit beach for EVERY arm, never the arm\'s own band. Measured');
+lines.push('over its own band, `authored` reported a lower sag than `beach` and read as the better arm —');
+lines.push('but the two deliver the bit-identical land and only the denominator had moved. Over a fixed');
+lines.push('region they are equal, and `none` is a real baseline: the sine relief\'s own chordal error.');
+lines.push('');
 lines.push('⚠ A RING THAT COST TRIANGLES AND DID NOT MOVE THIS BOUGHT NOTHING. That outcome was a live');
 lines.push('possibility when this page was written, and the driver refuses the run rather than shipping it.');
 lines.push('');
-lines.push('size    arm         bandTris  maxSag  meanSag   vs beach  divided  capped  least  inserted');
+lines.push('size    arm         bandTris  maxSag  meanSag   vs beach  divided/coastal  capped  least  inserted');
 for (const size of SIZES) {
   const c = at(size, READ_ZOOM, RING_REFERENCE);
   for (const arm of ALL_ARMS) {
@@ -611,7 +636,7 @@ for (const size of SIZES) {
         r.maxSag.toFixed(3).padStart(7),
         r.meanSag.toFixed(3).padStart(8),
         rel.padStart(10),
-        String(r.dividedParcels).padStart(8),
+        `${r.dividedParcels}/${r.coastalParcels}`.padStart(15),
         String(r.cappedParcels).padStart(7),
         r.leastScale.toFixed(1).padStart(6),
         String(r.insertedVertices).padStart(9),

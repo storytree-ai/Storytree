@@ -479,9 +479,27 @@ test('the probe field reaches past the widest ring, so no ring sits at its own c
   assert.ok(field.width > 14 / 3);
 });
 
+test('⚠ THE COASTAL COUNT IS THE DENOMINATOR, and an arm with no rings reports an ABSENCE', () => {
+  // "47 parcels divided" says nothing on its own: the shipped island has 164 parcels and 111 of
+  // them are interior. The coverage ratio is what chose the shipped arm, so the denominator has to
+  // be measured rather than carried in prose.
+  const field = straightShore(20);
+  assert.equal(shoreRingSplit(coastalBox(20, 36, 12), field, [3.5]).coastal, true);
+  assert.equal(shoreRingSplit(inlandBox(40, 56, 9, 21), field, [3.5]).coastal, false);
+  // A coastal parcel too shallow for its ring is still COASTAL — it is a parcel the ring failed on
+  // rather than one it had no business reaching, and counting it as interior would flatter the
+  // coverage by hiding exactly the failures the ratio exists to show.
+  assert.equal(shoreRingSplit(coastalBox(20, 36, 1.5), field, [3.5]).coastal, true);
+  // ⚠ AND AN ARM WITH NO RINGS ANSWERS `false`, which is an absence rather than a claim: the field
+  // such an arm builds caps at zero, so every vertex reads as on the coast and the question cannot
+  // be asked. Reporting `true` there would put a real-looking denominator under a zero numerator.
+  assert.equal(shoreRingSplit(coastalBox(20, 36, 12), field, []).coastal, false);
+});
+
 test('a plan with no insets divides nothing and inserts nothing', () => {
   const cells = [cell(coastalBox(20, 36, 12))];
   const plan = shoreRingPlan(cells, []);
+  assert.equal(plan.census.coastal, 0);
   assert.equal(plan.census.divided, 0);
   assert.equal(plan.census.inserted, 0);
   assert.equal(plan.census.capped, 0);

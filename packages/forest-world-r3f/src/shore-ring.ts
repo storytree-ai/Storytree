@@ -294,6 +294,14 @@ export interface ShoreRingSplit extends GroundFaces {
   /** Did the top face actually gain a shore band? False means the parcel fell back to its own
    *  undivided ring — still carrying its shared edge crossings, so no seam can crack. */
   divided: boolean;
+  /** Does this parcel meet the coast at all — the DENOMINATOR {@link divided} has to be read
+   *  against, because an island is mostly interior and "47 parcels divided" says nothing on its own.
+   *
+   *  ⚠ FALSE ON AN ARM WITH NO RINGS, and that is an absence rather than an answer: the field such
+   *  an arm builds caps at zero, so every vertex reads as on the coast and the question cannot be
+   *  asked. A width arm's census reports zero coastal parcels for the same reason it reports zero
+   *  divided ones — it did not look. */
+  coastal: boolean;
   /** How much of its authored depth this parcel's chain kept, on {@link COAST_SCALE_LADDER}. 1 is
    *  the full inset; below 1 the coast turned tighter than the ring and the chain was demoted.
    *
@@ -342,7 +350,7 @@ export function shoreRingSplit(
   const n = pts.length;
   const sorted = [...insets].sort((a, b) => a - b);
   if (n < 3 || sorted.length === 0) {
-    return { wall: pts, faces: [pts], divided: false, scale: 0 };
+    return { wall: pts, faces: [pts], divided: false, coastal: false, scale: 0 };
   }
 
   const distance = pts.map((p) => field.sample(p.x, p.z).distance);
@@ -363,7 +371,7 @@ export function shoreRingSplit(
   const wall = pts.flatMap((p, i) => [p, ...after[i]!]);
 
   const run = coastRun(distance);
-  if (run === null) return { wall, faces: [wall], divided: false, scale: 0 };
+  if (run === null) return { wall, faces: [wall], divided: false, coastal: false, scale: 0 };
   const { start: s, length: m } = run;
   const e = (s + m - 1) % n;
   const sPrev = (s + n - 1) % n;
@@ -371,7 +379,7 @@ export function shoreRingSplit(
   // inland corner sits closer to the water than the widest ring is the case this refuses, and on
   // the forest it is real: one coastal parcel's nearest interior vertex is 0.004 units out.
   if (after[sPrev]!.length !== sorted.length || after[e]!.length !== sorted.length) {
-    return { wall, faces: [wall], divided: false, scale: 0 };
+    return { wall, faces: [wall], divided: false, coastal: true, scale: 0 };
   }
 
   /** The ring's vertices from the run's start to its end, in ring order. */
@@ -446,9 +454,9 @@ export function shoreRingSplit(
   for (const scale of COAST_SCALE_LADDER) {
     if (scale <= 0) continue;
     const faces = build(scale);
-    if (holds(faces)) return { wall, faces, divided: true, scale };
+    if (holds(faces)) return { wall, faces, divided: true, coastal: true, scale };
   }
-  return { wall, faces: [wall], divided: false, scale: 0 };
+  return { wall, faces: [wall], divided: false, coastal: true, scale: 0 };
 }
 
 // ---------------------------------------------------------------------------
@@ -474,6 +482,11 @@ export function shoreRingField(
 /** What an arm's rings did to a whole map — the numbers the comparison page prints beside the
  *  pictures, so "the ring divided the ground" is counted rather than believed. */
 export interface ShoreRingCensus {
+  /** Parcels that meet the coast — the DENOMINATOR {@link divided} is read against. An island is
+   *  mostly interior (111 of the shipped island's 164 parcels), so a bare divided count says
+   *  nothing about how much of the SHORE actually gained a band. Zero on an arm with no rings,
+   *  which did not look. */
+  coastal: number;
   /** Parcels whose top face gained a shore band. */
   divided: number;
   /** Parcels that fell back to their own ring — interior ones, and the coastal ones this module
@@ -523,12 +536,14 @@ export function shoreRingPlan(
   let farthestChain = 0;
   let capped = 0;
   let leastScale = 1;
+  let coastal = 0;
   for (const cell of cells) {
     if (cell.points === undefined || cell.points.length < 3) continue;
     const ring: P2[] = cell.points.map((p) => ({ x: p.x, z: p.z }));
     const split = shoreRingSplit(ring, field, insets);
     splits.set(cell, split);
     inserted += split.wall.length - ring.length;
+    if (split.coastal) coastal += 1;
     if (!split.divided) {
       undivided += 1;
       continue;
@@ -557,6 +572,7 @@ export function shoreRingPlan(
       return { wall: ring, faces: [ring] };
     },
     census: {
+      coastal,
       divided,
       undivided,
       inserted,

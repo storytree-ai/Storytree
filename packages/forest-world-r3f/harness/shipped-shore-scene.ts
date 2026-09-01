@@ -169,6 +169,23 @@ export const SHORE_PICTURE_ZOOMS: readonly CrowdZoom[] = [...SHORE_ZOOMS, FIT_ZO
 export const BEACH_GROUND_WIDTH = COAST_OUTSET;
 
 /**
+ * THE REGION EVERY ARM'S SAG IS MEASURED OVER, in ground units from the shore — FIXED, and the
+ * same for all six.
+ *
+ * ⚠⚠ IT IS NOT THE ARM'S OWN BAND, AND THE FIRST DRAFT'S USE OF THAT WAS A COMPARISON THAT COULD
+ * NOT BE READ. Measured over its own band, `authored` (3.1 units) came back with a LOWER mean sag
+ * than `beach` (7) — 0.268 against 0.420 — and a reader would take that as the narrower band
+ * tracking the land better. It is not: the two deliver the BIT-IDENTICAL land (they sit inside the
+ * same vertex void), and the only thing that differed was how much of the shore each number was
+ * averaged over. A statistic whose denominator moves with the arm is not a comparison.
+ *
+ * ⚠ FIXED AT THE BEACH THE COAST CLIP ACTUALLY ADDED, which is the ground this whole component is
+ * about, and which makes `none` a real baseline rather than an empty row: the unfallen land has a
+ * sag of its own there — the sine relief's chordal error — and every fall is read against it.
+ */
+export const SAG_REGION = COAST_OUTSET;
+
+/**
  * What one arm costs and what it CHANGED, in numbers a picture cannot carry.
  *
  * ⚠⚠ THE FIRST FIVE ARE EXPECTED TO BE IDENTICAL ON EVERY ARM, AND THAT IS A RESULT RATHER THAN AN
@@ -221,6 +238,10 @@ export interface ShorePlan {
   maxHeight: number;
   // ---- what the INSET RING costs, and what it buys -------------------------------------------
 
+  /** Parcels that meet the coast — the denominator {@link dividedParcels} is read against, since
+   *  an island is mostly interior and a bare divided count says nothing about how much of the SHORE
+   *  gained a band. 0 on every width arm, which did not look. */
+  coastalParcels: number;
   /** Parcels whose top face was divided along an inset ring. 0 on every width arm. */
   dividedParcels: number;
   /** Divided parcels whose chain the ladder had to DEMOTE — a coast turning tighter than the ring.
@@ -232,8 +253,10 @@ export interface ShorePlan {
   /** Vertices the ring inserted into wall rings — the shared, edge-local half of the division, and
    *  the part that costs two triangles apiece rather than a whole parcel's worth. */
   insertedVertices: number;
-  /** Top-face triangles whose centroid lies INSIDE the band — the ones the ring exists to create,
-   *  and the denominator {@link meanSag} is averaged over. */
+  /** Top-face triangles whose centroid lies within {@link SAG_REGION} of the shore — the ones the
+   *  ring exists to create, and the denominator {@link meanSag} is averaged over. The region is
+   *  FIXED across arms, so this column is comparable and a growing count means a finer mesh rather
+   *  than a wider band. */
   bandTriangles: number;
   /**
    * ⚠⚠ HOW FAR THE TRIANGULATED SURFACE DEPARTS FROM THE LAND IT IS APPROXIMATING, inside the
@@ -292,11 +315,10 @@ export function shorePlan(cells: readonly InstanceDescriptor[], arm: ShoreArm): 
     relief,
     decompose: ring.decompose,
   });
-  const width = SHORE_ARM_WIDTH[arm];
-  // ⚠ A FIELD OF ITS OWN, capped at the arm's own band, because the sag below is only asked about
-  // triangles INSIDE the band. `shoreRelief` holds a field too and does not expose it; sharing one
-  // would couple this page to that module's internals for no saving a profile has ever shown.
-  const field = shoreField(clipped, Math.max(width, 1));
+  // ⚠ A FIELD OF ITS OWN, capped at {@link SAG_REGION} — the FIXED region every arm's sag is taken
+  // over, never the arm's own band. `shoreRelief` holds a field too and does not expose it; sharing
+  // one would couple this page to that module's internals for no saving a profile has ever shown.
+  const field = shoreField(clipped, SAG_REGION);
 
   let ringVertices = 0;
   let groundArea = 0;
@@ -336,7 +358,7 @@ export function shorePlan(cells: readonly InstanceDescriptor[], arm: ShoreArm): 
       for (const [a, b, cc] of triangulateRing(face)) {
         const cx = (a.x + b.x + cc.x) / 3;
         const cz = (a.z + b.z + cc.z) / 3;
-        if (field.sample(cx, cz).distance >= width) continue;
+        if (field.sample(cx, cz).distance >= SAG_REGION) continue;
         // The plane's height at the centroid IS the mean of its corners' heights, so no barycentric
         // arithmetic is needed and none can be got wrong.
         const plane = (relief.height(a.x, a.z) + relief.height(b.x, b.z) + relief.height(cc.x, cc.z)) / 3;
@@ -379,6 +401,7 @@ export function shorePlan(cells: readonly InstanceDescriptor[], arm: ShoreArm): 
     attributeBytes: geo.triangles * 3 * GROUND_FLOATS_PER_VERTEX * 4,
     groundArea,
     foldedParcels,
+    coastalParcels: ring.census.coastal,
     dividedParcels: ring.census.divided,
     cappedParcels: ring.census.capped,
     leastScale: ring.census.leastScale,
@@ -497,6 +520,7 @@ export interface ShoreReading {
   attributeBytes: number;
   groundArea: number;
   foldedParcels: number;
+  coastalParcels: number;
   dividedParcels: number;
   cappedParcels: number;
   leastScale: number;
@@ -625,6 +649,7 @@ export function createShoreRunner(): ShoreRunner {
     attributeBytes: s.plan.attributeBytes,
     groundArea: s.plan.groundArea,
     foldedParcels: s.plan.foldedParcels,
+    coastalParcels: s.plan.coastalParcels,
     dividedParcels: s.plan.dividedParcels,
     cappedParcels: s.plan.cappedParcels,
     leastScale: s.plan.leastScale,
@@ -767,7 +792,8 @@ export function mountShippedShore(root: HTMLElement): void {
           `${s.plan.bandTriangles} band triangles · ` +
           `height ${s.plan.minHeight.toFixed(2)}…${s.plan.maxHeight.toFixed(2)} · ` +
           `${s.plan.triangles} triangles · ` +
-          `${s.plan.dividedParcels} parcels divided (${s.plan.cappedParcels} capped, least ` +
+          `${s.plan.dividedParcels}/${s.plan.coastalParcels} coastal parcels divided ` +
+          `(${s.plan.cappedParcels} capped, least ` +
           `${s.plan.leastScale.toFixed(1)}) · ` +
           `${s.plan.foldedParcels} folded parcels`;
         fig.append(img, cap);
