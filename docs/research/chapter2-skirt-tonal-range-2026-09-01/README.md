@@ -180,7 +180,42 @@ rather than 26.5 lighter. That is a smaller error and it is in the direction tha
 it is an overshoot and it is stated as one. Closing it further would mean moving a token away from
 the measurement it was transcribed from, which is a worse trade than the 13 luma buys.
 
-## 8. Files
+## 8. ⚠ The mutation rung cannot reach the page, so the page was seeded by hand
+
+`check:mutation-diff` mutates a project's `src/` only. Every line this increment added under
+`harness/` — the arm table, the per-arm denominators, the rock pairs — therefore comes back
+**explicitly unproven**, and an unproven line reads exactly like a covered one if nobody says so.
+Eight faults were seeded by hand, one per load-bearing line, each restored before the next:
+
+| id | file | seeded fault | verdict |
+|---|---|---|---|
+| H1 | `shipped-skirt-scene.ts` | the shaded rock is dropped from the ramp table, so its row resolves to −1 | KILLED |
+| H2 | `shipped-skirt-scene.ts` | `rockRow` returns each rock's neighbour's row | KILLED |
+| H3 | `shipped-skirt-scene.ts` | the two candidate arms become the same arm | **SURVIVED → now KILLED** |
+| H4 | `shipped-skirt-scene.ts` | the shipped arm is read against `flat` instead of `rock` | **SURVIVED → now KILLED** |
+| S1 | `stepped-skirt.ts` | the depth rule's boundary course flips side | KILLED |
+| S2 | `stepped-skirt.ts` | `ledgeNormal` faces every ledge the opposite way | KILLED |
+| S3 | `cell-ground-geometry.ts` | the two rocks are swapped | KILLED |
+| S4 | `cell-ground-geometry.ts` | buried seams take the shaded rock | **EQUIVALENT → guard deleted** |
+
+**The three that did not die were each a real defect, and each is a different kind.**
+
+- **H3 and H4 turn a comparison into a null result while the page still renders and still prints
+  numbers** — two identical rows under a heading saying they differ, and an arm credited with the
+  previous increment's work. Both are now asserted as PROPERTIES over `SKIRT_ARMS` rather than as
+  transcriptions of the arm tables, so an arm added later is held to them without anyone remembering
+  to extend a list.
+- **S4 was EQUIVALENT, and the honest response was deletion rather than a test.** `pick` is read only
+  through the two `rock ? … : …` expressions, so a buried seam computing `shaded` could never deliver
+  a rock however the rule answered. `cell-ground-geometry.ts` and `stepped-skirt.ts` have each
+  deleted a guard on exactly this evidence before. The mutant is now unexpressible rather than
+  covered, which is why the second sweep reports it as SKIPPED.
+
+Second sweep: **8/8 disposed of**. Reproduce it from the script in the increment's own history — it is
+not committed, because there is no home for it yet (filed as friction:
+`hand-seeded-mutation-loop-is-re-authored-per-harness-increment`).
+
+## 9. Files
 
 | | |
 |---|---|
