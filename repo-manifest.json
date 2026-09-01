@@ -667,6 +667,14 @@
         "fallback": "the studio's `/api/tree` prefers the live projection through `selectHierarchy`, which this module wires; what it reads here IS the disk arm that seam falls back to, plus the per-criterion UAT detail still read off the checkout. Every fallback is announced by `announceHierarchyOrigin`, so the disk read can only be reached through a branch that says why (ADR-0445 D2).",
         "because": "the studio map's route table — the render surface the 2026-08-25 incident was reported against."
       },
+      "apps/studio/server/forestSnapshotCli.ts": {
+        "camp": "render",
+        "reads": [
+          "checkout"
+        ],
+        "fallback": "the published snapshot is a picture of NOW, and the arc join it carries (ADR-0453 D12) reaches the checkout for the one edge that lives nowhere else: the story-side frontmatter `arc:` stamp, which ADR-0306 D4 defines as a disk scan of the running tree. So this is not a fallback FROM a live read — there is no live copy of that stamp to prefer — and it cannot become one silently: `unpublishableReason` already refuses to publish unless the LIVE store answered, so a checkout-only run writes no file at all.",
+        "because": "the exporter shell behind `pnpm web:forest-snapshot` — it publishes what the studio map currently shows, stamped with the moment it was taken, so its clock is now rather than the commit under test."
+      },
       "apps/studio/server/libraryBackend.ts": {
         "camp": "render",
         "reads": [
