@@ -74,7 +74,7 @@ test("a reading prints the figure, its band and D3's own marks", () => {
   assert.match(env.body, /225,013 tokens/);
   assert.match(env.body, /CALM/);
   assert.match(env.body, /room for another increment/);
-  assert.match(env.body, /soft ~400k · hard 500k/);
+  assert.match(env.body, /soft ~700k · hard 850k/);
   assert.match(env.body, /a2e1e82e-b05c-432d-84e6-19440160bf5f/);
   // The caveat that stops a low number on a fan-out session reading as a broken instrument.
   assert.match(env.body, /ADR-0413 D2/);
@@ -180,8 +180,30 @@ test("help names the marks and says it enforces nothing", () => {
   const env = contextHelp();
 
   assert.equal(env.ok, true);
-  assert.match(env.body, /~400k/);
-  assert.match(env.body, /500k/);
+  assert.match(env.body, /~700k/);
+  assert.match(env.body, /850k/);
   assert.match(env.body, /never enforces/i);
   assert.match(env.body, /ESTIMATED/);
+});
+
+test("every surface that states a mark also says what the mark asks for", () => {
+  // ADR-0499 D2-D4. The measured failure was a session reading the soft mark as a spend budget and
+  // economising on the work in hand, so the number must never appear anywhere without the clause
+  // that says what it governs. All THREE surfaces print a mark: the reading, the absence fallback
+  // (which restates the marks precisely because it has no figure), and the help.
+  const withFigure = contextCommand(deps());
+  const absent = contextCommand(
+    deps({ read: () => reading({ window: null, band: null, absence: "no-correlated-window", selectedBy: null }) }),
+  );
+
+  for (const body of [withFigure.body, absent.body, contextHelp().body]) {
+    assert.match(body, /NEXT unit/, "a mark is stated without saying what it governs");
+    assert.match(body, /cross it/i, "crossing a mark mid-increment is the expected case, not a failure");
+  }
+
+  // The ABSENCE render restates both marks in words precisely because it has no figure to band —
+  // it is the one branch a session reads when `storytree context` cannot help it, so a tune that
+  // left these two numbers behind would mislead exactly the session with the least to go on.
+  assert.match(absent.body, /no new increment past ~700k/i);
+  assert.match(absent.body, /hand over at 850k/i);
 });

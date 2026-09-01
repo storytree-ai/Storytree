@@ -19,8 +19,11 @@
 //
 // THE SIGNED GRAMMAR SURVIVES THE RE-FLOW UNCHANGED (ADR-0354 D3 reopened LAYOUT only): one playhead
 // occupancy bar with the over-threshold portion coloured and NO marker/tick/arc for the threshold
-// itself — THREE portions since ADR-0456 D4, because ADR-0411 D3 set a second mark at ~400K beside
-// the bar's 500K, and the clause applies to two thresholds exactly as it did to one; plain node
+// itself — THREE portions since ADR-0456 D4, because ADR-0411 D3 set a SECOND mark beside the one
+// the bar already drew, and the clause applies to two thresholds exactly as it did to one. The pair
+// is ~700K soft / 850K hard since ADR-0499 D1 tuned it, and the numbers are never written here: they
+// are imported from `@storytree/context-traversal-transcript/marks`, so a future tune moves the
+// colours without touching this file; plain node
 // marks with no per-node gauge; solid full-payload and grey dotted front-matter edges; a magnifying
 // glass for search; branching carried by animation rather than drawn loop-backs; and explicit-only
 // forks stating a raw `M of N` and never a percentage.

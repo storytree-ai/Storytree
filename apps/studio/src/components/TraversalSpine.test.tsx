@@ -360,7 +360,7 @@ describe('the one playhead occupancy bar', () => {
       <TraversalSpine
         replay={replay([
           visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 550_000),
+          occupancyEvent(1_000, 900_000),
           visit('full_payload_read', 20_000, 'b'),
           visit('full_payload_read', 40_000, 'c'),
         ])}
@@ -368,20 +368,21 @@ describe('the one playhead occupancy bar', () => {
     );
 
     scrubTo(1);
-    // Scale is the base 600k ceiling — chosen ABOVE the hard mark so at-the-limit and past-it cannot
-    // draw alike. 400k calm + 100k soft + 50k hard, as fractions of 600k.
+    // Scale is the base 1M ceiling — chosen ABOVE the hard mark so at-the-limit and past-it cannot
+    // draw alike (ADR-0499 D1 moved it up with the marks). 700k calm + 150k soft + 50k hard, as
+    // fractions of 1M.
     expect((screen.getByTestId('traversal-occupancy-calm') as HTMLElement).style.height).toBe(
-      `${(400_000 / 600_000) * 100}%`,
+      `${(700_000 / 1_000_000) * 100}%`,
     );
     const soft = screen.getByTestId('traversal-occupancy-soft') as HTMLElement;
-    expect(soft.style.height).toBe(`${(100_000 / 600_000) * 100}%`);
-    expect(soft.style.bottom).toBe(`${(400_000 / 600_000) * 100}%`);
+    expect(soft.style.height).toBe(`${(150_000 / 1_000_000) * 100}%`);
+    expect(soft.style.bottom).toBe(`${(700_000 / 1_000_000) * 100}%`);
     const hard = screen.getByTestId('traversal-occupancy-hard') as HTMLElement;
-    expect(hard.style.height).toBe(`${(50_000 / 600_000) * 100}%`);
-    expect(hard.style.bottom).toBe(`${(500_000 / 600_000) * 100}%`);
+    expect(hard.style.height).toBe(`${(50_000 / 1_000_000) * 100}%`);
+    expect(hard.style.bottom).toBe(`${(850_000 / 1_000_000) * 100}%`);
     // The word "resident" caps the track above the readout in the vertical composition, so the claim
     // is read off the whole block rather than the numeric line alone.
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('550.0k');
+    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('900.0k');
     expect(screen.getByTestId('traversal-occupancy').textContent).toContain('resident');
   });
 
@@ -413,7 +414,7 @@ describe('the one playhead occupancy bar', () => {
       <TraversalSpine
         replay={replay([
           visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 400_000),
+          occupancyEvent(1_000, 700_000),
           visit('full_payload_read', 20_000, 'b'),
         ])}
       />,
@@ -428,7 +429,7 @@ describe('the one playhead occupancy bar', () => {
       <TraversalSpine
         replay={replay([
           visit('full_payload_read', 0, 'a'),
-          occupancyEvent(1_000, 500_000),
+          occupancyEvent(1_000, 850_000),
           visit('full_payload_read', 20_000, 'b'),
         ])}
       />,
@@ -437,7 +438,7 @@ describe('the one playhead occupancy bar', () => {
     scrubTo(1);
     expect((screen.getByTestId('traversal-occupancy-hard') as HTMLElement).style.height).toBe('0%');
     expect((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height).toBe(
-      `${(100_000 / 600_000) * 100}%`,
+      `${(150_000 / 1_000_000) * 100}%`,
     );
   });
 
@@ -456,8 +457,8 @@ describe('the one playhead occupancy bar', () => {
         transcriptOccupancy={buildTranscriptOccupancySeries({
           windowId: 'the-session',
           scan: { root: '/transcripts', windowFilesFound: 9, file: '/transcripts/the-session.jsonl' },
-          observations: [{ at: at(1_000), residentTokens: 431_000 }],
-          peakTokens: 431_000,
+          observations: [{ at: at(1_000), residentTokens: 781_000 }],
+          peakTokens: 781_000,
           syntheticObservations: 0,
           sidechainRequests: 0,
           absence: null,
@@ -468,7 +469,7 @@ describe('the one playhead occupancy bar', () => {
 
     scrubTo(1);
     expect(document.querySelector('.traversal-occupancy.is-unobserved')).toBeNull();
-    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('431.0k');
+    expect(screen.getByTestId('traversal-occupancy-readout').textContent).toContain('781.0k');
     // Past the soft mark, short of the hard one: the middle band is coloured and the top is not.
     expect(
       Number.parseFloat((screen.getByTestId('traversal-occupancy-soft') as HTMLElement).style.height),

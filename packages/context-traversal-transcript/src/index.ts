@@ -30,6 +30,7 @@ export {
   bandGuidance,
   bandOf,
   HARD_MARK_TOKENS,
+  MARKS_GOVERN_THE_NEXT_UNIT,
   SOFT_MARK_TOKENS,
   type ContextBand,
 } from "./context-marks.js";

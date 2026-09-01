@@ -106,7 +106,10 @@ test("a synthetic tail does not read as an empty window, and the exclusion is re
   assert.equal(read.window?.peakTokens, 437_477);
   assert.equal(read.window?.observationCount, 2);
   assert.equal(read.window?.syntheticObservations, 1, "the exclusion must be visible, not silent");
-  assert.equal(read.band, "soft", "437k sits between ADR-0411 D3's two marks");
+  // 437,477 is a REAL measured window, kept verbatim because it is the regression fixture for the
+  // synthetic zero. Under ADR-0499 D1's marks it reads CALM where it used to read soft — the tune
+  // moved a real session's reading a whole band, which is the point of recording it here.
+  assert.equal(read.band, "calm", "437k is below ADR-0499 D1's 700k soft mark");
 });
 
 test("a window in a SIBLING worktree is never returned, however recently it was written", () => {
@@ -190,7 +193,9 @@ test("the harness's window id picks among the windows a REUSED worktree slot has
   const older = "66666666-6666-4666-8666-666666666666";
   const newer = "77777777-7777-4777-8777-777777777777";
   writeWindow(root, "proj", older, [
-    { requestId: "a", cwd: MY_CWD, windowId: older, at: "2026-08-26T01:00:00Z", tokens: 410_000, model: "claude-opus-5" },
+    // Deliberately past ADR-0499 D1's soft mark while the newer window below is well under it: the
+    // two bands are what prove the reading follows the SELECTED window rather than the latest one.
+    { requestId: "a", cwd: MY_CWD, windowId: older, at: "2026-08-26T01:00:00Z", tokens: 760_000, model: "claude-opus-5" },
   ]);
   writeWindow(root, "proj", newer, [
     { requestId: "b", cwd: MY_CWD, windowId: newer, at: "2026-08-26T09:00:00Z", tokens: 120_000, model: "claude-opus-5" },
