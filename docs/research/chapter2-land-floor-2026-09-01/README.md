@@ -153,6 +153,30 @@ Every rung fired for real during this increment, which is the only reason they c
 
 ---
 
+## The tests were proved by hand, because the rung declined to
+
+`check:mutation-diff` SKIPPED this branch and said why, naming the gap rather than passing over it:
+
+> `packages/forest-world-r3f/harness/land-floor.ts` was NOT mutated — this rung only mutates a
+> project's `src/`, but `@storytree/forest-world-r3f`'s own test script runs that directory, so its
+> tests do execute there. **Nothing on this branch proves those lines.**
+
+That is true of every instrument in this `harness/`, and it is exactly the shape a strong-looking
+suite hides in. So six mutants were seeded into the rungs by hand and the suite re-run against each:
+
+| mutant | outcome |
+|---|---|
+| stack multiplier dropped (`base + layers * delta` → `base + delta`) | KILLED |
+| sensitivity rung inverted (`delta <= floor` → `>`) | KILLED |
+| coverage floor direction flipped (`<` → `>`) | KILLED |
+| isolation triangle check disabled | KILLED |
+| sample-count rung weakened to 1 | KILLED |
+| absolute budget rung disabled | KILLED |
+
+**No survivors.** The file was restored byte-identical afterwards.
+
+---
+
 ## Two findings that were not the question
 
 **1. The overview zoom cannot be costed, and that is a finding rather than a gap.** Ground coverage
