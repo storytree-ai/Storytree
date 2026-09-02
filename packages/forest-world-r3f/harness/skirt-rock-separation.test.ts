@@ -485,3 +485,20 @@ test('⚠⚠ A TWO-TOKEN ARM IS READ AGAINST A ONE-TOKEN CLIFF, never against th
     assert.equal(c.soilLedges, a.soilLedges, `${arm} and ${control} disagree about the soil band`);
   }
 });
+
+test('⚠ THE SEARCH REACHES ITS OWN CEILING, AND REFUSES PAST IT BY THE WHOLE MESSAGE', () => {
+  // `maxAboveSea` is INCLUSIVE: a ceiling set exactly at the floor must still return the floor. The
+  // mutation rung found `<=` → `<` survived every test above — none of them bounded the search.
+  const floor = darkestShadedRock(SEA, VISIBLE_DELTA, EVERY_LEVEL);
+  const atCeiling = darkestShadedRock(SEA, VISIBLE_DELTA, EVERY_LEVEL, floor.aboveSea);
+  assert.deepEqual(atCeiling, floor, 'a ceiling equal to the floor excluded the floor — the bound is inclusive');
+  // One luma under the floor there is no admissible rock, and the refusal names the sea, the bar
+  // and the ceiling it searched to — pinned as the WHOLE message, because its arithmetic carries
+  // mutants (`mutation-rung-scores-a-hang-as-unproven` §11).
+  const ceiling = floor.aboveSea - 1;
+  assert.throws(() => darkestShadedRock(SEA, VISIBLE_DELTA, EVERY_LEVEL, ceiling), {
+    message:
+      `stepped-skirt: no shaded rock within ${ceiling} luma of the sea ${toHex(SEA)} clears a ` +
+      `${VISIBLE_DELTA}/255 bar on every rung — the sea leaves no headroom for a cliff base`,
+  });
+});
