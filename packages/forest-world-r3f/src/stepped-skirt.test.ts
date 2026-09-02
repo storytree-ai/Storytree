@@ -34,6 +34,7 @@ import {
   SKIRT_ROCK,
   SKIRT_ROCK_LIT,
   SKIRT_ROCK_SHADED,
+  SKIRT_ROCK_SHADED_SUNK,
   SKIRT_ROWS,
   NO_SKIRT,
   ZERO_NORMAL,
@@ -462,7 +463,14 @@ test('⚠⚠ ONE TOKEN CANNOT SPAN THE APPROVED SKIRT, AND THE PAIR CAN — the 
     'one token now reaches the approved skirt s range — the second token s premise is gone',
   );
 
-  // and the pair does reach it: a token ratio times the ladder's own is the achievable span.
+  // and the pair reaches further than any one token can: a token ratio times the ladder's own is
+  // the achievable span. ⚠ IT NO LONGER REACHES THE APPROVED 5.7x, AND THAT IS THE SEA'S
+  // ARITHMETIC RATHER THAN A TIMID PICK: the pair that did reach 4.5x (`SKIRT_ROCK_SHADED_SUNK`)
+  // did so by starting BELOW the water — a range that begins at the render's transparent p2 has
+  // no floor on this map, and the pixels it spent there merged into the sea (PR #1792). Against
+  // `#101418` the range starts 20 above the water, so the reachable span is bounded by the sea,
+  // and `harness/skirt-rock-separation.test.ts` holds the pair to THAT bound (it needs the scene
+  // background, which lives in the harness). Here the premise that survives is the ordering.
   const lum = (hex: string): number => {
     const c = parseHex(hex);
     return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
@@ -470,8 +478,15 @@ test('⚠⚠ ONE TOKEN CANNOT SPAN THE APPROVED SKIRT, AND THE PAIR CAN — the 
   const pairSpan = (lum(SKIRT_ROCK_LIT) * SHADE_LEVELS[SHADE_LEVELS.length - 1]!) /
     (lum(SKIRT_ROCK_SHADED) * SHADE_LEVELS[0]!);
   assert.ok(
-    pairSpan > 4,
-    `the pair spans only ${pairSpan.toFixed(2)}x, against the single token's ${ladderSpan.toFixed(2)}x`,
+    pairSpan > ladderSpan,
+    `the pair spans only ${pairSpan.toFixed(2)}x, no more than the single token's ${ladderSpan.toFixed(2)}x`,
+  );
+  const sunkSpan = (lum(SKIRT_ROCK_LIT) * SHADE_LEVELS[SHADE_LEVELS.length - 1]!) /
+    (lum(SKIRT_ROCK_SHADED_SUNK) * SHADE_LEVELS[0]!);
+  assert.ok(sunkSpan > 4, `the withdrawn pair spanned ${sunkSpan.toFixed(2)}x — the premise this comment records has moved`);
+  assert.ok(
+    pairSpan < sunkSpan,
+    'the re-picked pair spans MORE than the sunk one — a shaded rock lighter than the sea cannot outrange one below it',
   );
 });
 

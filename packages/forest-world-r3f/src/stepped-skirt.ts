@@ -71,7 +71,14 @@
 // simplification would silently move the cliff at any other row count.
 
 import { edgeKey, type CoastPoint } from './coast-clip.js';
-import { SHADE_LEVELS, lambertOfNormal } from './shade-ladder.js';
+import {
+  SHADE_LEVELS,
+  deliveredForLevel,
+  lambertOfNormal,
+  parseHex,
+  toHex,
+  type Rgb255,
+} from './shade-ladder.js';
 
 /**
  * THE INDICES 0..count-1, MATERIALISED — so every loop in this module is a `for … of` and carries
@@ -193,23 +200,153 @@ export const SKIRT_ROCK = '#4d4d4f';
 export const SKIRT_ROCK_LIT = '#737274';
 
 /**
- * THE SHADED ROCK — the same mask's LOWER quartile, `rgb(29, 32, 37)`. See {@link SKIRT_ROCK_LIT}
- * for why the pair exists and how both were measured.
+ * THE SHADED ROCK THE SEA SWALLOWED — the same mask's LOWER quartile, `rgb(29, 32, 37)`, shipped
+ * on 2026-09-01 (PR #1792) and WITHDRAWN the next day. It is kept as the comparison page's
+ * `two-token-sunk` arm — the "before" every re-pick below is read against — and the map draws it
+ * nowhere.
  *
- * ⚠ THIS IS THE ISLAND'S DARK ANCHOR AND THE ONLY TOKEN THAT CAN BE. Every face wearing it sits
- * below the ladder's floor, so it delivers `token x 0.80` and nothing else — one colour,
- * `rgb(23, 26, 30)`. That single value is what the whole component was for: the research measured
- * the kit's cliff as worth 9.8% of the picture's structural contrast *because* it supplies the
- * darkest value on the island, and a pale skirt spends it.
+ * ⚠⚠ WHY IT WAS WRONG, STATED SO IT IS NOT REPEATED. The transcription was sound about the RENDER
+ * and unsound about OUR SCENE: `land-combined-1948px.png` is RGBA and 53.8% transparent, so its
+ * dark values sit against whatever composites them — never against this map's sea, `#101418`,
+ * luma 19.4. Delivered at the ladder's floor this token is `rgb(23, 26, 30)`: a largest-channel
+ * move of **7** from the water against ADR-0490 D6's bar of **20**. Twelve of the cliff's
+ * eighteen pixels merged into the sea and the cliff read **6 px tall where the single rock had read
+ * 18**. The owner saw it by looking ("looks thinner, but if i look closer you have colored the
+ * bottom half a blackish color"); the instrument REWARDED it — `imageStats` anchors on the
+ * island's own pixels with the background excluded, so the darker the base, the better it scored,
+ * right up to invisibility. A colour lifted from one picture's mask is only valid against that
+ * picture's background.
  *
- * ⚠ IT ALSO BUYS SEPARATION RATHER THAN SPENDING IT, which is worth knowing before anyone reads
- * a second family-less token as a second risk. The single median rock sits INSIDE `unhealthy`'s
- * own luma band (rock 62.1–77.1 against unhealthy 67.1–83.9) and clears its nearest status pixel
- * by an RGB distance of just 9.0 — the residual the skirt's evidence page flagged as "the one
- * place this is tight". The pair clears by **20.9** (lit) and **58.2** (shaded).
- * `harness/skirt-rock-separation.test.ts` re-derives both on every run.
+ * The fence that now holds it is `harness/skirt-rock-separation.test.ts` ("EVERY PIXEL A SHIPPING
+ * ROCK CAN DELIVER CLEARS THE SEA"); the record is `the-cliffs-dark-base-must-read-against-the-sea`.
  */
-export const SKIRT_ROCK_SHADED = '#1d2025';
+export const SKIRT_ROCK_SHADED_SUNK = '#1d2025';
+
+/**
+ * THE APPROVED SKIRT'S LUMA LANDMARKS over its own 76,297-pixel mask (Rec.709, 0..255): the 2nd
+ * percentile, the LOWER QUARTILE — which is {@link SKIRT_ROCK_SHADED_SUNK}'s own luma — and the
+ * 90th percentile. Measured in `chapter2-skirt-tonal-range-2026-09-01/`; the pair of ends is the
+ * 5.7x range one token cannot span, restated by `stepped-skirt.test.ts`.
+ */
+export const APPROVED_SKIRT_LUMA = { p2: 20.7, lowerQuartile: 31.7, p90: 117.6 } as const;
+
+/** Rec.709 luma over delivered 0..255 channels — the axis every dark anchor on this arc is read on,
+ *  and the same weights `imageStats` reads its own anchor with. */
+export function lumaOf(c: Rgb255): number {
+  return 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+}
+
+/**
+ * A SHADED ROCK WHOSE DARKEST DELIVERED PIXEL SITS A STATED LUMA ABOVE THE SEA.
+ *
+ * The chroma is the measured quartile's ({@link SKIRT_ROCK_SHADED_SUNK}) — the hue the approved
+ * render's shaded rock actually has — scaled per channel so that, delivered at `darkestRung`, its
+ * luma is `lumaOf(sea) + aboveSea`. Rounded to a hex ONCE, here, so the map and every page that
+ * reads the hex deliver the same bytes. This is the ladder's rung-maker: the comparison page
+ * renders it at several `aboveSea` values and the owner scales back along rungs already rendered
+ * (ADR-0503 D3).
+ *
+ * ⚠ LUMA ABOVE THE SEA IS NOT THE FENCE. The fence is a largest-CHANNEL move of more than 20/255
+ * on every rung (ADR-0490 D6), and a luma clearance of exactly 20 delivers channel moves of 20 —
+ * on the bar, not over it. The harness test holds the fence; this function only makes rungs.
+ */
+export function shadedRockAboveSea(
+  sea: Rgb255,
+  aboveSea: number,
+  darkestRung: number = SHADE_LEVELS[0]!,
+): string {
+  const quartile = parseHex(SKIRT_ROCK_SHADED_SUNK);
+  const scale = (lumaOf(sea) + aboveSea) / darkestRung / lumaOf(quartile);
+  const q = (v: number): number => Math.min(255, Math.max(0, Math.round(v * scale)));
+  return toHex({ r: q(quartile.r), g: q(quartile.g), b: q(quartile.b) });
+}
+
+/**
+ * THE APPROVED RANGE MAPPED INTO THE HEADROOM THIS SEA LEAVES — the principled candidate, and the
+ * one rung of the ladder that is derived rather than stepped.
+ *
+ * The approved skirt runs from p2 to p90 and its lower quartile sits a fixed FRACTION of the way
+ * up that range (11.4%). Our range cannot start at the render's p2, because the sea occupies it:
+ * it starts at the sea plus `clearance`, and it ends where the lit rock ends at full light. The
+ * shaded rock keeps its fraction of the range it is now allowed — so it is the same split the
+ * picture made, re-based onto our own floor, rather than a value copied absolutely from a picture
+ * whose floor was transparency.
+ */
+export function mappedShadedRock(sea: Rgb255, clearance: number, lit: string = SKIRT_ROCK_LIT): string {
+  const { p2, lowerQuartile, p90 } = APPROVED_SKIRT_LUMA;
+  const fraction = (lowerQuartile - p2) / (p90 - p2);
+  const floor = lumaOf(sea) + clearance;
+  const ceiling = lumaOf(deliveredForLevel(lit, SHADE_LEVELS[SHADE_LEVELS.length - 1]!));
+  return shadedRockAboveSea(sea, clearance + fraction * (ceiling - floor));
+}
+
+/**
+ * THE DARKEST SHADED ROCK THE SEA FENCE ADMITS — found by search, never authored.
+ *
+ * Walks `aboveSea` up from the bar one luma at a time and returns the first rung whose EVERY
+ * delivered pixel (each level in `levels` — the caller passes the nine authored rungs and the
+ * shadow rung) moves more than `bar` on its largest channel from the sea. That is the floor the
+ * fence in `harness/skirt-rock-separation.test.ts` permits, stated as a colour: the boldest dark
+ * base that still reads against the water. Refuses past `maxAboveSea` rather than returning a
+ * rock that could not be found, which would be a sea no rock can clear.
+ */
+/** One rung of the shaded-rock ladder: the hex and how far, in luma, its darkest delivered pixel
+ *  sits above the sea. */
+export interface ShadedRockRung {
+  hex: string;
+  aboveSea: number;
+}
+
+export function darkestShadedRock(
+  sea: Rgb255,
+  bar: number,
+  levels: readonly number[],
+  maxAboveSea: number = 120,
+): ShadedRockRung {
+  const move = (c: Rgb255): number =>
+    Math.max(Math.abs(c.r - sea.r), Math.abs(c.g - sea.g), Math.abs(c.b - sea.b));
+  for (let aboveSea = Math.ceil(bar); aboveSea <= maxAboveSea; aboveSea += 1) {
+    const hex = shadedRockAboveSea(sea, aboveSea);
+    if (levels.every((level) => move(deliveredForLevel(hex, level)) > bar)) return { hex, aboveSea };
+  }
+  throw new Error(
+    `stepped-skirt: no shaded rock within ${maxAboveSea} luma of the sea ${toHex(sea)} clears a ` +
+      `${bar}/255 bar on every rung — the sea leaves no headroom for a cliff base`,
+  );
+}
+
+/**
+ * THE SHADED ROCK — RE-PICKED AGAINST THIS SCENE'S OWN SEA, 2026-09-02, AT THE FENCE'S FLOOR.
+ *
+ * `darkestShadedRock(#101418, 20, nine rungs + the shadow rung)` = 21 luma above the water: the
+ * darkest base whose every delivered pixel still clears ADR-0490 D6's 20/255 bar on some channel
+ * (the rung below it, 20, delivers moves OF 20 at the ladder floor — on the bar, not over it).
+ * Delivered at the ladder's darkest rung it is `rgb(37, 41, 47)`, luma 40.6; at the shadow rung
+ * its worst channel still moves 21. The harness test pins this hex to that search, so a hand edit
+ * that drifts from it fails by name.
+ *
+ * ⚠ WHY THE FLOOR AND NOT THE MAPPED QUARTILE (`mappedShadedRock`, 28.5 luma, `#373c46`). Both
+ * were rendered as a ladder beside 36, 44 and the sunk rock, at one island and 8 px per unit
+ * (`docs/research/chapter2-cliff-sea-read-2026-09-02/`), and judged by the look per ADR-0503 D3.
+ * The floor reads as the deepest two-tone cliff that is still plainly a cliff and not the sea;
+ * every lighter rung compresses the pair toward the single median rock. It is also the rung whose
+ * island dark anchor lands nearest the approved render's (about 4 luma off, against the mapped
+ * quartile's 13). The owner directed bold, judged by a picture per step, with "scale it back" as
+ * his lever: the ladder is rendered, and scaling back is one constant moved to a rung already
+ * pictured. The mapped quartile stays on the page as `two-token-mapped` for exactly that reason.
+ *
+ * ⚠ IT STILL BUYS SEPARATION FROM THE STATUSES RATHER THAN SPENDING IT. Its whole ramp sits
+ * below `unhealthy`'s (delivered 40.6–50.7 against unhealthy's 67.1–83.9), it stays the island's
+ * darkest value, and it clears its nearest status pixel by more than the single median rock's 9.0
+ * — `harness/skirt-rock-separation.test.ts` re-derives all three on every run.
+ *
+ * ⚠ WHAT IT CANNOT DO, so nobody re-derives it: the pair no longer reaches the approved 5.7x
+ * range — against THIS sea no pair can, because the range now starts above the water rather than
+ * at the render's transparent p2. The reachable span is the lit rock's full light over the sea
+ * floor, about 2.9x, and this pair delivers about 2.8x of it. That is the sea's arithmetic, not a
+ * timid pick.
+ */
+export const SKIRT_ROCK_SHADED = '#2e333b';
 
 /** One ledge of the cliff: how far it is cut back from the parcel's own outline, and how far down
  *  the prism its lower edge hangs. */

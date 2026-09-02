@@ -40,34 +40,38 @@ import {
   groundAtlasTexture,
   type BandedGroundMaterialOptions,
 } from '../src/banded-ground-material.js';
-import { cellGroundGeometry, type CellGroundGeometryInput } from '../src/cell-ground-geometry.js';
-import { SHIPPED_COAST, clipToCoast } from '../src/coast-clip.js';
-import { groundBounds } from '../src/ground-casters.js';
-import { LAND_RELIEF_AMPLITUDE } from '../src/land-relief.js';
-import { SHADOW_GRES } from '../src/land-shadow.js';
-import { SHIPPED_SHORE, shoreRelief } from '../src/shore-fall.js';
+import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
+import {
+  SHIPPED_GRASS,
+  SHIPPED_LAYERS,
+  SHIPPED_SAND_MIX,
+  shippedGroundBuild,
+  type ShippedGroundBuild,
+} from '../src/ForestWorldCanvas.js';
+import { DETAIL_TILE_UNITS, detailNormalTexture } from '../src/detail-normal-texture.js';
+import { SAND_FIELD_WIDTH } from '../src/shore-atlas.js';
+import { SHIPPED_SHORE } from '../src/shore-fall.js';
+import { WEAR_FIELD_WIDTH } from '../src/wear-atlas.js';
 import { shoreArmRingPlan } from '../src/shore-ring.js';
 import {
   SKIRT_ROCK,
   SKIRT_ROCK_LIT,
   SKIRT_ROCK_SHADED,
+  SKIRT_ROCK_SHADED_SUNK,
   SKIRT_ROWS,
   isRimEdge,
+  mappedShadedRock,
   oneRock,
   rimEdgeKeys,
   shadeBelowHalfDepth,
   shadeBelowLadderFloor,
+  shadedRockAboveSea,
   skirtExtraTriangles,
   type GroundSkirt,
   type SkirtRock,
 } from '../src/stepped-skirt.js';
-import {
-  SHADOW_ATLAS_MAX,
-  atlasOriginResolver,
-  buildAtlasOcclusion,
-  islandGroundBounds,
-  packShadowAtlas,
-} from '../src/shadow-atlas.js';
+import { parseHex, type Rgb255 } from '../src/shade-ladder.js';
+import { cliffReadability, type CliffReadability } from './cliff-readability.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
@@ -85,12 +89,12 @@ import {
   crowdCells,
   crowdPxPerUnit,
   crowdSize,
+  crowdStrips,
   orientedCamera,
   type CrowdSize,
   type CrowdSizeId,
   type CrowdZoom,
 } from './shipped-crowd-scene.js';
-import { groundRowOf, linearColourOf } from './shipped-land-scene.js';
 
 /**
  * THE FOUR ARMS — the map today, and the owner's own three options.
@@ -106,11 +110,24 @@ export type SkirtArm =
   | 'rock'
   | 'soil-over-rock'
   | 'two-token-lit'
-  | 'two-token-deep';
+  | 'two-token-deep'
+  | 'two-token-sunk'
+  | 'two-token-mapped'
+  | 'two-token-sea36'
+  | 'two-token-sea44';
 
 /** The arm the FIRST four are read against: the map exactly as it drew before this component —
  *  ONE flat quad per rim edge, wearing the parcel's own status colour. */
 export const CONTROL_ARM: SkirtArm = 'flat';
+
+/**
+ * THE LADDER THE SHADED ROCK WAS RE-PICKED FROM (ADR-0503 D3) — each rung is how far, in luma,
+ * the rock's darkest delivered pixel sits above the sea. `two-token-deep` is the rung that SHIPS
+ * ({@link SKIRT_ROCK_SHADED} — the fence's own floor, 21, found by search); `two-token-mapped` is
+ * the approved quartile re-based onto the sea's headroom (28.5); the two here are two steps lighter
+ * again, so "scale it back" can point at a column already rendered.
+ */
+export const SKIRT_SEA_LADDER = { 'two-token-sea36': 36, 'two-token-sea44': 44 } as const;
 
 export const SKIRT_ARMS: readonly SkirtArm[] = [
   'flat',
@@ -119,6 +136,10 @@ export const SKIRT_ARMS: readonly SkirtArm[] = [
   'soil-over-rock',
   'two-token-lit',
   'two-token-deep',
+  'two-token-sunk',
+  'two-token-mapped',
+  'two-token-sea36',
+  'two-token-sea44',
 ];
 
 /**
@@ -140,6 +161,14 @@ export const ARM_CONTROL = {
   'soil-over-rock': 'flat',
   'two-token-lit': 'rock',
   'two-token-deep': 'rock',
+  // ⚠ THE RE-PICK ARMS ARE READ AGAINST `rock` TOO, not against the sunk pair: the question each
+  // answers is still "what does a SECOND token buy over one", and reading them against the pair
+  // that merged with the sea would credit a rung with the pixels the water gave back. The
+  // sea-readability question is asked separately, against `flat`, by `SkirtRunner.readability`.
+  'two-token-sunk': 'rock',
+  'two-token-mapped': 'rock',
+  'two-token-sea36': 'rock',
+  'two-token-sea44': 'rock',
 } satisfies Record<SkirtArm, SkirtArm>;
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the HTML,
@@ -153,8 +182,17 @@ export const SKIRT_ARM_CAPTION = {
     'a LIT rock and a SHADED one, split by LIGHTING — the faces the ladder has SATURATED wear the ' +
     'shaded rock (read against `rock`, not against `flat`)',
   'two-token-deep':
-    'the same pair split by DEPTH — the cliff’s lower half wears the shaded rock (read against ' +
-    '`rock`, not against `flat`)',
+    'the same pair split by DEPTH — the cliff’s lower half wears the shaded rock, RE-PICKED against ' +
+    'the sea at the fence’s own floor: 21 luma above `#101418`, the darkest base whose every rung ' +
+    'still clears the 20/255 bar (SHIPS; read against `rock`, not against `flat`)',
+  'two-token-sunk':
+    'the pair as it shipped on 2026-09-01 — the shaded rock lifted straight off the render’s mask, ' +
+    '6 luma above the sea, which swallowed two thirds of the cliff (WITHDRAWN; the before)',
+  'two-token-mapped':
+    'the ladder’s principled rung — the approved quartile re-based onto the headroom the sea ' +
+    'leaves, 28.5 luma above it (the scale-back the pick was judged against)',
+  'two-token-sea36': 'the ladder, one step lighter — the shaded rock 36 luma above the sea',
+  'two-token-sea44': 'the ladder, two steps lighter — the shaded rock 44 luma above the sea',
 } satisfies Record<SkirtArm, string>;
 
 /** How many ledges from the top keep the parcel's status tint, per arm. `flat` is one ledge and it
@@ -166,6 +204,10 @@ export const ARM_SOIL_LEDGES = {
   'soil-over-rock': 1,
   'two-token-lit': 0,
   'two-token-deep': 0,
+  'two-token-sunk': 0,
+  'two-token-mapped': 0,
+  'two-token-sea36': 0,
+  'two-token-sea44': 0,
 } satisfies Record<SkirtArm, number>;
 
 /** Ledges per rim edge, per arm. */
@@ -176,6 +218,10 @@ export const ARM_ROWS = {
   'soil-over-rock': SKIRT_ROWS,
   'two-token-lit': SKIRT_ROWS,
   'two-token-deep': SKIRT_ROWS,
+  'two-token-sunk': SKIRT_ROWS,
+  'two-token-mapped': SKIRT_ROWS,
+  'two-token-sea36': SKIRT_ROWS,
+  'two-token-sea44': SKIRT_ROWS,
 } satisfies Record<SkirtArm, number>;
 
 /**
@@ -199,20 +245,42 @@ export const REFERENCE_STRATA_IMAGE = '/reference/chapter2-land-idiom-2026-08-27
  *  differs from its neighbour only in which rows its geometry selects. Two tables would make a
  *  pixel difference between two arms attributable to the material as well as to the cliff, which
  *  is exactly the confound this page's "only the edge moves" claim rests on not having. */
+/** The scene's sea as the framebuffer holds it — the background every re-pick rung is measured
+ *  against, parsed from the authored hex rather than routed through `THREE.Color` (see the runner's
+ *  `bg` for why that route delivers the wrong bytes). */
+export const SKIRT_SEA: Rgb255 = parseHex(SHIPPED_LIGHTING.background);
+
+/** The ladder's three bracketing rocks — the mapped quartile through its own derivation, the two
+ *  lighter rungs through the rung-maker the shipped floor was found with — so a rung differs from
+ *  its neighbour in exactly one number. */
+export const SKIRT_LADDER_ROCK = {
+  'two-token-mapped': mappedShadedRock(SKIRT_SEA, VISIBLE_DELTA),
+  'two-token-sea36': shadedRockAboveSea(SKIRT_SEA, SKIRT_SEA_LADDER['two-token-sea36']),
+  'two-token-sea44': shadedRockAboveSea(SKIRT_SEA, SKIRT_SEA_LADDER['two-token-sea44']),
+} as const;
+
 export const SKIRT_GROUND_TOKENS: readonly string[] = [
   ...SHIPPED_GROUND_COLOUR.values(),
   SKIRT_ROCK,
   SKIRT_ROCK_LIT,
   SKIRT_ROCK_SHADED,
+  // ⚠ THE WITHDRAWN ROCK AND THE LADDER RIDE THE SAME TABLE, past the shipping rows, for the same
+  // reason the three rocks share it: an arm may differ from its neighbour only in which rows its
+  // geometry selects. None of these four is drawn by the map.
+  SKIRT_ROCK_SHADED_SUNK,
+  SKIRT_LADDER_ROCK['two-token-mapped'],
+  SKIRT_LADDER_ROCK['two-token-sea36'],
+  SKIRT_LADDER_ROCK['two-token-sea44'],
 ];
 
 /** Each rock's row — LOOKED UP in the table rather than written down, so a token added to it
- *  cannot leave an arm selecting a neighbour's colour. `indexOf` is exact here because the three
- *  rocks are distinct hexes, which `skirt-rock-separation.test.ts` asserts rather than assumes. */
+ *  cannot leave an arm selecting a neighbour's colour. `indexOf` is exact here because every rock
+ *  is a distinct hex, which `skirt-rock-separation.test.ts` asserts rather than assumes. */
 const rockRow = (token: string): number => SKIRT_GROUND_TOKENS.indexOf(token);
 export const SKIRT_ROCK_ROW = rockRow(SKIRT_ROCK);
 export const SKIRT_ROCK_LIT_ROW = rockRow(SKIRT_ROCK_LIT);
 export const SKIRT_ROCK_SHADED_ROW = rockRow(SKIRT_ROCK_SHADED);
+export const SKIRT_ROCK_SHADED_SUNK_ROW = rockRow(SKIRT_ROCK_SHADED_SUNK);
 
 /** One island, and the thirty-five-island forest. A cliff is a per-island silhouette, so ONE is
  *  where it is read — and the forest is where a component either survives being small or does not. */
@@ -259,6 +327,29 @@ const ARM_ROCK = {
     shaded: linearRock(SKIRT_ROCK_SHADED),
     isShaded: shadeBelowHalfDepth,
   },
+  // ⚠ THE FOUR RE-PICK ARMS DIFFER FROM `two-token-deep` IN THE SHADED ROCK AND NOTHING ELSE —
+  // same lit rock, same depth rule — so a pixel between any two of them is attributable to that
+  // one hex. The ladder is a ladder only because every other input is held.
+  'two-token-sunk': {
+    lit: linearRock(SKIRT_ROCK_LIT),
+    shaded: linearRock(SKIRT_ROCK_SHADED_SUNK),
+    isShaded: shadeBelowHalfDepth,
+  },
+  'two-token-mapped': {
+    lit: linearRock(SKIRT_ROCK_LIT),
+    shaded: linearRock(SKIRT_LADDER_ROCK['two-token-mapped']),
+    isShaded: shadeBelowHalfDepth,
+  },
+  'two-token-sea36': {
+    lit: linearRock(SKIRT_ROCK_LIT),
+    shaded: linearRock(SKIRT_LADDER_ROCK['two-token-sea36']),
+    isShaded: shadeBelowHalfDepth,
+  },
+  'two-token-sea44': {
+    lit: linearRock(SKIRT_ROCK_LIT),
+    shaded: linearRock(SKIRT_LADDER_ROCK['two-token-sea44']),
+    isShaded: shadeBelowHalfDepth,
+  },
 } satisfies Record<SkirtArm, Pick<GroundSkirt, 'lit' | 'shaded' | 'isShaded'>>;
 
 /** The skirt one arm wears, over the parcels it will actually draw. */
@@ -270,6 +361,39 @@ export function armSkirt(arm: SkirtArm, cells: readonly InstanceDescriptor[]): G
     soilLedges: ARM_SOIL_LEDGES[arm],
     isRim: (a, b) => isRimEdge(rim, a, b),
   };
+}
+
+/**
+ * THE SHIPPED GROUND, BUILT ONCE PER CROWD SIZE AND SHARED BY EVERY ARM.
+ *
+ * ⚠⚠ IT IS THE SHIPPED BUILDER, NOT A RECONSTRUCTION OF IT. `shippedGroundBuild` is the one
+ * construction of the map's `CellGroundGeometryInput` — coast clip, occlusion field, relief, shore
+ * fall, inset ring, stepped skirt, atlas origins — and `CellGround` calls it. This page calls the
+ * SAME function, so an arm here cannot be a different scene from the map by construction: the
+ * hazard `comparison-baseline-moves-under-the-page` records (a control that quietly became the map
+ * as it stood an hour earlier, because the page assembled its own input) is closed structurally
+ * rather than by a checklist. The only key an arm overrides is `skirt`, which is the one thing
+ * this page varies.
+ *
+ * ⚠ MEMOISED PER SIZE, and that is what makes ten arms affordable. The occlusion field is the
+ * expensive half of the build (tens of seconds at forest scale), and it does not depend on the
+ * arm — every arm shares the same casters over the same ground. Building it per arm cost the
+ * page's mount six field builds with six arms and pushed it past the driver's five-minute wait
+ * with ten; one build per size is what a page with a ladder on it needs.
+ *
+ * ⚠ THE STRIPS ARE THE CROWD'S OWN TWO LANDINGS PER ISLAND (`crowdStrips`), handed in for the
+ * same reason the grass page hands them in: layer 3's connector reads their ends as the islands'
+ * docks, and a build handed no strips yields a wear field of no wear everywhere — a page whose
+ * arms all wore a path the map does not draw, or none where the map draws one, would be
+ * comparing cliffs on a ground that is not the shipped ground.
+ */
+const groundBuildCache = new Map<CrowdSizeId, ShippedGroundBuild>();
+export function skirtGroundBuild(size: CrowdSize): ShippedGroundBuild {
+  const hit = groundBuildCache.get(size.id);
+  if (hit !== undefined) return hit;
+  const built = shippedGroundBuild(crowdCells(size), crowdCasters(size), crowdStrips(size));
+  groundBuildCache.set(size.id, built);
+  return built;
 }
 
 /** What one arm costs, in numbers a picture cannot carry. */
@@ -284,10 +408,13 @@ export interface SkirtPlan {
   attributeBytes: number;
 }
 
-export function skirtPlan(cells: readonly InstanceDescriptor[], arm: SkirtArm): SkirtPlan {
-  const clipped = clipToCoast(cells, SHIPPED_COAST);
+export function skirtPlan(size: CrowdSize, arm: SkirtArm): SkirtPlan {
+  // ⚠ THE CLIPPED PARCELS ARE THE BUILD'S OWN — `shippedGroundBuild` clips the coast first and
+  // every downstream key reads the clipped set, so the census here walks the same rings the
+  // geometry was cut from rather than a second clip that could disagree with it.
+  const clipped = skirtGroundBuild(size).input.cells;
   const skirt = armSkirt(arm, clipped);
-  const geo = buildSkirtGeometry(clipped, skirt);
+  const geo = buildSkirtGeometry(size, skirt);
   // ⚠ COUNTED OFF THE WALL RING THE DECOMPOSITION PRODUCES, never off the parcel's own corners.
   // The inset ring inserts vertices along rim edges inside the shore band, so the island's outline
   // carries more edges than `c.points` does — and every one of them is a cliff edge. Counting the
@@ -310,31 +437,13 @@ export function skirtPlan(cells: readonly InstanceDescriptor[], arm: SkirtArm): 
   };
 }
 
-/** The merged ground buffer for one arm — the SHIPPED pipeline entire, with the skirt as the only
- *  moving part. Relief, shore fall, coast clip, ladder, grain and occlusion atlas are all exactly
- *  what `CellGround` builds, so a pixel difference between two arms is attributable to the cliff
+/** The merged ground buffer for one arm — the SHIPPED input entire, with the skirt as the only
+ *  moving part. Relief, shore fall, coast clip, inset ring, ladder, grain and occlusion atlas are
+ *  exactly what `CellGround` builds, because they are literally what it builds
+ *  ({@link skirtGroundBuild}); so a pixel difference between two arms is attributable to the cliff
  *  and to nothing else on the page. */
-function buildSkirtGeometry(clipped: readonly InstanceDescriptor[], skirt: GroundSkirt) {
-  const input: CellGroundGeometryInput = {
-    cells: clipped,
-    resolve: linearColourOf,
-    index: groundRowOf,
-    relief: shoreRelief(clipped, SHIPPED_SHORE),
-    // ⚠⚠ THE INSET RING IS ON EVERY ARM, INCLUDING THE CONTROL, AND THAT IS WHAT MAKES THE
-    // CONTROL THE SHIPPED MAP. It landed on `main` (PR #1780) while this page was being built, and
-    // it changes the very thing the skirt is cut into: it inserts vertices along rim edges inside
-    // the shore band, so the island's outline has MORE edges than the parcels' own corners supply.
-    // A page that left it out would measure a cliff cut into a boundary the map no longer has, and
-    // would under-report this component's cost while calling the difference the skirt's.
-    decompose: shoreArmRingPlan(clipped, SHIPPED_SHORE).decompose,
-    skirt,
-  };
-  if (groundBounds(clipped) !== null) {
-    input.atlasOrigin = atlasOriginResolver(
-      packShadowAtlas(islandGroundBounds(clipped), SHADOW_GRES, SHADOW_ATLAS_MAX),
-    );
-  }
-  return cellGroundGeometry(input);
+function buildSkirtGeometry(size: CrowdSize, skirt: GroundSkirt) {
+  return cellGroundGeometry({ ...skirtGroundBuild(size).input, skirt });
 }
 
 export interface SkirtScene {
@@ -347,13 +456,22 @@ export interface SkirtScene {
   plan: SkirtPlan;
 }
 
-export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom): SkirtScene {
-  const raw = crowdCells(size);
-  const cells = clipToCoast(raw, SHIPPED_COAST);
-  const casters = crowdCasters(size);
-  if (groundBounds(cells) === null) throw new Error('shipped-skirt-scene: the crowd bounds nothing');
+/** THE ONE DETAIL TEXTURE FOR THE PAGE, created on first use — the canvas keeps its own the same
+ *  way (`shippedDetailTexture`, module-private there). Lazy because `TextureLoader` needs a
+ *  `document`; a node-side reader of this module's constants must not decode 26 KB of PNG at
+ *  import, and under node `detailNormalTexture` hands back a named empty texture anyway. */
+let detailTextureMemo: THREE.Texture | undefined;
+function skirtDetailTexture(): THREE.Texture {
+  if (detailTextureMemo === undefined) detailTextureMemo = detailNormalTexture();
+  return detailTextureMemo;
+}
 
-  const geo = buildSkirtGeometry(cells, armSkirt(arm, cells));
+export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom): SkirtScene {
+  const build = skirtGroundBuild(size);
+  const cells = build.input.cells;
+  if (cells.length === 0) throw new Error('shipped-skirt-scene: the crowd bounds nothing');
+
+  const geo = buildSkirtGeometry(size, armSkirt(arm, cells));
 
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(geo.positions, 3));
@@ -361,19 +479,47 @@ export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom)
   geometry.setAttribute(GROUND_STATUS_ATTRIBUTE, new THREE.BufferAttribute(geo.statuses, 1));
   geometry.setAttribute(GROUND_ATLAS_ATTRIBUTE, new THREE.BufferAttribute(geo.atlasOrigins, 2));
 
+  // ⚠ THE MATERIAL IS THE SHIPPED COMPOSITION WITH ONE SUBSTITUTION — the token table. The map's
+  // `buildGroundMaterial` fixes its tokens to the map's own (statuses + the two rocks that ship);
+  // this page's table carries the median rock, the withdrawn rock and the ladder as extra rows past
+  // them, so an arm can select a colour the map does not draw. Every OTHER key is what
+  // `CellGround` passes — the shared occlusion field, the grain, layer 1 at its shipped strength,
+  // and since PR #1802 the whole ground stack: layer 2 (shore sand) and layer 3 (the worn path)
+  // through the build's OWN packed carriers, layer 4 (rock on slope) and layer 6 (the cliff normal
+  // as detail relief) at the strengths the owner chose from their ladders (ADR-0503). So a pixel
+  // between two arms is the cliff's and nothing else's, ON THE GROUND THAT SHIPS. ⚠ Kept in step
+  // with `buildGroundMaterial` BY READING IT, and now also by `shipped-skirt-scene.test.ts`,
+  // which reads both sources and fails when the canvas passes a material key this page does not —
+  // a layer adopted there must be added here in the same landing, or this page's control is the map
+  // as it stood before that layer (`comparison-baseline-moves-under-the-page`).
+  //
+  // ⚠ NONE OF LAYERS 2/3/4 CAN REPAINT THE CLIFF: each rides `grassGate`, which the skirt's rock
+  // rows never open, so an ungated row multiplies the layer by zero. Layer 6 touches no colour — it
+  // bends the normal before the quantiser, so it can only move a cliff fragment between authored
+  // rungs of its own token's ramp, every one of which the sea fence already holds above the water.
+  // The stack changes what the cliff stands NEXT TO, not the colours the cliff can deliver.
   const opts: BandedGroundMaterialOptions = {
     tokens: SKIRT_GROUND_TOKENS,
     grain: 'normal',
-    shadowAtlas: groundAtlasTexture(
-      buildAtlasOcclusion({
-        cells,
-        relief: LAND_RELIEF_AMPLITUDE,
-        casters,
-        gres: SHADOW_GRES,
-        max: SHADOW_ATLAS_MAX,
-      }),
-    ),
+    grass: SHIPPED_GRASS,
   };
+  const shadow = build.field === null ? null : groundAtlasTexture(build.field);
+  if (shadow !== null) opts.shadowAtlas = shadow;
+  // LAYER 2 — the shore sand through the build's own distance-to-coast field. Offered only where
+  // there is an atlas to sample it through, the way `buildGroundMaterial` offers it; the thunk is
+  // memoised inside the build, so ten arms pay the field once per size.
+  const shoreField = build.shore();
+  if (shoreField !== null) {
+    opts.sand = { shore: groundAtlasTexture(shoreField).texture, mix: SHIPPED_SAND_MIX, width: SAND_FIELD_WIDTH };
+  }
+  // LAYER 3 — the worn path through the build's own distance-to-path field, over the crowd's docks.
+  const wearField = build.wear();
+  if (wearField !== null) {
+    opts.wear = { field: groundAtlasTexture(wearField).texture, mix: SHIPPED_LAYERS.wearMix, width: WEAR_FIELD_WIDTH };
+  }
+  // LAYERS 4 AND 6 — constants, as the canvas passes them.
+  opts.rock = SHIPPED_LAYERS.rock;
+  opts.detail = { map: skirtDetailTexture(), strength: SHIPPED_LAYERS.detail.strength, tile: DETAIL_TILE_UNITS };
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
@@ -392,7 +538,7 @@ export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom)
     height: CROWD_VIEWPORT.h,
     pxPerUnit,
     islands: size.islands,
-    plan: skirtPlan(raw, arm),
+    plan: skirtPlan(size, arm),
   };
 }
 
@@ -595,6 +741,18 @@ export interface SkirtRunner {
    */
   sensitivity(size: CrowdSizeId, zoom: CrowdZoom): string[];
   snapshot(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): string;
+  /**
+   * HOW MUCH OF THIS ARM'S CLIFF A READER CAN TELL FROM THE SEA — the owner's own metric
+   * (`cliff-readability.ts`), which none of the three statistics above can ask and one of them
+   * (ANCHOR) rewards getting wrong.
+   *
+   * ⚠ MEASURED AGAINST `flat` FOR EVERY ARM, whatever {@link ARM_CONTROL} says. The cliff BAND is
+   * every pixel the cliff occupies — the whole edge, lit half and shaded half — and only the map
+   * with no cliff at all leaves that band untouched. Against `rock` a two-token arm's "cliff" would
+   * be its lower half alone, and its apparent height would be the shaded rock's rather than the
+   * cliff's. The 18-px band the owner sampled by hand is the band against `flat`.
+   */
+  readability(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom): CliffReadability;
   /** The reference render's own numbers, through the same {@link imageStats}. */
   reference(url: string): Promise<ImageStats>;
   time(arm: SkirtArm, size: CrowdSizeId, zoom: CrowdZoom, batch: number): Promise<SkirtReading>;
@@ -764,6 +922,13 @@ export function createSkirtRunner(): SkirtRunner {
     snapshot(arm, size, zoom) {
       render(arm, size, zoom);
       return canvas.toDataURL('image/png');
+    },
+    readability(arm, size, zoom) {
+      const s = sceneFor(arm, size, zoom);
+      // ⚠ `SKIRT_SEA`, not `bg`: the same bytes, but the typed one is what the instrument takes and
+      // what the harness test measures the tokens against, so the page and the test cannot read
+      // the sea two ways.
+      return cliffReadability(pixels(arm, size, zoom), pixels(CONTROL_ARM, size, zoom), s.width, SKIRT_SEA);
     },
     async reference(url) {
       const img = new Image();
