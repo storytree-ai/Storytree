@@ -160,6 +160,35 @@ measured, `bare` came back with a within-run spread of 1.63 ms against a 0.42 ms
 floor four times the figure — and `run-agreement` then derives its tolerance from that noise and
 agrees with almost anything.
 
+## The OTHER cost — what the canvas pays ONCE, at mount
+
+⚠ **The frame-cost instrument above cannot see this, and it is the larger number.** The placement and
+the occlusion field are built SYNCHRONOUSLY when the canvas mounts, before a frame is drawn, and the
+groves roughly DOUBLE that work. Measured on this box through the package's own pure modules
+(`dressMapWithGroves` + `shippedGroundBuild`, Node, single-threaded, the 35-island forest):
+
+| arm | placement | ground build | total at mount |
+| --- | --- | --- | --- |
+| `bare` | — | 661 ms | **661 ms** |
+| `capability` (what ships today) | 27 ms | 753 ms | **780 ms** |
+| `groves-x1` | 475 ms | 928 ms | **1,403 ms** |
+| **`groves-x2`** | 683 ms | 997 ms | **1,680 ms** |
+| `groves-x3` | 997 ms | 1,107 ms | **2,104 ms** |
+
+Most of it is the groves EXISTING rather than the rung: x1 already costs 1,403 ms and the shipped
+rung adds 277 ms on top. It is not on the site's first-paint path — the WebGL land is `import()`-ed
+lazily at the storm's calm-card click — but it IS a second of main thread on a phone, and it is the
+baseline the ground-cover increment must not quietly double again. Reproduce with a throwaway probe
+in the package (`node --import ../../scripts/tsx-cache-off.mjs --import tsx <probe>.ts`):
+
+```ts
+const FOREST = crowdSize('forest');
+const p = dressMapWithGroves(armDescriptors(FOREST), {
+  relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29, density });
+shippedGroundBuild(crowdCells(FOREST),
+  [...crowdCasters(FOREST), ...placementCasters(p, CANOPY_FOOTPRINT, CANOPY_HEIGHTS)], crowdStrips(FOREST));
+```
+
 ## Named gaps
 
 - **The colour gap to the reference is now the GROUND COVER, not the trees.** MICRO 1.81 against
@@ -180,6 +209,11 @@ agrees with almost anything.
 - The pine's own trunk reads as a small brown mass at each tree's base at 8 px/unit. That is the
   bought kit's geometry, unchanged since ADR-0475 stood the capability pines, and it is not this
   increment's to move.
+- **The mount-time cost above has no committed instrument** — it was taken with a throwaway probe,
+  and the reproduction is the snippet rather than a script. Building one is worth doing if the
+  ground-cover increment moves it much; today the number is recorded and the shape is understood
+  (the placement search is `bestCandidate` over 96 candidates per stand against a growing occupancy,
+  and the ground build is the occlusion field over 2,314 casters).
 
 ## Files
 
