@@ -63,7 +63,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_GRASS_URL'] ?? 'http://localhost:5316/shipped-grass.html';
 const OUT =
   process.env['ST_GRASS_OUT'] ??
-  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-bold-sand-2026-09-02');
+  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-ground-parity-2026-09-03');
 const ALLOW_SOFTWARE = process.env['ST_GRASS_ALLOW_SOFTWARE'] === '1';
 
 const CONTROL = 'flat';

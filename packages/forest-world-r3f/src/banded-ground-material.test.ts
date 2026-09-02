@@ -1035,7 +1035,7 @@ test('a GRASSED material uploads the caller`s mix and splices the generated laye
   assert.equal(m.uniforms['uGrassMix']?.value, 0.17, 'the fac is UPLOADED, never written in');
   assert.ok(/uniform float uGrassMix;/.test(m.fragmentShader));
   assert.ok(
-    m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'),
+    m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);'),
   );
   // ⚠ THE BLOCK, INDENTED, RATHER THAN LINE BY LINE. A per-line `includes()` sweep is
   // satisfied by the whole module CONCATENATED ONTO ONE LINE - every line is still a substring -
@@ -1332,12 +1332,12 @@ test('⚠⚠ THE SAND IS A SECOND SEAM, AND LAYER 1`S LINE IS UNTOUCHED BY IT', 
   // second seam the sand is fenced on its own measurement and layer 1's delivered pixel is exactly
   // the one that shipped before this layer existed.
   assert.ok(
-    m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'),
+    m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);'),
     'layer 1`s composite line must be byte-identical to the unsanded one',
   );
   assert.ok(
     m.fragmentShader.includes(
-      'c = mix(c, st_sandColour(vWorld.xz), uSandMix * (1.0 - sandBand) * grassGate);',
+      'c = mix(c, st_sandColour(vWorld.xz) * level, uSandMix * (1.0 - sandBand) * grassGate);',
     ),
     'layer 2 must enter as its own mix, with its own factor',
   );
@@ -1402,7 +1402,7 @@ test('an UNSANDED material carries no uShore uniform and no sand source at all',
   assert.ok(!/uShoreTex/.test(m.fragmentShader));
   assert.ok(!/st_sandEdge|st_sandRamp|st_sandBand|st_sandColour/.test(m.fragmentShader));
   // And it still carries layer 1's own composite line, unchanged.
-  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'));
+  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);'));
 });
 
 // ─── LAYERS 3, 4 AND 6: the worn path, rock on slope, the detail normal ────────────────────────
@@ -1470,7 +1470,7 @@ const WEAR_STAGE =
   "        // it — the opposite sense from the sand's additive edge.\n" +
   '        float wearUnits = texture2D(uWearTex, shUv).r * uWearWidth;\n' +
   '        float wear = st_wearFactor(vWorld.xz, st_wearOf(wearUnits, uWearWidth));\n' +
-  '        c = mix(c, st_dirtColour(vWorld.xz), uWearMix * wear * grassGate);\n';
+  '        c = mix(c, st_dirtColour(vWorld.xz) * level, uWearMix * wear * grassGate);\n';
 
 /** The rock stage exactly as the material emits it. */
 const ROCK_STAGE =
@@ -1490,7 +1490,7 @@ const ROCK_STAGE =
   "        // ⚠ GATED BY grassGate, so the skirt's authored rock rows — and every other ungated token\n" +
   '        // — are never repainted: an ungated row multiplies the whole layer by zero.\n' +
   '        float rockMask = st_rockMask(n.y, uRockLo, uRockHi);\n' +
-  '        c = mix(c, st_rockColour(vWorld.xz), uRockMix * rockMask * grassGate);\n';
+  '        c = mix(c, st_rockColour(vWorld.xz) * level, uRockMix * rockMask * grassGate);\n';
 
 /** The detail stage exactly as the material emits it — starting with the newline that joins it
  *  to the normal's own line, ending WITHOUT one so the grain stage's join is untouched. */
@@ -1555,9 +1555,9 @@ test('ABSENT WEAR, ROCK AND DETAIL CHANGE NOTHING — the sanded shader is byte-
     'the write site: the sand line must join straight onto the colour write',
   );
   // And layers 1 and 2 are untouched, byte for byte.
-  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'));
+  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);'));
   assert.ok(
-    m.fragmentShader.includes('c = mix(c, st_sandColour(vWorld.xz), uSandMix * (1.0 - sandBand) * grassGate);'),
+    m.fragmentShader.includes('c = mix(c, st_sandColour(vWorld.xz) * level, uSandMix * (1.0 - sandBand) * grassGate);'),
   );
   // The bare and grained shaders keep their own joins at the normal site too — the detail stage
   // is the first thing ever appended to that line.
@@ -1890,7 +1890,7 @@ test('the wear stage composites straight after LAYER 1 when there is no sand —
   });
   assert.ok(
     worn.fragmentShader.includes(
-      'c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);\n        // LAYER 3 — the worn path',
+      'c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n        // LAYER 3 — the worn path',
     ),
   );
   assert.ok(!/st_sand|uShoreTex|st_rock/.test(worn.fragmentShader));
@@ -1902,7 +1902,7 @@ test('the wear stage composites straight after LAYER 1 when there is no sand —
   });
   assert.ok(
     rocky.fragmentShader.includes(
-      'c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);\n        // LAYER 4 — rock on slope',
+      'c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n        // LAYER 4 — rock on slope',
     ),
   );
   assert.ok(!/st_sand|st_wear|uShoreTex|shUv/.test(rocky.fragmentShader), 'rock needs no atlas coordinate');

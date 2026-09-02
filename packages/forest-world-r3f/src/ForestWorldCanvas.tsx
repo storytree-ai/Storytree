@@ -61,6 +61,7 @@ import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './ki
 import { dressMapFromKit } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
+import { ROCK_SLOPE_RAMP } from './land-rock.js';
 import { SAND_FIELD_WIDTH, buildAtlasShore } from './shore-atlas.js';
 import { islandPaths } from './island-path.js';
 import { WEAR_FIELD_WIDTH, buildAtlasWear } from './wear-atlas.js';
@@ -254,33 +255,43 @@ const groundRowOf = (material: string | undefined): number =>
 export const GRASS_GATE_ROWS: readonly number[] = GRASS_STATUS_GATE.map(groundRowOf);
 
 /**
- * HOW MUCH GRASS THE SHIPPED GROUND WEARS — the delivered strength of layer 1, an AGENT art call
- * inside a measured fence (ADR-0492 D2, as corrected: agents make the art calls until the island
- * is whole; the owner attests the WHOLE island once, not each layer's constant).
+ * HOW MUCH GRASS THE SHIPPED GROUND WEARS — the delivered strength of layer 1, chosen from a
+ * rendered ladder by the LOOK, like every layer above it (ADR-0506, extending ADR-0503 D1 to the
+ * base layer; owner-directed 2026-09-03).
  *
- * ⚠⚠ THE FENCE IS 0.4065 AND IT IS NOT A TARGET. `harness/grass-status-reading.ts` re-derives it
- * per token on a 0.0005 grid; above it a reachable grass colour on `healthy`'s darkest rung
- * walks out of its own family. This value is 79% of the fence, and the headroom is the point —
- * the ceiling is a function of `SHIPPED_GROUND_COLOUR` and the shadow ladder, so a palette nudge
- * or one more rung moves it, and a constant parked ON the fence would be retuned by any of them.
+ * ⚠⚠ THIS NUMBER WAS 0.32 UNTIL 2026-09-03, AND 0.32 WAS THE REASON THE GROUND DID NOT MATCH THE
+ * RENDER THE OWNER STAMPED. 0.32 was the largest strength the per-pixel reader model in
+ * `harness/grass-status-reading.ts` admitted with headroom (its ceiling on `healthy` is 0.4065,
+ * ADR-0492 D2) — the same instrument that fenced layer 2 to an invisible 0.16 until the owner
+ * said the sessions were being too conservative (ADR-0503). At 0.32 a fragment is 68% the flat
+ * status token and 32% the recipe's grass, so the island read as the old flat green with a
+ * tint, while the approved render's grass IS the recipe at full strength. The owner, shown the
+ * finished five-layer stack on 2026-09-03: *"the ground looks nice but doesnt seem like we have
+ * achieved the equivalent of what i stamped as the goal ... I'm hoping to get as close to this
+ * look as possible."* That is the look-fence of ADR-0489 D3 applied to layer 1, and it is the
+ * standing bold-and-scale-back protocol of ADR-0503 D3 applied to the one layer it had skipped.
  *
- * ⚠⚠ AND THE MARGIN IS A BUDGET FOUR MORE LAYERS DRAW ON. `healthy`'s UNGRASSED worst reading
- * margin is 12.35; at this factor the grassed worst is 6.44, so layer 1 spends about half the
- * green's reading headroom and banks the other half. Layers 2, 3, 4 and 6 composite through the
- * same seam onto the same tokens, and a layer 1 built at the fence would leave them 6% of the
- * budget — which is how a serial chain of five layers spends its whole margin on the first one.
+ * ⚠⚠ WHAT MADE A BOLD FACTOR SAFE TO LOOK AT: THE LAYERS ARE LIT NOW. Until ADR-0506 the grass
+ * entered the mix as the recipe's UNLIT albedo while the ramp entry it mixed into was LIT, so
+ * every point of strength flattened the ground's own relief banding and the contact shadow
+ * under a tree in proportion. `banded-ground-material.ts` now multiplies every colour layer by
+ * the fragment's own lighting rung before its mix (`levelSelectGlsl`), which is Cycles' order —
+ * shade the composited albedo — on this ladder. Bold strength no longer costs the shading.
  *
- * ⚠ WHY NOT LOWER, AND THE AUTHORED 0.13 IN PARTICULAR. Measured over every colour this layer can
- * deliver on every shipped rung, the MAXIMUM channel shift at 0.13 is 11/255, so by ADR-0490 D6's
- * own >20/255 rule NOT ONE PIXEL can move: the recipe's own strength is invisible on the shipped
- * ladder, and adopting it would be a clean landing that changed nothing. At this factor the
- * maximum shift is 28/255 and 8.0% of the reachable set moves visibly.
+ * ⚠ THE LADDER, rendered one island @ 8 px/unit on the Adreno X1-85 with every other layer at
+ * what ships: 0.32 (the old map) / 0.55 / 0.70 / 0.85 / 0.95 — `docs/research/
+ * chapter2-ground-parity-2026-09-03/ladder-grass-8px.png`. 0.85 ships: the island reads as the
+ * approved render's grass — darker, more saturated, the cool/warm drift visible — with enough
+ * of the status token left in to keep the green the island's own family. Never 1.0: ADR-0490
+ * D5's seam (modulate, never replace) is kept literally, as it is on the sand.
  *
- * ⚠ WHY NOT HIGHER. The margin has a knee here: 0.32 -> 0.34 costs 28% of the remaining reading
- * margin (6.44 -> 4.64) to buy 2.9 points of visible share. Past it the layer is paying reading
- * headroom faster than it buys colour, which is the wrong side of a trade this map may not lose.
+ * ⚠ THE READER MODEL STILL PRINTS, AND ITS MARGIN IS NEGATIVE HERE — that is reported, not
+ * hidden. Its per-pixel arithmetic says a dark grass pixel on the darkest rung sits nearer a
+ * foreign token's swatch than `healthy`'s; the island, looked at, is plainly a green island
+ * (ADR-0503 D4's argument, one layer down). If an owner look ever says a green island reads as
+ * another state, this constant moves DOWN the ladder above and nothing else changes.
  */
-export const SHIPPED_GRASS_MIX = 0.32;
+export const SHIPPED_GRASS_MIX = 0.85;
 
 /** LAYER 1 AS THE SHIPPED GROUND WEARS IT — the factor and the gate in one value, so the canvas
  *  and every comparison arm read one object rather than reassembling two halves. */
@@ -382,12 +393,15 @@ export const SHIPPED_SAND_MIX = 0.65;
  *  (`WEAR_FIELD_WIDTH`). Ladder: 0.50 / 0.80 / 1.00 — see `harness/shipped-grass-scene.ts`. */
 export const SHIPPED_WEAR_MIX = 0.85;
 
-/** LAYER 4 — rock on the steep ground. The recipe's ends 0.72 / 0.90 bite only on the beach's ring
- *  chain on this mesh (the interior's up-component never drops below 0.91, `interiorMinimumUp()`),
- *  so the shipped ends are a stated departure that puts the interior's steepest swells inside the
- *  ramp — riding the grain-perturbed normal, so the rock speckles along them. Ladder: the recipe's
- *  [0.72, 0.90] / [0.88, 0.95] / [0.92, 0.98]. */
-export const SHIPPED_ROCK: GroundRockLayer = { mix: 0.85, slope: [0.88, 0.95] };
+/** LAYER 4 — rock on the steep ground, on the RECIPE'S OWN ENDS (`ROCK_SLOPE_RAMP`, 0.72 / 0.90).
+ *  On this mesh those ends bite only on the beach's ring chain (the interior's up-component never
+ *  drops below 0.91, `interiorMinimumUp()`), which is what the approved render shows: rock at the
+ *  steep coast and NONE across the grass. From 2026-09-02 to 2026-09-03 the map wore a stated
+ *  departure, [0.88, 0.95], that put grey veins along the interior's swells — chosen boldly under
+ *  ADR-0503 and never scaled back, but not in the picture the owner stamped, and he asked for that
+ *  picture "minus the rocks" (ADR-0506). Ladder, so the departure can be re-picked from a rendered
+ *  frame: the recipe's [0.72, 0.90] (SHIPS) / [0.88, 0.95] (`rock-veins`) / [0.92, 0.98]. */
+export const SHIPPED_ROCK: GroundRockLayer = { mix: 0.85, slope: ROCK_SLOPE_RAMP };
 
 /** LAYER 6 — how far the cliff normal map bends the surface normal. The recipe's 0.30 is the
  *  provenance rung (`DETAIL_STRENGTH_RECIPE`); it names whorls at 0.55 on a 2048 map, which the

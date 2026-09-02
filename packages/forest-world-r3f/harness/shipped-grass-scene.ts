@@ -93,6 +93,12 @@ import {
 export type GrassArm =
   | 'flat'
   | 'authored'
+  | 'grass-32'
+  | 'grass-55'
+  | 'grass-70'
+  | 'grass-85'
+  | 'grass-95'
+  | 'rock-veins'
   | 'sand-16'
   | 'sand-40'
   | 'sand-65'
@@ -124,6 +130,12 @@ export const CONTROL_ARM: GrassArm = 'flat';
 export const GRASS_ARMS: readonly GrassArm[] = [
   'flat',
   'authored',
+  'grass-32',
+  'grass-55',
+  'grass-70',
+  'grass-85',
+  'grass-95',
+  'rock-veins',
   'sand-16',
   'sand-40',
   'sand-65',
@@ -140,28 +152,50 @@ export const GRASS_ARMS: readonly GrassArm[] = [
 ];
 
 /**
- * WHAT EACH ARM MIXES IN — the seam strength layers 1 and 2 BOTH enter through.
+ * THE CONTROL'S GRASS STRENGTH — layer 1 as it shipped from PR #1798 (2026-09-01) until ADR-0506
+ * (2026-09-03), and the strength every committed table on this arc was read against.
  *
- * ⚠⚠ `flat` AND `authored` SHARE A MIX FACTOR AND DIFFER ONLY IN THE SAND. That is what makes the
- * pair attributable: any pixel between them is layer 2 and nothing else. `honest` differs in the
- * factor as well, and it has to — it is the largest strength at which the sanded ground still
- * reads correctly, so its whole point is that it is dimmer.
+ * ⚠⚠ A LITERAL ON PURPOSE, NOT `SHIPPED_GRASS_MIX`. Until 2026-09-03 the control read the shipped
+ * constant, which was right while the constant WAS 0.32: the control meant "the map before layer
+ * 2". Once layer 1's own strength became the thing under the ladder, a control that followed the
+ * constant would have moved with the rung under test and every "moved >20/255" figure on this page
+ * would have been a layer measured against itself. Pinning the control at the pre-parity strength
+ * keeps every row comparable to `chapter2-ground-stack-2026-09-02/`'s (families 20 on this arm).
+ */
+export const CONTROL_GRASS_MIX = 0.32;
+
+/**
+ * WHAT EACH ARM MIXES IN — layer 1's strength per arm.
  *
- *   0.32   what layer 1 ships at today (`SHIPPED_GRASS_MIX`), read from the constant rather than
- *          repeated, so the control cannot drift away from the map.
- *   0.235  the joint ceiling of layers 1+2 on `healthy`, re-derived on a 0.0005 grid. Above it a
- *          lit sand pixel walks into the `building`/`proposed` yellow at the ladder's two
- *          brightest rungs — a signed-off capability reporting as in-progress work.
+ * ⚠⚠ THE GRASS LADDER VARIES THIS ONE NUMBER AND HOLDS EVERY LAYER ABOVE IT AT WHAT SHIPS — the
+ * same one-thing-per-ladder rule the sand, path, rock and detail ladders follow, applied to the
+ * base layer (ADR-0506; the owner, 2026-09-03: the finished stack did not read as the render he
+ * stamped, and the strength he never saw a ladder for was this one). Every OTHER arm reads
+ * `SHIPPED_GRASS_MIX`, so the four upper ladders are measured over the grass the map actually
+ * draws; the CONTROL alone holds {@link CONTROL_GRASS_MIX}.
  *
- * ⚠ AT 0.235 THE SAND MOVES NO PIXEL PAST 20/255, and at 0.32 it moves 69% of the reachable set.
- * The two do not overlap. That is the fork this page exists to put in front of someone, and it is
- * NOT the same fork ADR-0492 dissolved: that one was a property of one TOKEN and the per-token
- * gate removed it, while this one is a property of how far the LADDER reaches and layer 2 already
- * inherits the gate.
+ *   0.32   `grass-32` — the pre-ADR-0506 map, for the before/after
+ *   0.55 / 0.70 / 0.85 / 0.95 — the bold rungs; 0.85 SHIPS, never 1.0 (ADR-0490 D5's seam)
  */
 export const GRASS_ARM_MIX: Record<GrassArm, number | null> = Object.fromEntries(
-  GRASS_ARMS.map((arm) => [arm, SHIPPED_GRASS_MIX]),
+  GRASS_ARMS.map((arm) => [arm, armGrassMix(arm)]),
 ) as Record<GrassArm, number | null>;
+
+/** The grass strength one arm wears — a named function so the mutation rung can attribute a
+ *  mutant in the table's arithmetic to the test that kills it. */
+export function armGrassMix(arm: GrassArm): number {
+  if (arm === CONTROL_ARM) return CONTROL_GRASS_MIX;
+  if (arm === 'grass-32') return 0.32;
+  if (arm === 'grass-55') return 0.55;
+  if (arm === 'grass-70') return 0.7;
+  if (arm === 'grass-85') return 0.85;
+  if (arm === 'grass-95') return 0.95;
+  return SHIPPED_GRASS_MIX;
+}
+
+/** The rock ends the map wore from 2026-09-02 to 2026-09-03 — the interior veins — carried as an
+ *  arm so the owner can re-pick them from a rendered frame rather than from a description. */
+export const ROCK_VEINS: GroundRockLayer = { mix: 0.85, slope: [0.88, 0.95] };
 
 /**
  * WHAT EACH ARM WEARS ABOVE THE GRASS — one row per arm, one LADDER per layer.
@@ -207,6 +241,14 @@ const detailRung = (detail: number): ArmLayers => ({ ...SHIPPED_STACK, detail })
 export const GRASS_ARM_LAYERS = {
   flat: NONE,
   authored: SHIPPED_STACK,
+  // The grass ladder: the whole shipped stack above, layer 1's strength the one moving part.
+  'grass-32': SHIPPED_STACK,
+  'grass-55': SHIPPED_STACK,
+  'grass-70': SHIPPED_STACK,
+  'grass-85': SHIPPED_STACK,
+  'grass-95': SHIPPED_STACK,
+  // The rock re-pick: the shipped stack with the 2026-09-02 interior veins instead of the recipe's ends.
+  'rock-veins': { ...SHIPPED_STACK, rock: ROCK_VEINS },
   'sand-16': sandOnly(0.16),
   'sand-40': sandOnly(0.4),
   'sand-65': sandOnly(0.65),
@@ -240,11 +282,19 @@ export const GRASS_ARM_SAND: Record<GrassArm, boolean> = Object.fromEntries(
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
 export const GRASS_ARM_CAPTION = {
-  flat: 'the map as it SHIPPED before layer 2 — layer 1 at 0.32 on the green islands (CONTROL)',
+  flat: `the map as it SHIPPED before layer 2 — layer 1 at ${CONTROL_GRASS_MIX} on the green islands, nothing above it (CONTROL)`,
   authored:
-    `the whole stack as it SHIPS — grass 0.32, sand ${SHIPPED_SAND_MIX}, path ${SHIPPED_LAYERS.wearMix}, ` +
+    `the whole stack as it SHIPS — grass ${SHIPPED_GRASS_MIX}, sand ${SHIPPED_SAND_MIX}, path ${SHIPPED_LAYERS.wearMix}, ` +
     `rock ${SHIPPED_LAYERS.rock.mix} on [${SHIPPED_LAYERS.rock.slope.join(', ')}], detail ` +
     `${SHIPPED_LAYERS.detail.strength}`,
+  'grass-32': 'grass at 0.32 under the shipped stack — the map as it drew on 2026-09-02, minus the rock veins',
+  'grass-55': 'grass at 0.55 under the shipped stack — the recipe’s hue drift starts to show through the token',
+  'grass-70': 'grass at 0.70 under the shipped stack — the ground is mostly the recipe’s grass',
+  'grass-85': 'grass at 0.85 under the shipped stack — the approved render’s grass with the token’s green left in',
+  'grass-95': 'grass at 0.95 under the shipped stack — all but the last of the status token gone',
+  'rock-veins':
+    `the shipped stack wearing the 2026-09-02 rock ends [${ROCK_VEINS.slope.join(', ')}] — grey veins along ` +
+    'the interior’s swells, which the approved render does not have',
   'sand-16':
     'sand at 0.16 — the reader-model ceiling layer 2 was first adopted at; largest possible ' +
     'shift 15/255, so the beach is a tint',

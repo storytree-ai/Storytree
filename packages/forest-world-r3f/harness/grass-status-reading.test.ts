@@ -152,21 +152,41 @@ test('THE PER-TOKEN ARM: the whole-map ceiling is ONE token`s property, not the 
   assert.equal(perToken.get('proposed'), yellow);
 });
 
+/** The factor ADR-0492 measured its gate on — layer 1's strength from PR #1798 until ADR-0506.
+ *  A literal, because the claim below is about the INSTRUMENT (the gate admits a visible factor
+ *  the whole map does not) and must not move with the shipped constant, which ADR-0506 took past
+ *  this instrument's ceiling on purpose. */
+const ADR0492_FACTOR = 0.32;
+
 test('THE PER-TOKEN ARM: narrowing to the gate admits a VISIBLE factor, ungated admits none', () => {
   // The two halves of ADR-0492 D1's whole claim, side by side on one instrument.
-  const gated = grassLayerVerdict(SHIPPED_GRASS_MIX, undefined, undefined, GRASS_STATUS_GATE);
-  const ungated = grassLayerVerdict(SHIPPED_GRASS_MIX);
-  assert.equal(gated.admissible, true, 'the shipped factor must hold on the gated token');
+  const gated = grassLayerVerdict(ADR0492_FACTOR, undefined, undefined, GRASS_STATUS_GATE);
+  const ungated = grassLayerVerdict(ADR0492_FACTOR);
+  assert.equal(gated.admissible, true, 'the measured factor must hold on the gated token');
   assert.equal(ungated.admissible, false, 'and must NOT hold on the whole map — hence the gate');
   // ⚠ AND THE READER TABLE IS NOT NARROWED WITH THE STATUSES. If it were, the walk would ask
   // whether grassed-healthy is distinguishable from itself — vacuously true, and every factor up
   // to 1.0 would report as admissible. That the gated ceiling is FINITE is what proves it isn't.
   const ceiling = admissibleGrassMixCeiling(0.005, 1.0, shippedLadder(), GRASS_STATUS_GATE);
   assert.ok(ceiling < 1, 'a gated ceiling of 1.0 means the reader table was narrowed too');
-  assert.ok(
-    SHIPPED_GRASS_MIX < ceiling,
-    `the shipped factor ${SHIPPED_GRASS_MIX} must sit under the fence ${ceiling}`,
-  );
+  assert.ok(ADR0492_FACTOR < ceiling, `ADR-0492's factor ${ADR0492_FACTOR} sat under its fence ${ceiling}`);
+});
+
+test('ADR-0506: the SHIPPED factor is above this instrument`s ceiling, and the instrument SAYS SO', () => {
+  // ⚠⚠ THIS USED TO ASSERT `SHIPPED_GRASS_MIX < ceiling`, AND THAT ASSERTION WAS THE FENCE THAT
+  // KEPT THE GROUND FROM MATCHING THE RENDER THE OWNER STAMPED. ADR-0503 D1 demoted the per-pixel
+  // reader model to an instrument for layers 2–6; ADR-0506 does the same for layer 1, after the
+  // owner looked at the finished stack (2026-09-03) and said it was not the picture he approved.
+  // The fence is the LOOK (ADR-0489 D3); what this instrument owes is an honest REPORT — a
+  // finite ceiling, a negative margin, and the rungs that break, printed rather than hidden.
+  const ceiling = admissibleGrassMixCeiling(0.005, 1.0, shippedLadder(), GRASS_STATUS_GATE);
+  assert.ok(SHIPPED_GRASS_MIX > ceiling, `the shipped factor ${SHIPPED_GRASS_MIX} is a look pick, above ${ceiling}`);
+  const verdict = grassLayerVerdict(SHIPPED_GRASS_MIX, undefined, undefined, GRASS_STATUS_GATE);
+  assert.equal(verdict.admissible, false, 'the instrument must report, not flatter, the shipped factor');
+  assert.ok(verdict.worstMargin < 0, 'a negative margin is the report, and it is printed on the sheet');
+  assert.ok(verdict.breaks.length > 0, 'and it names the rungs that break rather than only a number');
+  // ⚠ NEVER 1.0 — ADR-0490 D5's seam (modulate, never replace) is kept literally.
+  assert.ok(SHIPPED_GRASS_MIX < 1, 'the grass may not REPLACE the status colour');
 });
 
 test('THE SHIPPED FACTOR IS VISIBLE, which the recipe`s own factor provably is not', () => {
