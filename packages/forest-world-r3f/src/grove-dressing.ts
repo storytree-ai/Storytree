@@ -187,6 +187,14 @@ export function cellsArea(cells: readonly LayoutCell[]): number {
  * (which it reports as UNPROVEN — never a pass, never a survivor) precisely because a fast
  * assertion killed them while a slow one hung; the counts they asked for on the recipe island were
  * 133, 432, `Infinity`, `NaN` and 2,357,742,254 against an honest 26. See {@link standCeiling}.
+ *
+ * ⚠ IT THROWS RATHER THAN CLAMPS, and on the shipped canvas that would take the map down. That is
+ * the right direction anyway, because the alternative it replaces is not a drawn map — it is a
+ * materialised billion-element array, i.e. a hung tab with no message. And the condition is
+ * geometrically UNREACHABLE from a well-formed island: a simple ring's area cannot exceed its
+ * bounding box's, the ceiling is read at the boldest rung while the map ships the middle one, and
+ * a hex island's box exceeds its area by a further 20-40% — about 2x of headroom in total, so the
+ * island's parcels would have to overlap each other by more than 100% to reach it.
  */
 export function groveStandCount(cells: readonly LayoutCell[], density: number = GROVE_DENSITY): number {
   const stands = Math.round((RECIPE_STANDS * density * cellsArea(cells)) / RECIPE_ISLAND_AREA);
