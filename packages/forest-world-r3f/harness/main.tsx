@@ -11,10 +11,12 @@
 
 import { createRoot } from 'react-dom/client';
 import {
+  buildRelaxedCells,
   buildScene,
   hexCenter,
   routeTrails,
   type Axial,
+  type DrawTile,
   type SceneInput,
   type SceneTerritoryInput,
   type TrailIsland,
@@ -110,14 +112,22 @@ function demoInput(): SceneInput {
     to: ISLANDS[b]!.id,
     title: `${ISLANDS[b]!.id} depends on ${ISLANDS[a]!.id}`,
   });
+  // ⚠ THE MESH SUBSTRATE, NOT THE CLASSIC ONE (`retire-the-old-land-path`). This demo built a
+  // classic scene (`relaxedCells: null`) until the classic substrate was retired at the mapper —
+  // `worldTo3D` now REFUSES a `tile` group outright — so a harness that kept building one would
+  // throw the moment this module loaded, before the canvas ever mounted. `buildRelaxedCells` is
+  // the same call `apps/studio` and the public site make; this demo now exercises the one
+  // substrate the mapper still accepts.
+  const drawTiles: DrawTile[] = ISLANDS.flatMap((island, owner) => island.tiles.map((h) => ({ h, owner })));
+  const wheatSets = ISLANDS.map(() => new Set<string>());
   return {
     offset: { x: 0, y: 0 },
     width: 1400,
     height: 1000,
     empties: [],
-    relaxedCells: null,
-    drawTiles: ISLANDS.flatMap((island, owner) => island.tiles.map((h) => ({ h, owner }))),
-    wheatSets: ISLANDS.map(() => new Set<string>()),
+    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh'),
+    drawTiles,
+    wheatSets,
     trails: routeTrails(trailIslands, [edge(0, 1), edge(0, 2)], 'r3f-harness-demo'),
     territories,
   };
@@ -128,7 +138,7 @@ function demoInput(): SceneInput {
 const descriptors = worldTo3D(buildScene(demoInput()));
 const count = (k: string): number => descriptors.filter((d) => d.kind === k).length;
 const summary =
-  `hex-ground ${count('hex-ground')} · story-tree ${count('story-tree')} · ` +
+  `cell-ground ${count('cell-ground')} · story-tree ${count('story-tree')} · ` +
   `trail-strip ${count('trail-strip')} · trail-ghost-strip ${count('trail-ghost-strip')} · ` +
   `cave-arch ${count('cave-arch')} · wisp-sprite ${count('wisp-sprite')} · ` +
   `skipped ${count('skipped')}`;

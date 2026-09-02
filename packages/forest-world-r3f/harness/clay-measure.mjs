@@ -18,9 +18,12 @@
 // onto the axis this change moves, and (2) is the half that is easy to leave out: a page CAN show
 // a real difference in the panel you were looking at while quietly redrawing the other five.
 //
-// ⚠ IT READS `getImageData` OFF THE CANVAS, NOT A SCREENSHOT — the same reason `status-measure.mjs`
+// ⚠ IT READS `getImageData` OFF THE CANVAS, NOT A SCREENSHOT — the same reason `grain-measure.mjs`
 // records: two evidence pictures on this arc were Playwright ELEMENT screenshots with the page
-// background composited in OPAQUE, so an alpha mask never reached the island.
+// background composited in OPAQUE, so an alpha mask never reached the island. (The original
+// citation, `status-measure.mjs`, was retired along with `status.tsx` / `status.html` —
+// `retire-the-old-land-path` — a comparison arm superseded by `shipped-status-measure.mjs`; the
+// technique this comment explains is unaffected and still lives in every `getImageData` rung.)
 //
 // USAGE — and note the port, which has bitten this harness before:
 //

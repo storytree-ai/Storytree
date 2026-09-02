@@ -28,12 +28,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import { buildScene, hexCenter, type SceneG } from '@storytree/forest-world';
-
 import { ForestWorldCanvas } from '../src/ForestWorldCanvas.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { IslandPanel } from './IslandView.js';
-import { ISLAND_TILES, islandScene } from './island-fixture.js';
+import { islandScene } from './island-fixture.js';
 import {
   BEFORE_THE_CELL_CASE,
   SHIPPED_STATUSES,
@@ -42,7 +40,6 @@ import {
   SPIKE_STATUS_COLOUR,
   authoredTriangles,
   cellGroundTrianglesFor,
-  classicHexScene,
   type AuthoredCount,
 } from './shipped-baseline.js';
 import { STATUS_TOKENS } from './palette-band.js';
@@ -277,19 +274,26 @@ for (const d of MIXED_DESCRIPTORS) {
   if (d.kind === 'cell-ground') MIXED_MATERIALS[d.material ?? '?'] = (MIXED_MATERIALS[d.material ?? '?'] ?? 0) + 1;
 }
 
-/* ── the CONTROL scene ──────────────────────────────────────────────────────────────────────
-   ⚠ The mesh-substrate island above yields the shipped canvas NO GROUND AT ALL — its `tile`
-   case (`world-to-3d.ts:207`) has no counterpart for the `cell` nodes the relaxed mesh
-   emits, so 164 of them fall to the default skip. That is the finding, and on its own it is
-   equally consistent with a mapper that is simply broken. The classic-substrate control below
-   is the same mapper on `relaxedCells: null` (`scene.ts:658`), and it draws ground — which is
-   what makes the finding "pointed at a representation the product no longer produces" rather
-   than "broken". It is also the only way to SHOW what the shipped land looks like at all. */
-// ⚠ THE SAME THIRTEEN TILES the mesh fixture uses, imported rather than re-listed: the
-// control is only a control if the two panels are the same island in two representations.
-const CLASSIC_SCENE = classicHexScene(buildScene as never, hexCenter, ISLAND_TILES) as SceneG;
-const CLASSIC_DESCRIPTORS: readonly Descriptor3D[] = worldTo3D(CLASSIC_SCENE);
-const CLASSIC_CENSUS = census(CLASSIC_DESCRIPTORS);
+/* ── the CONTROL scene — RETIRED ────────────────────────────────────────────────────────────
+   ⚠ THIS PAGE ONCE RENDERED THE CLASSIC SUBSTRATE LIVE, AS A NON-VACUITY CONTROL, AND NO LONGER
+   CAN. The mesh-substrate island above used to yield the shipped canvas NO GROUND AT ALL — its
+   `tile` case had no counterpart for the `cell` nodes the relaxed mesh emits, so 164 of them fell
+   to the default skip. That was the finding, and on its own it was equally consistent with a
+   mapper that is simply broken; a classic-substrate control beside it — the same mapper on
+   `relaxedCells: null` (`scene.ts:658`), drawing ground — was what made the finding "pointed at a
+   representation the product no longer produces" rather than "broken".
+
+   `retire-the-old-land-path` retired the classic substrate at the mapper: `world-to-3d.ts`'s
+   `case 'tile'` now REFUSES rather than mapping, so `worldTo3D(CLASSIC_SCENE)` at MODULE LOAD
+   TIME — which is what this page used to do — would throw before the page ever rendered. There
+   is no live non-vacuity render left to show; the property the control proved (the fix ADDED a
+   representation rather than swapping one for another) is now proven the OTHER direction, by
+   `harness/shipped-baseline.test.ts`'s dedicated refusal test — the classic call still reaches
+   real mapper code, and what that code does now is refuse loudly. The COMMITTED evidence for the
+   original finding this page's "before" panel reconstructs is
+   `docs/research/chapter2-shipped-baseline-2026-08-28/` (PR #1679,
+   `adopt-the-land-into-the-shipped-map-arc-inc-01`): "a real island rendered as one story tree
+   over empty space." */
 
 /** The island's world extent, from the drawable instances themselves. */
 function extent(ds: readonly Descriptor3D[]) {
@@ -503,7 +507,6 @@ function PaletteCorrection() {
 function App() {
   const meshExtent = extent(DESCRIPTORS);
   const authored = authoredTriangles(CENSUS);
-  const classicAuthored = authoredTriangles(CLASSIC_CENSUS);
   return (
     <main>
       <header>
@@ -659,40 +662,27 @@ function App() {
         </div>
       </section>
 
-      <section data-st-panel="baseline-classic-control">
-        <h2>The control &mdash; the same canvas on the CLASSIC substrate</h2>
+      <section data-st-panel="baseline-classic-control-retired">
+        <h2>The control that used to stand here &mdash; RETIRED</h2>
         <p className="lede">
-          &#9888; <strong>The control is what says the fix ADDED a representation rather than
-          swapping one for another.</strong> The shipped canvas has always mapped ground from a
-          scene node of kind <code>tile</code> &mdash; the classic extruded-hex island &mdash; and
-          it still does. A mapper that had simply been re-pointed at <code>cell</code> would draw
-          the island above and nothing here, which is the same defect facing the other way. This
-          row is the same component and the same code path on a classic hex island, and it draws
-          its {CLASSIC_CENSUS['hex-ground'] ?? 0} hexes exactly as before.
+          This page used to carry a live row rendering the shipped canvas on the CLASSIC
+          substrate too, as a non-vacuity control: it existed to say the mesh-ground fix ADDED a
+          representation rather than swapping one for another, by showing the same component and
+          the same code path still drawing hexes on a classic island. <code>retire-the-old-land-
+          path</code> retired the classic substrate at the mapper &mdash; <code>world-to-3d.ts</code>{' '}
+          now REFUSES a classic-substrate scene outright rather than mapping it &mdash; so there
+          is no live tile-mode render left to draw here; a page that still tried would throw
+          before it ever mounted.
         </p>
         <p className="lede">
-          It is also the row that shows the two substrates now agree about what the placeholder
-          land LOOKS like: flat, untextured, one colour per parcel from the status. The panel
-          beside it is where this arc is going.
+          The finding this control once made visible is committed rather than lost: it is pinned
+          by <code>harness/shipped-baseline.test.ts</code>'s dedicated refusal test (the classic
+          call still reaches real mapper code, and what that code does now is refuse loudly), and
+          pictured at{' '}
+          <code>docs/research/chapter2-shipped-baseline-2026-08-28/</code> (PR&nbsp;#1679,{' '}
+          <code>adopt-the-land-into-the-shipped-map-arc-inc-01</code>): &ldquo;a real island
+          rendered as one story tree over empty space.&rdquo;
         </p>
-        <div className="row">
-          <ShippedPanel
-            tag="shipped-classic"
-            label="SHIPPED — the placeholder land, drawn"
-            note={`classic hex substrate · ${classicAuthored.triangles} triangles`}
-            width={1900}
-            height={1200}
-            descriptors={CLASSIC_DESCRIPTORS}
-          />
-          <IslandPanel
-            label="HARNESS — where this arc is going"
-            note="the treatment the owner approved, at 8 px / ground unit"
-            tag="harness-classic-compare"
-            pxPerUnit={8}
-            displayPxPerUnit={8}
-            land="full"
-          />
-        </div>
       </section>
     </main>
   );
@@ -705,8 +695,12 @@ if (root) {
   // extra delay is because the shipped panels take their reading across rAFs of their own and
   // the driver must not read `__stBaseline` before both have filed.
   const waitForPanels = (tries: number) => {
+    // ⚠ SIX `ShippedPanel`s file into `__stBaseline.panels` today (the count was seven until the
+    // classic-substrate control's `shipped-classic` panel was retired alongside the substrate
+    // itself — `retire-the-old-land-path`). `IslandPanel`s (the `harness-*` tags) file nothing
+    // here, so this count is `ShippedPanel` mounts only, not every panel on the page.
     const filed = Object.keys(window.__stBaseline?.panels ?? {}).length;
-    if (filed >= 7 || tries <= 0) {
+    if (filed >= 6 || tries <= 0) {
       const gl = document.createElement('canvas').getContext('webgl2');
       const dbg = gl?.getExtension('WEBGL_debug_renderer_info') ?? null;
       const report = (window.__stBaseline ??= emptyReport());
