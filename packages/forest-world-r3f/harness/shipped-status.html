@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the map still tells the truth — six statuses, one forest — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      h3 { font-size: 13px; margin: 20px 0 8px; color: #d7c07a; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      code { color: #d7c07a; }
+      figure { margin: 0 0 8px; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 90ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+      table.verdict { border-collapse: collapse; font: 12px/1.4 ui-monospace, Menlo, monospace; margin: 6px 0 18px; }
+      table.verdict th, table.verdict td { border: 1px solid #3b434c; padding: 3px 8px; text-align: left; }
+      table.verdict thead th { background: #232930; color: #b0bec5; }
+      table.verdict tr.pass td { color: #b7e08a; }
+      table.verdict tr.fail td { color: #ef9a9a; font-weight: 600; }
+      table.verdict tr.zero td { color: #d7c07a; font-weight: 600; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The map still tells the truth &mdash; all six statuses, one forest</h1>
+      <p>
+        <code>demonstrate-the-map-still-reports-truth</code> on
+        <code>adopt-the-land-into-the-shipped-map-arc</code>, end-state item 3: every
+        capability&rsquo;s status must read correctly off the finished land, <strong>demonstrated</strong>
+        rather than asserted. ADR-0475 D2 is the frame this page answers to:
+        <em>&ldquo;the land is uniform within an island, and carries the story&rsquo;s own state
+        &hellip; island-level state reads off the ground at the opening view.&rdquo;</em> So the
+        question below is exactly the map&rsquo;s own truth claim for the ground: does each
+        island&rsquo;s ground read as that island&rsquo;s own state, and as no other &mdash; over
+        the real fixture forest (35 islands: 21 healthy, 8 proposed, 2 building, 2 mapped, 1
+        unknown, 1 unhealthy), at both of this arc&rsquo;s zooms.
+      </p>
+      <p>
+        <strong>&#9888;&#9888; The shipped map carries status as COLOUR ONLY, and FIVE colours
+        over SIX states (ADR-0462 D1/D2, superseding ADR-0461).</strong> <code>proposed</code> and
+        <code>building</code> share one authored token &mdash; the owner&rsquo;s own words:
+        <em>&ldquo;if something is building just color it yellow because its basicly the same as
+        proposed, theres no value add.&rdquo;</em> That is a DECISION measured on delivered pixels,
+        not a gap this page reports as a defect: the pair is expected to read as one family, and
+        the pair-separation table below shows it at exactly zero. Only <code>healthy</code> wears
+        the grass layer (<code>GRASS_STATUS_GATE</code>, ADR-0492 D1) &mdash; every other layer
+        this ground now carries (sand, the worn path, rock on slope, the cliff normal as detail
+        relief) MODULATES the status ramp and never replaces it (ADR-0490 D5), which is exactly
+        what could have quietly eroded the six-way distinction this page checks for.
+      </p>
+      <p>
+        <strong>&#9888; The terrain vocabulary that separates <code>proposed</code> from
+        <code>building</code> is not on this page.</strong> <code>harness/terrain.html</code>
+        carries a channel that WOULD tell the pair apart, but adoption onto the shipped map was
+        scoped out of a separate increment (<code>name-the-four-states-as-terrains</code>). So the
+        pair reads as one family here by construction, on the ground exactly as it ships &mdash;
+        adopting that channel is a separate, later event.
+      </p>
+      <p>
+        <strong>&#9888; The outcome test this page applies is ADR-0489 D3&rsquo;s own:</strong>
+        <em>&ldquo;look at the final render and ask: can I tell what state this island is
+        in?&rdquo;</em> &mdash; asked here of every one of the 35 islands at once, by an instrument
+        rather than by eye.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedStatus } from './shipped-status-scene.ts';
+      try {
+        await mountShippedStatus(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>
