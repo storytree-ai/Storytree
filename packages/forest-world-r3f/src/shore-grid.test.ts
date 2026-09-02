@@ -413,18 +413,24 @@ test('spanOf is INCLUSIVE at both ends, and empty when the range inverts', () =>
 // ---------------------------------------------------------------- the bucket cap
 
 test('a grid that would need more than MAX_GRID_BUCKETS is REFUSED before it allocates', () => {
-  // A 20,000-unit chord at width 1 wants 20,001 x 20,001 buckets — four hundred million empty
-  // arrays for two edges. Refused in a microsecond, with the extent and the cell in the message
-  // so the reader sees which of the two was wrong.
-  const huge: CoastEdge[] = [{ ax: 0, az: 0, bx: 20000, bz: 20000 }];
+  // ⚠ JUST OVER THE CAP, NOT ABSURDLY OVER IT. A 20,000-unit chord would want four hundred million
+  // buckets, and a refusal that had been deleted would then HANG the test instead of failing it —
+  // which the mutation rung scores as unproven rather than killed. One column over the cap
+  // allocates in a millisecond when the refusal is missing, so the assertion is what fails.
+  // A non-zero origin, so the extent in the message is a difference and not a sum.
+  const over: CoastEdge[] = [{ ax: 10, az: 20, bx: 522.5, bz: 531.5 }];
   assert.throws(
-    () => buildSegmentGrid(huge, 1),
+    () => buildSegmentGrid(over, 1),
     (e: unknown) =>
       e instanceof Error &&
-      e.message.includes('exceeds ' + String(MAX_GRID_BUCKETS)) &&
-      e.message.includes('20001 x 20001') &&
-      e.message.includes('at cell 1'),
+      e.message ===
+        'shore-grid: a 513 x 512 cell grid (262656 buckets) over a 512.5 x 511.5 extent at cell 1 ' +
+          'exceeds 262144 — the cell arithmetic has inverted, or the extent is not one island’s',
   );
+  // EXACTLY the cap is allowed — the refusal is strict, so a grid of 512 x 512 = 262144 builds
+  // (one column narrower than the refused one, same rows).
+  const exact: CoastEdge[] = [{ ax: 10, az: 20, bx: 521.5, bz: 531.5 }];
+  assert.doesNotThrow(() => buildSegmentGrid(exact, 1));
   // And the cap is generous for what the map actually builds: an island-sized extent at the
   // path's 3-unit cell is a few thousand buckets, two orders under it.
   const island: CoastEdge[] = [{ ax: 0, az: 0, bx: 234, bz: 46 }];
