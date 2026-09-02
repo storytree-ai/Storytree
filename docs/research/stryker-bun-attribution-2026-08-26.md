@@ -148,6 +148,19 @@ eight cases fail there. It is chained into `pnpm mutation:attribution-probe`.
 
 This is the third hunk against the bundle; §5 below counts two and its properties still hold.
 
+**And the hunk was not enough on its own (third CI run, same PR).** With every "could not be
+resolved" warning gone, three mutants still came back UNPROVEN under a DIFFERENT shape: bun exited
+1 but its captured output held **no `(fail)` line at all** — only the files' `::group::` headers —
+so `rawFailedNames` was empty and the runner warned "no killing test identifiable". Reproduced on
+Linux (bun 1.4.0, `GITHUB_ACTIONS=true`): a synchronous node:test failure prints cleanly inside its
+own group, so the lost line is a timing shape — a slow node:test file's failure reported after bun
+has moved on. No resolver can credit a line that was never captured. The remedy that lands is the
+cheap one: `src/banded-ground-material.layers.test.ts` re-states the six claims as small
+synchronous tests over one lazily-built material, so their failures print inside their own group
+and the credit routes; the runner hunk stays as the belt for the wrong-header shape. The true fix
+is upstream — attribute the mutant run through the inspector as the dry run already does — and is
+filed as friction rather than patched here.
+
 ---
 
 ## 3. The instrument was validated before its output was trusted
