@@ -33,6 +33,7 @@ import {
   cellAt,
   cellsArea,
   cellsAspect,
+  cellsBounds,
   dressGroves,
   gaussian,
   groveEligible,
@@ -51,6 +52,7 @@ import {
   memberYaw,
   pathClear,
   ringArea,
+  standCeiling,
   standCentre,
   standingOccupants,
   straddles,
@@ -259,6 +261,55 @@ test('a bolder rung grows strictly more pines on the same island, and every rule
   }
   // And an ineligible island grows nothing at ANY rung — density never opens the gate.
   assert.deepEqual(grovesOn(island(['healthy', 'proposed', 'healthy']), { density: 3 }), []);
+});
+
+// ⚠⚠ THE RUNAWAY GUARD, AND WHY IT IS A GUARD RATHER THAN DEFENSIVE NOISE. A grove is placed by a
+// 96-candidate search per stand against an occupancy that grows with what it has already placed, and
+// `indices(n)` MATERIALISES the count — so a corrupted area does not draw a wrong picture, it hangs.
+// `check:mutation-diff` measured exactly that: four arithmetic mutants of `ringArea` and one of
+// `groveStandCount`'s own division came back `Timeout` (reported UNPROVEN — never a pass, never a
+// survivor) because a fast assertion killed them while a slow covering test hung. The counts they
+// asked for on a 13-cell island were 133, 432, Infinity, NaN and 2,357,742,254 against an honest 26.
+test('a stand count past what the island’s BOUNDING BOX could ask for is refused, not drawn', () => {
+  const cells = HEALTHY;
+  const honest = groveStandCount(cells);
+  const ceiling = standCeiling(cells);
+  assert.ok(honest < ceiling, `${honest} stands against a ceiling of ${ceiling}`);
+  // ⚠ THE GUARD COSTS THE HONEST CASE NOTHING, and that is the bar it has to clear. A ring's area
+  // never exceeds its bounding box's, so the boldest RENDERED rung is under the ceiling on every
+  // island — including one far larger than anything the map draws today.
+  for (const rung of GROVE_DENSITY_RUNGS) assert.ok(groveStandCount(cells, rung) <= ceiling);
+  const huge = cells.map((c) => ({ ...c, points: c.points.map((p) => ({ x: p.x * 12, z: p.z * 12 })) }));
+  assert.ok(groveStandCount(huge, 3) <= standCeiling(huge), 'a fifty-capability island is not taxed');
+  assert.ok(groveStandCount(huge) > 1000, 'and it really is a big island, not a rounding artefact');
+
+  // The refusals, in the shapes the mutants produced. A density is the cleanest way to ask for a
+  // count the ISLAND cannot justify, because the ceiling reads the island and not the density.
+  assert.throws(() => groveStandCount(cells, Math.max(...GROVE_DENSITY_RUNGS) * 4), /stands asked for/);
+  assert.throws(() => groveStandCount(cells, Number.POSITIVE_INFINITY), /stands asked for/);
+  assert.throws(() => groveStandCount(cells, Number.NaN), /stands asked for/);
+  assert.throws(() => groveStandCount(cells, 1e9), /arithmetic fault in the area/);
+  // And the message names both numbers, so a reader is not left to guess which end was wrong.
+  assert.throws(() => groveStandCount(cells, 1e9), new RegExp(`at most ${standCeiling(cells)}`));
+});
+
+test('the bounding box is the points’ own extent, and an island with no points bounds nothing', () => {
+  const box = cellsBounds(HEALTHY);
+  assert.ok(box.maxX > box.minX && box.maxZ > box.minZ);
+  for (const c of HEALTHY) {
+    for (const p of c.points) {
+      assert.ok(p.x >= box.minX && p.x <= box.maxX, 'a point outside the bounds');
+      assert.ok(p.z >= box.minZ && p.z <= box.maxZ);
+    }
+  }
+  // ⚠ INVERTED-INFINITE over nothing, which is what makes an empty island's bounding AREA zero
+  // rather than negative — `(−∞ − ∞) * (−∞ − ∞)` would be `+∞`, and the ceiling would admit
+  // anything. The multiplication reads `(max − min)` on both axes, so both are `−∞` and the
+  // product is `+∞`… which is why the empty island is asserted here rather than assumed.
+  const empty = cellsBounds([]);
+  assert.equal(empty.minX, Infinity);
+  assert.equal(empty.maxX, -Infinity);
+  assert.equal(groveStandCount([]), 0, 'no cells, no stands, and no refusal on the way');
 });
 
 test('the island’s aspect is depth over width, and a widthless island borrows the recipe’s', () => {

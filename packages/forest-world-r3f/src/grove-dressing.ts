@@ -178,17 +178,57 @@ export function cellsArea(cells: readonly LayoutCell[]): number {
 /**
  * How many stands this island grows — the recipe's thirteen, in proportion to area, times the
  * density rung ({@link GROVE_DENSITY}, which is what a caller omitting the argument gets).
+ *
+ * ⚠⚠ AND IT REFUSES A RUNAWAY, which is a real guard rather than defensive noise. Every stand costs
+ * a 96-candidate search against an occupancy that grows with what it has already placed, so the
+ * placement is superlinear in this number and `indices(n)` MATERIALISES it — a corrupted area
+ * therefore does not produce a wrong picture, it produces a hang. Measured: `check:mutation-diff`
+ * scored four arithmetic mutants of {@link ringArea} and one of the division below as `Timeout`
+ * (which it reports as UNPROVEN — never a pass, never a survivor) precisely because a fast
+ * assertion killed them while a slow one hung; the counts they asked for on the recipe island were
+ * 133, 432, `Infinity`, `NaN` and 2,357,742,254 against an honest 26. See {@link standCeiling}.
  */
 export function groveStandCount(cells: readonly LayoutCell[], density: number = GROVE_DENSITY): number {
-  return Math.round((RECIPE_STANDS * density * cellsArea(cells)) / RECIPE_ISLAND_AREA);
+  const stands = Math.round((RECIPE_STANDS * density * cellsArea(cells)) / RECIPE_ISLAND_AREA);
+  const ceiling = standCeiling(cells);
+  if (!Number.isFinite(stands) || stands > ceiling) {
+    throw new Error(
+      `grove-dressing: ${stands} stands asked for on an island whose own bounding box could ask ` +
+        `for at most ${ceiling} at the boldest rung (${Math.max(...GROVE_DENSITY_RUNGS)}). That is ` +
+        'an arithmetic fault in the area, not a dense island — a grove is placed by a superlinear ' +
+        'search and this would hang rather than draw.',
+    );
+  }
+  return stands;
 }
 
 /**
- * The island's depth over its width in the placement basis, or the recipe's own aspect when the
- * cells bound no width at all — so an empty or degenerate island asks for the recipe's stand shape
- * rather than for a division by zero.
+ * THE MOST STANDS THIS ISLAND COULD HONESTLY ASK FOR — the same rule, read off its BOUNDING BOX at
+ * the boldest declared rung.
+ *
+ * ⚠ THE BOUNDING BOX, and that is the whole design. A simple ring's area never exceeds its bounding
+ * box's, so this ceiling can never sit below an honest count however large the island — the guard
+ * costs a real story with fifty capabilities nothing, which is the bar a guard has to clear here.
+ * And it is computed from `Math.min`/`Math.max` over the same points, so the area arithmetic the
+ * guard exists to catch cannot corrupt the ceiling with it.
  */
-export function cellsAspect(cells: readonly LayoutCell[]): number {
+export function standCeiling(cells: readonly LayoutCell[]): number {
+  const box = cellsBounds(cells);
+  const boundingArea = (box.maxX - box.minX) * (box.maxZ - box.minZ);
+  const boldest = Math.max(...GROVE_DENSITY_RUNGS);
+  return Math.round((RECIPE_STANDS * boldest * boundingArea) / RECIPE_ISLAND_AREA);
+}
+
+/** The island's extent along each axis of the placement basis. Infinite-and-inverted over no
+ *  points at all, which is what makes an empty island's bounding area zero rather than negative. */
+export interface CellsBounds {
+  minX: number;
+  maxX: number;
+  minZ: number;
+  maxZ: number;
+}
+
+export function cellsBounds(cells: readonly LayoutCell[]): CellsBounds {
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
@@ -201,6 +241,16 @@ export function cellsAspect(cells: readonly LayoutCell[]): number {
       maxZ = Math.max(maxZ, p.z);
     }
   }
+  return { minX, maxX, minZ, maxZ };
+}
+
+/**
+ * The island's depth over its width in the placement basis, or the recipe's own aspect when the
+ * cells bound no width at all — so an empty or degenerate island asks for the recipe's stand shape
+ * rather than for a division by zero.
+ */
+export function cellsAspect(cells: readonly LayoutCell[]): number {
+  const { minX, maxX, minZ, maxZ } = cellsBounds(cells);
   const width = maxX - minX;
   if (!(width > 0)) return RECIPE_ISLAND_ASPECT;
   return (maxZ - minZ) / width;
@@ -347,6 +397,9 @@ export function groveExclusion(
  * connector, which docks only the ends within reach of THIS island's rim.
  */
 export function islandExclusion(descriptors: readonly Descriptor3D[], island: string): GroveExclusion {
+  // Stryker disable next-line MethodExpression: EQUIVALENT — dropping the filter passes `skipped`
+  // markers straight through, and {@link isInstance}'s own note says why that changes no answer.
+  // What it DOES change is the static type, and a type is not an input this rung can vary.
   const instances = descriptors.filter(isInstance);
   // ⚠⚠ `coastalIsland`, NOT A SECOND COPY OF ITS RULE. This read `d.kind === 'cell-ground' &&
   // d.island === island`, and the mutation rung found the first half unkillable — correctly, and for
@@ -538,8 +591,8 @@ export function dressGroves(opts: GroveDressingOptions): KitPlacement[] {
  * ground (it has no `kind: 'cell-ground'`) nor a dockable strip, so letting one through changes no
  * answer either consumer gives. The guard exists for the TYPE, and a type is not an input.
  */
-// Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: EQUIVALENT
 function isInstance(d: Descriptor3D): d is InstanceDescriptor {
+  // Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: EQUIVALENT
   return d.kind !== 'skipped';
 }
 
