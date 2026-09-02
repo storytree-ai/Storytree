@@ -291,6 +291,27 @@ test('a stand count past what the island’s BOUNDING BOX could ask for is refus
   assert.throws(() => groveStandCount(cells, 1e9), /arithmetic fault in the area/);
   // And the message names both numbers, so a reader is not left to guess which end was wrong.
   assert.throws(() => groveStandCount(cells, 1e9), new RegExp(`at most ${standCeiling(cells)}`));
+
+  // ⚠ THE MESSAGE IS HELD TO AN EXACT GOLDEN, byte for byte, with only the two counts free. It is
+  // the whole of what this guard DELIVERS: it throws rather than clamps, so a reader meets it as a
+  // crashed map and the sentence is the only thing telling them the area arithmetic is at fault
+  // rather than the island being dense. `check:mutation-diff` proved a containment check cannot
+  // hold that — it survived both blanking the closing sentence and reporting the boldest rung as
+  // the MEEKEST one (`Math.max` -> `Math.min` over GROVE_DENSITY_RUNGS, which prints `(1)` for `(3)`
+  // and would send that reader looking for a density nothing ships).
+  const refusal = ((): string => {
+    try {
+      groveStandCount(cells, 1e9);
+      return 'no refusal at all';
+    } catch (err) {
+      return err instanceof Error ? err.message : String(err);
+    }
+  })();
+  assert.match(
+    refusal,
+    /^grove-dressing: \d+ stands asked for on an island whose own bounding box could ask for at most \d+ at the boldest rung \(3\)\. That is an arithmetic fault in the area, not a dense island — a grove is placed by a superlinear search and this would hang rather than draw\.$/u,
+  );
+  assert.equal(Math.max(...GROVE_DENSITY_RUNGS), 3, 'the golden’s literal 3 is the boldest rung');
 });
 
 test('the bounding box is the points’ own extent, and an island with no points bounds nothing', () => {
