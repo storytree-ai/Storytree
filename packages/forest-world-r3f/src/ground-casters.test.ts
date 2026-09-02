@@ -58,12 +58,15 @@ test('the cave portal’s radius is the 2D prop’s own mouth rule', () => {
 });
 
 test('THE RULE: a wisp casts nothing, and neither does a trail', () => {
+  // `uat-bloom` stands in for the retired classic `hex-ground` as the second non-casting ground
+  // reading — `retire-the-old-land-path` dropped `hex-ground` from `InstanceKind` entirely, so a
+  // literal of that kind no longer typechecks.
   const casters = groundCasters([
     at('story-tree', 0, 0),
     at('wisp-sprite', 10, 10),
     at('trail-strip', 20, 20),
     at('cell-ground', 30, 30),
-    at('hex-ground', 40, 40),
+    at('uat-bloom', 40, 40),
     { kind: 'skipped', sceneKind: 'parcel-blade' },
   ]);
   assert.equal(casters.length, 1);

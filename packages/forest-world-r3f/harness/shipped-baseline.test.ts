@@ -27,16 +27,13 @@ import { parseCanvasPalette } from './palette-transcription.js';
 import type { BufferGeometry } from 'three';
 
 import {
-  SHIPPED_HEX_RADIUS,
   SHIPPED_LIGHTING,
   SHIPPED_PRIMITIVES,
   SHIPPED_STATUSES,
   SHIPPED_GROUND_COLOUR,
   SHIPPED_CROWN_COLOUR,
   SPIKE_STATUS_COLOUR,
-  SHIPPED_TILE_HEIGHT,
   SHIPPED_UNDRAWN,
-  CLASSIC_TILES,
   BEFORE_THE_CELL_CASE,
   authoredTriangles,
   cellGroundTrianglesFor,
@@ -57,10 +54,15 @@ function realTriangles(g: BufferGeometry): number {
   return (g.index ? g.index.count : positions.count) / 3;
 }
 
-test('the hex-ground formula matches what three generates for the shipped primitive', () => {
+test('the closed-cylinder formula matches three — both ends capped, the retired hex prism’s own shape', () => {
+  // ⚠ `hex-ground` (the classic prism this shape was authored for) is retired
+  // (`retire-the-old-land-path`); the FORMULA it exercised is not — `cylinderTriangles` is
+  // general-purpose arithmetic this file still needs for the story-tree trunk/crown below, and a
+  // closed cylinder (both radii non-zero, one non-degenerate torso row) is a real case of it worth
+  // holding to three's own count regardless of which shipped primitive once wore these numbers.
   const g = new CylinderGeometry(9, 9, 3, 6);
   assert.equal(cylinderTriangles(6, 1, 9, 9), realTriangles(g));
-  assert.equal(cylinderTriangles(6, 1, 9, 9), 24, 'the shipped hex prism is 24 triangles');
+  assert.equal(cylinderTriangles(6, 1, 9, 9), 24, 'a 6-segment closed cylinder is 24 triangles');
 });
 
 test('the story-tree trunk formula matches three (default 32 radial segments)', () => {
@@ -81,10 +83,13 @@ test('the cave-arch and wisp formulas match three', () => {
 });
 
 test('authoredTriangles sums a census, and reports a family the canvas draws none of', () => {
-  const census = { 'hex-ground': 13, 'story-tree': 1, 'cave-arch': 2, 'wisp-sprite': 0 };
+  // `hex-ground` used to be the multi-instance family exercised here; it is retired
+  // (`retire-the-old-land-path`) and no longer a row in `SHIPPED_PRIMITIVES` at all, so
+  // `cave-arch` takes its place as the still-live family with a drawable count above one.
+  const census = { 'story-tree': 1, 'cave-arch': 2, 'wisp-sprite': 0 };
   const got = authoredTriangles(census);
-  // 13 x 24 ground + one tree (trunk 128 + crown 16) + 2 x 24 arch + 0 wisp
-  assert.equal(got.triangles, 13 * 24 + 128 + 16 + 2 * 24);
+  // one tree (trunk 128 + crown 16) + 2 x 24 arch + 0 wisp
+  assert.equal(got.triangles, 128 + 16 + 2 * 24);
   const wisp = got.byKind.find((k) => k.kind === 'wisp-sprite');
   assert.ok(wisp, 'a kind with zero drawables is REPORTED, not dropped');
   assert.equal(wisp.triangles, 0);
@@ -147,11 +152,13 @@ test('the RETIRED spike palette is no longer what the shipped canvas holds', () 
   }
 });
 
-test('the shipped size constants are what the shipped canvas holds', () => {
-  const src = readFileSync(SHIPPED, 'utf8');
-  assert.match(src, new RegExp(`HEX_RADIUS\\s*=\\s*${SHIPPED_HEX_RADIUS}\\b`));
-  assert.match(src, new RegExp(`TILE_HEIGHT\\s*=\\s*${SHIPPED_TILE_HEIGHT}\\b`));
-});
+// ⚠ 'the shipped size constants are what the shipped canvas holds' RETIRED HERE
+// (`retire-the-old-land-path`). It pinned `HEX_RADIUS` / `TILE_HEIGHT`, the classic hex prism's
+// own size constants — both were deleted from `src/ForestWorldCanvas.tsx` along with `HexGround`
+// itself, so there is nothing left in the shipped file for this regex to hold to. The one
+// remaining size fact worth pinning — the ground's DEPTH — is `CELL_GROUND_DEPTH` in
+// `src/cell-ground-geometry.ts`, which carries its own `pnpm -r test` coverage and cites this
+// file's history rather than duplicating it here.
 
 test('the LIGHT is the light the shipped canvas actually hangs — and it is DERIVED, not transcribed', () => {
   // ⚠ THE ONE TRANSCRIPTION RELIEF DEPENDS ON. Relief moves no colour and adds no mark — the
@@ -362,12 +369,16 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   assert.ok(!/meshStandardMaterial/.test(cellGround), 'the cell ground keeps ONE material');
   assert.ok(!/attributes-color/.test(cellGround), 'and uploads no attribute its material cannot read');
   assert.match(cellGround, /attributes-\$\{GROUND_STATUS_ATTRIBUTE\}/, 'the row attribute is uploaded');
-  // The classic hex prisms are NOT banded, and that is deliberate rather than an omission: a
-  // scene carries one substrate or the other (`scene.ts:658`), the relaxed mesh is what the
-  // studio ships, and rewriting the legacy path would be a second untested crossing. It is
-  // asserted so that the asymmetry is a recorded fact rather than something a reader discovers.
-  const hexGround = src.slice(src.indexOf('function HexGround'), src.indexOf('/** Status variant'));
-  assert.match(hexGround, /meshStandardMaterial/, 'the classic substrate still wears the placeholder');
+  // ⚠ THE CLASSIC HEX PRISM IS RETIRED FROM THIS FILE ENTIRELY (`retire-the-old-land-path`),
+  // WHICH IS A STRONGER PROPERTY THAN "NOT BANDED". Until then a `HexGround` component stood
+  // beside `CellGround`, deliberately un-banded — a scene carried one substrate or the other
+  // (`scene.ts:658`), the relaxed mesh is what the studio ships, and rewriting the legacy path
+  // would have been a second untested crossing. Retiring it removed the asymmetry rather than
+  // merely documenting it: there is now ONE ground component in the shipped file, and this locks
+  // that in — a later edit that re-introduces the classic prism (with or without banding) fails
+  // here rather than being discovered by a reader.
+  assert.ok(!/function HexGround/.test(src), 'the classic HexGround component must not return');
+  assert.ok(!/hex-ground/.test(src), 'the retired hex-ground descriptor kind must not return');
 });
 
 test('the shipped ground WEARS THE GRAIN OCTAVE — normal half only, unconditionally, item 6', () => {
@@ -549,10 +560,14 @@ test('every primitive names the shipped file it was read off', () => {
    kept in `BEFORE_THE_CELL_CASE` so the size of the change stays checkable rather than
    remembered — a before/after that only lives in a report is one nobody can re-run.
 
-   THREE tests, and none is sufficient alone. The first says the ground arrives. The second is
-   the non-vacuity control — the SAME mapper on the classic substrate still draws its hexes, so
-   the fix ADDED a representation rather than swapping one for another. The third says nothing
-   falls through to a skip any more, which is what the original finding actually was.
+   THREE tests, and none is sufficient alone. The first says the ground arrives. The second WAS
+   the non-vacuity control — the SAME mapper on the classic substrate still drew its hexes, so the
+   fix ADDED a representation rather than swapping one for another — until `retire-the-old-land-
+   path` retired the classic substrate itself; it is now the refusal test below, proving the same
+   non-swap property the OTHER direction: the classic call still reaches real mapper code (through
+   the real core, not a hand-built `SceneG`), and what that code now does is refuse loudly rather
+   than emit nothing. The third says nothing falls through to a skip any more, which is what the
+   original finding actually was.
    ────────────────────────────────────────────────────────────────────────────────────────── */
 
 
@@ -571,17 +586,26 @@ test('the shipped mapper NOW draws the mesh substrate the studio ships', () => {
   }
 });
 
-test('NON-VACUITY: the same mapper STILL draws ground for the classic hex substrate', () => {
-  // Without this control the test above is satisfied by a mapper that swapped one substrate for
-  // the other — which would trade the reported defect for the same defect facing the other way.
+test('NON-VACUITY, RETIRED DIRECTION: the classic substrate REFUSES through the REAL core, not merely a hand-built scene', () => {
+  // ⚠⚠ THE MESSAGE IS PINNED IN FULL — same reason as `world-to-3d.test.ts`'s dedicated refusal
+  // test: a `tile` group is a kind this mapper understands and used to draw, so a mutant that
+  // softened the refusal back into a silent skip would reproduce the exact 2026-08-28 defect
+  // (`BEFORE_THE_CELL_CASE`, above) with nothing anywhere to say so.
+  //
+  // What THIS test adds beyond that one is the real core: `classicHexScene` round-trips
+  // `buildScene` exactly the way `islandScene()` above does for the mesh substrate, so the
+  // refusal is proven against a scene graph the real `@storytree/forest-world` package produced —
+  // not only against a hand-built `SceneG` literal a reader might suspect the mapper special-cases.
   const scene = classicHexScene(buildScene as never, hexCentre) as SceneG;
-  const ds = worldTo3D(scene);
-  assert.equal(
-    ds.filter((d) => d.kind === 'hex-ground').length,
-    CLASSIC_TILES.length,
-    'the classic substrate maps one hex-ground per tile',
+  assert.throws(
+    () => worldTo3D(scene),
+    (err: unknown) =>
+      err instanceof Error &&
+      err.message ===
+        'world-to-3d: the 3D map draws the relaxed-mesh land only — the classic extruded-hex ' +
+          'ground was retired (adopt-the-land-into-the-shipped-map-arc, retire-the-old-land-path); ' +
+          'build the scene with relaxedCells, not drawTiles',
   );
-  assert.equal(ds.filter((d) => d.kind === 'cell-ground').length, 0, 'and emits no parcels');
 });
 
 test('no ground cell falls through to a skip any more — the original finding, inverted', () => {

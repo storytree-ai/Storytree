@@ -44,18 +44,22 @@ import type { InstanceDescriptor } from './world-to-3d.js';
 
 /** A linear-space colour triple. ⚠ LINEAR, not sRGB: three converts a hex string through
  *  `THREE.Color` on its way into a material, so a vertex-colour attribute that carried raw
- *  sRGB bytes would draw the same status token visibly lighter than the instanced hex-ground
- *  path draws it. The conversion is deliberately NOT transcribed here — {@link CellGroundGeometryInput}
- *  takes a resolver so the canvas can supply three's own. */
+ *  sRGB bytes would draw the same status token visibly lighter than the instanced primitive
+ *  path draws it (the retired classic `hex-ground` prism used this route, and the story-tree /
+ *  cave-arch primitives still do). The conversion is deliberately NOT transcribed here —
+ *  {@link CellGroundGeometryInput} takes a resolver so the canvas can supply three's own. */
 export interface LinearRgb {
   r: number;
   g: number;
   b: number;
 }
 
-/** How deep a parcel prism sits below the ground plane, in world units. Matches
- *  `TILE_HEIGHT` in `ForestWorldCanvas.tsx` — the two substrates draw ground of the same
- *  thickness because they are the same ground in two representations. */
+/** How deep a parcel prism sits below the ground plane, in world units. Historically matched
+ *  `TILE_HEIGHT`, the classic extruded-hex prism's own depth constant in
+ *  `ForestWorldCanvas.tsx` — the two substrates drew ground of the same thickness because they
+ *  were the same ground in two representations. `TILE_HEIGHT` was deleted along with the classic
+ *  prism (`retire-the-old-land-path`); this value is unchanged and is now the ONLY ground
+ *  thickness the shipped canvas draws. */
 export const CELL_GROUND_DEPTH = 3;
 
 /**
@@ -635,8 +639,10 @@ export function cellGroundGeometry(input: CellGroundGeometryInput): CellGroundGe
     // requirement, not a preference. The field reaches ±4.22 units at the authored amplitude
     // while the prism is 3 deep, so a bottom pinned at `-depth` would sit ABOVE the top face
     // wherever the land dips — every wall there inside out, and the parcel gone from above.
-    // A constant-thickness slab also keeps the two substrates telling the same story: the
-    // classic hex prism is `TILE_HEIGHT` thick and so is this, everywhere.
+    // A constant-thickness slab kept the two substrates telling the same story while both
+    // shipped: the classic hex prism was `TILE_HEIGHT` thick and this is `CELL_GROUND_DEPTH`
+    // thick, everywhere, at the SAME value. The prism is retired (`retire-the-old-land-path`);
+    // the constant-thickness slab is not — it is still what makes THIS shape correct on its own.
     //
     // ⚠⚠ AND THE WALL IS NOW A LADDER OF LEDGES RATHER THAN ONE QUAD — the sixth component of the
     // approved treatment (`src/stepped-skirt.ts`). With no skirt the ladder has ONE rung at inset

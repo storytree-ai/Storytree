@@ -4,7 +4,6 @@
 //
 // The mapper consumes the SEMANTIC LAYER (SceneKind / status / position), never the
 // 2D SVG primitives. It supplies its own 3D geometry family for each core kind:
-//   tile        → hex-ground        (extruded/instanced hex mesh)
 //   cell        → cell-ground       (extruded parcel prism, the RELAXED-MESH substrate)
 //   cell-wheat  → cell-ground       (ditto — wheat is a 2D look, not a different ground)
 //   tree        → story-tree        (3D story tree)
@@ -19,25 +18,40 @@
 // the 2D cased look, which the ribbon supplies itself; they skip explicitly.
 //
 // All other SceneKinds yield { kind: 'skipped', sceneKind } — explicit, never a
-// throw, never a silent drop. Total coverage is the invariant.
+// throw, never a silent drop. Total coverage is the invariant — EXCEPT for `tile`,
+// which is not a "kind this mapper has never heard of" but the one it refuses on
+// purpose; see the next paragraph.
 //
-// ⚠⚠ THE TWO GROUND SUBSTRATES, AND WHY BOTH CASES EXIST. `@storytree/forest-world`
-// emits ground in one of two shapes (`scene.ts:658`): the CLASSIC extruded-hex island
-// (`tile` groups, used when `relaxedCells` is null) and the RELAXED MESH the studio
-// actually ships (`cell` / `cell-wheat` paths, one per parcel). Between ADR-0123 and
-// 2026-08-28 this mapper had a case for the first only, so for an island of the shape
-// the product draws it emitted NO GROUND AT ALL — 164 cells fell through to the default
-// skip and the shipped canvas rendered one story tree over empty space. That was
-// measured, pinned and pictured by `adopt-the-land-into-the-shipped-map-arc-inc-01`
-// (PR #1679, `docs/research/chapter2-shipped-baseline-2026-08-28/`).
+// ⚠⚠ THE `tile` (CLASSIC extruded-hex) SUBSTRATE IS RETIRED, NOT SKIPPED.
+// `@storytree/forest-world` can still emit ground in one of two shapes (`scene.ts:658`):
+// the CLASSIC extruded-hex island (`tile` groups, used when `relaxedCells` is null) and
+// the RELAXED MESH the studio actually ships (`cell` / `cell-wheat` paths, one per
+// parcel). Between ADR-0123 and 2026-08-28 this mapper had a case for the first only, so
+// for an island of the shape the product draws it emitted NO GROUND AT ALL — 164 cells
+// fell through to the default skip and the shipped canvas rendered one story tree over
+// empty space. That was measured, pinned and pictured by
+// `adopt-the-land-into-the-shipped-map-arc-inc-01` (PR #1679,
+// `docs/research/chapter2-shipped-baseline-2026-08-28/`), and the `cell` case above
+// closed it — the mesh substrate has drawn ground ever since.
 //
-// ⚠ `cell-ground` IS DELIBERATELY THE SAME FIDELITY AS `hex-ground` — a flat prism
-// wearing the parcel's folded status colour. It is the representation the mapper always
-// intended to draw, arriving in the shape the product now emits it. It is NOT the land
-// treatment `adopt-the-land-into-the-shipped-map-arc` is carrying toward this surface:
-// no relief, no grain, no coast smoothing, no stepped skirt, no terrain. Adoption stays
-// a separate, deliberate event (ADR-0380 D6 / ADR-0406 D2) with the ADR-0418 D4
-// replacement check as its precondition — do not graft the treatment in here.
+// The `tile` case itself was retired later, once the map's shipped file stopped
+// drawing it at all (`retire-the-old-land-path`, `adopt-the-land-into-the-shipped-map-
+// arc`'s end-state item 6: "the old path goes, it is not left beside the new one — a
+// flag nobody flips is not adoption"). A silent `{ kind: 'skipped', sceneKind: 'tile' }`
+// would have been the WRONG shape for that retirement: a scene built with
+// `relaxedCells: null` would draw NO GROUND AT ALL again, exactly the 2026-08-28 defect,
+// only this time with no signal anywhere that anything had gone wrong. So a `tile` group
+// REFUSES outright (see `walkNode`'s `case 'tile'`) — a caller that still builds a
+// classic scene finds out immediately, at the mapper, rather than downstream on an
+// island with no ground.
+//
+// ⚠ `cell-ground` IS DELIBERATELY THE SAME FIDELITY the retired classic prism was — a
+// flat prism wearing the parcel's folded status colour. It is the representation the
+// mapper always intended to draw, arriving in the shape the product now emits it. It is
+// NOT the land treatment `adopt-the-land-into-the-shipped-map-arc` is carrying toward
+// this surface: no relief, no grain, no coast smoothing, no stepped skirt, no terrain.
+// Adoption stays a separate, deliberate event (ADR-0380 D6 / ADR-0406 D2) with the
+// ADR-0418 D4 replacement check as its precondition — do not graft the treatment in here.
 
 import { trailFillWidth, type Pt, type SceneG, type SceneNode, type ScenePath } from '@storytree/forest-world';
 
@@ -55,7 +69,6 @@ export interface Transform3D {
 
 /** The 3D mesh family a mapped scene node belongs to. */
 export type InstanceKind =
-  | 'hex-ground'
   | 'cell-ground'
   | 'story-tree'
   | 'trail-strip'
@@ -74,17 +87,16 @@ export interface InstanceDescriptor {
    *  family (maps to an `<Instances>` group in the R3F canvas). */
   group: string;
   /** The material variant, derived from the territory's folded SceneStatus (e.g.
-   *  'healthy' / 'unhealthy' / 'proposed'). Set for status-bearing families (hex-ground,
-   *  cell-ground, story-tree, cave-arch); absent on families that don't carry a territory
-   *  status. */
+   *  'healthy' / 'unhealthy' / 'proposed'). Set for status-bearing families (cell-ground,
+   *  story-tree, cave-arch); absent on families that don't carry a territory status. */
   material?: string;
   /** A ground-plane polyline: the family's own path as 3D points, in path order.
    *  On a `trail-strip` / `trail-ghost-strip` it is the segment's smoothed centreline —
    *  the ribbon the canvas lays on the ground; curve control points join the polyline
    *  (the pathPoints approximation). On a `cell-ground` it is the parcel's CLOSED RING,
    *  each vertex once and no repeated first point (`polyPath` closes with `Z`, which
-   *  carries no coordinates). Absent on point-like families (hex-ground / story-tree /
-   *  wisp-sprite / cave-arch), whose geometry is a primitive at `transform`. */
+   *  carries no coordinates). Absent on point-like families (story-tree / wisp-sprite /
+   *  cave-arch), whose geometry is a primitive at `transform`. */
   points?: Transform3D[];
   /** Ribbon / portal-mouth width in world px. Trail strips: `trailFillWidth(usage)` —
    *  the ONE width rule every surface shares; cave-arch: the portal mouth width. */
@@ -104,7 +116,7 @@ export interface InstanceDescriptor {
   bearing?: number;
   /** THE OWNING STORY'S ISLAND ID — which island this instance belongs to.
    *
-   *  Set on every family that belongs to exactly ONE island: `hex-ground`, `cell-ground`,
+   *  Set on every family that belongs to exactly ONE island: `cell-ground`,
    *  `story-tree` and `uat-bloom` inherit it from the enclosing island-level group; `cave-arch`
    *  carries its own (`node.island`, the portal's home island — the portal sits on a rim and is
    *  reached through the trails layer, not through a territory group). Absent on `trail-strip` /
@@ -230,15 +242,22 @@ function parseRotate(t: string): number {
  * it wrong is silent: every `<g>` on an island carries an `id`, so widening this by one kind
  * partitions the map along lines that are not story boundaries and draws a perfectly ordinary
  * picture. `ground` is the relaxed-mesh substrate's per-territory ground group, `territory` the
- * island's flora group (the story tree and the UAT markers), `tile` the classic substrate's
- * hex — and the core stamps the SAME `t.id` on all three.
+ * island's flora group (the story tree and the UAT markers) — and the core stamps the SAME `t.id`
+ * on both.
+ *
+ * ⚠ `tile` WAS THE THIRD MEMBER, FOR THE NOW-RETIRED CLASSIC SUBSTRATE'S OWN HEX-AS-TERRITORY
+ * GROUP. It is gone rather than merely unreachable: `walkNode`'s `case 'tile'` refuses before this
+ * set is ever consulted for a tile node's OWN island, so a stale `'tile'` entry here would be a
+ * membership nothing can any longer exercise — the kind of dead entry a later reader trusts by
+ * accident. `harness/island-descriptors.ts` mirrors this set deliberately (two readers agreeing is
+ * the assertion) and dropped `'tile'` in the same landing.
  *
  * ⚠ TYPED `string | undefined` SO THE LOOKUP NEEDS NO GUARD. An anonymous `<g>` carries no kind at
  * all, and a `kind !== undefined &&` in front of `.has(kind)` is a TYPE guard with no runtime
  * meaning — a Set of strings answers `false` for `undefined` on its own. `check:mutation-diff`
  * reads such a guard exactly right: it can be replaced by `true` and no test can notice.
  */
-const ISLAND_GROUP_KINDS: ReadonlySet<string | undefined> = new Set(['ground', 'territory', 'tile']);
+const ISLAND_GROUP_KINDS: ReadonlySet<string | undefined> = new Set(['ground', 'territory']);
 
 /** Split a comma-joined `data-edges` value into edge keys ('' → []). */
 function edgeKeys(edges: string | undefined): string[] {
@@ -269,13 +288,14 @@ function edgeKeys(edges: string | undefined): string[] {
  *  value.
  *
  *  ⚠ `parentIsland` carries the OWNING STORY'S ISLAND ID down by the same rule, taken ONLY from a
- *  group whose own `kind` is one of {@link ISLAND_GROUP_KINDS}. Three kinds rather than one because
- *  the core stamps `id: t.id` on three: the ground group the cells hang under, the territory group
- *  the story tree and the UAT markers hang under, and the classic substrate's tile (where a tile IS
- *  a territory). They never disagree — all three read the same `t.id` off the same territory — so a
- *  descriptor's island is the same value whichever of the three it inherited from. Reading `node.id`
- *  generally instead would attribute a STORY's signed criteria to a capability's parcel, and the
- *  resulting island would look entirely ordinary. */
+ *  group whose own `kind` is one of {@link ISLAND_GROUP_KINDS}. Two kinds rather than one because
+ *  the core stamps `id: t.id` on both: the ground group the cells hang under, and the territory
+ *  group the story tree and the UAT markers hang under. (A third kind, the classic substrate's
+ *  tile — where a tile IS a territory — was retired with the substrate itself; see
+ *  {@link ISLAND_GROUP_KINDS}'s own comment.) The two never disagree — both read the same `t.id`
+ *  off the same territory — so a descriptor's island is the same value whichever it inherited
+ *  from. Reading `node.id` generally instead would attribute a STORY's signed criteria to a
+ *  capability's parcel, and the resulting island would look entirely ordinary. */
 function walkNode(
   node: SceneNode,
   out: Descriptor3D[],
@@ -317,10 +337,10 @@ function walkNode(
       return;
     }
     // The RELAXED-MESH ground: one closed parcel ring per cell (`polyPath`, `scene.ts:3252`).
-    // `cell-wheat` is the SAME ground wearing a 2D wheat look — the classic case already folds
-    // its own `tile-top-wheat` into one `hex-ground`, so folding here keeps the two substrates
-    // telling the same story rather than inventing a third drawable this surface has no idea
-    // what to do with.
+    // `cell-wheat` is the SAME ground wearing a 2D wheat look — the retired classic case used
+    // to fold its own `tile-top-wheat` into one `hex-ground` the same way, so folding here keeps
+    // the wheat look as the SAME drawable rather than inventing a third one this surface has no
+    // idea what to do with.
     if (node.el === 'path' && (kind === 'cell' || kind === 'cell-wheat')) {
       const ring = pathPoints(node.d).map((p) => ({ x: parentXY.x + p.x, y: 0, z: parentXY.y + p.y }));
       // A ring of fewer than three vertices bounds no area. Skipping rather than emitting a
@@ -363,23 +383,26 @@ function walkNode(
   // Emit a descriptor for this node.
   switch (kind) {
     case 'tile': {
-      // Classic extruded-hex ground tile → hex-ground instance. The tile group
-      // carries NO translate — the core bakes the hex centre into the child
-      // `tile-top` path's vertices — so the centre is recovered as the vertex
-      // centroid (exact for a regular hex ring). Material = territory status.
-      const top = childPath(node, 'tile-top', 'tile-top-wheat');
-      const c = top ? centroidOf(pathPoints(top.d)) : { x: 0, y: 0 };
-      // ANNOTATED local, then one guarded assignment — the shape
-      // `anti-slop/no-conditional-empty-object-spread` requires.
-      const hex: InstanceDescriptor = {
-        kind: 'hex-ground',
-        transform: { x: childXY.x + c.x, y: 0, z: childXY.y + c.y },
-        group: 'hex-ground',
-        material: status ?? 'unknown',
-      };
-      if (island !== undefined) hex.island = island;
-      out.push(hex);
-      break;
+      // ⚠⚠ THE RETIRED CLASSIC SUBSTRATE — A REFUSAL, NOT A SKIP. This is the earliest honest
+      // point the mapper can tell a classic scene apart from a mesh one: `SceneG` carries no
+      // top-level "which substrate" marker of its own (`relaxedCells` lives on the CORE's
+      // `SceneInput`, one layer up, never on the scene graph this function walks), so a `tile`
+      // group met during the walk is the first and only place the distinction is visible here.
+      //
+      // A silent `{ kind: 'skipped', sceneKind: 'tile' }` would be the WRONG shape for this
+      // retirement: every OTHER unrecognised kind degrades to a skip because drawing nothing for
+      // a kind the mapper does not yet understand is honest, but a `tile` group is a kind this
+      // mapper understands perfectly well and used to draw — skipping it would silently
+      // reproduce the exact 2026-08-28 defect this package exists to keep fixed (a shipped island
+      // with no ground at all), only now with no record anywhere that anything had gone wrong.
+      // Refusing loudly is what end-state item 6 means by "the old path goes, it is not left
+      // beside the new one": a caller that still builds a classic scene finds out immediately,
+      // at the mapper, rather than downstream on an island with no ground.
+      throw new Error(
+        'world-to-3d: the 3D map draws the relaxed-mesh land only — the classic extruded-hex ' +
+          'ground was retired (adopt-the-land-into-the-shipped-map-arc, retire-the-old-land-path); ' +
+          'build the scene with relaxedCells, not drawTiles',
+      );
     }
 
     case 'tree': {
@@ -481,12 +504,12 @@ function walkNode(
  * a flat array of typed 3D instance descriptors — the ADR-0123 provability firewall.
  *
  * Core kind families emit `InstanceDescriptor` objects, each POSITIONED from the
- * real World geometry (the faithfulness contract): the tile's baked hex centre
- * (vertex centroid of `tile-top`), the tree's `treeSpot` translate, the trail
- * segment's routed polyline (carried as `points` + a centroid anchor, width from
- * the ONE `trailFillWidth` rule), the cave's rim translate+rotate, the wisp's
- * territory centroid:
- * - `tile`        → `hex-ground`        (extruded hex mesh; material = territory SceneStatus)
+ * real World geometry (the faithfulness contract): the parcel's own ring centroid
+ * (`polyPath`), the tree's `treeSpot` translate, the trail segment's routed polyline
+ * (carried as `points` + a centroid anchor, width from the ONE `trailFillWidth` rule),
+ * the cave's rim translate+rotate, the wisp's territory centroid:
+ * - `cell` / `cell-wheat`
+ *                 → `cell-ground`       (parcel prism; material = territory SceneStatus)
  * - `tree`        → `story-tree`        (3D story-tree mesh; material = territory SceneStatus)
  * - `trail-fill`  → `trail-strip`       (ground-plane ribbon; usage/edges/segment metadata)
  * - `trail-ghost` → `trail-ghost-strip` (the under-island run — surfaces may skip it)
@@ -495,8 +518,12 @@ function walkNode(
  * - `tall-flower-proven`
  *                 → `uat-bloom`         (one SIGNED UAT criterion of the owning story)
  *
+ * `tile` REFUSES rather than mapping (see `walkNode`'s `case 'tile'`) — the classic
+ * extruded-hex substrate was retired (`retire-the-old-land-path`), and the shipped map draws
+ * the relaxed mesh only.
+ *
  * Every family that belongs to exactly one island carries that island's id
- * (`InstanceDescriptor.island`), taken only from a `ground` / `territory` / `tile` group. It is
+ * (`InstanceDescriptor.island`), taken only from a `ground` / `territory` group. It is
  * what lets a consumer holding the WHOLE map's descriptors keep one story's claims on one story's
  * island; without it a per-story count is a misreport waiting to be drawn.
  *
@@ -505,9 +532,13 @@ function walkNode(
  * incident edges — the descriptor layer never decides visibility; default-hidden is
  * the surface's call.
  *
- * All other SceneKinds emit `SkippedDescriptor` objects — never a throw, never a
- * silent drop (total-coverage invariant). The result is deterministic: the same
- * scene graph always produces a byte-identical descriptor array.
+ * Every other SceneKind — EXCEPT the retired `tile` — emits a `SkippedDescriptor` object
+ * rather than a throw or a silent drop (total-coverage invariant). `tile` is the one
+ * deliberate exception: it is a kind this mapper understands and used to draw, so a skip
+ * there would silently reproduce the classic-substrate ground gap this package exists to
+ * keep fixed. Refusing it loudly is what makes the retirement adoption rather than a flag
+ * nobody flips. The result is otherwise deterministic: the same scene graph always
+ * produces a byte-identical descriptor array (or the same refusal).
  */
 export function worldTo3D(scene: SceneG): Descriptor3D[] {
   const out: Descriptor3D[] = [];
