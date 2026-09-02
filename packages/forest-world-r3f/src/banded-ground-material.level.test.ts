@@ -78,11 +78,26 @@ test('an UNGRASSED material carries NO level stage — byte-identical to before 
   for (const m of [
     createBandedGroundMaterial({ tokens: SHIPPED_TOKENS }),
     createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal' }),
-    createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal', shadowAtlas: atlas() }),
   ]) {
     assert.ok(!m.fragmentShader.includes('float level'), 'no colour layer, no level stage');
     assert.ok(!m.fragmentShader.includes('* level'), 'and nothing multiplies by a level it has not got');
+    // ⚠ THE JOIN IS PINNED, not only the absence: the index line runs straight into the ramp
+    // select, so NOTHING — not a level stage, not any other text — is spliced between them. An
+    // absence check alone lets a stage that emits some other string survive.
+    assert.ok(
+      m.fragmentShader.includes(
+        '        int idx = int(vStatus + 0.5) * ST_N_LEVELS + st_bandIndex(lambert);\n        vec3 c = uRamp[0];',
+      ),
+      'the unshadowed index line must join the ramp select directly',
+    );
   }
+  const shadowed = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal', shadowAtlas: atlas() });
+  assert.ok(!shadowed.fragmentShader.includes('float level'));
+  assert.ok(!shadowed.fragmentShader.includes('* level'));
+  assert.ok(
+    shadowed.fragmentShader.includes('+ lvl;\n        vec3 c = uRamp[0];'),
+    'the shadowed index line must join the ramp select directly',
+  );
 });
 
 test('the UNSHADOWED grassed shader declares its own lvl from the band index, then the chain', () => {
