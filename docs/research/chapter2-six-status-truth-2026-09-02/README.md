@@ -29,7 +29,7 @@ SwiftShader. `status-truth.txt` is the run verbatim; `status-truth.json` the sam
 - **The shipped map carries status as COLOUR ONLY**, and the ground's colour lookup
   (`ForestWorldCanvas.tsx`'s `GROUND_COLOUR`) holds **five hexes over six statuses**: `proposed` and
   `building` are the SAME authored token, `#d8c069`. This is a decision, not a defect —
-  ADR-0462 D1/D2 (which supersedes the earlier ADR-0461): *"if something is building just color it
+  ADR-0462 D1/D2 (its predecessor on this point, ADR-0461, is superseded by ADR-0475): *"if something is building just color it
   yellow because its basicly the same as proposed, theres no value add."* An instrument that
   condemned the pair for reading alike would be condemning the decision, not a bug.
 - **Only `healthy` wears the grass layer** (`GRASS_STATUS_GATE = ['healthy']`, ADR-0492 D1). Layers
