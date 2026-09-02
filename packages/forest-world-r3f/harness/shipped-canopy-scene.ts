@@ -61,7 +61,7 @@ import {
   type ShippedGroundBuild,
 } from '../src/ForestWorldCanvas.js';
 import { placementCasters } from '../src/ground-casters.js';
-import { cellAt } from '../src/grove-dressing.js';
+import { GROVE_DENSITY, cellAt } from '../src/grove-dressing.js';
 import {
   KIT_FOOTPRINTS_2026_08_29,
   KIT_HEIGHTS_2026_08_29,
@@ -80,7 +80,13 @@ import { dressMapFromKit, dressMapWithGroves } from '../src/map-dressing.js';
 import { parcelCellsFrom, type LayoutCell } from '../src/parcel-cells.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
-import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
+import { GPU_TIMER_EXTENSION } from './frame-cost.js';
+import {
+  awaitQuery,
+  readIdentity,
+  type DisjointTimerQuery,
+  type RendererIdentity,
+} from './frame-cost-scene.js';
 import { kitMeshes, loadKit, type LoadedKit } from './kit-scene.js';
 import { SHIPPED_LIGHTING } from './shipped-baseline.js';
 import {
@@ -113,12 +119,45 @@ import {
 
 export { REFERENCE_IMAGE, VISIBLE_DELTA };
 
-/** THE THREE ARMS, control first. */
-export type CanopyArm = 'bare' | 'capability' | 'groves';
-export const CANOPY_ARMS: readonly CanopyArm[] = ['bare', 'capability', 'groves'];
+/**
+ * THE ARMS, control first — and the last three are a DENSITY LADDER rather than three ideas.
+ *
+ * ⚠⚠ THE LADDER IS THE OWNER'S SCALE-BACK LEVER (ADR-0503 D1/D3). He directed the layers be
+ * applied boldly and judged by a picture per step, and the measured consequence of showing him one
+ * rung is that he answers with a rung ("sand .9 looks the best" → "actually lets go with sand
+ * 0.65", minutes apart, off one sheet). So every rung is RENDERED here and the shipped pick is a
+ * pointer at one of them: a scale-back is then {@link GROVE_DENSITY} and {@link SHIPPED_GROVE_ARM},
+ * two constants, and no re-measurement.
+ */
+export type CanopyArm = 'bare' | 'capability' | 'groves-x1' | 'groves-x2' | 'groves-x3';
+export const CANOPY_ARMS: readonly CanopyArm[] = ['bare', 'capability', 'groves-x1', 'groves-x2', 'groves-x3'];
 
 /** The arm every pixel figure is read against: the shipped ground with nothing bought on it. */
 export const CONTROL_ARM: CanopyArm = 'bare';
+
+/**
+ * WHICH DENSITY RUNG EACH ARM GROWS AT — `null` for an arm that grows no grove at all, so the two
+ * kinds of arm are told apart by this table rather than by parsing a name.
+ *
+ * ⚠ THE SHIPPED RUNG IS READ FROM THE CONSTANT, NEVER RESTATED. `groves-x2` is the arm the map
+ * actually stands, so its entry IS `GROVE_DENSITY`; `canopy-arms-agree` in
+ * `shipped-canopy-scene.test.ts` holds the name, the pointer and the constant to each other, which
+ * is what stops a scale-back from leaving an arm labelled x2 drawing x1.
+ */
+export const CANOPY_ARM_DENSITY = {
+  bare: null,
+  capability: null,
+  'groves-x1': 1,
+  'groves-x2': GROVE_DENSITY,
+  'groves-x3': 3,
+} satisfies Record<CanopyArm, number | null>;
+
+/** The rungs, in the order they are shown — every arm that grows a grove. */
+export const GROVE_ARMS: readonly CanopyArm[] = CANOPY_ARMS.filter((a) => CANOPY_ARM_DENSITY[a] !== null);
+
+/** The rung the shipped canvas stands, as an arm — what every "does the map read right" question
+ *  is asked of, and what the driver's grove refusals are asked of. */
+export const SHIPPED_GROVE_ARM: CanopyArm = 'groves-x2';
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
@@ -126,9 +165,11 @@ export const CANOPY_ARM_CAPTION = {
   bare: 'the shipped ground alone — every layer at what ships, the story tree’s own shadow, nothing bought on it (CONTROL)',
   capability:
     'the shipped ground + today’s vocabulary: one pine per capability, one bloom per signature — NOW casting their shadows',
-  groves:
-    'the shipped ground + the vocabulary + the healthy island’s grove: 13 stands per recipe-island of area, 4–8 live ' +
+  'groves-x1':
+    '+ the healthy island’s grove at the RECIPE’S OWN stand count: 13 stands per recipe-island of area, 4–8 live ' +
     'pines each at 0.55–0.80 of the capability’s height, clear of the beach and the path',
+  'groves-x2': '+ the grove at TWICE the recipe’s stands — the SHIPPED pick',
+  'groves-x3': '+ the grove at THREE TIMES the recipe’s stands — the boldest rung rendered',
 } satisfies Record<CanopyArm, string>;
 
 /** One island and the thirty-five-island forest. The grove is read at BOTH: a canopy that reads on
@@ -174,12 +215,13 @@ export function armPlacements(arm: CanopyArm, size: CrowdSize): KitPlacement[] {
   const hit = placementMemo.get(key);
   if (hit !== undefined) return hit;
   const opts = { relief: LAND_RELIEF_AMPLITUDE, footprint: CANOPY_FOOTPRINT };
+  const density = CANOPY_ARM_DENSITY[arm];
   const built =
     arm === 'bare'
       ? []
-      : arm === 'capability'
+      : density === null
         ? dressMapFromKit(armDescriptors(size), opts)
-        : dressMapWithGroves(armDescriptors(size), opts);
+        : dressMapWithGroves(armDescriptors(size), { ...opts, density });
   placementMemo.set(key, built);
   return built;
 }
@@ -357,6 +399,33 @@ export interface CanopyReading extends CanopyPlan {
   delta: VisibleDeltaReading;
 }
 
+/**
+ * ONE TIMED SAMPLE'S REQUEST — the arm, the picture and how many frames to put inside one GPU
+ * query. The batch exists because a single frame at this scale is comparable to the timer's own
+ * resolution; the driver divides it back out.
+ */
+export interface CanopyCostSpec {
+  arm: CanopyArm;
+  size: CrowdSizeId;
+  zoom: CrowdZoom;
+  batch: number;
+}
+
+/** ONE TIMED SAMPLE — the GPU's own clock over `batch` frames of one arm, and what it drew. */
+export interface CanopyCostReading extends CanopyCostSpec {
+  /** The batch divided out, or `null` when the timer was unavailable or the sample was disjoint. */
+  gpuMsPerFrame: number | null;
+  gpuBatchNs: number | null;
+  /** The GPU reported it was interrupted during this sample. A disjoint sample is not a frame time. */
+  disjoint: boolean;
+  /** ⚠ THE LAST FRAME'S counters, never the batch's sum — three resets `info.render` per call. */
+  drawCalls: number;
+  triangles: number;
+  timerQueryAvailable: boolean;
+  /** A hidden page suspends rAF and throttles the compositor; the driver refuses a run taken on one. */
+  hidden: boolean;
+}
+
 export interface CanopyRunner {
   identity(): RendererIdentity;
   /** What the probe measured — printed beside the frames, so a saturated crown is attributable. */
@@ -365,6 +434,16 @@ export interface CanopyRunner {
   read(arm: CanopyArm, size: CrowdSizeId, zoom: CrowdZoom): CanopyReading;
   /** RUNG 2 over the pixels this run actually captured — see `visible-delta.ts`. */
   sensitivity(size: CrowdSizeId, zoom: CrowdZoom): string[];
+  /**
+   * THE FRAME COST OF ONE ARM, on the GPU's own clock — ADR-0507 D7's second half, and the reason
+   * `land-floor-measure.mjs`'s shape is reused rather than a `gl.finish()` wall clock: that route
+   * was measured BLIND to an 8.7x change in real GPU work on this very harness family.
+   *
+   * ⚠ THE SCENE IS WARMED OUTSIDE THE TIMED BATCH. The first render of a configuration compiles
+   * shaders and uploads 2.4M triangles of merged kit geometry; measured inside the batch that
+   * arrives as the frame's cost and is a hundred times it.
+   */
+  cost(spec: CanopyCostSpec): Promise<CanopyCostReading>;
   snapshot(arm: CanopyArm, size: CrowdSizeId, zoom: CrowdZoom): string;
   reference(url: string): Promise<ReferenceReading>;
 }
@@ -385,6 +464,7 @@ export async function createCanopyRunner(): Promise<CanopyRunner> {
   const cal = calibrateLights(renderer);
   const lit = intensitiesFor(cal);
   const gl = renderer.getContext() as WebGL2RenderingContext;
+  const timer = gl.getExtension(GPU_TIMER_EXTENSION) as DisjointTimerQuery | null;
   const bg = backgroundBytes();
 
   const cache = new Map<string, CanopyScene>();
@@ -450,6 +530,56 @@ export async function createCanopyRunner(): Promise<CanopyRunner> {
     sensitivity(size, zoom) {
       return sensitivityReasons(pixels(CONTROL_ARM, size, zoom));
     },
+    async cost(spec) {
+      const s = sceneFor(spec.arm, spec.size, spec.zoom);
+      renderer.setSize(s.width, s.height, false);
+      // WARM-UP, outside the query: shader compile, buffer upload, pipeline setup. Real costs,
+      // and NOT the per-frame cost being reported.
+      for (const _ of Array.from({ length: 5 })) {
+        void _;
+        renderer.render(s.scene, s.camera);
+      }
+      gl.finish();
+      // ⚠ THE COUNTERS COME OFF ONE RENDER AND ARE NOT DIVIDED — three resets `info.render` at the
+      // top of every call, so after a batch the counter holds the LAST frame's figures.
+      const drawCalls = renderer.info.render.calls;
+      const triangles = renderer.info.render.triangles;
+
+      let gpuBatchNs: number | null = null;
+      let disjoint = false;
+      if (timer) {
+        // Reading the flag CLEARS it, so this scopes the disjoint report to THIS sample rather
+        // than inheriting an interruption from an earlier one.
+        gl.getParameter(timer.GPU_DISJOINT_EXT);
+        const query = gl.createQuery();
+        if (query) {
+          gl.beginQuery(timer.TIME_ELAPSED_EXT, query);
+          for (const _ of Array.from({ length: spec.batch })) {
+            void _;
+            renderer.render(s.scene, s.camera);
+          }
+          gl.endQuery(timer.TIME_ELAPSED_EXT);
+          gl.flush();
+          gpuBatchNs = await awaitQuery(gl, query, 20_000);
+          disjoint = gl.getParameter(timer.GPU_DISJOINT_EXT) === true;
+          gl.deleteQuery(query);
+        }
+      }
+      // ⚠ A DISJOINT SAMPLE IS DISCARDED, NEVER AVERAGED IN. The GPU has said it was interrupted;
+      // a number taken across that is not a frame time.
+      const usable = gpuBatchNs !== null && !disjoint ? gpuBatchNs : null;
+      return {
+        ...spec,
+        gpuMsPerFrame: usable === null ? null : usable / 1e6 / spec.batch,
+        gpuBatchNs,
+        disjoint,
+        drawCalls,
+        triangles,
+        timerQueryAvailable: timer !== null,
+        hidden: document.hidden,
+      };
+    },
+
     snapshot(arm, size, zoom) {
       render(arm, size, zoom);
       return canvas.toDataURL('image/png');

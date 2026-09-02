@@ -3,7 +3,12 @@
 //
 //   bare        the shipped ground alone — the story tree's own shadow, nothing bought (CONTROL)
 //   capability  + one pine per capability, one bloom per signature — NOW casting
-//   groves      + the healthy island's grove (`src/grove-dressing.ts`)
+//   groves-x1   + the healthy island's grove at the RECIPE's own stand count (`src/grove-dressing.ts`)
+//   groves-x2   + the grove at twice the recipe's stands — the SHIPPED pick
+//   groves-x3   + the grove at three times the recipe's stands — the boldest rung rendered
+//
+// The last three are a DENSITY LADDER, not three ideas: the owner scales back along rungs already
+// rendered (ADR-0503 D1/D3), so a scale-back is `GROVE_DENSITY` + `SHIPPED_GROVE_ARM` and no re-run.
 //
 // The arms live in `shipped-canopy-scene.ts` and are IMPORTED, so this driver cannot quietly drop
 // a column the page added.
@@ -16,8 +21,10 @@
 // ⚠⚠ THE REFUSALS, each a way this comparison could look right and mean nothing: a software
 // rasteriser; the visible-delta instrument failing its own sensitivity rung; a frame with no land;
 // a control that differs from itself; the ground's triangles moving between arms (a caster changes
-// the field, never the mesh); a `capability` arm whose field has NO kit casters; a `groves` arm
-// that places ZERO grove pines on the healthy island; any arm with a placement off the island; a
+// the field, never the mesh); a `capability` arm whose field has NO kit casters; ANY grove arm
+// that places ZERO grove pines on the healthy island; a ladder that does not RISE (a denser rung
+// standing no more pines than a leaner one is a ladder measuring nothing); any placement off the
+// island; a
 // dressed arm whose kit did not load (zero merged meshes — a picture of bare land that says nothing
 // about why); and a dressed arm that moved no pixel past the bar against bare.
 //
@@ -40,7 +47,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 import { VISIBLE_DELTA } from './visible-delta.ts';
-import { CANOPY_ARMS, CONTROL_ARM } from './shipped-canopy-scene.ts';
+import { CANOPY_ARMS, CONTROL_ARM, GROVE_ARMS, SHIPPED_GROVE_ARM } from './shipped-canopy-scene.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_CANOPY_URL'] ?? 'http://localhost:5352/shipped-canopy.html';
@@ -209,22 +216,39 @@ for (const size of SIZES) {
   }
 }
 
-// ⚠ THE GROVE MUST BE THERE, on the healthy island, and the capability arm must be the vocabulary.
+// ⚠ EVERY GROVE ARM MUST BE THERE, on the healthy island, and the capability arm must be the
+// vocabulary. Asked of every rung rather than of the shipped one, so a ladder cannot be reported
+// with a rung that grew nothing.
 for (const size of SIZES) {
-  const groves = at('groves', size, READ_ZOOM);
   const capability = at('capability', size, READ_ZOOM);
-  if (groves.groves === 0) {
-    fail(`the groves arm at ${size} placed ZERO grove pines — the healthy island grew no forest`);
-  }
   if (capability.groves !== 0) fail(`the capability arm at ${size} grew ${capability.groves} grove pines`);
-  if (groves.placements - groves.groves !== capability.placements) {
-    fail(
-      `the groves arm at ${size} stands ${groves.placements - groves.groves} non-grove objects against the ` +
-        `capability arm's ${capability.placements} — the grove moved the vocabulary's own objects.`,
-    );
-  }
   if (capability.capabilityTrees === 0 || capability.blooms === 0) {
     fail(`the capability arm at ${size} stands no tree or no bloom — the vocabulary is not on it`);
+  }
+  for (const arm of GROVE_ARMS) {
+    const groves = at(arm, size, READ_ZOOM);
+    if (groves.groves === 0) {
+      fail(`the ${arm} arm at ${size} placed ZERO grove pines — the healthy island grew no forest`);
+    }
+    if (groves.placements - groves.groves !== capability.placements) {
+      fail(
+        `the ${arm} arm at ${size} stands ${groves.placements - groves.groves} non-grove objects against the ` +
+          `capability arm's ${capability.placements} — the grove moved the vocabulary's own objects.`,
+      );
+    }
+  }
+  // ⚠ THE LADDER MUST RISE. A rung is only a scale-back lever if it is a different picture from
+  // the rung below it; equal counts mean the density argument never reached the placement.
+  for (const [i, arm] of GROVE_ARMS.entries()) {
+    if (i === 0) continue;
+    const lean = at(GROVE_ARMS[i - 1], size, READ_ZOOM);
+    const bold = at(arm, size, READ_ZOOM);
+    if (bold.groves <= lean.groves) {
+      fail(
+        `the ladder does not rise at ${size}: ${arm} stands ${bold.groves} grove pines against ` +
+          `${GROVE_ARMS[i - 1]}'s ${lean.groves}`,
+      );
+    }
   }
 }
 
@@ -237,8 +261,8 @@ for (const arm of ARMS) {
     fail(`the ${arm} arm moved NO pixel past ${VISIBLE_DELTA}/255 against bare at 8 px/unit on one island`);
   }
 }
-if (at('groves', 'one', READ_ZOOM).visible <= at('capability', 'one', READ_ZOOM).visible) {
-  fail('the groves arm moved no more pixels than the capability arm — the grove is not in the picture');
+if (at(SHIPPED_GROVE_ARM, 'one', READ_ZOOM).visible <= at('capability', 'one', READ_ZOOM).visible) {
+  fail(`the ${SHIPPED_GROVE_ARM} arm moved no more pixels than the capability arm — the grove is not in the picture`);
 }
 
 // ── THE REPORT ─────────────────────────────────────────────────────────────────────────────────
@@ -290,19 +314,19 @@ say('WHAT THE PAYLOAD HALF SAYS (frame cost is the RTX 2060 box’s to measure, 
 for (const size of SIZES) {
   const bare = at(CONTROL, size, READ_ZOOM);
   const cap = at('capability', size, READ_ZOOM);
-  const gro = at('groves', size, READ_ZOOM);
+  const gro = at(SHIPPED_GROVE_ARM, size, READ_ZOOM);
   say(
     `  ${size}: bare ${bare.drawCalls} call / ${bare.triangles} tris → capability ${cap.drawCalls} calls / ` +
-      `${cap.triangles} tris (${cap.placements} objects) → groves ${gro.drawCalls} calls / ${gro.triangles} tris ` +
+      `${cap.triangles} tris (${cap.placements} objects) → ${SHIPPED_GROVE_ARM} ${gro.drawCalls} calls / ${gro.triangles} tris ` +
       `(${gro.placements} objects, ${gro.groves} of them grove pines)`,
   );
 }
 say('');
 say('THE GAP THAT REMAINS, at the read zoom on one island:');
 const c1 = at(CONTROL, 'one', READ_ZOOM);
-const g1 = at('groves', 'one', READ_ZOOM);
+const g1 = at(SHIPPED_GROVE_ARM, 'one', READ_ZOOM);
 say(
-  `  bare ${c1.families} families → groves ${g1.families} → approved ${result.reference.families}. ` +
+  `  bare ${c1.families} families → ${SHIPPED_GROVE_ARM} ${g1.families} → approved ${result.reference.families}. ` +
     `Largest family: ${(c1.largestShare * 100).toFixed(1)}% → ${(g1.largestShare * 100).toFixed(1)}% → ` +
     `${(result.reference.largestShare * 100).toFixed(1)}%. MICRO ${c1.stats.micro.toFixed(2)} → ` +
     `${g1.stats.micro.toFixed(2)} → ${result.reference.stats.micro.toFixed(2)}; STRUCT ` +

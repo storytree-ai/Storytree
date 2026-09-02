@@ -125,6 +125,33 @@ export const GROVE_MEMBER_TRIES = 30;
  *  same 96 `dressIslandFromKit` chooses a capability's tree from. */
 export const STAND_CANDIDATES = 96;
 
+/**
+ * ⚠⚠ THE ONE TUNED NUMBER ON THIS SURFACE — HOW MANY OF THE RECIPE'S STANDS AN ISLAND GROWS, as a
+ * multiple. Everything else here is transcribed from `build_land.py`; this is a LOOK, and it is a
+ * look because the recipe's own count does not reach the recipe's own density on this map.
+ *
+ * WHY IT HAS TO EXIST. The recipe imposes NO clearance between two grove members at all
+ * (`:1063-1065` tests only `inside` and `wear`), so its stands are 4–8 trees with crowns freely
+ * overlapping. This map DOES keep a clearance between them ({@link GROVE_CLEARANCE}, declared and
+ * detected because a placement nothing measures is how the owner's "rocks where the trees are"
+ * defect happened), and this map's islands are three times shallower in z than the recipe's, so a
+ * stand here is an ellipse about 7 x 2 units that physically cannot hold six pines of radius 5.
+ * Measured on the fixture island at the recipe's own 13 stands: 42 pines, **3.2 per stand** against
+ * the recipe's 4–8. Relaxing the clearance instead would buy the count back by letting crowns
+ * interpenetrate, and the detector would then be measuring against a number chosen to make the
+ * placement pass — so the honest lever is MORE STANDS, which is more clumps rather than tighter
+ * ones, and every stand still keeps every rule.
+ *
+ * THE LADDER, rendered on the canopy comparison page and composed into
+ * `docs/research/chapter2-ground-canopy-2026-09-03/` — {@link GROVE_DENSITY_RUNGS}. The shipped
+ * pick is the middle rung, per ADR-0503 D1 (apply the layers boldly, ship a pick, let the owner
+ * scale back along rungs already rendered); a scale-back is this one constant and no re-measurement.
+ */
+export const GROVE_DENSITY_RUNGS = [1, 2, 3] as const;
+
+/** The rung the shipped map stands. */
+export const GROVE_DENSITY = 2;
+
 // ---------------------------------------------------------------- the island's own numbers
 
 /** A ring's area by the shoelace formula — orientation-free, zero for fewer than three points. */
@@ -144,9 +171,12 @@ export function cellsArea(cells: readonly LayoutCell[]): number {
   return area;
 }
 
-/** How many stands this island grows — the recipe's thirteen, in proportion to area. */
-export function groveStandCount(cells: readonly LayoutCell[]): number {
-  return Math.round((RECIPE_STANDS * cellsArea(cells)) / RECIPE_ISLAND_AREA);
+/**
+ * How many stands this island grows — the recipe's thirteen, in proportion to area, times the
+ * density rung ({@link GROVE_DENSITY}, which is what a caller omitting the argument gets).
+ */
+export function groveStandCount(cells: readonly LayoutCell[], density: number = GROVE_DENSITY): number {
+  return Math.round((RECIPE_STANDS * density * cellsArea(cells)) / RECIPE_ISLAND_AREA);
 }
 
 /**
@@ -396,6 +426,9 @@ export interface GroveDressingOptions {
   relief: number;
   /** Where a grove may not stand — {@link islandExclusion} on the shipped path. */
   exclusion: GroveExclusion;
+  /** Which rung of {@link GROVE_DENSITY_RUNGS} this island grows at. Omitted is {@link
+   *  GROVE_DENSITY}, the shipped pick — the comparison page's ladder arms are what pass it. */
+  density?: number;
 }
 
 /**
@@ -422,7 +455,7 @@ export function dressGroves(opts: GroveDressingOptions): KitPlacement[] {
     // touching its clearance, to the last bit of a double, is one input in a continuum.
     worstClearance(p, radius, occupied, groveNeed) >= 0;
 
-  for (const _stand of indices(groveStandCount(parcels))) {
+  for (const _stand of indices(groveStandCount(parcels, opts.density ?? GROVE_DENSITY))) {
     const centre = standCentre(parcels, Math.floor(rand() * 0x7fffffff), radius, occupied, opts.exclusion);
     if (centre === null) continue;
     for (const _member of indices(memberCount(rand))) {

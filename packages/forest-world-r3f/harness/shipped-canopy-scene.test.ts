@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { cellAt } from '../src/grove-dressing.js';
+import { GROVE_DENSITY, GROVE_DENSITY_RUNGS, cellAt } from '../src/grove-dressing.js';
 import { placementCasters } from '../src/ground-casters.js';
 import {
   KIT_FOOTPRINTS_2026_08_29,
@@ -24,11 +24,14 @@ import { parcelCellsFrom } from '../src/parcel-cells.js';
 import {
   CANOPY_ARMS,
   CANOPY_ARM_CAPTION,
+  CANOPY_ARM_DENSITY,
   CANOPY_FOOTPRINT,
   CANOPY_HEIGHTS,
   CANOPY_PICTURE_ZOOMS,
   CANOPY_SIZES,
   CONTROL_ARM,
+  GROVE_ARMS,
+  SHIPPED_GROVE_ARM,
   armCasters,
   armPlacements,
   canopyGroundBuild,
@@ -71,8 +74,8 @@ test('the page builds its ground with the SHIPPED builder, handed THIS arm’s c
 
 // ---------------------------------------------------------------- the arms
 
-test('three arms, control first, every one captioned, both sizes, the read zoom and the fitted view', () => {
-  assert.deepEqual(CANOPY_ARMS, ['bare', 'capability', 'groves']);
+test('five arms, control first, every one captioned, both sizes, the read zoom and the fitted view', () => {
+  assert.deepEqual(CANOPY_ARMS, ['bare', 'capability', 'groves-x1', 'groves-x2', 'groves-x3']);
   assert.equal(CONTROL_ARM, 'bare');
   for (const arm of CANOPY_ARMS) assert.ok(CANOPY_ARM_CAPTION[arm].length > 40, `${arm} has no caption a reader can use`);
   assert.deepEqual(CANOPY_SIZES.map((s) => s.id), ['one', 'forest']);
@@ -81,12 +84,51 @@ test('three arms, control first, every one captioned, both sizes, the read zoom 
   assert.equal(CANOPY_HEIGHTS, KIT_HEIGHTS_2026_08_29);
 });
 
+// ⚠⚠ THE ONE TEST THAT SURVIVES A SCALE-BACK. When the owner picks a rung, TWO constants move
+// (`GROVE_DENSITY`, which is what the map stands, and `SHIPPED_GROVE_ARM`, which is what the page
+// calls the shipped picture) and nothing else does. If they can move apart, the sheet ships a
+// picture labelled as the map while drawing something else — which is the exact failure the
+// picture-per-step protocol exists to prevent (ADR-0503 D3).
+test('canopy-arms-agree: the ladder IS the rungs, and the shipped arm IS the shipped constant', () => {
+  assert.deepEqual(
+    GROVE_ARMS.map((a) => CANOPY_ARM_DENSITY[a]),
+    [...GROVE_DENSITY_RUNGS],
+    'the grove arms are the declared rungs, in order',
+  );
+  assert.equal(
+    CANOPY_ARM_DENSITY[SHIPPED_GROVE_ARM],
+    GROVE_DENSITY,
+    'the arm the sheet calls the shipped picture grows at some rung the map does not stand',
+  );
+  assert.ok(GROVE_ARMS.includes(SHIPPED_GROVE_ARM), 'the shipped arm is not one of the rungs');
+  // A rung's NAME is its rung — an arm called x3 that grows at 2 is a caption that lies.
+  for (const arm of GROVE_ARMS) {
+    assert.equal(CANOPY_ARM_DENSITY[arm], Number(arm.slice('groves-x'.length)), `${arm} is not named for its rung`);
+  }
+  // The two arms that grow no grove are told apart by the table, not by their names.
+  assert.equal(CANOPY_ARM_DENSITY['bare'], null);
+  assert.equal(CANOPY_ARM_DENSITY['capability'], null);
+});
+
+test('the ladder RISES: each rung stands strictly more grove pines than the one below it', () => {
+  const counts = GROVE_ARMS.map((a) => armPlacements(a, ONE).filter(isGrovePlacement).length);
+  for (const [i, n] of counts.entries()) {
+    if (i === 0) continue;
+    assert.ok(n > counts[i - 1]!, `${GROVE_ARMS[i]} stands ${n} against ${GROVE_ARMS[i - 1]}'s ${counts[i - 1]}`);
+  }
+  // And the vocabulary is untouched on every rung — density reaches the grove and nothing else.
+  const capability = armPlacements('capability', ONE);
+  for (const arm of GROVE_ARMS) {
+    assert.deepEqual(armPlacements(arm, ONE).filter((p) => !isGrovePlacement(p)), capability, `${arm} moved the vocabulary`);
+  }
+});
+
 test('the arms differ in EXACTLY the dressing: nothing, the vocabulary, the vocabulary plus the grove', () => {
   assert.deepEqual(armPlacements('bare', ONE), []);
   const capability = armPlacements('capability', ONE);
   assert.ok(capability.length > 0, 'the capability arm stands nothing');
   assert.equal(capability.filter(isGrovePlacement).length, 0, 'the capability arm grew a grove');
-  const groved = armPlacements('groves', ONE);
+  const groved = armPlacements(SHIPPED_GROVE_ARM, ONE);
   assert.deepEqual(groved.filter((p) => !isGrovePlacement(p)), capability, 'the grove arm moved the vocabulary’s own objects');
   // The fixture island: eleven capabilities, ten signed criteria, and the recipe's grove.
   const census = dressingCensus(groved);
@@ -109,8 +151,11 @@ test('the casters are the crowd’s own plus one per placement — the control c
     ...crowdCasters(ONE),
     ...placementCasters(armPlacements('capability', ONE), CANOPY_FOOTPRINT, CANOPY_HEIGHTS),
   ]);
-  assert.equal(armCasters('groves', ONE).length, crowdCasters(ONE).length + armPlacements('groves', ONE).length);
-  const plan = canopyPlan('groves', ONE);
+  assert.equal(
+    armCasters(SHIPPED_GROVE_ARM, ONE).length,
+    crowdCasters(ONE).length + armPlacements(SHIPPED_GROVE_ARM, ONE).length,
+  );
+  const plan = canopyPlan(SHIPPED_GROVE_ARM, ONE);
   assert.equal(plan.kitCasters, plan.placements, 'a placement without a caster is an object that floats');
   assert.equal(plan.casters, plan.kitCasters + 1);
 });
@@ -129,7 +174,7 @@ test('no placement stands off the island on any arm — and the count CAN fire',
     scale: 1,
   };
   assert.equal(offIslandCount([sea], cells), 1);
-  assert.equal(offIslandCount([...armPlacements('groves', ONE), sea], cells), 1);
+  assert.equal(offIslandCount([...armPlacements(SHIPPED_GROVE_ARM, ONE), sea], cells), 1);
   assert.equal(cellAt(cells, sea.at), null);
 });
 
@@ -148,8 +193,8 @@ test('the ground’s triangles do not move between arms — the casters change t
 });
 
 test('the plan reads the same list the scene draws, by kind', () => {
-  const plan = canopyPlan('groves', ONE);
-  const placements = armPlacements('groves', ONE);
+  const plan = canopyPlan(SHIPPED_GROVE_ARM, ONE);
+  const placements = armPlacements(SHIPPED_GROVE_ARM, ONE);
   assert.equal(plan.placements, placements.length);
   assert.equal(plan.groves, placements.filter(isGrovePlacement).length);
   assert.equal(plan.blooms, placements.filter((p) => p.role === 'bloom').length);
@@ -159,7 +204,7 @@ test('the plan reads the same list the scene draws, by kind', () => {
 });
 
 test('on the forest, groves grow on the healthy islands and on no other', () => {
-  const groves = armPlacements('groves', FOREST).filter(isGrovePlacement);
+  const groves = armPlacements(SHIPPED_GROVE_ARM, FOREST).filter(isGrovePlacement);
   assert.ok(groves.length > 500, `${groves.length} grove pines on a 21-healthy-island forest`);
   const anchors = crowdIslands(FOREST).map((i) => ({ id: crowdIslandId(i.index), status: i.status, x: i.offset.x, z: i.offset.z }));
   assert.ok(anchors.some((a) => a.status !== 'healthy'), 'the forest has no non-healthy island — the claim is vacuous');

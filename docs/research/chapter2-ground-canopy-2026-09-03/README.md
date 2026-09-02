@@ -5,13 +5,17 @@ owner stamped (`docs/research/chapter2-land-idiom-2026-08-27/land-combined-1948p
 look-fence of ADR-0489 D3). That render is FORESTED — thirteen stands of four to eight pines with
 bare ground between them, `build_land.py`'s `scatter()` (`:1027-1091`) — where the map that drew one
 pine per capability (ADR-0475) read sparse beside it, and every one of those pines cast no shadow.
+Decision: **ADR-0507**.
 
-> ⚠ Every figure here was taken on this run, on this box: Qualcomm Adreno X1-85 (ANGLE D3D11),
-> `--use-gl=angle`, `software=false`, exact-colour mode, lights calibrated by the map's own probe
-> (a lit white face delivered 0.3176 at the authored intensities; scale 3.148). It is NOT the RTX
-> 2060 the arc's end-state names; internally consistent, not comparable to a committed RTX figure.
-> **Frame cost is deliberately not measured here** — the driving session takes that on the RTX
-> box; what this run reports is the payload half (draw calls, triangles, instance counts).
+> ⚠ Every figure here was taken on this run, on the arc's named box: **NVIDIA GeForce RTX 2060**
+> (ANGLE / OpenGL 4.5), `--use-gl=angle`, `software=false`, exact-colour mode, lights calibrated by
+> the map's own probe (a lit white face delivered 0.3176 at the authored intensities; scale 3.148).
+> Nothing is inherited from an increment row, an arc intent or an earlier sheet.
+>
+> ⚠ THE 2026-09-03 02:05 RUN THAT THIS ONE REPLACED WAS TAKEN ON AN ADRENO X1-85, and its figures
+> are NOT comparable to these: the same `bare` control reads 47 families / MICRO 1.09 there and
+> 44 / 0.85 here. That is a different GPU and driver reading the same scene, not a change to the
+> scene. Compare only WITHIN a run.
 
 ## What ships (`src/`)
 
@@ -26,15 +30,14 @@ pine per capability (ADR-0475) read sparse beside it, and every one of those pin
    (`footprintDriftOf` / `heightDriftOf`, loud in the console, props still drawn).
 2. **Groves on the green islands** (`src/grove-dressing.ts`, called by `dressMapWithGroves`).
    On an island whose EVERY cell is `healthy` — and on no other; `unknown` grows nothing, a mixed
-   island fails closed — the recipe's stands: `round(13 × area / 8,424.6)` stands (the fixture
-   island's own area, so it carries the recipe's thirteen), 4–8 members each, gaussian-spread with
-   σx 3.6 and σz 3.0 scaled by the island's depth/width aspect against the recipe's (135.1 / 233.8
-   — 1.03 on the shipped fixture, whose ground plane is the drawing's projected, z-squashed shape),
-   stand centres and members clear of the 9-unit beach band (the CLIPPED coast, through the same
-   shore distance walk the sand layer samples) and of the worn path (`wearOf(d) < 0.30`, the
-   recipe's own rule at `:1046`, through the wear layer's own smoothstep — about 1.91 units from the
-   trail docks' path). Seeded per island through `islandSeed`, so the forest's islands are not
-   clones and two builds of one island are identical.
+   island fails closed — the recipe's stands: `round(13 × density × area / 8,424.6)` stands, 4–8
+   members each, gaussian-spread with σx 3.6 and σz 3.0 scaled by the island's depth/width aspect
+   against the recipe's (135.1 / 233.8 — 1.03 on the shipped fixture, whose ground plane is the
+   drawing's projected, z-squashed shape), stand centres and members clear of the 9-unit beach band
+   (the CLIPPED coast, through the same shore distance walk the sand layer samples) and of the worn
+   path (`wearOf(d) < 0.30`, the recipe's own rule at `:1046`, through the wear layer's own
+   smoothstep — about 1.91 units from the trail docks' path). Seeded per island through
+   `islandSeed`, so the forest's islands are not clones and two builds of one island are identical.
 3. **A grove pine is smaller, untinted, and never the tallest on its parcel.** The `tree` role
    with `capId: 'grove'`, `tint: null` (the kit's own needles), and a per-placement `scale` drawn
    uniform(0.55, 0.80) — applied in `placementScale` / `placementExtent` and in the caster. The
@@ -45,64 +48,152 @@ pine per capability (ADR-0475) read sparse beside it, and every one of those pin
    every other pair keeps the full sum, and the scale never enters the clearance — and
    `dressingOverlaps` measures against the same function, so a grove pine inside a capability's
    pine is a defect it still names. Zero overlaps on the island and across the forest.
+5. **`GROVE_DENSITY` — the one tuned number, and the owner's scale-back lever.** See below.
 
 `dressMapFromKit` (the vocabulary alone) is unchanged and is what the bloom census and the
 `capability` arm read; `dressMapWithGroves` is what the canvas stands.
+
+## ⚠ THE DENSITY LADDER — why a tuned constant exists at all, and how to move it
+
+The recipe imposes **no clearance between two grove members** (`:1063-1065` tests only `inside` and
+`wear`), so its stands are 4–8 trees with crowns freely overlapping. This map DOES keep one —
+`GROVE_CLEARANCE`, declared and detected, because a placement nothing measures is how the owner's
+*"the rocks are appearing where the trees are"* defect happened — and this map's islands are about
+three times shallower in z than the recipe's, so a stand here is an ellipse roughly 7 × 2 units that
+physically cannot hold six pines of radius 5. **At the recipe's own 13 stands the fixture island
+grows 42 pines: 3.2 per stand against the recipe's 4–8.**
+
+Relaxing the clearance would buy the count back by letting crowns interpenetrate, and the detector
+would then be measuring against a number chosen to make the placement pass. So the lever is **more
+stands** — more clumps rather than tighter ones — and every stand still keeps every rule.
+
+Three rungs were rendered, on this box, in one run (`sheet-8px.png`):
+
+| rung | stands | grove pines (one island) | objects | triangles | families | largest | MICRO | STRUCT | forest pines |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| x1 (the recipe's own) | 13 | 42 | 63 | 67,696 | 50 | 5.5% | 1.52 | 22.94 | 936 |
+| **x2 — SHIPPED** | **26** | **81** | **102** | **107,502** | **43** | **7.1%** | **1.81** | **23.06** | **1,695** |
+| x3 | 39 | 113 | 134 | 140,366 | 39 | 8.7% | 1.99 | 22.86 | 2,318 |
+
+The approved render: 36 families, largest 5.2%, MICRO 2.54, STRUCT 30.05.
+
+**Why x2.** It is where the picture reads like the reference's *composition*: clumps with bare
+ground between them, the worn path still legible, clearings still open. x1 leaves the island's
+middle visibly empty; x3 begins to close the canopy over the path and the clearings, which is
+exactly what the recipe's "groves with bare ground between them" is not. On the numbers x2 also
+lands the island in the recipe's OWN tree band for 13 stands (52–104 pines) while x1 falls short of
+it. **A scale-back is two constants and no re-measurement:** `GROVE_DENSITY` in
+`src/grove-dressing.ts` and `SHIPPED_GROVE_ARM` in `harness/shipped-canopy-scene.ts`; a test
+(`canopy-arms-agree`) holds them to each other and to the rung names.
+
+⚠ **The family census disagrees with the eye about direction, and that is worth reading, not
+averaging.** As density rises the family COUNT moves toward the reference (50 → 43 → 39 against 36)
+while the largest family moves away (5.5% → 7.1% → 8.7% against 5.2%). Both are true: more canopy
+means fewer distinct ground colours AND more of the picture in one green. Neither picks the rung —
+ADR-0503 D1 puts that with the owner and the picture.
 
 ## Measured, one island @ 8 px/unit (control = the shipped ground bare)
 
 | arm | draw calls | triangles (ground) | objects (caps / blooms / groves) | casters | families (approved 36) | largest | MICRO | STRUCT | moved >20/255 | touched |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `bare` (CONTROL) | 1 | 5,562 (5,562) | 0 | 1 | 47 | 6.7% | 1.09 | 21.79 | 0 | 0 |
-| `capability` | 4 | 22,092 (5,562) | 21 (11 / 10 / 0) | 22 | 52 | 5.6% | 1.26 | 22.75 | 63,124 | 134,440 |
-| `groves` | 4 | 67,696 (5,562) | 63 (11 / 10 / 42) | 64 | 50 | 4.6% | 1.65 | 23.41 | 147,181 | 281,672 |
+| `bare` (CONTROL) | 1 | 5,562 (5,562) | 0 | 1 | 44 | 6.6% | 0.85 | 21.18 | 0 | 0 |
+| `capability` | 4 | 22,092 (5,562) | 21 (11 / 10 / 0) | 22 | 50 | 5.9% | 1.09 | 21.96 | 62,109 | 134,448 |
+| `groves-x1` | 4 | 67,696 (5,562) | 63 (11 / 10 / 42) | 64 | 50 | 5.5% | 1.52 | 22.94 | 146,290 | 281,663 |
+| **`groves-x2`** | 4 | 107,502 (5,562) | 102 (11 / 10 / 81) | 103 | 43 | 7.1% | 1.81 | 23.06 | 194,440 | 361,427 |
+| `groves-x3` | 4 | 140,366 (5,562) | 134 (11 / 10 / 113) | 135 | 39 | 8.7% | 1.99 | 22.86 | 229,463 | 400,381 |
 
-The approved render through the same census: 36 families, largest 5.2%, MICRO 2.54, STRUCT 30.05.
-MICRO rose 1.09 → 1.65 (the crowns' own texture and the pools under them); STRUCT 21.8 → 23.4; the
-largest family fell 6.7% → 4.6%. The ground's triangle count is the same on every arm — a caster
-changes the field, never the mesh — and the draw calls are the ground's one plus one per merged
-kit material (trunks, branches, flowers).
+MICRO rose 0.85 → 1.81 at the shipped rung (the crowns' own texture and the pools under them);
+STRUCT 21.18 → 23.06. The ground's triangle count is the same on every arm — a caster changes the
+field, never the mesh — and the draw calls are the ground's one plus one per merged kit material
+(trunks, branches, flowers).
 
 ## The forest, 35 islands
 
-| view | arm | draw calls | triangles | objects | casters | families | MICRO | STRUCT | moved >20/255 |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| @ 8 px/unit | `bare` | 1 | 194,630 | 0 | 35 | 46 | 1.09 | 21.56 | 0 |
-| | `capability` | 7 | 690,310 | 584 | 619 | 50 | 1.26 | 22.57 | 60,712 |
-| | `groves` | 7 | 1,670,354 | 1,520 (936 grove pines) | 1,555 | 50 | 1.67 | 23.14 | 146,732 |
-| fitted (0.573 px/unit) | `bare` | 1 | 194,630 | 0 | 35 | 48 | 7.10 | 25.53 | 0 |
-| | `capability` | 7 | 690,310 | 584 | 619 | 52 | 8.42 | 25.14 | 11,560 |
-| | `groves` | 7 | 1,670,354 | 1,520 | 1,555 | 52 | 9.45 | 26.61 | 19,090 |
+| view | arm | draw calls | triangles | objects | casters | families | largest | MICRO | STRUCT | moved >20/255 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| @ 8 px/unit | `bare` | 1 | 194,630 | 0 | 35 | 44 | 6.9% | 0.86 | 21.27 | 0 |
+| | `capability` | 7 | 690,310 | 584 | 619 | 50 | 5.7% | 1.09 | 22.10 | 60,251 |
+| | `groves-x1` | 7 | 1,670,354 | 1,520 (936 grove) | 1,555 | 48 | 5.0% | 1.51 | 22.97 | 138,868 |
+| | **`groves-x2`** | 7 | 2,440,708 | 2,279 (1,695 grove) | 2,314 | 45 | 7.1% | 1.80 | 22.72 | 198,149 |
+| | `groves-x3` | 7 | 3,081,764 | 2,902 (2,318 grove) | 2,937 | 40 | 8.3% | 1.93 | 22.91 | 220,189 |
+| fitted (0.573 px/unit) | `bare` | 1 | 194,630 | 0 | 35 | 50 | 9.3% | 6.80 | 25.37 | 0 |
+| | `capability` | 7 | 690,310 | 584 | 619 | 53 | 7.5% | 8.22 | 25.06 | 11,670 |
+| | `groves-x1` | 7 | 1,670,354 | 1,520 | 1,555 | 51 | 7.5% | 9.38 | 26.54 | 19,459 |
+| | **`groves-x2`** | 7 | 2,440,708 | 2,279 | 2,314 | 49 | 7.5% | 10.08 | 27.55 | 24,153 |
+| | `groves-x3` | 7 | 3,081,764 | 2,902 | 2,937 | 52 | 7.5% | 10.47 | 28.19 | 27,243 |
 
-Every one of the 936 grove pines stands on one of the 21 healthy islands (the scene test attributes
-each to its nearest island centre); the 8 proposed, 2 building, 2 mapped, 1 unknown and 1 unhealthy
-islands draw exactly what they drew. Seven draw calls on the forest: the ground, the trunks, the
-branches in four tints (green, proposed, mapped — building folds to proposed), the flowers. The
-fitted view — the one the map opens on — is `sheet-forest.png`: the healthy islands stay clean
-green blocks with a speckle of canopy; whether that speckle reads as a forest or as noise at 0.57
-px/unit is the owner's call, and it is the picture this run exists to put in front of him.
+Every grove pine stands on one of the 21 healthy islands (the scene test attributes each to its
+nearest island centre); the 8 proposed, 2 building, 2 mapped, 1 unknown and 1 unhealthy islands draw
+exactly what they drew. Seven draw calls on the forest whatever the rung: the ground, the trunks,
+the branches in four tints (green, proposed, mapped — building folds to proposed), the flowers.
+
+**ADR-0507 D5's fence — the opening view — passes at every rung.** At the fitted zoom the largest
+colour family is 7.5% on all three grove rungs and on the capability arm, against the bare ground's
+9.3%: the canopy does not turn a green island into a smudge, it makes it *less* dominated by one
+colour than the bare ground was. `sheet-forest.png` is the picture.
+
+## Frame cost — the RTX 2060, the arc's named box (ADR-0507 D7, ADR-0505 D3)
+
+`frame-cost.txt` / `frame-cost.json`, from `harness/shipped-canopy-cost.mjs`: five arms × five
+interleaved repeats × 20 frames per GPU query, **two independent runs, diffed row by row** by
+`run-agreement.ts` with the tolerance derived from the runs' own within-run spread. The whole
+35-island map, fitted — the view the site opens on.
+
+| arm | draw calls | triangles | ms/frame | within-run spread | vs `bare` | % of a 60 Hz frame |
+| --- | --- | --- | --- | --- | --- | --- |
+| `bare` | 1 | 194,630 | 0.4140 | 0.0071 | — | 2.5% |
+| `capability` | 7 | 690,310 | 0.5703 | 0.0124 | +0.1563 | 3.4% |
+| `groves-x1` | 7 | 1,670,354 | 0.8922 | 0.0158 | +0.4782 | 5.4% |
+| **`groves-x2`** | 7 | 2,440,708 | **1.1470** | 0.0213 | +0.7329 | **6.9%** |
+| `groves-x3` | 7 | 3,081,764 | 1.3579 | 0.0375 | +0.9439 | 8.1% |
+
+Every row reproduced across both runs. **The shipped picture draws the whole dressed map in 1.15 ms
+— 6.9% of a 60 Hz frame — and the dressing itself is +0.73 ms.** Even the boldest rung rendered
+costs 8.1%, so density is not what would break this budget.
+
+⚠ This is the GPU's draw cost for THIS scene and nothing else. It is not the site's frame time: the
+shipped canvas also runs React, controls and the compositor, none of which are on this page.
+
+⚠ One untimed pass over every arm is taken and discarded before the measured sweep. Without it the
+first timed batch of each arm carries part of the merge-and-upload of up to 3.1 M triangles:
+measured, `bare` came back with a within-run spread of 1.63 ms against a 0.42 ms median — a noise
+floor four times the figure — and `run-agreement` then derives its tolerance from that noise and
+agrees with almost anything.
 
 ## Named gaps
 
-- **The stands are thinner than the recipe's.** 42 grove pines on the fixture island from 13 stands
-  — 3.2 per stand against the recipe's mean of 6 — because the full clearance from the eleven
-  capability pines and ten blooms, the 4.56-unit relaxed clearance between members, and the
-  z-squash (σz 1.03) reject many of the thirty gaussian draws a member gets. Inside the brief's
-  40–100 band and pictured, not tuned: the levers if the owner wants it denser are the member
-  tries, the relaxed clearance, or σz, and each is one constant.
-- **Blooms cast too** (every placement does): a flower's pool is a 2-radius, 2.4-tall cylinder's,
-  small and visible at 8 px/unit as a dark patch under each flower. Not judged here.
+- **The colour gap to the reference is now the GROUND COVER, not the trees.** MICRO 1.81 against
+  2.54 and STRUCT 23.06 against 30.05 at the read zoom, with the trees at the reference's own
+  density. The approved island also carries 70 bushes and ferns, 120 grass clumps and 26 flowers;
+  that is the next increment (`ground-cover-from-the-kit-bushes-tufts-and-flowers`, ADR-0507 D4/D6)
+  and it is where the remaining difference lives.
+- **Blooms cast too** (every placement does, ADR-0507 D3): a flower's pool is a 2-radius,
+  2.4-tall cylinder's — geometrically what a 4-unit-wide object occludes, but the flower's own
+  visible geometry is a thin stem, so at 8 px/unit the pool reads wider than the thing casting it.
+  Judged and KEPT: it is the recorded decision, it is invisible at the fitted view the site opens
+  on, and the honest narrowing (size a caster from a prop's occluding extent rather than its
+  bounding box) is a change to the frozen tables and to every prop, not a predicate on blooms.
 - The grove is an ELLIPSE in the placement basis by construction (σz scaled by the aspect), read
   through the canvas's double projection; the stands cluster along x on screen.
 - The recipe's path is also a geometry dip and its stands take 9% dead trees; neither is
   transcribed (ADR-0504 D4; the dead trunk is a signal here).
-- Frame cost: unmeasured here by design. The forest's `groves` arm submits 1.67 M triangles in
-  7 draw calls against the bare ground's 195 k in 1 — the RTX box's number is the driving session's.
+- The pine's own trunk reads as a small brown mass at each tree's base at 8 px/unit. That is the
+  bought kit's geometry, unchanged since ADR-0475 stood the capability pines, and it is not this
+  increment's to move.
 
 ## Files
 
-`report.txt` · `measurements.json` · `sheet-8px.png` (approved / bare / capability / groves, one
-island @ 8 px) · `sheet-forest.png` (bare / capability / groves, the forest fitted) · 12 frames:
-`{bare,capability,groves}-{one,forest}-{8,fit}.png`. Page: `harness/shipped-canopy.html`; driver:
-`pnpm --filter @storytree/forest-world-r3f measure-shipped-canopy` against
-`vite harness --port 5352`.
+`report.txt` · `measurements.json` · `frame-cost.txt` · `frame-cost.json` ·
+`sheet-8px.png` (approved / bare / capability / the three grove rungs, one island @ 8 px) ·
+`sheet-forest.png` (the forest fitted at every arm, with its frame cost) · 20 frames:
+`{bare,capability,groves-x1,groves-x2,groves-x3}-{one,forest}-{8,fit}.png`.
+
+Page: `harness/shipped-canopy.html`. Reproduce:
+
+```
+pnpm --filter @storytree/forest-world-r3f exec vite harness --port 5361 --strictPort --host 127.0.0.1
+DISPLAY=:0 ST_CANOPY_URL=http://127.0.0.1:5361/shipped-canopy.html \
+  pnpm --filter @storytree/forest-world-r3f measure-shipped-canopy   # the pictures + the census
+DISPLAY=:0 ST_CANOPY_URL=http://127.0.0.1:5361/shipped-canopy.html \
+  pnpm --filter @storytree/forest-world-r3f measure-canopy-cost      # the frame cost
+```

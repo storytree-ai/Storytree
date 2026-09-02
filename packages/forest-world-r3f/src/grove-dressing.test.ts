@@ -17,6 +17,8 @@ import {
   GROVE_MEMBERS_MAX,
   GROVE_MEMBERS_MIN,
   GROVE_MEMBER_TRIES,
+  GROVE_DENSITY,
+  GROVE_DENSITY_RUNGS,
   GROVE_SCALE_MAX,
   GROVE_SCALE_MIN,
   GROVE_SIGMA_X,
@@ -129,7 +131,13 @@ function standingOn(cells: readonly LayoutCell[], blooms = 3): KitPlacement[] {
 
 function grovesOn(
   cells: readonly LayoutCell[],
-  over: { island?: string; exclusion?: GroveExclusion; relief?: number; standing?: KitPlacement[] } = {},
+  over: {
+    island?: string;
+    exclusion?: GroveExclusion;
+    relief?: number;
+    standing?: KitPlacement[];
+    density?: number;
+  } = {},
 ): KitPlacement[] {
   return dressGroves({
     island: over.island ?? 'built',
@@ -138,6 +146,7 @@ function grovesOn(
     footprint: FOOT,
     relief: over.relief ?? 0,
     exclusion: over.exclusion ?? ALLOW,
+    density: over.density ?? GROVE_DENSITY,
   });
 }
 
@@ -207,13 +216,46 @@ test('the stand count is the recipe’s thirteen, in proportion to area', () => 
     cellId: 'r',
   };
   assert.equal(cellsArea([recipeSized]), RECIPE_ISLAND_AREA);
-  assert.equal(groveStandCount([recipeSized]), 13);
-  assert.equal(groveStandCount([recipeSized, recipeSized]), 26);
+  // ⚠ AT RUNG 1 THE COUNT IS THE RECIPE'S OWN — that is what makes this a transcription rather
+  // than a number someone liked, and the density argument is what the ladder varies.
+  assert.equal(groveStandCount([recipeSized], 1), RECIPE_STANDS);
+  assert.equal(groveStandCount([recipeSized, recipeSized], 1), 26);
   const half = { ...recipeSized, points: recipeSized.points.map((p) => ({ x: p.x / 2, z: p.z })) };
-  assert.equal(groveStandCount([half]), 7, 'half the island rounds 6.5 up to 7');
-  assert.equal(groveStandCount([]), 0);
-  assert.equal(groveStandCount(HEALTHY), Math.round((13 * 14144) / 8424.6));
-  assert.equal(groveStandCount(HEALTHY), 22);
+  assert.equal(groveStandCount([half], 1), 7, 'half the island rounds 6.5 up to 7');
+  assert.equal(groveStandCount([], 1), 0);
+  assert.equal(groveStandCount(HEALTHY, 1), Math.round((13 * 14144) / 8424.6));
+  assert.equal(groveStandCount(HEALTHY, 1), 22);
+});
+
+// ⚠⚠ THE DENSITY RUNG IS THE ONE TUNED NUMBER HERE, and this is what holds it honest: the ladder
+// is DECLARED, the shipped pick is ONE of the declared rungs, and a caller that names no rung gets
+// the shipped one. The reason it exists is the arithmetic below — the recipe's own stand count
+// delivers ~3.2 pines per stand on this map's squashed islands rather than the recipe's 4–8,
+// because this map keeps a clearance between grove members that `build_land.py` does not.
+test('the density rung scales the stand count, defaults to the shipped pick, and is one of the declared rungs', () => {
+  assert.ok(GROVE_DENSITY_RUNGS.includes(GROVE_DENSITY), 'the shipped pick is not a rendered rung');
+  assert.deepEqual([...GROVE_DENSITY_RUNGS], [1, 2, 3], 'the rungs the sheet carries');
+  for (const rung of GROVE_DENSITY_RUNGS) {
+    assert.equal(groveStandCount(HEALTHY, rung), Math.round((RECIPE_STANDS * rung * 14144) / RECIPE_ISLAND_AREA));
+  }
+  assert.equal(groveStandCount(HEALTHY), groveStandCount(HEALTHY, GROVE_DENSITY), 'the default is the shipped pick');
+  assert.ok(groveStandCount(HEALTHY, 3) > groveStandCount(HEALTHY, 1), 'a bolder rung is more stands');
+});
+
+test('a bolder rung grows strictly more pines on the same island, and every rule still holds', () => {
+  const lean = grovesOn(HEALTHY, { density: 1 });
+  const bold = grovesOn(HEALTHY, { density: 3 });
+  assert.ok(lean.length > 0, 'rung 1 grew nothing');
+  assert.ok(bold.length > lean.length, `rung 3 grew ${bold.length} against rung 1's ${lean.length}`);
+  // The rules are the rung's, not rung 1's: still live pines, still below the capability's height.
+  for (const g of bold) {
+    assert.equal(g.capId, GROVE_CAP_ID);
+    assert.ok(g.scale >= GROVE_SCALE_MIN && g.scale < GROVE_SCALE_MAX);
+    assert.notEqual(g.assembly, 'pine-dead');
+    assert.notEqual(cellAt(HEALTHY, g.at), null, 'a bolder rung stood a pine off the island');
+  }
+  // And an ineligible island grows nothing at ANY rung — density never opens the gate.
+  assert.deepEqual(grovesOn(island(['healthy', 'proposed', 'healthy']), { density: 3 }), []);
 });
 
 test('the island’s aspect is depth over width, and a widthless island borrows the recipe’s', () => {

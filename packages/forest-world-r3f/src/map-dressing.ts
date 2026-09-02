@@ -33,7 +33,7 @@
 // it is placed AFTER the island's own objects, so a grove pine is placed around the capability's
 // tree and never the other way about.
 
-import { dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
+import { GROVE_DENSITY, dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
 import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary.js';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells.js';
 import type { Descriptor3D } from './world-to-3d.js';
@@ -43,6 +43,10 @@ export interface MapDressingOptions {
   relief: number;
   /** The ground width each role occupies, measured off the LOADED kit (`roleFootprints`). */
   footprint: RoleFootprints;
+  /** Which rung of `GROVE_DENSITY_RUNGS` a healthy island's grove grows at. Omitted is the shipped
+   *  pick (`GROVE_DENSITY`); the canopy comparison page's ladder arms are what pass it, and
+   *  {@link dressMapFromKit} — which grows no grove at all — ignores it. */
+  density?: number;
 }
 
 // ⚠ THERE IS NO `seed` HERE, AND ITS ABSENCE IS DELIBERATE. `dressIslandFromKit` carries its own
@@ -156,6 +160,7 @@ function dressMap(
         footprint: opts.footprint,
         relief: opts.relief,
         exclusion: exclusionFor(descriptors, island),
+        density: opts.density ?? GROVE_DENSITY,
       }),
     );
   }

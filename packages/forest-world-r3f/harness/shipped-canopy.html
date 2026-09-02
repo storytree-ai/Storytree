@@ -33,7 +33,9 @@
       <p class="numbers">
         bare&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the shipped ground alone &mdash; every layer at what ships, the story tree&rsquo;s own shadow (CONTROL and DENOMINATOR)<br />
         capability&nbsp;&nbsp;+ one pine per capability, one bloom per signature &mdash; NOW casting their shadows<br />
-        groves&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ the healthy island&rsquo;s grove: 13 stands per recipe-island of area, 4&ndash;8 live pines each at 0.55&ndash;0.80 of the capability&rsquo;s height
+        groves-x1&nbsp;&nbsp;+ the healthy island&rsquo;s grove at the RECIPE&rsquo;S OWN stand count: 13 stands per recipe-island of area, 4&ndash;8 live pines each at 0.55&ndash;0.80 of the capability&rsquo;s height<br />
+        groves-x2&nbsp;&nbsp;+ the grove at TWICE the recipe&rsquo;s stands &mdash; <strong>the SHIPPED pick</strong><br />
+        groves-x3&nbsp;&nbsp;+ the grove at THREE TIMES the recipe&rsquo;s stands &mdash; the boldest rung rendered
       </p>
       <p>
         <strong>Every arm is the shipped map with one thing changed &mdash; what stands on it.</strong>
@@ -55,11 +57,25 @@
         grove is.
       </p>
       <p>
+        <strong>The last three arms are a DENSITY LADDER, not three ideas.</strong> The recipe keeps
+        NO clearance between two grove members, so its stands are four to eight trees with crowns
+        freely overlapping; this map does keep one, and its islands are about three times shallower
+        in <em>z</em>, so at the recipe&rsquo;s own thirteen stands a stand holds about
+        <strong>3.2</strong> pines rather than 4&ndash;8. Relaxing the clearance would buy the count
+        back by letting crowns interpenetrate &mdash; and the overlap detector would then be
+        measuring against a number chosen to make the placement pass. So the lever is
+        <strong>more stands</strong>: more clumps rather than tighter ones, every rule still kept.
+        Ship a rung, and a scale-back is <code>GROVE_DENSITY</code> plus
+        <code>SHIPPED_GROVE_ARM</code> &mdash; two constants, no re-measurement.
+      </p>
+      <p>
         <strong>The verdict is the owner&rsquo;s eye on the forest&rsquo;s fitted view</strong> &mdash;
         the view the map opens on. A same-hue canopy over a same-hue island must leave the island a
         clean green block, not a smudge. The numbers under each picture are context: pixels moved by
         more than 20/255 against <code>bare</code> (ADR-0490 D6), the colour-family census, draw calls
-        and triangles. Frame cost is not measured here.
+        and triangles. <strong>Frame cost is taken from this same page by a second driver</strong>
+        (<code>shipped-canopy-cost.mjs</code>, the GPU&rsquo;s own clock over two independent
+        interleaved sweeps) rather than on it, so a picture and its cost are the same scene.
       </p>
       <div id="root"></div>
     </main>
