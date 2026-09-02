@@ -1,0 +1,1632 @@
+{
+  "renderer": {
+    "renderer": "ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)",
+    "vendor": "Google Inc. (Qualcomm)",
+    "software": false,
+    "timerQuery": true
+  },
+  "statuses": [
+    "building",
+    "healthy",
+    "mapped",
+    "proposed",
+    "unhealthy",
+    "unknown"
+  ],
+  "frames": [
+    {
+      "zoom": 2,
+      "centre": {
+        "x": 0,
+        "z": 0
+      },
+      "recentredOn": null,
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-13",
+            "status": "proposed",
+            "ownFamily": "building",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12690
+            },
+            "familyVotes": {
+              "building": 12690
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-16",
+            "status": "mapped",
+            "ownFamily": "mapped",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "mapped",
+            "votes": {
+              "mapped": 12690
+            },
+            "familyVotes": {
+              "mapped": 12690
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-17",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11949,
+              "unknown": 647,
+              "unhealthy": 94
+            },
+            "familyVotes": {
+              "healthy": 11949,
+              "unknown": 647,
+              "unhealthy": 94
+            },
+            "ownShare": 0.9416075650118203,
+            "foreignShare": 0.05839243498817967,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-18",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12926,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 12149,
+              "unknown": 774,
+              "building": 3
+            },
+            "familyVotes": {
+              "healthy": 12149,
+              "unknown": 774,
+              "building": 3
+            },
+            "ownShare": 0.9398885966269535,
+            "foreignShare": 0.060111403373046574,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-23",
+            "status": "proposed",
+            "ownFamily": "building",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12690
+            },
+            "familyVotes": {
+              "building": 12690
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 2,
+      "centre": {
+        "x": 447.1846837552799,
+        "z": -1235.1166501165817
+      },
+      "recentredOn": "crowd-story-08",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-02",
+            "status": "proposed",
+            "ownFamily": "building",
+            "groundPixels": 12972,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12972
+            },
+            "familyVotes": {
+              "building": 12972
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-03",
+            "status": "unhealthy",
+            "ownFamily": "unhealthy",
+            "groundPixels": 12645,
+            "empty": false,
+            "readFamily": "unhealthy",
+            "votes": {
+              "unhealthy": 12645
+            },
+            "familyVotes": {
+              "unhealthy": 12645
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-04",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12645,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11639,
+              "unknown": 1006
+            },
+            "familyVotes": {
+              "healthy": 11639,
+              "unknown": 1006
+            },
+            "ownShare": 0.9204428627916172,
+            "foreignShare": 0.07955713720838276,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-07",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12645,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11796,
+              "unknown": 836,
+              "building": 13
+            },
+            "familyVotes": {
+              "healthy": 11796,
+              "unknown": 836,
+              "building": 13
+            },
+            "ownShare": 0.932858837485172,
+            "foreignShare": 0.06714116251482799,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-08",
+            "status": "building",
+            "ownFamily": "building",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12690
+            },
+            "familyVotes": {
+              "building": 12690
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-09",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12926,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11802,
+              "unknown": 1119,
+              "unhealthy": 5
+            },
+            "familyVotes": {
+              "healthy": 11802,
+              "unknown": 1119,
+              "unhealthy": 5
+            },
+            "ownShare": 0.9130434782608695,
+            "foreignShare": 0.08695652173913043,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 2,
+      "centre": {
+        "x": 408.32673827088956,
+        "z": -1536.9567634195034
+      },
+      "recentredOn": "crowd-story-03",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-02",
+            "status": "proposed",
+            "ownFamily": "building",
+            "groundPixels": 12926,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12926
+            },
+            "familyVotes": {
+              "building": 12926
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-03",
+            "status": "unhealthy",
+            "ownFamily": "unhealthy",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "unhealthy",
+            "votes": {
+              "unhealthy": 12690
+            },
+            "familyVotes": {
+              "unhealthy": 12690
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-04",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12645,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11642,
+              "unknown": 1003
+            },
+            "familyVotes": {
+              "healthy": 11642,
+              "unknown": 1003
+            },
+            "ownShare": 0.9206801107156979,
+            "foreignShare": 0.0793198892843021,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-07",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11851,
+              "unknown": 824,
+              "building": 15
+            },
+            "familyVotes": {
+              "healthy": 11851,
+              "unknown": 824,
+              "building": 15
+            },
+            "ownShare": 0.9338849487785658,
+            "foreignShare": 0.0661150512214342,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-08",
+            "status": "building",
+            "ownFamily": "building",
+            "groundPixels": 12645,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12645
+            },
+            "familyVotes": {
+              "building": 12645
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-09",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 11925,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 10887,
+              "unknown": 1033,
+              "unhealthy": 5
+            },
+            "familyVotes": {
+              "healthy": 10887,
+              "unknown": 1033,
+              "unhealthy": 5
+            },
+            "ownShare": 0.9129559748427672,
+            "foreignShare": 0.08704402515723271,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 2,
+      "centre": {
+        "x": 70.66057079099232,
+        "z": 836.1251611656913
+      },
+      "recentredOn": "crowd-story-27",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-21",
+            "status": "mapped",
+            "ownFamily": "mapped",
+            "groundPixels": 12972,
+            "empty": false,
+            "readFamily": "mapped",
+            "votes": {
+              "mapped": 12972
+            },
+            "familyVotes": {
+              "mapped": 12972
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-22",
+            "status": "proposed",
+            "ownFamily": "building",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12690
+            },
+            "familyVotes": {
+              "building": 12690
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-23",
+            "status": "proposed",
+            "ownFamily": "building",
+            "groundPixels": 12972,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 12972
+            },
+            "familyVotes": {
+              "building": 12972
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-26",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12645,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11913,
+              "unknown": 685,
+              "unhealthy": 47
+            },
+            "familyVotes": {
+              "healthy": 11913,
+              "unknown": 685,
+              "unhealthy": 47
+            },
+            "ownShare": 0.942111506524318,
+            "foreignShare": 0.05788849347568209,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-27",
+            "status": "unknown",
+            "ownFamily": "unknown",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "unknown",
+            "votes": {
+              "unknown": 12690
+            },
+            "familyVotes": {
+              "unknown": 12690
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-28",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12645,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11850,
+              "unknown": 787,
+              "building": 8
+            },
+            "familyVotes": {
+              "healthy": 11850,
+              "unknown": 787,
+              "building": 8
+            },
+            "ownShare": 0.9371293001186239,
+            "foreignShare": 0.06287069988137604,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-32",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12690,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 11655,
+              "unknown": 1032,
+              "building": 3
+            },
+            "familyVotes": {
+              "healthy": 11655,
+              "unknown": 1032,
+              "building": 3
+            },
+            "ownShare": 0.9184397163120568,
+            "foreignShare": 0.08156028368794327,
+            "pass": true
+          },
+          {
+            "id": "crowd-story-33",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 12972,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 12056,
+              "unknown": 912,
+              "building": 2,
+              "unhealthy": 2
+            },
+            "familyVotes": {
+              "healthy": 12056,
+              "unknown": 912,
+              "building": 2,
+              "unhealthy": 2
+            },
+            "ownShare": 0.929386370644465,
+            "foreignShare": 0.070613629355535,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 8,
+      "centre": {
+        "x": 0,
+        "z": 0
+      },
+      "recentredOn": null,
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-17",
+            "status": "healthy",
+            "ownFamily": "healthy",
+            "groundPixels": 201196,
+            "empty": false,
+            "readFamily": "healthy",
+            "votes": {
+              "healthy": 189096,
+              "unknown": 10554,
+              "unhealthy": 1546
+            },
+            "familyVotes": {
+              "healthy": 189096,
+              "unknown": 10554,
+              "unhealthy": 1546
+            },
+            "ownShare": 0.9398596393566473,
+            "foreignShare": 0.06014036064335275,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 8,
+      "centre": {
+        "x": 447.1846837552799,
+        "z": -1235.1166501165817
+      },
+      "recentredOn": "crowd-story-08",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-08",
+            "status": "building",
+            "ownFamily": "building",
+            "groundPixels": 201196,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 201196
+            },
+            "familyVotes": {
+              "building": 201196
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 8,
+      "centre": {
+        "x": -377.10513120734197,
+        "z": 37.28982427950848
+      },
+      "recentredOn": "crowd-story-16",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-16",
+            "status": "mapped",
+            "ownFamily": "mapped",
+            "groundPixels": 201196,
+            "empty": false,
+            "readFamily": "mapped",
+            "votes": {
+              "mapped": 201196
+            },
+            "familyVotes": {
+              "mapped": 201196
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 8,
+      "centre": {
+        "x": -29.411258604339785,
+        "z": -1525.4079233094353
+      },
+      "recentredOn": "crowd-story-02",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-02",
+            "status": "proposed",
+            "ownFamily": "building",
+            "groundPixels": 201196,
+            "empty": false,
+            "readFamily": "building",
+            "votes": {
+              "building": 201196
+            },
+            "familyVotes": {
+              "building": 201196
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 8,
+      "centre": {
+        "x": 408.32673827088956,
+        "z": -1536.9567634195034
+      },
+      "recentredOn": "crowd-story-03",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-03",
+            "status": "unhealthy",
+            "ownFamily": "unhealthy",
+            "groundPixels": 201196,
+            "empty": false,
+            "readFamily": "unhealthy",
+            "votes": {
+              "unhealthy": 201196
+            },
+            "familyVotes": {
+              "unhealthy": 201196
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    },
+    {
+      "zoom": 8,
+      "centre": {
+        "x": 70.66057079099232,
+        "z": 836.1251611656913
+      },
+      "recentredOn": "crowd-story-27",
+      "verdict": {
+        "islands": [
+          {
+            "id": "crowd-story-27",
+            "status": "unknown",
+            "ownFamily": "unknown",
+            "groundPixels": 201196,
+            "empty": false,
+            "readFamily": "unknown",
+            "votes": {
+              "unknown": 201196
+            },
+            "familyVotes": {
+              "unknown": 201196
+            },
+            "ownShare": 1,
+            "foreignShare": 0,
+            "pass": true
+          }
+        ],
+        "pairs": [
+          {
+            "a": "building",
+            "b": "healthy",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "building",
+            "b": "mapped",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "building",
+            "b": "proposed",
+            "minDistance": 0
+          },
+          {
+            "a": "building",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "building",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "healthy",
+            "b": "mapped",
+            "minDistance": 48.31666379211214
+          },
+          {
+            "a": "healthy",
+            "b": "proposed",
+            "minDistance": 25.583588489498496
+          },
+          {
+            "a": "healthy",
+            "b": "unhealthy",
+            "minDistance": 46.016301459374155
+          },
+          {
+            "a": "healthy",
+            "b": "unknown",
+            "minDistance": 25.116329349648208
+          },
+          {
+            "a": "mapped",
+            "b": "proposed",
+            "minDistance": 35.070357853891366
+          },
+          {
+            "a": "mapped",
+            "b": "unhealthy",
+            "minDistance": 30.09651142574501
+          },
+          {
+            "a": "mapped",
+            "b": "unknown",
+            "minDistance": 40.94398612739116
+          },
+          {
+            "a": "proposed",
+            "b": "unhealthy",
+            "minDistance": 65.53113763700429
+          },
+          {
+            "a": "proposed",
+            "b": "unknown",
+            "minDistance": 28.935963782117227
+          },
+          {
+            "a": "unhealthy",
+            "b": "unknown",
+            "minDistance": 42.15174966712532
+          }
+        ],
+        "zeroPairs": [
+          [
+            "building",
+            "proposed"
+          ]
+        ],
+        "allPass": true
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "a": "building",
+      "b": "healthy",
+      "minDistance": 25.583588489498496
+    },
+    {
+      "a": "building",
+      "b": "mapped",
+      "minDistance": 35.070357853891366
+    },
+    {
+      "a": "building",
+      "b": "proposed",
+      "minDistance": 0
+    },
+    {
+      "a": "building",
+      "b": "unhealthy",
+      "minDistance": 65.53113763700429
+    },
+    {
+      "a": "building",
+      "b": "unknown",
+      "minDistance": 28.935963782117227
+    },
+    {
+      "a": "healthy",
+      "b": "mapped",
+      "minDistance": 48.31666379211214
+    },
+    {
+      "a": "healthy",
+      "b": "proposed",
+      "minDistance": 25.583588489498496
+    },
+    {
+      "a": "healthy",
+      "b": "unhealthy",
+      "minDistance": 46.016301459374155
+    },
+    {
+      "a": "healthy",
+      "b": "unknown",
+      "minDistance": 25.116329349648208
+    },
+    {
+      "a": "mapped",
+      "b": "proposed",
+      "minDistance": 35.070357853891366
+    },
+    {
+      "a": "mapped",
+      "b": "unhealthy",
+      "minDistance": 30.09651142574501
+    },
+    {
+      "a": "mapped",
+      "b": "unknown",
+      "minDistance": 40.94398612739116
+    },
+    {
+      "a": "proposed",
+      "b": "unhealthy",
+      "minDistance": 65.53113763700429
+    },
+    {
+      "a": "proposed",
+      "b": "unknown",
+      "minDistance": 28.935963782117227
+    },
+    {
+      "a": "unhealthy",
+      "b": "unknown",
+      "minDistance": 42.15174966712532
+    }
+  ]
+}

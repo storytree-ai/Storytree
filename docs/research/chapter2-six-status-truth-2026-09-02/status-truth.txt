@@ -1,0 +1,82 @@
+renderer: Google Inc. (Qualcomm) — ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+software=false
+
+6 statuses in the fixture: building, healthy, mapped, proposed, unhealthy, unknown
+31 island-reads judged, 0 empty (off-frame or all-background after the rect shrink)
+0 FAIL
+
+2px/unit, default centre: 5 in frame — 5 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-13   status=proposed  read=building  own=100.0% foreign=  0.0% PASS
+  crowd-story-16   status=mapped    read=mapped    own=100.0% foreign=  0.0% PASS
+  crowd-story-17   status=healthy   read=healthy   own= 94.2% foreign=  5.8% PASS
+  crowd-story-18   status=healthy   read=healthy   own= 94.0% foreign=  6.0% PASS
+  crowd-story-23   status=proposed  read=building  own=100.0% foreign=  0.0% PASS
+
+2px/unit, recentred on crowd-story-08: 6 in frame — 6 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-02   status=proposed  read=building  own=100.0% foreign=  0.0% PASS
+  crowd-story-03   status=unhealthy read=unhealthy own=100.0% foreign=  0.0% PASS
+  crowd-story-04   status=healthy   read=healthy   own= 92.0% foreign=  8.0% PASS
+  crowd-story-07   status=healthy   read=healthy   own= 93.3% foreign=  6.7% PASS
+  crowd-story-08   status=building  read=building  own=100.0% foreign=  0.0% PASS
+  crowd-story-09   status=healthy   read=healthy   own= 91.3% foreign=  8.7% PASS
+
+2px/unit, recentred on crowd-story-03: 6 in frame — 6 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-02   status=proposed  read=building  own=100.0% foreign=  0.0% PASS
+  crowd-story-03   status=unhealthy read=unhealthy own=100.0% foreign=  0.0% PASS
+  crowd-story-04   status=healthy   read=healthy   own= 92.1% foreign=  7.9% PASS
+  crowd-story-07   status=healthy   read=healthy   own= 93.4% foreign=  6.6% PASS
+  crowd-story-08   status=building  read=building  own=100.0% foreign=  0.0% PASS
+  crowd-story-09   status=healthy   read=healthy   own= 91.3% foreign=  8.7% PASS
+
+2px/unit, recentred on crowd-story-27: 8 in frame — 8 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-21   status=mapped    read=mapped    own=100.0% foreign=  0.0% PASS
+  crowd-story-22   status=proposed  read=building  own=100.0% foreign=  0.0% PASS
+  crowd-story-23   status=proposed  read=building  own=100.0% foreign=  0.0% PASS
+  crowd-story-26   status=healthy   read=healthy   own= 94.2% foreign=  5.8% PASS
+  crowd-story-27   status=unknown   read=unknown   own=100.0% foreign=  0.0% PASS
+  crowd-story-28   status=healthy   read=healthy   own= 93.7% foreign=  6.3% PASS
+  crowd-story-32   status=healthy   read=healthy   own= 91.8% foreign=  8.2% PASS
+  crowd-story-33   status=healthy   read=healthy   own= 92.9% foreign=  7.1% PASS
+
+8px/unit, default centre: 1 in frame — 1 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-17   status=healthy   read=healthy   own= 94.0% foreign=  6.0% PASS
+
+8px/unit, recentred on crowd-story-08: 1 in frame — 1 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-08   status=building  read=building  own=100.0% foreign=  0.0% PASS
+
+8px/unit, recentred on crowd-story-16: 1 in frame — 1 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-16   status=mapped    read=mapped    own=100.0% foreign=  0.0% PASS
+
+8px/unit, recentred on crowd-story-02: 1 in frame — 1 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-02   status=proposed  read=building  own=100.0% foreign=  0.0% PASS
+
+8px/unit, recentred on crowd-story-03: 1 in frame — 1 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-03   status=unhealthy read=unhealthy own=100.0% foreign=  0.0% PASS
+
+8px/unit, recentred on crowd-story-27: 1 in frame — 1 PASS, 0 FAIL, 0 EMPTY
+  crowd-story-27   status=unknown   read=unknown   own=100.0% foreign=  0.0% PASS
+
+per-status zoom coverage:
+  building   judged at: 2, 8
+  healthy    judged at: 2, 8
+  mapped     judged at: 2, 8
+  proposed   judged at: 2, 8
+  unhealthy  judged at: 2, 8
+  unknown    judged at: 2, 8
+
+the pair-separation table (minimum colour distance between every pair's delivered-colour sets):
+  building   healthy       25.58
+  building   mapped        35.07
+  building   proposed       0.00  <- ADR-0462: one token, two keys
+  building   unhealthy     65.53
+  building   unknown       28.94
+  healthy    mapped        48.32
+  healthy    proposed      25.58
+  healthy    unhealthy     46.02
+  healthy    unknown       25.12
+  mapped     proposed      35.07
+  mapped     unhealthy     30.10
+  mapped     unknown       40.94
+  proposed   unhealthy     65.53
+  proposed   unknown       28.94
+  unhealthy  unknown       42.15
