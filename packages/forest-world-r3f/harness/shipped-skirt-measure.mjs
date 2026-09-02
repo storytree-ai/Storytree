@@ -60,15 +60,34 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const URL_ = process.env['ST_SKIRT_URL'] ?? 'http://localhost:5312/shipped-skirt.html';
 const OUT =
   process.env['ST_SKIRT_OUT'] ??
-  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-skirt-tonal-range-2026-09-01');
+  join(HERE, '..', '..', '..', 'docs', 'research', 'chapter2-cliff-sea-read-2026-09-02');
 const ALLOW_SOFTWARE = process.env['ST_SKIRT_ALLOW_SOFTWARE'] === '1';
 const BATCH = Number(process.env['ST_SKIRT_BATCH'] ?? '30');
 
 /** The arm the FIRST FOUR are read against: the map before any cliff at all. */
 const CONTROL = 'flat';
-const ARMS = ['flat', 'stepped', 'rock', 'soil-over-rock', 'two-token-lit', 'two-token-deep'];
+const ARMS = [
+  'flat',
+  'stepped',
+  'rock',
+  'soil-over-rock',
+  'two-token-lit',
+  'two-token-deep',
+  'two-token-sunk',
+  'two-token-mapped',
+  'two-token-sea36',
+  'two-token-sea44',
+];
 /** The arm that SHIPS. Its refusals are the strict ones. */
 const SHIPPED_ARM = 'two-token-deep';
+/** The pair as it shipped on 2026-09-01 and was withdrawn: the shaded rock the sea swallowed. It
+ *  is the BEFORE of the re-pick, and the arm the readability instrument must be able to see fail —
+ *  an instrument that scored it as readable would be the anchor's mistake wearing a new name. */
+const SUNK_ARM = 'two-token-sunk';
+/** The ladder the shaded rock was re-picked from (ADR-0503 D3), darkest first: the fence's floor
+ *  (ships), the mapped quartile, and two lighter rungs — differing in the shaded hex and nothing
+ *  else. */
+const LADDER_ARMS = ['two-token-deep', 'two-token-mapped', 'two-token-sea36', 'two-token-sea44'];
 /** The rule that LOST, kept as an arm so the measurement that rejected it is on the page rather
  *  than only in a comment. It is NOT held to the shipped arm's refusals — a refusal on a losing
  *  arm would stop the page being able to publish a negative result. */
@@ -154,6 +173,8 @@ const result = await page.evaluate(
             struct: t.stats.struct,
             mean: t.stats.mean,
             islandPixels: t.stats.pixels,
+            // the owner's own metric — against `flat`, whatever the arm's control is (see the runner)
+            readability: r.readability(arm, size, zoom),
           });
         }
       }
@@ -269,6 +290,40 @@ if (shipped.visiblePixels === 0) {
   );
 }
 
+// ⚠⚠ THE FENCE THAT OUTRANKS EVERY NUMBER ABOVE — AGAINST THE SEA. The three statistics cannot ask
+// whether the cliff can be told from the water, and the anchor REWARDS a cliff that cannot (it
+// excludes the background and scores darker as better, right up to invisibility). PR #1792 shipped
+// through them with two thirds of the cliff merged into the sea; the owner caught it by looking.
+// `readability` is his look made an instrument: of the cliff's pixels, how many sit more than
+// ADR-0490 D6's bar from the sea, and — per column — how tall does the cliff READ.
+const sunk = at(SUNK_ARM, 'one', READ_ZOOM);
+const readOf = (row) => row.readability;
+// (1) the instrument can SEE the failure it exists for: the withdrawn pair must read as shorter
+//     than the single rock it replaced, or this rung would have passed PR #1792 too
+if (!(readOf(sunk).medianReadable < readOf(prior).medianReadable)) {
+  fail(
+    `the readability instrument scores the SUNK pair's apparent height (${readOf(sunk).medianReadable} px) ` +
+      `no lower than the single rock's (${readOf(prior).medianReadable} px) — it cannot see the failure ` +
+      'the owner saw, so nothing it says about the re-pick means anything.',
+  );
+}
+// (2) the pair that ships reads at least as tall as the single rock — the owner's own criterion,
+//     "looks thinner", turned into the number he sampled
+if (readOf(shipped).medianReadable < readOf(prior).medianReadable) {
+  fail(
+    `the ${SHIPPED_ARM} arm reads ${readOf(shipped).medianReadable} px tall against the single rock's ` +
+      `${readOf(prior).medianReadable} px — the re-pick still loses height to the sea.`,
+  );
+}
+// (3) and its cliff is readable nearly everywhere: a band the sea takes a third of is the failure
+//     shape, so the shipped arm must keep more of its cliff than the sunk one lost
+if (!(readOf(shipped).readableFraction > readOf(sunk).readableFraction)) {
+  fail(
+    `the ${SHIPPED_ARM} arm's cliff is ${(readOf(shipped).readableFraction * 100).toFixed(1)}% readable ` +
+      `against the sunk pair's ${(readOf(sunk).readableFraction * 100).toFixed(1)}% — the re-pick bought nothing.`,
+  );
+}
+
 // ── THE REPORT ─────────────────────────────────────────────────────────────────────────────────
 
 const pct = (a, b) => ((a - b) / b) * 100;
@@ -335,6 +390,35 @@ say(
     '(ADR-0490 D6); "touched" counts pixels that changed at all, and is printed beside it only so ' +
     'the two can be compared.',
 );
+say('');
+say('⚠⚠ AGAINST THE SEA — the owner’s own metric, at one island and the read zoom (band = cliff px');
+say(`   per column, read = px whose largest channel sits more than ${VISIBLE_DELTA}/255 from the water):`);
+say('  arm              band px   readable px   readable %   apparent height (px, median column)   band (px, median column)');
+for (const arm of ARMS) {
+  const rd = readOf(at(arm, 'one', READ_ZOOM));
+  say(
+    `  ${arm.padEnd(15)} ${String(rd.cliffPixels).padStart(8)} ${String(rd.readablePixels).padStart(13)} ` +
+      `${(rd.readableFraction * 100).toFixed(1).padStart(11)}% ${String(rd.medianReadable).padStart(20)}` +
+      `${String(rd.medianBand).padStart(29)}`,
+  );
+}
+say('');
+say(
+  `  the single rock read ${readOf(prior).medianReadable} px tall; the SUNK pair ${readOf(sunk).medianReadable} px ` +
+    `(${(readOf(sunk).readableFraction * 100).toFixed(0)}% of its cliff readable — what the owner saw as ` +
+    `"thinner"); the pair that ships ${readOf(shipped).medianReadable} px ` +
+    `(${(readOf(shipped).readableFraction * 100).toFixed(0)}% readable).`,
+);
+say('  THE LADDER the shaded rock was re-picked from, darkest first (ADR-0503 D3):');
+for (const arm of LADDER_ARMS) {
+  const row = at(arm, 'one', READ_ZOOM);
+  const rd = readOf(row);
+  say(
+    `    ${arm.padEnd(15)} anchor ${row.anchor.toFixed(1).padStart(6)}  STRUCT ${row.struct.toFixed(2).padStart(6)}  ` +
+      `apparent height ${String(rd.medianReadable).padStart(3)} px  readable ${(rd.readableFraction * 100).toFixed(1).padStart(5)}%` +
+      `${arm === SHIPPED_ARM ? '   <- SHIPS' : ''}`,
+  );
+}
 say('');
 say('WHAT THE ARMS SETTLE, at one island and the read zoom:');
 say(
