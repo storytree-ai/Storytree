@@ -12,10 +12,17 @@
 //
 // THE THREE ARMS, and the third is the one that makes the other two mean anything:
 //
-//   flat              the shipped ground as it draws today. The CONTROL.
-//   grass             + layer 1 of the approved ground. ZERO extra triangles, 23 extra
-//                     lattice-noise octaves per ground fragment. The layer under test.
-//   grass-amplified   the SAME layer evaluated {@link AMPLIFY_FACTOR} times over, with the
+//   flat              the ground built GENUINELY BARE — every approved layer off. The CONTROL.
+//                     ⚠ NOT "the map as it ships": since layer 1 landed the shipped shader IS
+//                     grassed, so this arm is built with `buildGrassScene`'s `bare` override.
+//   grass             + the WHOLE approved stack as the map draws it — layer 1's grass, the shore
+//                     sand, the worn path, rock on slope and the cliff-normal detail. ZERO extra
+//                     triangles; 23 extra lattice-noise octaves per ground fragment from layer 1,
+//                     plus the upper layers' own fragment work. The stack under test.
+//                     ⚠ THE `octaves` COLUMN COUNTS LAYER 1's OCTAVES ONLY, so it reads 23 for the
+//                     whole stack and cannot tell you which layers an arm wears — read
+//                     {@link LAYER_ARM_MIX} for that.
+//   grass-amplified   the SAME stack evaluated {@link AMPLIFY_FACTOR} times over, with the
 //                     geometry untouched. The SENSITIVITY CONTROL — see `land-floor.ts` rung 3.
 //
 // ⚠ THE AMPLIFIED ARM IS NOT A LOOK ARM AND MUST NEVER BE READ AS ONE. Its offsets are chosen to
@@ -63,13 +70,26 @@ export const LAND_FLOOR_AMPLIFIED: LandFloorArm = 'grass-amplified';
 export const AMPLIFY_FACTOR = 8;
 
 /**
- * WHICH GRASS MIX THE LAYER ARM WEARS.
+ * WHICH SHIPPED-GRASS ARM THE LAYER ARM IS BUILT FROM.
+ *
+ * ⚠⚠ `authored` IS THE WHOLE SHIPPED STACK, NOT A LAYER-1 STRENGTH — corrected 2026-09-02. It
+ * once meant "layer 1 at the strength the map draws", and `shipped-grass-scene.ts` widened it to
+ * {@link GRASS_ARM_LAYERS}'s `SHIPPED_STACK` when layers 2, 3, 4 and 6 landed under ADR-0503. So
+ * what this floor prices is the FINISHED ground — grass, sand, path, rock and the cliff-normal
+ * detail — against a bare control, and it has been since those layers landed. The stale wording
+ * cost a later session a false-alarm hunt for a defect that was not there
+ * (`docs/research/chapter2-ground-stack-2026-09-02/floor-rtx2060/README.md`); it is corrected here
+ * rather than annotated because nothing downstream depended on the old reading.
+ *
+ * ⚠ CONSEQUENCE FOR ANY READER OF `land-floor.ts`'s BUDGET RUNG: its "7 layers at this layer's
+ * measured cost" extrapolation is VOID for this arm. It multiplies the delta by seven as though
+ * the delta were one layer; the delta is already the whole stack. Quote the delta itself.
  *
  * ⚠ IT IS THE COST QUESTION, SO THE STRENGTH BARELY MATTERS AND THE CHOICE IS STATED ANYWAY. The
  * shader evaluates all 23 octaves whatever `uGrassMix` is — the mix is a uniform multiplying an
  * already-computed colour, not a branch around computing it — so every strength costs the same and
- * the arm could wear any of them. It wears `authored`, the strength the map now DRAWS for layer 1, so the price
- * this floor reports is the price actually being paid rather than one nobody would ship.
+ * the arm could wear any of them. It wears what SHIPS, so the price this floor reports is the price
+ * actually being paid rather than one nobody would ship.
  *
  * ⚠⚠ AND THE GATE DOES NOT CHANGE IT, which is worth saying because it reads as though it should.
  * ADR-0492's per-token gate multiplies the mix by zero on the ungated rows — it does not branch
