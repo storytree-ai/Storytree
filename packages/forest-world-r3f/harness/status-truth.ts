@@ -78,7 +78,7 @@ export type ReaderTable = Readonly<Record<string, readonly Rgb255[]>>;
 export function fullReaderTable(
   statuses: readonly string[] = SHIPPED_STATUSES,
   levels: readonly number[] = shippedLadder(),
-): ReaderTable {
+) {
   const table: Record<string, Rgb255[]> = {};
   for (const status of statuses) {
     const token = SHIPPED_GROUND_COLOUR.get(status);
@@ -87,7 +87,10 @@ export function fullReaderTable(
     }
     table[status] = levels.map((level) => deliveredForLevel(token, level));
   }
-  return table;
+  // `satisfies` rather than an annotated return type — the same seam `grain-status-reading.ts`'s
+  // `shippedReaderTable` states this way, since the annotation widens the inferred type at the
+  // boundary and `anti-slop/no-known-value-widening` fires on it.
+  return table satisfies ReaderTable;
 }
 
 /** The weighted squared distance the arc's own confusability reader searches
