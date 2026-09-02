@@ -4,6 +4,7 @@ import test from 'node:test';
 import type { CoastPoint } from './coast-clip.js';
 import {
   buildEdgeGrid,
+  MAX_GRID_BUCKETS,
   buildSegmentGrid,
   cellIndex,
   edgeBounds,
@@ -407,4 +408,26 @@ test('spanOf is INCLUSIVE at both ends, and empty when the range inverts', () =>
   // An inverted range is empty rather than enormous — `Math.max(0, ...)` is what stops a negative
   // length becoming a thrown RangeError deep inside a build.
   assert.deepEqual([...spanOf(3, 1)], []);
+});
+
+// ---------------------------------------------------------------- the bucket cap
+
+test('a grid that would need more than MAX_GRID_BUCKETS is REFUSED before it allocates', () => {
+  // A 20,000-unit chord at width 1 wants 20,001 x 20,001 buckets — four hundred million empty
+  // arrays for two edges. Refused in a microsecond, with the extent and the cell in the message
+  // so the reader sees which of the two was wrong.
+  const huge: CoastEdge[] = [{ ax: 0, az: 0, bx: 20000, bz: 20000 }];
+  assert.throws(
+    () => buildSegmentGrid(huge, 1),
+    (e: unknown) =>
+      e instanceof Error &&
+      e.message.includes('exceeds ' + String(MAX_GRID_BUCKETS)) &&
+      e.message.includes('20001 x 20001') &&
+      e.message.includes('at cell 1'),
+  );
+  // And the cap is generous for what the map actually builds: an island-sized extent at the
+  // path's 3-unit cell is a few thousand buckets, two orders under it.
+  const island: CoastEdge[] = [{ ax: 0, az: 0, bx: 234, bz: 46 }];
+  assert.doesNotThrow(() => buildSegmentGrid(island, 3));
+  assert.equal(MAX_GRID_BUCKETS, 262144);
 });
