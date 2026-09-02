@@ -21,6 +21,16 @@ ST_SKIRT_URL=http://127.0.0.1:5347/shipped-skirt.html pnpm --filter @storytree/f
 Renderer for every number here: **ANGLE / Qualcomm Adreno X1-85, D3D11** — a real GPU, not
 SwiftShader. `skirt-measurements.txt` is the run verbatim; `skirt-measurements.json` the same data.
 
+**The ground under every arm is the map as it ships after PR #1802** — the whole approved stack
+(layer 1 grass, 2 shore sand, 3 the worn path, 4 rock on slope, 6 the cliff normal as detail
+relief), through the shipped builder and at the shipped strengths. The unit was first built and
+dry-run on the pre-#1802 ground (grass alone); the numbers here are the re-run on the stacked
+ground, and the look was re-applied on it (§4). ⚠ The stack changes what the cliff stands NEXT TO,
+not the colours the cliff can deliver: layers 2/3/4 ride `grassGate`, which the skirt's rock rows
+never open, and layer 6 only moves a fragment between authored rungs of its own token's ramp — so
+the cliff's anchor and apparent height are the same on both grounds, to the pixel, and the fence
+still covers every pixel the cliff can deliver.
+
 ---
 
 ## 1. The regression, and why nothing caught it
@@ -62,9 +72,9 @@ It reproduces his finding exactly, at one island and 8 px per unit:
 
 | arm | band px | readable | readable % | **apparent height** |
 |---|---|---|---|---|
-| `rock` (single median rock) | «rock.band» | «rock.readable» | «rock.pct» | **«rock.h» px** |
-| `two-token-sunk` (shipped 09-01, WITHDRAWN) | «sunk.band» | «sunk.readable» | «sunk.pct» | **«sunk.h» px** |
-| `two-token-deep` (SHIPS — the re-pick) | «deep.band» | «deep.readable» | «deep.pct» | **«deep.h» px** |
+| `rock` (single median rock) | 18 | 35514 | 99.9% | **18 px** |
+| `two-token-sunk` (shipped 09-01, WITHDRAWN) | 18 | 12557 | 35.3% | **6 px** |
+| `two-token-deep` (SHIPS — the re-pick) | 18 | 35514 | 99.9% | **18 px** |
 
 The driver refuses three ways on it: the instrument must SEE the sunk pair as shorter than the single
 rock (or it would have passed PR #1792 too); the shipped pair must read no shorter than the single
@@ -82,20 +92,22 @@ withdrawn rock and the single rock, on the same instrument, at one island and 8 
 
 | arm | luma above the sea | anchor | STRUCT | apparent height |
 |---|---|---|---|---|
-| `two-token-sunk` (withdrawn) | 6 | «sunk.anchor» | «sunk.struct» | «sunk.h» px |
-| **`two-token-deep` — the fence's floor, SHIPS** | **21** | «deep.anchor» | «deep.struct» | «deep.h» px |
-| `two-token-mapped` — the quartile re-based onto the headroom | 28.5 | «mapped.anchor» | «mapped.struct» | «mapped.h» px |
-| `two-token-sea36` | 36 | «sea36.anchor» | «sea36.struct» | «sea36.h» px |
-| `two-token-sea44` | 44 | «sea44.anchor» | «sea44.struct» | «sea44.h» px |
+| `two-token-sunk` (withdrawn) | 6 | 29.7 | 24.94 | 6 px |
+| **`two-token-deep` — the fence's floor, SHIPS** | **21** | 46.7 | 22.19 | 18 px |
+| `two-token-mapped` — the quartile re-based onto the headroom | 28.5 | 55.6 | 20.88 | 18 px |
+| `two-token-sea36` | 36 | 64.2 | 19.60 | 18 px |
+| `two-token-sea44` | 44 | 73.3 | 18.34 | 18 px |
 | approved render (reference arm) | — | 42.65 | 30.05 | — |
 
 **The pick is the fence's own floor: 21 luma above the sea, `#2e333b`, found by search
 (`darkestShadedRock`) rather than authored** — the darkest base whose every delivered pixel still
 clears the bar on some channel (20 delivers moves OF 20 at the ladder floor — on the bar, not over
-it). By the look it is the deepest two-tone cliff that is still plainly a cliff and not the sea;
-every lighter rung compresses the pair toward the single grey rock. It is also the rung whose dark
-anchor lands nearest the approved render's (about «deep.err» luma off, against the mapped quartile's
-«mapped.err»). The owner directed bold, judged by a picture per step, with "scale it back" as his
+it). By the look — applied twice, on the grass-only ground and again on the stacked ground, with
+`ladder-crop.png` the second — it is the deepest two-tone cliff that is still plainly a cliff and
+not the sea; the withdrawn pair's base is the water, and every lighter rung compresses the pair
+toward the single grey rock. The stack did not move the choice. It is also the rung whose dark
+anchor lands nearest the approved render's (about 4.1 luma off, against the mapped quartile's
+12.9). The owner directed bold, judged by a picture per step, with "scale it back" as his
 lever (ADR-0503): the ladder is rendered, and scaling back is one constant moved to a rung already
 pictured — `mappedShadedRock` stays on the page as `two-token-mapped` for exactly that reason.
 
@@ -109,7 +121,7 @@ the pair against the span the sea permits.
 
 **It still buys separation from the statuses rather than spending it.** The re-picked rock's whole
 ramp sits below `unhealthy`'s (delivered 40.6–50.7 against 67.1–83.9), it stays the island's darkest
-value, and it clears its nearest status pixel by «deep.clear» in RGB against the single median rock's
+value, and it clears its nearest status pixel by 28.8 in RGB against the single median rock's
 9.0 — all three re-derived on every run.
 
 ## 5. The page itself moved onto the shipped builder
@@ -121,7 +133,13 @@ key an arm overrides. Two things follow: the control can no longer be a differen
 affordable — the occlusion field is the expensive half of the build and it does not depend on the
 arm, so building it per arm had pushed the mount past the driver's five-minute wait. The material is
 composed on the page (its token table carries rows the map does not draw) by mirroring
-`buildGroundMaterial`, and says so.
+`buildGroundMaterial` key for key — layer 1 and, since PR #1802, layers 2/3/4/6 through the build's
+own packed carriers (`build.shore()` / `build.wear()`, with the crowd's strips handed in so the
+path has docks) at the shipped strengths. The comment that promised the mirror is now a test:
+`harness/shipped-skirt-scene.test.ts` reads `buildGroundMaterial` and `buildSkirtScene` and fails
+when either sets a material option the other does not — the landing this README documents was
+itself cut on a branch before #1802, and would have compared cliffs on a ground that no longer
+ships had the page not been brought across in the same landing.
 
 ## 6. ⚠ The owner's test — applied, not deferred
 
@@ -152,7 +170,8 @@ ROW short, which only the size refusal can catch, and asserts its own message.
 | `src/stepped-skirt.ts` | `SKIRT_ROCK_SHADED` re-picked; `SKIRT_ROCK_SHADED_SUNK` kept for the page; `shadedRockAboveSea` / `mappedShadedRock` / `darkestShadedRock` |
 | `harness/skirt-rock-separation.test.ts` | the sea fence on every rung, its non-vacuity, the pin of the shipped hex to the search, the span the sea permits |
 | `harness/cliff-readability.ts` + `.test.ts` | the apparent-height instrument and its hostile fixtures |
-| `harness/shipped-skirt-scene.ts` | the shipped builder memoised per size; the withdrawn rock and the ladder as arms; `readability` on the runner |
+| `harness/shipped-skirt-scene.ts` | the shipped builder memoised per size; the whole ground stack mirrored onto the page's own token table; the withdrawn rock and the ladder as arms; `readability` on the runner |
+| `harness/shipped-skirt-scene.test.ts` | the page's material mirrors the canvas's key for key, reads the shipped strengths, and hands the builder the crowd's strips |
 | `harness/shipped-skirt-measure.mjs` | the three sea refusals and the readability report |
 | `src/stepped-skirt.test.ts` | the span premise re-derived against the sea |
 | `ladder.png` / `ladder-crop.png` | the owner's look: the ladder beside the withdrawn rock and the single rock |

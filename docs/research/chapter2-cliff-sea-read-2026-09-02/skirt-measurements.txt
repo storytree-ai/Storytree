@@ -1,0 +1,125 @@
+renderer: Google Inc. (Qualcomm) — ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+software=false timerQuery=true batch=30
+
+THE REFERENCE — the approved Cycles render, through this page’s own instrument
+  arm        anchor    MICRO   STRUCT     mean    pixels
+  combined   42.65    2.543   30.045   131.82   1143245
+  strata     53.65    2.497   27.295   134.37   1143260
+  bare       46.37    1.368   23.621   139.82   1142113
+
+  ⚠ THE FINDING RE-DERIVED RATHER THAN QUOTED. `combined` and `strata` are the same render
+    differing in NOTHING but the skirt material, so the gap between them is what the kit’s
+    cliff is worth:
+      STRUCT  30.05 → 27.29 (-9.2% when the kit’s rock is swapped out)
+      anchor  42.65 → 53.65 (+11.0 luma — a pale skirt spends the island’s dark anchor)
+    The research reported −9.8% of structural contrast and +7.0 luma of anchor for that swap.
+
+one · 2 px per ground unit
+  arm              vs         triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat            flat            2962        +0   260           0        0   108.06    3.481   11.176     960.3
+  stepped         flat            5562     +2600   260         217     1890   108.91    3.557   11.099     997.8
+  rock            flat            5562     +2600   260        2209     2216    69.14    3.749   17.430    1058.7
+  soil-over-rock  flat            5562     +2600   260        2170     2190    69.14    3.724   17.353    1008.1
+  two-token-lit   rock            5562     +2600   260        2205     2205   103.28    3.807   12.550    1180.0
+  two-token-deep  rock            5562     +2600   260        2205     2205    46.73    3.812   19.177    1311.0
+  two-token-sunk  rock            5562     +2600   260        2205     2205    29.65    3.857   21.563    1002.4
+  two-token-mapped rock            5562     +2600   260        1432     2205    55.59    3.789   18.029    1012.9
+  two-token-sea36 rock            5562     +2600   260         766     2205    64.23    3.764   16.901     986.6
+  two-token-sea44 rock            5562     +2600   260         766     2205    73.31    3.741   15.782     996.8
+
+one · 8 px per ground unit
+  arm              vs         triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat            flat            2962        +0   260           0        0   107.98    1.124   13.041    8313.7
+  stepped         flat            5562     +2600   260        3428    30571   108.78    1.154   12.947    8568.8
+  rock            flat            5562     +2600   260       35434    35549    69.14    1.220   20.226    8570.5
+  soil-over-rock  flat            5562     +2600   260       34486    34997    69.14    1.212   20.108    8547.9
+  two-token-lit   rock            5562     +2600   260       35399    35399   103.28    1.248   14.977    8565.7
+  two-token-deep  rock            5562     +2600   260       35399    35399    46.73    1.238   22.188    8564.4
+  two-token-sunk  rock            5562     +2600   260       35399    35399    29.65    1.253   24.936    8539.3
+  two-token-mapped rock            5562     +2600   260       23058    35399    55.59    1.231   20.876    8563.2
+  two-token-sea36 rock            5562     +2600   260       12442    35399    64.23    1.223   19.597    8562.4
+  two-token-sea44 rock            5562     +2600   260       12442    35399    73.31    1.215   18.340    8567.0
+
+forest · 2 px per ground unit
+  arm              vs         triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat            flat          103810        +0  9082           0        0    94.88    3.142   25.317    4999.4
+  stepped         flat          194630    +90820  9082        3859     8449    98.23    3.269   25.256    4912.8
+  rock            flat          194630    +90820  9082        9259     9282    69.14    3.424   28.573    4895.3
+  soil-over-rock  flat          194630    +90820  9082        9017     9101    71.14    3.411   28.480    4902.4
+  two-token-lit   rock          194630    +90820  9082        9251     9251    94.88    3.498   25.875    4895.7
+  two-token-deep  rock          194630    +90820  9082        9251     9251    47.73    3.482   29.480    4895.2
+  two-token-sunk  rock          194630    +90820  9082        9251     9251    29.94    3.523   30.958    4888.0
+  two-token-mapped rock          194630    +90820  9082        6072     9251    56.66    3.461   28.798    4869.3
+  two-token-sea36 rock          194630    +90820  9082        3279     9251    66.23    3.439   28.147    4881.5
+  two-token-sea44 rock          194630    +90820  9082        3279     9251    75.09    3.417   27.524    4866.3
+
+forest · 8 px per ground unit
+  arm              vs         triangles  (+skirt)  rim   VISIBLE px  touched   anchor    MICRO   STRUCT    GPU µs
+  flat            flat          103810        +0  9082           0        0   108.42    1.136   12.881    8515.5
+  stepped         flat          194630    +90820  9082        4043    31142   108.91    1.177   12.791    8652.1
+  rock            flat          194630    +90820  9082       35543    35728    69.14    1.234   19.980    8654.8
+  soil-over-rock  flat          194630    +90820  9082       34609    35199    69.14    1.227   19.865    8642.9
+  two-token-lit   rock          194630    +90820  9082       35480    35480   103.28    1.268   14.711    8654.2
+  two-token-deep  rock          194630    +90820  9082       35480    35480    46.73    1.250   21.939    8657.6
+  two-token-sunk  rock          194630    +90820  9082       35480    35480    29.65    1.264   24.680    8656.6
+  two-token-mapped rock          194630    +90820  9082       23195    35480    55.59    1.243   20.631    8654.2
+  two-token-sea36 rock          194630    +90820  9082       12481    35480    64.23    1.236   19.356    8652.1
+  two-token-sea44 rock          194630    +90820  9082       12481    35480    73.31    1.229   18.102    8645.8
+
+⚠ EVERY PIXEL COLUMN ABOVE IS AGAINST THE ARM'S OWN DENOMINATOR, named in the "vs" column. "VISIBLE" counts pixels whose largest channel moved by more than 20/255 (ADR-0490 D6); "touched" counts pixels that changed at all, and is printed beside it only so the two can be compared.
+
+⚠⚠ AGAINST THE SEA — the owner’s own metric, at one island and the read zoom (band = cliff px
+   per column, read = px whose largest channel sits more than 20/255 from the water):
+  arm              band px   readable px   readable %   apparent height (px, median column)   band (px, median column)
+  flat                   0             0         0.0%                    0                            0
+  stepped            30571         30536        99.9%                   17                           17
+  rock               35549         35514        99.9%                   18                           18
+  soil-over-rock     34997         34962        99.9%                   18                           18
+  two-token-lit      35549         35514        99.9%                   18                           18
+  two-token-deep     35549         35514        99.9%                   18                           18
+  two-token-sunk     35549         12557        35.3%                    6                           18
+  two-token-mapped    35549         35514        99.9%                   18                           18
+  two-token-sea36    35549         35514        99.9%                   18                           18
+  two-token-sea44    35549         35514        99.9%                   18                           18
+
+  the single rock read 18 px tall; the SUNK pair 6 px (35% of its cliff readable — what the owner saw as "thinner"); the pair that ships 18 px (100% readable).
+  THE LADDER the shaded rock was re-picked from, darkest first (ADR-0503 D3):
+    two-token-deep  anchor   46.7  STRUCT  22.19  apparent height  18 px  readable  99.9%   <- SHIPS
+    two-token-mapped anchor   55.6  STRUCT  20.88  apparent height  18 px  readable  99.9%
+    two-token-sea36 anchor   64.2  STRUCT  19.60  apparent height  18 px  readable  99.9%
+    two-token-sea44 anchor   73.3  STRUCT  18.34  apparent height  18 px  readable  99.9%
+
+WHAT THE ARMS SETTLE, at one island and the read zoom:
+  the SHAPE alone (his option C) moves STRUCT 13.04 → 12.95 (-0.7%) — six ledges in the parcel’s own colour buy no structural contrast at all.
+  the ROCK (his option A) moves it to 20.23 (55.1%), and the anchor 108.0 → 69.1.
+  SOIL OVER ROCK (his option B) lands at STRUCT 20.11 and anchor 69.1 — -0.6% of A, for 948 px of status band.
+  and the ROCK arm moves 35434 px by more than 20/255, which is 100% of the pixels it touches — so this component is not in the class ADR-0490 D6 was written for.
+
+⚠⚠ THE SECOND TOKEN — the increment this run exists for, judged against `rock` and NOT `flat`:
+  the single-token cliff reaches anchor 69.1, STRUCT 20.23, MICRO 1.22.
+  the PAIR reaches anchor 46.7 (-22.4 luma), STRUCT 22.19 (9.7%), MICRO 1.24 (1.5%).
+  and it moves 35399 px of the 35399 it touches by more than 20/255 — overstatement 1.00x, median move 30, max 38.
+  the magnitude distribution, which the count above is only a summary of:
+    1-2x                35399 px  VISIBLE
+
+
+  ⚠⚠ AND THE RULE THAT LOST, MEASURED RATHER THAN ARGUED. Selecting the shaded faces by
+     LIGHTING — the ones the ladder has saturated — is the obvious rule. It selects the
+     UNDERCUT courses, which this camera sees nearly edge-on:
+       two-token-lit   anchor 103.3 · STRUCT 14.98 · MICRO 1.25 · 35399 visible px vs rock
+       two-token-deep  anchor 46.7 · STRUCT 22.19 · MICRO 1.24 · 35399 visible px vs rock
+       the lighting rule moves the anchor 34.1 luma and the depth rule -22.4.
+
+  ⚠ THE TRIANGLE COUNT DOES NOT MOVE. The second token is a ramp ROW, not geometry:
+    rock 5562 triangles, two-token-deep 5562 — identical. The whole tonal range is bought in the material.
+
+THE GAP TO THE APPROVED PICTURE, which is the verdict this arc asks for:
+  anchor  ours 46.7 vs the render’s 42.7 — 4.1 luma LIGHTER than the picture the owner stamped.
+  STRUCT  ours 22.19 vs 30.05 — 74% of it.
+  MICRO   ours 1.24 vs 2.54 — 49% of it. The pixel-scale read is where the app’s constraints still cost the most.
+
+  and the same three numbers for the cliff that shipped BEFORE this increment, so the
+  movement toward the approved picture is readable rather than asserted:
+    anchor  rock 69.1 (26.5) → two-token-deep 46.7 (4.1) — |error| 26.5 → 4.1
+    STRUCT  67% → 74% of the render's
+    MICRO   48% → 49% of the render's
