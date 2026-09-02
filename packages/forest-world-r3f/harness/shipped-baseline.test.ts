@@ -430,18 +430,24 @@ test('the shipped ground WEARS LAYER 1 — gated per token, unconditionally, ite
     !/rows:\s*\[\s*\d/.test(src),
     'no literal row list — the gate is derived from GRASS_STATUS_GATE or it is a second ordering',
   );
-  // ⚠⚠ AND THE FACTOR MUST STAY UNDER THE MEASURED FENCE. 0.4065 is where a reachable green on
-  // the darkest rung walks out of its own family; the instrument refuses above it and there is no
-  // override. Asserted here as well as in the instrument because THIS is the value that ships,
-  // and a constant edited in this file is the one edit no reading test would otherwise see.
+  // ⚠⚠ THE FACTOR IS A RUNG OF A RENDERED LADDER, JUDGED BY THE LOOK (ADR-0506, 2026-09-03). This
+  // test used to hold it under the reader model's 0.4065 ceiling, and that fence is what kept the
+  // ground from matching the render the owner stamped — the same per-pixel proxy ADR-0503 had
+  // already demoted for every layer above this one. What the constant still owes: it is NAMED, it
+  // is above the provably invisible floor, and it never REPLACES the status colour.
   const mix = /export const SHIPPED_GRASS_MIX = ([0-9.]+);/.exec(src);
   assert.ok(mix !== null, 'the shipped mix factor must be a named constant');
   const fac = Number(mix[1]);
-  assert.ok(fac < 0.4065, `the shipped factor ${fac} is at or above the measured fence`);
-  // ⚠ AND ABOVE THE FLOOR. At the recipe's authored 0.13 the maximum channel shift on green is
+  // ⚠ ABOVE THE FLOOR. At the recipe's authored 0.13 the maximum channel shift on green is
   // 11/255, so by ADR-0490 D6's own rule nothing moves: a factor there is an adoption that
   // changes nothing visible while reading as a clean landing.
   assert.ok(fac > 0.13, `the shipped factor ${fac} is at or below the provably invisible 0.13`);
+  // ⚠ AND NEVER 1.0 — ADR-0490 D5's seam (modulate, never replace) is kept literally, as it is on
+  // the sand: some of the status token stays in every green fragment.
+  assert.ok(fac < 1, `the shipped factor ${fac} would REPLACE the status colour`);
+  // ⚠ AND THE LADDER IT WAS PICKED FROM IS NAMED BESIDE IT, so a scale-back is one edit against
+  // frames already rendered (ADR-0503 D3) rather than a re-measurement.
+  assert.match(src, /chapter2-ground-parity-2026-09-03/, 'the constant must cite the ladder it was chosen from');
 });
 
 test('the shipped ground WEARS THE OCCLUSION FIELD — unconditionally, item 6 again', () => {

@@ -534,6 +534,42 @@ export function grassGateGlsl(rows: readonly number[]): string {
   return ['float grassGate = 0.0;', ...tests].join('\n        ');
 }
 
+/** One ladder level as a GLSL literal — six places, the precision every other authored float in
+ *  this shader is written at. */
+function glslLevel(level: number): string {
+  return level.toFixed(6);
+}
+
+/** One line of the level chain. Named for the reason {@link litRemapLine} is: a mutant inside an
+ *  inline arrow body cannot be attributed to the test that kills it. */
+function levelSelectLine(i: number, level: number): string {
+  return `if (lvl == ${i}) level = ${glslLevel(level)};`;
+}
+
+/**
+ * THE FRAGMENT'S OWN LIGHTING RUNG, AS A SCALAR — the level the ramp entry the fragment landed on
+ * was built from (`token x level`, `deliveredForLevel`), recovered from `lvl` by the same
+ * comparison-chain shape {@link rampSelectGlsl} uses, and for the same GLSL ES 1.0 reason.
+ *
+ * ⚠⚠ WHY A COLOUR LAYER NEEDS IT (2026-09-03). Every layer above the ramp — the grass, the sand,
+ * the dirt, the rock — enters as `mix(c, layerColour, factor)`, and until this existed
+ * `layerColour` was the recipe's UNLIT albedo while `c` was the LIT ramp entry. At a timid factor
+ * that is invisible; at the bold factors ADR-0503 directs, it is the mechanism that flattened
+ * the ground — 85% of a fragment carrying no lighting rung at all, so the relief's banding and
+ * the contact shadow under a tree faded in proportion to how much of the recipe the ground wore.
+ * Cycles shades the composited albedo; multiplying each layer's colour by this scalar before the
+ * mix is that order on this ladder, and it is what keeps a shadow a shadow on bold ground.
+ *
+ * ⚠ IT IS EMITTED ONLY WHEN A COLOUR LAYER IS PRESENT, so an unlayered shader stays byte-identical
+ * to the one every committed figure about the banded ground was taken against.
+ */
+export function levelSelectGlsl(levels: readonly number[]): string {
+  const rest = Array.from({ length: Math.max(0, levels.length - 1) }, (_, i) =>
+    levelSelectLine(i + 1, levels[i + 1]!),
+  );
+  return [`float level = ${glslLevel(levels[0]!)};`, ...rest].join('\n        ');
+}
+
 /** One line of the LIT-rung remap. A named function rather than an expression inside a callback:
  *  the mutation rung cannot attribute a mutant inside an inline arrow body to the test that kills
  *  it, and an unattributable mutant reds the rung from inside well-covered arithmetic. */
@@ -949,8 +985,8 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         ${grassGateGlsl(grass.rows)}
 ${
   sand === undefined
-    ? '        c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);\n'
-    : `        c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);
+    ? '        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);\n'
+    : `        c = mix(c, st_grassColour(vWorld.xz) * level, uGrassMix * grassGate);
         // LAYER 2 — the shore sand, over layer 1 and masked to the beach (build_land.py:869-893).
         //
         // ⚠⚠ A SECOND SEAM RATHER THAN A BLEND INSIDE LAYER 1'S, AND THE DIFFERENCE IS THE WHOLE
@@ -975,7 +1011,7 @@ ${
         // ground units; a raw 0..1 texel would be the same expression meaning something else.
         float shoreUnits = texture2D(uShoreTex, shUv).r * uSandWidth;
         float sandBand = st_sandBand(vWorld.xz, shoreUnits, uSandWidth);
-        c = mix(c, st_sandColour(vWorld.xz), uSandMix * (1.0 - sandBand) * grassGate);
+        c = mix(c, st_sandColour(vWorld.xz) * level, uSandMix * (1.0 - sandBand) * grassGate);
 `
 }`;
   // LAYER 3, APPENDED AFTER THE GRASS STAGE (which carries the sand when there is one), so the
@@ -1005,7 +1041,7 @@ ${
         // it — the opposite sense from the sand's additive edge.
         float wearUnits = texture2D(uWearTex, shUv).r * uWearWidth;
         float wear = st_wearFactor(vWorld.xz, st_wearOf(wearUnits, uWearWidth));
-        c = mix(c, st_dirtColour(vWorld.xz), uWearMix * wear * grassGate);
+        c = mix(c, st_dirtColour(vWorld.xz) * level, uWearMix * wear * grassGate);
 `;
   // LAYER 4, APPENDED AFTER THE WEAR STAGE: rock over the path, the recipe's order.
   const rockStage =
@@ -1027,7 +1063,7 @@ ${
         // ⚠ GATED BY grassGate, so the skirt's authored rock rows — and every other ungated token
         // — are never repainted: an ungated row multiplies the whole layer by zero.
         float rockMask = st_rockMask(n.y, uRockLo, uRockHi);
-        c = mix(c, st_rockColour(vWorld.xz), uRockMix * rockMask * grassGate);
+        c = mix(c, st_rockColour(vWorld.xz) * level, uRockMix * rockMask * grassGate);
 `;
   const writeColour = grainColour
     ? `        // THE GRAIN'S COLOUR HALF — the mechanism Cycles used, and the one that BREAKS THE
@@ -1072,6 +1108,20 @@ ${
         // 1.9999998 for row 2 would otherwise select row 1 and report a foreign status.
         int idx = int(vStatus + 0.5) * ${ladder.levels.length} + lvl;`;
 
+  // THE LEVEL STAGE — the fragment's lighting rung as a scalar every colour layer multiplies its
+  // colour by before its mix (see `levelSelectGlsl`). Keyed on the GRASS alone rather than on
+  // "any layer": the sand, the dirt and the rock are each REFUSED above without the grass, so a
+  // second condition here would be a branch no material can reach. The unshadowed form has no
+  // `lvl` of its own (its index line reads `st_bandIndex` directly, and that line is pinned), so
+  // it declares one; the shadowed form's `lvl` is the remapped-and-darkened one the ramp used,
+  // which is exactly the rung a shadowed fragment's layers must wear.
+  const levelStage =
+    grass === undefined
+      ? ''
+      : (ladder === null ? '\n        int lvl = st_bandIndex(lambert);' : '') +
+        '\n        ' +
+        levelSelectGlsl(ladder === null ? lit : ladder.levels);
+
   return new ShaderMaterial({
     uniforms,
     vertexShader: `
@@ -1104,7 +1154,7 @@ ${grainNormalStage}        // Half-lambert: wrapped so the terminator lands insi
         // collapsing every back-facing pixel onto the darkest rung. Still a single scalar, so
         // the closure argument is untouched.
         float lambert = dot(n, normalize(uLightDir)) * 0.5 + 0.5;
-${indexStage}
+${indexStage}${levelStage}
         ${rampSelectGlsl(ramp.length)}
 ${grassStage}${wearStage}${rockStage}${writeColour}
       }

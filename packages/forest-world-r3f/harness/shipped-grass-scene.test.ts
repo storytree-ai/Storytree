@@ -14,8 +14,11 @@ import {
 import {
   ARC_FAMILY_TARGET,
   CONTROL_ARM,
+  CONTROL_GRASS_MIX,
   FAMILY_FLOOR,
   GRASS_ARMS,
+  ROCK_VEINS,
+  armGrassMix,
   GRASS_ARM_CAPTION,
   GRASS_ARM_LAYERS,
   GRASS_ARM_MIX,
@@ -88,43 +91,59 @@ test('the control arm asks for NO SAND, rather than for sand at zero', () => {
   // and still costs six octaves a fragment, so it is not the ground the map is drawing.
   assert.equal(armWearsSand(CONTROL_ARM), false);
   assert.equal(GRASS_ARM_SAND[CONTROL_ARM], false);
-  // And it DOES wear layer 1, at exactly the shipped strength — read from the constant, so the
-  // control cannot come apart from the map it is standing in for.
-  assert.deepEqual(armGrass(CONTROL_ARM), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
+  // And it DOES wear layer 1 — at the PRE-PARITY strength, pinned as a literal (ADR-0506), so the
+  // control stays the arm every committed table on this arc was read against rather than moving
+  // with the rung under test.
+  assert.deepEqual(armGrass(CONTROL_ARM), { mix: CONTROL_GRASS_MIX, rows: GRASS_GATE_ROWS });
+  assert.equal(CONTROL_GRASS_MIX, 0.32, 'the control is layer 1 as PR #1798 shipped it');
 });
 
-test('the CONTROL is the map as it ships, and every arm carries a caption', () => {
-  // ⚠ THE CONTROL IS NO LONGER "no grass". Layer 1 SHIPS (PR #1798), so the thing layer 2 is
+test('the CONTROL is the map as it shipped before the ladders, and every arm carries a caption', () => {
+  // ⚠ THE CONTROL IS NO LONGER "no grass". Layer 1 SHIPS (PR #1798), so the thing every ladder is
   // measured against is the map WITH layer 1 — a control of bare ground would report layer 1's
-  // effect as layer 2's, which is this arc's second named hazard arriving through the arms.
-  assert.equal(GRASS_ARM_MIX[CONTROL_ARM], SHIPPED_GRASS_MIX);
+  // effect as another layer's, which is this arc's second named hazard arriving through the arms.
+  // ⚠ AND IT IS NOT `SHIPPED_GRASS_MIX` ANY MORE: since ADR-0506 that constant is itself a rung of
+  // a ladder on this page, and a control that followed it would measure the rung against itself.
+  assert.equal(GRASS_ARM_MIX[CONTROL_ARM], CONTROL_GRASS_MIX);
   assert.equal(GRASS_ARM_SAND[CONTROL_ARM], false, 'the control must wear no sand');
   for (const arm of GRASS_ARMS) {
     assert.ok(GRASS_ARM_CAPTION[arm].length > 20, `arm ${arm} has no caption a reader can use`);
   }
 });
 
-test('⚠ `flat` and `authored` differ in EXACTLY the sand — same factor, opposite sand', () => {
-  // The attributable pair. Any pixel between these two arms is layer 2 and nothing else; if they
-  // drifted apart on the mix factor as well, every difference would be unattributable and the page
-  // would be reporting a sum while captioning it as a component.
-  assert.equal(GRASS_ARM_MIX.authored, GRASS_ARM_MIX.flat);
+test('⚠ every ladder varies ONE thing: the grass ladder moves layer 1, every other arm holds what ships', () => {
+  // `authored` IS the map: its grass is the shipped constant. Every arm above the grass ladder
+  // reads the same constant, so the sand, path, rock and detail ladders are measured over the
+  // grass the map actually draws. The grass ladder is the one family whose factor moves, and it
+  // holds every layer ABOVE it at what ships.
   assert.equal(GRASS_ARM_MIX.authored, SHIPPED_GRASS_MIX);
+  assert.equal(armGrassMix('authored'), SHIPPED_GRASS_MIX);
+  const grassLadder = GRASS_ARMS.filter((arm) => arm.startsWith('grass-'));
+  assert.deepEqual(grassLadder.map((arm) => GRASS_ARM_MIX[arm]), [0.32, 0.55, 0.7, 0.85, 0.95]);
+  for (const arm of grassLadder) assert.deepEqual(GRASS_ARM_LAYERS[arm], GRASS_ARM_LAYERS.authored);
+  for (const arm of GRASS_ARMS) {
+    if (arm === CONTROL_ARM || arm.startsWith('grass-')) continue;
+    assert.equal(GRASS_ARM_MIX[arm], SHIPPED_GRASS_MIX, `${arm} must hold the shipped grass`);
+  }
+  // ⚠ THE SHIPPED PICK IS A RUNG — a scale-back is one edit against a frame already rendered
+  // (ADR-0503 D3), never a re-measurement.
+  assert.ok(grassLadder.some((arm) => GRASS_ARM_MIX[arm] === SHIPPED_GRASS_MIX), 'the constant must be a rung of its own ladder');
+  // The control is the one sand-less arm; the sand ladder is ascending and fixed.
   assert.notEqual(GRASS_ARM_SAND.authored, GRASS_ARM_SAND.flat);
-  // ⚠ THE PAGE IS THE PAIR PLUS A STRENGTH LADDER (owner-directed 2026-09-02): every arm wears
-  // layer 1 at the shipped factor, so the ONLY thing that varies across the row is layer 2's
-  // strength, and the control is the one arm with none.
-  for (const arm of GRASS_ARMS) assert.equal(GRASS_ARM_MIX[arm], SHIPPED_GRASS_MIX);
   assert.deepEqual(GRASS_ARMS.filter((arm) => !GRASS_ARM_SAND[arm]), ['flat']);
-  // The shipped arm reads the constant; the ladder is ascending and fixed.
   assert.equal(GRASS_ARM_SAND_MIX.authored, SHIPPED_SAND_MIX);
   const ladder = GRASS_ARMS.filter((arm) => arm.startsWith('sand-')).map((arm) => GRASS_ARM_SAND_MIX[arm]);
   assert.deepEqual(ladder, [0.16, 0.4, 0.65, 0.9]);
+  // The rock re-pick arm: the whole shipped stack with the 2026-09-02 veins in place of the ends
+  // the map wears, and nothing else moved.
+  assert.deepEqual(GRASS_ARM_LAYERS['rock-veins'], { ...GRASS_ARM_LAYERS.authored, rock: ROCK_VEINS });
+  assert.deepEqual(ROCK_VEINS.slope, [0.88, 0.95]);
+  assert.notDeepEqual(SHIPPED_LAYERS.rock.slope, ROCK_VEINS.slope, 'the map no longer wears the veins');
 });
 
 test('an arm`s grass option is the mix and the SHIPPED gate — the gate never varies', () => {
   assert.deepEqual(armGrass('authored'), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
-  assert.deepEqual(armGrass('flat'), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
+  assert.deepEqual(armGrass('flat'), { mix: CONTROL_GRASS_MIX, rows: GRASS_GATE_ROWS });
   // Every arm gates the SAME rows, control included — the gate is not a variable on this page.
   for (const arm of GRASS_ARMS) assert.deepEqual(armGrass(arm)?.rows, GRASS_GATE_ROWS);
   // And the sand flags are the control alone off, every other arm on — the path, rock and detail
