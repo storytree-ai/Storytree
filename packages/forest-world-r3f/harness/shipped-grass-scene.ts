@@ -46,8 +46,12 @@ import {
   shippedGroundBuild,
   GRASS_GATE_ROWS,
   SHIPPED_GRASS_MIX,
+  SHIPPED_LAYERS,
+  SHIPPED_SAND_MIX,
+  type GroundLayerExtras,
 } from '../src/ForestWorldCanvas.js';
-import type { GroundGrassLayer } from '../src/banded-ground-material.js';
+import type { GroundGrassLayer, GroundRockLayer } from '../src/banded-ground-material.js';
+import { WEAR_OCTAVES } from '../src/land-wear.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
 import {
   GROUND_ATLAS_ATTRIBUTE,
@@ -73,6 +77,7 @@ import {
   crowdCells,
   crowdPxPerUnit,
   crowdSize,
+  crowdStrips,
   orientedCamera,
   type CrowdSize,
   type CrowdSizeId,
@@ -85,13 +90,54 @@ import {
  * layer 1 can deliver against the house reader model and reports two things per mix factor: does
  * every status still read as itself, and which ladder rungs survive if not.
  */
-export type GrassArm = 'flat' | 'authored';
+export type GrassArm =
+  | 'flat'
+  | 'authored'
+  | 'sand-16'
+  | 'sand-40'
+  | 'sand-65'
+  | 'sand-90'
+  | 'path-50'
+  | 'path-80'
+  | 'path-100'
+  | 'rock-recipe'
+  | 'rock-88-95'
+  | 'rock-92-98'
+  | 'detail-30'
+  | 'detail-60'
+  | 'detail-100';
 
 /** The arm every pixel figure is read against: the shipped map exactly as it draws today, with no
  *  grass at all. */
 export const CONTROL_ARM: GrassArm = 'flat';
 
-export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'authored'];
+/**
+ * THE CONTROL, WHAT SHIPS, AND A STRENGTH LADDER — owner-directed 2026-09-02.
+ *
+ * ⚠⚠ THE LADDER EXISTS BECAUSE THE OWNER SAID THE SESSIONS WERE TOO CONSERVATIVE. Layer 2 was
+ * adopted at 0.16 — its reader-model ceiling — and at that strength the largest channel shift is
+ * 15/255: a beach nobody can see. He asked for the layers to be applied ADVENTUROUSLY, with a
+ * picture per step and "scale it back" as his lever. So the page now carries four strengths in one
+ * row — the fenced 0.16 beside three bolder ones — and `authored` is whatever SHIPS, read from the
+ * constant, so the picture under that caption is always the map.
+ */
+export const GRASS_ARMS: readonly GrassArm[] = [
+  'flat',
+  'authored',
+  'sand-16',
+  'sand-40',
+  'sand-65',
+  'sand-90',
+  'path-50',
+  'path-80',
+  'path-100',
+  'rock-recipe',
+  'rock-88-95',
+  'rock-92-98',
+  'detail-30',
+  'detail-60',
+  'detail-100',
+];
 
 /**
  * WHAT EACH ARM MIXES IN — the seam strength layers 1 and 2 BOTH enter through.
@@ -113,26 +159,109 @@ export const GRASS_ARMS: readonly GrassArm[] = ['flat', 'authored'];
  * gate removed it, while this one is a property of how far the LADDER reaches and layer 2 already
  * inherits the gate.
  */
-export const GRASS_ARM_MIX = {
-  flat: SHIPPED_GRASS_MIX,
-  authored: SHIPPED_GRASS_MIX,
-} satisfies Record<GrassArm, number | null>;
+export const GRASS_ARM_MIX: Record<GrassArm, number | null> = Object.fromEntries(
+  GRASS_ARMS.map((arm) => [arm, SHIPPED_GRASS_MIX]),
+) as Record<GrassArm, number | null>;
 
-/** Which arms wear LAYER 2. `flat` is the CONTROL — the map exactly as it ships today, layer 1
- *  and no sand — so the comparison is layer 2 against what is drawn now rather than against bare
- *  ground. */
-export const GRASS_ARM_SAND = {
-  flat: false,
-  authored: true,
-} satisfies Record<GrassArm, boolean>;
+/**
+ * WHAT EACH ARM WEARS ABOVE THE GRASS — one row per arm, one LADDER per layer.
+ *
+ * ⚠⚠ EVERY LADDER VARIES EXACTLY ONE THING and holds the layers BELOW it at what SHIPS, so a pixel
+ * between two rungs is attributable to that rung's number and nothing else: the sand ladder wears
+ * sand only; the path ladder wears the shipped sand plus a path strength; the rock ladder wears the
+ * shipped sand and path plus a rock rung; the detail ladder wears all three shipped plus a detail
+ * strength. `authored` is the whole shipped stack, read from the canvas's constants so the picture
+ * under that caption is always the map; `flat` is the control (layer 1 only).
+ *
+ * `sand` is `uSandMix` — the share of the recipe's sand colour a fragment at the waterline wears
+ * (`mix(c, sand, uSandMix * (1 - band))`, so 1.0 at the coast is the recipe's own pure sand).
+ * `wear` is `uWearMix` ON the path. `rock` is the mix and the slope ends `[lo, hi]` on the
+ * normal's up-component (the recipe's [0.72, 0.90] bite only on the beach's ring chain on this
+ * mesh, so the other rungs are the stated departure that reaches the interior). `detail` is the
+ * cliff normal's strength (the recipe's 0.30 is the provenance rung).
+ */
+export interface ArmLayers {
+  sand: number | null;
+  wear: number | null;
+  rock: GroundRockLayer | null;
+  detail: number | null;
+}
+
+const NONE: ArmLayers = { sand: null, wear: null, rock: null, detail: null };
+const SHIPPED_STACK: ArmLayers = {
+  sand: SHIPPED_SAND_MIX,
+  wear: SHIPPED_LAYERS.wearMix,
+  rock: SHIPPED_LAYERS.rock,
+  detail: SHIPPED_LAYERS.detail.strength,
+};
+const sandOnly = (sand: number): ArmLayers => ({ ...NONE, sand });
+const pathRung = (wear: number): ArmLayers => ({ ...NONE, sand: SHIPPED_SAND_MIX, wear });
+const rockRung = (rock: GroundRockLayer): ArmLayers => ({
+  ...NONE,
+  sand: SHIPPED_SAND_MIX,
+  wear: SHIPPED_LAYERS.wearMix,
+  rock,
+});
+const detailRung = (detail: number): ArmLayers => ({ ...SHIPPED_STACK, detail });
+
+export const GRASS_ARM_LAYERS = {
+  flat: NONE,
+  authored: SHIPPED_STACK,
+  'sand-16': sandOnly(0.16),
+  'sand-40': sandOnly(0.4),
+  'sand-65': sandOnly(0.65),
+  'sand-90': sandOnly(0.9),
+  'path-50': pathRung(0.5),
+  'path-80': pathRung(0.8),
+  'path-100': pathRung(1.0),
+  'rock-recipe': rockRung({ mix: 0.9, slope: [0.72, 0.9] }),
+  'rock-88-95': rockRung({ mix: 0.9, slope: [0.88, 0.95] }),
+  'rock-92-98': rockRung({ mix: 0.9, slope: [0.92, 0.98] }),
+  'detail-30': detailRung(0.3),
+  'detail-60': detailRung(0.6),
+  'detail-100': detailRung(1.0),
+} satisfies Record<GrassArm, ArmLayers>;
+
+/**
+ * LAYER 2's STRENGTH PER ARM — `null` is NO SAND (the control). Derived from the layer table so
+ * the two cannot disagree; kept as its own export because the sand ladder's tests read it.
+ */
+export const GRASS_ARM_SAND_MIX: Record<GrassArm, number | null> = Object.fromEntries(
+  GRASS_ARMS.map((arm) => [arm, GRASS_ARM_LAYERS[arm].sand]),
+) as Record<GrassArm, number | null>;
+
+/** Which arms wear LAYER 2 — derived from the strength table, so the two cannot disagree. `flat`
+ *  is the CONTROL: the map exactly as it shipped before layer 2, layer 1 and no sand, so the
+ *  comparison is layer 2 against what is drawn now rather than against bare ground. */
+export const GRASS_ARM_SAND: Record<GrassArm, boolean> = Object.fromEntries(
+  GRASS_ARMS.map((arm) => [arm, GRASS_ARM_LAYERS[arm].sand !== null]),
+) as Record<GrassArm, boolean>;
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
 export const GRASS_ARM_CAPTION = {
   flat: 'the map as it SHIPPED before layer 2 — layer 1 at 0.32 on the green islands (CONTROL)',
   authored:
-    'layers 1+2 — the grass unchanged at 0.32, plus the shore sand at its measured ceiling 0.16 ' +
-    'over the owner-directed 9-unit beach. Every colour still reads as its own status',
+    `the whole stack as it SHIPS — grass 0.32, sand ${SHIPPED_SAND_MIX}, path ${SHIPPED_LAYERS.wearMix}, ` +
+    `rock ${SHIPPED_LAYERS.rock.mix} on [${SHIPPED_LAYERS.rock.slope.join(', ')}], detail ` +
+    `${SHIPPED_LAYERS.detail.strength}`,
+  'sand-16':
+    'sand at 0.16 — the reader-model ceiling layer 2 was first adopted at; largest possible ' +
+    'shift 15/255, so the beach is a tint',
+  'sand-40': 'sand at 0.40 — past the visibility bar; the beach reads, the green still bleeds through',
+  'sand-65': 'sand at 0.65 — the beach is unmistakably sand with the island’s green in it',
+  'sand-90': 'sand at 0.90 — near the recipe’s own pure sand at the waterline',
+  'path-50': 'the worn path at 0.50 over the shipped sand — dirt along the trail docks, half strength',
+  'path-80': 'the worn path at 0.80 — the track reads as dirt with green through it',
+  'path-100': 'the worn path at 1.00 — the recipe’s own pure dirt on the track',
+  'rock-recipe':
+    'rock at 0.9 on the recipe’s own ends [0.72, 0.90] — on this mesh that is the beach’s ring ' +
+    'chain and nothing inland',
+  'rock-88-95': 'rock at 0.9 on [0.88, 0.95] — the interior’s steepest swells start to wear rock',
+  'rock-92-98': 'rock at 0.9 on [0.92, 0.98] — most of the interior’s relief wears some rock',
+  'detail-30': 'the cliff normal at the recipe’s 0.30 over the shipped stack — surface break-up',
+  'detail-60': 'the cliff normal at 0.60 — the break-up reads at the zoomed frame',
+  'detail-100': 'the cliff normal at 1.00 — the map’s striation shows through',
 } satisfies Record<GrassArm, string>;
 
 /** One island, and the thirty-five-island forest. A ground treatment is read at BOTH: a layer that
@@ -167,6 +296,8 @@ export interface GrassPlan {
   octaves: number;
   /** Layer 2's own octaves per ground fragment, over layer 1's. Zero on the control. */
   sandOctaves: number;
+  /** Layer 3's own octaves (the break noise), over layers 1 and 2. Zero where no path is worn. */
+  wearOctaves: number;
   mix: number | null;
 }
 
@@ -203,6 +334,16 @@ export function armWearsSand(arm: GrassArm): boolean {
   return GRASS_ARM_SAND[arm];
 }
 
+/** Layer 2's strength on this arm — `null` for an arm that wears no sand. */
+export function armSandMix(arm: GrassArm): number | null {
+  return GRASS_ARM_SAND_MIX[arm];
+}
+
+/** Everything this arm wears above the grass. */
+export function armLayers(arm: GrassArm): ArmLayers {
+  return GRASS_ARM_LAYERS[arm];
+}
+
 /**
  * ONE ARM'S SCENE — the SHIPPED pipeline entire, with the grass mix as the only moving part.
  *
@@ -229,7 +370,10 @@ export function buildGrassScene(
 ): GrassScene {
   const cells: InstanceDescriptor[] = crowdCells(size);
   const casters = crowdCasters(size);
-  const { field, shore, input } = shippedGroundBuild(cells, casters);
+  // ⚠ THE STRIPS ARE THE CROWD'S OWN TWO LANDINGS PER ISLAND (`crowdStrips`), so layer 3's
+  // connector has docks to join and the wear field the builder returns is not trivially empty.
+  const strips = crowdStrips(size);
+  const { field, shore, wear, input } = shippedGroundBuild(cells, casters, strips);
   const geo = cellGroundGeometry(input);
   if (geo.triangles === 0) throw new Error('shipped-grass-scene: the crowd drew no ground');
 
@@ -250,7 +394,29 @@ export function buildGrassScene(
   // already gets. It is offered only to the arms that wear layer 2.
   // ⚠ THE THUNK IS CALLED ONLY FOR AN ARM THAT WEARS LAYER 2 — the field costs 54 s at forest
   // scale, so an eager call here would make even the CONTROL arm pay for a layer it does not draw.
-  const { material } = buildGroundMaterial(field, grass, !bare && armWearsSand(arm) ? shore() : null);
+  // ⚠ THE STRENGTH IS THE ARM'S OWN, passed explicitly: an arm that wears sand names how much,
+  // and an arm that wears none is handed no field at all (absent, not zero — a zeroed sand option
+  // still emits the sand source and costs its octaves, so it is not the map).
+  const sandMix = armSandMix(arm);
+  // ⚠ LAYERS 3, 4 AND 6 THE SAME WAY: each thunk is called only for an arm that wears the layer,
+  // and each option is assigned BY STATEMENT so an arm without it hands the material no key at
+  // all (absent, never zero — a zeroed option still emits the layer's source and costs its
+  // octaves, which is not the map the caption names).
+  const layers = bare ? NONE : armLayers(arm);
+  const extras: GroundLayerExtras = {};
+  if (layers.wear !== null) {
+    const wearField = wear();
+    if (wearField !== null) extras.wear = { field: wearField, mix: layers.wear };
+  }
+  if (layers.rock !== null) extras.rock = layers.rock;
+  if (layers.detail !== null) extras.detail = { strength: layers.detail };
+  const { material } = buildGroundMaterial(
+    field,
+    grass,
+    !bare && sandMix !== null ? shore() : null,
+    sandMix ?? undefined,
+    extras,
+  );
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
@@ -276,6 +442,7 @@ export function buildGrassScene(
       // total cannot say which layer an arm is carrying. The control's correct sand count is 0
       // while its grass count is 23 — one number could not express that.
       sandOctaves: !bare && armWearsSand(arm) ? SAND_OCTAVES : 0,
+      wearOctaves: extras.wear === undefined ? 0 : WEAR_OCTAVES,
       mix: GRASS_ARM_MIX[arm],
     },
   };

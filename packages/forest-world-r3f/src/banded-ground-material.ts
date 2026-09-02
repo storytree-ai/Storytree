@@ -60,8 +60,9 @@ import {
   grainStops,
 } from './land-grain.js';
 import { grassGlsl } from './land-grass.js';
+import { rockGlsl } from './land-rock.js';
 import { sandGlsl } from './land-sand.js';
-import { SAND_FIELD_WIDTH } from './shore-atlas.js';
+import { wearGlsl } from './land-wear.js';
 import { type ShadowField } from './land-shadow.js';
 import { atlasScale, type AtlasField } from './shadow-atlas.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, deliveredForLevel } from './shade-ladder.js';
@@ -207,6 +208,106 @@ export interface GroundSandLayer {
   width: number;
 }
 
+/**
+ * LAYER 3 OF THE APPROVED GROUND: the worn path and the distance field that carries it
+ * (`src/land-wear.ts`, transcribed from `build_land.py`'s `mat_attribute()` for the colour and
+ * `build_land_grid()` for the wear scalar).
+ *
+ * ⚠ THE SAND'S SHAPE, FOR THE SAND'S REASONS. It is its own seam with its own factor, because one
+ * shared factor has one joint ceiling and the path's admissible strength is a measurement of its
+ * own; it rides the packed atlas's `shUv`, because a second packing would be a second answer to
+ * "where is this island"; and the texel is decoded to ground units through the same width the
+ * field was built for, because `st_wearOf` is an arithmetic in ground units.
+ *
+ * ⚠⚠ WHAT IT DOES NOT DELIVER, named so the gap is known rather than quiet (`land-wear.ts`'s
+ * header carries the detail): the recipe's geometry dip under the path (`z -= 0.30 * wear`,
+ * `:496`) and the prop-exclusion mask (`:1046`). This is the COLOUR of a worn track; the mesh is
+ * not lowered under it and nothing here keeps a tree off it.
+ *
+ * ⚠ IT NEEDS THE GRASS AND THE PACKED ATLAS, and is refused without either — the dirt ramp is
+ * driven by layer 1's own base scalar and the break noise reuses the one lattice hash, and the
+ * field has no per-island coordinate to ride under the rect occlusion form.
+ */
+export interface GroundWearLayer {
+  /** The packed distance-to-path field, over the OCCLUSION atlas's own tiles. Single-channel
+   *  bytes encoding `distance / width`; the shader decodes to ground units. */
+  field: Texture;
+  /** How much of the dirt colour enters the delivered pixel, ON the path. No default, for the
+   *  reason the sand's has none: the admissible value is read off a rendered ladder (ADR-0503),
+   *  and a caller that has not looked has nothing to inherit. */
+  mix: number;
+  /**
+   * The path's falloff in ground units — the distance at which wear reaches 0 — AND the width
+   * the field was encoded for. ONE number, on purpose: `st_wearOf` reaches zero at exactly the
+   * distance the field caps at, so a widened path cannot read a field that has already
+   * flattened, which would deliver a track that stops dead and steps. The recipe's own 3.0
+   * (`WEAR_FALLOFF`) is the provenance rung; a uniform rather than a written-in constant so a
+   * page comparing widths compiles ONE shader.
+   */
+  width: number;
+}
+
+/**
+ * LAYER 4 OF THE APPROVED GROUND: rock on anything steep (`src/land-rock.ts`, transcribed from
+ * `build_land.py:912-925`, `mat_attribute()`).
+ *
+ * ⚠ DRIVEN BY THE SURFACE'S OWN NORMAL, NOT BY A NOISE — the recipe's own comment. It samples
+ * no field and adds no octave: the mask is a ramp on the normal's up-component the shader
+ * already holds.
+ *
+ * ⚠⚠ THE RAMP ENDS ARE OPTIONS BECAUSE OF A MEASURED FACT. On the shipped mesh the interior's
+ * up-component never drops below 0.91 (`interiorMinimumUp()`), so the recipe's 0.72 / 0.90 bite
+ * only on the beach's ring chain, whose authored fall is the one steep place. Which ends the map
+ * wears is therefore a ladder the owner reads (ADR-0503), and `ROCK_SLOPE_RAMP` is the provenance
+ * those rungs are stated against — never a taste value baked in here.
+ *
+ * ⚠ A NAMED DEPARTURE: the mask reads the grain-PERTURBED normal. Cycles' `Geometry.Normal` is
+ * the unbumped one; here the relieved normal is what the stage holds, so the mask carries a
+ * little of the grain's relief. Recorded on both sides of the seam so neither mistakes it for
+ * the recipe.
+ *
+ * ⚠ IT NEEDS THE GRASS, and is refused without it: the rock ramp is driven by layer 1's own base
+ * scalar, which only the grass source declares.
+ */
+export interface GroundRockLayer {
+  /** How much of the rock colour enters the delivered pixel where the mask is 1. No default —
+   *  a rung of the rendered ladder, like every strength on this material. */
+  mix: number;
+  /** The slope ramp's two ends `[lo, hi]` on the normal's up-component: at or below `lo` full
+   *  rock, at or above `hi` none. The ramp FALLS with the up-component. Uploaded as two uniforms
+   *  so a page comparing rungs varies two numbers on ONE compiled shader. */
+  slope: readonly [number, number];
+}
+
+/**
+ * LAYER 6 OF THE APPROVED GROUND: the bought kit's cliff normal map as DETAIL RELIEF — "its
+ * relief, not its colour" (`build_land.py:943-965`, `mat_attribute()`;
+ * `src/detail-normal-texture.ts` owns the texture and the two recipe numbers).
+ *
+ * ⚠⚠ IT PERTURBS THE NORMAL BEFORE THE GRAIN'S BUMP, which is the recipe's own order
+ * (NormalMap → Bump) and not merely a convenient place: the grain relieves an already-detailed
+ * normal, so the two reliefs compose the way the approved render composed them.
+ *
+ * ⚠ IT TOUCHES NO COLOUR. Like the grain's normal half it moves the lambert before the
+ * quantiser, so on an ungrassed material it can only move a fragment between authored rungs of
+ * its own token's ramp — the palette closure is untouched by this layer.
+ *
+ * ⚠ IT NEEDS THE GRAIN, and is refused without it: it bends the normal the grain stage then
+ * reads, and it samples the world position that stage is what carries through.
+ */
+export interface GroundDetailLayer {
+  /** The tiling normal map, linear data (`detailNormalTexture()`). */
+  map: Texture;
+  /** How far the sampled tangent-space normal bends the surface normal. The recipe's 0.30
+   *  (`DETAIL_STRENGTH_RECIPE`) is provenance; the shipped value is a rung of the rendered
+   *  ladder. At 0.55 the recipe names the failure: the map's striation shows as whorls. */
+  strength: number;
+  /** Ground units one repeat of the map covers (`DETAIL_TILE_UNITS`, 2.4 — the plane's UV is
+   *  `xy / 6` under a Mapping scale of 2.5, so NOT a 2.5-unit tile). Sampled at
+   *  `vWorld.xz / tile`. */
+  tile: number;
+}
+
 export interface BandedGroundMaterialOptions {
   /** The authored `#rrggbb` ground token for each ramp ROW, in row order. Row `i` is what a
    *  vertex carrying `statusIndex === i` wears. The caller owns the ordering and must use the
@@ -235,6 +336,27 @@ export interface BandedGroundMaterialOptions {
    *  combination rather than emitting a shader that will not link or one that samples a field
    *  through coordinates nothing computed. */
   sand?: GroundSandLayer;
+  /** WEAR the approved ground's LAYER 3 — the worn path. See {@link GroundWearLayer}; absent
+   *  leaves the emitted source byte-identical.
+   *
+   *  ⚠ IT REQUIRES {@link grass} AND {@link shadowAtlas}, for the sand's two reasons: its ramp
+   *  and break noise call what only the grass source declares, and its field rides the packed
+   *  atlas's own per-island coordinate. Refused rather than repaired either way. */
+  wear?: GroundWearLayer;
+  /** WEAR the approved ground's LAYER 4 — rock on slope. See {@link GroundRockLayer}; absent
+   *  leaves the emitted source byte-identical.
+   *
+   *  ⚠ IT REQUIRES {@link grass}: the rock ramp is driven by layer 1's own base scalar. It needs
+   *  no atlas — the mask is the normal, which every fragment already holds. */
+  rock?: GroundRockLayer;
+  /** WEAR the approved ground's LAYER 6 — the cliff normal map as detail relief. See
+   *  {@link GroundDetailLayer}; absent leaves the emitted source byte-identical.
+   *
+   *  ⚠ IT REQUIRES {@link grain}: it perturbs the normal BEFORE the grain-normal stage (the
+   *  recipe's NormalMap → Bump order) and samples the world position that stage carries
+   *  through. Refused without it rather than emitting a stage that reads a varying nothing
+   *  declared. */
+  detail?: GroundDetailLayer;
   /** RECEIVE the ground-space occlusion field — the cast shadows and contact pools of whatever
    *  stands on this land, merged into one scalar. Absent means this material is not shadowed and
    *  its ramp stays the four authored rungs, so an unshadowed island delivers exactly the pixels
@@ -533,6 +655,46 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
         'atlas’s own tiles, and there is no per-island coordinate without it',
     );
   }
+  const wear = opts.wear;
+  // ⚠ REFUSED FOR THE SAND'S REASON, ONE LAYER ON. `wearGlsl()` calls `st_grassScalar` and
+  // `st_grassSrgb` (the dirt ramp is driven by layer 1's base scalar) and `st_grainOctave` (the
+  // break noise reuses the one lattice hash), which only the grass and grain sources declare.
+  if (wear !== undefined && grass === undefined) {
+    throw new Error(
+      'banded-ground-material: the wear layer needs the grass — its dirt ramp is driven by ' +
+        'layer 1’s own base scalar and its break noise by the one lattice hash, which only the ' +
+        'grass source declares',
+    );
+  }
+  // ⚠ AND THE PACKED ATLAS, like the sand: the distance field is sampled through the SAME `shUv`
+  // the shadow computes, so without the atlas form there is no per-island tile to ride.
+  if (wear !== undefined && opts.shadowAtlas === undefined) {
+    throw new Error(
+      'banded-ground-material: the wear layer needs the PACKED occlusion atlas — its distance ' +
+        'field rides that atlas’s own tiles, and there is no per-island coordinate without it',
+    );
+  }
+  const rock = opts.rock;
+  // ⚠ REFUSED FOR THE SAME REASON. `rockGlsl()` calls `st_grassScalar` and `st_grassSrgb`. It
+  // needs NO atlas: the mask is the normal, which every fragment holds already.
+  if (rock !== undefined && grass === undefined) {
+    throw new Error(
+      'banded-ground-material: the rock layer needs the grass — its ramp is driven by layer 1’s ' +
+        'own base scalar, which only the grass source declares',
+    );
+  }
+  const detail = opts.detail;
+  // ⚠ REFUSED WITHOUT THE GRAIN. The detail stage bends the normal the grain stage then relieves
+  // (the recipe's NormalMap → Bump order), and it samples `vWorld`, which only the grain or a
+  // shadow carries through. Turning the grain on to repair it would hand the caller a component
+  // it did not ask for; emitting the stage alone would read a varying nothing declared.
+  if (detail !== undefined && !grained) {
+    throw new Error(
+      'banded-ground-material: the detail normal needs the grain — it bends the normal the ' +
+        'grain stage then relieves (the recipe’s NormalMap → Bump order), and it samples the ' +
+        'world position that stage carries through',
+    );
+  }
   const strayRow = grass?.rows.find((row) => !Number.isInteger(row) || row < 0 || row >= opts.tokens.length);
   if (strayRow !== undefined) {
     throw new Error(
@@ -585,6 +747,33 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     sandUniforms['uSandMix'] = { value: sand.mix };
     sandUniforms['uSandWidth'] = { value: sand.width };
   }
+  // Layer 3's field and two factors, by statement for the same two reasons: an unworn material
+  // must carry NO `uWear*` uniform at all, and the shorter spellings are refused by the
+  // anti-slop rules. The WIDTH is uploaded, never written in — it is the number a page comparing
+  // path widths varies on one compiled shader.
+  const wearUniforms: Record<string, { value: Texture } | { value: number }> = {};
+  if (wear !== undefined) {
+    wearUniforms['uWearTex'] = { value: wear.field };
+    wearUniforms['uWearMix'] = { value: wear.mix };
+    wearUniforms['uWearWidth'] = { value: wear.width };
+  }
+  // Layer 4's factor and its two ramp ends, by statement. The ENDS are uniforms rather than
+  // written in, because on the shipped mesh which ends bite anywhere is the whole question
+  // (`land-rock.ts`) — a page comparing rungs varies two numbers on one shader.
+  const rockUniforms: Record<string, { value: number }> = {};
+  if (rock !== undefined) {
+    rockUniforms['uRockMix'] = { value: rock.mix };
+    rockUniforms['uRockLo'] = { value: rock.slope[0] };
+    rockUniforms['uRockHi'] = { value: rock.slope[1] };
+  }
+  // Layer 6's map, strength and tile, by statement. Both numbers are uniforms: the recipe's
+  // 0.30 and 2.4 are provenance, and the shipped values are read off a rendered ladder.
+  const detailUniforms: Record<string, { value: Texture } | { value: number }> = {};
+  if (detail !== undefined) {
+    detailUniforms['uDetailTex'] = { value: detail.map };
+    detailUniforms['uDetailStrength'] = { value: detail.strength };
+    detailUniforms['uDetailTile'] = { value: detail.tile };
+  }
   // The occlusion field's two uniforms follow the same by-statement shape, for the same two
   // reasons: an unshadowed material must carry NO `uShadow*` uniform at all, and both shorter
   // spellings are refused by the anti-slop rules.
@@ -622,6 +811,9 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     ...grainUniforms,
     ...grassUniforms,
     ...sandUniforms,
+    ...wearUniforms,
+    ...rockUniforms,
+    ...detailUniforms,
     ...shadowUniforms,
   };
 
@@ -633,6 +825,12 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
   // Appended AFTER the grass source, because `sandGlsl()` calls `st_grassScalar` and
   // `st_grassSrgb`, and GLSL ES 1.0 resolves calls against declarations already seen.
   const sandSource = sand === undefined ? '' : `      ${sandGlsl().split('\n').join('\n      ')}\n`;
+  // Appended AFTER the sand source, for the same reason: `wearGlsl()` calls `st_grassScalar`,
+  // `st_grassSrgb` and `st_grainOctave`. The order among the three layer sources is the
+  // recipe's own (grass → sand → wear → rock), and none of them calls a later one.
+  const wearSource = wear === undefined ? '' : `      ${wearGlsl().split('\n').join('\n      ')}\n`;
+  // Appended AFTER the wear source. `rockGlsl()` calls `st_grassScalar` and `st_grassSrgb`.
+  const rockSource = rock === undefined ? '' : `      ${rockGlsl().split('\n').join('\n      ')}\n`;
   // The two grain uniforms are declared as ONE appended string rather than as two
   // interpolated ternaries, and that IS the byte-identity claim rather than a formatting
   // preference: a `${cond ? x : ''}` sitting on its own line leaves that line's indentation
@@ -650,6 +848,25 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
       : '\n      uniform sampler2D uShoreTex;' +
         '\n      uniform float uSandMix;' +
         '\n      uniform float uSandWidth;';
+  // Appended after the sand's, so an unworn shader is byte-identical.
+  const wearUniformDecls =
+    wear === undefined
+      ? ''
+      : '\n      uniform sampler2D uWearTex;' +
+        '\n      uniform float uWearMix;' +
+        '\n      uniform float uWearWidth;';
+  // Appended after the wear's, so an unrocked shader is byte-identical.
+  const rockUniformDecls =
+    rock === undefined
+      ? ''
+      : '\n      uniform float uRockMix;' + '\n      uniform float uRockLo;' + '\n      uniform float uRockHi;';
+  // Appended after the rock's, so an undetailed shader is byte-identical.
+  const detailUniformDecls =
+    detail === undefined
+      ? ''
+      : '\n      uniform sampler2D uDetailTex;' +
+        '\n      uniform float uDetailStrength;' +
+        '\n      uniform float uDetailTile;';
   // Same appended-string shape, same reason: an unshadowed shader must not merely fail to USE
   // these, it must not declare them.
   const shadowUniformDecls =
@@ -671,6 +888,29 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
       '\n        // value is that corner exactly — the same argument vStatus above makes.' +
       `\n        vAtlasOrigin = ${GROUND_ATLAS_ATTRIBUTE};`
     : '';
+  // LAYER 6, APPENDED TO THE NORMAL'S OWN LINE and therefore BEFORE the grain-normal stage —
+  // the recipe's order (NormalMap → Bump, build_land.py:958-965), so the grain relieves an
+  // already-detailed normal. It starts with its own newline and ends without one, so the line it
+  // rides on joins to the grain stage exactly as it did when the layer was absent.
+  const detailStage =
+    detail === undefined
+      ? ''
+      : `
+        // LAYER 6 — the cliff normal map as DETAIL RELIEF (build_land.py:943-965), applied
+        // BEFORE the grain's bump: the recipe's own order is NormalMap → Bump, so the grain
+        // relieves an already-detailed normal rather than the other way round.
+        //
+        // ⚠ AN ANALYTIC WORLD-SPACE TANGENT FRAME, not a mesh tangent attribute: on a ground
+        // plane T is +x and B is +z, and the map is sampled in ground units through vWorld.xz,
+        // so this frame is the one the tiling is authored in. The mesh carries no tangents, and
+        // deriving them per triangle would cost an attribute for a frame the ground implies.
+        //
+        // ⚠ THE STRENGTH AND THE TILE ARE UNIFORMS: the recipe's 0.30 and 2.4 are provenance,
+        // and the shipped values are chosen from a rendered ladder (ADR-0503) on ONE shader.
+        vec3 detailN = texture2D(uDetailTex, vWorld.xz / uDetailTile).xyz * 2.0 - 1.0;
+        vec3 detailT = normalize(cross(n, vec3(0.0, 0.0, 1.0)));
+        vec3 detailB = cross(detailT, n);
+        n = normalize(n + uDetailStrength * (detailN.x * detailT + detailN.y * detailB));`;
   const grainNormalStage = grainNormal
     ? `        // THE GRAIN'S NORMAL HALF — the palette-safe one, and the only one the shipped
         // ground wears. The linearised heightfield normal: a displacement h(x,z) has normal
@@ -738,6 +978,57 @@ ${
         c = mix(c, st_sandColour(vWorld.xz), uSandMix * (1.0 - sandBand) * grassGate);
 `
 }`;
+  // LAYER 3, APPENDED AFTER THE GRASS STAGE (which carries the sand when there is one), so the
+  // path composites over the beach — the recipe's order. It is its own appended string rather
+  // than a third branch inside the grass template so that a grassed-and-sanded shader is
+  // byte-identical to the one every figure about layer 2 was taken against.
+  const wearStage =
+    wear === undefined
+      ? ''
+      : `        // LAYER 3 — the worn path (build_land.py:894-911), over the sand and gated like it.
+        //
+        // ⚠ ITS OWN SEAM AND ITS OWN FACTOR, for the reason the sand has one: a shared factor
+        // has one joint ceiling, and the path's admissible strength is a measurement of its own
+        // — a rung of the rendered ladder (ADR-0503), never a number inherited from the beach.
+        //
+        // ⚠ THE FIELD RIDES THE SHADOW ATLAS'S OWN COORDINATE, like the shore: one tile corner
+        // on the mesh, one scale on the material, so the path cannot disagree with the shadow
+        // about where an island sits.
+        //
+        // ⚠ AND THE TEXEL IS DECODED TO GROUND UNITS THROUGH THE SAME WIDTH THAT IS THE FALLOFF.
+        // The field caps its distances at the width it was built for and st_wearOf reaches 0 at
+        // exactly that width — one uniform, so a widened path cannot read a field that has
+        // already flattened.
+        //
+        // ⚠ THE BREAK NOISE MULTIPLIES THE WEAR inside st_wearFactor (build_land.py:898): where
+        // the wear is zero no noise can paint a path, which keeps the track where the field put
+        // it — the opposite sense from the sand's additive edge.
+        float wearUnits = texture2D(uWearTex, shUv).r * uWearWidth;
+        float wear = st_wearFactor(vWorld.xz, st_wearOf(wearUnits, uWearWidth));
+        c = mix(c, st_dirtColour(vWorld.xz), uWearMix * wear * grassGate);
+`;
+  // LAYER 4, APPENDED AFTER THE WEAR STAGE: rock over the path, the recipe's order.
+  const rockStage =
+    rock === undefined
+      ? ''
+      : `        // LAYER 4 — rock on slope (build_land.py:912-925), over the path, driven by the
+        // surface's own normal rather than by a noise (the recipe's own comment at :912).
+        //
+        // ⚠ A NAMED DEPARTURE: n here is the grain-PERTURBED normal. Cycles reads
+        // Geometry.Normal, the UNBUMPED surface normal, evaluated before the normal map and the
+        // bump; feeding the mask the relieved normal lets it carry a little of the grain's
+        // relief. land-rock.ts records the departure so its twin cannot mistake it for the recipe.
+        //
+        // ⚠ THE ENDS ARE UNIFORMS, NOT WRITTEN IN. On the shipped mesh the interior's up-component
+        // never drops below 0.91, so the recipe's 0.72 / 0.90 bite only on the beach's ring chain;
+        // which rungs the map wears is a ladder the owner reads (ADR-0503), and a page comparing
+        // them compiles ONE shader.
+        //
+        // ⚠ GATED BY grassGate, so the skirt's authored rock rows — and every other ungated token
+        // — are never repainted: an ungated row multiplies the whole layer by zero.
+        float rockMask = st_rockMask(n.y, uRockLo, uRockHi);
+        c = mix(c, st_rockColour(vWorld.xz), uRockMix * rockMask * grassGate);
+`;
   const writeColour = grainColour
     ? `        // THE GRAIN'S COLOUR HALF — the mechanism Cycles used, and the one that BREAKS THE
         // CLOSURE. Mixing anything into the delivered colour produces a value that is not an
@@ -801,21 +1092,21 @@ ${
     `,
     fragmentShader: `
       ${bandGlsl(lit).split('\n').join('\n      ')}
-${grainSource}${grassSource}${sandSource}
+${grainSource}${grassSource}${sandSource}${wearSource}${rockSource}
       uniform vec3 uRamp[${ramp.length}];
-      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${sandUniformDecls}${shadowUniformDecls}
+      uniform vec3 uLightDir;${grainUniformDecls}${grassUniformDecls}${sandUniformDecls}${wearUniformDecls}${rockUniformDecls}${detailUniformDecls}${shadowUniformDecls}
       varying float vStatus;
       varying vec3 vNormal;${worldVarying}${atlasVarying}
 
       void main() {
-        vec3 n = normalize(vNormal);
+        vec3 n = normalize(vNormal);${detailStage}
 ${grainNormalStage}        // Half-lambert: wrapped so the terminator lands inside the ladder's range instead of
         // collapsing every back-facing pixel onto the darkest rung. Still a single scalar, so
         // the closure argument is untouched.
         float lambert = dot(n, normalize(uLightDir)) * 0.5 + 0.5;
 ${indexStage}
         ${rampSelectGlsl(ramp.length)}
-${grassStage}${writeColour}
+${grassStage}${wearStage}${rockStage}${writeColour}
       }
     `,
   });

@@ -326,14 +326,19 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   // when it broke every island would read another island's corner of the atlas while drawing a
   // perfectly ordinary set of shadows. What this test is about is unchanged: the field is still
   // derived from THIS scene's own casters, with no flag between it and the mesh.
-  // ⚠ AND IT NOW CARRIES LAYER 1 (2026-09-02). The grass is passed as a second argument rather
-  // than defaulted inside the builder, so the CANVAS states what the shipped ground wears and the
-  // builder stays the thing a comparison arm can drive with any factor.
+  // ⚠ AND IT NOW CARRIES LAYERS 1 THROUGH 6 (2026-09-02). The grass is passed as a second
+  // argument rather than defaulted inside the builder, the sand's strength as the fourth, and the
+  // layers above the sand as the SHIPPED extras — so the CANVAS states what the shipped ground
+  // wears and the builder stays the thing a comparison arm can drive with any rung.
   assert.match(
     src,
-    /buildGroundMaterial\(field, SHIPPED_GRASS, shore\(\)\)/,
-    'the material is built from the built field, wearing layers 1 AND 2',
+    /buildGroundMaterial\(field, SHIPPED_GRASS, shore\(\), SHIPPED_SAND_MIX, extras\)/,
+    'the material is built from the built field, wearing layers 1, 2, 3, 4 and 6',
   );
+  // The extras are the shipped constants, not literals: the rock and the detail read
+  // SHIPPED_LAYERS, and the wear field comes from the builder's own thunk.
+  assert.match(src, /extras: GroundLayerExtras = \{ rock: SHIPPED_LAYERS\.rock, detail: SHIPPED_LAYERS\.detail \}/);
+  assert.match(src, /extras\.wear = \{ field: wearField, mix: SHIPPED_LAYERS\.wearMix \}/);
   // ⚠ IT READS `clipped` RATHER THAN `cells` SINCE THE COAST CROSSED (2026-09-01), and the
   // ORDER is the claim rather than the name. The atlas is packed over the ground's own bounds, so a
   // field built from the PRE-clip parcels would leave the new shore outside every island's tile and

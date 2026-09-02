@@ -1,0 +1,378 @@
+// island-path.test.ts — the canvas-side connector: docks off strip ends, and the worn paths that
+// join them across each island.
+
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import type { CoastPoint } from './coast-clip.js';
+import { SAND_SHIPPED_BEACH_WIDTH } from './land-sand.js';
+import {
+  DOCK_REACH,
+  PATH_CHAIKIN_PASSES,
+  PATH_CONTROL_FRACTIONS,
+  PATH_JITTER,
+  PATH_PULL,
+  PATH_WAYPOINT_FRACTION,
+  bearingFrom,
+  rimGrid,
+  byBearingFrom,
+  chaikinOpen,
+  controlPoint,
+  crossingControls,
+  dockOnRim,
+  isDockableStrip,
+  islandDocks,
+  islandPaths,
+  islandRims,
+  islandSeed,
+  pathsBetween,
+  perpendicularUnit,
+  rimCentroid,
+  seededUnit,
+  stripEndpoints,
+  waypointToward,
+} from './island-path.js';
+import type { InstanceDescriptor } from './world-to-3d.js';
+
+/** One square island, `size` units on a side, with a ring. */
+function island(id: string, x: number, z: number, size: number): InstanceDescriptor {
+  return {
+    kind: 'cell-ground',
+    group: 'cell-ground',
+    island: id,
+    transform: { x: x + size / 2, y: 0, z: z + size / 2 },
+    points: [
+      { x, y: 0, z },
+      { x: x + size, y: 0, z },
+      { x: x + size, y: 0, z: z + size },
+      { x, y: 0, z: z + size },
+    ],
+  };
+}
+
+/** A visible trail strip from `from` to `to`, as the mapper emits one. */
+function strip(from: CoastPoint, to: CoastPoint, extra: Partial<InstanceDescriptor> = {}): InstanceDescriptor {
+  return {
+    kind: 'trail-strip',
+    group: 'trail-strip',
+    transform: { x: (from.x + to.x) / 2, y: 0, z: (from.z + to.z) / 2 },
+    points: [
+      { x: from.x, y: 0, z: from.z },
+      { x: (from.x + to.x) / 2, y: 0, z: (from.z + to.z) / 2 },
+      { x: to.x, y: 0, z: to.z },
+    ],
+    width: 3,
+    usage: 1,
+    hidden: false,
+    edges: [],
+    ...extra,
+  };
+}
+
+const A = island('isle-a', 0, 0, 40);
+const B = island('isle-b', 400, 0, 40);
+const CELLS = [A, B];
+/** Ends two units OFF isle-a's west and east edges — docks at (0, 20) and (40, 20). */
+const WEST = strip({ x: -40, z: 20 }, { x: -2, z: 20 });
+const EAST = strip({ x: 80, z: 20 }, { x: 42, z: 20 });
+/** Ends two units off isle-b's north edge — a dock at (420, 0). */
+const B_NORTH = strip({ x: 420, z: -40 }, { x: 420, z: -2 });
+
+const near = (p: CoastPoint, q: CoastPoint, eps = 1e-9): boolean =>
+  Math.abs(p.x - q.x) < eps && Math.abs(p.z - q.z) < eps;
+
+// ---------------------------------------------------------------------------
+// The constants
+// ---------------------------------------------------------------------------
+
+test('the dock reach is 1.5x the shipped beach, and the recipe`s shape constants are pinned', () => {
+  assert.equal(DOCK_REACH, 1.5 * SAND_SHIPPED_BEACH_WIDTH);
+  assert.equal(DOCK_REACH, 13.5);
+  assert.equal(PATH_CHAIKIN_PASSES, 4);
+  assert.equal(PATH_PULL, 0.6);
+  assert.equal(PATH_JITTER, 7);
+  assert.equal(PATH_WAYPOINT_FRACTION, 0.5);
+  assert.deepEqual([...PATH_CONTROL_FRACTIONS], [0.25, 0.5, 0.75]);
+});
+
+// ---------------------------------------------------------------------------
+// Rims and centroids
+// ---------------------------------------------------------------------------
+
+test('rimCentroid is the plain vertex mean, over every loop', () => {
+  assert.deepEqual(rimCentroid([[{ x: 0, z: 0 }, { x: 40, z: 0 }, { x: 40, z: 40 }, { x: 0, z: 40 }]]), { x: 20, z: 20 });
+  // Uneven vertex density pulls it — the recipe's mean, not the area centroid.
+  assert.deepEqual(rimCentroid([[{ x: 0, z: 0 }, { x: 0, z: 0 }, { x: 30, z: 60 }]]), { x: 10, z: 20 });
+  // Two loops are one population.
+  assert.deepEqual(rimCentroid([[{ x: 0, z: 0 }], [{ x: 10, z: 20 }]]), { x: 5, z: 10 });
+  assert.deepEqual(rimCentroid([]), { x: 0, z: 0 });
+});
+
+test('islandRims buckets by island, chains each rim, and skips an island with no loop', () => {
+  const rims = islandRims(CELLS);
+  assert.deepEqual(rims.map((r) => r.island), ['isle-a', 'isle-b']);
+  assert.equal(rims[0]!.loops.length, 1);
+  assert.equal(rims[0]!.loops[0]!.length, 4);
+  assert.deepEqual(rims[0]!.centroid, { x: 20, z: 20 });
+  assert.deepEqual(rims[1]!.centroid, { x: 420, z: 20 });
+  // A ringless cell bounds no coast: its island has no rim to dock on.
+  const ringless: InstanceDescriptor = { kind: 'cell-ground', group: 'cell-ground', island: 'ghost', transform: { x: 0, y: 0, z: 0 } };
+  assert.deepEqual(islandRims([ringless]).map((r) => r.island), []);
+  // An unhomed cell has no coast to dock on — `coastalIsland` refuses it, exactly as `shoreField`
+  // does — so it appears under no island rather than under the empty string.
+  const { island: _dropped, ...homeless } = island('x', 0, 0, 10);
+  assert.deepEqual(islandRims([homeless]).map((r) => r.island), []);
+});
+
+// ---------------------------------------------------------------------------
+// Strip ends and docking
+// ---------------------------------------------------------------------------
+
+test('stripEndpoints reads the first and last of the polyline, in the (x, z) basis', () => {
+  assert.deepEqual(stripEndpoints(WEST), [{ x: -40, z: 20 }, { x: -2, z: 20 }]);
+  const one: InstanceDescriptor = { ...WEST, points: [{ x: 3, y: 9, z: 4 }] };
+  assert.deepEqual(stripEndpoints(one), [{ x: 3, z: 4 }], 'a single vertex is one end, not two');
+  const { points: _none, ...bare } = WEST;
+  assert.deepEqual(stripEndpoints(bare), []);
+  assert.deepEqual(stripEndpoints({ ...WEST, points: [] }), []);
+});
+
+test('only a VISIBLE trail-strip docks — hidden and ghost strips are not trails ashore', () => {
+  assert.equal(isDockableStrip(WEST), true);
+  assert.equal(isDockableStrip({ ...WEST, hidden: true }), false);
+  assert.equal(isDockableStrip({ ...WEST, kind: 'trail-ghost-strip' }), false);
+  const { hidden: _h, ...unflagged } = WEST;
+  assert.equal(isDockableStrip(unflagged), true, 'an absent hidden flag is a visible strip');
+  // And islandDocks honours it: a hidden copy of WEST contributes no dock.
+  const docks = islandDocks(CELLS, [{ ...WEST, hidden: true }, { ...EAST, kind: 'trail-ghost-strip' }]);
+  assert.deepEqual(docks.get('isle-a'), []);
+});
+
+test('dockOnRim snaps an end within reach onto the nearest rim point, and refuses one past it', () => {
+  const grid = rimGrid(islandRims(CELLS)[0]!);
+  assert.deepEqual(dockOnRim(grid, { x: -2, z: 20 }), { x: 0, z: 20 });
+  // An end INSIDE the island still docks — to the nearest rim point.
+  assert.deepEqual(dockOnRim(grid, { x: 5, z: 20 }), { x: 0, z: 20 });
+  // An end diagonally off a corner snaps to the corner.
+  const corner = dockOnRim(grid, { x: -3, z: -4 })!;
+  assert.ok(near(corner, { x: 0, z: 0 }), `snapped to ${corner.x},${corner.z}`);
+  // At exactly the reach, and past it: not a dock. (The walk caps at the reach, so exactly-at
+  // reads as capped; a strict comparison is what keeps that end off the island.)
+  assert.equal(dockOnRim(grid, { x: -DOCK_REACH, z: 20 }), null);
+  assert.equal(dockOnRim(grid, { x: -30, z: 20 }), null);
+  // Just inside the reach: a dock.
+  assert.deepEqual(dockOnRim(grid, { x: -(DOCK_REACH - 0.01), z: 20 }), { x: 0, z: 20 });
+  // And ON the rim: the point itself, with no NaN from a zero gradient.
+  assert.deepEqual(dockOnRim(grid, { x: 0, z: 20 }), { x: 0, z: 20 });
+});
+
+test('islandDocks buckets every strip end to ITS island, snapped, deduplicated, and lists every island', () => {
+  const docks = islandDocks(CELLS, [WEST, EAST, B_NORTH]);
+  assert.deepEqual([...docks.keys()], ['isle-a', 'isle-b'], 'every rimmed island is present');
+  assert.deepEqual(docks.get('isle-a'), [{ x: 0, z: 20 }, { x: 40, z: 20 }]);
+  assert.deepEqual(docks.get('isle-b'), [{ x: 420, z: 0 }]);
+  // The OFFSHORE ends (40 units out) docked nowhere — only the landward ends count.
+  // Two strips arriving at one landing are ONE dock.
+  const twice = islandDocks(CELLS, [WEST, strip({ x: -40, z: 60 }, { x: -1, z: 20.04 })]);
+  assert.deepEqual(twice.get('isle-a'), [{ x: 0, z: 20 }]);
+  // A strip ending far from every island docks nowhere.
+  const nowhere = islandDocks(CELLS, [strip({ x: 200, z: 200 }, { x: 200, z: 100 })]);
+  assert.deepEqual(nowhere.get('isle-a'), []);
+  assert.deepEqual(nowhere.get('isle-b'), []);
+  // No strips: every island present, every list empty.
+  assert.deepEqual([...islandDocks(CELLS, []).values()], [[], []]);
+});
+
+// ---------------------------------------------------------------------------
+// The three path shapes
+// ---------------------------------------------------------------------------
+
+test('0 docks -> no path; 1 dock -> dock -> waypoint -> centroid, smoothed', () => {
+  assert.deepEqual(pathsBetween([], { x: 20, z: 20 }, 1), []);
+  const paths = pathsBetween([{ x: 0, z: 20 }], { x: 20, z: 20 }, islandSeed('isle-a'));
+  assert.equal(paths.length, 1);
+  const path = paths[0]!;
+  // Three control points, four passes: 3 -> 6 -> 12 -> 24 -> 48.
+  assert.equal(path.length, 48);
+  assert.deepEqual(path[0], { x: 0, z: 20 }, 'starts ON the dock');
+  assert.deepEqual(path[path.length - 1], { x: 20, z: 20 }, 'ends AT the centroid');
+  // And it is not the radial line: the waypoint carried a sideways nudge.
+  assert.ok(path.some((p) => Math.abs(p.z - 20) > 0.5), 'the way in is a straight radial line');
+});
+
+test('2 docks -> ONE crossing, coast -> interior -> coast, ordered by bearing from the centroid', () => {
+  const paths = pathsBetween([{ x: 0, z: 20 }, { x: 40, z: 20 }], { x: 20, z: 20 }, islandSeed('isle-a'));
+  assert.equal(paths.length, 1);
+  const path = paths[0]!;
+  // Five control points, four passes: 5 -> 10 -> 20 -> 40 -> 80.
+  assert.equal(path.length, 80);
+  // Bearing from (20,20): (40,20) is 0 rad, (0,20) is pi — so the crossing runs east to west.
+  assert.deepEqual(path[0], { x: 40, z: 20 });
+  assert.deepEqual(path[79], { x: 0, z: 20 });
+  // It bows through the interior and never leaves the island: every point inside the square.
+  for (const p of path) {
+    assert.ok(p.x >= 0 && p.x <= 40 && p.z >= 0 && p.z <= 40, `(${p.x}, ${p.z}) left the island`);
+  }
+  // And it is NOT the straight chord: the jitter moved it off z = 20 somewhere.
+  assert.ok(path.some((p) => Math.abs(p.z - 20) > 1), 'the crossing is a straight chord');
+});
+
+test('3+ docks -> each CONSECUTIVE pair by bearing is joined, n-1 crossings', () => {
+  const docks: CoastPoint[] = [{ x: 20, z: 0 }, { x: 0, z: 20 }, { x: 40, z: 20 }, { x: 20, z: 40 }];
+  const paths = pathsBetween(docks, { x: 20, z: 20 }, 99);
+  assert.equal(paths.length, 3);
+  // Bearings from (20,20): (40,20) 0, (20,40) pi/2, (0,20) pi, (20,0) -pi/2 — ascending order is
+  // (20,0), (40,20), (20,40), (0,20).
+  assert.deepEqual(paths[0]![0], { x: 20, z: 0 });
+  assert.deepEqual(paths[0]![79], { x: 40, z: 20 });
+  assert.deepEqual(paths[1]![0], { x: 40, z: 20 });
+  assert.deepEqual(paths[1]![79], { x: 20, z: 40 });
+  assert.deepEqual(paths[2]![0], { x: 20, z: 40 });
+  assert.deepEqual(paths[2]![79], { x: 0, z: 20 });
+});
+
+test('⚠ THE CONSERVATION LAW: every path starts and ends on a dock or the centroid', () => {
+  const strips = [WEST, EAST, B_NORTH, strip({ x: 20, z: 80 }, { x: 20, z: 42 })];
+  const docks = islandDocks(CELLS, strips);
+  const paths = islandPaths(CELLS, strips);
+  const rims = new Map(islandRims(CELLS).map((r) => [r.island, r.centroid]));
+  let checked = 0;
+  for (const [id, own] of paths) {
+    const allowed = [...docks.get(id)!, rims.get(id)!];
+    for (const path of own) {
+      const first = path[0]!;
+      const last = path[path.length - 1]!;
+      assert.ok(allowed.some((p) => near(p, first)), `${id}: a path starts at (${first.x}, ${first.z})`);
+      assert.ok(allowed.some((p) => near(p, last)), `${id}: a path ends at (${last.x}, ${last.z})`);
+      checked += 1;
+    }
+  }
+  // isle-a has three docks -> two crossings; isle-b has one -> one path in.
+  assert.equal(checked, 3, 'the fixture was meant to exercise both shapes');
+  assert.equal(paths.get('isle-a')!.length, 2);
+  assert.equal(paths.get('isle-b')!.length, 1);
+});
+
+test('islandPaths is DETERMINISTIC, and different islands wear different crossings', () => {
+  const strips = [WEST, EAST];
+  assert.deepEqual(islandPaths(CELLS, strips), islandPaths(CELLS, strips));
+  // The same two docks on an island with a different id: same endpoints, different interior.
+  const a = pathsBetween([{ x: 0, z: 20 }, { x: 40, z: 20 }], { x: 20, z: 20 }, islandSeed('isle-a'))[0]!;
+  const b = pathsBetween([{ x: 0, z: 20 }, { x: 40, z: 20 }], { x: 20, z: 20 }, islandSeed('isle-b'))[0]!;
+  assert.deepEqual(a[0], b[0]);
+  assert.deepEqual(a[79], b[79]);
+  assert.notDeepEqual(a[40], b[40], 'two islands wore the identical crossing — the seed is not per island');
+  // An island with no docks has an EMPTY path list, present in the map.
+  assert.deepEqual(islandPaths(CELLS, [WEST]).get('isle-b'), []);
+});
+
+// ---------------------------------------------------------------------------
+// The arithmetic, pinned
+// ---------------------------------------------------------------------------
+
+test('chaikinOpen keeps both endpoints, doubles the count per pass, and cuts at 1/4 and 3/4', () => {
+  const line: CoastPoint[] = [{ x: 0, z: 0 }, { x: 10, z: 0 }, { x: 10, z: 10 }];
+  assert.deepEqual(chaikinOpen(line, 1), [
+    { x: 0, z: 0 },
+    { x: 2.5, z: 0 },
+    { x: 7.5, z: 0 },
+    { x: 10, z: 2.5 },
+    { x: 10, z: 7.5 },
+    { x: 10, z: 10 },
+  ]);
+  assert.equal(chaikinOpen(line, 4).length, 48);
+  assert.deepEqual(chaikinOpen(line, 4)[0], { x: 0, z: 0 });
+  assert.deepEqual(chaikinOpen(line, 4)[47], { x: 10, z: 10 });
+  assert.deepEqual(chaikinOpen(line, 0), line);
+  // A two-point line IS cut — one segment, its quarter points inserted.
+  assert.deepEqual(chaikinOpen([{ x: 0, z: 0 }, { x: 40, z: 0 }], 1), [
+    { x: 0, z: 0 },
+    { x: 10, z: 0 },
+    { x: 30, z: 0 },
+    { x: 40, z: 0 },
+  ]);
+  // Fewer than two points cannot be cut and come back as they are.
+  assert.deepEqual(chaikinOpen([{ x: 3, z: 4 }], 4), [{ x: 3, z: 4 }]);
+  assert.deepEqual(chaikinOpen([], 4), []);
+});
+
+test('controlPoint: chord point, pulled toward the centroid, then jittered across the chord', () => {
+  // a=(0,0), b=(40,0), centroid (20,20), f=0.25: chord point (10,0); pulled 0.6 of the way to
+  // the centroid: (16, 12); then 2 units along n=(0,1): (16, 14).
+  assert.deepEqual(controlPoint({ x: 0, z: 0 }, { x: 40, z: 0 }, { x: 20, z: 20 }, 0.25, { x: 0, z: 1 }, 2), { x: 16, z: 14 });
+  // f=0.75 lands on the other side of the chord's middle.
+  assert.deepEqual(controlPoint({ x: 0, z: 0 }, { x: 40, z: 0 }, { x: 20, z: 20 }, 0.75, { x: 0, z: 1 }, 0), { x: 24, z: 12 });
+  // A negative jitter goes the other way along n.
+  assert.deepEqual(controlPoint({ x: 0, z: 0 }, { x: 40, z: 0 }, { x: 20, z: 20 }, 0.5, { x: 0, z: 1 }, -3), { x: 20, z: 9 });
+});
+
+test('crossingControls: three points, each within PATH_JITTER of its pulled chord point', () => {
+  const a = { x: 0, z: 20 };
+  const b = { x: 40, z: 20 };
+  const c = { x: 20, z: 20 };
+  const ctrl = crossingControls(a, b, c, islandSeed('isle-a'), 0);
+  assert.equal(ctrl.length, 3);
+  const n = perpendicularUnit(a, b);
+  ctrl.forEach((p, k) => {
+    const f = PATH_CONTROL_FRACTIONS[k]!;
+    const unjittered = controlPoint(a, b, c, f, n, 0);
+    const off = Math.hypot(p.x - unjittered.x, p.z - unjittered.z);
+    assert.ok(off <= PATH_JITTER, `control ${k} is ${off} off its chord point`);
+    // And it IS jittered by exactly the seeded amount, so the seed reaches the point.
+    const expected = controlPoint(a, b, c, f, n, PATH_JITTER * seededUnit(islandSeed('isle-a'), k));
+    assert.deepEqual(p, expected);
+  });
+  // A second pair on the same island draws the NEXT three seeded values, not the same three.
+  const second = crossingControls(a, b, c, islandSeed('isle-a'), 1);
+  assert.notDeepEqual(second, ctrl);
+  assert.deepEqual(second[0], controlPoint(a, b, c, 0.25, n, PATH_JITTER * seededUnit(islandSeed('isle-a'), 3)));
+});
+
+test('waypointToward sits halfway in, nudged by the seed`s first draw', () => {
+  const dock = { x: 0, z: 20 };
+  const c = { x: 20, z: 20 };
+  const w = waypointToward(dock, c, islandSeed('isle-a'));
+  const n = perpendicularUnit(dock, c);
+  const j = PATH_JITTER * seededUnit(islandSeed('isle-a'), 0);
+  assert.deepEqual(w, { x: 10 + n.x * j, z: 20 + n.z * j });
+  assert.ok(Math.abs(w.z - 20) > 0.5, 'the nudge must actually move it off the radial');
+});
+
+test('perpendicularUnit is a unit vector across the chord, and zero for a degenerate chord', () => {
+  assert.deepEqual(perpendicularUnit({ x: 0, z: 0 }, { x: 40, z: 0 }), { x: -0, z: 1 });
+  const p = perpendicularUnit({ x: 1, z: 1 }, { x: 4, z: 5 });
+  assert.ok(Math.abs(Math.hypot(p.x, p.z) - 1) < 1e-12);
+  assert.ok(Math.abs(p.x * 3 + p.z * 4) < 1e-12, 'not perpendicular to the chord');
+  assert.deepEqual(perpendicularUnit({ x: 2, z: 3 }, { x: 2, z: 3 }), { x: 0, z: 0 });
+});
+
+test('bearingFrom is atan2(dz, dx), and byBearingFrom sorts ascending by it', () => {
+  const c = { x: 20, z: 20 };
+  assert.equal(bearingFrom(c, { x: 40, z: 20 }), 0);
+  assert.equal(bearingFrom(c, { x: 20, z: 40 }), Math.PI / 2);
+  assert.equal(bearingFrom(c, { x: 0, z: 20 }), Math.PI);
+  assert.equal(bearingFrom(c, { x: 20, z: 0 }), -Math.PI / 2);
+  const sorted = [{ x: 0, z: 20 }, { x: 40, z: 20 }, { x: 20, z: 0 }, { x: 20, z: 40 }].sort(byBearingFrom(c));
+  assert.deepEqual(sorted, [{ x: 20, z: 0 }, { x: 40, z: 20 }, { x: 20, z: 40 }, { x: 0, z: 20 }]);
+  assert.ok(byBearingFrom(c)({ x: 40, z: 20 }, { x: 20, z: 40 }) < 0);
+});
+
+test('islandSeed is FNV-1a over the id, pinned; seededUnit stays in [-1, 1) and is pinned', () => {
+  assert.equal(islandSeed(''), 2166136261, 'the FNV offset basis on an empty id');
+  assert.equal(islandSeed('a'), 3826002220);
+  assert.equal(islandSeed('isle-a'), 2830540860);
+  assert.notEqual(islandSeed('isle-a'), islandSeed('isle-b'));
+  assert.deepEqual(
+    [0, 1, 2].map((k) => seededUnit(7, k)),
+    [0.9274821188300848, 0.3517137449234724, -0.21776574337854981],
+  );
+  let lo = 1;
+  let hi = -1;
+  for (let k = 0; k < 5000; k += 1) {
+    const u = seededUnit(12345, k);
+    lo = Math.min(lo, u);
+    hi = Math.max(hi, u);
+  }
+  assert.ok(lo >= -1 && hi < 1, `range [${lo}, ${hi}]`);
+  assert.ok(lo < -0.9 && hi > 0.9, 'the draws should cover the interval, not cluster');
+});

@@ -5,15 +5,23 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { GRASS_OCTAVES } from '../src/land-grass.js';
-import { GRASS_GATE_ROWS, SHIPPED_GRASS_MIX } from '../src/ForestWorldCanvas.js';
+import {
+  GRASS_GATE_ROWS,
+  SHIPPED_GRASS_MIX,
+  SHIPPED_LAYERS,
+  SHIPPED_SAND_MIX,
+} from '../src/ForestWorldCanvas.js';
 import {
   ARC_FAMILY_TARGET,
   CONTROL_ARM,
   FAMILY_FLOOR,
   GRASS_ARMS,
   GRASS_ARM_CAPTION,
+  GRASS_ARM_LAYERS,
   GRASS_ARM_MIX,
   GRASS_ARM_SAND,
+  GRASS_ARM_SAND_MIX,
+  type GrassArm,
   VISIBLE_DELTA,
   armGrass,
   armWearsSand,
@@ -38,8 +46,8 @@ const source = (rel: string): string => readFileSync(join(HERE, rel), 'utf8');
 test('the page builds its ground with the SHIPPED builder and constructs no scene of its own', () => {
   const page = source('shipped-grass-scene.ts');
   assert.ok(
-    /shippedGroundBuild\(cells, casters\)/.test(page),
-    'the arms must call the function CellGround calls',
+    /shippedGroundBuild\(cells, casters, strips\)/.test(page),
+    'the arms must call the function CellGround calls, strips included (layer 3`s docks)',
   );
   // ⚠ AND IT MUST NOT ALSO HAND-ROLL ONE. A page that called the builder AND assembled its own
   // input would look correct and use whichever the scene function happened to read.
@@ -65,8 +73,9 @@ test('the SHIPPED canvas holds exactly one geometry-input construction, inside t
   const cellGroundAt = canvas.indexOf('function CellGround({');
   assert.ok(literals[0]!.index! > builderAt, 'the one construction lives inside the builder');
   assert.ok(literals[0]!.index! < cellGroundAt, 'and therefore not inside CellGround');
-  // And CellGround must actually CALL it rather than keeping a copy.
-  assert.ok(/shippedGroundBuild\(cells, casters\)/.test(canvas.slice(cellGroundAt)));
+  // And CellGround must actually CALL it rather than keeping a copy — with the strips, so the
+  // shipped ground's worn paths come from the map's own trails and not from a default of none.
+  assert.ok(/shippedGroundBuild\(cells, casters, strips\)/.test(canvas.slice(cellGroundAt)));
 });
 
 // ---------------------------------------------------------------- the arms
@@ -102,10 +111,15 @@ test('⚠ `flat` and `authored` differ in EXACTLY the sand — same factor, oppo
   assert.equal(GRASS_ARM_MIX.authored, GRASS_ARM_MIX.flat);
   assert.equal(GRASS_ARM_MIX.authored, SHIPPED_GRASS_MIX);
   assert.notEqual(GRASS_ARM_SAND.authored, GRASS_ARM_SAND.flat);
-  // ⚠ AND THE PAIR IS THE WHOLE PAGE NOW. Layer 2 ships with its OWN factor, so it no longer
-  // trades against layer 1's — there is no dimmer arm to carry, and the only variable left is
-  // whether the sand is there.
-  assert.equal(GRASS_ARMS.length, 2);
+  // ⚠ THE PAGE IS THE PAIR PLUS A STRENGTH LADDER (owner-directed 2026-09-02): every arm wears
+  // layer 1 at the shipped factor, so the ONLY thing that varies across the row is layer 2's
+  // strength, and the control is the one arm with none.
+  for (const arm of GRASS_ARMS) assert.equal(GRASS_ARM_MIX[arm], SHIPPED_GRASS_MIX);
+  assert.deepEqual(GRASS_ARMS.filter((arm) => !GRASS_ARM_SAND[arm]), ['flat']);
+  // The shipped arm reads the constant; the ladder is ascending and fixed.
+  assert.equal(GRASS_ARM_SAND_MIX.authored, SHIPPED_SAND_MIX);
+  const ladder = GRASS_ARMS.filter((arm) => arm.startsWith('sand-')).map((arm) => GRASS_ARM_SAND_MIX[arm]);
+  assert.deepEqual(ladder, [0.16, 0.4, 0.65, 0.9]);
 });
 
 test('an arm`s grass option is the mix and the SHIPPED gate — the gate never varies', () => {
@@ -113,8 +127,54 @@ test('an arm`s grass option is the mix and the SHIPPED gate — the gate never v
   assert.deepEqual(armGrass('flat'), { mix: SHIPPED_GRASS_MIX, rows: GRASS_GATE_ROWS });
   // Every arm gates the SAME rows, control included — the gate is not a variable on this page.
   for (const arm of GRASS_ARMS) assert.deepEqual(armGrass(arm)?.rows, GRASS_GATE_ROWS);
-  // And the sand flags are exactly the two the fork needs plus the control.
-  assert.deepEqual(GRASS_ARMS.map(armWearsSand), [false, true]);
+  // And the sand flags are the control alone off, every other arm on — the path, rock and detail
+  // ladders all hold the SHIPPED sand under the rung they vary.
+  assert.deepEqual(
+    GRASS_ARMS.map(armWearsSand),
+    GRASS_ARMS.map((arm) => arm !== 'flat'),
+  );
+  for (const arm of GRASS_ARMS) {
+    if (arm.startsWith('path-') || arm.startsWith('rock-') || arm.startsWith('detail-')) {
+      assert.equal(GRASS_ARM_LAYERS[arm].sand, SHIPPED_SAND_MIX, `${arm} must hold the shipped sand`);
+    }
+  }
+});
+
+test('every ladder above the sand varies ONE thing and holds the layers below it at what ships', () => {
+  // The path ladder: shipped sand, a path strength, no rock, no detail.
+  for (const arm of ['path-50', 'path-80', 'path-100'] as const) {
+    const l = GRASS_ARM_LAYERS[arm];
+    assert.equal(l.rock, null);
+    assert.equal(l.detail, null);
+    assert.ok(l.wear !== null && l.wear > 0);
+  }
+  assert.deepEqual(['path-50', 'path-80', 'path-100'].map((a) => GRASS_ARM_LAYERS[a as GrassArm].wear), [0.5, 0.8, 1]);
+  // The rock ladder: shipped sand AND shipped path, a rock rung, no detail; the recipe's own ends
+  // are the first rung and the departures are ABOVE them on the up-component.
+  for (const arm of ['rock-recipe', 'rock-88-95', 'rock-92-98'] as const) {
+    const l = GRASS_ARM_LAYERS[arm];
+    assert.equal(l.wear, SHIPPED_LAYERS.wearMix);
+    assert.equal(l.detail, null);
+    assert.ok(l.rock !== null);
+  }
+  assert.deepEqual(GRASS_ARM_LAYERS['rock-recipe'].rock?.slope, [0.72, 0.9]);
+  assert.deepEqual(GRASS_ARM_LAYERS['rock-88-95'].rock?.slope, [0.88, 0.95]);
+  assert.deepEqual(GRASS_ARM_LAYERS['rock-92-98'].rock?.slope, [0.92, 0.98]);
+  // The detail ladder: the whole shipped stack under a detail strength.
+  for (const arm of ['detail-30', 'detail-60', 'detail-100'] as const) {
+    const l = GRASS_ARM_LAYERS[arm];
+    assert.equal(l.wear, SHIPPED_LAYERS.wearMix);
+    assert.deepEqual(l.rock, SHIPPED_LAYERS.rock);
+  }
+  assert.deepEqual(['detail-30', 'detail-60', 'detail-100'].map((a) => GRASS_ARM_LAYERS[a as GrassArm].detail), [0.3, 0.6, 1]);
+  // And `authored` IS the shipped stack, read from the canvas's constants.
+  assert.deepEqual(GRASS_ARM_LAYERS.authored, {
+    sand: SHIPPED_SAND_MIX,
+    wear: SHIPPED_LAYERS.wearMix,
+    rock: SHIPPED_LAYERS.rock,
+    detail: SHIPPED_LAYERS.detail.strength,
+  });
+  assert.deepEqual(GRASS_ARM_LAYERS.flat, { sand: null, wear: null, rock: null, detail: null });
 });
 
 test('the verdict threshold is ADR-0490 D6`s, not the touched count', () => {

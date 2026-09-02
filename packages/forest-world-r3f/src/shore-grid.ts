@@ -14,6 +14,7 @@
 // colour and not be a second source of error.
 
 import type { CoastPoint } from './coast-clip.js';
+import { indices } from './land-shadow.js';
 
 /** One coast edge, flattened — the walk reads these four numbers and nothing else, so the grid
  *  stores them rather than re-deriving them from a ring and an index on every hit. */
@@ -73,14 +74,37 @@ export function cellIndex(v: number, min: number, cell: number): number {
  * and buckets more edges per cell than the walk needs.
  */
 export function buildEdgeGrid(rings: readonly (readonly CoastPoint[])[], width: number): EdgeGrid {
+  return buildSegmentGrid(ringEdges(rings), width);
+}
+
+/**
+ * A SET OF CLOSED RINGS, FLATTENED TO EDGES — consecutive pairs PLUS the closing chord from the
+ * last vertex back to the first, because a ring is a loop and its last edge is as much coast as
+ * its first.
+ *
+ * ⚠ THE CLOSING CHORD IS THE WHOLE DIFFERENCE between this and an OPEN polyline's edges
+ * (`trail-wear.ts`). A worn path that was flattened here would gain a straight edge from its far
+ * end back to its start, and the wear would follow it across the island's interior as a second,
+ * perfectly straight track nobody authored.
+ */
+export function ringEdges(rings: readonly (readonly CoastPoint[])[]): CoastEdge[] {
   const edges: CoastEdge[] = [];
   for (const ring of rings) {
-    for (let i = 0; i < ring.length; i += 1) {
+    for (const i of indices(ring.length)) {
       const a = ring[i]!;
       const b = ring[(i + 1) % ring.length]!;
       edges.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z });
     }
   }
+  return edges;
+}
+
+/**
+ * Build the index over an ARBITRARY set of edges — the body {@link buildEdgeGrid} always had,
+ * split from its ring flattener so an OPEN polyline (the worn path) can be indexed by the same
+ * code without acquiring a closing chord it does not have.
+ */
+export function buildSegmentGrid(edges: readonly CoastEdge[], width: number): EdgeGrid {
   // ⚠ A ZERO OR NEGATIVE WIDTH WOULD DIVIDE BY ZERO in the cell arithmetic, so the cell is
   // floored here rather than by a caller-side special case.
   //
@@ -230,4 +254,78 @@ export function edgeBounds(edges: readonly CoastEdge[]): EdgeBounds {
     maxZ = Math.max(maxZ, e.az, e.bz);
   }
   return { minX, minZ, maxX, maxZ };
+}
+
+/** The nearest point of any indexed edge: how far it is, CAPPED at `cap`, and which way the
+ *  distance grows. Structurally `ShoreSample` — the shore field returns this object verbatim. */
+export interface NearestSample {
+  /** Ground units to the nearest edge, capped at `cap` — beyond the cap the exact distance cannot
+   *  change any caller's answer, so it is not computed. */
+  distance: number;
+  /** The unit gradient of the distance field. Zero where the distance is capped, and zero exactly
+   *  on an edge, where it is undefined. */
+  gx: number;
+  gz: number;
+}
+
+/**
+ * THE NEAREST-ON-SEGMENTS WALK, over the grid's candidates for one point — the body
+ * `shoreField.sample` always had, extracted so the worn path's OPEN polyline field
+ * (`trail-wear.ts`) is the SAME walk over a differently-flattened edge set, and so the walk can
+ * be asserted directly against a brute-force twin rather than only through a whole shore field.
+ *
+ * ⚠⚠ THE FAR-FIELD ANSWER IS RETURNED WITHOUT TOUCHING AN EDGE, and it is most of the map. The
+ * answer caps at `cap`, so any point whose 3x3 cell neighbourhood holds no edge is already capped
+ * and its gradient is zero — the same value the walk below would have computed, at a fraction of
+ * the cost. This is EXACT rather than a heuristic ONLY WHILE the grid's cell is at least `cap`
+ * ({@link edgeGridFarField}): `buildSegmentGrid` sets the cell to the width it was built for, so
+ * a caller passing a `cap` wider than that width has broken the proof.
+ *
+ * ⚠ ONE `candidates` CALL SERVES BOTH THE SHORT-CIRCUIT AND THE WALK. Asking "any?" first and
+ * `candidates` after runs the neighbourhood scan TWICE per sample, which at 5.4 M texels is half
+ * the field's build time spent re-deriving a list it already had.
+ */
+export function nearestOnSegments(grid: EdgeGrid, x: number, z: number, cap: number): NearestSample {
+  const candidates = grid.candidates(x, z);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — this is the SHORT-CIRCUIT.
+  // Never taking it walks an empty candidate list and returns the same capped distance with the
+  // same zero gradient, because `best` starts AT `cap`. It is a cost decision by construction, so
+  // no assertion about the output can reach it; what CAN be asserted is the argument it rests on,
+  // which `edgeGridFarField` states and its test pins.
+  if (candidates.length === 0) return { distance: cap, gx: 0, gz: 0 };
+  let best = cap;
+  let nx = 0;
+  let nz = 0;
+  // ⚠⚠ THE CANDIDATES ARE THE EDGES IN THE POINT'S OWN 3x3 CELL NEIGHBOURHOOD, AND SKIPPING THE
+  // REST IS EXACT. Every edge outside that block is at least one cell — one width — away
+  // (`edgeGridFarField`), and `best` starts AT `cap` with a strict `d >= best` reject, so no
+  // omitted edge could have improved the answer.
+  for (const n of candidates) {
+    const e = grid.edges[n]!;
+    const ex = e.bx - e.ax;
+    const ez = e.bz - e.az;
+    const lenSq = ex * ex + ez * ez;
+    const raw = lenSq === 0 ? 0 : ((x - e.ax) * ex + (z - e.az) * ez) / lenSq;
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — at `raw` exactly 0 or exactly 1
+    // both sides of each comparison yield the SAME parameter, because the clamp's bound IS the
+    // parameter there. No input separates `<` from `<=` or `>` from `>=`. This is the note
+    // `nearestOnSegment` carries verbatim, on the same arithmetic.
+    const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
+    const qx = x - (e.ax + ex * t);
+    const qz = z - (e.az + ez * t);
+    const d = Math.hypot(qx, qz);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT for the DISTANCE, which is what
+    // every caller reads: on a tie both branches leave `best` at the same number. They differ
+    // only in which of two equidistant points supplies the gradient — the medial axis, where the
+    // distance field's gradient is genuinely undefined.
+    if (d >= best) continue;
+    best = d;
+    nx = qx;
+    nz = qz;
+  }
+  // Off an edge the gradient is the unit vector away from the nearest point. ON it (`best === 0`)
+  // it is undefined — and every consumer's slope term is zero there, so nothing reads it.
+  const len = Math.hypot(nx, nz);
+  if (len === 0) return { distance: best, gx: 0, gz: 0 };
+  return { distance: best, gx: nx / len, gz: nz / len };
 }

@@ -11,7 +11,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { DataTexture } from 'three';
+import { DataTexture, RedFormat, UnsignedByteType } from 'three';
 
 import {
   GROUND_ATLAS_ATTRIBUTE,
@@ -29,6 +29,8 @@ import { buildGroundOcclusion } from './contact-shade.js';
 import { atlasScale, buildAtlasOcclusion } from './shadow-atlas.js';
 import { buildAtlasShore, SAND_FIELD_WIDTH } from './shore-atlas.js';
 import { sandGlsl } from './land-sand.js';
+import { ROCK_SLOPE_RAMP, rockGlsl } from './land-rock.js';
+import { WEAR_FALLOFF, wearGlsl } from './land-wear.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 import { occlusionGrid } from './land-shadow.js';
 import { shadowLadderFor } from './shadow-rung.js';
@@ -1401,4 +1403,509 @@ test('an UNSANDED material carries no uShore uniform and no sand source at all',
   assert.ok(!/st_sandEdge|st_sandRamp|st_sandBand|st_sandColour/.test(m.fragmentShader));
   // And it still carries layer 1's own composite line, unchanged.
   assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'));
+});
+
+// ─── LAYERS 3, 4 AND 6: the worn path, rock on slope, the detail normal ────────────────────────
+//
+// ⚠⚠ THE ONE THING THIS SECTION MUST ESTABLISH FIRST is the same one every option before it had
+// to: ABSENT means BYTE-IDENTICAL. The sanded shader is the one layer 2's figures were taken
+// against, and three more appended strings are three more places a `: ''` can leave residue.
+// Only then does it say what each layer does — as exact goldens, because a generator's emitted
+// source has to be pinned as source (44 of the grain crossing's 109 mutation survivors were
+// blanked GLSL literals).
+
+/** A packed distance-to-path field as bytes — the wear layer's carrier. Built IN-FILE rather
+ *  than imported from the harness (`src/` is mirrored to the public site, so a `src/` test may
+ *  not reach `harness/`); a 2x2 single-channel texture is enough to be a real `Texture` object
+ *  the uniform must carry, which is all the material is asked to do with it here. */
+const testWearField = (): DataTexture => {
+  const tex = new DataTexture(new Uint8Array([0, 128, 255, 64]), 2, 2, RedFormat, UnsignedByteType);
+  tex.needsUpdate = true;
+  return tex;
+};
+
+/** A stand-in for the cliff normal map: a 2x2 RGBA texture of flat normals. The real one is
+ *  `detailNormalTexture()`, which decodes a PNG through the browser and is not this test's
+ *  subject. */
+const testDetailMap = (): DataTexture => {
+  const tex = new DataTexture(new Uint8Array(16).fill(128), 2, 2);
+  tex.needsUpdate = true;
+  return tex;
+};
+
+/** The whole stack: every layer this material can wear, at once. The values are chosen so no
+ *  two uniforms share one — a swapped `uRockLo`/`uRockHi` or a `strength` uploaded as the tile
+ *  would otherwise pass a value pin. */
+const layered = () =>
+  createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+    shadowAtlas: testAtlas(),
+    sand: { shore: testShore().texture, mix: 0.16, width: SAND_FIELD_WIDTH },
+    wear: { field: testWearField(), mix: 0.41, width: WEAR_FALLOFF },
+    rock: { mix: 0.63, slope: [0.8, 0.95] },
+    detail: { map: testDetailMap(), strength: 0.45, tile: 2.4 },
+  });
+
+/** The wear stage exactly as the material emits it, comment block included. */
+const WEAR_STAGE =
+  '        // LAYER 3 — the worn path (build_land.py:894-911), over the sand and gated like it.\n' +
+  '        //\n' +
+  '        // ⚠ ITS OWN SEAM AND ITS OWN FACTOR, for the reason the sand has one: a shared factor\n' +
+  "        // has one joint ceiling, and the path's admissible strength is a measurement of its own\n" +
+  '        // — a rung of the rendered ladder (ADR-0503), never a number inherited from the beach.\n' +
+  '        //\n' +
+  "        // ⚠ THE FIELD RIDES THE SHADOW ATLAS'S OWN COORDINATE, like the shore: one tile corner\n" +
+  '        // on the mesh, one scale on the material, so the path cannot disagree with the shadow\n' +
+  '        // about where an island sits.\n' +
+  '        //\n' +
+  '        // ⚠ AND THE TEXEL IS DECODED TO GROUND UNITS THROUGH THE SAME WIDTH THAT IS THE FALLOFF.\n' +
+  '        // The field caps its distances at the width it was built for and st_wearOf reaches 0 at\n' +
+  '        // exactly that width — one uniform, so a widened path cannot read a field that has\n' +
+  '        // already flattened.\n' +
+  '        //\n' +
+  '        // ⚠ THE BREAK NOISE MULTIPLIES THE WEAR inside st_wearFactor (build_land.py:898): where\n' +
+  '        // the wear is zero no noise can paint a path, which keeps the track where the field put\n' +
+  "        // it — the opposite sense from the sand's additive edge.\n" +
+  '        float wearUnits = texture2D(uWearTex, shUv).r * uWearWidth;\n' +
+  '        float wear = st_wearFactor(vWorld.xz, st_wearOf(wearUnits, uWearWidth));\n' +
+  '        c = mix(c, st_dirtColour(vWorld.xz), uWearMix * wear * grassGate);\n';
+
+/** The rock stage exactly as the material emits it. */
+const ROCK_STAGE =
+  '        // LAYER 4 — rock on slope (build_land.py:912-925), over the path, driven by the\n' +
+  "        // surface's own normal rather than by a noise (the recipe's own comment at :912).\n" +
+  '        //\n' +
+  '        // ⚠ A NAMED DEPARTURE: n here is the grain-PERTURBED normal. Cycles reads\n' +
+  '        // Geometry.Normal, the UNBUMPED surface normal, evaluated before the normal map and the\n' +
+  "        // bump; feeding the mask the relieved normal lets it carry a little of the grain's\n" +
+  '        // relief. land-rock.ts records the departure so its twin cannot mistake it for the recipe.\n' +
+  '        //\n' +
+  "        // ⚠ THE ENDS ARE UNIFORMS, NOT WRITTEN IN. On the shipped mesh the interior's up-component\n" +
+  "        // never drops below 0.91, so the recipe's 0.72 / 0.90 bite only on the beach's ring chain;\n" +
+  '        // which rungs the map wears is a ladder the owner reads (ADR-0503), and a page comparing\n' +
+  '        // them compiles ONE shader.\n' +
+  '        //\n' +
+  "        // ⚠ GATED BY grassGate, so the skirt's authored rock rows — and every other ungated token\n" +
+  '        // — are never repainted: an ungated row multiplies the whole layer by zero.\n' +
+  '        float rockMask = st_rockMask(n.y, uRockLo, uRockHi);\n' +
+  '        c = mix(c, st_rockColour(vWorld.xz), uRockMix * rockMask * grassGate);\n';
+
+/** The detail stage exactly as the material emits it — starting with the newline that joins it
+ *  to the normal's own line, ending WITHOUT one so the grain stage's join is untouched. */
+const DETAIL_STAGE =
+  '\n' +
+  '        // LAYER 6 — the cliff normal map as DETAIL RELIEF (build_land.py:943-965), applied\n' +
+  "        // BEFORE the grain's bump: the recipe's own order is NormalMap → Bump, so the grain\n" +
+  '        // relieves an already-detailed normal rather than the other way round.\n' +
+  '        //\n' +
+  '        // ⚠ AN ANALYTIC WORLD-SPACE TANGENT FRAME, not a mesh tangent attribute: on a ground\n' +
+  '        // plane T is +x and B is +z, and the map is sampled in ground units through vWorld.xz,\n' +
+  '        // so this frame is the one the tiling is authored in. The mesh carries no tangents, and\n' +
+  '        // deriving them per triangle would cost an attribute for a frame the ground implies.\n' +
+  '        //\n' +
+  "        // ⚠ THE STRENGTH AND THE TILE ARE UNIFORMS: the recipe's 0.30 and 2.4 are provenance,\n" +
+  '        // and the shipped values are chosen from a rendered ladder (ADR-0503) on ONE shader.\n' +
+  '        vec3 detailN = texture2D(uDetailTex, vWorld.xz / uDetailTile).xyz * 2.0 - 1.0;\n' +
+  '        vec3 detailT = normalize(cross(n, vec3(0.0, 0.0, 1.0)));\n' +
+  '        vec3 detailB = cross(detailT, n);\n' +
+  '        n = normalize(n + uDetailStrength * (detailN.x * detailT + detailN.y * detailB));';
+
+const SANDED_UNIFORMS = [
+  'uGrainNormalStrength',
+  'uGrassMix',
+  'uLightDir',
+  'uRamp',
+  'uSandMix',
+  'uSandWidth',
+  'uShadowAtlasScale',
+  'uShadowTex',
+  'uShoreTex',
+];
+
+test('ABSENT WEAR, ROCK AND DETAIL CHANGE NOTHING — the sanded shader is byte-identical at every site', () => {
+  const m = sanded();
+  // No uniform, and no spelling the three layers brought with them.
+  assert.deepEqual(Object.keys(m.uniforms).sort(), SANDED_UNIFORMS);
+  assert.ok(!/uWear|uRock|uDetail/.test(m.fragmentShader), 'no new uniform declared');
+  assert.ok(!/st_wear|st_dirt|st_rock/.test(m.fragmentShader), 'no new helper spliced in');
+  assert.ok(!/detailN|detailT|detailB|wearUnits|rockMask/.test(m.fragmentShader), 'no new stage');
+  assert.ok(!/GENERATED from land-(wear|rock)/.test(m.fragmentShader));
+  // ⚠ THE JOIN AT EACH OF THE FOUR SITES, named — the check a "does it mention the layer"
+  // sweep cannot make. Every one of the new pieces is a `: ''` on the same template line as its
+  // neighbour, and a blank branch that is not literally empty leaves residue only a join sees.
+  const sandBlock = sandGlsl().split('\n').join('\n      ');
+  assert.ok(
+    m.fragmentShader.includes(`${sandBlock}\n\n      uniform vec3 uRamp[`),
+    'the source site: the sand block must close straight onto the ramp declaration',
+  );
+  assert.ok(
+    m.fragmentShader.includes('uniform float uSandWidth;\n      uniform sampler2D uShadowTex;'),
+    'the declaration site: the sand decls must join straight onto the shadow decls',
+  );
+  assert.ok(
+    m.fragmentShader.includes("vec3 n = normalize(vNormal);\n        // THE GRAIN'S NORMAL HALF"),
+    'the normal site: the normal must join straight onto the grain stage',
+  );
+  assert.ok(
+    m.fragmentShader.includes(
+      'uSandMix * (1.0 - sandBand) * grassGate);\n        gl_FragColor = vec4(c, 1.0);',
+    ),
+    'the write site: the sand line must join straight onto the colour write',
+  );
+  // And layers 1 and 2 are untouched, byte for byte.
+  assert.ok(m.fragmentShader.includes('c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);'));
+  assert.ok(
+    m.fragmentShader.includes('c = mix(c, st_sandColour(vWorld.xz), uSandMix * (1.0 - sandBand) * grassGate);'),
+  );
+  // The bare and grained shaders keep their own joins at the normal site too — the detail stage
+  // is the first thing ever appended to that line.
+  const bare = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS });
+  assert.ok(bare.fragmentShader.includes('vec3 n = normalize(vNormal);\n        // Half-lambert'));
+  assert.deepEqual(Object.keys(bare.uniforms).sort(), ['uLightDir', 'uRamp']);
+  const grained = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal' });
+  assert.ok(grained.fragmentShader.includes("vec3 n = normalize(vNormal);\n        // THE GRAIN'S NORMAL HALF"));
+  assert.ok(grained.fragmentShader.includes('uniform float uGrainNormalStrength;\n      varying float vStatus;'));
+});
+
+test('NON-VACUITY: the whole stack really does fill every one of those four sites', () => {
+  // Without this, the byte-identity test above is satisfied by a builder that ignores all three
+  // options — the shape such a test degrades into.
+  const m = layered();
+  const sandBlock = sandGlsl().split('\n').join('\n      ');
+  assert.ok(!m.fragmentShader.includes(`${sandBlock}\n\n      uniform vec3 uRamp[`), 'the source site moved');
+  assert.ok(
+    !m.fragmentShader.includes('uniform float uSandWidth;\n      uniform sampler2D uShadowTex;'),
+    'the declaration site moved',
+  );
+  assert.ok(
+    !m.fragmentShader.includes("vec3 n = normalize(vNormal);\n        // THE GRAIN'S NORMAL HALF"),
+    'the normal site moved',
+  );
+  assert.ok(
+    !m.fragmentShader.includes('uSandMix * (1.0 - sandBand) * grassGate);\n        gl_FragColor'),
+    'the write site moved',
+  );
+  // And what each site now joins to, exactly.
+  assert.ok(m.fragmentShader.includes(`${sandBlock}\n      // GENERATED from land-wear.ts`));
+  assert.ok(m.fragmentShader.includes('uniform float uSandWidth;\n      uniform sampler2D uWearTex;'));
+  assert.ok(m.fragmentShader.includes('vec3 n = normalize(vNormal);\n        // LAYER 6'));
+  assert.ok(
+    m.fragmentShader.includes('uRockMix * rockMask * grassGate);\n        gl_FragColor = vec4(c, 1.0);'),
+  );
+});
+
+test('the three refusals say the WHOLE reason — wear without grass, wear without atlas, rock without grass, detail without grain', () => {
+  const wear = { field: testWearField(), mix: 0.41, width: WEAR_FALLOFF };
+  assert.throws(
+    () => createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal', shadowAtlas: testAtlas(), wear }),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the wear layer needs the grass — its dirt ramp is driven by ' +
+          'layer 1’s own base scalar and its break noise by the one lattice hash, which only the ' +
+          'grass source declares',
+      );
+      return true;
+    },
+  );
+  assert.throws(
+    () =>
+      createBandedGroundMaterial({
+        tokens: SHIPPED_TOKENS,
+        grain: 'normal',
+        grass: { mix: 0.32, rows: [0] },
+        wear,
+      }),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the wear layer needs the PACKED occlusion atlas — its distance ' +
+          'field rides that atlas’s own tiles, and there is no per-island coordinate without it',
+      );
+      return true;
+    },
+  );
+  assert.throws(
+    () => createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, grain: 'normal', rock: { mix: 0.63, slope: ROCK_SLOPE_RAMP } }),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the rock layer needs the grass — its ramp is driven by layer 1’s ' +
+          'own base scalar, which only the grass source declares',
+      );
+      return true;
+    },
+  );
+  assert.throws(
+    () =>
+      createBandedGroundMaterial({
+        tokens: SHIPPED_TOKENS,
+        detail: { map: testDetailMap(), strength: 0.45, tile: 2.4 },
+      }),
+    (e: unknown) => {
+      assert.ok(e instanceof Error);
+      assert.equal(
+        e.message,
+        'banded-ground-material: the detail normal needs the grain — it bends the normal the ' +
+          'grain stage then relieves (the recipe’s NormalMap → Bump order), and it samples the ' +
+          'world position that stage carries through',
+      );
+      return true;
+    },
+  );
+  // ⚠ AND EACH REFUSAL IS ABOUT THE DEPENDENCY, NOT THE LAYER. With the dependency present and
+  // NOTHING ELSE — no sand, no other new layer — each option builds on its own.
+  assert.doesNotThrow(() =>
+    createBandedGroundMaterial({
+      tokens: SHIPPED_TOKENS,
+      grain: 'normal',
+      grass: { mix: 0.32, rows: [0] },
+      shadowAtlas: testAtlas(),
+      wear,
+    }),
+  );
+  assert.doesNotThrow(() =>
+    createBandedGroundMaterial({
+      tokens: SHIPPED_TOKENS,
+      grain: 'normal',
+      grass: { mix: 0.32, rows: [0] },
+      rock: { mix: 0.63, slope: ROCK_SLOPE_RAMP },
+    }),
+  );
+  assert.doesNotThrow(() =>
+    createBandedGroundMaterial({
+      tokens: SHIPPED_TOKENS,
+      grain: 'normal',
+      detail: { map: testDetailMap(), strength: 0.45, tile: 2.4 },
+    }),
+  );
+});
+
+test('the stack uploads EVERY value, and the samplers hold the caller`s own textures', () => {
+  // ⚠ THE VALUE, NOT JUST THE KEY — `check:mutation-diff` once replaced a `{ value: tex }` with an
+  // empty object and a presence check stayed green. And the values are all DIFFERENT, so a
+  // strength uploaded under the tile's name, or the two rock ends swapped, cannot pass.
+  const field = testWearField();
+  const map = testDetailMap();
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+    shadowAtlas: testAtlas(),
+    sand: { shore: testShore().texture, mix: 0.16, width: SAND_FIELD_WIDTH },
+    wear: { field, mix: 0.41, width: 3.7 },
+    rock: { mix: 0.63, slope: [0.8, 0.95] },
+    detail: { map, strength: 0.45, tile: 2.4 },
+  });
+  assert.equal(m.uniforms['uWearTex']?.value, field);
+  assert.equal(m.uniforms['uWearMix']?.value, 0.41);
+  assert.equal(m.uniforms['uWearWidth']?.value, 3.7);
+  assert.equal(m.uniforms['uRockMix']?.value, 0.63);
+  assert.equal(m.uniforms['uRockLo']?.value, 0.8);
+  assert.equal(m.uniforms['uRockHi']?.value, 0.95);
+  assert.equal(m.uniforms['uDetailTex']?.value, map);
+  assert.equal(m.uniforms['uDetailStrength']?.value, 0.45);
+  assert.equal(m.uniforms['uDetailTile']?.value, 2.4);
+  assert.deepEqual(
+    Object.keys(m.uniforms).sort(),
+    [
+      ...SANDED_UNIFORMS,
+      'uDetailStrength',
+      'uDetailTex',
+      'uDetailTile',
+      'uRockHi',
+      'uRockLo',
+      'uRockMix',
+      'uWearMix',
+      'uWearTex',
+      'uWearWidth',
+    ].sort(),
+  );
+  // ⚠ ALL NINE DECLARATIONS AS TEXT. A blanked decl leaves the uniform object intact and the
+  // shader compiling nowhere — the mutation the sand's own test records.
+  const decls =
+    '      uniform sampler2D uShoreTex;\n' +
+    '      uniform float uSandMix;\n' +
+    '      uniform float uSandWidth;\n' +
+    '      uniform sampler2D uWearTex;\n' +
+    '      uniform float uWearMix;\n' +
+    '      uniform float uWearWidth;\n' +
+    '      uniform float uRockMix;\n' +
+    '      uniform float uRockLo;\n' +
+    '      uniform float uRockHi;\n' +
+    '      uniform sampler2D uDetailTex;\n' +
+    '      uniform float uDetailStrength;\n' +
+    '      uniform float uDetailTile;\n' +
+    '      uniform sampler2D uShadowTex;';
+  assert.ok(m.fragmentShader.includes(decls), 'the nine new declarations, in order, between the sand`s and the shadow`s');
+});
+
+test('the wear and rock sources are spliced in from their modules, after the sand`s, with their indentation', () => {
+  const m = layered();
+  const sandBlock = sandGlsl().split('\n').join('\n      ');
+  const wearBlock = wearGlsl().split('\n').join('\n      ');
+  const rockBlock = rockGlsl().split('\n').join('\n      ');
+  // ⚠ THE THREE BLOCKS AS ONE STRING, with the joins between them: a per-block `includes()` is
+  // satisfied by any order and any residue between them.
+  assert.ok(
+    m.fragmentShader.includes(
+      `${sandBlock}\n      ${wearBlock}\n      ${rockBlock}\n\n      uniform vec3 uRamp[`,
+    ),
+    'sand, wear, rock — each at the shader body indentation, closing onto the ramp declaration',
+  );
+  assert.ok(m.fragmentShader.includes('\n      // GENERATED from land-wear.ts'));
+  assert.ok(m.fragmentShader.includes('\n      // GENERATED from land-rock.ts'));
+});
+
+test('DECLARATION ORDER: one st_wearBreak, one st_rockRamp, both after what they call', () => {
+  const m = layered();
+  const src = m.fragmentShader;
+  const count = (re: RegExp): number => [...src.matchAll(re)].length;
+  assert.equal(count(/float st_wearBreak\(/g), 1);
+  assert.equal(count(/vec3 st_rockRamp\(/g), 1);
+  assert.equal(count(/vec3 st_dirtRamp\(/g), 1);
+  assert.equal(count(/float st_wearOf\(/g), 1);
+  assert.equal(count(/float st_wearFactor\(/g), 1);
+  assert.equal(count(/vec3 st_dirtColour\(/g), 1);
+  assert.equal(count(/float st_rockMask\(/g), 1);
+  assert.equal(count(/vec3 st_rockColour\(/g), 1);
+  // ONE copy of each shared helper — a wear- or rock-named duplicate is a redefinition error at
+  // best and a silent divergence at worst.
+  assert.equal(count(/vec3 st_grassSrgb\(/g), 1);
+  assert.equal(count(/float st_grassScalar\(/g), 1);
+  assert.equal(count(/float st_grainHash\(/g), 1);
+  assert.equal(count(/float st_grainOctave\(/g), 1);
+  // GLSL ES 1.0 resolves against declarations already seen.
+  const srgb = src.indexOf('vec3 st_grassSrgb(');
+  const scalar = src.indexOf('float st_grassScalar(');
+  const octave = src.indexOf('float st_grainOctave(');
+  const sandEdge = src.indexOf('float st_sandEdge(');
+  const wearBreak = src.indexOf('float st_wearBreak(');
+  const rockRamp = src.indexOf('vec3 st_rockRamp(');
+  assert.ok(srgb >= 0 && scalar >= 0 && octave >= 0 && sandEdge >= 0);
+  assert.ok(wearBreak > srgb && wearBreak > scalar && wearBreak > octave, 'wear after the grass and grain');
+  assert.ok(rockRamp > srgb && rockRamp > scalar, 'rock after the grass');
+  assert.ok(sandEdge < wearBreak && wearBreak < rockRamp, 'sand, then wear, then rock');
+  // And the sources read no uniform: every `u*` spelling sits BELOW the ramp declaration.
+  const rampDecl = src.indexOf('uniform vec3 uRamp[');
+  for (const name of ['uWearWidth', 'uWearMix', 'uWearTex', 'uRockLo', 'uRockHi', 'uRockMix', 'uDetailTex']) {
+    assert.ok(src.indexOf(name) > rampDecl, `${name} must not be read above the uniform block`);
+  }
+});
+
+test('the WEAR STAGE is emitted line for line, and rides the shadow`s own coordinate', () => {
+  const m = layered();
+  assert.ok(m.fragmentShader.includes(WEAR_STAGE), 'the wear stage must arrive whole, comment block included');
+  // ⚠ ONE WIDTH, THREE PLACES: the declaration, the decode, and the falloff argument. The decode
+  // and `st_wearOf`'s falloff are the SAME uniform, so a widened path cannot read a field that
+  // was built narrower.
+  assert.equal([...m.fragmentShader.matchAll(/uWearWidth/g)].length, 3);
+  assert.ok(m.fragmentShader.includes('texture2D(uWearTex, shUv)'), 'the field rides shUv');
+  assert.equal([...m.fragmentShader.matchAll(/vec2 shUv =/g)].length, 1, 'still ONE atlas coordinate');
+  // The sand's own count is unmoved by the wear's arrival.
+  assert.equal([...m.fragmentShader.matchAll(/uSandWidth/g)].length, 3);
+  // The noise MULTIPLIES inside the helper; the stage multiplies the mix by the gate.
+  assert.ok(m.fragmentShader.includes('uWearMix * wear * grassGate'));
+});
+
+test('the ROCK STAGE is emitted line for line, reads n.y, and takes its ends from the uniforms', () => {
+  const m = layered();
+  assert.ok(m.fragmentShader.includes(ROCK_STAGE), 'the rock stage must arrive whole, comment block included');
+  // ⚠ `n.y` — the UP component in three's world space. `n.z` would ramp on the north-facing
+  // slopes and still compile.
+  assert.ok(m.fragmentShader.includes('st_rockMask(n.y, uRockLo, uRockHi)'));
+  assert.ok(!m.fragmentShader.includes('st_rockMask(n.z'));
+  assert.ok(m.fragmentShader.includes('uRockMix * rockMask * grassGate'));
+});
+
+test('the DETAIL STAGE is emitted line for line, BETWEEN the normal and the grain`s bump', () => {
+  const m = layered();
+  assert.ok(m.fragmentShader.includes(`vec3 n = normalize(vNormal);${DETAIL_STAGE}\n`), 'appended to the normal`s own line');
+  // ⚠ THE ORDER IS THE RECIPE'S: NormalMap → Bump. A detail stage after the grain's gradient
+  // would relieve the grain rather than the other way round — a different picture wearing the
+  // same two names.
+  const body = m.fragmentShader.slice(m.fragmentShader.indexOf('void main('));
+  const detailAt = body.indexOf('vec3 detailN =');
+  const grainAt = body.indexOf('st_grainGradient(vWorld.xz)');
+  const lambertAt = body.indexOf('float lambert');
+  assert.ok(detailAt >= 0 && grainAt > detailAt, 'detail before the grain-normal stage');
+  assert.ok(lambertAt > grainAt, 'and both before the lambert');
+  // The analytic frame: T = +x, B = +z on a ground plane, as `cross(n, +z)` and `cross(T, n)`.
+  assert.ok(m.fragmentShader.includes('vec3 detailT = normalize(cross(n, vec3(0.0, 0.0, 1.0)));'));
+  assert.ok(m.fragmentShader.includes('vec3 detailB = cross(detailT, n);'));
+  // And the map is sampled in GROUND units through the tile, not in atlas UV.
+  assert.ok(m.fragmentShader.includes('texture2D(uDetailTex, vWorld.xz / uDetailTile)'));
+  // ⚠ IT TOUCHES NO COLOUR: with only the grain and the detail, the closure holds.
+  const closed = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    detail: { map: testDetailMap(), strength: 0.45, tile: 2.4 },
+  });
+  assert.ok(grainKeepsPaletteClosed(closed.fragmentShader), 'the detail normal keeps the closure');
+  assert.ok(closed.fragmentShader.includes('vec3 detailN ='), 'and is really in there');
+});
+
+test('COMPOSITE ORDER: grass, sand, wear, rock, then the grain`s colour half — and FOUR gates', () => {
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'both',
+    grass: { mix: 0.32, rows: [0] },
+    shadowAtlas: testAtlas(),
+    sand: { shore: testShore().texture, mix: 0.16, width: SAND_FIELD_WIDTH },
+    wear: { field: testWearField(), mix: 0.41, width: WEAR_FALLOFF },
+    rock: { mix: 0.63, slope: [0.8, 0.95] },
+  });
+  const body = m.fragmentShader.slice(m.fragmentShader.indexOf('void main('));
+  const select = body.indexOf('vec3 c = uRamp[0];');
+  const grassAt = body.indexOf('c = mix(c, st_grassColour');
+  const sandAt = body.indexOf('c = mix(c, st_sandColour');
+  const wearAt = body.indexOf('c = mix(c, st_dirtColour');
+  const rockAt = body.indexOf('c = mix(c, st_rockColour');
+  const grainAt = body.indexOf('uGrainColourMix');
+  assert.ok(select >= 0 && grassAt > select, 'the layers composite over a SELECTED status colour');
+  assert.ok(sandAt > grassAt, 'sand over grass');
+  assert.ok(wearAt > sandAt, 'the path over the sand');
+  assert.ok(rockAt > wearAt, 'rock over the path');
+  assert.ok(grainAt > rockAt, 'the grain is layer 5 and goes on LAST');
+  // ⚠ EVERY SEAM CARRIES THE SAME GATE. Four seams into `c`, four `grassGate);` — the sanded
+  // fixture's own count of two is unmoved (its test above), so this is the layers' doing.
+  assert.equal([...m.fragmentShader.matchAll(/grassGate\)?;/g)].length, 4, 'all four seams gated');
+  assert.equal([...sanded().fragmentShader.matchAll(/grassGate\)?;/g)].length, 2);
+});
+
+test('the wear stage composites straight after LAYER 1 when there is no sand — and the rock after the wear', () => {
+  // The two are appended to the grass stage, not nested in the sand's branch: a path can exist on
+  // a beachless island, and a rock face on an island with no path.
+  const worn = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+    shadowAtlas: testAtlas(),
+    wear: { field: testWearField(), mix: 0.41, width: WEAR_FALLOFF },
+  });
+  assert.ok(
+    worn.fragmentShader.includes(
+      'c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);\n        // LAYER 3 — the worn path',
+    ),
+  );
+  assert.ok(!/st_sand|uShoreTex|st_rock/.test(worn.fragmentShader));
+  const rocky = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    grain: 'normal',
+    grass: { mix: 0.32, rows: [0] },
+    rock: { mix: 0.63, slope: ROCK_SLOPE_RAMP },
+  });
+  assert.ok(
+    rocky.fragmentShader.includes(
+      'c = mix(c, st_grassColour(vWorld.xz), uGrassMix * grassGate);\n        // LAYER 4 — rock on slope',
+    ),
+  );
+  assert.ok(!/st_sand|st_wear|uShoreTex|shUv/.test(rocky.fragmentShader), 'rock needs no atlas coordinate');
+  assert.equal(rocky.uniforms['uRockLo']?.value, ROCK_SLOPE_RAMP[0]);
+  assert.equal(rocky.uniforms['uRockHi']?.value, ROCK_SLOPE_RAMP[1]);
 });

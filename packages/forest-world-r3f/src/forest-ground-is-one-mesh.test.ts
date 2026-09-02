@@ -265,9 +265,16 @@ test('ForestWorldCanvas mounts exactly ONE <CellGround>, over the whole cell sli
     /const cells = useMemo\(\(\) => byKind\(descriptors, 'cell-ground'\), \[descriptors\]\)/,
     'the cells handed to <CellGround> must be every cell-ground descriptor in the scene',
   );
+  // The strips ride along too (layer 3's docks) — the WHOLE `trail-strip` family, unfiltered, for
+  // the same reason: a per-island subset would dock some trails and not others.
   assert.match(
     CANVAS_SRC,
-    /<CellGround cells=\{cells\} casters=\{casters\} \/>/,
+    /const strips = useMemo\(\(\) => byKind\(descriptors, 'trail-strip'\), \[descriptors\]\)/,
+    'the strips handed to <CellGround> must be every trail-strip descriptor in the scene',
+  );
+  assert.match(
+    CANVAS_SRC,
+    /<CellGround cells=\{cells\} casters=\{casters\} strips=\{strips\} \/>/,
     'and they must be handed over unfiltered',
   );
 });

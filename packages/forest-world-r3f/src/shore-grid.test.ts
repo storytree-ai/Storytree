@@ -2,7 +2,18 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { CoastPoint } from './coast-clip.js';
-import { buildEdgeGrid, cellIndex, edgeBounds, edgeGridFarField, spanOf } from './shore-grid.js';
+import {
+  buildEdgeGrid,
+  buildSegmentGrid,
+  cellIndex,
+  edgeBounds,
+  edgeGridFarField,
+  nearestOnSegments,
+  ringEdges,
+  spanOf,
+  type CoastEdge,
+  type NearestSample,
+} from './shore-grid.js';
 import { shoreField } from './shore-fall.js';
 
 /** A brute-force distance to the nearest point of any ring, capped — the definition the grid is an
@@ -234,6 +245,139 @@ test('edgeBounds returns the true box, and each corner comes from the right extr
     minX: -3, minZ: -4, maxX: 0, maxZ: 0,
   });
 });
+
+// ---------------------------------------------------------------------------
+// The split: ring flattener + segment indexer + the extracted walk
+// ---------------------------------------------------------------------------
+
+test('ringEdges flattens every ring with its CLOSING chord, in order', () => {
+  // ⚠ THE CLOSING CHORD IS THE WHOLE DIFFERENCE from an open polyline's edges: a ring's last
+  // edge runs from its final vertex back to its first, and dropping it leaves one side of every
+  // island without a coast. Asserted as the exact list, so an off-by-one at either end is a
+  // different array rather than a plausible one.
+  assert.deepEqual(ringEdges([SQUARE]), [
+    { ax: 0, az: 0, bx: 40, bz: 0 },
+    { ax: 40, az: 0, bx: 40, bz: 40 },
+    { ax: 40, az: 40, bx: 0, bz: 40 },
+    { ax: 0, az: 40, bx: 0, bz: 0 },
+  ]);
+  // Two rings concatenate in order; a two-point "ring" yields its edge and the return leg.
+  const two: CoastPoint[] = [{ x: 5, z: 6 }, { x: 9, z: 6 }];
+  assert.deepEqual(ringEdges([two, SQUARE]).slice(0, 2), [
+    { ax: 5, az: 6, bx: 9, bz: 6 },
+    { ax: 9, az: 6, bx: 5, bz: 6 },
+  ]);
+  assert.equal(ringEdges([two, SQUARE]).length, 6);
+  assert.deepEqual(ringEdges([]), []);
+});
+
+test('buildEdgeGrid IS buildSegmentGrid over ringEdges — same edges, same candidates', () => {
+  // The refactor's regression fence: the split must not change what the ring form answers.
+  const width = 5;
+  const viaRings = buildEdgeGrid([SQUARE], width);
+  const viaEdges = buildSegmentGrid(ringEdges([SQUARE]), width);
+  assert.deepEqual(viaRings.edges, viaEdges.edges);
+  assert.equal(viaRings.cell, viaEdges.cell);
+  for (const [x, z] of [[20, -1], [-3, 20], [41, 39], [20, 20], [100, 100]] as const) {
+    assert.deepEqual([...viaRings.candidates(x, z)].sort(), [...viaEdges.candidates(x, z)].sort());
+  }
+});
+
+test('buildSegmentGrid indexes an OPEN edge set with no closing chord of its own', () => {
+  // A single edge from (0,0) to (40,0). A RING of the same two points would index TWO edges (the
+  // edge and its return leg); the segment form indexes exactly what it was handed.
+  const open: CoastEdge[] = [{ ax: 0, az: 0, bx: 40, bz: 0 }];
+  const grid = buildSegmentGrid(open, 5);
+  assert.equal(grid.edges.length, 1, 'one edge in, one edge indexed — no chord was added');
+  assert.ok(grid.candidates(20, -1).length > 0);
+  assert.deepEqual([...grid.candidates(20, 30)], [], 'six cells away, nothing is offered');
+});
+
+test('⚠⚠ nearestOnSegments agrees with the brute-force walk at every probe, both regimes', () => {
+  // The extracted walk, held to the definition directly rather than only through `shoreField`.
+  // ⚠ AN OFF-ORIGIN, MANY-EDGED, OPEN edge set, so the gradient's sign and the clamp at BOTH
+  // ends of every segment are exercised — and open, so that the brute twin below (which walks
+  // the edge list as given) is not quietly comparing two closed shapes.
+  const pts: CoastPoint[] = Array.from({ length: 60 }, (_, i) => ({
+    x: 30 + i * 1.7,
+    z: -20 + 11 * Math.sin(i * 0.37) + 3 * Math.cos(i * 1.3),
+  }));
+  const edges: CoastEdge[] = [];
+  for (let i = 0; i + 1 < pts.length; i += 1) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    edges.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z });
+  }
+  const cap = 6.5;
+  const grid = buildSegmentGrid(edges, cap);
+  let compared = 0;
+  let sawBand = 0;
+  let sawCap = 0;
+  for (let x = 15; x <= 145; x += 0.9) {
+    for (let z = -45; z <= 5; z += 0.9) {
+      const got = nearestOnSegments(grid, x, z, cap);
+      const expected = bruteOpen(edges, x, z, cap);
+      assert.ok(
+        Math.abs(got.distance - expected.distance) < 1e-9,
+        `at (${x}, ${z}) the walk said ${got.distance} and the twin said ${expected.distance}`,
+      );
+      // The gradient is a UNIT vector away from the nearest point, or zero when capped / on it.
+      assert.ok(Math.abs(got.gx - expected.gx) < 1e-9 && Math.abs(got.gz - expected.gz) < 1e-9,
+        `at (${x}, ${z}) gradient (${got.gx}, ${got.gz}) vs (${expected.gx}, ${expected.gz})`);
+      compared += 1;
+      if (got.distance > 0 && got.distance < cap) sawBand += 1;
+      if (got.distance === cap) sawCap += 1;
+    }
+  }
+  assert.ok(compared > 7000, `only ${compared} probes`);
+  assert.ok(sawBand > 1500, `only ${sawBand} probes in the band`);
+  assert.ok(sawCap > 1500, `only ${sawCap} probes in the capped far field`);
+  // And the on-edge case, where the gradient is undefined and must come back as ZERO rather than
+  // NaN: probe a vertex exactly.
+  const v = pts[7]!;
+  const on = nearestOnSegments(grid, v.x, v.z, cap);
+  assert.deepEqual(on, { distance: 0, gx: 0, gz: 0 });
+});
+
+test('nearestOnSegments caps at the cap it is HANDED, with a zero gradient there', () => {
+  const grid = buildSegmentGrid(ringEdges([SQUARE]), 5);
+  // Inside the square, 20 units from every side: capped at the grid's own width.
+  assert.deepEqual(nearestOnSegments(grid, 20, 20, 5), { distance: 5, gx: 0, gz: 0 });
+  // A point 3 units off the bottom edge with a cap of 5 measures 3, gradient straight out.
+  const s = nearestOnSegments(grid, 20, -3, 5);
+  assert.equal(s.distance, 3);
+  assert.equal(s.gx, 0);
+  assert.equal(s.gz, -1);
+  // A smaller cap than the grid's cell is still exact — the neighbourhood is only wider than
+  // needed — and caps there.
+  assert.equal(nearestOnSegments(grid, 20, -3, 2).distance, 2);
+});
+
+/** The definition `nearestOnSegments` is an optimisation OF, over an OPEN edge list: every edge
+ *  as given, no chord, no index, the slowest honest spelling. Returns the gradient too, computed
+ *  from the nearest point rather than from anything the walk exposes. */
+function bruteOpen(edges: readonly CoastEdge[], x: number, z: number, cap: number): NearestSample {
+  let best = cap;
+  let px = 0;
+  let pz = 0;
+  for (const e of edges) {
+    const ex = e.bx - e.ax;
+    const ez = e.bz - e.az;
+    const lenSq = ex * ex + ez * ez;
+    const raw = lenSq === 0 ? 0 : ((x - e.ax) * ex + (z - e.az) * ez) / lenSq;
+    const t = Math.max(0, Math.min(1, raw));
+    const qx = e.ax + ex * t;
+    const qz = e.az + ez * t;
+    const d = Math.hypot(x - qx, z - qz);
+    if (d < best) {
+      best = d;
+      px = qx;
+      pz = qz;
+    }
+  }
+  if (best === cap || best === 0) return { distance: best, gx: 0, gz: 0 };
+  return { distance: best, gx: (x - px) / best, gz: (z - pz) / best };
+}
 
 test('spanOf is INCLUSIVE at both ends, and empty when the range inverts', () => {
   // The bucketing writes an edge into every cell of its box, so an off-by-one at EITHER end drops
