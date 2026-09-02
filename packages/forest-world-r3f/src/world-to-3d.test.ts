@@ -6,7 +6,7 @@
 // (missing implementation, not a syntax error in the test).
 //
 // When the implementation lands, these tests pin:
-//   • core kind-family mapping: tile hex ground → hex-ground, story tree →
+//   • core kind-family mapping: relaxed-mesh parcel → cell-ground, story tree →
 //     story-tree, trail fill/ghost → trail-strip / trail-ghost-strip, cave →
 //     cave-arch, in-flight wisp → wisp-sprite
 //   • total coverage: non-core / structural SceneKinds yield an explicit
@@ -15,20 +15,26 @@
 //   • all instance descriptors carry a 3D transform { x, y, z } and an instancing
 //     group string
 //   • determinism: same scene → byte-identical descriptor array
+//   • the RETIRED classic extruded-hex substrate (`tile`) REFUSES rather than mapping
+//     or silently skipping (`retire-the-old-land-path`)
 //
 // The fixtures use a real buildScene over @storytree/forest-world's SceneInput
 // contract — trails are real `routeTrails` output on tiny island sets, not
 // hand-forged shapes — exercising the mapper end-to-end against the real core
-// (ADR-0123 provability firewall).
+// (ADR-0123 provability firewall). `mkInput` below builds the RELAXED-MESH substrate
+// (the one production surface ever emits), so this end-to-end exercise runs the same
+// substrate the studio ships; the classic substrate is exercised separately, only by
+// the one test that pins its refusal.
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildRelaxedCells,
   buildScene,
-  hexCenter,
   routeTrails,
   trailFillWidth,
+  type DrawTile,
   type SceneG,
   type SceneInput,
   type SceneKind,
@@ -100,20 +106,33 @@ function mkTerritory(over: Partial<SceneTerritoryInput> = {}): SceneTerritoryInp
   };
 }
 
-/** Classic hex-ground mode (relaxedCells: null) so the scene contains `tile`
- *  groups — the ground family the mapper must classify as hex-ground. */
+/** The DEFAULT tiles behind the fixture's relaxed-mesh ground — the same two-hex layout this
+ *  fixture used before the classic substrate (`relaxedCells: null`) was retired at the mapper
+ *  (`retire-the-old-land-path`). Kept as its own constant because `buildRelaxedCells` below needs
+ *  it independently of the `SceneInput` it ends up inside. */
+const DEFAULT_DRAW_TILES: DrawTile[] = [
+  { h: { q: 0, r: 0 }, owner: 0 },
+  { h: { q: 1, r: 0 }, owner: 0 },
+];
+
+/** The RELAXED-MESH substrate (`mode: 'mesh'`, the shipped studio's own substrate) so the scene
+ *  contains `cell` groups under a `ground` group — the ground family the mapper classifies as
+ *  cell-ground. Until `retire-the-old-land-path` this built a CLASSIC scene instead
+ *  (`relaxedCells: null`, `tile` groups); the classic substrate now REFUSES at the mapper rather
+ *  than mapping (see the dedicated refusal test below), so every OTHER test in this file — which
+ *  is exercising story-tree / trail / cave / wisp mapping, not ground — needs a substrate the
+ *  mapper still accepts. */
 function mkInput(over: Partial<SceneInput> = {}): SceneInput {
+  const drawTiles = over.drawTiles ?? DEFAULT_DRAW_TILES;
+  const wheatSets = over.wheatSets ?? [new Set<string>()];
   return {
     offset: { x: 0, y: 0 },
     width: 1200,
     height: 900,
     empties: [],
-    relaxedCells: null,
-    drawTiles: [
-      { h: { q: 0, r: 0 }, owner: 0 },
-      { h: { q: 1, r: 0 }, owner: 0 },
-    ],
-    wheatSets: [new Set()],
+    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh'),
+    drawTiles,
+    wheatSets,
     trails: BASE_TRAILS,
     territories: [mkTerritory()],
     ...over,
@@ -153,17 +172,24 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
   );
   const descs = worldTo3D(scene);
 
-  // kind family → typed descriptor branch, transforms derived from the World geometry:
-  // each hex-ground sits at ITS baked hex centre (distinct per tile, never collapsed).
-  const grounds = descs.filter((d): d is InstanceDescriptor => d.kind === 'hex-ground');
-  assert.equal(grounds.length, 2, 'one hex-ground per draw tile');
-  const c0 = hexCenter({ q: 0, r: 0 });
-  const c1 = hexCenter({ q: 1, r: 0 });
-  closeTo(grounds[0]!.transform.x, c0.x, 'tile 0 x from its hex centre');
-  closeTo(grounds[0]!.transform.z, c0.y, 'tile 0 z from its hex centre');
-  closeTo(grounds[1]!.transform.x, c1.x, 'tile 1 x from its hex centre');
-  closeTo(grounds[1]!.transform.z, c1.y, 'tile 1 z from its hex centre');
-  assert.notDeepEqual(grounds[0]!.transform, grounds[1]!.transform, 'tiles do not collapse');
+  // kind family → typed descriptor branch, transforms derived from the World geometry: each
+  // cell-ground sits at ITS OWN parcel ring's centroid — the relaxed-mesh ground, the one
+  // substrate this mapper accepts since the classic tile prism was retired
+  // (`retire-the-old-land-path`). A parcel's position is an emergent property of the mesh
+  // relaxation rather than a closed form like a hex centre, so what is pinned here is the
+  // faithfulness property itself (real ring-derived geometry, distinct per parcel) rather than
+  // a hand-computed coordinate a change to the relaxation algorithm would immediately stale.
+  const grounds = descs.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');
+  assert.ok(grounds.length > 0, 'the mesh substrate draws at least one cell-ground parcel');
+  for (const g of grounds) {
+    assert.ok((g.points?.length ?? 0) >= 3, 'a parcel carries a ring it is possible to build a face from');
+    assert.ok(
+      Number.isFinite(g.transform.x) && Number.isFinite(g.transform.z),
+      'a parcel transform is real geometry, not a placeholder',
+    );
+  }
+  const positions = new Set(grounds.map((g) => `${g.transform.x.toFixed(3)},${g.transform.z.toFixed(3)}`));
+  assert.equal(positions.size, grounds.length, 'no two parcels collapse onto the same position');
 
   // the story tree stands at its territory's treeSpot.
   const trees = descs.filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
@@ -205,8 +231,10 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
   // folded SceneStatus → a distinct material variant per status.
   for (const status of ['healthy', 'unhealthy', 'proposed', 'building'] as const) {
     const ds = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ status })] })));
-    for (const gd of ds.filter((d): d is InstanceDescriptor => d.kind === 'hex-ground')) {
-      assert.equal(gd.material, status, `hex-ground material reflects '${status}'`);
+    const cellsForStatus = ds.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');
+    assert.ok(cellsForStatus.length > 0, `${status}: expected at least one cell-ground descriptor`);
+    for (const gd of cellsForStatus) {
+      assert.equal(gd.material, status, `cell-ground material reflects '${status}'`);
     }
     const tr = ds.filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
     assert.equal(tr[0]!.material, status, `story-tree material reflects '${status}'`);
@@ -217,11 +245,39 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
 // core kind families → typed instance descriptors
 // ---------------------------------------------------------------------------
 
-test('worldTo3D maps hex tile ground to hex-ground descriptors — one per draw tile', () => {
-  // mkInput has relaxedCells: null + 2 drawTiles → 2 tile groups in the scene
+test('worldTo3D maps the relaxed-mesh ground to cell-ground descriptors via the real core', () => {
+  // mkInput builds the mesh substrate — the shipped studio's own ground representation, and the
+  // only one worldTo3D still accepts.
   const descs = worldTo3D(buildScene(mkInput()));
-  const grounds = descs.filter((d): d is InstanceDescriptor => d.kind === 'hex-ground');
-  assert.equal(grounds.length, 2, 'one hex-ground descriptor per draw tile');
+  const grounds = descs.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');
+  assert.ok(grounds.length > 0, 'the real core emits at least one parcel for the mesh substrate');
+});
+
+test('worldTo3D REFUSES a classic-substrate (tile) scene — the old land path is retired, not silently dropped', () => {
+  // ⚠⚠ THE MESSAGE IS PINNED IN FULL, deliberately, rather than pattern-matched. This is the
+  // assertion `retire-the-old-land-path` exists for: a `tile` group is a kind this mapper
+  // understands and used to draw, so degrading it to a silent
+  // `{ kind: 'skipped', sceneKind: 'tile' }` would silently reproduce the exact 2026-08-28
+  // defect (a shipped island with no ground at all,
+  // `docs/research/chapter2-shipped-baseline-2026-08-28/`) with no record anywhere that
+  // anything had gone wrong. The refusal's WORDING is the thing worth protecting — a mutant that
+  // softened or genericised the message would slip past a loose `.match(/refused/)` — so the
+  // whole string is pinned here rather than a substring.
+  const classic: SceneG = {
+    el: 'g',
+    kind: 'tile',
+    status: 'healthy',
+    children: [{ el: 'path', kind: 'tile-top', d: 'M 0 0 L 10 0 L 10 10 L 0 10 Z' }],
+  };
+  assert.throws(
+    () => worldTo3D(classic),
+    (err: unknown) =>
+      err instanceof Error &&
+      err.message ===
+        'world-to-3d: the 3D map draws the relaxed-mesh land only — the classic extruded-hex ' +
+          'ground was retired (adopt-the-land-into-the-shipped-map-arc, retire-the-old-land-path); ' +
+          'build the scene with relaxedCells, not drawTiles',
+  );
 });
 
 test('worldTo3D maps the story tree to a story-tree descriptor — one per territory', () => {
@@ -436,15 +492,15 @@ test('r3f garden composition (grounded-art inc 11, ADR-0221): baked heroes + fla
 // folded status flows to the material variant
 // ---------------------------------------------------------------------------
 
-test('worldTo3D folds the territory status into the material on hex-ground descriptors', () => {
+test('worldTo3D folds the territory status into the material on cell-ground descriptors', () => {
   for (const status of ['healthy', 'unhealthy', 'proposed'] as const) {
     const descs = worldTo3D(
       buildScene(mkInput({ territories: [mkTerritory({ status })] })),
     );
-    const grounds = descs.filter((d): d is InstanceDescriptor => d.kind === 'hex-ground');
-    assert.ok(grounds.length > 0, `${status}: expected at least one hex-ground descriptor`);
+    const grounds = descs.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');
+    assert.ok(grounds.length > 0, `${status}: expected at least one cell-ground descriptor`);
     for (const g of grounds) {
-      assert.equal(g.material, status, `hex-ground material must reflect '${status}' territory`);
+      assert.equal(g.material, status, `cell-ground material must reflect '${status}' territory`);
     }
   }
 });
@@ -547,9 +603,9 @@ test('worldTo3D maps relaxed-mesh cells to cell-ground descriptors — one per p
 });
 
 test('a cell-wheat parcel is the SAME ground, not a third drawable', () => {
-  // The classic case already folds its own `tile-top-wheat` into one `hex-ground`; folding here
-  // keeps the two substrates telling the same story rather than inventing a family this surface
-  // has no idea what to do with.
+  // The retired classic case used to fold its own `tile-top-wheat` into one `hex-ground` the same
+  // way; folding here keeps the wheat look as the SAME drawable rather than inventing a family
+  // this surface has no idea what to do with.
   const ds = worldTo3D(meshGround([UNIT_SQUARE], { status: 'mapped', kind: 'cell-wheat' }));
   const cells = ds.filter(asInstance).filter((d) => d.kind === 'cell-ground');
   assert.equal(cells.length, 1);
@@ -866,28 +922,43 @@ test('⚠ the island id is taken ONLY from a group that says it IS an island', (
   assert.deepEqual(islandsOf(wrapper, 'cell-ground'), [undefined], 'a layer is not an island');
 });
 
-test('the tree, the tiles and the blooms all name their island — the whole per-story family', () => {
-  // The classic substrate's `tile` IS a territory, the `territory` group holds the tree and the
-  // UAT markers, and the mesh substrate's `ground` holds the cells: three groups, one `t.id`.
+test('the tree, the parcels and the blooms all name their island — the whole per-story family', () => {
+  // The mesh substrate's `ground` group holds the cells and the `territory` group holds the tree
+  // and the UAT markers: two groups, one `t.id`. (The classic substrate's `tile` used to be a
+  // third such group — a tile IS a territory — until it was retired at the mapper along with the
+  // rest of that substrate; see `ISLAND_GROUP_KINDS` in `world-to-3d.ts`.)
   const uatCriteria = [
     { id: 'sig-1', state: 'proven' as const },
     { id: 'sig-2', state: 'proven' as const },
   ];
   const scene = buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })] }));
-  assert.deepEqual(islandsOf(scene, 'hex-ground'), [TERRITORY_ID, TERRITORY_ID]);
+  const cellIslands = islandsOf(scene, 'cell-ground');
+  assert.ok(cellIslands.length > 0, 'the mesh substrate draws at least one parcel');
+  assert.ok(
+    cellIslands.every((id) => id === TERRITORY_ID),
+    'every parcel names the same story as its island',
+  );
   assert.deepEqual(islandsOf(scene, 'story-tree'), [TERRITORY_ID]);
   assert.deepEqual(islandsOf(scene, 'uat-bloom'), [TERRITORY_ID, TERRITORY_ID]);
+  // ⚠ SORTED, NOT INSERTION ORDER. The core interleaves every territory drawable — tree, flora,
+  // UAT markers — by its own Y coordinate for depth (`scene.ts`'s painter's-algorithm sort), and
+  // on the mesh substrate a marker's Y is constrained to land ON a real parcel — a keep-in the
+  // classic substrate's unconstrained scatter never applied. So which criterion's marker ends up
+  // ABOVE the other in the scene tree is a substrate-dependent accident of that sort, never a
+  // contract; what this test can honestly claim is that each bloom names ITS OWN criterion,
+  // order aside.
   assert.deepEqual(
     worldTo3D(scene)
       .filter(asInstance)
       .filter((d) => d.kind === 'uat-bloom')
-      .map((d) => d.criterion),
+      .map((d) => d.criterion)
+      .sort(),
     ['sig-1', 'sig-2'],
     'each bloom names the criterion it stands for',
   );
 });
 
-test('⚠ NO island group ⇒ the field is ABSENT, on every one of the four families', () => {
+test('⚠ NO island group ⇒ the field is ABSENT, on every one of the three families', () => {
   // ⚠⚠ ABSENT AND `undefined` ARE DIFFERENT DESCRIPTORS, and the difference is the whole reason the
   // assignment is guarded. Under `exactOptionalPropertyTypes` a consumer distinguishes "this
   // substrate does not say which story this is" from "this story is undefined" by asking `'island'
@@ -910,16 +981,12 @@ test('⚠ NO island group ⇒ the field is ABSENT, on every one of the four fami
   assert.deepEqual(got.map((d) => d.kind).sort(), ['cell-ground', 'story-tree', 'uat-bloom']);
   for (const d of got) assert.ok(!('island' in d), `${d.kind} invented an island`);
 
-  // The classic substrate's tile is the fourth: a `tile` group is an island only when it says which.
-  const namelessTile: SceneG = {
-    el: 'g',
-    kind: 'tile',
-    status: 'healthy',
-    children: [{ el: 'path', kind: 'tile-top', d: 'M 0 0 L 10 0 L 10 10 L 0 10 Z' }],
-  };
-  const hex = worldTo3D(namelessTile).filter(asInstance).find((d) => d.kind === 'hex-ground');
-  assert.ok(hex, 'the tile still becomes a hex-ground');
-  assert.ok(!('island' in hex), 'hex-ground invented an island');
+  // ⚠ THE CLASSIC SUBSTRATE'S `tile` USED TO BE THE FOURTH FAMILY THIS TEST CHECKED — a `tile`
+  // group was an island only when it said which. It is retired rather than merely renamed: a
+  // `tile` group now REFUSES outright (see the dedicated refusal test), so there is no
+  // `hex-ground` descriptor left to ask "did this one invent an island?" of. The fence this test
+  // exists for — no family invents an island it was not told — is unaffected: the classic
+  // substrate no longer reaches this code path at all.
 });
 
 test('a uat-bloom stands where the scene put its marker, in the family and status of its island', () => {
@@ -1040,13 +1107,15 @@ test('a ring bounding no area is SKIPPED, not emitted as a degenerate parcel', (
   assert.equal(skips.length, 1, 'the degenerate parcel must still be recorded as a skip');
 });
 
-test('the classic hex substrate is UNAFFECTED — the cell case ADDED a representation', () => {
-  // Without this the tests above are satisfied by a mapper re-pointed from `tile` to `cell`,
-  // which is the same defect facing the other way.
-  const ds = worldTo3D(buildScene(mkInput()));
-  assert.ok(ds.filter(asInstance).filter((d) => d.kind === 'hex-ground').length > 0);
-  assert.equal(ds.filter(asInstance).filter((d) => d.kind === 'cell-ground').length, 0);
-});
+// ⚠ THIS NON-VACUITY CONTROL IS RETIRED, ITS PREMISE GONE RATHER THAN MERELY OLD. It used to prove
+// that the `cell` case ADDED a representation rather than re-pointing the mapper from `tile` to
+// `cell` — the same defect facing the other way — by asserting the classic substrate still drew
+// `hex-ground` beside the new `cell-ground`. `retire-the-old-land-path` removed the thing the
+// control was a non-vacuity check FOR: the classic substrate no longer draws ground at all, it
+// REFUSES, so "does it still draw its hexes?" is no longer an available question. The property
+// this control protected — a mapper that adds rather than swaps — is now covered the other
+// direction by the dedicated refusal test above, which pins that a classic scene fails LOUDLY
+// rather than silently losing its ground the way the pre-fix mapper did.
 
 test('a TRIANGULAR parcel is drawn — three vertices bound an area', () => {
   // ⚠ The degeneracy guard is `< 3`, and `<= 3` would throw away every triangular parcel while

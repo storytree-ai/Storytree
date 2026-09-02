@@ -90,26 +90,31 @@ export interface ShippedPrimitive {
   perDrawable: number;
 }
 
-/** ⚠ HEX_RADIUS / TILE_HEIGHT are transcribed from `src/ForestWorldCanvas.tsx:49-50`. They do
- *  not affect the triangle count (a cylinder's count is segment-driven), and are recorded
- *  because the SIZE is what a later reader compares against the harness's cell pitch. */
-export const SHIPPED_HEX_RADIUS = 9;
-export const SHIPPED_TILE_HEIGHT = 3;
+/** ⚠ `SHIPPED_HEX_RADIUS` / `SHIPPED_TILE_HEIGHT` AND THE `hex-ground` PRIMITIVE ROW BELOW ARE
+ *  RETIRED, NOT MERELY UNUSED (`retire-the-old-land-path`). They used to transcribe
+ *  `HEX_RADIUS` / `TILE_HEIGHT`, the classic extruded-hex prism's own size constants in
+ *  `src/ForestWorldCanvas.tsx` — but that component (`HexGround`) and both constants were deleted
+ *  from the shipped file in the same landing that made `world-to-3d.ts` REFUSE a classic-substrate
+ *  scene outright. There is nothing left in the shipped file to transcribe or pin: a census of
+ *  what the shipped canvas draws is a census of the mesh substrate now, full stop, and the
+ *  triangle-count formulas above (`cylinderTriangles` and friends) are unaffected general-purpose
+ *  three.js arithmetic that the story-tree trunk/crown and the cave-arch/wisp primitives below
+ *  still use. */
 
 /** Every primitive the shipped canvas draws, with its authored triangle count.
  *
  *  ⚠ `trail-strip` is ABSENT ON PURPOSE and its absence is a finding rather than an omission:
  *  `ForestWorldCanvas` takes `showTrails = false` as its default (ADR-0169 §3), so the shipped
  *  map draws no trail at all unless a mount opts in. A count for it would misreport the
- *  default scene. `trail-ghost-strip` is never drawn at any setting. */
+ *  default scene. `trail-ghost-strip` is never drawn at any setting.
+ *
+ *  ⚠⚠ `hex-ground` IS ALSO ABSENT ON PURPOSE, and unlike `trail-strip` it is gone rather than
+ *  merely undrawn-by-default: the classic extruded-hex prism this row once described was deleted
+ *  from `ForestWorldCanvas.tsx` (`retire-the-old-land-path`), so there is no longer a primitive
+ *  call in the shipped file for this row to cite. `cell-ground` still carries no row here either,
+ *  for the ORIGINAL reason below (its triangle count is a property of the scene, not of the
+ *  family) — the two absences are unrelated. */
 export const SHIPPED_PRIMITIVES: readonly ShippedPrimitive[] = [
-  {
-    kind: 'hex-ground',
-    source: 'ForestWorldCanvas.tsx:57',
-    primitive: 'cylinderGeometry(9, 9, 3, 6)',
-    triangles: cylinderTriangles(6, 1, 9, 9),
-    perDrawable: 1,
-  },
   {
     kind: 'story-tree/trunk',
     source: 'ForestWorldCanvas.tsx:77',
@@ -205,13 +210,16 @@ export const SHIPPED_UNDRAWN: readonly { kind: string; why: string }[] = [
   { kind: 'skipped', why: 'an audit record, not a drawable' },
 ];
 
-/** ⚠ THE TWO GROUND SUBSTRATES DIFFER BY EXACTLY ONE FACE PER PARCEL, and it is recorded rather
- *  than smoothed over. The classic `cylinderGeometry` prism carries a BOTTOM cap because three
- *  generates one and the shipped file does not ask it not to; `cellGroundGeometry` emits none,
- *  since the map is viewed from above and the parcels tile the island with no gaps. So a
- *  like-for-like triangle comparison between the two substrates is off by `ringLength` per
- *  parcel in the classic path's favour, and a reader comparing the two columns should know that
- *  before concluding the mesh ground is cheaper than it is. */
+/** ⚠ HISTORICAL RECORD, KEPT FOR A RETIRED COMPARISON. While both ground substrates shipped, they
+ *  differed by exactly one face per parcel: the classic `cylinderGeometry` prism carried a BOTTOM
+ *  cap because three generates one and the shipped file did not ask it not to, while
+ *  `cellGroundGeometry` emits none, since the map is viewed from above and the parcels tile the
+ *  island with no gaps. So a like-for-like triangle comparison between the two substrates was off
+ *  by `ringLength` per parcel in the classic path's favour. The classic prism is gone
+ *  (`retire-the-old-land-path`) — there is only one ground substrate left to count — but the fact
+ *  is kept rather than deleted, so a reader who finds an OLD "mesh vs classic" cost comparison
+ *  (e.g. in `docs/research/chapter2-shipped-baseline-2026-08-28/`) knows why its two triangle
+ *  columns were never directly comparable. */
 export const CELL_GROUND_HAS_NO_BOTTOM_CAP = true;
 
 /** What the shipped mapper produced for the mesh-substrate fixture BEFORE the `cell` case
@@ -361,14 +369,17 @@ export const SHIPPED_STATUSES: readonly string[] = [
   'unknown',
 ];
 
-/** A minimal CLASSIC extruded-hex island — the substrate `world-to-3d.ts`'s `tile` case was
- *  written for, and the only one the shipped canvas can draw ground for.
+/** A minimal CLASSIC extruded-hex island — the substrate `world-to-3d.ts`'s `case 'tile'` used to
+ *  map, and now REFUSES instead (`retire-the-old-land-path`).
  *
- *  ⚠ IT IS A CONTROL, NOT A FIXTURE TO BUILD ON. `scene.ts:658` documents `relaxedCells: null`
- *  as "the classic extruded-hex ground", and the studio ships the relaxed MESH instead. This
- *  exists so the claim "the shipped canvas draws no ground for a shipped-shape island" has a
- *  non-vacuity control beside it: the same mapper, the same call, ground drawn. Without the
- *  control that claim is equally satisfied by a mapper that is simply broken.
+ *  ⚠ ITS ROLE CHANGED WITH THE RETIREMENT, AND IT IS KEPT FOR THE NEW ONE. `scene.ts:658`
+ *  documents `relaxedCells: null` as "the classic extruded-hex ground", and the studio ships the
+ *  relaxed MESH instead. Before the retirement this fixture was a non-vacuity CONTROL for the
+ *  claim "the mesh case ADDED a representation rather than swapping one for another" — the same
+ *  mapper, the same call, ground drawn. That claim no longer has anything to control for (there
+ *  is only one substrate left), so this fixture's live use today is the OTHER direction: it is
+ *  what `shipped-baseline.test.ts`'s refusal test feeds `worldTo3D` to prove the classic
+ *  substrate fails LOUDLY through the real core, not merely on a hand-built `SceneG` literal.
  *
  *  Typed as `unknown` at the boundary and cast once inside, so this pure module keeps its own
  *  narrow surface rather than re-exporting the semantic layer's whole `SceneInput` shape. */

@@ -71,19 +71,21 @@ test('only cell-ground descriptors are read — every other family is stepped ov
   const others: Descriptor3D[] = [
     { kind: 'skipped', sceneKind: 'cell' },
     { kind: 'story-tree', transform: { x: 1, y: 0, z: 2 }, group: 'story-tree', material: 'healthy' },
-    { kind: 'hex-ground', transform: { x: 3, y: 0, z: 4 }, group: 'hex-ground', material: 'healthy' },
+    { kind: 'cave-arch', transform: { x: 3, y: 0, z: 4 }, group: 'cave-arch', material: 'healthy' },
   ];
   assert.deepEqual(parcelCellsFrom(others), []);
   assert.equal(parcelCellsFrom([...others, cell({ parcel: 'cap-0' })]).length, 1);
 
   // ⚠ AND ONE OF THEM CARRIES A PERFECTLY GOOD RING. Every descriptor above is refused by the
   // family check OR by the ring check, so a reader that had lost the family check entirely would
-  // still answer `[]` here and look correct. This one is refused ONLY by its `kind` — a substrate
-  // whose parcels were read off `hex-ground` too would put a capability's tree on a hex the
-  // relaxed mesh no longer draws.
+  // still answer `[]` here and look correct. This one is refused ONLY by its `kind` — a reader
+  // that read parcels off ANY family with a ring, rather than off `cell-ground` specifically,
+  // would put a capability's tree on geometry that is not a parcel at all. (The classic
+  // substrate's `hex-ground` this arm used to name is retired — `retire-the-old-land-path` — so
+  // `cave-arch` stands in as the still-live non-parcel family carrying a shaped ring.)
   const shaped: Descriptor3D = {
     ...cell({ parcel: 'cap-0' }),
-    kind: 'hex-ground',
+    kind: 'cave-arch',
   };
   assert.deepEqual(parcelCellsFrom([shaped]), []);
 });
