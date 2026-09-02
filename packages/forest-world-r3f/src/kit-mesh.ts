@@ -31,7 +31,14 @@ import {
   KIT_ROLE_SIZE,
   kitObjectNames,
 } from './kit-vocabulary.js';
-import type { KitAssembly, KitPlacement, KitRole, RoleFootprints } from './kit-vocabulary.js';
+import type {
+  KitAssembly,
+  KitPlacement,
+  KitRole,
+  RoleFootprints,
+  RoleHeights,
+  RoleTable,
+} from './kit-vocabulary.js';
 import { leafTintGainFor } from './leaf-tint.js';
 import { mapMeans } from './map-texels.js';
 import type { DecodedMap, TexelCanvasFactory } from './map-texels.js';
@@ -413,20 +420,65 @@ export async function loadEmbeddedKit(): Promise<LoadedKit> {
  * The widest assembly serving a role wins, so a role's clearance is enough for any of its arms.
  */
 export function roleFootprints(kit: LoadedKit): RoleFootprints {
+  return roleMeasure(kit, widthAtScale);
+}
+
+/**
+ * THE GROUND HEIGHT EACH ROLE REACHES, measured off the kit's own geometry at its role's scale —
+ * what a placement's shadow is cast from. A HEIGHT-sized role delivers its declared height exactly
+ * by construction; a WIDTH-sized one (the bloom) delivers whatever its proportions give at that
+ * width, and that number is why this is measured rather than restated
+ * (`KIT_HEIGHTS_2026_08_29` freezes it, `heightDriftOf` holds the two together).
+ *
+ * The tallest assembly serving a role wins, as the widest wins the footprint: the caster has to
+ * be enough for any arm.
+ */
+export function roleHeights(kit: LoadedKit): RoleHeights {
+  return roleMeasure(kit, heightAtScale);
+}
+
+/** One measure of every role: the LARGEST value `pick` returns over the assemblies serving it,
+ *  each at its own role scale. ONE loop for the footprint and the height, so the two tables the
+ *  placement and the shadow are read from cannot be measured two different ways. */
+function roleMeasure(
+  kit: LoadedKit,
+  pick: (assembly: KitAssemblyGeometry, scale: number) => number,
+): RoleTable {
   const out = {} as Record<KitRole, number>;
   for (const role of KIT_ROLES) {
-    let widest = 0;
+    let largest = 0;
     for (const name of KIT_ROLE_ASSEMBLIES[role]) {
       const assembly = kit.assemblies.get(name);
       if (!assembly) throw new Error(`kit-mesh: no assembly ${name} for role ${role}`);
-      const size = KIT_ROLE_SIZE[role];
-      const own = size.axis === 'height' ? assembly.height : assembly.width;
-      if (!(own > 0)) throw new Error(`kit-mesh: assembly ${name} has no ${size.axis}`);
-      widest = Math.max(widest, (assembly.width * size.units) / own);
+      largest = Math.max(largest, pick(assembly, assemblyRoleScale(name, assembly, role)));
     }
-    out[role] = widest;
+    out[role] = largest;
   }
   return out;
+}
+
+function widthAtScale(assembly: KitAssemblyGeometry, scale: number): number {
+  return assembly.width * scale;
+}
+
+function heightAtScale(assembly: KitAssemblyGeometry, scale: number): number {
+  return assembly.height * scale;
+}
+
+/**
+ * WHAT ONE ASSEMBLY IS MULTIPLIED BY TO STAND AT A ROLE'S SIZE — the role's declared units over
+ * the assembly's own extent on the axis the role is sized by.
+ *
+ * ⚠ THE DECLARED AXIS, not always the height. Scaling a wide flat prop by its height multiplies
+ * its footprint by the same factor — see `KIT_ROLE_SIZE`. ONE function for the footprint, the
+ * height and the drawn geometry, because three copies of "units over own" are three chances to
+ * read the wrong axis and only one of them would show in a picture.
+ */
+function assemblyRoleScale(name: KitAssembly, assembly: KitAssemblyGeometry, role: KitRole): number {
+  const size = KIT_ROLE_SIZE[role];
+  const own = size.axis === 'height' ? assembly.height : assembly.width;
+  if (!(own > 0)) throw new Error(`kit-mesh: assembly ${name} has no ${size.axis}`);
+  return size.units / own;
 }
 
 /**
@@ -468,16 +520,13 @@ export function tintedMaterial(
   return clone;
 }
 
-/** What one placement's geometry is multiplied by to stand at its role's height. */
+/** What one placement's geometry is multiplied by to stand at its role's size — and then by the
+ *  placement's OWN scale, which is 1 for everything that reports something and below 1 for a
+ *  grove pine (`KitPlacement.scale`). */
 export function placementScale(kit: LoadedKit, placement: KitPlacement): number {
   const assembly = kit.assemblies.get(placement.assembly);
   if (!assembly) throw new Error(`kit-mesh: no assembly ${placement.assembly}`);
-  const size = KIT_ROLE_SIZE[placement.role];
-  // ⚠ THE DECLARED AXIS, not always the height. Scaling a wide flat prop by its height
-  // multiplies its footprint by the same factor — see `KIT_ROLE_SIZE`.
-  const own = size.axis === 'height' ? assembly.height : assembly.width;
-  if (!(own > 0)) throw new Error(`kit-mesh: assembly ${placement.assembly} has no ${size.axis}`);
-  return size.units / own;
+  return assemblyRoleScale(placement.assembly, assembly, placement.role) * placement.scale;
 }
 
 /** One placement's world size in ground units, after its role's scale. */

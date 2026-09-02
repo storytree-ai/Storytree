@@ -560,6 +560,7 @@
       "packages/forest-world-r3f/src/kit-vocabulary.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/leaf-tint.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/map-dressing.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/grove-dressing.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/map-texels.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/parcel-cells.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/texture-convention.ts": "r3f-world-spike",

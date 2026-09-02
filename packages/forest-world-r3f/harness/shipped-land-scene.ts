@@ -74,7 +74,7 @@ import { SHIPPED_CROWN_COLOUR, SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from '.
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { kitMeshes, loadKit, roleFootprints } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
-import { dressMapFromKit } from '../src/map-dressing.js';
+import { dressMapWithGroves } from '../src/map-dressing.js';
 
 /**
  * THE SIX ARMS — a LADDER WITH ONE FORK, in which every arm differs from the one it names in
@@ -325,11 +325,15 @@ export function setLandKit(kit: LoadedKit): void {
  * signatures over every other story's island. `worldTo3D` now names the island on every family
  * that belongs to one, and `dressMapFromKit` spends the signatures per island. This fixture is a
  * healthy story with ten signed criteria, so it now stands ten flowers it previously did not.
+ *
+ * ⚠ AND SINCE 2026-09-03 IT STANDS THE GROVE TOO — `dressMapWithGroves`, the function the canvas
+ * calls, because this fixture is a healthy island and the canvas forests those. A page that kept
+ * calling the vocabulary-only dressing would picture the map as it stood before the grove.
  */
 export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
   return kitMeshes(
     kit,
-    dressMapFromKit(worldTo3D(islandScene()), {
+    dressMapWithGroves(worldTo3D(islandScene()), {
       relief: LAND_RELIEF_AMPLITUDE,
       footprint: roleFootprints(kit),
     }),

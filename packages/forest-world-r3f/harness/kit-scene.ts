@@ -29,6 +29,7 @@ export {
   placementExtent,
   placementScale,
   roleFootprints,
+  roleHeights,
   tintedMaterial,
 } from '../src/kit-mesh.js';
 export type {

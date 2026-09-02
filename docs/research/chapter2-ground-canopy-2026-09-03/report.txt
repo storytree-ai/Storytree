@@ -1,0 +1,41 @@
+renderer: Google Inc. (Qualcomm) — ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1
+
+THE REFERENCE — the approved Cycles render, through this page’s own family census
+  land-combined: colour families 36 · largest holds 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution, framing and camera, and all SEVEN layers.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm         calls      tris  ground  objects  caps blooms groves  casters  fam largest   top3  MICRO  STRUCT  moved>20  touched
+bare            1      5562    5562        0     0      0      0        1   47    6.7%  16.0%   1.09   21.79         0        0
+capability      4     22092    5562       21    11     10      0       22   52    5.6%  13.7%   1.26   22.75     63124   134440
+groves          4     67696    5562       63    11     10     42       64   50    4.6%  12.2%   1.65   23.41    147181   281672
+
+── one @ fit (8.158 px/unit) ─────────────────────────────────
+arm         calls      tris  ground  objects  caps blooms groves  casters  fam largest   top3  MICRO  STRUCT  moved>20  touched
+bare            1      5562    5562        0     0      0      0        1   47    6.7%  16.0%   1.07   21.81         0        0
+capability      4     22092    5562       21    11     10      0       22   52    5.5%  13.7%   1.24   22.76     65738   139813
+groves          4     67696    5562       63    11     10     42       64   50    4.6%  12.2%   1.63   23.43    153122   292944
+
+── forest @ 8 px/unit ─────────────────────────────────
+arm         calls      tris  ground  objects  caps blooms groves  casters  fam largest   top3  MICRO  STRUCT  moved>20  touched
+bare            1    194630  194630        0     0      0      0       35   46    6.6%  16.2%   1.09   21.56         0        0
+capability      7    690310  194630      584   374    210      0      619   50    5.5%  13.8%   1.26   22.57     60712   133512
+groves          7   1670354  194630     1520   374    210    936     1555   50    4.7%  12.7%   1.67   23.14    146732   283229
+
+── forest @ fit (0.573 px/unit) ─────────────────────────────────
+arm         calls      tris  ground  objects  caps blooms groves  casters  fam largest   top3  MICRO  STRUCT  moved>20  touched
+bare            1    194630  194630        0     0      0      0       35   48    9.1%  17.4%   7.10   25.53         0        0
+capability      7    690310  194630      584   374    210      0      619   52    7.3%  16.0%   8.42   25.14     11560    20114
+groves          7   1670354  194630     1520   374    210    936     1555   52    7.3%  16.0%   9.45   26.61     19090    34862
+
+WHAT THE PAYLOAD HALF SAYS (frame cost is the RTX 2060 box’s to measure, not this run’s):
+  one: bare 1 call / 5562 tris → capability 4 calls / 22092 tris (21 objects) → groves 4 calls / 67696 tris (63 objects, 42 of them grove pines)
+  forest: bare 1 call / 194630 tris → capability 7 calls / 690310 tris (584 objects) → groves 7 calls / 1670354 tris (1520 objects, 936 of them grove pines)
+
+THE GAP THAT REMAINS, at the read zoom on one island:
+  bare 47 families → groves 50 → approved 36. Largest family: 6.7% → 4.6% → 5.2%. MICRO 1.09 → 1.65 → 2.54; STRUCT 21.79 → 23.41 → 30.05.
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet.

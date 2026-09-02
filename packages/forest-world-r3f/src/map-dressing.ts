@@ -23,7 +23,17 @@
 // ⚠ AND EACH ISLAND IS DRESSED IN ITS OWN CALL, so its props are placed against its own occupancy
 // and nothing else. An island therefore looks the same alone as it does in a crowd of thirty-five
 // — a property the whole-map call did not have and could not have had.
+//
+// ⚠ TWO ENTRY POINTS SINCE 2026-09-03, AND THE DIFFERENCE IS WHAT STANDS. `dressMapFromKit` is the
+// vocabulary alone — one object per capability, one bloom per signature — and it is what every
+// comparison that ASKS about the vocabulary reads (the bloom census, the "today" arm of a
+// comparison page). `dressMapWithGroves` is what the SHIPPED canvas stands: the same dressing, and
+// then each healthy island's grove grown against it (`grove-dressing.ts`). The grove is placed
+// island by island for the same reason the blooms are — against that island's own occupancy — and
+// it is placed AFTER the island's own objects, so a grove pine is placed around the capability's
+// tree and never the other way about.
 
+import { dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
 import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary.js';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells.js';
 import type { Descriptor3D } from './world-to-3d.js';
@@ -93,30 +103,73 @@ export function dressMapFromKit(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
 ): KitPlacement[] {
+  return dressMap(descriptors, opts, null);
+}
+
+/**
+ * EVERY PROP THE SHIPPED MAP STANDS, GROVES INCLUDED — {@link dressMapFromKit} and then, on every
+ * island whose every cell is healthy, that island's grove against what the vocabulary already
+ * stood there. The canvas calls this; the exclusion each island's grove honours is read off the
+ * same descriptor stream (`islandExclusion`: the clipped coast, the trail docks' worn paths).
+ *
+ * ⚠ THE ORDER IS PART OF THE PLACEMENT, exactly as it is for the blooms: capabilities, then the
+ * island's signatures, then its grove — so a grove member is placed around the tree that reports
+ * a capability rather than that tree around a grove.
+ */
+export function dressMapWithGroves(
+  descriptors: readonly Descriptor3D[],
+  opts: MapDressingOptions,
+): KitPlacement[] {
+  return dressMap(descriptors, opts, islandExclusion);
+}
+
+/** How an island's grove learns where it may not stand — `null` grows no grove at all. */
+type ExclusionFor = (descriptors: readonly Descriptor3D[], island: string) => GroveExclusion;
+
+function dressMap(
+  descriptors: readonly Descriptor3D[],
+  opts: MapDressingOptions,
+  exclusionFor: ExclusionFor | null,
+): KitPlacement[] {
   const cells = parcelCellsFrom(descriptors);
   const signed = signedCriteriaByIsland(descriptors);
   const out: KitPlacement[] = [];
 
-  const dress = (group: readonly LayoutCell[], blooms: number): void => {
+  const dress = (group: readonly LayoutCell[], blooms: number): KitPlacement[] =>
+    dressIslandFromKit({
+      cells: group,
+      facts: capabilityFactsFrom(group),
+      blooms,
+      relief: opts.relief,
+      footprint: opts.footprint,
+    });
+
+  for (const [island, group] of cellsByIsland(cells)) {
+    const standing = dress(group, signed.get(island) ?? 0);
+    out.push(...standing);
+    if (exclusionFor === null) continue;
     out.push(
-      ...dressIslandFromKit({
+      ...dressGroves({
+        island,
         cells: group,
-        facts: capabilityFactsFrom(group),
-        blooms,
-        relief: opts.relief,
+        standing,
         footprint: opts.footprint,
+        relief: opts.relief,
+        exclusion: exclusionFor(descriptors, island),
       }),
     );
-  };
-
-  for (const [island, group] of cellsByIsland(cells)) dress(group, signed.get(island) ?? 0);
+  }
 
   // ⚠ CALLED UNCONDITIONALLY, EVEN WHEN THERE IS NOTHING TO DRESS. An `if (unattributed.length)`
   // guard reads as thrift and is a branch no test can kill: dressing an empty cell set names no
   // capability and places no bloom, so it appends nothing and the two paths are indistinguishable.
-  dress(
-    cells.filter((c) => c.island === undefined),
-    0,
+  // ⚠ AND NO GROVE: a cell the substrate could not attribute belongs to no STORY, so there is no
+  // story status for it to be healthy IN — the same fail-closed rule the blooms already follow.
+  out.push(
+    ...dress(
+      cells.filter((c) => c.island === undefined),
+      0,
+    ),
   );
 
   return out;

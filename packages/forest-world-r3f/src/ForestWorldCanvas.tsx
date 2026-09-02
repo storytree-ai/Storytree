@@ -55,10 +55,23 @@ import {
   buildAtlasOcclusion,
   type AtlasField,
 } from './shadow-atlas.js';
-import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from './ground-casters.js';
+import {
+  groundBounds,
+  groundCasters,
+  placementCasters,
+  STORY_TREE_CROWN,
+  STORY_TREE_TRUNK,
+} from './ground-casters.js';
 import type { ShadowCaster } from './land-shadow.js';
-import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './kit-mesh.js';
-import { dressMapFromKit } from './map-dressing.js';
+import { kitMeshes, loadEmbeddedKit, roleFootprints, roleHeights, type LoadedKit } from './kit-mesh.js';
+import {
+  KIT_FOOTPRINTS_2026_08_29,
+  KIT_HEIGHTS_2026_08_29,
+  footprintDriftOf,
+  heightDriftOf,
+  type KitPlacement,
+} from './kit-vocabulary.js';
+import { dressMapWithGroves } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
 import { ROCK_SLOPE_RAMP } from './land-rock.js';
@@ -855,15 +868,23 @@ const kit = (): Promise<LoadedKit> => (kitPromise ??= loadEmbeddedKit());
  * `dressMapFromKit` now spends each story's signatures on that story's own ground; a cell the
  * substrate cannot attribute still grows its capabilities' trees and never a bloom.
  *
- * ⚠ IT TAKES THE WHOLE DESCRIPTOR STREAM rather than the ground slice, because the signatures are
- * IN it: one `uat-bloom` per signed criterion. Counting them anywhere else would be a second
- * opinion about proof state, and two sources is how a map comes to disagree with itself.
+ * ⚠⚠ IT DRAWS A PLACEMENT LIST IT IS HANDED, AND COMPUTES NONE OF ITS OWN (2026-09-03). The
+ * placement used to be made here, from footprints read off the LOADED kit, which meant it existed
+ * only after the asset had parsed — and the ground, built synchronously at mount, could not know
+ * where anything would stand. So every kit object cast NO shadow: the contact pools and cast
+ * shadows the field already carried were drawn under the placeholder story tree alone. The
+ * placement is now PURE and SYNCHRONOUS from the frozen `KIT_FOOTPRINTS_2026_08_29`, made ONCE in
+ * `ForestWorldCanvas` before the ground is built, and the SAME list reaches both consumers: the
+ * ground's casters (`placementCasters`) and this component. One placement, two readers — a tree
+ * and its shadow cannot be two lists that agree today.
  *
- * ⚠ THE FOOTPRINTS ARE READ OFF THE LOADED KIT, never declared here. A pine's canopy is as wide
- * as its own geometry says once scaled to 18 ground units, and a number restated in the canvas
- * would drift the first time the asset is re-exported.
+ * ⚠ THE LOADED KIT IS STILL HELD TO THE FROZEN TABLES, loudly, where it is loaded — the tolerance
+ * check `harness/kit-island-scene.ts` refuses a run over is run here on the same asset. It REPORTS
+ * rather than refuses: a re-exported tree at the wrong clearance is a visible defect, while a map
+ * that drew no props over it would be every capability unreported, which ADR-0392 D5 / ADR-0398
+ * D7 rank strictly worse. The console line names the role and both numbers.
  */
-function KitProps({ descriptors }: { descriptors: readonly Descriptor3D[] }) {
+function KitProps({ placements }: { placements: readonly KitPlacement[] }) {
   const [loaded, setLoaded] = useState<LoadedKit | null>(null);
   useEffect(() => {
     let live = true;
@@ -885,14 +906,16 @@ function KitProps({ descriptors }: { descriptors: readonly Descriptor3D[] }) {
 
   const meshes = useMemo(() => {
     if (!loaded) return [];
-    return kitMeshes(
-      loaded,
-      dressMapFromKit(descriptors, {
-        relief: LAND_RELIEF_AMPLITUDE,
-        footprint: roleFootprints(loaded),
-      }),
-    );
-  }, [loaded, descriptors]);
+    const drift = [...footprintDriftOf(roleFootprints(loaded)), ...heightDriftOf(roleHeights(loaded))];
+    if (drift.length > 0) {
+      console.error(
+        'ForestWorldCanvas: the loaded kit disagrees with the frozen tables every placement and ' +
+          'every shadow on this map were computed from — re-measure and update the literals',
+        drift,
+      );
+    }
+    return kitMeshes(loaded, placements);
+  }, [loaded, placements]);
 
   // ⚠ THE MERGED GEOMETRY IS DISPOSED, THE KIT'S OWN IS NOT. `kitMeshes` clones every part and
   // bakes its transform in, so each mesh here owns geometry nothing else refers to; the kit's
@@ -1089,10 +1112,30 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // trail arrives at even on a canvas that draws no ribbon at sea. Memoised for the same reason
   // `cells` is — `CellGround` keys its build on it.
   const strips = useMemo(() => byKind(descriptors, 'trail-strip'), [descriptors]);
-  // Everything that stands on the land and therefore darkens it. Derived from the WHOLE
-  // descriptor set rather than from `trees` alone, because cave portals cast too and a caller
-  // reading this list should see one place that answers "what casts a shadow here".
-  const casters = useMemo(() => groundCasters(descriptors), [descriptors]);
+  // ⚠⚠ THE KIT'S PLACEMENT, MADE ONCE, BEFORE THE GROUND — pure and synchronous off the frozen
+  // footprints, so it exists at mount rather than after the asset has parsed. The SAME list is
+  // read twice below: once as casters (the ground darkens under every placement) and once by
+  // `KitProps` (which draws exactly these). Computing it in either consumer alone is how a tree
+  // and its shadow become two lists that agree today. `dressMapWithGroves` is the shipped
+  // dressing: one object per capability, one bloom per signature, and a grove on every healthy
+  // island (`grove-dressing.ts`) — the whole descriptor stream, because the signatures, the
+  // island ids and the trail docks the grove keeps off the path are all IN it.
+  const placements = useMemo(
+    () => dressMapWithGroves(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 }),
+    [descriptors],
+  );
+  // Everything that stands on the land and therefore darkens it: the descriptor families that
+  // cast (`groundCasters` — the story tree and the cave portals; wisps and trails cast nothing, and
+  // that rule lives there) UNIONED with every kit placement, from the frozen tables the placement
+  // itself was made against. A caller reading this list should see one place that answers "what
+  // casts a shadow here", and since 2026-09-03 the answer is everything that stands.
+  const casters = useMemo(
+    () => [
+      ...groundCasters(descriptors),
+      ...placementCasters(placements, KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29),
+    ],
+    [descriptors, placements],
+  );
   // trail-ghost-strip descriptors are deliberately not drawn (the surface's call —
   // the under-island run is told by the cave props, which render unconditionally
   // like the 2D scene's flora-layer props).
@@ -1114,7 +1157,7 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
       <color attach="background" args={['#101418']} />
       <CalibratedLights />
       <CellGround cells={cells} casters={casters} strips={strips} />
-      <KitProps descriptors={descriptors} />
+      <KitProps placements={placements} />
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
       ))}

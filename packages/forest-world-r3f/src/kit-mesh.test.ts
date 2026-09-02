@@ -37,6 +37,7 @@ import {
   placementScale,
   prepareKitMaterial,
   roleFootprints,
+  roleHeights,
   textureGpuBytes,
   tintedMaterial,
 } from './kit-mesh.js';
@@ -118,6 +119,7 @@ function placement(over: Partial<KitPlacement> = {}): KitPlacement {
     at: { x: 0, z: 0 },
     y: 0,
     yaw: 0,
+    scale: 1,
     ...over,
   };
 }
@@ -980,4 +982,39 @@ test('⚠ `updateMatrixWorld`’s FORCE argument cannot change a matrix on this 
     assert.equal(o.matrixAutoUpdate, true, `${o.name || o.type} has turned matrixAutoUpdate off`);
   });
   assert.ok(nodes > 1, 'the fixture has no nodes to check');
+});
+
+// ---------------------------------------------------------------------------
+// the placement's own scale, and the measured heights (2026-09-03)
+// ---------------------------------------------------------------------------
+
+test('the placement’s own scale multiplies the role scale — the geometry, the extent, all of it', () => {
+  assert.equal(placementScale(KIT, placement({ scale: 0.5 })), (KIT_ROLE_SIZE.tree.units / 12) * 0.5);
+  assert.equal(placementScale(KIT, placement()), KIT_ROLE_SIZE.tree.units / 12, 'scale 1 is the role scale');
+  const half = placementExtent(KIT, placement({ scale: 0.5 }));
+  const full = placementExtent(KIT, placement());
+  assert.equal(half.height, full.height / 2);
+  assert.equal(half.width, full.width / 2);
+  // And the delivered vertices halve with it — the scale reaches the mesh, not only the arithmetic.
+  const boxOf = (m: THREE.Mesh): THREE.Box3 =>
+    new THREE.Box3().setFromBufferAttribute(m.geometry.getAttribute('position') as THREE.BufferAttribute);
+  const tall = boxOf(kitMeshes(KIT, [placement()])[0]!);
+  const short = boxOf(kitMeshes(KIT, [placement({ scale: 0.5 })])[0]!);
+  assert.ok(Math.abs(short.max.y - tall.max.y / 2) < 1e-9, `${short.max.y} against ${tall.max.y}`);
+  assert.ok(Math.abs(short.max.x - tall.max.x / 2) < 1e-9, 'the width scales too — the kit is uniform');
+});
+
+test('a role’s HEIGHT is measured at its role scale, tallest arm winning, and the bloom’s is its proportions’', () => {
+  const h = roleHeights(KIT);
+  assert.equal(h.tree, KIT_ROLE_SIZE.tree.units, 'a height-sized role delivers its declared height exactly');
+  assert.equal(h.deadTree, KIT_ROLE_SIZE.deadTree.units);
+  // The bloom is sized by WIDTH: the fixture flower is 2 tall over 1.5 wide, so at 4 wide it is 5.333.
+  assert.ok(Math.abs(h.bloom - (2 * KIT_ROLE_SIZE.bloom.units) / 1.5) < 1e-9);
+  assert.notEqual(h.bloom, KIT_ROLE_SIZE.bloom.units, 'a width-sized role’s height is not its width');
+  const thin = { ...KIT, assemblies: new Map(KIT.assemblies) };
+  thin.assemblies.delete('pine-b');
+  assert.throws(() => roleHeights(thin), /pine-b/);
+  const flat = { ...KIT, assemblies: new Map(KIT.assemblies) };
+  flat.assemblies.set('pine-a', { ...assembly(3, 12, 3), height: 0 });
+  assert.throws(() => roleHeights(flat), /height/);
 });

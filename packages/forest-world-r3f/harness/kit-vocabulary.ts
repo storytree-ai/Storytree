@@ -30,8 +30,11 @@ import { layoutCells } from './prop-layout.js';
 
 export {
   FOOTPRINT_TOLERANCE,
+  GROVE_CAP_ID,
+  GROVE_CLEARANCE,
   KIT_ASSEMBLIES,
   KIT_FOOTPRINTS_2026_08_29,
+  KIT_HEIGHTS_2026_08_29,
   KIT_ROLES,
   KIT_ROLE_ASSEMBLIES,
   KIT_ROLE_SIGNAL,
@@ -47,7 +50,11 @@ export {
   deliveredRolePx,
   dressingCensus,
   dressingOverlaps,
+  footprintDriftOf,
+  heightDriftOf,
+  isGrovePlacement,
   kitObjectNames,
+  pairClearance,
   stateForm,
   tintedStates,
 } from '../src/kit-vocabulary.js';
@@ -60,6 +67,7 @@ export type {
   Occupancy,
   PropOverlap,
   RoleFootprints,
+  RoleHeights,
   StateForm,
 } from '../src/kit-vocabulary.js';
 

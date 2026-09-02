@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the canopy — groves and kit-tree shadows — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The canopy &mdash; the healthy island&rsquo;s grove, and every kit tree&rsquo;s shadow</h1>
+      <p>
+        The render the owner stamped is <strong>forested</strong>: thirteen stands of four to eight
+        pines with bare ground between them (<code>build_land.py</code>&rsquo;s <code>scatter()</code>).
+        The map that drew one pine per capability read sparse beside it, and every one of those pines
+        cast <strong>no shadow</strong> &mdash; the contact pools and cast shadows the ground already
+        carried were drawn under the placeholder story tree alone.
+      </p>
+      <p class="numbers">
+        bare&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;the shipped ground alone &mdash; every layer at what ships, the story tree&rsquo;s own shadow (CONTROL and DENOMINATOR)<br />
+        capability&nbsp;&nbsp;+ one pine per capability, one bloom per signature &mdash; NOW casting their shadows<br />
+        groves&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;+ the healthy island&rsquo;s grove: 13 stands per recipe-island of area, 4&ndash;8 live pines each at 0.55&ndash;0.80 of the capability&rsquo;s height
+      </p>
+      <p>
+        <strong>Every arm is the shipped map with one thing changed &mdash; what stands on it.</strong>
+        The coast clip, the relief, the shore fall, the inset ring, the stepped skirt, the ladder, the
+        grain and the whole ground stack are not re-created here: the page calls
+        <code>shippedGroundBuild</code>, the function the product&rsquo;s own <code>CellGround</code>
+        calls, handed each arm&rsquo;s placement list as casters through the same
+        <code>placementCasters</code> the canvas uses. The props are lit through the map&rsquo;s own
+        pipeline (exact colour, calibrated lights).
+      </p>
+      <p>
+        <strong>The grove grows on green islands and nowhere else.</strong> A healthy story&rsquo;s
+        island is the forested one; a yellow, brown, charred or slate island stays exactly as it drew,
+        and <em>unknown</em> grows nothing. A grove pine is the same green pine at 0.55&ndash;0.80 of
+        the capability&rsquo;s height, never a dead trunk (that is <em>unhealthy</em>&rsquo;s signal),
+        clear of the 9-unit beach band and of the worn path (the recipe&rsquo;s own
+        <code>wear &lt; 0.30</code>), and never inside a capability&rsquo;s own tree &mdash; two grove
+        pines may stand at 0.45 of their footprints, because a stand whose crowns touch is what a
+        grove is.
+      </p>
+      <p>
+        <strong>The verdict is the owner&rsquo;s eye on the forest&rsquo;s fitted view</strong> &mdash;
+        the view the map opens on. A same-hue canopy over a same-hue island must leave the island a
+        clean green block, not a smudge. The numbers under each picture are context: pixels moved by
+        more than 20/255 against <code>bare</code> (ADR-0490 D6), the colour-family census, draw calls
+        and triangles. Frame cost is not measured here.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedCanopy } from './shipped-canopy-scene.ts';
+      try {
+        await mountShippedCanopy(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

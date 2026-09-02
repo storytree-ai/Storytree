@@ -1,0 +1,681 @@
+// grove-dressing.test.ts — the grove pass, proved where it lives.
+//
+// ⚠ IN `src/` FOR THE MUTATION RUNG'S SAKE, like `kit-vocabulary.test.ts`: `check:mutation-diff`
+// mutates a project's `src/` only, and a `src/` module proved from `harness/` buys it nothing.
+//
+// ⚠ THE ISLANDS HERE ARE BUILT, NOT LOADED, and the exclusion is INJECTED where the dressing is
+// under test — the pass takes its cells, its standing objects and its exclusion as arguments
+// precisely so the acceptance rule and the draws can be proved apart. The real exclusion (the
+// clipped coast, the trail docks' worn path) is proved on its own fixture below, through the SAME
+// distance walks the ground layers sample with.
+
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import {
+  GROVE_BEACH,
+  GROVE_MEMBERS_MAX,
+  GROVE_MEMBERS_MIN,
+  GROVE_MEMBER_TRIES,
+  GROVE_SCALE_MAX,
+  GROVE_SCALE_MIN,
+  GROVE_SIGMA_X,
+  GROVE_SIGMA_Z,
+  GROVE_STATUS,
+  GROVE_WEAR_CEILING,
+  RECIPE_ISLAND_AREA,
+  RECIPE_ISLAND_ASPECT,
+  RECIPE_STANDS,
+  STAND_CANDIDATES,
+  beachClear,
+  cellAt,
+  cellsArea,
+  cellsAspect,
+  dressGroves,
+  gaussian,
+  groveEligible,
+  groveExclusion,
+  groveNeed,
+  groveSigma,
+  groveStandCount,
+  insideRing,
+  islandExclusion,
+  memberAssembly,
+  memberCount,
+  memberPoint,
+  memberScale,
+  memberYaw,
+  pathClear,
+  ringArea,
+  standCentre,
+  standingOccupants,
+  type GroveExclusion,
+  type GroveOccupant,
+  type Stream,
+} from './grove-dressing.js';
+import { islandSeed } from './island-path.js';
+import {
+  GROVE_CAP_ID,
+  GROVE_CLEARANCE,
+  KIT_FOOTPRINTS_2026_08_29,
+  KIT_ROLE_ASSEMBLIES,
+  bestCandidate,
+  candidatePoints,
+  capabilityFactsFrom,
+  dressIslandFromKit,
+  dressingOverlaps,
+  isGrovePlacement,
+  propRadius,
+  propStream,
+  type KitPlacement,
+} from './kit-vocabulary.js';
+import { landHeight } from './land-relief.js';
+import { SAND_SHIPPED_BEACH_WIDTH } from './land-sand.js';
+import { WEAR_FALLOFF, wearOf } from './land-wear.js';
+import type { GPoint, LayoutCell } from './parcel-cells.js';
+import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
+
+const FOOT = KIT_FOOTPRINTS_2026_08_29;
+const TREE_RADIUS = propRadius(FOOT, 'tree');
+
+// ---------------------------------------------------------------------------
+// a built island — the same hostile shape `kit-vocabulary.test.ts` uses
+// ---------------------------------------------------------------------------
+
+const CELL_W = 34;
+const CELL_D = 26;
+const ORIGIN_X = 140;
+const ORIGIN_Z = -70;
+
+function parcel(capId: string | undefined, status: string, row: number, cols: number): LayoutCell[] {
+  return Array.from({ length: cols }, (_, c) => {
+    const x0 = ORIGIN_X + c * CELL_W;
+    const z0 = ORIGIN_Z + row * CELL_D;
+    return {
+      points: [
+        { x: x0, z: z0 },
+        { x: x0 + CELL_W, z: z0 },
+        { x: x0 + CELL_W, z: z0 + CELL_D },
+        { x: x0, z: z0 + CELL_D },
+      ],
+      parcel: capId,
+      island: 'built',
+      status,
+      cellId: `${capId ?? 'none'}-${row}-${c}`,
+    } satisfies LayoutCell;
+  });
+}
+
+/** An island of `states.length` capabilities, one parcel-row each, `cols` cells wide. */
+function island(states: readonly string[], cols = 4): LayoutCell[] {
+  return states.flatMap((status, row) => parcel(`cap-${row}`, status, row, cols));
+}
+
+/** Four healthy parcels, four cells each: 136 x 104 units, 14,144 sq units — 22 stands. */
+const HEALTHY = island(['healthy', 'healthy', 'healthy', 'healthy']);
+
+const ALLOW: GroveExclusion = { clear: () => true };
+const REFUSE: GroveExclusion = { clear: () => false };
+
+function standingOn(cells: readonly LayoutCell[], blooms = 3): KitPlacement[] {
+  return dressIslandFromKit({
+    cells,
+    facts: capabilityFactsFrom(cells),
+    blooms,
+    relief: 0,
+    footprint: FOOT,
+  });
+}
+
+function grovesOn(
+  cells: readonly LayoutCell[],
+  over: { island?: string; exclusion?: GroveExclusion; relief?: number; standing?: KitPlacement[] } = {},
+): KitPlacement[] {
+  return dressGroves({
+    island: over.island ?? 'built',
+    cells,
+    standing: over.standing ?? standingOn(cells),
+    footprint: FOOT,
+    relief: over.relief ?? 0,
+    exclusion: over.exclusion ?? ALLOW,
+  });
+}
+
+/** A stream that replays a scripted list, then fails loudly. */
+function scripted(values: readonly number[]): Stream {
+  let i = 0;
+  return () => {
+    const v = values[i];
+    i += 1;
+    if (v === undefined) throw new Error(`scripted stream ran out after ${values.length} draws`);
+    return v;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// the recipe's numbers, as constants a report can quote
+// ---------------------------------------------------------------------------
+
+test('the constants are the recipe’s own — build_land.py’s scatter(), forest variant', () => {
+  assert.equal(RECIPE_STANDS, 13, ':1036 stands=13');
+  assert.equal(GROVE_MEMBERS_MIN, 4, ':1036 per_stand=(4, 8)');
+  assert.equal(GROVE_MEMBERS_MAX, 8);
+  assert.equal(GROVE_SIGMA_X, 3.6, ':1064 gauss(0, 3.6)');
+  assert.equal(GROVE_SIGMA_Z, 3.0, ':1064 gauss(0, 3.0)');
+  assert.equal(GROVE_WEAR_CEILING, 0.3, ':1046 wear < 0.30');
+  assert.equal(GROVE_MEMBER_TRIES, 30, ':1063 range(30)');
+  assert.equal(RECIPE_ISLAND_ASPECT, 135.1 / 233.8, ':88 ASPECT');
+  assert.equal(RECIPE_ISLAND_AREA, 8424.6, 'the fixture island’s own parcel area');
+  // The scale is BELOW one at its top — the one departure from the recipe's uniform(0.70, 1.30),
+  // and the reason: the capability's own pine at scale 1 must stay the tallest on its parcel.
+  assert.equal(GROVE_SCALE_MIN, 0.55);
+  assert.equal(GROVE_SCALE_MAX, 0.8);
+  assert.ok(GROVE_SCALE_MAX < 1, 'a grove pine may reach the capability’s height');
+  assert.equal(GROVE_BEACH, SAND_SHIPPED_BEACH_WIDTH, 'the band nothing stands on is the band the sand draws');
+  assert.equal(GROVE_BEACH, 9);
+  assert.equal(STAND_CANDIDATES, 96);
+  assert.equal(GROVE_STATUS, 'healthy');
+});
+
+// ---------------------------------------------------------------------------
+// the island's own numbers
+// ---------------------------------------------------------------------------
+
+test('a ring’s area is the shoelace, orientation-free, and zero below three points', () => {
+  const square: GPoint[] = [{ x: 0, z: 0 }, { x: 10, z: 0 }, { x: 10, z: 10 }, { x: 0, z: 10 }];
+  assert.equal(ringArea(square), 100);
+  assert.equal(ringArea([...square].reverse()), 100, 'winding must not flip the sign');
+  assert.equal(ringArea([{ x: 0, z: 0 }, { x: 4, z: 0 }, { x: 0, z: 3 }]), 6);
+  // ⚠ Away from the origin, so `x * z` products cannot cancel by accident.
+  assert.equal(ringArea([{ x: 100, z: 200 }, { x: 104, z: 200 }, { x: 100, z: 203 }]), 6);
+  assert.equal(ringArea([{ x: 5, z: 5 }, { x: 9, z: 9 }]), 0);
+  assert.equal(ringArea([]), 0);
+});
+
+test('an island’s area is its cells’ areas summed', () => {
+  assert.equal(cellsArea(parcel('a', 'healthy', 0, 3)), 3 * CELL_W * CELL_D);
+  assert.equal(cellsArea([]), 0);
+});
+
+test('the stand count is the recipe’s thirteen, in proportion to area', () => {
+  // A single cell of EXACTLY the recipe island's area — 100 wide, 84.246 deep.
+  const recipeSized: LayoutCell = {
+    points: [{ x: 0, z: 0 }, { x: 100, z: 0 }, { x: 100, z: 84.246 }, { x: 0, z: 84.246 }],
+    parcel: 'a',
+    island: 'r',
+    status: 'healthy',
+    cellId: 'r',
+  };
+  assert.equal(cellsArea([recipeSized]), RECIPE_ISLAND_AREA);
+  assert.equal(groveStandCount([recipeSized]), 13);
+  assert.equal(groveStandCount([recipeSized, recipeSized]), 26);
+  const half = { ...recipeSized, points: recipeSized.points.map((p) => ({ x: p.x / 2, z: p.z })) };
+  assert.equal(groveStandCount([half]), 7, 'half the island rounds 6.5 up to 7');
+  assert.equal(groveStandCount([]), 0);
+  assert.equal(groveStandCount(HEALTHY), Math.round((13 * 14144) / 8424.6));
+  assert.equal(groveStandCount(HEALTHY), 22);
+});
+
+test('the island’s aspect is depth over width, and a widthless island borrows the recipe’s', () => {
+  const rect = (w: number, d: number): LayoutCell => ({
+    points: [{ x: 10, z: 20 }, { x: 10 + w, z: 20 }, { x: 10 + w, z: 20 + d }, { x: 10, z: 20 + d }],
+    parcel: 'a',
+    island: 'r',
+    status: 'healthy',
+    cellId: 'r',
+  });
+  assert.ok(Math.abs(cellsAspect([rect(233.8, 46.2)]) - 46.2 / 233.8) < 1e-12, 'the fixture’s shape');
+  assert.ok(Math.abs(cellsAspect([rect(233.8, 135.1)]) - RECIPE_ISLAND_ASPECT) < 1e-12, 'the recipe’s');
+  // ⚠ Two cells, so the bounds are a UNION rather than one cell's own box.
+  assert.ok(Math.abs(cellsAspect([rect(10, 10), rect(100, 5)]) - 10 / 100) < 1e-12);
+  assert.equal(cellsAspect([]), RECIPE_ISLAND_ASPECT, 'no cells: the recipe’s own shape');
+  assert.equal(cellsAspect([rect(0, 30)]), RECIPE_ISLAND_ASPECT, 'no width: not a division by zero');
+});
+
+test('the stand is the recipe’s ellipse in THIS basis: σx as authored, σz by the squash', () => {
+  const rect = (w: number, d: number): LayoutCell => ({
+    points: [{ x: 0, z: 0 }, { x: w, z: 0 }, { x: w, z: d }, { x: 0, z: d }],
+    parcel: 'a',
+    island: 'r',
+    status: 'healthy',
+    cellId: 'r',
+  });
+  const recipe = groveSigma([rect(233.8, 135.1)]);
+  assert.equal(recipe.x, GROVE_SIGMA_X);
+  assert.ok(Math.abs(recipe.z - GROVE_SIGMA_Z) < 1e-12, 'on the recipe’s own aspect σz is the recipe’s 3.0');
+  const fixture = groveSigma([rect(233.8, 46.2)]);
+  assert.equal(fixture.x, GROVE_SIGMA_X);
+  assert.ok(Math.abs(fixture.z - (3.0 * (46.2 / 233.8)) / RECIPE_ISLAND_ASPECT) < 1e-12);
+  assert.ok(fixture.z > 1.02 && fixture.z < 1.04, `the fixture’s stand is ${fixture.z.toFixed(3)} deep — three times squashed`);
+  // The DIRECTION: a deeper island asks for a deeper stand, never the other way.
+  assert.ok(groveSigma([rect(100, 100)]).z > fixture.z);
+  assert.equal(groveSigma([]).z, GROVE_SIGMA_Z);
+});
+
+test('only an island whose EVERY cell is healthy grows a grove — and only an island with cells', () => {
+  assert.equal(groveEligible(HEALTHY), true);
+  assert.equal(groveEligible(island(['healthy', 'proposed', 'healthy'])), false, 'one proposed cell');
+  assert.equal(groveEligible(island(['unknown'])), false);
+  assert.equal(groveEligible(island(['unhealthy'])), false);
+  assert.equal(groveEligible([]), false, 'no cells is not "every cell healthy"');
+});
+
+// ---------------------------------------------------------------------------
+// where a point stands
+// ---------------------------------------------------------------------------
+
+test('insideRing is a ray cast — in, out, and out of a concave notch', () => {
+  const square: GPoint[] = [{ x: 10, z: 10 }, { x: 20, z: 10 }, { x: 20, z: 20 }, { x: 10, z: 20 }];
+  assert.equal(insideRing(square, { x: 15, z: 15 }), true);
+  assert.equal(insideRing(square, { x: 25, z: 15 }), false);
+  assert.equal(insideRing(square, { x: 5, z: 15 }), false);
+  assert.equal(insideRing(square, { x: 15, z: 25 }), false);
+  assert.equal(insideRing(square, { x: 15, z: 5 }), false);
+  // An L: the square with its top-right quarter cut away. A point in the notch is OUT even though
+  // it is inside the bounding box — a box test would say in.
+  const ell: GPoint[] = [
+    { x: 10, z: 10 },
+    { x: 20, z: 10 },
+    { x: 20, z: 15 },
+    { x: 15, z: 15 },
+    { x: 15, z: 20 },
+    { x: 10, z: 20 },
+  ];
+  assert.equal(insideRing(ell, { x: 18, z: 18 }), false, 'in the notch');
+  assert.equal(insideRing(ell, { x: 12, z: 18 }), true);
+  assert.equal(insideRing(ell, { x: 18, z: 12 }), true);
+  assert.equal(insideRing([], { x: 0, z: 0 }), false);
+});
+
+test('cellAt is the FIRST containing cell, and null off every cell', () => {
+  const cells = parcel('a', 'healthy', 0, 2);
+  assert.equal(cellAt(cells, { x: ORIGIN_X + 5, z: ORIGIN_Z + 5 })?.cellId, 'a-0-0');
+  assert.equal(cellAt(cells, { x: ORIGIN_X + CELL_W + 5, z: ORIGIN_Z + 5 })?.cellId, 'a-0-1');
+  assert.equal(cellAt(cells, { x: ORIGIN_X - 5, z: ORIGIN_Z + 5 }), null);
+  assert.equal(cellAt(cells, { x: ORIGIN_X + 5, z: ORIGIN_Z + CELL_D + 5 }), null);
+  assert.equal(cellAt([], { x: 0, z: 0 }), null);
+  // Two cells over one point: the earlier one answers.
+  const twice = [...cells, { ...cells[0]!, cellId: 'again' }];
+  assert.equal(cellAt(twice, { x: ORIGIN_X + 5, z: ORIGIN_Z + 5 })?.cellId, 'a-0-0');
+});
+
+// ---------------------------------------------------------------------------
+// where a grove may not stand
+// ---------------------------------------------------------------------------
+
+test('clear of the beach at the band’s width exactly, not inside it', () => {
+  assert.equal(beachClear(GROVE_BEACH), true, 'the shore field caps at the width — the cap IS clear');
+  assert.equal(beachClear(GROVE_BEACH - 1e-9), false);
+  assert.equal(beachClear(0), false);
+  assert.equal(beachClear(20), true);
+});
+
+test('clear of the path is the recipe’s wear < 0.30 through the wear layer’s own smoothstep', () => {
+  assert.equal(pathClear(0), false, 'on the centreline the wear is 1');
+  assert.equal(pathClear(WEAR_FALLOFF), true, 'at the falloff the wear is 0');
+  assert.equal(pathClear(100), true);
+  // THE BOUNDARY, derived from the same function rather than typed: the distance at which wearOf
+  // crosses the ceiling, found by bisection on wearOf itself.
+  let lo = 0;
+  let hi = WEAR_FALLOFF;
+  for (const _ of Array.from({ length: 60 })) {
+    void _;
+    const mid = (lo + hi) / 2;
+    if (wearOf(mid) < GROVE_WEAR_CEILING) hi = mid;
+    else lo = mid;
+  }
+  assert.equal(pathClear(hi + 1e-9), true);
+  assert.equal(pathClear(lo - 1e-9), false);
+  // And the header's number: about 1.91 ground units from the centreline on the shipped falloff.
+  assert.ok(Math.abs(hi - 1.908) < 0.005, `the path keeps a grove ${hi.toFixed(3)} units away`);
+});
+
+/** One rectangular island as `cell-ground` descriptors — one big cell, so its rim is its outline. */
+function rectIsland(islandId: string, x0: number, z0: number, w: number, d: number): InstanceDescriptor {
+  return {
+    kind: 'cell-ground',
+    transform: { x: x0 + w / 2, y: 0, z: z0 + d / 2 },
+    group: 'cell-ground',
+    material: 'healthy',
+    island: islandId,
+    parcel: `${islandId}-cap`,
+    points: [
+      { x: x0, y: 0, z: z0 },
+      { x: x0 + w, y: 0, z: z0 },
+      { x: x0 + w, y: 0, z: z0 + d },
+      { x: x0, y: 0, z: z0 + d },
+    ],
+  };
+}
+
+test('groveExclusion reads the beach off the island’s rim and the path off its polylines', () => {
+  const rim = rectIsland('r', 0, 0, 200, 100);
+  const bare = groveExclusion([rim], []);
+  assert.equal(bare.clear(100, 50), true, 'the middle of a 200 x 100 island');
+  assert.equal(bare.clear(5, 50), false, '5 units from the west rim');
+  assert.equal(bare.clear(100, 8), false, '8 units from the north rim');
+  assert.equal(bare.clear(100, 9), true, '9 units from it — the band’s own width');
+  // A path straight across the middle: on it, no; the recipe's distance off it, yes.
+  const pathed = groveExclusion([rim], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
+  assert.equal(pathed.clear(100, 50), false, 'on the centreline');
+  assert.equal(pathed.clear(100, 51.5), false, '1.5 off it — still worn past 0.30');
+  assert.equal(pathed.clear(100, 52.5), true, '2.5 off it — clear');
+  assert.equal(pathed.clear(100, 20), true);
+  // ⚠ BOTH halves bind: a point clear of the path but on the beach is still refused.
+  assert.equal(pathed.clear(100, 5), false);
+});
+
+test('islandExclusion clips the island’s own ground to the shipped coast and docks the strips on it', () => {
+  // A 200 x 100 island named `a`, and a trail strip arriving from the west whose landward end sits
+  // on the island's UNCLIPPED west rim — within dock reach of the clipped coast, which lies a
+  // beach's width further out.
+  const ground = rectIsland('a', 0, 0, 200, 100);
+  const strip: InstanceDescriptor = {
+    kind: 'trail-strip',
+    transform: { x: -20, y: 0, z: 50 },
+    group: 'trail-strip',
+    points: [
+      { x: -40, y: 0, z: 50 },
+      { x: -20, y: 0, z: 50 },
+      { x: 0, y: 0, z: 50 },
+    ],
+    width: 3,
+    usage: 1,
+    hidden: false,
+    edges: [],
+    segment: 'a/west',
+  };
+  const skipped: Descriptor3D = { kind: 'skipped', sceneKind: 'parcel-blade' };
+  const ex = islandExclusion([ground, strip, skipped], 'a');
+  // The one-dock path runs dock -> waypoint -> the rim's centroid, so the island's middle is ON it.
+  assert.equal(ex.clear(100, 50), false, 'the centroid is on the worn path');
+  // Far from the path and the beach: clear. The path's control point is jittered off the chord,
+  // so probe a corner of the interior rather than a point on the chord.
+  assert.equal(ex.clear(150, 25), true);
+  // On the unclipped rim: inside the beach band by construction (the coast is outset from it).
+  assert.equal(ex.clear(200, 25), false, 'the rim sits inside the band');
+  // ⚠ NON-VACUITY, the other way: the SAME island with no strip has no path, so its centroid is
+  // clear — which is what shows the refusal above came from the dock, not from the beach.
+  assert.equal(islandExclusion([ground, skipped], 'a').clear(100, 50), true);
+  // And an island the stream holds no ground for has no coast and no path: everything is clear.
+  assert.equal(islandExclusion([ground, strip], 'nowhere').clear(100, 50), true);
+});
+
+// ---------------------------------------------------------------------------
+// the draws
+// ---------------------------------------------------------------------------
+
+test('gaussian is Box–Muller on two uniforms, and never takes the log of zero', () => {
+  // u = 1 - rand = e^-0.5 → sqrt(-2 ln u) = 1; v = 0 → cos 0 = 1.
+  const u = 1 - Math.exp(-0.5);
+  assert.ok(Math.abs(gaussian(scripted([u, 0])) - 1) < 1e-12);
+  assert.ok(Math.abs(gaussian(scripted([u, 0.5])) + 1) < 1e-12, 'v = 1/2 turns it through π');
+  assert.ok(Math.abs(gaussian(scripted([1 - Math.exp(-2), 0.25]))) < 1e-9, 'v = 1/4 is a quarter turn');
+  assert.ok(Math.abs(gaussian(scripted([1 - Math.exp(-2), 0]))) - 2 < 1e-12, 'u = e^-2 → radius 2');
+  // ⚠ `propStream` delivers [0, 1): a zero must be a finite draw, not `sqrt(-2 log 0)`. (It is
+  // a signed zero — `sqrt(-0)` — which is the number 0 to every consumer here.)
+  const atZero = gaussian(scripted([0, 0]));
+  assert.ok(Number.isFinite(atZero) && atZero === 0, `a zero draw delivered ${atZero}`);
+  // And statistically a standard normal over the real stream.
+  const rand = propStream(5);
+  const draws = Array.from({ length: 4000 }, () => gaussian(rand));
+  const mean = draws.reduce((s, d) => s + d, 0) / draws.length;
+  const variance = draws.reduce((s, d) => s + (d - mean) ** 2, 0) / draws.length;
+  assert.ok(Math.abs(mean) < 0.06, `mean ${mean}`);
+  assert.ok(Math.abs(Math.sqrt(variance) - 1) < 0.06, `std ${Math.sqrt(variance)}`);
+});
+
+test('a stand’s member count is randint(4, 8) — inclusive at BOTH ends', () => {
+  assert.equal(memberCount(scripted([0])), 4);
+  assert.equal(memberCount(scripted([0.19])), 4);
+  assert.equal(memberCount(scripted([0.5])), 6);
+  assert.equal(memberCount(scripted([0.99])), 8);
+  assert.equal(memberCount(scripted([0.9999])), 8, 'never nine');
+});
+
+test('a member’s scale is uniform over [0.55, 0.80), its yaw a full turn, its assembly a LIVE pine', () => {
+  assert.equal(memberScale(scripted([0])), GROVE_SCALE_MIN);
+  assert.ok(Math.abs(memberScale(scripted([0.5])) - 0.675) < 1e-12);
+  assert.ok(memberScale(scripted([0.9999])) < GROVE_SCALE_MAX);
+  assert.ok(Math.abs(memberYaw(scripted([0.5])) - Math.PI) < 1e-12);
+  assert.ok(Math.abs(memberYaw(scripted([0.25])) - Math.PI / 2) < 1e-12);
+  assert.equal(memberAssembly(scripted([0])), KIT_ROLE_ASSEMBLIES.tree[0]);
+  assert.equal(memberAssembly(scripted([0.5])), KIT_ROLE_ASSEMBLIES.tree[1]);
+  assert.equal(memberAssembly(scripted([0.999])), KIT_ROLE_ASSEMBLIES.tree[1]);
+  assert.deepEqual(KIT_ROLE_ASSEMBLIES.tree, ['pine-a', 'pine-b'], 'the dead pine is not a choice');
+});
+
+// ---------------------------------------------------------------------------
+// the occupancy
+// ---------------------------------------------------------------------------
+
+test('a grove member keeps the full sum from a capability’s object and 0.45 of it from a grove', () => {
+  assert.equal(groveNeed(5, { x: 0, z: 0, radius: 5, grove: false }), 10);
+  assert.ok(Math.abs(groveNeed(5, { x: 0, z: 0, radius: 5, grove: true }) - 10 * GROVE_CLEARANCE) < 1e-12);
+  assert.equal(groveNeed(5, { x: 0, z: 0, radius: 2, grove: false }), 7, 'a bloom’s own radius');
+  assert.equal(GROVE_CLEARANCE, 0.45);
+});
+
+test('what stands becomes occupants at the ROLE’s radius, flagged grove by capId, scale ignored', () => {
+  const p = (role: KitPlacement['role'], capId: string, scale: number): KitPlacement => ({
+    role,
+    assembly: role === 'bloom' ? 'flower' : 'pine-a',
+    capId,
+    tint: null,
+    at: { x: 7, z: -3 },
+    y: 0,
+    yaw: 0,
+    scale,
+  });
+  assert.deepEqual(standingOccupants([p('tree', 'cap-0', 1), p('bloom', 'story', 1), p('tree', GROVE_CAP_ID, 0.6)], FOOT), [
+    { x: 7, z: -3, radius: FOOT.tree / 2, grove: false },
+    { x: 7, z: -3, radius: FOOT.bloom / 2, grove: false },
+    { x: 7, z: -3, radius: FOOT.tree / 2, grove: true },
+  ] satisfies GroveOccupant[]);
+  assert.deepEqual(standingOccupants([], FOOT), []);
+});
+
+// ---------------------------------------------------------------------------
+// one stand
+// ---------------------------------------------------------------------------
+
+test('a stand’s centre is the best clear candidate, and none when nothing is clear', () => {
+  const parcels = HEALTHY;
+  const occupied = standingOccupants(standingOn(parcels), FOOT);
+  assert.equal(standCentre(parcels, 5, TREE_RADIUS, occupied, REFUSE), null);
+  const centre = standCentre(parcels, 5, TREE_RADIUS, occupied, ALLOW);
+  assert.deepEqual(
+    centre,
+    bestCandidate(candidatePoints(parcels, STAND_CANDIDATES, 5), TREE_RADIUS, occupied, groveNeed),
+  );
+  assert.ok(centre !== null && cellAt(parcels, centre) !== null, 'the centre is on the island');
+  // A regional exclusion is honoured: clear ONLY the half the free centre is NOT in, and the
+  // constrained centre lands there — which is non-vacuous by construction, since the free centre
+  // did not.
+  const line = ORIGIN_X + 2 * CELL_W;
+  const freeIsEast = centre !== null && centre.x > line;
+  const otherHalf: GroveExclusion = { clear: (x) => (freeIsEast ? x <= line : x > line) };
+  const moved = standCentre(parcels, 5, TREE_RADIUS, occupied, otherHalf);
+  assert.ok(moved !== null);
+  assert.ok(freeIsEast ? moved.x <= line : moved.x > line, 'the exclusion did not move the centre');
+  assert.notDeepEqual(moved, centre);
+});
+
+test('a member is the first accepted gaussian draw, and null after thirty', () => {
+  const centre = { x: 200, z: -40 };
+  const sigma = { x: 3.6, z: 1.0 };
+  let draws = 0;
+  const counting: Stream = () => {
+    draws += 1;
+    return propStream(3)();
+  };
+  assert.equal(memberPoint(centre, sigma, counting, () => false), null);
+  assert.equal(draws, GROVE_MEMBER_TRIES * 4, 'two gaussians per try (x and z), two uniforms each, thirty tries');
+
+  const replay = propStream(9);
+  const expected = { x: centre.x + gaussian(replay) * sigma.x, z: centre.z + gaussian(replay) * sigma.z };
+  assert.deepEqual(memberPoint(centre, sigma, propStream(9), () => true), expected);
+
+  // Accepting only the third draw delivers the third draw, not the first.
+  const third = propStream(9);
+  gaussian(third);
+  gaussian(third);
+  gaussian(third);
+  gaussian(third);
+  const expectedThird = { x: centre.x + gaussian(third) * sigma.x, z: centre.z + gaussian(third) * sigma.z };
+  let seen = 0;
+  const onThird = (): boolean => {
+    seen += 1;
+    return seen === 3;
+  };
+  assert.deepEqual(memberPoint(centre, sigma, propStream(9), onThird), expectedThird);
+  // And σ reaches the offset — a wider stand spreads further from its centre.
+  const wide = memberPoint(centre, { x: 36, z: 10 }, propStream(9), () => true)!;
+  assert.ok(Math.abs(wide.x - centre.x) > Math.abs(expected.x - centre.x));
+});
+
+// ---------------------------------------------------------------------------
+// the dressing
+// ---------------------------------------------------------------------------
+
+test('only a healthy island grows a grove — proposed, unknown, mixed, unhealthy and empty grow nothing', () => {
+  assert.deepEqual(grovesOn(island(['proposed', 'proposed', 'proposed', 'proposed'])), []);
+  assert.deepEqual(grovesOn(island(['unknown', 'unknown', 'unknown', 'unknown'])), []);
+  assert.deepEqual(grovesOn(island(['healthy', 'healthy', 'healthy', 'mapped'])), [], 'one mapped parcel');
+  assert.deepEqual(grovesOn(island(['unhealthy'])), []);
+  assert.deepEqual(grovesOn([], { standing: [] }), []);
+  // NON-VACUITY: the same shape, all healthy, does grow.
+  assert.ok(grovesOn(HEALTHY).length > 0);
+});
+
+test('every grove member is a live green pine below the capability’s height, ON the island', () => {
+  const groves = grovesOn(HEALTHY, { relief: 2.2 });
+  assert.ok(groves.length > 0);
+  for (const g of groves) {
+    assert.equal(g.role, 'tree');
+    assert.equal(g.capId, GROVE_CAP_ID);
+    assert.equal(isGrovePlacement(g), true);
+    assert.equal(g.tint, null, 'the kit’s own needles');
+    assert.ok(g.assembly === 'pine-a' || g.assembly === 'pine-b', `${g.assembly} is not a live pine`);
+    assert.ok(g.scale >= GROVE_SCALE_MIN && g.scale < GROVE_SCALE_MAX, `scale ${g.scale}`);
+    assert.ok(g.scale < 1, 'never the capability’s own height');
+    assert.ok(g.yaw >= 0 && g.yaw < Math.PI * 2, `yaw ${g.yaw}`);
+    assert.equal(g.y, landHeight(g.at.x, g.at.z, 2.2), 'the land’s own height under it');
+    assert.notEqual(cellAt(HEALTHY, g.at), null, `a grove member stands off the island at ${g.at.x}, ${g.at.z}`);
+  }
+  assert.ok(groves.some((g) => g.assembly === 'pine-a') && groves.some((g) => g.assembly === 'pine-b'));
+  assert.ok(groves.some((g) => g.y !== 0), 'the relief reached no member');
+});
+
+test('the tallest placement on EVERY parcel is the capability’s own', () => {
+  const standing = standingOn(HEALTHY);
+  const groves = grovesOn(HEALTHY, { standing });
+  const tallestGrove = new Map<string, number>();
+  for (const g of groves) {
+    const parcelId = cellAt(HEALTHY, g.at)!.parcel!;
+    tallestGrove.set(parcelId, Math.max(tallestGrove.get(parcelId) ?? 0, 18 * g.scale));
+  }
+  assert.ok(tallestGrove.size > 1, 'the grove reached fewer than two parcels — the claim is vacuous');
+  for (const [parcelId, tallest] of tallestGrove) {
+    const own = standing.find((p) => p.capId === parcelId);
+    assert.ok(own !== undefined, `${parcelId} grew no capability tree`);
+    assert.ok(tallest < 18 * own.scale, `${parcelId}: a grove pine at ${tallest} out-tops the capability’s 18`);
+  }
+});
+
+test('NOTHING OVERLAPS under the declared rule, and the relaxed clearance was actually used', () => {
+  const standing = standingOn(HEALTHY, 6);
+  const groves = grovesOn(HEALTHY, { standing });
+  const all = [...standing, ...groves];
+  const overlaps = dressingOverlaps(all, FOOT);
+  assert.deepEqual(
+    overlaps,
+    [],
+    `overlaps: ${overlaps.map((o) => `${o.a}/${o.b} by ${(-o.gap).toFixed(2)}`).join(', ')}`,
+  );
+  // Every grove member keeps the FULL clearance from everything that reports something.
+  for (const g of groves) {
+    for (const s of standing) {
+      const need = propRadius(FOOT, 'tree') + propRadius(FOOT, s.role);
+      assert.ok(Math.hypot(g.at.x - s.at.x, g.at.z - s.at.z) >= need - 1e-9, `a grove pine inside ${s.role}:${s.capId}`);
+    }
+  }
+  // ⚠ NON-VACUITY ON THE RELAXATION: some pair of grove members stands closer than the full
+  // footprint, or the "grove clearance" is a number nothing ever reads.
+  let closest = Infinity;
+  for (const [i, a] of groves.entries()) {
+    for (const b of groves.slice(i + 1)) closest = Math.min(closest, Math.hypot(a.at.x - b.at.x, a.at.z - b.at.z));
+  }
+  assert.ok(closest < FOOT.tree, `the closest grove pair is ${closest.toFixed(2)} apart — the relaxation never bit`);
+  assert.ok(closest >= FOOT.tree * GROVE_CLEARANCE - 1e-9, 'and never closer than the relaxed clearance');
+});
+
+test('the exclusion binds every member, and it is the exclusion doing it', () => {
+  const line = ORIGIN_X + 2 * CELL_W;
+  const east: GroveExclusion = { clear: (x) => x > line };
+  const eastOnly = grovesOn(HEALTHY, { exclusion: east });
+  assert.ok(eastOnly.length > 0);
+  for (const g of eastOnly) assert.ok(g.at.x > line, `a member stands west of the line at ${g.at.x}`);
+  // NON-VACUITY: unconstrained, the grove reaches the west half.
+  assert.ok(grovesOn(HEALTHY).some((g) => g.at.x <= line), 'the free grove never reached the west half');
+  // And an exclusion that clears nothing drops every stand rather than placing anyway.
+  assert.deepEqual(grovesOn(HEALTHY, { exclusion: REFUSE }), []);
+});
+
+test('a grove stands only on cells some capability owns', () => {
+  const owned = parcel('cap-0', 'healthy', 0, 4);
+  const unowned = parcel(undefined, 'healthy', 1, 4);
+  const groves = grovesOn([...owned, ...unowned], { standing: standingOn(owned) });
+  assert.ok(groves.length > 0);
+  for (const g of groves) {
+    assert.equal(cellAt(unowned, g.at), null, 'a grove pine on ground the map does not attribute');
+    assert.notEqual(cellAt(owned, g.at), null);
+  }
+});
+
+test('deterministic per island, and two islands of one shape are two groves', () => {
+  assert.deepEqual(grovesOn(HEALTHY), grovesOn(HEALTHY));
+  const other = grovesOn(HEALTHY, { island: 'crowd-story-07' });
+  assert.notDeepEqual(grovesOn(HEALTHY).map((g) => g.at), other.map((g) => g.at), 'the island id never reached the seed');
+  // The relief moves y and nothing else.
+  const flat = grovesOn(HEALTHY, { relief: 0 });
+  const hilly = grovesOn(HEALTHY, { relief: 6 });
+  assert.deepEqual(flat.map((g) => g.at), hilly.map((g) => g.at));
+  assert.ok(hilly.some((g, i) => g.y !== flat[i]!.y));
+});
+
+test('the count is the stands’ own: never above eight per stand, and a real forest below it', () => {
+  const stands = groveStandCount(HEALTHY);
+  const groves = grovesOn(HEALTHY);
+  assert.ok(groves.length <= stands * GROVE_MEMBERS_MAX, `${groves.length} pines from ${stands} stands`);
+  assert.ok(groves.length >= stands * 2, `${groves.length} pines from ${stands} stands — most stands emptied`);
+});
+
+test('the first member is the stream’s own replay — seed, centre, count, draw, scale, yaw, pine', () => {
+  // ⚠ THE CONSUMPTION ORDER, pinned. A pass that drew the scale before the point, or the count
+  // after the centre, places a different forest that no property above can tell from this one.
+  const standing = standingOn(HEALTHY);
+  const groves = grovesOn(HEALTHY, { standing });
+  const rand = propStream(islandSeed('built'));
+  const occupied = standingOccupants(standing, FOOT);
+  const centre = standCentre(HEALTHY, Math.floor(rand() * 0x7fffffff), TREE_RADIUS, occupied, ALLOW);
+  assert.ok(centre !== null);
+  const count = memberCount(rand);
+  assert.ok(count >= 4 && count <= 8);
+  const sigma = groveSigma(HEALTHY);
+  const at = memberPoint(centre, sigma, rand, (p) => cellAt(HEALTHY, p) !== null);
+  assert.ok(at !== null);
+  const scale = memberScale(rand);
+  const yaw = memberYaw(rand);
+  const assembly = memberAssembly(rand);
+  assert.deepEqual(groves[0], {
+    role: 'tree',
+    assembly,
+    capId: GROVE_CAP_ID,
+    tint: null,
+    at,
+    y: landHeight(at.x, at.z, 0),
+    yaw,
+    scale,
+  } satisfies KitPlacement);
+});
