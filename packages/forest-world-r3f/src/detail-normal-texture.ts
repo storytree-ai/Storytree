@@ -78,10 +78,16 @@ export function detailNormalTexture(): Texture {
   tex.generateMipmaps = true;
   tex.minFilter = LinearMipmapLinearFilter;
   tex.magFilter = LinearFilter;
-  // ⚠ ROUTED THROUGH THE COLOUR CONVENTION AS A DATA MAP. Every loader on this surface passes
-  // through `applyRawColourConvention` (`harness/texture-convention.test.ts` scans for the call);
-  // a normal map is a DATA slot there, which the convention deliberately leaves alone — the
-  // `NoColorSpace` above is that same statement made on the texture itself.
-  applyRawColourConvention({ normalMap: tex });
+  // ⚠ ROUTED THROUGH THE COLOUR CONVENTION AS A DATA MAP, AND THE TEXTURE CARRIES THE RECORD.
+  // Every loader on this surface passes through `applyRawColourConvention`
+  // (`harness/texture-convention.test.ts` scans for the call); a normal map is a DATA slot there,
+  // which the convention deliberately leaves alone — the `NoColorSpace` above is that same
+  // statement made on the texture itself. Because the convention CHANGES nothing on a data map,
+  // the routing is invisible on the texture — a call handed an empty material would leave it
+  // byte-identical — so the application's own report is written onto `userData` (three's
+  // plain-object bag for exactly this), where a test or a scene inspector reads that this
+  // texture was routed as a data map rather than assuming it.
+  const application = applyRawColourConvention({ normalMap: tex });
+  tex.userData['colourConvention'] = application.dataSlots;
   return tex;
 }

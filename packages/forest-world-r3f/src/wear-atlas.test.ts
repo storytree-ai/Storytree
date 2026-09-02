@@ -41,13 +41,27 @@ function strip(from: CoastPoint, to: CoastPoint): InstanceDescriptor {
 }
 
 const TWO: InstanceDescriptor[] = [island('isle-a', 0, 0, 40), island('isle-b', 400, 0, 40)];
-const OCC = buildAtlasOcclusion({ cells: TWO, relief: 2.2, casters: [] });
+/** ⚠ BUILT ON FIRST USE, NOT AT IMPORT. A fixture built at module scope executes the code under
+ *  test before any test runs, which makes EVERY mutant in that code a STATIC mutant for
+ *  `check:mutation-diff` — uncovered by any named test, re-run against the whole suite, and scored
+ *  UNPROVEN on a timeout rather than KILLED by the assertion that actually notices it (measured:
+ *  334 static mutants, 88% of the rung's time, 2026-09-02). A memoised accessor keeps the cost of
+ *  building it once and puts the build inside the tests that read it. */
+function lazy<T>(build: () => T): () => T {
+  let memo: { value: T } | undefined;
+  return () => {
+    if (memo === undefined) memo = { value: build() };
+    return memo.value;
+  };
+}
+
+const OCC = lazy(() => buildAtlasOcclusion({ cells: TWO, relief: 2.2, casters: [] }));
 /** A crossing of isle-a from its west dock to its east dock; isle-b gets nothing. */
-const A_PATHS = islandPaths(TWO, [strip({ x: -40, z: 20 }, { x: -2, z: 20 }), strip({ x: 80, z: 20 }, { x: 42, z: 20 })]);
+const A_PATHS = lazy(() => islandPaths(TWO, [strip({ x: -40, z: 20 }, { x: -2, z: 20 }), strip({ x: 80, z: 20 }, { x: 42, z: 20 })]));
 
 /** Ragged sizes, so the shelf packer leaves padding the fill can be tested on. */
 const RAGGED: InstanceDescriptor[] = [island('isle-a', 0, 0, 40), island('isle-b', 400, 0, 17), island('isle-c', 800, 0, 63)];
-const RAGGED_OCC = buildAtlasOcclusion({ cells: RAGGED, relief: 2.2, casters: [] });
+const RAGGED_OCC = lazy(() => buildAtlasOcclusion({ cells: RAGGED, relief: 2.2, casters: [] }));
 
 const texelsOf = (atlas: AtlasField, id: string): number[] => {
   const tile = atlas.tiles.find((t) => t.island === id)!;
@@ -64,12 +78,12 @@ test('the field width IS the wear falloff — the cap and the shader`s falloff a
 });
 
 test('the wear atlas rides the OCCLUSION atlas`s tiles — structurally, not by agreement', () => {
-  const wear = buildAtlasWear(A_PATHS, OCC);
-  assert.equal(wear.w, OCC.w);
-  assert.equal(wear.h, OCC.h);
-  assert.equal(wear.gres, OCC.gres);
-  assert.equal(wear.tiles, OCC.tiles, 'the tiles must be the occlusion atlas`s own, not a copy');
-  assert.equal(wear.data.length, OCC.data.length);
+  const wear = buildAtlasWear(A_PATHS(), OCC());
+  assert.equal(wear.w, OCC().w);
+  assert.equal(wear.h, OCC().h);
+  assert.equal(wear.gres, OCC().gres);
+  assert.equal(wear.tiles, OCC().tiles, 'the tiles must be the occlusion atlas`s own, not a copy');
+  assert.equal(wear.data.length, OCC().data.length);
   assert.equal(wear.unassigned, 0);
 });
 
@@ -78,7 +92,7 @@ test('⚠ AN UNWRITTEN TEXEL READS AS NO WEAR, NOT AS THE PATH', () => {
   // on every gap between tiles. The padding is DERIVED, not guessed at (the shore's first version
   // of this test sampled a texel that turned out to be inside a tile).
   const paths = islandPaths(RAGGED, [strip({ x: -40, z: 20 }, { x: -2, z: 20 }), strip({ x: 80, z: 20 }, { x: 42, z: 20 })]);
-  const wear = buildAtlasWear(paths, RAGGED_OCC);
+  const wear = buildAtlasWear(paths, RAGGED_OCC());
   const covered = new Uint8Array(wear.data.length);
   for (const tile of wear.tiles) {
     for (let j = 0; j < tile.h; j += 1) {
@@ -93,8 +107,8 @@ test('⚠ AN UNWRITTEN TEXEL READS AS NO WEAR, NOT AS THE PATH', () => {
 });
 
 test('⚠ each texel samples its OWN corner — the grid mapping is pinned against the reader', () => {
-  const wear = buildAtlasWear(A_PATHS, OCC);
-  const reader = wearField(A_PATHS.get('isle-a')!, WEAR_FIELD_WIDTH);
+  const wear = buildAtlasWear(A_PATHS(), OCC());
+  const reader = wearField(A_PATHS().get('isle-a')!, WEAR_FIELD_WIDTH);
   const tile = wear.tiles.find((t) => t.island === 'isle-a')!;
   const distinct = new Set<number>();
   for (let j = 0; j < tile.h; j += 1) {
@@ -114,24 +128,24 @@ test('⚠ each texel samples its OWN corner — the grid mapping is pinned again
 
 test('⚠⚠ AN ISLAND WITH NO PATH STAYS AT 255 — no whole-map fallback, ever', () => {
   // isle-b is absent from the path map entirely: its tile is untouched.
-  const wear = buildAtlasWear(A_PATHS, OCC);
-  assert.equal(A_PATHS.has('isle-a'), true);
+  const wear = buildAtlasWear(A_PATHS(), OCC());
+  assert.equal(A_PATHS().has('isle-a'), true);
   // ⚠ THE FIXTURE PROVES THE CLAIM IS NOT VACUOUS: isle-b IS in the map (with no paths) and its
   // tile is still all 255, AND a variant that drops it from the map entirely is the same.
-  assert.deepEqual(A_PATHS.get('isle-b'), []);
+  assert.deepEqual(A_PATHS().get('isle-b'), []);
   assert.ok(texelsOf(wear, 'isle-b').every((v) => v === 255), 'isle-b wore a path it never had');
   assert.ok(texelsOf(wear, 'isle-a').includes(0), 'isle-a lost its own path');
-  const onlyA = new Map([['isle-a', A_PATHS.get('isle-a')!]]);
-  const dropped = buildAtlasWear(onlyA, OCC);
+  const onlyA = new Map([['isle-a', A_PATHS().get('isle-a')!]]);
+  const dropped = buildAtlasWear(onlyA, OCC());
   assert.ok(texelsOf(dropped, 'isle-b').every((v) => v === 255), 'an island absent from the map wore a path');
   assert.deepEqual(texelsOf(dropped, 'isle-a'), texelsOf(wear, 'isle-a'));
   // And an EMPTY map draws nothing anywhere, without throwing.
-  const none = buildAtlasWear(new Map(), OCC);
+  const none = buildAtlasWear(new Map(), OCC());
   assert.ok(none.data.every((v) => v === 255));
 });
 
 test('the field reads ZERO on the path and rises to the cap away from it', () => {
-  const wear = buildAtlasWear(A_PATHS, OCC);
+  const wear = buildAtlasWear(A_PATHS(), OCC());
   const tile = wear.tiles.find((t) => t.island === 'isle-a')!;
   const at = (i: number, j: number): number => decodeShore(wear.data[(tile.y + j) * wear.w + (tile.x + i)]!, WEAR_FIELD_WIDTH);
   // The path runs east-west through z = 20 (bowing off it a little). The island's north edge is
@@ -147,8 +161,8 @@ test('the field reads ZERO on the path and rises to the cap away from it', () =>
 
 test('the width parameter reaches BOTH the field`s cap and the encoding', () => {
   const width = 5.5;
-  const wear = buildAtlasWear(A_PATHS, OCC, width);
-  const reader = wearField(A_PATHS.get('isle-a')!, width);
+  const wear = buildAtlasWear(A_PATHS(), OCC(), width);
+  const reader = wearField(A_PATHS().get('isle-a')!, width);
   const tile = wear.tiles.find((t) => t.island === 'isle-a')!;
   let compared = 0;
   for (let j = 0; j < tile.h; j += 3) {
@@ -162,5 +176,5 @@ test('the width parameter reaches BOTH the field`s cap and the encoding', () => 
   assert.ok(compared > 100);
   // A wider field wears MORE texels below 255 than the default — the width really widened it.
   const below = (a: { data: Uint8Array }): number => a.data.filter((v) => v < 255).length;
-  assert.ok(below(wear) > below(buildAtlasWear(A_PATHS, OCC)), 'a wider cap did not widen the band');
+  assert.ok(below(wear) > below(buildAtlasWear(A_PATHS(), OCC())), 'a wider cap did not widen the band');
 });

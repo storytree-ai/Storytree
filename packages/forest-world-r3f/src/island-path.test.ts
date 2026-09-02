@@ -183,11 +183,61 @@ test('islandDocks buckets every strip end to ITS island, snapped, deduplicated, 
   assert.deepEqual([...islandDocks(CELLS, []).values()], [[], []]);
 });
 
+test('islandDocks assigns an end within reach of TWO islands to the NEARER one, on either axis', () => {
+  // Two islands one reach apart never occur on the shipped map, which is exactly why this has to
+  // be a fixture: the nearest-island search inside `islandDocks` is otherwise never exercised
+  // with more than one candidate, and its distance arithmetic could be anything. WEST is
+  // [0,40]x[0,40] and EAST is [50,90]x[0,40] — a 10-unit channel, under DOCK_REACH (13.5), so an
+  // end in the channel is within reach of BOTH rims. The far end of every strip is 160 units out.
+  const channel = [island('west', 0, 0, 40), island('east', 50, 0, 40)];
+  // (47, 20): 7 off WEST's east edge, 3 off EAST's west edge — EAST's dock, at (50, 20). A
+  // distance that SUMMED the x ordinates would score WEST 87 and EAST 97 and hand it to WEST.
+  const nearerEast = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 47, z: 20 })]);
+  assert.deepEqual(nearerEast.get('east'), [{ x: 50, z: 20 }]);
+  assert.deepEqual(nearerEast.get('west'), []);
+  // (43, 20): 3 off WEST, 7 off EAST — WEST's dock, at (40, 20). WEST is the FIRST rim, so a
+  // search that let every later in-reach candidate overwrite the best would hand this to EAST.
+  const nearerWest = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 43, z: 20 })]);
+  assert.deepEqual(nearerWest.get('west'), [{ x: 40, z: 20 }]);
+  assert.deepEqual(nearerWest.get('east'), []);
+  // The same on the OTHER axis: NORTH is [0,40]x[0,40], SOUTH is [0,40]x[50,90]; (20, 47) is 7
+  // off NORTH's south edge and 3 off SOUTH's north edge — SOUTH's dock, at (20, 50). A distance
+  // that summed the z ordinates would score NORTH 87 and SOUTH 97.
+  const stacked = [island('north', 0, 0, 40), island('south', 0, 50, 40)];
+  const nearerSouth = islandDocks(stacked, [strip({ x: 200, z: 45 }, { x: 20, z: 47 })]);
+  assert.deepEqual(nearerSouth.get('south'), [{ x: 20, z: 50 }]);
+  assert.deepEqual(nearerSouth.get('north'), []);
+  // Out of reach of both: no dock anywhere, and every island still listed.
+  const none = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 45, z: 100 })]);
+  assert.deepEqual([...none.entries()], [['west', []], ['east', []]]);
+});
+
+test('islandDocks breaks an EXACT tie between two islands in favour of the FIRST rim', () => {
+  // (45, 20) is exactly 5 from WEST's east edge and exactly 5 from EAST's west edge. The search
+  // rejects a candidate at `d >= best`, so an equal LATER candidate never replaces the first;
+  // rejecting only at `d > best` would hand the tie to EAST.
+  const channel = [island('west', 0, 0, 40), island('east', 50, 0, 40)];
+  const tied = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 45, z: 20 })]);
+  assert.deepEqual(tied.get('west'), [{ x: 40, z: 20 }]);
+  assert.deepEqual(tied.get('east'), []);
+  // The premise: the tie really is EXACT in floating point (axis-aligned edges, parameter 0.5),
+  // so the assertion above is about the comparison and not about a rounding accident.
+  const rims = islandRims(channel);
+  const west = dockOnRim(rimGrid(rims[0]!), { x: 45, z: 20 })!;
+  const east = dockOnRim(rimGrid(rims[1]!), { x: 45, z: 20 })!;
+  assert.deepEqual(west, { x: 40, z: 20 });
+  assert.deepEqual(east, { x: 50, z: 20 });
+  assert.equal(Math.hypot(west.x - 45, west.z - 20), 5);
+  assert.equal(Math.hypot(east.x - 45, east.z - 20), 5);
+});
+
 // ---------------------------------------------------------------------------
 // The three path shapes
 // ---------------------------------------------------------------------------
 
 test('0 docks -> no path; 1 dock -> dock -> waypoint -> centroid, smoothed', () => {
+  // The empty case has NO guard of its own (`pathsBetween` says why): this assertion is what
+  // pins it, so it stays even though nothing in the function names it.
   assert.deepEqual(pathsBetween([], { x: 20, z: 20 }, 1), []);
   const paths = pathsBetween([{ x: 0, z: 20 }], { x: 20, z: 20 }, islandSeed('isle-a'));
   assert.equal(paths.length, 1);
@@ -336,6 +386,46 @@ test('waypointToward sits halfway in, nudged by the seed`s first draw', () => {
   const j = PATH_JITTER * seededUnit(islandSeed('isle-a'), 0);
   assert.deepEqual(w, { x: 10 + n.x * j, z: 20 + n.z * j });
   assert.ok(Math.abs(w.z - 20) > 0.5, 'the nudge must actually move it off the radial');
+});
+
+test('waypointToward: the literal point for a dock at (10, 4), a centroid at (30, 24), seed 7', () => {
+  // The fixture above has the dock on the centroid's own z and n.x = -0, so every z-blend and
+  // every x-nudge slip is invisible there. Here nothing cancels. Halfway in is (20, 14); across
+  // the chord is n = (-1, 1) / sqrt2; the seed's first draw is 0.9274821188300848 (pinned
+  // below), so the nudge is j = 7 * 0.92748... = 6.492374831810594 units along n, and the point
+  // is (20 - j / sqrt2, 14 + j / sqrt2) = (15.409197730421859, 18.59080226957814).
+  const dock = { x: 10, z: 4 };
+  const c = { x: 30, z: 24 };
+  const w = waypointToward(dock, c, 7);
+  assert.ok(near(w, { x: 15.409197730421859, z: 18.59080226957814 }, 1e-12), `got (${w.x}, ${w.z})`);
+  // Taking the nudge back off leaves the halfway point — in BOTH axes, so a sign or an operator
+  // slip in either ordinate's blend, or in the nudge's own sign or scale, lands somewhere else
+  // (each of those is off by at least a tenth of a unit; the tolerance here is 1e-9).
+  const j = PATH_JITTER * seededUnit(7, 0);
+  const n = perpendicularUnit(dock, c);
+  assert.ok(near({ x: w.x - n.x * j, z: w.z - n.z * j }, { x: 20, z: 14 }), `un-nudged (${w.x - n.x * j}, ${w.z - n.z * j})`);
+  // The premises: the draw the literal was computed from, and that the nudge is neither zero nor
+  // of unit size — the two magnitudes at which scaling by `/ j` would coincide with `* j`.
+  assert.equal(seededUnit(7, 0), 0.9274821188300848);
+  assert.ok(Math.abs(j) > 1 && n.x !== 0, `j = ${j}, n.x = ${n.x}`);
+});
+
+test('controlPoint: literal points for a chord with all-positive, non-symmetric ends', () => {
+  // a = (10, 4), b = (50, 28), centroid (40, 30), f = 0.25 — chosen so nothing cancels: a's
+  // ordinates are non-zero (so b - a and b + a differ), the chord has a z extent (so the z blend
+  // has a value to get wrong), and n = (0.6, -0.8) has a non-zero x (so the jitter's x sign is
+  // visible). Chord point: (10 + 40 * 0.25, 4 + 24 * 0.25) = (20, 10). Pulled 0.6 of the way to
+  // the centroid: (20 + 20 * 0.6, 10 + 20 * 0.6) = (32, 22). Then 5 along n: (35, 18). Every
+  // product here is exact in floating point, so these are equalities, not tolerances.
+  const a = { x: 10, z: 4 };
+  const b = { x: 50, z: 28 };
+  const c = { x: 40, z: 30 };
+  const n = { x: 0.6, z: -0.8 };
+  assert.deepEqual(controlPoint(a, b, c, 0.25, n, 0), { x: 32, z: 22 });
+  const p = controlPoint(a, b, c, 0.25, n, 5);
+  assert.deepEqual(p, { x: 35, z: 18 });
+  // Taking the jitter back off lands EXACTLY on the pulled chord point in BOTH axes.
+  assert.deepEqual({ x: p.x - n.x * 5, z: p.z - n.z * 5 }, { x: 32, z: 22 });
 });
 
 test('perpendicularUnit is a unit vector across the chord, and zero for a degenerate chord', () => {

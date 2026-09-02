@@ -139,6 +139,13 @@ export function isDockableStrip(d: InstanceDescriptor): boolean {
   return d.kind === 'trail-strip' && d.hidden !== true;
 }
 
+/** The nearest island an end reaches and where on its rim it lands — ONE value, because the two
+ *  are only ever known together (see the note inside {@link islandDocks}). */
+interface NearestDock {
+  island: string;
+  dock: CoastPoint;
+}
+
 /** Where a strip's end lands on this island's rim, or `null` when it is out of reach. The snap
  *  is the nearest point of the rim, read back off the walk's own distance and gradient. */
 export function dockOnRim(grid: EdgeGrid, end: CoastPoint, reach: number = DOCK_REACH): CoastPoint | null {
@@ -173,8 +180,14 @@ export function islandDocks(
   for (const strip of strips) {
     if (!isDockableStrip(strip)) continue;
     for (const end of stripEndpoints(strip)) {
-      let bestIsland: string | null = null;
-      let bestDock: CoastPoint | null = null;
+      // ⚠ ONE `nearest`, NOT A SEPARATE island AND dock. They were two nullables, assigned only
+      // ever together, and `check:mutation-diff` reported the second null check as three
+      // survivors — `||` to `&&`, and either side to `false` — every one of them EQUIVALENT,
+      // because the state they would have told apart (one set, the other null) is one no input
+      // can produce. Collapsed to a single value so that state is unrepresentable rather than
+      // merely unreached; the one remaining null check is the out-of-reach case, which the
+      // "docks nowhere" test observes.
+      let nearest: NearestDock | null = null;
       let best = Infinity;
       for (const i of indices(rims.length)) {
         const dock = dockOnRim(grids[i]!, end);
@@ -182,13 +195,12 @@ export function islandDocks(
         const d = Math.hypot(dock.x - end.x, dock.z - end.z);
         if (d >= best) continue;
         best = d;
-        bestIsland = rims[i]!.island;
-        bestDock = dock;
+        nearest = { island: rims[i]!.island, dock };
       }
-      if (bestIsland === null || bestDock === null) continue;
-      const found = docks.get(bestIsland)!;
+      if (nearest === null) continue;
+      const found = docks.get(nearest.island)!;
       // First arrival keeps the landing; a later end a hair away is the same dock.
-      if (!found.has(vertexKey(bestDock))) found.set(vertexKey(bestDock), bestDock);
+      if (!found.has(vertexKey(nearest.dock))) found.set(vertexKey(nearest.dock), nearest.dock);
     }
   }
   const out = new Map<string, CoastPoint[]>();
@@ -235,7 +247,11 @@ export function islandPaths(
 /** The paths one island's docks imply — {@link islandPaths}'s per-island rule, exported so the
  *  three shapes can be asserted on a bare dock list. */
 export function pathsBetween(docks: readonly CoastPoint[], centroid: CoastPoint, seed: number): CoastPoint[][] {
-  if (docks.length === 0) return [];
+  // ⚠ DELIBERATELY NO EMPTY-DOCKS GUARD. One was written and `check:mutation-diff` reported it as
+  // a survivor, which is what dead code looks like from outside: with no docks the sort below is
+  // empty, `indices(-1)` is empty, the crossings loop runs zero times, and the empty list falls
+  // out — exactly what the guard returned. The test pins the empty case, so the behaviour stays
+  // without the branch (the same finding, and the same remedy, as `buildSegmentGrid`'s).
   if (docks.length === 1) {
     const dock = docks[0]!;
     return [chaikinOpen([dock, waypointToward(dock, centroid, seed), centroid], PATH_CHAIKIN_PASSES)];

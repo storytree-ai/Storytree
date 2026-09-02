@@ -66,6 +66,24 @@ test('the cell index FLOORS — a ceiling would shift every edge one cell over',
   assert.equal(cellIndex(-10, 0, 10), -1);
 });
 
+test('cellIndex divides the offset from the origin by the cell, with a non-zero origin', () => {
+  // min 3, cell 4, v 11: (11 - 3) / 4 = 2. The two arithmetic slips a reader could make are both
+  // visible here and BOTH invisible at an origin of zero, which is all the floor test above uses:
+  // multiplying by the cell instead of dividing gives 32, and adding the origin instead of
+  // subtracting it gives floor(14 / 4) = 3.
+  assert.equal(cellIndex(11, 3, 4), 2);
+  assert.equal(cellIndex(3, 3, 4), 0);
+  assert.equal(cellIndex(2.99, 3, 4), -1);
+  assert.equal(cellIndex(19, 3, 4), 4);
+  // ⚠ `check:mutation-diff` can still report the `* cell` mutant of this line as UNPROVEN, and
+  // that is a TIMEOUT, not a missing witness. Every shore-grid mutant is STATIC — module-scope
+  // fixtures in `wear-atlas.test.ts` and `shore-atlas.test.ts` build a grid at import — so each
+  // mutant runs the WHOLE suite, and under `* cell` the shipped-map harness legs build grids
+  // with cell² (~100x) more cells per axis and blow the per-mutant budget before any verdict,
+  // this one included, can be named. This test kills the mutant in under a millisecond; it
+  // cannot make a hung suite report which test did.
+});
+
 test('a degenerate grid answers "nothing near" rather than dividing by zero', () => {
   assert.deepEqual([...buildEdgeGrid([], 5).candidates(0, 0)], []);
   // A zero width would make the cell arithmetic divide by zero and hand every query NaN cells —

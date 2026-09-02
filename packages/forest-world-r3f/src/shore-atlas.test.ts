@@ -36,7 +36,21 @@ function island(id: string, x: number, z: number, size: number): InstanceDescrip
 }
 
 const TWO: InstanceDescriptor[] = [island('isle-a', 0, 0, 40), island('isle-b', 400, 0, 40)];
-const OCC = buildAtlasOcclusion({ cells: TWO, relief: 2.2, casters: [] });
+/** ⚠ BUILT ON FIRST USE, NOT AT IMPORT. A fixture built at module scope executes the code under
+ *  test before any test runs, which makes EVERY mutant in that code a STATIC mutant for
+ *  `check:mutation-diff` — uncovered by any named test, re-run against the whole suite, and scored
+ *  UNPROVEN on a timeout rather than KILLED by the assertion that actually notices it (measured:
+ *  334 static mutants, 88% of the rung's time, 2026-09-02). A memoised accessor keeps the cost of
+ *  building it once and puts the build inside the tests that read it. */
+function lazy<T>(build: () => T): () => T {
+  let memo: { value: T } | undefined;
+  return () => {
+    if (memo === undefined) memo = { value: build() };
+    return memo.value;
+  };
+}
+
+const OCC = lazy(() => buildAtlasOcclusion({ cells: TWO, relief: 2.2, casters: [] }));
 
 /** ⚠ ISLANDS OF DELIBERATELY DIFFERENT SIZES, because the shelf packer leaves NO padding when they
  *  are equal — measured, {@link TWO} packs to 264x132 with zero uncovered texels. The `data.fill`
@@ -48,7 +62,7 @@ const RAGGED: InstanceDescriptor[] = [
   island('isle-b', 400, 0, 17),
   island('isle-c', 800, 0, 63),
 ];
-const RAGGED_OCC = buildAtlasOcclusion({ cells: RAGGED, relief: 2.2, casters: [] });
+const RAGGED_OCC = lazy(() => buildAtlasOcclusion({ cells: RAGGED, relief: 2.2, casters: [] }));
 
 test('the field width is the SHIPPED band`s divisor, and the recipe`s is kept beside it', () => {
   // ⚠⚠ THE FIELD'S CAP AND THE SHADER'S DIVISOR ARE ONE NUMBER. `shoreField` caps its distances at
@@ -103,14 +117,14 @@ test('the byte encoding round-trips inside its own step, and clamps at both ends
 });
 
 test('the shore atlas rides the OCCLUSION atlas`s tiles — structurally, not by agreement', () => {
-  const shore = buildAtlasShore(TWO, OCC);
+  const shore = buildAtlasShore(TWO, OCC());
   // Same dimensions, same resolution, and the SAME tile objects — so the mesh's one
   // `atlasOrigin` attribute and the material's one `uShadowAtlasScale` address both textures.
-  assert.equal(shore.w, OCC.w);
-  assert.equal(shore.h, OCC.h);
-  assert.equal(shore.gres, OCC.gres);
-  assert.equal(shore.tiles, OCC.tiles, 'the tiles must be the occlusion atlas`s own, not a copy');
-  assert.equal(shore.data.length, OCC.data.length);
+  assert.equal(shore.w, OCC().w);
+  assert.equal(shore.h, OCC().h);
+  assert.equal(shore.gres, OCC().gres);
+  assert.equal(shore.tiles, OCC().tiles, 'the tiles must be the occlusion atlas`s own, not a copy');
+  assert.equal(shore.data.length, OCC().data.length);
 });
 
 test('⚠ AN UNWRITTEN TEXEL READS AS GRASS, NOT AS SAND', () => {
@@ -124,7 +138,7 @@ test('⚠ AN UNWRITTEN TEXEL READS AS GRASS, NOT AS SAND', () => {
   // `data.fill(255)` outright and it stayed green. It sampled the atlas's LAST texel, assuming
   // that was padding; on this layout it falls inside a tile and is written either way. The check
   // has to find the padding rather than guess where it is, so it derives the uncovered set.
-  const shore = buildAtlasShore(RAGGED, RAGGED_OCC);
+  const shore = buildAtlasShore(RAGGED, RAGGED_OCC());
   const covered = new Uint8Array(shore.data.length);
   for (const tile of shore.tiles) {
     for (let j = 0; j < tile.h; j += 1) {
@@ -151,7 +165,7 @@ test('⚠ each texel samples its OWN corner — the grid mapping is pinned, not 
   //
   // So the mapping is checked against the reader directly: the texel at (i, j) must decode to what
   // `shoreField` reports at exactly `bounds.min + index / gres`.
-  const shore = buildAtlasShore(TWO, OCC);
+  const shore = buildAtlasShore(TWO, OCC());
   const reader = shoreField(TWO, SAND_FIELD_WIDTH);
   const tile = shore.tiles.find((t) => t.island === 'isle-a')!;
   // ⚠⚠ THE WHOLE TILE, NOT A HANDFUL OF PROBES. Five sample points did NOT kill `i * gres`: at a
@@ -177,7 +191,7 @@ test('⚠ each texel samples its OWN corner — the grid mapping is pinned, not 
 });
 
 test('the field reads ZERO at the coast and rises inland', () => {
-  const shore = buildAtlasShore(TWO, OCC);
+  const shore = buildAtlasShore(TWO, OCC());
   const tile = shore.tiles.find((t) => t.island === 'isle-a')!;
   const at = (i: number, j: number): number => decodeShore(shore.data[(tile.y + j) * shore.w + (tile.x + i)]!);
   // Walk inward along one row from the tile's own left edge. The island's rim sits inside the
@@ -200,7 +214,7 @@ test('every island gets its OWN coast, not the nearest one on the map', () => {
   // Two islands 400 units apart. If the packing and the sampling disagreed about which tile is
   // whose, island B's tile would carry island A's distances — and the sand would trace a coast
   // that is not there. Both tiles must independently contain a waterline and a capped interior.
-  const shore = buildAtlasShore(TWO, OCC);
+  const shore = buildAtlasShore(TWO, OCC());
   for (const id of ['isle-a', 'isle-b']) {
     const tile = shore.tiles.find((t) => t.island === id)!;
     const vals: number[] = [];

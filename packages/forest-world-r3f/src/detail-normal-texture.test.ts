@@ -140,6 +140,18 @@ test('the texture repeats, is linear data, and is mipmapped with trilinear minif
   assert.equal(tex.magFilter, LinearFilter);
 });
 
+test('the texture records that it was routed through the colour convention as a DATA map', () => {
+  // The convention leaves a data map alone, so the routing would otherwise be invisible on the
+  // texture: `userData` carries the application's own report, and it must name the normal-map
+  // slot — a call handed an EMPTY material records nothing routed at all. On both paths, because
+  // the headless texture is the same object with no image and must carry the same record.
+  const { result: decoded } = withDocumentStub(() => detailNormalTexture());
+  assert.deepEqual(decoded.userData['colourConvention'], ['normalMap']);
+  assert.equal(typeof document, 'undefined', 'this test relies on bun having no document');
+  const headless = detailNormalTexture();
+  assert.deepEqual(headless.userData['colourConvention'], ['normalMap']);
+});
+
 test('each call returns a fresh texture — two materials never share one GPU upload state', () => {
   const a = withDocumentStub(() => detailNormalTexture()).result;
   const b = withDocumentStub(() => detailNormalTexture()).result;
