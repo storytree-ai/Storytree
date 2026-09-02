@@ -541,6 +541,8 @@
       "packages/forest-world-r3f/src/land-grain.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-grass.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-sand.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/land-wear.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/land-rock.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/trail-wear.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/island-path.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/wear-atlas.ts": "r3f-world-spike",
