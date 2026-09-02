@@ -117,6 +117,50 @@ trigger; the plugin dogfoods itself and presumably does not hit it.
 
 Both defects are worth reporting upstream. The repo is alive (pushed 5 weeks ago, 2 open issues).
 
+### Defect C — the mutant run files a failed test under the wrong test file (CI-only; added 2026-09-02)
+
+Found on PR #1802, on both of its `verify` runs, never locally. The mutant run derives each failed
+test's name by scraping `bun test`'s console output: `<file> > <title>`, with the file read off the
+**last file header** the output printed (`parseBunTestOutput`, `currentFile`). Bun prints that header
+lazily — only when a file's first failure is reported — and under CI's timing it reported a `node:test`
+failure from `src/banded-ground-material.test.ts` under the header of the file *before* it,
+`harness/shipped-grass-scene.test.ts`. The name therefore reached `resolveKilledBy` with the WRONG
+file half and the RIGHT title, matched no dry-run id through either the exact or the path-suffix rung
+(Defect B's fix), and six mutants that every local run kills with a named killer were scored
+`UNPROVEN`. The set moved between the two runs (five, then six, four shared) because the lag is a
+timing race, and the diagnostic is the plugin's own warning:
+
+```
+WARN BunTestRunner Mutant 1: 1 failed test name(s) could not be resolved to dry-run test ids …:
+  packages/forest-world-r3f/harness/shipped-grass-scene.test.ts > the three refusals say the WHOLE reason …
+```
+
+— a test that lives in `src/banded-ground-material.test.ts`.
+
+Fix (the same patch file): after the path-suffix rung fails, strip the file half and credit the
+**one** dry-run id carrying that exact title — the mutant's covering filter first, then the whole
+registry. Two or more carriers resolve nothing, so a duplicated title still lands in the fail-closed
+empty-`killedBy` path exactly as an ambiguous suffix match does, and a name with no test-file prefix
+is not treated as mis-filed at all. Its proof is `attribution-probe/verify-title-fallback.mjs`,
+which drives `resolveKilledBy` directly with hand-built registries (the header lag cannot be
+reproduced through the probe fixture) and was red-green'd against the unpatched bundle — four of its
+eight cases fail there. It is chained into `pnpm mutation:attribution-probe`.
+
+This is the third hunk against the bundle; §5 below counts two and its properties still hold.
+
+**And the hunk was not enough on its own (third CI run, same PR).** With every "could not be
+resolved" warning gone, three mutants still came back UNPROVEN under a DIFFERENT shape: bun exited
+1 but its captured output held **no `(fail)` line at all** — only the files' `::group::` headers —
+so `rawFailedNames` was empty and the runner warned "no killing test identifiable". Reproduced on
+Linux (bun 1.4.0, `GITHUB_ACTIONS=true`): a synchronous node:test failure prints cleanly inside its
+own group, so the lost line is a timing shape — a slow node:test file's failure reported after bun
+has moved on. No resolver can credit a line that was never captured. The remedy that lands is the
+cheap one: `src/banded-ground-material.layers.test.ts` re-states the six claims as small
+synchronous tests over one lazily-built material, so their failures print inside their own group
+and the credit routes; the runner hunk stays as the belt for the wrong-header shape. The true fix
+is upstream — attribute the mutant run through the inspector as the dry run already does — and is
+filed as friction rather than patched here.
+
 ---
 
 ## 3. The instrument was validated before its output was trusted

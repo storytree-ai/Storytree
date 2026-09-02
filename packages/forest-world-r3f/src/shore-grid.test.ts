@@ -1,0 +1,439 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import type { CoastPoint } from './coast-clip.js';
+import {
+  buildEdgeGrid,
+  MAX_GRID_BUCKETS,
+  buildSegmentGrid,
+  cellIndex,
+  edgeBounds,
+  edgeGridFarField,
+  nearestOnSegments,
+  ringEdges,
+  spanOf,
+  type CoastEdge,
+  type NearestSample,
+} from './shore-grid.js';
+import { shoreField } from './shore-fall.js';
+
+/** A brute-force distance to the nearest point of any ring, capped — the definition the grid is an
+ *  optimisation OF. Deliberately the slowest possible spelling: no pruning, no index, nothing that
+ *  could share a bug with the thing under test. */
+function bruteDistance(rings: readonly (readonly CoastPoint[])[], x: number, z: number, width: number): number {
+  let best = width;
+  for (const ring of rings) {
+    for (let i = 0; i < ring.length; i += 1) {
+      const a = ring[i]!;
+      const b = ring[(i + 1) % ring.length]!;
+      const ex = b.x - a.x;
+      const ez = b.z - a.z;
+      const lenSq = ex * ex + ez * ez;
+      const raw = lenSq === 0 ? 0 : ((x - a.x) * ex + (z - a.z) * ez) / lenSq;
+      const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
+      const d = Math.hypot(x - (a.x + ex * t), z - (a.z + ez * t));
+      if (d < best) best = d;
+    }
+  }
+  return best;
+}
+
+const SQUARE: CoastPoint[] = [
+  { x: 0, z: 0 },
+  { x: 40, z: 0 },
+  { x: 40, z: 40 },
+  { x: 0, z: 40 },
+];
+
+test('the far-field argument holds only while the cell is at least the query width', () => {
+  // The short-circuit's whole soundness. A cell SMALLER than the width would leave a point's 3x3
+  // block narrower than the cap, so an edge just outside the block could still be nearer than
+  // `width` — and the empty-neighbourhood answer would be a wrong distance rather than the cap.
+  assert.equal(edgeGridFarField(10, 10), true);
+  assert.equal(edgeGridFarField(11, 10), true);
+  assert.equal(edgeGridFarField(9.99, 10), false);
+  // And the builder honours it: the grid it returns uses the width as its cell.
+  assert.equal(buildEdgeGrid([SQUARE], 7).cell, 7);
+});
+
+test('the cell index FLOORS — a ceiling would shift every edge one cell over', () => {
+  assert.equal(cellIndex(0, 0, 10), 0);
+  assert.equal(cellIndex(9.99, 0, 10), 0);
+  assert.equal(cellIndex(10, 0, 10), 1);
+  // ⚠ NEGATIVE ORDINATES TOO. Ground coordinates straddle the origin, and `Math.trunc` — the
+  // plausible substitute — collapses [-10, 0) and [0, 10) onto the same cell, silently merging the
+  // two sides of the axis and hiding half a coast from the other half.
+  assert.equal(cellIndex(-0.01, 0, 10), -1);
+  assert.equal(cellIndex(-10, 0, 10), -1);
+});
+
+test('cellIndex divides the offset from the origin by the cell, with a non-zero origin', () => {
+  // min 3, cell 4, v 11: (11 - 3) / 4 = 2. The two arithmetic slips a reader could make are both
+  // visible here and BOTH invisible at an origin of zero, which is all the floor test above uses:
+  // multiplying by the cell instead of dividing gives 32, and adding the origin instead of
+  // subtracting it gives floor(14 / 4) = 3.
+  assert.equal(cellIndex(11, 3, 4), 2);
+  assert.equal(cellIndex(3, 3, 4), 0);
+  assert.equal(cellIndex(2.99, 3, 4), -1);
+  assert.equal(cellIndex(19, 3, 4), 4);
+  // ⚠ `check:mutation-diff` can still report the `* cell` mutant of this line as UNPROVEN, and
+  // that is a TIMEOUT, not a missing witness. Every shore-grid mutant is STATIC — module-scope
+  // fixtures in `wear-atlas.test.ts` and `shore-atlas.test.ts` build a grid at import — so each
+  // mutant runs the WHOLE suite, and under `* cell` the shipped-map harness legs build grids
+  // with cell² (~100x) more cells per axis and blow the per-mutant budget before any verdict,
+  // this one included, can be named. This test kills the mutant in under a millisecond; it
+  // cannot make a hung suite report which test did.
+});
+
+test('a degenerate grid answers "nothing near" rather than dividing by zero', () => {
+  assert.deepEqual([...buildEdgeGrid([], 5).candidates(0, 0)], []);
+  // A zero width would make the cell arithmetic divide by zero and hand every query NaN cells —
+  // which reads as "no candidates" and would silently erase the coast.
+  const zero = buildEdgeGrid([SQUARE], 0);
+  assert.ok(zero.cell > 0, 'a zero width must not become a zero cell');
+});
+
+test('⚠ AN EDGE IS BUCKETED INTO EVERY CELL IT CROSSES, not just its endpoints`', () => {
+  // ⚠⚠ THE FAILURE THIS PREVENTS IS A MISSED COASTLINE. A 40-unit edge across a 5-unit grid spans
+  // eight cells; bucketed only by its endpoints, a point beside its MIDDLE finds an empty
+  // neighbourhood and is told it is far inland — sand missing from exactly the water's edge, and
+  // no error anywhere.
+  const grid = buildEdgeGrid([SQUARE], 5);
+  // Beside the middle of the bottom edge, just outside the square.
+  const mid = grid.candidates(20, -1);
+  assert.ok(mid.length > 0, 'a point beside an edge`s middle found no candidate edge');
+  // And it really is that edge: the nearest distance from here is ~1.
+  assert.ok(bruteDistance([SQUARE], 20, -1, 5) < 1.5);
+});
+
+test('⚠⚠ THE GRID IS EXACT — it agrees with a brute-force walk at every probe', () => {
+  // ⚠ THIS IS THE CLAIM THE WHOLE OPTIMISATION RESTS ON, and it is the one a speed-up most easily
+  // breaks: a faster field that is quietly wrong produces a plausible beach in the wrong place,
+  // and every downstream measurement inherits it. `shoreField` now walks only the grid's
+  // candidates, so this compares its answers against the definition over a dense sweep.
+  const width = 9.9;
+  const rings = [SQUARE];
+  const reader = shoreField(
+    [
+      {
+        kind: 'cell-ground',
+        group: 'cell-ground',
+        island: 'sq',
+        transform: { x: 20, y: 0, z: 20 },
+        points: SQUARE.map((p) => ({ x: p.x, y: 0, z: p.z })),
+      },
+    ],
+    width,
+  );
+  let compared = 0;
+  let sawBand = 0;
+  let sawCap = 0;
+  for (let x = -15; x <= 55; x += 0.7) {
+    for (let z = -15; z <= 55; z += 0.7) {
+      const expected = bruteDistance(rings, x, z, width);
+      const got = reader.sample(x, z).distance;
+      assert.ok(
+        Math.abs(got - expected) < 1e-9,
+        `at (${x.toFixed(1)}, ${z.toFixed(1)}) the grid said ${got} and the walk said ${expected}`,
+      );
+      compared += 1;
+      if (expected > 0 && expected < width) sawBand += 1;
+      if (expected === width) sawCap += 1;
+    }
+  }
+  // ⚠ AND THE SWEEP MUST HAVE EXERCISED BOTH REGIMES, or it compared two constants. The band is
+  // where the walk runs; the cap is where the short-circuit answers without touching an edge.
+  assert.ok(compared > 9000, `only ${compared} probes — the sweep is too sparse to mean much`);
+  assert.ok(sawBand > 500, `only ${sawBand} probes landed in the band the walk actually resolves`);
+  assert.ok(sawCap > 500, `only ${sawCap} probes hit the capped far field the short-circuit serves`);
+});
+
+test('⚠ the grid is exact on a MANY-EDGED ring too, not just on a square', () => {
+  // The square has four long edges; a real coast after the clip has hundreds of short ones, which
+  // is the case the bucketing actually has to survive — an edge shorter than a cell, many of them
+  // per bucket, and a boundary that curves through every cell it touches.
+  //
+  // ⚠ THE FIXTURE IS BUILT HERE RATHER THAN IMPORTED FROM `harness/`. `src/` is MIRRORED into the
+  // public site by `pnpm sync:web-engine`, which copies nothing from `harness/` — so a src module
+  // reaching across that line dangles in the published tree. `harness/scope-fence.test.ts` fences
+  // it, and it caught this test's first version importing `shippedParcels`.
+  const ring: CoastPoint[] = Array.from({ length: 240 }, (_, i) => {
+    const a = (i / 240) * Math.PI * 2;
+    // A wobbling radius, so the boundary is not a circle the grid could get right by symmetry.
+    const r = 60 + 9 * Math.sin(a * 5) + 4 * Math.cos(a * 11);
+    return { x: r * Math.cos(a), z: r * Math.sin(a) };
+  });
+  const width = 9.9;
+  const reader = shoreField(
+    [
+      {
+        kind: 'cell-ground',
+        group: 'cell-ground',
+        island: 'blob',
+        transform: { x: 0, y: 0, z: 0 },
+        points: ring.map((p) => ({ x: p.x, y: 0, z: p.z })),
+      },
+    ],
+    width,
+  );
+  let compared = 0;
+  let sawBand = 0;
+  for (let x = -85; x <= 85; x += 1.7) {
+    for (let z = -85; z <= 85; z += 1.7) {
+      const expected = bruteDistance([ring], x, z, width);
+      const got = reader.sample(x, z).distance;
+      assert.ok(
+        Math.abs(got - expected) < 1e-9,
+        `many-edged ring: at (${x.toFixed(1)}, ${z.toFixed(1)}) grid ${got} vs walk ${expected}`,
+      );
+      compared += 1;
+      if (expected > 0 && expected < width) sawBand += 1;
+    }
+  }
+  assert.ok(compared > 9000, `only ${compared} probes on the many-edged ring`);
+  assert.ok(sawBand > 500, `only ${sawBand} probes landed in the ring's band`);
+});
+
+test('⚠⚠ THE CONTRACT: the grid never OMITS an edge that could win', () => {
+  // ⚠ THIS IS WHAT THE GRID PROMISES, AND IT IS THE ONLY THING IT PROMISES. Everything else about
+  // it is a cost decision: a broken bound, a collapsed axis or a duplicated bucket makes the walk
+  // test MORE edges and returns the identical distance, which is why `check:mutation-diff` reports
+  // those internals as survivors and why they genuinely are equivalent. What is NOT equivalent is
+  // dropping a candidate — that returns a WRONG distance, and it is invisible in any single
+  // sample because the answer stays plausible.
+  //
+  // So this asserts the contract directly rather than through a distance: for every probe, every
+  // edge whose true distance is under the cap must be among the candidates.
+  const width = 9.9;
+  // ⚠ OFF-ORIGIN AND ASYMMETRIC, because a fixture centred on the origin cannot distinguish a
+  // min/max swap from a correct bound — both collapse to something symmetric that still works.
+  const ring: CoastPoint[] = Array.from({ length: 90 }, (_, i) => {
+    const a = (i / 90) * Math.PI * 2;
+    return { x: 137 + (48 + 11 * Math.sin(a * 3)) * Math.cos(a), z: -64 + (29 + 6 * Math.cos(a * 4)) * Math.sin(a) };
+  });
+  const grid = buildEdgeGrid([ring], width);
+  let probes = 0;
+  let omissionsPossible = 0;
+  for (let x = 60; x <= 215; x += 2.3) {
+    for (let z = -110; z <= -18; z += 2.3) {
+      const got = new Set(grid.candidates(x, z));
+      for (let n = 0; n < grid.edges.length; n += 1) {
+        const e = grid.edges[n]!;
+        const d = bruteDistance([[{ x: e.ax, z: e.az }, { x: e.bx, z: e.bz }]], x, z, Infinity);
+        // A degenerate "ring" of two points has one real edge and one zero-length return leg; the
+        // brute helper walks both, so the distance above is that single segment's.
+        if (d < width) {
+          assert.ok(got.has(n), `edge ${n} is ${d.toFixed(2)} away at (${x.toFixed(1)}, ${z.toFixed(1)}) but was not offered`);
+          omissionsPossible += 1;
+        }
+      }
+      probes += 1;
+    }
+  }
+  assert.ok(probes > 2000, `only ${probes} probes`);
+  // ⚠ AND THE SWEEP MUST ACTUALLY HAVE HAD SOMETHING TO OMIT. With no in-range edge anywhere the
+  // assertion above is vacuous and would pass against a grid that offers nothing at all.
+  assert.ok(omissionsPossible > 2000, `only ${omissionsPossible} in-range edges were ever checked`);
+});
+
+test('an empty edge set and a populated one take different paths, and both answer', () => {
+  // The empty-edges branch returns a grid that offers nothing; flipping its condition would send
+  // an EMPTY set down the bounds arithmetic (Infinity bounds, NaN cells) and a POPULATED one down
+  // the trivial return — which offers no candidates and erases every coast.
+  assert.equal(buildEdgeGrid([], 5).edges.length, 0);
+  assert.deepEqual([...buildEdgeGrid([], 5).candidates(0, 0)], []);
+  const real = buildEdgeGrid([SQUARE], 5);
+  assert.equal(real.edges.length, 4);
+  assert.ok(real.candidates(20, -1).length > 0, 'a populated grid must still offer its edges');
+});
+
+test('edgeBounds returns the true box, and each corner comes from the right extreme', () => {
+  // ⚠ ASYMMETRIC AND OFF-ORIGIN ON BOTH AXES, so a min/max swap or an axis mix-up is visible.
+  // Inside `buildEdgeGrid` none of that is visible at all: a collapsed axis still returns exact
+  // distances (every query finds every edge) and only the build TIME changes.
+  const b = edgeBounds([
+    { ax: -12, az: 40, bx: 5, bz: 41 },
+    { ax: 3, az: -7, bx: 88, bz: 2 },
+  ]);
+  assert.deepEqual(b, { minX: -12, minZ: -7, maxX: 88, maxZ: 41 });
+  // Each endpoint of an edge counts, not just the first.
+  assert.deepEqual(edgeBounds([{ ax: 0, az: 0, bx: -3, bz: -4 }]), {
+    minX: -3, minZ: -4, maxX: 0, maxZ: 0,
+  });
+  assert.deepEqual(edgeBounds([{ ax: -3, az: -4, bx: 0, bz: 0 }]), {
+    minX: -3, minZ: -4, maxX: 0, maxZ: 0,
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The split: ring flattener + segment indexer + the extracted walk
+// ---------------------------------------------------------------------------
+
+test('ringEdges flattens every ring with its CLOSING chord, in order', () => {
+  // ⚠ THE CLOSING CHORD IS THE WHOLE DIFFERENCE from an open polyline's edges: a ring's last
+  // edge runs from its final vertex back to its first, and dropping it leaves one side of every
+  // island without a coast. Asserted as the exact list, so an off-by-one at either end is a
+  // different array rather than a plausible one.
+  assert.deepEqual(ringEdges([SQUARE]), [
+    { ax: 0, az: 0, bx: 40, bz: 0 },
+    { ax: 40, az: 0, bx: 40, bz: 40 },
+    { ax: 40, az: 40, bx: 0, bz: 40 },
+    { ax: 0, az: 40, bx: 0, bz: 0 },
+  ]);
+  // Two rings concatenate in order; a two-point "ring" yields its edge and the return leg.
+  const two: CoastPoint[] = [{ x: 5, z: 6 }, { x: 9, z: 6 }];
+  assert.deepEqual(ringEdges([two, SQUARE]).slice(0, 2), [
+    { ax: 5, az: 6, bx: 9, bz: 6 },
+    { ax: 9, az: 6, bx: 5, bz: 6 },
+  ]);
+  assert.equal(ringEdges([two, SQUARE]).length, 6);
+  assert.deepEqual(ringEdges([]), []);
+});
+
+test('buildEdgeGrid IS buildSegmentGrid over ringEdges — same edges, same candidates', () => {
+  // The refactor's regression fence: the split must not change what the ring form answers.
+  const width = 5;
+  const viaRings = buildEdgeGrid([SQUARE], width);
+  const viaEdges = buildSegmentGrid(ringEdges([SQUARE]), width);
+  assert.deepEqual(viaRings.edges, viaEdges.edges);
+  assert.equal(viaRings.cell, viaEdges.cell);
+  for (const [x, z] of [[20, -1], [-3, 20], [41, 39], [20, 20], [100, 100]] as const) {
+    assert.deepEqual([...viaRings.candidates(x, z)].sort(), [...viaEdges.candidates(x, z)].sort());
+  }
+});
+
+test('buildSegmentGrid indexes an OPEN edge set with no closing chord of its own', () => {
+  // A single edge from (0,0) to (40,0). A RING of the same two points would index TWO edges (the
+  // edge and its return leg); the segment form indexes exactly what it was handed.
+  const open: CoastEdge[] = [{ ax: 0, az: 0, bx: 40, bz: 0 }];
+  const grid = buildSegmentGrid(open, 5);
+  assert.equal(grid.edges.length, 1, 'one edge in, one edge indexed — no chord was added');
+  assert.ok(grid.candidates(20, -1).length > 0);
+  assert.deepEqual([...grid.candidates(20, 30)], [], 'six cells away, nothing is offered');
+});
+
+test('⚠⚠ nearestOnSegments agrees with the brute-force walk at every probe, both regimes', () => {
+  // The extracted walk, held to the definition directly rather than only through `shoreField`.
+  // ⚠ AN OFF-ORIGIN, MANY-EDGED, OPEN edge set, so the gradient's sign and the clamp at BOTH
+  // ends of every segment are exercised — and open, so that the brute twin below (which walks
+  // the edge list as given) is not quietly comparing two closed shapes.
+  const pts: CoastPoint[] = Array.from({ length: 60 }, (_, i) => ({
+    x: 30 + i * 1.7,
+    z: -20 + 11 * Math.sin(i * 0.37) + 3 * Math.cos(i * 1.3),
+  }));
+  const edges: CoastEdge[] = [];
+  for (let i = 0; i + 1 < pts.length; i += 1) {
+    const a = pts[i]!;
+    const b = pts[i + 1]!;
+    edges.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z });
+  }
+  const cap = 6.5;
+  const grid = buildSegmentGrid(edges, cap);
+  let compared = 0;
+  let sawBand = 0;
+  let sawCap = 0;
+  for (let x = 15; x <= 145; x += 0.9) {
+    for (let z = -45; z <= 5; z += 0.9) {
+      const got = nearestOnSegments(grid, x, z, cap);
+      const expected = bruteOpen(edges, x, z, cap);
+      assert.ok(
+        Math.abs(got.distance - expected.distance) < 1e-9,
+        `at (${x}, ${z}) the walk said ${got.distance} and the twin said ${expected.distance}`,
+      );
+      // The gradient is a UNIT vector away from the nearest point, or zero when capped / on it.
+      assert.ok(Math.abs(got.gx - expected.gx) < 1e-9 && Math.abs(got.gz - expected.gz) < 1e-9,
+        `at (${x}, ${z}) gradient (${got.gx}, ${got.gz}) vs (${expected.gx}, ${expected.gz})`);
+      compared += 1;
+      if (got.distance > 0 && got.distance < cap) sawBand += 1;
+      if (got.distance === cap) sawCap += 1;
+    }
+  }
+  assert.ok(compared > 7000, `only ${compared} probes`);
+  assert.ok(sawBand > 1500, `only ${sawBand} probes in the band`);
+  assert.ok(sawCap > 1500, `only ${sawCap} probes in the capped far field`);
+  // And the on-edge case, where the gradient is undefined and must come back as ZERO rather than
+  // NaN: probe a vertex exactly.
+  const v = pts[7]!;
+  const on = nearestOnSegments(grid, v.x, v.z, cap);
+  assert.deepEqual(on, { distance: 0, gx: 0, gz: 0 });
+});
+
+test('nearestOnSegments caps at the cap it is HANDED, with a zero gradient there', () => {
+  const grid = buildSegmentGrid(ringEdges([SQUARE]), 5);
+  // Inside the square, 20 units from every side: capped at the grid's own width.
+  assert.deepEqual(nearestOnSegments(grid, 20, 20, 5), { distance: 5, gx: 0, gz: 0 });
+  // A point 3 units off the bottom edge with a cap of 5 measures 3, gradient straight out.
+  const s = nearestOnSegments(grid, 20, -3, 5);
+  assert.equal(s.distance, 3);
+  assert.equal(s.gx, 0);
+  assert.equal(s.gz, -1);
+  // A smaller cap than the grid's cell is still exact — the neighbourhood is only wider than
+  // needed — and caps there.
+  assert.equal(nearestOnSegments(grid, 20, -3, 2).distance, 2);
+});
+
+/** The definition `nearestOnSegments` is an optimisation OF, over an OPEN edge list: every edge
+ *  as given, no chord, no index, the slowest honest spelling. Returns the gradient too, computed
+ *  from the nearest point rather than from anything the walk exposes. */
+function bruteOpen(edges: readonly CoastEdge[], x: number, z: number, cap: number): NearestSample {
+  let best = cap;
+  let px = 0;
+  let pz = 0;
+  for (const e of edges) {
+    const ex = e.bx - e.ax;
+    const ez = e.bz - e.az;
+    const lenSq = ex * ex + ez * ez;
+    const raw = lenSq === 0 ? 0 : ((x - e.ax) * ex + (z - e.az) * ez) / lenSq;
+    const t = Math.max(0, Math.min(1, raw));
+    const qx = e.ax + ex * t;
+    const qz = e.az + ez * t;
+    const d = Math.hypot(x - qx, z - qz);
+    if (d < best) {
+      best = d;
+      px = qx;
+      pz = qz;
+    }
+  }
+  if (best === cap || best === 0) return { distance: best, gx: 0, gz: 0 };
+  return { distance: best, gx: (x - px) / best, gz: (z - pz) / best };
+}
+
+test('spanOf is INCLUSIVE at both ends, and empty when the range inverts', () => {
+  // The bucketing writes an edge into every cell of its box, so an off-by-one at EITHER end drops
+  // a cell — and a dropped cell is a candidate never offered, which is the one failure mode the
+  // grid may not have.
+  assert.deepEqual([...spanOf(2, 5)], [2, 3, 4, 5]);
+  assert.deepEqual([...spanOf(0, 0)], [0]);
+  assert.deepEqual([...spanOf(-2, 1)], [-2, -1, 0, 1]);
+  // An inverted range is empty rather than enormous — `Math.max(0, ...)` is what stops a negative
+  // length becoming a thrown RangeError deep inside a build.
+  assert.deepEqual([...spanOf(3, 1)], []);
+});
+
+// ---------------------------------------------------------------- the bucket cap
+
+test('a grid that would need more than MAX_GRID_BUCKETS is REFUSED before it allocates', () => {
+  // ⚠ JUST OVER THE CAP, NOT ABSURDLY OVER IT. A 20,000-unit chord would want four hundred million
+  // buckets, and a refusal that had been deleted would then HANG the test instead of failing it —
+  // which the mutation rung scores as unproven rather than killed. One column over the cap
+  // allocates in a millisecond when the refusal is missing, so the assertion is what fails.
+  // A non-zero origin, so the extent in the message is a difference and not a sum.
+  const over: CoastEdge[] = [{ ax: 10, az: 20, bx: 522.5, bz: 531.5 }];
+  assert.throws(
+    () => buildSegmentGrid(over, 1),
+    (e: unknown) =>
+      e instanceof Error &&
+      e.message ===
+        'shore-grid: a 513 x 512 cell grid (262656 buckets) over a 512.5 x 511.5 extent at cell 1 ' +
+          'exceeds 262144 — the cell arithmetic has inverted, or the extent is not one island’s',
+  );
+  // EXACTLY the cap is allowed — the refusal is strict, so a grid of 512 x 512 = 262144 builds
+  // (one column narrower than the refused one, same rows).
+  const exact: CoastEdge[] = [{ ax: 10, az: 20, bx: 521.5, bz: 531.5 }];
+  assert.doesNotThrow(() => buildSegmentGrid(exact, 1));
+  // And the cap is generous for what the map actually builds: an island-sized extent at the
+  // path's 3-unit cell is a few thousand buckets, two orders under it.
+  const island: CoastEdge[] = [{ ax: 0, az: 0, bx: 234, bz: 46 }];
+  assert.doesNotThrow(() => buildSegmentGrid(island, 3));
+  assert.equal(MAX_GRID_BUCKETS, 262144);
+});

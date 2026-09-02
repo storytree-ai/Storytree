@@ -33,6 +33,7 @@ import {
 } from './land-shadow.js';
 import { blitTile, type AtlasField, type AtlasTile } from './shadow-atlas.js';
 import { AUTHORED_SHORE_WIDTH, shoreField } from './shore-fall.js';
+import { SAND_SHIPPED_DIVISOR } from './land-sand.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
 /**
@@ -53,7 +54,11 @@ import type { InstanceDescriptor } from './world-to-3d.js';
  * ⚠ AND `ShoreSample.distance` IS CAPPED AT THE FIELD'S WIDTH, so this constant is what the cap
  * is; it is not merely how far we bothered to look.
  */
-export const SAND_FIELD_WIDTH = AUTHORED_SHORE_WIDTH + 0.9;
+export const SAND_FIELD_WIDTH = SAND_SHIPPED_DIVISOR;
+
+/** The RECIPE's own field width, kept so a comparison arm can build the transcribed band and be
+ *  measured against the widened one on the same instrument. */
+export const SAND_RECIPE_FIELD_WIDTH = AUTHORED_SHORE_WIDTH + 0.9;
 
 /**
  * THE BYTE ENCODING — `distance / SAND_FIELD_WIDTH`, clamped, over 0..255.
@@ -64,15 +69,15 @@ export const SAND_FIELD_WIDTH = AUTHORED_SHORE_WIDTH + 0.9;
  * (storing more precision than the transport carries) is the lie `ShadowField` names in its own
  * comment.
  */
-export function encodeShore(distance: number): number {
-  const t = Math.max(0, Math.min(1, distance / SAND_FIELD_WIDTH));
+export function encodeShore(distance: number, width: number = SAND_FIELD_WIDTH): number {
+  const t = Math.max(0, Math.min(1, distance / width));
   return Math.round(t * 255);
 }
 
 /** The inverse, for the pure twin of the shader — so a test can state what a fragment reads
  *  without a GPU, through the same rounding the texture actually carries. */
-export function decodeShore(byte: number): number {
-  return (byte / 255) * SAND_FIELD_WIDTH;
+export function decodeShore(byte: number, width: number = SAND_FIELD_WIDTH): number {
+  return (byte / 255) * width;
 }
 
 /**
@@ -87,12 +92,13 @@ export function shoreTileField(
   reader: { sample(x: number, z: number): { distance: number } },
   tile: AtlasTile,
   gres: number,
+  width: number = SAND_FIELD_WIDTH,
 ): ShadowField {
   const data = new Uint8Array(tile.w * tile.h);
   for (const j of indices(tile.h)) {
     const z = tile.bounds.minZ + j / gres;
     for (const i of indices(tile.w)) {
-      data[j * tile.w + i] = encodeShore(reader.sample(tile.bounds.minX + i / gres, z).distance);
+      data[j * tile.w + i] = encodeShore(reader.sample(tile.bounds.minX + i / gres, z).distance, width);
     }
   }
   return { minX: tile.bounds.minX, minZ: tile.bounds.minZ, w: tile.w, h: tile.h, gres, data };
@@ -112,8 +118,12 @@ export function shoreTileField(
 export function buildAtlasShore(
   cells: readonly InstanceDescriptor[],
   occlusion: AtlasField,
+  /** ⚠ THE FIELD'S CAP AND THE SHADER'S DIVISOR MUST BE THE SAME NUMBER. A field built narrower
+   *  than the band it feeds delivers a beach that stops at the field's cap and then STEPS — which
+   *  reads as a defect in the edge noise rather than in a constant. `buildGroundMaterial` passes
+   *  one value to both. */
+  width: number = SAND_FIELD_WIDTH,
 ): AtlasField {
-  const reader = shoreField(cells, SAND_FIELD_WIDTH);
   const data = new Uint8Array(occlusion.w * occlusion.h);
   // ⚠ THE ATLAS STARTS FULL, NOT EMPTY. Zero encodes distance ZERO — the waterline — so an
   // untouched texel would read as "this fragment is exactly on the coast" and deliver pure sand.
@@ -122,8 +132,25 @@ export function buildAtlasShore(
   // unwritten texel deliver what the ground drew before this layer existed.
   data.fill(255);
 
+  // ⚠⚠ ONE READER PER ISLAND, NOT ONE FOR THE MAP, AND IT IS A COST DECISION WITH NO EFFECT ON THE
+  // ANSWER. `shoreField.sample` walks every coast loop, pruning by bounding box — so a whole-map
+  // reader charges every texel 35 box tests to reach the one loop that can possibly win. A tile
+  // IS one island, and `shoreField`'s own header states the geometric reason the nearest loop is
+  // always the containing island's: a point inside island A must cross A's rim and the open sea to
+  // reach B's. So restricting each tile to its own island's cells returns identical distances and
+  // stops paying for the other 34.
+  const byIsland = bucketByIsland(cells);
   for (const tile of occlusion.tiles) {
-    blitTile(data, occlusion.w, tile, shoreTileField(reader, tile, occlusion.gres));
+    // ⚠ FALLING BACK TO THE WHOLE MAP rather than to an empty ring: a tile whose island id finds no
+    // cells would otherwise get a reader with no coast, and every texel would read "far inland" —
+    // an island silently missing its entire beach, which is far worse than being slow.
+    const own = byIsland.get(tile.island) ?? cells;
+    blitTile(
+      data,
+      occlusion.w,
+      tile,
+      shoreTileField(shoreField(own, width), tile, occlusion.gres, width),
+    );
   }
 
   return {
@@ -142,4 +169,32 @@ export function buildAtlasShore(
  *  Blender's 0.55" claim is made of, derived rather than repeated. */
 export function shoreSampleSpacing(gres: number = SHADOW_GRES): number {
   return 1 / gres;
+}
+
+/**
+ * THE MAP'S CELLS, GROUPED BY THEIR ISLAND — the per-tile reader's input.
+ *
+ * ⚠⚠ IT IS EXPORTED SO IT CAN BE TESTED DIRECTLY, and that is a `check:mutation-diff` finding
+ * rather than a preference. Inlined in {@link buildAtlasShore} every way this can break ends at
+ * that function's `?? cells` fallback, which computes the IDENTICAL field from the whole map's
+ * coast and merely pays for the other islands — so five separate mutants inside it survived every
+ * assertion about a delivered distance. The grouping is real logic with a real contract; the
+ * fallback is what stops a mistake being VISIBLE, not what stops it being a mistake.
+ *
+ * ⚠ AN ISLAND-LESS CELL BUCKETS UNDER THE EMPTY STRING rather than being dropped. Dropping it
+ * would leave its coast out of every reader, so an island assembled from unlabelled parcels would
+ * silently lose its whole shore — and `shadow-atlas.ts` already gives the empty string a name
+ * (`UNHOMED_ISLAND`) precisely because the shipped stream can contain one.
+ */
+export function bucketByIsland(
+  cells: readonly InstanceDescriptor[],
+): ReadonlyMap<string, InstanceDescriptor[]> {
+  const byIsland = new Map<string, InstanceDescriptor[]>();
+  for (const cell of cells) {
+    const id = cell.island ?? '';
+    const bucket = byIsland.get(id);
+    if (bucket === undefined) byIsland.set(id, [cell]);
+    else bucket.push(cell);
+  }
+  return byIsland;
 }

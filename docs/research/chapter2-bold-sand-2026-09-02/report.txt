@@ -1,0 +1,34 @@
+renderer: Google Inc. (Qualcomm) — ANGLE (Qualcomm, Qualcomm(R) Adreno(TM) X1-85 GPU (0x36334330) Direct3D11 vs_5_0 ps_5_0, D3D11)
+software=false
+
+THE REFERENCE — the approved Cycles render, through this page’s own family census
+  land-combined: colour families 36 · largest holds 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution, framing and camera, and all SEVEN layers.
+
+── one @ 2 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            20    20.9%  42.4%   2.69   20.55         0        0   5562   23
+authored        33    15.2%  29.6%   2.55   22.27      7616    10178   5562   23
+sand-16         26    16.1%  31.7%   2.65   20.78         0    10058   5562   23
+sand-40         35    15.4%  30.0%   2.59   21.36      6005    10154   5562   23
+sand-65         33    15.2%  29.6%   2.55   22.27      7616    10178   5562   23
+sand-90         35    15.2%  29.5%   2.53   23.44      8378    10192   5562   23
+
+── one @ 8 px/unit ─────────────────────────────────────────────
+arm            fam  largest  top3    MICRO  STRUCT  moved>20  touched   tris  oct
+flat            20    20.9%  42.4%   0.84   23.01         0        0   5562   23
+authored        33    15.2%  29.7%   0.81   25.20    122088   162964   5562   23
+sand-16         26    16.0%  31.7%   0.83   23.35         0   161029   5562   23
+sand-40         34    15.4%  30.1%   0.82   24.11     96016   162568   5562   23
+sand-65         33    15.2%  29.7%   0.81   25.20    122088   162964   5562   23
+sand-90         35    15.2%  29.5%   0.80   26.55    133750   163146   5562   23
+
+THE GAP THAT REMAINS, at the read zoom on one island:
+  shipped 20 families → adopted 33 → approved 36. Largest family: 20.9% → 15.2% → 5.2%.
+
+THE PER-TOKEN GATE, IN PIXELS (ADR-0492 D1) — the share of land the shipped arm dressed:
+  NOT ASKED — this run is scoped to one island (layer 2`s field costs 49.7 s to build at forest scale). The per-token gate is layer 1`s and was proved in pixels on its own evidence: 93.9% of an all-green island dressed against 38.6% of the real-mix forest.
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet — a cost sentence in a parked row is a cost as at
+  the day it was parked, and this arc has already been sized 5x wrong that way once.

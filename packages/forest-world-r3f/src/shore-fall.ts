@@ -94,6 +94,7 @@
 import { COAST_OUTSET, type CoastPoint, coastalIsland, rimLoops } from './coast-clip.js';
 import { landGradient, landHeight } from './land-relief.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
+import { buildEdgeGrid, nearestOnSegments } from './shore-grid.js';
 
 /** The reference generator's own `BEACH` — the width of the band over which the land rises from
  *  the waterline to its full swell, in ground units. */
@@ -383,55 +384,20 @@ export function shoreField(
     rings.push(d.points!.map((p) => ({ x: p.x, z: p.z })));
   }
   const bounds = rimLoops(rings).map(boundsOf);
+  const grid = buildEdgeGrid(rimLoops(rings), width);
   return {
     width,
     loops: bounds.length,
     sample(x: number, z: number): ShoreSample {
-      let best = width;
-      let nx = 0;
-      let nz = 0;
-      for (const loop of bounds) {
-        // EXACT, not heuristic: `boxDistance` is a lower bound on the distance to every point of
-        // the loop, so a loop whose box is already further than the best answer cannot beat it.
-        //
-        // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT — this line
-        // is the PRUNE. Never taking it (`false`) walks more loops and returns the same answer;
-        // taking it on a tie (`>` vs `>=`) skips a loop that could only have equalled `best`. It is
-        // a cost decision by construction, so no assertion about `sample`'s OUTPUT can reach it —
-        // which is why its soundness is asserted directly against `boxDistance` instead.
-        if (boxDistance(loop, x, z) >= best) continue;
-        const pts = loop.points;
-        for (let i = 0; i < pts.length; i += 1) {
-          const a = pts[i]!;
-          const b = pts[(i + 1) % pts.length]!;
-          const ex = b.x - a.x;
-          const ez = b.z - a.z;
-          const lenSq = ex * ex + ez * ez;
-          const raw = lenSq === 0 ? 0 : ((x - a.x) * ex + (z - a.z) * ez) / lenSq;
-          // Stryker disable next-line EqualityOperator: EQUIVALENT — at `raw` exactly 0 or exactly
-          // 1 both sides of each comparison yield the SAME parameter, because the clamp's bound IS
-          // the parameter there. No input separates `<` from `<=` or `>` from `>=`. This is the
-          // note `nearestOnSegment` carries verbatim, on the same arithmetic.
-          const t = raw < 0 ? 0 : raw > 1 ? 1 : raw;
-          const qx = x - (a.x + ex * t);
-          const qz = z - (a.z + ez * t);
-          const d = Math.hypot(qx, qz);
-          // Stryker disable next-line EqualityOperator: EQUIVALENT for the DISTANCE, which is what
-          // every caller reads: on a tie both branches leave `best` at the same number. They differ
-          // only in which of two equidistant coast points supplies the gradient — the medial axis,
-          // where the distance field's gradient is genuinely undefined and where
-          // `shoreFallSlope` is heading to zero anyway.
-          if (d >= best) continue;
-          best = d;
-          nx = qx;
-          nz = qz;
-        }
-      }
-      // Off the shore the gradient is the unit vector away from the nearest coast point. ON it
-      // (`best === 0`) it is undefined — and `shoreFallSlope(0, w)` is zero, so nothing reads it.
-      const len = Math.hypot(nx, nz);
-      if (len === 0) return { distance: best, gx: 0, gz: 0 };
-      return { distance: best, gx: nx / len, gz: nz / len };
+      // ⚠⚠ THE WALK IS `nearestOnSegments` VERBATIM — the far-field short-circuit, the 3x3
+      // candidate scan and the clamped projection all live there now, so the worn path's OPEN
+      // polyline field (`trail-wear.ts`) is the SAME walk over a differently-flattened edge set.
+      // The cap is this field's width, which is exactly the grid's cell, so the short-circuit's
+      // proof ({@link edgeGridFarField}) holds here by construction. This is what replaced a walk
+      // over every loop's whole ring, which had made the packed shore field cost 26 s over the
+      // forest; on the shore the gradient it returns feeds `shoreFallSlope`, which is zero exactly
+      // where the gradient is undefined.
+      return nearestOnSegments(grid, x, z, width);
     },
   };
 }
