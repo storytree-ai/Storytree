@@ -73,10 +73,26 @@ single isolated assertion.
 THE MAPPER CONSUMES THE SEMANTIC LAYER, NOT THE 2D PRIMITIVES (ADR-0123 §1 — hold this line
 precisely). Input: the `World` geometry + the scene-graph's `kind` / position / `variant` / folded
 `SceneStatus`. The mapper SUPPLIES its own 3D geometry where the SVG primitive geometry would
-otherwise be consumed: a ground/tile hex family becomes an extruded/instanced hex mesh; the story
+otherwise be consumed: the ground family becomes an instanced extruded prism; the story
 tree family (`trunk`/`crown-*`/`bare`) becomes a 3D tree; a `road` becomes a path strip on the
 ground; a `wisp` becomes a GPU sprite/point. The deterministic world-computation is REUSED, never
 re-derived — we draw the EXISTING world in 3D.
+
+WHICH GROUND FAMILY — CORRECTED 2026-09-02 (`adopt-the-land-into-the-shipped-map-arc`,
+`retire-the-old-land-path`). This capability was authored when the ground family the mapper drew was
+the CLASSIC extruded-hex one (`tile` groups, which the core emits when `relaxedCells` is null), and
+every "hex ground" reading below said so. That substrate is RETIRED: the 3D map draws the
+RELAXED-MESH land ONLY — the core's `cell` / `cell-wheat` paths, one per parcel, folded into
+`cell-ground` descriptors carrying the parcel's closed ring of points and its folded `SceneStatus`.
+A `tile` group is no longer mapped, and it is not skipped either: `worldTo3D` REFUSES it at the
+first `tile` node it walks, with the message
+`world-to-3d: the 3D map draws the relaxed-mesh land only — the classic extruded-hex ground was
+retired (adopt-the-land-into-the-shipped-map-arc, retire-the-old-land-path); build the scene with
+relaxedCells, not drawTiles`. A silent skip was the wrong shape for the retirement: `tile` is a kind
+this mapper understood and used to draw, so degrading it to a skip would have reproduced the
+2026-08-28 defect (a shipped island with no ground at all) with no record that anything had gone
+wrong. `packages/forest-world`'s own two-substrate contract is untouched — the studio's 2D SVG map
+still owns classic mode; what changed is which of the two the 3D mapper accepts.
 
 DESCRIPTORS FIRST, JSX SECOND (the provability firewall). The heart is `world-to-3d.ts`: a pure
 `.ts` function from the semantic layer to an array/graph of typed **instance descriptors** (mesh
@@ -87,10 +103,12 @@ needed for the mapping itself — so it is node:test-provable, headless, determi
 shipped) are the glue that makes the spike VISIBLE; their look is witnessed, not machine-judged
 (ADR-0070). Keep every browser-only import out of the pure module.
 
-SPIKE SCALE, NOT GOLD PLATE. The spike maps the CORE kind families (ground/tile hexes, the story
-tree, roads, wisps) and must be TOTAL over the rest: an unhandled `SceneKind` yields an explicit
-`skipped` descriptor — visible in output, never a throw, never a silent drop. The painterly art
-direction, LOD, and shader work are deliberately OUT (ADR-0123 names them the true cost centres;
+SPIKE SCALE, NOT GOLD PLATE. The spike maps the CORE kind families (the relaxed-mesh parcel ground,
+the story tree, roads, wisps) and must be TOTAL over the rest: an unhandled `SceneKind` yields an
+explicit `skipped` descriptor — visible in output, never a throw, never a silent drop. Totality is
+about kinds the mapper has never heard of; the retired `tile` substrate above is the ONE deliberate
+exception, and it refuses rather than skips precisely because it is not one of them. The painterly
+art direction, LOD, and shader work are deliberately OUT (ADR-0123 names them the true cost centres;
 they arrive with the experience caps and the owner's perf-budget call).
 
 SCAFFOLD IS GLUE (the documented pre-step). The orchestrator creates the package (deps above,
@@ -109,9 +127,16 @@ input maps deterministically to typed 3D descriptors that carry the semantic lay
    core's OWN minimal structural input contract both existing mappers ride — `buildWorld` is studio
    chrome, deliberately surface-side per ADR-0093). Run `worldTo3d` twice → assert the outputs
    are deep-equal (determinism — the core's discipline carried into 3D).
-2. Assert the core kind families each produced their descriptor branch: ≥1 instanced hex-ground
-   descriptor with a transform derived from the hex position; a tree descriptor for a story node;
-   a road descriptor for a dependency edge; a wisp-family descriptor when the scene carries one.
+2. Assert the core kind families each produced their descriptor branch: ≥1 instanced `cell-ground`
+   descriptor per relaxed-mesh parcel, carrying that parcel's real (non-collapsing) ring of points
+   and its folded status; a tree descriptor for a story node; a road descriptor for a dependency
+   edge; a wisp-family descriptor when the scene carries one. And assert the RETIRED substrate's
+   refusal: a scene the core built the classic way (`relaxedCells: null`, so it emits `tile`
+   groups) makes `worldTo3D` throw `world-to-3d: the 3D map draws the relaxed-mesh land only — the
+   classic extruded-hex ground was retired (adopt-the-land-into-the-shipped-map-arc,
+   retire-the-old-land-path); build the scene with relaxedCells, not drawTiles` — the message
+   pinned in FULL, because a mutant that softened or genericised the wording slips past a loose
+   match.
 3. Feed a scene node wearing each folded `SceneStatus` (`healthy` / `building` / `unhealthy` /
    `proposed`) → assert the descriptor's material/mesh variant differs by status (a proof-state
    change is VISIBLE in 3D — the observability thesis survives the mapper).
@@ -129,19 +154,22 @@ reports 3/3.
      descriptor ordering is stable — the 3D layer inherits the core's determinism, so the synced
      artifact can be drift-gated byte-stably.
    - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` — test:
-     `packages/forest-world-r3f/src/world-to-3d.test.ts:108`
+     `packages/forest-world-r3f/src/world-to-3d.test.ts:155`
 2. **`r3f-semantic-layer-maps-faithfully`** — kind → mesh family, position → transform, status → variant
-   - **asserts —** the core kind families (hex ground, story tree, road, wisp) each yield their
-     typed descriptor branch with transforms derived from the World geometry, and each folded
-     `SceneStatus` selects a distinct material/mesh variant.
+   - **asserts —** the core kind families (relaxed-mesh parcel ground → `cell-ground`, story tree,
+     road, wisp) each yield their typed descriptor branch with transforms derived from the World
+     geometry, and each folded `SceneStatus` selects a distinct material/mesh variant; a scene
+     carrying the RETIRED classic `tile` ground is refused outright rather than mapped or skipped.
    - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` — test:
-     `packages/forest-world-r3f/src/world-to-3d.test.ts:120`
-3. **`r3f-unknown-kind-skips-visibly`** — the mapping is total, never a throw
+     `packages/forest-world-r3f/src/world-to-3d.test.ts:167`
+3. **`r3f-unknown-kind-skips-visibly`** — the mapping is total over kinds it has never heard of
    - **asserts —** an unhandled `SceneKind` maps to an explicit `skipped` descriptor naming the
      kind; nothing is silently dropped and nothing throws — a core addition can never crash the
-     site's 3D island, only degrade visibly.
+     site's 3D island, only degrade visibly. (The retired classic `tile` ground is NOT an unhandled
+     kind and is outside this contract: it is one the mapper understood and drew, so it refuses
+     loudly instead — see the corrected ground-family note in Guidance.)
    - **covers —** `packages/forest-world-r3f/src/world-to-3d.ts` — test:
-     `packages/forest-world-r3f/src/world-to-3d.test.ts:221`
+     `packages/forest-world-r3f/src/world-to-3d.test.ts:375`
 
 ## Guidance — the slice that earns the signed verdict
 
@@ -163,4 +191,6 @@ Rules:
 - **Pure module / component split is the firewall** — `world-to-3d.ts` must stay importable under
   bare node:test; browser-only code lives in `.tsx` files beside it.
 - **Total mapping** — unknown kinds skip visibly; the mapper may lag the core, never crash on it.
+  The one exception is a kind it USED to draw: the retired classic `tile` ground refuses loudly
+  (corrected 2026-09-02, above), because a skip there means an island with no ground at all.
 - **No art direction here** — the spike proves the stack; the look is later, owner-witnessed work.

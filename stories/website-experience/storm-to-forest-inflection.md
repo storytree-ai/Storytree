@@ -152,6 +152,22 @@ Real `file:line` into the pinned `web/` tree (paths relative to the submodule ro
   the land was re-decided 2026-07-03 — ADR-0145: the walk happens on the real 2.5D map, not this
   R3F island; the island stays this cap's attested landing moment, and the landing→2.5D-walk
   handoff is `act2-guided-walkthrough`'s design seam.)*
+  *(Correction 2026-09-02 — `adopt-the-land-into-the-shipped-map-arc`, `retire-the-old-land-path`:
+  this leg was witnessed on the CLASSIC extruded-hex substrate, which is why its filter and its log
+  line name `hex-ground`. The record stands as what was seen; the behaviour it describes is retired.
+  Two things moved since. (1) `worldTo3D` now draws the RELAXED-MESH land only — `cell` /
+  `cell-wheat` parcels folded into `cell-ground` — and REFUSES a classic scene outright at its first
+  `tile` node ("the 3D map draws the relaxed-mesh land only — the classic extruded-hex ground was
+  retired … build the scene with relaxedCells, not drawTiles"), so a descriptor filter of this shape
+  would today name `cell-ground`, and the log's `hex-ground 19` has no kind left to count. The site's
+  synced engine already carries that retirement (web main, "engine sync: the classic extruded-hex
+  ground is retired at the mapper"). (2) The mounted R3F island itself is GONE from this seam —
+  ADR-0148 made `src/scripts/inflection.ts` (no longer `.tsx`) pure SVG/DOM with zero WebGL, so
+  there is no island here to re-walk; the site's surviving mapper consumer is the 2.5D map, which
+  builds the mesh substrate through the shared-core `buildRelaxedCells(…, 'mesh')` call and passes
+  `relaxedCells: allCells` / `drawTiles: []` (`src/scripts/act2-walkthrough.ts:370`, `:635`). The
+  PROOF this bullet carries is untouched: ground still REQUIRES a territory and a territory still
+  emits a tree, so the emptiness was — and would still be — a surface filter, not an empty world.)*
 - **The empty land carries the interim CTA** (`src/pages/index.astro:161`–`168`): how-it-works /
   get-involved links + the classic-front-page exit via the existing disarm — a mid-arc visitor is
   never stranded (owner decision 6).
