@@ -1095,6 +1095,15 @@ test('the drift checks name the role and both numbers past the tolerance, and no
   assert.match(lines[0]!, /footprint/);
   assert.ok(lines[0]!.includes(String(FOOT.tree)), 'the frozen number');
   assert.ok(lines[0]!.includes((FOOT.tree * 1.02).toFixed(3)), 'the measured number');
+  // ⚠ THE LINE MUST SAY WHAT TO DO, and it is asserted because it is the WHOLE point of the check:
+  // this fires in the shipped canvas's console (`ForestWorldCanvas`), where nothing refuses the run
+  // — a reader who is told only that two numbers differ does not know that every placement and
+  // every shadow on the map was already computed against the frozen one.
+  assert.ok(
+    lines[0]!.includes('every placement was computed against the frozen number'),
+    'the drift line does not say why it matters',
+  );
+  assert.ok(lines[0]!.endsWith('re-measure and update the literal'), 'the drift line does not say what to do');
   assert.equal(footprintDriftOf({ ...FOOT, bloom: FOOT.bloom * 0.98 }).length, 1, 'a LOW drift counts too');
   assert.deepEqual(footprintDriftOf({ ...FOOT, deadTree: FOOT.deadTree * 1.009 }), [], 'inside the tolerance');
   assert.equal(footprintDriftOf({ tree: FOOT.tree * 2, deadTree: FOOT.deadTree * 2, bloom: FOOT.bloom * 2 }).length, 3);

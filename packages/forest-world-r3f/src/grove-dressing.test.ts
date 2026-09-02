@@ -40,6 +40,8 @@ import {
   groveNeed,
   groveSigma,
   groveStandCount,
+  crossingIsRight,
+  crossingX,
   insideRing,
   islandExclusion,
   memberAssembly,
@@ -51,6 +53,7 @@ import {
   ringArea,
   standCentre,
   standingOccupants,
+  straddles,
   type GroveExclusion,
   type GroveOccupant,
   type Stream,
@@ -329,6 +332,53 @@ test('insideRing is a ray cast — in, out, and out of a concave notch', () => {
   assert.equal(insideRing([], { x: 0, z: 0 }), false);
 });
 
+// ⚠⚠ THE THREE FIXTURES BELOW ARE NOT EXTRA COVERAGE — each one is the ONLY input that separates
+// the ray cast from a plausible variant of itself. They were found by brute force over 400,000
+// random rings and probes, because reasoning about a ray cast's parity is exactly the reasoning
+// that produces a convincing wrong answer: five of the seven variants tried agree with the real
+// thing on every convex ring probed away from its boundary.
+test('the crossing test is HALF-OPEN in z: a vertex on the ray counts for the edge below it', () => {
+  // A triangle with a vertex at z = 2 — the probe's own z — and a spur crossing that line. The
+  // whole convention lives here: `>` on both ends says INSIDE, either `>=` says outside.
+  const spur: GPoint[] = [{ x: 10, z: 2 }, { x: 0, z: 8 }, { x: 3, z: 0 }];
+  assert.equal(straddles({ x: 10, z: 2 }, { x: 3, z: 0 }, 2), false, 'a vertex ON the ray is not above it');
+  assert.equal(straddles({ x: 0, z: 8 }, { x: 10, z: 2 }, 2), true, 'the edge above it does cross');
+  assert.equal(insideRing(spur, { x: 3, z: 2 }), true);
+  // Away from the vertex line the convention cannot be seen at all — which is why the fixture
+  // above has to sit exactly on it.
+  assert.equal(insideRing(spur, { x: 3, z: 3 }), true);
+  assert.equal(insideRing(spur, { x: 9, z: 6 }), false);
+});
+
+test('the crossing X is the edge’s own line: (Δx · (z − a.z)) / Δz, offset from a', () => {
+  // A slanted triangle and a probe to the WEST of it: out. Read with `(z − a.z)` multiplied by Δz
+  // instead of divided, the crossing lands far to the left of the probe and the ring reports IN.
+  const slant: GPoint[] = [{ x: 7, z: 5 }, { x: 2, z: 10 }, { x: 0, z: -2 }];
+  assert.equal(insideRing(slant, { x: -4, z: 0 }), false, 'a point west of the ring is outside');
+  assert.equal(crossingX({ x: 0, z: -2 }, { x: 7, z: 5 }, 0), 2, 'two units along a 45° edge');
+  assert.equal(crossingX({ x: 7, z: 5 }, { x: 2, z: 10 }, 5), 7, 'at the edge’s own end, the end');
+  // And the offset is `a.x`, not zero: the same edge shifted east crosses further east.
+  assert.equal(crossingX({ x: 100, z: -2 }, { x: 107, z: 5 }, 0), 102);
+});
+
+test('insideRing pins the boundary convention: a probe exactly on a vertex is INSIDE', () => {
+  // ⚠ THIS IS THE ONLY SHAPE THAT SEPARATES `<` FROM `<=` on the crossing comparison, and the
+  // answer is a CONVENTION rather than a truth: a probe on the ring's own boundary has to fall one
+  // way, and it falls this way. `crossingIsRight` carries the matching Stryker note.
+  const hex: GPoint[] = [
+    { x: 0, z: -13 },
+    { x: -5, z: -8 },
+    { x: -12, z: -7 },
+    { x: -10, z: -13 },
+    { x: -9, z: -15 },
+    { x: -7, z: -15 },
+  ];
+  assert.equal(insideRing(hex, { x: -10, z: -13 }), true, 'a probe ON a vertex');
+  assert.equal(crossingIsRight(1, 2), true);
+  assert.equal(crossingIsRight(2, 2), false, 'a crossing exactly AT the probe is not to its right');
+  assert.equal(crossingIsRight(3, 2), false);
+});
+
 test('cellAt is the FIRST containing cell, and null off every cell', () => {
   const cells = parcel('a', 'healthy', 0, 2);
   assert.equal(cellAt(cells, { x: ORIGIN_X + 5, z: ORIGIN_Z + 5 })?.cellId, 'a-0-0');
@@ -441,6 +491,31 @@ test('islandExclusion clips the island’s own ground to the shipped coast and d
   assert.equal(islandExclusion([ground, skipped], 'a').clear(100, 50), true);
   // And an island the stream holds no ground for has no coast and no path: everything is clear.
   assert.equal(islandExclusion([ground, strip], 'nowhere').clear(100, 50), true);
+
+  // ⚠⚠ THE ISLAND IS WHAT THIS FILTER DECIDES, and a SECOND island in the stream is the only thing
+  // that shows it. A neighbour's parcels handed to `clipToCoast` would give island `a` a second
+  // coast to keep clear of — so a point deep inside `a` that is near `b`'s rim would stop being
+  // clear, and `a`'s own picture would be wrong for a reason nothing on `a` could explain.
+  const neighbour = rectIsland('b', 400, 0, 120, 100);
+  const twoIslands = islandExclusion([ground, neighbour, strip], 'a');
+  for (const at of [
+    { x: 150, z: 25 },
+    { x: 195, z: 50 },
+    { x: 100, z: 50 },
+    { x: 40, z: 80 },
+  ]) {
+    assert.equal(
+      twoIslands.clear(at.x, at.z),
+      ex.clear(at.x, at.z),
+      `the neighbour island moved a's exclusion at ${at.x},${at.z}`,
+    );
+  }
+  // ⚠ NON-VACUITY, and it is what makes the loop above mean something: five units inside `b`'s
+  // west rim is inside `b`'s beach band and 200 units from anything `a` owns. Asked about `b` the
+  // exclusion refuses it; asked about `a` — the same stream, the same point — it is clear. So the
+  // filter reads its argument rather than answering about whatever ground it was handed first.
+  assert.equal(islandExclusion([ground, neighbour, strip], 'b').clear(405, 50), false, 'inside b’s band');
+  assert.equal(twoIslands.clear(405, 50), true, 'b’s band is not a’s business');
 });
 
 // ---------------------------------------------------------------------------
@@ -545,7 +620,10 @@ test('a stand’s centre is the best clear candidate, and none when nothing is c
 
 test('a member is the first accepted gaussian draw, and null after thirty', () => {
   const centre = { x: 200, z: -40 };
-  const sigma = { x: 3.6, z: 1.0 };
+  // ⚠ σz IS DELIBERATELY NOT 1. At 1 the multiply and its DIVIDE mutant deliver the same point,
+  // and every assertion below would hold while the stand's z spread was inverted — which on this
+  // map's squashed islands (σz ≈ 1.03 on the fixture) is the whole shape of the stand.
+  const sigma = { x: 3.6, z: 2.5 };
   let draws = 0;
   const counting: Stream = () => {
     draws += 1;
@@ -571,9 +649,15 @@ test('a member is the first accepted gaussian draw, and null after thirty', () =
     return seen === 3;
   };
   assert.deepEqual(memberPoint(centre, sigma, propStream(9), onThird), expectedThird);
-  // And σ reaches the offset — a wider stand spreads further from its centre.
-  const wide = memberPoint(centre, { x: 36, z: 10 }, propStream(9), () => true)!;
+  // And σ reaches the offset ON BOTH AXES — a wider stand spreads further from its centre, and a
+  // DEEPER one spreads further in z. The z half is what a `/ sigma.z` mutant inverts.
+  const wide = memberPoint(centre, { x: 36, z: 25 }, propStream(9), () => true)!;
   assert.ok(Math.abs(wide.x - centre.x) > Math.abs(expected.x - centre.x));
+  assert.ok(Math.abs(wide.z - centre.z) > Math.abs(expected.z - centre.z), 'σz did not reach the offset');
+  // Ten times σz is exactly ten times the offset — a DIVIDE would be a hundredth of it, and the
+  // sign of the offset would flip with the draw's.
+  const tenfold = memberPoint(centre, { x: 3.6, z: sigma.z * 10 }, propStream(9), () => true)!;
+  assert.ok(Math.abs(tenfold.z - centre.z - 10 * (expected.z - centre.z)) < 1e-9, 'σz multiplies');
 });
 
 // ---------------------------------------------------------------------------

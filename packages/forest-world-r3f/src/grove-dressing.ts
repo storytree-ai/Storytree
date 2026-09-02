@@ -44,7 +44,7 @@
 // same hash the worn path's jitter uses, so two builds of one island grow the same grove and the
 // thirty-five islands of a forest do not grow thirty-five copies of one.
 
-import { SHIPPED_COAST, clipToCoast, type CoastPoint } from './coast-clip.js';
+import { SHIPPED_COAST, clipToCoast, coastalIsland, type CoastPoint } from './coast-clip.js';
 import { islandPaths, islandSeed } from './island-path.js';
 import {
   GROVE_CAP_ID,
@@ -159,6 +159,10 @@ export function ringArea(points: readonly GPoint[]): number {
   let twice = 0;
   for (const [i, a] of points.entries()) {
     const b = points[(i + 1) % points.length]!;
+    // Stryker disable next-line AssignmentOperator: EQUIVALENT — `-=` accumulates `-Σterm` rather
+    // than `Σterm`, and the `Math.abs` below erases exactly that sign. The shoelace is
+    // orientation-free ON PURPOSE (a ring wound the other way is the same ground), so no input
+    // can distinguish them and no test can be written that does.
     twice += a.x * b.z - b.x * a.z;
   }
   return Math.abs(twice) / 2;
@@ -235,12 +239,50 @@ function isHealthyCell(c: LayoutCell): boolean {
 export function insideRing(points: readonly GPoint[], p: GPoint): boolean {
   let inside = false;
   for (const [i, a] of points.entries()) {
+    // Stryker disable next-line ArithmeticOperator: EQUIVALENT — `+ 1` pairs each vertex with its
+    // SUCCESSOR instead of its predecessor, which enumerates the same edge SET (every edge, once,
+    // read from its other end) and the crossing test below is symmetric in `a` and `b`. Probed
+    // over 400,000 random rings and points: not one disagreement.
     const b = points[(i + points.length - 1) % points.length]!;
-    if (a.z > p.z !== b.z > p.z && p.x < ((b.x - a.x) * (p.z - a.z)) / (b.z - a.z) + a.x) {
-      inside = !inside;
-    }
+    if (straddles(a, b, p.z) && crossingIsRight(p.x, crossingX(a, b, p.z))) inside = !inside;
   }
   return inside;
+}
+
+/**
+ * DOES THE EDGE `a`→`b` CROSS THE HORIZONTAL LINE THROUGH `z`? Half-open on purpose: a vertex
+ * exactly ON the line counts for the edge BELOW it and not for the edge above, so a ray through a
+ * vertex crosses the ring once rather than twice or not at all.
+ *
+ * ⚠ THE `>=` VARIANTS ARE NOT EQUIVALENT and are killed by a fixture — a ring with a vertex whose
+ * z is exactly the probe's, which is the only input the convention can be seen through.
+ */
+export function straddles(a: GPoint, b: GPoint, z: number): boolean {
+  return a.z > z !== b.z > z;
+}
+
+/** Where that edge meets the horizontal line through `z`, along x. */
+export function crossingX(a: GPoint, b: GPoint, z: number): number {
+  return ((b.x - a.x) * (z - a.z)) / (b.z - a.z) + a.x;
+}
+
+/**
+ * IS THE CROSSING ON THE SIDE THIS RAY COUNTS? To the right of `px`, by convention.
+ *
+ * ⚠⚠ BOTH MUTANTS OF THIS OPERATOR ARE UNKILLABLE HERE, FOR TWO DIFFERENT REASONS, WHICH IS WHY
+ * THE MUTATOR IS DISABLED RATHER THAN THE TEST WEAKENED.
+ * `>=` counts the crossings on the LEFT instead, and a closed ring's crossings on the two sides of
+ * a point always have the SAME parity — so it is a genuinely equivalent ray cast, and 400,000
+ * random rings and points produced no disagreement.
+ * `<=` differs only where `px` lands EXACTLY on a crossing, i.e. where the probe sits on the ring's
+ * own boundary. That case is real and IS pinned, by
+ * `insideRing pins the boundary convention: a probe exactly on a vertex is INSIDE` — but by a test
+ * rather than by this rung, because one `Stryker disable` cannot keep one mutant of a mutator and
+ * drop the other.
+ */
+// Stryker disable next-line EqualityOperator: EQUIVALENT / pinned by test — see the doc comment.
+export function crossingIsRight(px: number, x: number): boolean {
+  return px < x;
 }
 
 /** The first cell containing `p`, or `null` when it stands on none — off the island. */
@@ -264,6 +306,11 @@ export function beachClear(distance: number): boolean {
 
 /** Clear of the path: the recipe's `wear < 0.30`, through the wear layer's own smoothstep. */
 export function pathClear(distance: number): boolean {
+  // Stryker disable next-line EqualityOperator: EQUIVALENT, and MEASURED rather than asserted —
+  // `<=` differs only where `wearOf(distance)` is EXACTLY 0.3, and no double is. `wearOf` is a
+  // smoothstep, so bisecting it to the last bit brackets the ceiling between 0.30000000000000016
+  // and 0.29999999999999993 with nothing between: the equality this mutant turns on is unreachable
+  // from any input, so no fixture can be written that separates them.
   return wearOf(distance) < GROVE_WEAR_CEILING;
 }
 
@@ -300,12 +347,15 @@ export function groveExclusion(
  * connector, which docks only the ends within reach of THIS island's rim.
  */
 export function islandExclusion(descriptors: readonly Descriptor3D[], island: string): GroveExclusion {
-  const instances: InstanceDescriptor[] = [];
-  // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT — a skipped
-  // descriptor is neither ground nor a dockable strip, so passing it through changes no answer;
-  // the filter exists for the TYPE, which the two consumers below declare.
-  for (const d of descriptors) if (d.kind !== 'skipped') instances.push(d);
-  const ground = instances.filter((d) => d.kind === 'cell-ground' && d.island === island);
+  const instances = descriptors.filter(isInstance);
+  // ⚠⚠ `coastalIsland`, NOT A SECOND COPY OF ITS RULE. This read `d.kind === 'cell-ground' &&
+  // d.island === island`, and the mutation rung found the first half unkillable — correctly, and for
+  // a reason worth keeping written down: every consumer downstream (`clipToCoast`, `shoreField`,
+  // `islandRims`) re-asks `coastalIsland`, so a non-ground descriptor that slipped through here was
+  // dropped three times over and could not change an answer. A guard no input can exercise is a
+  // second copy of somebody else's rule, not a defence. What ONLY this line decides is the ISLAND —
+  // hand it two islands' ground and the exclusion would keep a grove off the OTHER island's beach.
+  const ground = instances.filter((d) => coastalIsland(d) === island);
   const clipped = clipToCoast(ground, SHIPPED_COAST);
   const paths = [...islandPaths(clipped, instances).values()].flat();
   return groveExclusion(clipped, paths);
@@ -478,6 +528,19 @@ export function dressGroves(opts: GroveDressingOptions): KitPlacement[] {
     }
   }
   return out;
+}
+
+/**
+ * Everything in the stream that IS an instance — i.e. not a `skipped` marker. A type guard rather
+ * than an inline filter, so the narrowing the two consumers rely on is stated once.
+ *
+ * ⚠ Stryker disable, with the reason it has always carried: a `skipped` descriptor is neither
+ * ground (it has no `kind: 'cell-ground'`) nor a dockable strip, so letting one through changes no
+ * answer either consumer gives. The guard exists for the TYPE, and a type is not an input.
+ */
+// Stryker disable next-line ConditionalExpression,EqualityOperator,StringLiteral: EQUIVALENT
+function isInstance(d: Descriptor3D): d is InstanceDescriptor {
+  return d.kind !== 'skipped';
 }
 
 /** A cell some capability owns — the ground a grove may stand on. A cell carrying no parcel is
