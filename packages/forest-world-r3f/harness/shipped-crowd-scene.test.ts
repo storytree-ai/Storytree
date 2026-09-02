@@ -12,18 +12,24 @@ import { test } from 'node:test';
 
 import { SHADE_LEVELS, LEGACY_SHADE_LEVELS } from '../src/shade-ladder.js';
 import { SHADOW_GRES } from '../src/land-shadow.js';
+import { SHIPPED_COAST, clipToCoast } from '../src/coast-clip.js';
+import { DOCK_REACH, bearingFrom, islandDocks, islandPaths, islandRims } from '../src/island-path.js';
 import {
   CROWD_ARMS,
+  CROWD_LANDING_BEARINGS,
   CROWD_SIZES,
+  CROWD_STRIP_OFFSHORE,
   CROWD_ZOOMS,
   FIT_ZOOM,
   MONO_STATUS,
   buildCrowdScene,
+  coastAt,
   crowdCasters,
   crowdCells,
   crowdIslands,
   crowdPxPerUnit,
   crowdSize,
+  crowdStrips,
 } from './shipped-crowd-scene.js';
 import { litLadderOf, shippedCasters, shippedParcels } from './shipped-land-scene.js';
 
@@ -223,4 +229,75 @@ test('the occlusion field hits the SHADOW_TEXTURE_MAX clamp at forest scale, and
     Math.max(forest.shadowW, forest.shadowH) <= 2048,
     'the clamp exists to keep the field inside its budget',
   );
+});
+
+// ---------------------------------------------------------------------------
+// THE STRIPS — two landings per island, so layer 3's connector has a crossing to draw
+// ---------------------------------------------------------------------------
+
+test('the landings are the recipe`s two bearings, and every island gets exactly two strips', () => {
+  assert.deepEqual([...CROWD_LANDING_BEARINGS], [-160, 25]);
+  assert.equal(CROWD_STRIP_OFFSHORE, 40);
+  assert.ok(CROWD_STRIP_OFFSHORE > DOCK_REACH, 'the seaward end must be out of dock reach');
+  assert.equal(crowdStrips(ONE).length, 2);
+  assert.equal(crowdStrips(REAL).length, REAL.islands * 2);
+  for (const s of crowdStrips(ONE)) {
+    assert.equal(s.kind, 'trail-strip');
+    assert.equal(s.hidden, false);
+    assert.equal(s.points?.length, 3);
+    assert.ok(typeof s.segment === 'string' && s.segment.length > 0);
+  }
+});
+
+test('each strip ENDS ON its island`s clipped rim and STARTS 40 units offshore of it', () => {
+  const clipped = clipToCoast(crowdCells(REAL), SHIPPED_COAST);
+  const strips = crowdStrips(REAL);
+  const docks = islandDocks(clipped, strips);
+  const rims = new Map(islandRims(clipped).map((r) => [r.island, r]));
+  for (const rim of rims.values()) {
+    const own = docks.get(rim.island)!;
+    assert.equal(own.length, 2, `${rim.island} has ${own.length} docks, not two`);
+  }
+  for (const s of strips) {
+    const pts = s.points!;
+    const end = pts[pts.length - 1]!;
+    const start = pts[0]!;
+    assert.ok(
+      Math.abs(Math.hypot(start.x - end.x, start.z - end.z) - CROWD_STRIP_OFFSHORE) < 1e-9,
+      'the seaward end is not 40 units from the landing',
+    );
+    // The landing IS a rim vertex, so the dock snap moves it by nothing: it appears verbatim.
+    const island = s.segment!.split('/')[0]!;
+    assert.ok(
+      docks.get(island)!.some((d) => Math.abs(d.x - end.x) < 1e-9 && Math.abs(d.z - end.z) < 1e-9),
+      `${s.segment}: the landing (${end.x}, ${end.z}) is not one of ${island}'s docks`,
+    );
+    // And it lands near its bearing — within a rim vertex's spacing of it.
+    const rim = rims.get(island)!;
+    const degrees = Number(s.segment!.split('landing-')[1]);
+    const d = bearingFrom(rim.centroid, { x: end.x, z: end.z }) - (degrees * Math.PI) / 180;
+    assert.ok(Math.abs(Math.atan2(Math.sin(d), Math.cos(d))) < 0.2, `${s.segment} landed ${d} rad off`);
+  }
+});
+
+test('coastAt picks the rim vertex nearest the bearing, wrapping at +-pi', () => {
+  const rim = islandRims(clipToCoast(crowdCells(ONE), SHIPPED_COAST))[0]!;
+  const east = coastAt(rim, 0);
+  assert.ok(east.x > rim.centroid.x, 'bearing 0 is east of the centroid');
+  const west = coastAt(rim, Math.PI);
+  assert.ok(west.x < rim.centroid.x, 'bearing pi is west of it');
+  // The wrap: -pi and +pi are the same direction.
+  assert.deepEqual(coastAt(rim, -Math.PI), west);
+});
+
+test('islandPaths joins the two landings across every island — ONE crossing per island', () => {
+  const clipped = clipToCoast(crowdCells(REAL), SHIPPED_COAST);
+  const paths = islandPaths(clipped, crowdStrips(REAL));
+  assert.equal(paths.size, REAL.islands);
+  for (const [island, own] of paths) {
+    assert.equal(own.length, 1, `${island} has ${own.length} paths, not one crossing`);
+    assert.equal(own[0]!.length, 80, 'five control points, four Chaikin passes');
+  }
+  // Deterministic: the same crowd wears the same paths twice.
+  assert.deepEqual(paths, islandPaths(clipped, crowdStrips(REAL)));
 });

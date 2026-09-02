@@ -55,7 +55,39 @@ export const SAND_EDGE: CyclesNoise = { scale: 7.5, detail: 6, roughness: 0.5 };
  * supposed to sit on, and the drift would look like a sand band that has slipped off its beach.
  */
 export const SAND_BEACH_WIDTH = AUTHORED_SHORE_WIDTH;
+
+/** The recipe's own divisor — the transcribed value, kept as the reference every widened band is
+ *  stated against. */
 export const SAND_DIVISOR = SAND_BEACH_WIDTH + 0.9;
+
+/**
+ * HOW WIDE THE SHIPPED BEACH IS, in ground units — an OWNER-DIRECTED DEPARTURE from the recipe's
+ * 3.1, and the only constant on this layer that is not a transcription.
+ *
+ * ⚠⚠ IT IS NOT AN AGENT RE-TUNE, WHICH ADR-0490 D1 FORBIDS. The owner looked at the transcribed
+ * beach and asked for more of it — *"the sand looks quite nice, could probably use more of it to
+ * make it more noticable"* (2026-09-02) — and then chose WIDTH over STRENGTH once the two were
+ * priced separately. That is a decision about the delivered look, taken by the person ADR-0392
+ * reserves it for, not a constant an agent moved to make a picture nicer.
+ *
+ * ⚠⚠ AND WIDTH IS THE AXIS THAT COSTS THE READING GUARANTEE NOTHING — which is why it could be
+ * offered at all. The band decides how many PIXELS wear the sand; it never changes WHICH colours
+ * the layer can deliver. The reachable colour set — and therefore every admissibility verdict in
+ * `harness/grass-status-reading.ts` — is a function of the MIX FACTOR alone. So a wider beach is
+ * more sand at exactly the same truth cost, while a stronger one buys area nothing and spends
+ * margin: at layer 1's shipped 0.32 the sand's own honest ceiling is 0.16 whatever this is set to.
+ *
+ * ⚠ THE FIELD MUST REACH THIS FAR. `shore-atlas.ts` caps its distances at the band it is built
+ * for, so widening here without widening the field would deliver a beach that stops at the old
+ * width and then steps — visibly, and looking like a bug in the noise rather than in a constant.
+ * `SAND_FIELD_WIDTH` is derived from this, not written beside it.
+ */
+export const SAND_SHIPPED_BEACH_WIDTH = 9;
+
+/** The divisor the SHIPPED band uses — the same `BEACH + 0.9` arithmetic the recipe applies, over
+ *  the owner-directed width. Stated as the recipe's expression rather than a bare number so the
+ *  0.9 stays visibly the script's and not a second magic constant. */
+export const SAND_SHIPPED_DIVISOR = SAND_SHIPPED_BEACH_WIDTH + 0.9;
 
 /**
  * THE BAND RAMP, `build_land.py:878`: `_ramp([(0.34, black), (0.70, white)])`.
@@ -95,9 +127,14 @@ export function sandEdgeLattice(): number {
  * is an ADD and nothing else; writing it as a multiply would scale the distance by the noise
  * instead of displacing it, which collapses the band to nothing wherever the noise is near zero.
  */
-export function sandBandFactor(shoreDistance: number, x: number, z: number): number {
+export function sandBandFactor(
+  shoreDistance: number,
+  x: number,
+  z: number,
+  divisor: number = SAND_DIVISOR,
+): number {
   const edge = grassNoiseField(SAND_EDGE, x, z);
-  const t = (shoreDistance + edge) / SAND_DIVISOR;
+  const t = (shoreDistance + edge) / divisor;
   const [lo, hi] = SAND_BAND_RAMP;
   return clamp01((t - lo) / (hi - lo));
 }
@@ -159,8 +196,18 @@ export function sandGlsl(): string {
     '// THE BAND FACTOR: 0 is pure sand at the water, 1 is pure grass inland.',
     '// The MULTIPLY_ADD at build_land.py:872-876 pins its multiplier to 1.0, so the edge noise',
     '// DISPLACES the distance rather than scaling it.',
-    'float st_sandBand(vec2 p, float shore) {',
-    `  float t = (shore + st_sandEdge(p)) / ${SAND_DIVISOR.toFixed(6)};`,
+    // ⚠⚠ THE WIDTH IS A PARAMETER, NOT A UNIFORM THIS SOURCE READS, and that is a linkage fact
+    // rather than a preference. This block is spliced ABOVE the shader's uniform declarations, so a
+    // `uSandWidth` referenced in here is used before it is declared — GLSL ES 1.0 rejects it and
+    // the material fails to compile. Measured, on a real GPU: a text assertion cannot see this,
+    // because the source contains every token a containment check looks for.
+    //
+    // ⚠ IT IS STILL NOT WRITTEN IN. The caller passes the uniform at the call site in main(), so
+    // a page comparing beach widths still varies ONE number and compiles ONE shader — which is the
+    // property that makes a difference between two arms attributable to the width their captions
+    // name.
+    'float st_sandBand(vec2 p, float shore, float width) {',
+    '  float t = (shore + st_sandEdge(p)) / width;',
     `  return clamp((t - ${SAND_BAND_RAMP[0].toFixed(6)}) / ${(
       SAND_BAND_RAMP[1] - SAND_BAND_RAMP[0]
     ).toFixed(6)}, 0.0, 1.0);`,

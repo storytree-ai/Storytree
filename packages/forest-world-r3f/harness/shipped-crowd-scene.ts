@@ -74,6 +74,8 @@ import { groundBounds } from '../src/ground-casters.js';
 import { LAND_RELIEF_AMPLITUDE, landRelief } from '../src/land-relief.js';
 import { occlusionGres, shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
+import { SHIPPED_COAST, clipToCoast, type CoastPoint } from '../src/coast-clip.js';
+import { bearingFrom, islandRims, type IslandRim } from '../src/island-path.js';
 import { CROWD_POPULATION, CROWD_VIEWPORT, crowdLayout } from './crowd-layout.js';
 import type { CrowdIsland } from './crowd-layout.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
@@ -413,6 +415,87 @@ export function crowdCasters(size: CrowdSize): ShadowCaster[] {
   for (const island of crowdIslands(size)) {
     for (const caster of base) {
       out.push({ ...caster, x: caster.x + island.offset.x, z: caster.z + island.offset.z });
+    }
+  }
+  return out;
+}
+
+/**
+ * THE RECIPE'S TWO LANDINGS, in degrees of bearing from the island's centre —
+ * `build_land.py:419-420`: `coast_at(radians(-160.0))` and `coast_at(radians(25.0))`. The recipe
+ * divides the x offset by `XSTRETCH` before taking the angle; this crowd does not, because the
+ * bearings here select a dock on a coast the connector then joins, and the landings only need to
+ * sit roughly opposite each other for the crossing to run through the island's middle.
+ */
+export const CROWD_LANDING_BEARINGS: readonly number[] = [-160, 25];
+
+/** How far offshore each synthetic strip starts, in ground units — well outside `DOCK_REACH`, so
+ *  only the landward end docks and the seaward end is a trail's ordinary far end. */
+export const CROWD_STRIP_OFFSHORE = 40;
+
+/**
+ * THE RIM VERTEX NEAREST A BEARING from the island's centroid — the recipe's `coast_at`, in the
+ * (x, z) basis: the point whose bearing differs from `angle` by the least, wrapped.
+ */
+export function coastAt(rim: IslandRim, angle: number): CoastPoint {
+  let best: CoastPoint | undefined;
+  let bestOff = Infinity;
+  for (const loop of rim.loops) {
+    for (const p of loop) {
+      const d = bearingFrom(rim.centroid, p) - angle;
+      const off = Math.abs(Math.atan2(Math.sin(d), Math.cos(d)));
+      if (off >= bestOff) continue;
+      bestOff = off;
+      best = p;
+    }
+  }
+  if (best === undefined) throw new Error(`shipped-crowd-scene: island "${rim.island}" has no rim to land on`);
+  return best;
+}
+
+/**
+ * TWO SYNTHETIC TRAIL STRIPS PER CROWD ISLAND, arriving from offshore and ENDING ON the island's
+ * CLIPPED rim at the recipe's two landing bearings — so layer 3's connector (`islandPaths`) finds
+ * two docks per island and joins them across it, exactly the coast -> interior -> coast crossing
+ * `build_land.py`'s `path_polyline` draws.
+ *
+ * ⚠ THE RIM IS THE CLIPPED ONE, read through the same `clipToCoast(…, SHIPPED_COAST)` the shipped
+ * builder runs, so each strip's landward end sits EXACTLY on the coast the ground ends on and the
+ * dock snap moves it by nothing. Built from the pre-clip parcels the ends would sit on the hex
+ * silhouette, up to a beach's width off the water — still within reach, but a worse fixture.
+ *
+ * ⚠ THE SHAPE IS THE MAPPER'S OWN: kind `trail-strip`, a three-point `points` polyline, a width,
+ * a usage, `hidden: false`, an `edges` list and a `segment` id, so anything reading a strip the
+ * way `worldTo3D` emits one reads these the same way.
+ */
+export function crowdStrips(size: CrowdSize): InstanceDescriptor[] {
+  const out: InstanceDescriptor[] = [];
+  for (const rim of islandRims(clipToCoast(crowdCells(size), SHIPPED_COAST))) {
+    for (const degrees of CROWD_LANDING_BEARINGS) {
+      const landing = coastAt(rim, (degrees * Math.PI) / 180);
+      const dx = landing.x - rim.centroid.x;
+      const dz = landing.z - rim.centroid.z;
+      const len = Math.hypot(dx, dz);
+      const offshore: CoastPoint = {
+        x: landing.x + (dx / len) * CROWD_STRIP_OFFSHORE,
+        z: landing.z + (dz / len) * CROWD_STRIP_OFFSHORE,
+      };
+      const mid: CoastPoint = { x: (offshore.x + landing.x) / 2, z: (offshore.z + landing.z) / 2 };
+      out.push({
+        kind: 'trail-strip',
+        transform: { x: mid.x, y: 0, z: mid.z },
+        group: 'trail-strip',
+        points: [
+          { x: offshore.x, y: 0, z: offshore.z },
+          { x: mid.x, y: 0, z: mid.z },
+          { x: landing.x, y: 0, z: landing.z },
+        ],
+        width: 3,
+        usage: 1,
+        hidden: false,
+        edges: [],
+        segment: `${rim.island}/landing-${degrees}`,
+      });
     }
   }
   return out;

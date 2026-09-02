@@ -29,7 +29,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Instance, Instances, Line, MapControls } from '@react-three/drei';
-import { Color, OrthographicCamera, type Mesh } from 'three';
+import { Color, OrthographicCamera, type Mesh, type Texture } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 import { frameWorld, orthographicZoomFor } from './camera-framing.js';
 import {
@@ -61,7 +61,10 @@ import { kitMeshes, loadEmbeddedKit, roleFootprints, type LoadedKit } from './ki
 import { dressMapFromKit } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
-import { buildAtlasShore } from './shore-atlas.js';
+import { SAND_FIELD_WIDTH, buildAtlasShore } from './shore-atlas.js';
+import { islandPaths } from './island-path.js';
+import { WEAR_FIELD_WIDTH, buildAtlasWear } from './wear-atlas.js';
+import { DETAIL_TILE_UNITS, detailNormalTexture } from './detail-normal-texture.js';
 import { EXACT_COLOUR_CANVAS_PROPS } from './exact-colour.js';
 import { calibrateLights, intensitiesFor } from './light-calibration.js';
 import {
@@ -71,6 +74,7 @@ import {
   groundAtlasTexture,
   type BandedGroundMaterialOptions,
   type GroundGrassLayer,
+  type GroundRockLayer,
 } from './banded-ground-material.js';
 
 /** THE DECIDED GROUND VOCABULARY — five colours over six states.
@@ -309,6 +313,43 @@ export const SHIPPED_GRASS: GroundGrassLayer = {
   rows: GRASS_GATE_ROWS,
 };
 
+/**
+ * HOW MUCH SAND THE SHIPPED BEACH WEARS — layer 2's own strength, an OWNER-DIRECTED bold value
+ * (2026-09-02), not a reader-model ceiling.
+ *
+ * ⚠⚠ THIS NUMBER USED TO BE 0.16 AND THAT WAS THE WRONG KIND OF CAREFUL. 0.16 is the strength at
+ * which `harness/grass-status-reading.ts`'s per-pixel reader model still reports every reachable
+ * sand colour nearer its own green than the `building`/`proposed` yellow. It is also a beach nobody
+ * can see: the largest channel shift it can produce is 15/255, zero pixels clear ADR-0490 D6's
+ * 20/255 bar, and the owner — having looked — said the sessions were being too conservative and
+ * that their changes were not noticeable. He directed the layers be applied ADVENTUROUSLY, judged
+ * by a picture per step, with "scale it back" as his lever. This is the first of those steps.
+ *
+ * ⚠⚠ WHAT MOVED IS THE FENCE, NOT THE INSTRUMENT. ADR-0489 D3/D4 already made the OUTCOME the
+ * fence — look at the render and ask whether the island's state still reads — and named the
+ * per-pixel proxy as one that fails in both directions. The reader model kept fencing layer
+ * strengths anyway, and on a wide contiguous band it forbids a colour that costs no legibility at
+ * all: at 0.90 the island is unmistakably a green island with a sand shore. The decision recording
+ * this and narrowing ADR-0492's admissible-band rule for LAYER STRENGTHS on green islands is the
+ * ADR cited on the arc; the reader model stays as an instrument that REPORTS its margin, and stops
+ * being the thing that picks the number.
+ *
+ * ⚠ THE LADDER, measured one island @ 8 px/unit on the Adreno X1-85, colour families against the
+ * approved render's 36: 0.16 → 26 (0 px moved >20/255) · 0.40 → 34 (96,016) · 0.65 → 33 (122,088)
+ * · 0.90 → 35 (133,750). Evidence: `docs/research/chapter2-bold-sand-2026-09-02/`. The owner saw
+ * that ladder and chose twice, the second time scaling back — *"sand .9 looks the best fyi"*, then
+ * *"actually lets go with sand 0.65"* (2026-09-02, ADR-0503 D2). 0.65 is his number: the beach is
+ * unmistakably sand with more of the island's green left in it than 0.90 keeps.
+ *
+ * ⚠ THE LADDER IS THE LEVER (ADR-0503 D3). This constant moves along `GRASS_ARM_SAND_MIX`'s rungs in
+ * `harness/shipped-grass-scene.ts`, whose frames are already rendered; scaling back is one edit here
+ * and no re-measurement. It never reaches 1.0: `mix(c, sand, uSandMix * (1 - band))` at 1.0 delivers
+ * the recipe's PURE sand at the waterline, and the status colour left in the beach is what keeps it
+ * the island's own colour family rather than a decal — the seam ADR-0490 D5 fences (modulate, never
+ * replace) is kept literally, not only in spirit.
+ */
+export const SHIPPED_SAND_MIX = 0.65;
+
 /** The ONE banded ground material, built once for the module rather than per canvas: it holds
  *  only the authored ramp, the authored light and the authored grain, all of which are constants,
  *  so a second instance would be a second copy of the same 24 colours with a second chance to
@@ -354,10 +395,70 @@ export const SHIPPED_GRASS: GroundGrassLayer = {
  * headroom is 3.0 weighted channel units and it is the PALETTE's tightness, not the shadow's
  * greed — the same wall the grain's colour half met.
  */
+/**
+ * LAYERS 3, 4 AND 6 AS THE SHIPPED GROUND WEARS THEM — every one an OWNER-DIRECTED bold value
+ * chosen from a rendered ladder (ADR-0503 D1/D3), recorded here with the ladder it was chosen from
+ * so a scale-back is one edit along rungs already rendered. Evidence:
+ * `docs/research/chapter2-ground-stack-2026-09-02/`.
+ */
+
+/** LAYER 3 — the worn path's strength ON the path (`uWearMix`), over the recipe's 3.0-unit falloff
+ *  (`WEAR_FIELD_WIDTH`). Ladder: 0.50 / 0.80 / 1.00 — see `harness/shipped-grass-scene.ts`. */
+export const SHIPPED_WEAR_MIX = 0.85;
+
+/** LAYER 4 — rock on the steep ground. The recipe's ends 0.72 / 0.90 bite only on the beach's ring
+ *  chain on this mesh (the interior's up-component never drops below 0.91, `interiorMinimumUp()`),
+ *  so the shipped ends are a stated departure that puts the interior's steepest swells inside the
+ *  ramp — riding the grain-perturbed normal, so the rock speckles along them. Ladder: the recipe's
+ *  [0.72, 0.90] / [0.88, 0.95] / [0.92, 0.98]. */
+export const SHIPPED_ROCK: GroundRockLayer = { mix: 0.85, slope: [0.88, 0.95] };
+
+/** LAYER 6 — how far the cliff normal map bends the surface normal. The recipe's 0.30 is the
+ *  provenance rung (`DETAIL_STRENGTH_RECIPE`); it names whorls at 0.55 on a 2048 map, which the
+ *  shipped 128-texel tile cannot show at the delivered zoom. Ladder: 0.30 / 0.60 / 1.00. */
+export const SHIPPED_DETAIL_STRENGTH = 0.6;
+
+/** The three layers above the sand, as a COMPARISON ARM asks for them — every one optional so an
+ *  arm can wear exactly the layers its caption names, and absent means ABSENT (no uniform, no
+ *  source, byte-identical shader). The canvas passes {@link SHIPPED_LAYERS}. */
+export interface GroundLayerExtras {
+  /** LAYER 3: the packed distance-to-path field (from `shippedGroundBuild().wear()`) and the strength. */
+  wear?: { field: AtlasField; mix: number };
+  /** LAYER 4: the rock's strength and slope ends. */
+  rock?: GroundRockLayer;
+  /** LAYER 6: the detail normal's strength; the texture and the 2.4-unit tile are the module's. */
+  detail?: { strength: number };
+}
+
+/** What SHIPS above the sand, minus the wear FIELD (which is per parcel set and comes from the
+ *  builder) — the canvas assembles the field in at mount. */
+export const SHIPPED_LAYERS: Readonly<Required<Omit<GroundLayerExtras, 'wear'>> & { wearMix: number }> = {
+  wearMix: SHIPPED_WEAR_MIX,
+  rock: SHIPPED_ROCK,
+  detail: { strength: SHIPPED_DETAIL_STRENGTH },
+};
+
+/** THE ONE DETAIL TEXTURE FOR THE MODULE, created on first use. It is 26 KB of embedded PNG and a
+ *  constant, so a second instance would be a second decode of the same bytes; it is NEVER
+ *  disposed with a material, because the next mount reads it again. Lazy because
+ *  `TextureLoader` needs a `document`, which a node-side test of an un-detailed arm has no
+ *  business requiring. */
+let detailTextureMemo: Texture | undefined;
+function shippedDetailTexture(): Texture {
+  if (detailTextureMemo === undefined) detailTextureMemo = detailNormalTexture();
+  return detailTextureMemo;
+}
+
 export function buildGroundMaterial(
   field: AtlasField | null,
   grass?: GroundGrassLayer,
   shore?: AtlasField | null,
+  /** LAYER 2's strength — {@link SHIPPED_SAND_MIX} unless a COMPARISON arm asks otherwise. The
+   *  canvas never passes it; the one caller that does is `harness/shipped-grass-scene.ts`, whose
+   *  arms differ in exactly this number so a pixel between two of them is attributable to it. */
+  sandMix: number = SHIPPED_SAND_MIX,
+  /** LAYERS 3, 4 AND 6 — see {@link GroundLayerExtras}; the canvas passes the shipped set. */
+  extras: GroundLayerExtras = {},
 ) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
   const shadow = field === null ? null : groundAtlasTexture(field);
@@ -370,8 +471,21 @@ export function buildGroundMaterial(
   // sample through — the material refuses either combination anyway, and refusing here as well
   // would turn an ordinary "this arm wears no grass" into a throw.
   const shoreTex = shore === null || shore === undefined ? null : groundAtlasTexture(shore);
-  if (shoreTex !== null && grass !== undefined) opts.sand = { shore: shoreTex.texture };
-  return { material: createBandedGroundMaterial(opts), shadow, shoreTex };
+  if (shoreTex !== null && grass !== undefined) {
+    opts.sand = { shore: shoreTex.texture, mix: sandMix, width: SAND_FIELD_WIDTH };
+  }
+  // ⚠ LAYERS 3, 4 AND 6, each by statement and each only where its carrier exists — the material's
+  // own refusals stand behind these (wear needs grass + the atlas, rock needs grass, detail needs
+  // the grain), so a wrong combination throws there with its reason rather than drawing quietly.
+  const wearTex = extras.wear === undefined || grass === undefined ? null : groundAtlasTexture(extras.wear.field);
+  if (wearTex !== null && extras.wear !== undefined) {
+    opts.wear = { field: wearTex.texture, mix: extras.wear.mix, width: WEAR_FIELD_WIDTH };
+  }
+  if (extras.rock !== undefined && grass !== undefined) opts.rock = extras.rock;
+  if (extras.detail !== undefined) {
+    opts.detail = { map: shippedDetailTexture(), strength: extras.detail.strength, tile: DETAIL_TILE_UNITS };
+  }
+  return { material: createBandedGroundMaterial(opts), shadow, shoreTex, wearTex };
 }
 
 /**
@@ -488,24 +602,37 @@ export interface ShippedGroundBuild {
    *  which is what stops a control arm quietly becoming the map as it stood before this layer.
    *
    *  ⚠⚠ IT IS A THUNK, NOT A VALUE, AND THAT IS A MEASUREMENT RATHER THAN A STYLE. Building it
-   *  costs **859 ms for one island and 54 s for the 35-island forest** (measured 2026-09-02):
-   *  `shoreField.sample()` is O(coast edges) per texel and the atlas is 5.4 M texels, most of them
-   *  sea. Layer 2 is NOT adopted, so an eager field here would put 54 seconds into the shipped
-   *  canvas's mount for a value nothing reads — a severe regression delivered by dead code. Lazy,
-   *  it costs nothing until a comparison arm asks.
-   *
-   *  ⚠ AND THAT COST IS A BLOCKER ON ADOPTING LAYER 2 AT ALL, recorded on the arc rather than
-   *  worked around here. The remedy is a distance TRANSFORM over a rasterised island mask (a
-   *  two-pass chamfer or jump-flood, O(texels) instead of O(texels x edges)); the per-texel
-   *  polygon query this builds on is correct and is what proved the rest of the layer, but it is
-   *  not what can ship. */
+   *  costs **117 ms for one island and 2.66 s for the 35-island forest** (measured 2026-09-02,
+   *  after `shore-grid.ts` replaced the per-texel walk over every coast edge with a uniform grid
+   *  whose far-field short-circuit answers most of the 5.4 M texels without touching an edge; it
+   *  was 859 ms / 54 s before that). Layer 2 IS adopted, at {@link SHIPPED_SAND_MIX} = 0.65, so
+   *  the shipped canvas pays this once on mount; a comparison page with several arms pays it once
+   *  per `shippedGroundBuild` call and reads the memo after, which is why it stays a thunk. */
   shore: () => AtlasField | null;
+  /** LAYER 3's carrier: the distance-to-path field, packed over {@link field}'s OWN tiles — the
+   *  same structural agreement the shore has, and for the same reason: the mesh carries one atlas
+   *  origin, so every per-fragment field on this ground rides the one packing.
+   *
+   *  ⚠ THE PATHS ARE THE CANVAS-SIDE CONNECTOR'S (`island-path.ts`, ADR-0463 D1): every visible
+   *  `trail-strip` end within reach of an island's rim is that island's dock, and the worn path is
+   *  what joins the island's docks across its interior. A build handed no strips (the default)
+   *  yields a field of no wear everywhere — every texel at 255 — which is what the ground drew
+   *  before the layer existed. Built from the CLIPPED parcels, like everything else here: after
+   *  `clipToCoast` the mesh's rim IS the coast, so a dock snapped onto it is a dock at the water.
+   *
+   *  ⚠ A THUNK AND MEMOISED, like {@link shore}: the same per-texel walk over the same tiles, so
+   *  the same cost class, and `null` for the same reason — no occlusion field means no tiles to
+   *  pack it over. */
+  wear: () => AtlasField | null;
   input: CellGroundGeometryInput;
 }
 
 export function shippedGroundBuild(
   cells: InstanceDescriptor[],
   casters: readonly ShadowCaster[],
+  /** The visible `trail-strip` descriptors, whose ends dock on the islands (layer 3's connector).
+   *  DEFAULTED so every caller that predates the layer is unchanged and wears no path. */
+  strips: readonly InstanceDescriptor[] = [],
 ): ShippedGroundBuild {
   // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
   // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
@@ -569,7 +696,17 @@ export function shippedGroundBuild(
     if (shoreMemo === undefined) shoreMemo = field === null ? null : buildAtlasShore(clipped, field);
     return shoreMemo;
   };
-  return { field, shore, input };
+  // ⚠ LAYER 3'S CARRIER, over the SAME tiles and from the SAME clipped parcels, memoised behind a
+  // thunk for the same reason. The docks are read off the strips against the CLIPPED rim, so a
+  // trail that ends at the water docks at the water rather than a beach's width inland of it.
+  let wearMemo: AtlasField | null | undefined;
+  const wear = (): AtlasField | null => {
+    if (wearMemo === undefined) {
+      wearMemo = field === null ? null : buildAtlasWear(islandPaths(clipped, strips), field);
+    }
+    return wearMemo;
+  };
+  return { field, shore, wear, input };
 }
 
 /** The RELAXED-MESH ground: every parcel on the island in ONE merged, flat-shaded buffer.
@@ -624,12 +761,15 @@ export function shippedGroundBuild(
 function CellGround({
   cells,
   casters,
+  strips,
 }: {
   cells: InstanceDescriptor[];
   casters: readonly ShadowCaster[];
+  /** The visible trail strips — layer 3's connector reads their ends as the islands' docks. */
+  strips: readonly InstanceDescriptor[];
 }) {
   const built = useMemo(() => {
-    const { field, input } = shippedGroundBuild(cells, casters);
+    const { field, shore, wear, input } = shippedGroundBuild(cells, casters, strips);
     const geo = cellGroundGeometry(input);
     // ⚠ LAYER 1 IS WORN UNCONDITIONALLY AND WITH NO FLAG, like the relief, the ladder, the grain
     // and the shadow before it — this arc's end-state item 6 is explicit that a flag nobody
@@ -637,26 +777,20 @@ function CellGround({
     // shape. It is gated per TOKEN rather than by a flag: {@link SHIPPED_GRASS} dresses the green
     // and multiplies every other row's mix by zero, so those rows deliver the pixel they
     // delivered before it existed (ADR-0492 D1).
-    // ⚠⚠ LAYER 2 IS BUILT AND MEASURED BUT NOT WORN, AND THAT IS A BLOCKED ADOPTION RATHER THAN
-    // A FORGOTTEN FLAG. The distinction matters because this arc's end-state item 6 rightly calls
-    // a flag nobody flips "not adoption" — but what stops layer 2 here is not inertia, it is a
-    // measurement: on the shipped ladder the sand is VISIBLE only at or above ~0.22 and HONEST
-    // only at or below ~0.15, and the two miss each other. At the strength that can be seen, a
-    // lit beach on a HEALTHY island reads as `building`/`proposed` yellow at the ladder's two
-    // brightest rungs — a signed-off capability reporting as in-progress work, which ADR-0392 D5
-    // and ADR-0398 D7 do not permit whatever it looks like.
-    //
-    // ⚠ THE PER-TOKEN GATE CANNOT RESCUE IT A SECOND TIME. ADR-0492 dissolved layer 1's version of
-    // this conflict by gating the layer to `healthy`; layer 2 already inherits that gate, so the
-    // move is spent and the binding constraint is now how far the LADDER reaches rather than which
-    // token wears the layer.
-    //
-    // The fork is authored as an open question on `land-ground-stack-arc`. Everything below it —
-    // `shore-atlas.ts`, `land-sand.ts`, the material's sand seam and the instrument's sand arm —
-    // is landed, green, and is what any of the answers will be built from. `shore` is still
-    // returned by `shippedGroundBuild` so every comparison arm gets it without remembering to.
-    return { geo, ...buildGroundMaterial(field, SHIPPED_GRASS) };
-  }, [cells, casters]);
+    // ⚠ LAYER 2 IS NOW WORN TOO — unconditionally, no prop, no flag (end-state item 6). It was
+    // held back on 2026-09-02 because under ONE shared factor it could not be both seen and
+    // honest; given its own factor it is fenced on its own measurement (0.16 with layer 1 at
+    // 0.32) and layer 1's delivered pixel is unchanged. The owner asked for a wider beach, which
+    // is the axis that costs the reading guarantee nothing.
+    // ⚠ LAYERS 3, 4 AND 6 ARE WORN TOO (2026-09-02, ADR-0503) — the worn path along the trail
+    // docks, rock on the steep ground, and the cliff normal as detail relief, at the strengths the
+    // owner chose from their ladders. The wear FIELD is per parcel set, so it is built here and
+    // handed in; the rock and the detail are constants.
+    const wearField = wear();
+    const extras: GroundLayerExtras = { rock: SHIPPED_LAYERS.rock, detail: SHIPPED_LAYERS.detail };
+    if (wearField !== null) extras.wear = { field: wearField, mix: SHIPPED_LAYERS.wearMix };
+    return { geo, ...buildGroundMaterial(field, SHIPPED_GRASS, shore(), SHIPPED_SAND_MIX, extras) };
+  }, [cells, casters, strips]);
   // ⚠ THE MATERIAL AND ITS TEXTURE ARE DISPOSED, WHICH THE MODULE-SCOPE SINGLETON NEVER NEEDED
   // TO BE. The occlusion field is about 107 KB of GPU memory for one island, and a canvas that
   // re-mounts on every navigation would strand one copy per visit — a leak that grows with use
@@ -669,6 +803,9 @@ function CellGround({
       // effect exists to prevent if it is not disposed with the first — about 107 KB per island
       // per re-mount, invisible until a long session runs out of texture memory.
       built.shoreTex?.texture.dispose();
+      // And the wear field is a THIRD of the same size. (The detail normal is a module constant
+      // and is deliberately not disposed here — the next mount reads the same 26 KB again.)
+      built.wearTex?.texture.dispose();
     },
     [built],
   );
@@ -955,6 +1092,11 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // re-upload both on every frame the canvas re-rendered for any reason at all.
   const cells = useMemo(() => byKind(descriptors, 'cell-ground'), [descriptors]);
   const trees = useMemo(() => byKind(descriptors, 'story-tree'), [descriptors]);
+  // The visible trail strips, whether or not they are DRAWN (`showTrails` below): layer 3's
+  // connector reads their ends as the islands' docks, so the worn path crosses the land the
+  // trail arrives at even on a canvas that draws no ribbon at sea. Memoised for the same reason
+  // `cells` is — `CellGround` keys its build on it.
+  const strips = useMemo(() => byKind(descriptors, 'trail-strip'), [descriptors]);
   // Everything that stands on the land and therefore darkens it. Derived from the WHOLE
   // descriptor set rather than from `trees` alone, because cave portals cast too and a caller
   // reading this list should see one place that answers "what casts a shadow here".
@@ -980,7 +1122,7 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
       <color attach="background" args={['#101418']} />
       <CalibratedLights />
       <HexGround tiles={grounds} />
-      <CellGround cells={cells} casters={casters} />
+      <CellGround cells={cells} casters={casters} strips={strips} />
       <KitProps descriptors={descriptors} />
       {trees.map((t, i) => (
         <StoryTree key={i} tree={t} />
