@@ -88,7 +88,13 @@ must not widen the cliff, the bar exclusive at exactly 20).
 The shaded rock keeps the measured quartile's chroma and is scaled so its darkest delivered pixel
 sits a stated luma above the sea (`shadedRockAboveSea`). Four rungs were rendered beside the
 withdrawn rock and the single rock, on the same instrument, at one island and 8 px per unit —
-`ladder-crop.png` is the cliff band at 3x, `ladder.png` the whole island:
+`ladder-crop.png` is the cliff band at 3x, `ladder.png` the whole island. ⚠ Crop BEFORE you
+compose: on a whole-island sheet the 18-px band is ~5 px and every rung looks identical, which is
+what `harness/crop-sheet.mjs` (beside `contact-sheet.mjs`) exists for —
+
+```bash
+node harness/crop-sheet.mjs --out ladder-crop.png --x 800 --y 905 --w 700 --h 100 --scale 3 --cols 1 "rock=rock-one-8.png" "two-token-deep=two-token-deep-one-8.png"
+```
 
 | arm | luma above the sea | anchor | STRUCT | apparent height |
 |---|---|---|---|---|
@@ -173,6 +179,7 @@ ROW short, which only the size refusal can catch, and asserts its own message.
 | `harness/shipped-skirt-scene.ts` | the shipped builder memoised per size; the whole ground stack mirrored onto the page's own token table; the withdrawn rock and the ladder as arms; `readability` on the runner |
 | `harness/shipped-skirt-scene.test.ts` | the page's material mirrors the canvas's key for key, reads the shipped strengths, and hands the builder the crowd's strips |
 | `harness/shipped-skirt-measure.mjs` | the three sea refusals and the readability report |
+| `harness/crop-sheet.mjs` | the same rectangle cropped out of several frames at 3x, as one captioned sheet — how `ladder-crop.png` was made |
 | `src/stepped-skirt.test.ts` | the span premise re-derived against the sea |
 | `ladder.png` / `ladder-crop.png` | the owner's look: the ladder beside the withdrawn rock and the single rock |
 | `*-one-8.png` / `*-forest-fit.png` | the frames, one per arm per size |
