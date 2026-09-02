@@ -41,8 +41,17 @@ import {
   type BandedGroundMaterialOptions,
 } from '../src/banded-ground-material.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
-import { SHIPPED_GRASS, shippedGroundBuild, type ShippedGroundBuild } from '../src/ForestWorldCanvas.js';
+import {
+  SHIPPED_GRASS,
+  SHIPPED_LAYERS,
+  SHIPPED_SAND_MIX,
+  shippedGroundBuild,
+  type ShippedGroundBuild,
+} from '../src/ForestWorldCanvas.js';
+import { DETAIL_TILE_UNITS, detailNormalTexture } from '../src/detail-normal-texture.js';
+import { SAND_FIELD_WIDTH } from '../src/shore-atlas.js';
 import { SHIPPED_SHORE } from '../src/shore-fall.js';
+import { WEAR_FIELD_WIDTH } from '../src/wear-atlas.js';
 import { shoreArmRingPlan } from '../src/shore-ring.js';
 import {
   SKIRT_ROCK,
@@ -80,6 +89,7 @@ import {
   crowdCells,
   crowdPxPerUnit,
   crowdSize,
+  crowdStrips,
   orientedCamera,
   type CrowdSize,
   type CrowdSizeId,
@@ -370,12 +380,18 @@ export function armSkirt(arm: SkirtArm, cells: readonly InstanceDescriptor[]): G
  * arm — every arm shares the same casters over the same ground. Building it per arm cost the
  * page's mount six field builds with six arms and pushed it past the driver's five-minute wait
  * with ten; one build per size is what a page with a ladder on it needs.
+ *
+ * ⚠ THE STRIPS ARE THE CROWD'S OWN TWO LANDINGS PER ISLAND (`crowdStrips`), handed in for the
+ * same reason the grass page hands them in: layer 3's connector reads their ends as the islands'
+ * docks, and a build handed no strips yields a wear field of no wear everywhere — a page whose
+ * arms all wore a path the map does not draw, or none where the map draws one, would be
+ * comparing cliffs on a ground that is not the shipped ground.
  */
 const groundBuildCache = new Map<CrowdSizeId, ShippedGroundBuild>();
 export function skirtGroundBuild(size: CrowdSize): ShippedGroundBuild {
   const hit = groundBuildCache.get(size.id);
   if (hit !== undefined) return hit;
-  const built = shippedGroundBuild(crowdCells(size), crowdCasters(size));
+  const built = shippedGroundBuild(crowdCells(size), crowdCasters(size), crowdStrips(size));
   groundBuildCache.set(size.id, built);
   return built;
 }
@@ -440,6 +456,16 @@ export interface SkirtScene {
   plan: SkirtPlan;
 }
 
+/** THE ONE DETAIL TEXTURE FOR THE PAGE, created on first use — the canvas keeps its own the same
+ *  way (`shippedDetailTexture`, module-private there). Lazy because `TextureLoader` needs a
+ *  `document`; a node-side reader of this module's constants must not decode 26 KB of PNG at
+ *  import, and under node `detailNormalTexture` hands back a named empty texture anyway. */
+let detailTextureMemo: THREE.Texture | undefined;
+function skirtDetailTexture(): THREE.Texture {
+  if (detailTextureMemo === undefined) detailTextureMemo = detailNormalTexture();
+  return detailTextureMemo;
+}
+
 export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom): SkirtScene {
   const build = skirtGroundBuild(size);
   const cells = build.input.cells;
@@ -457,10 +483,21 @@ export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom)
   // `buildGroundMaterial` fixes its tokens to the map's own (statuses + the two rocks that ship);
   // this page's table carries the median rock, the withdrawn rock and the ladder as extra rows past
   // them, so an arm can select a colour the map does not draw. Every OTHER key is what
-  // `CellGround` passes — the shared occlusion field, the grain, layer 1 at its shipped strength —
-  // so a pixel between two arms is the cliff's and nothing else's. ⚠ Kept in step with
-  // `buildGroundMaterial` BY READING IT: a layer adopted there must be added here in the same
-  // landing, or this page's control is the map as it stood before that layer.
+  // `CellGround` passes — the shared occlusion field, the grain, layer 1 at its shipped strength,
+  // and since PR #1802 the whole ground stack: layer 2 (shore sand) and layer 3 (the worn path)
+  // through the build's OWN packed carriers, layer 4 (rock on slope) and layer 6 (the cliff normal
+  // as detail relief) at the strengths the owner chose from their ladders (ADR-0503). So a pixel
+  // between two arms is the cliff's and nothing else's, ON THE GROUND THAT SHIPS. ⚠ Kept in step
+  // with `buildGroundMaterial` BY READING IT, and now also by `shipped-skirt-scene.test.ts`,
+  // which reads both sources and fails when the canvas passes a material key this page does not —
+  // a layer adopted there must be added here in the same landing, or this page's control is the map
+  // as it stood before that layer (`comparison-baseline-moves-under-the-page`).
+  //
+  // ⚠ NONE OF LAYERS 2/3/4 CAN REPAINT THE CLIFF: each rides `grassGate`, which the skirt's rock
+  // rows never open, so an ungated row multiplies the layer by zero. Layer 6 touches no colour — it
+  // bends the normal before the quantiser, so it can only move a cliff fragment between authored
+  // rungs of its own token's ramp, every one of which the sea fence already holds above the water.
+  // The stack changes what the cliff stands NEXT TO, not the colours the cliff can deliver.
   const opts: BandedGroundMaterialOptions = {
     tokens: SKIRT_GROUND_TOKENS,
     grain: 'normal',
@@ -468,6 +505,21 @@ export function buildSkirtScene(arm: SkirtArm, size: CrowdSize, zoom: CrowdZoom)
   };
   const shadow = build.field === null ? null : groundAtlasTexture(build.field);
   if (shadow !== null) opts.shadowAtlas = shadow;
+  // LAYER 2 — the shore sand through the build's own distance-to-coast field. Offered only where
+  // there is an atlas to sample it through, the way `buildGroundMaterial` offers it; the thunk is
+  // memoised inside the build, so ten arms pay the field once per size.
+  const shoreField = build.shore();
+  if (shoreField !== null) {
+    opts.sand = { shore: groundAtlasTexture(shoreField).texture, mix: SHIPPED_SAND_MIX, width: SAND_FIELD_WIDTH };
+  }
+  // LAYER 3 — the worn path through the build's own distance-to-path field, over the crowd's docks.
+  const wearField = build.wear();
+  if (wearField !== null) {
+    opts.wear = { field: groundAtlasTexture(wearField).texture, mix: SHIPPED_LAYERS.wearMix, width: WEAR_FIELD_WIDTH };
+  }
+  // LAYERS 4 AND 6 — constants, as the canvas passes them.
+  opts.rock = SHIPPED_LAYERS.rock;
+  opts.detail = { map: skirtDetailTexture(), strength: SHIPPED_LAYERS.detail.strength, tile: DETAIL_TILE_UNITS };
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
