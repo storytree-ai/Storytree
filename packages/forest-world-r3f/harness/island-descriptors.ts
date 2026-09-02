@@ -108,13 +108,15 @@ export function groundCellsFrom(
       // carries an `id` for its own reasons (a territory, a trail edge, a hit target), and
       // inheriting one of those would silently partition the land along the wrong lines.
       const here2 = node.kind === 'parcel' ? node.id ?? parcel : parcel;
-      // The STORY's island id, by the same rule and for the same reason, from the three group
+      // The STORY's island id, by the same rule and for the same reason, from the two group
       // kinds the core stamps `id: t.id` on. Mirrors `ISLAND_GROUP_KINDS` in `src/world-to-3d.ts`
-      // deliberately: two readers agreeing is the assertion, so they may not share the code.
-      const here3 =
-        node.kind === 'ground' || node.kind === 'territory' || node.kind === 'tile'
-          ? node.id ?? island
-          : island;
+      // deliberately: two readers agreeing is the assertion, so they may not share the code. (A
+      // third kind, the classic substrate's `tile` — where a tile IS a territory — was dropped
+      // from BOTH mirrors in the same landing when that substrate was retired:
+      // `retire-the-old-land-path`. This reader only ever walks `cell` / `cell-wheat` paths
+      // anyway, which a `tile` group's children never were, so the drop changes no behaviour
+      // here — it removes a dead entry from an intentional mirror.)
+      const here3 = node.kind === 'ground' || node.kind === 'territory' ? node.id ?? island : island;
       const inherited = node.status ?? status;
       for (const child of node.children) walk(child, here, inherited, here2, here3);
       return;

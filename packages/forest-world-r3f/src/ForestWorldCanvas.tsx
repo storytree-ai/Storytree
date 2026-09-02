@@ -28,7 +28,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Canvas, useThree } from '@react-three/fiber';
-import { Instance, Instances, Line, MapControls } from '@react-three/drei';
+import { Line, MapControls } from '@react-three/drei';
 import { Color, OrthographicCamera, type Mesh, type Texture } from 'three';
 import type { InstanceDescriptor, Descriptor3D } from './world-to-3d.js';
 import { frameWorld, orthographicZoomFor } from './camera-framing.js';
@@ -151,8 +151,10 @@ const CROWN_COLOUR: ReadonlyMap<string, string> = new Map([
  *  about work it could not classify. */
 const UNKNOWN_STATUS = 'unknown';
 
-/** GROUND colour for a status variant — the two ground substrates only (the classic hex prisms
- *  and the relaxed-mesh parcels). */
+/** GROUND colour for a status variant — the relaxed-mesh parcel ground, the one substrate this
+ *  canvas draws. (The classic extruded-hex prism this resolver once ALSO fed was retired at the
+ *  mapper — `retire-the-old-land-path` — and this function's own callers shrank with it; it stays
+ *  because the banded ground's resolver rides it, below.) */
 const groundColourOf = (material: string | undefined): string =>
   GROUND_COLOUR.get(material ?? UNKNOWN_STATUS) ?? GROUND_COLOUR.get(UNKNOWN_STATUS)!;
 
@@ -162,32 +164,6 @@ const crownColourOf = (material: string | undefined): string =>
 
 const byKind = (descriptors: readonly Descriptor3D[], kind: InstanceDescriptor['kind']) =>
   descriptors.filter((d): d is InstanceDescriptor => d.kind === kind);
-
-/** SVG-plane scale → world units. The core's 2D coordinates are SVG pixels
- *  (HEX_R ≈ 10s of units); render them 1:1 and size the camera instead. */
-const HEX_RADIUS = 9;
-// ⚠ Held equal to `CELL_GROUND_DEPTH` by `shipped-baseline.test.ts` — the two ground substrates
-// are the same ground in two representations and must not drift to different thicknesses. It stays
-// a literal because that same test parses this file's source for it.
-const TILE_HEIGHT = 3;
-
-function HexGround({ tiles }: { tiles: InstanceDescriptor[] }) {
-  if (tiles.length === 0) return null;
-  return (
-    <Instances limit={Math.max(tiles.length, 1)}>
-      {/* a 6-segment cylinder IS the extruded hex prism */}
-      <cylinderGeometry args={[HEX_RADIUS, HEX_RADIUS, TILE_HEIGHT, 6]} />
-      <meshStandardMaterial />
-      {tiles.map((t, i) => (
-        <Instance
-          key={i}
-          position={[t.transform.x, t.transform.y - TILE_HEIGHT / 2, t.transform.z]}
-          color={groundColourOf(t.material)}
-        />
-      ))}
-    </Instances>
-  );
-}
 
 /** Status variant → LINEAR colour, using three's OWN sRGB transfer function rather than a
  *  transcription of it. `<Instance color="#4f9d5d" />` puts the hex through `THREE.Color` on its
@@ -1081,11 +1057,13 @@ function CalibratedLights() {
  * (`ssr:false` posture — the site lazy-loads this island after the inflection).
  */
 export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWorldCanvasProps) {
-  const grounds = byKind(descriptors, 'hex-ground');
-  // The relaxed-mesh parcels. A scene carries ONE substrate or the other (`scene.ts:658`), so in
-  // practice exactly one of `grounds` / `cells` is ever non-empty — but both are drawn
-  // unconditionally rather than switched on, because a mapper that started emitting both would
-  // then show it rather than silently drop one.
+  // The relaxed-mesh parcels — the ONE ground substrate this canvas draws. A second, classic
+  // extruded-hex ground component used to be mounted unconditionally beside this one, filtered
+  // off the descriptor stream by its own retired mesh family; both the component and the family
+  // it drew were retired at the mapper (`retire-the-old-land-path`) — `world-to-3d.ts` now
+  // REFUSES a classic-substrate scene outright rather than emitting anything of that family for
+  // this canvas to draw, so there is nothing left here to mount a second ground component for.
+  // One substrate, drawn unconditionally; the other is a refusal upstream, not a flag down here.
   // ⚠ MEMOISED ON `descriptors` RATHER THAN RECOMPUTED PER RENDER, which `byKind` alone was.
   // The parcel slice is what `CellGround` keys its own memo on, and that memo now builds a 107 KB
   // occlusion field and uploads a texture: a fresh array identity every render would rebuild and
@@ -1121,7 +1099,6 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
     >
       <color attach="background" args={['#101418']} />
       <CalibratedLights />
-      <HexGround tiles={grounds} />
       <CellGround cells={cells} casters={casters} strips={strips} />
       <KitProps descriptors={descriptors} />
       {trees.map((t, i) => (
