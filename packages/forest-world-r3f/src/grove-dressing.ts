@@ -146,6 +146,15 @@ export const STAND_CANDIDATES = 96;
  * `docs/research/chapter2-ground-canopy-2026-09-03/` — {@link GROVE_DENSITY_RUNGS}. The shipped
  * pick is the middle rung, per ADR-0503 D1 (apply the layers boldly, ship a pick, let the owner
  * scale back along rungs already rendered); a scale-back is this one constant and no re-measurement.
+ *
+ * ⚠ AND THE PICK IS MADE ON THE ISLAND'S TOTAL, NEVER ON PINES-PER-STAND, because per-stand is the
+ * one number this lever cannot move: 3.2 at x1, 3.1 at x2, 2.9 at x3 — it drifts DOWN as stands are
+ * added, since a fuller island rejects more members. Anyone reaching for "get closer to the recipe's
+ * 4–8 per stand" will therefore pick the SPARSEST rung and make the picture worse. What the recipe's
+ * own numbers actually assert is a forest of 13 x 4–8 = 52–104 pines, and only x2 (81) lands inside
+ * that band — x1's 42 falls short of it, x3's 113 past it. Judged on the sheet 2026-09-03 and the
+ * eye agrees with the band: x1 leaves the island's middle visibly empty, x3 closes the canopy over
+ * the path and the clearings that "groves with bare ground between them" means.
  */
 export const GROVE_DENSITY_RUNGS = [1, 2, 3] as const;
 
