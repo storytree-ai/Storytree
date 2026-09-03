@@ -270,7 +270,37 @@ ${head}
   reporters: ["json"],
   jsonReporter: { fileName: ${JSON.stringify(reportFile)} },
   concurrency: 4,
-  timeoutMS: 60000,
+  // THE PER-MUTANT BUDGET IS A FORMULA, NOT A FLAT CEILING, and reading it as a flat 60 s is what
+  // sends a session down the wrong path. Stryker computes
+  // \`timeoutFactor * netTime + timeoutMS + timeOverheadMS\` (@stryker-mutator/core 10.0.0,
+  // \`dist/src/mutants/mutant-test-planner.js:124\`), where \`netTime\` is THIS mutant's covering tests
+  // as timed in the dry run and \`timeOverheadMS\` is the dry run's own measured overhead — 35.7 s on
+  // the run below. So a mutant that "timed out at 60 s" had in fact already been given >= 96 s.
+  //
+  // WHY BOTH TERMS WERE RAISED (ADR-0509). PR #1808 returned 115 UNPROVEN of 286 on GitHub with
+  // ZERO missed, across two runs whose lists were identical — a property of the machine, not luck.
+  // The cause is measured rather than inferred: GitHub's 4-vCPU runner has 2 PHYSICAL cores while
+  // \`concurrency\` above runs 4 CPU-bound bun processes, so each covering set runs at roughly half
+  // the speed the dry run clocked it at, and \`1.5 x netTime\` (Stryker's default factor) stops
+  // covering it. The same branch re-run on a 12-core box at CI's per-test speed produced FIVE
+  // timeouts, not 108 — the difference is core contention, nothing else.
+  //
+  // The two terms answer different halves, which is why raising one alone would not do. \`timeoutFactor\`
+  // scales with the check's own covering set — \`disableBail\` in SHARED_CONSTRAINTS means every
+  // covering test re-runs, and on that branch a killed mutant re-ran a median of 17 tests and as many
+  // as 233 — while \`timeoutMS\` is the flat floor a mutant with a small covering set leans on.
+  //
+  // ⚠ NEITHER IS A QUALITY BAR. ADR-0447 holds that this rung's verdict is never a percentage and
+  // never a threshold; raising a clock changes only how long a check may take to REACH a verdict.
+  // UNPROVEN still blocks, and a real survivor is still red.
+  //
+  // ⚠ CONCURRENCY IS THE OTHER KNOB AND IS DELIBERATELY UNTOUCHED HERE. \`concurrency: 2\` would
+  // remove the contention at its cause rather than buying time around it, but it trades wall clock
+  // against it and belongs to the open weight question (\`oq-is-the-mutation-rung-paying-its-weight\`
+  // on \`mutation-rung-weight-arc\`), not to this stopgap. If a large branch still times out with the
+  // budget below, that is the next lever — not a further raise.
+  timeoutFactor: 6,
+  timeoutMS: 120000,
   tempDirName: ".stryker-tmp",
   // typescript@7 exports no compiler API (ADR-0400 D3), so Stryker's tsconfig preprocessor throws if
   // it finds a real one. Pointing at a path that does not exist is the fix increment 1 established.
