@@ -301,6 +301,7 @@ test('THE OVERLAP DETECTOR CAN FIRE — it is not a check that passes on everyth
     at: { x, z },
     y: 0,
     yaw: 0,
+    scale: 1,
   });
   assert.equal(dressingOverlaps([at(0, 0), at(0, 0)], FOOT).length, 1);
   assert.equal(dressingOverlaps([at(0, 0), at(FOOT.tree * 0.999, 0)], FOOT).length, 1);

@@ -480,6 +480,41 @@ test('the shipped ground WEARS THE OCCLUSION FIELD — unconditionally, item 6 a
   assert.match(src, /groundCasters\(descriptors\)/);
 });
 
+test('THE KIT CASTS: one placement, made before the ground, read by the casters AND by KitProps', () => {
+  // ⚠⚠ THE HAZARD THIS PINS. Until 2026-09-03 `KitProps` computed its own placement from the
+  // LOADED kit — asynchronously, after the ground had been built — so no kit object could reach
+  // the occlusion field and every pine and bloom floated over a ground shaded by the story tree
+  // alone. The remedy is structural: ONE `placements` value, made synchronously off the frozen
+  // footprints in the canvas, spread into the casters AND handed to `KitProps`. A canvas that
+  // computed it twice would have a tree and its shadow as two lists that agree today.
+  const src = readFileSync(SHIPPED, 'utf8');
+  assert.match(
+    src,
+    /const placements = useMemo\(\s*\(\) => dressMapWithGroves\(descriptors, \{ relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 \}\),\s*\[descriptors\],\s*\)/,
+    'the placement is made once, from the FROZEN footprints, off the whole descriptor stream',
+  );
+  assert.match(
+    src,
+    /\.\.\.groundCasters\(descriptors\),\s*\.\.\.placementCasters\(placements, KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29\)/,
+    'the ground’s casters are the descriptor families UNIONED with one caster per placement',
+  );
+  assert.match(src, /<KitProps placements=\{placements\} \/>/, 'and KitProps draws that same list');
+  assert.ok(
+    !/useMemo\(\(\) => groundCasters\(descriptors\), \[descriptors\]\)/.test(src),
+    'groundCasters(descriptors) alone is no longer the whole caster list',
+  );
+  // The vocabulary-only dressing is not what ships: the canvas stands the grove.
+  assert.ok(!/dressMapFromKit\(/.test(src), 'the canvas must stand the groved dressing');
+  // KitProps computes NO placement of its own — it draws what it is handed.
+  const kitProps = src.slice(src.indexOf('function KitProps('), src.indexOf('function StoryTree('));
+  assert.ok(!/dressMap|dressIsland/.test(kitProps), 'KitProps must not dress the map a second time');
+  assert.ok(!/footprint: roleFootprints/.test(src), 'no placement may be made from the LOADED kit’s footprints');
+  // And the loaded kit is still held to the frozen tables, loudly, where it is loaded.
+  assert.match(kitProps, /footprintDriftOf\(roleFootprints\(loaded\)\)/);
+  assert.match(kitProps, /heightDriftOf\(roleHeights\(loaded\)\)/);
+  assert.match(kitProps, /kitMeshes\(loaded, placements\)/);
+});
+
 test('a WISP casts nothing on the shipped map, and the canvas does not decide that for itself', () => {
   // The rule lives in `src/ground-casters.ts` (and its own test), not in a filter written here: a
   // wisp is the live-work signal, so a shadow that appeared and vanished with a session's claim

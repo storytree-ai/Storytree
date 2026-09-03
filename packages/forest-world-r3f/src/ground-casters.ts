@@ -16,6 +16,15 @@
 // texture and one rung and dropping either buys nothing; but the shadow this map can draw today
 // is bounded by its own emptiness rather than by the field, and it will grow when the props do.
 //
+// ⚠⚠ AND THE PROPS DID GROW (2026-09-03), so the finding above is now history rather than the
+// present. The bought kit crossed on 2026-08-30 and stood one object per capability plus one bloom
+// per signature; until this landing every one of them cast NOTHING — `groundCasters` knew only the
+// story tree and the cave portals, so the contact pools and cast shadows the field already carried
+// were drawn under the placeholder tree alone while eleven pines and ten flowers floated. Every
+// placement now contributes a caster ({@link placementCaster}) from the SAME placement list
+// `KitProps` draws, computed once in the canvas before the ground is built, so the shadow and the
+// object it belongs to cannot be two lists that agree today.
+//
 // ⚠ THE GEOMETRY CONSTANTS BELOW ARE THE MESHES' OWN. `ForestWorldCanvas` builds its story tree
 // from them rather than from repeated literals, so a caster cannot come to disagree with the
 // object it stands for — the same argument `bandGlsl` makes about the ladder, applied to a
@@ -23,6 +32,7 @@
 
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
 import type { GroundBounds, ShadowCaster } from './land-shadow.js';
+import { propRadius, type KitPlacement, type RoleFootprints, type RoleHeights } from './kit-vocabulary.js';
 
 /** The story tree's trunk: `cylinderGeometry(radiusTop, radiusBottom, height)`, standing on the
  *  descriptor's own y. */
@@ -95,6 +105,47 @@ export function groundCasters(descriptors: readonly Descriptor3D[]): ShadowCaste
     if (d.kind === 'story-tree') out.push(storyTreeCaster(d));
     else if (d.kind === 'cave-arch') out.push(caveArchCaster(d));
   }
+  return out;
+}
+
+/**
+ * A KIT PLACEMENT, AS AN OCCLUDER: a cylinder of its role's half-footprint and its role's height,
+ * both multiplied by the placement's own scale.
+ *
+ * ⚠ THE FROZEN TABLES, NOT THE LOADED KIT. The canvas builds its ground synchronously, before the
+ * asset is parsed, so the radius is `KIT_FOOTPRINTS_2026_08_29`'s and the height
+ * `KIT_HEIGHTS_2026_08_29`'s — the same numbers the placement was made against, held to the loaded
+ * kit by `footprintDriftOf` / `heightDriftOf` where the kit is loaded. A caster read off the asset
+ * would arrive after the field was already stamped.
+ *
+ * ⚠ THE SCALE REACHES BOTH DIMENSIONS. A grove pine at 0.6 of the role's height is 0.6 of its
+ * width too — the kit scales uniformly — so a caster that shrank the height and kept the footprint
+ * would throw a shadow wider than the crown that casts it, which is the mismatch that reads as a
+ * rendering bug rather than as art.
+ */
+export function placementCaster(
+  placement: KitPlacement,
+  footprint: RoleFootprints,
+  heights: RoleHeights,
+): ShadowCaster {
+  return {
+    x: placement.at.x,
+    z: placement.at.z,
+    radius: propRadius(footprint, placement.role) * placement.scale,
+    height: heights[placement.role] * placement.scale,
+  };
+}
+
+/** Every placement's caster, in placement order — the list `ForestWorldCanvas` unions with
+ *  {@link groundCasters} and hands to the ground. One caster per placement, none dropped: a
+ *  placement without a caster is an object that floats. */
+export function placementCasters(
+  placements: readonly KitPlacement[],
+  footprint: RoleFootprints,
+  heights: RoleHeights,
+): ShadowCaster[] {
+  const out: ShadowCaster[] = [];
+  for (const placement of placements) out.push(placementCaster(placement, footprint, heights));
   return out;
 }
 

@@ -291,7 +291,8 @@ export interface KitPlacement {
   role: KitRole;
   /** Which assembly stands here — one or more kit objects, placed as a unit. */
   assembly: KitAssembly;
-  /** The capability whose state put it here, or `story` for a whole-island signal. */
+  /** The capability whose state put it here, `story` for a whole-island signal, or
+   *  {@link GROVE_CAP_ID} for a member of a healthy island's grove (`grove-dressing.ts`). */
   capId: string;
   /** The status whose leaf tint this placement's crown wears, or `null` for an untinted form. */
   tint: string | null;
@@ -300,6 +301,19 @@ export interface KitPlacement {
   y: number;
   /** Rotation about the vertical axis, radians. */
   yaw: number;
+  /**
+   * A UNIFORM scale on top of the role's own size — 1 for every object the vocabulary stands for a
+   * capability or a signature, below 1 for a grove pine (`grove-dressing.ts` draws uniform(0.55,
+   * 0.80)), so the capability's own object stays the tallest thing on its parcel.
+   *
+   * ⚠ IT REACHES THREE PLACES AND MUST REACH ALL OF THEM: the drawn geometry (`placementScale` in
+   * `kit-mesh.ts`), the delivered extent the object floor is read against (`placementExtent`), and
+   * the shadow the placement casts (`placementCaster` in `ground-casters.ts` — radius and height
+   * both scale). A scale applied to the mesh and not to the caster would draw a small tree with a
+   * full-size shadow, which reads as a lighting bug rather than as a scale that missed a reader.
+   * The OCCUPANCY it keeps is deliberately NOT scaled — see {@link pairClearance}.
+   */
+  scale: number;
 }
 
 /**
@@ -376,8 +390,12 @@ export interface Occupancy {
   radius: number;
 }
 
+/** ONE NUMBER PER ROLE — the shape every frozen table and every measured table here shares, named
+ *  once so the four of them are one contract rather than four spellings of a dictionary. */
+export type RoleTable = Readonly<Record<KitRole, number>>;
+
 /** The ground WIDTH each role occupies, in ground units, keyed by role. */
-export type RoleFootprints = Readonly<Record<KitRole, number>>;
+export type RoleFootprints = RoleTable;
 
 /**
  * THE FOOTPRINTS THE COMMITTED ASSET DELIVERS, frozen at the 2026-08-29 re-export.
@@ -404,6 +422,72 @@ export const KIT_FOOTPRINTS_2026_08_29 = {
 /** How far the loaded kit's own footprints may sit from the frozen literal, as a fraction. */
 export const FOOTPRINT_TOLERANCE = 0.01;
 
+/** The ground HEIGHT each role reaches, in ground units, keyed by role — what a placement's shadow
+ *  is cast from (`placementCaster` in `ground-casters.ts`). */
+export type RoleHeights = RoleTable;
+
+/**
+ * THE HEIGHTS THE COMMITTED ASSET DELIVERS AT EACH ROLE'S SIZE, frozen at the 2026-08-29 re-export
+ * — the second frozen table beside {@link KIT_FOOTPRINTS_2026_08_29}, and it exists for the same
+ * reason: since 2026-09-03 every kit placement casts a shadow, the shadow is stamped from a
+ * cylinder of the placement's own radius AND height, and the placement is computed BEFORE the
+ * kit is parsed (the canvas builds its ground synchronously off these literals and never waits on
+ * the asset). A height read off the loaded kit would arrive after the ground was already shaded.
+ *
+ * The arithmetic, so a reader can recompute rather than trust: a role sized by HEIGHT delivers its
+ * declared height EXACTLY, by construction — both pines scale to 18 and the dead trunk to 15 — so
+ * those two entries are `KIT_ROLE_SIZE` restated, and `kit-vocabulary.test.ts` holds them to it. The
+ * bloom is sized by WIDTH, so its height falls out of the export's own bounds: `Red_Flower_01` is
+ * 0.980 wide (x, its widest horizontal extent) and 0.599 tall in the kit, so at 4 units wide it is
+ * `4 * 0.599 / 0.980 = 2.445` tall. `roleHeights` in `kit-mesh.ts` reads the same numbers off the
+ * loaded kit and {@link heightDriftOf} is what holds the two together.
+ */
+export const KIT_HEIGHTS_2026_08_29 = {
+  tree: 18,
+  deadTree: 15,
+  bloom: 2.445,
+} as const satisfies RoleHeights;
+
+/**
+ * WHERE A MEASURED TABLE DISAGREES WITH ITS FROZEN LITERAL, beyond {@link FOOTPRINT_TOLERANCE} —
+ * one line per role, naming both numbers, empty when the asset still delivers what was frozen.
+ *
+ * ⚠ PURE AND SHARED BY THE TWO CALLERS THAT LOAD THE KIT — `harness/kit-island-scene.ts`, which
+ * REFUSES a run over any line, and the shipped canvas, which reports every line loudly and keeps
+ * drawing (a re-exported tree at the wrong clearance is a visible defect; a map with no props on
+ * it is every capability unreported, which ADR-0392 D5 / ADR-0398 D7 rank worse). Pure so the
+ * comparison itself is proved without a GPU, which is the whole point of freezing a literal: the
+ * placement tests dress against these numbers, and this is the leg that ties them to the asset.
+ */
+export function roleDrift(measured: RoleTable, declared: RoleTable, what: string): string[] {
+  const out: string[] = [];
+  for (const role of KIT_ROLES) {
+    const want = declared[role];
+    const got = measured[role];
+    // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero) — a drift of EXACTLY
+    // the tolerance, to the last bit of a double, is one input in a continuum and the fixtures
+    // sit either side of it.
+    if (Math.abs(got - want) / want > FOOTPRINT_TOLERANCE) {
+      out.push(
+        `${role}: the loaded kit delivers a ${what} of ${got.toFixed(3)} ground units, the frozen ` +
+          `literal declares ${want} — every placement was computed against the frozen number, so ` +
+          're-measure and update the literal',
+      );
+    }
+  }
+  return out;
+}
+
+/** {@link roleDrift} against {@link KIT_FOOTPRINTS_2026_08_29}. */
+export function footprintDriftOf(measured: RoleFootprints): string[] {
+  return roleDrift(measured, KIT_FOOTPRINTS_2026_08_29, 'footprint');
+}
+
+/** {@link roleDrift} against {@link KIT_HEIGHTS_2026_08_29}. */
+export function heightDriftOf(measured: RoleHeights): string[] {
+  return roleDrift(measured, KIT_HEIGHTS_2026_08_29, 'height');
+}
+
 /**
  * THE CIRCLE ONE PROP OCCUPIES — a declared footprint is a WIDTH, so the radius is half of it.
  *
@@ -417,6 +501,58 @@ export const FOOTPRINT_TOLERANCE = 0.01;
  */
 export function propRadius(footprint: RoleFootprints, role: KitRole): number {
   return footprint[role] / 2;
+}
+
+/**
+ * THE `capId` A GROVE MEMBER WEARS — a pine that belongs to no capability and to no story
+ * signature, but to the healthy island's own forest (`grove-dressing.ts`). It is the one `capId`
+ * that names no unit of work, which is what lets every reader tell a grove pine from the
+ * capability's own without a fourth role: same `tree`, same two assemblies, same untinted green.
+ */
+export const GROVE_CAP_ID = 'grove';
+
+export function isGrovePlacement(p: KitPlacement): boolean {
+  return p.capId === GROVE_CAP_ID;
+}
+
+/**
+ * HOW MUCH CLOSER TWO GROVE MEMBERS MAY STAND THAN THEIR FOOTPRINTS ALLOW — a fraction of the
+ * clearance {@link pairClearance} would otherwise ask for.
+ *
+ * ⚠⚠ THIS IS THE ONE DECLARED RELAXATION OF THE OCCUPANCY RULE, AND IT IS DECLARED HERE SO THE
+ * DETECTOR CAN SEE IT. A stand whose crowns touch is what a grove IS (`build_land.py:1064`
+ * spreads a stand's members at σ 3.6 x 3.0 around one centre, well inside a canopy's width), so a
+ * grove placed at the full footprint would be thirteen evenly spaced rows of trees rather than
+ * thirteen clumps. Every OTHER pair keeps the full clearance: a grove member against the
+ * capability's own pine, against a dead trunk, against a bloom — because those are the objects
+ * that REPORT something, and a grove pine standing inside one is the defect the owner reported
+ * once already ("the rocks are appearing where the trees are"), wearing a different species.
+ *
+ * ⚠ THE DETECTOR READS THIS NUMBER TOO. `dressingOverlaps` measures every pair against
+ * {@link pairClearance}, so a grove member 0.44 of a footprint from another is an overlap it names
+ * and 0.46 is not — the relaxation is a rule it applies rather than a case it is blind to.
+ */
+export const GROVE_CLEARANCE = 0.45;
+
+/** The factor the full clearance is multiplied by for a pair: {@link GROVE_CLEARANCE} between two
+ *  grove members, 1 for every other pair. A named function rather than a ternary at each of the
+ *  two call sites, because two copies of one rule are two rules that agree today. */
+export function clearanceFactor(a: KitPlacement, b: KitPlacement): number {
+  return isGrovePlacement(a) && isGrovePlacement(b) ? GROVE_CLEARANCE : 1;
+}
+
+/**
+ * THE CENTRE-TO-CENTRE DISTANCE TWO PLACEMENTS MUST KEEP — the sum of their role radii, relaxed
+ * by {@link clearanceFactor}.
+ *
+ * ⚠ THE ROLE'S FULL FOOTPRINT, NEVER THE SCALED ONE. A grove pine at 0.6 of the role's height is
+ * narrower than the footprint says, and using its delivered width would let it stand closer to
+ * the capability's pine than a full-size neighbour may — which is exactly the clearance that
+ * keeps the capability's object readable. The scale reaches the geometry and the shadow
+ * (`KitPlacement.scale`); the occupancy is the role's.
+ */
+export function pairClearance(a: KitPlacement, b: KitPlacement, footprint: RoleFootprints): number {
+  return (propRadius(footprint, a.role) + propRadius(footprint, b.role)) * clearanceFactor(a, b);
 }
 
 /** How many candidates a placement is chosen from. Fixed rather than tuned: it is the resolution
@@ -446,27 +582,54 @@ const CANDIDATES_PER_PLACEMENT = 96;
  * attempts, and every answer to that is either "drop the prop" (the island under-reports) or
  * "place it anyway" (the defect, silently).
  */
-export function bestCandidate(
+export function bestCandidate<O extends Occupancy>(
   candidates: readonly GPoint[],
   radius: number,
-  occupied: readonly Occupancy[],
+  occupied: readonly O[],
+  /** What a candidate of `radius` must keep from one occupant — the sum of the two radii unless
+   *  the caller declares otherwise. The grove pass passes `groveNeed`, which relaxes the sum
+   *  between two grove members and nowhere else; see {@link pairClearance}. */
+  need: (radius: number, o: O) => number = sumOfRadii,
 ): GPoint | null {
   let best: GPoint | null = null;
   let bestClearance = -Infinity;
   for (const p of candidates) {
-    let clearance = Infinity;
-    for (const o of occupied) {
-      const gap = Math.hypot(p.x - o.x, p.z - o.z) - (radius + o.radius);
-      // Stryker disable next-line EqualityOperator: EQUIVALENT — on a tie the assignment stores
-      // the value already in `clearance`, so `<` and `<=` differ only in whether a no-op runs.
-      if (gap < clearance) clearance = gap;
-    }
+    const clearance = worstClearance(p, radius, occupied, need);
     if (clearance > bestClearance) {
       bestClearance = clearance;
       best = p;
     }
   }
   return best;
+}
+
+/** The clearance a candidate must keep from an occupant when nothing is declared: their two radii,
+ *  summed — the rule every capability tree and every bloom is placed by. */
+export function sumOfRadii(radius: number, o: Occupancy): number {
+  return radius + o.radius;
+}
+
+/**
+ * THE WORST CLEARANCE A POINT HAS AGAINST EVERYTHING STANDING — `distance − need`, minimised over
+ * the occupants; `Infinity` when nothing stands yet. Negative means the point is inside something's
+ * clearance. The search above maximises it; the grove pass ({@link ../grove-dressing}) reads it
+ * directly to accept or reject one gaussian sample, so the two callers keep props apart by ONE
+ * arithmetic rather than two that agree today.
+ */
+export function worstClearance<O extends Occupancy>(
+  p: GPoint,
+  radius: number,
+  occupied: readonly O[],
+  need: (radius: number, o: O) => number = sumOfRadii,
+): number {
+  let clearance = Infinity;
+  for (const o of occupied) {
+    const gap = Math.hypot(p.x - o.x, p.z - o.z) - need(radius, o);
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — on a tie the assignment stores
+    // the value already in `clearance`, so `<` and `<=` differ only in whether a no-op runs.
+    if (gap < clearance) clearance = gap;
+  }
+  return clearance;
 }
 
 export interface KitDressingOptions {
@@ -532,7 +695,10 @@ export function dressIslandFromKit(opts: KitDressingOptions): KitPlacement[] {
     const at = bestCandidate(candidatePoints(from, CANDIDATES_PER_PLACEMENT, seed), radius, occupied);
     if (!at) return;
     occupied.push({ x: at.x, z: at.z, radius });
-    out.push({ role, assembly, capId, tint, at, y: heightAt(at.x, at.z), yaw });
+    // ⚠ `scale: 1` BY STATEMENT. Everything this function stands REPORTS something — a
+    // capability's state, a story's signature — and stands at its role's full size; the only
+    // placements below 1 are the grove's, which are placed by `grove-dressing.ts` after this.
+    out.push({ role, assembly, capId, tint, at, y: heightAt(at.x, at.z), yaw, scale: 1 });
   };
 
   facts.forEach((fact, fi) => {
@@ -589,6 +755,13 @@ export interface PropOverlap {
  * warns about. This reads the finished placements and the kit's own footprints, and
  * `kit-vocabulary.test.ts` runs it over a deliberately naive placement too, so a detector that
  * could never fire would be caught.
+ *
+ * ⚠ IT MEASURES AGAINST {@link pairClearance}, WHICH IS THE PLACEMENT'S OWN RULE. Two grove
+ * members may stand at `GROVE_CLEARANCE` of their footprints and every other pair keeps the full
+ * sum, so the relaxation is something this detector APPLIES and names — a grove member inside a
+ * capability's pine is still an overlap, and two grove members closer than the relaxed clearance
+ * are too. A detector that knew only the full rule would report every stand as thirty defects,
+ * and one that knew only the relaxed rule would miss the defect the owner reported.
  */
 export function dressingOverlaps(
   placements: readonly KitPlacement[],
@@ -600,7 +773,7 @@ export function dressingOverlaps(
   // it, and `check:mutation-diff` scores that as unproven rather than as harmless.
   for (const [i, a] of placements.entries()) {
     for (const b of placements.slice(i + 1)) {
-      const need = propRadius(footprint, a.role) + propRadius(footprint, b.role);
+      const need = pairClearance(a, b, footprint);
       const gap = Math.hypot(a.at.x - b.at.x, a.at.z - b.at.z) - need;
       if (gap < 0) {
         out.push({ a: `${a.role}:${a.capId}`, b: `${b.role}:${b.capId}`, gap });
@@ -624,7 +797,10 @@ export interface DressingCensus {
 export function dressingCensus(placements: readonly KitPlacement[]): DressingCensus {
   const out: DressingCensus = {};
   for (const p of placements) {
-    const key = p.tint ? `${p.role}:${p.tint}` : p.role;
+    // ⚠ A GROVE MEMBER IS COUNTED UNDER ITS OWN KEY, never under `tree`: it wears the same role
+    // and the same untinted needles as a healthy capability's pine, and a census that folded the
+    // two together would report a forested island as an island of sixty capabilities.
+    const key = isGrovePlacement(p) ? GROVE_CAP_ID : p.tint ? `${p.role}:${p.tint}` : p.role;
     out[key] = (out[key] ?? 0) + 1;
   }
   return out;

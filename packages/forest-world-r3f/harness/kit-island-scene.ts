@@ -38,11 +38,10 @@ import {
   loadKit,
   placementExtent,
   roleFootprints,
+  roleHeights,
 } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
 import {
-  FOOTPRINT_TOLERANCE,
-  KIT_FOOTPRINTS_2026_08_29,
   KIT_ROLES,
   KIT_ROLE_SIZE,
   KIT_ROLE_SIGNAL,
@@ -51,6 +50,8 @@ import {
   dressIslandFromKit,
   dressingCensus,
   dressingOverlaps,
+  footprintDriftOf,
+  heightDriftOf,
 } from './kit-vocabulary.js';
 import type { KitPlacement, KitRole, PropOverlap, RoleFootprints } from './kit-vocabulary.js';
 import { calibrateLights } from './pine-scene.js';
@@ -172,22 +173,14 @@ export function placements(kit: LoadedKit): KitPlacement[] {
  * with, so every placement assertion in `kit-vocabulary.test.ts` is made against that table. This
  * is the leg that ties it to the asset: a re-export that changed a tree's proportions would move
  * every placement on every island, and the node tests would keep passing against the old numbers.
+ *
+ * ⚠ THE COMPARISON ITSELF CROSSED (2026-09-03) — `footprintDriftOf` / `heightDriftOf` in
+ * `src/kit-vocabulary.ts` — because the shipped canvas now places synchronously off the frozen
+ * tables and casts every placement's shadow from them, so it needs the same check where the kit
+ * is loaded. This is the harness's reading of it: both tables, the loaded kit's own numbers.
  */
 export function footprintDrift(kit: LoadedKit): string[] {
-  const measured = roleFootprints(kit);
-  const out: string[] = [];
-  for (const role of KIT_ROLES) {
-    const want = KIT_FOOTPRINTS_2026_08_29[role];
-    const got = measured[role];
-    if (Math.abs(got - want) / want > FOOTPRINT_TOLERANCE) {
-      out.push(
-        `${role}: the loaded kit occupies ${got.toFixed(3)} ground units, ` +
-          `KIT_FOOTPRINTS_2026_08_29 declares ${want} — the pure tests placed against the wrong ` +
-          'clearances, so re-measure and update the literal',
-      );
-    }
-  }
-  return out;
+  return [...footprintDriftOf(roleFootprints(kit)), ...heightDriftOf(roleHeights(kit))];
 }
 
 // ------------------------------------------------------------------ what the page reports

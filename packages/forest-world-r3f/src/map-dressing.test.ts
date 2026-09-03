@@ -24,10 +24,16 @@ import {
   type SceneTerritoryInput,
 } from '@storytree/forest-world';
 
-import { dressMapFromKit, signedCriteriaByIsland } from './map-dressing.js';
-import { KIT_FOOTPRINTS_2026_08_29 } from './kit-vocabulary.js';
+import { SHIPPED_COAST, clipToCoast } from './coast-clip.js';
+import { GROVE_BEACH, GROVE_WEAR_CEILING, islandExclusion } from './grove-dressing.js';
+import { islandPaths, islandRims } from './island-path.js';
+import { dressMapFromKit, dressMapWithGroves, signedCriteriaByIsland } from './map-dressing.js';
+import { KIT_FOOTPRINTS_2026_08_29, isGrovePlacement } from './kit-vocabulary.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
-import { worldTo3D, type Descriptor3D } from './world-to-3d.js';
+import { WEAR_FALLOFF, wearOf } from './land-wear.js';
+import { shoreField } from './shore-fall.js';
+import { wearField } from './trail-wear.js';
+import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from './world-to-3d.js';
 
 const FOOT = KIT_FOOTPRINTS_2026_08_29;
 
@@ -369,4 +375,155 @@ test('GROUND IS NOT A SIGNATURE — a map of nothing but cells signs nothing', (
   );
   assert.equal(ground.filter((d) => d.kind === 'uat-bloom').length, 0, 'and no signature at all');
   assertSignatures(ground, {});
+});
+
+// ---------------------------------------------------------------------------
+// THE GROVES (2026-09-03) — grown on the healthy island, and only there
+// ---------------------------------------------------------------------------
+//
+// ⚠ A BIGGER FIXTURE FOR THIS HALF: seven hexes per island rather than three, so the island holds
+// stands worth counting once the beach band and the capability trees have taken their clearance.
+// The two islands are far apart in x, as above, and their STATUSES are the fixture's parameter —
+// which is the whole question here.
+
+const RING_A = [
+  { q: 0, r: 0 },
+  { q: 1, r: 0 },
+  { q: 0, r: 1 },
+  { q: -1, r: 1 },
+  { q: -1, r: 0 },
+  { q: 0, r: -1 },
+  { q: 1, r: -1 },
+] as const;
+const RING_B = RING_A.map((h) => ({ q: h.q + 14, r: h.r }));
+
+const BIG_MAPS = new Map<string, Descriptor3D[]>();
+
+/** Two seven-hex islands, each of the status asked for, each signing every criterion it holds.
+ *  Memoised for the same mutation-rung reason `twoStoryMap` is. */
+function bigMap(aStatus: SceneStatus = 'healthy', bStatus: SceneStatus = 'healthy'): Descriptor3D[] {
+  const key = `${aStatus}|${bStatus}`;
+  const cached = BIG_MAPS.get(key);
+  if (cached) return cached;
+  const drawTiles = [...RING_A.map((h) => ({ h, owner: 0 })), ...RING_B.map((h) => ({ h, owner: 1 }))];
+  const wheatSets = [new Set<string>(), new Set<string>()];
+  const input: SceneInput = {
+    offset: { x: 0, y: 0 },
+    width: 1600,
+    height: 900,
+    empties: [],
+    relaxedCells: buildRelaxedCells(drawTiles, wheatSets, 'mesh'),
+    drawTiles,
+    wheatSets,
+    trails: { segments: [], edges: [], caves: [], dropped: [] },
+    territories: [
+      territory(STORY_A, RING_A, ['atlas-parse', 'atlas-store', 'atlas-sign'], { total: 3, signed: 3 }, aStatus),
+      territory(STORY_B, RING_B, ['beacon-emit', 'beacon-ack'], { total: 2, signed: 2 }, bStatus),
+    ],
+    vegetation: {},
+  };
+  const built = worldTo3D(buildScene(input));
+  BIG_MAPS.set(key, built);
+  return built;
+}
+
+const dressGroved = (descriptors: readonly Descriptor3D[]) =>
+  dressMapWithGroves(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: FOOT });
+
+const groundOf = (map: readonly Descriptor3D[], story: string): InstanceDescriptor[] =>
+  map.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground' && d.island === story);
+
+const spanOf = (map: readonly Descriptor3D[], story: string) => {
+  const xs = groundOf(map, story).flatMap((d) => (d.points ?? []).map((p) => p.x));
+  return { min: Math.min(...xs), max: Math.max(...xs) };
+};
+
+test('the vocabulary-only dressing grows no grove; the shipped dressing grows one on the healthy island ONLY', () => {
+  const map = bigMap('healthy', 'proposed');
+  assert.equal(dress(map).filter(isGrovePlacement).length, 0, 'dressMapFromKit grew a grove');
+  const groved = dressGroved(map);
+  const groves = groved.filter(isGrovePlacement);
+  assert.ok(groves.length > 0, 'the healthy island grew no grove');
+  const a = spanOf(map, STORY_A);
+  const b = spanOf(map, STORY_B);
+  assert.ok(a.max < b.min, 'the fixture keeps the two islands disjoint in x');
+  for (const g of groves) assert.ok(g.at.x >= a.min && g.at.x <= a.max, `a grove pine off the healthy island at x=${g.at.x}`);
+  assert.equal(groves.filter((g) => g.at.x >= b.min).length, 0, 'the proposed island wears a grove');
+  // ⚠ AND THE VOCABULARY IS UNTOUCHED BY IT: the non-grove placements are `dressMapFromKit`'s own,
+  // in order — the grove is placed AFTER each island's objects and moves none of them.
+  assert.deepEqual(groved.filter((p) => !isGrovePlacement(p)), dress(map));
+});
+
+test('no story that is not healthy grows a grove — unknown, unhealthy, mapped, building, proposed', () => {
+  for (const status of ['unknown', 'unhealthy', 'mapped', 'building', 'proposed'] as const) {
+    assert.equal(dressGroved(bigMap(status, status)).filter(isGrovePlacement).length, 0, `${status} grew a grove`);
+  }
+  // NON-VACUITY: both healthy, both grow — and two islands of one shape are not one grove twice,
+  // because the seed is the island's id.
+  const map = bigMap('healthy', 'healthy');
+  const both = dressGroved(map).filter(isGrovePlacement);
+  const a = spanOf(map, STORY_A);
+  const b = spanOf(map, STORY_B);
+  const inA = both.filter((g) => g.at.x <= a.max);
+  const inB = both.filter((g) => g.at.x >= b.min);
+  assert.ok(inA.length > 0 && inB.length > 0, `${inA.length} on atlas, ${inB.length} on beacon`);
+  assert.equal(inA.length + inB.length, both.length, 'a grove pine in the sea between them');
+  assert.notDeepEqual(
+    inA.map((g) => Number((g.at.x - a.min).toFixed(3))),
+    inB.map((g) => Number((g.at.x - b.min).toFixed(3))),
+  );
+});
+
+test('⚠⚠ THE GROVE KEEPS OFF THE BEACH AND THE PATH, judged by the ground’s OWN distance fields', () => {
+  const map = bigMap('healthy', 'proposed');
+  // A trail strip arriving from the east and ending ON the healthy island's clipped rim — its
+  // easternmost rim vertex — so the connector docks it there and wears a path to the centroid.
+  const clippedA = clipToCoast(groundOf(map, STORY_A), SHIPPED_COAST);
+  const rim = islandRims(clippedA).find((r) => r.island === STORY_A);
+  assert.ok(rim !== undefined, 'the healthy island has no rim');
+  let landing = rim.loops[0]![0]!;
+  for (const loop of rim.loops) for (const p of loop) if (p.x > landing.x) landing = p;
+  const offshore = { x: landing.x + 40, z: landing.z };
+  const strip: InstanceDescriptor = {
+    kind: 'trail-strip',
+    transform: { x: (landing.x + offshore.x) / 2, y: 0, z: landing.z },
+    group: 'trail-strip',
+    points: [
+      { x: offshore.x, y: 0, z: offshore.z },
+      { x: (landing.x + offshore.x) / 2, y: 0, z: landing.z },
+      { x: landing.x, y: 0, z: landing.z },
+    ],
+    width: 3,
+    usage: 1,
+    hidden: false,
+    edges: [],
+    segment: `${STORY_A}/east`,
+  };
+  const withStrip = [...map, strip];
+  const paths = [...islandPaths(clippedA, [strip]).values()].flat();
+  assert.ok(paths.length === 1 && paths[0]!.length > 2, 'the strip docked nowhere — the fixture proves nothing');
+
+  const groves = dressGroved(withStrip).filter(isGrovePlacement);
+  assert.ok(groves.length > 0);
+  const wear = wearField(paths, WEAR_FALLOFF);
+  const shore = shoreField(clippedA, GROVE_BEACH);
+  for (const g of groves) {
+    assert.ok(wearOf(wear.sample(g.at.x, g.at.z).distance) < GROVE_WEAR_CEILING, `a grove pine on the path at ${g.at.x}, ${g.at.z}`);
+    assert.ok(shore.sample(g.at.x, g.at.z).distance >= GROVE_BEACH, `a grove pine on the beach at ${g.at.x}, ${g.at.z}`);
+  }
+  // ⚠ NON-VACUITY: the exclusion the dressing honoured CAN refuse — a point on the path, the
+  // landing itself (which sits on the coast), the centroid the one-dock path ends at — and every
+  // grove pine passes it.
+  const ex = islandExclusion(withStrip, STORY_A);
+  const onPath = paths[0]![Math.floor(paths[0]!.length / 2)]!;
+  assert.equal(ex.clear(onPath.x, onPath.z), false, 'the path’s middle is clear — the path never reached the exclusion');
+  assert.equal(ex.clear(landing.x, landing.z), false, 'the coast is clear — the beach never reached the exclusion');
+  assert.equal(ex.clear(rim.centroid.x, rim.centroid.z), false, 'the one-dock path ends at the centroid');
+  for (const g of groves) assert.equal(ex.clear(g.at.x, g.at.z), true);
+  // And WITHOUT the strip the centroid is clear, which is what shows the refusal came from the dock.
+  assert.equal(islandExclusion(map, STORY_A).clear(rim.centroid.x, rim.centroid.z), true);
+});
+
+test('the groved dressing is deterministic — the same map dresses identically twice', () => {
+  assert.deepEqual(dressGroved(bigMap('healthy', 'proposed')), dressGroved(bigMap('healthy', 'proposed')));
 });

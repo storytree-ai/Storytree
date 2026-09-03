@@ -16,8 +16,12 @@ import test from 'node:test';
 
 import { decodeKitAsset } from './kit-asset.js';
 import {
+  FOOTPRINT_TOLERANCE,
+  GROVE_CAP_ID,
+  GROVE_CLEARANCE,
   KIT_ASSEMBLIES,
   KIT_FOOTPRINTS_2026_08_29,
+  KIT_HEIGHTS_2026_08_29,
   KIT_ROLES,
   KIT_ROLE_ASSEMBLIES,
   KIT_ROLE_SIGNAL,
@@ -30,18 +34,26 @@ import {
   bestCandidate,
   candidatePoints,
   capabilityFactsFrom,
+  clearanceFactor,
   clearsObjectFloor,
   deliveredHeightPx,
   deliveredRolePx,
   dressIslandFromKit,
   dressingCensus,
   dressingOverlaps,
+  footprintDriftOf,
+  heightDriftOf,
+  isGrovePlacement,
   kitObjectNames,
+  pairClearance,
   propRadius,
+  roleDrift,
   sizeClearsObjectFloor,
   propStream,
   stateForm,
+  sumOfRadii,
   tintedStates,
+  worstClearance,
 } from './kit-vocabulary.js';
 import type { CapabilityFacts, KitPlacement, KitRole } from './kit-vocabulary.js';
 import { LEAF_TINT_TOKEN } from './leaf-tint.js';
@@ -393,6 +405,7 @@ test('THE OVERLAP DETECTOR CAN FIRE — it is not a check that passes on everyth
     at: { x, z },
     y: 0,
     yaw: 0,
+    scale: 1,
   });
   assert.equal(dressingOverlaps([at(0, 0), at(0, 0)], FOOT).length, 1);
   assert.equal(dressingOverlaps([at(0, 0), at(FOOT.tree * 0.999, 0)], FOOT).length, 1);
@@ -880,6 +893,7 @@ test('an overlap is named by role and capability, measured, and reported WORST F
     at: { x: 300 + x, z: -200 },
     y: 0,
     yaw: 0,
+    scale: 1,
   });
   // ⚠⚠ A FOOTPRINT WHOSE HALVES SUM EXACTLY, and gaps whose INSERTION order is neither ascending
   // nor descending. A comparator that returns the same sign for every pair does not leave an array
@@ -986,4 +1000,147 @@ test('the object floor is read against the size’s OWN axis, at its own thresho
   }
   assert.equal(clearsObjectFloor('tree'), true);
   assert.equal(clearsObjectFloor('bloom'), false);
+});
+
+// ---------------------------------------------------------------------------
+// the grove's declared relaxation, the frozen heights and the drift checks (2026-09-03)
+// ---------------------------------------------------------------------------
+
+/** A placement away from the origin on both axes, so a sign error cannot cancel. */
+const stood = (role: KitRole, capId: string, x: number, scale = 1): KitPlacement => ({
+  role,
+  assembly: role === 'bloom' ? 'flower' : role === 'deadTree' ? 'pine-dead' : 'pine-a',
+  capId,
+  tint: null,
+  at: { x: 300 + x, z: -200 },
+  y: 0,
+  yaw: 0,
+  scale,
+});
+
+test('a grove member is named by its capId alone, and the relaxation reaches a grove PAIR only', () => {
+  assert.equal(GROVE_CAP_ID, 'grove');
+  assert.equal(isGrovePlacement(stood('tree', GROVE_CAP_ID, 0)), true);
+  assert.equal(isGrovePlacement(stood('tree', 'cap-0', 0)), false);
+  assert.equal(isGrovePlacement(stood('bloom', 'story', 0)), false);
+  assert.equal(clearanceFactor(stood('tree', GROVE_CAP_ID, 0), stood('tree', GROVE_CAP_ID, 5)), GROVE_CLEARANCE);
+  assert.equal(clearanceFactor(stood('tree', GROVE_CAP_ID, 0), stood('tree', 'cap-0', 5)), 1);
+  assert.equal(clearanceFactor(stood('tree', 'cap-0', 0), stood('tree', GROVE_CAP_ID, 5)), 1, 'either order');
+  assert.equal(clearanceFactor(stood('tree', 'cap-0', 0), stood('tree', 'cap-1', 5)), 1);
+  assert.equal(clearanceFactor(stood('bloom', 'story', 0), stood('tree', GROVE_CAP_ID, 5)), 1);
+  assert.equal(GROVE_CLEARANCE, 0.45);
+  assert.ok(GROVE_CLEARANCE > 0 && GROVE_CLEARANCE < 1, 'a relaxation, not a widening and not a licence to stack');
+});
+
+test('pairClearance is the two role radii summed, relaxed for two grove members, and NEVER scaled', () => {
+  assert.equal(pairClearance(stood('tree', 'cap-0', 0), stood('tree', 'cap-1', 0), FOOT), FOOT.tree);
+  assert.equal(pairClearance(stood('tree', 'cap-0', 0), stood('bloom', 'story', 0), FOOT), FOOT.tree / 2 + FOOT.bloom / 2);
+  assert.equal(pairClearance(stood('deadTree', 'cap-0', 0), stood('bloom', 'story', 0), FOOT), FOOT.deadTree / 2 + FOOT.bloom / 2);
+  assert.ok(
+    Math.abs(pairClearance(stood('tree', GROVE_CAP_ID, 0), stood('tree', GROVE_CAP_ID, 0), FOOT) - FOOT.tree * GROVE_CLEARANCE) < 1e-12,
+  );
+  assert.equal(pairClearance(stood('tree', GROVE_CAP_ID, 0), stood('tree', 'cap-0', 0), FOOT), FOOT.tree);
+  assert.equal(pairClearance(stood('tree', GROVE_CAP_ID, 0), stood('bloom', 'story', 0), FOOT), FOOT.tree / 2 + FOOT.bloom / 2);
+  // ⚠ The scale does not enter: a grove pine at 0.55 keeps the ROLE's clearance from the
+  // capability's own, which is what keeps that pine readable.
+  assert.equal(pairClearance(stood('tree', GROVE_CAP_ID, 0, 0.55), stood('tree', 'cap-0', 0), FOOT), FOOT.tree);
+  assert.equal(pairClearance(stood('tree', 'cap-0', 0, 0.5), stood('tree', 'cap-1', 0, 0.5), FOOT), FOOT.tree);
+});
+
+test('THE DETECTOR APPLIES THE RELAXATION: two grove pines may touch crowns, and it still fires inside it', () => {
+  const g = (x: number): KitPlacement => stood('tree', GROVE_CAP_ID, x);
+  assert.deepEqual(dressingOverlaps([g(0), g(FOOT.tree * 0.5)], FOOT), []);
+  assert.deepEqual(dressingOverlaps([g(0), g(FOOT.tree * 0.46)], FOOT), []);
+  const inside = dressingOverlaps([g(0), g(FOOT.tree * 0.44)], FOOT);
+  assert.equal(inside.length, 1, 'two grove pines inside the relaxed clearance went undetected');
+  assert.ok(Math.abs(inside[0]!.gap - (FOOT.tree * 0.44 - FOOT.tree * GROVE_CLEARANCE)) < 1e-9);
+  assert.equal(inside[0]!.a, `tree:${GROVE_CAP_ID}`);
+  assert.equal(inside[0]!.b, `tree:${GROVE_CAP_ID}`);
+  // ⚠ And a grove pine inside a CAPABILITY's pine is still an overlap at the FULL footprint —
+  // the defect the owner reported, wearing a different species.
+  assert.equal(dressingOverlaps([stood('tree', 'cap-0', 0), g(FOOT.tree * 0.9)], FOOT).length, 1);
+  assert.equal(dressingOverlaps([stood('tree', 'cap-0', 0), g(FOOT.tree * 1.01)], FOOT).length, 0);
+  const bloomNeed = FOOT.tree / 2 + FOOT.bloom / 2;
+  assert.equal(dressingOverlaps([stood('bloom', 'story', 0), g(bloomNeed * 0.9)], FOOT).length, 1);
+  assert.equal(dressingOverlaps([stood('bloom', 'story', 0), g(bloomNeed * 1.01)], FOOT).length, 0);
+});
+
+test('the census counts a grove under its own key, never as a capability’s tree', () => {
+  const census = dressingCensus([
+    stood('tree', 'cap-0', 0),
+    stood('tree', GROVE_CAP_ID, 20, 0.6),
+    stood('tree', GROVE_CAP_ID, 40, 0.7),
+    stood('bloom', 'story', 60),
+  ]);
+  assert.deepEqual(census, { tree: 1, [GROVE_CAP_ID]: 2, bloom: 1 });
+});
+
+test('the frozen HEIGHTS: the height-sized roles are their declared sizes, the bloom is measured', () => {
+  assert.equal(KIT_HEIGHTS_2026_08_29.tree, KIT_ROLE_SIZE.tree.units);
+  assert.equal(KIT_HEIGHTS_2026_08_29.deadTree, KIT_ROLE_SIZE.deadTree.units);
+  assert.equal(KIT_ROLE_SIZE.bloom.axis, 'width', 'the one role whose height has to be measured');
+  // `Red_Flower_01` is 0.980 wide and 0.599 tall in the export, so at 4 units wide it is 2.445 tall.
+  assert.ok(Math.abs(KIT_HEIGHTS_2026_08_29.bloom - (KIT_ROLE_SIZE.bloom.units * 0.599) / 0.98) < 1e-3);
+  assert.equal(KIT_HEIGHTS_2026_08_29.bloom, 2.445);
+  assert.ok(KIT_HEIGHTS_2026_08_29.bloom < MIN_PROP_HEIGHT, 'a flower is under the height floor — it is sized by width');
+  for (const role of KIT_ROLES) assert.ok(KIT_HEIGHTS_2026_08_29[role] > 0, `${role} has no height`);
+});
+
+test('the drift checks name the role and both numbers past the tolerance, and nothing within it', () => {
+  assert.deepEqual(footprintDriftOf(FOOT), []);
+  assert.deepEqual(heightDriftOf(KIT_HEIGHTS_2026_08_29), []);
+  const lines = footprintDriftOf({ ...FOOT, tree: FOOT.tree * 1.02 });
+  assert.equal(lines.length, 1);
+  assert.match(lines[0]!, /^tree: /);
+  assert.match(lines[0]!, /footprint/);
+  assert.ok(lines[0]!.includes(String(FOOT.tree)), 'the frozen number');
+  assert.ok(lines[0]!.includes((FOOT.tree * 1.02).toFixed(3)), 'the measured number');
+  // ⚠ THE LINE MUST SAY WHAT TO DO, and it is asserted because it is the WHOLE point of the check:
+  // this fires in the shipped canvas's console (`ForestWorldCanvas`), where nothing refuses the run
+  // — a reader who is told only that two numbers differ does not know that every placement and
+  // every shadow on the map was already computed against the frozen one.
+  assert.ok(
+    lines[0]!.includes('every placement was computed against the frozen number'),
+    'the drift line does not say why it matters',
+  );
+  assert.ok(lines[0]!.endsWith('re-measure and update the literal'), 'the drift line does not say what to do');
+  assert.equal(footprintDriftOf({ ...FOOT, bloom: FOOT.bloom * 0.98 }).length, 1, 'a LOW drift counts too');
+  assert.deepEqual(footprintDriftOf({ ...FOOT, deadTree: FOOT.deadTree * 1.009 }), [], 'inside the tolerance');
+  assert.equal(footprintDriftOf({ tree: FOOT.tree * 2, deadTree: FOOT.deadTree * 2, bloom: FOOT.bloom * 2 }).length, 3);
+  const heights = heightDriftOf({ ...KIT_HEIGHTS_2026_08_29, bloom: 3 });
+  assert.equal(heights.length, 1);
+  assert.match(heights[0]!, /^bloom: .*height/);
+  assert.equal(FOOTPRINT_TOLERANCE, 0.01);
+  // The generic reads the DECLARED table it is handed rather than a fixed one.
+  assert.deepEqual(roleDrift(FOOT, FOOT, 'x'), []);
+  assert.equal(roleDrift(FOOT, KIT_HEIGHTS_2026_08_29, 'x').length, 3);
+});
+
+test('the search takes a declared need, and its default is the two radii summed', () => {
+  assert.equal(sumOfRadii(3, { x: 0, z: 0, radius: 4 }), 7);
+  const occupied = [
+    { x: 0, z: 0, radius: 2 },
+    { x: 30, z: 0, radius: 8 },
+  ];
+  // The worst clearance of one point: min(10 − 3, 20 − 9) = 7 by the default need.
+  assert.equal(worstClearance({ x: 10, z: 0 }, 1, occupied), 7);
+  // A declared need that charges ten times the occupant's radius: min(10 − 20, 20 − 80) = −60.
+  const tenfold = (_radius: number, o: { radius: number }): number => o.radius * 10;
+  assert.equal(worstClearance({ x: 10, z: 0 }, 1, occupied, tenfold), -60);
+  assert.equal(worstClearance({ x: 10, z: 0 }, 1, []), Infinity, 'nothing standing: no bound at all');
+  // And the search reads it: under the default the widest worst case is x=12; under the tenfold
+  // need the gaps are −60 / −66 / −62, so the first candidate wins.
+  const candidates = [
+    { x: 10, z: 0 },
+    { x: 16, z: 0 },
+    { x: 12, z: 0 },
+  ];
+  assert.deepEqual(bestCandidate(candidates, 1, occupied), { x: 12, z: 0 });
+  assert.deepEqual(bestCandidate(candidates, 1, occupied, tenfold), { x: 10, z: 0 });
+});
+
+test('every object the vocabulary stands is at scale 1 — only a grove is ever smaller', () => {
+  const placements = dress(island(['healthy', 'mapped', 'unhealthy', 'proposed']), { blooms: 3 });
+  assert.ok(placements.length >= 7);
+  for (const p of placements) assert.equal(p.scale, 1, `${p.role}:${p.capId} is at scale ${p.scale}`);
 });

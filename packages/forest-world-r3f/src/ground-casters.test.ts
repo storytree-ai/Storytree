@@ -16,9 +16,12 @@ import {
   caveMouthHalfWidth,
   groundBounds,
   groundCasters,
+  placementCaster,
+  placementCasters,
   storyTreeCaster,
   storyTreeTop,
 } from './ground-casters.js';
+import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, type KitPlacement } from './kit-vocabulary.js';
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
 
 const at = (kind: InstanceDescriptor['kind'], x: number, z: number): InstanceDescriptor => ({
@@ -137,4 +140,68 @@ test('a parcel with NO RING is skipped rather than poisoning the bounds of the o
   const pointless = at('cell-ground', 99, 99);
   assert.deepEqual(groundBounds([pointless, real]), { minX: -4, maxX: 6, minZ: -2, maxZ: 3 });
   assert.deepEqual(groundBounds([real, pointless]), { minX: -4, maxX: 6, minZ: -2, maxZ: 3 });
+});
+
+// ---------------------------------------------------------------------------
+// the kit's placements, as occluders (2026-09-03)
+// ---------------------------------------------------------------------------
+
+const FOOT = KIT_FOOTPRINTS_2026_08_29;
+const HEIGHTS = KIT_HEIGHTS_2026_08_29;
+
+const placed = (role: KitPlacement['role'], x: number, z: number, scale: number): KitPlacement => ({
+  role,
+  assembly: role === 'bloom' ? 'flower' : role === 'deadTree' ? 'pine-dead' : 'pine-a',
+  capId: 'cap-0',
+  tint: null,
+  at: { x, z },
+  // ⚠ A NON-ZERO y, which the caster must NOT read: its height is measured from the land at its
+  // own foot, and the placement's y already IS that land.
+  y: 4.5,
+  yaw: 1,
+  scale,
+});
+
+test('a placement casts a cylinder of its role’s half-footprint and height, at its own point', () => {
+  assert.deepEqual(placementCaster(placed('tree', 30, -6, 1), FOOT, HEIGHTS), {
+    x: 30,
+    z: -6,
+    radius: FOOT.tree / 2,
+    height: HEIGHTS.tree,
+  });
+  assert.deepEqual(placementCaster(placed('deadTree', 1, 2, 1), FOOT, HEIGHTS), {
+    x: 1,
+    z: 2,
+    radius: FOOT.deadTree / 2,
+    height: HEIGHTS.deadTree,
+  });
+  assert.deepEqual(placementCaster(placed('bloom', 1, 2, 1), FOOT, HEIGHTS), {
+    x: 1,
+    z: 2,
+    radius: FOOT.bloom / 2,
+    height: HEIGHTS.bloom,
+  });
+});
+
+test('the placement’s scale reaches BOTH the radius and the height of its caster', () => {
+  // ⚠ The kit scales uniformly, so a grove pine at 0.6 is 0.6 as wide as it is tall. A caster
+  // that scaled one and not the other would throw a shadow the wrong size for its crown.
+  const half = placementCaster(placed('tree', 0, 0, 0.5), FOOT, HEIGHTS);
+  assert.equal(half.radius, FOOT.tree / 4);
+  assert.equal(half.height, HEIGHTS.tree / 2);
+  const grove = placementCaster(placed('tree', 0, 0, 0.6), FOOT, HEIGHTS);
+  assert.ok(Math.abs(grove.radius - (FOOT.tree / 2) * 0.6) < 1e-12);
+  assert.ok(Math.abs(grove.height - 18 * 0.6) < 1e-12);
+});
+
+test('every placement casts, in placement order, and none is dropped', () => {
+  const list = [placed('tree', 1, 1, 1), placed('bloom', 2, 2, 1), placed('tree', 3, 3, 0.7)];
+  const casters = placementCasters(list, FOOT, HEIGHTS);
+  assert.equal(casters.length, list.length);
+  assert.deepEqual(
+    casters,
+    list.map((p) => placementCaster(p, FOOT, HEIGHTS)),
+  );
+  assert.deepEqual(casters.map((c) => c.x), [1, 2, 3]);
+  assert.deepEqual(placementCasters([], FOOT, HEIGHTS), []);
 });
