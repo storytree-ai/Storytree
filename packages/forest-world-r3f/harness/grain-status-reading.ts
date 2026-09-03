@@ -30,7 +30,13 @@
 import { deliveredForLevel, toHex, type Rgb255 } from '../src/shade-ladder.js';
 import { shadowLadderFor } from '../src/shadow-rung.js';
 import { GRAIN_COLOUR_MIX, grainStops } from './land-grain.js';
-import { FLAT_GROUND_LEVEL, colourDistance2, nearestStatus } from './shadow-ladder.js';
+import {
+  FLAT_GROUND_LEVEL,
+  type ReaderRow,
+  colourDistance2,
+  nearestStatusIn,
+  readerRows,
+} from './shadow-ladder.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
 
 /**
@@ -181,14 +187,27 @@ export function marginAgainst(
   family: ReadonlySet<string>,
   table: Record<string, Rgb255[]>,
 ): ReadMargin {
+  return marginAgainstRows(colour, family, readerRows(table));
+}
+
+/** {@link marginAgainst} over rows already flattened by {@link readerRows} — the form a walk calls.
+ *
+ *  The hoist this enables is the same one `marginAgainst` was already made for, one level further
+ *  out: that resolved the FAMILY once per walk instead of once per sample, and this resolves the
+ *  TABLE's iteration order the same way. `Object.entries(table)` inside the loop allocated a fresh
+ *  array of pairs per sample to re-read a table that never changes — measured at nine tenths of this
+ *  primitive's cost (652 ms -> 69 ms over 2,000,000 calls, identical results). */
+export function marginAgainstRows(
+  colour: Rgb255,
+  family: ReadonlySet<string>,
+  rows: readonly ReaderRow[],
+): ReadMargin {
   let own = Infinity;
   let foreign = Infinity;
-  for (const [st, entries] of Object.entries(table)) {
-    for (const entry of entries) {
-      const d = Math.sqrt(colourDistance2(colour, entry));
-      if (family.has(st)) own = Math.min(own, d);
-      else foreign = Math.min(foreign, d);
-    }
+  for (const row of rows) {
+    const d = Math.sqrt(colourDistance2(colour, row.colour));
+    if (family.has(row.status)) own = Math.min(own, d);
+    else foreign = Math.min(foreign, d);
   }
   return { own, foreign, margin: foreign - own };
 }
@@ -232,6 +251,9 @@ export function grainColourHalfReadings(
   levels: readonly number[] = shippedLadder(),
 ): GrainReadVerdict[] {
   const out: GrainReadVerdict[] = [];
+  // The table's iteration order, resolved ONCE for the whole walk rather than per sample — see
+  // `readerRows`. Every reading below is unchanged; only the re-derivation is gone.
+  const rows = readerRows(table);
   for (const status of SHIPPED_STATUSES) {
     const token = SHIPPED_GROUND_COLOUR.get(status)!;
     for (const level of levels) {
@@ -243,14 +265,14 @@ export function grainColourHalfReadings(
       for (let i = 0; i <= GRAIN_REACH_STEPS; i++) {
         const c = grainMixed(base, i / GRAIN_REACH_STEPS, fac);
         seen.add(toHex(c));
-        reads.add(nearestStatus(c, table));
-        worst = Math.min(worst, marginAgainst(c, family, table).margin);
+        reads.add(nearestStatusIn(c, rows));
+        worst = Math.min(worst, marginAgainstRows(c, family, rows).margin);
       }
       out.push({
         status,
         level,
         base: toHex(base),
-        baseReadsAs: nearestStatus(base, table),
+        baseReadsAs: nearestStatusIn(base, rows),
         baseMargin: marginAgainst(base, family, table).margin,
         reach: [toHex(grainMixed(base, 0, fac)), toHex(grainMixed(base, 1, fac))],
         reachSize: seen.size,
@@ -309,6 +331,57 @@ export function grainColourHalfVerdict(
 }
 
 /**
+ * THE SAME PREDICATE {@link grainColourHalfVerdict} PUBLISHES AS `admissible`, WITHOUT BUILDING THE
+ * VERDICT AROUND IT — the form {@link admissibleMixCeiling} calls once per candidate mix.
+ *
+ * IT EXISTS FOR COST, AND THE COST IS THE WHOLE REASON, exactly as {@link marginAgainst} exists
+ * beside {@link readMargin}. A ceiling search evaluates admissibility once per 0.001 step until the
+ * first failure, so it runs the entire `(status x rung x 2001-sample)` walk 7 times on the shipped
+ * ladder, 32 on the legacy one and 78 on the lit one — measured 2026-09-03 at 0.74 s, 1.36 s and
+ * 7.84 s, which is two thirds of `grain-status-reading.test.ts`'s 11.8 s all by itself.
+ *
+ * ⚠ IT IS THE SAME QUESTION, NOT A CHEAPER APPROXIMATION OF ONE, and a test pins that against
+ * `grainColourHalfVerdict(...).admissible` across the interesting range — one instrument, not two.
+ * Three things the verdict computes are simply not inputs to `admissible`, so they are not computed
+ * here: the per-sample MARGIN (`admissible` reads `holds`, which asks only which family a sample
+ * READS as — the margin is reported, never thresholded), the hex of every sample (`reachSize`'s
+ * distinct-colour count), and the sorted read set. Anything that WOULD change the answer is kept.
+ *
+ * Two exact short-circuits, neither of which can change the boolean:
+ * — a sample whose colour is IDENTICAL to the previous one is skipped, because `nearestStatus` is a
+ *   pure function of the colour and the previous sample already asked. The walk is deliberately
+ *   oversampled two orders past the one-unit rounding grid (see {@link GRAIN_REACH_STEPS}), so most
+ *   consecutive samples ARE identical — this is where the saving actually comes from.
+ * — the first foreign read returns `false` immediately. `admissible` is `readings.every(holds)` and
+ *   `holds` is `[...reads].every(family.has)`, so one foreign read settles both.
+ */
+export function grainColourHalfAdmissible(
+  fac: number = GRAIN_COLOUR_MIX,
+  table: Record<string, Rgb255[]> = shippedReaderTable(),
+  levels: readonly number[] = shippedLadder(),
+): boolean {
+  const rows = readerRows(table);
+  for (const status of SHIPPED_STATUSES) {
+    const token = SHIPPED_GROUND_COLOUR.get(status)!;
+    // HOISTED OUT OF THE LEVEL LOOP, unlike the verdict walk's copy: the family is a property of
+    // the status alone, so rebuilding it per rung filtered the status list five times over for one
+    // answer. Kept identical in VALUE — same function, same argument.
+    const family = ownFamily(status);
+    for (const level of levels) {
+      const base = deliveredForLevel(token, level);
+      let prev: Rgb255 | null = null;
+      for (let i = 0; i <= GRAIN_REACH_STEPS; i++) {
+        const c = grainMixed(base, i / GRAIN_REACH_STEPS, fac);
+        if (prev !== null && c.r === prev.r && c.g === prev.g && c.b === prev.b) continue;
+        prev = c;
+        if (!family.has(nearestStatusIn(c, rows))) return false;
+      }
+    }
+  }
+  return true;
+}
+
+/**
  * THE LARGEST MIX FACTOR EVERY READING SURVIVES — the fork's real shape, and the reason this
  * instrument returns a number instead of a boolean.
  *
@@ -326,7 +399,11 @@ export function admissibleMixCeiling(
   const table = shippedReaderTable();
   for (let fac = step; fac <= ceiling + 1e-9; fac += step) {
     const rounded = Math.round(fac * 10000) / 10000;
-    if (!grainColourHalfVerdict(rounded, table, levels).admissible) break;
+    // The EXHAUSTIVE scan is retained on purpose — every step from `step` to the returned `best` is
+    // proved admissible, which a bisection would only sample. What changed is the cost of one step,
+    // not how many are taken: `grainColourHalfAdmissible` answers the same boolean as
+    // `grainColourHalfVerdict(...).admissible` without building the verdict around it.
+    if (!grainColourHalfAdmissible(rounded, table, levels)) break;
     best = rounded;
   }
   return best;
@@ -407,11 +484,13 @@ export function levelSurvivesTint(
   fac: number = GRAIN_COLOUR_MIX,
   table: Record<string, Rgb255[]> = shippedReaderTable(),
 ): boolean {
+  // Hoisted for the same reason the walks above hoist it — see `readerRows`.
+  const rows = readerRows(table);
   for (const status of SHIPPED_STATUSES) {
     const base = deliveredForLevel(SHIPPED_GROUND_COLOUR.get(status)!, level);
     const family = ownFamily(status);
     for (const i of levelProbes(0, GRAIN_REACH_STEPS, 1)) {
-      if (!family.has(nearestStatus(grainMixed(base, i / GRAIN_REACH_STEPS, fac), table))) return false;
+      if (!family.has(nearestStatusIn(grainMixed(base, i / GRAIN_REACH_STEPS, fac), rows))) return false;
     }
   }
   return true;
@@ -441,6 +520,7 @@ export function ladderReadings(
   levels: readonly number[] = shippedLadder(),
 ): LadderReading[] {
   const out: LadderReading[] = [];
+  const rows = readerRows(table);
   for (const status of SHIPPED_STATUSES) {
     for (const level of levels) {
       const c = deliveredForLevel(SHIPPED_GROUND_COLOUR.get(status)!, level);
@@ -448,7 +528,7 @@ export function ladderReadings(
         status,
         level,
         delivered: toHex(c),
-        readsAs: nearestStatus(c, table),
+        readsAs: nearestStatusIn(c, rows),
         margin: readMargin(c, status, table).margin,
       });
     }
