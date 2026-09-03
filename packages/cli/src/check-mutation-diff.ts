@@ -21,6 +21,7 @@
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { availableParallelism } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,6 +31,7 @@ import { MIRRORS } from "./mirror-conformance.js";
 import {
   adjudicateMutants,
   type ChangedRanges,
+  concurrencyFor,
   declaredTestRoots,
   entryPointsFromMirrorRegistry,
   entryPointsFromScripts,
@@ -225,7 +227,12 @@ function readShellScripts(): string[] {
  * `bun.testFiles` directly. Vitest has no equivalent option, so the narrowing is expressed as a
  * generated vitest config whose `include` is this group's test files; see {@link writeVitestConfig}.
  */
-function writeStrykerConfig(group: RunGroup, configFile: string, reportFile: string): void {
+function writeStrykerConfig(
+  group: RunGroup,
+  configFile: string,
+  reportFile: string,
+  concurrency: number,
+): void {
   const mutate = JSON.stringify(group.targets.flatMap((t) => t.mutateGlobs));
   const head =
     group.runner === "bun"
@@ -269,7 +276,13 @@ export default {
 ${head}
   reporters: ["json"],
   jsonReporter: { fileName: ${JSON.stringify(reportFile)} },
-  concurrency: 4,
+  // DERIVED from this machine's logical CPU count by {@link concurrencyFor}, never declared — one
+  // worker per physical core, capped at the 4 this rung shipped with. A flat 4 is right on a
+  // developer desktop and wrong on GitHub, whose 4-vCPU runner has 2 physical cores; a flat 2 would
+  // be the mirror-image mistake, halving the rung on every box that is not GitHub. See ADR-0509 and
+  // \`concurrencyFor\`'s own comment for the measurement, and the printed \`concurrency=\` in this
+  // rung's runner line for what a given run actually chose.
+  concurrency: ${concurrency},
   // THE PER-MUTANT BUDGET IS A FORMULA, NOT A FLAT CEILING, and reading it as a flat 60 s is what
   // sends a session down the wrong path. Stryker computes
   // \`timeoutFactor * netTime + timeoutMS + timeOverheadMS\` (@stryker-mutator/core 10.0.0,
@@ -676,13 +689,19 @@ function main(): void {
       rmSync(reportPath, { force: true });
 
       if (group.runner === "vitest") written.push(writeVitestConfig(group));
-      writeStrykerConfig(group, configFile, reportFile);
+      // Read the machine ONCE per group and PRINT it. A run that times out is read from its log
+      // months later, and "how many workers was it fighting itself with?" is the first question —
+      // an unprinted derived value makes that unanswerable (ADR-0509).
+      const cpus = availableParallelism();
+      const concurrency = concurrencyFor(cpus);
+      writeStrykerConfig(group, configFile, reportFile, concurrency);
       written.push(configFile);
 
       console.log(
         `${TAG} [${index + 1}/${groups.length}] ${group.runner} runner over ` +
           `${group.targets.flatMap((t) => t.sourceFiles).length} file(s) in ` +
-          `${group.targets.map((t) => t.dir).join(", ")}, witnessed by ${group.testFiles.length} test file(s)`,
+          `${group.targets.map((t) => t.dir).join(", ")}, witnessed by ${group.testFiles.length} test file(s)` +
+          `, concurrency=${concurrency} (${cpus} logical CPU(s))`,
       );
 
       const run = spawnSync("pnpm", ["exec", "stryker", "run", configFile], {

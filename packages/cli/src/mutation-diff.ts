@@ -219,6 +219,40 @@ export function noChangedTestOutcome(args: {
  * exempt an ordinary unit test by editing a list — it would have to rename the file to claim it is an
  * acceptance leg, which is a visible lie rather than a quiet one.
  */
+/**
+ * How many Stryker test-runner processes this machine should run — DERIVED from its logical CPU
+ * count, never declared.
+ *
+ * WHY THIS EXISTS (ADR-0509, second lever). The rung shipped with a flat `concurrency: 4`, which is
+ * right on a developer desktop and wrong on GitHub. Its 4-vCPU runner has **2 physical cores**, so
+ * four CPU-bound bun processes each run at roughly half speed — and Stryker's per-mutant budget is
+ * `timeoutFactor * netTime + timeoutMS + timeOverheadMS`, where `netTime` was measured during a dry
+ * run that was NOT four-ways contended. The budget is therefore systematically too small for exactly
+ * the checks with the largest covering sets. Measured on PR #1808: 115 of 286 mutants UNPROVEN, all
+ * timeouts; raising both budget terms took it to 23, every one of them in one file; the same branch
+ * on a 12-core box at CI's per-test speed timed out 5 times. Contention, not slow tests.
+ *
+ * ⚠ A FLAT `2` WOULD FIX GITHUB AND BREAK EVERY DEVELOPER BOX. On a 12-core machine four workers are
+ * uncontended and correct, and halving them roughly doubles the rung's wall clock (measured
+ * elsewhere: ~18.7 min -> ~37, ~28 -> ~56). The number has to come from the machine.
+ *
+ * THE RULE: one worker per PHYSICAL core, capped at the 4 the rung shipped with, floored at 1.
+ * `logicalCpus / 2` is the physical-core estimate — it assumes 2-way SMT, which holds on GitHub's
+ * runners and on every x86 box this repo runs on. On a machine without SMT it under-uses by half,
+ * which costs wall clock and can never cause the failure this fixes; that direction is deliberate.
+ *
+ * The regions this produces — pin these, not a remembered summary of them:
+ *   1-3 -> 1 · 4-5 -> 2 · 6-7 -> 3 · >=8 -> 4 (the cap)
+ * so GitHub's 4 vCPUs give 2 and any 8-or-more-thread box keeps the shipped 4.
+ *
+ * Pure and total by construction: a non-finite or absurd input still lands inside [1, 4], because a
+ * concurrency of 0 would make Stryker evaluate nothing while reporting success.
+ */
+export function concurrencyFor(logicalCpus: number): number {
+  if (!Number.isFinite(logicalCpus)) return 1;
+  return Math.min(4, Math.max(1, Math.floor(logicalCpus / 2)));
+}
+
 export function isSpawnUatTest(file: string): boolean {
   return file.endsWith(".uat.test.ts");
 }
