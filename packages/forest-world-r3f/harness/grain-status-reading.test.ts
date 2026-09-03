@@ -25,6 +25,7 @@ import {
   SHIPPED_STATUSES,
   admissibleLevelBand,
   admissibleMixCeiling,
+  grainColourHalfAdmissible,
   grainColourHalfReadings,
   grainColourHalfVerdict,
   grainMixed,
@@ -191,6 +192,56 @@ test('THE CEILING: the largest mix every reading survives, and it is far below t
   assert.ok(ceiling < GRAIN_COLOUR_MIX, 'a ceiling at or above the authored mix would be no fork');
   assert.equal(grainColourHalfVerdict(ceiling).admissible, true);
   assert.equal(grainColourHalfVerdict(Math.round((ceiling + 0.001) * 1000) / 1000).admissible, false);
+});
+
+test('the ceiling search`s fast predicate IS the verdict`s `admissible` — one instrument, not two', () => {
+  // ⚠ THIS IS THE FENCE UNDER AN OPTIMISATION, AND IT IS THE ONLY THING HOLDING IT.
+  // `admissibleMixCeiling` no longer builds a full `GrainClosureVerdict` per candidate mix; it calls
+  // `grainColourHalfAdmissible`, which skips the per-sample margin, the hex of every sample and the
+  // sorted read set — none of which `admissible` reads — and short-circuits on the first foreign
+  // read and on a colour identical to the previous sample. Every one of those is exact ON THE
+  // REASONING, and reasoning is exactly what a second implementation of a predicate is not entitled
+  // to. So the two are held together by measurement instead, at every mix the search can visit.
+  //
+  // WHAT IT SWEEPS, AND WHY THAT AND NOT THE WHOLE GRID. Every mix the shipped ladder's search can
+  // visit — 0.001 to 0.010, which BRACKETS the 0.006 it returns — plus both other ladders' flip
+  // points either side. The flip is the whole output: `admissibleMixCeiling` returns the last mix
+  // before `false`, so a disagreement that could move the number has to sit at a boundary, and each
+  // boundary is fenced on both sides. A wider sweep is not free — the verdict half of each pair is
+  // the ~116 ms walk this optimisation exists to stop paying, so sweeping 0.001-0.090 would cost
+  // ~10 s and hand back everything the change bought.
+  for (let fac = 0.001; fac <= 0.01 + 1e-9; fac += 0.001) {
+    const mix = Math.round(fac * 10000) / 10000;
+    assert.equal(
+      grainColourHalfAdmissible(mix),
+      grainColourHalfVerdict(mix).admissible,
+      `the two disagree at fac ${mix} on the shipped ladder`,
+    );
+  }
+  // BOTH ANSWERS MUST APPEAR ON THAT SWEEP, or the agreement above is satisfied by two functions
+  // that both always say the same thing — the `NON-VACUITY` test's argument, applied to the pairing
+  // rather than to the verdict. 0.006 is the last admissible mix and 0.007 the first that is not,
+  // so the sweep straddles the flip rather than sitting on one side of it.
+  assert.equal(grainColourHalfAdmissible(0.006), true, 'the shipped ceiling is admissible');
+  assert.equal(grainColourHalfAdmissible(0.007), false, 'one step past it is not');
+
+  // AND ON THE OTHER TWO LADDERS THE CEILING TESTS ABOVE USE, either side of the boundary each one
+  // turns on — the ladder is an argument to both functions, so agreement on the shipped one does
+  // not carry to them, and a hoist or a short-circuit that was wrong per-rung would show here.
+  for (const [name, levels, at] of [
+    ['legacy', LEGACY_SHADE_LEVELS, 0.031],
+    ['lit', SHADE_LEVELS, 0.077],
+  ] as const) {
+    for (const mix of [at, Math.round((at + 0.001) * 10000) / 10000]) {
+      const fast = grainColourHalfAdmissible(mix, shippedReaderTable(), levels);
+      assert.equal(
+        fast,
+        grainColourHalfVerdict(mix, shippedReaderTable(), levels).admissible,
+        `the two disagree at fac ${mix} on the ${name} ladder`,
+      );
+      assert.equal(fast, mix === at, `the ${name} ladder's flip is not where the ceiling says it is`);
+    }
+  }
 });
 
 test('NON-VACUITY: the verdict can come back TRUE, so `false` is a measurement', () => {

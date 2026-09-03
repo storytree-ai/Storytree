@@ -42,12 +42,12 @@ import { SHADE_LEVELS, deliveredForLevel, type Rgb255 } from '../src/shade-ladde
 import { sandColourOf } from '../src/land-sand.js';
 import {
   SHIPPED_STATUSES,
-  marginAgainst,
+  marginAgainstRows,
   ownFamily,
   shippedLadder,
   shippedReaderTable,
 } from './grain-status-reading.js';
-import { FLAT_GROUND_LEVEL } from './shadow-ladder.js';
+import { FLAT_GROUND_LEVEL, readerRows } from './shadow-ladder.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
 
 /**
@@ -181,15 +181,19 @@ export function grassLayerReadings(
 ): GrassReadVerdict[] {
   const reach = reachSet;
   const out: GrassReadVerdict[] = [];
+  // The table's iteration order, resolved ONCE for the whole walk rather than per sample — see
+  // `readerRows`. This walk asks the margin of every reachable grass colour against every
+  // (status, rung) base, so it is the same million-call shape the grain walk is.
+  const rows = readerRows(table);
   for (const status of statuses) {
     const family = ownFamily(status);
     for (const level of levels) {
       const base = deliveredForLevel(statusToken(status), level);
-      const baseMargin = marginAgainst(base, family, table).margin;
+      const baseMargin = marginAgainstRows(base, family, rows).margin;
       let worst = Infinity;
       let worstGrass: Rgb255 = base;
       for (const grass of reach) {
-        const m = marginAgainst(grassMixedColour(base, grass, fac), family, table).margin;
+        const m = marginAgainstRows(grassMixedColour(base, grass, fac), family, rows).margin;
         if (m < worst) {
           worst = m;
           worstGrass = grass;
@@ -486,11 +490,12 @@ export function grassLevelSurvives(
   statuses: readonly string[] = SHIPPED_STATUSES,
 ): boolean {
   const reach = grassReachableColours();
+  const rows = readerRows(table);
   for (const status of statuses) {
     const family = ownFamily(status);
     const base = deliveredForLevel(statusToken(status), level);
     for (const grass of reach) {
-      if (marginAgainst(grassMixedColour(base, grass, fac), family, table).margin <= 0) return false;
+      if (marginAgainstRows(grassMixedColour(base, grass, fac), family, rows).margin <= 0) return false;
     }
   }
   return true;

@@ -171,12 +171,31 @@ test('⚠ AND ON THE LADDER THE MAP NOW WEARS: still separated, and brown is bac
 
 /* ── ⚠⚠ THE FRONTIER — what the vocabulary actually has room for ───────────────────────────── */
 
+/**
+ * THE `mapped` FRONTIER, SWEPT ONCE AND SHARED BY THE THREE TESTS BELOW THAT READ IT.
+ *
+ * The three called `sweepFamily` with byte-identical arguments, and the sweep is 29 x 11 x 23 =
+ * 7,337 candidates, each one warping a family, cloning the token map and running `tightestPair`
+ * over every colour pair. Measured 2026-09-03: the three re-runs were most of this file's 9.4 s.
+ * `sweepFamily` is pure in its four arguments, and none of the three mutates what it gets back —
+ * they `filter`, `some`, and sort a copy — so one sweep answers all three.
+ *
+ * ⚠ LAZY, NOT A MODULE-SCOPE `const`, for the reason `grain-status-reading.ts` gives beside its own
+ * `stops()` memo: a top-level `const rows = sweepFamily(...)` runs at IMPORT time, and Stryker files
+ * import-time execution as STATIC coverage rather than against any test — so every mutant inside the
+ * swept code would come back "killed, but no test named", which the rung scores UNPROVEN and treats
+ * as neither a pass nor a survivor. Deferring to first use keeps the work inside a test.
+ */
+let mappedSweepMemo: ReturnType<typeof sweepFamily> | null = null;
+const mappedSweep = (): ReturnType<typeof sweepFamily> =>
+  (mappedSweepMemo ??= sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS));
+
 test('a brown-only edit CAN clear every pair — the first, narrower sweep was wrong', () => {
   // ⚠ THE CORRECTION THIS PINS. A sweep of hue −14…+6 / sat ×0.95…×1.35 / val ×0.62…×1.02 returned
   // ZERO clearing candidates and peaked at 0.966 — which reads exactly like "the palette has no
   // room for a browner brown", and was one assertion away from being published as a finding. The
   // conclusion was a property of the search box. Widening it finds hundreds.
-  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS);
+  const rows = mappedSweep();
   const clearing = rows.filter((r) => r.ratio > 1 && r.foreignReads.length === 0);
   assert.ok(clearing.length > 100, `expected a wide frontier, got ${clearing.length}`);
 });
@@ -184,7 +203,7 @@ test('a brown-only edit CAN clear every pair — the first, narrower sweep was w
 test('the sweep reports its FAILURES too — a filtered frontier cannot show a shortfall', () => {
   // Non-vacuity in the other direction: if `sweepFamily` returned only the winners, the narrow
   // sweep above could never have been caught, because "no rows" and "no winners" would look alike.
-  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS);
+  const rows = mappedSweep();
   assert.ok(rows.some((r) => r.ratio < 1), 'the sweep must contain candidates that fail');
   assert.ok(rows.some((r) => r.foreignReads.length > 0), 'including some that misreport outright');
   assert.equal(rows.length, DEFAULT_SWEEP.deg.length * DEFAULT_SWEEP.sat.length * DEFAULT_SWEEP.val.length);
@@ -194,7 +213,7 @@ test('THE RULE, and the colour it picks: brown stops being the weakest link', ()
   // "Clears by N%" is a margin nobody can justify. The rule is a statement about the VOCABULARY:
   // the tightest pair must no longer involve brown at all — brown is out of the bottom slot, and
   // what binds instead is yellow/green, which no edit to brown ever touched.
-  const rows = sweepFamily('mapped', DEFAULT_SWEEP, ADR0462_STATUS_TOKENS, LEGACY_SHADE_LEVELS);
+  const rows = mappedSweep();
   const unseating = rows.filter(
     (r) => r.ratio > 1 && r.foreignReads.length === 0 && !r.pair.includes('brown'),
   );
