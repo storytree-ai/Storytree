@@ -18,6 +18,7 @@ import {
   entryPointsFromShellScripts,
   formatMutationVerdict,
   isTestFile,
+  isTimeout,
   type MutationReport,
   type MutationTarget,
   parseUnifiedDiffRanges,
@@ -779,6 +780,92 @@ test("mutation-diff: each failing-class summary line reads exactly as specified"
     "1 mutant(s) were killed only by tests this branch did not touch — the branch's own tests do not discriminate them",
     "1 mutant(s) are UNPROVEN — killed, but the report named no test (constraint 4: never a pass, never a survivor)",
   ]);
+});
+
+// ── UNPROVEN is two conditions, printed apart ─────────────────────────────────
+//
+// A Timeout (the covering tests ran past Stryker's per-mutant budget) and a Killed mutant nobody
+// could be credited with want OPPOSITE remedies — the loop or the fixture for one, the attribution
+// layer for the other. PR #1808's session read a 108-timeout wall through the attribution sentence
+// and lost an hour; the tally and the per-mutant line now say which it is.
+
+const TIMEOUT_REASON =
+  "2 mutant(s) are UNPROVEN — TIMED OUT: the covering tests ran past Stryker's per-mutant budget, so either the mutant makes the suite hang or those tests are too slow for the budget on this machine; no test could be named (constraint 4: never a pass, never a survivor)";
+
+function mixedUnprovenReport(): MutationReport {
+  return {
+    files: {
+      "a.ts": {
+        mutants: [
+          { id: "1", status: "Timeout", location: { start: { line: 1 } } },
+          { id: "2", status: "Killed", killedBy: [], location: { start: { line: 2 } } },
+          { id: "3", status: "Timeout", location: { start: { line: 3 } } },
+        ],
+      },
+    },
+    testFiles: { "a.test.ts": { tests: [{ id: "t1", name: "n" }] } },
+  };
+}
+
+test("mutation-diff: timed-out and unattributed UNPROVEN mutants are tallied on two lines, attribution first, each counting only its own", () => {
+  const verdict = adjudicateMutants(mixedUnprovenReport(), ["a.test.ts"]);
+  assert.deepEqual(verdict.reasons, [
+    "1 mutant(s) are UNPROVEN — killed, but the report named no test (constraint 4: never a pass, never a survivor)",
+    TIMEOUT_REASON,
+  ]);
+  assert.equal(verdict.verdict, "fail");
+  assert.equal(verdict.counted, 3);
+});
+
+test("mutation-diff: a run whose only UNPROVEN mutants timed out prints the timeout line alone — never a zero-count attribution line", () => {
+  const report: MutationReport = {
+    files: {
+      "a.ts": {
+        mutants: [
+          { id: "1", status: "Timeout", location: { start: { line: 1 } } },
+          { id: "2", status: "Timeout", location: { start: { line: 2 } } },
+        ],
+      },
+    },
+    testFiles: { "a.test.ts": { tests: [{ id: "t1", name: "n" }] } },
+  };
+  const verdict = adjudicateMutants(report, ["a.test.ts"]);
+  assert.deepEqual(verdict.reasons, [TIMEOUT_REASON]);
+});
+
+test("mutation-diff: a run whose only UNPROVEN mutants are unattributed kills prints the attribution line alone", () => {
+  const report: MutationReport = {
+    files: {
+      "a.ts": {
+        mutants: [{ id: "1", status: "Killed", killedBy: [], location: { start: { line: 1 } } }],
+      },
+    },
+    testFiles: { "a.test.ts": { tests: [{ id: "t1", name: "n" }] } },
+  };
+  const verdict = adjudicateMutants(report, ["a.test.ts"]);
+  assert.deepEqual(verdict.reasons, [
+    "1 mutant(s) are UNPROVEN — killed, but the report named no test (constraint 4: never a pass, never a survivor)",
+  ]);
+});
+
+test("mutation-diff: a timed-out mutant's own line says it timed out; an unattributed kill still says 'no test named'", () => {
+  const verdict = adjudicateMutants(mixedUnprovenReport(), ["a.test.ts"]);
+  const lines = formatMutationVerdict("[mutation]", verdict, [{ ...TARGET, sourceFiles: ["a.ts"] }]).split("\n");
+  assert.deepEqual(
+    lines.filter((l) => l.includes("   UNPROVEN ")),
+    [
+      "[mutation]   UNPROVEN a.ts:1 [unknown] — timed out — no test could be named",
+      "[mutation]   UNPROVEN a.ts:2 [unknown] — no test named",
+      "[mutation]   UNPROVEN a.ts:3 [unknown] — timed out — no test could be named",
+    ],
+  );
+});
+
+test("mutation-diff: isTimeout reads the raw Stryker status, and only Timeout is one", () => {
+  assert.equal(isTimeout({ status: "Timeout" }), true);
+  assert.equal(isTimeout({ status: "Killed" }), false);
+  assert.equal(isTimeout({ status: "Survived" }), false);
+  assert.equal(isTimeout({ status: "timeout" }), false);
 });
 
 test("mutation-diff: the vacuous reason reads exactly as specified", () => {
