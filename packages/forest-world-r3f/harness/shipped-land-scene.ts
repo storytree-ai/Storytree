@@ -63,14 +63,14 @@ import {
 } from '../src/light-calibration.js';
 import { LAND_RELIEF_AMPLITUDE, landHeightRange, landRelief } from '../src/land-relief.js';
 import { buildGroundOcclusion } from '../src/contact-shade.js';
-import { groundBounds, groundCasters, STORY_TREE_CROWN, STORY_TREE_TRUNK } from '../src/ground-casters.js';
+import { groundBounds, groundCasters } from '../src/ground-casters.js';
 import { nearestReference, readerReferences, shadowLadderFor } from '../src/shadow-rung.js';
 import { deliveredForLevel } from '../src/shade-ladder.js';
 import { shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
 import { LEGACY_SHADE_LEVELS, SHADE_LEVELS } from '../src/shade-ladder.js';
 import { worldTo3D, type InstanceDescriptor } from '../src/world-to-3d.js';
 import { islandScene } from './island-fixture.js';
-import { SHIPPED_CROWN_COLOUR, SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
+import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { kitMeshes, loadKit, roleFootprints } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
@@ -346,21 +346,23 @@ export function shippedParcels(): InstanceDescriptor[] {
   );
 }
 
-/** The story trees the shipped mapper emits for this island — what `StoryTree` draws, and what
- *  the shadow arm's occlusion field is cast from. */
-export function shippedTrees(): InstanceDescriptor[] {
-  return worldTo3D(islandScene()).filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
-}
-
 /**
- * EVERYTHING THAT STANDS ON THE SHIPPED ISLAND, as occluders.
+ * WHAT THE SHIPPED ISLAND'S OWN DESCRIPTOR STREAM STANDS, as occluders.
  *
- * ⚠⚠ THERE IS EXACTLY ONE, AND THAT IS THIS INCREMENT'S FINDING RATHER THAN A PROPERTY OF THE
- * FIXTURE. The semantic scene emits 1,089 objects standing on this ground — 693 grass blades, 144
- * flora, 112 shrubs, 3 stems, 136 tall-flower parts and ONE story tree — and the shipped mapper has
- * a case for the tree and skips the other 1,088. So the shadow this map can draw is bounded by its own
- * emptiness rather than by the field, and `shipped-land-scene.test.ts` asserts the census so the
- * number in the evidence is one a test holds.
+ * ⚠⚠ IT IS EMPTY SINCE ADR-0508, AND THAT IS THE ANSWER RATHER THAN A BUG. Read the history,
+ * because the number here moved twice. Measured 2026-08-30 it was ONE: the semantic scene emits
+ * 1,089 objects standing on this ground — 693 grass blades, 144 flora, 112 shrubs, 3 stems, 136
+ * tall-flower parts and ONE story tree — and the shipped mapper had a case for the tree and
+ * skipped the other 1,088, so the shadow this map could draw was bounded by its own emptiness.
+ * That one was the placeholder cone, and it is retired: each island stands a GROVE now, and a
+ * grove is a kit PLACEMENT, which reaches the ground through `placementCasters` rather than
+ * through the descriptor stream.
+ *
+ * ⚠ SO THIS IS NO LONGER "EVERYTHING THAT STANDS ON THE ISLAND" AND MUST NOT BE READ AS IT.
+ * `ForestWorldCanvas` unions this list with `placementCasters(placements, …)`; a page wanting the
+ * shadow the MAP draws has to union it too (`shipped-canopy-scene.ts`'s `armCasters` is the
+ * worked example). A page that hands this list alone to `buildGroundOcclusion` is asking for an
+ * un-shadowed field, and since 2026-09-04 that is what it gets.
  */
 export function shippedCasters(): ShadowCaster[] {
   return groundCasters(worldTo3D(islandScene()));
@@ -596,7 +598,6 @@ export interface OcclusionReading {
 export function buildLandScene(
   arm: LandArm,
   pxPerUnit: number,
-  treed = false,
   dressed = false,
 ): LandScene {
   const cells = shippedParcels();
@@ -657,13 +658,13 @@ export function buildLandScene(
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
   scene.add(mesh);
-  // ⚠ THE TREE IS FOR LOOKING AT AND FOR NOTHING ELSE. Every measurement on this page is about
-  // the GROUND's delivered pixels — the palette closure above all — and a `MeshStandardMaterial`
-  // crown puts thousands of pixels in the frame that are off the ground palette by construction.
-  // So the measured arms are ground-only and `treed` exists purely so the owner can see the
-  // shadow beside the thing casting it. `snapshotTreed` is the only caller.
-  if (treed) scene.add(storyTreeGroup());
-  // ⚠ THE BOUGHT PROPS ARE FOR LOOKING AT, EXACTLY AS THE TREE IS, and for the same reason: a
+  // ⚠⚠ THE `treed` ARM STOOD HERE AND IS RETIRED WITH THE THING IT DREW (ADR-0508). It added
+  // `storyTreeGroup()` — the placeholder cone, rebuilt on this page from the canvas's own
+  // constants — and it existed for one reason: "so the owner can see the shadow beside the thing
+  // casting it". Both halves of that are gone. The cone is retired, and the shadow it cast is
+  // retired with it, so the arm would now draw nothing and caption it as a tree. What the `dressed`
+  // arm below stands is the answer to the same question: the grove IS the thing casting now.
+  // ⚠ THE BOUGHT PROPS ARE FOR LOOKING AT, EXACTLY AS THE TREE WAS, and for the same reason: a
   // textured crown puts thousands of pixels in the frame that are off the GROUND palette by
   // construction, and every measured claim on this page is about the ground's delivered pixels.
   // So the measured ladder above is unchanged and the props ride alongside it — which is also
@@ -745,43 +746,6 @@ export function buildLandScene(
     casters: shippedCasters().length,
     props,
   };
-}
-
-/**
- * The shipped story trees, as three meshes — built from `ground-casters.ts`'s own constants and
- * `SHIPPED_CROWN_COLOUR`, so the tree on this page is the tree the canvas draws.
- */
-function storyTreeGroup(): THREE.Group {
-  const group = new THREE.Group();
-  for (const tree of shippedTrees()) {
-    const g = new THREE.Group();
-    g.position.set(tree.transform.x, tree.transform.y, tree.transform.z);
-    const trunk = new THREE.Mesh(
-      new THREE.CylinderGeometry(
-        STORY_TREE_TRUNK.radiusTop,
-        STORY_TREE_TRUNK.radiusBottom,
-        STORY_TREE_TRUNK.height,
-      ),
-      new THREE.MeshStandardMaterial({ color: '#6b4f35' }),
-    );
-    trunk.position.y = STORY_TREE_TRUNK.height / 2;
-    const crown = new THREE.Mesh(
-      new THREE.ConeGeometry(
-        STORY_TREE_CROWN.radius,
-        STORY_TREE_CROWN.height,
-        STORY_TREE_CROWN.segments,
-      ),
-      new THREE.MeshStandardMaterial({
-        color:
-          SHIPPED_CROWN_COLOUR.get(tree.material ?? 'unknown') ??
-          SHIPPED_CROWN_COLOUR.get('unknown')!,
-      }),
-    );
-    crown.position.y = STORY_TREE_CROWN.centreY;
-    g.add(trunk, crown);
-    group.add(g);
-  }
-  return group;
 }
 
 export interface LandArmReading {
@@ -869,14 +833,17 @@ export interface LandRunner {
   identity(): RendererIdentity;
   warm(): void;
   snapshot(arm: LandArm, pxPerUnit: number): string;
-  /** The same arm with the island's story trees drawn — for LOOKING at, never for measuring. */
-  snapshotTreed(arm: LandArm, pxPerUnit: number): string;
   /**
-   * The same arm with the story trees AND one bought object per capability — the comparison this
-   * increment lands, and also never measured.
+   * The same arm with one bought object per capability — the comparison, and never measured.
+   *
+   * ⚠ `snapshotTreed` STOOD BESIDE THIS AND IS RETIRED (ADR-0508). It drew the same arm with the
+   * placeholder story tree added, so that the shadow could be looked at beside the thing casting
+   * it; the tree is gone and so is the shadow it cast, so the method would now return a picture
+   * of bare ground under a caption promising a tree. The grove IS the thing casting now, which is
+   * what this method already draws — hence one snapshot pair here rather than two.
    *
    * ⚠ IT REPORTS THE PROP COUNT BESIDE THE PICTURE, and that is not decoration. A kit that failed
-   * to parse draws NO props and produces a picture identical to `snapshotTreed`'s — a
+   * to parse draws NO props and produces a picture identical to {@link snapshot}'s — a
    * perfectly ordinary-looking frame that says nothing about what went wrong. The count is what
    * distinguishes "the props are drawn and this is what they look like" from "the props are
    * absent and this is what the ground looks like".
@@ -976,13 +943,12 @@ export function createLandRunner(pipeline: LandPipeline = 'exact-probe'): LandRu
   const sceneFor = (
     arm: LandArm,
     pxPerUnit: number,
-    treed = false,
     dressed = false,
   ): LandScene => {
-    const key = `${arm}|${pxPerUnit}|${treed}|${dressed}`;
+    const key = `${arm}|${pxPerUnit}|${dressed}`;
     const found = built.get(key);
     if (found) return found;
-    const made = buildLandScene(arm, pxPerUnit, treed, dressed);
+    const made = buildLandScene(arm, pxPerUnit, dressed);
     built.set(key, made);
     return made;
   };
@@ -990,10 +956,9 @@ export function createLandRunner(pipeline: LandPipeline = 'exact-probe'): LandRu
   const render = (
     arm: LandArm,
     pxPerUnit: number,
-    treed = false,
     dressed = false,
   ): LandScene => {
-    const s = sceneFor(arm, pxPerUnit, treed, dressed);
+    const s = sceneFor(arm, pxPerUnit, dressed);
     renderer.setSize(s.width, s.height, false);
     renderer.render(s.scene, s.camera);
     return s;
@@ -1107,10 +1072,10 @@ export function createLandRunner(pipeline: LandPipeline = 'exact-probe'): LandRu
       // (the same arm at the same zoom), so a pixel index means the same place in both — the
       // property `changedPct` already relies on and the reason this can be one pass.
       const bare = ((): Uint8Array => {
-        const scene = render(arm, pxPerUnit, true, false);
+        const scene = render(arm, pxPerUnit, false);
         return readFrame(scene);
       })();
-      const dressedScene = render(arm, pxPerUnit, true, true);
+      const dressedScene = render(arm, pxPerUnit, true);
       const dressed = readFrame(dressedScene);
       if (bare.length !== dressed.length) {
         throw new Error('shipped-land-scene: the dressed and bare frames are different sizes');
@@ -1143,12 +1108,8 @@ export function createLandRunner(pipeline: LandPipeline = 'exact-probe'): LandRu
         black,
       };
     },
-    snapshotTreed(arm, pxPerUnit) {
-      render(arm, pxPerUnit, true);
-      return canvas.toDataURL('image/png');
-    },
     snapshotDressed(arm, pxPerUnit) {
-      const s = render(arm, pxPerUnit, true, true);
+      const s = render(arm, pxPerUnit, true);
       return { png: canvas.toDataURL('image/png'), props: s.props, triangles: s.triangles };
     },
     digest(arm, pxPerUnit) {
@@ -1284,32 +1245,18 @@ export async function mountShippedLand(root: HTMLElement): Promise<void> {
     root.appendChild(row);
   }
 
-  // ⚠ THE ONE ROW WITH THE TREE IN IT, at the zoomed read, and it is deliberately outside the
-  // measured ladder above: the crown's pixels are off the ground palette by construction. It is
-  // here because a shadow with nothing casting it is not a picture anyone can judge.
-  const h2 = document.createElement('h2');
-  h2.textContent = 'with the story tree drawn — for looking at, not measured';
-  root.appendChild(h2);
-  const treedRow = document.createElement('div');
-  treedRow.className = 'row';
-  for (const arm of ['grain-normal', 'shadow'] satisfies LandArm[]) {
-    const s = buildLandScene(arm, 8, true);
-    const fig = document.createElement('figure');
-    const img = document.createElement('img');
-    img.src = runner.snapshotTreed(arm, 8);
-    img.width = Math.min(s.width, 900);
-    const cap = document.createElement('figcaption');
-    cap.textContent = `${arm} + the story tree — ${armCaption(arm)}`;
-    fig.append(img, cap);
-    treedRow.appendChild(fig);
-  }
-  root.appendChild(treedRow);
+  // ⚠ THE ROW WITH THE STORY TREE IN IT IS RETIRED (ADR-0508). It drew `grain-normal` and
+  // `shadow` at 8 px/unit with the placeholder cone added, outside the measured ladder because
+  // the crown's pixels are off the ground palette by construction, and it was here because "a
+  // shadow with nothing casting it is not a picture anyone can judge". The cone is gone and its
+  // shadow with it, so the row would now be two pictures of bare ground captioned as trees. The
+  // dressed row below answers the same question with the grove, which is what stands there now.
 
   // ⚠⚠ THE ROW THIS INCREMENT LANDS — the shipped island with one bought object per capability,
-  // at both zooms, beside the same island without them. Also outside the measured ladder, and for
-  // the same reason the tree is: a textured crown's pixels are off the GROUND palette by
-  // construction. The prop count is printed in the caption because a kit that failed to parse
-  // draws a picture identical to the bare one and says nothing about why.
+  // at both zooms, beside the same island without them. Also outside the measured ladder, because
+  // a textured crown's pixels are off the GROUND palette by construction. The prop count is
+  // printed in the caption because a kit that failed to parse draws a picture identical to the
+  // bare one and says nothing about why.
   mountDressedRow(root, runner, pipeline);
 
   window.landRunner = runner;
@@ -1334,8 +1281,8 @@ function mountDressedRow(root: HTMLElement, runner: LandRunner, pipeline: LandPi
     for (const dressed of [false, true]) {
       const shot = dressed
         ? runner.snapshotDressed('shadow', zoom)
-        : { png: runner.snapshotTreed('shadow', zoom), props: 0, triangles: 0 };
-      const s = buildLandScene('shadow', zoom, true, dressed);
+        : { png: runner.snapshot('shadow', zoom), props: 0, triangles: 0 };
+      const s = buildLandScene('shadow', zoom, dressed);
       const fig = document.createElement('figure');
       const img = document.createElement('img');
       img.src = shot.png;

@@ -406,11 +406,17 @@ export function crowdDescriptors(size: CrowdSize): InstanceDescriptor[] {
   return [...crowdCells(size), ...crowdBlooms(size)];
 }
 
-/** Everything standing on the forest that darkens it — the shipped island's own casters, once per
- *  island. The occlusion field is built from these, so a crowd whose casters stayed at the origin
- *  would put thirty-four islands' shadows on one island. */
-export function crowdCasters(size: CrowdSize): ShadowCaster[] {
-  const base = shippedCasters();
+/**
+ * One island's caster list, replicated onto every island of a crowd at that island's own offset.
+ *
+ * ⚠ SPLIT OUT OF {@link crowdCasters} ON 2026-09-04 SO THE RULE STAYS PROVABLE WHEN THE LIST IS
+ * EMPTY. The rule is the one thing here that can go wrong invisibly — a crowd whose casters stayed
+ * at the origin puts thirty-four islands' shadows on one island — and its only test fed it
+ * `crowdCasters(REAL)`, which ADR-0508 turned into `[]`. The assertions kept passing over an empty
+ * set and stopped saying anything. A base list the caller supplies is what lets the offsetting be
+ * checked on its own terms rather than on whether the island currently stands anything.
+ */
+export function offsetPerIsland(base: readonly ShadowCaster[], size: CrowdSize): ShadowCaster[] {
   const out: ShadowCaster[] = [];
   for (const island of crowdIslands(size)) {
     for (const caster of base) {
@@ -418,6 +424,22 @@ export function crowdCasters(size: CrowdSize): ShadowCaster[] {
     }
   }
   return out;
+}
+
+/**
+ * What the forest's own DESCRIPTOR STREAM stands that darkens it, once per island.
+ *
+ * ⚠⚠ IT IS EMPTY SINCE ADR-0508 AND THAT IS NOT A DEFECT — read {@link shippedCasters}, which it
+ * replicates. The placeholder story tree was the one thing an island's descriptors stood; each
+ * island stands a GROVE now, and a grove is a kit PLACEMENT that reaches the ground through
+ * `placementCasters`. A page that wants the shadow the MAP draws unions the two, exactly as
+ * `ForestWorldCanvas` does — `shipped-canopy-scene.ts`'s `armCasters` is the worked example, and
+ * `shipped-shadow-scene.ts` uses it for that reason. This function is kept, rather than deleted
+ * with its one caster, because it is still the honest answer to "what does the descriptor stream
+ * stand" — a `cave-arch` on a rim would come through it.
+ */
+export function crowdCasters(size: CrowdSize): ShadowCaster[] {
+  return offsetPerIsland(shippedCasters(), size);
 }
 
 /**

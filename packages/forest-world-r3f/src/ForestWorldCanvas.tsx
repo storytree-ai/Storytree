@@ -7,9 +7,10 @@
 // Spike scale, no art direction (ADR-0070: the look is witnessed, not
 // machine-judged; the painterly pass arrives with the experience caps): each
 // descriptor family gets a placeholder mesh — instanced hex prisms for the
-// ground, a cone-on-trunk for the story tree, a ground ribbon-line for a trail
-// segment, a dark rim disc for a cave portal, an emissive sprite-ball for a
-// wisp — coloured by the folded status variant.
+// ground, a ground ribbon-line for a trail segment, a dark rim disc for a cave
+// portal, an emissive sprite-ball for a wisp — coloured by the folded status
+// variant. (A cone-on-trunk stood for the story tree until ADR-0508 retired it;
+// each island stands a grove from the bought kit instead.)
 //
 // THE PROJECTION IS ORTHOGRAPHIC AND THE VIEW DOES NOT ROTATE (ADR-0380 D6 fence 4). This
 // canvas shipped for months as a PerspectiveCamera under a rotate-capable orbit control, which
@@ -55,13 +56,7 @@ import {
   buildAtlasOcclusion,
   type AtlasField,
 } from './shadow-atlas.js';
-import {
-  groundBounds,
-  groundCasters,
-  placementCasters,
-  STORY_TREE_CROWN,
-  STORY_TREE_TRUNK,
-} from './ground-casters.js';
+import { groundBounds, groundCasters, placementCasters } from './ground-casters.js';
 import type { ShadowCaster } from './land-shadow.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, roleHeights, type LoadedKit } from './kit-mesh.js';
 import {
@@ -172,9 +167,16 @@ const UNKNOWN_STATUS = 'unknown';
 const groundColourOf = (material: string | undefined): string =>
   GROUND_COLOUR.get(material ?? UNKNOWN_STATUS) ?? GROUND_COLOUR.get(UNKNOWN_STATUS)!;
 
-/** CROWN colour for a status variant — the story tree's canopy cone, and nothing else. */
-const crownColourOf = (material: string | undefined): string =>
-  CROWN_COLOUR.get(material ?? UNKNOWN_STATUS) ?? CROWN_COLOUR.get(UNKNOWN_STATUS)!;
+// ⚠⚠ `crownColourOf` WAS DELETED WITH `StoryTree` (ADR-0508) AND {@link CROWN_COLOUR} DELIBERATELY
+// SURVIVES IT — do not read the table as dead and delete it too. Its resolver had exactly one
+// caller, the retired canopy cone, and this file now REFERENCES the table nowhere. It is still
+// load-bearing, and its readers reach it by PARSING THIS SOURCE rather than by importing it:
+// `src/leaf-tint.test.ts` pins `LEAF_TINT_TOKEN`'s `mapped` entry to `CROWN_COLOUR.get('mapped')`
+// (a crown's colour is a claim about a proof state, ADR-0392 D5 / ADR-0398 D7, so the kit's leaf
+// tint may not author a hue of its own), `harness/palette-transcription.ts` holds it to the app's
+// `--crown-<status>-lo` custom properties, and `harness/shipped-baseline.ts` transcribes it. The
+// kit's leaves are still tinted by status, so the vocabulary is as live as it ever was — it is the
+// hand-built cone that is gone, not the crown token.
 
 const byKind = (descriptors: readonly Descriptor3D[], kind: InstanceDescriptor['kind']) =>
   descriptors.filter((d): d is InstanceDescriptor => d.kind === kind);
@@ -856,8 +858,9 @@ const kit = (): Promise<LoadedKit> => (kitPromise ??= loadEmbeddedKit());
  * ONE BOUGHT OBJECT PER CAPABILITY, ITS SPECIES AND LEAF TINT CARRYING THAT CAPABILITY'S STATE.
  *
  * The owner settled this vocabulary on 2026-08-29 (ADR-0475) and authorised the crossing the same
- * day. Until now the shipped map drew ONE of the 1,089 things the semantic scene puts on its
- * ground: the story tree, and nothing else.
+ * day. Until then the shipped map drew ONE of the 1,089 things the semantic scene puts on its
+ * ground: the story tree, and nothing else. That one has since been retired too (ADR-0508), so
+ * every object standing on this map is now a kit placement and this component draws all of them.
  *
  * ⚠⚠ THE BLOOMS ARE DRAWN PER ISLAND, AND THE WHOLE-MAP CALL THAT PRECEDED IT WAS THE HAZARD. The
  * vocabulary's sixth entry is one flower per UAT criterion the owner has signed (ADR-0226 D4), and
@@ -936,30 +939,21 @@ function KitProps({ placements }: { placements: readonly KitPlacement[] }) {
   );
 }
 
-function StoryTree({ tree }: { tree: InstanceDescriptor }) {
-  const { x, y, z } = tree.transform;
-  const colour = crownColourOf(tree.material);
-  return (
-    /* ⚠ THE DIMENSIONS COME FROM `ground-casters.ts`, NOT FROM LITERALS HERE. The occlusion
-       field derives this tree's shadow from the same two constants, so a tree that grew and a
-       shadow that did not is unrepresentable — the argument `bandGlsl` makes about the ladder,
-       applied to a silhouette. */
-    <group position={[x, y, z]}>
-      <mesh position={[0, STORY_TREE_TRUNK.height / 2, 0]}>
-        <cylinderGeometry
-          args={[STORY_TREE_TRUNK.radiusTop, STORY_TREE_TRUNK.radiusBottom, STORY_TREE_TRUNK.height]}
-        />
-        <meshStandardMaterial color="#6b4f35" />
-      </mesh>
-      <mesh position={[0, STORY_TREE_CROWN.centreY, 0]}>
-        <coneGeometry
-          args={[STORY_TREE_CROWN.radius, STORY_TREE_CROWN.height, STORY_TREE_CROWN.segments]}
-        />
-        <meshStandardMaterial color={colour} />
-      </mesh>
-    </group>
-  );
-}
+// ⚠⚠ `StoryTree` STOOD HERE UNTIL 2026-09-04 AND IS RETIRED, NOT MOVED (ADR-0508). It drew a
+// cylinder trunk under a cone crown at every island's centre, from `ground-casters.ts`'s
+// `STORY_TREE_TRUNK` / `STORY_TREE_CROWN` — the hand-built placeholder that predated the bought
+// kit, and the one object on this map that was not from the pack. The owner: "under this new look
+// the center tree will no longer be a thing, each island will be a small grove or forest". Since
+// ADR-0475 D2 the LAND carries the story's own state uniformly across the island, so the crown was
+// a second copy of a signal the ground already reports; `KitProps` below stands the grove that
+// replaces it, and the trunk/crown constants and the caster derived from them went in the same
+// landing. There is nothing to mount here and nothing behind a flag: `world-to-3d.ts` no longer
+// emits the `story-tree` family, so the descriptor this component read does not arrive.
+//
+// ⚠ THE 2D MAPS ARE UNTOUCHED and still draw their own hero tree from the same scene node
+// (`.story-tree .crown-lo circle`, ADR-0226's crown token) — which is why {@link CROWN_COLOUR}
+// above stays. It is the transcription of that authored vocabulary, and it is what
+// `leaf-tint.ts`'s `mapped` token is measured against.
 
 function TrailStrip({ strip }: { strip: InstanceDescriptor }) {
   const pts = strip.points ?? [];
@@ -1106,7 +1100,6 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // occlusion field and uploads a texture: a fresh array identity every render would rebuild and
   // re-upload both on every frame the canvas re-rendered for any reason at all.
   const cells = useMemo(() => byKind(descriptors, 'cell-ground'), [descriptors]);
-  const trees = useMemo(() => byKind(descriptors, 'story-tree'), [descriptors]);
   // The visible trail strips, whether or not they are DRAWN (`showTrails` below): layer 3's
   // connector reads their ends as the islands' docks, so the worn path crosses the land the
   // trail arrives at even on a canvas that draws no ribbon at sea. Memoised for the same reason
@@ -1125,7 +1118,8 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
     [descriptors],
   );
   // Everything that stands on the land and therefore darkens it: the descriptor families that
-  // cast (`groundCasters` — the story tree and the cave portals; wisps and trails cast nothing, and
+  // cast (`groundCasters` — the cave portals, since ADR-0508 retired the story tree that was the
+  // only other one; wisps and trails cast nothing, and
   // that rule lives there) UNIONED with every kit placement, from the frozen tables the placement
   // itself was made against. A caller reading this list should see one place that answers "what
   // casts a shadow here", and since 2026-09-03 the answer is everything that stands.
@@ -1158,9 +1152,6 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
       <CalibratedLights />
       <CellGround cells={cells} casters={casters} strips={strips} />
       <KitProps placements={placements} />
-      {trees.map((t, i) => (
-        <StoryTree key={i} tree={t} />
-      ))}
       {trails.map((t, i) => (
         <TrailStrip key={i} strip={t} />
       ))}

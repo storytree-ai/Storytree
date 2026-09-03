@@ -98,8 +98,10 @@ export interface ShippedPrimitive {
  *  scene outright. There is nothing left in the shipped file to transcribe or pin: a census of
  *  what the shipped canvas draws is a census of the mesh substrate now, full stop, and the
  *  triangle-count formulas above (`cylinderTriangles` and friends) are unaffected general-purpose
- *  three.js arithmetic that the story-tree trunk/crown and the cave-arch/wisp primitives below
- *  still use. */
+ *  three.js arithmetic. ⚠ Since the story-tree rows went the same way on 2026-09-04 (ADR-0508),
+ *  `cylinderTriangles` has no row left in {@link SHIPPED_PRIMITIVES} that calls it — it is kept as
+ *  exported, tested arithmetic about three.js rather than as a description of anything this canvas
+ *  currently draws, which is exactly what the sentence above already said of it. */
 
 /** Every primitive the shipped canvas draws, with its authored triangle count.
  *
@@ -113,32 +115,29 @@ export interface ShippedPrimitive {
  *  from `ForestWorldCanvas.tsx` (`retire-the-old-land-path`), so there is no longer a primitive
  *  call in the shipped file for this row to cite. `cell-ground` still carries no row here either,
  *  for the ORIGINAL reason below (its triangle count is a property of the scene, not of the
- *  family) — the two absences are unrelated. */
+ *  family) — the two absences are unrelated.
+ *
+ *  ⚠⚠ `story-tree/trunk` AND `story-tree/crown` LEFT ON 2026-09-04 THE SAME WAY `hex-ground` DID,
+ *  and for the same reason: the component that drew them is gone from the shipped file. They cited
+ *  `cylinderGeometry(1.2, 1.6, 8)` and `coneGeometry(7, 14, 8)` — 128 + 16 = 144 triangles, which
+ *  was the WHOLE authored cost of this map before the `cell` case existed ({@link
+ *  BEFORE_THE_CELL_CASE}). `StoryTree` was retired by ADR-0508 (each island stands a grove now) and
+ *  `world-to-3d.ts` no longer emits the family, so a census can never again report a drawable for
+ *  these rows — they would contribute a permanent zero while reading as a cost the map still pays.
+ *  ⚠ THE GROVE DID NOT INHERIT THE ROWS. A kit prop's triangles are the ASSET's, not an authored
+ *  primitive's, so they are counted where the kit is loaded (`kit-mesh.ts`) and belong in no table
+ *  of hand-written geometry. This list is now the two props the canvas still builds by hand. */
 export const SHIPPED_PRIMITIVES: readonly ShippedPrimitive[] = [
   {
-    kind: 'story-tree/trunk',
-    source: 'ForestWorldCanvas.tsx:77',
-    primitive: 'cylinderGeometry(1.2, 1.6, 8)',
-    triangles: cylinderTriangles(32, 1, 1.2, 1.6),
-    perDrawable: 1,
-  },
-  {
-    kind: 'story-tree/crown',
-    source: 'ForestWorldCanvas.tsx:81',
-    primitive: 'coneGeometry(7, 14, 8)',
-    triangles: cylinderTriangles(8, 1, 0, 7),
-    perDrawable: 1,
-  },
-  {
     kind: 'cave-arch',
-    source: 'ForestWorldCanvas.tsx:110',
+    source: 'ForestWorldCanvas.tsx:977',
     primitive: 'circleGeometry(hw, 24)',
     triangles: circleTriangles(24),
     perDrawable: 1,
   },
   {
     kind: 'wisp-sprite',
-    source: 'ForestWorldCanvas.tsx:121',
+    source: 'ForestWorldCanvas.tsx:988',
     primitive: 'sphereGeometry(2.2, 12, 12)',
     triangles: sphereTriangles(12, 12),
     perDrawable: 1,
@@ -280,7 +279,13 @@ export const SHIPPED_GROUND_COLOUR: ReadonlyMap<string, string> = new Map([
   ['unknown', '#9ca3af'],
 ]);
 
-/** WHAT THE SHIPPED CANVAS DRAWS NOW — the story tree's CROWN.
+/** THE CROWN VOCABULARY the shipped canvas declares, per status.
+ *
+ *  ⚠ IT NO LONGER PAINTS A CONE ON THE 3D MAP (ADR-0508 retired the placeholder story tree), and
+ *  the table is as live as ever: the 2D maps still draw a crown from these tokens, `check:palette-
+ *  transcription` holds the canvas's copy to the app's own `--crown-<status>-lo` properties, and
+ *  `src/leaf-tint.ts` pins the KIT's `mapped` leaf tint to the `mapped` entry — a crown's colour
+ *  is a claim about a proof state (ADR-0392 D5 / ADR-0398 D7), so the kit may not author one.
  *
  *  ⚠ IT IS A SECOND TABLE BECAUSE GROUND AND CROWN LEGITIMATELY DIFFER, and `building` is where
  *  that is visible: the app authors no `--crown-building-*` pair, so a building crown falls

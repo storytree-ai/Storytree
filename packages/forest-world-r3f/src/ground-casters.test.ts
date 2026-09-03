@@ -10,16 +10,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
-  STORY_TREE_CROWN,
-  STORY_TREE_TRUNK,
   caveArchCaster,
   caveMouthHalfWidth,
   groundBounds,
   groundCasters,
   placementCaster,
   placementCasters,
-  storyTreeCaster,
-  storyTreeTop,
 } from './ground-casters.js';
 import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, type KitPlacement } from './kit-vocabulary.js';
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
@@ -30,25 +26,15 @@ const at = (kind: InstanceDescriptor['kind'], x: number, z: number): InstanceDes
   group: kind,
 });
 
-test('the tree’s dimensions are the MESH’s own, so a caster cannot outgrow its object', () => {
-  // `ForestWorldCanvas`'s `StoryTree` builds its cylinder and cone from these very constants. A
-  // tree that grew and a shadow that did not would read as a rendering bug.
-  assert.deepEqual({ ...STORY_TREE_TRUNK }, { radiusTop: 1.2, radiusBottom: 1.6, height: 8 });
-  assert.deepEqual({ ...STORY_TREE_CROWN }, { radius: 7, height: 14, segments: 8, centreY: 12 });
-});
-
-test('the tree reaches 19 units — the crown’s TIP, not its centre and not the trunk', () => {
-  assert.equal(storyTreeTop(), 19);
-  assert.equal(storyTreeTop(), STORY_TREE_CROWN.centreY + STORY_TREE_CROWN.height / 2);
-  assert.ok(storyTreeTop() > STORY_TREE_TRUNK.height, 'the crown is what reaches, not the trunk');
-});
-
-test('the story tree becomes the CROWN’s cylinder, standing at the descriptor’s own ground point', () => {
-  const caster = storyTreeCaster(at('story-tree', 30, -6));
-  assert.deepEqual(caster, { x: 30, z: -6, radius: 7, height: 19 });
-  // Its y is deliberately not read: the caster's height is measured from the land at its own foot,
-  // and the descriptor's y is already that land.
-});
+// ⚠⚠ THREE STORY-TREE TESTS WERE DELETED HERE (ADR-0508), AND THEY ARE NOT REPLACED BY WEAKER
+// ONES. They pinned `STORY_TREE_TRUNK` / `STORY_TREE_CROWN` against the mesh, `storyTreeTop()` at
+// 19 units, and `storyTreeCaster` to the crown's cylinder at the descriptor's own ground point.
+// All four symbols are gone: `world-to-3d.ts` no longer emits a `story-tree` descriptor, so a test
+// of a caster derived from one would construct a subject the map cannot produce, and pass forever
+// over nothing. What the retirement is proved by instead is the mapper (`world-to-3d.test.ts`: a
+// `tree` node yields a SKIP and no instance), the shipped island end to end
+// (`harness/shipped-land-scene.test.ts`: the descriptor stream now casts nothing at all), and the
+// shipped canvas's own source (`harness/shipped-baseline.test.ts`: no `<StoryTree>` is mounted).
 
 test('the cave portal’s radius is the 2D prop’s own mouth rule', () => {
   const cave: InstanceDescriptor = { ...at('cave-arch', 5, 5), width: 4 };
@@ -63,9 +49,10 @@ test('the cave portal’s radius is the 2D prop’s own mouth rule', () => {
 test('THE RULE: a wisp casts nothing, and neither does a trail', () => {
   // `uat-bloom` stands in for the retired classic `hex-ground` as the second non-casting ground
   // reading — `retire-the-old-land-path` dropped `hex-ground` from `InstanceKind` entirely, so a
-  // literal of that kind no longer typechecks.
+  // literal of that kind no longer typechecks. The `story-tree` that used to open this set went
+  // the same way (ADR-0508) and the CAVE now carries the "something does cast" half.
   const casters = groundCasters([
-    at('story-tree', 0, 0),
+    { ...at('cave-arch', 0, 0), width: 4 },
     at('wisp-sprite', 10, 10),
     at('trail-strip', 20, 20),
     at('cell-ground', 30, 30),
@@ -76,18 +63,22 @@ test('THE RULE: a wisp casts nothing, and neither does a trail', () => {
   assert.equal(casters[0]!.x, 0);
 });
 
-test('trees and portals both cast, in descriptor order', () => {
+test('portals cast, in descriptor order, and every OTHER family is passed over', () => {
+  // ⚠ NON-VACUITY ON A ONE-CASE LOOP. `groundCasters` now has a single `if`, so a filter that
+  // simply returned everything would still put a caster at 1 and at 3 — the interleaved
+  // non-casting families are what separates the real rule from that, and the ORDER is what
+  // separates it from a collect-then-sort.
   const casters = groundCasters([
-    at('story-tree', 1, 1),
+    at('cell-ground', 1, 1),
     { ...at('cave-arch', 2, 2), width: 4 },
-    at('story-tree', 3, 3),
+    at('uat-bloom', 3, 3),
+    { ...at('cave-arch', 4, 4), width: 8 },
   ]);
   assert.deepEqual(
     casters.map((c) => [c.x, c.radius]),
     [
-      [1, 7],
       [2, 3.2],
-      [3, 7],
+      [4, 6.4],
     ],
   );
 });
@@ -117,7 +108,7 @@ test('bounds over nothing are NULL rather than a degenerate rect', () => {
 
 test('a mixed descriptor set is read for parcels only when bounding the ground', () => {
   const mixed: Descriptor3D[] = [
-    at('story-tree', 500, 500),
+    at('cave-arch', 500, 500),
     { ...at('cell-ground', 0, 0), points: [{ x: -1, y: 0, z: -1 }, { x: 1, y: 0, z: 1 }] },
   ];
   const cells = mixed.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground');

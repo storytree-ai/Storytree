@@ -288,12 +288,19 @@ test('the ramp ROWS and the ramp TOKENS agree, status for status', () => {
   assert.notEqual(GROUND_ROWS.get('unknown'), 0);
 });
 
-test('THE CENSUS: the shipped map draws a tree and ten signatures, and skips 1,078 more', () => {
-  // ⚠ THIS IS THE INCREMENT'S FINDING, and it bounds what a shadow can do here. `contact-shade.ts`
-  // was ranked FIRST of ten mechanisms separating the owner's references from our island — but it
-  // was ranked on the EXPERIMENT island, which stands 155 props. This map draws a story tree and
-  // nothing else, so one contact pool is not what "placed rather than pasted" meant. The shadow is
-  // bounded by the map's own emptiness rather than by the field, and it grows when the props do.
+test('THE CENSUS: the shipped map draws ten signatures and skips 1,079 more', () => {
+  // ⚠ THIS WAS THE INCREMENT'S FINDING, and it bounded what a shadow could do here.
+  // `contact-shade.ts` was ranked FIRST of ten mechanisms separating the owner's references from
+  // our island — but it was ranked on the EXPERIMENT island, which stands 155 props. This map drew
+  // a story tree and nothing else, so one contact pool was not what "placed rather than pasted"
+  // meant.
+  //
+  // ⚠⚠ AND THE TREE HAS NOW GONE THE OTHER WAY (ADR-0508) — it crossed from the DRAWN column to
+  // the SKIPPED one, so the census total is unchanged and its split moved by one. The map's own
+  // descriptor stream now stands NOTHING: what darkens this island is the grove, and a grove is a
+  // kit PLACEMENT that reaches the ground through `placementCasters` rather than through this
+  // stream. Read the caster assertion at the bottom with that in mind — `[]` here is the whole
+  // story only for descriptors, and `ForestWorldCanvas` unions this list with the placements.
   //
   // ⚠ THE CENSUS MOVED BY TEN ON 2026-08-31 and the TOTAL is what holds it honest. The mapper now
   // maps the ten `tall-flower-proven` wrappers — this fixture's ten SIGNED UAT criteria — to
@@ -311,14 +318,29 @@ test('THE CENSUS: the shipped map draws a tree and ten signatures, and skips 1,0
     (d) => d.kind === 'skipped' && (d.sceneKind ?? '').startsWith('tall-flower-'),
   );
   const blooms = descriptors.filter((d) => d.kind === 'uat-bloom');
+  // The retired story tree, now on the skipped side of the ledger — counted BY NAME so that the
+  // total below stays the same 1,089 it always was and the move is legible as a move.
+  const trees = descriptors.filter((d) => d.kind === 'skipped' && d.sceneKind === 'tree');
   assert.equal(standing.length + flowers.length, 1078, 'the skipped ground-standing census moved');
   assert.equal(blooms.length, 10, 'the fixture signs ten criteria and the map now draws all ten');
+  assert.equal(trees.length, 1, 'the one story tree is still SEEN by the mapper — skipped, not dropped');
   assert.equal(
-    standing.length + flowers.length + blooms.length,
-    1088,
-    'ten drawables crossed columns; none may have left the scene',
+    standing.length + flowers.length + blooms.length + trees.length,
+    1089,
+    'eleven drawables have crossed columns over this arc; none may have left the scene',
   );
-  assert.equal(descriptors.filter((d) => d.kind === 'story-tree').length, 1);
-  // And exactly one of them becomes a caster: a bloom is a knee-high flower, not an occluder.
-  assert.deepEqual(groundCasters(descriptors), [{ x: 0, z: -6, radius: 7, height: 19 }]);
+  // ⚠ AND NOW NOTHING IN THE STREAM CASTS. The tree was the one descriptor on this island that
+  // did; a bloom is a knee-high flower, not an occluder, and the parcels are the ground itself.
+  // The dark pool that stood at this island's centre in every frame on this arc was the
+  // placeholder's, and it goes with it.
+  assert.deepEqual(groundCasters(descriptors), []);
+  // NON-VACUITY: `groundCasters` did not stop working, and this fixture would still show a portal
+  // if it had one. An empty result here is a fact about the ISLAND, not about the function.
+  assert.deepEqual(
+    groundCasters([
+      ...descriptors,
+      { kind: 'cave-arch', transform: { x: 1, y: 0, z: 2 }, group: 'cave-arch', width: 4 },
+    ]),
+    [{ x: 1, z: 2, radius: 3.2, height: 3.2 }],
+  );
 });

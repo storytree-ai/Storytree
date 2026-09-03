@@ -1,7 +1,7 @@
 // shipped-canopy-measure.mjs — DRIVER for the canopy comparison page: the shipped ground bare,
 // with today's vocabulary casting its shadows, and with the healthy island's grove on top.
 //
-//   bare        the shipped ground alone — the story tree's own shadow, nothing bought (CONTROL)
+//   bare        the shipped ground alone — nothing bought and nothing casting (CONTROL)
 //   capability  + one pine per capability, one bloom per signature — NOW casting
 //   groves-x1   + the healthy island's grove at the RECIPE's own stand count (`src/grove-dressing.ts`)
 //   groves-x2   + the grove at twice the recipe's stands — the SHIPPED pick

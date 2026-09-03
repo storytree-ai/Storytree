@@ -14,13 +14,18 @@
 //
 // ⚠⚠ AND ON THE SHIPPED MAP IT IS THE SMALLER OF THE TWO TERMS, WHICH INVERTS THAT RANKING.
 // The ranking was measured on the EXPERIMENT island, which stands 155 small props on its ground;
-// there, 155 tight pools are most of what "placed rather than pasted" means. The shipped canvas
-// draws ONE object — a story tree — and skips all 1,088 vegetation nodes the semantic scene
-// emits, so contact darkening here is a single pool of radius 9.7 units under a crown of radius
-// 7, most of it hidden by the crown that casts it, while the CAST shadow leans 13.2 units clear
-// of the canopy and is plainly visible. Both terms still ship, because they merge into one
-// texture and one rung and dropping either buys nothing — but the ranking that put this module
-// first is a fact about a populated island, and it will only become true here when the props do.
+// there, 155 tight pools are most of what "placed rather than pasted" means. Until 2026-08-30 the
+// shipped canvas drew ONE object — a story tree — and skipped all 1,088 vegetation nodes the
+// semantic scene emits, so contact darkening here was a single pool of radius 9.7 units under a
+// crown of radius 7, most of it hidden by the crown that cast it, while the CAST shadow leaned
+// 13.2 units clear of the canopy and was plainly visible. Both terms still ship, because they
+// merge into one texture and one rung and dropping either buys nothing.
+//
+// ⚠ AND THE PROPS DID COME, WHICH IS WHY THE PARAGRAPH ABOVE IS PAST TENSE. The bought kit landed
+// (ADR-0475) and its placements began casting on 2026-09-03; the placeholder tree was retired the
+// day after (ADR-0508). So the shipped island now stands a GROVE — many small pools rather than
+// one large one, which is the populated-island case the ranking was measured on. The inversion
+// this block records is history; do not read it as a live claim that this module delivers little.
 //
 // WHY IT IS ITS OWN MODULE RATHER THAN A THIRD TERM IN `land-shadow.ts`. That file computes "how
 // much of the authored light is blocked" — a directional question, answered by stamping a swept

@@ -86,10 +86,10 @@ import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
+import { SHIPPED_GROVE_ARM, armCasters } from './shipped-canopy-scene.js';
 import {
   CROWD_ZOOMS,
   FIT_ZOOM,
-  crowdCasters,
   crowdCells,
   crowdPxPerUnit,
   crowdSize,
@@ -180,9 +180,16 @@ export const SHADOW_ZOOMS: readonly number[] = [...CROWD_ZOOMS, CLOSE_ZOOM];
  */
 export const SHADOW_PICTURE_ZOOMS: readonly CrowdZoom[] = [...SHADOW_ZOOMS, FIT_ZOOM];
 
-/** Ground units across a story tree's contact pool, near enough for the pixel check below — the
- *  crown radius the shipped caster uses, doubled, plus the pool's own spread. It is a SIZING
- *  number for "is the object big enough to photograph", never a claim about the shadow's shape. */
+/** Ground units across a contact pool, near enough for the pixel check below. It is a SIZING
+ *  number for "is the object big enough to photograph", never a claim about the shadow's shape.
+ *
+ *  ⚠ IT WAS DERIVED FROM THE PLACEHOLDER STORY TREE — its crown radius of 7 doubled, plus the
+ *  pool's own spread — and that tree is retired (ADR-0508). The number is KEPT rather than
+ *  re-derived from the grove, and deliberately: a grove pine stands at 0.55–0.80 of a capability
+ *  tree's height and pools SMALLER than 24 units, so re-deriving would LOWER the bar this constant
+ *  sets. Its only use is the assertion that the close zoom makes a pool hundreds of pixels wide,
+ *  and holding that bar at the larger, retired object keeps the check strictly harder to pass than
+ *  the objects now on the page require. */
 export const POOL_GROUND_WIDTH = 24;
 
 /**
@@ -338,7 +345,15 @@ export interface ShadowLandScene {
  */
 export function buildShadowScene(arm: ShadowArm, size: CrowdSize, zoom: CrowdZoom): ShadowLandScene {
   const cells = crowdCells(size);
-  const casters = crowdCasters(size);
+  // ⚠⚠ THE CASTERS ARE THE MAP'S WHOLE LIST, NOT `crowdCasters` ALONE — and that changed on
+  // 2026-09-04. This page's SUBJECT is how the occlusion field is ALLOCATED (one mesh over the
+  // forest, versus one per island), so it is the one page here that is nothing without something
+  // to cast. It used to take `crowdCasters(size)`, which was each island's placeholder story tree;
+  // ADR-0508 retired that family, so `crowdCasters` is now empty and this page would have compared
+  // two allocations of an all-lit field — a comparison that cannot fail, reported as a result.
+  // `armCasters` is the union `ForestWorldCanvas` itself hands its ground (the descriptor stream's
+  // casters PLUS one per kit placement), so what this page allocates over is what the map draws.
+  const casters = armCasters(SHIPPED_GROVE_ARM, size);
   const bounds = groundBounds(cells);
   if (bounds === null) throw new Error('shipped-shadow-scene: the crowd bounds nothing');
 

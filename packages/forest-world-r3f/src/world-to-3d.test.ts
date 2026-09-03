@@ -6,9 +6,10 @@
 // (missing implementation, not a syntax error in the test).
 //
 // When the implementation lands, these tests pin:
-//   • core kind-family mapping: relaxed-mesh parcel → cell-ground, story tree →
-//     story-tree, trail fill/ghost → trail-strip / trail-ghost-strip, cave →
-//     cave-arch, in-flight wisp → wisp-sprite
+//   • core kind-family mapping: relaxed-mesh parcel → cell-ground, trail fill/ghost →
+//     trail-strip / trail-ghost-strip, cave → cave-arch, in-flight wisp → wisp-sprite
+//     (the story tree mapped to `story-tree` until 2026-09-04 and is retired — ADR-0508;
+//     a `tree` group now SKIPS, and the test named for it pins that)
 //   • total coverage: non-core / structural SceneKinds yield an explicit
 //     { kind: 'skipped', sceneKind: string } — never a throw, never a silent drop
 //   • material variant flows from the territory's folded SceneStatus
@@ -120,7 +121,7 @@ const DEFAULT_DRAW_TILES: DrawTile[] = [
  *  cell-ground. Until `retire-the-old-land-path` this built a CLASSIC scene instead
  *  (`relaxedCells: null`, `tile` groups); the classic substrate now REFUSES at the mapper rather
  *  than mapping (see the dedicated refusal test below), so every OTHER test in this file — which
- *  is exercising story-tree / trail / cave / wisp mapping, not ground — needs a substrate the
+ *  is exercising bloom / trail / cave / wisp mapping, not ground — needs a substrate the
  *  mapper still accepts. */
 function mkInput(over: Partial<SceneInput> = {}): SceneInput {
   const drawTiles = over.drawTiles ?? DEFAULT_DRAW_TILES;
@@ -191,11 +192,17 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
   const positions = new Set(grounds.map((g) => `${g.transform.x.toFixed(3)},${g.transform.z.toFixed(3)}`));
   assert.equal(positions.size, grounds.length, 'no two parcels collapse onto the same position');
 
-  // the story tree stands at its territory's treeSpot.
-  const trees = descs.filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
-  assert.equal(trees.length, 1, 'one story-tree per territory');
-  closeTo(trees[0]!.transform.x, 100, 'tree x = treeSpot.x');
-  closeTo(trees[0]!.transform.z, 190, 'tree z = treeSpot.y');
+  // ⚠ NOTHING STANDS AT THE TERRITORY'S `treeSpot` ANY MORE (ADR-0508). This used to assert one
+  // `story-tree` instance at (100, 190) — the placeholder cone the 3D map drew at every island's
+  // centre. The tree group is now SKIPPED, so the faithfulness claim here is the negative one, and
+  // it is checked at the spot rather than by kind: a family that reappeared under a different name
+  // would still fail.
+  assert.ok(
+    !descs
+      .filter(asInstance)
+      .some((d) => Math.abs(d.transform.x - 100) < 1 && Math.abs(d.transform.z - 190) < 1),
+    'no instance stands at the territory’s treeSpot',
+  );
 
   // each visible trail segment carries its routed polyline on the ground plane
   // (y = 0 throughout), width from the ONE shared rule, and its reveal metadata.
@@ -236,8 +243,9 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
     for (const gd of cellsForStatus) {
       assert.equal(gd.material, status, `cell-ground material reflects '${status}'`);
     }
-    const tr = ds.filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
-    assert.equal(tr[0]!.material, status, `story-tree material reflects '${status}'`);
+    // The `story-tree` material used to be re-asked here. The family is retired (ADR-0508) and
+    // the LAND is where a story's state is read now (ADR-0475 D2) — which the `cell-ground` loop
+    // above is exactly the check for, so nothing was lost with the second reading.
   }
 });
 
@@ -280,11 +288,40 @@ test('worldTo3D REFUSES a classic-substrate (tile) scene — the old land path i
   );
 });
 
-test('worldTo3D maps the story tree to a story-tree descriptor — one per territory', () => {
-  // mkInput has 1 territory → 1 tree group in the scene
-  const descs = worldTo3D(buildScene(mkInput()));
-  const trees = descs.filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
-  assert.equal(trees.length, 1, 'one story-tree descriptor per territory');
+test('worldTo3D SKIPS the story tree — the island keeps its parcels and its blooms, and stands no cone', () => {
+  // ⚠⚠ THE RETIREMENT, PROVED AT THE SEAM IT WAS MADE AT (ADR-0508). Until 2026-09-04 this test
+  // read "one story-tree descriptor per territory" and the shipped canvas drew a cylinder trunk
+  // under a cone crown at every island's centre. The owner retired it — each island is a grove now
+  // — and the mapper is where it went, because every downstream reader of what stands on the map
+  // (the canvas, `groundCasters`, and through `shippedCasters()` every comparison page) reaches it
+  // through this function.
+  const uatCriteria = [{ id: 'sig-1', state: 'proven' as const }];
+  const descs = worldTo3D(buildScene(mkInput({ territories: [mkTerritory({ uatCriteria })] })));
+
+  // 1. NO DRAWABLE, under any name. Asking for the retired kind alone would pass just as well if
+  //    the mapper had renamed the cone; this asks what the island actually stands.
+  const instanceKinds = [...new Set(descs.filter(asInstance).map((d) => String(d.kind)))].sort();
+  assert.deepEqual(instanceKinds, ['cell-ground', 'trail-strip', 'uat-bloom']);
+
+  // 2. AND THE ISLAND IS OTHERWISE INTACT — this removes ONE object, it does not thin the map.
+  //    (`comparison-baseline-moves-under-the-page`: a retirement that quietly took the parcels or
+  //    the signatures with it would still satisfy assertion 1.)
+  const own = (kind: string) => descs.filter(asInstance).filter((d) => d.kind === kind);
+  assert.ok(own('cell-ground').length > 0, 'the island keeps its parcels');
+  assert.equal(own('uat-bloom').length, 1, 'and its one signed criterion');
+  assert.ok(
+    own('cell-ground').every((d) => d.island === TERRITORY_ID),
+    'and every parcel still names its story',
+  );
+
+  // 3. AND THE MAPPER SAYS SO OUT LOUD. A silent drop and a recorded skip are different audit
+  //    trails, and the total-coverage invariant is the one this family now rests on: a `tree`
+  //    group is a kind the mapper understands and deliberately draws nothing for, exactly as it
+  //    already does for the 1,088 other objects the semantic scene stands on this ground.
+  assert.ok(
+    descs.filter(asSkipped).some((s) => s.sceneKind === 'tree'),
+    'the tree group is recorded as a SKIP, not dropped',
+  );
 });
 
 test('worldTo3D maps visible trail segments to trail-strip descriptors — one per fill-pass segment', () => {
@@ -474,18 +511,23 @@ test('r3f garden composition (grounded-art inc 11, ADR-0221): baked heroes + fla
     'the one signed criterion still becomes exactly one bloom beside the garden',
   );
 
-  // no garden node became a real instance, and the hero tree REPLACES the procedural story-tree on the
-  // garden island (a baked skip, not a story-tree), so the garden island has no story-tree instance.
+  // no garden node became a real instance.
   for (const d of withGarden.filter(asInstance)) {
     const kind = String(d.kind);
     assert.ok(!kind.startsWith('garden-') && kind !== 'baked-art', `${kind} must not be a 3D instance`);
   }
-  assert.equal(
-    withGarden.filter(asInstance).filter((d) => d.kind === 'story-tree').length,
-    0,
-    'the hero tree replaces the story-tree on the garden island',
-  );
-  assert.ok(bare.filter(asInstance).some((d) => d.kind === 'story-tree'), 'the default (no-garden) island keeps its story-tree');
+  // ⚠ THE GARDEN/BARE ASYMMETRY THIS TEST USED TO CLOSE ON IS GONE, and it went by the general
+  // case rather than by the exception. The garden island's baked hero tree REPLACED the procedural
+  // `story-tree`, so the pair of assertions here read "the garden island has none, the default
+  // island keeps one". Since ADR-0508 NEITHER island has one — the mapper skips every `tree` group
+  // — so the two arms agree, and what the garden suppresses is now only its own accents (asserted
+  // by name above).
+  for (const arm of [withGarden, bare]) {
+    assert.ok(
+      !arm.filter(asInstance).some((d) => String(d.kind).includes('tree')),
+      'neither the garden island nor the default one stands a tree drawable',
+    );
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -505,16 +547,12 @@ test('worldTo3D folds the territory status into the material on cell-ground desc
   }
 });
 
-test('worldTo3D folds the territory status into the material on the story-tree descriptor', () => {
-  for (const status of ['healthy', 'unhealthy', 'proposed'] as const) {
-    const descs = worldTo3D(
-      buildScene(mkInput({ territories: [mkTerritory({ status })] })),
-    );
-    const trees = descs.filter((d): d is InstanceDescriptor => d.kind === 'story-tree');
-    assert.equal(trees.length, 1, `${status}: expected exactly one story-tree descriptor`);
-    assert.equal(trees[0]!.material, status, `story-tree material must reflect '${status}'`);
-  }
-});
+// ⚠ 'worldTo3D folds the territory status into the material on the story-tree descriptor' IS
+// DELETED HERE (ADR-0508), not weakened. There is no `story-tree` descriptor to carry a material,
+// and the fact it stood for — a story's state reaching the 3D map — is asserted by its
+// `cell-ground` sibling directly above. That is not a downgrade: ADR-0475 D2 already made the LAND
+// the place the state is read, uniformly across the island, and the retired cone was a second copy
+// of that one signal rather than a second signal.
 
 // ---------------------------------------------------------------------------
 // instance descriptor shape: 3D transform + instancing group
@@ -938,7 +976,8 @@ test('the tree, the parcels and the blooms all name their island — the whole p
     cellIslands.every((id) => id === TERRITORY_ID),
     'every parcel names the same story as its island',
   );
-  assert.deepEqual(islandsOf(scene, 'story-tree'), [TERRITORY_ID]);
+  // (`story-tree` was the third family read here; it is retired — ADR-0508 — so the island id it
+  // carried has nothing left to attach to.)
   assert.deepEqual(islandsOf(scene, 'uat-bloom'), [TERRITORY_ID, TERRITORY_ID]);
   // ⚠ SORTED, NOT INSERTION ORDER. The core interleaves every territory drawable — tree, flora,
   // UAT markers — by its own Y coordinate for depth (`scene.ts`'s painter's-algorithm sort), and
@@ -958,7 +997,7 @@ test('the tree, the parcels and the blooms all name their island — the whole p
   );
 });
 
-test('⚠ NO island group ⇒ the field is ABSENT, on every one of the three families', () => {
+test('⚠ NO island group ⇒ the field is ABSENT, on every family that could carry one', () => {
   // ⚠⚠ ABSENT AND `undefined` ARE DIFFERENT DESCRIPTORS, and the difference is the whole reason the
   // assignment is guarded. Under `exactOptionalPropertyTypes` a consumer distinguishes "this
   // substrate does not say which story this is" from "this story is undefined" by asking `'island'
@@ -978,7 +1017,10 @@ test('⚠ NO island group ⇒ the field is ABSENT, on every one of the three fam
     ],
   };
   const got = worldTo3D(orphans).filter(asInstance);
-  assert.deepEqual(got.map((d) => d.kind).sort(), ['cell-ground', 'story-tree', 'uat-bloom']);
+  // ⚠ TWO FAMILIES, NOT THREE, SINCE ADR-0508: the `tree` group in this fixture is still walked
+  // and still recorded, but as a SKIP rather than a `story-tree` instance, so it is no longer one
+  // of the families that could invent an island.
+  assert.deepEqual(got.map((d) => d.kind).sort(), ['cell-ground', 'uat-bloom']);
   for (const d of got) assert.ok(!('island' in d), `${d.kind} invented an island`);
 
   // ⚠ THE CLASSIC SUBSTRATE'S `tile` USED TO BE THE FOURTH FAMILY THIS TEST CHECKED — a `tile`
