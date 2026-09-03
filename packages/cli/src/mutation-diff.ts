@@ -1189,7 +1189,19 @@ export function adjudicateMutants(
   const survived = tally("survived");
   const noCoverage = tally("no-coverage");
   const others = tally("killed-by-others");
-  const unproven = tally("unproven");
+  // UNPROVEN is TWO conditions, and they want OPPOSITE remedies, so they are tallied and printed
+  // apart. A Timeout means the covering tests ran past Stryker's per-mutant budget — the mutant
+  // made the suite hang, or the tests it covers are too slow for the budget on this machine — and
+  // no attribution work can clear it. A Killed mutant with no resolvable killer is the attribution
+  // layer failing. One sentence for both sent PR #1808's session down the attribution path for an
+  // hour on a 108-timeout wall (friction `timeout-killed-and-unattributable-mutants-report-identically`,
+  // `friction-unproven-message-names-one-of-two-conditions`).
+  // `counted` holds no excluded or unwitnessable mutant, and `classify` maps EVERY Timeout to
+  // `unproven`, so a Timeout in this set IS an unproven mutant — an `outcome === "unproven"` guard
+  // beside `isTimeout` would be a clause no input can make load-bearing (the rung reported exactly
+  // that survivor on this line's first run, and the answer is to delete the clause, not to test it).
+  const timedOut = counted.filter(isTimeout).length;
+  const unattributed = tally("unproven") - timedOut;
 
   if (survived > 0) reasons.push(`${survived} mutant(s) SURVIVED — no test noticed the change`);
   if (noCoverage > 0) reasons.push(`${noCoverage} mutant(s) had NO COVERAGE — no test reaches this line`);
@@ -1198,9 +1210,14 @@ export function adjudicateMutants(
       `${others} mutant(s) were killed only by tests this branch did not touch — the branch's own tests do not discriminate them`,
     );
   }
-  if (unproven > 0) {
+  if (unattributed > 0) {
     reasons.push(
-      `${unproven} mutant(s) are UNPROVEN — killed, but the report named no test (constraint 4: never a pass, never a survivor)`,
+      `${unattributed} mutant(s) are UNPROVEN — killed, but the report named no test (constraint 4: never a pass, never a survivor)`,
+    );
+  }
+  if (timedOut > 0) {
+    reasons.push(
+      `${timedOut} mutant(s) are UNPROVEN — TIMED OUT: the covering tests ran past Stryker's per-mutant budget, so either the mutant makes the suite hang or those tests are too slow for the budget on this machine; no test could be named (constraint 4: never a pass, never a survivor)`,
     );
   }
 
@@ -1234,6 +1251,17 @@ export function isNarrowedToNothing(verdict: MutationVerdict): boolean {
   // `narrowings.length > 0` would be a clause no input can make false while the second is true —
   // dead, and therefore an unkillable mutant, which is the shape this rung exists to refuse.
   return verdict.verdict === "vacuous" && verdict.mutants.some((m) => m.outcome === "unwitnessable");
+}
+
+/**
+ * Did Stryker record this mutant as a Timeout — the suite ran past its per-mutant budget?
+ *
+ * The one UNPROVEN sub-condition the report can name. Read off the raw `status`, never off the
+ * outcome, because `classify` folds Timeout and an unattributed Killed into the same outcome on
+ * purpose (neither is a pass, neither is a survivor) and only the status still tells them apart.
+ */
+export function isTimeout(mutant: Pick<AdjudicatedMutant, "status">): boolean {
+  return mutant.status === "Timeout";
 }
 
 /** The per-mutant rule. Kept separate so the table of statuses is readable in one screen. */
@@ -1370,7 +1398,15 @@ export function formatMutationVerdict(
 
   const failing = verdict.mutants.filter((m) => m.outcome !== "proven" && m.outcome !== "excluded");
   for (const mutant of failing.slice(0, 25)) {
-    const credit = mutant.killedByFiles.length === 0 ? "no test named" : `killed by ${mutant.killedByFiles.join(", ")}`;
+    // A timed-out mutant says so on its own line: "no test named" is true of it too, but it is the
+    // WRONG cue — it reads as an attribution gap, and the remedy for a timeout is the loop or the
+    // fixture, never the report.
+    const credit =
+      mutant.killedByFiles.length === 0
+        ? isTimeout(mutant)
+          ? "timed out — no test could be named"
+          : "no test named"
+        : `killed by ${mutant.killedByFiles.join(", ")}`;
     lines.push(`${tag}   ${mutant.outcome.toUpperCase()} ${describeMutant(mutant, sources)} — ${credit}`);
   }
   if (failing.length > 25) lines.push(`${tag}   … and ${failing.length - 25} more`);
