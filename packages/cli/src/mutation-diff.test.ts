@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { MIRRORS } from "./mirror-conformance.js";
 
 import {
+  concurrencyFor,
   isSpawnUatTest,
   adjudicateMutants,
   changedLinesAreCodeFree,
@@ -1381,6 +1382,38 @@ test("runsUnderBun: an empty script is not runnable", () => {
 // ---------------------------------------------------------------------------
 // Spawn-based acceptance legs are excluded from the mutation runner (2026-08-28)
 // ---------------------------------------------------------------------------
+
+test("concurrencyFor: one worker per PHYSICAL core, capped at 4, floored at 1", () => {
+  // The two anchors the rule exists for, named rather than buried in a table: GitHub's 4-vCPU
+  // runner has 2 physical cores and must drop to 2 (ADR-0509), while any 8-or-more-thread
+  // developer box keeps the 4 the rung shipped with, so this cannot slow a local run down.
+  assert.equal(concurrencyFor(4), 2, "GitHub's 4-vCPU runner: 2 physical cores, so 2 workers");
+  assert.equal(concurrencyFor(12), 4, "a 12-thread box keeps the shipped 4 — the cap, not n/2");
+
+  // EVERY region boundary, both sides. A remembered summary of this function said "4-7 -> 2",
+  // which is wrong at 6 and 7; the table is the spec and the prose is not.
+  assert.equal(concurrencyFor(1), 1, "floor: never 0, which would evaluate no mutants at all");
+  assert.equal(concurrencyFor(2), 1);
+  assert.equal(concurrencyFor(3), 1, "last input yielding 1");
+  assert.equal(concurrencyFor(5), 2, "odd input floors down, not up");
+  assert.equal(concurrencyFor(6), 3, "6 is 3, NOT 2 — the middle region is one wide per pair");
+  assert.equal(concurrencyFor(7), 3);
+  assert.equal(concurrencyFor(8), 4, "first input reaching the cap");
+  assert.equal(concurrencyFor(64), 4, "the cap holds however large the machine");
+
+  // The cap and the floor are SEPARATE claims: a mutant that swaps min for max, or drops either
+  // clamp, has to change one of these two and not merely a mid-range value.
+  assert.ok(concurrencyFor(64) < 64, "an unclamped n/2 would return 32 here");
+  assert.ok(concurrencyFor(1) > 0, "an unclamped floor(n/2) would return 0 here");
+
+  // Total by construction — a concurrency of 0 makes Stryker report success having run nothing,
+  // so a nonsense reading of the CPU count must still land inside [1, 4].
+  assert.equal(concurrencyFor(0), 1);
+  assert.equal(concurrencyFor(-8), 1, "a negative reading floors to 1, never to a negative");
+  assert.equal(concurrencyFor(Number.NaN), 1, "NaN is not finite: the guard returns 1");
+  assert.equal(concurrencyFor(Number.POSITIVE_INFINITY), 1, "infinity is not finite either");
+  assert.equal(concurrencyFor(9.9), 4, "a fractional reading still floors into a region");
+});
 
 test("isSpawnUatTest: a `.uat.test.ts` leg is excluded, an ordinary unit test is NOT", () => {
   // THE MEASURED REASON, so this is not read as taste. On clean `origin/main` at 785cc021, with a
