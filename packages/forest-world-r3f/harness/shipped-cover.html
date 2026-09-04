@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the ground cover — bushes, tufts and flowers at three sizes — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The ground cover &mdash; the recipe&rsquo;s bushes, grass tufts and flowers, at three sizes</h1>
+      <p>
+        The render the owner stamped is not only trees. <code>build_land.py</code>&rsquo;s
+        <code>scatter()</code> sprinkles <strong>70 undergrowth objects, 120 grass clumps and 26
+        flowers</strong> over the land for every thirteen stands of pines, from the same bought kit,
+        and the research README&rsquo;s own finding is that the approved island&rsquo;s colour
+        content is almost entirely its <em>props</em>. This page stands that cover on the shipped
+        map, over the <strong>same</strong> dressed ground, and ladders one thing: its
+        <strong>size</strong>.
+      </p>
+      <p>
+        <strong>Why size and not count, measured rather than chosen.</strong> The recipe&rsquo;s
+        counts <em>and</em> sizes were ported literally first (2026-09-03) and the result was
+        invisible: 432 ground-cover props on one island moved <strong>743 px</strong> past the
+        20/255 bar against the canopy, on an island where the canopy itself moved 194,440. The cause
+        is a scale mismatch the port inherited &mdash; the recipe&rsquo;s island is 93.8 ground units
+        across and its pine 4.0 units tall, where this map&rsquo;s island is 234 and its pine 18, so
+        every <em>signal</em> crossed already scaled and the ground cover crossed literal. Standing
+        more eight-pixel flecks was never going to answer it.
+      </p>
+      <p class="numbers">
+        bare       the shipped ground with the grove's shadows in its field and NOTHING standing on it — the prop MASK
+        canopy     TODAY: the vocabulary + each healthy island's grove at the shipped rung, no cover (CONTROL)
+        cover-1    + the cover at build_land.py TRANSCRIBED — the arm that shows why the literal port is not shipped
+        cover-2.5  + the cover at the ISLAND's own linear scale (234 / 93.8)
+        cover-4.5  + the cover at the TREES' own scale (18 / 4.004) — the boldest rung rendered
+      </p>
+      <p>
+        <strong>What the numbers under each picture are.</strong> Pixels moved by more than 20/255
+        against <code>canopy</code> (ADR-0490 D6 &mdash; how much of today&rsquo;s picture an arm
+        changes); the object census, with how many of them are ground cover; the widest ground-cover
+        prop actually delivered, in ground units, which is what the criterion marker&rsquo;s
+        distinctness is argued against (the marker is 4 units and no patch may reach half of it);
+        and the colour-family census and MICRO against the reference. Every dressed arm stands on
+        <em>one</em> ground build, because ground cover casts nothing &mdash; and the driver refuses
+        the run if any arm&rsquo;s caster count disagrees with the canopy arm&rsquo;s. Frame cost is
+        taken from this same page by <code>shipped-cover-cost.mjs</code> on the RTX 2060.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedCover } from './shipped-cover-scene.ts';
+      try {
+        await mountShippedCover(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

@@ -39,7 +39,7 @@
 // island's own ground — and each is placed AFTER the layer before it, so a grove pine is placed
 // around the capability's tree and a bush around both, never the other way about.
 
-import { COVER_DENSITY, dressCover } from './cover-dressing.js';
+import { COVER_DENSITY, COVER_SIZE, dressCover } from './cover-dressing.js';
 import { GROVE_DENSITY, dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
 import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary.js';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells.js';
@@ -54,15 +54,22 @@ export interface MapDressingOptions {
    *  pick (`GROVE_DENSITY`); the canopy comparison page's ladder arms are what pass it, and
    *  {@link dressMapFromKit} — which grows no grove at all — ignores it. */
   density?: number;
-  /** Which rung of `COVER_DENSITY_RUNGS` a healthy island's ground cover is scattered at. Omitted
-   *  is the shipped pick (`COVER_DENSITY`); the cover comparison page's ladder arms are what pass
-   *  it, and every entry point but {@link dressMapWithCover} ignores it.
-   *
-   *  ⚠ A SECOND KNOB RATHER THAN A SHARED ONE, because the two layers are two looks: the grove's
-   *  rung was picked against the recipe's 52–104 pines per island and the cover's against a
-   *  different picture entirely, and one number for both would mean a scale-back on either could
-   *  only be bought by scaling back the other. */
+  /** How many of the recipe's own ground-cover counts a healthy island wears, as a multiple.
+   *  Omitted is `COVER_DENSITY` — the recipe's own, which is what ships. This is deliberately NOT
+   *  the ladder (see {@link MapDressingOptions.coverSize}); it exists so the count can be exercised
+   *  at all, and every entry point but {@link dressMapWithCover} ignores it. */
   coverDensity?: number;
+  /** Which rung of `COVER_SIZE_RUNGS` a healthy island's ground cover is drawn at. Omitted is the
+   *  shipped pick (`COVER_SIZE`); the cover comparison page's ladder arms are what pass it.
+   *
+   *  ⚠⚠ THIS IS THE COVER'S LADDER, AND THE GROVE'S IS A COUNT — two layers, two knobs, and they
+   *  are not the same KIND of knob for a measured reason. The grove crossed already scaled to this
+   *  map (a pine is 18 units against the recipe's 4.0), so its picture moves with how MANY stand.
+   *  The ground cover crossed at the recipe's LITERAL sizes onto an island 2.49x the recipe's, and
+   *  the rendered consequence was near-invisibility — 432 props moving 743 px past 20/255 where
+   *  the canopy moved 194,440. So what the owner scales back along here is SIZE, and the count
+   *  stays the recipe's own. */
+  coverSize?: number;
 }
 
 // ⚠ THERE IS NO `seed` HERE, AND ITS ABSENCE IS DELIBERATE. `dressIslandFromKit` carries its own
@@ -214,6 +221,7 @@ function dressMap(
         relief: opts.relief,
         exclusion,
         density: opts.coverDensity ?? COVER_DENSITY,
+        size: opts.coverSize ?? COVER_SIZE,
       }),
     );
   }

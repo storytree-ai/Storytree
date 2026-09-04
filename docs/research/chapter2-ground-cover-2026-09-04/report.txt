@@ -1,0 +1,64 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+
+THE KIT — what every arm parsed, and what the shipped canvas pays for it
+file                      wire B    brotli B  base64 B  base64+brotli B   GPU B (mips)  textures  edges     tris     load ms
+dressing-kit.glb           1782636    1687045   2376848          1707976     201326589         9  2048          6000      413
+
+the recipe's own counts per recipe-island: bush 70 · tuft 120 · flowerPatch 26
+
+THE REFERENCE — the approved Cycles render, through this page’s own family census
+  land-combined: colour families 36 · largest holds 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution, framing and camera, and all SEVEN layers.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm         rung calls       tris objects  cover  bush  tuft flowr widest flowr  fam largest  MICRO  STRUCT   moved>20  vs-leaner  prop px   luma p10  p50  p90 spread
+bare           —     1       5562       0      0     0     0     0   0.00  0.00   41    8.0%   0.66   21.61     121817          —        0          0    0    0      0
+canopy         —     4     107502     102      0     0     0     0   0.00  0.00   47    4.9%   2.61   25.72          0          —   165364         51   76   88     37
+cover-1      1.0     4     172500     318    216    70   120    26   1.38  0.44   47    4.9%   2.65   25.71        558          —   166361         51   76   88     37
+cover-2.5    2.5     4     172500     318    216    70   120    26   3.45  1.11   47    4.9%   2.95   25.79       6780       6632   175233         50   76   88     38
+cover-4.5    4.5     4     172500     318    216    70   120    26   6.20  1.99   50    4.8%   3.78   26.25      25620      23324   200132         48   76   89     41
+
+── one @ fit (8.158 px/unit) ─────────────────────────────────
+arm         rung calls       tris objects  cover  bush  tuft flowr widest flowr  fam largest  MICRO  STRUCT   moved>20  vs-leaner  prop px   luma p10  p50  p90 spread
+bare           —     1       5562       0      0     0     0     0   0.00  0.00   41    8.0%   0.64   21.62     126658          —        0          0    0    0      0
+canopy         —     4     107502     102      0     0     0     0   0.00  0.00   47    4.9%   2.58   25.75          0          —   172059         51   76   88     37
+cover-1      1.0     4     172500     318    216    70   120    26   1.38  0.44   47    4.9%   2.62   25.75        591          —   173111         51   76   88     37
+cover-2.5    2.5     4     172500     318    216    70   120    26   3.45  1.11   47    4.9%   2.92   25.83       7130       6979   182441         50   76   88     38
+cover-4.5    4.5     4     172500     318    216    70   120    26   6.20  1.99   50    4.8%   3.75   26.29      26773      24443   208330         48   76   89     41
+
+── forest @ 8 px/unit ─────────────────────────────────
+arm         rung calls       tris objects  cover  bush  tuft flowr widest flowr  fam largest  MICRO  STRUCT   moved>20  vs-leaner  prop px   luma p10  p50  p90 spread
+bare           —     1     194630       0      0     0     0     0   0.00  0.00   40    8.5%   0.66   21.36     122247          —        0          0    0    0      0
+canopy         —     7    2440708    2279      0     0     0     0   0.00  0.00   49    4.8%   2.61   25.29          0          —   166492         51   77   88     37
+cover-1      1.0     7    3805446    6815   4536  1470  2520   546   1.38  0.44   49    4.8%   2.65   25.29        566          —   167531         51   77   88     37
+cover-2.5    2.5     7    3805446    6815   4536  1470  2520   546   3.46  1.11   47    4.7%   2.95   25.40       6888       6780   176779         50   77   88     38
+cover-4.5    4.5     7    3805446    6815   4536  1470  2520   546   6.22  1.99   51    4.4%   3.81   25.95      26688      24878   203477         48   76   89     41
+
+── forest @ fit (0.573 px/unit) ─────────────────────────────────
+arm         rung calls       tris objects  cover  bush  tuft flowr widest flowr  fam largest  MICRO  STRUCT   moved>20  vs-leaner  prop px   luma p10  p50  p90 spread
+bare           —     1     194630       0      0     0     0     0   0.00  0.00   46    7.8%   6.19   26.81       9342          —        0          0    0    0      0
+canopy         —     7    2440708    2279      0     0     0     0   0.00  0.00   46    7.7%  12.55   28.72          0          —     9843         32   67   85     53
+cover-1      1.0     7    3805446    6815   4536  1470  2520   546   1.38  0.44   46    7.7%  12.55   28.72          0          —     9843         32   67   85     53
+cover-2.5    2.5     7    3805446    6815   4536  1470  2520   546   3.46  1.11   46    7.7%  12.56   28.72          8          8     9852         32   67   85     53
+cover-4.5    4.5     7    3805446    6815   4536  1470  2520   546   6.22  1.99   47    7.7%  12.71   28.84        766        772    10763         34   70   86     52
+
+WHAT THE SIZE LADDER DID, at the read zoom on one island — against the CANOPY that ships today:
+  cover-1    (x1): 216 cover props, widest 1.38 units; moved 558 px past 20/255 (1002 touched), — vs the rung below; prop px 166361 (canopy 165364); families 47; MICRO 2.65.
+  cover-2.5  (x2.5): 216 cover props, widest 3.45 units; moved 6780 px past 20/255 (10094 touched), 6632 vs the rung below; prop px 175233 (canopy 165364); families 47; MICRO 2.95.
+  cover-4.5  (x4.5): 216 cover props, widest 6.20 units; moved 25620 px past 20/255 (36265 touched), 23324 vs the rung below; prop px 200132 (canopy 165364); families 50; MICRO 3.78.
+  the SHIPPED arm is cover-4.5 (size rung 4.5).
+
+THE CRITERION MARKER STAYS DISTINCT — the bound is flower against FLOWER:
+  the widest ground-cover FLOWER on any arm at any view is 1.995 ground units, against the marker's 4 and the bound of 2. The asset carries no second red flower.
+  (the widest ground-cover prop of ANY role is 6.222 units — a BUSH, which is not confusable with a tall red flower at any width and is not fenced by that bound.)
+
+THE GAP THAT REMAINS, at the read zoom on one island — bare → canopy → cover → approved:
+  colour families 41 → 47 → 50 → approved 36
+  largest family  8.0% → 4.9% → 4.8% → 5.2%
+  MICRO           0.66 → 2.61 → 3.78 → 2.54
+  STRUCT          21.61 → 25.72 → 26.25 → 30.05
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet.
