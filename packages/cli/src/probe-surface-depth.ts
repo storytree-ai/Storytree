@@ -29,7 +29,6 @@ import { renderStoredDoc } from "@storytree/library/store";
 import { agentManifestRefs } from "@storytree/library/agent-manifest";
 import {
   evaluateSurfaceDepth,
-  surfaceDepthOf,
   surfaceWalkVacuity,
   RECORD_KINDS,
 } from "@storytree/library/surface-depth";
@@ -107,13 +106,20 @@ async function main(): Promise<void> {
     }
     console.log("");
     console.log("  UNLINKED BY KIND — the population no seeding can give a depth");
+    console.log("    (the GRAPH's own set. Per READ the panel answers `record` for every row of a");
+    console.log("     record kind ahead of this, so these rows draw on their own band — ADR-0511 D1.)");
     const unlinkedByKind = new Map<string, number>();
     const totalByKind = new Map<string, number>();
     for (const node of nodes) {
-      // A decision twin is collapsed away, so ask about the id the panel would be handed.
       const kind = node.kind === "" ? "(unknown)" : node.kind;
       totalByKind.set(kind, (totalByKind.get(kind) ?? 0) + 1);
-      if (surfaceDepthOf(verdict, node.id).state === "unlinked") {
+      // THE GRAPH'S OWN SET, NOT THE PER-READ READING (ADR-0511 D2). `surfaceDepthOf` answers
+      // `record` for a log row ahead of every depth-shaped state, which is right for the panel and
+      // wrong here: this table's subject is which rows the WALK could give a depth, and asking the
+      // reading would empty the very population the table exists to show. The canonical hop is kept
+      // — a decision twin is collapsed away, so the id this asks about must be the surviving one.
+      const canonical = verdict.canonicalIds.get(node.id) ?? node.id;
+      if (verdict.unlinkedIds.has(canonical)) {
         unlinkedByKind.set(kind, (unlinkedByKind.get(kind) ?? 0) + 1);
       }
     }

@@ -20,6 +20,8 @@ function report(over: Partial<KnowledgeDepthReport> = {}): KnowledgeDepthReport 
   return {
     visited: 0,
     placed: 0,
+    record: 0,
+    workUnit: 0,
     unlinked: 0,
     cyclic: 0,
     absent: 0,
@@ -44,13 +46,16 @@ const unmeasured = (state: 'unlinked' | 'cyclic' | 'absent'): MarkKnowledgeDepth
 });
 
 describe('the axis extent', () => {
-  it('sizes to the trace`s own deepest reading, plus one row for the unmeasured', () => {
+  it('sizes to the trace`s own deepest reading, plus the three off-scale bands', () => {
     const axis = buildKnowledgeAxis(report({ visited: 40, placed: 30, absent: 10, maxDepth: 5 }));
     expect(axis).toMatchObject({ depthRows: 5, deepest: 5, clamped: false, measured: true });
-    // Rows BELOW the surface: five depth rows and the unmeasured row under them. The surface itself
-    // is the spine and is not counted here — it is the picture's own baseline.
-    expect(axis.unmeasuredRow).toBe(6);
-    expect(axis.rows).toBe(6);
+    // Rows BELOW the surface: five depth rows, then record / work-unit / unmeasured under them in
+    // increasing distance from "a knowledge artifact at a depth" (ADR-0511 D3). The surface itself is
+    // the spine and is not counted here — it is the picture's own baseline.
+    expect(axis.recordRow).toBe(6);
+    expect(axis.workUnitRow).toBe(7);
+    expect(axis.unmeasuredRow).toBe(8);
+    expect(axis.rows).toBe(8);
   });
 
   it('reports a trace that placed NOTHING as deepest null, never as deepest 0', () => {
@@ -59,8 +64,10 @@ describe('the axis extent', () => {
     // at all. The two are different facts and the panel prints them differently.
     expect(axis.deepest).toBeNull();
     expect(axis.depthRows).toBe(0);
-    // The unmeasured row still exists — it is where all twelve of those reads draw.
-    expect(axis.unmeasuredRow).toBe(1);
+    // The off-scale bands still exist — they are where all twelve of those reads draw.
+    expect(axis.recordRow).toBe(1);
+    expect(axis.workUnitRow).toBe(2);
+    expect(axis.unmeasuredRow).toBe(3);
   });
 
   it('collapses to a SINGLE COLUMN when the corpus was not read, and says which case that is', () => {
@@ -70,6 +77,8 @@ describe('the axis extent', () => {
       deepest: null,
       clamped: false,
       measured: false,
+      recordRow: 0,
+      workUnitRow: 0,
       unmeasuredRow: 0,
       rows: 0,
     });
@@ -210,5 +219,57 @@ describe('the axis says what it is', () => {
     expect(axisCaption(buildKnowledgeAxis(report({ visited: 5, absent: 5 })))).toContain(
       'nothing this session read has a depth',
     );
+  });
+});
+
+// --- ADR-0511 D3: the two bands that are answers, not absences -----------------------------------
+
+describe('the record and work-unit bands', () => {
+  const axis = buildKnowledgeAxis(
+    report({ visited: 30, placed: 10, record: 12, workUnit: 6, absent: 2, maxDepth: 4 }),
+  );
+  const record = (containedBy: string | null): MarkKnowledgeDepth => ({
+    state: 'record',
+    depth: null,
+    attr: 'record',
+    label: containedBy === null ? 'a record row' : `a record row on ${containedBy}`,
+  });
+  const workUnit: MarkKnowledgeDepth = {
+    state: 'work-unit',
+    depth: null,
+    attr: 'work-unit',
+    label: 'a story or capability',
+  };
+
+  it('draws each of the three off-scale states on its OWN row', () => {
+    // The whole repair: these three were one row, and it was labelled "unmeasured" — which was true
+    // of 154 marks and false of the 2,837 others (ADR-0511).
+    expect(knowledgeAxisRow(axis, record('some-arc'))).toBe(axis.recordRow);
+    expect(knowledgeAxisRow(axis, workUnit)).toBe(axis.workUnitRow);
+    expect(knowledgeAxisRow(axis, unmeasured('absent'))).toBe(axis.unmeasuredRow);
+    expect(new Set([axis.recordRow, axis.workUnitRow, axis.unmeasuredRow]).size).toBe(3);
+  });
+
+  it('keeps all three BELOW every depth row, and none of them at the surface', () => {
+    for (const reading of [record(null), workUnit, unmeasured('unlinked')]) {
+      const row = knowledgeAxisRow(axis, reading);
+      expect(row).not.toBe(0);
+      expect(row).toBeGreaterThan(axis.depthRows);
+    }
+  });
+
+  it('orders them by distance from "a knowledge artifact at a depth"', () => {
+    expect(axis.recordRow).toBeLessThan(axis.workUnitRow);
+    expect(axis.workUnitRow).toBeLessThan(axis.unmeasuredRow);
+  });
+
+  it('names each band for WHAT THE READ WAS, never for what could not be measured', () => {
+    // The labelling is the decision (ADR-0482 D2 carried to D3): a row called "unmeasured" over a log
+    // row is the panel making a claim about the corpus that the corpus never made.
+    expect(axisRowLabel(axis, axis.recordRow)).toBe('record');
+    expect(axisRowLabel(axis, axis.workUnitRow)).toBe('work unit');
+    expect(axisRowLabel(axis, axis.unmeasuredRow)).toBe('unmeasured');
+    expect(axisRowLabel(axis, 0)).toBe('surface');
+    expect(axisRowLabel(axis, 2)).toBe('2 hops');
   });
 });

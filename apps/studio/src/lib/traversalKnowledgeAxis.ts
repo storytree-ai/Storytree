@@ -32,8 +32,27 @@
 // THAT ROW IS ALLOCATED WHENEVER THE CORPUS WAS READ, even on the (unobserved) trace where nothing is
 // unmeasured. Making it conditional would buy one row of height and cost a branch in
 // {@link knowledgeAxisRow} that no correctly-built caller can take — a line nobody can test, on the
-// path every mark goes through. In practice every real trace populates it: a trace's reads include
-// CLI tokens and story ids the corpus was never asked to hold.
+// path every mark goes through.
+//
+// ## AND TWO MORE BANDS, BECAUSE "UNMEASURED" WAS HOLDING THREE DIFFERENT ANSWERS (ADR-0511)
+//
+// Measured over this machine's traces on 2026-09-04, 2,736 of 11,232 read marks (24.4%) drew on the
+// unmeasured row, and only 154 of them were genuinely unknown. The rest were two populations with
+// perfectly good answers that this axis had no row to say them on:
+//
+//   • RECORD (2,279 marks) — a log row: an increment, arc, friction item, open question or template.
+//     It has no distance from the knowledge surface because it is not a knowledge node.
+//   • WORK-HIERARCHY UNIT (558) — a story or capability id, read from the story tree. That is the
+//     WORK graph, which ADR-0363 D2 keeps deliberately unmerged with this one.
+//
+// So the rows below the depth scale run RECORD, then WORK-HIERARCHY, then UNMEASURED — increasingly
+// far from "this is a knowledge artifact at a depth", with the genuine residue last and furthest off
+// the scale. ADR-0482 D3's rule is untouched: `unlinked` / `cyclic` / `absent` still draw below every
+// depth row and never at row 0. It simply stops carrying two answers that were never absences.
+//
+// ALL THREE ARE ALLOCATED UNCONDITIONALLY, for the reason stated just above — one branch per band
+// that no correctly-built caller can take, in exchange for at most three rows of height on a picture
+// that already scrolls when its rows will not fit at a legible step.
 
 import type { KnowledgeDepthReport, MarkKnowledgeDepth } from './knowledgeDepth';
 
@@ -74,6 +93,13 @@ export interface KnowledgeAxis {
    */
   readonly measured: boolean;
   /**
+   * The row LOG ROWS draw on — the first band below the depth scale (ADR-0511 D3). `0`, the spine,
+   * when {@link measured} is false, for {@link unmeasuredRow}'s reason.
+   */
+  readonly recordRow: number;
+  /** The row story / capability reads draw on — the second band below the depth scale. */
+  readonly workUnitRow: number;
+  /**
    * The row unmeasured reads draw on — `0`, the spine, when {@link measured} is false.
    *
    * A NUMBER rather than a nullable, so {@link knowledgeAxisRow} has no `?? 0` fallback on the path
@@ -81,7 +107,7 @@ export interface KnowledgeAxis {
    * (the spine), so a branch separating them would be a line no input can distinguish.
    */
   readonly unmeasuredRow: number;
-  /** Total rows below the surface, unmeasured row included. What the geometry sizes against. */
+  /** Total rows below the surface, all three off-scale bands included. What the geometry sizes against. */
   readonly rows: number;
 }
 
@@ -94,7 +120,16 @@ export interface KnowledgeAxis {
  */
 export function buildKnowledgeAxis(report: KnowledgeDepthReport | null): KnowledgeAxis {
   if (report === null) {
-    return { depthRows: 0, deepest: null, clamped: false, measured: false, unmeasuredRow: 0, rows: 0 };
+    return {
+      depthRows: 0,
+      deepest: null,
+      clamped: false,
+      measured: false,
+      recordRow: 0,
+      workUnitRow: 0,
+      unmeasuredRow: 0,
+      rows: 0,
+    };
   }
   const deepest = report.maxDepth;
   // `null` (nothing placed) and `0` (every placed read at the surface) must REPORT differently — that
@@ -112,8 +147,11 @@ export function buildKnowledgeAxis(report: KnowledgeDepthReport | null): Knowled
     deepest,
     clamped: reached > TRAVERSAL_MAX_DRAWN_KNOWLEDGE_DEPTH,
     measured: true,
-    unmeasuredRow: depthRows + 1,
-    rows: depthRows + 1,
+    // The three off-scale bands, in increasing distance from "a knowledge artifact at a depth".
+    recordRow: depthRows + 1,
+    workUnitRow: depthRows + 2,
+    unmeasuredRow: depthRows + 3,
+    rows: depthRows + 3,
   };
 }
 
@@ -141,6 +179,11 @@ export function knowledgeAxisRow(axis: KnowledgeAxis, reading: MarkKnowledgeDept
   if (reading.state === 'placed' && reading.depth !== null) {
     return Math.min(axis.depthRows, reading.depth);
   }
+  // The two answers that are NOT absences get their own bands (ADR-0511 D3). Folding either back
+  // into the unmeasured row is the defect this decision repaired: it read as "the corpus could not
+  // measure this" over 2,837 marks that had a perfectly good answer.
+  if (reading.state === 'record') return axis.recordRow;
+  if (reading.state === 'work-unit') return axis.workUnitRow;
   return axis.unmeasuredRow;
 }
 
@@ -153,6 +196,10 @@ export function knowledgeAxisRow(axis: KnowledgeAxis, reading: MarkKnowledgeDept
  */
 export function axisRowLabel(axis: KnowledgeAxis, row: number): string {
   if (row === 0) return 'surface';
+  // Ahead of the depth arithmetic, and named for WHAT THE READ WAS rather than for what could not be
+  // measured about it — the labelling is the decision (ADR-0511 D3), the same way D2's caption is.
+  if (row === axis.recordRow) return 'record';
+  if (row === axis.workUnitRow) return 'work unit';
   if (row === axis.unmeasuredRow) return 'unmeasured';
   const hop = row === 1 ? 'hop' : 'hops';
   return row === axis.depthRows && axis.clamped ? `${String(row)}+ ${hop}` : `${String(row)} ${hop}`;

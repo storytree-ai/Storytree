@@ -20,6 +20,7 @@ import {
   markKnowledgeDepth,
   linkageSummary,
   reportKnowledgeDepth,
+  WORK_TREE_SURFACE,
 } from './knowledgeDepth';
 
 const SESSION = 'elegant-rosalind-2b9a05';
@@ -27,11 +28,16 @@ const T0 = Date.parse('2026-08-20T09:00:00.000Z');
 
 function asset(
   id: string,
-  extra: { dependsOn?: string[]; cites?: string[] } = {},
+  extra: {
+    dependsOn?: string[];
+    cites?: string[];
+    category?: GuidanceAsset['category'];
+    arcRef?: string;
+  } = {},
 ): GuidanceAsset {
   const doc: GuidanceAsset = {
     id,
-    category: 'principle',
+    category: extra.category ?? 'principle',
     title: id,
     description: id,
     body: '',
@@ -40,11 +46,12 @@ function asset(
   };
   if (extra.dependsOn) doc.dependsOn = extra.dependsOn;
   if (extra.cites) doc.cites = extra.cites;
+  if (extra.arcRef) doc.arcRef = extra.arcRef;
   return doc;
 }
 
-function visit(nodeId: string, offsetMs: number): TraversalEventEnvelope {
-  return {
+function visit(nodeId: string, offsetMs: number, surfaceId?: string): TraversalEventEnvelope {
+  const event: TraversalEventEnvelope = {
     kind: 'full_payload_read',
     eventId: `event:${nodeId}:${offsetMs}`,
     sessionId: SESSION,
@@ -52,6 +59,7 @@ function visit(nodeId: string, offsetMs: number): TraversalEventEnvelope {
     visitId: `visit:${nodeId}:${offsetMs}`,
     nodeId,
   };
+  return surfaceId === undefined ? event : { ...event, surfaceId };
 }
 
 /** surface → ceremony → principle, plus an artifact no edge touches. */
@@ -162,6 +170,8 @@ describe('the per-trace report counts DISTINCT artifacts', () => {
     expect(report).toEqual({
       visited: 4,
       placed: 2,
+      record: 0,
+      workUnit: 0,
       unlinked: 1,
       cyclic: 0,
       absent: 1,
@@ -453,6 +463,8 @@ describe('the CYCLIC reading is rendered, not silently folded into another state
     expect(report).toEqual({
       visited: 4,
       placed: 1,
+      record: 0,
+      workUnit: 0,
       unlinked: 0,
       cyclic: 2,
       absent: 1,
@@ -620,5 +632,111 @@ describe('an agent manifest is an edge of the panel`s reading', () => {
     if (model.status !== 'measured') return;
     expect(model.verdict.manifestEdges).toBe(0);
     expect(model.verdict.unlinked).toBe(2);
+  });
+});
+
+// --- ADR-0511: the two answers the unmeasured row was holding for no reason -----------------------
+
+describe('a RECORD row reports what it is, never an absence (ADR-0511 D1)', () => {
+  const RECORD_CORPUS: GuidanceAsset[] = [
+    asset('inc-linked', {
+      category: 'increment',
+      cites: ['asset:ceremony'],
+      arcRef: 'asset:some-arc',
+    }),
+    asset('inc-bare', { category: 'increment', arcRef: 'asset:some-arc' }),
+    asset('some-friction', { category: 'friction' }),
+    asset('ceremony', { dependsOn: ['asset:principle'] }),
+    asset('principle'),
+    asset('orphan'),
+  ];
+  const model = buildKnowledgeDepth({
+    assets: RECORD_CORPUS,
+    assetsStatus: 'ready',
+    assetsError: '',
+  });
+
+  it('names the arc a log row belongs to instead of a depth', () => {
+    expect(markKnowledgeDepth(model, 'inc-bare')).toEqual({
+      state: 'record',
+      depth: null,
+      attr: 'record',
+      label: 'a record row on some-arc — the session log, not a knowledge artifact',
+    });
+  });
+
+  it('answers `record` even for a log row the walk COULD place, and at depth 0 at that', () => {
+    // `inc-linked` cites `ceremony`, so it is a surface: without ADR-0511 D1's ordering it reads
+    // `placed@0` and draws on the axis's SURFACE row, beside the knowledge graph's genuine roots.
+    expect(markKnowledgeDepth(model, 'inc-linked')?.state).toBe('record');
+    expect(markKnowledgeDepth(model, 'inc-linked')?.depth).toBeNull();
+    // …and the artifact it cites keeps the depth it got THROUGH it. The walk did not move.
+    expect(markKnowledgeDepth(model, 'ceremony')?.depth).toBe(1);
+    expect(markKnowledgeDepth(model, 'principle')?.depth).toBe(2);
+  });
+
+  it('says so plainly when a record kind carries no container', () => {
+    expect(markKnowledgeDepth(model, 'some-friction')).toEqual({
+      state: 'record',
+      depth: null,
+      attr: 'record',
+      label: 'a record row — the session log, not a knowledge artifact, so it has no depth',
+    });
+  });
+
+  it('leaves an edge-free KNOWLEDGE artifact unlinked — the two are not the same absence', () => {
+    // This is the population the unmeasured row legitimately keeps: on the live corpus it is the four
+    // definitions ADR-0468 keeps deliberately unwired, and 5 read marks across every local trace.
+    expect(markKnowledgeDepth(model, 'orphan')?.state).toBe('unlinked');
+  });
+
+  it('counts record reads in their own column, out of the unmeasured ones', () => {
+    const report = reportKnowledgeDepth(
+      [visit('inc-bare', 0), visit('ceremony', 10), visit('orphan', 20), visit('nowhere', 30)],
+      model,
+    );
+    expect(report).toMatchObject({ visited: 4, placed: 1, record: 1, unlinked: 1, absent: 1 });
+    // The arithmetic the chip prints: every visited id lands in exactly one column.
+    const total =
+      (report?.placed ?? 0) +
+      (report?.record ?? 0) +
+      (report?.workUnit ?? 0) +
+      (report?.unlinked ?? 0) +
+      (report?.cyclic ?? 0) +
+      (report?.absent ?? 0);
+    expect(total).toBe(report?.visited);
+  });
+});
+
+describe('a STORY-TREE read is a work-hierarchy unit, not a Library failure (ADR-0511 D4)', () => {
+  const model = buildKnowledgeDepth(READY);
+
+  it('names an id read off the story tree as work, not as an id the Library lost', () => {
+    expect(markKnowledgeDepth(model, 'studio-members', WORK_TREE_SURFACE)).toEqual({
+      state: 'work-unit',
+      depth: null,
+      attr: 'work-unit',
+      label: 'a story or capability — the work hierarchy, a different graph from the Library',
+    });
+  });
+
+  it('leaves the SAME id absent when the read came from anywhere else', () => {
+    // The classification is a fact about the READ. A CLI token or a retired artifact reached through
+    // the library surface is genuinely unknown and must keep saying so — 149 of one machine's 11,232
+    // marks, which is the residue the unmeasured row exists for.
+    expect(markKnowledgeDepth(model, 'studio-members', 'library-artifact')?.state).toBe('absent');
+    expect(markKnowledgeDepth(model, 'studio-members')?.state).toBe('absent');
+  });
+
+  it('never overrides a real reading — a story-tree read of a known artifact keeps its depth', () => {
+    expect(markKnowledgeDepth(model, 'ceremony', WORK_TREE_SURFACE)?.state).toBe('placed');
+  });
+
+  it('counts one tree read of an id as enough, however else it was also reached', () => {
+    const report = reportKnowledgeDepth(
+      [visit('a-story', 0, WORK_TREE_SURFACE), visit('a-story', 10, 'library-artifact')],
+      model,
+    );
+    expect(report).toMatchObject({ visited: 1, workUnit: 1, absent: 0 });
   });
 });

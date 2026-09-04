@@ -40,7 +40,21 @@ function row(
  */
 function nodesOf(rows: readonly DepthFromWorkSource[]): SurfaceDepthNode[] {
   const kinds = new Map(rows.map((r) => [r.id, kindOfDoc(r.doc)] as const));
-  return depthFromWorkNodes(rows).map((node) => ({ ...node, kind: kinds.get(node.id) ?? "" }));
+  // `arcRef` rides across exactly as a real caller supplies it (ADR-0511 D1): the studio reads
+  // `GuidanceAsset.arcRef`, the probe reads the rendered row's typed edge. OMITTED rather than
+  // undefined-valued when the row has none, so `exactOptionalPropertyTypes` keeps the two cases
+  // apart here the same way the store does.
+  const arcRefs = new Map(
+    rows.flatMap((r) => {
+      const ref = (r.doc as { arcRef?: unknown }).arcRef;
+      return typeof ref === "string" && ref !== "" ? [[r.id, ref] as const] : [];
+    }),
+  );
+  return depthFromWorkNodes(rows).map((node) => {
+    const kind = kinds.get(node.id) ?? "";
+    const arcRef = arcRefs.get(node.id);
+    return arcRef === undefined ? { ...node, kind } : { ...node, kind, arcRef };
+  });
 }
 
 function verdictOf(rows: readonly DepthFromWorkSource[]): SurfaceDepthVerdict {
@@ -721,4 +735,125 @@ test("surface-depth-never-guesses-a-legacy-read-into-place: unresolvable stays A
   ]) {
     assert.deepEqual(surfaceDepthOf(verdict, id), { state: "absent" }, `must stay absent: ${id}`);
   }
+});
+
+// --- ADR-0511: a record row's reading is its containment, never a depth ---------------------------
+
+test("record-is-answered-ahead-of-placed: a LINKED log row reads `record`, not `placed@0`", () => {
+  const verdict = verdictOf([
+    row("inc-1", { kind: "increment", cites: ["asset:merge-ceremony"], arcRef: "asset:some-arc" }),
+    row("merge-ceremony", { kind: "process" }),
+  ]);
+
+  // Without the ADR-0511 D1 ordering this reads `placed` at depth 0 — an increment drawn on the
+  // axis's SURFACE row, beside the knowledge graph's genuine roots. 132 live rows are in exactly
+  // that state today, and it is `unlinked`-reads-as-shallow wearing its other face.
+  assert.deepEqual(surfaceDepthOf(verdict, "inc-1"), {
+    state: "record",
+    containedBy: "asset:some-arc",
+  });
+  // And the row it cites still gets its depth FROM it: the walk is untouched, only the reading moved.
+  assert.deepEqual(surfaceDepthOf(verdict, "merge-ceremony"), { state: "placed", depth: 1 });
+});
+
+test("record-is-answered-ahead-of-unlinked: an edge-free log row is `record`, never an absence", () => {
+  const verdict = verdictOf([
+    row("inc-2", { kind: "increment", arcRef: "asset:some-arc" }),
+    row("friction-1", { kind: "friction" }),
+    row("template-1", { kind: "template" }),
+    row("opening", { dependsOn: ["asset:floor"] }),
+    row("floor"),
+  ]);
+
+  assert.deepEqual(surfaceDepthOf(verdict, "inc-2"), {
+    state: "record",
+    containedBy: "asset:some-arc",
+  });
+  // The three record kinds that carry no containment field answer `null` rather than omitting it:
+  // a caller must not have to tell "no container" apart from "this reading forgot to say".
+  assert.deepEqual(surfaceDepthOf(verdict, "friction-1"), { state: "record", containedBy: null });
+  assert.deepEqual(surfaceDepthOf(verdict, "template-1"), { state: "record", containedBy: null });
+
+  // A KNOWLEDGE row with no edge is still `unlinked`. Collapsing the two would hand the record tier's
+  // repair to the four edge-free definitions ADR-0468 keeps deliberately unwired, which are the only
+  // rows the unmeasured row still legitimately holds.
+  assert.deepEqual(surfaceDepthOf(verdict, "floor"), { state: "placed", depth: 1 });
+});
+
+test("record-never-swallows-an-unknown-id: an id the graph does not hold is still ABSENT", () => {
+  const verdict = verdictOf([row("inc-3", { kind: "increment" })]);
+
+  // The story/capability ids, retired artifacts and CLI tokens a trace carries must not become
+  // `record` by proximity — `recordIds` is a membership test over ids the walk actually saw.
+  assert.deepEqual(surfaceDepthOf(verdict, "not-a-row-at-all"), { state: "absent" });
+  assert.deepEqual(surfaceDepthOf(verdict, "inc-3"), { state: "record", containedBy: null });
+});
+
+test("record-kinds-are-RECORD_KINDS-and-nothing-else: the declared list is the whole rule", () => {
+  const rows = [...RECORD_KINDS].map((kind, index) => row(`rec-${String(index)}`, { kind }));
+  const verdict = evaluateSurfaceDepth(nodesOf([...rows, row("a-principle", { kind: "principle" })]));
+
+  for (const stored of rows) {
+    assert.equal(
+      surfaceDepthOf(verdict, stored.id).state,
+      "record",
+      `${kindOfDoc(stored.doc)} is declared a record kind and must read as one`,
+    );
+  }
+  // An UNKNOWN kind counts as knowledge (the header's fail-toward-the-larger-denominator rule), so a
+  // new tier can never quietly acquire the record reading either.
+  assert.equal(surfaceDepthOf(verdict, "a-principle").state, "unlinked");
+});
+
+test("THE WALK IS UNTOUCHED (ADR-0511 D2): carrying `arcRef` moves no depth, no surface, no count", () => {
+  // The same corpus twice — once with every containment pointer a real row carries, once with none.
+  // If `arcRef` ever became adjacency, the WITH run would gain surfaces and the knowledge rows below
+  // those new surfaces would get deeper. That is precisely the refused alternative (89 knowledge
+  // artifacts moved, measured), so it is asserted rather than described.
+  const withRefs = [
+    row("inc-a", { kind: "increment", arcRef: "asset:arc-1", cites: ["asset:guidance"] }),
+    row("inc-b", { kind: "increment", arcRef: "asset:arc-1" }),
+    row("q-a", { kind: "open-question", arcRef: "asset:arc-1" }),
+    row("arc-1", { kind: "arc" }),
+    row("guidance", { kind: "process", dependsOn: ["asset:bedrock"] }),
+    row("bedrock", { kind: "principle" }),
+  ];
+  const withoutRefs = withRefs.map((stored) => {
+    const { arcRef: _dropped, ...doc } = stored.doc as Record<string, unknown>;
+    return { id: stored.id, doc };
+  });
+
+  const before = evaluateSurfaceDepth(nodesOf(withoutRefs));
+  const after = evaluateSurfaceDepth(nodesOf(withRefs));
+
+  assert.deepEqual([...after.depthById].sort(), [...before.depthById].sort());
+  assert.deepEqual([...after.unlinkedIds].sort(), [...before.unlinkedIds].sort());
+  assert.equal(after.surfaces, before.surfaces);
+  assert.equal(after.placed, before.placed);
+  assert.equal(after.unlinked, before.unlinked);
+  assert.equal(after.edgesScanned, before.edgesScanned);
+  assert.equal(after.maxDepth, before.maxDepth);
+  assert.equal(after.knowledgeLinked, before.knowledgeLinked);
+  assert.equal(after.recordLinked, before.recordLinked);
+
+  // …and the ONLY thing that differs is what a record row can now say about itself.
+  assert.deepEqual(surfaceDepthOf(before, "inc-b"), { state: "record", containedBy: null });
+  assert.deepEqual(surfaceDepthOf(after, "inc-b"), { state: "record", containedBy: "asset:arc-1" });
+});
+
+test("the corpus DENOMINATORS still count record rows as the graph sees them (ADR-0511 D2)", () => {
+  const verdict = verdictOf([
+    row("inc-c", { kind: "increment", cites: ["asset:guidance"], arcRef: "asset:arc-2" }),
+    row("guidance", { kind: "process" }),
+    row("lonely-increment", { kind: "increment" }),
+  ]);
+
+  // `recordLinked` counts a record row that carries an `asset:` cite, and `unlinked` still counts the
+  // edge-free one. The per-read READING changed; `probe:surface-depth`'s figures and the panel's
+  // linkage sentence read the graph, and the graph did not.
+  assert.equal(verdict.recordScanned, 2);
+  assert.equal(verdict.recordLinked, 1);
+  assert.equal(verdict.unlinked, 1);
+  assert.ok(verdict.unlinkedIds.has("lonely-increment"));
+  assert.ok(verdict.recordIds.has("lonely-increment"));
 });
