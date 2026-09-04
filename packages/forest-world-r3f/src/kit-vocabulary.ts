@@ -45,25 +45,82 @@ import { landHeight } from './land-relief.js';
 import { cellsByParcel } from './parcel-cells.js';
 import type { GPoint, LayoutCell } from './parcel-cells.js';
 
-/** The three things a bought prop can be on this island. */
-export type KitRole = 'tree' | 'deadTree' | 'bloom';
+/**
+ * What a bought prop can be on this island — THREE THAT REPORT SOMETHING AND THREE THAT DO NOT.
+ *
+ * ⚠⚠ THE SECOND KIND IS NEW AND IT IS THE POINT OF THE SPLIT BELOW. Until 2026-09-03 every role
+ * here was a claim about the work, and `kit-vocabulary.test.ts` said so as a property of the table
+ * ("every entry is a signal"). The approved render is not only claims: `build_land.py`'s
+ * `scatter()` (`:1087-1090`) sprinkles 70 undergrowth, 120 grass clumps and 26 flowers over the
+ * land beside its thirteen stands, and the research README's own finding is that the approved
+ * island's colour content is almost ENTIRELY its props. So ground cover crosses — and it crosses
+ * DECLARED, as {@link KIT_ROLE_CLASS} rather than as an undeclared third thing: the table's claim
+ * is now "every entry is a signal OR is declared dressing", which is a check a reader can still
+ * fail, where an unclassified role would have quietly widened what a prop is allowed to mean.
+ */
+export type KitRole = 'tree' | 'deadTree' | 'bloom' | 'bush' | 'tuft' | 'flowerPatch';
 
-export const KIT_ROLES: readonly KitRole[] = ['tree', 'deadTree', 'bloom'];
+export const KIT_ROLES: readonly KitRole[] = ['tree', 'deadTree', 'bloom', 'bush', 'tuft', 'flowerPatch'];
+
+/** What a role IS: a claim about the work, or scenery that asserts nothing. */
+export type KitRoleClass = 'scene' | 'dressing';
+
+/**
+ * WHICH KIND EACH ROLE IS — declared, never inferred from the name or from the size.
+ *
+ * ⚠ A `dressing` ROLE IS EXEMPT FROM EXACTLY TWO RULES AND FROM NOTHING ELSE: the object floor
+ * ({@link clearsObjectFloor} — ground cover is speckle by construction, and a bush sized to clear
+ * the floor would be a bush as wide as a pine's canopy), and the occupancy clearance
+ * ({@link clearanceFactor} — a carpet lies under and around what stands on it, exactly as the
+ * recipe's own `sprinkle` keeps no distance from a tree). It is exempt from NOTHING about
+ * reporting: a dressing role has no `stateForm` route, so no capability's state can ever reach one.
+ */
+export const KIT_ROLE_CLASS = {
+  tree: 'scene',
+  deadTree: 'scene',
+  bloom: 'scene',
+  bush: 'dressing',
+  tuft: 'dressing',
+  flowerPatch: 'dressing',
+} as const satisfies Record<KitRole, KitRoleClass>;
+
+/** Is this role scenery — something the island wears rather than something it claims? */
+export function isDressingRole(role: KitRole): boolean {
+  return KIT_ROLE_CLASS[role] === 'dressing';
+}
+
+/** The roles that REPORT something, in declaration order. */
+export const SCENE_ROLES: readonly KitRole[] = KIT_ROLES.filter((r) => !isDressingRole(r));
+
+/** The roles that assert nothing — the ground cover. */
+export const DRESSING_ROLES: readonly KitRole[] = KIT_ROLES.filter(isDressingRole);
 
 /**
  * WHAT EACH ROLE ASSERTS. One line each, and each one is a claim about the work rather than a
  * description of the object — which is the whole difference between signal and decoration
  * (ADR-0414 D1).
  *
- * ⚠ EVERY ENTRY IS `SCENE` NOW, and `kit-vocabulary.test.ts` asserts it. Under the previous
- * vocabulary two of six roles were read from numbers handed in, which was honest but was a
- * standing obligation: a prop drawn from a number nobody supplied is decoration wearing a
- * signal's name. Withdrawing those two roles discharges it.
+ * ⚠ EVERY ENTRY OPENS WITH ITS OWN {@link KIT_ROLE_CLASS} IN CAPITALS, and
+ * `kit-vocabulary.test.ts` derives the expected word from that table rather than restating it —
+ * so the prose and the classification are a genuine two-place agreement, and a role reclassified
+ * in one place and not the other is a loud failure rather than a sentence nobody re-read.
+ *
+ * ⚠⚠ `SCENE` MEANS THE NUMBER IS READ OFF THE SCENE. Under a still earlier vocabulary two of six
+ * roles were read from numbers handed in, which was honest but was a standing obligation: a prop
+ * drawn from a number nobody supplied is decoration wearing a signal's name. Withdrawing those two
+ * discharged it, and nothing here reopens it — a `DRESSING` entry is not a signal read from a
+ * number nobody supplied, it is a prop that makes no claim at all and says so.
  */
 export const KIT_ROLE_SIGNAL = {
   tree: "SCENE — one tree per capability; its leaf tint is that capability's own state",
   deadTree: 'SCENE — this capability is unhealthy: the work stands, and it is standing dead wood',
   bloom: 'SCENE — a UAT criterion the owner has signed (ADR-0226 D4, one flower per criterion)',
+  bush: 'DRESSING — undergrowth on a healthy island, asserting nothing (build_land.py:1087, 70 per recipe island)',
+  tuft: 'DRESSING — a clump of grass on a healthy island, asserting nothing (build_land.py:1088, 120 per recipe island)',
+  flowerPatch:
+    'DRESSING — white flowers on a healthy island, asserting nothing; NEVER red and never half the ' +
+    'bloom’s width, so the criterion marker stays the only flower of its colour and its size ' +
+    '(build_land.py:1089, 26 per recipe island)',
 } as const satisfies Record<KitRole, string>;
 
 /**
@@ -107,13 +164,49 @@ export const POCKETED_SIGNALS = {
  * 2026-08-29 re-export prints every kept object's world bounds beside the asset for exactly
  * this reason — `Pine_Trunk_01`/`Pine_Leaves_01` centres are 0.004 apart and
  * `Pine_Trunk_04`/`Pine_Leaves_04` 0.078, against 5+ for any cross pairing.
+ *
+ * ⚠ THE GROUND-COVER ASSEMBLIES ARE ONE OBJECT EACH, and the pairing hazard above does not arise
+ * for them: the kit models an undergrowth plant, a grass clump and a flower as single meshes.
+ * `plant-a`/`plant-b` are the kit's LEAFY PLANTS, not its `Leafy_Bush_*` — which are pale fuzzy
+ * mounds on a FOURTH material, where the leafy plants are the round dark-green bushes the approved
+ * render reads as, on a material the asset already carries. See {@link COVER_GAP_2026_09_03}.
  */
 export const KIT_ASSEMBLIES = {
   'pine-a': ['Pine_Trunk_01', 'Pine_Leaves_01'],
   'pine-b': ['Pine_Trunk_04', 'Pine_Leaves_04'],
   'pine-dead': ['Pine_Trunk_No_Leaves_01'],
   flower: ['Red_Flower_01'],
+  'plant-a': ['Leafy_Plant_01'],
+  'plant-b': ['Leafy_Plant_02'],
+  'tuft-a': ['Grass_Clump_01'],
+  'tuft-b': ['Grass_Clump_02'],
+  'tuft-c': ['Grass_Clump_03'],
+  'flower-white': ['White_Flower_01'],
 } as const satisfies Record<string, readonly string[]>;
+
+/**
+ * WHAT THE RECIPE'S GROUND COVER ASKS FOR THAT THIS ASSET DOES NOT CARRY — the NAMED GAP the
+ * increment's payload rule licenses, recorded here rather than left as an absence to infer.
+ *
+ * The rule (`ground-cover-from-the-kit-bushes-tufts-and-flowers`): if the full recipe subset costs
+ * more than about a third again over the wire, ship the cheapest subset that still READS and name
+ * the rest. Measured 2026-09-03, brotli q11 over `src/kit-asset.ts` itself (the module the web
+ * sync carries), the full subset — all eight `UNDERGROWTH`, all five `GRASS`, all five white and
+ * yellow `FLOWERS` — costs **+165.2%**. What ships costs **+36.7%**, which is about a third again.
+ *
+ * ⚠ THE THING THAT COSTS, MEASURED RATHER THAN GUESSED, IS TRIANGLES AND A FOURTH MATERIAL. The
+ * three `Leafy_Bush_*` alone are 4,296 triangles and pull in `Pine_Foliage_02`, a material the
+ * asset does not otherwise carry, for **+82.6%** on their own. The three `Yellow_Flowers_*` are
+ * cheap in triangles and pull in the SAME fourth material, which is what makes yellow cost
+ * +19 points rather than the +2 its 300 triangles suggest.
+ */
+export const COVER_GAP_2026_09_03 = {
+  'Leafy_Bush_01/02/03': 'the kit’s pale fuzzy mounds — a fourth material and 4,296 triangles, +82.6% on their own',
+  'Fern_01/02/03': 'the recipe’s ferns — cheap, but the bush role already reads without them',
+  'Grass_01/02': 'the two single grass blades — the three clumps carry the tuft role',
+  White_Flower_02: 'a second white flower shape — +11.7 points for a shape variation at 1 ground unit',
+  'Yellow_Flowers_01/02/03': 'the recipe’s yellow flowers — cheap in triangles, but each pulls in the fourth material',
+} as const;
 
 export type KitAssembly = keyof typeof KIT_ASSEMBLIES;
 
@@ -135,6 +228,14 @@ export const KIT_ROLE_ASSEMBLIES = {
   tree: ['pine-a', 'pine-b'],
   deadTree: ['pine-dead'],
   bloom: ['flower'],
+  // ⚠ TWO SHAPES FOR THE BUSH FOR THE REASON THE PINE HAS TWO, and it binds HARDER here: the
+  // recipe stands 70 undergrowth per island against 13 stands, so one silhouette repeated is a
+  // defect five times over. The tuft has the recipe's own three clumps. The flower has one shape,
+  // which is the cheapest subset that reads (see {@link COVER_GAP_2026_09_03}) — 26 per island,
+  // under one ground unit each, where a second shape bought less than the bush's second did.
+  bush: ['plant-a', 'plant-b'],
+  tuft: ['tuft-a', 'tuft-b', 'tuft-c'],
+  flowerPatch: ['flower-white'],
 } as const satisfies Record<KitRole, readonly KitAssembly[]>;
 
 /** Every kit object the vocabulary names, deduped — the manifest the asset is checked against. */
@@ -165,7 +266,59 @@ export const KIT_ROLE_SIZE = {
   tree: { axis: 'height', units: 18 },
   deadTree: { axis: 'height', units: 15 },
   bloom: { axis: 'width', units: 4 },
+  // ⚠⚠ THE BUSH AND THE TUFT ARE THE RECIPE'S OWN DELIVERED WIDTHS — the ROLE size, which
+  // `cover-dressing.ts`'s size rung then multiplies. Each is the WIDEST assembly serving the role,
+  // at its native kit width, times the MEAN of the scale `build_land.py` sprinkles it at, so rung 1
+  // is `build_land.py` transcribed and nothing else. The arithmetic, so a reader can recompute:
+  //   bush  Leafy_Plant_01 1.0267 x mean(0.70, 1.35) = 1.025  ->  1.052  -> 1.05
+  //   tuft  Grass_Clump_01 0.8105 x mean(0.80, 1.70) = 1.250  ->  1.013  -> 1.01
+  //
+  // ⚠⚠ THE FLOWER PATCH IS NOT THE RECIPE'S 0.94, AND THE DIFFERENCE IS A RULE RATHER THAN A LOOK.
+  // It is derived BACKWARDS from the one thing this row may not break: a ground-cover flower must
+  // stay under HALF the criterion marker's width at the BOLDEST rung the ladder can reach, or the
+  // map grows a second object at the marker's size. So
+  // `units = (bloom 4 x 0.5) / (COVER_SCALE.flowerPatch.max 1.304 x boldest rung 4.5) = 0.3408`,
+  // rounded DOWN to 0.34 — the direction that keeps the bound. `kit-vocabulary.test.ts` asserts the
+  // bound over every rung rather than at the shipped one, because a scale-back must not be what
+  // makes the map honest.
+  //
+  // ⚠ ALL THREE ARE SIZED BY WIDTH, like the bloom and for the same reason: they are FLAT props,
+  // and scaling one by its height multiplies its footprint by the same factor — the 8.2-unit
+  // flower of 2026-08-29. All three are FAR below the object floor at the ROLE size, which is what
+  // ground cover IS ({@link clearsObjectFloor} scopes its claim to the scene roles for exactly
+  // this) — and the boldest rung still leaves the widest bush under two-thirds of a pine's canopy.
+  bush: { axis: 'width', units: 1.05 },
+  tuft: { axis: 'width', units: 1.01 },
+  flowerPatch: { axis: 'width', units: 0.34 },
 } as const satisfies Record<KitRole, { axis: 'height' | 'width'; units: number }>;
+
+/**
+ * THE PER-PLACEMENT SCALE SPREAD OF A GROUND-COVER ROLE — the recipe's own uniform, renormalised
+ * about its mean so that a placement at the middle of the range stands at exactly the role's
+ * declared width, before `cover-dressing.ts`'s size rung.
+ *
+ * ⚠ WHY RENORMALISE RATHER THAN TRANSCRIBE. `build_land.py` multiplies the kit's NATIVE size; this
+ * vocabulary declares a role size in GROUND UNITS and multiplies that. Transcribing `uniform(0.7,
+ * 1.35)` onto a role already scaled to the recipe's mean would apply the spread twice and deliver
+ * bushes up to 1.35x too wide. Renormalised, rung 1's delivered width range is the recipe's
+ * exactly: `1.05 x [0.683, 1.317] = [0.717, 1.383]` ground units against the recipe's own
+ * `1.0267 x [0.70, 1.35] = [0.719, 1.386]`.
+ *
+ * ⚠⚠ AND ITS `max` IS WHAT THE CRITERION MARKER'S DISTINCTNESS IS DERIVED AGAINST. The bound the
+ * row asks for is on the flower patch's WIDEST delivered prop at the BOLDEST rung, never on its
+ * declared size and never at the shipped rung alone — see {@link KIT_ROLE_SIZE}'s flower entry,
+ * which is computed backwards from exactly this number.
+ */
+export const COVER_SCALE = {
+  bush: { min: 0.683, max: 1.317 },
+  tuft: { min: 0.64, max: 1.36 },
+  flowerPatch: { min: 0.696, max: 1.304 },
+} as const satisfies Record<'bush' | 'tuft' | 'flowerPatch', { min: number; max: number }>;
+
+/** How much narrower than the criterion marker a ground-cover flower must be, as a fraction of the
+ *  bloom's own width — the row's "under half the bloom's width", stated once so the test reads it
+ *  rather than restating a number the tables could drift away from. */
+export const FLOWER_PATCH_MAX_SHARE_OF_BLOOM = 0.5;
 
 /** Ground units a HEIGHT-sized prop needs to clear the ~10px object floor at the overview. */
 export const MIN_PROP_HEIGHT = 7.8;
@@ -190,7 +343,18 @@ export function sizeClearsObjectFloor(size: { axis: 'height' | 'width'; units: n
   return size.units >= (size.axis === 'height' ? MIN_PROP_HEIGHT : MIN_PROP_WIDTH);
 }
 
-/** Does this role clear the object floor at the overview zoom? */
+/**
+ * Does this role clear the object floor at the overview zoom?
+ *
+ * ⚠⚠ THE FLOOR IS A CLAIM ABOUT SIGNALS, AND SINCE 2026-09-03 IT IS SCOPED TO THEM. A prop that
+ * REPORTS something has to be readable as an object or the map is asserting a state nobody can
+ * see; ground cover reports nothing and is speckle ON PURPOSE — it is the texture that makes the
+ * island read as a place, and a bush sized to clear the floor would be five units across, as wide
+ * as a pine's canopy. So the three `dressing` roles answer `false` here HONESTLY rather than
+ * failing a rule that was never about them, and `kit-vocabulary.test.ts` asserts the scoping
+ * ({@link SCENE_ROLES}) instead of asserting the floor over every role — which would have been the
+ * shape that quietly widens a guarantee to keep a table green.
+ */
 export function clearsObjectFloor(role: KitRole): boolean {
   return sizeClearsObjectFloor(KIT_ROLE_SIZE[role]);
 }
@@ -356,31 +520,48 @@ export function candidatePoints(
   // and `check:mutation-diff` scores a hang as UNPROVEN — credited to nobody, redding the rung.
   for (const _ of Array.from({ length: Math.max(0, count) })) {
     void _;
-    const cell = cells[Math.floor(rand() * cells.length) % cells.length]!;
-    const u = rand();
-    const v = rand();
-    const jitter = rand();
-    const pts = cell.points;
-    if (pts.length < 3) continue;
-    const a = pts[0]!;
-    const b = pts[1]!;
-    const c = pts[2]!;
-    const d = pts[3] ?? pts[0]!;
-    const top = { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u };
-    const bot = { x: d.x + (c.x - d.x) * u, z: d.z + (c.z - d.z) * u };
-    const raw = { x: top.x + (bot.x - top.x) * v, z: top.z + (bot.z - top.z) * v };
-    let cx = 0;
-    let cz = 0;
-    for (const p of pts) {
-      cx += p.x;
-      cz += p.z;
-    }
-    cx /= pts.length;
-    cz /= pts.length;
-    const pull = 0.18 + jitter * 0.12;
-    out.push({ x: raw.x + (cx - raw.x) * pull, z: raw.z + (cz - raw.z) * pull });
+    const p = samplePoint(cells, rand);
+    if (p === null) continue;
+    out.push(p);
   }
   return out;
+}
+
+/**
+ * ONE POINT INSIDE ONE OF THESE CELLS, off a caller's own stream — the arithmetic {@link
+ * candidatePoints} runs, extracted so the GROUND COVER can draw from a single island-long stream
+ * rather than re-seeding per prop (`cover-dressing.ts`).
+ *
+ * ⚠⚠ IT CONSUMES ITS FOUR DRAWS BEFORE IT CAN REFUSE, and that ordering is the whole reason this
+ * is one function rather than two implementations that agree. A degenerate cell makes the point
+ * unusable, not the draws unmade — pulling the refusal ahead of the sampling would leave one
+ * caller's stream a different length from the other's, and every placement downstream of the
+ * refusal would move on a map that had drawn a two-point cell somewhere. `null` is the refusal.
+ */
+export function samplePoint(cells: readonly LayoutCell[], rand: () => number): GPoint | null {
+  const cell = cells[Math.floor(rand() * cells.length) % cells.length]!;
+  const u = rand();
+  const v = rand();
+  const jitter = rand();
+  const pts = cell.points;
+  if (pts.length < 3) return null;
+  const a = pts[0]!;
+  const b = pts[1]!;
+  const c = pts[2]!;
+  const d = pts[3] ?? pts[0]!;
+  const top = { x: a.x + (b.x - a.x) * u, z: a.z + (b.z - a.z) * u };
+  const bot = { x: d.x + (c.x - d.x) * u, z: d.z + (c.z - d.z) * u };
+  const raw = { x: top.x + (bot.x - top.x) * v, z: top.z + (bot.z - top.z) * v };
+  let cx = 0;
+  let cz = 0;
+  for (const p of pts) {
+    cx += p.x;
+    cz += p.z;
+  }
+  cx /= pts.length;
+  cz /= pts.length;
+  const pull = 0.18 + jitter * 0.12;
+  return { x: raw.x + (cx - raw.x) * pull, z: raw.z + (cz - raw.z) * pull };
 }
 
 /** One prop's ground footprint — the circle it occupies, which is what a neighbour is kept out of. */
@@ -417,6 +598,14 @@ export const KIT_FOOTPRINTS_2026_08_29 = {
   tree: 10.13,
   deadTree: 7.33,
   bloom: 4,
+  // ⚠ A WIDTH-SIZED ROLE'S FOOTPRINT IS ITS DECLARED WIDTH EXACTLY, by construction — every
+  // assembly serving it is scaled TO that width, so the widest is that width. These three restate
+  // `KIT_ROLE_SIZE` for the same reason the two pines' heights do, and the test holds them to it.
+  // The measurement that says the asset really delivers them is `roleFootprints` off the loaded
+  // kit; this literal is what the placement is computed against before the asset has parsed.
+  bush: 1.05,
+  tuft: 1.01,
+  flowerPatch: 0.34,
 } as const satisfies RoleFootprints;
 
 /** How far the loaded kit's own footprints may sit from the frozen literal, as a fraction. */
@@ -446,6 +635,19 @@ export const KIT_HEIGHTS_2026_08_29 = {
   tree: 18,
   deadTree: 15,
   bloom: 2.445,
+  // ⚠ THE THREE GROUND-COVER HEIGHTS FALL OUT OF THEIR PROPORTIONS, exactly as the bloom's does —
+  // `declared width x (assembly height / assembly width)`, the TALLEST assembly winning, off the
+  // 2026-09-03 re-export's own world bounds:
+  //   bush        max(1.05 x 0.4754/1.0267, 1.05 x 0.5406/0.9537)                     = 0.595
+  //   tuft        max(1.01 x 0.6810/0.8105, 1.01 x 0.5763/0.6303, 1.01 x 0.4810/0.6759) = 0.924
+  //   flowerPatch 0.34 x 0.5042/0.8163                                                = 0.210
+  // ⚠⚠ AND NOTHING CASTS FROM THEM — see `cover-dressing.ts`'s header. They are frozen anyway
+  // because `roleHeights` measures EVERY role off the loaded kit and {@link heightDriftOf} compares
+  // every role: a table with three holes in it would be a drift check that stopped checking three
+  // roles the moment they existed.
+  bush: 0.595,
+  tuft: 0.924,
+  flowerPatch: 0.21,
 } as const satisfies RoleHeights;
 
 /**
@@ -516,6 +718,21 @@ export function isGrovePlacement(p: KitPlacement): boolean {
 }
 
 /**
+ * THE `capId` A GROUND-COVER PROP WEARS (`cover-dressing.ts`).
+ *
+ * ⚠ IT IS NOT WHAT TELLS COVER APART — {@link isDressingRole} over the placement's ROLE is, and
+ * that is a property of the vocabulary rather than of a string. This exists so that a reader of a
+ * placement list, a census row or a debug dump sees the same shape the grove uses instead of an
+ * empty field, and so that no ground-cover prop can ever collide with a real capability's id.
+ */
+export const COVER_CAP_ID = 'cover';
+
+/** Is this placement ground cover — scenery that asserts nothing? Read off the ROLE. */
+export function isCoverPlacement(p: KitPlacement): boolean {
+  return isDressingRole(p.role);
+}
+
+/**
  * HOW MUCH CLOSER TWO GROVE MEMBERS MAY STAND THAN THEIR FOOTPRINTS ALLOW — a fraction of the
  * clearance {@link pairClearance} would otherwise ask for.
  *
@@ -534,10 +751,26 @@ export function isGrovePlacement(p: KitPlacement): boolean {
  */
 export const GROVE_CLEARANCE = 0.45;
 
-/** The factor the full clearance is multiplied by for a pair: {@link GROVE_CLEARANCE} between two
- *  grove members, 1 for every other pair. A named function rather than a ternary at each of the
- *  two call sites, because two copies of one rule are two rules that agree today. */
+/**
+ * The factor the full clearance is multiplied by for a pair: ZERO when either is ground cover,
+ * {@link GROVE_CLEARANCE} between two grove members, 1 for every other pair. A named function
+ * rather than a ternary at each call site, because copies of one rule are rules that agree today.
+ *
+ * ⚠⚠ ZERO FOR A `dressing` ROLE, AND THAT IS THE RECIPE'S OWN RULE RATHER THAN A RELAXATION WE
+ * INVENTED. `build_land.py`'s `sprinkle` (`:1082-1090`) tests a ground-cover point for `inside` and
+ * `wear` and for NOTHING ELSE — no tree clearance, no clearance from other cover. Undergrowth
+ * grows under and around what stands on the land; that is what makes it ground COVER rather than a
+ * fourth kind of object competing for floor. So a bush at a pine's foot is not an overlap, and
+ * {@link dressingOverlaps} does not report one.
+ *
+ * ⚠ WHAT KEEPS THE CRITERION MARKER SAFE IS THEREFORE NOT DISTANCE — it never was. It is the ASSET
+ * (a flower patch is `White_Flower_01`, never `Red_Flower_*`) and the SIZE ({@link COVER_SCALE}'s
+ * widest delivered patch is under a third of the bloom's width). Both are properties of the tables
+ * above, which is where `kit-vocabulary.test.ts` holds them, and neither can be undone by moving a
+ * prop.
+ */
 export function clearanceFactor(a: KitPlacement, b: KitPlacement): number {
+  if (isDressingRole(a.role) || isDressingRole(b.role)) return 0;
   return isGrovePlacement(a) && isGrovePlacement(b) ? GROVE_CLEARANCE : 1;
 }
 

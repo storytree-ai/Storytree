@@ -11,6 +11,7 @@ import {
   KIT_ASSEMBLIES,
   KIT_FOOTPRINTS_2026_08_29,
   KIT_ROLES,
+  KIT_ROLE_CLASS,
   KIT_ROLE_ASSEMBLIES,
   KIT_ROLE_SIGNAL,
   KIT_ROLE_SIZE,
@@ -69,7 +70,11 @@ test('every role names a signal, and every signal is read off the SCENE', () => 
   for (const role of KIT_ROLES) {
     const signal = KIT_ROLE_SIGNAL[role];
     assert.ok(signal.length > 20, `${role} has no signal`);
-    assert.match(signal, /^SCENE — /, `${role}'s signal is not read off the scene`);
+    // ⚠ TWO ADMISSIBLE ANSWERS SINCE 2026-09-03 AND STILL NO THIRD — the expected word is DERIVED
+    // from `KIT_ROLE_CLASS`, so this stays a two-place agreement rather than a second literal.
+    // `src/kit-vocabulary.test.ts` carries the same claim over the same table; this copy is what
+    // the HARNESS fixture's own suite asks, and both must move together.
+    assert.match(signal, new RegExp(`^${KIT_ROLE_CLASS[role].toUpperCase()} — `), `${role}'s class and its prose disagree`);
   }
 });
 
@@ -363,11 +368,7 @@ test('props ride the relief rather than floating over it', () => {
 test('a wider footprint pushes the props apart rather than being ignored', () => {
   // The footprint is an ARGUMENT, so a placement that ignored it would look correct in every
   // test above — they all pass the same table. Doubling it must move the arrangement.
-  const wide = {
-    tree: FOOT.tree * 2,
-    deadTree: FOOT.deadTree * 2,
-    bloom: FOOT.bloom * 2,
-  } satisfies Record<KitRole, number>;
+  const wide = Object.fromEntries(KIT_ROLES.map((r) => [r, FOOT[r] * 2])) as Record<KitRole, number>;
   const narrow = dress();
   const spread = dressIslandFromKit({
     scene: islandScene(),

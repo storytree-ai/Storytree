@@ -24,15 +24,22 @@
 // and nothing else. An island therefore looks the same alone as it does in a crowd of thirty-five
 // — a property the whole-map call did not have and could not have had.
 //
-// ⚠ TWO ENTRY POINTS SINCE 2026-09-03, AND THE DIFFERENCE IS WHAT STANDS. `dressMapFromKit` is the
-// vocabulary alone — one object per capability, one bloom per signature — and it is what every
-// comparison that ASKS about the vocabulary reads (the bloom census, the "today" arm of a
-// comparison page). `dressMapWithGroves` is what the SHIPPED canvas stands: the same dressing, and
-// then each healthy island's grove grown against it (`grove-dressing.ts`). The grove is placed
-// island by island for the same reason the blooms are — against that island's own occupancy — and
-// it is placed AFTER the island's own objects, so a grove pine is placed around the capability's
-// tree and never the other way about.
+// ⚠ THREE ENTRY POINTS, AND THE DIFFERENCE IS WHAT STANDS — each one is a LAYER of the map's
+// dressing, kept as its own function so a comparison page can render the map as it drew before any
+// given landing rather than describing it.
+//
+//   dressMapFromKit    the vocabulary alone — one object per capability, one bloom per signature.
+//                      What every comparison that ASKS about the vocabulary reads.
+//   dressMapWithGroves + each healthy island's grove, grown against what the vocabulary stood
+//                      (`grove-dressing.ts`). What the canvas stood from 2026-09-03.
+//   dressMapWithCover  + each healthy island's GROUND COVER — the recipe's bushes, tufts and
+//                      flower patches (`cover-dressing.ts`). ⚠ THIS IS WHAT THE CANVAS STANDS.
+//
+// Every layer is placed island by island for the same reason the blooms are — against that
+// island's own ground — and each is placed AFTER the layer before it, so a grove pine is placed
+// around the capability's tree and a bush around both, never the other way about.
 
+import { COVER_DENSITY, dressCover } from './cover-dressing.js';
 import { GROVE_DENSITY, dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
 import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary.js';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells.js';
@@ -47,6 +54,15 @@ export interface MapDressingOptions {
    *  pick (`GROVE_DENSITY`); the canopy comparison page's ladder arms are what pass it, and
    *  {@link dressMapFromKit} — which grows no grove at all — ignores it. */
   density?: number;
+  /** Which rung of `COVER_DENSITY_RUNGS` a healthy island's ground cover is scattered at. Omitted
+   *  is the shipped pick (`COVER_DENSITY`); the cover comparison page's ladder arms are what pass
+   *  it, and every entry point but {@link dressMapWithCover} ignores it.
+   *
+   *  ⚠ A SECOND KNOB RATHER THAN A SHARED ONE, because the two layers are two looks: the grove's
+   *  rung was picked against the recipe's 52–104 pines per island and the cover's against a
+   *  different picture entirely, and one number for both would mean a scale-back on either could
+   *  only be bought by scaling back the other. */
+  coverDensity?: number;
 }
 
 // ⚠ THERE IS NO `seed` HERE, AND ITS ABSENCE IS DELIBERATE. `dressIslandFromKit` carries its own
@@ -107,7 +123,7 @@ export function dressMapFromKit(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
 ): KitPlacement[] {
-  return dressMap(descriptors, opts, null);
+  return dressMap(descriptors, opts, null, false);
 }
 
 /**
@@ -124,7 +140,29 @@ export function dressMapWithGroves(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
 ): KitPlacement[] {
-  return dressMap(descriptors, opts, islandExclusion);
+  return dressMap(descriptors, opts, islandExclusion, false);
+}
+
+/**
+ * EVERYTHING THE SHIPPED MAP STANDS — {@link dressMapWithGroves} and then, on every island that
+ * grew a grove, that island's GROUND COVER (`cover-dressing.ts`): the recipe's bushes, grass tufts
+ * and flower patches, scattered over the same island against the same exclusion. **This is what
+ * the canvas calls**; the two functions above are what a comparison page's earlier arms call, so
+ * an arm can still show the map as it drew before this landing.
+ *
+ * ⚠ THE ORDER IS PART OF THE PLACEMENT, one level further than the grove took it: capabilities,
+ * then the island's signatures, then its grove, then its cover — so a bush is scattered around
+ * everything that reports something, and never the other way about. Cover keeps no clearance
+ * (`clearanceFactor` returns zero for it, which is the recipe's own rule), so the ORDER is what
+ * carries the relationship rather than an occupancy: the things that report are placed first and
+ * are therefore placed on the ground they would have had with no cover at all. Adding or removing
+ * the cover pass cannot move a single tree.
+ */
+export function dressMapWithCover(
+  descriptors: readonly Descriptor3D[],
+  opts: MapDressingOptions,
+): KitPlacement[] {
+  return dressMap(descriptors, opts, islandExclusion, true);
 }
 
 /** How an island's grove learns where it may not stand — `null` grows no grove at all. */
@@ -134,6 +172,7 @@ function dressMap(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
   exclusionFor: ExclusionFor | null,
+  cover: boolean,
 ): KitPlacement[] {
   const cells = parcelCellsFrom(descriptors);
   const signed = signedCriteriaByIsland(descriptors);
@@ -152,6 +191,10 @@ function dressMap(
     const standing = dress(group, signed.get(island) ?? 0);
     out.push(...standing);
     if (exclusionFor === null) continue;
+    // ⚠ ONE EXCLUSION PER ISLAND, BUILT ONCE AND HANDED TO BOTH PASSES. It carries a `shoreField`
+    // and a `wearField` over the island's whole ground — the expensive part of dressing a map —
+    // and two calls would be two fields the grove and the cover could come to disagree through.
+    const exclusion = exclusionFor(descriptors, island);
     out.push(
       ...dressGroves({
         island,
@@ -159,8 +202,18 @@ function dressMap(
         standing,
         footprint: opts.footprint,
         relief: opts.relief,
-        exclusion: exclusionFor(descriptors, island),
+        exclusion,
         density: opts.density ?? GROVE_DENSITY,
+      }),
+    );
+    if (!cover) continue;
+    out.push(
+      ...dressCover({
+        island,
+        cells: group,
+        relief: opts.relief,
+        exclusion,
+        density: opts.coverDensity ?? COVER_DENSITY,
       }),
     );
   }

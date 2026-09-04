@@ -66,7 +66,7 @@ import {
   heightDriftOf,
   type KitPlacement,
 } from './kit-vocabulary.js';
-import { dressMapWithGroves } from './map-dressing.js';
+import { dressMapWithCover } from './map-dressing.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import { GRASS_STATUS_GATE } from './land-grass.js';
 import { ROCK_SLOPE_RAMP } from './land-rock.js';
@@ -1109,12 +1109,17 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // footprints, so it exists at mount rather than after the asset has parsed. The SAME list is
   // read twice below: once as casters (the ground darkens under every placement) and once by
   // `KitProps` (which draws exactly these). Computing it in either consumer alone is how a tree
-  // and its shadow become two lists that agree today. `dressMapWithGroves` is the shipped
-  // dressing: one object per capability, one bloom per signature, and a grove on every healthy
-  // island (`grove-dressing.ts`) — the whole descriptor stream, because the signatures, the
-  // island ids and the trail docks the grove keeps off the path are all IN it.
+  // and its shadow become two lists that agree today. `dressMapWithCover` is the shipped
+  // dressing entire: one object per capability, one bloom per signature, a grove on every healthy
+  // island (`grove-dressing.ts`) and that island's GROUND COVER on top (`cover-dressing.ts`) —
+  // the whole descriptor stream, because the signatures, the island ids and the trail docks that
+  // both the grove and the cover keep off the path are all IN it.
+  //
+  // ⚠ THE CASTER READER BELOW SEES A LIST IT DOES NOT CAST EVERY MEMBER OF, and that is stated
+  // rather than left to be discovered: `placementCasters` drops the `dressing` roles, which is
+  // where the "ground cover casts nothing" decision is enforced and argued.
   const placements = useMemo(
-    () => dressMapWithGroves(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 }),
+    () => dressMapWithCover(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 }),
     [descriptors],
   );
   // Everything that stands on the land and therefore darkens it: the descriptor families that

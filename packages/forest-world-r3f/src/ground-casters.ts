@@ -32,7 +32,13 @@
 
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
 import type { GroundBounds, ShadowCaster } from './land-shadow.js';
-import { propRadius, type KitPlacement, type RoleFootprints, type RoleHeights } from './kit-vocabulary.js';
+import {
+  isDressingRole,
+  propRadius,
+  type KitPlacement,
+  type RoleFootprints,
+  type RoleHeights,
+} from './kit-vocabulary.js';
 
 /** The cave portal's mouth half-width — `CaveArch`'s own `hw`, which is the 2D prop's rule. */
 export function caveMouthHalfWidth(cave: InstanceDescriptor): number {
@@ -107,16 +113,35 @@ export function placementCaster(
   };
 }
 
-/** Every placement's caster, in placement order — the list `ForestWorldCanvas` unions with
- *  {@link groundCasters} and hands to the ground. One caster per placement, none dropped: a
- *  placement without a caster is an object that floats. */
+/**
+ * Every placement's caster, in placement order — the list `ForestWorldCanvas` unions with
+ * {@link groundCasters} and hands to the ground. One caster per placement that STANDS: a placement
+ * without a caster is an object that floats, which is the defect this function was written to fix.
+ *
+ * ⚠⚠ EXCEPT GROUND COVER, WHICH CASTS NOTHING — a decision, stated here because this is the line
+ * that enforces it, and argued at length in `cover-dressing.ts`'s header. Two halves, both
+ * measured rather than asserted. (a) COST: cover outnumbers everything else on a healthy island by
+ * about five to one at the shipped rung, so casting from it multiplies the map's kit casters by
+ * roughly six, each one stamping its own box into the occlusion grid. (b) THE LADDER: the ground
+ * material has ONE occlusion rung and thresholds the field, so a prop about a ground unit wide does
+ * not contribute the soft ambient darkening the approved Cycles render shows — it contributes a
+ * hard dot at full rung strength, and a carpet of those is not a shadow.
+ *
+ * ⚠ IT IS A ROLE-CLASS TEST, NEVER A SIZE ONE. A threshold on the footprint would silently drop the
+ * bloom's caster the day someone narrowed the criterion marker, and would silently start casting
+ * from ground cover the day someone made a rung bolder. What may not cast is `dressing`, which is
+ * a declared property of the vocabulary.
+ */
 export function placementCasters(
   placements: readonly KitPlacement[],
   footprint: RoleFootprints,
   heights: RoleHeights,
 ): ShadowCaster[] {
   const out: ShadowCaster[] = [];
-  for (const placement of placements) out.push(placementCaster(placement, footprint, heights));
+  for (const placement of placements) {
+    if (isDressingRole(placement.role)) continue;
+    out.push(placementCaster(placement, footprint, heights));
+  }
   return out;
 }
 
