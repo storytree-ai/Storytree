@@ -268,7 +268,13 @@ export function TraversalSpine({
     for (const mark of marks) {
       rows.set(
         mark.id,
-        knowledgeAxisRow(axis, knowledge ? markKnowledgeDepth(knowledge, mark.nodeId) : null),
+        knowledgeAxisRow(
+          axis,
+          // THE MARK'S OWN SURFACE RIDES ALONG (ADR-0511 D4): whether an id the corpus does not hold
+          // is a work-hierarchy unit is a fact about the READ, not about the id, so the classifier
+          // cannot answer it from `nodeId` alone.
+          knowledge ? markKnowledgeDepth(knowledge, mark.nodeId, mark.surfaceId) : null,
+        ),
       );
     }
     return rows;
@@ -537,9 +543,15 @@ export function TraversalSpine({
  * the knowledge tiers only. The words are not decoration — `on-chain` and `anchored` named the old
  * quantity, and leaving them on the new one would have been the most quotable wrong number here.
  *
- * The four readings stay four (`lib/knowledgeDepth.ts`): an artifact NOTHING links to is never
- * rendered as a surface, a cycle is never rendered as a depth, and an UNMEASURED corpus says so
- * rather than reporting nothing placed.
+ * The readings stay APART (`lib/knowledgeDepth.ts`): an artifact NOTHING links to is never rendered
+ * as a surface, a cycle is never rendered as a depth, and an UNMEASURED corpus says so rather than
+ * reporting nothing placed.
+ *
+ * ⚠ `placed` READS LOWER SINCE ADR-0511, AND THE MISSING MARKS ARE NOT MISSING. A record row that
+ * carried a cite used to count as `placed` (132 rows, 255 marks on this machine's traces), almost
+ * all of them at depth 0 — a log row drawn on the axis's surface row. They now count under `record`,
+ * which is why the hover enumerates every band: the arithmetic has to be visible, or the drop reads
+ * as the corpus having lost edges.
  */
 function KnowledgeChip({
   replay,
@@ -565,14 +577,20 @@ function KnowledgeChip({
       data-testid="traversal-knowledge-chip"
       data-placed={report.placed}
       data-visited={report.visited}
+      data-record={report.record}
+      data-work-unit={report.workUnit}
       data-unlinked={report.unlinked}
       data-cyclic={report.cyclic}
       data-absent={report.absent}
-      title={`${report.placed} of ${report.visited} artifacts read here sit in the dependency graph${
+      title={`${report.placed} of ${report.visited} things read here are knowledge artifacts in the dependency graph${
         report.placed > 0 ? `, the deepest ${report.maxDepth} hop(s) below a surface` : ''
-      }; ${report.unlinked} carry no edge either way — unmeasured, NOT at the surface; ${
+      }; ${report.record} are record rows — the session log, which has no knowledge depth; ${
+        report.workUnit
+      } are stories or capabilities, which live in the work hierarchy; ${
+        report.unlinked
+      } carry no edge either way — unmeasured, NOT at the surface; ${
         report.absent
-      } not Library artifacts${
+      } are ids the Library does not hold at all${
         report.cyclic > 0 ? `; ${report.cyclic} sit under a dependency cycle` : ''
       }. ${linkage ?? ''} Nothing enforces this join, so the two graphs can drift — a derived reading, never a guarantee.`}
     >
@@ -892,7 +910,9 @@ function Mark({
   const x = geometry.x(mark.y);
   const y = geometry.depthY(row);
   const r = geometry.markRadius;
-  const reading = knowledge ? markKnowledgeDepth(knowledge, mark.nodeId) : null;
+  // The SAME three arguments the row resolution used — a hover that classified the mark differently
+  // from the row it is drawn on would be the two-callers drift `rowByMarkId`'s comment warns about.
+  const reading = knowledge ? markKnowledgeDepth(knowledge, mark.nodeId, mark.surfaceId) : null;
   return (
     <g
       className={`traversal-mark strength-${mark.strength}${visible ? ' is-visible' : ''}`}

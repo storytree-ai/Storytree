@@ -77,6 +77,38 @@
 // what the corpus figure means, so it is a decision someone makes on purpose. An UNKNOWN kind counts
 // as knowledge — failing toward the larger denominator, so a new tier can never silently improve the
 // score.
+//
+// ## AND A RECORD ROW GETS ITS OWN READING, NOT A DEPTH (ADR-0511)
+//
+// The denominator split above was only half the correction. Per-ID, a log row still came back
+// `unlinked` — an ABSENCE OF MEASUREMENT — which on the traversal panel drew it under a heading
+// saying the corpus could not measure it. Measured 2026-09-04 over one machine's traces: 2,736 of
+// 11,232 read marks (24.4%) landed there, and 2,024 of them were record rows. Nobody failed to wire
+// an increment. {@link SurfaceDepthReading} therefore carries a fifth state, `record`, answered
+// AHEAD of the four depth-shaped ones and carrying the row's containment instead of a distance.
+//
+// ⚠ ## THE TYPED RECORD POINTERS ARE NOT EDGES, AND THE REFUSAL IS MEASURED (ADR-0511 D5)
+//
+// Every increment and open question carries a required `arcRef` and 74 increments carry
+// `frictionRefs` — 1,676 authored pointers no dependency walk reads. Admitting them is the obvious
+// improvement, it is refused twice over, and BOTH measurements are over the live corpus with this
+// same judge:
+//
+//   • RECORD-TIER POINTERS ONLY (increment/open-question `arcRef` + increment `frictionRefs`).
+//     Introduces no cycle and costs no mark its depth — but it makes all 1,305 increments SURFACES,
+//     and 89 knowledge artifacts get DEEPER as a result (`recursive-decomposition-patterns` 1 → 5,
+//     `pull-based-context-architecture` 2 → 5, `merge-ceremony` 2 → 3). Nothing about the knowledge
+//     moved; those depths moved because the record tier is pointed at by nothing and therefore seeds
+//     the walk. The direction is toward "the near-work layer is under-serving", which is the signal
+//     this axis exists to give — an instrument may not manufacture its own headline.
+//   • A DECISION'S `arcRef` TOO. It records the initiative a decision was made under: provenance,
+//     never support. It runs from the knowledge tier INTO the record tier, closes 210 nodes into
+//     cycles (arc → decision → arc), and a cycle has no longest chain — so 4,519 marks LOSE the
+//     depth they have, `knowledgeLinked` falls 784 → 600, and the panel reaches 50.1% unmeasured.
+//     Worse than doing nothing.
+//
+// So {@link SurfaceDepthNode.arcRef} is carried to be REPORTED and is never adjacency. A future
+// reader proposing either widening should re-run the numbers rather than re-derive the argument.
 
 import {
   buildDependencyGraph,
@@ -119,15 +151,42 @@ export interface SurfaceDepthNode extends DepthFromWorkNode {
    * default that no input could reach and no test could ever pin.
    */
   readonly kind: string;
+  /**
+   * The row's CONTAINMENT pointer (`asset:<arc-id>`) — what a `record` reading reports instead of a
+   * depth (ADR-0511 D1).
+   *
+   * OPTIONAL, unlike {@link SurfaceDepthNode.kind}, and the asymmetry is the honest one: three of
+   * the five record kinds cannot carry it. `arcRef` is required by schema on `increment` and
+   * optional on `open-question`; `arc`, `friction` and `template` have no such field at all, so an
+   * absent value here means "this kind has no container to name" far more often than it means a
+   * caller forgot. Measured on the live corpus 2026-09-04, the RENDERED wire carries it on
+   * 1,306/1,306 increments and 42/42 open questions, so a caller reading `renderStoredDoc` output
+   * has it wherever it exists.
+   *
+   * ⚠ **IT IS NOT AN EDGE AND MUST NEVER BECOME ONE** (ADR-0511 D5) — see the header. It is passed
+   * to {@link evaluateSurfaceDepth} to be REPORTED, and the walk never reads it.
+   */
+  readonly arcRef?: string | undefined;
 }
 
 /**
  * What one id's surface-depth reading came to.
  *
- * FOUR states, and collapsing any two of them is the bug. Three are the ordinary readings; `cyclic`
- * is a VACUITY state — see {@link SurfaceDepthVerdict.cyclicNodes}.
+ * FIVE states, and collapsing any two of them is the bug. `record` answers a different question from
+ * the other four and is returned ahead of them; of the rest, three are the ordinary readings and
+ * `cyclic` is a VACUITY state — see {@link SurfaceDepthVerdict.cyclicNodes}.
  */
 export type SurfaceDepthReading =
+  /**
+   * A LOG ROW, not a knowledge node (ADR-0511 D1) — an increment, arc, friction item, open question
+   * or template. Depth is not a question it has an answer to, so it is answered with the thing it
+   * DOES have: the record it belongs to.
+   *
+   * Returned ahead of every other state, including `placed`. A record row CAN carry an `asset:` cite
+   * and 132 of them are placed today, mostly at depth 0 — drawn on the axis's surface row beside the
+   * knowledge graph's genuine roots, which is `unlinked`-reads-as-shallow wearing its other face.
+   */
+  | { readonly state: "record"; readonly containedBy: string | null }
   /** In the linked graph: the longest chain from a surface down to it is `depth` hops. */
   | { readonly state: "placed"; readonly depth: number }
   /** In the corpus with NO edge in either direction. Not deep, not shallow — unmeasured. */
@@ -145,6 +204,24 @@ export interface SurfaceDepthVerdict {
   readonly knownIds: ReadonlySet<string>;
   /** Ids with no edge in either direction. The 63% — unmeasured, never shallow. */
   readonly unlinkedIds: ReadonlySet<string>;
+  /**
+   * Ids whose kind is in {@link RECORD_KINDS} — the log rows {@link surfaceDepthOf} answers `record`
+   * for, ahead of every depth-shaped state (ADR-0511 D1).
+   *
+   * The same membership {@link SurfaceDepthVerdict.recordScanned} counts, exposed so a per-id reader
+   * gets the answer from the walk that computed the denominator rather than re-deriving it from a
+   * kind it would have to carry separately — two places deciding what a record row is, is how the
+   * per-read reading and the printed denominator start disagreeing.
+   */
+  readonly recordIds: ReadonlySet<string>;
+  /**
+   * `<record row id>` -> its containment pointer (`asset:<arc-id>`), for the rows that carry one.
+   *
+   * ABSENT rather than null-valued for a row with no container: the three record kinds that have no
+   * such field would otherwise each need an explicit null written by every caller, which is a
+   * ceremony that can be forgotten silently. {@link surfaceDepthOf} supplies the `null`.
+   */
+  readonly containedBy: ReadonlyMap<string, string>;
   /**
    * `adr-NNNN` -> `decision:NNNN` for every decision twin collapsed away — see the header.
    *
@@ -268,17 +345,24 @@ export function evaluateSurfaceDepth(
   const { byId, decisionIds } = graph;
 
   // FIRST ID WINS on a duplicate, matching `buildDependencyGraph` — a second row for the same id
-  // must not silently re-label the node the graph was built from.
-  // FIRST ID WINS on a duplicate, matching `buildDependencyGraph` — a second row for the same id
   // must not silently re-label the node the graph was built from. Held as the ANSWER (is this a
   // record tier?) rather than as the kind, so the denominator split below is a set membership and
   // not a lookup with a default nothing can reach.
+  //
+  // ⚠ THE CONTAINMENT POINTER IS COLLECTED IN THIS SAME PASS AND GOES NO FURTHER (ADR-0511 D2). It
+  // is never handed to `buildDependencyGraph`, never unioned into an adjacency, and never seeded —
+  // it is carried to be REPORTED by `surfaceDepthOf` and nothing else. That is the whole fence, and
+  // it is why every depth this function returns is byte-identical to what it returned before the
+  // reading existed. Admitting it as an edge is refused with a measurement in the header.
   const recordIds = new Set<string>();
+  const containedBy = new Map<string, string>();
   const seenIds = new Set<string>();
   for (const node of nodes) {
     if (seenIds.has(node.id)) continue;
     seenIds.add(node.id);
-    if (RECORD_KINDS.has(node.kind)) recordIds.add(node.id);
+    if (!RECORD_KINDS.has(node.kind)) continue;
+    recordIds.add(node.id);
+    if (node.arcRef !== undefined && node.arcRef !== "") containedBy.set(node.id, node.arcRef);
   }
 
   // COLLAPSE THE DECISION TWINS FIRST — see the header. `adr-0012` and `decision:0012` are one
@@ -425,6 +509,8 @@ export function evaluateSurfaceDepth(
     depthById,
     knownIds: new Set(allIds),
     unlinkedIds,
+    recordIds,
+    containedBy,
     canonicalIds,
     nodesScanned: allIds.length,
     artifactsScanned: byId.size - canonicalIds.size,
@@ -450,7 +536,16 @@ export function evaluateSurfaceDepth(
 }
 
 /**
- * One id's reading. FOUR states — see {@link SurfaceDepthReading}; collapsing any two is the bug.
+ * One id's reading. FIVE states — see {@link SurfaceDepthReading}; collapsing any two is the bug.
+ *
+ * ## A RECORD ROW IS ANSWERED FIRST, AND THAT ORDER IS THE DECISION (ADR-0511 D1)
+ *
+ * The four depth-shaped states all answer "how far below the knowledge surface does this sit". A log
+ * row has no answer to that, and the two ways of pretending otherwise are BOTH wrong and point in
+ * opposite directions: reported `unlinked` it draws under a heading saying the corpus could not
+ * measure it (2,029 of one machine's 2,736 unmeasured marks, and nobody failed to wire any of them),
+ * and reported `placed@0` — which 132 record rows are today — it draws on the surface row beside the
+ * graph's genuine roots. Answering `record` BEFORE the depth lookup is what forecloses both.
  *
  * ## IT ANSWERS FOR EVERY SPELLING OF A DECISION, INCLUDING THE ONE THAT PREDATES THE ROW
  *
@@ -469,6 +564,10 @@ export function surfaceDepthOf(verdict: SurfaceDepthVerdict, id: string): Surfac
   // A caller asks about the id a session READ — `adr-0012`, never `decision:0012`. See the header.
   const spelled = resolveDecisionSpelling(id);
   const canonical = verdict.canonicalIds.get(spelled) ?? spelled;
+  // AHEAD OF THE DEPTH LOOKUP — see the header. A record row never reaches the four depth states.
+  if (verdict.recordIds.has(canonical)) {
+    return { state: "record", containedBy: verdict.containedBy.get(canonical) ?? null };
+  }
   const depth = verdict.depthById.get(canonical);
   if (depth !== undefined) return { state: "placed", depth };
   if (verdict.unlinkedIds.has(canonical)) return { state: "unlinked" };
