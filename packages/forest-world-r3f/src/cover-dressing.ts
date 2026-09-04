@@ -133,7 +133,30 @@ export const COVER_ROLES: readonly KitRole[] = ['bush', 'tuft', 'flowerPatch'];
  */
 export const COVER_SIZE_RUNGS = [1, 2.5, 4.5] as const;
 
-/** The rung the shipped map wears. */
+/**
+ * THE RUNG THE SHIPPED MAP WEARS — the boldest rendered, per ADR-0503 D1/D3.
+ *
+ * ⚠ THE LADDER, MEASURED ON THE RTX 2060 2026-09-04 (`docs/research/chapter2-ground-cover-2026-09-04/`),
+ * one island at 8 px/unit, the SAME 216 props at each rung, against the canopy that ships today:
+ *
+ *   rung  widest cover prop  px moved >20/255 vs today  prop px  MICRO   ms/frame (fitted forest)
+ *   1     1.38 units                              558  166,361   2.65   1.6199
+ *   2.5   3.45 units                            6,780  175,233   2.95   1.6319
+ *   4.5   6.20 units                           25,620  200,132   3.78   1.6342   ← ships
+ *   (today: the canopy alone — 0 moved, 165,364 prop px, MICRO 2.61, 1.1623 ms; approved 2.54)
+ *
+ * Rung 1 IS `build_land.py` transcribed, and it is the arm that shows why the literal port is not
+ * shipped: 558 pixels on an island where the canopy moved 194,440. What it proved is not that the
+ * scatter was broken — it is that a prop about eight delivered pixels across, dark green on
+ * dark-green ground, is not in the picture however many of them stand.
+ *
+ * ⚠ A SCALE-BACK IS FREE ON THE FRAME AND COSTS ONLY THE LOOK. The three rungs draw IDENTICAL
+ * geometry and differ only in each prop's scale, so their frame times sit inside the runs' own
+ * spread (0.01–0.17 ms). `cover-2.5` is the rung whose widest bush (34% of a pine's footprint)
+ * matches the approved render's own proportion; 4.5 (61%) is bolder, which is what D1 asks for.
+ * Moving the pick is THIS constant and `SHIPPED_COVER_ARM` in `harness/shipped-cover-scene.ts`,
+ * two constants, and no re-measurement.
+ */
 export const COVER_SIZE = 4.5;
 
 /**

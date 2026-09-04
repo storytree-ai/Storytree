@@ -1,0 +1,18 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+plan: 4 arms x 5 interleaved repeats x 20 frames per GPU query, 2 independent runs · picture: the forest at fit
+
+THE GROUND COVER — FRAME COST on the GPU's own clock, forest @ fit
+arm             calls       tris   ms/frame   spread   vs today   % of a 60Hz frame
+canopy              7    2440708     1.1623   0.1686          —      7.0%
+cover-1             7    3805446     1.6199   0.0313    +0.4576      9.7%
+cover-2.5           7    3805446     1.6319   0.0793    +0.4696      9.8%
+cover-4.5           7    3805446     1.6342   0.0118    +0.4720      9.8%
+
+DID IT REPRODUCE?
+  Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped.
+
+WHAT IT MEANS FOR THE BUDGET (16.67 ms at 60 Hz):
+  the SHIPPED picture (cover-4.5) draws the whole 35-island map, dressed and covered, in 1.6342 ms — 9.8% of a frame.
+  against today's map (canopy — the same trees, no ground cover) that is +0.4720 ms (2.8% of a frame).
+  ⚠ THIS IS THE GPU’S DRAW COST FOR THIS SCENE AND NOTHING ELSE. It is not the site’s frame time: the shipped canvas also runs React, controls and the compositor, none of which are on this page.
