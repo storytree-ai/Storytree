@@ -432,6 +432,22 @@ function walkNode(
       );
     }
 
+    // Stryker disable next-line StringLiteral: EQUIVALENT for the mutant generated, stated
+    // precisely rather than claimed in general. Stryker rewrites this label to `case ""`, and a
+    // node whose `kind` is `'tree'` then matches no case and falls to `default:` — which runs
+    // `if (kind) out.push({ kind: 'skipped', sceneKind: kind })` and, `'tree'` being truthy,
+    // produces a BYTE-IDENTICAL descriptor. The mutant is separable only by a node whose `kind` is
+    // the empty string: the mutated `case ""` would emit `sceneKind: ""` where the real code falls
+    // to `default` and its `if (kind)` guard emits nothing. `kind` is `node.kind` (`SceneKind |
+    // undefined`, `world-to-3d.ts:334`), so `""` is not a value the type admits and no fixture can
+    // construct one without lying about the scene.
+    //
+    // ⚠ THE CASE IS KEPT RATHER THAN DELETED, and its being equivalent is the reason to say so
+    // here rather than to fold it into `default`. It carries MEANING that its output cannot: a
+    // `tree` group is a core kind this mapper understands and DELIBERATELY draws nothing for,
+    // which is a different statement from `default`'s "a kind nobody has taught this mapper yet",
+    // even where the two agree byte for byte. That is the same distinction `case 'tile'` makes one
+    // branch above, and the place a reader will look for the retirement.
     case 'tree':
       // ⚠⚠ THE PLACEHOLDER STORY TREE IS RETIRED FROM THE 3D MAP — A SKIP, NOT A REFUSAL, and
       // not a `story-tree` instance either. Until 2026-09-04 this case emitted one, and the
