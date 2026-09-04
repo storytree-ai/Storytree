@@ -122,10 +122,13 @@ The residual is a **lower bound**. It is `resident − (pre-request bytes ÷ 3.8
 JSON-escaped lines with metadata wrappers, so the divisor over-states the visible half and therefore
 under-states the residual.
 
-This corroborates **ADR-0330** from a second direction, and sharpens one of its clauses. ADR-0330
-measured an ~85k fixed preamble at 24.3% of spend and recorded that *"the majority of the floor is
-the harness's system prompt and tool definitions, neither onboarding text nor ours to edit"*, leaving
-**~23.5k of 85k** as the share this repo owns. Measured here at first-request granularity the floor
+This corroborates the August split from a second direction. ⚠ **Attribute the two halves
+correctly** — they are easy to merge and they came from different places. `session-cost-arc`
+measured the ~85k fixed preamble at 24.3% of spend and, re-measuring, recorded that *"the majority
+of the floor is the harness's system prompt and tool definitions, neither onboarding text nor ours
+to edit"*, leaving **~23.5k of 85k** as the share this repo owns. **ADR-0330 D1** is what then
+BUDGETS that owned share at 96 KiB, and it declines to budget the harness's half in its own words:
+*"budgeting what we cannot edit would make the number unactionable"*. Measured here at first-request granularity the floor
 is larger (~106k) and the invisible share is larger with it — consistent with a session that has
 since acquired MCP servers, browser tools and a deferred-tool catalogue.
 
