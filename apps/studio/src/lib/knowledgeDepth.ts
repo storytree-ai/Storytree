@@ -117,16 +117,9 @@ function decisionRowsOf(assets: readonly GuidanceAsset[]): SupportOnlyDecision[]
   return rows;
 }
 
-/**
- * One wire row as the judge's input, built in statements rather than in one object literal.
- *
- * `arcRef` is assigned only when the wire carried one: with `exactOptionalPropertyTypes` an
- * `arcRef: undefined` is a DIFFERENT type from an absent field, and the conditional spread that
- * would have inlined this is refused by the house rules for exactly the reason it reads badly —
- * a property's presence hidden inside an expression.
- */
+/** One wire row as the judge's input. */
 function nodeOf(asset: GuidanceAsset): SurfaceDepthNode {
-  const node: SurfaceDepthNode = {
+  return {
     id: asset.id,
     // Stryker disable next-line ArrayDeclaration: EQUIVALENT, and hand-checked rather than argued —
     // the fallback is reached only for an asset carrying no pointers, and a mutated non-empty
@@ -154,7 +147,6 @@ function nodeOf(asset: GuidanceAsset): SurfaceDepthNode {
     // it as. One decision, in the judge, where the empty-string case is tested too.
     arcRef: asset.arcRef,
   };
-  return node;
 }
 
 export type KnowledgeDepthModel =
