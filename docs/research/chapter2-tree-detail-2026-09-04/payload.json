@@ -1,0 +1,40 @@
+[
+  {
+    "url": "/assets/dressing-kit-128.glb",
+    "wireBytes": 162748,
+    "gpuBytes": 786429,
+    "textures": 9,
+    "textureEdges": [
+      128
+    ],
+    "dataSlots": [
+      "metalnessMap",
+      "normalMap"
+    ],
+    "triangles": 4052,
+    "loadMs": 39.299999952316284,
+    "file": "dressing-kit-128.glb",
+    "brotliBytes": 110487,
+    "base64Bytes": 217000,
+    "base64BrotliBytes": 124438
+  },
+  {
+    "url": "/assets/dressing-kit.glb",
+    "wireBytes": 1715496,
+    "gpuBytes": 201326589,
+    "textures": 9,
+    "textureEdges": [
+      2048
+    ],
+    "dataSlots": [
+      "metalnessMap",
+      "normalMap"
+    ],
+    "triangles": 4052,
+    "loadMs": 386.60000002384186,
+    "file": "dressing-kit.glb",
+    "brotliBytes": 1647262,
+    "base64Bytes": 2287328,
+    "base64BrotliBytes": 1661335
+  }
+]

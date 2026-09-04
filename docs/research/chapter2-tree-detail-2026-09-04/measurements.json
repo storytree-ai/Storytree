@@ -1,0 +1,2090 @@
+[
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "bare",
+    "pxPerUnit": 8,
+    "drawCalls": 1,
+    "triangles": 5562,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 0,
+    "stats": {
+      "pixels": 575962,
+      "anchor": 46.727199999999996,
+      "micro": 0.6564023581671063,
+      "struct": 21.608130947487165,
+      "mean": 106.24783952855677
+    },
+    "land": 575962,
+    "families": 41,
+    "largestShare": 0.07984380914018634,
+    "topThreeShare": 0.20865091794250315,
+    "touched": 165392,
+    "visible": 106365,
+    "delta": {
+      "frame": 4096000,
+      "touched": 165392,
+      "visible": 106365,
+      "overstatement": 1.554947586142058,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 59027,
+          "shareOfMoved": 0.3568915062397214
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 62974,
+          "shareOfMoved": 0.38075602205668957
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 41415,
+          "shareOfMoved": 0.2504050981909645
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1976,
+          "shareOfMoved": 0.011947373512624553
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 62,
+      "p99": 82,
+      "max": 110
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 0,
+      "meanLuma": 0,
+      "p10": 0,
+      "p50": 0,
+      "p90": 0,
+      "spread": 0
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "texture-128",
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 587303,
+      "anchor": 46.727199999999996,
+      "micro": 1.8082232564081855,
+      "struct": 23.058585751728057,
+      "mean": 100.50446247769871
+    },
+    "land": 587303,
+    "families": 43,
+    "largestShare": 0.07095485635183202,
+    "topThreeShare": 0.18560095895985548,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 165392,
+      "meanLuma": 80.9405708837208,
+      "p10": 73,
+      "p50": 81,
+      "p90": 88,
+      "spread": 15
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "texture-native",
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 587299,
+      "anchor": 46.727199999999996,
+      "micro": 1.8576493948716204,
+      "struct": 23.113811715473506,
+      "mean": 100.44126582633358
+    },
+    "land": 587299,
+    "families": 43,
+    "largestShare": 0.078477913294591,
+    "topThreeShare": 0.19427923425716714,
+    "touched": 156565,
+    "visible": 103,
+    "delta": {
+      "frame": 4096000,
+      "touched": 156565,
+      "visible": 103,
+      "overstatement": 1520.0485436893205,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 156462,
+          "shareOfMoved": 0.9993421262734328
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 91,
+          "shareOfMoved": 0.0005812282438603775
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 12,
+          "shareOfMoved": 0.00007664548270686296
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 1,
+      "p90": 3,
+      "p99": 6,
+      "max": 80
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 165364,
+      "meanLuma": 80.7133253199022,
+      "p10": 73,
+      "p50": 81,
+      "p90": 88,
+      "spread": 15
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "crown-60",
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 587299,
+      "anchor": 46.727199999999996,
+      "micro": 2.12114540311435,
+      "struct": 24.038129689743965,
+      "mean": 99.49290556275386
+    },
+    "land": 587299,
+    "families": 46,
+    "largestShare": 0.057730389460904925,
+    "topThreeShare": 0.15750920740542723,
+    "touched": 163053,
+    "visible": 1810,
+    "delta": {
+      "frame": 4096000,
+      "touched": 163053,
+      "visible": 1810,
+      "overstatement": 90.08453038674033,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 161243,
+          "shareOfMoved": 0.9888993149466738
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 1800,
+          "shareOfMoved": 0.011039355301650384
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 10,
+          "shareOfMoved": 0.00006132975167583546
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 3,
+      "p90": 11,
+      "p99": 21,
+      "max": 80
+    },
+    "touchedVsLeaner": 154083,
+    "visibleVsLeaner": 882,
+    "mask": {
+      "pixels": 165364,
+      "meanLuma": 77.34517363996945,
+      "p10": 64,
+      "p50": 79,
+      "p90": 87,
+      "spread": 23
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "crown-45",
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 587299,
+      "anchor": 45.4424,
+      "micro": 2.3543425247091885,
+      "struct": 24.838821548029568,
+      "mean": 98.78122792393842
+    },
+    "land": 587299,
+    "families": 47,
+    "largestShare": 0.04890864789485424,
+    "topThreeShare": 0.13933447868973045,
+    "touched": 164134,
+    "visible": 13275,
+    "delta": {
+      "frame": 4096000,
+      "touched": 164134,
+      "visible": 13275,
+      "overstatement": 12.364143126177025,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 150859,
+          "shareOfMoved": 0.91912096214069
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 13186,
+          "shareOfMoved": 0.08033679798213654
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 89,
+          "shareOfMoved": 0.0005422398771735289
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 5,
+      "p90": 19,
+      "p99": 36,
+      "max": 80
+    },
+    "touchedVsLeaner": 148971,
+    "visibleVsLeaner": 1,
+    "mask": {
+      "pixels": 165364,
+      "meanLuma": 74.81761283108644,
+      "p10": 58,
+      "p50": 78,
+      "p90": 88,
+      "spread": 30
+    }
+  },
+  {
+    "size": "one",
+    "zoom": 8,
+    "arm": "crown-30",
+    "pxPerUnit": 8,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 587299,
+      "anchor": 42.655,
+      "micro": 2.6075376669743124,
+      "struct": 25.72115351868432,
+      "mean": 98.07035429058908
+    },
+    "land": 587299,
+    "families": 47,
+    "largestShare": 0.04890864789485424,
+    "topThreeShare": 0.12617423152431725,
+    "touched": 164635,
+    "visible": 28781,
+    "delta": {
+      "frame": 4096000,
+      "touched": 164635,
+      "visible": 28781,
+      "overstatement": 5.720266842708732,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 135854,
+          "shareOfMoved": 0.8251829805326936
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 24159,
+          "shareOfMoved": 0.1467427946669906
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 4622,
+          "shareOfMoved": 0.02807422480031585
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 7,
+      "p90": 27,
+      "p99": 50,
+      "max": 80
+    },
+    "touchedVsLeaner": 149124,
+    "visibleVsLeaner": 2,
+    "mask": {
+      "pixels": 165364,
+      "meanLuma": 72.29290749014072,
+      "p10": 51,
+      "p50": 76,
+      "p90": 88,
+      "spread": 37
+    }
+  },
+  {
+    "size": "one",
+    "zoom": "fit",
+    "arm": "bare",
+    "pxPerUnit": 8.15806238082718,
+    "drawCalls": 1,
+    "triangles": 5562,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 0,
+    "stats": {
+      "pixels": 598942,
+      "anchor": 46.727199999999996,
+      "micro": 0.642770101136011,
+      "struct": 21.623700856491418,
+      "mean": 106.24570979751945
+    },
+    "land": 598942,
+    "families": 41,
+    "largestShare": 0.07986583008037507,
+    "topThreeShare": 0.2086128539992186,
+    "touched": 172090,
+    "visible": 110696,
+    "delta": {
+      "frame": 4096000,
+      "touched": 172090,
+      "visible": 110696,
+      "overstatement": 1.5546180530461806,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 61394,
+          "shareOfMoved": 0.35675518623975827
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 65375,
+          "shareOfMoved": 0.3798884304724272
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 43298,
+          "shareOfMoved": 0.2516009065024115
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 2023,
+          "shareOfMoved": 0.011755476785402987
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 28,
+      "p90": 62,
+      "p99": 82,
+      "max": 110
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 0,
+      "meanLuma": 0,
+      "p10": 0,
+      "p50": 0,
+      "p90": 0,
+      "spread": 0
+    }
+  },
+  {
+    "size": "one",
+    "zoom": "fit",
+    "arm": "texture-128",
+    "pxPerUnit": 8.15806238082718,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 610775,
+      "anchor": 46.727199999999996,
+      "micro": 1.7876378768606895,
+      "struct": 23.08035998980491,
+      "mean": 100.49604078316311
+    },
+    "land": 610775,
+    "families": 43,
+    "largestShare": 0.07060046662027751,
+    "topThreeShare": 0.18552331054807417,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 172090,
+      "meanLuma": 80.93630566796513,
+      "p10": 73,
+      "p50": 81,
+      "p90": 88,
+      "spread": 15
+    }
+  },
+  {
+    "size": "one",
+    "zoom": "fit",
+    "arm": "texture-native",
+    "pxPerUnit": 8.15806238082718,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 610771,
+      "anchor": 46.727199999999996,
+      "micro": 1.8365548867773789,
+      "struct": 23.13624011469867,
+      "mean": 100.43205585127133
+    },
+    "land": 610771,
+    "families": 43,
+    "largestShare": 0.07821589433683,
+    "topThreeShare": 0.1945622827540928,
+    "touched": 163017,
+    "visible": 82,
+    "delta": {
+      "frame": 4096000,
+      "touched": 163017,
+      "visible": 82,
+      "overstatement": 1988.0121951219512,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 162935,
+          "shareOfMoved": 0.9994969849770269
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 74,
+          "shareOfMoved": 0.0004539403865854481
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 6,
+          "shareOfMoved": 0.00003680597729071201
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 2,
+          "shareOfMoved": 0.000012268659096904004
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 1,
+      "p90": 3,
+      "p99": 6,
+      "max": 82
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 172059,
+      "meanLuma": 80.70573074585197,
+      "p10": 73,
+      "p50": 81,
+      "p90": 88,
+      "spread": 15
+    }
+  },
+  {
+    "size": "one",
+    "zoom": "fit",
+    "arm": "crown-60",
+    "pxPerUnit": 8.15806238082718,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 610771,
+      "anchor": 46.727199999999996,
+      "micro": 2.097130826567077,
+      "struct": 24.06374471861375,
+      "mean": 99.4819787332596
+    },
+    "land": 610771,
+    "families": 46,
+    "largestShare": 0.05770084041318268,
+    "topThreeShare": 0.15756805742250368,
+    "touched": 169678,
+    "visible": 1866,
+    "delta": {
+      "frame": 4096000,
+      "touched": 169678,
+      "visible": 1866,
+      "overstatement": 90.93140407288317,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 167812,
+          "shareOfMoved": 0.9890026992303068
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 1855,
+          "shareOfMoved": 0.010932472094201959
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 9,
+          "shareOfMoved": 0.00005304164358372918
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 2,
+          "shareOfMoved": 0.000011787031907495374
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 3,
+      "p90": 11,
+      "p99": 21,
+      "max": 82
+    },
+    "touchedVsLeaner": 160440,
+    "visibleVsLeaner": 934,
+    "mask": {
+      "pixels": 172059,
+      "meanLuma": 77.33316929076781,
+      "p10": 64,
+      "p50": 79,
+      "p90": 87,
+      "spread": 23
+    }
+  },
+  {
+    "size": "one",
+    "zoom": "fit",
+    "arm": "crown-45",
+    "pxPerUnit": 8.15806238082718,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 610771,
+      "anchor": 45.4424,
+      "micro": 2.329205365775802,
+      "struct": 24.867470679353048,
+      "mean": 98.76899080128767
+    },
+    "land": 610771,
+    "families": 47,
+    "largestShare": 0.04891849809503071,
+    "topThreeShare": 0.1391438034877229,
+    "touched": 170814,
+    "visible": 13859,
+    "delta": {
+      "frame": 4096000,
+      "touched": 170814,
+      "visible": 13859,
+      "overstatement": 12.32513168338264,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 156955,
+          "shareOfMoved": 0.9188649642300982
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 13760,
+          "shareOfMoved": 0.08055545798353765
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 97,
+          "shareOfMoved": 0.0005678691442153453
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 2,
+          "shareOfMoved": 0.000011708642148770007
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 5,
+      "p90": 19,
+      "p99": 36,
+      "max": 82
+    },
+    "touchedVsLeaner": 155126,
+    "visibleVsLeaner": 0,
+    "mask": {
+      "pixels": 172059,
+      "meanLuma": 74.80222146356634,
+      "p10": 58,
+      "p50": 78,
+      "p90": 88,
+      "spread": 30
+    }
+  },
+  {
+    "size": "one",
+    "zoom": "fit",
+    "arm": "crown-30",
+    "pxPerUnit": 8.15806238082718,
+    "drawCalls": 4,
+    "triangles": 107502,
+    "groundTriangles": 5562,
+    "placements": 102,
+    "groves": 81,
+    "meshes": 3,
+    "stats": {
+      "pixels": 610771,
+      "anchor": 42.655,
+      "micro": 2.58014661058356,
+      "struct": 25.75389007604257,
+      "mean": 98.05649767441881
+    },
+    "land": 610771,
+    "families": 47,
+    "largestShare": 0.04891849809503071,
+    "topThreeShare": 0.1258311216478844,
+    "touched": 171259,
+    "visible": 29950,
+    "delta": {
+      "frame": 4096000,
+      "touched": 171259,
+      "visible": 29950,
+      "overstatement": 5.718163606010017,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 141309,
+          "shareOfMoved": 0.8251186798941953
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 25083,
+          "shareOfMoved": 0.1464623756999632
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 4865,
+          "shareOfMoved": 0.02840726618747044
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 2,
+          "shareOfMoved": 0.000011678218371005319
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 7,
+      "p90": 27,
+      "p99": 50,
+      "max": 82
+    },
+    "touchedVsLeaner": 155356,
+    "visibleVsLeaner": 0,
+    "mask": {
+      "pixels": 172059,
+      "meanLuma": 72.27303008386413,
+      "p10": 51,
+      "p50": 76,
+      "p90": 88,
+      "spread": 37
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": 8,
+    "arm": "bare",
+    "pxPerUnit": 8,
+    "drawCalls": 1,
+    "triangles": 194630,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 0,
+    "stats": {
+      "pixels": 582580,
+      "anchor": 46.727199999999996,
+      "micro": 0.6625765621352265,
+      "struct": 21.362759171952263,
+      "mean": 105.71845063116263
+    },
+    "land": 582580,
+    "families": 40,
+    "largestShare": 0.08482611830134917,
+    "topThreeShare": 0.2136118644649662,
+    "touched": 166525,
+    "visible": 107154,
+    "delta": {
+      "frame": 4096000,
+      "touched": 166525,
+      "visible": 107154,
+      "overstatement": 1.5540717098755064,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 59371,
+          "shareOfMoved": 0.3565290496922384
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 58212,
+          "shareOfMoved": 0.34956913376369914
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 46494,
+          "shareOfMoved": 0.27920132112295454
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 2448,
+          "shareOfMoved": 0.014700495421107941
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 29,
+      "p90": 63,
+      "p99": 86,
+      "max": 116
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 0,
+      "meanLuma": 0,
+      "p10": 0,
+      "p50": 0,
+      "p90": 0,
+      "spread": 0
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": 8,
+    "arm": "texture-128",
+    "pxPerUnit": 8,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 595000,
+      "anchor": 46.727199999999996,
+      "micro": 1.8045503327913694,
+      "struct": 22.70381439995516,
+      "mean": 99.87399050641525
+    },
+    "land": 595000,
+    "families": 45,
+    "largestShare": 0.07058487394957984,
+    "topThreeShare": 0.18450420168067228,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 166525,
+      "meanLuma": 80.96351003393215,
+      "p10": 73,
+      "p50": 81,
+      "p90": 88,
+      "spread": 15
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": 8,
+    "arm": "texture-native",
+    "pxPerUnit": 8,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 594999,
+      "anchor": 46.727199999999996,
+      "micro": 1.855066933775283,
+      "struct": 22.757395337851648,
+      "mean": 99.81125421239028
+    },
+    "land": 594999,
+    "families": 45,
+    "largestShare": 0.0781245010495816,
+    "topThreeShare": 0.19398351930003244,
+    "touched": 157447,
+    "visible": 107,
+    "delta": {
+      "frame": 4096000,
+      "touched": 157447,
+      "visible": 107,
+      "overstatement": 1471.4672897196263,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 157340,
+          "shareOfMoved": 0.9993204062319384
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 98,
+          "shareOfMoved": 0.0006224316754209353
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 8,
+          "shareOfMoved": 0.000050810749013953904
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.000006351343626744238
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 1,
+      "p90": 3,
+      "p99": 6,
+      "max": 83
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 166492,
+      "meanLuma": 80.73599162842872,
+      "p10": 73,
+      "p50": 81,
+      "p90": 88,
+      "spread": 15
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": 8,
+    "arm": "crown-60",
+    "pxPerUnit": 8,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 594999,
+      "anchor": 46.727199999999996,
+      "micro": 2.1216694502667623,
+      "struct": 23.652144215057834,
+      "mean": 98.87672703225569
+    },
+    "land": 594999,
+    "families": 48,
+    "largestShare": 0.05724043233686107,
+    "topThreeShare": 0.1578103492610912,
+    "touched": 164228,
+    "visible": 1836,
+    "delta": {
+      "frame": 4096000,
+      "touched": 164228,
+      "visible": 1836,
+      "overstatement": 89.44880174291939,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 162392,
+          "shareOfMoved": 0.9888204203911635
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 1824,
+          "shareOfMoved": 0.011106510461066322
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 11,
+          "shareOfMoved": 0.00006698005212265874
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.000006089095647514431
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 3,
+      "p90": 11,
+      "p99": 21,
+      "max": 83
+    },
+    "touchedVsLeaner": 155229,
+    "visibleVsLeaner": 1007,
+    "mask": {
+      "pixels": 166492,
+      "meanLuma": 77.39623513802613,
+      "p10": 64,
+      "p50": 79,
+      "p90": 87,
+      "spread": 23
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": 8,
+    "arm": "crown-45",
+    "pxPerUnit": 8,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 594999,
+      "anchor": 45.4424,
+      "micro": 2.357572113113355,
+      "struct": 24.430492546295522,
+      "mean": 98.17604062404045
+    },
+    "land": 594999,
+    "families": 49,
+    "largestShare": 0.04821016505910094,
+    "topThreeShare": 0.1394019149612016,
+    "touched": 165241,
+    "visible": 13406,
+    "delta": {
+      "frame": 4096000,
+      "touched": 165241,
+      "visible": 13406,
+      "overstatement": 12.32589885126063,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 151835,
+          "shareOfMoved": 0.9188700141006166
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 13326,
+          "shareOfMoved": 0.08064584455431763
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 79,
+          "shareOfMoved": 0.0004780895782523708
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.000006051766813321149
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 5,
+      "p90": 19,
+      "p99": 36,
+      "max": 83
+    },
+    "touchedVsLeaner": 150070,
+    "visibleVsLeaner": 1,
+    "mask": {
+      "pixels": 166492,
+      "meanLuma": 74.89216459889957,
+      "p10": 58,
+      "p50": 78,
+      "p90": 87,
+      "spread": 29
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": 8,
+    "arm": "crown-30",
+    "pxPerUnit": 8,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 594999,
+      "anchor": 42.7558,
+      "micro": 2.6131913271766662,
+      "struct": 25.291211931738825,
+      "mean": 97.47526302912996
+    },
+    "land": 594999,
+    "families": 49,
+    "largestShare": 0.04821016505910094,
+    "topThreeShare": 0.1310624051468994,
+    "touched": 165720,
+    "visible": 28372,
+    "delta": {
+      "frame": 4096000,
+      "touched": 165720,
+      "visible": 28372,
+      "overstatement": 5.8409699703933455,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 137348,
+          "shareOfMoved": 0.8287955587738354
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 23542,
+          "shareOfMoved": 0.14205889452087858
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 4829,
+          "shareOfMoved": 0.029139512430605842
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.0000060342746801834415
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 7,
+      "p90": 27,
+      "p99": 50,
+      "max": 83
+    },
+    "touchedVsLeaner": 150135,
+    "visibleVsLeaner": 3,
+    "mask": {
+      "pixels": 166492,
+      "meanLuma": 72.38776818225419,
+      "p10": 51,
+      "p50": 77,
+      "p90": 88,
+      "spread": 37
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": "fit",
+    "arm": "bare",
+    "pxPerUnit": 0.5726505109125765,
+    "drawCalls": 1,
+    "triangles": 194630,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 0,
+    "stats": {
+      "pixels": 104147,
+      "anchor": 46.727199999999996,
+      "micro": 6.19019248673925,
+      "struct": 26.80736114195492,
+      "mean": 126.07282319795061
+    },
+    "land": 104147,
+    "families": 46,
+    "largestShare": 0.07836039444247074,
+    "topThreeShare": 0.16828137152294353,
+    "touched": 9858,
+    "visible": 9097,
+    "delta": {
+      "frame": 4096000,
+      "touched": 9858,
+      "visible": 9097,
+      "overstatement": 1.083653951852259,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 761,
+          "shareOfMoved": 0.07719618583891256
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 3734,
+          "shareOfMoved": 0.37877865692838303
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 4591,
+          "shareOfMoved": 0.4657131263948063
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 772,
+          "shareOfMoved": 0.07831203083789816
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 42,
+      "p90": 78,
+      "p99": 110,
+      "max": 132
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 0,
+      "meanLuma": 0,
+      "p10": 0,
+      "p50": 0,
+      "p90": 0,
+      "spread": 0
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": "fit",
+    "arm": "texture-128",
+    "pxPerUnit": 0.5726505109125765,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 104843,
+      "anchor": 46.727199999999996,
+      "micro": 10.135265942540663,
+      "struct": 27.670728052681937,
+      "mean": 122.80604685670161
+    },
+    "land": 104843,
+    "families": 49,
+    "largestShare": 0.07672424482321186,
+    "topThreeShare": 0.1595147029367721,
+    "touched": 0,
+    "visible": 0,
+    "delta": {
+      "frame": 4096000,
+      "touched": 0,
+      "visible": 0,
+      "overstatement": null,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 0,
+      "p90": 0,
+      "p99": 0,
+      "max": 0
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 9858,
+      "meanLuma": 79.13597508622314,
+      "p10": 70,
+      "p50": 80,
+      "p90": 86,
+      "spread": 16
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": "fit",
+    "arm": "texture-native",
+    "pxPerUnit": 0.5726505109125765,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 104839,
+      "anchor": 46.727199999999996,
+      "micro": 10.213576620380646,
+      "struct": 27.710702672066393,
+      "mean": 122.75067604037844
+    },
+    "land": 104839,
+    "families": 51,
+    "largestShare": 0.07672717214013869,
+    "topThreeShare": 0.15953032745447782,
+    "touched": 8634,
+    "visible": 24,
+    "delta": {
+      "frame": 4096000,
+      "touched": 8634,
+      "visible": 24,
+      "overstatement": 359.75,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 8610,
+          "shareOfMoved": 0.9972202918693537
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 16,
+          "shareOfMoved": 0.001853138753764188
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 7,
+          "shareOfMoved": 0.0008107482047718323
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.00011582117211026175
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 2,
+      "p90": 3,
+      "p99": 7,
+      "max": 82
+    },
+    "touchedVsLeaner": null,
+    "visibleVsLeaner": null,
+    "mask": {
+      "pixels": 9843,
+      "meanLuma": 78.48774871482209,
+      "p10": 69,
+      "p50": 80,
+      "p90": 85,
+      "spread": 16
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": "fit",
+    "arm": "crown-60",
+    "pxPerUnit": 0.5726505109125765,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 104839,
+      "anchor": 46.727199999999996,
+      "micro": 11.145088243329633,
+      "struct": 28.0988079948707,
+      "mean": 122.21347500069115
+    },
+    "land": 104839,
+    "families": 49,
+    "largestShare": 0.07672717214013869,
+    "topThreeShare": 0.15953032745447782,
+    "touched": 9826,
+    "visible": 854,
+    "delta": {
+      "frame": 4096000,
+      "touched": 9826,
+      "visible": 854,
+      "overstatement": 11.505854800936769,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 8972,
+          "shareOfMoved": 0.913087726440057
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 843,
+          "shareOfMoved": 0.08579279462650112
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 10,
+          "shareOfMoved": 0.0010177081213108082
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.0001017708121310808
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 7,
+      "p90": 20,
+      "p99": 23,
+      "max": 82
+    },
+    "touchedVsLeaner": 9111,
+    "visibleVsLeaner": 739,
+    "mask": {
+      "pixels": 9843,
+      "meanLuma": 72.76595456669637,
+      "p10": 54,
+      "p50": 75,
+      "p90": 85,
+      "spread": 31
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": "fit",
+    "arm": "crown-45",
+    "pxPerUnit": 0.5726505109125765,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 104839,
+      "anchor": 45.4424,
+      "micro": 11.849155519808448,
+      "struct": 28.402895900806264,
+      "mean": 121.81022719214452
+    },
+    "land": 104839,
+    "families": 47,
+    "largestShare": 0.07672717214013869,
+    "topThreeShare": 0.15953032745447782,
+    "touched": 9818,
+    "visible": 2296,
+    "delta": {
+      "frame": 4096000,
+      "touched": 9818,
+      "visible": 2296,
+      "overstatement": 4.276132404181185,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 7522,
+          "shareOfMoved": 0.7661438174781015
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 2248,
+          "shareOfMoved": 0.22896720309635363
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 47,
+          "shareOfMoved": 0.004787125687512731
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.00010185373803218578
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 11,
+      "p90": 34,
+      "p99": 40,
+      "max": 82
+    },
+    "touchedVsLeaner": 8934,
+    "visibleVsLeaner": 0,
+    "mask": {
+      "pixels": 9843,
+      "meanLuma": 68.47091270953918,
+      "p10": 43,
+      "p50": 71,
+      "p90": 85,
+      "spread": 42
+    }
+  },
+  {
+    "size": "forest",
+    "zoom": "fit",
+    "arm": "crown-30",
+    "pxPerUnit": 0.5726505109125765,
+    "drawCalls": 7,
+    "triangles": 2440708,
+    "groundTriangles": 194630,
+    "placements": 2279,
+    "groves": 1695,
+    "meshes": 6,
+    "stats": {
+      "pixels": 104839,
+      "anchor": 44.4424,
+      "micro": 12.553673966334744,
+      "struct": 28.716896690449747,
+      "mean": 121.4075176737392
+    },
+    "land": 104839,
+    "families": 46,
+    "largestShare": 0.07672717214013869,
+    "topThreeShare": 0.15953032745447782,
+    "touched": 9825,
+    "visible": 3734,
+    "delta": {
+      "frame": 4096000,
+      "touched": 9825,
+      "visible": 3734,
+      "overstatement": 2.6312265666845205,
+      "bands": [
+        {
+          "from": 1,
+          "to": 20,
+          "label": "sub-threshold",
+          "visible": false,
+          "pixels": 6091,
+          "shareOfMoved": 0.6199491094147582
+        },
+        {
+          "from": 21,
+          "to": 40,
+          "label": "1-2x",
+          "visible": true,
+          "pixels": 2313,
+          "shareOfMoved": 0.23541984732824428
+        },
+        {
+          "from": 41,
+          "to": 80,
+          "label": "2-4x",
+          "visible": true,
+          "pixels": 1420,
+          "shareOfMoved": 0.14452926208651398
+        },
+        {
+          "from": 81,
+          "to": 160,
+          "label": "4-8x",
+          "visible": true,
+          "pixels": 1,
+          "shareOfMoved": 0.00010178117048346055
+        },
+        {
+          "from": 161,
+          "to": 255,
+          "label": "over 8x",
+          "visible": true,
+          "pixels": 0,
+          "shareOfMoved": 0
+        }
+      ],
+      "p50": 15,
+      "p90": 48,
+      "p99": 57,
+      "max": 82
+    },
+    "touchedVsLeaner": 8889,
+    "visibleVsLeaner": 0,
+    "mask": {
+      "pixels": 9843,
+      "meanLuma": 64.18160424667174,
+      "p10": 32,
+      "p50": 67,
+      "p90": 85,
+      "spread": 53
+    }
+  }
+]

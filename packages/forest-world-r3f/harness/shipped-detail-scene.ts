@@ -126,11 +126,12 @@ export const CROWN_ARMS: readonly DetailArm[] = ['texture-native', 'crown-60', '
 export const DRESSED_ARMS: readonly DetailArm[] = DETAIL_ARMS.filter((a) => DETAIL_ARM_KIT[a] !== null);
 
 /**
- * THE SHIPPED PICK. Set after the ladder was rendered on the RTX 2060 and judged
- * (`docs/research/chapter2-tree-detail-2026-09-04/`); `KIT_PROP_INDIRECT_FRACTION` in
- * `src/prop-lighting.ts` is the constant the shipped map reads, and the test holds the two agree.
+ * THE SHIPPED PICK — the boldest rung rendered, chosen on the RTX 2060 sheets of 2026-09-04
+ * (`docs/research/chapter2-tree-detail-2026-09-04/`) under ADR-0503 D1/D3. `KIT_PROP_INDIRECT_FRACTION`
+ * in `src/prop-lighting.ts` is the constant the shipped map reads, and the test holds the two
+ * agree; a scale-back moves both together, to a rung already on the sheet.
  */
-export const SHIPPED_DETAIL_ARM: DetailArm = 'texture-native';
+export const SHIPPED_DETAIL_ARM: DetailArm = 'crown-30';
 
 export const DETAIL_ARM_CAPTION = {
   bare: 'the shipped ground with the grove’s SHADOWS in its field and nothing standing on it — the prop MASK (every pixel that differs from this is a tree, a trunk or a flower)',

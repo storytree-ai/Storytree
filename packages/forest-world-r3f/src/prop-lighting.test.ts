@@ -51,13 +51,19 @@ function compile(material: THREE.MeshStandardMaterial, shader: PropLightingShade
   return shader;
 }
 
-test('the floor is READ off the ground ladder, and the shipped fraction sits there — the identity', () => {
+test('the floor is READ off the ground ladder, and at the floor both scales are exactly one — the identity', () => {
   assert.equal(PROP_INDIRECT_FRACTION_FLOOR, ENDS.floor);
   assert.equal(PROP_INDIRECT_FRACTION_FLOOR, SHADE_LEVELS[0]);
-  assert.equal(KIT_PROP_INDIRECT_FRACTION, PROP_INDIRECT_FRACTION_FLOOR);
-  const scales = propLightingScales(KIT_PROP_INDIRECT_FRACTION);
+  const scales = propLightingScales(PROP_INDIRECT_FRACTION_FLOOR);
   assert.equal(scales.indirect, 1);
   assert.equal(scales.direct, 1);
+});
+
+test('the shipped fraction is a rung the owner was shown — the boldest one, 0.30 — never a number off the sheet', () => {
+  assert.ok(PROP_INDIRECT_FRACTION_RUNGS.includes(KIT_PROP_INDIRECT_FRACTION), 'the pick is on the rendered ladder');
+  assert.equal(KIT_PROP_INDIRECT_FRACTION, 0.3);
+  const s = propLightingScales(KIT_PROP_INDIRECT_FRACTION);
+  assert.ok(s.indirect < 1 && s.direct > 1, 'bolder than the floor: less ambient, more key');
 });
 
 test('the hook itself wires both uniforms and patches, and refuses a second pass over one shader', () => {

@@ -59,9 +59,26 @@ export const PROP_INDIRECT_FRACTION_RUNGS: readonly number[] = [PROP_INDIRECT_FR
 
 /**
  * THE SHIPPED SPLIT — the share of a lit face's light an unlit face of a bought prop receives.
- * The pick is made on the rendered ladder, never here; until it is, the floor ships.
+ *
+ * THE LADDER, rendered on the RTX 2060 on 2026-09-04 (one island at 8 px/unit, the native kit
+ * on every rung; `docs/research/chapter2-tree-detail-2026-09-04/`):
+ *
+ *   unlit face   prop luma p10/p50/p90   spread   MICRO   px moved >20/255 vs today
+ *   0.80 (today)      73 / 81 / 88          15     1.86         —
+ *   0.60              64 / 79 / 87          23     2.12      1,810
+ *   0.45              58 / 78 / 88          30     2.35     13,275
+ *   0.30              51 / 76 / 88          37     2.61     28,781      ← SHIPPED
+ *   the approved render                            2.54
+ *
+ * The native texture rung alone (ADR-0508 D1) moved 103 pixels and left the luma distribution
+ * exactly where it was — the "detail" the owner missed is the lighting, not the texels. 0.30 is
+ * the boldest rung rendered and the one whose crowns read like the reference's (dark cores, lit
+ * tips); the fitted forest still opens on clean green blocks (largest colour family 7.7% on every
+ * rung, `sheet-forest-fit.png`). Chosen under ADR-0503 D1/D3: apply it boldly, show the picture,
+ * let "scale it back" move this ONE constant along rungs already rendered — 0.45 and 0.60 are on
+ * the sheet, and no re-measurement is needed to take either.
  */
-export const KIT_PROP_INDIRECT_FRACTION: number = PROP_INDIRECT_FRACTION_FLOOR;
+export const KIT_PROP_INDIRECT_FRACTION: number = 0.3;
 
 /** How the material rescales the two terms it received from the calibrated lights. */
 export interface PropLightingScales {
