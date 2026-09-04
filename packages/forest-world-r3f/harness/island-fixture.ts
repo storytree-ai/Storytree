@@ -268,10 +268,6 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     height: 900,
     empties: [],
     relaxedCells: relaxed,
-    // Only stated when a caller asked for one, so the default island's input is byte-for-byte
-    // what it was (an absent key and a `LAND_CAMERA_ELEVATION_DEG` key are the same scene, but
-    // `exactOptionalPropertyTypes` and a snapshot reader both tell them apart).
-    ...(opts.cameraElevationDeg === undefined ? {} : { cameraElevationDeg: opts.cameraElevationDeg }),
     drawTiles,
     wheatSets: [new Set<string>()],
     trails: { segments: [], edges: [], caves: [], dropped: [] },
@@ -282,5 +278,9 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     // procedural central tree — which is the tree this experiment grows as a solid.
     vegetation: {} satisfies SceneVegetationInput,
   };
+  // Only stated when a caller asked for one, so the default island's input is byte-for-byte what
+  // it was (an absent key and a `LAND_CAMERA_ELEVATION_DEG` key are the same scene, but
+  // `exactOptionalPropertyTypes` and a snapshot reader both tell them apart).
+  if (opts.cameraElevationDeg !== undefined) input.cameraElevationDeg = opts.cameraElevationDeg;
   return buildScene(input);
 }

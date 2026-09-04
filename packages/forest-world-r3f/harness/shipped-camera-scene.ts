@@ -447,10 +447,16 @@ export function deliveredPineHeightPx(elevationDeg: number, pxPerUnit: number): 
   return KIT_ROLE_SIZE.tree.units * Math.cos((elevationDeg * Math.PI) / 180) * pxPerUnit;
 }
 
+/** A ground-plane footprint: width along x and depth along z, in ground units. */
+export interface GroundExtent {
+  w: number;
+  d: number;
+}
+
 /** The footprint of the ONE island nearest the origin — the island every 8 px/unit frame is
  *  centred on, and the one the stretch is checked against exactly (a forest's whole extent also
  *  carries the layout's spacing, which the per-island stretch leaves alone). */
-export function islandDepth(cells: readonly InstanceDescriptor[]): { w: number; d: number } {
+export function islandDepth(cells: readonly InstanceDescriptor[]): GroundExtent {
   const centres = islandCentres(cells);
   let nearest: string | undefined;
   let bestDist = Infinity;
@@ -465,7 +471,7 @@ export function islandDepth(cells: readonly InstanceDescriptor[]): { w: number; 
 }
 
 /** The ground-plane depth (z extent) of a cell set — the footprint's own number, camera-free. */
-export function groundDepth(cells: readonly InstanceDescriptor[]): { w: number; d: number } {
+export function groundDepth(cells: readonly InstanceDescriptor[]): GroundExtent {
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
@@ -493,9 +499,9 @@ export interface CameraScene {
   footprint: Footprint;
   groundTriangles: number;
   /** The ground's own footprint in ground units, before any camera — the whole cell set. */
-  ground: { w: number; d: number };
+  ground: GroundExtent;
   /** The centre island's own footprint — what the stretch is checked against exactly. */
-  island: { w: number; d: number };
+  island: GroundExtent;
   /** The ground mesh's screen-plane extent through THIS arm's camera, in world units. */
   screen: ScreenExtent;
   placements: number;
@@ -616,8 +622,8 @@ export interface CameraReading {
   casters: number;
   meshes: number;
   /** The footprint's own ground size, camera-free — the whole cell set, and the centre island. */
-  ground: { w: number; d: number };
-  island: { w: number; d: number };
+  ground: GroundExtent;
+  island: GroundExtent;
   /** The ground mesh's screen extent through this camera, in world units and in pixels. */
   screen: { w: number; h: number; wPx: number; hPx: number; aspect: number };
   /** The delivered picture's bounding box of non-background pixels — includes the props. */

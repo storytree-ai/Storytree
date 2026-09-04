@@ -223,7 +223,7 @@ test('⚠⚠ TWO ROUTES TO THE TRUE FOOTPRINT AGREE: the fixture built at plan v
   const rounding = 0.05;
   const tolerance = rounding * (1 + 1 / groundFlattening());
   assert.ok(tolerance > 0.18 && tolerance < 0.25, `tolerance ${tolerance}`);
-  const centroid = (d: InstanceDescriptor): { x: number; z: number } => {
+  const centroid = (d: InstanceDescriptor) => {
     const pts = d.points ?? [];
     return {
       x: pts.reduce((s, p) => s + p.x, 0) / pts.length,
