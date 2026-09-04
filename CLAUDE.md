@@ -539,12 +539,13 @@ kind owes a seed export any more.
 - Library CLI: `pnpm storytree library` (explore). **READ BARE — `--pg` is for WRITES:**
   `pnpm db:up` then `pnpm storytree library artifact edit <id> --set <field>=<value> --pg`. A bare
   read already dials the live store and is current (the Library section above), so `--pg` buys a read
-  nothing — and it COSTS one thing: the offer is minted only for the bare three-token
-  `library artifact <id>` shape, so a `--pg` read prints no `--from-offer` follow-ups and records no
-  candidate set at all. **Following a pointer the render just offered? Run its `next:` line AS
-  PRINTED** — the trailing `--from-offer` id records which branch you chose, and retyping the bare
-  form loses the edge. Discipline, not a gate: no `check:*` scores it, and
-  never add the flag to a read that answered no offer. Note: inline `--json` needs
+  nothing. ⚠ **`--from-offer` IS GONE — do not type it, and do not read older prose as describing a
+  flag that still exists.** ADR-0464 D1 deleted the citation-derived offer surface outright: the
+  follow-up block, the `--from-offer` flag and the `library-artifact` candidate-set recording went
+  together, so there are no offers to follow and nothing an offer id could record. The `next:` lines
+  a render still prints are the REPLACEMENT (ADR-0464 D2) — derived from the authored `depends_on`
+  edge rather than from "whatever happened to cite this" — and they carry no trailing id. Run them as
+  printed because they are correct, not because they record a choice. Note: inline `--json` needs
   `npx tsx packages/cli/src/main.ts`, not `pnpm`.
   Two write-ergonomics: `--set field=@path` reads the value from a FILE (long/multi-line prose
   without shell mangling), and a typo'd `--set` field on a structured kind is REFUSED with a clear
