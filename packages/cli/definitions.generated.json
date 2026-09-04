@@ -183,19 +183,13 @@
     "kind": "definition",
     "id": "library",
     "title": "library",
-    "oneLine": "The shared **knowledge tier**: schema-validated artifact docs — reference (definitions, techstack), behavioural rules (principles, guardrails, patterns), ways-of-working (processes), roles (agents), initiative overlays (arcs), and transient signal units (open questions, friction, resteer) — living in the shared Cloud SQL Postgres store, read just-in-time by sessions through the CLI and by humans through the studio."
+    "oneLine": "The shared **knowledge tier**: schema-validated artifact docs — reference (definitions, techstack), behavioural rules (principles, guardrails, patterns), ways-of-working (processes), roles (agents), initiative overlays (arcs, and their ephemeral plans), and transient signal units (open questions, proposals, friction) — living in the shared Cloud SQL Postgres store, read just-in-time by sessions through the CLI and by humans through the studio."
   },
   {
     "kind": "definition",
     "id": "lifecycle-status",
     "title": "lifecycle status",
     "oneLine": "A unit's status, drawn from six states — proposed, building, healthy, unhealthy, mapped, retired — that track it from authoring through proven to pruned."
-  },
-  {
-    "kind": "definition",
-    "id": "mast-failure-frame",
-    "title": "MAST failure frame",
-    "oneLine": "The ADOPTED (never invented) vocabulary for classifying one agent failure or one owner re-steer: MAST's 14 modes in three categories, plus exactly one escape hatch, `no-mast-home`, whose use is a finding rather than a cop-out."
   },
   {
     "kind": "definition",
