@@ -42,6 +42,7 @@ import type {
 import { leafTintGainFor } from './leaf-tint.js';
 import { mapMeans } from './map-texels.js';
 import type { DecodedMap, TexelCanvasFactory } from './map-texels.js';
+import { KIT_PROP_INDIRECT_FRACTION, installPropLighting, propLightingOf } from './prop-lighting.js';
 import { applyRawColourConvention } from './texture-convention.js';
 import type { ConventionMaterial, Rgb } from './texture-convention.js';
 
@@ -106,6 +107,10 @@ export interface KitTexture {
  * for the same reasons: the foliage is authored `BLEND`, which for a stand of cut-out leaf cards
  * is the classic sorting failure, so it is switched to an alpha TEST; and the base-colour maps
  * are put in this surface's raw convention.
+ *
+ * And ONE treatment of its own: the prop's ambient-to-key split (`prop-lighting.ts`) at the
+ * shipped fraction, installed on the material rather than on the scene's lights so the ground's
+ * calibration is untouched. At the ladder floor it multiplies by one.
  */
 export function prepareKitMaterial(material: THREE.MeshStandardMaterial): void {
   if (material.transparent) {
@@ -117,6 +122,21 @@ export function prepareKitMaterial(material: THREE.MeshStandardMaterial): void {
   }
   material.side = THREE.DoubleSide;
   applyRawColourConvention(material satisfies ConventionMaterial);
+  installPropLighting(material, KIT_PROP_INDIRECT_FRACTION);
+}
+
+/**
+ * MOVE EVERY MATERIAL THE KIT HOLDS TO ONE AMBIENT FRACTION — the comparison page's ladder lever,
+ * and what a tinted clone made afterwards inherits (`tintedMaterial` copies the base's fraction).
+ * Meshes already merged keep their material objects, so a scene built before this call re-lights
+ * on its next frame without a rebuild.
+ */
+export function setKitPropLighting(kit: LoadedKit, fraction: number): void {
+  // A material shared by several parts is reached several times; `installPropLighting` moves an
+  // installed material in place, so the repeat is a no-op rather than a second record.
+  for (const assembly of kit.assemblies.values()) {
+    for (const part of assembly.objects) installPropLighting(part.material, fraction);
+  }
 }
 
 /** The decoded textures one material contributes, keyed by the texture's own uuid so two slots
@@ -515,6 +535,10 @@ export function tintedMaterial(
   // this surface (`configureExactColour`), so the three numbers reach the shader unconverted,
   // which is the whole basis of `leaf-tint.ts`'s arithmetic being predictive at all.
   clone.color.setRGB(gain.r, gain.g, gain.b);
+  // ⚠ `Material.clone()` copies neither `onBeforeCompile` nor the program cache key, so the
+  // prop-lighting patch has to be re-installed at the BASE's fraction — or a capability's tinted
+  // crown would be lit flat beside a grove pine lit sculpted, and the tint is the state.
+  installPropLighting(clone, propLightingOf(base)?.fraction ?? KIT_PROP_INDIRECT_FRACTION);
   clone.needsUpdate = true;
   cache.set(key, clone);
   return clone;

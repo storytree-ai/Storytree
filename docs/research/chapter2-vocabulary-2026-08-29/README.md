@@ -224,6 +224,16 @@ from the `.glb` would have shipped 189 KB of geometry the island never stands up
 rung is unchanged at 128²** — which rung is right was settled by measurement in PR #1693 §3a, and
 that finding is about texel size rather than object count, so it carries.
 
+> ⚠ **OVERTAKEN 2026-09-04 — the kit now ships its NATIVE 2048-texel maps (ADR-0508 D1,
+> owner-directed 2026-09-03).** The §3a finding this paragraph leans on measured pixels moved at
+> the OLD overview zoom; the owner put texture resolution outside that rule — *"i dont think we
+> should downsample as long as the browser can handle it … we have zoom enabled on our map so we
+> can't expect the user to always be taking a far away birds eye view"* — and the map is judged at
+> 8 px/unit and closer, where a 128-texel needle map is under one texel per delivered pixel. The
+> table above stays as the record of the 128-texel kit; what the native rung costs and what it
+> changed in the picture is `docs/research/chapter2-tree-detail-2026-09-04/`. `export-dressing.py`
+> emits native by default and takes a rung only for a comparison arm.
+
 ---
 
 ## 7. WHAT THE INSTRUMENTS REFUSED, AND ONE DEFECT THEY FOUND

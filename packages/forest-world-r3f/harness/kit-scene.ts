@@ -30,6 +30,7 @@ export {
   placementScale,
   roleFootprints,
   roleHeights,
+  setKitPropLighting,
   tintedMaterial,
 } from '../src/kit-mesh.js';
 export type {

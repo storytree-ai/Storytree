@@ -35,6 +35,8 @@
     "measure-shipped-coast": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-coast-measure.mjs",
     "measure-shipped-grass": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-grass-measure.mjs",
     "measure-shipped-canopy": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-canopy-measure.mjs",
+    "measure-shipped-detail": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-detail-measure.mjs",
+    "measure-detail-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-detail-cost.mjs",
     "measure-canopy-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-canopy-cost.mjs",
     "measure-shipped-skirt": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-skirt-measure.mjs",
     "measure-shipped-status": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-status-measure.mjs",

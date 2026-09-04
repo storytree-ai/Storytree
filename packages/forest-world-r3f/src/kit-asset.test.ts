@@ -26,6 +26,25 @@ const GLB = readFileSync(fileURLToPath(new URL('../harness/assets/dressing-kit.g
 
 const sha256 = (b: Uint8Array): string => createHash('sha256').update(b).digest('hex');
 
+/** The kit as it was committed until 2026-09-04 — the 128-texel export, kept beside the shipped
+ *  file as the tree-detail page's control arm (`harness/shipped-detail-scene.ts`). */
+const GLB_128 = readFileSync(fileURLToPath(new URL('../harness/assets/dressing-kit-128.glb', import.meta.url)));
+
+/** Its hash, as the 2026-08-29 README recorded it — the file must be exactly that kit, or the
+ *  control arm compares the native maps against something other than today's picture. */
+const SHA256_128 = '6aaab1fad00cc7f49e65da7b59541911c449e814ada600ce936b86a6956c4af7';
+
+test('⚠ the shipped kit is the NATIVE rung (ADR-0508 D1), and the 128 export kept for the comparison arm is the kit as it was', () => {
+  assert.equal(sha256(GLB_128), SHA256_128, 'the comparison arm’s file is not the kit that shipped until this landing');
+  assert.notEqual(KIT_ASSET_SHA256, SHA256_128, 'the embedded kit is still the 128-texel export');
+  assert.equal(KIT_ASSET_SHA256, sha256(GLB), 'the declared hash is not the shipped file’s');
+  assert.ok(
+    KIT_ASSET_BYTES > GLB_128.length * 8,
+    `native maps are an order of magnitude over the 128 rung, not ${KIT_ASSET_BYTES} against ${GLB_128.length}`,
+  );
+  assert.equal(decodeKitAsset().byteLength, KIT_ASSET_BYTES);
+});
+
 test('the embedded kit decodes to the committed .glb, byte for byte', () => {
   // ⚠ THE WHOLE POINT, and it is a comparison against the FILE rather than against a hash this
   // module also carries — a self-consistent module that had drifted from the asset would satisfy

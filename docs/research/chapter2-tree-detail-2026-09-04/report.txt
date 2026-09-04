@@ -1,0 +1,61 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+
+THE KITS — what each arm parsed, and what the shipped canvas would pay for it
+file                      wire B    brotli B  base64 B  base64+brotli B   GPU B (mips)  textures  edges     data slots            load ms
+dressing-kit-128.glb        162748     110487    217000           124438        786429         9  128       metalnessMap,normalMap      39
+dressing-kit.glb           1715496    1647262   2287328          1661335     201326589         9  2048      metalnessMap,normalMap     387
+
+THE REFERENCE — the approved Cycles render, through this page’s own family census
+  land-combined: colour families 36 · largest holds 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution, framing and camera, and all SEVEN layers.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm             fraction calls      tris   fam largest  MICRO  STRUCT  moved>20   touched  vs-leaner>20  crown px  luma p10  p50  p90  spread  mean
+bare                   —     1      5562    41    8.0%   0.66   21.61    106365    165392             —         0         0    0    0       0   0.0
+texture-128         0.80     4    107502    43    7.1%   1.81   23.06         0         0             —    165392        73   81   88      15  80.9
+texture-native      0.80     4    107502    43    7.8%   1.86   23.11       103    156565             —    165364        73   81   88      15  80.7
+crown-60            0.60     4    107502    46    5.8%   2.12   24.04      1810    163053           882    165364        64   79   87      23  77.3
+crown-45            0.45     4    107502    47    4.9%   2.35   24.84     13275    164134             1    165364        58   78   88      30  74.8
+crown-30            0.30     4    107502    47    4.9%   2.61   25.72     28781    164635             2    165364        51   76   88      37  72.3
+
+── one @ fit (8.158 px/unit) ─────────────────────────────────
+arm             fraction calls      tris   fam largest  MICRO  STRUCT  moved>20   touched  vs-leaner>20  crown px  luma p10  p50  p90  spread  mean
+bare                   —     1      5562    41    8.0%   0.64   21.62    110696    172090             —         0         0    0    0       0   0.0
+texture-128         0.80     4    107502    43    7.1%   1.79   23.08         0         0             —    172090        73   81   88      15  80.9
+texture-native      0.80     4    107502    43    7.8%   1.84   23.14        82    163017             —    172059        73   81   88      15  80.7
+crown-60            0.60     4    107502    46    5.8%   2.10   24.06      1866    169678           934    172059        64   79   87      23  77.3
+crown-45            0.45     4    107502    47    4.9%   2.33   24.87     13859    170814             0    172059        58   78   88      30  74.8
+crown-30            0.30     4    107502    47    4.9%   2.58   25.75     29950    171259             0    172059        51   76   88      37  72.3
+
+── forest @ 8 px/unit ─────────────────────────────────
+arm             fraction calls      tris   fam largest  MICRO  STRUCT  moved>20   touched  vs-leaner>20  crown px  luma p10  p50  p90  spread  mean
+bare                   —     1    194630    40    8.5%   0.66   21.36    107154    166525             —         0         0    0    0       0   0.0
+texture-128         0.80     7   2440708    45    7.1%   1.80   22.70         0         0             —    166525        73   81   88      15  81.0
+texture-native      0.80     7   2440708    45    7.8%   1.86   22.76       107    157447             —    166492        73   81   88      15  80.7
+crown-60            0.60     7   2440708    48    5.7%   2.12   23.65      1836    164228          1007    166492        64   79   87      23  77.4
+crown-45            0.45     7   2440708    49    4.8%   2.36   24.43     13406    165241             1    166492        58   78   87      29  74.9
+crown-30            0.30     7   2440708    49    4.8%   2.61   25.29     28372    165720             3    166492        51   77   88      37  72.4
+
+── forest @ fit (0.573 px/unit) ─────────────────────────────────
+arm             fraction calls      tris   fam largest  MICRO  STRUCT  moved>20   touched  vs-leaner>20  crown px  luma p10  p50  p90  spread  mean
+bare                   —     1    194630    46    7.8%   6.19   26.81      9097      9858             —         0         0    0    0       0   0.0
+texture-128         0.80     7   2440708    49    7.7%  10.14   27.67         0         0             —      9858        70   80   86      16  79.1
+texture-native      0.80     7   2440708    51    7.7%  10.21   27.71        24      8634             —      9843        69   80   85      16  78.5
+crown-60            0.60     7   2440708    49    7.7%  11.15   28.10       854      9826           739      9843        54   75   85      31  72.8
+crown-45            0.45     7   2440708    47    7.7%  11.85   28.40      2296      9818             0      9843        43   71   85      42  68.5
+crown-30            0.30     7   2440708    46    7.7%  12.55   28.72      3734      9825             0      9843        32   67   85      53  64.2
+
+WHAT EACH HALF DID, at the read zoom on one island:
+  texture: 128 → native moved 103 px past 20/255 (156565 touched); crown luma spread 15 → 15; families 43 → 43; MICRO 1.81 → 1.86.
+  crown-60 (unlit face at 60%): moved 1810 px vs today, 882 vs the rung above; crown luma p10/p50/p90 64/79/87 (spread 23); families 46; MICRO 2.12.
+  crown-45 (unlit face at 45%): moved 13275 px vs today, 1 vs the rung above; crown luma p10/p50/p90 58/78/88 (spread 30); families 47; MICRO 2.35.
+  crown-30 (unlit face at 30%): moved 28781 px vs today, 2 vs the rung above; crown luma p10/p50/p90 51/76/88 (spread 37); families 47; MICRO 2.61.
+  the SHIPPED arm is texture-native (kit /assets/dressing-kit.glb, fraction 0.8).
+
+THE GAP THAT REMAINS, at the read zoom on one island:
+  today 43 families → shipped 43 → approved 36. MICRO 1.81 → 1.86 → 2.54; STRUCT 23.06 → 23.11 → 30.05.
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet.
