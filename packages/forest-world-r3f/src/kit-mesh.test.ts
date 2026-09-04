@@ -96,6 +96,16 @@ function kitFixture(): LoadedKit {
     ['pine-b', assembly(5, 10, 4)],
     ['pine-dead', assembly(2, 9, 2, 'Pine_Trunks')],
     ['flower', assembly(1.5, 2, 1.5)],
+    // ⚠ THE GROUND-COVER ARMS ARE DELIBERATELY UNEQUAL IN PROPORTION, not merely in size. Every
+    // arm of a WIDTH-sized role scales to the SAME width, so the footprint is a tie by
+    // construction and only the HEIGHT can tell the arms apart — a fixture whose bushes were
+    // similar shapes would let `roleHeights`' "tallest arm wins" pass on a tie.
+    ['plant-a', assembly(2, 1, 2)],
+    ['plant-b', assembly(1.5, 1.2, 1.5)],
+    ['tuft-a', assembly(1.2, 1, 1.2)],
+    ['tuft-b', assembly(1, 1.1, 1)],
+    ['tuft-c', assembly(1.4, 0.8, 1.4)],
+    ['flower-white', assembly(1.2, 0.8, 1.2)],
   ]);
   return {
     assemblies,
@@ -871,7 +881,10 @@ test('the whole load, over a synthesised scene: assemblies, materials, triangles
   // prints, and the SORT on `materials`, which is what makes a report's list stable between runs.
   const kit = kitFromScene(fixtureScene(), 162_748, 'a-source', () => ({ r: 70, g: 90, b: 69 }));
 
-  assert.deepEqual([...kit.assemblies.keys()].sort(), ['flower', 'pine-a', 'pine-b', 'pine-dead']);
+  assert.deepEqual(
+    [...kit.assemblies.keys()].sort(),
+    ['flower', 'flower-white', 'pine-a', 'pine-b', 'pine-dead', 'plant-a', 'plant-b', 'tuft-a', 'tuft-b', 'tuft-c'],
+  );
   assert.deepEqual(kit.assemblies.get('pine-a')!.names, ['Pine_Trunk_01', 'Pine_Leaves_01']);
   assert.equal(kit.assemblies.get('pine-a')!.objects.length, 2);
   assert.equal(kit.assemblies.get('pine-dead')!.objects.length, 1);

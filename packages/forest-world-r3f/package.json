@@ -38,6 +38,8 @@
     "measure-shipped-detail": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-detail-measure.mjs",
     "measure-detail-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-detail-cost.mjs",
     "measure-canopy-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-canopy-cost.mjs",
+    "measure-shipped-cover": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-cover-measure.mjs",
+    "measure-cover-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-cover-cost.mjs",
     "measure-shipped-skirt": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-skirt-measure.mjs",
     "measure-shipped-status": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-status-measure.mjs",
     "measure-shipped-light": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-light-measure.mjs",

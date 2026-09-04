@@ -1,0 +1,21 @@
+[
+  {
+    "url": "/assets/dressing-kit.glb",
+    "wireBytes": 1782636,
+    "gpuBytes": 201326589,
+    "textures": 9,
+    "textureEdges": [
+      2048
+    ],
+    "dataSlots": [
+      "metalnessMap",
+      "normalMap"
+    ],
+    "triangles": 6000,
+    "loadMs": 413.2999999523163,
+    "file": "dressing-kit.glb",
+    "brotliBytes": 1687045,
+    "base64Bytes": 2376848,
+    "base64BrotliBytes": 1707976
+  }
+]

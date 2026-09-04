@@ -20,6 +20,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { KIT_ASSET_BYTES, KIT_ASSET_SHA256, decodeKitAsset } from './kit-asset.js';
+import { kitObjectNames } from './kit-vocabulary.js';
 
 /** The committed asset — the source of truth this module is a projection of. */
 const GLB = readFileSync(fileURLToPath(new URL('../harness/assets/dressing-kit.glb', import.meta.url)));
@@ -149,4 +150,67 @@ test('⚠ the asset is SELF-CONTAINED — no chunk of it lives at a URI a loader
   for (const b of gltf.buffers ?? []) assert.equal(b.uri, undefined, 'a buffer lives at a URI');
   for (const i of gltf.images ?? []) assert.equal(i.uri, undefined, 'an image lives at a URI');
   assert.ok(!json.includes('"uri"'), 'the glTF JSON still names a uri somewhere');
+});
+
+/** The glTF JSON the container carries, parsed off the decoded bytes — the same chunk walk the
+ *  self-contained test does, hoisted so two tests can ask the document different questions. */
+function gltfDocument(): {
+  nodes?: Array<{ name?: string }>;
+  meshes?: Array<{ name?: string }>;
+  materials?: Array<{ name?: string }>;
+  images?: Array<{ name?: string }>;
+} {
+  const bytes = new Uint8Array(decodeKitAsset());
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const length = view.getUint32(12, true);
+  const json = Buffer.from(bytes.subarray(20, 20 + length)).toString('utf8');
+  return JSON.parse(json) as ReturnType<typeof gltfDocument>;
+}
+
+test('⚠⚠ THE ASSET CARRIES EXACTLY THE OBJECTS THE VOCABULARY NAMES — no more, and none missing', () => {
+  // ⚠ THE DIRECTION OF EACH HALF IS DIFFERENT AND BOTH ARE NEEDED. A MISSING object is a role that
+  // draws nothing — an island quietly short of its bushes, with no error anywhere. An EXTRA object
+  // is dead weight the browser downloads and decodes forever, and it is the shape a re-export
+  // acquires by accident: the KEEP list is a CSV argument typed by hand at a Blender command line.
+  const doc = gltfDocument();
+  const nodes = (doc.nodes ?? []).map((n) => n.name ?? '').filter((n) => n !== '');
+  assert.ok(nodes.length > 0, 'the glTF declares no node at all');
+  assert.deepEqual([...new Set(nodes)].sort(), [...kitObjectNames()].sort());
+});
+
+test('⚠⚠ IT IS THE NODE NAME THAT IS THE OBJECT NAME — the MESH names disagree, and that is the kit’s', () => {
+  // ⚠⚠ A TRAP MEASURED ON THIS ASSET 2026-09-04, recorded because the two lists look
+  // interchangeable and are not. Blender exports the OBJECT name onto the glTF node and the MESH
+  // DATABLOCK name onto the mesh, and this kit's `Leafy_Plant_01` / `Leafy_Plant_02` objects carry
+  // datablocks the pack's author called `Leafy_Bush_01` / `Leafy_Bush_02`. So a lookup written
+  // against `meshes[].name` would fail to find the two objects the vocabulary DOES place, and
+  // would appear to find two the export deliberately EXCLUDED — `Leafy_Bush_*` are separate
+  // objects on a fourth material (`COVER_GAP_2026_09_03`), and the whole payload argument for this
+  // landing is that no fourth material shipped. `kit-mesh.ts` resolves by node, which is correct;
+  // this pins the fact so the next reader does not have to rediscover it from a wrong count.
+  const doc = gltfDocument();
+  const nodes = [...new Set((doc.nodes ?? []).map((n) => n.name ?? ''))].sort();
+  const meshes = [...new Set((doc.meshes ?? []).map((m) => m.name ?? ''))].sort();
+  assert.notDeepEqual(meshes, nodes, 'the two name lists agree now — this trap has gone and so may this test');
+  assert.ok(meshes.includes('Leafy_Bush_01') && meshes.includes('Leafy_Bush_02'));
+  assert.ok(!nodes.includes('Leafy_Bush_01'), 'a Leafy_Bush OBJECT reached the export — that is the fourth material');
+  assert.ok(nodes.includes('Leafy_Plant_01') && nodes.includes('Leafy_Plant_02'));
+  assert.equal(meshes.length, nodes.length, 'one mesh per object either way');
+});
+
+test('⚠⚠ THE GROUND-COVER SUBSET ADDED NO MATERIAL, and that is the whole payload argument', () => {
+  // ⚠ THIS IS THE CLAIM THE 2026-09-04 LANDING RESTS ON, pinned at the asset rather than left in a
+  // README. Since ADR-0508 D1 the kit ships its NATIVE 2048-texel maps, so a material is not a
+  // rounding error: a FOURTH one costs three more 2048² textures with their mip chains, about
+  // 67 MB of texture memory on top of the 201 MB the kit already holds. The six ground-cover
+  // objects were chosen to sit on the three the kit already carried — which is why the subset
+  // costs 3.9% over the wire and not one texel — and the kit's own `COVER_GAP_2026_09_03` records
+  // what was left out for exactly this reason (the `Leafy_Bush_*` and the yellow flowers, both on
+  // `Pine_Foliage_02`). A re-export that widened the KEEP list would pass every byte-for-byte
+  // check in this file and blow the VRAM figure silently.
+  const doc = gltfDocument();
+  const materials = (doc.materials ?? []).map((m) => m.name ?? '').sort();
+  assert.deepEqual(materials, ['Pine_Branches', 'Pine_Forest_Foliage', 'Pine_Trunks']);
+  // And the textures they carry: three per material, which is what the 201 MB GPU figure counts.
+  assert.equal((doc.images ?? []).length, 9, 'the kit carries a different number of texture images');
 });

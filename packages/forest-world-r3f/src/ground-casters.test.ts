@@ -185,7 +185,7 @@ test('the placement’s scale reaches BOTH the radius and the height of its cast
   assert.ok(Math.abs(grove.height - 18 * 0.6) < 1e-12);
 });
 
-test('every placement casts, in placement order, and none is dropped', () => {
+test('every SCENE placement casts, in placement order, and none is dropped', () => {
   const list = [placed('tree', 1, 1, 1), placed('bloom', 2, 2, 1), placed('tree', 3, 3, 0.7)];
   const casters = placementCasters(list, FOOT, HEIGHTS);
   assert.equal(casters.length, list.length);
@@ -195,4 +195,33 @@ test('every placement casts, in placement order, and none is dropped', () => {
   );
   assert.deepEqual(casters.map((c) => c.x), [1, 2, 3]);
   assert.deepEqual(placementCasters([], FOOT, HEIGHTS), []);
+});
+
+test('⚠⚠ GROUND COVER CASTS NOTHING — the dressing roles are dropped, and the scene roles beside them are not', () => {
+  // The decision `cover-dressing.ts`'s header argues, asserted at the line that enforces it. Two
+  // halves, and BOTH have to be here: a list of cover alone would pass on a function that dropped
+  // everything, and a list of scene props alone would pass on one that dropped nothing.
+  const scene = [placed('tree', 1, 1, 1), placed('bloom', 2, 2, 1)];
+  const cover = [placed('bush', 3, 3, 4.5), placed('tuft', 4, 4, 4.5), placed('flowerPatch', 5, 5, 4.5)];
+  const mixed = [scene[0]!, cover[0]!, scene[1]!, cover[1]!, cover[2]!];
+
+  assert.deepEqual(placementCasters(cover, FOOT, HEIGHTS), [], 'ground cover cast a shadow');
+  assert.equal(placementCasters(scene, FOOT, HEIGHTS).length, 2, 'a scene prop stopped casting');
+  // ⚠ AND THE ORDER OF THE SURVIVORS IS THE SCENE PROPS' OWN — a drop that reordered the list
+  // would put a shadow under the wrong tree, which is a defect no count can see.
+  assert.deepEqual(
+    placementCasters(mixed, FOOT, HEIGHTS),
+    scene.map((p) => placementCaster(p, FOOT, HEIGHTS)),
+  );
+
+  // ⚠ IT IS A ROLE-CLASS TEST AND NOT A SIZE ONE. A threshold on the footprint would drop the
+  // BLOOM (4 units) while keeping a boldest-rung BUSH (1.05 x 4.5 = 4.7 units) — the exact
+  // inversion of what is wanted. Asserted by putting the two on either side of that number.
+  const bigBush = placed('bush', 9, 9, 4.5);
+  const bloom = placed('bloom', 8, 8, 1);
+  assert.ok(
+    FOOT.bush * bigBush.scale > FOOT.bloom * bloom.scale,
+    'the fixture no longer separates the class test from a size test',
+  );
+  assert.deepEqual(placementCasters([bigBush, bloom], FOOT, HEIGHTS), [placementCaster(bloom, FOOT, HEIGHTS)]);
 });

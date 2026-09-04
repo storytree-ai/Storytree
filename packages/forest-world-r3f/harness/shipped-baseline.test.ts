@@ -543,7 +543,7 @@ test('THE KIT CASTS: one placement, made before the ground, read by the casters 
   const src = readFileSync(SHIPPED, 'utf8');
   assert.match(
     src,
-    /const placements = useMemo\(\s*\(\) => dressMapWithGroves\(descriptors, \{ relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 \}\),\s*\[descriptors\],\s*\)/,
+    /const placements = useMemo\(\s*\(\) => dressMapWithCover\(descriptors, \{ relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 \}\),\s*\[descriptors\],\s*\)/,
     'the placement is made once, from the FROZEN footprints, off the whole descriptor stream',
   );
   assert.match(
@@ -556,8 +556,12 @@ test('THE KIT CASTS: one placement, made before the ground, read by the casters 
     !/useMemo\(\(\) => groundCasters\(descriptors\), \[descriptors\]\)/.test(src),
     'groundCasters(descriptors) alone is no longer the whole caster list',
   );
-  // The vocabulary-only dressing is not what ships: the canvas stands the grove.
-  assert.ok(!/dressMapFromKit\(/.test(src), 'the canvas must stand the groved dressing');
+  // ⚠ THE CANVAS STANDS THE TOP LAYER, and each of the three entry points is a strictly smaller
+  // map. `dressMapFromKit` is the vocabulary alone and `dressMapWithGroves` stops before the
+  // ground cover; either one on this line would be the shipped map quietly reverting a landing
+  // while every other assertion here still passed.
+  assert.ok(!/dressMapFromKit\(/.test(src), 'the canvas must stand the groved AND covered dressing');
+  assert.ok(!/dressMapWithGroves\(/.test(src), 'the canvas must stand the ground cover too');
   // KitProps computes NO placement of its own — it draws what it is handed.
   const kitProps = src.slice(...regionOf(src, 'function KitProps(', 'function TrailStrip('));
   assert.ok(!/dressMap|dressIsland/.test(kitProps), 'KitProps must not dress the map a second time');

@@ -14,6 +14,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+// ⚠ THE SIZE LADDER LIVES IN `cover-dressing.ts`, and the bound below is read against it from
+// here on purpose: the flower patch's declared WIDTH is derived backwards from the ladder's
+// boldest rung, so the two modules have to be checked together or the derivation is a comment.
+import { COVER_SIZE_RUNGS } from './cover-dressing.js';
 import { decodeKitAsset } from './kit-asset.js';
 import {
   FOOTPRINT_TOLERANCE,
@@ -24,6 +28,7 @@ import {
   KIT_HEIGHTS_2026_08_29,
   KIT_ROLES,
   KIT_ROLE_ASSEMBLIES,
+  KIT_ROLE_CLASS,
   KIT_ROLE_SIGNAL,
   KIT_ROLE_SIZE,
   MIN_PROP_HEIGHT,
@@ -35,7 +40,12 @@ import {
   candidatePoints,
   capabilityFactsFrom,
   clearanceFactor,
+  COVER_SCALE,
+  DRESSING_ROLES,
+  FLOWER_PATCH_MAX_SHARE_OF_BLOOM,
+  SCENE_ROLES,
   clearsObjectFloor,
+  isDressingRole,
   deliveredHeightPx,
   deliveredRolePx,
   dressIslandFromKit,
@@ -144,15 +154,90 @@ function kitObjectsInAsset(): string[] {
 // the vocabulary itself
 // ---------------------------------------------------------------------------
 
-test('every role names a signal, and every signal is read off the SCENE', () => {
+test('every role is a SCENE signal or is declared DRESSING, and its prose says which', () => {
   // ADR-0463 D5: delegation picks WHICH signal a prop carries, never WHETHER it carries one. A
   // role whose entry did not say where its number comes from would be decoration wearing a
   // signal's name — which ADR-0414 D1 forbids outright on the surface this now ships to.
+  //
+  // ⚠⚠ SINCE 2026-09-03 THERE ARE TWO ADMISSIBLE ANSWERS AND STILL NO THIRD. Ground cover crossed
+  // (ADR-0507's dressing), and the honest widening of "every entry is a signal" is "every entry is
+  // a signal OR is declared dressing" — never a role that is silently neither. The expected word
+  // is DERIVED from `KIT_ROLE_CLASS` rather than restated here, so this is a two-place agreement
+  // between the classification and the prose: reclassify a role in one place only and it reds.
   for (const role of KIT_ROLES) {
     const signal = KIT_ROLE_SIGNAL[role];
     assert.ok(signal.length > 20, `${role} has no signal`);
-    assert.match(signal, /^SCENE — /, `${role}'s signal is not read off the scene`);
+    const expected = KIT_ROLE_CLASS[role].toUpperCase();
+    assert.match(
+      signal,
+      new RegExp(`^${expected} — `),
+      `${role} is classified ${KIT_ROLE_CLASS[role]} but its prose does not open with ${expected}`,
+    );
   }
+});
+
+test('the two kinds of role partition the vocabulary — no role is both, none is neither', () => {
+  // ⚠ THE PARTITION IS THE CLAIM, not the counts. A role that fell out of both lists would draw
+  // and report nothing, and a role in both would be scenery the map also read a state off.
+  assert.deepEqual([...SCENE_ROLES, ...DRESSING_ROLES].sort(), [...KIT_ROLES].sort());
+  for (const role of SCENE_ROLES) assert.ok(!DRESSING_ROLES.includes(role), `${role} is both kinds`);
+  assert.deepEqual([...SCENE_ROLES], ['tree', 'deadTree', 'bloom']);
+  assert.deepEqual([...DRESSING_ROLES], ['bush', 'tuft', 'flowerPatch']);
+});
+
+test('⚠ NO DRESSING ROLE HAS A ROUTE FROM A STATE — scenery can never report a capability', () => {
+  // The one thing the dressing roles are NOT exempt from. `stateForm` is the only door from a
+  // capability's status to a role, so this is the whole surface: if no state reaches a dressing
+  // role, no capability's state can ever be drawn as ground cover, and an island cannot come to
+  // report a proof state through its scenery.
+  for (const state of [...VOCABULARY_STATES, 'retired', 'drift', '']) {
+    const form = stateForm(state);
+    if (form === null) continue;
+    assert.ok(!isDressingRole(form.role), `${state} reaches the dressing role ${form.role}`);
+  }
+});
+
+test('THE CRITERION MARKER STAYS THE ONLY RED FLOWER, AND THE ONLY ONE AT ITS SIZE', () => {
+  // ⚠⚠ THE ROW'S ONE MUST-STAY-DISTINCT, held as a property of the TABLES rather than of a
+  // picture — a placement can be moved, a table cannot be moved by accident.
+  //
+  // (a) COLOUR: the bloom is the kit's `Red_Flower_01` and nothing else in the vocabulary names a
+  //     red flower at all, so no scattering can put a second red flower on the map.
+  const covered = DRESSING_ROLES.flatMap((r) => KIT_ROLE_ASSEMBLIES[r]).flatMap((a) => [...KIT_ASSEMBLIES[a]]);
+  assert.deepEqual(
+    covered.filter((n) => /red/i.test(n)),
+    [],
+    'a ground-cover role draws a red flower — the criterion marker is no longer the only one',
+  );
+  assert.deepEqual([...KIT_ASSEMBLIES.flower], ['Red_Flower_01']);
+
+  // (b) SIZE, read at the ground cover's LOUDEST — which since 2026-09-04 means AT THE BOLDEST
+  //     RUNG OF THE SIZE LADDER, not at the declared width and not at the shipped rung. The widest
+  //     patch that can ever be drawn is `units x COVER_SCALE.max x max(COVER_SIZE_RUNGS)`, and it
+  //     must be under half the bloom's own width.
+  //
+  //     ⚠⚠ ASSERTING IT AT THE SHIPPED RUNG WOULD BE A GREEN CHECK THAT VERIFIED NOTHING. A
+  //     scale-back must not be what makes the map honest: the owner may answer the sheet with any
+  //     rung, so the bound has to hold at the loudest one the ladder can reach, and adding a
+  //     bolder rung has to fail HERE rather than be discovered on a render. `KIT_ROLE_SIZE`'s
+  //     `flowerPatch` width is derived backwards from exactly this arithmetic.
+  const boldest = Math.max(...COVER_SIZE_RUNGS);
+  const limit = KIT_ROLE_SIZE.bloom.units * FLOWER_PATCH_MAX_SHARE_OF_BLOOM;
+  for (const rung of COVER_SIZE_RUNGS) {
+    const widestAtRung = KIT_ROLE_SIZE.flowerPatch.units * COVER_SCALE.flowerPatch.max * rung;
+    assert.ok(
+      widestAtRung < limit,
+      `at rung ${rung} the widest flower patch is ${widestAtRung.toFixed(3)} units against the bloom's half-width ${limit}`,
+    );
+  }
+  // And the bound BINDS: the boldest rung must be close enough to the limit that the assertion
+  // above could actually fail — a bound with an order of magnitude of slack is one nobody derived.
+  const widest = KIT_ROLE_SIZE.flowerPatch.units * COVER_SCALE.flowerPatch.max * boldest;
+  assert.ok(
+    widest > limit * 0.8,
+    `the flower-patch width is ${widest.toFixed(3)} against a limit of ${limit} — the bound is not what sized it`,
+  );
+  assert.equal(KIT_ROLE_SIZE.flowerPatch.axis, 'width', 'a flat prop sized by height blows up its footprint');
 });
 
 test('the withdrawn signals are recorded rather than forgotten', () => {
@@ -225,7 +310,7 @@ test('every tint a state asks for is declared, and every declared tint is reacha
   assert.deepEqual(tintedStates().sort(), ['building', 'mapped', 'proposed']);
 });
 
-test('every role clears the object floor except the bloom, which is recorded as under it', () => {
+test('the object floor is a claim about SIGNALS, and the ground cover is honestly under it', () => {
   assert.equal(clearsObjectFloor('tree'), true);
   assert.equal(clearsObjectFloor('deadTree'), true);
   // A criterion marker is deliberately below the floor at the overview: the procedural flower
@@ -233,6 +318,17 @@ test('every role clears the object floor except the bloom, which is recorded as 
   // asserting an importance the signal does not have.
   assert.equal(clearsObjectFloor('bloom'), false);
   assert.equal(KIT_ROLE_SIZE.bloom.axis, 'width');
+
+  // ⚠⚠ AND EVERY DRESSING ROLE IS UNDER IT BY CONSTRUCTION, which is what ground cover IS. This
+  // asserts the direction rather than exempting them silently: a dressing role that CLEARED the
+  // floor would be a bush as wide as a pine's canopy, which is the 8.2-unit flower of 2026-08-29
+  // wearing a different name. The floor's own guarantee is unweakened — it still binds every
+  // role that reports something, and `SCENE_ROLES` is where that is now read.
+  for (const role of DRESSING_ROLES) {
+    assert.equal(clearsObjectFloor(role), false, `${role} is scenery sized like a signal`);
+    assert.equal(KIT_ROLE_SIZE[role].axis, 'width', `${role} is a flat prop and must be sized by width`);
+    assert.ok(KIT_ROLE_SIZE[role].units < MIN_PROP_WIDTH / 2, `${role} is not ground cover at that size`);
+  }
 });
 
 test('the object floor is read on the axis the role is SIZED by, not always the height', () => {
@@ -478,11 +574,12 @@ test('a wider footprint pushes the props apart rather than being ignored', () =>
   // footprint is ignored" for a placement that honours it perfectly. Two capabilities on two
   // small parcels with ten blooms competing for the same ground is where it bites.
   const tight = island(['healthy', 'mapped'], 2);
-  const wide = {
-    tree: FOOT.tree * 2.5,
-    deadTree: FOOT.deadTree * 2.5,
-    bloom: FOOT.bloom * 2.5,
-  } satisfies Record<KitRole, number>;
+  // ⚠ EVERY ROLE SCALED, not the three the placement happens to stand. A partial table would
+  // typecheck only while the vocabulary held those three, and would then silently stop widening
+  // whichever role was added next.
+  const wide = Object.fromEntries(
+    KIT_ROLES.map((r) => [r, FOOT[r] * 2.5]),
+  ) as Record<KitRole, number>;
   assert.notDeepEqual(
     dress(tight, { blooms: 10 }).map((p) => [p.at.x, p.at.z]),
     dress(tight, { blooms: 10, footprint: wide }).map((p) => [p.at.x, p.at.z]),
@@ -899,7 +996,7 @@ test('an overlap is named by role and capability, measured, and reported WORST F
   // nor descending. A comparator that returns the same sign for every pair does not leave an array
   // alone — it reverses it — so a fixture whose pairs happen to arrive in descending order is
   // sorted correctly by an arithmetic that compares nothing.
-  const exact = { tree: 8, deadTree: 6, bloom: 4 };
+  const exact = { ...FOOT, tree: 8, deadTree: 6, bloom: 4 };
   const overlaps = dressingOverlaps(
     [p('tree', 'a', 0), p('tree', 'b', 1), p('tree', 'c', 7), p('tree', 'd', 7.5)],
     exact,
@@ -1106,14 +1203,23 @@ test('the drift checks name the role and both numbers past the tolerance, and no
   assert.ok(lines[0]!.endsWith('re-measure and update the literal'), 'the drift line does not say what to do');
   assert.equal(footprintDriftOf({ ...FOOT, bloom: FOOT.bloom * 0.98 }).length, 1, 'a LOW drift counts too');
   assert.deepEqual(footprintDriftOf({ ...FOOT, deadTree: FOOT.deadTree * 1.009 }), [], 'inside the tolerance');
-  assert.equal(footprintDriftOf({ tree: FOOT.tree * 2, deadTree: FOOT.deadTree * 2, bloom: FOOT.bloom * 2 }).length, 3);
+  assert.equal(
+    footprintDriftOf({ ...FOOT, tree: FOOT.tree * 2, deadTree: FOOT.deadTree * 2, bloom: FOOT.bloom * 2 }).length,
+    3,
+    'a table drifting on three roles must name three, one line each',
+  );
+  assert.equal(
+    footprintDriftOf(Object.fromEntries(KIT_ROLES.map((r) => [r, FOOT[r] * 2])) as Record<KitRole, number>).length,
+    KIT_ROLES.length,
+    'every role must be compared — a drift check blind to the dressing roles is three holes in it',
+  );
   const heights = heightDriftOf({ ...KIT_HEIGHTS_2026_08_29, bloom: 3 });
   assert.equal(heights.length, 1);
   assert.match(heights[0]!, /^bloom: .*height/);
   assert.equal(FOOTPRINT_TOLERANCE, 0.01);
   // The generic reads the DECLARED table it is handed rather than a fixed one.
   assert.deepEqual(roleDrift(FOOT, FOOT, 'x'), []);
-  assert.equal(roleDrift(FOOT, KIT_HEIGHTS_2026_08_29, 'x').length, 3);
+  assert.equal(roleDrift(FOOT, KIT_HEIGHTS_2026_08_29, 'x').length, KIT_ROLES.length);
 });
 
 test('the search takes a declared need, and its default is the two radii summed', () => {
