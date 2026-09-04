@@ -39,7 +39,7 @@
 // island's own ground — and each is placed AFTER the layer before it, so a grove pine is placed
 // around the capability's tree and a bush around both, never the other way about.
 
-import { COVER_DENSITY, COVER_SIZE, dressCover } from './cover-dressing.js';
+import { COVER_SIZE, dressCover } from './cover-dressing.js';
 import { GROVE_DENSITY, dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
 import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary.js';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells.js';
@@ -54,11 +54,12 @@ export interface MapDressingOptions {
    *  pick (`GROVE_DENSITY`); the canopy comparison page's ladder arms are what pass it, and
    *  {@link dressMapFromKit} — which grows no grove at all — ignores it. */
   density?: number;
-  /** How many of the recipe's own ground-cover counts a healthy island wears, as a multiple.
-   *  Omitted is `COVER_DENSITY` — the recipe's own, which is what ships. This is deliberately NOT
-   *  the ladder (see {@link MapDressingOptions.coverSize}); it exists so the count can be exercised
-   *  at all, and every entry point but {@link dressMapWithCover} ignores it. */
-  coverDensity?: number;
+  // ⚠ THERE IS NO `coverDensity` HERE, AND ITS ABSENCE IS THE SAME RULE AS `seed`'s ABOVE. The
+  // cover's COUNT is the recipe's own and is not laddered — the ladder is `coverSize` — so a
+  // pass-through for it would have no caller, and `opts.coverDensity ?? COVER_DENSITY` is then an
+  // expression `check:mutation-diff` can flip without any test being able to notice. The count is
+  // still exercised where it lives, by `cover-dressing.test.ts` against `dressCover`'s own
+  // argument. If a page ever ladders the count, this is one line and a test that passes it.
   /** Which rung of `COVER_SIZE_RUNGS` a healthy island's ground cover is drawn at. Omitted is the
    *  shipped pick (`COVER_SIZE`); the cover comparison page's ladder arms are what pass it.
    *
@@ -130,7 +131,7 @@ export function dressMapFromKit(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
 ): KitPlacement[] {
-  return dressMap(descriptors, opts, null, false);
+  return dressMap(descriptors, opts, null);
 }
 
 /**
@@ -147,7 +148,7 @@ export function dressMapWithGroves(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
 ): KitPlacement[] {
-  return dressMap(descriptors, opts, islandExclusion, false);
+  return dressMap(descriptors, opts, { exclusionFor: islandExclusion, cover: false });
 }
 
 /**
@@ -169,17 +170,32 @@ export function dressMapWithCover(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
 ): KitPlacement[] {
-  return dressMap(descriptors, opts, islandExclusion, true);
+  return dressMap(descriptors, opts, { exclusionFor: islandExclusion, cover: true });
 }
 
-/** How an island's grove learns where it may not stand — `null` grows no grove at all. */
+/** How an island's grove learns where it may not stand. */
 type ExclusionFor = (descriptors: readonly Descriptor3D[], island: string) => GroveExclusion;
+
+/**
+ * WHICH LAYERS ABOVE THE VOCABULARY THIS DRESSING GROWS — `null` grows none at all.
+ *
+ * ⚠ ONE ARGUMENT RATHER THAN TWO, and the reason is that two made a state UNREACHABLE. The
+ * previous shape took `(exclusionFor, cover)` independently, so `dressMapFromKit` passed
+ * `(null, false)` — and `(null, true)` behaves IDENTICALLY, because a dressing with no exclusion
+ * never reaches the cover pass. That is an equivalent mutant by construction: `check:mutation-diff`
+ * flips the `false` to `true`, nothing changes, and no test can ever be written that would notice.
+ * Folding the two into one nullable object deletes the state instead of asking someone to argue
+ * about it — there is no cover flag to flip when there is no grove.
+ */
+interface DressingLayers {
+  exclusionFor: ExclusionFor;
+  cover: boolean;
+}
 
 function dressMap(
   descriptors: readonly Descriptor3D[],
   opts: MapDressingOptions,
-  exclusionFor: ExclusionFor | null,
-  cover: boolean,
+  layers: DressingLayers | null,
 ): KitPlacement[] {
   const cells = parcelCellsFrom(descriptors);
   const signed = signedCriteriaByIsland(descriptors);
@@ -197,11 +213,11 @@ function dressMap(
   for (const [island, group] of cellsByIsland(cells)) {
     const standing = dress(group, signed.get(island) ?? 0);
     out.push(...standing);
-    if (exclusionFor === null) continue;
+    if (layers === null) continue;
     // ⚠ ONE EXCLUSION PER ISLAND, BUILT ONCE AND HANDED TO BOTH PASSES. It carries a `shoreField`
     // and a `wearField` over the island's whole ground — the expensive part of dressing a map —
     // and two calls would be two fields the grove and the cover could come to disagree through.
-    const exclusion = exclusionFor(descriptors, island);
+    const exclusion = layers.exclusionFor(descriptors, island);
     out.push(
       ...dressGroves({
         island,
@@ -213,14 +229,13 @@ function dressMap(
         density: opts.density ?? GROVE_DENSITY,
       }),
     );
-    if (!cover) continue;
+    if (!layers.cover) continue;
     out.push(
       ...dressCover({
         island,
         cells: group,
         relief: opts.relief,
         exclusion,
-        density: opts.coverDensity ?? COVER_DENSITY,
         size: opts.coverSize ?? COVER_SIZE,
       }),
     );

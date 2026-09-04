@@ -36,6 +36,7 @@ import {
 import {
   GROVE_DENSITY,
   RECIPE_ISLAND_AREA,
+  cellAt,
   cellsArea,
   dressGroves,
   groveEligible,
@@ -57,9 +58,11 @@ import {
   isCoverPlacement,
   isDressingRole,
   propStream,
+  samplePoint,
   stateForm,
   type KitPlacement,
 } from './kit-vocabulary.js';
+import { indices } from './land-shadow.js';
 import { landHeight } from './land-relief.js';
 import type { LayoutCell } from './parcel-cells.js';
 
@@ -266,6 +269,88 @@ test('the count scales with AREA and with the rung, and rounds rather than trunc
   assert.equal(coverCount('flowerPatch', almost, 1), 25, 'the count truncates instead of rounding');
 });
 
+test('coverCount REFUSES a role the recipe declares no count for, rather than standing zero of it', () => {
+  // ⚠ THE DIRECTION OF THE FAILURE IS THE POINT. Reading a missing count as 0 would make a role
+  // added to the vocabulary and forgotten here grow NOTHING, silently, on every island forever —
+  // a picture with a hole in it and no message anywhere. The refusal names the role and the three
+  // the recipe does declare.
+  for (const role of ['tree', 'deadTree', 'bloom'] as const) {
+    assert.throws(
+      () => coverCount(role, HEALTHY),
+      (e: Error) => {
+        assert.match(e.message, new RegExp(`${role} is not a ground-cover role`));
+        assert.match(e.message, /the recipe declares a count for the three dressing roles only/);
+        for (const named of COVER_ROLES) assert.ok(e.message.includes(named), `the refusal does not name ${named}`);
+        return true;
+      },
+      `${role} was given a ground-cover count`,
+    );
+  }
+  // NON-VACUITY: the three that ARE cover roles answer a number rather than throwing.
+  for (const role of COVER_ROLES) assert.ok(coverCount(role, HEALTHY) > 0);
+});
+
+test('⚠ coverPoint SKIPS a degenerate cell and a point outside every parcel, and keeps trying', () => {
+  // Two refusals inside one loop, and each has to be exercised on its own or a mutant that deletes
+  // either passes on the other's fixture.
+  //
+  // (a) A DEGENERATE CELL — fewer than three points, so there is no quad to sample inside.
+  //     `samplePoint` consumes its four draws BEFORE it can refuse (that ordering is its own
+  //     documented rule), so the stream stays aligned and the next try is a real one.
+  const degenerate: LayoutCell[] = [
+    { points: [{ x: 0, z: 0 }, { x: 1, z: 0 }], parcel: 'cap-0', island: 'd', status: 'healthy', cellId: 'bad' },
+  ];
+  assert.equal(coverPoint(degenerate, propStream(3), ALLOW), null, 'a degenerate cell yielded a point');
+
+  // (b) A POINT OUTSIDE EVERY PARCEL — `cellAt`'s refusal, and it is a DIFFERENT question from the
+  //     exclusion's: the exclusion knows about the beach and the worn path, `cellAt` knows about
+  //     the island's own edge. A fixture where the exclusion says yes to everything isolates it.
+  //
+  //     ⚠⚠ IT NEEDS A CONCAVE CELL, AND THAT IS NOT A CONTRIVANCE — it is this map's coast. On a
+  //     CONVEX quad `samplePoint` and `cellAt` can never disagree, because the sampling patch IS
+  //     the ring; the branch is reachable exactly when the patch spanned by the cell's first four
+  //     points reaches outside its own ring, which is what a notch or a fold does
+  //     (`a-fill-hides-a-fold-a-mesh-exposes`: the coast the studio draws folds twice on the
+  //     shipped island). Measured on this fixture: 110 of 400 sampled points land outside it.
+  const notched: LayoutCell[] = [
+    {
+      points: [
+        { x: 0, z: 0 },
+        { x: 10, z: 0 },
+        { x: 10, z: 10 },
+        { x: 6, z: 10 },
+        { x: 6, z: 2 },
+        { x: 4, z: 2 },
+        { x: 4, z: 10 },
+        { x: 0, z: 10 },
+      ],
+      parcel: 'cap-0',
+      island: 'notched',
+      status: 'healthy',
+      cellId: 'notched-0',
+    },
+  ];
+  // NON-VACUITY FIRST: the fixture really does put points in the slot, so a test that then finds
+  // every returned point inside is testing the guard rather than an arithmetic that never strays.
+  let strayed = 0;
+  for (const seed of indices(400)) {
+    const p = samplePoint(notched, propStream(seed));
+    if (p !== null && cellAt(notched, p) === null) strayed += 1;
+  }
+  assert.ok(strayed > 0, 'the notched fixture never samples into its own slot — the guard is untested');
+  // AND THE GUARD HOLDS: every point `coverPoint` hands back is inside the cell it came from.
+  // Without the refusal, a bush grows in the notch — on land the island does not have.
+  for (const seed of indices(200)) {
+    const p = coverPoint(notched, propStream(seed), ALLOW);
+    if (p === null) continue;
+    assert.notEqual(cellAt(notched, p), null, `coverPoint returned (${p.x}, ${p.z}), which is off the parcel`);
+  }
+
+  // (c) THE EXCLUSION'S OWN REFUSAL, kept here beside the other two so all three routes to `null`
+  //     are in one place: a point inside a parcel that the beach or the path rejects.
+  assert.equal(coverPoint(HEALTHY, propStream(9), REFUSE), null);
+});
+
 test('the density argument really reaches the scatter — a bolder rung stands more', () => {
   const one = coverOn(HEALTHY, { density: 1 }).length;
   const three = coverOn(HEALTHY, { density: 3 }).length;
@@ -295,6 +380,22 @@ test('a runaway area is REFUSED rather than materialised — the count is an arr
   assert.ok(coverAreaShare([stacked[0]!]) > 0, 'one such cell alone is admissible');
   assert.throws(() => coverAreaShare(stacked), /arithmetic fault in the area/);
   assert.throws(() => coverCount('bush', stacked), /arithmetic fault in the area/);
+  // ⚠ THE WORDING IS PINNED, NOT JUST THE FACT OF THROWING. This message is the whole value of the
+  // guard: it fires on a state a reader will believe is a large island, and if it says nothing
+  // about WHY (a materialised count, so the alternative is a hung tab rather than a wrong picture)
+  // it has told them to relax the ceiling. An emptied string still throws and still matches
+  // nothing — which is exactly what a bare `assert.throws` cannot see.
+  const why = ((): string => {
+    try {
+      coverAreaShare(stacked);
+    } catch (e) {
+      return (e as Error).message;
+    }
+    throw new Error('the runaway fixture did not throw at all');
+  })();
+  assert.match(why, /cover-dressing: an island asking for .+ recipe-islands of ground cover/);
+  assert.match(why, /on a bounding box that could hold at most/);
+  assert.match(why, /the count is materialised, so this would hang rather than draw/);
 
   // ⚠ AND THE CEILING IS THE BOUNDING BOX, so it can never sit BELOW an honest share however
   // large the island — a guard that refused a real fifty-capability story would be worse than none.
@@ -434,6 +535,12 @@ test('⚠⚠ NOTHING GROUND COVER STANDS REPORTS ANYTHING', () => {
     // A tint is a capability's state worn on a crown. Cover holds no capability.
     assert.equal(p.tint, null, 'a cover prop wears a state’s tint');
     assert.equal(p.capId, COVER_CAP_ID, 'a cover prop claims a capability’s id');
+    // ⚠ AND THE ID IS A REAL, NON-EMPTY MARKER. An emptied literal still satisfies "every cover
+    // prop wears the same capId" — every one of them would wear `''`, which is also what a
+    // placement carrying no capability at all looks like in a census row or a debug dump. The
+    // point of the id is to be DISTINGUISHABLE from that and from any capability's own.
+    assert.equal(COVER_CAP_ID, 'cover');
+    assert.ok(p.capId.length > 0, 'a cover prop is indistinguishable from one with no capability');
   }
   // ⚠ AND THE DOOR IS SHUT UPSTREAM TOO: `stateForm` is the only route from a status to a role, and
   // no status the vocabulary or the store can produce reaches a dressing role. Belt and braces on
