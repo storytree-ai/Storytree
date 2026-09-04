@@ -33,9 +33,9 @@
 // the test holds equal: the fixture island built at `PLAN_VIEW_ELEVATION_DEG` (the scene's own
 // `cameraElevationDeg` seam, 90°, sin = 1), and the shipped descriptor stream with every ground
 // z divided by `groundFlattening()` = sin 20°. The crowd's synthetic forest goes through the
-// second route, because its island offsets are the layout's own and not a scene's. `projectGround`
-// is a pure y-scale, and `routing.ts` projects the real map's island CENTRES through the same
-// function, so unprojecting the whole stream is exactly the map's true layout — spacing included.
+// second route, because its island offsets are the layout's own and not a scene's. Each island
+// is stretched about its OWN centre so the layout holds still and exactly one thing moves;
+// `unprojectDescriptors` records why the whole-map stretch was measured and rejected.
 //
 // ⚠ EVERY ARM IS BUILT BY THE SHIPPED COMPOSITION ROOT. `shippedGroundBuild` (the function
 // `CellGround` calls) over the footprint's cells, casters and strips; `dressMapWithCover` with
@@ -222,21 +222,67 @@ export const CAMERA_PICTURE_ZOOMS: readonly CrowdZoom[] = [...CAMERA_ZOOMS, FIT_
 // ---------------------------------------------------------------- the true footprint
 
 /**
- * THE DRAWING'S PROJECTION, UNDONE: every ground z divided by `groundFlattening()` (sin of the
- * declared land camera), x untouched, about the forest origin.
+ * THE DRAWING'S PROJECTION, UNDONE — PER ISLAND: every ground z stretched by `1 / groundFlattening()`
+ * (sin of the declared land camera) about its OWN island's centre, x untouched.
+ *
+ * ⚠ ABOUT EACH ISLAND, NOT ABOUT THE ORIGIN, and the difference was measured rather than argued.
+ * The first version stretched the whole stream about the forest origin, which unprojects the
+ * layout's SPACING along with the islands — the thirty-five-island crowd became 10,235 units deep
+ * and `shore-grid` refused the extent outright (478,401 buckets against its 262,144 cap). That is
+ * a true fact about what re-laying the real map out would cost the shipped machinery, and it is
+ * not this page's question: the owner is judging the ISLAND's footprint, so the arm that isolates
+ * it holds the layout still and unsquashes each island in place. On one island the two are the
+ * same picture up to where the island sits in the frame.
  *
  * ⚠ THE WHOLE STREAM, NOT THE CELLS ALONE. The strips dock on the coast, the blooms carry an
  * island's centre, a cave stands on the rim — every one of them was projected by the same
  * `projectGround`, so unprojecting the cells and leaving the rest would put the docks in the
- * water and the flowers off their islands.
+ * water and the flowers off their islands. A descriptor that names its island is stretched about
+ * that island; one that does not (a strip) is stretched about the nearest island's centre, which
+ * for a strip landing on a coast is its own.
  */
 export function unprojectDescriptors(descriptors: readonly InstanceDescriptor[]): InstanceDescriptor[] {
   const stretch = 1 / groundFlattening();
+  const centres = islandCentres(descriptors);
+  const centreFor = (d: InstanceDescriptor): number => {
+    const own = d.island === undefined ? undefined : centres.get(d.island);
+    if (own !== undefined) return own.z;
+    let best = 0;
+    let bestDist = Infinity;
+    for (const c of centres.values()) {
+      const dist = Math.hypot(d.transform.x - c.x, d.transform.z - c.z);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = c.z;
+      }
+    }
+    return best;
+  };
   return descriptors.map((d) => {
-    const moved: InstanceDescriptor = { ...d, transform: { ...d.transform, z: d.transform.z * stretch } };
-    if (d.points !== undefined) moved.points = d.points.map((p) => ({ ...p, z: p.z * stretch }));
+    const cz = centreFor(d);
+    const at = (z: number): number => cz + (z - cz) * stretch;
+    const moved: InstanceDescriptor = { ...d, transform: { ...d.transform, z: at(d.transform.z) } };
+    if (d.points !== undefined) moved.points = d.points.map((p) => ({ ...p, z: at(p.z) }));
     return moved;
   });
+}
+
+/** Each island's ground centre — the mean of its cells' ring vertices — keyed by island id. */
+export function islandCentres(descriptors: readonly InstanceDescriptor[]): Map<string, { x: number; z: number }> {
+  const sums = new Map<string, { x: number; z: number; n: number }>();
+  for (const d of descriptors) {
+    if (d.kind !== 'cell-ground' || d.island === undefined) continue;
+    const acc = sums.get(d.island) ?? { x: 0, z: 0, n: 0 };
+    for (const p of d.points ?? []) {
+      acc.x += p.x;
+      acc.z += p.z;
+      acc.n += 1;
+    }
+    sums.set(d.island, acc);
+  }
+  const out = new Map<string, { x: number; z: number }>();
+  for (const [id, acc] of sums) if (acc.n > 0) out.set(id, { x: acc.x / acc.n, z: acc.z / acc.n });
+  return out;
 }
 
 const descriptorMemo = new Map<string, InstanceDescriptor[]>();
@@ -401,6 +447,23 @@ export function deliveredPineHeightPx(elevationDeg: number, pxPerUnit: number): 
   return KIT_ROLE_SIZE.tree.units * Math.cos((elevationDeg * Math.PI) / 180) * pxPerUnit;
 }
 
+/** The footprint of the ONE island nearest the origin — the island every 8 px/unit frame is
+ *  centred on, and the one the stretch is checked against exactly (a forest's whole extent also
+ *  carries the layout's spacing, which the per-island stretch leaves alone). */
+export function islandDepth(cells: readonly InstanceDescriptor[]): { w: number; d: number } {
+  const centres = islandCentres(cells);
+  let nearest: string | undefined;
+  let bestDist = Infinity;
+  for (const [id, c] of centres) {
+    const dist = Math.hypot(c.x, c.z);
+    if (dist < bestDist) {
+      bestDist = dist;
+      nearest = id;
+    }
+  }
+  return groundDepth(cells.filter((d) => d.island === nearest));
+}
+
 /** The ground-plane depth (z extent) of a cell set — the footprint's own number, camera-free. */
 export function groundDepth(cells: readonly InstanceDescriptor[]): { w: number; d: number } {
   let minX = Infinity;
@@ -429,8 +492,10 @@ export interface CameraScene {
   elevationDeg: number;
   footprint: Footprint;
   groundTriangles: number;
-  /** The ground's own footprint in ground units, before any camera. */
+  /** The ground's own footprint in ground units, before any camera — the whole cell set. */
   ground: { w: number; d: number };
+  /** The centre island's own footprint — what the stretch is checked against exactly. */
+  island: { w: number; d: number };
   /** The ground mesh's screen-plane extent through THIS arm's camera, in world units. */
   screen: ScreenExtent;
   placements: number;
@@ -490,6 +555,7 @@ export function buildCameraScene(
     footprint: spec.footprint,
     groundTriangles: geo.triangles,
     ground: groundDepth(footprintCells(spec.footprint, size)),
+    island: islandDepth(footprintCells(spec.footprint, size)),
     screen: screenExtent(geo.positions, camera),
     placements: placements.length,
     casters: footprintCasters(spec.footprint, size).length,
@@ -549,8 +615,9 @@ export interface CameraReading {
   placements: number;
   casters: number;
   meshes: number;
-  /** The footprint's own ground size, camera-free. */
+  /** The footprint's own ground size, camera-free — the whole cell set, and the centre island. */
   ground: { w: number; d: number };
+  island: { w: number; d: number };
   /** The ground mesh's screen extent through this camera, in world units and in pixels. */
   screen: { w: number; h: number; wPx: number; hPx: number; aspect: number };
   /** The delivered picture's bounding box of non-background pixels — includes the props. */
@@ -662,6 +729,7 @@ export async function createCameraRunner(): Promise<CameraRunner> {
         casters: s.casters,
         meshes: s.meshes,
         ground: s.ground,
+        island: s.island,
         screen: {
           w: s.screen.w,
           h: s.screen.h,

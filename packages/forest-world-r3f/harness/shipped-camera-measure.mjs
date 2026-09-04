@@ -147,27 +147,32 @@ for (const row of result.rows) {
       );
     }
   }
-  if (Math.abs(row.ground.w - bottom.ground.w) > 1e-9 || Math.abs(row.ground.d - bottom.ground.d) > 1e-9) {
+  if (Math.abs(row.island.w - bottom.island.w) > 1e-9 || Math.abs(row.island.d - bottom.island.d) > 1e-9) {
     fail(`${row.arm} at ${row.size}/${row.zoom} stands on a different ground footprint from ${bottom.arm}`);
   }
 }
 
 // ⚠ THE TRUE FOOTPRINT IS THE MAP FOOTPRINT STRETCHED BY EXACTLY THE DRAWING'S PROJECTION —
-// same width, depth divided by sin of the declared land camera. Anything else is a different island.
+// same width, depth divided by sin of the declared land camera, on the island every frame is
+// centred on. Anything else is a different island. (The forest's WHOLE extent also carries the
+// layout's spacing, which the per-island stretch leaves alone, so it is reported and not checked.)
 const stretch = 1 / groundFlattening();
 for (const size of SIZES) {
   for (const zoom of ZOOMS) {
     const map = at(armId('map', ELEVATION_LADDER[0]), size, zoom);
     const tru = at(armId('true', ELEVATION_LADDER[0]), size, zoom);
-    if (Math.abs(map.ground.w - tru.ground.w) > 1e-6) {
-      fail(`the true footprint at ${size} is ${tru.ground.w} wide against the map's ${map.ground.w} — the unprojection moved x`);
+    if (Math.abs(map.island.w - tru.island.w) > 1e-6) {
+      fail(`the true footprint at ${size} is ${tru.island.w} wide against the map's ${map.island.w} — the unprojection moved x`);
     }
-    const want = map.ground.d * stretch;
-    if (Math.abs(tru.ground.d - want) > 1e-6) {
+    const want = map.island.d * stretch;
+    if (Math.abs(tru.island.d - want) > 1e-6) {
       fail(
-        `the true footprint at ${size} is ${tru.ground.d.toFixed(3)} deep; the map's ${map.ground.d.toFixed(3)} ` +
+        `the true footprint at ${size} is ${tru.island.d.toFixed(3)} deep; the map's ${map.island.d.toFixed(3)} ` +
           `divided by sin(${((Math.asin(1 / stretch) * 180) / Math.PI).toFixed(1)}°) is ${want.toFixed(3)} — the footprint arm is not the same island unprojected`,
       );
+    }
+    if (Math.abs(map.ground.w - tru.ground.w) > 1e-6 || tru.ground.d < map.ground.d) {
+      fail(`the true footprint at ${size} moved the forest's width or shrank its depth — the layout did not hold still`);
     }
   }
 }
@@ -210,6 +215,9 @@ say(
 );
 say(`shipped elevation (read off frameWorld): ${SHIPPED_ELEVATION_DEG.toFixed(4)}° · signed elevation (RENDER_ELEV_DEG): ${SIGNED_ELEVATION_DEG}°`);
 say(`the control arm looks along the shipped crowd camera: yes (measured, would have refused otherwise)`);
+const g1 = at(CONTROL_ARM, 'forest', READ_ZOOM);
+const g2 = at(armId('true', ELEVATION_LADDER[0]), 'forest', READ_ZOOM);
+say(`the forest's whole ground extent: map ${g1.ground.w.toFixed(1)}×${g1.ground.d.toFixed(1)} · true ${g2.ground.w.toFixed(1)}×${g2.ground.d.toFixed(1)} (each island stretched about its own centre; the layout holds still)`);
 say(`the drawing's projection: ground depth × sin(${((Math.asin(1 / stretch) * 180) / Math.PI).toFixed(1)}°) = × ${(1 / stretch).toFixed(4)}; unprojected by × ${stretch.toFixed(4)}`);
 say('');
 say('THE ARMS');
@@ -227,12 +235,12 @@ for (const size of SIZES) {
   for (const zoom of ZOOMS) {
     say(`── ${size} @ ${zoom === 'fit' ? 'fit (each arm at its own fit)' : `${zoom} px/unit`} ─────────────────────────────────`);
     say(
-      'arm      elev  ground w×d      px/unit  island on screen (px)   w/h   box (px)      pine px  land%  tris     props  fam  largest  MICRO  STRUCT  moved>20 vs today  vs lower rung  vs other footprint',
+      'arm      elev  island w×d      px/unit  ground on screen (px)   w/h   box (px)      pine px  land%  tris     props  fam  largest  MICRO  STRUCT  moved>20 vs today  vs lower rung  vs other footprint',
     );
     for (const arm of ARMS) {
       const r = at(arm, size, zoom);
       say(
-        `${arm.padEnd(8)} ${String(r.elevationDeg).padStart(4)}  ${r.ground.w.toFixed(1).padStart(6)}×${r.ground.d.toFixed(1).padEnd(6)} ` +
+        `${arm.padEnd(8)} ${String(r.elevationDeg).padStart(4)}  ${r.island.w.toFixed(1).padStart(6)}×${r.island.d.toFixed(1).padEnd(6)} ` +
           `${r.pxPerUnit.toFixed(3).padStart(8)}  ${r.screen.wPx.toFixed(0).padStart(6)}×${r.screen.hPx.toFixed(0).padEnd(6)}          ` +
           `${r.screen.aspect.toFixed(2).padStart(5)}  ${String(r.box.w).padStart(5)}×${String(r.box.h).padEnd(5)}  ${r.pineHeightPx.toFixed(0).padStart(6)}  ` +
           `${pct(r.landShare).padStart(5)}  ${String(r.triangles).padStart(8)} ${String(r.placements).padStart(5)}  ${String(r.families).padStart(3)}  ` +

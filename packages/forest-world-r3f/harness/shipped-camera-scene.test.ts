@@ -36,6 +36,8 @@ import {
   footprintCells,
   footprintDescriptors,
   groundDepth,
+  islandCentres,
+  islandDepth,
   landBox,
   lowerArm,
   otherFootprintArm,
@@ -45,6 +47,7 @@ import {
   unprojectDescriptors,
   viewDirectionOf,
 } from './shipped-camera-scene.js';
+import { armDescriptors } from './shipped-canopy-scene.js';
 import { FIT_ZOOM, crowdSize, orientedCamera } from './shipped-crowd-scene.js';
 import { shippedParcels } from './shipped-land-scene.js';
 
@@ -111,22 +114,27 @@ test('both sizes, the read zoom and the fitted view', () => {
   assert.deepEqual([...CAMERA_PICTURE_ZOOMS], [8, FIT_ZOOM]);
 });
 
-test('⚠⚠ unprojecting divides every ground z by sin of the land camera, touches no x, and reaches the points too', () => {
+test('⚠⚠ unprojecting stretches every ground z by 1/sin of the land camera ABOUT ITS ISLAND’S CENTRE, touches no x, and reaches the points too', () => {
   const stretch = 1 / groundFlattening();
   assert.ok(Math.abs(stretch - 1 / Math.sin((20 * Math.PI) / 180)) < 1e-12, 'the land camera is 20°');
   const base = shippedParcels();
   const out = unprojectDescriptors(base);
   assert.equal(out.length, base.length);
+  const centres = islandCentres(base);
+  assert.equal(centres.size, 1, 'one island');
+  const cz = [...centres.values()][0]!.z;
+  const centreAfter = [...islandCentres(out).values()][0]!;
+  assert.ok(Math.abs(centreAfter.z - cz) < 1e-9, 'the island’s centre does not move');
   for (const [i, d] of out.entries()) {
     const b = base[i]!;
     assert.equal(d.transform.x, b.transform.x);
     assert.equal(d.transform.y, b.transform.y);
-    assert.ok(Math.abs(d.transform.z - b.transform.z * stretch) < 1e-9);
+    assert.ok(Math.abs(d.transform.z - cz - (b.transform.z - cz) * stretch) < 1e-9);
     assert.equal(d.points?.length, b.points?.length);
     for (const [j, p] of (d.points ?? []).entries()) {
       const q = b.points![j]!;
       assert.equal(p.x, q.x);
-      assert.ok(Math.abs(p.z - q.z * stretch) < 1e-9);
+      assert.ok(Math.abs(p.z - cz - (q.z - cz) * stretch) < 1e-9);
     }
   }
   // The shipped island is the squashed ribbon the increment describes; unprojected it is the
@@ -140,6 +148,49 @@ test('⚠⚠ unprojecting divides every ground z by sin of the land camera, touc
   assert.ok(after.d > 125 && after.d < 145, `true depth ${after.d}`);
   // The input is not mutated.
   assert.ok(Math.abs(groundDepth(base).d - before.d) < 1e-12);
+  assert.ok(Math.abs(islandDepth(out).d - after.d) < 1e-9, 'one island: the island depth is the ground depth');
+});
+
+test('⚠ on a FOREST the layout holds still: every island stretches about its own centre, and a strip follows its island', () => {
+  const size = crowdSize('forest');
+  const base = armDescriptors(size);
+  const out = unprojectDescriptors(base);
+  const before = islandCentres(base);
+  const after = islandCentres(out);
+  assert.ok(before.size > 30, `a forest (${before.size} islands)`);
+  for (const [id, c] of before) {
+    const a = after.get(id);
+    assert.ok(a !== undefined);
+    assert.ok(Math.abs(a.x - c.x) < 1e-9 && Math.abs(a.z - c.z) < 1e-9, `${id}'s centre moved`);
+  }
+  // The whole forest keeps its width and its layout: its depth grows by less than the stretch,
+  // because only the islands stretch and not the water between them.
+  const b = groundDepth(base.filter((d) => d.kind === 'cell-ground'));
+  const a = groundDepth(out.filter((d) => d.kind === 'cell-ground'));
+  const stretch = 1 / groundFlattening();
+  assert.ok(Math.abs(a.w - b.w) < 1e-9);
+  assert.ok(a.d > b.d && a.d < b.d * stretch, `forest depth ${b.d} → ${a.d} (stretch ${stretch})`);
+  // The centre island itself stretches by exactly the projection.
+  assert.ok(Math.abs(islandDepth(out).d - islandDepth(base).d * stretch) < 1e-9);
+  // A strip's landward end stays on its own island's coast: the distance from the landing to the
+  // island's centre scales in z like the island did, so the strip stretched about the same centre.
+  const strips = base.filter((d) => d.kind === 'trail-strip');
+  assert.ok(strips.length > 0);
+  for (const [i, s] of strips.entries()) {
+    const landing = s.points![s.points!.length - 1]!;
+    let nearest = '';
+    let bestDist = Infinity;
+    for (const [id, c] of before) {
+      const dist = Math.hypot(landing.x - c.x, landing.z - c.z);
+      if (dist < bestDist) {
+        bestDist = dist;
+        nearest = id;
+      }
+    }
+    const cz = before.get(nearest)!.z;
+    const moved = out.filter((d) => d.kind === 'trail-strip')[i]!.points![s.points!.length - 1]!;
+    assert.ok(Math.abs(moved.z - cz - (landing.z - cz) * stretch) < 1e-9, `strip ${i} did not follow island ${nearest}`);
+  }
 });
 
 test('⚠⚠ TWO ROUTES TO THE TRUE FOOTPRINT AGREE: the fixture built at plan view and the shipped stream unprojected', () => {
@@ -147,8 +198,19 @@ test('⚠⚠ TWO ROUTES TO THE TRUE FOOTPRINT AGREE: the fixture built at plan v
   // identity and `worldTo3D` receives the unprojected outline directly. That is an independent
   // implementation of what `unprojectDescriptors` does arithmetically, so the two agreeing is the
   // assertion that the footprint arm is the same island unprojected — not a different island.
-  const plan = cells(worldTo3D(islandScene({ cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG })));
-  const stretched = cells(unprojectDescriptors(cells(worldTo3D(islandScene()))));
+  // Both routes are read RELATIVE TO THE ISLAND'S CENTRE: the plan-view scene unprojects about
+  // the drawing's origin, the stretch about the island's own centre, and the two differ by a
+  // translation the comparison must not count.
+  const recentre = (ds: InstanceDescriptor[]): InstanceDescriptor[] => {
+    const c = [...islandCentres(ds).values()][0]!;
+    return ds.map((d) => ({
+      ...d,
+      transform: { ...d.transform, x: d.transform.x - c.x, z: d.transform.z - c.z },
+      points: (d.points ?? []).map((p) => ({ ...p, x: p.x - c.x, z: p.z - c.z })),
+    }));
+  };
+  const plan = recentre(cells(worldTo3D(islandScene({ cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }))));
+  const stretched = recentre(cells(unprojectDescriptors(cells(worldTo3D(islandScene())))));
   assert.equal(plan.length, stretched.length, 'the same number of cells');
   assert.ok(plan.length > 100, `a real decomposition (${plan.length} cells)`);
   // ⚠ THE TWO ROUTES AGREE TO THE DRAWING'S OWN ROUNDING AND NO CLOSER — and that bound is
@@ -208,11 +270,9 @@ test('the map footprint IS the canopy page’s stream; the true footprint is tha
   // The stream carries more than cells — the strips and blooms go through the same unprojection.
   assert.ok(map.some((d) => d.kind === 'trail-strip'), 'the stream carries strips');
   assert.ok(map.some((d) => d.kind === 'uat-bloom'), 'the stream carries signatures');
-  const stretch = 1 / groundFlattening();
-  for (const [i, d] of tru.entries()) {
-    assert.equal(d.kind, map[i]!.kind);
-    assert.ok(Math.abs(d.transform.z - map[i]!.transform.z * stretch) < 1e-9);
-  }
+  // One island: everything stretches about that island's centre.
+  assert.deepEqual(tru, unprojectDescriptors(map));
+  for (const [i, d] of tru.entries()) assert.equal(d.kind, map[i]!.kind);
   assert.equal(footprintCells('map', size).length, cells(map).length);
   assert.ok(footprintCells('true', size).every((d) => d.kind === 'cell-ground'));
 });

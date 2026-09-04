@@ -1,0 +1,76 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+shipped elevation (read off frameWorld): 45.0000° · signed elevation (RENDER_ELEV_DEG): 50°
+the control arm looks along the shipped crowd camera: yes (measured, would have refused otherwise)
+the forest's whole ground extent: map 2275.3×3495.3 · true 2275.3×3584.2 (each island stretched about its own centre; the layout holds still)
+the drawing's projection: ground depth × sin(20.0°) = × 0.3420; unprojected by × 2.9238
+
+THE ARMS
+  map-45   the SHIPPED ground plane — the 2D drawing’s already-foreshortened footprint (234 × ~46 units), from the shipped 45° camera — TODAY (CONTROL)
+  map-50   the SHIPPED ground plane — the 2D drawing’s already-foreshortened footprint (234 × ~46 units), from the owner-signed 50° every approved render was taken at
+  map-55   the SHIPPED ground plane — the 2D drawing’s already-foreshortened footprint (234 × ~46 units), from a 55° camera
+  map-60   the SHIPPED ground plane — the 2D drawing’s already-foreshortened footprint (234 × ~46 units), from a 60° camera
+  true-45  the island’s TRUE footprint — the hex cluster unprojected (234 × ~135 units, the recipe’s own), from the shipped 45° camera
+  true-50  the island’s TRUE footprint — the hex cluster unprojected (234 × ~135 units, the recipe’s own), from the owner-signed 50° every approved render was taken at — the approved render’s own geometry
+  true-55  the island’s TRUE footprint — the hex cluster unprojected (234 × ~135 units, the recipe’s own), from a 55° camera
+  true-60  the island’s TRUE footprint — the hex cluster unprojected (234 × ~135 units, the recipe’s own), from a 60° camera
+
+THE REFERENCE — the approved Cycles render, through this page’s own readers
+  land-combined-1948px.png: 1948×1280, island box 1936×1144 px (w/h 1.692) · colour families 36 · largest 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution and framing, and all SEVEN layers. Its box includes the props.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm      elev  island w×d      px/unit  ground on screen (px)   w/h   box (px)      pine px  land%  tris     props  fam  largest  MICRO  STRUCT  moved>20 vs today  vs lower rung  vs other footprint
+map-45     45   233.8×46.2      8.000    1980×377              5.26   1981×432       102  14.3%    172500   318   50    4.8%   3.78   26.25                  0              —             1132204
+map-50     50   233.8×46.2      8.000    1980×405              4.89   1981×445        93  15.3%    172500   318   51    5.1%   3.47   25.89             181401         181401             1214980
+map-55     55   233.8×46.2      8.000    1980×431              4.60   1981×453        83  16.1%    172500   318   49    5.3%   3.19   25.46             276763         166525             1289190
+map-60     60   233.8×46.2      8.000    1980×453              4.38   1981×459        72  16.8%    172500   318   49    5.6%   2.91   24.98             343030         150628             1352027
+true-45    45   233.8×135.1     8.000    1984×864              2.30   1984×894       102  33.2%    608676  1037   43    5.7%   4.65   24.22            1132204              —             1132204
+true-50    50   233.8×135.1     8.000    1984×933              2.13   1984×950        93  35.8%    608676  1037   43    5.4%   4.30   24.03            1232182         573286             1214980
+true-55    55   233.8×135.1     8.000    1984×995              1.99   1984×1000       83  38.1%    608676  1037   44    5.6%   3.96   23.76            1324750         558411             1289190
+true-60    60   233.8×135.1     8.000    1984×1050             1.89   1984×1050       72  40.1%    608676  1037   44    5.9%   3.65   23.46            1404788         531417             1352027
+
+── one @ fit (each arm at its own fit) ─────────────────────────────────
+arm      elev  island w×d      px/unit  ground on screen (px)   w/h   box (px)      pine px  land%  tris     props  fam  largest  MICRO  STRUCT  moved>20 vs today  vs lower rung  vs other footprint
+map-45     45   233.8×46.2      7.800    1931×367              5.26   1931×421        99  13.6%    172500   318   50    4.8%   3.80   26.21                  0              —             1071151
+map-50     50   233.8×46.2      7.800    1931×395              4.89   1931×434        90  14.5%    172500   318   51    5.1%   3.48   25.86             171997         171997             1149806
+map-55     55   233.8×46.2      7.800    1931×420              4.60   1931×442        81  15.3%    172500   318   50    5.3%   3.21   25.42             262987         158446             1213295
+map-60     60   233.8×46.2      7.800    1931×441              4.38   1931×447        70  16.0%    172500   318   49    5.6%   2.94   24.94             325664         142902             1197109
+true-45    45   233.8×135.1     7.785    1931×841              2.30   1931×870        99  31.5%    608676  1037   43    5.7%   4.68   24.17            1071151              —             1071151
+true-50    50   233.8×135.1     7.785    1931×908              2.13   1931×926        90  33.9%    608676  1037   43    5.4%   4.32   23.98            1166042         542002             1149806
+true-55    55   233.8×135.1     7.766    1926×966              1.99   1926×970        80  35.9%    608676  1037   44    5.6%   4.00   23.71            1246995         521939             1213295
+true-60    60   233.8×135.1     7.531    1868×988              1.89   1868×988        68  35.5%    608676  1037   44    5.9%   3.71   23.37            1243982         580680             1197109
+
+── forest @ 8 px/unit ─────────────────────────────────
+arm      elev  island w×d      px/unit  ground on screen (px)   w/h   box (px)      pine px  land%  tris     props  fam  largest  MICRO  STRUCT  moved>20 vs today  vs lower rung  vs other footprint
+map-45     45   233.8×46.2      8.000   18299×19892            0.92   1980×435       102  14.5%   3805446  6815   51    4.4%   3.81   25.95                  0              —             1113413
+map-50     50   233.8×46.2      8.000   18299×21547            0.85   1980×449        93  15.5%   3805446  6815   51    4.7%   3.52   25.55             176991         176991             1196855
+map-55     55   233.8×46.2      8.000   18299×23038            0.79   1980×457        83  16.3%   3805446  6815   51    4.9%   3.23   25.11             269442         162782             1271918
+map-60     60   233.8×46.2      8.000   18299×24354            0.75   1980×463        72  17.1%   3805446  6815   48    5.2%   2.96   24.62             331971         145625             1335883
+true-45    45   233.8×135.1     8.000   18305×20379            0.90   1985×898       102  33.4%  13088316 22029   44    5.6%   4.66   24.24            1113413              —             1113413
+true-50    50   233.8×135.1     8.000   18305×22075            0.83   1984×955        93  35.9%  13088316 22029   46    5.3%   4.28   24.09            1213089         577469             1196855
+true-55    55   233.8×135.1     8.000   18305×23603            0.78   1984×1005       83  38.2%  13088316 22029   46    5.3%   3.92   23.84            1305414         562142             1271918
+true-60    60   233.8×135.1     8.000   18305×24951            0.73   1984×1054       72  40.3%  13088316 22029   46    5.6%   3.59   23.53            1389815         533589             1335883
+
+── forest @ fit (each arm at its own fit) ─────────────────────────────────
+arm      elev  island w×d      px/unit  ground on screen (px)   w/h   box (px)      pine px  land%  tris     props  fam  largest  MICRO  STRUCT  moved>20 vs today  vs lower rung  vs other footprint
+map-45     45   233.8×46.2      0.571    1306×1419             0.92   1305×1421        7   2.5%   3805446  6815   46    7.8%  12.76   28.82                  0              —              189249
+map-50     50   233.8×46.2      0.528    1208×1422             0.85   1208×1423        6   2.3%   3805446  6815   46    7.9%  12.49   28.62              82243          82243              173299
+map-55     55   233.8×46.2      0.495    1131×1424             0.79   1131×1424        5   2.2%   3805446  6815   47    8.0%  12.02   28.34             105481          69134              160741
+map-60     60   233.8×46.2      0.468    1072×1426             0.75   1072×1427        4   2.0%   3805446  6815   44    7.8%  11.57   28.18             122135          58676              150766
+true-45    45   233.8×135.1     0.559    1278×1423             0.90   1278×1423        7   5.7%  13088316 22029   49    9.0%  14.85   32.80             189249              —              189249
+true-50    50   233.8×135.1     0.517    1182×1426             0.83   1182×1425        6   5.2%  13088316 22029   46    9.0%  14.25   32.33             204599         171451              173299
+true-55    55   233.8×135.1     0.484    1107×1428             0.78   1107×1428        5   4.9%  13088316 22029   45    9.1%  13.57   31.91             216938         144352              160741
+true-60    60   233.8×135.1     0.458    1049×1430             0.73   1049×1430        4   4.6%  13088316 22029   45    9.0%  12.89   31.54             226346         121516              150766
+
+WHAT SEPARATES THE TWO CAUSES — the island’s on-screen width-to-height ratio at the read zoom on one island:
+  today (map-45):                       w/h 5.26  — island 1980×377 px
+  the five degrees alone (map-50):     w/h 4.89  — 7.5% taller on screen
+  the whole ladder on the map (map-60): w/h 4.38  — 20.1% taller on screen, pine 72 px against 102
+  the footprint alone (true-45):        w/h 2.30  — 129.4% taller on screen
+  both, the reference geometry (true-50): w/h 2.13  — 147.7% taller on screen
+  the approved render:                    w/h 1.69  (its box includes the trees)
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet. Nothing here is a pick — the elevation is the owner’s.
