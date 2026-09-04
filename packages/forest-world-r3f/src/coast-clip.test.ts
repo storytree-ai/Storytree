@@ -316,15 +316,15 @@ test('the clip carries every parcel identity through untouched', () => {
 });
 
 test('a descriptor that is not ground passes through in place', () => {
-  const tree: InstanceDescriptor = {
-    kind: 'story-tree',
+  const bloom: InstanceDescriptor = {
+    kind: 'uat-bloom',
     transform: { x: 3, y: 0, z: 4 },
-    group: 'story-tree',
+    group: 'uat-bloom',
   };
-  const mixed = [...blockCells(), tree];
+  const mixed = [...blockCells(), bloom];
   const out = clipToCoast(mixed, 'subdivide');
   assert.equal(out.length, 5);
-  assert.deepEqual(out[4], tree);
+  assert.deepEqual(out[4], bloom);
 });
 
 test('a parcel the mapper could not attribute to an island is LEFT ALONE', () => {
@@ -397,11 +397,13 @@ test('the coast is DETERMINISTIC and story-seeded', () => {
 
 /** A descriptor that carries an island AND a ring but is NOT ground. If the clip read `island` and
  *  `points` without asking about `kind`, this would join the island's rim and be rewritten — and
- *  the picture would be an ordinary island with a tree moved onto the shoreline. */
-const TREE_ON_THE_ISLAND: InstanceDescriptor = {
-  kind: 'story-tree',
+ *  the picture would be an ordinary island with a signed criterion's bloom moved onto the
+ *  shoreline. (It was the `story-tree` family until that was retired, ADR-0508; a bloom carries
+ *  the same island id and plays the same part here.) */
+const BLOOM_ON_THE_ISLAND: InstanceDescriptor = {
+  kind: 'uat-bloom',
   transform: { x: 5, y: 0, z: 5 },
-  group: 'story-tree',
+  group: 'uat-bloom',
   island: 'story-a',
   points: [
     { x: 0, y: 0, z: 0 },
@@ -421,8 +423,8 @@ const GROUND_WITHOUT_A_RING: InstanceDescriptor = {
 };
 
 test('a NON-GROUND descriptor is left alone even when it carries an island and a ring', () => {
-  const out = clipToCoast([...blockCells(), TREE_ON_THE_ISLAND], 'subdivide');
-  assert.equal(out[4], TREE_ON_THE_ISLAND, 'the tree was rewritten');
+  const out = clipToCoast([...blockCells(), BLOOM_ON_THE_ISLAND], 'subdivide');
+  assert.equal(out[4], BLOOM_ON_THE_ISLAND, 'the bloom was rewritten');
   // And it did not reach the rim either: the island's coast is what it is without the tree.
   const alone = clipToCoast(blockCells(), 'subdivide');
   assert.deepEqual(out.slice(0, 4), alone);

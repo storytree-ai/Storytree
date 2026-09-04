@@ -70,7 +70,7 @@ test('a cell with no parcel is KEPT, and carries an honest absence', () => {
 test('only cell-ground descriptors are read — every other family is stepped over', () => {
   const others: Descriptor3D[] = [
     { kind: 'skipped', sceneKind: 'cell' },
-    { kind: 'story-tree', transform: { x: 1, y: 0, z: 2 }, group: 'story-tree', material: 'healthy' },
+    { kind: 'uat-bloom', transform: { x: 1, y: 0, z: 2 }, group: 'uat-bloom', material: 'healthy' },
     { kind: 'cave-arch', transform: { x: 3, y: 0, z: 4 }, group: 'cave-arch', material: 'healthy' },
   ];
   assert.deepEqual(parcelCellsFrom(others), []);

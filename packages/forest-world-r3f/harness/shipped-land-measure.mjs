@@ -362,21 +362,14 @@ for (const zoom of LAND_ZOOMS) {
   }
 }
 
-// ⚠ AND THE TWO PICTURES WITH THE TREE IN THEM, which are for LOOKING at and are measured by
-//    nothing above. Every arm in the ladder is ground-only, because the palette closure is asked
-//    of delivered pixels and a `MeshStandardMaterial` crown puts thousands of them in the frame
-//    that are off the ground palette by construction. But a shadow with nothing casting it is not
-//    a picture anyone can judge, so the owner's pair is taken separately and labelled as such.
-for (const arm of ['grain-normal', 'shadow', 'dense']) {
-  const dataUrl = await page.evaluate(
-    ([a, z]) => window.landRunner.snapshotTreed(a, z),
-    [arm, 8],
-  );
-  const name = `shipped-${arm}-treed-8px.png`;
-  writeFileSync(join(OUT, name), Buffer.from(dataUrl.split(',')[1], 'base64'));
-  pictures.push(name);
-  console.log(`  wrote ${name}`);
-}
+// ⚠⚠ THE THREE `*-treed-8px.png` PICTURES ARE NO LONGER TAKEN (ADR-0508). They were the ladder's
+//    arms with the placeholder story tree added — for LOOKING at, measured by nothing — because "a
+//    shadow with nothing casting it is not a picture anyone can judge". The tree is retired and so
+//    is the shadow it cast, so the three frames would now be bare ground under a filename saying
+//    `treed`, which is worse than not taking them. The dressed pair below is the picture that
+//    answers the same question: the grove is what stands and casts on this island now.
+//    ⚠ THE OLD FILES ARE NOT DELETED FROM PAST EVIDENCE DIRECTORIES — they are what the map looked
+//    like on their own dates, and a run writing to a fresh `OUT` simply stops producing more.
 
 // ⚠⚠ AND THE PAIR THIS INCREMENT LANDS: the shipped island WITHOUT and WITH one bought object per
 //    capability (ADR-0475), at both zooms, differing in exactly that one thing. Also measured by
@@ -394,10 +387,14 @@ for (const arm of ['grain-normal', 'shadow', 'dense']) {
 //    look at the ground he adopted UNDER the props he adopted — `shadow` is the four-rung ladder
 //    the map wore, `dense` is the nine-rung one it wears, the props and the frame are identical,
 //    and the ladder is the only difference between them.
+//
+//    ⚠ THE `bare` HALF IS NOW GENUINELY BARE. It was `snapshotTreed` — the island with the
+//    placeholder story tree on it — so the "without" arm carried one object and its shadow. ADR-0508
+//    retired that tree, and the arm is `snapshot`: ground, and nothing standing on it at all.
 const dressed = [];
 for (const zoom of LAND_ZOOMS) {
   for (const arm of ['shadow', 'dense']) {
-    const bare = await page.evaluate(([a, z]) => window.landRunner.snapshotTreed(a, z), [arm, zoom]);
+    const bare = await page.evaluate(([a, z]) => window.landRunner.snapshot(a, z), [arm, zoom]);
     const bareName = `shipped-bare-${arm}-${zoom}px.png`;
     writeFileSync(join(OUT, bareName), Buffer.from(bare.split(',')[1], 'base64'));
 

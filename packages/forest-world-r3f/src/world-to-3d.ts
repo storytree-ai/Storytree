@@ -6,7 +6,7 @@
 // 2D SVG primitives. It supplies its own 3D geometry family for each core kind:
 //   cell        → cell-ground       (extruded parcel prism, the RELAXED-MESH substrate)
 //   cell-wheat  → cell-ground       (ditto — wheat is a 2D look, not a different ground)
-//   tree        → story-tree        (3D story tree)
+//   tree        → (SKIPPED)         (the 3D map stands a grove, not one hero tree — ADR-0508)
 //   trail-fill  → trail-strip       (routed ribbon strip on the ground plane, ADR-0169 §4)
 //   trail-ghost → trail-ghost-strip (the under-island run — surfaces may skip it)
 //   cave        → cave-arch         (the forced-route portal prop at the rim bearing)
@@ -45,6 +45,34 @@
 // classic scene finds out immediately, at the mapper, rather than downstream on an
 // island with no ground.
 //
+// ⚠⚠ THE `tree` (PLACEHOLDER STORY TREE) FAMILY IS RETIRED TOO, AND IT SKIPS RATHER
+// THAN REFUSES — the OPPOSITE call from `tile` above, on the same question, and the
+// difference is what a scene carrying the kind now MEANS. A `tile` group means a caller
+// built the wrong substrate, so every scene carrying one is a fault to report. A `tree`
+// group means an ORDINARY, CURRENT scene: the 2D maps still draw their hero tree from it
+// (`.story-tree .crown-lo circle`, ADR-0226's crown token), and the semantic scene the 3D
+// mapper reads is the SAME scene they read. Refusing here would refuse every island on
+// the map. So the mapper records the kind it saw and draws nothing, which is exactly what
+// `{ kind: 'skipped' }` is for, and what it already does for the 1,088 other objects the
+// semantic scene stands on this ground.
+//
+// WHY IT DRAWS NOTHING (owner, 2026-09-03, ADR-0508): "under this new look the center
+// tree will no longer be a thing, each island will be a small grove or forest". The
+// hand-built cone-on-a-cylinder predates the bought kit; since ADR-0475 D2 the LAND
+// carries the story's own state uniformly across the island, so the cone was a second
+// copy of a signal the ground already reports, and it was the one object on the map that
+// was not from the pack. `grove-dressing.ts` stands the grove that replaces it.
+//
+// ⚠ THE SEAM IS HERE ON PURPOSE — the mesh could equally have been dropped at the canvas.
+// It is retired at the MAPPER because every downstream reader of what stands on the map
+// reaches it through this function: the shipped canvas's `<StoryTree>`, the occlusion
+// field's `groundCasters`, and — through `shippedCasters()` → `crowdCasters()` — every
+// comparison page in `harness/`. Stopping the emission moves all of them at once and
+// leaves no second list to keep in step, which is the failure
+// `comparison-baseline-moves-under-the-page` names: a page reporting a scene the map no
+// longer draws. An emitted-but-undrawn `InstanceDescriptor` would have been exactly that
+// second list, since an instance descriptor IS the claim "something stands here".
+//
 // ⚠ `cell-ground` IS DELIBERATELY THE SAME FIDELITY the retired classic prism was — a
 // flat prism wearing the parcel's folded status colour. It is the representation the
 // mapper always intended to draw, arriving in the shape the product now emits it. It is
@@ -70,7 +98,6 @@ export interface Transform3D {
 /** The 3D mesh family a mapped scene node belongs to. */
 export type InstanceKind =
   | 'cell-ground'
-  | 'story-tree'
   | 'trail-strip'
   | 'trail-ghost-strip'
   | 'cave-arch'
@@ -88,14 +115,14 @@ export interface InstanceDescriptor {
   group: string;
   /** The material variant, derived from the territory's folded SceneStatus (e.g.
    *  'healthy' / 'unhealthy' / 'proposed'). Set for status-bearing families (cell-ground,
-   *  story-tree, cave-arch); absent on families that don't carry a territory status. */
+   *  cave-arch, uat-bloom); absent on families that don't carry a territory status. */
   material?: string;
   /** A ground-plane polyline: the family's own path as 3D points, in path order.
    *  On a `trail-strip` / `trail-ghost-strip` it is the segment's smoothed centreline —
    *  the ribbon the canvas lays on the ground; curve control points join the polyline
    *  (the pathPoints approximation). On a `cell-ground` it is the parcel's CLOSED RING,
    *  each vertex once and no repeated first point (`polyPath` closes with `Z`, which
-   *  carries no coordinates). Absent on point-like families (story-tree / wisp-sprite /
+   *  carries no coordinates). Absent on point-like families (uat-bloom / wisp-sprite /
    *  cave-arch), whose geometry is a primitive at `transform`. */
   points?: Transform3D[];
   /** Ribbon / portal-mouth width in world px. Trail strips: `trailFillWidth(usage)` —
@@ -116,8 +143,8 @@ export interface InstanceDescriptor {
   bearing?: number;
   /** THE OWNING STORY'S ISLAND ID — which island this instance belongs to.
    *
-   *  Set on every family that belongs to exactly ONE island: `cell-ground`,
-   *  `story-tree` and `uat-bloom` inherit it from the enclosing island-level group; `cave-arch`
+   *  Set on every family that belongs to exactly ONE island: `cell-ground`
+   *  and `uat-bloom` inherit it from the enclosing island-level group; `cave-arch`
    *  carries its own (`node.island`, the portal's home island — the portal sits on a rim and is
    *  reached through the trails layer, not through a territory group). Absent on `trail-strip` /
    *  `trail-ghost-strip` / `wisp-sprite`: a trail spans two islands and belongs to neither, and
@@ -405,19 +432,45 @@ function walkNode(
       );
     }
 
-    case 'tree': {
-      // The central story tree → story-tree instance. The tree group carries a
-      // `translate(treeSpot.x treeSpot.y)` which is folded into childXY.
-      const tree: InstanceDescriptor = {
-        kind: 'story-tree',
-        transform: { x: childXY.x, y: 0, z: childXY.y },
-        group: 'story-tree',
-        material: status ?? 'unknown',
-      };
-      if (island !== undefined) tree.island = island;
-      out.push(tree);
+    // Stryker disable next-line StringLiteral: EQUIVALENT for the mutant generated, stated
+    // precisely rather than claimed in general. Stryker rewrites this label to `case ""`, and a
+    // node whose `kind` is `'tree'` then matches no case and falls to `default:` — which runs
+    // `if (kind) out.push({ kind: 'skipped', sceneKind: kind })` and, `'tree'` being truthy,
+    // produces a BYTE-IDENTICAL descriptor. The mutant is separable only by a node whose `kind` is
+    // the empty string: the mutated `case ""` would emit `sceneKind: ""` where the real code falls
+    // to `default` and its `if (kind)` guard emits nothing. `kind` is `node.kind` (`SceneKind |
+    // undefined`, `world-to-3d.ts:334`), so `""` is not a value the type admits and no fixture can
+    // construct one without lying about the scene.
+    //
+    // ⚠ THE CASE IS KEPT RATHER THAN DELETED, and its being equivalent is the reason to say so
+    // here rather than to fold it into `default`. It carries MEANING that its output cannot: a
+    // `tree` group is a core kind this mapper understands and DELIBERATELY draws nothing for,
+    // which is a different statement from `default`'s "a kind nobody has taught this mapper yet",
+    // even where the two agree byte for byte. That is the same distinction `case 'tile'` makes one
+    // branch above, and the place a reader will look for the retirement.
+    case 'tree':
+      // ⚠⚠ THE PLACEHOLDER STORY TREE IS RETIRED FROM THE 3D MAP — A SKIP, NOT A REFUSAL, and
+      // not a `story-tree` instance either. Until 2026-09-04 this case emitted one, and the
+      // shipped canvas drew a cylinder trunk under a cone crown at every island's centre. The
+      // owner retired it (ADR-0508): "under this new look the center tree will no longer be a
+      // thing, each island will be a small grove or forest". The grove that stands in its place
+      // is `grove-dressing.ts`'s, placed from the bought kit.
+      //
+      // ⚠ IT SKIPS RATHER THAN REFUSING, which is the opposite call from `case 'tile'` above and
+      // the difference is what a scene carrying the kind means. A `tile` group means the caller
+      // built the wrong substrate — a fault, on every scene carrying one. A `tree` group means an
+      // ordinary current scene: the 2D maps still draw their own hero tree from it and read the
+      // SAME semantic scene, so refusing here would refuse every island. Recording the kind and
+      // drawing nothing is what `skipped` is for, and is already what this mapper does for the
+      // 1,088 other objects the semantic scene stands on this ground.
+      //
+      // ⚠ AND IT IS A SKIP RATHER THAN AN UNDRAWN INSTANCE, which is the seam decision. An
+      // `InstanceDescriptor` is the claim "something stands here" — `groundCasters` darkens the
+      // ground beneath one, `harness/main.tsx` counts them, and `shippedCasters()` hands them to
+      // every comparison page. Emitting one nothing draws would leave a second list to keep in
+      // step with the canvas, which is `comparison-baseline-moves-under-the-page` exactly.
+      out.push({ kind: 'skipped', sceneKind: kind });
       break;
-    }
 
     case 'tall-flower-proven': {
       // ONE SIGNED UAT CRITERION OF THE OWNING STORY → a `uat-bloom` instance (ADR-0226 D4, one
@@ -505,12 +558,14 @@ function walkNode(
  *
  * Core kind families emit `InstanceDescriptor` objects, each POSITIONED from the
  * real World geometry (the faithfulness contract): the parcel's own ring centroid
- * (`polyPath`), the tree's `treeSpot` translate, the trail segment's routed polyline
+ * (`polyPath`), the trail segment's routed polyline
  * (carried as `points` + a centroid anchor, width from the ONE `trailFillWidth` rule),
  * the cave's rim translate+rotate, the wisp's territory centroid:
  * - `cell` / `cell-wheat`
  *                 → `cell-ground`       (parcel prism; material = territory SceneStatus)
- * - `tree`        → `story-tree`        (3D story-tree mesh; material = territory SceneStatus)
+ * - `tree`        → SKIPPED             (the placeholder story tree is retired from the 3D map —
+ *                                        ADR-0508; each island stands a grove instead, and the 2D
+ *                                        maps keep drawing their own hero tree from the same node)
  * - `trail-fill`  → `trail-strip`       (ground-plane ribbon; usage/edges/segment metadata)
  * - `trail-ghost` → `trail-ghost-strip` (the under-island run — surfaces may skip it)
  * - `cave`        → `cave-arch`         (rim portal prop; bearing = rotation about Y)

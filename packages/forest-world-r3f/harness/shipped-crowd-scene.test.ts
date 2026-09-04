@@ -25,6 +25,7 @@ import {
   buildCrowdScene,
   coastAt,
   crowdCasters,
+  offsetPerIsland,
   crowdCells,
   crowdIslands,
   crowdPxPerUnit,
@@ -196,12 +197,30 @@ test('the fit zoom is never one of the timed zooms', () => {
 // ---------------------------------------------------------------------------
 
 test('every island brings its own casters, so no island wears the whole forest\'s shadows', () => {
-  const casters = crowdCasters(REAL);
-  assert.equal(casters.length, shippedCasters().length * REAL.islands);
-  const places = new Set(casters.map((c) => `${c.x},${c.z}`));
+  // ⚠⚠ THIS TEST WENT SILENTLY VACUOUS ON 2026-09-04 AND HAD TO BE REBUILT, NOT RENUMBERED. It
+  // asserted `casters.length === shippedCasters().length * REAL.islands` and that no two casters
+  // share a place. ADR-0508 retired the placeholder story tree, which was the ONLY thing an
+  // island's descriptor stream stood, so `shippedCasters()` became `[]` and both assertions
+  // degenerated to `0 === 0` over an empty set — still GREEN, and no longer checking the offsets
+  // at all. Nothing failed; the check simply stopped checking, which is the one outcome a suite
+  // must never produce quietly.
+  //
+  // So the per-island offsetting — the property this test exists for, and the one whose absence
+  // stacks thirty-five islands' shadows on one — is now proved against a SYNTHETIC base list,
+  // because the real one is legitimately empty and no longer a subject.
+  assert.deepEqual(shippedCasters(), [], 'the island stands nothing of its own since ADR-0508');
+  assert.deepEqual(crowdCasters(REAL), [], 'so the crowd replicates nothing');
+
+  const base = [
+    { x: 0, z: 0, radius: 3, height: 5 },
+    { x: 7, z: -2, radius: 1, height: 2 },
+  ];
+  const offset = offsetPerIsland(base, REAL);
+  assert.equal(offset.length, base.length * REAL.islands);
+  const places = new Set(offset.map((c) => `${c.x},${c.z}`));
   assert.equal(
     places.size,
-    casters.length,
+    offset.length,
     'two casters at one place means the offsets were not applied and 35 islands\' shadows are ' +
       'stacked on one',
   );

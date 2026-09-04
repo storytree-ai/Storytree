@@ -150,7 +150,7 @@ test('⚠ A NEIGHBOURING ISLAND NEVER PULLS THE SHORE — the nearest loop is th
 });
 
 test('a descriptor that belongs to no coast contributes no shore', () => {
-  const tree = { kind: 'story-tree', island: 'story-a', transform: { x: 5, y: 0, z: 5 } };
+  const tree = { kind: 'uat-bloom', island: 'story-a', transform: { x: 5, y: 0, z: 5 } };
   // ⚠ OMITTED, NOT SET TO `undefined`. Under `exactOptionalPropertyTypes` those are different
   // inputs, and only the first is the shape `worldTo3D` can actually emit.
   const { island: _i, ...homeless } = square();

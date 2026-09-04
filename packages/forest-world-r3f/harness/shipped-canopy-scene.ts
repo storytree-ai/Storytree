@@ -1,7 +1,7 @@
 // shipped-canopy-scene.ts — THE CANOPY ON THE SHIPPED GROUND: what stands on it, what that
 // shades, and what a healthy island's grove does to the picture. Three arms, one thing each.
 //
-//   bare        the shipped ground alone — every layer at what ships, the story tree's own shadow,
+//   bare        the shipped ground alone — every layer at what ships, nothing standing and nothing casting,
 //               nothing bought standing on it (CONTROL and DENOMINATOR)
 //   capability  + the vocabulary: one pine per capability, one bloom per signature (ADR-0475) —
 //               NOW CASTING, which until 2026-09-03 they did not (`ground-casters.ts`'s header)
@@ -19,7 +19,8 @@
 // same parcels, the same strips, the same framing and the same material factory at the shipped
 // strengths. What an arm chooses is its PLACEMENT LIST, and that list reaches the ground exactly
 // the way it reaches the map: as the casters `shippedGroundBuild` is handed, unioned with the
-// crowd's own story-tree casters, through the same `placementCasters` the canvas calls. So a pixel
+// crowd's own descriptor-stream casters, through the same `placementCasters` the canvas calls. (⚠
+// that second list was each island's story tree and is now EMPTY — ADR-0508 retired it.) So a pixel
 // between two arms is attributable to what stands there and the shadow it throws, and to nothing
 // else. `shipped-canopy-scene.test.ts` states that as a property of the source.
 //
@@ -162,7 +163,7 @@ export const SHIPPED_GROVE_ARM: CanopyArm = 'groves-x2';
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
 export const CANOPY_ARM_CAPTION = {
-  bare: 'the shipped ground alone — every layer at what ships, the story tree’s own shadow, nothing bought on it (CONTROL)',
+  bare: 'the shipped ground alone — every layer at what ships, nothing bought on it and, since the placeholder story tree was retired, nothing casting on it either (CONTROL)',
   capability:
     'the shipped ground + today’s vocabulary: one pine per capability, one bloom per signature — NOW casting their shadows',
   'groves-x1':
@@ -227,10 +228,16 @@ export function armPlacements(arm: CanopyArm, size: CrowdSize): KitPlacement[] {
 }
 
 /**
- * WHAT DARKENS THE GROUND, PER ARM: the crowd's own casters (each island's story tree) UNIONED
- * with one caster per placement — the same union, through the same `placementCasters`, that the
- * canvas hands its ground. On `bare` that is the story trees alone, which is the map as it drew
- * before this increment: the props stood and cast nothing.
+ * WHAT DARKENS THE GROUND, PER ARM: the crowd's own descriptor-stream casters UNIONED with one
+ * caster per placement — the same union, through the same `placementCasters`, that the canvas
+ * hands its ground.
+ *
+ * ⚠ THE FIRST HALF IS NOW EMPTY, AND THE UNION IS KEPT ANYWAY. `crowdCasters` was each island's
+ * story tree; ADR-0508 retired the family, so it returns `[]` and `bare` is an island with nothing
+ * standing on it and no pool at its centre — which is what a control for "what does the kit add"
+ * should have been all along. The union stays because it is the CANVAS's own shape (a `cave-arch`
+ * on a rim would come through it), and collapsing it to the placements would make this page stop
+ * being the same scene as the map the moment a portal appeared on one.
  */
 export function armCasters(arm: CanopyArm, size: CrowdSize): ShadowCaster[] {
   return [...crowdCasters(size), ...placementCasters(armPlacements(arm, size), CANOPY_FOOTPRINT, CANOPY_HEIGHTS)];

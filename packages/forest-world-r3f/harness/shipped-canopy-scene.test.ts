@@ -144,20 +144,31 @@ test('the arms differ in EXACTLY the dressing: nothing, the vocabulary, the voca
   assert.deepEqual(dressingOverlaps(groved, CANOPY_FOOTPRINT), []);
 });
 
-test('the casters are the crowd’s own plus one per placement — the control casts the story tree alone', () => {
-  assert.deepEqual(armCasters('bare', ONE), crowdCasters(ONE));
-  assert.equal(crowdCasters(ONE).length, 1, 'the map before this increment: one caster on the island');
+test('the casters are the crowd’s own plus one per placement — and the control now casts NOTHING', () => {
+  // ⚠⚠ THE CONTROL'S ONE CASTER WAS THE PLACEHOLDER STORY TREE, AND IT IS GONE (ADR-0508). This
+  // read `crowdCasters(ONE).length === 1` — "the map before this increment: one caster on the
+  // island" — because `crowdCasters` is `groundCasters(worldTo3D(islandScene()))` replicated per
+  // island, and the tree was the only descriptor on an island that cast. It is now ZERO, which
+  // makes `bare` a genuinely bare island: no bought object standing on it AND no pool at its
+  // centre. That is the whole visible before/after this increment lands.
+  assert.equal(crowdCasters(ONE).length, 0, 'nothing in the descriptor stream casts any more');
+  assert.deepEqual(armCasters('bare', ONE), []);
+  // ⚠ AND `armCasters` IS STILL THE UNION IT CLAIMS TO BE, not a function that has quietly become
+  // "the placements". With `crowdCasters` empty, `deepEqual(armCasters('bare'), crowdCasters())`
+  // — what this test used to open with — is `[] === []` and would hold for any implementation at
+  // all. The dressed arms are what carry that claim now.
   assert.deepEqual(armCasters('capability', ONE), [
     ...crowdCasters(ONE),
     ...placementCasters(armPlacements('capability', ONE), CANOPY_FOOTPRINT, CANOPY_HEIGHTS),
   ]);
+  assert.ok(armCasters('capability', ONE).length > 0, 'the kit still casts — the union is not empty for every arm');
   assert.equal(
     armCasters(SHIPPED_GROVE_ARM, ONE).length,
     crowdCasters(ONE).length + armPlacements(SHIPPED_GROVE_ARM, ONE).length,
   );
   const plan = canopyPlan(SHIPPED_GROVE_ARM, ONE);
   assert.equal(plan.kitCasters, plan.placements, 'a placement without a caster is an object that floats');
-  assert.equal(plan.casters, plan.kitCasters + 1);
+  assert.equal(plan.casters, plan.kitCasters, 'every caster on the map is now a kit placement’s');
 });
 
 test('no placement stands off the island on any arm — and the count CAN fire', () => {
@@ -200,7 +211,9 @@ test('the plan reads the same list the scene draws, by kind', () => {
   assert.equal(plan.blooms, placements.filter((p) => p.role === 'bloom').length);
   assert.equal(plan.capabilityTrees + plan.blooms + plan.groves, plan.placements);
   assert.equal(plan.capabilityTrees, 11);
-  assert.deepEqual(canopyPlan('bare', ONE), { ...canopyPlan('bare', ONE), placements: 0, groves: 0, blooms: 0, kitCasters: 0, casters: 1 });
+  // `casters: 0` since ADR-0508 — it was 1, the placeholder story tree, and `bare` is now bare of
+  // shadow as well as of props.
+  assert.deepEqual(canopyPlan('bare', ONE), { ...canopyPlan('bare', ONE), placements: 0, groves: 0, blooms: 0, kitCasters: 0, casters: 0 });
 });
 
 test('on the forest, groves grow on the healthy islands and on no other', () => {

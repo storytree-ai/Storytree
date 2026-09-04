@@ -2,70 +2,37 @@
 // browser-free, node:test-provable: it maps the descriptor families `ForestWorldCanvas` draws
 // onto the cylinder abstraction the occlusion field is built from.
 //
-// ⚠⚠ THE FINDING THIS MODULE EXISTS TO CARRY — measured 2026-08-30, and it resizes what a shadow
-// can do on this surface. The semantic scene for one island emits 1,089 objects that stand on the
-// ground: 693 grass blades, 144 flora, 112 shrubs, 3 stems, 136 tall-flower parts and ONE story
-// tree. The shipped mapper has a case for the tree and skips the other 1,088 — explicitly, as
-// `{ kind: 'skipped' }` audit records, not by accident. So the shipped map draws ONE object on
-// 8,425 square units of land, and every shadow it can cast is that one tree's.
+// ⚠⚠ THE FINDING THIS MODULE WAS BUILT TO CARRY IS NOW HISTORY, AND IT IS KEPT BECAUSE THE ARC'S
+// EVIDENCE PAGES QUOTE IT. Measured 2026-08-30: the semantic scene for one island emits 1,089
+// objects that stand on the ground — 693 grass blades, 144 flora, 112 shrubs, 3 stems, 136
+// tall-flower parts and ONE story tree — and the shipped mapper had a case for the tree and
+// skipped the other 1,088, explicitly, as `{ kind: 'skipped' }` audit records. So the shipped map
+// drew ONE object on 8,425 square units of land, and every shadow it could cast was that one
+// tree's. `contact-shade.ts`'s ranking inverted here for that reason: contact darkening was ranked
+// FIRST of ten mechanisms on the EXPERIMENT island, which stands 155 props, where 155 tight pools
+// ARE most of what "placed rather than pasted" means, and one pool is not.
 //
-// That is why `contact-shade.ts`'s ranking inverts here. Contact darkening was ranked FIRST of
-// ten mechanisms separating the owner's references from our island — but it was ranked on the
-// EXPERIMENT island, which stands 155 props, where 155 tight pools ARE most of what "placed
-// rather than pasted" means. One pool is not. Both terms ship, because they merge into one
-// texture and one rung and dropping either buys nothing; but the shadow this map can draw today
-// is bounded by its own emptiness rather than by the field, and it will grow when the props do.
-//
-// ⚠⚠ AND THE PROPS DID GROW (2026-09-03), so the finding above is now history rather than the
-// present. The bought kit crossed on 2026-08-30 and stood one object per capability plus one bloom
-// per signature; until this landing every one of them cast NOTHING — `groundCasters` knew only the
-// story tree and the cave portals, so the contact pools and cast shadows the field already carried
-// were drawn under the placeholder tree alone while eleven pines and ten flowers floated. Every
-// placement now contributes a caster ({@link placementCaster}) from the SAME placement list
+// ⚠⚠ THEN THE PROPS GREW (2026-09-03) AND THE TREE WENT (2026-09-04), in that order, and the
+// present is the second half. The bought kit crossed on 2026-08-30 standing one object per
+// capability plus one bloom per signature, and until 2026-09-03 every one of them cast NOTHING —
+// `groundCasters` knew only the story tree and the cave portals, so the pools the field already
+// carried were drawn under the placeholder tree alone while eleven pines and ten flowers floated.
+// Every placement now contributes a caster ({@link placementCaster}) from the SAME placement list
 // `KitProps` draws, computed once in the canvas before the ground is built, so the shadow and the
-// object it belongs to cannot be two lists that agree today.
+// object it belongs to cannot be two lists that agree today. The placeholder tree was then retired
+// outright (ADR-0508) — each island stands a grove now — and its caster went with it in the same
+// landing, because a shadow with nothing casting it is the misreport this module exists to
+// prevent. The dark pool at every island's CENTRE in every frame on this arc up to that date was
+// the placeholder's; there is no longer anything at an island's centre that casts one.
 //
-// ⚠ THE GEOMETRY CONSTANTS BELOW ARE THE MESHES' OWN. `ForestWorldCanvas` builds its story tree
-// from them rather than from repeated literals, so a caster cannot come to disagree with the
-// object it stands for — the same argument `bandGlsl` makes about the ladder, applied to a
-// silhouette. A tree that grew and a shadow that did not would read as a rendering bug.
+// ⚠ WHAT STILL CASTS FROM THE DESCRIPTOR STREAM IS THE CAVE PORTAL, AND {@link groundCasters}
+// KEEPING ONE CASE IS NOT A FUNCTION WAITING TO BE INLINED. It is the one place that answers
+// "which descriptor families meet the ground", and the two families it answers NO for — wisps and
+// trails — are decisions with reasons, held below and by this module's own tests.
 
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
 import type { GroundBounds, ShadowCaster } from './land-shadow.js';
 import { propRadius, type KitPlacement, type RoleFootprints, type RoleHeights } from './kit-vocabulary.js';
-
-/** The story tree's trunk: `cylinderGeometry(radiusTop, radiusBottom, height)`, standing on the
- *  descriptor's own y. */
-export const STORY_TREE_TRUNK = { radiusTop: 1.2, radiusBottom: 1.6, height: 8 } as const;
-
-/** The story tree's crown: `coneGeometry(radius, height, segments)`, centred `centreY` above the
- *  descriptor's own y — so it spans `centreY - height/2` to `centreY + height/2`. */
-export const STORY_TREE_CROWN = { radius: 7, height: 14, segments: 8, centreY: 12 } as const;
-
-/** How high the story tree reaches above the ground it stands on — the crown's tip. */
-export function storyTreeTop(): number {
-  return STORY_TREE_CROWN.centreY + STORY_TREE_CROWN.height / 2;
-}
-
-/**
- * The story tree, as an occluder.
- *
- * ⚠ THE CROWN'S RADIUS OVER ITS WHOLE HEIGHT, AND THE OVER-STATEMENT IS BOUNDED AND MEASURED.
- * `ShadowCaster` is a vertical cylinder; the crown is a CONE spanning y 5 to 19, so a cylinder of
- * its base radius casts shadow over a strip the cone does not — the ground within about 3.5 units
- * downwind of the trunk, where the cone's own shadow has not yet landed. Every square unit of
- * that strip lies inside the CONTACT pool, whose derived reach is 9.7 units from the same trunk,
- * so the delivered picture is identical and the merged field is the same field. Modelling the
- * taper instead would be arithmetic nobody could see.
- */
-export function storyTreeCaster(tree: InstanceDescriptor): ShadowCaster {
-  return {
-    x: tree.transform.x,
-    z: tree.transform.z,
-    radius: STORY_TREE_CROWN.radius,
-    height: storyTreeTop(),
-  };
-}
 
 /** The cave portal's mouth half-width — `CaveArch`'s own `hw`, which is the 2D prop's rule. */
 export function caveMouthHalfWidth(cave: InstanceDescriptor): number {
@@ -89,6 +56,11 @@ export function caveArchCaster(cave: InstanceDescriptor): ShadowCaster {
 /**
  * Every caster in a descriptor set.
  *
+ * ⚠ THE `story-tree` CASE IS GONE BECAUSE THE FAMILY IS (ADR-0508), not because the tree stopped
+ * casting. `world-to-3d.ts` no longer emits a `story-tree` descriptor at all — a `tree` group
+ * skips — so a branch for it here would be unreachable code standing in for an object that is not
+ * on the map, and a test exercising it would be green over nothing.
+ *
  * ⚠ WISPS ARE DELIBERATELY EXCLUDED, and not because they are small. A wisp is drawn 20 units
  * ABOVE the ground — it does not meet the land at all, so it has no contact to darken — and it is
  * the LIVE-WORK signal (ADR-0200 / ADR-0142): it appears when a session claims a capability and
@@ -102,8 +74,7 @@ export function caveArchCaster(cave: InstanceDescriptor): ShadowCaster {
 export function groundCasters(descriptors: readonly Descriptor3D[]): ShadowCaster[] {
   const out: ShadowCaster[] = [];
   for (const d of descriptors) {
-    if (d.kind === 'story-tree') out.push(storyTreeCaster(d));
-    else if (d.kind === 'cave-arch') out.push(caveArchCaster(d));
+    if (d.kind === 'cave-arch') out.push(caveArchCaster(d));
   }
   return out;
 }

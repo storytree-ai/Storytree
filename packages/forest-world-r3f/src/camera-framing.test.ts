@@ -21,8 +21,11 @@ import {
 } from './camera-framing.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
+/** A point-like instance at a ground position — `frameWorld` reads only `transform`, so the family
+ *  is a stand-in and nothing here depends on which one it is. It was `story-tree` until that
+ *  family was retired (ADR-0508). */
 function at(x: number, z: number): InstanceDescriptor {
-  return { kind: 'story-tree', transform: { x, y: 0, z }, material: 'healthy' } as InstanceDescriptor;
+  return { kind: 'uat-bloom', transform: { x, y: 0, z }, material: 'healthy' } as InstanceDescriptor;
 }
 
 /** A square-ish island of half-extent `spread` about the origin. */

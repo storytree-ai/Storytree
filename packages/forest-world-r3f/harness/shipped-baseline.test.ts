@@ -47,6 +47,43 @@ import { LIGHT_DIRECTION, SHADE_LEVELS } from '../src/shade-ladder.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SHIPPED = join(HERE, '..', 'src', 'ForestWorldCanvas.tsx');
 
+/**
+ * The `[start, end)` span of the shipped source between two anchors — REFUSING when either anchor
+ * is missing.
+ *
+ * ⚠⚠ THE FAILURE THIS EXISTS TO MAKE IMPOSSIBLE, and it very nearly landed. The two structural
+ * assertions below used to slice with a bare `src.indexOf('function StoryTree')` as their END
+ * anchor. `StoryTree` was retired on 2026-09-04 (ADR-0508), `indexOf` returned `-1`, and
+ * `String.prototype.slice` reads a negative end as an offset FROM THE END — so the region silently
+ * became the whole rest of the file, or empty, and both tests went on passing while asserting
+ * about the wrong text. Nothing would have failed; the checks would simply have stopped checking.
+ * That is `moving-a-write-target-makes-old-readers-vacuously-green` on a source-text reader, and
+ * the remedy is not "pick a better anchor" — it is to make a missing anchor LOUD, because the next
+ * component to be retired will move somebody's anchor again.
+ */
+function regionOf(src: string, from: string, to: string): [number, number] {
+  const start = src.indexOf(from);
+  const end = src.indexOf(to);
+  assert.ok(start >= 0, `the shipped canvas no longer contains '${from}' — re-anchor this slice`);
+  assert.ok(end > start, `'${to}' is missing or precedes '${from}' in the shipped canvas — re-anchor this slice`);
+  return [start, end];
+}
+
+/**
+ * The shipped source with its comments removed — what the canvas DOES, without what it says.
+ *
+ * ⚠ NEEDED BY THE "X IS GONE" ASSERTIONS, and the reason is worth stating because it is a trap
+ * that fires on the very landing that retires something. This file's habit — a good one — is to
+ * leave a note where a retired component stood, naming the symbols that went. A negative regex over
+ * the RAW source then matches the tombstone and reports the thing as still present, so the choice
+ * is between a check that fires on its own documentation and a codebase that may not describe what
+ * it removed. Stripping comments is the third option, and it is the honest one: the claim these
+ * assertions make is that nothing MOUNTS a `StoryTree`, never that the file may not mention it.
+ */
+function codeOf(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
 /** Triangles three actually generated. Non-indexed geometry has no index buffer, so both
  *  cases are handled rather than assumed. */
 function realTriangles(g: BufferGeometry): number {
@@ -56,25 +93,35 @@ function realTriangles(g: BufferGeometry): number {
 
 test('the closed-cylinder formula matches three — both ends capped, the retired hex prism’s own shape', () => {
   // ⚠ `hex-ground` (the classic prism this shape was authored for) is retired
-  // (`retire-the-old-land-path`); the FORMULA it exercised is not — `cylinderTriangles` is
-  // general-purpose arithmetic this file still needs for the story-tree trunk/crown below, and a
-  // closed cylinder (both radii non-zero, one non-degenerate torso row) is a real case of it worth
-  // holding to three's own count regardless of which shipped primitive once wore these numbers.
+  // (`retire-the-old-land-path`), and so, since 2026-09-04, is the story-tree trunk/crown that
+  // took over as `cylinderTriangles`'s last shipped caller (ADR-0508). The FORMULA is neither:
+  // it is general-purpose arithmetic about what three.js generates, and a closed cylinder (both
+  // radii non-zero, one non-degenerate torso row) is a real case of it worth holding to three's
+  // own count regardless of which shipped primitive once wore these numbers. Deleting it with its
+  // last caller would throw away a checked claim about a library this repo does not own.
   const g = new CylinderGeometry(9, 9, 3, 6);
   assert.equal(cylinderTriangles(6, 1, 9, 9), realTriangles(g));
   assert.equal(cylinderTriangles(6, 1, 9, 9), 24, 'a 6-segment closed cylinder is 24 triangles');
 });
 
-test('the story-tree trunk formula matches three (default 32 radial segments)', () => {
-  const g = new CylinderGeometry(1.2, 1.6, 8);
-  assert.equal(cylinderTriangles(32, 1, 1.2, 1.6), realTriangles(g));
-});
-
-test('the crown formula matches three — a CONE is not a zero-radius cylinder by count', () => {
-  const g = new ConeGeometry(7, 14, 8);
-  assert.equal(cylinderTriangles(8, 1, 0, 7), realTriangles(g));
+test('the retired trunk/crown formulas still match three — the arithmetic outlived its primitive', () => {
+  // ⚠ THESE TWO CASES NO LONGER DESCRIBE ANYTHING THE CANVAS DRAWS (ADR-0508 retired `StoryTree`,
+  // and `SHIPPED_PRIMITIVES` dropped both its rows), and they are kept deliberately rather than
+  // deleted with it. `cylinderTriangles` is a claim about three.js — that a CONE is not a
+  // zero-radius cylinder by count, because the degenerate tip row emits one triangle per radial
+  // segment instead of two — and that claim is what the whole authored-count discipline rests on.
+  // It was worth checking before this map drew a cone and it is worth checking after.
+  const trunk = new CylinderGeometry(1.2, 1.6, 8);
+  assert.equal(cylinderTriangles(32, 1, 1.2, 1.6), realTriangles(trunk));
+  const crown = new ConeGeometry(7, 14, 8);
+  assert.equal(cylinderTriangles(8, 1, 0, 7), realTriangles(crown));
   // NON-VACUITY on the degenerate-row rule: treating the tip as a full row would over-count.
   assert.notEqual(cylinderTriangles(8, 1, 0, 7), 8 * 2 + 8);
+  // And the two together were the map's whole authored cost before the `cell` case existed.
+  assert.equal(
+    cylinderTriangles(32, 1, 1.2, 1.6) + cylinderTriangles(8, 1, 0, 7),
+    BEFORE_THE_CELL_CASE.triangles,
+  );
 });
 
 test('the cave-arch and wisp formulas match three', () => {
@@ -86,13 +133,19 @@ test('authoredTriangles sums a census, and reports a family the canvas draws non
   // `hex-ground` used to be the multi-instance family exercised here; it is retired
   // (`retire-the-old-land-path`) and no longer a row in `SHIPPED_PRIMITIVES` at all, so
   // `cave-arch` takes its place as the still-live family with a drawable count above one.
-  const census = { 'story-tree': 1, 'cave-arch': 2, 'wisp-sprite': 0 };
+  // `story-tree` was the third family in this census and went the same way (ADR-0508).
+  const census = { 'cave-arch': 2, 'wisp-sprite': 0 };
   const got = authoredTriangles(census);
-  // one tree (trunk 128 + crown 16) + 2 x 24 arch + 0 wisp
-  assert.equal(got.triangles, 128 + 16 + 2 * 24);
+  // 2 x 24 arch + 0 wisp
+  assert.equal(got.triangles, 2 * 24);
   const wisp = got.byKind.find((k) => k.kind === 'wisp-sprite');
   assert.ok(wisp, 'a kind with zero drawables is REPORTED, not dropped');
   assert.equal(wisp.triangles, 0);
+  // ⚠ AND A RETIRED FAMILY CONTRIBUTES NOTHING EVEN WHEN A CENSUS STILL NAMES IT. A census is
+  // `Record<string, number>`, so nothing stops a stale caller passing `story-tree`; what must not
+  // happen is a row reappearing to charge for it.
+  assert.equal(authoredTriangles({ ...census, 'story-tree': 1 }).triangles, got.triangles);
+  assert.ok(!got.byKind.some((k) => k.kind.startsWith('story-tree')));
 });
 
 test('an empty census is zero, and every primitive still appears in the breakdown', () => {
@@ -365,7 +418,7 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   // ⚠ AND THE SMOOTH MATERIAL IS GONE FROM THE CELL GROUND RATHER THAN LEFT BESIDE IT. Two land
   // materials is the outcome item 6 calls worse than either — and here it would be worse still,
   // because the two disagree about what a status colour looks like.
-  const cellGround = src.slice(src.indexOf('function CellGround'), src.indexOf('function StoryTree'));
+  const cellGround = src.slice(...regionOf(src, 'function CellGround', 'function KitProps('));
   assert.ok(!/meshStandardMaterial/.test(cellGround), 'the cell ground keeps ONE material');
   assert.ok(!/attributes-color/.test(cellGround), 'and uploads no attribute its material cannot read');
   assert.match(cellGround, /attributes-\$\{GROUND_STATUS_ATTRIBUTE\}/, 'the row attribute is uploaded');
@@ -506,13 +559,74 @@ test('THE KIT CASTS: one placement, made before the ground, read by the casters 
   // The vocabulary-only dressing is not what ships: the canvas stands the grove.
   assert.ok(!/dressMapFromKit\(/.test(src), 'the canvas must stand the groved dressing');
   // KitProps computes NO placement of its own — it draws what it is handed.
-  const kitProps = src.slice(src.indexOf('function KitProps('), src.indexOf('function StoryTree('));
+  const kitProps = src.slice(...regionOf(src, 'function KitProps(', 'function TrailStrip('));
   assert.ok(!/dressMap|dressIsland/.test(kitProps), 'KitProps must not dress the map a second time');
   assert.ok(!/footprint: roleFootprints/.test(src), 'no placement may be made from the LOADED kit’s footprints');
   // And the loaded kit is still held to the frozen tables, loudly, where it is loaded.
   assert.match(kitProps, /footprintDriftOf\(roleFootprints\(loaded\)\)/);
   assert.match(kitProps, /heightDriftOf\(roleHeights\(loaded\)\)/);
   assert.match(kitProps, /kitMeshes\(loaded, placements\)/);
+});
+
+test('⚠⚠ THE PLACEHOLDER STORY TREE IS GONE FROM THE SHIPPED CANVAS — the mesh AND its caster', () => {
+  // ADR-0508, the owner: "under this new look the center tree will no longer be a thing, each
+  // island will be a small grove or forest". The mesh and the caster go together — a shadow with
+  // nothing casting it is the misreport `ground-casters.ts` exists to prevent — so both halves are
+  // asserted here, against the shipped file itself.
+  const src = readFileSync(SHIPPED, 'utf8');
+  const code = codeOf(src);
+  assert.ok(!/function StoryTree/.test(code), 'the StoryTree component must not return');
+  assert.ok(!/<StoryTree/.test(code), 'nothing mounts a StoryTree');
+  assert.ok(!/STORY_TREE_(TRUNK|CROWN)/.test(code), 'the trunk/crown constants must not come back');
+  assert.ok(!/crownColourOf/.test(code), 'and nothing resolves a crown colour for a cone that is gone');
+  // The caster half, at the source of the caster list rather than by reading a rendered frame:
+  // whatever `shippedGroundBuild` is handed, no term of it may be derived from a story tree.
+  assert.ok(!/storyTreeCaster|storyTreeTop/.test(code), 'no story-tree caster may enter the ground build');
+  // ⚠ BUT `CROWN_COLOUR` ITSELF MUST SURVIVE, and it is asserted here beside its resolver's absence
+  // so the pair is read as one decision. The table is the canvas's transcription of the app's
+  // authored `--crown-<status>-lo` tokens; `check:palette-transcription` parses it OUT OF THIS FILE
+  // and `src/leaf-tint.test.ts` pins the kit's `mapped` leaf tint to it. Deleting it as dead code —
+  // which it now looks like, since nothing in the file references it — reds a gate rung in every
+  // scope. The 2D maps still draw a crown; only the 3D cone is gone.
+  //
+  // ⚠ THE IDENTIFIER, NOT THE LITERAL, for the instrumentation reason given below — and this is
+  // deliberately the WEAKER of the two guards on the table. The strong one is `src/leaf-tint.
+  // test.ts`, which PARSES the map out of this file, floors it at six entries and proves the
+  // parse can fail; that is what would red if the table were emptied rather than deleted. This
+  // assertion's job is only to sit beside `crownColourOf`'s absence, so the pair reads as one
+  // decision: the resolver went, the vocabulary stayed.
+  assert.ok(/\bCROWN_COLOUR\b/.test(code), 'the crown vocabulary must survive its resolver');
+
+  // ⚠ AND THE FAMILY IS RETIRED AT THE MAPPER, WHICH IS THE STRONGER PROPERTY. A canvas that
+  // simply stopped DRAWING an emitted descriptor would still let `groundCasters` darken the ground
+  // under an object nobody can see — the exact shape this assertion pair exists to forbid.
+  //
+  // ⚠⚠ ASSERTED AS BEHAVIOUR RATHER THAN AS SOURCE TEXT, and the reason is a trap worth knowing:
+  // this was `assert.match(mapperSource, /case 'tree':\s*out\.push\(\{ kind: 'skipped' … \}\)/)`,
+  // which passed under `bun test` and FAILED the mutation rung's dry run. `check:mutation-diff`
+  // copies the tree into a Stryker sandbox and INSTRUMENTS the changed line spans — wrapping the
+  // very statements a diff-scoped rung selects — so a source-text regex that matches a span this
+  // branch touched cannot survive it. The negatives above are unaffected (instrumentation never
+  // ADDS a `StoryTree`); a verbatim positive over changed code is the shape that breaks.
+  const ds = worldTo3D(islandScene());
+  assert.ok(!ds.some((d) => String(d.kind) === 'story-tree'), 'the mapper emits no story-tree');
+  assert.ok(
+    ds.some((d) => d.kind === 'skipped' && d.sceneKind === 'tree'),
+    'and it records the tree group as a SKIP rather than dropping it',
+  );
+
+  // ⚠⚠ NON-VACUITY, AND IT IS LOAD-BEARING HERE RATHER THAN DECORATIVE: five of the six assertions
+  // above are NEGATIVE, and a negative regex over a file passes just as well when the file failed
+  // to load, when the path moved, when the pattern was mistyped — or when `codeOf` ate the whole
+  // file. Each of the three below closes one of those.
+  assert.match(code, /function CellGround/, 'the shipped canvas was read, and codeOf left its code');
+  assert.ok(/function StoryTree/.test(codeOf('function StoryTree({ tree }) {')), 'the pattern still matches code');
+  assert.ok(!/function StoryTree/.test(codeOf('// function StoryTree stood here')), 'and codeOf really strips');
+  assert.throws(
+    () => regionOf(src, 'function CellGround', 'function StoryTree'),
+    /re-anchor this slice/,
+    'a missing anchor must REFUSE rather than silently slice the rest of the file',
+  );
 });
 
 test('a WISP casts nothing on the shipped map, and the canvas does not decide that for itself', () => {
@@ -676,6 +790,13 @@ test('the shipped canvas costs what the authored count says — parcels included
   // ground, and it would go on being reported with the same calm authority. So the assertion is
   // that the two forms DISAGREE, which is the only way a defaulted argument can be held to
   // being supplied.
+  //
+  // ⚠⚠ AND THE UNDERCOUNT IS NOW TOTAL RATHER THAN PARTIAL, which makes the trap WORSE and not
+  // better. Until 2026-09-04 the census-only form at least returned the tree's 144 — a wrong
+  // number, but an obviously non-zero one. `StoryTree` is retired (ADR-0508) and this fixture
+  // stands no portal and no wisp, so every remaining `SHIPPED_PRIMITIVES` row scores zero on it
+  // and the census-only form now returns a confident, plausible-looking ZERO for an island of 164
+  // parcels. That is why the assertion below is `whole > withoutTheGround` rather than a literal.
   const ds = worldTo3D(islandScene());
   const c: Record<string, number> = {};
   for (const d of ds) c[d.kind] = (c[d.kind] ?? 0) + 1;
@@ -683,12 +804,17 @@ test('the shipped canvas costs what the authored count says — parcels included
   const parcelTriangles = cellGroundTrianglesFor(ds);
   assert.ok(parcelTriangles > 0, 'the fixture draws no parcels — the fixture, not the count, is wrong');
 
-  const treeOnly = authoredTriangles(c).triangles;
-  assert.equal(treeOnly, BEFORE_THE_CELL_CASE.triangles, 'the story tree alone is still 144');
+  const withoutTheGround = authoredTriangles(c).triangles;
+  assert.equal(withoutTheGround, 0, 'this fixture stands no hand-built primitive at all any more');
+  assert.notEqual(
+    withoutTheGround,
+    BEFORE_THE_CELL_CASE.triangles,
+    'the retired story tree is still being charged for',
+  );
 
   const whole = authoredTriangles(c, parcelTriangles).triangles;
-  assert.equal(whole, treeOnly + parcelTriangles);
-  assert.ok(whole > treeOnly, 'the ground contributed nothing — the parcel total was dropped');
+  assert.equal(whole, withoutTheGround + parcelTriangles);
+  assert.ok(whole > withoutTheGround, 'the ground contributed nothing — the parcel total was dropped');
 
   // And the per-kind breakdown names the parcels rather than folding them into a total.
   const row = authoredTriangles(c, parcelTriangles).byKind.find((k) => k.kind === 'cell-ground');

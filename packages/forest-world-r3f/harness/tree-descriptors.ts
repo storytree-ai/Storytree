@@ -1,9 +1,12 @@
 // tree-descriptors.ts — THE HERO STORY TREE for the live-render experiment, inside the
 // provability firewall (pure, no React, no three.js, node:test-provable).
 //
-// WHY THE ISLAND HAD NO TREE. `world-to-3d.ts` maps the land's STRUCTURE and does emit a
+// WHY THE ISLAND HAD NO TREE. `world-to-3d.ts` maps the land's STRUCTURE and used to emit a
 // `story-tree` descriptor — but only a POSITION and a status, because the sprite path draws the
-// tree with a sprite. The live island needs the tree's actual SHAPE, and the shape is sitting
+// tree with a sprite. (⚠ It emits none at all since ADR-0508: the 3D map's placeholder cone is
+// retired and each island stands a grove. This module is UNAFFECTED — it reads the 2D scene's
+// `kind: 'tree'` group directly, which is still emitted and still drawn by the 2D maps, and it has
+// never gone through `worldTo3D`.) The live island needs the tree's actual SHAPE, and it is sitting
 // right there in the scene: `buildTree` emits a `kind: 'tree'` group carrying a tapered trunk
 // path, five `crown-lo` circles and three `crown-hi` circles, all jittered deterministically by
 // the story's own id. This module reads that group.
@@ -249,9 +252,13 @@ function collect(node: SceneNode, at: Pt2, out: TreeInstance[]): void {
  * instances. Deterministic: same scene in, byte-identical array out, in scene-graph order.
  *
  * DELIBERATELY SEPARATE from `worldTo3D`, like `plantsFrom` and `flowersFrom`: that function's
- * `story-tree` descriptor is a POSITION for a sprite to stand at, and widening it into a shape
- * would change a contract the website's synced copy depends on, for an experiment whose
+ * `story-tree` descriptor was a POSITION for a sprite to stand at, and widening it into a shape
+ * would have changed a contract the website's synced copy depends on, for an experiment whose
  * ADOPTION is a separate event and the owner's (ADR-0380 D6).
+ *
+ * ⚠ THAT DESCRIPTOR IS GONE (ADR-0508) AND THE SEPARATION IS WHY THIS STILL WORKS. Reading the 2D
+ * scene's own `tree` group rather than the mapper's output is what leaves this experiment standing
+ * after the 3D map retired its placeholder — the shape was never the mapper's to give.
  */
 export function treesFrom(scene: SceneG): TreeInstance[] {
   const out: TreeInstance[] = [];
