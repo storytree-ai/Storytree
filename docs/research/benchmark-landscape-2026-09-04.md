@@ -5,6 +5,12 @@ Owner question: *"benchmarking for the harness space is improving — while stor
 its own harness (we're bring-your-own and sit on top), I want to make sure we're competitive
 standalone, and if a benchmark exists that works for us, I'd like to survey it."*
 
+> ⚠ **READ THIS FIRST — this document is CONTEXT, not a plan (ADR-0514).** The owner settled the
+> question it opened: storytree is benchmarked on a **real codebase engagement**, not a public
+> leaderboard, and what gets built now is the *instrument* (`verdict-accuracy-arc`). **Do not build a
+> SWE-bench or Terminal-Bench adapter off this survey.** §6 and §7 carry the settled ladder; the
+> RigorBench paragraph in §2 carries a correction to figures an earlier revision got wrong.
+
 **Verification convention.** `[OP]` = the operator fetched the primary source directly during this
 pass and the claim is quoted from it. `[AG]` = a research agent reported it with a URL but the
 operator did not re-fetch. `[REPO]` = established by reading this repository. Treat `[AG]` as a lead
@@ -41,11 +47,12 @@ Four findings, in descending order of how much they change the plan:
    cheaper. GitHub published the same claim shape in Jun 2026; Artificial Analysis publishes it
    third-party. **None of this needs anyone's permission.**
 
-4. **The axis storytree would actually win on is unoccupied, and rides for free on any hidden-test
-   benchmark.** No public instrument measures the false-PASS rate of an orchestrator's completion
-   claim. storytree is the only system in this space that emits a *checkable* claim — a signed
-   verdict — so it is the only one that can report a precision number for it. See
-   §6, which is the recommendation.
+4. **The axis storytree would actually win on is unoccupied.** No public instrument measures the
+   false-PASS rate of an orchestrator's completion claim. storytree is the only system in this space
+   that emits a *checkable* claim — a signed verdict — so it is the only one that can report a
+   precision number for it. ⚠ An earlier revision said this "rides for free on any hidden-test
+   benchmark"; that was misleading — the *marginal* cost over a run is near zero, but it still needs
+   a run. The genuinely free rungs are the two in §6 that measure our own work. See §6 and §7.
 
 **The honest headwind, stated up front:** do not expect to win on resolve rate. Google Research
 (28 Jan 2026, 180 configurations, 4 benchmarks) measured centralized orchestration at **+80.9% on
@@ -107,11 +114,27 @@ turns passed* before correctness breaks `[AG]`), and **Agents' Last Exam** (dete
 no LLM judge, rotating public/private split `[OP]` via search).
 
 **Verification and trust (the differentiator's neighbourhood — see §6).** **RigorBench**
-(2026-06-21) is the single most relevant existing instrument: its subject is *the harness*, it holds
-the LLM fixed, and it scores five pillars — **Planning Fidelity, Verification Coverage, Recovery
-Efficiency, Abstention Quality, Atomic Transition Integrity** — over 30 tasks in five categories
-including *Verify-Or-Die*, *Know When to Fold* and *Don't Break the Build*. Structured process
-discipline improved process scores **+41%** and downstream correctness **+17%** `[OP]`. Alongside it:
+(2026-06-21, [repo](https://github.com/MeherBhaskar/RigorBench)) is the nearest instrument whose
+subject is *the harness* on a fixed model — four harnesses (Agent-Rigor, Agent-Skills, Superpowers,
+baseline ReAct) all driven by Gemini 3.5 Flash. It scores **seven** weighted pillars: Planning
+Fidelity, Verification Coverage, Recovery Efficiency, Abstention Quality, Atomic Transition
+Integrity, Test Assertion Density and Exploration Efficiency, over **100** tasks in categories
+including *Verify-Or-Die*, *Know When to Fold* and *Don't Break the Build* `[OP]`.
+
+⚠ **CORRECTION, and it changes the recommendation.** An earlier revision of this document reported
+five pillars, 30 tasks, "+41% process / +17% outcome", "0% of baseline agents abstained" and a judge
+agreement of κ=0.74. All five came from a research-agent digest of an earlier preprint revision and
+**none survive a reading of the paper** `[OP]`. What it actually says: RigorScore 0.40±0.09 (ReAct)
+→ 0.53±0.08 (Agent-Rigor), outcome 0.64±0.05 → 0.83±0.05; **no inter-rater agreement is reported at
+all**, and the authors flag LLM-judge length and self-preference bias as a limitation. Note the
+error bars — the *process* intervals overlap, so their headline rests on the outcome column, not on
+the process metric the benchmark exists to supply.
+
+**The disqualifying detail: Verification Coverage is test-PRESENCE, not red-then-green.** It scores
+"the proportion of implemented functions for which the agent creates at least one test" and does not
+validate test-first ordering `[OP]`. So RigorBench would score storytree on *did you write tests* —
+which any agent satisfies — and never on the thing the spine enforces. **Read the paper for its task
+design, which is well-shaped; do not spend on running it.** Alongside it:
 **ImpossibleBench** (headline metric is a *cheating rate* — pass rate on tasks made impossible by
 conflicting spec vs tests; MIT, Inspect-based `[AG]`), **EvilGenie** (reward-hacking detection that
 already drives Codex, Claude Code and Gemini CLI as subjects `[AG]`), **SWT-bench** / **TDD-Bench
@@ -222,22 +245,42 @@ published, by someone else. And it aligns with the framing already established i
 "verification debt" (Vogels, Dec 2025) / the "verification gap" (Sonar, Jan 2026) is the
 best-evidenced pain in the field.
 
-### The three tiers, in the order they should be run
+### The ladder, cheapest first — settled as ADR-0514
 
-| Tier | What it answers | Instrument | Rough cost |
+⚠ An earlier revision of this section proposed three tiers led by a SWE-bench Pro comparison, and
+put RigorBench second. Both are superseded. The owner's steer (2026-09-04) is that **the benchmark
+event is a real codebase engagement — mapping an existing codebase, or building something known from
+scratch — not a public leaderboard**, and that what we build now is the *instrument* that makes such
+an engagement measurable rather than anecdotal. Recorded as **ADR-0514**; the work is
+**`verdict-accuracy-arc`**.
+
+The two cheap rungs need nothing we do not already have, which is what makes this instrument-building
+rather than a spend proposal.
+
+| Rung | What it answers | Instrument | Cost |
 |---|---|---|---|
-| **1 — legibility** | "Is storytree competitive standalone?" | Same model, three arms — bare Claude Agent SDK, bare Codex, storytree over each — on **SWE-bench Pro public (731, MIT, prebuilt Docker)**. Report resolution rate **+ $/task + tokens/task**, the Augment template. | Moderate; scales with instance subset |
-| **2 — the axis we can win** | "What does the spine actually buy?" | Same runs, different readout: cost and tokens **per landed unit**, plus **RigorBench** (30 tasks, open, harness-as-subject, fixed LLM) for verification coverage / abstention / build integrity. | Low — RigorBench is 30 tasks |
-| **3 — the unoccupied claim** | "When storytree says done, is it done?" | **Verdict precision** over tier 1's runs (free — the oracle is already there), hardened with **ImpossibleBench** (cheating rate under conflicting specs) and an **abstention arm** where the correct answer is "I can't". | Marginal on top of tier 1 |
+| **1 — test strength** | Are the tests the leaf writes and the spine accepts actually strong, or do they merely execute the code? | Mutation-score the tests authored during real red→green builds. **Stryker is already a dependency and `check:mutation-diff` is already a gate step**; ADR-0447 already ruled test strength a legitimate second axis. | **Free** — machinery exists |
+| **2 — false-pass smoke test** | Has a signed GREEN ever been contradicted by later history? | Verdicts carry `boundHash`, the hash of the span they proved. Where a later fix lands inside that span, that is a false-pass signal. Read with git alone. | **Free** — data exists |
+| **3 — verdict precision** | When storytree signs GREEN, does an oracle we do not control agree? | Held-out tests, ~50–100 instances through storytree alone, no baseline arms. **PROPOSAL — gated on owner spend AND the ephemeral-store decision.** | Real spend |
+| **4 — competitive number** | Are we competitive standalone? | Same model, three arms on SWE-bench Pro, cost and tokens per task — the Augment template. | Expensive |
 
-**Do tier 2 and 3 first if budget is tight.** RigorBench is 30 tasks and directly scores what we
-claim; verdict precision is nearly free once any hidden-test run exists. Tier 1 is the expensive one
-and the one where the field's evidence predicts we place respectably rather than win.
+**Start at rung 1.** If leaf-authored tests mutation-score badly, that is an important finding about
+the gate for the price of a gate run, and no external benchmark was needed to reach it. Rungs 1 and
+2 are independent and can run in either order or in parallel.
 
-**Venue, when there is something to publish:** a self-published **Harbor Hub** job plus a written
-methodology, in the shape Augment and GitHub used. Not a leaderboard PR — that door is shut.
-**SWE-bench Multimodal** and **SWE-bench Live** are the two boards still open to us if placement
-matters later.
+**Rung 3's arithmetic, since it is the one worth stating precisely.** A bare agent attempts N,
+submits N patches, M pass → resolve rate `M/N`. storytree attempts N, **signs GREEN on G and halts on
+N−G**; K of the G pass → precision `K/G`. The claim under test is `K/G` ≫ `M/N`, and the honest cost
+is that `K/N` is probably *lower* than `M/N` because we halt on the hard ones. **We do not solve
+more; we claim less falsely.** A bare agent has no verdict to score — it stops, and its stopping
+carries no claim — so this axis exists only because the spine does. And we do not own the oracle:
+held-out tests are written by the original maintainers and withheld, so there is nothing to tune
+toward, and a bad number is a real finding.
+
+**Venue, if placement ever matters:** a self-published **Harbor Hub** job plus a written methodology,
+in the shape Augment and GitHub used. Not a leaderboard PR — that door is shut. **SWE-bench
+Multimodal** and **SWE-bench Live** are the two boards still open to us. ⚠ Per ADR-0514, **nobody
+builds an adapter for these off this document** — it is banked as context, not as a plan.
 
 ### What a credible claim looks like
 
@@ -256,17 +299,25 @@ them at published API rates for the comparison arm, stating the convention.
 
 ---
 
-## 7 · Open fork for the owner
+## 7 · The fork, and how the owner settled it
 
-The survey does not settle whether to spend. The decision is:
+The survey originally left the spend open. **It is now settled — ADR-0514, owner-directed
+2026-09-04.**
 
-- **Do nothing yet** — the survey is banked, and no leaderboard door is open anyway.
-- **Tier 2+3 only** (cheap, differentiating, needs the ephemeral-store ADR) — buys the claim
-  "when storytree signs GREEN it is right N% of the time", which no competitor can answer.
-- **Full tier 1+2+3** — buys a competitive-standalone number as well, at real spend, with the
-  field's evidence predicting a respectable-not-winning resolve rate and a possible cost win.
+- **Where benchmarking happens:** a real codebase engagement — mapping an existing codebase, or
+  building something known from scratch. Not a public leaderboard.
+- **What gets built now:** the instrument, on the two free rungs above, so that engagement produces
+  a number rather than an anecdote. The ordering is the substance: the evidence an instrument needs
+  — which test the leaf wrote, which span a verdict bound, what later changed under it — is only
+  capturable while the work runs, so it cannot be retrofitted.
+- **What this document is:** context, not a plan. No SWE-bench or Terminal-Bench adapter is
+  chartered off it.
+- **Still owner-gated:** rung 3 (held-out oracle), which needs a spend call *and* the
+  benchmark-scoped ephemeral verdict store decision (§5). If the engagement lands first, the same
+  measurement is taken there and rung 3 closes unbuilt — a legitimate ending.
 
-Prerequisite for any of them: the **benchmark-scoped ephemeral verdict store** decision (§5).
+Work lives on **`verdict-accuracy-arc`**. Posture is `spine-wall-measurement-arc`'s: measure first,
+decide never. No gate rung and no threshold is added on the strength of any reading this produces.
 
 ---
 
