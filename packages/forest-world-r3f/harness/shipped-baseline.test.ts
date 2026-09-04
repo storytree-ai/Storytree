@@ -588,14 +588,32 @@ test('⚠⚠ THE PLACEHOLDER STORY TREE IS GONE FROM THE SHIPPED CANVAS — the 
   // and `src/leaf-tint.test.ts` pins the kit's `mapped` leaf tint to it. Deleting it as dead code —
   // which it now looks like, since nothing in the file references it — reds a gate rung in every
   // scope. The 2D maps still draw a crown; only the 3D cone is gone.
-  assert.match(src, /const CROWN_COLOUR: ReadonlyMap<string, string> = new Map\(\[/);
+  //
+  // ⚠ THE IDENTIFIER, NOT THE LITERAL, for the instrumentation reason given below — and this is
+  // deliberately the WEAKER of the two guards on the table. The strong one is `src/leaf-tint.
+  // test.ts`, which PARSES the map out of this file, floors it at six entries and proves the
+  // parse can fail; that is what would red if the table were emptied rather than deleted. This
+  // assertion's job is only to sit beside `crownColourOf`'s absence, so the pair reads as one
+  // decision: the resolver went, the vocabulary stayed.
+  assert.ok(/\bCROWN_COLOUR\b/.test(code), 'the crown vocabulary must survive its resolver');
 
   // ⚠ AND THE FAMILY IS RETIRED AT THE MAPPER, WHICH IS THE STRONGER PROPERTY. A canvas that
   // simply stopped DRAWING an emitted descriptor would still let `groundCasters` darken the ground
   // under an object nobody can see — the exact shape this assertion pair exists to forbid.
-  const mapper = codeOf(readFileSync(join(HERE, '..', 'src', 'world-to-3d.ts'), 'utf8'));
-  assert.ok(!/\|\s*'story-tree'/.test(mapper), "'story-tree' must not be an InstanceKind");
-  assert.match(mapper, /case 'tree':\s*out\.push\(\{ kind: 'skipped', sceneKind: kind \}\)/, 'a tree group SKIPS');
+  //
+  // ⚠⚠ ASSERTED AS BEHAVIOUR RATHER THAN AS SOURCE TEXT, and the reason is a trap worth knowing:
+  // this was `assert.match(mapperSource, /case 'tree':\s*out\.push\(\{ kind: 'skipped' … \}\)/)`,
+  // which passed under `bun test` and FAILED the mutation rung's dry run. `check:mutation-diff`
+  // copies the tree into a Stryker sandbox and INSTRUMENTS the changed line spans — wrapping the
+  // very statements a diff-scoped rung selects — so a source-text regex that matches a span this
+  // branch touched cannot survive it. The negatives above are unaffected (instrumentation never
+  // ADDS a `StoryTree`); a verbatim positive over changed code is the shape that breaks.
+  const ds = worldTo3D(islandScene());
+  assert.ok(!ds.some((d) => String(d.kind) === 'story-tree'), 'the mapper emits no story-tree');
+  assert.ok(
+    ds.some((d) => d.kind === 'skipped' && d.sceneKind === 'tree'),
+    'and it records the tree group as a SKIP rather than dropping it',
+  );
 
   // ⚠⚠ NON-VACUITY, AND IT IS LOAD-BEARING HERE RATHER THAN DECORATIVE: five of the six assertions
   // above are NEGATIVE, and a negative regex over a file passes just as well when the file failed

@@ -63,7 +63,8 @@ import {
 } from '../src/light-calibration.js';
 import { LAND_RELIEF_AMPLITUDE, landHeightRange, landRelief } from '../src/land-relief.js';
 import { buildGroundOcclusion } from '../src/contact-shade.js';
-import { groundBounds, groundCasters } from '../src/ground-casters.js';
+import { groundBounds, groundCasters, placementCasters } from '../src/ground-casters.js';
+import { KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29 } from '../src/kit-vocabulary.js';
 import { nearestReference, readerReferences, shadowLadderFor } from '../src/shadow-rung.js';
 import { deliveredForLevel } from '../src/shade-ladder.js';
 import { shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
@@ -368,6 +369,41 @@ export function shippedCasters(): ShadowCaster[] {
   return groundCasters(worldTo3D(islandScene()));
 }
 
+/**
+ * EVERYTHING THAT STANDS ON THE SHIPPED ISLAND, as occluders — the list `ForestWorldCanvas` hands
+ * its own ground, term for term: {@link shippedCasters} UNIONED with one caster per kit placement.
+ *
+ * ⚠⚠ THE LADDER ARMS MUST USE THIS AND NOT {@link shippedCasters}, and 2026-09-04 is when that
+ * became load-bearing rather than merely more correct. The descriptor stream's only caster was the
+ * placeholder story tree; ADR-0508 retired it, so `shippedCasters()` is `[]` and a shadow arm built
+ * from it alone shades an EMPTY FIELD — a page that would report "the shadow step changed 0% of
+ * the frame" and read as a broken material. `shipped-land-measure.mjs` refuses that outright, which
+ * is how the gap was found.
+ *
+ * ⚠ IT WAS ALREADY AN UNDER-REPORT BEFORE THAT. The kit began casting on 2026-09-03 (every
+ * placement contributes a caster in the canvas), and this page never unioned them in — so its field
+ * carried one pool where the map carried a grove's worth. Retiring the tree turned "one of many"
+ * into "none", which is why the correction lands here rather than staying a nicety.
+ *
+ * ⚠ THE FROZEN TABLES, NOT THE LOADED KIT — `KIT_FOOTPRINTS_2026_08_29` / `KIT_HEIGHTS_2026_08_29`,
+ * the same ones the canvas places and casts from. `shippedProps` reads the LOADED kit's footprints
+ * because it draws real meshes and must wait for the asset; a caster must not, or the ladder arms
+ * (which draw no props at all) could not be built without loading a kit they never use.
+ */
+export function shippedMapCasters(): ShadowCaster[] {
+  return [
+    ...shippedCasters(),
+    ...placementCasters(
+      dressMapWithGroves(worldTo3D(islandScene()), {
+        relief: LAND_RELIEF_AMPLITUDE,
+        footprint: KIT_FOOTPRINTS_2026_08_29,
+      }),
+      KIT_FOOTPRINTS_2026_08_29,
+      KIT_HEIGHTS_2026_08_29,
+    ),
+  ];
+}
+
 /** Status variant → LINEAR colour, through three's own sRGB transfer function — the same route
  *  `ForestWorldCanvas` takes, so the two arms wear the colours the map reports with.
  *
@@ -644,7 +680,7 @@ export function buildLandScene(
     const field = buildGroundOcclusion({
       bounds,
       relief: LAND_RELIEF_AMPLITUDE,
-      casters: shippedCasters(),
+      casters: shippedMapCasters(),
     });
     occlusionCoverage = shadowCoverage(field);
     bandedOpts.shadow = groundShadowTexture(field);
@@ -743,7 +779,7 @@ export function buildLandScene(
     // MORE than that the buffer spans — which is the relief's own range and zero when it is flat.
     heightSpan: hi - lo,
     occlusionCoverage,
-    casters: shippedCasters().length,
+    casters: shippedMapCasters().length,
     props,
   };
 }

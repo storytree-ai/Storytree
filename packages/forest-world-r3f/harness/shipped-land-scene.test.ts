@@ -33,6 +33,8 @@ import {
   landLadderHonest,
   litLadderOf,
   groundRowOf,
+  shippedCasters,
+  shippedMapCasters,
   shippedParcels,
 } from './shipped-land-scene.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
@@ -343,4 +345,34 @@ test('THE CENSUS: the shipped map draws ten signatures and skips 1,079 more', ()
     ]),
     [{ x: 1, z: 2, radius: 3.2, height: 3.2 }],
   );
+});
+
+test('THE LADDER ARMS SHADE THE MAP’S OWN CASTERS — the grove’s, now that the tree’s are gone', () => {
+  // ⚠⚠ THE FAILURE THIS FORBIDS, and it was live for about an hour on 2026-09-04. This page built
+  // its occlusion field from `shippedCasters()` alone. That was already an under-report — the kit
+  // began casting on 2026-09-03 and this page never unioned the placements in — and when ADR-0508
+  // retired the story tree it became an EMPTY field: every shadow figure on the page would have
+  // been a figure about nothing, and the `shadow`/`dense` arms would have been pixel-identical to
+  // their unshadowed siblings while still being reported as a shadow ladder.
+  //
+  // `shipped-land-measure.mjs` catches it at run time ("the shadow arm was built from ZERO
+  // casters"), which is how it was found — but that guard needs a GPU and a browser. This is the
+  // same claim where `pnpm -r test` can hold it.
+  const stream = shippedCasters();
+  const map = shippedMapCasters();
+  assert.deepEqual(stream, [], 'the descriptor stream stands nothing since ADR-0508');
+  assert.ok(map.length > 0, 'but the ISLAND stands a grove, and the ladder arms must shade it');
+
+  // ⚠ AND IT IS THE UNION, not a replacement: `shippedMapCasters` opens with the stream's own
+  // casters, so a `cave-arch` on this island would still darken the ground under it. With the
+  // stream empty that is unobservable from the outside, which is exactly why it is asserted on the
+  // SHAPE — the first `stream.length` entries are the stream's, in order.
+  assert.deepEqual(map.slice(0, stream.length), stream);
+
+  // Every caster is a real cylinder standing somewhere, not a placeholder: a zero-radius or
+  // zero-height entry would darken nothing and would pass `map.length > 0` just as well.
+  for (const c of map) {
+    assert.ok(c.radius > 0 && c.height > 0, `a caster at ${c.x},${c.z} occludes nothing`);
+    assert.ok(Number.isFinite(c.x) && Number.isFinite(c.z), 'a caster stands nowhere');
+  }
 });
