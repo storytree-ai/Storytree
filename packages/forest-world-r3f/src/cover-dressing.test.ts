@@ -280,7 +280,13 @@ test('coverCount REFUSES a role the recipe declares no count for, rather than st
       (e: Error) => {
         assert.match(e.message, new RegExp(`${role} is not a ground-cover role`));
         assert.match(e.message, /the recipe declares a count for the three dressing roles only/);
-        for (const named of COVER_ROLES) assert.ok(e.message.includes(named), `the refusal does not name ${named}`);
+        // ⚠ THE ROLES ARE NAMED AS A READABLE LIST, not as a run-on. Asserting each name
+        // individually passes on `bushtuftflowerPatch` — every substring is still present — and
+        // the whole value of naming the alternatives is that a reader can read them.
+        assert.ok(
+          e.message.includes(COVER_ROLES.join(', ')),
+          `the refusal lists the roles as "${e.message}" rather than "${COVER_ROLES.join(', ')}"`,
+        );
         return true;
       },
       `${role} was given a ground-cover count`,
