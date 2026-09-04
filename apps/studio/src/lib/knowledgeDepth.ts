@@ -128,7 +128,12 @@ function decisionRowsOf(assets: readonly GuidanceAsset[]): SupportOnlyDecision[]
 function nodeOf(asset: GuidanceAsset): SurfaceDepthNode {
   const node: SurfaceDepthNode = {
     id: asset.id,
+    // Stryker disable next-line ArrayDeclaration: EQUIVALENT, and hand-checked rather than argued —
+    // the fallback is reached only for an asset carrying no pointers, and a mutated non-empty
+    // fallback is a string the pointer parsers resolve to nothing, so no edge is added and no
+    // reading moves. The suite exits 0 with `["Stryker was here"]` in place.
     dependsOn: asset.dependsOn ?? [],
+    // Stryker disable next-line ArrayDeclaration: EQUIVALENT, same hand-check as `dependsOn` above.
     cites: asset.cites ?? [],
     // THE AGENT MANIFEST (ADR-0481 D1) — the `context` / `rules` / `antiPatterns` / `stepRefs`
     // an agent injects into its own system prompt on every run. The whole asset is handed over,
@@ -139,11 +144,17 @@ function nodeOf(asset: GuidanceAsset): SurfaceDepthNode {
     // The kind the record-tier denominator splits on (ADR-0476 D3). `category` is the wire's
     // name for it and is present on every row.
     kind: asset.category,
+    // THE CONTAINMENT POINTER A `record` READING REPORTS INSTEAD OF A DEPTH (ADR-0511 D1). Carried
+    // only so the judge can hand it back — it is never adjacency, and admitting it as one is refused
+    // with a measurement in `surface-depth.ts`'s header.
+    //
+    // ASSIGNED UNCONDITIONALLY, `undefined` included. A `=== undefined` fork here would decide the
+    // same thing the judge already decides — it stores a containment only for a non-empty pointer —
+    // so the fork is a branch no input can distinguish, which is what `check:mutation-diff` reported
+    // it as. One decision, in the judge, where the empty-string case is tested too.
+    arcRef: asset.arcRef,
   };
-  // THE CONTAINMENT POINTER A `record` READING REPORTS INSTEAD OF A DEPTH (ADR-0511 D1). Carried
-  // only so the judge can hand it back — it is never adjacency, and admitting it as one is refused
-  // with a measurement in `surface-depth.ts`'s header.
-  return asset.arcRef === undefined ? node : { ...node, arcRef: asset.arcRef };
+  return node;
 }
 
 export type KnowledgeDepthModel =
@@ -292,7 +303,7 @@ function readingOf(
       label: 'knowledge depth unmeasured — a dependency cycle sits above this artifact',
     };
   }
-  if (surfaceId === WORK_TREE_SURFACE) {
+  if (isWorkTreeRead(surfaceId)) {
     return {
       state: 'work-unit',
       depth: null,
@@ -311,10 +322,27 @@ function readingOf(
   };
 }
 
-/** `asset:some-arc` -> `some-arc`, for a hover label a person reads. */
+/**
+ * `asset:some-arc` -> `some-arc`, for a hover label a person reads.
+ *
+ * No "has a colon?" guard, because there is nothing for one to do: `indexOf` answers `-1` for a bare
+ * ref and `slice(0)` is then the whole string. The guard was written, and `check:mutation-diff`
+ * reported both of its mutants as equivalent — which is the rung saying the branch is dead, not
+ * that it wants a test.
+ */
 function bareRef(ref: string): string {
-  const separator = ref.indexOf(':');
-  return separator === -1 ? ref : ref.slice(separator + 1);
+  return ref.slice(ref.indexOf(':') + 1);
+}
+
+/**
+ * The ONE place that decides an id the graph does not hold is a work-hierarchy unit (ADR-0511 D4).
+ *
+ * Shared by the per-mark reading and the per-trace report rather than written twice: the report
+ * cannot read its placed depth through {@link MarkKnowledgeDepth} (see its loop), so without this
+ * the same rule would live at two call sites and the chip could disagree with the rows it labels.
+ */
+function isWorkTreeRead(surfaceId: string | null): boolean {
+  return surfaceId === WORK_TREE_SURFACE;
 }
 
 /**
@@ -374,7 +402,7 @@ export function reportKnowledgeDepth(
     if (event.kind === 'front_matter_read' || event.kind === 'full_payload_read') {
       const nodeId = resolveDecisionSpelling(event.nodeId);
       nodeIds.add(nodeId);
-      if (surfaceIdOf(event) === WORK_TREE_SURFACE) treeRead.add(nodeId);
+      if (isWorkTreeRead(surfaceIdOf(event) ?? null)) treeRead.add(nodeId);
     }
   }
 
@@ -388,25 +416,25 @@ export function reportKnowledgeDepth(
   const counts = new Map<number, number>();
 
   for (const nodeId of nodeIds) {
-    // THROUGH THE SAME CLASSIFIER THE MARKS GO THROUGH, so the chip's denominators and the rows the
-    // picture draws can never describe one trace differently.
-    const reading = readingOf(
-      model.verdict,
-      nodeId,
-      treeRead.has(nodeId) ? WORK_TREE_SURFACE : null,
-    );
-    if (reading.state === 'placed' && reading.depth !== null) {
+    // THE JUDGE'S OWN DISCRIMINATED UNION, not `MarkKnowledgeDepth`. The flat record's `depth` is
+    // `number | null` on every state, so counting through it needs a `depth !== null` guard beneath
+    // the state test that already decided the branch — a line no input can take, which
+    // `check:mutation-diff` reports as an equivalent mutant and is right to.
+    const reading = surfaceDepthOf(model.verdict, nodeId);
+    if (reading.state === 'placed') {
       placed += 1;
       counts.set(reading.depth, (counts.get(reading.depth) ?? 0) + 1);
       if (maxDepth === null || reading.depth > maxDepth) maxDepth = reading.depth;
     } else if (reading.state === 'record') {
       record += 1;
-    } else if (reading.state === 'work-unit') {
-      workUnit += 1;
     } else if (reading.state === 'unlinked') {
       unlinked += 1;
     } else if (reading.state === 'cyclic') {
       cyclic += 1;
+    } else if (treeRead.has(nodeId)) {
+      // The one reading the judge cannot make. `treeRead` was built through `isWorkTreeRead`, the
+      // same rule the per-mark path applies, so the two cannot drift.
+      workUnit += 1;
     } else {
       absent += 1;
     }

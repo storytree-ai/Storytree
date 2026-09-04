@@ -857,3 +857,35 @@ test("the corpus DENOMINATORS still count record rows as the graph sees them (AD
   assert.ok(verdict.unlinkedIds.has("lonely-increment"));
   assert.ok(verdict.recordIds.has("lonely-increment"));
 });
+
+test("an EMPTY containment pointer is no pointer — it never becomes a `containedBy` a reader trusts", () => {
+  // Built DIRECTLY rather than through `nodesOf`, on purpose: the wire's own renderer drops an empty
+  // `arcRef` before it ever reaches here, so a wire-shaped fixture cannot reach this guard and the
+  // guard would sit untested behind a caller that happens to be careful today. The judge's input
+  // type is `string | undefined`, and `""` is a string.
+  const node = (id: string, arcRef?: string): SurfaceDepthNode => {
+    const base = { id, dependsOn: [], cites: [], manifest: [], kind: "increment" };
+    return arcRef === undefined ? base : { ...base, arcRef };
+  };
+  const verdict = evaluateSurfaceDepth([
+    node("inc-empty", ""),
+    node("inc-none"),
+    node("inc-real", "asset:live-arc"),
+  ]);
+
+  // An empty string is what a half-written row carries, and stored it would render as "a record row
+  // on " — a containment claim with nothing in it. Both no-pointer shapes answer the SAME `null`.
+  assert.deepEqual(surfaceDepthOf(verdict, "inc-empty"), { state: "record", containedBy: null });
+  assert.deepEqual(surfaceDepthOf(verdict, "inc-none"), { state: "record", containedBy: null });
+  assert.deepEqual(surfaceDepthOf(verdict, "inc-real"), {
+    state: "record",
+    containedBy: "asset:live-arc",
+  });
+
+  // AND THE MAP ITSELF CARRIES NO KEY for either, which is the half `surfaceDepthOf`'s `?? null`
+  // would hide: a key mapped to `undefined` reads back as `null` through it and is indistinguishable
+  // from a row that has no container at all — see {@link SurfaceDepthVerdict.containedBy}.
+  assert.equal(verdict.containedBy.has("inc-empty"), false);
+  assert.equal(verdict.containedBy.has("inc-none"), false);
+  assert.equal(verdict.containedBy.get("inc-real"), "asset:live-arc");
+});

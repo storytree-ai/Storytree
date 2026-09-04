@@ -21,6 +21,7 @@ import {
   linkageSummary,
   reportKnowledgeDepth,
   WORK_TREE_SURFACE,
+  type KnowledgeDepthModel,
 } from './knowledgeDepth';
 
 const SESSION = 'elegant-rosalind-2b9a05';
@@ -105,9 +106,14 @@ describe('an unread corpus is UNMEASURED, never an empty verdict', () => {
 });
 
 describe('the four readings stay four', () => {
-  const model = buildKnowledgeDepth(READY);
+  // A FACTORY, CALLED INSIDE EACH `it` — never built at describe scope. Vitest runs a
+  // describe callback during COLLECTION, so a subject built there executes with no test on
+  // the stack, `check:mutation-diff` marks every line it touches `static`, and mutants this
+  // suite genuinely kills are reported as survivors nothing named.
+  const makeModel = (): KnowledgeDepthModel => buildKnowledgeDepth(READY);
 
   it('annotates a placed artifact with its hop count', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, 'ceremony')).toEqual({
       state: 'placed',
       depth: 1,
@@ -118,6 +124,7 @@ describe('the four readings stay four', () => {
   });
 
   it('says depth 0 names the surface itself rather than printing a bare 0', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, 'inc-one')).toEqual({
       state: 'placed',
       depth: 0,
@@ -127,6 +134,7 @@ describe('the four readings stay four', () => {
   });
 
   it('never renders an UNLINKED artifact as one at the surface', () => {
+    const model = makeModel();
     const reading = markKnowledgeDepth(model, 'orphan');
     expect(reading?.state).toBe('unlinked');
     // No number at all — not 0, not Infinity, not maxDepth + 1. `orphan` has no edge in either
@@ -138,6 +146,7 @@ describe('the four readings stay four', () => {
   });
 
   it('keeps a non-artifact id apart from an unlinked artifact', () => {
+    const model = makeModel();
     // Measured across this machine's whole trace index: 96 of 402 distinct visited ids are not
     // Library artifacts at all — story/capability ids, retired artifacts, CLI tokens.
     const reading = markKnowledgeDepth(model, 'forest-world');
@@ -147,14 +156,20 @@ describe('the four readings stay four', () => {
   });
 
   it('has nothing to say about a mark carrying no node id', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, null)).toBeNull();
   });
 });
 
 describe('the per-trace report counts DISTINCT artifacts', () => {
-  const model = buildKnowledgeDepth(READY);
+  // A FACTORY, CALLED INSIDE EACH `it` — never built at describe scope. Vitest runs a
+  // describe callback during COLLECTION, so a subject built there executes with no test on
+  // the stack, `check:mutation-diff` marks every line it touches `static`, and mutants this
+  // suite genuinely kills are reported as survivors nothing named.
+  const makeModel = (): KnowledgeDepthModel => buildKnowledgeDepth(READY);
 
   it('counts each artifact once however often the session re-read it', () => {
+    const model = makeModel();
     const report = reportKnowledgeDepth(
       [
         visit('ceremony', 0),
@@ -184,6 +199,7 @@ describe('the per-trace report counts DISTINCT artifacts', () => {
   });
 
   it('reports no maxDepth at all when nothing was placed, rather than a 0 that reads as at-the-surface', () => {
+    const model = makeModel();
     const report = reportKnowledgeDepth([visit('orphan', 0), visit('forest-world', 1)], model);
     expect(report?.placed).toBe(0);
     expect(report?.maxDepth).toBeNull();
@@ -191,6 +207,7 @@ describe('the per-trace report counts DISTINCT artifacts', () => {
   });
 
   it('ignores events that are not context visits', () => {
+    const model = makeModel();
     const search: TraversalEventEnvelope = {
       kind: 'search',
       eventId: 'event:search',
@@ -437,13 +454,14 @@ const CYCLIC_CORPUS: GuidanceAsset[] = [
 ];
 
 describe('the CYCLIC reading is rendered, not silently folded into another state', () => {
-  const model = buildKnowledgeDepth({
-    assets: CYCLIC_CORPUS,
-    assetsStatus: 'ready',
-    assetsError: '',
-  });
+  // A FACTORY, CALLED INSIDE EACH `it` — never built at describe scope. See the note on the
+  // first such factory above: a describe-scope subject runs at COLLECTION, and every line it
+  // touches is reported as a `static` mutant this suite is not credited with killing.
+  const makeModel = (): KnowledgeDepthModel =>
+    buildKnowledgeDepth({ assets: CYCLIC_CORPUS, assetsStatus: 'ready', assetsError: '' });
 
   it('marks a node under a cycle as cyclic — not placed, not unlinked', () => {
+    const model = makeModel();
     const reading = markKnowledgeDepth(model, 'loop-a');
     expect(reading?.state).toBe('cyclic');
     // No number. A cycle has no longest chain, so any depth here would be a fabrication — and
@@ -456,6 +474,7 @@ describe('the CYCLIC reading is rendered, not silently folded into another state
   });
 
   it('counts cyclic reads in their own column of the per-trace report', () => {
+    const model = makeModel();
     const report = reportKnowledgeDepth(
       [visit('opening', 0), visit('loop-a', 10), visit('loop-b', 20), visit('forest-world', 30)],
       model,
@@ -495,9 +514,14 @@ describe('the per-trace states are counted into the RIGHT columns', () => {
 });
 
 describe('the hover label agrees in number with the depth it reports', () => {
-  const model = buildKnowledgeDepth(READY);
+  // A FACTORY, CALLED INSIDE EACH `it` — never built at describe scope. Vitest runs a
+  // describe callback during COLLECTION, so a subject built there executes with no test on
+  // the stack, `check:mutation-diff` marks every line it touches `static`, and mutants this
+  // suite genuinely kills are reported as survivors nothing named.
+  const makeModel = (): KnowledgeDepthModel => buildKnowledgeDepth(READY);
 
   it('says one hop for depth 1 and hops for anything else', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, 'ceremony')?.label).toBe(
       'knowledge depth 1 — 1 hop below the surface',
     );
@@ -650,13 +674,14 @@ describe('a RECORD row reports what it is, never an absence (ADR-0511 D1)', () =
     asset('principle'),
     asset('orphan'),
   ];
-  const model = buildKnowledgeDepth({
-    assets: RECORD_CORPUS,
-    assetsStatus: 'ready',
-    assetsError: '',
-  });
+  // A FACTORY, CALLED INSIDE EACH `it` — never built at describe scope. See the note on the
+  // first such factory above: a describe-scope subject runs at COLLECTION, and every line it
+  // touches is reported as a `static` mutant this suite is not credited with killing.
+  const makeModel = (): KnowledgeDepthModel =>
+    buildKnowledgeDepth({ assets: RECORD_CORPUS, assetsStatus: 'ready', assetsError: '' });
 
   it('names the arc a log row belongs to instead of a depth', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, 'inc-bare')).toEqual({
       state: 'record',
       depth: null,
@@ -666,6 +691,7 @@ describe('a RECORD row reports what it is, never an absence (ADR-0511 D1)', () =
   });
 
   it('answers `record` even for a log row the walk COULD place, and at depth 0 at that', () => {
+    const model = makeModel();
     // `inc-linked` cites `ceremony`, so it is a surface: without ADR-0511 D1's ordering it reads
     // `placed@0` and draws on the axis's SURFACE row, beside the knowledge graph's genuine roots.
     expect(markKnowledgeDepth(model, 'inc-linked')?.state).toBe('record');
@@ -676,6 +702,7 @@ describe('a RECORD row reports what it is, never an absence (ADR-0511 D1)', () =
   });
 
   it('says so plainly when a record kind carries no container', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, 'some-friction')).toEqual({
       state: 'record',
       depth: null,
@@ -685,12 +712,14 @@ describe('a RECORD row reports what it is, never an absence (ADR-0511 D1)', () =
   });
 
   it('leaves an edge-free KNOWLEDGE artifact unlinked — the two are not the same absence', () => {
+    const model = makeModel();
     // This is the population the unmeasured row legitimately keeps: on the live corpus it is the four
     // definitions ADR-0468 keeps deliberately unwired, and 5 read marks across every local trace.
     expect(markKnowledgeDepth(model, 'orphan')?.state).toBe('unlinked');
   });
 
   it('counts record reads in their own column, out of the unmeasured ones', () => {
+    const model = makeModel();
     const report = reportKnowledgeDepth(
       [visit('inc-bare', 0), visit('ceremony', 10), visit('orphan', 20), visit('nowhere', 30)],
       model,
@@ -709,9 +738,14 @@ describe('a RECORD row reports what it is, never an absence (ADR-0511 D1)', () =
 });
 
 describe('a STORY-TREE read is a work-hierarchy unit, not a Library failure (ADR-0511 D4)', () => {
-  const model = buildKnowledgeDepth(READY);
+  // A FACTORY, CALLED INSIDE EACH `it` — never built at describe scope. Vitest runs a
+  // describe callback during COLLECTION, so a subject built there executes with no test on
+  // the stack, `check:mutation-diff` marks every line it touches `static`, and mutants this
+  // suite genuinely kills are reported as survivors nothing named.
+  const makeModel = (): KnowledgeDepthModel => buildKnowledgeDepth(READY);
 
   it('names an id read off the story tree as work, not as an id the Library lost', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, 'studio-members', WORK_TREE_SURFACE)).toEqual({
       state: 'work-unit',
       depth: null,
@@ -721,6 +755,7 @@ describe('a STORY-TREE read is a work-hierarchy unit, not a Library failure (ADR
   });
 
   it('leaves the SAME id absent when the read came from anywhere else', () => {
+    const model = makeModel();
     // The classification is a fact about the READ. A CLI token or a retired artifact reached through
     // the library surface is genuinely unknown and must keep saying so — 149 of one machine's 11,232
     // marks, which is the residue the unmeasured row exists for.
@@ -729,14 +764,28 @@ describe('a STORY-TREE read is a work-hierarchy unit, not a Library failure (ADR
   });
 
   it('never overrides a real reading — a story-tree read of a known artifact keeps its depth', () => {
+    const model = makeModel();
     expect(markKnowledgeDepth(model, 'ceremony', WORK_TREE_SURFACE)?.state).toBe('placed');
   });
 
   it('counts one tree read of an id as enough, however else it was also reached', () => {
+    const model = makeModel();
     const report = reportKnowledgeDepth(
       [visit('a-story', 0, WORK_TREE_SURFACE), visit('a-story', 10, 'library-artifact')],
       model,
     );
     expect(report).toMatchObject({ visited: 1, workUnit: 1, absent: 0 });
+  });
+});
+
+describe('the story-tree surface id is a CONTRACT with the trace producer', () => {
+  it('is the literal `observe-cli.ts` mints, written out rather than compared to itself', () => {
+    // Every other test here passes the CONSTANT, so a rename would move both sides together and
+    // prove nothing. This is the one assertion that pins the VALUE, and the value is the whole
+    // coupling: the studio declares it rather than importing a Node module for one string, and if
+    // the producer ever renamed the surface, a story id would quietly fall back to `absent`.
+    expect(WORK_TREE_SURFACE).toBe('tree');
+    const model = buildKnowledgeDepth(READY);
+    expect(markKnowledgeDepth(model, 'a-story-id', 'tree')?.state).toBe('work-unit');
   });
 });
