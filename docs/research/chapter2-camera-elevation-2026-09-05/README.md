@@ -141,10 +141,12 @@ orthographic and the viewer cannot rotate it; a fixed authored elevation is not 
 
 ## Files
 
-32 frames `<footprint>-<elev>-<one|forest>-<8|fit>.png` (2560×1600) · `sheet-8px.png` (the ladder,
-one island, cropped to the island) · `sheet-reference.png` (the approved render beside `true-50` and
-today) · `sheet-forest-fit.png` (the opening view, eight arms) · `measurements.json` · `reference.json`
-· `report.txt`.
+16 frames `<footprint>-<elev>-one-8.png` and `<footprint>-<elev>-forest-fit.png` (2560×1600) ·
+`sheet-8px.png` (the ladder, one island, cropped to the island) · `sheet-reference.png` (the approved
+render beside `true-50` and today) · `sheet-forest-fit.png` (the opening view, eight arms) ·
+`measurements.json` (all 32 rows, including the `one @ fit` and `forest @ 8` views whose frames are
+not committed — at 8 px/unit the forest frame shows the same centre island as `one`, and one island's
+fit is 7.8 px/unit against the read zoom's 8) · `reference.json` · `report.txt`.
 
 Page: `packages/forest-world-r3f/harness/shipped-camera.html` / `shipped-camera-scene.ts`; driver:
 `shipped-camera-measure.mjs` (`pnpm --filter @storytree/forest-world-r3f measure-shipped-camera`,
