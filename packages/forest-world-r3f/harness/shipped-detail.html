@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the trees' detail — texture rung and crown lighting — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The trees&rsquo; detail &mdash; the kit&rsquo;s texture rung, and how a crown is lit</h1>
+      <p>
+        The owner, on the canopy sheet beside the render he stamped: <em>&ldquo;this looks nice, but
+        the trees dont seem to have as much detail as our target image.&rdquo;</em> Two mechanisms,
+        each an arm here over the <strong>same</strong> dressed ground: the embedded kit shipped
+        <strong>one texture rung, 128 texels</strong> (decided: the native 2048-texel maps ship,
+        ADR-0508 D1), and every crown is lit by the ground&rsquo;s derived lights &mdash; ambient at
+        the ladder floor, so an unlit needle sits at 80% of a lit one and self-shading has a fifth of
+        the range to happen in. The lighting half is a <strong>look</strong>: a ladder, rendered here
+        for the owner (ADR-0503 D3), moved on the prop&rsquo;s <em>material</em> so the ground&rsquo;s
+        lights and its ladder never change.
+      </p>
+      <p class="numbers">
+        bare            the shipped ground with the grove's shadows in its field and NOTHING standing on it — the prop MASK
+        texture-128     TODAY: the 128-texel kit, unlit face at 80% of a lit one (CONTROL and DENOMINATOR)
+        texture-native  ADR-0508 D1 alone: the native 2048-texel maps, lighting unchanged
+        crown-60        + crowns sculpted: an unlit face at 60% of a lit one
+        crown-45        + crowns sculpted: an unlit face at 45%
+        crown-30        + crowns sculpted: an unlit face at 30% — the boldest rung rendered
+      </p>
+      <p>
+        <strong>What the numbers under each picture are.</strong> Pixels moved by more than 20/255
+        against <code>texture-128</code> (ADR-0490 D6 &mdash; how much of today&rsquo;s picture an
+        arm changes); the colour-family census and MICRO against the reference; and the
+        <strong>crown statistics</strong>: over the pixels that differ from <code>bare</code> at all
+        (the props and nothing else, because the ground is byte-identical across arms), the luma
+        at the 10th / 50th / 90th percentile &mdash; a flat crown is a narrow spread, a sculpted one
+        a wide one. Payload is in the header: wire bytes, decoded GPU bytes with the mip chain, and
+        the fetch-plus-parse time the shipped canvas pays once at mount. Frame cost is taken from
+        this same page by <code>shipped-detail-cost.mjs</code> on the RTX 2060.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedDetail } from './shipped-detail-scene.ts';
+      try {
+        await mountShippedDetail(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

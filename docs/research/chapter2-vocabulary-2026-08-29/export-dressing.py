@@ -7,10 +7,17 @@
 #      back the moment drift and retired-contract have a signal to carry), and the undergrowth
 #      is gone because a capability now grows ONE object whatever its state. Restoring any of
 #      them is one edit to the KEEP argument.
-#   2. It emits ONE texture rung, 128. Which rung is right was settled by measurement in
-#      PR #1693 §3a — at most 0.06% of the frame moves by more than the land's own quantisation
-#      step between 512 and 128 — and that finding is about texel size, not about how many
-#      objects are kept, so it carries.
+#   2. It emits ONE texture rung — the pack's NATIVE 2048-texel maps, untouched.
+#      ⚠ OVERTAKEN 2026-09-04 (ADR-0508 D1, owner-directed 2026-09-03): until that landing this
+#      emitted a 128-texel rung, chosen in PR #1693 §3a by a pixels-moved measurement taken at
+#      the OLD overview zoom — at most 0.06% of the frame moved between 512 and 128 there. The
+#      owner put texture resolution outside that rule ("i dont think we should downsample as long
+#      as the browser can handle it … we have zoom enabled on our map"), so the map is looked at
+#      at 8 px/unit and closer, where a 128-texel needle map on a ~70 px crown is under one texel
+#      per delivered pixel. Pass a rung as the OPTIONAL third argument only to reproduce the old
+#      export for a comparison arm (the 128 rung reproduces byte-for-byte, sha256 6aaab1fa…).
+#      What the browser pays for the native rung is measured on the increment that landed it
+#      (`docs/research/chapter2-tree-detail-2026-09-04/`), never argued.
 #
 # It also PRINTS EVERY KEPT OBJECT'S WORLD-SPACE BOUNDS. The kit models a pine's trunk and its
 # needles as separate co-located objects, and PR #1693 found that pairing two that belong to
@@ -18,13 +25,16 @@
 # bounds are what say so, so they are emitted with the asset rather than looked up once.
 #
 # Run:
-#   blender -b "<kit>/Pine_Forest_Kit.blend" -P export-dressing.py -- <outdir> <keep,csv>
+#   blender -b "<kit>/Pine_Forest_Kit.blend" -P export-dressing.py -- <outdir> <keep,csv> [<texels>]
+#
+#   <texels> omitted → the native maps (what ships). A number → that rung, for a comparison arm.
 
 import bpy, sys, os, json
 
 argv = sys.argv[sys.argv.index("--")+1:]
 OUTDIR = argv[0]
 KEEP = set(argv[1].split(","))
+RUNG = int(argv[2]) if len(argv) > 2 else None
 
 missing = KEEP - {o.name for o in bpy.data.objects}
 if missing:
@@ -66,7 +76,7 @@ def emit(tag, px):
     for img in list(bpy.data.images):
         if img.name not in used: continue
         w, h = img.size
-        if w > px or h > px: img.scale(min(w, px), min(h, px))
+        if px is not None and (w > px or h > px): img.scale(min(w, px), min(h, px))
     path = os.path.join(OUTDIR, f"{tag}.glb")
     bpy.ops.export_scene.gltf(filepath=path, export_format='GLB', export_image_format='WEBP',
         export_image_quality=90, export_yup=True, export_apply=True, export_materials='EXPORT',
@@ -80,7 +90,7 @@ def emit(tag, px):
                  "imageSizes": {i.name: list(i.size) for i in bpy.data.images if i.name in used}})
     print(f">>> {tag} px={px} -> {os.path.getsize(path)}", flush=True)
 
-emit("dressing-webp90-128", 128)
+emit("dressing-webp90-native" if RUNG is None else f"dressing-webp90-{RUNG}", RUNG)
 
 print("###JSON###")
 print(json.dumps({"runs": runs, "bounds": bounds}))
