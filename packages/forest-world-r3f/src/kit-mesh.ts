@@ -132,13 +132,10 @@ export function prepareKitMaterial(material: THREE.MeshStandardMaterial): void {
  * on its next frame without a rebuild.
  */
 export function setKitPropLighting(kit: LoadedKit, fraction: number): void {
-  const seen = new Set<THREE.MeshStandardMaterial>();
+  // A material shared by several parts is reached several times; `installPropLighting` moves an
+  // installed material in place, so the repeat is a no-op rather than a second record.
   for (const assembly of kit.assemblies.values()) {
-    for (const part of assembly.objects) {
-      if (seen.has(part.material)) continue;
-      seen.add(part.material);
-      installPropLighting(part.material, fraction);
-    }
+    for (const part of assembly.objects) installPropLighting(part.material, fraction);
   }
 }
 

@@ -112,10 +112,34 @@ test('the ladder starts at the floor and descends — the first rung is today’
   }
 });
 
-test('a fraction that is not a split between two lights is refused', () => {
+test('a fraction that is not a split between two lights is refused, and the refusal says so in full', () => {
   for (const bad of [0, 1, -0.1, 1.2, Number.NaN, Number.POSITIVE_INFINITY]) {
-    assert.throws(() => propLightingScales(bad), /strictly inside \(0, 1\)/, `accepted ${bad}`);
+    assert.throws(
+      () => propLightingScales(bad),
+      new RegExp(`strictly inside \\(0, 1\\); ${String(bad).replace(/[.+]/g, '\\$&')} is not a split between two lights`),
+      `accepted ${bad}`,
+    );
   }
+});
+
+test('the uniform names are the GLSL identifiers the patch declares — literal, non-empty, distinct', () => {
+  assert.equal(PROP_LIGHTING_UNIFORM_INDIRECT, 'uPropIndirectScale');
+  assert.equal(PROP_LIGHTING_UNIFORM_DIRECT, 'uPropDirectScale');
+  assert.equal(PROP_LIGHTING_DECLARATION_GLSL, 'uniform float uPropIndirectScale;\nuniform float uPropDirectScale;');
+  const patched = propLightingFragment(THREE.ShaderLib.standard.fragmentShader);
+  assert.ok(!/uniform float\s*;/.test(patched), 'no nameless declaration');
+  assert.ok(!/\*=\s*;/.test(patched), 'no nameless rescale');
+  assert.ok(patched.includes('reflectedLight.directDiffuse *= uPropDirectScale;'));
+  assert.ok(patched.includes('reflectedLight.indirectDiffuse *= uPropIndirectScale;'));
+});
+
+test('the program cache key is a real, non-empty key that differs from an unpatched material’s', () => {
+  assert.equal(PROP_LIGHTING_CACHE_KEY, 'storytree-prop-lighting');
+  const material = new THREE.MeshStandardMaterial();
+  installPropLighting(material, 0.5);
+  assert.equal(material.customProgramCacheKey(), 'storytree-prop-lighting');
+  assert.notEqual(material.customProgramCacheKey(), new THREE.MeshStandardMaterial().customProgramCacheKey());
+  assert.ok(material.customProgramCacheKey().length > 0);
 });
 
 test('a ladder with no lit/unlit range is refused rather than dividing by zero', () => {
@@ -148,11 +172,17 @@ test('the patch declares the uniforms after <common> and rescales right after <l
   assert.equal(patched.length, THREE.ShaderLib.standard.fragmentShader.length + PROP_LIGHTING_DECLARATION_GLSL.length + PROP_LIGHTING_GLSL.length + 2);
 });
 
-test('a shader missing an anchor, or already patched, is refused by name', () => {
-  assert.throws(() => propLightingFragment('void main() {}'), /#include <common>/);
-  assert.throws(() => propLightingFragment('#include <common>\nvoid main() {}'), /lights_fragment_end/);
+test('a shader missing an anchor, or already patched, is refused by name — and the refusal names the consequence', () => {
+  assert.throws(
+    () => propLightingFragment('void main() {}'),
+    /has no #include <common> to patch at — three moved the seam, and every prop would otherwise be lit at the ladder floor with no error/,
+  );
+  assert.throws(
+    () => propLightingFragment('#include <common>\nvoid main() {}'),
+    /has no #include <lights_fragment_end> to patch at — three moved the seam, and every prop would otherwise be lit at the ladder floor with no error/,
+  );
   const once = propLightingFragment(THREE.ShaderLib.standard.fragmentShader);
-  assert.throws(() => propLightingFragment(once), /already carries/);
+  assert.throws(() => propLightingFragment(once), /already carries the prop-lighting patch/);
 });
 
 test('install wires the SAME uniform objects into every compile and patches the fragment', () => {
@@ -169,7 +199,20 @@ test('install wires the SAME uniform objects into every compile and patches the 
   assert.ok(a.fragmentShader.includes(PROP_LIGHTING_GLSL));
   assert.equal(propLightingOf(material), uniforms);
   assert.equal(uniforms.fraction, 0.45);
+  const expected = propLightingScales(0.45);
+  assert.equal(uniforms.indirect.value, expected.indirect);
+  assert.equal(uniforms.direct.value, expected.direct, 'the direct uniform carries its scale from the first install');
+  assert.equal((a.uniforms[PROP_LIGHTING_UNIFORM_DIRECT] as { value: number }).value, expected.direct);
   assert.ok(Math.abs(uniforms.indirect.value - 0.45 / ENDS.floor) < 1e-12);
+});
+
+test('a tinted clone of a base that was NEVER installed still gets the shipped fraction', () => {
+  const leaf = new THREE.MeshStandardMaterial({ name: 'Pine_Branches' });
+  const bark = new THREE.MeshStandardMaterial({ name: 'Pine_Trunks' });
+  assert.equal(propLightingOf(leaf), undefined, 'the base carries nothing');
+  const kit = kitWith(leaf, bark);
+  const clone = tintedMaterial(kit, leaf, 'Pine_Branches', tintedStates()[0]!, new Map());
+  assert.equal(propLightingOf(clone)?.fraction, KIT_PROP_INDIRECT_FRACTION);
 });
 
 test('an untouched material carries nothing, and a default install sits at the shipped fraction', () => {
@@ -246,19 +289,25 @@ test('⚠ a tinted clone is re-installed at the BASE’s fraction — the state 
   assert.ok(compile(clone).fragmentShader.includes(PROP_LIGHTING_GLSL), 'and really patches on compile');
 });
 
-test('setKitPropLighting reaches every material once and leaves untouched materials alone', () => {
+test('setKitPropLighting reaches every material, keeps ONE record for a material shared by parts, and leaves strangers alone', () => {
   const leaf = new THREE.MeshStandardMaterial({ name: 'Pine_Branches' });
   const bark = new THREE.MeshStandardMaterial({ name: 'Pine_Trunks' });
   const kit = kitWith(leaf, bark);
+  // A second assembly re-uses the SAME bark material — the sweep must move it in place, not mint a second record.
+  const spare = kit.assemblies.get('pine-a')!.objects[0]!;
+  kit.assemblies.set('pine-b', { objects: [spare], names: ['Pine_Trunk_04'], height: 2, width: 1 });
   setKitPropLighting(kit, 0.3);
   assert.equal(propLightingOf(leaf)?.fraction, 0.3);
   assert.equal(propLightingOf(bark)?.fraction, 0.3);
+  const barkRecord = propLightingOf(bark);
   const stranger = new THREE.MeshStandardMaterial({ name: 'not-in-the-kit' });
   assert.equal(propLightingOf(stranger), undefined);
   const leafRecord = propLightingOf(leaf);
   setKitPropLighting(kit, 0.6);
   assert.equal(propLightingOf(leaf), leafRecord, 'moved in place, not re-created');
+  assert.equal(propLightingOf(bark), barkRecord, 'the shared material keeps its one record');
   assert.equal(leafRecord?.fraction, 0.6);
+  assert.equal(barkRecord?.fraction, 0.6);
 });
 
 test('the meshes a dressing merges wear materials that ALL carry the patch', () => {
