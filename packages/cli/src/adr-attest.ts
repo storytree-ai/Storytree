@@ -123,7 +123,8 @@ export interface ProseClassification {
  * shape D5 says to leave alone rather than guess: picking either would record a certainty the prose
  * does not support.
  */
-export function classifyFromProse(body: string): ProseClassification | null {
+export function classifyFromProse(body: unknown): ProseClassification | null {
+  if (typeof body !== "string") return null;
   const status = statusSectionOf(body);
   const stock = STOCK_OWNER_PHRASE.test(status);
   const flip = AGENT_FLIP_PHRASE.test(status);
@@ -202,7 +203,10 @@ interface AttestRow {
   readonly number: number;
   readonly bag: Record<string, unknown>;
   readonly authority: DecisionAuthority | undefined;
-  readonly body: string;
+  /** The row's stored `body`, UNNARROWED — {@link classifyFromProse} takes `unknown` and answers
+   * `null` for a non-string, so projecting an arbitrary `""` here would be a fallback no input
+   * could distinguish from the real thing. */
+  readonly body: unknown;
 }
 
 /**
@@ -233,7 +237,7 @@ function attestRowsOf(docs: readonly StoredDoc[]): AttestRow[] {
       number: raw,
       bag,
       authority: authorityOf(bag),
-      body: typeof bag["body"] === "string" ? bag["body"] : "",
+      body: bag["body"],
     });
   }
   return rows.sort((a, b) => a.number - b.number);
@@ -333,7 +337,10 @@ function attestRead(row: AttestRow, opts: AdrAttestOpts): Envelope {
     body: lines.join("\n"),
     next: [
       `storytree library artifact ${row.id}`,
-      opts.basis === undefined && row.authority === undefined
+      // No `opts.basis === undefined &&` here: this function is only reached when it is, so the
+      // conjunct could not change any answer — an equivalent mutant, and a second reader would take
+      // it as evidence the branch is reachable with a basis in hand. It is not.
+      row.authority === undefined
         ? `storytree adr attest ${String(row.number)} --basis agent-derived --pg`
         : "storytree adr attest",
     ],
@@ -476,14 +483,15 @@ async function backfill(
   for (const row of unstamped) {
     const classified = classifyFromProse(row.body);
     if (classified === null) continue;
-    const draft: DecisionAuthority = { basis: classified.basis, scribedBy, at: deps.today };
-    if (classified.transcribedFromProse === true) draft.transcribedFromProse = true;
-    const parsed = DecisionAuthority.safeParse(draft);
-    // Unreachable through {@link classifyFromProse}'s two outputs, and checked anyway: this is the
-    // one place a classifier change could start minting stamps the schema refuses, and finding that
-    // out per row beats finding it out on the 200th write of a partially-applied pass.
-    if (!parsed.success) continue;
-    planned.push({ row, authority: parsed.data });
+    // Built directly rather than re-validated per row. Both of {@link classifyFromProse}'s outputs
+    // satisfy `DecisionAuthority` BY CONSTRUCTION, so a `safeParse` guard here could never fail —
+    // an unreachable branch, which is a design smell rather than a safety net. The invariant it was
+    // standing in for is held where it can actually be checked: `adr-attest.test.ts` parses each
+    // classifier output against the schema, so a classifier change that started minting refused
+    // stamps reds there instead of being silently skipped over 200 rows here.
+    const authority: DecisionAuthority = { basis: classified.basis, scribedBy, at: deps.today };
+    if (classified.transcribedFromProse === true) authority.transcribedFromProse = true;
+    planned.push({ row, authority });
   }
 
   const byBasis = new Map<string, number>();

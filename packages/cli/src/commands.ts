@@ -639,8 +639,11 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   // words are evidence a reader must not have to run a second command to see. Like its neighbour it
   // never announces its own absence: 206 rows carry no stamp, and a line saying so on every one of
   // them would be noise on the commonest case rather than a finding.
-  const authorityBanner = stored.kind === "adr" ? authorityBannerFor(stored.doc) : [];
-  if (authorityBanner.length > 0) lines.push(...authorityBanner);
+  // Pushed UNGUARDED: `authorityBannerFor` returns `[]` for an unstamped record and for every
+  // non-decision kind, and spreading an empty array pushes nothing. A `length > 0` guard would
+  // read as though it were preventing something and could not change any output — the banner
+  // already never announces its own absence, by returning nothing to announce.
+  lines.push(...(stored.kind === "adr" ? authorityBannerFor(stored.doc) : []));
   lines.push(a.body);
   const byId = new Map(allDocs.map((d) => [d.id, d] as const));
   // The corpus view ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds

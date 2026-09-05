@@ -686,7 +686,7 @@ export interface AdrListFilter {
    * `--basis <b>` (ADR-0519 D1): whose call it was. One of the four bases, or
    * {@link UNSTAMPED_FILTER} for the rows that declare nothing.
    */
-  basis?: AuthorityBasis | typeof UNSTAMPED_FILTER;
+  basis?: AuthorityBasis | typeof UNSTAMPED_FILTER | undefined;
 }
 
 // The title extractor moved to `@storytree/drive` (next to `parseAdrFrontmatter`, its natural home)
@@ -1023,7 +1023,11 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
   if (opts.current === true) filter.current = true;
   if (opts.loadBearing === true) filter.loadBearing = true;
   if (opts.status !== undefined) filter.status = opts.status as AdrStatus;
-  if (opts.basis !== undefined) filter.basis = opts.basis as AuthorityBasis | typeof UNSTAMPED_FILTER;
+  // UNGUARDED, unlike its three neighbours above, and for the reason `commands.ts` records where it
+  // threads these same flags: the field admits `undefined`, so a guard has no behavioural content —
+  // present-and-undefined and absent take the identical branch in `selectAdrListings`. A conditional
+  // whose two arms cannot be told apart is an unkillable mutant by construction.
+  filter.basis = opts.basis as AuthorityBasis | typeof UNSTAMPED_FILTER | undefined;
   const rows = renderAdrList(listings, filter);
   const baseCut = opts.loadBearing
     ? "load-bearing current-state"
@@ -1308,8 +1312,14 @@ export async function adrCommand(
     // above: under `exactOptionalPropertyTypes` an optional field must be ABSENT, never
     // present-and-undefined (anti-slop `no-conditional-empty-object-spread`).
     const attestOpts: Mutable<AdrAttestOpts> = {};
-    if (opts.basis !== undefined) attestOpts.basis = opts.basis;
-    if (opts.ownerSaid !== undefined) attestOpts.ownerSaid = opts.ownerSaid;
+    // The two STRING options are assigned unguarded and the three BOOLEANS are guarded, which is
+    // one rule read twice rather than an inconsistency: both string fields are declared
+    // `?: string | undefined`, so a guard could not change any answer (`adrAttest` reads
+    // `opts.basis === undefined` either way) and is an unkillable mutant; the booleans are tested
+    // with `=== true`, where assigning an absent flag's `undefined` would add a
+    // present-and-undefined key `exactOptionalPropertyTypes` refuses.
+    attestOpts.basis = opts.basis;
+    attestOpts.ownerSaid = opts.ownerSaid;
     if (opts.transcribedFromProse === true) attestOpts.transcribedFromProse = true;
     if (opts.backfill === true) attestOpts.backfill = true;
     if (opts.restamp === true) attestOpts.restamp = true;

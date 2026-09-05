@@ -349,13 +349,30 @@ test("authority-declared: an UNWIRED view fails loud rather than passing vacuous
 });
 
 test("authority-declared: the FAIL names the verb and the honest weaker basis, never a stronger one", () => {
-  // Its cheapest compliance must be `agent-derived` — the WEAKER claim — which is what separates it
-  // from the presence check ADR-0427 deleted. A message steering the author toward an owner basis
-  // would invert that.
+  // Asserted WHOLE. The message is three `+`-concatenated segments, each its own literal, so a regex
+  // matching one leaves the others unheld — and for the LAST segment that is the very sentence
+  // keeping the rung's cheapest compliance the WEAKER claim (`agent-derived`). That asymmetry is what
+  // separates this rung from the presence check ADR-0427 deleted, so it is load-bearing, not prose.
   const r = adrHealth(
     inputs({ adrs: [adr(AUTHORITY_FLOOR, "accepted")], decisionAuthorities: [{ number: AUTHORITY_FLOOR, declared: false }] }),
   );
-  const lines = (r.find((c) => c.name === "authority-declared")?.lines ?? []).join("\n");
-  assert.match(lines, /storytree adr attest/);
-  assert.match(lines, /agent-derived/);
+  assert.deepEqual(r.find((c) => c.name === "authority-declared")?.lines ?? [], [
+    "ADR-0519 is accepted and declares no authority basis (ADR-0519 D1). " +
+      "Stamp it: `storytree adr attest 519 --basis <b> [--owner-said <text|@file>] --pg`. " +
+      "With no directive to quote, the honest basis is `agent-derived`.",
+  ]);
+});
+
+test("authority-declared: the clean note states the FLOOR, so a green says what it covered", () => {
+  // A PASS line reading only "ok" would hide that ~206 accepted decisions are out of scope BY
+  // DECISION (ADR-0519 D5) — which is the one thing a reader of this green needs to know.
+  const r = adrHealth(
+    inputs({
+      adrs: [adr(AUTHORITY_FLOOR, "accepted")],
+      decisionAuthorities: [{ number: AUTHORITY_FLOOR, declared: true }],
+    }),
+  );
+  assert.deepEqual(r.find((c) => c.name === "authority-declared")?.lines ?? [], [
+    "every accepted decision from ADR-0519 onward declares a basis",
+  ]);
 });
