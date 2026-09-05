@@ -634,3 +634,17 @@ test("resteer's two verbs are classified, and the read carries its own operation
   assert.equal(write?.observes, "nothing");
   assert.equal((write as { why?: string }).why, "write — records one observed owner intervention");
 });
+
+test("arc gate / arc ungate observe NOTHING, each with its own recorded reason (ADR-0523 D5)", () => {
+  // Both write the arc-to-arc SCHEDULE edge. `arc gate` does walk the existing gates before writing,
+  // but that walk is a cycle guard — no reader learned anything from it — so classifying it as a
+  // corpus read would credit a traversal that never informed anybody.
+  const gate = CLI_READ_VERBS["arc gate"];
+  assert.equal(gate?.observes, "nothing");
+  assert.equal((gate as { why?: string }).why, "write — queues an arc behind its blocker");
+  const ungate = CLI_READ_VERBS["arc ungate"];
+  assert.equal(ungate?.observes, "nothing");
+  // The two reasons are DISTINCT: a shared string would leave a reader unable to tell which verb a
+  // silent classification belongs to, which is the whole point of recording the reason.
+  assert.equal((ungate as { why?: string }).why, "write — releases a queue edge");
+});
