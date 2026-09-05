@@ -3873,12 +3873,17 @@ export function TreeView({
             search={search}
             onToggle={toggleLibrary}
             onSelectLens={selectDrawerLens}
-            /* ADR-0267 D1's PRIMARY slot: the momentum-lanes arc surface (ADR-0314). Supplement
-               glue — the surface itself is proven in isolation (ArcSurface.test.tsx); this mount
-               hands it the polled lane rows, the world's clock, and the one-arc reader its briefing
-               panel needs (`api.arc` → `GET /api/arcs/<id>`, the whole rollup for the selection —
-               the list carries only what a LANE draws). `api.arc` is a stable module function, which
-               is what `readArc` requires. */
+            /* ADR-0267 D1's PRIMARY slot: the momentum-lanes arc surface (ADR-0314, cut down by
+               `arc-queue-and-question-legibility-arc` inc-01/inc-02). Supplement glue — the surface
+               itself is proven in isolation (ArcSurface.test.tsx); this mount hands it the polled
+               lane rows, the world's clock, the one-arc reader its briefing panel needs (`api.arc` →
+               `GET /api/arcs/<id>`, the whole rollup for the selection — the list carries only what
+               a LANE draws), and the ALREADY-LOADED Library corpus (`assets`, destructured above for
+               the Library lens regardless of whether this drawer is open) — a question's own
+               statement/context/options/analogy/diagram/recommendation live on a structured
+               Knowledge doc's `fields` there, not on the arc rollup (see the comment on
+               `ArcSurfaceProps.assets`), so this costs no new fetch. `api.arc` is a stable module
+               function, which is what `readArc` requires. */
             arcsSlot={
               <ArcSurface
                 arcs={arcRollups}
@@ -3886,6 +3891,7 @@ export function TreeView({
                 claims={claimGroups}
                 onOpen={setOpenSelection}
                 readArc={api.arc}
+                assets={assets}
               />
             }
             bodySlot={

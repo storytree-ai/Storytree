@@ -22,7 +22,13 @@ import {
   laneCounts,
   landedSummary,
   lastActivityAt,
+  parseOptionCards,
+  questionFields,
+  questionRowStats,
+  questionWordBudget,
+  wordCount,
   BLOCKED_IS_DERIVABLE,
+  QUESTION_WORD_BUDGET_FIELDS,
   type ArcSurfaceState,
 } from './arcSurface';
 import type {
@@ -30,6 +36,7 @@ import type {
   ArcRollupIncrement,
   ArcRollupQuestion,
   ArcRollupSummary,
+  GuidanceAsset,
   SessionClaimGroup,
 } from '../types';
 
@@ -668,5 +675,229 @@ describe('landedSummary — the log collapses to one line (ADR-0359 D1)', () => 
       increments: [landed('c1', '2026-07-01'), parked('p1', '2026-08-01')],
     });
     expect(landedSummary(rollup)).not.toMatch(/%|\bof \d|\d\s*\/\s*\d/);
+  });
+});
+
+// ---------- inc-01/inc-02 (arc-queue-and-question-legibility-arc): the question's own reading ----------
+
+/** A structured `open-question` asset, the way `GuidanceAsset.fields` carries it off the wire. */
+function questionAsset(id: string, fields: Record<string, string>): GuidanceAsset {
+  return {
+    id,
+    category: 'open-question',
+    title: `Q ${id}`,
+    description: `description ${id}`,
+    body: '',
+    fields,
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  };
+}
+
+describe('wordCount — the crude whitespace measure the arc’s own corpus sweep used', () => {
+  it('counts whitespace-separated tokens', () => {
+    expect(wordCount('one two three')).toBe(3);
+  });
+
+  it('is 0 for undefined, empty, and whitespace-only text', () => {
+    expect(wordCount(undefined)).toBe(0);
+    expect(wordCount('')).toBe(0);
+    expect(wordCount('   \n\t  ')).toBe(0);
+  });
+
+  it('collapses runs of whitespace rather than counting empty tokens', () => {
+    expect(wordCount('one   two\n\nthree')).toBe(3);
+  });
+});
+
+describe('questionFields — the structured fields ArcRollupQuestion does not carry', () => {
+  it('reads a question’s fields off the matching asset', () => {
+    const assets = [questionAsset('q1', { statement: 'Should we?', context: 'Some context.' })];
+    expect(questionFields(assets, 'q1')).toEqual({ statement: 'Should we?', context: 'Some context.' });
+  });
+
+  it('is {} when no asset matches, or the corpus is empty — never throws', () => {
+    expect(questionFields([], 'q1')).toEqual({});
+    expect(questionFields([questionAsset('other', { statement: 'x' })], 'q1')).toEqual({});
+  });
+});
+
+describe('questionRowStats — the flat list’s word count + no-diagram flag (inc-01)', () => {
+  it('sums word count over exactly the seven readable fields, never `answer`', () => {
+    const fields = {
+      stakes: 'a b',
+      statement: 'c d e',
+      context: 'f',
+      options: 'g h',
+      analogy: 'i',
+      diagram: 'j k',
+      recommendation: 'l',
+      // `answer` only exists on a SETTLED question and is a different reading job — it must not
+      // inflate an open question's reading cost.
+      answer: 'm n o p q r s t u v',
+    };
+    expect(QUESTION_WORD_BUDGET_FIELDS).toHaveLength(7);
+    expect(questionRowStats(fields).wordTotal).toBe(12); // 2+3+1+2+1+2+1, not +10 for `answer`
+  });
+
+  it('flags `noDiagram` exactly when the diagram field is absent or blank', () => {
+    expect(questionRowStats({ diagram: '' }).noDiagram).toBe(true);
+    expect(questionRowStats({}).noDiagram).toBe(true);
+    expect(questionRowStats({ diagram: '   ' }).noDiagram).toBe(true);
+    expect(questionRowStats({ diagram: 'a picture' }).noDiagram).toBe(false);
+  });
+});
+
+describe('parseOptionCards — the FOR:/AGAINST: convention, split into cards (inc-02)', () => {
+  it('splits blank-line-separated paragraphs into summary/for/against', () => {
+    const options = parseOptionCards(
+      'A — do the small thing. FOR: cheap and reversible. AGAINST: does not solve it.\n\n' +
+        'B — do the big thing. FOR: solves it for good. AGAINST: expensive.',
+    );
+    expect(options).toHaveLength(2);
+    expect(options[0]).toEqual({
+      summary: 'A — do the small thing.',
+      forText: 'cheap and reversible.',
+      againstText: 'does not solve it.',
+    });
+    expect(options[1]?.summary).toBe('B — do the big thing.');
+    expect(options[1]?.forText).toBe('solves it for good.');
+    expect(options[1]?.againstText).toBe('expensive.');
+  });
+
+  it('is [] for undefined or blank text', () => {
+    expect(parseOptionCards(undefined)).toEqual([]);
+    expect(parseOptionCards('   ')).toEqual([]);
+  });
+
+  it('a paragraph with no FOR:/AGAINST: marker survives whole, never dropped', () => {
+    const options = parseOptionCards('Just some prose with no markers at all.');
+    expect(options).toEqual([{ summary: 'Just some prose with no markers at all.', forText: '', againstText: '' }]);
+  });
+});
+
+describe('questionWordBudget — total / above the fold / folded, always arithmetically consistent', () => {
+  it('folds exactly analogy + context; everything else counts as above the fold', () => {
+    const fields = {
+      stakes: 'a b', // 2
+      statement: 'c d e', // 3
+      context: 'f g h i', // 4 — folded
+      options: 'j k', // 2
+      analogy: 'l m n', // 3 — folded
+      diagram: 'o', // 1
+      recommendation: 'p q', // 2
+    };
+    const budget = questionWordBudget(fields);
+    expect(budget.total).toBe(17); // 2+3+4+2+3+1+2
+    expect(budget.folded).toBe(7); // analogy(3) + context(4)
+    expect(budget.aboveFold).toBe(10); // stakes(2) + statement(3) + options(2) + diagram(1) + recommendation(2)
+    // The arithmetic invariant holds BY CONSTRUCTION (`aboveFold` is defined as `total - folded`),
+    // so a reader never has to wonder where a fourth, uncounted bucket of words went.
+    expect(budget.aboveFold + budget.folded).toBe(budget.total);
+  });
+
+  it('is all zero for an empty field set', () => {
+    expect(questionWordBudget({})).toEqual({ total: 0, aboveFold: 0, folded: 0 });
+  });
+});
+
+
+describe('parseOptionCards — the parsing edges the happy path cannot reach', () => {
+  it('splits on BLANK LINES, one card per option, and trims each', () => {
+    const cards = parseOptionCards('  Option A. FOR: cheap AGAINST: slow  \n\n\n  Option B. FOR: fast AGAINST: dear ');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toEqual({ summary: 'Option A.', forText: 'cheap', againstText: 'slow' });
+    expect(cards[1]).toEqual({ summary: 'Option B.', forText: 'fast', againstText: 'dear' });
+  });
+
+  it('a SINGLE newline does not start a new card — options run to several lines', () => {
+    // The separator is a BLANK line. Splitting on any newline would shred a multi-line option into
+    // one card per line, each losing the FOR:/AGAINST: pair that spans them.
+    const cards = parseOptionCards('Option A,\nwhich continues on this line.\nFOR: cheap\nAGAINST: slow');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.summary).toBe('Option A,\nwhich continues on this line.');
+    expect(cards[0]?.forText).toBe('cheap');
+    expect(cards[0]?.againstText).toBe('slow');
+  });
+
+  it('a blank line carrying WHITESPACE still separates two cards', () => {
+    const cards = parseOptionCards('Option A. FOR: a AGAINST: b\n   \t  \nOption B. FOR: c AGAINST: d');
+    expect(cards).toHaveLength(2);
+    expect(cards[1]?.summary).toBe('Option B.');
+  });
+
+  it('EMPTY input yields no cards, and so does whitespace-only input', () => {
+    expect(parseOptionCards(undefined)).toEqual([]);
+    expect(parseOptionCards('')).toEqual([]);
+    expect(parseOptionCards('   \n\n  \t ')).toEqual([]);
+  });
+
+  it('a paragraph with NEITHER marker survives whole — it is not a parse failure', () => {
+    // A question predating the convention, or one that phrases the trade-off differently. Dropping
+    // it would silently delete an option from the owner's view, which is the one outcome a read
+    // surface must never produce.
+    const cards = parseOptionCards('Option C, described in prose with no markers at all.');
+    expect(cards).toEqual([{ summary: 'Option C, described in prose with no markers at all.', forText: '', againstText: '' }]);
+  });
+
+  it('a paragraph with FOR: but no AGAINST: survives whole, rather than half-parsed', () => {
+    const cards = parseOptionCards('Option D. FOR: it is cheap');
+    expect(cards[0]).toEqual({ summary: 'Option D. FOR: it is cheap', forText: '', againstText: '' });
+  });
+
+  it('AGAINST: BEFORE FOR: is not a pair — the paragraph survives whole', () => {
+    // `indexOf('AGAINST:', forIdx)` searches only AFTER the FOR: marker, so a reversed pair reads as
+    // no pair at all rather than slicing a negative range and inventing two empty halves.
+    const cards = parseOptionCards('Option E. AGAINST: slow FOR: cheap');
+    expect(cards[0]?.summary).toBe('Option E. AGAINST: slow FOR: cheap');
+    expect(cards[0]?.forText).toBe('');
+    expect(cards[0]?.againstText).toBe('');
+  });
+
+  it('a marker at position ZERO is still a marker — the summary is simply empty', () => {
+    // `forIdx === -1` is the absent test, NOT falsiness: a `FOR:` at index 0 is real, and a check
+    // that treated 0 as absent would drop the pair on exactly the shortest, most-marked-up option.
+    const cards = parseOptionCards('FOR: cheap AGAINST: slow');
+    expect(cards[0]).toEqual({ summary: '', forText: 'cheap', againstText: 'slow' });
+  });
+
+  it('only the FIRST FOR: and the AGAINST: after it are markers — later ones stay in the text', () => {
+    const cards = parseOptionCards('Option F. FOR: cheap AGAINST: slow, and AGAINST: fiddly');
+    expect(cards[0]?.forText).toBe('cheap');
+    expect(cards[0]?.againstText).toBe('slow, and AGAINST: fiddly');
+  });
+});
+
+describe('parseOptionCards — the whitespace and sentinel edges', () => {
+  it('leading and trailing blank lines produce no empty cards', () => {
+    // The split yields empty strings at both ends. Without the filter each becomes a card with an
+    // empty summary — a blank option box in the owner's face, between the real ones.
+    const cards = parseOptionCards('\n\nOption A. FOR: a AGAINST: b\n\n');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.summary).toBe('Option A.');
+  });
+
+  it('a marker-less paragraph is TRIMMED, not carried with its surrounding whitespace', () => {
+    // The marker-less path returns the paragraph as the summary verbatim, so if paragraphs were not
+    // trimmed on the way in, this card alone would keep its indentation while every parsed card
+    // lost it — the one shape where the per-paragraph trim is observable.
+    const cards = parseOptionCards('Option A. FOR: a AGAINST: b\n\n   Option B in plain prose.   ');
+    expect(cards[1]?.summary).toBe('Option B in plain prose.');
+  });
+
+  it('finds a FOR: marker wherever it sits, including one character in', () => {
+    // `forIdx === -1` is the ABSENT test. Comparing against any other position instead would drop
+    // the pair for options whose marker happens to land at that index — silently, and only for them.
+    const cards = parseOptionCards('A FOR: cheap AGAINST: slow');
+    expect(cards[0]).toEqual({ summary: 'A', forText: 'cheap', againstText: 'slow' });
+    const oneIn = parseOptionCards('AFOR: cheap AGAINST: slow');
+    expect(oneIn[0]).toEqual({ summary: 'A', forText: 'cheap', againstText: 'slow' });
+  });
+
+  it('an AGAINST: with no FOR: at all is not a pair', () => {
+    const cards = parseOptionCards('Option A, described without a FOR half. AGAINST: it is slow.');
+    expect(cards[0]?.forText).toBe('');
+    expect(cards[0]?.againstText).toBe('');
+    expect(cards[0]?.summary).toBe('Option A, described without a FOR half. AGAINST: it is slow.');
   });
 });

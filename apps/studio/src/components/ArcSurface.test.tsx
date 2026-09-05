@@ -36,6 +36,7 @@ import type {
   ArcRollupIncrement,
   ArcRollupQuestion,
   ArcRollupSummary,
+  GuidanceAsset,
   SessionClaimGroup,
 } from '../types';
 
@@ -101,6 +102,35 @@ function question(id: string): ArcRollupQuestion {
  */
 function settledQuestion(id: string, answer = `answer of ${id}`): ArcRollupQuestion {
   return { ...question(id), lifecycle: 'settled', answer, settledAt: '2026-08-24T09:30:00Z' };
+}
+
+/**
+ * A question's structured `open-question` asset (inc-01/inc-02) — the Library corpus row
+ * `ArcSurfaceProps.assets` carries, and the ONLY source for `statement` / `context` / `options` /
+ * `analogy` / `diagram` / `recommendation`: {@link ArcRollupQuestion} never carries them. Every field
+ * defaults to `''` (absent), matching how `GuidanceAsset.fields` behaves on a real doc that omits an
+ * optional section — a test wanting a specific field spells it out.
+ */
+function questionAsset(id: string, fields: Partial<Record<string, string>> = {}): GuidanceAsset {
+  return {
+    id,
+    category: 'open-question',
+    title: `Question ${id}`,
+    description: `description ${id}`,
+    body: '',
+    fields: {
+      stakes: '',
+      statement: '',
+      context: '',
+      options: '',
+      analogy: '',
+      diagram: '',
+      recommendation: '',
+      ...fields,
+    },
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+  };
 }
 /**
  * One arc fixture — declared as a WHOLE rollup, handed back as the LANE ROW the list wire carries.
@@ -259,14 +289,14 @@ describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3
     expect(within(panel).getByText('The waiting-arc')).not.toBeNull();
   });
 
-  it('lists each waiting question STAKES-first, and links through to its Library artifact', async () => {
+  it('lists each waiting question with a real link through to its Library artifact', async () => {
     // D3: the panel carries click-through into the ACTUAL artifact holding the question, so the
     // owner reaches the briefing, diagrams and mocks needed to answer it — `#/asset/<id>` already
-    // routes, so this is deep-linking rather than a new surface.
+    // routes, so this is deep-linking rather than a new surface. inc-01 moved the stakes PREVIEW off
+    // this row (see the reading-cost describe block below); the title link survives unchanged.
     render(<ArcSurface readArc={readArc} arcs={[WAITING_ARC]} now={NOW} />);
     await settle();
     const first = screen.getByTestId('arc-question:oq-first');
-    expect(first.textContent).toContain('stakes of oq-first');
     const link = within(first).getByRole('link', { name: 'Question oq-first' });
     expect(link.getAttribute('href')).toBe('#/asset/oq-first');
   });
@@ -277,7 +307,10 @@ describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3
     expect(screen.getByTestId('arc-briefing-nothing-waiting')).not.toBeNull();
   });
 
-  it('answers what it is about / where it is up to / what comes next, and opens the arc itself', async () => {
+  it('answers what it is about, and opens the arc itself', async () => {
+    // inc-01 cut the panel to two things — the description and the open questions — so this no
+    // longer also answers "what comes next" / "where it is up to" (see the "cut to two things"
+    // describe block below for the fence on their removal).
     render(
       <ArcSurface
         readArc={readArc}
@@ -294,8 +327,6 @@ describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3
     await settle();
     const panel = screen.getByTestId('arc-briefing');
     expect(panel.textContent).toContain('intent of waiting-arc');
-    expect(within(panel).getByLabelText('what comes next').textContent).toContain('title of next-1');
-    expect(within(panel).getByLabelText('where it is up to').textContent).toContain('title of done-1');
     expect(within(panel).getByRole('link', { name: /open the arc/ }).getAttribute('href')).toBe(
       '#/asset/waiting-arc',
     );
@@ -384,241 +415,70 @@ describe('ArcSurface — an answered question MOVES to Settled, it does not vani
     expect(screen.getByTestId('arc-lane:quiet-arc').getAttribute('data-arc-state')).toBe('quiet');
   });
 
-  it('sits BELOW the waiting block — the move is legible as a move', async () => {
+  it('sits BELOW the open-questions block — the move is legible as a move', async () => {
     // Adjacency is the argument for the position: a question the owner just answered reads as
     // having moved one section down. The same rows in an archive at the foot of the panel would
     // read as gone, which is the outcome this increment exists to remove.
+    //
+    // inc-01 moved the description to render FIRST (it used to sit under "what it is about", third
+    // block down), so the order is now: about → open questions → settled. Settled still follows the
+    // block it moved out of, which is the property this test holds — only the anchor changed.
     render(<ArcSurface readArc={readArc} arcs={[SETTLED_ARC]} now={NOW} />);
     await settle();
-    const waiting = screen.getByLabelText('waiting on you');
-    const settledBlock = screen.getByLabelText('settled questions');
-    expect(waiting.compareDocumentPosition(settledBlock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    // …and ABOVE "what it is about", so it is not pushed under the orientation prose.
     const about = screen.getByLabelText('what this arc is about');
-    expect(settledBlock.compareDocumentPosition(about) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const waiting = screen.getByLabelText('open questions');
+    const settledBlock = screen.getByLabelText('settled questions');
+    expect(about.compareDocumentPosition(waiting) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(waiting.compareDocumentPosition(settledBlock) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
 
-describe('ArcSurface — a queued increment is explicitly REVIEWABLE (ADR-0359, inc-01)', () => {
-  const MIXED = arc({
-    id: 'mixed-arc',
-    increments: [
-      increment({ id: 'prop-1', status: 'proposal', parked: '2026-08-05' }),
-      increment({ id: 'ready-1', status: 'ready', parked: '2026-08-04' }),
-      landed('done-1', '2026-08-01'),
-    ],
-  });
-
-  it('gives every forward-looking increment a named review action, with a real href', async () => {
-    // The defect: a queued increment rendered as a bare title link, so nothing on the surface said
-    // it could be opened and read — the owner could see that an arc had queued work and could not
-    // reliably reach the proposal itself.
-    render(<ArcSurface readArc={readArc} arcs={[MIXED]} now={NOW} />);
-    await settle();
-    const panel = screen.getByTestId('arc-briefing');
-    const review = within(panel).getByTestId('arc-increment-review:prop-1');
-    expect(review.getAttribute('href')).toBe('#/asset/prop-1');
-    expect(review.textContent).toContain('Review proposal');
-    // A real anchor, so it is keyboard-reachable, copyable and middle-clickable without any
-    // handler of ours — the affordance is native, not simulated.
-    expect(review.tagName).toBe('A');
-    expect(review.getAttribute('tabindex')).toBeNull();
-  });
-
-  it('a ready/active increment is reviewable too, but is not called a proposal', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[MIXED]} now={NOW} />);
-    await settle();
-    const review = screen.getByTestId('arc-increment-review:ready-1');
-    expect(review.getAttribute('href')).toBe('#/asset/ready-1');
-    expect(review.textContent).toContain('Review');
-    expect(review.textContent).not.toContain('proposal');
-  });
-
-  it('LANDED increments stay visibly distinct and inherit no proposal label', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[MIXED]} now={NOW} />);
-    await settle();
-    expect(screen.queryByTestId('arc-increment-review:done-1')).toBeNull();
-    const row = screen.getByTestId('arc-increment:done-1');
-    expect(row.getAttribute('data-increment-status')).toBe('closed');
-    expect(row.textContent).not.toMatch(/proposal/i);
-  });
-
-  it('a plain click on the review action opens the overlay in place, like a question does', async () => {
-    const opened: Array<{ id: string; category: string }> = [];
-    render(
-      <ArcSurface readArc={readArc} arcs={[MIXED]} now={NOW} onOpen={(s) => opened.push({ id: s.id, category: s.category })} />,
-    );
-    await settle();
-    fireEvent.click(screen.getByTestId('arc-increment-review:prop-1'));
-    await settle();
-    expect(opened).toEqual([{ id: 'prop-1', category: 'increment' }]);
-  });
-});
-
-describe('ArcSurface — proposals surface where the owner scans (ADR-0359 D2/D3)', () => {
-  const PROPOSALS_ARC = arc({
-    id: 'proposals-arc',
-    increments: [
-      increment({ id: 'prop-1', status: 'proposal', parked: '2026-08-05' }),
-      increment({ id: 'ready-1', status: 'ready', parked: '2026-08-04' }),
-      landed('done-1', '2026-08-01'),
-    ],
-  });
-
-  it('lists proposals inside "Waiting on you", as their own labelled group', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[PROPOSALS_ARC]} now={NOW} />);
-    await settle();
-    const waiting = within(screen.getByTestId('arc-briefing')).getByLabelText('waiting on you');
-    const group = within(waiting).getByTestId('arc-briefing-proposals');
-    expect(group.textContent).toContain('title of prop-1');
-    expect(within(group).getByTestId('arc-increment-review:prop-1')).not.toBeNull();
-  });
-
-  it('keeps ready/active work out of it — decided work is not asking for a review (D3)', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[PROPOSALS_ARC]} now={NOW} />);
-    await settle();
-    const group = screen.getByTestId('arc-briefing-proposals');
-    expect(group.textContent).not.toContain('title of ready-1');
-    // …and nothing is lost: it is still under "what comes next".
-    const next = within(screen.getByTestId('arc-briefing')).getByLabelText('what comes next');
-    expect(next.textContent).toContain('title of ready-1');
-  });
-
-  it('does not claim "nothing is waiting" while proposals sit there', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[PROPOSALS_ARC]} now={NOW} />);
-    await settle();
-    expect(screen.queryByTestId('arc-briefing-nothing-waiting')).toBeNull();
-  });
-
-  it('questions still come first — they are answerable now, a proposal is a read', async () => {
-    render(
-      <ArcSurface
-        readArc={readArc}
-        arcs={[arc({ id: 'both', questions: [question('oq-1')], increments: [parked('prop-1', '2026-08-05')] })]}
-        now={NOW}
-      />,
-    );
-    await settle();
-    const waiting = within(screen.getByTestId('arc-briefing')).getByLabelText('waiting on you');
-    const questions = within(waiting).getByTestId('arc-briefing-questions');
-    const proposals = within(waiting).getByTestId('arc-briefing-proposals');
-    expect(
-      questions.compareDocumentPosition(proposals) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
-  });
-
-  it('THE FENCE (D4): the LANE chip is unmoved — a proposal never reads as `waiting`', async () => {
-    // ADR-0351 D1 removed a state that lit on every lane and so discriminated nothing; all 13
-    // active arcs carried open increments on 2026-08-12. The panel shows proposals, the lane does
-    // not. Read ADR-0359 D4 before "fixing" this apparent inconsistency.
-    render(<ArcSurface readArc={readArc} arcs={[PROPOSALS_ARC]} now={NOW} />);
-    await settle();
-    expect(screen.getByTestId('arc-lane:proposals-arc').getAttribute('data-arc-state')).toBe('quiet');
-  });
-});
-
-describe('ArcSurface — a question BRIEFS, it does not flood (ADR-0359)', () => {
+describe('ArcSurface — an open question’s markdown is stripped in its own full reading (inc-02)', () => {
   // Found by looking at the shipped panel against the live store: on `uat-journey-surgery-arc` the
   // waiting block rendered ~1500 characters of RAW markdown — literal ** and backticks, bullet
   // markers mid-line — which filled the drawer and pushed "What it is about" off the panel. The arc's
-  // own `intent` was already stripped and clamped for precisely this reason; a question's `stakes` is
-  // authored to the same cold-answerable bar (ADR-0314 D5) and had neither treatment.
+  // own `intent` was already stripped for precisely this reason; a question's `stakes` is authored
+  // to the same cold-answerable bar (ADR-0314 D5) and needs the same treatment wherever it renders.
+  // inc-01 moved the row itself off showing `stakes` at all (word count + no-diagram replace it, see
+  // "a question row shows its reading cost" below); the full text now renders only in the OPENED
+  // reading, so that is where the stripping is asserted.
+  const LOUD_STAKES =
+    '**`studio-build` sits permanently red** at the story rung.\n\n- **The map lies** in the direction `ADR-0294` set out to stop.';
   const LOUD = arc({
     id: 'loud-arc',
     questions: [
       {
         id: 'oq-loud',
         title: 'Which door?',
-        stakes: '**`studio-build` sits permanently red** at the story rung.\n\n- **The map lies** in the direction `ADR-0294` set out to stop.',
+        stakes: LOUD_STAKES,
         description: 'A `one-liner` with **markers** too.',
         lifecycle: 'open',
       },
     ],
     increments: [landed('c', '2026-08-05')],
   });
+  // `arc()` above returns the LANE-width `ArcRollupSummary`, which never carries `questions` — the
+  // stakes text has to be declared once and reused, not read back off `LOUD`.
+  const LOUD_ASSETS = [questionAsset('oq-loud', { stakes: LOUD_STAKES })];
 
   it('strips the markers rather than showing them, and keeps every word', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[LOUD]} now={NOW} />);
+    render(<ArcSurface readArc={readArc} arcs={[LOUD]} now={NOW} assets={LOUD_ASSETS} />);
     await settle();
-    const stakes = screen.getByTestId('arc-question:oq-loud').querySelector('.arc-question-stakes');
-    const text = stakes?.textContent ?? '';
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-loud'));
+    const stakes = screen.getByTestId('arc-question-detail-stakes');
+    const text = stakes.textContent ?? '';
     expect(text).not.toContain('**');
     expect(text).not.toContain('`');
     expect(text).toContain('studio-build sits permanently red');
     expect(text).toContain('The map lies');
   });
 
-  it('clamps it, so one loud question cannot push the rest of the briefing off the panel', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[LOUD]} now={NOW} />);
+  it('opening a loud question does not push "what it is about" out of the document', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[LOUD]} now={NOW} assets={LOUD_ASSETS} />);
     await settle();
-    const stakes = screen.getByTestId('arc-question:oq-loud').querySelector('.arc-question-stakes');
-    // The clamp is CSS; what is asserted here is that the class carrying it is applied — the height
-    // itself is the operator-attested LOOK leg, not a jsdom fact.
-    expect(stakes?.className).toContain('arc-briefing-clamp');
-    // …and the sections below it are still in the document, which is the point of clamping.
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-loud'));
     const panel = screen.getByTestId('arc-briefing');
     expect(within(panel).getByLabelText('what this arc is about')).not.toBeNull();
-    expect(within(panel).getByLabelText('where it is up to')).not.toBeNull();
-  });
-
-  it('the one-line description is stripped too — it sits in the same block', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[LOUD]} now={NOW} />);
-    await settle();
-    const row = screen.getByTestId('arc-question:oq-loud');
-    expect(row.textContent).toContain('A one-liner with markers too.');
-  });
-});
-
-describe('ArcSurface — the landed log collapses to one line (ADR-0359 D1)', () => {
-  const LONG_ARC = arc({
-    id: 'long-arc',
-    increments: [
-      ...Array.from({ length: 12 }, (_, i) => landed(`done-${i}`, '2026-07-01')),
-      landed('done-last', '2026-08-05'),
-    ],
-  });
-
-  it('renders a summary line instead of the whole log, and stays CLOSED by default', async () => {
-    // The defect: one <li> per closed increment, which was 57 rows on `verification-integrity-arc`
-    // against the live store on 2026-08-12 — at the bottom of a scroll past whatever the owner
-    // came for.
-    render(<ArcSurface readArc={readArc} arcs={[LONG_ARC]} now={NOW} />);
-    await settle();
-    const section = within(screen.getByTestId('arc-briefing')).getByLabelText('where it is up to');
-    const details = section.querySelector('details');
-    expect(details).not.toBeNull();
-    expect((details as HTMLDetailsElement).open).toBe(false);
-    expect(section.querySelector('summary')?.textContent).toBe('13 landed · last 2026-08-05 #1186');
-    // Every row is INSIDE the collapsed disclosure — nothing escapes the fold.
-    for (const row of section.querySelectorAll('.arc-increment')) {
-      expect((details as HTMLDetailsElement).contains(row)).toBe(true);
-    }
-  });
-
-  it('opening it restores the full list, unchanged — the log is folded, not deleted', async () => {
-    render(<ArcSurface readArc={readArc} arcs={[LONG_ARC]} now={NOW} />);
-    await settle();
-    const section = within(screen.getByTestId('arc-briefing')).getByLabelText('where it is up to');
-    const details = section.querySelector('details') as HTMLDetailsElement;
-    details.open = true;
-    fireEvent(details, new Event('toggle'));
-    expect(details.open).toBe(true);
-    expect(section.querySelectorAll('.arc-increment')).toHaveLength(13);
-    expect(section.textContent).toContain('title of done-last');
-  });
-
-  it('the two blocks the owner reads stay always-open — neither is behind a disclosure', async () => {
-    render(
-      <ArcSurface
-        readArc={readArc}
-        arcs={[arc({ id: 'a', questions: [question('oq-1')], increments: [landed('c', '2026-08-05')] })]}
-        now={NOW}
-      />,
-    );
-    await settle();
-    const panel = screen.getByTestId('arc-briefing');
-    expect(within(panel).getByLabelText('waiting on you').querySelector('details')).toBeNull();
-    expect(within(panel).getByLabelText('what this arc is about').querySelector('details')).toBeNull();
   });
 });
 
@@ -945,15 +805,13 @@ describe('ArcSurface — deep links open in the map overlay, not a navigation aw
     await settle();
     expect(opened).toEqual([{ id: 'linked-arc', category: 'arc' }]);
 
+    // inc-01 removed the increment-listing sections this panel used to carry ("what comes next"),
+    // so `next-1` is no longer reachable from here at all — only the arc link and the question link
+    // remain to assert.
     const questionLink = screen.getByRole('link', { name: 'Question oq-1' });
     fireEvent.click(questionLink);
     await settle();
     expect(opened).toContainEqual({ id: 'oq-1', category: 'open-question' });
-
-    const incrementLink = screen.getByRole('link', { name: 'title of next-1' });
-    fireEvent.click(incrementLink);
-    await settle();
-    expect(opened).toContainEqual({ id: 'next-1', category: 'increment' });
   });
 
   it('a modified click (e.g. ctrl/cmd, for opening in a new tab) is left to the browser, not intercepted', async () => {
@@ -1007,6 +865,259 @@ describe('ArcSurface — READ-ONLY this round (ADR-0267 D6 / ADR-0314 D9)', () =
       // `#/asset/<id>` and `#/doc/<relpath>` are reads; nothing here navigates to an edit route.
       expect(link.getAttribute('href')).toMatch(/^#\/(asset|doc)\//);
       expect(link.getAttribute('href')).not.toMatch(/\/edit$/);
+    }
+  });
+});
+
+describe('ArcSurface — the panel is cut to two things (inc-01, arc-queue-and-question-legibility-arc)', () => {
+  const BUSY_ARC = arc({
+    id: 'busy-arc',
+    questions: [question('oq-1')],
+    increments: [
+      increment({ id: 'prop-1', status: 'proposal', parked: '2026-08-05' }),
+      increment({ id: 'ready-1', status: 'ready', parked: '2026-08-04' }),
+      landed('done-1', '2026-08-01'),
+    ],
+  });
+
+  it('renders NO proposals section and NO open-work list, however much increment work the arc carries', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[BUSY_ARC]} now={NOW} />);
+    await settle();
+    const panel = screen.getByTestId('arc-briefing');
+    expect(within(panel).queryAllByText('Proposals to review')).toEqual([]);
+    expect(screen.queryByTestId('arc-briefing-proposals')).toBeNull();
+    expect(screen.queryByLabelText('what comes next')).toBeNull();
+    expect(screen.queryByLabelText('where it is up to')).toBeNull();
+    expect(screen.queryByTestId('arc-increment-review:prop-1')).toBeNull();
+    expect(screen.queryByTestId('arc-increment-review:ready-1')).toBeNull();
+    expect(screen.queryByTestId('arc-increment:done-1')).toBeNull();
+    expect(panel.textContent).not.toContain('title of prop-1');
+    expect(panel.textContent).not.toContain('title of ready-1');
+    expect(panel.textContent).not.toContain('title of done-1');
+    // Withdrawing the SEAT in the panel is not pruning the increment tier: this fixture still
+    // carries all three rows — the panel just no longer draws any of them.
+    expect(BUSY_ARC.increments).toHaveLength(3);
+  });
+
+  it('renders the description before the open questions, in DOM order', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[BUSY_ARC]} now={NOW} />);
+    await settle();
+    const about = screen.getByLabelText('what this arc is about');
+    const questions = screen.getByLabelText('open questions');
+    expect(about.compareDocumentPosition(questions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('open questions are their OWN section, not nested under a "waiting for you" heading', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[BUSY_ARC]} now={NOW} />);
+    await settle();
+    expect(screen.queryByText('Waiting on you')).toBeNull();
+    expect(screen.queryByLabelText('waiting on you')).toBeNull();
+    expect(screen.getByLabelText('open questions')).not.toBeNull();
+  });
+});
+
+describe('ArcSurface — a question row shows its reading cost (inc-01)', () => {
+  it('shows the word count summed over the seven authoring fields, and no others', async () => {
+    // stakes(2) + statement(1) + context(3) + options(1) + analogy(2) + diagram(1) + recommendation(3) = 13
+    const fields = {
+      stakes: 'a b',
+      statement: 'c',
+      context: 'd e f',
+      options: 'g',
+      analogy: 'h i',
+      diagram: 'j',
+      recommendation: 'k l m',
+    };
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'a', questions: [question('oq-1')] })]}
+        now={NOW}
+        assets={[questionAsset('oq-1', fields)]}
+      />,
+    );
+    await settle();
+    expect(screen.getByTestId('arc-question-meta:oq-1').textContent).toContain('13 words');
+  });
+
+  it('flags "no diagram" exactly when the diagram field is empty', async () => {
+    const oneQuestionArc = arc({ id: 'a', questions: [question('oq-1')] });
+
+    const { rerender } = render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[oneQuestionArc]}
+        now={NOW}
+        assets={[questionAsset('oq-1', { diagram: 'a picture' })]}
+      />,
+    );
+    await settle();
+    expect(screen.queryByTestId('arc-question-no-diagram:oq-1')).toBeNull();
+
+    rerender(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[oneQuestionArc]}
+        now={NOW}
+        assets={[questionAsset('oq-1', { diagram: '' })]}
+      />,
+    );
+    await settle();
+    expect(screen.getByTestId('arc-question-no-diagram:oq-1').textContent).toContain('no diagram');
+  });
+
+  it('carries an Open button distinct from the title link, so the owner can expand a question before opening its artifact', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[arc({ id: 'a', questions: [question('oq-1')] })]} now={NOW} />);
+    await settle();
+    const button = screen.getByTestId('arc-question-open:oq-1');
+    expect(button.tagName).toBe('BUTTON');
+    const link = within(screen.getByTestId('arc-question:oq-1')).getByRole('link');
+    expect(link.getAttribute('href')).toBe('#/asset/oq-1');
+  });
+});
+
+describe('ArcSurface — a question opens with the question, and the background folds away (inc-02, arc-queue-and-question-legibility-arc)', () => {
+  const FULL_FIELDS = {
+    stakes: 'What breaks if this sits unanswered, in one sentence.',
+    statement: 'Should the forest compact or hold still?',
+    context:
+      'Some longer archaeology explaining why this is open now, several sentences long, the largest field on a real question.',
+    options:
+      'A — do the small thing. FOR: cheap and reversible. AGAINST: does not solve it.\n\n' +
+      'B — do the big thing. FOR: solves it for good. AGAINST: expensive.',
+    analogy: 'A campus where every building was resized but the roads between them were not.',
+    diagram: 'A --> B --> C',
+    recommendation: 'Try the small thing first, cheaply, before committing to the big one.',
+  };
+  const QUESTION_ARC = arc({ id: 'q-arc', questions: [question('oq-1')] });
+  const ASSETS = [questionAsset('oq-1', FULL_FIELDS)];
+
+  function openIt(assets = ASSETS): void {
+    render(<ArcSurface readArc={readArc} arcs={[QUESTION_ARC]} now={NOW} assets={assets} />);
+  }
+
+  it('clicking Open replaces the flat list with the question’s own reading; Back restores it', async () => {
+    openIt();
+    await settle();
+    expect(screen.getByTestId('arc-briefing-questions')).not.toBeNull();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    expect(screen.queryByTestId('arc-briefing-questions')).toBeNull();
+    expect(screen.getByTestId('arc-question-detail:oq-1')).not.toBeNull();
+
+    fireEvent.click(screen.getByText('← back to questions'));
+    expect(screen.getByTestId('arc-briefing-questions')).not.toBeNull();
+    expect(screen.queryByTestId('arc-question-detail:oq-1')).toBeNull();
+  });
+
+  it('the statement renders before stakes, options, and the context fold — in DOM order', async () => {
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const detail = screen.getByTestId('arc-question-detail:oq-1');
+    const statement = screen.getByTestId('arc-question-detail-statement');
+    const stakes = screen.getByTestId('arc-question-detail-stakes');
+    const options = screen.getByTestId('arc-question-detail-options');
+    const contextSummary = within(detail).getByText(/^Context \(\d+ words\)$/);
+    expect(statement.compareDocumentPosition(stakes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(statement.compareDocumentPosition(options) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      statement.compareDocumentPosition(contextSummary) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  it('renders the diagram when one is stored', async () => {
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    expect(screen.getByTestId('arc-question-detail-diagram').textContent).toContain('A --> B --> C');
+    expect(screen.queryByTestId('arc-question-detail-no-diagram')).toBeNull();
+  });
+
+  it('renders an explicit "none stored" line when there is no diagram — never silence', async () => {
+    openIt([questionAsset('oq-1', { ...FULL_FIELDS, diagram: '' })]);
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const note = screen.getByTestId('arc-question-detail-no-diagram');
+    expect(note.textContent).toMatch(/no diagram/i);
+  });
+
+  it('renders options as FOR/AGAINST cards, parsed from the inline convention', async () => {
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const cards = within(screen.getByTestId('arc-question-detail-options')).getAllByRole('listitem');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]?.textContent).toContain('do the small thing');
+    expect(cards[0]?.textContent).toContain('FOR: cheap and reversible.');
+    expect(cards[0]?.textContent).toContain('AGAINST: does not solve it.');
+    expect(cards[1]?.textContent).toContain('do the big thing');
+  });
+
+  it('marks the recommendation as explicitly non-binding', async () => {
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const rec = screen.getByTestId('arc-question-detail-recommendation');
+    expect(rec.textContent).toMatch(/non-binding/i);
+    expect(rec.textContent).toContain('Try the small thing first');
+  });
+
+  it('puts analogy and context behind folds whose labels state their own word cost, and keeps the prose', async () => {
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const detail = screen.getByTestId('arc-question-detail:oq-1');
+    const analogyWords = FULL_FIELDS.analogy.trim().split(/\s+/).length;
+    const contextWords = FULL_FIELDS.context.trim().split(/\s+/).length;
+    const analogySummary = within(detail).getByText(`Analogy (${analogyWords} words)`);
+    const contextSummary = within(detail).getByText(`Context (${contextWords} words)`);
+    // Folded by default (a `<details>` with no `open` attribute) — one click away, not deleted.
+    expect((analogySummary.closest('details') as HTMLDetailsElement).open).toBe(false);
+    expect((contextSummary.closest('details') as HTMLDetailsElement).open).toBe(false);
+    expect(detail.textContent).toContain(FULL_FIELDS.analogy);
+    expect(detail.textContent).toContain(FULL_FIELDS.context);
+  });
+
+  it('carries a word-budget readout whose three numbers are arithmetically consistent', async () => {
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const text = screen.getByTestId('arc-question-word-budget').textContent ?? '';
+    const match = /(\d+) words stored · (\d+) above the fold · (\d+) folded/.exec(text);
+    expect(match).not.toBeNull();
+    const total = Number(match?.[1]);
+    const aboveFold = Number(match?.[2]);
+    const folded = Number(match?.[3]);
+    expect(total).toBeGreaterThan(0);
+    expect(aboveFold + folded).toBe(total);
+  });
+
+  it('READ-ONLY: no option, and nothing in the opened reading, carries an action of its own', async () => {
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const options = screen.getByTestId('arc-question-detail-options');
+    expect(within(options).queryAllByRole('button')).toEqual([]);
+    expect(within(options).queryAllByRole('link')).toEqual([]);
+    const detail = screen.getByTestId('arc-question-detail:oq-1');
+    // The one button in the whole reading is the navigational "back", never an answer/settle action.
+    const buttons = within(detail).getAllByRole('button');
+    expect(buttons).toHaveLength(1);
+    expect(buttons[0]?.textContent).toContain('back to questions');
+  });
+
+  it('nothing is deleted from the stored fields — every whole-prose field survives verbatim in the DOM', async () => {
+    // `options` is excluded from this loop deliberately: inc-02 re-flows it into one card per
+    // option (summary/FOR/AGAINST as separate paragraphs), so its exact newline layout does not
+    // survive as one contiguous run of `.textContent` — the dedicated cards test above is what
+    // proves none of ITS words are lost. Every other field renders as one whole prose block.
+    openIt();
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-question-open:oq-1'));
+    const detail = screen.getByTestId('arc-question-detail:oq-1');
+    const { options: _options, ...wholeProseFields } = FULL_FIELDS;
+    for (const field of Object.values(wholeProseFields)) {
+      expect(detail.textContent).toContain(field);
     }
   });
 });
