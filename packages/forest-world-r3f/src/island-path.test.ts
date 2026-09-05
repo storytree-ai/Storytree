@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { CoastPoint } from './coast-clip.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { SAND_SHIPPED_BEACH_WIDTH } from './land-sand.js';
 import {
   DOCK_REACH,
@@ -87,10 +88,13 @@ const near = (p: CoastPoint, q: CoastPoint, eps = 1e-9): boolean =>
 
 test('the dock reach is 1.5x the shipped beach, and the recipe`s shape constants are pinned', () => {
   assert.equal(DOCK_REACH, 1.5 * SAND_SHIPPED_BEACH_WIDTH);
-  assert.equal(DOCK_REACH, 13.5);
+  // × LAND_SCALE (`land-per-capability.ts`): 13.5 = 1.5 × the 9-unit beach judged on the TUNED
+  // island; the shipped beach is 9 × LAND_SCALE, and the reach follows it.
+  assert.equal(DOCK_REACH, 13.5 * LAND_SCALE);
   assert.equal(PATH_CHAIKIN_PASSES, 4);
   assert.equal(PATH_PULL, 0.6);
-  assert.equal(PATH_JITTER, 7);
+  // × LAND_SCALE: the 7-unit jitter judged on the tuned island, the same fraction of the shipped one.
+  assert.equal(PATH_JITTER, 7 * LAND_SCALE);
   assert.equal(PATH_WAYPOINT_FRACTION, 0.5);
   assert.deepEqual([...PATH_CONTROL_FRACTIONS], [0.25, 0.5, 0.75]);
 });
@@ -187,28 +191,34 @@ test('islandDocks assigns an end within reach of TWO islands to the NEARER one, 
   // Two islands one reach apart never occur on the shipped map, which is exactly why this has to
   // be a fixture: the nearest-island search inside `islandDocks` is otherwise never exercised
   // with more than one candidate, and its distance arithmetic could be anything. WEST is
-  // [0,40]x[0,40] and EAST is [50,90]x[0,40] — a 10-unit channel, under DOCK_REACH (13.5), so an
-  // end in the channel is within reach of BOTH rims. The far end of every strip is 160 units out.
-  const channel = [island('west', 0, 0, 40), island('east', 50, 0, 40)];
-  // (47, 20): 7 off WEST's east edge, 3 off EAST's west edge — EAST's dock, at (50, 20). A
-  // distance that SUMMED the x ordinates would score WEST 87 and EAST 97 and hand it to WEST.
-  const nearerEast = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 47, z: 20 })]);
-  assert.deepEqual(nearerEast.get('east'), [{ x: 50, z: 20 }]);
+  // [0,40]x[0,40] and EAST is [44,84]x[0,40] — a 4-unit channel, under DOCK_REACH (13.5 ×
+  // LAND_SCALE ≈ 5.09, `land-per-capability.ts`), so an end in the channel is within reach of BOTH
+  // rims. The far end of every strip is 160 units out.
+  // ⚠ THE FIXTURE IS RE-SIZED TO THE SHIPPED REACH, NOT SCALED: its integer coordinates are what
+  // let the docks below be asserted EXACTLY (`deepEqual`), and a 10-unit channel against a 5.09
+  // reach would leave every end in reach of ONE rim only — the nearer-of-two search unexercised,
+  // the test still green. The premise is asserted so it cannot die silently again.
+  assert.ok(4 < DOCK_REACH && 3 < DOCK_REACH, `a 4-unit channel is not under the reach ${DOCK_REACH}`);
+  const channel = [island('west', 0, 0, 40), island('east', 44, 0, 40)];
+  // (43, 20): 3 off WEST's east edge, 1 off EAST's west edge — EAST's dock, at (44, 20). A
+  // distance that SUMMED the x ordinates would score WEST 83 and EAST 87 and hand it to WEST.
+  const nearerEast = islandDocks(channel, [strip({ x: 42, z: 200 }, { x: 43, z: 20 })]);
+  assert.deepEqual(nearerEast.get('east'), [{ x: 44, z: 20 }]);
   assert.deepEqual(nearerEast.get('west'), []);
-  // (43, 20): 3 off WEST, 7 off EAST — WEST's dock, at (40, 20). WEST is the FIRST rim, so a
+  // (41, 20): 1 off WEST, 3 off EAST — WEST's dock, at (40, 20). WEST is the FIRST rim, so a
   // search that let every later in-reach candidate overwrite the best would hand this to EAST.
-  const nearerWest = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 43, z: 20 })]);
+  const nearerWest = islandDocks(channel, [strip({ x: 42, z: 200 }, { x: 41, z: 20 })]);
   assert.deepEqual(nearerWest.get('west'), [{ x: 40, z: 20 }]);
   assert.deepEqual(nearerWest.get('east'), []);
-  // The same on the OTHER axis: NORTH is [0,40]x[0,40], SOUTH is [0,40]x[50,90]; (20, 47) is 7
-  // off NORTH's south edge and 3 off SOUTH's north edge — SOUTH's dock, at (20, 50). A distance
-  // that summed the z ordinates would score NORTH 87 and SOUTH 97.
-  const stacked = [island('north', 0, 0, 40), island('south', 0, 50, 40)];
-  const nearerSouth = islandDocks(stacked, [strip({ x: 200, z: 45 }, { x: 20, z: 47 })]);
-  assert.deepEqual(nearerSouth.get('south'), [{ x: 20, z: 50 }]);
+  // The same on the OTHER axis: NORTH is [0,40]x[0,40], SOUTH is [0,40]x[44,84]; (20, 43) is 3
+  // off NORTH's south edge and 1 off SOUTH's north edge — SOUTH's dock, at (20, 44). A distance
+  // that summed the z ordinates would score NORTH 83 and SOUTH 87.
+  const stacked = [island('north', 0, 0, 40), island('south', 0, 44, 40)];
+  const nearerSouth = islandDocks(stacked, [strip({ x: 200, z: 42 }, { x: 20, z: 43 })]);
+  assert.deepEqual(nearerSouth.get('south'), [{ x: 20, z: 44 }]);
   assert.deepEqual(nearerSouth.get('north'), []);
   // Out of reach of both: no dock anywhere, and every island still listed.
-  const none = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 45, z: 100 })]);
+  const none = islandDocks(channel, [strip({ x: 42, z: 200 }, { x: 42, z: 100 })]);
   assert.deepEqual([...none.entries()], [['west', []], ['east', []]]);
 });
 
@@ -216,6 +226,9 @@ test('islandDocks breaks an EXACT tie between two islands in favour of the FIRST
   // (45, 20) is exactly 5 from WEST's east edge and exactly 5 from EAST's west edge. The search
   // rejects a candidate at `d >= best`, so an equal LATER candidate never replaces the first;
   // rejecting only at `d > best` would hand the tie to EAST.
+  // The premise a tie needs: 5 is still under DOCK_REACH (13.5 × LAND_SCALE ≈ 5.09), so the end is
+  // within reach of BOTH rims. Asserted, because a reach under 5 would leave the tie untested.
+  assert.ok(5 < DOCK_REACH, `a 5-unit tie is out of the reach ${DOCK_REACH}`);
   const channel = [island('west', 0, 0, 40), island('east', 50, 0, 40)];
   const tied = islandDocks(channel, [strip({ x: 45, z: 200 }, { x: 45, z: 20 })]);
   assert.deepEqual(tied.get('west'), [{ x: 40, z: 20 }]);
@@ -392,12 +405,18 @@ test('waypointToward: the literal point for a dock at (10, 4), a centroid at (30
   // The fixture above has the dock on the centroid's own z and n.x = -0, so every z-blend and
   // every x-nudge slip is invisible there. Here nothing cancels. Halfway in is (20, 14); across
   // the chord is n = (-1, 1) / sqrt2; the seed's first draw is 0.9274821188300848 (pinned
-  // below), so the nudge is j = 7 * 0.92748... = 6.492374831810594 units along n, and the point
-  // is (20 - j / sqrt2, 14 + j / sqrt2) = (15.409197730421859, 18.59080226957814).
+  // below), so the nudge is j = 7 * 0.92748... = 6.492374831810594 TUNED units along n, and the
+  // point is (20 - j / sqrt2, 14 + j / sqrt2) = (15.409197730421859, 18.59080226957814) there.
+  // × LAND_SCALE (`land-per-capability.ts`): PATH_JITTER is 7 × LAND_SCALE, so the LITERAL nudge
+  // is 6.492374831810594 × LAND_SCALE — the pinned magnitude stays the pin, scaled once.
   const dock = { x: 10, z: 4 };
   const c = { x: 30, z: 24 };
   const w = waypointToward(dock, c, 7);
-  assert.ok(near(w, { x: 15.409197730421859, z: 18.59080226957814 }, 1e-12), `got (${w.x}, ${w.z})`);
+  const tunedNudge = 6.492374831810594 * LAND_SCALE;
+  assert.ok(
+    near(w, { x: 20 - tunedNudge / Math.SQRT2, z: 14 + tunedNudge / Math.SQRT2 }, 1e-12),
+    `got (${w.x}, ${w.z})`,
+  );
   // Taking the nudge back off leaves the halfway point — in BOTH axes, so a sign or an operator
   // slip in either ordinate's blend, or in the nudge's own sign or scale, lands somewhere else
   // (each of those is off by at least a tenth of a unit; the tolerance here is 1e-9).

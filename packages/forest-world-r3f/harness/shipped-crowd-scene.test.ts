@@ -14,6 +14,7 @@ import { SHADE_LEVELS, LEGACY_SHADE_LEVELS } from '../src/shade-ladder.js';
 import { SHADOW_GRES } from '../src/land-shadow.js';
 import { SHIPPED_COAST, clipToCoast } from '../src/coast-clip.js';
 import { DOCK_REACH, bearingFrom, islandDocks, islandPaths, islandRims } from '../src/island-path.js';
+import { LAND_SCALE } from '../src/land-per-capability.js';
 import {
   CROWD_ARMS,
   CROWD_LANDING_BEARINGS,
@@ -256,7 +257,8 @@ test('the occlusion field hits the SHADOW_TEXTURE_MAX clamp at forest scale, and
 
 test('the landings are the recipe`s two bearings, and every island gets exactly two strips', () => {
   assert.deepEqual([...CROWD_LANDING_BEARINGS], [-160, 25]);
-  assert.equal(CROWD_STRIP_OFFSHORE, 40);
+  // × LAND_SCALE: 40 ground units on the TUNED island; the strip follows the island it lands on.
+  assert.equal(CROWD_STRIP_OFFSHORE, 40 * LAND_SCALE);
   assert.ok(CROWD_STRIP_OFFSHORE > DOCK_REACH, 'the seaward end must be out of dock reach');
   assert.equal(crowdStrips(ONE).length, 2);
   assert.equal(crowdStrips(REAL).length, REAL.islands * 2);
@@ -268,7 +270,7 @@ test('the landings are the recipe`s two bearings, and every island gets exactly 
   }
 });
 
-test('each strip ENDS ON its island`s clipped rim and STARTS 40 units offshore of it', () => {
+test('each strip ENDS ON its island`s clipped rim and STARTS 40 × LAND_SCALE units offshore of it', () => {
   const clipped = clipToCoast(crowdCells(REAL), SHIPPED_COAST);
   const strips = crowdStrips(REAL);
   const docks = islandDocks(clipped, strips);
@@ -283,7 +285,7 @@ test('each strip ENDS ON its island`s clipped rim and STARTS 40 units offshore o
     const start = pts[0]!;
     assert.ok(
       Math.abs(Math.hypot(start.x - end.x, start.z - end.z) - CROWD_STRIP_OFFSHORE) < 1e-9,
-      'the seaward end is not 40 units from the landing',
+      'the seaward end is not CROWD_STRIP_OFFSHORE (40 × LAND_SCALE) units from the landing',
     );
     // The landing IS a rim vertex, so the dock snap moves it by nothing: it appears verbatim.
     const island = s.segment!.split('/')[0]!;

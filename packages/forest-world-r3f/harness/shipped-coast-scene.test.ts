@@ -29,6 +29,8 @@ import {
   type CoastMode,
   type CoastPoint,
 } from '../src/coast-clip.js';
+import { LAND_SCALE } from '../src/land-per-capability.js';
+import { scaleAboutIslands } from '../src/true-footprint.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import {
   ALL_COAST_ARMS,
@@ -55,10 +57,20 @@ function shippedIsland(): InstanceDescriptor[] {
 }
 
 /** The same island as the 2D map DRAWS it — the projected ribbon the 3D ground plane was until
- *  ADR-0517 D1. The fold cap's premise lives here: see `THE PREMISE` below. */
+ *  ADR-0517 D1. The fold cap's premise lives here: see `THE PREMISE` below.
+ *
+ *  ⚠ READ AT LAND_SCALE (`land-per-capability.ts`), and the reason is the coast clip's own: since
+ *  the ratio sizes every island, `coastCurve` outsets by `jitteredOutset × LAND_SCALE` (the 2D
+ *  map's 7-unit outset at the size the ground is), so the ribbon at its DRAWN size would get a
+ *  beach 0.377 of the fraction the 2D map draws and the premise below would be asked of a picture
+ *  nobody draws. Scaling the ribbon by the same factor about its centre makes it a SIMILAR figure
+ *  to the 2D map's ribbon-with-outset, and similarity preserves whether an offset folds — so the
+ *  premise, and the capping counts pinned below, are exactly the 2D map's. Measured 2026-09-05:
+ *  the unscaled ribbon reports `{ bound: 0, least: 1 }` on every arm; at LAND_SCALE it reports
+ *  the pins verbatim. */
 let drawn: InstanceDescriptor[] | null = null;
 function drawnIsland(): InstanceDescriptor[] {
-  drawn ??= drawnParcels();
+  drawn ??= scaleAboutIslands(drawnParcels(), () => ({ x: LAND_SCALE, z: LAND_SCALE }));
   return drawn;
 }
 
@@ -151,6 +163,8 @@ test('⚠ THE PREMISE: the coast the 2D map draws SELF-INTERSECTS — and on the
   // 234 × 46, which was also the 3D ground plane until 2026-09-05 — it crosses itself twice. The
   // 2D panel draws that loop as an SVG fill and the nonzero rule hides it; a triangulated ground
   // cannot, which is the whole reason `coastDisplacement` carries a fold cap.
+  // (× LAND_SCALE: the ribbon is read at 88 × 17 with the clip's LAND_SCALE outset — the similar
+  // figure of the 2D map's 234 × 46 with its 7-unit outset; see `drawnIsland`.)
   const drawnRim = rimLoops(ringsOf(drawnIsland()))[0]!;
   assert.equal(isSimpleRing(drawnRim), true, 'the raw hex silhouette should be simple');
   const drawnCurve = coastCurve(drawnRim, 'context-traversal-capture');

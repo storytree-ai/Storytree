@@ -17,8 +17,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SHIPPED_COAST, clipToCoast } from '../src/coast-clip.js';
+import { GROUND_COAST_OUTSET, SHIPPED_COAST, clipToCoast } from '../src/coast-clip.js';
 import { DRESSING_BEACH } from '../src/dressing-ground.js';
+import { LAND_SCALE } from '../src/land-per-capability.js';
 import {
   AUTHORED_SHORE_WIDTH,
   SHIPPED_SHORE,
@@ -235,6 +236,11 @@ test('⚠⚠⚠ THE MESH CANNOT READ A BAND NARROWER THAN 8.66 UNITS — the inc
   // spans six samples. This ground is parcels ~16.5 units across whose only vertices are corners,
   // and 8.66 is the lattice's half-pitch. The mesh is ~30x coarser than the surface the component
   // was authored on. `src/shore-fall.ts` carries the full note and the remedy.
+  //
+  // × LAND_SCALE (`land-per-capability.ts`): every figure above is the TUNED island's. The island
+  // the ratio sizes is LAND_SCALE of it edge to edge, so the half-pitch is 8.66 × LAND_SCALE and the
+  // bands 3.1 and 7 × LAND_SCALE — the same fractions of the same lattice, so the finding holds as
+  // it did, and the assertions below are relative and never quote a unit.
   const authored = planOf('authored');
   const beach = planOf('beach');
   assert.equal(authored.movedVertices, beach.movedVertices);
@@ -361,9 +367,14 @@ test('⚠ THE CONSTANTS ARE THE APPROVED RENDER’S OWN, transcribed rather than
   // the right question and the mesh dissolved it: below 8.66 units the two widths are the same
   // land. What survives is the provenance — these are the generator's numbers, not this session's,
   // and a later session that retunes one should have to change this line to do it.
-  assert.equal(AUTHORED_SHORE_WIDTH, 3.1, "build_land.py's own BEACH");
-  assert.equal(SHORE_DIP, 0.62, "build_land.py's own beach dip");
-  assert.equal(SHORE_ARM_WIDTH.beach, 7, 'COAST_OUTSET — the beach this map draws');
+  //
+  // × LAND_SCALE (`land-per-capability.ts`): each literal is the generator's number on the TUNED
+  // island, and every band follows the island the ratio sizes so it stays the same fraction of it.
+  // The literal is still what a retune has to change; the factor is the island's, not the band's.
+  assert.equal(AUTHORED_SHORE_WIDTH, 3.1 * LAND_SCALE, "build_land.py's own BEACH");
+  assert.equal(SHORE_DIP, 0.62 * LAND_SCALE, "build_land.py's own beach dip");
+  assert.equal(SHORE_ARM_WIDTH.beach, GROUND_COAST_OUTSET, 'COAST_OUTSET — the beach this map draws');
+  assert.equal(GROUND_COAST_OUTSET, 7 * LAND_SCALE, 'COAST_OUTSET is 7 in the drawing, at LAND_SCALE on the ground');
   assert.ok(
     SHORE_ARM_WIDTH.authored < SHORE_ARM_WIDTH.beach,
     'the two widths have converged — their equal DELIVERY is only a finding while they differ',
@@ -375,7 +386,8 @@ test('the SHIPPED arm draws the beach’s own width, and now has vertices inside
   // land the coast clip added and stops at the pre-coast boundary, where the ground carries props.
   // What changed is that the mesh can now CARRY that band's shape.
   assert.equal(SHIPPED_SHORE, 'ring');
-  assert.equal(SHORE_ARM_WIDTH[SHIPPED_SHORE], 7);
+  // × LAND_SCALE: `COAST_OUTSET` is 7 in the drawing's units and the ground is LAND_SCALE of it.
+  assert.equal(SHORE_ARM_WIDTH[SHIPPED_SHORE], 7 * LAND_SCALE);
   assert.equal(SHORE_ARM_WIDTH[SHIPPED_SHORE], SHORE_ARM_WIDTH[RING_REFERENCE_ARM]);
   assert.ok(SHORE_RING_ARMS.includes(SHIPPED_SHORE), 'the shipped arm draws no ring');
 });

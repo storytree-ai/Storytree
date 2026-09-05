@@ -66,6 +66,7 @@ import {
   type Pt,
 } from '@storytree/forest-world';
 
+import { LAND_SCALE } from './land-per-capability.js';
 import type { InstanceDescriptor, Transform3D } from './world-to-3d.js';
 
 /** A ring vertex on the ground plane. x east, z south — the space the parcel rings arrive in. */
@@ -190,7 +191,9 @@ export interface CoastCurve {
 
 export function coastCurve(rim: readonly CoastPoint[], island: string): CoastCurve {
   const flat: Pt[] = rim.map((p) => ({ x: p.x, y: p.z }));
-  const out = outsetLoop(flat, (i) => jitteredOutset(island, i, flat.length));
+  // ⚠ × LAND_SCALE: the 2D map's outset is in the DRAWING's units; the 3D island is LAND_SCALE of
+  // the drawing edge to edge (`land-per-capability.ts`), so its beach is the same fraction of it.
+  const out = outsetLoop(flat, (i) => jitteredOutset(island, i, flat.length) * LAND_SCALE);
   const smoothed = chaikinClosed(out, COAST_SMOOTH_ITERS);
   return {
     outset: out.map((p) => ({ x: p.x, z: p.y })),
@@ -653,3 +656,8 @@ export function clipToCoast(
  *  name on this side of the seam, so a reader of the 3D ground does not have to know it is the 2D
  *  panel's constant to find it. Re-exported rather than copied. */
 export { COAST_OUTSET, COAST_SMOOTH_ITERS };
+
+/** The beach width the shipped 3D GROUND draws, in ground units: the 2D map's {@link COAST_OUTSET}
+ *  scaled by `LAND_SCALE`, because the island under it is scaled by the same (the land-per-capability
+ *  ratio, `land-per-capability.ts`). Every band derived from the beach reads THIS, not the 2D one. */
+export const GROUND_COAST_OUTSET = COAST_OUTSET * LAND_SCALE;

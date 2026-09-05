@@ -14,8 +14,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SHADOW_GRES, SHADOW_TEXTURE_MAX } from '../src/land-shadow.js';
-import { islandGroundBounds, packShadowAtlas } from '../src/shadow-atlas.js';
+import { OCCLUSION_PAD, SHADOW_GRES, SHADOW_TEXTURE_MAX } from '../src/land-shadow.js';
+import {
+  SHADOW_ATLAS_MAX,
+  atlasOccupancy,
+  islandGroundBounds,
+  packShadowAtlas,
+  tileEdge,
+} from '../src/shadow-atlas.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
 import { landRelief } from '../src/land-relief.js';
@@ -94,6 +100,13 @@ test('⚠⚠ THE MEMORY, AND THE EXPECTATION IT REFUTES', () => {
   // was under 2x) for 5.3x the resolution; raising the cap now asks for a 10,908-texel edge and
   // 76.9 MB, so the atlas is 7.4x under it (was 19x). The ORDER of the three arms is unchanged
   // and so is the decision; the margins are what the footprint moved.
+  //
+  // ⚠ RE-MEASURED AGAIN 2026-09-05 ON THE LAND-PER-CAPABILITY ISLAND (× LAND_SCALE,
+  // `land-per-capability.ts`): each island is LAND_SCALE (0.377) edge to edge of the tuned one
+  // inside the SAME layout, so the forest's bounds — and the clamped field — barely move while the
+  // land does: the atlas is now 1.92 MB against the clamped field's 2.56 MB (0.75x) for 5.15x the
+  // resolution; raising the cap asks for a 10,547-texel edge and 67.8 MB, 35x the atlas. The
+  // ORDER of the three arms is still unchanged.
   const clamped = plan('clamped', forestCells);
   const raised = plan('raised', forestCells);
   const atlas = plan('atlas', forestCells, forestTriangles);
@@ -107,9 +120,43 @@ test('⚠⚠ THE MEMORY, AND THE EXPECTATION IT REFUTES', () => {
   // B and C allocate the SAME LAND at the SAME resolution, so their texture cost is the same to
   // within the packing's waste — which is what makes the fork between them about the draw call
   // rather than about memory.
+  //
+  // ⚠ "THE PACKING'S WASTE" IS DERIVED HERE, NOT BOUNDED BY A NUMBER, because a number moved
+  // under it. Both arms pad every island by the same unscaled `OCCLUSION_PAD`, so the pad is NOT
+  // what separates them: B's texture is exactly the sum of the tiles, C's is the shelf-packed
+  // rectangle around the same tiles, and the spread IS `1 / occupancy - 1`. With identical islands
+  // that waste is the last shelf's empty slots. On the tuned island a 714-texel-wide tile packed 5
+  // to a 4096 shelf and 35 islands filled 7 shelves exactly (spread ~0%, and this line said <10%);
+  // at LAND_SCALE a tile is 277 × 165 texels, 14 fit a shelf, and 35 islands take 3 shelves with 7
+  // of 42 slots empty — 20.0%. The spread grows as islands shrink against a fixed atlas edge, and
+  // the bound the arithmetic justifies is "less than one shelf's worth".
   const spread = Math.abs(atlas.textureBytes - perIsland.textureBytes) / perIsland.textureBytes;
-  assert.ok(spread < 0.1, `atlas and per-island differ by ${(spread * 100).toFixed(1)}% of texture`);
-  // And both are several times under A (an order of magnitude on the ribbon; 7.4x on the true footprint).
+  const layout = packShadowAtlas(islandGroundBounds(forestCells), SHADOW_GRES, SHADOW_ATLAS_MAX);
+  assert.ok(
+    Math.abs(spread - (1 / atlasOccupancy(layout) - 1)) < 1e-12,
+    `the spread (${(spread * 100).toFixed(1)}%) is not the packing's waste`,
+  );
+  const tile = layout.tiles[0]!;
+  for (const t of layout.tiles) {
+    // Every tile is the island's padded extent at the authored resolution — the pad tied in.
+    assert.equal(t.w, tileEdge(t.bounds.maxX - t.bounds.minX + 2 * OCCLUSION_PAD, SHADOW_GRES));
+    assert.equal(t.h, tileEdge(t.bounds.maxZ - t.bounds.minZ + 2 * OCCLUSION_PAD, SHADOW_GRES));
+    assert.equal(t.w, tile.w, 'the crowd is one island repeated, so every tile is the same tile');
+    assert.equal(t.h, tile.h);
+  }
+  const perShelf = Math.floor(SHADOW_ATLAS_MAX / tile.w);
+  const slots = Math.ceil(layout.tiles.length / perShelf) * perShelf;
+  assert.ok(
+    Math.abs(spread - (slots / layout.tiles.length - 1)) < 1e-12,
+    `atlas and per-island differ by ${(spread * 100).toFixed(1)}% of texture, not the last shelf's ` +
+      `${slots - layout.tiles.length} empty slots of ${slots}`,
+  );
+  assert.ok(spread < (perShelf - 1) / layout.tiles.length, 'the waste must be less than one shelf');
+  // NON-VACUITY: the waste is real on this island — the last shelf is not full — so the identity
+  // above is separating something rather than comparing two zeros.
+  assert.ok(spread > 0 && slots > layout.tiles.length);
+  // And both are several times under A (an order of magnitude on the ribbon; 7.4x on the true
+  // footprint; 35x at LAND_SCALE, where A's rectangle still spans the whole unshrunk layout).
   assert.ok(atlas.textureBytes < raised.textureBytes / 5);
   assert.ok(perIsland.textureBytes < raised.textureBytes / 5);
   // Against the map as it stands, the packed field is a small multiple for a larger gain — stated
