@@ -34,6 +34,7 @@ import {
   CURRENT_SCHEMA_VERSION,
   KIND_SPECS,
   arrayFieldsForKind,
+  booleanFieldsForKind,
   knownFieldsForKind,
   stringFieldsForKind,
   REPO_ROOT_ENV,
@@ -280,7 +281,7 @@ import { libraryInbound, libraryInboundHelp } from "./inbound.js";
 import { libraryRepoint, libraryRepointHelp } from "./repoint.js";
 import { readStoryDecisionFiles } from "./adr-health.js";
 import { findDependents, findInboundRefs } from "./retire.js";
-import { typeMismatchRefusal } from "./set-value.js";
+import { booleanFromSetValue, typeMismatchRefusal } from "./set-value.js";
 import {
   bannerRefusal,
   setVerbRefusal,
@@ -1118,12 +1119,16 @@ const UNSETTABLE_FIELDS: ReadonlySet<string> = new Set(["kind", "schemaVersion",
  * (a bad edit returns the validation message as guidance, never persists), then upserts (one event +
  * projection update). The id must already exist — `new` creates.
  *
- * Three ergonomics beyond a bare `field=value` (the arc-edit friction, ADR-0168): `field=@path`
+ * Four ergonomics beyond a bare `field=value` (the arc-edit friction, ADR-0168): `field=@path`
  * reads the value from a FILE (long/multi-line prose without shell mangling); a typo'd field name
  * on a structured kind is rejected with a CLEAR message (via {@link knownFieldsForKind}) instead of
- * the opaque `.strict()` union dump; and an ARRAY-typed field (`dependsOn`, a uat-criterion's
- * `stepRefs`, …) takes a JSON array — inline or @file — via {@link arrayFieldsForKind} (a bare
- * string could never validate, so the field was previously unwritable from this surface). One array
+ * the opaque `.strict()` union dump; an ARRAY-typed field (`dependsOn`, a uat-criterion's
+ * `stepRefs`, …) takes a JSON array — inline or @file — via {@link arrayFieldsForKind}; and a
+ * BOOLEAN-typed field (an ADR's `loadBearing`) takes `true`/`false` via {@link booleanFieldsForKind}.
+ * The last two exist for one reason: a `--set` value is ALWAYS a string, so neither a bare string nor
+ * the literal `"true"` could ever validate, and both fields were simply UNWRITABLE from this surface
+ * — leaving only a whole-doc `--json` replace, which means hand-reconstructing the entire document to
+ * change one field, the very thing ADR-0352 made `--set` field-scoped to avoid. One array
  * stays fenced BY POLICY: an arc's `increments` log is append-only — that is what `storytree arc
  * increment add` is for (ADR-0183 D1); see the guard in the `--set` loop below.
  *
@@ -1253,6 +1258,14 @@ export async function editArtifact(
     // (`artifact-edit-set-refuses-a-type-mismatched-value`). The array path above is exactly what
     // licenses the mistake, so the two sets are read together, here, from the same schema.
     const stringFields = kindStr !== undefined ? stringFieldsForKind(kindStr) : null;
+    // The third schema-derived type set, and the same hole the array one closed: a `--set` value is
+    // a string, so a BOOLEAN field (an ADR's `loadBearing`) could not be written from this surface
+    // at all — the strict schema refused the literal `"true"` and the only other route was a
+    // whole-doc replace. Measured 2026-09-06 on `adr-0526`. Unguarded where its three neighbours
+    // above guard, because it takes the absent kind itself: the `!== undefined` arm they each write
+    // returns exactly what the lookup already returns for it, so writing it here would be a branch
+    // no input could tell apart.
+    const booleanFields = booleanFieldsForKind(kindStr);
     const changed: string[] = [];
     for (const s of opts.sets) {
       const i = s.indexOf("=");
@@ -1446,6 +1459,15 @@ export async function editArtifact(
       }
       if (refListFields.has(field)) {
         base[field] = value.split(/[\s,]+/).filter((v) => v !== "");
+      } else if (booleanFields !== null && booleanFields.has(field)) {
+        // A boolean-typed schema field: `true`/`false` become the real thing, and any other literal
+        // is refused with the two accepted values named — never coerced by truthiness, which would
+        // read `--set loadBearing=false` as TRUE and persist it at exit 0.
+        const parsed = booleanFromSetValue(field, value);
+        if (typeof parsed === "string") {
+          return { ok: false, body: parsed, next: [`storytree library artifact ${id}`] };
+        }
+        base[field] = parsed;
       } else if (arrayFields !== null && arrayFields.has(field)) {
         // An array-typed schema field: the value — inline or @file — must be a JSON array. A bare
         // string can never validate, so refuse with the expected format named instead of letting
