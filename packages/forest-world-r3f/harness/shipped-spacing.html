@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the forest's spacing as a fraction of island size — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The forest's spacing as a fraction of island size (ADR-0521)</h1>
+      <p>
+        The islands were sized from a land-per-capability ratio (ADR-0520) and shrank hard; the 2D
+        map's layout did not shrink with them, and the fitted forest read as dots in a field. The
+        owner decided the fix &mdash; <em>&ldquo;just go straight to C, this really needs to be
+        procedurally determined&rdquo;</em> &mdash; so the 2D row packer's three absolute gaps
+        (40 / 60 / 140 units, by eye) are retired for one ratio: every gap is a fraction of the two
+        islands it separates. The ratio itself is laddered here for his pick.
+      </p>
+      <p class="numbers">
+        today          the 2D map as it stood before this landing — gaps 40 / 60 / swing 140 units, absolute (CONTROL)
+        spacing-&lt;r&gt;    every gap r × the mean radius of the two islands it separates; a lone island swings by its radius + that gap
+        spacing-0      the hex lattice's own floor — the boldest rung; the tiles, not the ratio, set the spacing here
+      </p>
+      <p>
+        <strong>The real forest, not a crowd.</strong> Every arm is the studio's own layout of the live
+        corpus at that rung, exported through the map's <code>?sceneExport=1</code> bridge and
+        rendered through the shipped 3D pipeline (<code>worldTo3D</code> at the shipped land ratio,
+        <code>dressMapWithCover</code>, <code>shippedGroundBuild</code>). The forest fitted is the
+        view the map opens on: read the land's share of the frame and of its own box. One island at
+        8 px/unit is the same story on every arm: it is unaffected while its neighbours move. Frame
+        cost is taken by <code>shipped-spacing-cost.mjs</code> on the RTX 2060 and <em>reports</em>
+        (ADR-0517 D4 / ADR-0520 D6).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedSpacing } from './shipped-spacing-scene.ts';
+      try {
+        await mountShippedSpacing(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

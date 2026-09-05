@@ -35,6 +35,10 @@ function researchRenders(): Plugin {
     ['.jpg', 'image/jpeg'],
     ['.jpeg', 'image/jpeg'],
     ['.webp', 'image/webp'],
+    // The spacing ladder's exported scene graphs (ADR-0521): the REAL 2D layout per rung, written by
+    // `apps/studio/scripts/export-spacing-scenes.mjs` beside its evidence and read by
+    // `shipped-spacing-scene.ts` through this same fenced route — the layout is evidence too.
+    ['.json', 'application/json'],
   ]);
   return {
     name: 'storytree-research-renders',

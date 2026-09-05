@@ -40,6 +40,8 @@
     "measure-cover-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-cover-cost.mjs",
     "measure-shipped-land-ratio": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-land-ratio-measure.mjs",
     "measure-land-ratio-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-land-ratio-cost.mjs",
+    "measure-shipped-spacing": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-spacing-measure.mjs",
+    "measure-spacing-cost": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-spacing-cost.mjs",
     "measure-shipped-skirt": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-skirt-measure.mjs",
     "measure-shipped-status": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-status-measure.mjs",
     "measure-shipped-light": "node --import ../../scripts/tsx-cache-off.mjs --import tsx harness/shipped-light-measure.mjs",
