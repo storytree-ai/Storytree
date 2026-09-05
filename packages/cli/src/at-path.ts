@@ -52,6 +52,11 @@ export const PROSE_FLAGS: ReadonlySet<string> = new Set([
   "doing",
   "redirect",
   "self-report",
+  // `adr new --owner-said` (ADR-0519 D3) — the owner's VERBATIM directive, stored on the decision
+  // row as the evidence behind an owner-authority claim. PROSE for the strongest form of the reason
+  // this list exists: a directive is often several sentences of the owner's own words, and a shell
+  // that mangles or truncates them corrupts the one field whose whole value is being untouched.
+  "owner-said",
   // arc new / edit / increment add / close — the narrative fields (ADR-0183).
   "intent",
   "end-state",
@@ -113,6 +118,10 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `adr new --basis <value>` (ADR-0519 D1). One enum word from a four-value set — the LITERAL
+  // default's exact case. Its sibling `--owner-said` is PROSE; the pair splitting across the two
+  // classes is correct rather than an oversight.
+  "basis",
   // `storytree library repoint <from> --to <to> --confirm <token>` (ADR-0498 D4). An eight-hex
   // digest the dry run printed and the caller pastes back — the shortest possible literal, and one
   // whose whole job is to be compared byte-for-byte against a freshly recomputed plan. Reading it

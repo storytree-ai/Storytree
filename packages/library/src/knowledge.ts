@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ComposedStatements } from "./composed-statement.js";
+import { DecisionAuthority } from "./decision-authority.js";
 import { DecisionSources } from "./decision-sources.js";
 import { Markdown } from "./schema.js";
 
@@ -1789,6 +1790,36 @@ export const Adr = buildKindSchema("adr").extend({
    * written by their own verb and ride the row.
    */
   sources: DecisionSources.optional(),
+  /**
+   * ADR-0519's AUTHORITY STAMP — whose call this decision was. See `decision-authority.ts` for the
+   * whole design and the measurement that forced it; what matters here is the storage shape and why
+   * it is the one chosen.
+   *
+   * OPTIONAL, never `.default()`ed (ADR-0223's optional-not-defaulted rule, ADR-0519 D6): absent
+   * means nobody ever stamped this record — the state of 100% of the log before today and of the 211
+   * rows D5's backfill deliberately leaves alone — and it must stay distinguishable from a stamp
+   * that was applied and happens to carry no owner words. Every existing decision doc validates
+   * unchanged, so there is NO `CURRENT_SCHEMA_VERSION` bump and zero migration (re-verified against
+   * migrations.ts: all nine registered migrations only DROP fields, so each no-ops on a doc without
+   * the key — the `arcRef` / `stepRefs` / `Agent.model` precedent).
+   *
+   * NOT A DECISION-DOCUMENT FRONTMATTER KEY — the same asymmetry as `composed` and `sources` above,
+   * and here it is the entire mechanism rather than a detail. A decision body is one raw prose field
+   * with a byte-identical round trip (ADR-0403 dec 9), and the owner's verbatim words inside a
+   * document an agent round-trips on every in-place correction are words an agent can quietly
+   * rewrite. So `FRONTMATTER_ORDER` in `adr-doc.ts` does not carry it (which is what makes a push
+   * REFUSE an `authority:` key rather than drop it), `renderAdrDocument` does not emit it,
+   * `AdrMeta` does not read it, and `adrPush`'s `{...row, <named fields>}` spread is what carries it
+   * across a round trip untouched. That spread reads like an oversight and is load-bearing
+   * (ADR-0424 D7's argument, applied): correcting a decision's PROSE is not evidence that anyone
+   * re-checked WHO DECIDED it, so a push must not be able to launder a rewritten quote into the
+   * record. `adr-authority.test.ts` pins every one of those.
+   *
+   * The ONE way it differs from both siblings: they are written by their own verbs AFTER creation,
+   * whereas this is set AT creation, so `scaffoldRow` is its single writer — still exactly one
+   * writer, and the row-only property is unchanged. Do not wire the other three.
+   */
+  authority: DecisionAuthority.optional(),
 });
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
