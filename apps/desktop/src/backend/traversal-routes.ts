@@ -229,11 +229,16 @@ async function serveContextWindows(res: ServerResponse, url: URL): Promise<void>
       `invalid window id "${windowId}" — a host window id is a flat token (letters, digits, ".", "_", "-")`,
     );
   }
-  const { readWindowOccupancySeries } = await loadTranscripts();
+  const { readWindowSeriesWithComposition } = await loadTranscripts();
   // NOT a 404 when nothing is found. A window with no transcript is an ABSENCE the caller has to
   // render as one — "no reading was observed for this window" — and a 404 would be read as "the
   // route is missing", which sends an operator somewhere else entirely.
-  sendJson(res, 200, await readWindowOccupancySeries({ windowId }));
+  //
+  // The answer carries the window's COMPOSITION beside its occupancy since ADR-0524 D1, and it comes
+  // from the package's own `readWindowSeriesWithComposition` rather than being assembled here — the
+  // studio's copy of this route calls the same function, which is what stops the two drifting under
+  // `check:mirror-conformance`.
+  sendJson(res, 200, readWindowSeriesWithComposition({ windowId }));
 }
 
 /**

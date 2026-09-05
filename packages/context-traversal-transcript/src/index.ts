@@ -60,16 +60,36 @@ export {
 // What a window is MADE OF, beside how full it is (`context-window-composition-arc` increment 1,
 // ADR-0516 D3/D4). Labels and lengths only; the harness floor is a residual, never a zero.
 export {
+  buildCompositionBar,
   categoryLabel,
   CHARS_PER_TOKEN,
+  COMPOSITION_SEGMENT_ORDER,
   MANDATORY_CATEGORIES,
   readWindowComposition,
+  readWindowSeriesWithComposition,
+  segmentLabel,
+  type CompositionBar,
   type CompositionCategory,
+  type CompositionSegment,
+  type CompositionSegmentKey,
   type CompositionSlice,
   type ResidualAbsence,
   type ResidualEstimate,
+  type ToolSubjectSlice,
   type WindowComposition,
+  type WindowCompositionWire,
+  type WindowSeriesWithComposition,
 } from "./context-composition.js";
+
+// The SECOND cut on that one reader (ADR-0524): what the window's tool output was ABOUT, so the
+// replay panel's composition bar can highlight the knowledge-graph share the traversal draws.
+export {
+  classifyToolSubject,
+  storytreeReadSurface,
+  toolSubjectLabel,
+  type ToolSubject,
+  type ToolSubjectRead,
+} from "./tool-subjects.js";
 
 export {
   DECISION_READ_SURFACES,

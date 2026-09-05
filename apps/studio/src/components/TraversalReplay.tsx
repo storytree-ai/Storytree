@@ -48,8 +48,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { api } from '../api';
 import { useAppData } from '../lib/appData';
 import { buildKnowledgeDepth } from '../lib/knowledgeDepth';
-import { buildTranscriptOccupancySeries, type OccupancySeries } from '../lib/traversalOccupancy';
-import type { TraversalReplayPayload } from '../types';
+import type { ContextCompositionPayload, TraversalReplayPayload } from '../types';
 import { TraversalSpine } from './TraversalSpine';
 
 type ReplayState =
@@ -70,8 +69,8 @@ export function TraversalReplay({
   compact?: boolean;
 }): React.JSX.Element {
   const [state, setState] = useState<ReplayState>({ status: 'reading' });
-  /** `null` while unread OR unreadable — never an empty series, which would claim an empty window. */
-  const [transcriptOccupancy, setTranscriptOccupancy] = useState<OccupancySeries | null>(null);
+  /** `null` while unread OR unreadable — never an empty bar, which would claim an empty window. */
+  const [composition, setComposition] = useState<ContextCompositionPayload | null>(null);
 
   // ADR-0363 D2's read-only depth-from-work join, built HERE because this is where both halves meet:
   // the app already holds the whole corpus (`/api/assets`, one fetch for the whole studio), and this
@@ -109,17 +108,17 @@ export function TraversalReplay({
   // rather than a 404 — which the bar renders as "none observed", exactly as it does today.
   useEffect(() => {
     let live = true;
-    setTranscriptOccupancy(null);
+    setComposition(null);
     void (async (): Promise<void> => {
       try {
         const series = await api.contextWindowSeries(sessionId);
-        if (live) setTranscriptOccupancy(buildTranscriptOccupancySeries(series));
+        if (live) setComposition(series.composition);
       } catch {
         // Swallowed BY DESIGN, and it is the one place in this component that is right to swallow:
-        // the bar's fallback is the trace-sourced series, which already renders an honest absence.
-        // Surfacing a failure here would replace one column's "none observed" with a failure state
-        // for the whole picture.
-        if (live) setTranscriptOccupancy(null);
+        // the composition bar's absence is a missing bar, not a broken panel. Surfacing a failure
+        // here would replace one row of chrome with a failure state for the whole picture, which is
+        // the opposite of the arc's clause that the traversal dominates the first glance.
+        if (live) setComposition(null);
       }
     })();
     return () => {
@@ -154,7 +153,7 @@ export function TraversalReplay({
         replay={replay}
         compact={compact}
         knowledge={knowledge}
-        transcriptOccupancy={transcriptOccupancy}
+        composition={composition}
       />
 
       {/* THE FACTS LIST IS DELETED (ADR-0393 D1). It stated the replayed-event count, the PARTIAL

@@ -223,3 +223,78 @@ describe('GET /api/context-windows — posture', () => {
     await expect(primeContextWindows()).resolves.toBeUndefined();
   });
 });
+
+describe('the same request also carries what the window is MADE OF (ADR-0524 D1)', () => {
+  // The route was widened rather than twinned, and the reason is in its header: resolving a window
+  // to a transcript is a walk over every transcript on the machine, and a SEPARATE composition route
+  // would have paid that walk twice while giving two readers of one file a way to disagree.
+
+  /** An assistant line carrying real content blocks — what the composition fold actually classifies. */
+  function blocksLine(windowId: string, at: string, id: string, tokens: number, blocks: unknown[]): string {
+    return JSON.stringify({
+      type: 'assistant',
+      sessionId: windowId,
+      timestamp: at,
+      isSidechain: false,
+      cwd: 'C:\code\storytree',
+      message: { id, model: 'claude-opus-5', content: blocks, usage: { input_tokens: tokens, output_tokens: 4 } },
+    });
+  }
+
+  function resultLine(windowId: string, at: string, blocks: unknown[]): string {
+    return JSON.stringify({
+      type: 'user',
+      sessionId: windowId,
+      timestamp: at,
+      isSidechain: false,
+      cwd: 'C:\code\storytree',
+      message: { role: 'user', content: blocks },
+    });
+  }
+
+  it('splits tool output by SUBJECT, so the knowledge-graph segment exists at all', async () => {
+    writeWindow(
+      'window-composed',
+      [
+        blocksLine('window-composed', '2026-09-06T08:00:00.000Z', 'm1', 120_000, [
+          { type: 'tool_use', id: 't1', name: 'Bash', input: { command: 'pnpm storytree library artifact adr-0524 --pg' } },
+        ]),
+        resultLine('window-composed', '2026-09-06T08:00:01.000Z', [
+          { type: 'tool_result', tool_use_id: 't1', content: 'the decision document'.repeat(40) },
+        ]),
+        blocksLine('window-composed', '2026-09-06T08:01:00.000Z', 'm2', 130_000, [
+          { type: 'tool_use', id: 't2', name: 'Bash', input: { command: 'pnpm gate --scope' } },
+        ]),
+        resultLine('window-composed', '2026-09-06T08:01:01.000Z', [
+          { type: 'tool_result', tool_use_id: 't2', content: 'gate output'.repeat(200) },
+        ]),
+      ],
+      Date.now(),
+    );
+
+    const { status, body } = await get('/api/context-windows?session=window-composed');
+    expect(status).toBe(200);
+    const payload = body as { composition: { segments: { key: string; tokens: number }[]; totalTokens: number } | null };
+    expect(payload.composition).not.toBeNull();
+    const keys = payload.composition!.segments.map((s) => s.key);
+    // The knowledge graph is a segment in its OWN right — in the record-type cut it sits invisibly
+    // inside `tool-output`, which is the whole reason this cut had to be added.
+    expect(keys).toContain('knowledge-graph');
+    expect(keys).toContain('shell');
+    expect(keys).not.toContain('tool-output');
+    // And the harness floor is there, read off the first request's own usage rather than guessed.
+    expect(keys).toContain('harness-floor');
+    expect(payload.composition!.totalTokens).toBe(
+      payload.composition!.segments.reduce((sum, s) => sum + s.tokens, 0),
+    );
+  });
+
+  it('answers `null` — never an empty bar — when no transcript was matched for the window', async () => {
+    writeWindow('window-elsewhere', [assistantLine({ windowId: 'window-elsewhere', at: '2026-09-06T08:00:00.000Z', id: 'm1', tokens: 1000 })], Date.now());
+    const { body } = await get('/api/context-windows?session=window-absent');
+    // A bar of zero-width segments would assert an empty window, which is a claim about the session
+    // rather than about the observation — the posture the occupancy half already takes.
+    expect((body as { composition: unknown }).composition).toBeNull();
+    expect((body as { absence: string }).absence).toBe('no-window-transcript');
+  });
+});

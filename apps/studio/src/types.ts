@@ -1004,6 +1004,57 @@ export interface ContextWindowSeriesPayload {
   absence: ContextSeriesAbsence | null;
   /** One line a reader may render VERBATIM — what was read, or what was looked for and not found. */
   note: string;
+  /**
+   * What this window is MADE OF, as the panel's composition bar draws it (ADR-0524 D1).
+   *
+   * `null` when no transcript was matched at all — there is then nothing to compose, and a bar of
+   * zeroes would assert an empty window. Composed by the SAME reader that produced the occupancy
+   * series above, from the same file, in the same request: two readers over one transcript is how
+   * two honest readings come to disagree.
+   */
+  composition: ContextCompositionPayload | null;
+}
+
+// ---- the composition bar (ADR-0524, server/contextWindowsApi.ts) ----
+//
+// Mirrored rather than imported, for the reason the shapes above are: the producing package reaches
+// `node:fs` and cannot enter a browser bundle.
+
+/** One segment of the bar. `key` is stable; `label` is the plain-language name the package chose. */
+export interface ContextCompositionSegment {
+  key: string;
+  label: string;
+  /** The segment's width, in ESTIMATED tokens — the one unit the bar is drawn in. */
+  tokens: number;
+  /** The measured bytes behind `tokens`, or `null` for the harness floor, which has none. */
+  bytes: number | null;
+  /** Records that contributed, or `null` for the harness floor, which is a subtraction. */
+  records: number | null;
+}
+
+/**
+ * The window as one row of segments summing to `totalTokens`.
+ *
+ * ⚠ THIS IS THE WINDOW'S INTAKE, NEVER WHAT IS RESIDENT NOW. The categories cover everything that
+ * ever entered the window; the floor is what was resident at the FIRST request. A surface drawing
+ * this must not label it "resident" — that quantity is `observations` above, and conflating the two
+ * is exactly the duplication ADR-0524 removed the vertical occupancy bar to avoid.
+ */
+export interface ContextCompositionPayload {
+  segments: ContextCompositionSegment[];
+  /** The bar's full width, and the denominator every share reads against. */
+  totalTokens: number;
+  /** The harness floor, or `null` exactly when `residualAbsence` is set — an absence, never a zero. */
+  residualTokens: number | null;
+  residualAbsence: string | null;
+  /** The bytes→tokens calibration the widths rest on, stated so a reader can see the assumption. */
+  charsPerToken: number;
+  /** The tool NAMES behind the `other-tool` segment, so that residual is nameable. */
+  otherToolNames: string[];
+  /** The attachment labels behind `unclassified`, so its remedy (a table row) is nameable. */
+  unclassifiedLabels: string[];
+  /** Knowledge-graph reads by the surface they reached — a LABEL breakdown, never a threshold. */
+  knowledgeSurfaces: { surface: string; bytes: number; records: number }[];
 }
 
 // ---- the replayed event union, mirrored (`traversal-panel-spine-render`) ----
