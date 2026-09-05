@@ -5,6 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { grainOctave, linearToSrgb255 } from './land-grain.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   CYCLES_ISLAND_SPAN,
   GRASS_BROAD,
@@ -122,27 +123,31 @@ test('the transcribed constants are the ones actually in build_land.py`s mat_att
 
 test('a Cycles Scale becomes a lattice spacing by dividing the island span', () => {
   assert.equal(CYCLES_ISLAND_SPAN, 233.8);
-  assert.equal(grassLattice(GRASS_BROAD), 233.8 / 1.9);
-  assert.equal(grassLattice(GRASS_MID), 233.8 / 6.8);
-  assert.equal(grassLattice(GRASS_FINE), 233.8 / 28.0);
-  assert.equal(grassLattice(GRASS_DRIFT), 233.8 / 2.7);
+  // The recipe's span stays 233.8; the lattice divides the SHIPPED span, `233.8 * LAND_SCALE`
+  // (`land-per-capability.ts`), so each spacing is the same fraction of the smaller island.
+  assert.equal(grassLattice(GRASS_BROAD), (233.8 * LAND_SCALE) / 1.9);
+  assert.equal(grassLattice(GRASS_MID), (233.8 * LAND_SCALE) / 6.8);
+  assert.equal(grassLattice(GRASS_FINE), (233.8 * LAND_SCALE) / 28.0);
+  assert.equal(grassLattice(GRASS_DRIFT), (233.8 * LAND_SCALE) / 2.7);
 });
 
 test('the delivered spacings are the ladder land-grain.ts already describes', () => {
   // land-grain.ts's header, written before this layer was transcribed: "the landform at ~123
   // units, the mid octave at ~34, the fine one at ~8". An independent confirmation of the
-  // conversion rather than a restatement of it.
-  assert.ok(Math.abs(grassLattice(GRASS_BROAD) - 123) < 1);
-  assert.ok(Math.abs(grassLattice(GRASS_MID) - 34) < 1);
-  assert.ok(Math.abs(grassLattice(GRASS_FINE) - 8) < 1);
+  // conversion rather than a restatement of it. Those figures are the TUNED island's, so the
+  // shipped spacing is read back in that basis by dividing out LAND_SCALE.
+  assert.ok(Math.abs(grassLattice(GRASS_BROAD) / LAND_SCALE - 123) < 1);
+  assert.ok(Math.abs(grassLattice(GRASS_MID) / LAND_SCALE - 34) < 1);
+  assert.ok(Math.abs(grassLattice(GRASS_FINE) / LAND_SCALE - 8) < 1);
 });
 
 test('octave amplitude compounds the roughness and frequency doubles the lattice', () => {
   assert.equal(grassOctaveAmplitude(GRASS_MID, 0), 1);
   assert.equal(grassOctaveAmplitude(GRASS_MID, 1), 0.55);
   assert.equal(grassOctaveAmplitude(GRASS_MID, 2), 0.55 ** 2);
-  assert.equal(grassOctaveFrequency(GRASS_MID, 0), 1 / (233.8 / 6.8));
-  assert.equal(grassOctaveFrequency(GRASS_MID, 1), 2 / (233.8 / 6.8));
+  // Over the SHIPPED span, `233.8 * LAND_SCALE` (`land-per-capability.ts`).
+  assert.equal(grassOctaveFrequency(GRASS_MID, 0), 1 / ((233.8 * LAND_SCALE) / 6.8));
+  assert.equal(grassOctaveFrequency(GRASS_MID, 1), 2 / ((233.8 * LAND_SCALE) / 6.8));
 });
 
 test('a noise carries exactly `detail` octaves and normalises by their amplitude sum', () => {
@@ -200,7 +205,7 @@ test('the field is the OCTAVE FOLD, not merely a number in range', () => {
   // with the frequencies written out as LITERALS, not re-derived from the module.
   const x = 11.25;
   const z = -7.5;
-  const lattice = 233.8 / 2.7; // GRASS_DRIFT's own spacing, spelled out
+  const lattice = (233.8 * LAND_SCALE) / 2.7; // GRASS_DRIFT's own spacing over the SHIPPED span, spelled out
   const terms = [
     { amp: 1, freq: 1 / lattice },
     { amp: 0.4, freq: 2 / lattice },
@@ -435,15 +440,19 @@ test('the shader`s sRGB transfer agrees with linearToSrgb255 at the knee it is w
 // enough for a reader to check by eye, and `grassGlsl` is held to CONTAINING what they emit.
 
 test('noiseGlsl emits exactly the unrolled octave sum, header and all', () => {
-  // A two-octave noise at a scale that makes the lattice a round 100 units: 233.8 / 2.338.
+  // A two-octave noise at a scale that made the lattice a round 100 units on the TUNED island:
+  // 233.8 / 2.338. Over the shipped span it is 100 * LAND_SCALE = 37.69 units.
+  // ⚠ LAND_SCALE moved exactly three numerals here and nothing else (diffed against the pre-scale
+  // golden): the header spacing (100.00 -> 37.69) and the two octave frequencies (0.01 / 0.02 ->
+  // 1 / 37.69 and 2 / 37.69).
   const noise = { scale: 2.338, detail: 2, roughness: 0.5 };
   assert.deepEqual(noiseGlsl('st_probe', noise), [
-    '// st_probe: Cycles scale 2.338 -> 100.00 ground units,',
+    '// st_probe: Cycles scale 2.338 -> 37.69 ground units,',
     '// 2 octaves, roughness 0.5.',
     'float st_probe(vec2 p) {',
     '  float s = 0.0;',
-    '  s += 1.000000 * st_grainOctave(p * 0.010000);',
-    '  s += 0.500000 * st_grainOctave(p * 0.020000);',
+    '  s += 1.000000 * st_grainOctave(p * 0.026531);',
+    '  s += 0.500000 * st_grainOctave(p * 0.053062);',
     '  return s / 1.500000;',
     '}',
   ]);

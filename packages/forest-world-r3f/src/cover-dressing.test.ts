@@ -113,7 +113,7 @@ function groundSanity(): void {
   assert.equal(pathClear(100) && !pathClear(0), true, 'ground-sanity: pathClear');
   const ex = dressingExclusion([SANITY_RIM], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
   assert.equal(ex.clear(100, 20), true, 'ground-sanity: the exclusion refuses clear ground');
-  assert.equal(ex.clear(5, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
+  assert.equal(ex.clear(DRESSING_BEACH / 2, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +166,7 @@ function coverOn(
     relief?: number;
     density?: number;
     size?: number;
+    recipeIslandArea?: number;
   } = {},
 ): KitPlacement[] {
   // ANNOTATED local, then guarded assignments — `anti-slop/no-conditional-empty-object-spread`,
@@ -178,6 +179,7 @@ function coverOn(
   };
   if (over.density !== undefined) opts.density = over.density;
   if (over.size !== undefined) opts.size = over.size;
+  if (over.recipeIslandArea !== undefined) opts.recipeIslandArea = over.recipeIslandArea;
   return dressCover(opts);
 }
 
@@ -434,6 +436,17 @@ test('the density argument really reaches the scatter — a bolder rung stands m
   // The default is the shipped pick, not rung 1 — a default that quietly stood the sparsest rung
   // would make every arm of the comparison page a lie about what ships.
   assert.equal(coverOn(HEALTHY).length, coverOn(HEALTHY, { density: COVER_DENSITY }).length);
+});
+
+test('⚠ the recipe-area option really reaches the count — a control at a PREVIOUS island size wears the count it wore, and the default is the shipped basis', () => {
+  groundSanity();
+  // Halving the recipe island doubles every count; the default is `RECIPE_ISLAND_AREA` exactly.
+  const shipped = coverOn(HEALTHY, { density: 1 }).length;
+  const explicit = coverOn(HEALTHY, { density: 1, recipeIslandArea: RECIPE_ISLAND_AREA }).length;
+  const halved = coverOn(HEALTHY, { density: 1, recipeIslandArea: RECIPE_ISLAND_AREA / 2 }).length;
+  assert.equal(explicit, shipped, 'the default IS the shipped basis');
+  assert.ok(halved >= 2 * shipped - COVER_ROLES.length && halved <= 2 * shipped + COVER_ROLES.length, `${halved} against twice ${shipped} (rounding per role)`);
+  assert.ok(halved > shipped, 'the option reached the scatter');
 });
 
 test('a runaway area is REFUSED rather than materialised — the count is an array, not a loop bound', () => {

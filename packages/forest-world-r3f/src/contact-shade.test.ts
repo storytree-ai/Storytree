@@ -296,6 +296,13 @@ test('GOLDEN: the contact field, byte for byte', () => {
 
 test('GOLDEN: the merged field is the union, and neither term alone', () => {
   smallGrid(GOLD_BOUNDS);
+  // ⚠ REGENERATED 2026-09-05 BECAUSE THE RELIEF TERM MOVED WITH LAND_SCALE (`land-per-capability.ts`:
+  // the wavenumbers are now `TUNED / LAND_SCALE`), and for that reason only. The CAST half of this
+  // union samples the relief under a caster at fixed texels with an explicit amplitude of 2.2, so
+  // it is `land-shadow.test.ts`'s relieved golden (nonZero 362 → 384, first 1653 → 1202) merged
+  // with the CONTACT golden above, which reads no relief and is byte-identical to before. Confirmed
+  // by diff: a stamp with the relief term pluggable reproduces the OLD union (476 / 84714 / 1653)
+  // with the tuned relief `h(LAND_SCALE·p)` and this one with the shipped relief.
   const merged = fieldSignature(buildGroundOcclusion({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER] }));
   assert.deepEqual(merged, {
     w: 114,
@@ -303,10 +310,10 @@ test('GOLDEN: the merged field is the union, and neither term alone', () => {
     gres: 3,
     minX: -15,
     minZ: -9,
-    nonZero: 476,
-    sum: 84714,
+    nonZero: 503,
+    sum: 88433,
     max: 255,
-    first: 1653,
+    first: 1202,
     last: 4724,
   });
   // Its extent runs from the CAST field's first sample to the CONTACT field's last — which is what
@@ -424,10 +431,19 @@ const EDGE_CASTERS: ShadowCaster[] = [
 
 test('GOLDEN: the CAST field with casters on the first and last texel', () => {
   smallGrid(EDGE_BOUNDS);
+  // ⚠ nonZero / sum REGENERATED 2026-09-05 BECAUSE THE RELIEF TERM MOVED WITH LAND_SCALE
+  // (`land-per-capability.ts`: the wavenumbers are now `TUNED / LAND_SCALE`) — the casters sit at
+  // fixed texels and the amplitude is an explicit 2.2, so the ground their shadows fall on is the
+  // tuned land LAND_SCALE shorter in wavelength, climbing 1 / LAND_SCALE faster along each shadow:
+  // both shadows are cut short where the ground rises into the ray (359 → 310 and 270 → 253 texels
+  // per caster; flat land gives 373 and 270). Confirmed by diff before regenerating: a stamp with
+  // the relief term pluggable reproduces the OLD signature (629 / 117894) with the tuned relief
+  // `h(LAND_SCALE·p)` and this one with the shipped relief. `first` and `last` did not move — the
+  // clamps this fixture exists for are untouched.
   const f = buildCanopyShadowField({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS });
   assert.deepEqual(fieldSignature(f), {
     w: 135, h: 99, gres: 3, minX: 98, minZ: 58,
-    nonZero: 629, sum: 117894, max: 255, first: 4, last: 13364,
+    nonZero: 563, sum: 108872, max: 255, first: 4, last: 13364,
   });
   // The clamps really are binding: the shadow reaches the very last sample of the buffer, and
   // within four of the first. A box that stopped short would lose those; one that ran past the
@@ -448,9 +464,12 @@ test('GOLDEN: and the merged field, which is what the material receives', () => 
   smallGrid(EDGE_BOUNDS);
   assert.deepEqual(
     fieldSignature(buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS })),
+    // ⚠ nonZero / sum REGENERATED 2026-09-05: the CAST half moved with LAND_SCALE (see the cast
+    // golden above — 629 → 563 texels); the CONTACT half reads no relief and is unchanged. The old
+    // union (1048 / 219068) is reproduced by the same pluggable-relief diff with the tuned relief.
     {
       w: 135, h: 99, gres: 3, minX: 98, minZ: 58,
-      nonZero: 1048, sum: 219068, max: 255, first: 1, last: 13364,
+      nonZero: 997, sum: 211819, max: 255, first: 1, last: 13364,
     },
   );
 });
@@ -473,7 +492,12 @@ test('no stamp WRAPS onto a neighbouring row — the failure a clamp exists to p
     const near = EDGE_CASTERS.some((c) => Math.hypot(gx - c.x, gz - c.z) <= far);
     assert.ok(near, `a sample at ${gx},${gz} is not within ${far} of any caster — it wrapped`);
   }
-  assert.equal(written, 1048, 'and the sweep really looked at every written sample');
+  // ⚠ 997, NOT 1048, SINCE 2026-09-05 — the merged fixture's own nonZero (the golden above), and it
+  // moved because the relief term moved with LAND_SCALE: the cast shadows on this fixture lost 66
+  // texels where the LAND_SCALE-shorter waves climb into the ray sooner (the contact pool, which
+  // reads no relief, kept all 820 of its own). The count is asserted so the sweep cannot pass by
+  // visiting nothing; it must agree with the golden, never be read off this loop.
+  assert.equal(written, 997, 'and the sweep really looked at every written sample');
 });
 
 test('an explicit gres reaches BOTH terms through buildGroundOcclusion', () => {

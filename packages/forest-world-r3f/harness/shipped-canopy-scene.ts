@@ -17,7 +17,8 @@
 // one. The ladder's question is answered ("none"), so its page, its drivers and its arms are gone
 // with `src/grove-dressing.ts`; the evidence directories keep the frames. What survived is the
 // half every other page already imported. The page that shows the map WITH the grove beside the
-// map without it is `shipped-per-capability-scene.ts`, whose control composes `grove-history.ts`.
+// map without it was `shipped-per-capability-scene.ts` (retired with its question on 2026-09-05,
+// once the land-per-capability ratio re-sized the island it compared on; its evidence directory stays).
 //
 // ⚠⚠ THE ARMS DIFFER IN EXACTLY THE DRESSING, AND NOTHING ELSE IS ARM-SPECIFIC. Every arm is
 // `shippedGroundBuild` — the SHIPPED canvas's own builder, imported from `src/` — over the same

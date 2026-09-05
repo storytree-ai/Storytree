@@ -25,6 +25,7 @@
 // a beach's width inland of the sea, and the path would start in the sand rather than at it.
 
 import { type CoastPoint, coastalIsland, rimLoops, vertexKey } from './coast-clip.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { SAND_SHIPPED_BEACH_WIDTH } from './land-sand.js';
 import { indices } from './land-shadow.js';
 import { bucketByIsland } from './shore-atlas.js';
@@ -60,7 +61,9 @@ export const PATH_PULL = 0.6;
 
 /** The perpendicular jitter on each control point, in ground units — the recipe's own offsets
  *  are 6.5, -7.0 and 4.0 from a straight line through the island, so about this much. */
-export const PATH_JITTER = 7;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const PATH_JITTER = 7 * LAND_SCALE;
 
 /** Where the ONE-dock path's interior waypoint sits between the dock and the centroid. */
 export const PATH_WAYPOINT_FRACTION = 0.5;

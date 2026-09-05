@@ -323,6 +323,12 @@ export interface CoverDressingOptions {
   /** Which rung of {@link COVER_SIZE_RUNGS} this island's props are drawn at. Omitted is
    *  {@link COVER_SIZE}, the shipped pick — the comparison page's ladder arms are what pass it. */
   size?: number;
+  /** The recipe island's area the counts are stated per, in this island's placement units.
+   *  Omitted is {@link RECIPE_ISLAND_AREA} — the recipe island THROUGH the shipped mapper. An
+   *  INSTRUMENT'S option: a comparison page's control arm standing the map as it shipped at a
+   *  PREVIOUS island size passes that size's own recipe area, so the control wears the count it
+   *  wore rather than seven times it (`land-per-capability.ts` moved the basis on 2026-09-05). */
+  recipeIslandArea?: number;
 }
 
 /**
@@ -348,7 +354,7 @@ export function dressCover(opts: CoverDressingOptions): KitPlacement[] {
   const out: KitPlacement[] = [];
 
   for (const role of COVER_ROLES) {
-    for (const _prop of indices(coverCount(role, parcels, density))) {
+    for (const _prop of indices(coverCount(role, parcels, density, opts.recipeIslandArea ?? RECIPE_ISLAND_AREA))) {
       const at = coverPoint(parcels, rand, opts.exclusion);
       if (at === null) continue;
       const scale = coverScale(role, rand, size);

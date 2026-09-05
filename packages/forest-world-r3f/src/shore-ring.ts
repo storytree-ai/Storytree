@@ -71,12 +71,13 @@
 
 import { normalisedRing, type GroundFaces, type P2 } from './cell-ground-geometry.js';
 import {
-  COAST_OUTSET,
+  GROUND_COAST_OUTSET,
   COAST_SCALE_LADDER,
   isSimpleRing,
   vertexKey,
 } from './coast-clip.js';
 import { shoreField, type ShoreArm, type ShoreFieldReader } from './shore-fall.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
 /** How close to the coast a vertex must be to COUNT as on it, in ground units.
@@ -119,6 +120,10 @@ export const SHORE_RING_BISECTIONS: readonly number[] = Array.from(
  * keeps the prune working (an uncapped field would walk every coast loop for every vertex, which on
  * the thirty-five-island forest is 35 loops x 208 segments x 30,240 vertices).
  */
+// ⚠ NOT × LAND_SCALE: this is a DIMENSIONLESS multiple of the widest inset (`widest * MARGIN`),
+// not a ground distance — the insets it multiplies already follow the beach, and scaling the
+// multiplier too capped the probe field BELOW the widest ring so no coastal parcel divided
+// (caught by `shore-ring.test.ts`'s census on 2026-09-05, the day the ratio landed).
 export const SHORE_RING_PROBE_MARGIN = 2;
 
 /**
@@ -143,8 +148,8 @@ export const SHORE_ARM_INSETS = {
   authored: [],
   beach: [],
   shelf: [],
-  ring: [COAST_OUTSET / 2],
-  'ring-pair': [COAST_OUTSET / 3, (COAST_OUTSET * 2) / 3],
+  ring: [GROUND_COAST_OUTSET / 2],
+  'ring-pair': [GROUND_COAST_OUTSET / 3, (GROUND_COAST_OUTSET * 2) / 3],
 } satisfies Record<ShoreArm, readonly number[]>;
 
 /** The arms that draw a ring at all — those whose {@link SHORE_ARM_INSETS} entry is non-empty.

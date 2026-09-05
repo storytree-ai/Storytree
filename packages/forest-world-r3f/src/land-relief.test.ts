@@ -16,6 +16,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   LAND_RELIEF_AMPLITUDE,
   landGradient,
@@ -25,7 +26,9 @@ import {
   landRelief,
 } from './land-relief.js';
 
-/** Ground points spanning the shipped island (234 units wide, 46 deep) and beyond it. */
+/** Ground points spanning the TUNED island (234 units wide, 46 deep) and beyond it. The shipped
+ *  island is `LAND_SCALE` of it edge to edge (`land-per-capability.ts`); the pinned table below
+ *  maps these onto it, and every property test still sweeps them as written. */
 const SAMPLES: readonly (readonly [number, number])[] = [
   [0, 0],
   [10, 0],
@@ -42,11 +45,20 @@ test('the FIELD IS THE FIELD — a frozen table of what the land actually does',
   // component's `kz` gives a different island that still looks like an island. Both are changes
   // nothing else in this suite can see — measured, as surviving mutants, the day this module
   // moved. If one of these numbers changes, the land changed; say so on purpose.
+  //
+  // ⚠ THE TABLE IS THE ONE READ ON THE TUNED ISLAND, HELD THROUGH LAND_SCALE. The wavenumbers are
+  // `TUNED / LAND_SCALE` and the amplitude `2.2 * LAND_SCALE` (`land-per-capability.ts`), which is
+  // exactly the similarity `h_shipped(LAND_SCALE · p) = LAND_SCALE · h_tuned(p)`: the same land,
+  // LAND_SCALE smaller in every direction. So the tuned pin is asked at the corresponding point
+  // and its height scales with the island — not a regenerated table, the same table.
   const expected = [0.73293, 2.931839, 1.375074, 0.781377, 0.92094, -3.278026, -4.206077];
   SAMPLES.forEach(([x, z], i) => {
+    const sx = x * LAND_SCALE;
+    const sz = z * LAND_SCALE;
+    // The tolerance scales with the heights it bounds, so the pin is exactly as tight as it was.
     assert.ok(
-      Math.abs(landHeight(x, z) - expected[i]!) < 1e-5,
-      `the land at (${x}, ${z}) stands at ${landHeight(x, z)}, not ${expected[i]}`,
+      Math.abs(landHeight(sx, sz) - expected[i]! * LAND_SCALE) < 1e-5 * LAND_SCALE,
+      `the land at (${sx}, ${sz}) stands at ${landHeight(sx, sz)}, not ${expected[i]! * LAND_SCALE}`,
     );
   });
 });

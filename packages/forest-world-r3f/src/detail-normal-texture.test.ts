@@ -23,6 +23,7 @@ import {
 } from 'three';
 
 import { DETAIL_NORMAL_PNG_BASE64 } from './detail-normal.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   DETAIL_STRENGTH_RECIPE,
   DETAIL_TILE_UNITS,
@@ -64,8 +65,10 @@ test('the tile is 6.0 / 2.5 = 2.4 ground units — the UV divisor over the Mappi
   const grid = recipeFunction('build_land_grid');
   assert.ok(grid.includes('uv[:, 0] = verts[loop_v, 0] / 6.0'), 'the plane UV is no longer x / 6.0');
   assert.ok(grid.includes('uv[:, 1] = verts[loop_v, 1] / 6.0'), 'the plane UV is no longer y / 6.0');
-  assert.equal(DETAIL_TILE_UNITS, 6.0 / 2.5);
-  assert.equal(DETAIL_TILE_UNITS, 2.4);
+  // The recipe's 6.0 / 2.5 = 2.4, times LAND_SCALE (`land-per-capability.ts`): the tile stays the
+  // same fraction of the island.
+  assert.equal(DETAIL_TILE_UNITS, (6.0 / 2.5) * LAND_SCALE);
+  assert.equal(DETAIL_TILE_UNITS, 2.4 * LAND_SCALE);
 });
 
 test('the recipe strength is 0.30, pinned to the NormalMap node and its stated limit', () => {

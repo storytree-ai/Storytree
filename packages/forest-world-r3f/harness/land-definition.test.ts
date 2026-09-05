@@ -46,6 +46,7 @@ import {
   SHADE_LEVELS,
   rungOfNormal,
 } from './palette-band.js';
+import { LAND_SCALE } from '../src/land-per-capability.js';
 import { lambertOfNormal, nearestLevelIndex } from '../src/shade-ladder.js';
 
 const CELLS = groundCellsFrom(islandScene());
@@ -130,13 +131,19 @@ test('the authored light is a unit direction the pure half can reason with', () 
   assert.ok(LIGHT_DIRECTION.y > 0, 'the land is lit from above');
 });
 
-/** The share of a dense ground sample that leaves the flat land's single rung. */
+/** The share of a dense ground sample that leaves the flat land's single rung.
+ *
+ *  × LAND_SCALE (`land-per-capability.ts`): the sweep is the fixture island's extent — ±115 × ±67
+ *  on the TUNED island — at the size the map now draws it, and the relief is SELF-SIMILAR under
+ *  that scaling (amplitude × LAND_SCALE, wavelengths ÷ LAND_SCALE, so every slope and therefore
+ *  every normal is unchanged at the scaled point). A tuned amplitude `a` is asked here as
+ *  `a * LAND_SCALE`, and the shares come back identical to the ones measured on the tuned island. */
 function offBaseShare(amplitude: number): number {
   const base = rungOf(landNormal(0, 0, 0));
   let off = 0;
   let total = 0;
-  for (let x = -115; x <= 115; x += 2) {
-    for (let z = -67; z <= 67; z += 2) {
+  for (let x = -115 * LAND_SCALE; x <= 115 * LAND_SCALE; x += 2 * LAND_SCALE) {
+    for (let z = -67 * LAND_SCALE; z <= 67 * LAND_SCALE; z += 2 * LAND_SCALE) {
       total++;
       if (rungOf(landNormal(x, z, amplitude)) !== base) off++;
     }
@@ -191,7 +198,9 @@ test('more amplitude means more of the land off the base rung, monotonically', (
   // The claim the evidence page's ladder rests on, and it is a MECHANICAL claim about
   // quantisation rather than a claim about which one looks better. That verdict is the
   // owner's, once, on a whole island (ADR-0392 D1).
-  const ladder = [0, 1.2, 2.2, 3.2].map((a) => ({ a, share: offBaseShare(a) }));
+  // × LAND_SCALE: the ladder's rungs are TUNED amplitudes (2.2 is the one that ships, as
+  // `LAND_RELIEF_AMPLITUDE = 2.2 * LAND_SCALE`); each is asked of the field at the shipped scale.
+  const ladder = [0, 1.2, 2.2, 3.2].map((a) => ({ a, share: offBaseShare(a * LAND_SCALE) }));
   for (let i = 1; i < ladder.length; i++) {
     assert.ok(
       ladder[i]!.share > ladder[i - 1]!.share,
@@ -211,14 +220,16 @@ test('more amplitude means more of the land off the base rung, monotonically', (
   // what keeps it evidence rather than a number adjusted until it passed. Whether 2.2 is still the
   // right amplitude now that a finer ladder resolves 1.2's relief too is an ART question for the
   // owner (ADR-0392 D1), and this increment does not answer it.
+  // × LAND_SCALE: the same sweep as `offBaseShare` — the tuned extent at the shipped scale, on
+  // the self-similar field — asked of a TUNED amplitude `a` as `a * LAND_SCALE`.
   const legacyShare = (a: number): number => {
     const base = nearestLevelIndex(LEGACY_SHADE_LEVELS, lambertOfNormal(landNormal(0, 0, 0)));
     let off = 0;
     let total = 0;
-    for (let x = -115; x <= 115; x += 2) {
-      for (let z = -67; z <= 67; z += 2) {
+    for (let x = -115 * LAND_SCALE; x <= 115 * LAND_SCALE; x += 2 * LAND_SCALE) {
+      for (let z = -67 * LAND_SCALE; z <= 67 * LAND_SCALE; z += 2 * LAND_SCALE) {
         total += 1;
-        if (nearestLevelIndex(LEGACY_SHADE_LEVELS, lambertOfNormal(landNormal(x, z, a))) !== base) {
+        if (nearestLevelIndex(LEGACY_SHADE_LEVELS, lambertOfNormal(landNormal(x, z, a * LAND_SCALE))) !== base) {
           off += 1;
         }
       }
@@ -493,7 +504,9 @@ test('the rim wall NEVER inverts, at any height the coast can reach', () => {
   // picture that looks like an art problem rather than like a geometry bug.
   const reach = landHeightRange(LAND_RELIEF_AMPLITUDE);
   let checked = 0;
-  for (let top = -reach - PARCEL_BEVEL_DROP; top <= reach; top += 0.05) {
+  // × LAND_SCALE: the reach is `LAND_RELIEF_AMPLITUDE`'s, which follows the island, so the sweep's
+  // step follows it too — the same number of heights are swept as on the tuned island.
+  for (let top = -reach - PARCEL_BEVEL_DROP; top <= reach; top += 0.05 * LAND_SCALE) {
     checked++;
     assert.ok(wallFootY(top) < top, `wall foot ${wallFootY(top)} is not below its top ${top}`);
     assert.ok(

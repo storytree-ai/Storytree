@@ -108,6 +108,7 @@ import {
   type ScenePath,
 } from '@storytree/forest-world';
 
+import { LAND_AREA_PER_CAPABILITY, sizeIslandsByCapability } from './land-per-capability.js';
 import { restoreTrueFootprint } from './true-footprint.js';
 
 // ---------------------------------------------------------------------------
@@ -632,7 +633,9 @@ function walkNode(
 export function worldTo3D(scene: SceneG, opts: WorldTo3DOptions = {}): Descriptor3D[] {
   const out: Descriptor3D[] = [];
   walkNode(scene, out, { x: 0, y: 0 });
-  return restoreTrueFootprint(out, opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG);
+  const restored = restoreTrueFootprint(out, opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG);
+  const ratio = opts.landAreaPerCapability === undefined ? LAND_AREA_PER_CAPABILITY : opts.landAreaPerCapability;
+  return ratio === null ? restored : sizeIslandsByCapability(restored, ratio);
 }
 
 /** What the mapper needs to know about the scene beyond the scene itself. */
@@ -643,4 +646,11 @@ export interface WorldTo3DOptions {
    *  true footprint is restored by undoing exactly this projection; a scene built at plan view
    *  (`PLAN_VIEW_ELEVATION_DEG`, 90°) is already true and is left alone. */
   cameraElevationDeg?: number;
+  /** The land each island is sized to, in ground units² per capability
+   *  (`land-per-capability.ts`). Omitted is the shipped `LAND_AREA_PER_CAPABILITY`. A number is a
+   *  ladder rung — the comparison page's arms pass one each. `null` leaves every island AT THE
+   *  SIZE THE DRAWING GAVE IT, which is an INSTRUMENT'S option and not a map's: it is what a
+   *  "before this landing" control arm stands on, and what the crowd layout sizes its frame from,
+   *  because the real map's spacing is the drawing's. The shipped canvas never passes it. */
+  landAreaPerCapability?: number | null;
 }
