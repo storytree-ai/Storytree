@@ -51,11 +51,20 @@
 
 /** The three components: `[kx, kz, weight, phase]`. Wavelengths 62 / 41 / 27 ground units
  *  against a 16.5-unit mean cell — see the note above for why none may go below it. */
-const WAVES: readonly (readonly [number, number, number, number])[] = [
+import { LAND_SCALE } from './land-per-capability.js';
+
+const TUNED_WAVES: readonly (readonly [number, number, number, number])[] = [
   [0.0811, 0.0608, 1.0, 0.0],
   [0.0536, -0.1439, 0.6, 1.7],
   [-0.1396, 0.1862, 0.32, 4.1],
 ];
+
+// ⚠ ÷ LAND_SCALE (`land-per-capability.ts`): the wavenumbers above were judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, so the wavelengths shrink with it and each
+// stays the same fraction of the island (and the same multiple of a cell).
+const WAVES: readonly (readonly [number, number, number, number])[] = TUNED_WAVES.map(
+  ([kx, kz, w, phase]) => [kx / LAND_SCALE, kz / LAND_SCALE, w, phase] as const,
+);
 
 /**
  * The relief amplitude, in ground units, at the island page's default.
@@ -71,7 +80,9 @@ const WAVES: readonly (readonly [number, number, number, number])[] = [
  * visually distinct rungs appear, while the total height range stays under +/-5 units on a
  * 234-unit island. That is a swell, not terrain.
  */
-export const LAND_RELIEF_AMPLITUDE = 2.2;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const LAND_RELIEF_AMPLITUDE = 2.2 * LAND_SCALE;
 
 /** Ground height at a point, in ground units. Deterministic, continuous, C-infinity, and a
  *  function of POSITION ONLY — see the semantics note at the top of this file. */

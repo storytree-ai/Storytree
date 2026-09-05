@@ -1,7 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { adrNumberOfArtifactId, hasDependsOnKey, readDependsOnPointers } from "@storytree/library";
+import {
+  adrNumberOfArtifactId,
+  DecisionAuthority,
+  hasDependsOnKey,
+  readDependsOnPointers,
+} from "@storytree/library";
 import { adrDescriptionOf } from "@storytree/library/adr-doc";
 import type { Store } from "@storytree/storage-protocol";
 
@@ -294,6 +299,23 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     // "no edges" rather than take an orientation listing down. Pointers go through VERBATIM —
     // resolving which of them name decisions is the walk's job (`decision-pointer.ts`).
     if (hasDependsOnKey(bag)) meta.dependsOn = readDependsOnPointers(bag);
+    // ADR-0519's authority stamp — projected HERE and nowhere else, for the same reason `dependsOn`
+    // above is: this is the only loader holding a row to read it off, and the frontmatter twin is
+    // blind by construction because the stamp is deliberately not a document key at all.
+    //
+    // `.safeParse` rather than a cast, and the failure is SILENT-but-absent rather than fatal: this
+    // loader runs over the LIVE corpus, so a row written by another branch's schema — or by the
+    // backfill before its shape settled — must project as "no stamp" rather than take an entire
+    // `adr list` down. That is the same defensive posture the two `dependsOn` helpers already
+    // encode, and the same fail-soft rule as the parse errors this loop collects above.
+    //
+    // ⚠ A ROW THAT FAILS TO PARSE THEREFORE READS AS UNSTAMPED, which is the one way this view can
+    // understate coverage. Accepted deliberately: the alternative — surfacing a half-validated
+    // stamp — would let a malformed `basis` reach a filter and a malformed `ownerSaid` reach a
+    // reader as though the schema had vouched for it, and an authority claim nothing validated is
+    // exactly what ADR-0519 exists to prevent.
+    const authority = DecisionAuthority.safeParse(bag["authority"]);
+    if (authority.success) meta.authority = authority.data;
     adrs.push(meta);
   }
   adrs.sort((a, b) => a.number - b.number);

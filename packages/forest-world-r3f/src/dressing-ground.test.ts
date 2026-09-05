@@ -29,6 +29,7 @@ import {
   ringArea,
   straddles,
 } from './dressing-ground.js';
+import { LAND_AREA_PER_CAPABILITY, LAND_SCALE } from './land-per-capability.js';
 import { SAND_SHIPPED_BEACH_WIDTH } from './land-sand.js';
 import { WEAR_FALLOFF, wearOf } from './land-wear.js';
 import type { GPoint, LayoutCell } from './parcel-cells.js';
@@ -76,13 +77,24 @@ const HEALTHY = island(['healthy', 'healthy', 'healthy', 'healthy']);
 
 test('the constants: the shipped beach, the recipe’s wear ceiling, the true-footprint recipe island, the one dressed status', () => {
   assert.equal(DRESSING_BEACH, SAND_SHIPPED_BEACH_WIDTH, 'the beach dressing keeps off IS the sand band the ground draws');
-  assert.equal(DRESSING_BEACH, 9);
+  // × LAND_SCALE (`land-per-capability.ts`): the 9-unit beach judged on the TUNED island, the same
+  // fraction of the shipped one.
+  assert.equal(DRESSING_BEACH, 9 * LAND_SCALE);
   assert.equal(DRESSING_WEAR_CEILING, 0.3, 'build_land.py: wear < 0.30');
   assert.equal(DRESSING_STATUS, 'healthy');
-  // The recipe island in the TRUE-footprint basis: the squashed 8,424.6 × 1 / sin 20° (ADR-0517),
-  // held to the fixture's own area through the mapper by `harness/true-footprint-routes.test.ts`.
-  assert.equal(RECIPE_ISLAND_AREA, 24631.8);
-  assert.ok(Math.abs(RECIPE_ISLAND_AREA / 8424.6 - 1 / Math.sin((20 * Math.PI) / 180)) < 1e-3);
+  // The recipe island in the TRUE-footprint basis: the squashed 8,424.6 × 1 / sin 20° (ADR-0517)
+  // = 24,631.8 units² — the recipe's thirteen hexes as drawn — held to the fixture's own area
+  // through the mapper by `harness/true-footprint-routes.test.ts`. × LAND_SCALE² (an AREA): the
+  // shipped mapper sizes that island by the land-per-capability ratio, and this is its area
+  // through the shipped mapper.
+  // The recipe island THROUGH the shipped mapper: the fixture's eleven capabilities at the shipped
+  // ratio, exactly — which is the drawn 24,631.8 × LAND_SCALE² to the coast's 0.04%.
+  assert.equal(RECIPE_ISLAND_AREA, 11 * LAND_AREA_PER_CAPABILITY);
+  assert.ok(Math.abs(RECIPE_ISLAND_AREA - 24631.8 * LAND_SCALE ** 2) / RECIPE_ISLAND_AREA < 0.001);
+  // The drawn island's true basis is 1 / sin 20° of its squashed one (ADR-0517), to the same 0.04%.
+  assert.ok(
+    Math.abs(RECIPE_ISLAND_AREA / (8424.6 * LAND_SCALE ** 2) - 1 / Math.sin((20 * Math.PI) / 180)) < 3e-3,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -250,8 +262,13 @@ test('clear of the path is the recipe’s wear < 0.30 through the wear layer’s
   }
   assert.equal(pathClear(hi + 1e-9), true);
   assert.equal(pathClear(lo - 1e-9), false);
-  // And the header's number: about 1.91 ground units from the centreline on the shipped falloff.
-  assert.ok(Math.abs(hi - 1.908) < 0.005, `the path keeps dressing ${hi.toFixed(3)} units away`);
+  // And the header's number: about 1.91 TUNED units from the centreline on the shipped falloff —
+  // × LAND_SCALE (`land-per-capability.ts`) on the ground, the falloff being 3.0 × LAND_SCALE. The
+  // tolerance is stated in units, so it scales with the number it bounds.
+  assert.ok(
+    Math.abs(hi - 1.908 * LAND_SCALE) < 0.005 * LAND_SCALE,
+    `the path keeps dressing ${hi.toFixed(3)} units away`,
+  );
 });
 
 /** One rectangular island as `cell-ground` descriptors — one big cell, so its rim is its outline. */
@@ -272,36 +289,48 @@ function rectIsland(islandId: string, x0: number, z0: number, w: number, d: numb
   };
 }
 
+/**
+ * TUNED-island units → ground units. The synthetic islands below were drawn in the units every
+ * band constant was judged in; the shipped beach, wear falloff, coast outset and dock reach are
+ * all × LAND_SCALE (`land-per-capability.ts`), so the FIXTURE is scaled by the same factor — the
+ * island, its paths and every probe — and each claim below is the same claim on an island of the
+ * shipped scale. (Scaling only the probes would leave the coast clip's corner cuts, which the
+ * 4-vertex rectangle's Chaikin rounding carves INSIDE the rim, at a different fraction of it.)
+ */
+const g = (tuned: number): number => tuned * LAND_SCALE;
+
 test('dressingExclusion reads the beach off the island’s rim and the path off its polylines', () => {
-  const rim = rectIsland('r', 0, 0, 200, 100);
+  const rim = rectIsland('r', 0, 0, g(200), g(100));
   const bare = dressingExclusion([rim], []);
-  assert.equal(bare.clear(100, 50), true, 'the middle of a 200 x 100 island');
-  assert.equal(bare.clear(5, 50), false, '5 units from the west rim');
-  assert.equal(bare.clear(100, 8), false, '8 units from the north rim');
-  assert.equal(bare.clear(100, 9), true, '9 units from it — the band’s own width');
+  assert.equal(bare.clear(g(100), g(50)), true, 'the middle of a 200 x 100 island');
+  assert.equal(bare.clear(g(5), g(50)), false, '5 units from the west rim');
+  assert.equal(bare.clear(g(100), g(8)), false, '8 units from the north rim');
+  assert.equal(bare.clear(g(100), g(9)), true, '9 units from it — the band’s own width');
   // A path straight across the middle: on it, no; the recipe's distance off it, yes.
-  const pathed = dressingExclusion([rim], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
-  assert.equal(pathed.clear(100, 50), false, 'on the centreline');
-  assert.equal(pathed.clear(100, 51.5), false, '1.5 off it — still worn past 0.30');
-  assert.equal(pathed.clear(100, 52.5), true, '2.5 off it — clear');
-  assert.equal(pathed.clear(100, 20), true);
+  const pathed = dressingExclusion([rim], [[{ x: g(20), z: g(50) }, { x: g(180), z: g(50) }]]);
+  assert.equal(pathed.clear(g(100), g(50)), false, 'on the centreline');
+  assert.equal(pathed.clear(g(100), g(51.5)), false, '1.5 off it — still worn past 0.30');
+  assert.equal(pathed.clear(g(100), g(52.5)), true, '2.5 off it — clear');
+  assert.equal(pathed.clear(g(100), g(20)), true);
   // ⚠ BOTH halves bind: a point clear of the path but on the beach is still refused.
-  assert.equal(pathed.clear(100, 5), false);
+  assert.equal(pathed.clear(g(100), g(5)), false);
 });
 
 test('islandExclusion clips the island’s own ground to the shipped coast and docks the strips on it', () => {
-  // A 200 x 100 island named `a`, and a trail strip arriving from the west whose landward end sits
+  // A 200 x 100 island named `a` (tuned units, × LAND_SCALE through `g` like the test above — the
+  // coast clip, dock reach, path jitter and wear falloff are all scaled, so the fixture is too),
+  // and a trail strip arriving from the west whose landward end sits
   // on the island's UNCLIPPED west rim — within dock reach of the clipped coast, which lies a
   // beach's width further out.
-  const ground = rectIsland('a', 0, 0, 200, 100);
+  const ground = rectIsland('a', 0, 0, g(200), g(100));
   const strip: InstanceDescriptor = {
     kind: 'trail-strip',
-    transform: { x: -20, y: 0, z: 50 },
+    transform: { x: g(-20), y: 0, z: g(50) },
     group: 'trail-strip',
     points: [
-      { x: -40, y: 0, z: 50 },
-      { x: -20, y: 0, z: 50 },
-      { x: 0, y: 0, z: 50 },
+      { x: g(-40), y: 0, z: g(50) },
+      { x: g(-20), y: 0, z: g(50) },
+      { x: 0, y: 0, z: g(50) },
     ],
     width: 3,
     usage: 1,
@@ -312,29 +341,29 @@ test('islandExclusion clips the island’s own ground to the shipped coast and d
   const skipped: Descriptor3D = { kind: 'skipped', sceneKind: 'parcel-blade' };
   const ex = islandExclusion([ground, strip, skipped], 'a');
   // The one-dock path runs dock -> waypoint -> the rim's centroid, so the island's middle is ON it.
-  assert.equal(ex.clear(100, 50), false, 'the centroid is on the worn path');
+  assert.equal(ex.clear(g(100), g(50)), false, 'the centroid is on the worn path');
   // Far from the path and the beach: clear. The path's control point is jittered off the chord,
   // so probe a corner of the interior rather than a point on the chord.
-  assert.equal(ex.clear(150, 25), true);
+  assert.equal(ex.clear(g(150), g(25)), true);
   // On the unclipped rim: inside the beach band by construction (the coast is outset from it).
-  assert.equal(ex.clear(200, 25), false, 'the rim sits inside the band');
+  assert.equal(ex.clear(g(200), g(25)), false, 'the rim sits inside the band');
   // ⚠ NON-VACUITY, the other way: the SAME island with no strip has no path, so its centroid is
   // clear — which is what shows the refusal above came from the dock, not from the beach.
-  assert.equal(islandExclusion([ground, skipped], 'a').clear(100, 50), true);
+  assert.equal(islandExclusion([ground, skipped], 'a').clear(g(100), g(50)), true);
   // And an island the stream holds no ground for has no coast and no path: everything is clear.
-  assert.equal(islandExclusion([ground, strip], 'nowhere').clear(100, 50), true);
+  assert.equal(islandExclusion([ground, strip], 'nowhere').clear(g(100), g(50)), true);
 
   // ⚠⚠ THE ISLAND IS WHAT THIS FILTER DECIDES, and a SECOND island in the stream is the only thing
   // that shows it. A neighbour's parcels handed to `clipToCoast` would give island `a` a second
   // coast to keep clear of — so a point deep inside `a` that is near `b`'s rim would stop being
   // clear, and `a`'s own picture would be wrong for a reason nothing on `a` could explain.
-  const neighbour = rectIsland('b', 400, 0, 120, 100);
+  const neighbour = rectIsland('b', g(400), 0, g(120), g(100));
   const twoIslands = islandExclusion([ground, neighbour, strip], 'a');
   for (const at of [
-    { x: 150, z: 25 },
-    { x: 195, z: 50 },
-    { x: 100, z: 50 },
-    { x: 40, z: 80 },
+    { x: g(150), z: g(25) },
+    { x: g(195), z: g(50) },
+    { x: g(100), z: g(50) },
+    { x: g(40), z: g(80) },
   ]) {
     assert.equal(
       twoIslands.clear(at.x, at.z),
@@ -346,6 +375,6 @@ test('islandExclusion clips the island’s own ground to the shipped coast and d
   // west rim is inside `b`'s beach band and 200 units from anything `a` owns. Asked about `b` the
   // exclusion refuses it; asked about `a` — the same stream, the same point — it is clear. So the
   // filter reads its argument rather than answering about whatever ground it was handed first.
-  assert.equal(islandExclusion([ground, neighbour, strip], 'b').clear(405, 50), false, 'inside b’s band');
-  assert.equal(twoIslands.clear(405, 50), true, 'b’s band is not a’s business');
+  assert.equal(islandExclusion([ground, neighbour, strip], 'b').clear(g(405), g(50)), false, 'inside b’s band');
+  assert.equal(twoIslands.clear(g(405), g(50)), true, 'b’s band is not a’s business');
 });

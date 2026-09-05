@@ -13,6 +13,19 @@ export {
   type Descriptor3D,
 } from './world-to-3d.js';
 
+// The island's SIZE from a declared land-per-capability ratio (the mapper's second in-place
+// resize after ADR-0517's footprint): the constant, its provenance and the pure arithmetic.
+export {
+  LAND_AREA_PER_CAPABILITY,
+  LAND_AREA_PER_CAPABILITY_RUNGS,
+  LAND_SCALE,
+  TUNED_LAND_AREA_PER_CAPABILITY,
+  islandLand,
+  landRatioFactor,
+  sizeIslandsByCapability,
+  type IslandLand,
+} from './land-per-capability.js';
+
 // The `cell-ground` family's PURE geometry half (the relaxed-mesh substrate the studio ships):
 // parcel rings → one merged, flat-shaded ground buffer. Arithmetic only — no React, no three —
 // so it lives on this side of the provability firewall and `<ForestWorldCanvas>` merely hands

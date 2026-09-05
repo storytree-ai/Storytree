@@ -39,6 +39,7 @@
 // cutting the island in half"; 3.0 is what a worn track through open ground wants.
 
 import {
+  SHIPPED_ISLAND_SPAN,
   grassScalar,
   rampLinear,
   type CyclesNoise,
@@ -49,6 +50,7 @@ import {
   noiseGlsl,
   rampGlsl,
 } from './land-grass.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { linearToSrgb255 } from './land-grain.js';
 import type { Rgb255 } from './shade-ladder.js';
 
@@ -63,7 +65,9 @@ import type { Rgb255 } from './shade-ladder.js';
  * material takes the width as an OPTION (a ladder the owner chooses from, ADR-0503); this is the
  * transcribed provenance those rungs are stated against.
  */
-export const WEAR_FALLOFF = 3.0;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const WEAR_FALLOFF = 3.0 * LAND_SCALE;
 
 /**
  * THE BREAK NOISE, `build_land.py:900`: `_noise(nt, 9.0, 5.0)` — roughness defaults to 0.5.
@@ -112,7 +116,7 @@ export const WEAR_OCTAVES = WEAR_BREAK.detail;
 /** The lattice spacing the break noise delivers, in ground units — the same conversion
  *  `land-grass.ts` makes, through the island's 233.8-unit span. */
 export function wearBreakLattice(): number {
-  return 233.8 / WEAR_BREAK.scale;
+  return SHIPPED_ISLAND_SPAN / WEAR_BREAK.scale;
 }
 
 /**

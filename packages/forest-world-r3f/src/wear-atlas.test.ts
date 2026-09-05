@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { CoastPoint } from './coast-clip.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { WEAR_FALLOFF } from './land-wear.js';
 import { buildAtlasOcclusion, type AtlasField } from './shadow-atlas.js';
 import { decodeShore, encodeShore } from './shore-atlas.js';
@@ -74,7 +75,8 @@ const texelsOf = (atlas: AtlasField, id: string): number[] => {
 
 test('the field width IS the wear falloff — the cap and the shader`s falloff are one number', () => {
   assert.equal(WEAR_FIELD_WIDTH, WEAR_FALLOFF);
-  assert.equal(WEAR_FIELD_WIDTH, 3.0);
+  // The authored 3.0, times LAND_SCALE (`land-per-capability.ts`): the same fraction of the island.
+  assert.equal(WEAR_FIELD_WIDTH, 3.0 * LAND_SCALE);
 });
 
 test('the wear atlas rides the OCCLUSION atlas`s tiles — structurally, not by agreement', () => {

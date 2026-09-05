@@ -30,6 +30,7 @@
 
 import { SHIPPED_COAST, clipToCoast, coastalIsland, type CoastPoint } from './coast-clip.js';
 import { islandPaths } from './island-path.js';
+import { LAND_AREA_PER_CAPABILITY, TUNED_FIXTURE } from './land-per-capability.js';
 import { SAND_SHIPPED_BEACH_WIDTH } from './land-sand.js';
 import { WEAR_FALLOFF, wearOf } from './land-wear.js';
 import type { GPoint, LayoutCell } from './parcel-cells.js';
@@ -53,7 +54,13 @@ export const DRESSING_STATUS = 'healthy';
  * still claiming to transcribe the recipe. `harness/true-footprint-routes.test.ts` holds it to the
  * fixture's own area through the shipped mapper.
  */
-export const RECIPE_ISLAND_AREA = 24631.8;
+// ⚠ RE-BASED BY THE RATIO (`land-per-capability.ts`): the recipe's thirteen hexes are 24,631.8 units²
+// as the drawing lays them (the true basis); the shipped mapper sizes that island — the fixture's
+// eleven capabilities — to EXACTLY `11 × LAND_AREA_PER_CAPABILITY`, and this is its area THROUGH the
+// shipped mapper (`24,631.8 × LAND_SCALE²` to within the coast's 0.04%) —
+// `harness/true-footprint-routes.test.ts` re-derives it. The cover's per-recipe-island counts therefore still mean "on the recipe island as
+// this map draws it", which is what makes `x1` the recipe's own count rather than a seventh of it.
+export const RECIPE_ISLAND_AREA = TUNED_FIXTURE.capabilities * LAND_AREA_PER_CAPABILITY;
 
 /**
  * The beach band dressing keeps off — the SHIPPED sand band, by import. The recipe insets its

@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the island's size from a land-per-capability ratio — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The island's size from a land-per-capability ratio</h1>
+      <p>
+        One tree per capability ships (ADR-0518), and the owner looked at it and said the land was
+        the wrong size for it: <em>&ldquo;we need to scale the land size, can we build a ratio based
+        on this as land should also scale per land size.&rdquo;</em> The mapper now sizes every
+        island to <code>capabilities &times; LAND_AREA_PER_CAPABILITY</code>, about its own centre,
+        and the constant is laddered here for his pick &mdash; derived from the two densities he has
+        already approved. The trees keep their size; the land shrinks under them.
+      </p>
+      <p class="numbers">
+        today       the map AS IT SHIPPED after #1825: the island at the size the hex layout gave it (~2,240 units² per capability), cover x3 (CONTROL)
+        land-318    every island sized to 318 units² of land per capability — the picture he called nicer; the approved render agrees in the true basis
+        land-200    200 units² per capability
+        land-108    108 units² per capability — the recipe read through the squashed basis; the boldest rung
+        cover-x…    the shipped land, with the ground cover's count re-laddered on it (the shipped cover rung is the land arm itself)
+      </p>
+      <p>
+        <strong>Three pictures.</strong> One island at 8 px/unit is the island as it is read. The
+        forest with its layout <em>held still</em> is what this codebase does: the spacing is the
+        2D drawing's and each island is resized in place, so the gaps between islands do not move.
+        The forest with its layout <em>compacted</em> is the other answer to the layout question
+        &mdash; rendered so the owner can see both; it stands on no shipped surface. Units&sup2; of
+        land per capability is printed on every arm, then the tree count (one per capability on
+        every arm, refused otherwise), the cover, the island on screen, the land's share of the
+        frame, and pixels moved past 20/255 against <code>today</code> (ADR-0490 D6). Frame cost is
+        taken by <code>shipped-land-ratio-cost.mjs</code> on the RTX 2060 and <em>reports</em>
+        (ADR-0517 D4).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedLandRatio } from './shipped-land-ratio-scene.ts';
+      try {
+        await mountShippedLandRatio(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

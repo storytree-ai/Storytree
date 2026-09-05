@@ -57,7 +57,13 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
-import { adrCommand, adrHelp, type AdrAllocatorLike, type AdrCommandOpts } from "./adr.js";
+import {
+  adrCommand,
+  adrHelp,
+  authorityBlockFor,
+  type AdrAllocatorLike,
+  type AdrCommandOpts,
+} from "./adr.js";
 import { composedBannerFor, decisionRowsOf } from "./adr-composed.js";
 import { FROZEN_ARMS_PATH, parseFrozenArms } from "./decision-composition-trial.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
@@ -634,6 +640,11 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   // and every edge stays walkable.
   const banner = stored.kind === "adr" ? composedBannerFor(stored.doc, decisionRowsOf(allDocs)) : [];
   if (banner.length > 0) lines.push(...banner);
+  // ADR-0519's authority stamp, ABOVE the body for the same reason the composed banner is: it is a
+  // cover note about the record, and whose call a decision was changes how its text should be read.
+  // A reader who reaches the end of a long decision and only then learns an agent derived it has
+  // already spent the reading. Absent stamp renders nothing at all.
+  if (stored.kind === "adr") lines.push(...authorityBlockFor(stored.doc));
   lines.push(a.body);
   const byId = new Map(allDocs.map((d) => [d.id, d] as const));
   // The corpus view ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds

@@ -5,6 +5,7 @@ import test from 'node:test';
 
 import { buildAtlasOcclusion } from './shadow-atlas.js';
 import { AUTHORED_SHORE_WIDTH, shoreField } from './shore-fall.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { SHADOW_GRES } from './land-shadow.js';
 import { SAND_SHIPPED_BEACH_WIDTH, SAND_SHIPPED_DIVISOR } from './land-sand.js';
 import {
@@ -70,10 +71,13 @@ test('the field width is the SHIPPED band`s divisor, and the recipe`s is kept be
   // the owner's 9 would deliver a beach that stops at the old width and STEPS — a hard edge that
   // reads as a defect in the noise rather than as two constants disagreeing.
   assert.equal(SAND_FIELD_WIDTH, SAND_SHIPPED_DIVISOR);
-  assert.equal(SAND_SHIPPED_DIVISOR, SAND_SHIPPED_BEACH_WIDTH + 0.9);
+  // The recipe's `+ 0.9` is a ground-unit term and follows LAND_SCALE (`land-per-capability.ts`)
+  // with the width it is added to.
+  assert.equal(SAND_SHIPPED_DIVISOR, SAND_SHIPPED_BEACH_WIDTH + 0.9 * LAND_SCALE);
   // The recipe's own is kept so an arm can build the transcribed band on the same instrument.
-  assert.equal(SAND_RECIPE_FIELD_WIDTH, AUTHORED_SHORE_WIDTH + 0.9);
-  assert.equal(AUTHORED_SHORE_WIDTH, 3.1);
+  assert.equal(SAND_RECIPE_FIELD_WIDTH, AUTHORED_SHORE_WIDTH + 0.9 * LAND_SCALE);
+  // The authored 3.1, times LAND_SCALE: the same fraction of the island.
+  assert.equal(AUTHORED_SHORE_WIDTH, 3.1 * LAND_SCALE);
   // ⚠ AND THE OWNER'S BAND IS WIDER THAN THE RECIPE'S — the whole point of the departure. If these
   // ever met again the widening would have been silently reverted.
   assert.ok(

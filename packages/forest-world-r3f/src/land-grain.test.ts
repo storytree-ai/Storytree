@@ -47,6 +47,7 @@ import {
   grainStops,
   linearToSrgb255,
 } from './land-grain.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   LEGACY_SHADE_LEVELS,
   SHADE_LEVELS,
@@ -159,7 +160,9 @@ test('the delivered feature clears both floors it has to clear', () => {
   // measured constraints, and the grain has to sit between them or it is a different lever.
   const feature = grainFeaturePeriod();
   assert.ok(feature > 1, `a ${feature.toFixed(2)}-unit feature is aliasing shimmer, not grain`);
-  assert.ok(feature < 16.5, `a ${feature.toFixed(2)}-unit feature spans a cell — that is regional drift`);
+  // The cell pitch is a distance ON the island, so it follows LAND_SCALE; the 1-unit aliasing
+  // floor is about device pixels, which do not.
+  assert.ok(feature < 16.5 * LAND_SCALE, `a ${feature.toFixed(2)}-unit feature spans a cell — that is regional drift`);
 });
 
 test('the ramp clamps outside its authored span', () => {
@@ -195,7 +198,8 @@ test('the normal half moves SOME ground between rungs and not all of it', () => 
   for (let x = -100; x <= 100; x += 1.3) {
     for (let z = -60; z <= 60; z += 1.1) {
       total++;
-      if (rungOfNormal(grainPerturbNormal(flat, x, z)) !== base) flipped++;
+      // The tuned-island grid, scaled by LAND_SCALE with the lattice: the same island-relative points.
+      if (rungOfNormal(grainPerturbNormal(flat, x * LAND_SCALE, z * LAND_SCALE)) !== base) flipped++;
     }
   }
   const fraction = flipped / total;
@@ -332,6 +336,14 @@ test('grainKeepsPaletteClosed is not vacuous', () => {
 // as NOT portable — `Math.sin` and a GPU's `sin` are different functions. Nothing here claims the
 // shader delivers these numbers; what the two share is the field's SHAPE, carried by the constants
 // `grainGlsl()` interpolates.
+//
+// ⚠ THE COORDINATES BELOW ARE IN THE TUNED ISLAND'S GROUND UNITS and every call site scales them by
+// `LAND_SCALE` (`land-per-capability.ts`). The field depends on `p / GRAIN_LATTICE` only, and the
+// lattice is `2.5 * LAND_SCALE`, so `grainField(x * LAND_SCALE, z * LAND_SCALE)` on the shipped
+// island IS the tuned island's `grainField(x, z)` — the recorded values stand unchanged, which is
+// the strongest form the rescale can take. A gradient at the scaled point is the tuned gradient
+// DIVIDED by `LAND_SCALE` (the same rise over a shorter run), so the gradient goldens compare
+// `g * LAND_SCALE` against the tuned figures.
 
 /** `[x, z, expected]` — twelve significant figures, far tighter than any operator swap. */
 const FIELD_GOLDEN: readonly (readonly [number, number, number])[] = [
@@ -408,10 +420,8 @@ test('the FIELD delivers this instance — the octave sum, its frequencies and i
   // What catches a swapped `*`/`/` on the frequency, a wrong amplitude falloff, or an unnormalised
   // sum — none of which any range or determinism property can see.
   for (const [x, z, expected] of FIELD_GOLDEN) {
-    assert.ok(
-      Math.abs(grainField(x, z) - expected) < EPS,
-      `grainField(${x}, ${z}) = ${grainField(x, z)}, expected ${expected}`,
-    );
+    const got = grainField(x * LAND_SCALE, z * LAND_SCALE); // tuned-island point, scaled (LAND_SCALE)
+    assert.ok(Math.abs(got - expected) < EPS, `grainField(${x}, ${z}) = ${got}, expected ${expected}`);
   }
 });
 
@@ -419,10 +429,8 @@ test('the RAMPED field delivers this instance — the authored span and its smoo
   // Three of the seven land on the ramp's flat ends, which is the behaviour the span exists for,
   // and four land inside it — so a moved span shows up either way.
   for (const [x, z, expected] of RAMPED_GOLDEN) {
-    assert.ok(
-      Math.abs(grainRamped(x, z) - expected) < EPS,
-      `grainRamped(${x}, ${z}) = ${grainRamped(x, z)}, expected ${expected}`,
-    );
+    const got = grainRamped(x * LAND_SCALE, z * LAND_SCALE); // tuned-island point, scaled (LAND_SCALE)
+    assert.ok(Math.abs(got - expected) < EPS, `grainRamped(${x}, ${z}) = ${got}, expected ${expected}`);
   }
   assert.equal(RAMPED_GOLDEN.filter(([, , v]) => v === 0).length, 3, 'the clamped end is exercised');
   assert.ok(RAMPED_GOLDEN.some(([, , v]) => v > 0.5), 'and so is the interior');
@@ -432,10 +440,12 @@ test('the GRADIENT delivers this instance — the central difference AND its qua
   // The sign convention is asserted above, construction-independently; this pins the MAGNITUDE,
   // which is what `GRAIN_NORMAL_STRENGTH` was calibrated against. Halving or doubling the step
   // changes every number here and no property test above.
+  // The step is `GRAIN_LATTICE / 4`, so it scales with the point; the gradient at the scaled point
+  // is the tuned one over LAND_SCALE, and multiplying it back recovers the recorded figure.
   for (const [x, z, dx, dz] of GRADIENT_GOLDEN) {
-    const [gx, gz] = grainGradient(x, z);
-    assert.ok(Math.abs(gx - dx) < EPS, `d/dx at (${x}, ${z}) = ${gx}, expected ${dx}`);
-    assert.ok(Math.abs(gz - dz) < EPS, `d/dz at (${x}, ${z}) = ${gz}, expected ${dz}`);
+    const [gx, gz] = grainGradient(x * LAND_SCALE, z * LAND_SCALE);
+    assert.ok(Math.abs(gx * LAND_SCALE - dx) < EPS, `d/dx at (${x}, ${z}) = ${gx * LAND_SCALE}, expected ${dx}`);
+    assert.ok(Math.abs(gz * LAND_SCALE - dz) < EPS, `d/dz at (${x}, ${z}) = ${gz * LAND_SCALE}, expected ${dz}`);
   }
 });
 
@@ -446,9 +456,13 @@ test('the GENERATED GLSL is pinned LINE FOR LINE — it is a contract with a com
   // `check:mutation-diff` found surviving on this branch were emitted string literals blanked to
   // "" with every test still green.
   const lines = grainGlsl().split('\n');
+  // ⚠ LAND_SCALE moved exactly four numerals here and nothing else (diffed against the pre-scale
+  // golden): the wavelength in the header (2.5 -> 2.5 * LAND_SCALE, printed as the raw float the
+  // emitter interpolates), the two octave frequencies (0.4 / 0.8 -> 1 / lattice and 2 / lattice)
+  // and the quarter-lattice gradient step (0.625 -> lattice / 4).
   assert.deepEqual(lines, [
     '// GENERATED from land-grain.ts — do not hand-edit these constants.',
-    '// wavelength 2.5 ground units, 2 octaves, roughness 0.55',
+    `// wavelength ${2.5 * LAND_SCALE} ground units, 2 octaves, roughness 0.55`,
     'float st_grainHash(vec2 i) {',
     '  return fract(sin(i.x * 127.1 + i.y * 311.7) * 43758.5453123);',
     '}',
@@ -468,8 +482,8 @@ test('the GENERATED GLSL is pinned LINE FOR LINE — it is a contract with a com
     '// the octave count or the roughness is retuned.',
     'float st_grainField(vec2 p) {',
     '  float s = 0.0;',
-    '  s += 1.000000 * st_grainOctave(p * 0.400000);',
-    '  s += 0.550000 * st_grainOctave(p * 0.800000);',
+    '  s += 1.000000 * st_grainOctave(p * 1.061235);',
+    '  s += 0.550000 * st_grainOctave(p * 2.122470);',
     '  return s / 1.550000;',
     '}',
     '',
@@ -481,7 +495,7 @@ test('the GENERATED GLSL is pinned LINE FOR LINE — it is a contract with a com
     '// The grain gradient, per ground unit. The step is a QUARTER WAVELENGTH rather than an',
     '// epsilon: it measures the slope of the FEATURE, not of one lattice cell face.',
     'vec2 st_grainGradient(vec2 p) {',
-    '  float e = 0.625000;',
+    '  float e = 0.235575;',
     '  float gx = st_grainField(p + vec2(e, 0.0)) - st_grainField(p - vec2(e, 0.0));',
     '  float gz = st_grainField(p + vec2(0.0, e)) - st_grainField(p - vec2(0.0, e));',
     '  return vec2(gx, gz) / (2.0 * e);',
@@ -567,8 +581,9 @@ test('the RAMP CLAMPS AT BOTH ENDS, and both ends are reachable on the real fiel
   // the picture at the field's rare extremes changes. Both ends are exercised here on coordinates
   // the field really visits.
   assert.equal(grainRamped(0, 0), 0, 'the field is 0 at the origin, well below the span');
-  assert.equal(grainRamped(-498.52, -199.24), 1, 'and 0.758 here, above it');
-  assert.ok(grainField(-498.52, -199.24) >= GRAIN_RAMP()[1], 'that point must really be above the span');
+  // The tuned-island point (-498.52, -199.24), scaled by LAND_SCALE — the same 0.758 field value.
+  assert.equal(grainRamped(-498.52 * LAND_SCALE, -199.24 * LAND_SCALE), 1, 'and 0.758 here, above it');
+  assert.ok(grainField(-498.52 * LAND_SCALE, -199.24 * LAND_SCALE) >= GRAIN_RAMP()[1], 'that point must really be above the span');
   assert.ok(grainField(0, 0) <= GRAIN_RAMP()[0], 'and the origin really below it');
 });
 
@@ -593,12 +608,17 @@ test('the PERTURBED NORMAL delivers this instance — on a TILTED normal, not ju
   // sign of each subtraction can move without changing which rung a flat surface lands on. The
   // relief'd land is not flat, so a tilted input is the case that actually ships.
   const n = { x: 0.3, y: 0.9, z: -0.2 };
+  // ⚠ Tuned-island points, scaled by LAND_SCALE, at a strength ALSO scaled by LAND_SCALE: the
+  // gradient at the scaled point is the tuned gradient over LAND_SCALE, so `strength * LAND_SCALE`
+  // subtracts exactly the tuned displacement and the recorded normals stand unchanged. This pins the
+  // perturbation ARITHMETIC; the shipped default strength is exercised by the rung-flip tests above.
   for (const [x, z, px, py, pz] of [
     [3.1, 7.2, 0.265472867217, 0.954201185038, -0.137928442474],
     [-18.4, 22.9, 0.432046324283, 0.895548633428, -0.106435984699],
     [64, -11.5, 0.054626931835, 0.997801839822, -0.037515153829],
   ] as const) {
-    const p = grainPerturbNormal(n, x, z);
+    // The shipped strength IS the tuned 1.0 × LAND_SCALE (`land-grain.ts`), so the default reproduces it.
+    const p = grainPerturbNormal(n, x * LAND_SCALE, z * LAND_SCALE, GRAIN_NORMAL_STRENGTH);
     assert.ok(Math.abs(p.x - px) < EPS, `x at (${x}, ${z}) = ${p.x}, expected ${px}`);
     assert.ok(Math.abs(p.y - py) < EPS, `y at (${x}, ${z}) = ${p.y}, expected ${py}`);
     assert.ok(Math.abs(p.z - pz) < EPS, `z at (${x}, ${z}) = ${p.z}, expected ${pz}`);
@@ -615,22 +635,23 @@ test('the COLOUR HALF delivers this instance — the mix, and the ramp between t
   // The existing test says only that the result is NOT the base token, which is satisfied by any
   // mix at any factor between any two colours. These pin the arithmetic: the base, the two stops,
   // the ramp position and the 0.13 factor.
+  // Tuned-island points, scaled by LAND_SCALE — the ramped field there is unchanged, so the colours are.
   for (const [x, z, r, g, b] of [
     [3.1, 7.2, 132, 171, 90],
     [-18.4, 22.9, 142, 180, 99],
     [64, -11.5, 131, 170, 89],
     [0, 0, 130, 169, 88],
   ] as const) {
-    const c = grainColourAt(HEALTHY, x, z);
+    const c = grainColourAt(HEALTHY, x * LAND_SCALE, z * LAND_SCALE);
     assert.deepEqual(c, { r, g, b }, `grainColourAt at (${x}, ${z})`);
   }
   // A ZERO mix must be the base exactly — the boundary the factor is measured from, and the one
   // case where "not the base token" would be the wrong assertion.
-  assert.equal(toHex(grainColourAt(HEALTHY, 3.1, 7.2, 0)), HEALTHY);
+  assert.equal(toHex(grainColourAt(HEALTHY, 3.1 * LAND_SCALE, 7.2 * LAND_SCALE, 0)), HEALTHY);
   // A FULL mix must be the ramp colour itself, with the base gone entirely.
-  const full = grainColourAt(HEALTHY, -18.4, 22.9, 1);
+  const full = grainColourAt(HEALTHY, -18.4 * LAND_SCALE, 22.9 * LAND_SCALE, 1);
   const [dark, light] = grainStops();
-  const t = grainRamped(-18.4, 22.9);
+  const t = grainRamped(-18.4 * LAND_SCALE, 22.9 * LAND_SCALE);
   assert.deepEqual(full, {
     r: Math.round(dark.r + (light.r - dark.r) * t),
     g: Math.round(dark.g + (light.g - dark.g) * t),
@@ -665,10 +686,16 @@ test('the OCTAVE LADDER is stated per octave — amplitude compounds, frequency 
   assert.equal(grainOctaveAmplitude(0), 1, 'the first octave carries the full amplitude');
   assert.equal(grainOctaveAmplitude(1), GRAIN_ROUGHNESS);
   assert.equal(grainOctaveFrequency(0), 1 / GRAIN_LATTICE, 'octave 0 IS the authored lattice');
-  assert.equal(grainOctaveFrequency(0), 0.4);
-  assert.equal(grainOctaveFrequency(1), 0.8, 'and each octave doubles it');
-  // NON-VACUITY on the direction: a multiply instead of a divide would give 2.5, not 0.4.
-  assert.ok(grainOctaveFrequency(0) < 1, 'the frequency is a RECIPROCAL of the lattice spacing');
+  // The authored 2.5 lattice, scaled by LAND_SCALE (`land-per-capability.ts`): 0.4 / LAND_SCALE.
+  assert.equal(grainOctaveFrequency(0), 1 / (2.5 * LAND_SCALE));
+  assert.equal(grainOctaveFrequency(1), 2 / (2.5 * LAND_SCALE), 'and each octave doubles it');
+  // NON-VACUITY on the direction: a multiply instead of a divide would give the lattice itself
+  // (2.5 * LAND_SCALE, under a unit) rather than its reciprocal (over one). A reciprocal sits on
+  // the OPPOSITE side of 1 from the spacing it inverts; a multiply lands on the same side.
+  assert.ok(
+    (grainOctaveFrequency(0) > 1) === (2.5 * LAND_SCALE < 1),
+    'the frequency is a RECIPROCAL of the lattice spacing',
+  );
   assert.equal(grainTerms().length, GRAIN_OCTAVES);
   assert.equal(grainAmplitudeSum(), 1 + GRAIN_ROUGHNESS);
 });
@@ -698,7 +725,8 @@ test('THE DENSITY LEVER: the same field flipped 14% of flat ground on four rungs
     for (let x = -100; x <= 100; x += 1.3) {
       for (let z = -60; z <= 60; z += 1.1) {
         total++;
-        const rung = nearestLevelIndex(ladder, lambertOfNormal(grainPerturbNormal(flat, x, z)));
+        // The tuned-island grid, scaled by LAND_SCALE with the lattice: the same island-relative points.
+        const rung = nearestLevelIndex(ladder, lambertOfNormal(grainPerturbNormal(flat, x * LAND_SCALE, z * LAND_SCALE)));
         if (rung !== base) flipped++;
       }
     }
