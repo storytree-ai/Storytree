@@ -155,9 +155,11 @@ export function TraversalSpine({
    * picture draws exactly what it drew before and says nothing about knowledge depth — an absent
    * model is never rendered as "nothing was deep".
    *
-   * NOTE THE TWO DEPTHS ARE DIFFERENT QUANTITIES. The indentation this picture already draws is
-   * SESSION-traversal depth from `parentVisitId`. This is KNOWLEDGE depth: how far the artifact that
-   * was read sits from the actual work. Two axes, never one number.
+   * NOTE THE TWO DEPTHS ARE DIFFERENT QUANTITIES, and since ADR-0482 D1 it is THIS one that is
+   * drawn. KNOWLEDGE depth is how far the artifact that was read sits from the actual work, joined
+   * against the corpus at render time (see the axis resolution below). SESSION-traversal depth from
+   * `parentVisitId` is the other quantity: still computed, no longer drawn, kept as the `data-depth`
+   * telemetry attribute (ADR-0482 D5). Two axes, never one number — and never summed.
    */
   knowledge?: KnowledgeDepthModel;
 }): React.JSX.Element {
