@@ -1061,6 +1061,19 @@ export type ResteerDispositionBy = z.infer<typeof ResteerDispositionBy>;
  * mode to cover something it does not describe is what would make a later distribution meaningless.
  * The measured share of `no-mast-home` on our own corpus, and the modes never once reached, are in
  * `docs/research/mast-agreement-2026-09-05.md`.
+ *
+ * THE STORYTREE EXTENSION — four modes, DERIVED and never invented (ADR-0515 D5; promoted by
+ * `follow-the-research-arc-promote-extension`). On the 2026-09-05 reading 40% of a representative
+ * friction sample had no MAST home, because MAST classifies AGENT failures and ours are dominated by
+ * tool, environment, missing-capability and data-model defects. The four ids below were derived from
+ * the annotators' own stated reasons on those 17 unhoused items and measured in their own right
+ * (kappa 0.828, `no-extension-home` used zero times) BEFORE they entered this enum, and the whole
+ * 19-label frame was then re-measured by two independent annotators on the same deterministic sample
+ * (`docs/research/mast-agreement-extended-2026-09-05.md`). They sit in their own category,
+ * `storytree-extension`, so a distribution can always be read MAST-only by folding that category
+ * back into `unhoused` — the shared vocabulary survives, and the extension is never mistaken for
+ * MAST's own. `no-mast-home` stays: it is still the answer when NEITHER MAST nor the extension
+ * describes the failure, and its share is now the extension's own gap list.
  */
 export const ResteerMode = z.enum([
   // FC1 — specification and system design
@@ -1080,16 +1093,30 @@ export const ResteerMode = z.enum([
   "premature-termination",
   "no-or-incomplete-verification",
   "incorrect-verification",
+  // The storytree extension — see above. Each is a cause that is NOT the agent's reasoning:
+  //   tool-defect          a command, verb, check or script that EXISTS behaves wrongly.
+  //   environment-defect   the machine, shell, platform or CI is the cause, not the repo's code.
+  //   missing-capability   the verb, mechanism or guard needed simply does not exist yet.
+  //   data-model-gap       a schema, record type, allowlist or surface cannot express or see something it must.
+  "tool-defect",
+  "environment-defect",
+  "missing-capability",
+  "data-model-gap",
   // The escape hatch — see above.
   "no-mast-home",
 ]);
 export type ResteerMode = z.infer<typeof ResteerMode>;
 
-/** MAST's three failure categories, plus the escape hatch's own bucket. */
+/**
+ * MAST's three failure categories, the storytree extension's own bucket, and the escape hatch's.
+ * `storytree-extension` is kept apart from MAST's three on purpose: folding it into `unhoused`
+ * recovers the MAST-only reading exactly, and nothing in it is ever presented as MAST's.
+ */
 export type MastCategory =
   | "specification-and-design"
   | "inter-agent-misalignment"
   | "verification-and-termination"
+  | "storytree-extension"
   | "unhoused";
 
 /**
@@ -1111,6 +1138,10 @@ export const MAST_CATEGORY = {
   "premature-termination": "verification-and-termination",
   "no-or-incomplete-verification": "verification-and-termination",
   "incorrect-verification": "verification-and-termination",
+  "tool-defect": "storytree-extension",
+  "environment-defect": "storytree-extension",
+  "missing-capability": "storytree-extension",
+  "data-model-gap": "storytree-extension",
   "no-mast-home": "unhoused",
 } satisfies Record<ResteerMode, MastCategory>;
 

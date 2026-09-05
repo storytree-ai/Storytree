@@ -168,13 +168,17 @@ test("resteer-defect-carries-a-mode: a defect with no mode fails closed", () => 
   assert.doesNotThrow(() => assertResteerInvariants(row("t")));
 });
 
-test("mast-frame-is-14-modes-plus-one-escape-hatch, each in exactly one category", () => {
+test("frame-is-14-mast-modes-plus-4-extension-modes-plus-one-escape-hatch, each in exactly one category", () => {
   const modes = ResteerMode.options;
-  assert.equal(modes.length, 15, "MAST's 14 modes plus `no-mast-home`");
+  assert.equal(modes.length, 19, "MAST's 14 modes, the four storytree extension modes, plus `no-mast-home`");
   assert.equal(modes.filter((m) => MAST_CATEGORY[m] === "unhoused").length, 1);
   assert.equal(modes.filter((m) => MAST_CATEGORY[m] === "specification-and-design").length, 5);
   assert.equal(modes.filter((m) => MAST_CATEGORY[m] === "inter-agent-misalignment").length, 6);
   assert.equal(modes.filter((m) => MAST_CATEGORY[m] === "verification-and-termination").length, 3);
+  // The extension is its OWN category, never folded into MAST's three: that is what keeps a
+  // MAST-only reading recoverable (fold `storytree-extension` back into `unhoused`) and stops the
+  // four from ever being presented as MAST's own modes.
+  assert.equal(modes.filter((m) => MAST_CATEGORY[m] === "storytree-extension").length, 4);
 });
 
 /* -------------------------------------------------------------------------------------------- */
@@ -290,7 +294,7 @@ test("resteer-enums-are-pinned: the closed sets the CLI validates against", () =
 test("mast-category-map-is-pinned-whole", () => {
   // A count-only assertion (three FC1, six FC2 …) stays green if two modes SWAP categories, which
   // would silently re-bucket every distribution ever computed from it. The map is pinned entire.
-  assert.deepEqual(MAST_CATEGORY, {"disobey-task-specification":"specification-and-design","disobey-role-specification":"specification-and-design","step-repetition":"specification-and-design","loss-of-conversation-history":"specification-and-design","unaware-of-termination-conditions":"specification-and-design","conversation-reset":"inter-agent-misalignment","fail-to-ask-for-clarification":"inter-agent-misalignment","task-derailment":"inter-agent-misalignment","information-withholding":"inter-agent-misalignment","ignored-other-agents-input":"inter-agent-misalignment","reasoning-action-mismatch":"inter-agent-misalignment","premature-termination":"verification-and-termination","no-or-incomplete-verification":"verification-and-termination","incorrect-verification":"verification-and-termination","no-mast-home":"unhoused"});
+  assert.deepEqual(MAST_CATEGORY, {"disobey-task-specification":"specification-and-design","disobey-role-specification":"specification-and-design","step-repetition":"specification-and-design","loss-of-conversation-history":"specification-and-design","unaware-of-termination-conditions":"specification-and-design","conversation-reset":"inter-agent-misalignment","fail-to-ask-for-clarification":"inter-agent-misalignment","task-derailment":"inter-agent-misalignment","information-withholding":"inter-agent-misalignment","ignored-other-agents-input":"inter-agent-misalignment","reasoning-action-mismatch":"inter-agent-misalignment","premature-termination":"verification-and-termination","no-or-incomplete-verification":"verification-and-termination","incorrect-verification":"verification-and-termination","tool-defect":"storytree-extension","environment-defect":"storytree-extension","missing-capability":"storytree-extension","data-model-gap":"storytree-extension","no-mast-home":"unhoused"});
 });
 
 test("resteer-kind-specs-are-pinned: field order, headings, and the required flags", () => {
