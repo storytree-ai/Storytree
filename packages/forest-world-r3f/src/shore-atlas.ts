@@ -33,6 +33,7 @@ import {
 } from './land-shadow.js';
 import { blitTile, type AtlasField, type AtlasTile } from './shadow-atlas.js';
 import { AUTHORED_SHORE_WIDTH, shoreField } from './shore-fall.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { SAND_SHIPPED_DIVISOR } from './land-sand.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
@@ -58,7 +59,7 @@ export const SAND_FIELD_WIDTH = SAND_SHIPPED_DIVISOR;
 
 /** The RECIPE's own field width, kept so a comparison arm can build the transcribed band and be
  *  measured against the widened one on the same instrument. */
-export const SAND_RECIPE_FIELD_WIDTH = AUTHORED_SHORE_WIDTH + 0.9;
+export const SAND_RECIPE_FIELD_WIDTH = AUTHORED_SHORE_WIDTH + 0.9 * LAND_SCALE;
 
 /**
  * THE BYTE ENCODING — `distance / SAND_FIELD_WIDTH`, clamped, over 0..255.

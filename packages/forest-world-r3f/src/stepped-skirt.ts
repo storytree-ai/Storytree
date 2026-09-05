@@ -99,6 +99,7 @@ function indices(count: number): number[] {
   return Array.from({ length: Math.max(0, count) }, (_, i) => i);
 }
 import type { LinearRgb, P2, P3 } from './cell-ground-geometry.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
 /** How many ledges an island's edge is cut into — the approved treatment's own number
@@ -116,12 +117,14 @@ export const SKIRT_INSET_PERIOD = 13;
 /** The inset an ODD ledge takes, in ground units, POSITIVE MEANING INWARD (`build_land.py`
  *  subtracts `inset * outward`). Odd rows cut back into the island and are what makes the cliff
  *  read as bedding planes rather than as one face. */
-export const SKIRT_INSET_IN = 0.55;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const SKIRT_INSET_IN = 0.55 * LAND_SCALE;
 
 /** The inset an EVEN ledge takes — NEGATIVE, so it stands PROUD of the ring above it. The base
  *  course ends up ~0.16 units outboard of the parcel's own outline, which is what gives the
  *  island a plinth rather than a taper. */
-export const SKIRT_INSET_OUT = -0.12;
+export const SKIRT_INSET_OUT = -0.12 * LAND_SCALE;
 
 /** The jitter's floor and range: each row's inset is its side's magnitude times
  *  `SKIRT_JITTER_BASE + SKIRT_JITTER_SPAN * ((row * SEED) % PERIOD) / PERIOD`. */

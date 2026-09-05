@@ -49,6 +49,7 @@
 // hand-typed, so the two halves cannot drift apart on the numbers that decide the look. The
 // delivered-pixel measurement is what closes the remaining gap, and that is `grain-measure.mjs`.
 
+import { LAND_SCALE } from './land-per-capability.js';
 import { parseHex, toHex, type Rgb255 } from './shade-ladder.js';
 
 /** A unit surface normal in WORLD space — the same shape `rungOfNormal` and `landNormal` speak,
@@ -77,7 +78,9 @@ export interface GroundNormal {
  * coordinate space, not a decision, and it is deliberately NOT reproduced: this field is
  * isotropic and authored at a round 2.5.
  */
-export const GRAIN_LATTICE = 2.5;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const GRAIN_LATTICE = 2.5 * LAND_SCALE;
 
 /**
  * How much LARGER a delivered feature is than the lattice that generated it — MEASURED on this
@@ -148,7 +151,11 @@ export const GRAIN_COLOUR_MIX = 0.13;
  * form of this component's ceiling: a banded material can only express grain as a threshold
  * crossing, so the knob controls HOW MUCH ground flips, never how much any point changes.
  */
-export const GRAIN_NORMAL_STRENGTH = 1.0;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the strength multiplies a GRADIENT PER GROUND UNIT,
+// and the lattice it is taken over shrank by LAND_SCALE, so the gradient grew by 1 / LAND_SCALE
+// — unscaled, the effective strength would have been 2.65, past the ~1.5 "repaint" line above.
+// Scaled, the delivered tilt at every island-relative point is what it was on the tuned island.
+export const GRAIN_NORMAL_STRENGTH = 1.0 * LAND_SCALE;
 
 /**
  * The colour ramp's two stop POSITIONS, from Cycles `_ramp([(0.30, ...), (0.70, ...)])`.

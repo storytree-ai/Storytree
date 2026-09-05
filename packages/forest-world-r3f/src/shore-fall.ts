@@ -91,19 +91,24 @@
 // island's OUTLINE, one dimension over — and it costs triangles, which this component currently
 // does not. It is the next increment, not this one.
 
-import { COAST_OUTSET, type CoastPoint, coastalIsland, rimLoops } from './coast-clip.js';
+import { GROUND_COAST_OUTSET, type CoastPoint, coastalIsland, rimLoops } from './coast-clip.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { landGradient, landHeight } from './land-relief.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 import { buildEdgeGrid, nearestOnSegments } from './shore-grid.js';
 
 /** The reference generator's own `BEACH` — the width of the band over which the land rises from
  *  the waterline to its full swell, in ground units. */
-export const AUTHORED_SHORE_WIDTH = 3.1;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const AUTHORED_SHORE_WIDTH = 3.1 * LAND_SCALE;
 
 /** The reference generator's own beach dip — how far below the grass line the waterline sits, in
  *  ground units. Independent of the width there, and kept independent here so the arms move one
  *  variable. */
-export const SHORE_DIP = 0.62;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const SHORE_DIP = 0.62 * LAND_SCALE;
 
 /**
  * WHICH SHORE BAND THE SHIPPED MAP WEARS.
@@ -155,10 +160,10 @@ export const SHORE_ARMS: readonly ShoreArm[] = [
 export const SHORE_ARM_WIDTH = {
   none: 0,
   authored: AUTHORED_SHORE_WIDTH,
-  beach: COAST_OUTSET,
-  shelf: 16.5,
-  ring: COAST_OUTSET,
-  'ring-pair': COAST_OUTSET,
+  beach: GROUND_COAST_OUTSET,
+  shelf: 16.5 * LAND_SCALE,
+  ring: GROUND_COAST_OUTSET,
+  'ring-pair': GROUND_COAST_OUTSET,
 } satisfies Record<ShoreArm, number>;
 
 /**

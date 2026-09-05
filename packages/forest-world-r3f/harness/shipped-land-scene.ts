@@ -353,13 +353,29 @@ export function shippedParcels(): InstanceDescriptor[] {
 
 /**
  * THE SAME ISLAND AS THE 2D DRAWING LAYS IT — the projected ribbon (233.8 × 46.2) the canvas drew
- * as its ground plane until 2026-09-05. The mapper is told the drawing is already true (plan view),
- * so the per-island footprint restoration (ADR-0517 D1) is the identity. Two readers: the crowd
+ * as its ground plane until 2026-09-05, at the size the hex layout gave it. The mapper is told the
+ * drawing is already true (plan view), so the per-island footprint restoration (ADR-0517 D1) is
+ * the identity, and told to leave the size alone (`landAreaPerCapability: null`). Two readers: the crowd
  * layout sizes its frame from this, because the real map's spacing is the drawing's; and a
  * comparison page's "before this landing" arm stands on it.
  */
+/**
+ * THE DRAWING UNPROJECTED, AT THE SIZE THE DRAWING GIVES IT — ADR-0517's true footprint before the
+ * land-per-capability ratio resized it (233.8 × 135.1). One reader: the crowd layout bounds its
+ * jitter with this, so that the SLACK a slot allows is a property of the 2D layout and not of
+ * whichever island a page happens to stand in it — otherwise two arms of one ladder would scatter
+ * the same forest differently and a "moved" would be the scatter's.
+ */
+export function drawnTrueParcels(): InstanceDescriptor[] {
+  return worldTo3D(islandScene(), { landAreaPerCapability: null }).filter(
+    (d): d is InstanceDescriptor => d.kind === 'cell-ground',
+  );
+}
+
 export function drawnParcels(): InstanceDescriptor[] {
-  return worldTo3D(islandScene(), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }).filter(
+  // ⚠ AND AT THE SIZE THE DRAWING GIVES IT — the land-per-capability ratio is the mapper's second
+  // in-place resize, and the real map's spacing knows nothing of it either.
+  return worldTo3D(islandScene(), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG, landAreaPerCapability: null }).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
 }

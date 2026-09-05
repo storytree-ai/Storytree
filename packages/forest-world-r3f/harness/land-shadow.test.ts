@@ -13,6 +13,7 @@ import { LAND_CAMERA_ELEVATION_DEG, groundFlattening, uprightForeshortening } fr
 
 import { groundBounds, groundCellsFrom } from './island-descriptors.js';
 import { islandScene } from './island-fixture.js';
+import { LAND_SCALE } from '../src/land-per-capability.js';
 import { LAND_RELIEF_AMPLITUDE, landHeight } from './land-definition.js';
 import { plantsFrom } from './plant-descriptors.js';
 import { treesFrom } from './tree-descriptors.js';
@@ -126,11 +127,13 @@ test('THE FINDING: at the SHIPPED amplitude the land cannot shadow itself AT ALL
   assert.equal(shadowCoverage(field), 0);
   assert.equal(field.data.reduce((s, v) => s + v, 0), 0);
   // AND IT IS NOT A NEAR MISS, which is the part that makes this a decision rather than a
-  // tuning note. Peak slope is linear in amplitude, so reaching the light needs about 7.0 —
-  // over three times the shipped 2.2 and over twice the 3.2 the previous increment already
-  // rejected for churning the island's silhouette.
-  assert.equal(terrainSelfShadows(3.2), false, '3.2 was already rejected and still would not');
-  assert.equal(terrainSelfShadows(6.0), false);
+  // tuning note. Peak slope is linear in amplitude, so reaching the light needs about 7.0 on the
+  // tuned island — over three times the shipped 2.2 and over twice the 3.2 the previous increment
+  // already rejected for churning the island's silhouette. Since the land-per-capability ratio the
+  // amplitude AND the wavelengths carry LAND_SCALE, so the same three amplitudes are 2.2 / 3.2 /
+  // 6.0 × LAND_SCALE and the margins are identical.
+  assert.equal(terrainSelfShadows(3.2 * LAND_SCALE), false, '3.2 was already rejected and still would not');
+  assert.equal(terrainSelfShadows(6.0 * LAND_SCALE), false);
 });
 
 test('NON-VACUITY: the terrain term DOES fire on land steep enough to cast', () => {

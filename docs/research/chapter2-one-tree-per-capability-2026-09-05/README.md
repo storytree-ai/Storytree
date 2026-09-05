@@ -14,6 +14,15 @@ over its true footprint is the **ground cover**: bushes, grass tufts and small w
 > every committed sheet on this arc before this one shows the grove, and `today` is REBUILT here
 > from the harness's own copy of the retired placement rather than read off a frame from hours ago.
 
+> ⚠ **OVERTAKEN 2026-09-05 (same day), by `island-size-from-a-land-per-capability-ratio`.** Every
+> picture here stands on the island at the size the hex layout gave it (≈ 2,240 units² of land per
+> capability); the map now sizes each island from a declared land-per-capability ratio
+> (`packages/forest-world-r3f/src/land-per-capability.ts`), and the cover count rung this sheet
+> picked (x3) was re-judged on the correctly-sized island. The page and its drivers
+> (`shipped-per-capability.*`, `grove-history.ts`) are retired with their question; the successor
+> sheet is `docs/research/chapter2-land-per-capability-2026-09-05/`. The frames stay as the record
+> of what was judged.
+
 ## What the island looks like now, and how many trees it stands
 
 **One island at 8 px/unit** (`sheet-8px.png`; `sheet-reference.png` puts the approved render, this
