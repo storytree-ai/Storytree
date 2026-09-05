@@ -319,6 +319,30 @@ export function renderArcRollup(
   if (staleness !== undefined) {
     lines.push(...renderNarrativeStaleness(staleness, rollup.id, { noLog: opts.noLog === true }));
   }
+  // THE QUEUE, BEFORE THE PROSE (ADR-0523). A gated arc cannot be STARTED, so a reader who meets
+  // the intent first has already begun planning work that is not theirs to take. Same placement
+  // reasoning as the staleness caveat above: a hold printed underneath arrives after the belief.
+  // Rendered only when there IS one — an ungated arc gains no line, which is the property the
+  // surface is required to preserve.
+  if (rollup.gates.length > 0) {
+    const shut = rollup.gates.filter((g) => g.shut);
+    lines.push(
+      shut.length > 0
+        ? `## ⛔ QUEUED — this arc cannot start until ${shut.length === 1 ? "its blocker closes" : `all ${shut.length} blockers close`}`
+        : "## Queue — every blocker has closed; this arc is startable",
+      "",
+    );
+    for (const gate of rollup.gates) {
+      const state = gate.blockerMissing
+        ? "UNRESOLVED — no such arc, so this is a permanent wait until the gate is corrected or released"
+        : gate.shut
+          ? "still open"
+          : "CLOSED — this gate no longer holds";
+      lines.push(`  - **${gate.title}** (\`${gate.id}\`) — ${state}`);
+      if (gate.reason !== undefined) lines.push(`      why: ${gate.reason}`);
+    }
+    lines.push("", "  release one with: storytree arc ungate " + rollup.id + " --needs <blocker-id> --pg", "");
+  }
   if (rollup.intent) lines.push(`**The intent.** ${rollup.intent}`, "");
   if (rollup.endState) lines.push("## End state", "", rollup.endState, "");
 

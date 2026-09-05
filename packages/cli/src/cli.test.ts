@@ -787,7 +787,7 @@ test("artifact edit --set still REFUSES an arc's increments wholesale — the lo
   assert.match(env.body, /arc increment add/, "…and points at the first-class verb");
   // The list is alphabetical, so ADR-0402's `standsOn` -> `dependsOn` rename moved the edge from the
   // tail of it to the head — same fields, same strictness, one different first token.
-  assert.match(env.body, /editable fields: dependsOn, description, endState, id, intent, lifecycle/);
+  assert.match(env.body, /editable fields: dependsOn, description, endState, gateReasons, gatedBy, id, intent, lifecycle/);
 });
 
 /** Seed a minimal live-shaped arc into a store (arcs are live-only, absent from the offline seed). */
@@ -1477,4 +1477,108 @@ test("anchorFromSetValue is pure: SHA case-folds, a bad JSON object names which 
   assert.match(anchorFromSetValue("{not json", now) as string, /did not parse/);
   assert.match(anchorFromSetValue('["a"]', now) as string, /is not a git SHA/);
   assert.match(anchorFromSetValue("abc", now) as string, /is not a git SHA/);
+});
+
+// ---------------------------------------------------------------------------
+// `arc gate` / `arc ungate` THROUGH THE DISPATCH (ADR-0523 D5).
+//
+// These exist because the dispatch layer is where the verbs nearly died silently: the arc write
+// branch is an explicit `sub === ...` allow-list, so a verb missing from it falls through to the
+// READ command and answers "unknown arc command" at exit 0. A unit test over `arcGate` cannot see
+// that — only a run through `run([...])` can.
+// ---------------------------------------------------------------------------
+
+/** A second arc for the dispatch tests to queue behind. */
+async function seedBlockerArc(store: InMemoryStore): Promise<void> {
+  await store.upsertDoc({
+    id: "blocker-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "blocker-arc",
+      title: "Blocker arc",
+      description: "d",
+      intent: "i",
+      endState: "e",
+      createdAt: "2026-07-01",
+      updatedAt: "2026-07-01",
+    },
+  });
+}
+
+test("arc gate via dispatch records the edge and its reason (the write branch admits the verb)", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  await seedBlockerArc(store);
+  const env = await run(
+    ["arc", "gate", "dispatch-arc", "--needs", "blocker-arc", "--reason", "the stack must exist first", "--pg"],
+    { store, writable: true },
+  );
+  assert.equal(env.ok, true);
+  const got = (await store.getDoc("dispatch-arc"))?.doc as Record<string, unknown>;
+  assert.deepEqual(got["gatedBy"], ["asset:blocker-arc"]);
+  assert.deepEqual(got["gateReasons"], { "asset:blocker-arc": "the stack must exist first" });
+});
+
+test("arc ungate via dispatch releases the edge (the write branch admits it too)", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  await seedBlockerArc(store);
+  await run(["arc", "gate", "dispatch-arc", "--needs", "blocker-arc", "--pg"], { store, writable: true });
+  const env = await run(["arc", "ungate", "dispatch-arc", "--needs", "blocker-arc", "--pg"], {
+    store,
+    writable: true,
+  });
+  assert.equal(env.ok, true);
+  const got = (await store.getDoc("dispatch-arc"))?.doc as Record<string, unknown>;
+  assert.ok(!("gatedBy" in got));
+});
+
+test("arc gate --reason reads long prose from @path, and --needs is taken VERBATIM", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  await seedBlockerArc(store);
+  const dir = mkdtempSync(path.join(tmpdir(), "cli-gate-"));
+  try {
+    const file = path.join(dir, "reason.md");
+    writeFileSync(file, "why this queue exists:\n- the palette moves\n- so the stack must land first", "utf8");
+    const env = await run(
+      ["arc", "gate", "dispatch-arc", "--needs", "blocker-arc", "--reason", `@${file}`, "--pg"],
+      { store, writable: true },
+    );
+    assert.equal(env.ok, true);
+    const got = (await store.getDoc("dispatch-arc"))?.doc as Record<string, unknown>;
+    const reasons = got["gateReasons"] as Record<string, string>;
+    // `--reason` is PROSE (@path-expanded); `--needs` is LITERAL and must NOT be read as a path.
+    assert.match(String(reasons["asset:blocker-arc"]), /the palette moves/);
+    assert.deepEqual(got["gatedBy"], ["asset:blocker-arc"], "--needs was taken as an id, not a file");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("both gate verbs refuse without --pg through the dispatch", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  const gate = await run(["arc", "gate", "dispatch-arc", "--needs", "blocker-arc"], { store });
+  assert.equal(gate.ok, false);
+  assert.match(gate.body, /writes to the shared store/);
+  const ungate = await run(["arc", "ungate", "dispatch-arc"], { store });
+  assert.equal(ungate.ok, false);
+  assert.match(ungate.body, /writes to the shared store/);
+});
+
+test("arc gate through the dispatch is NOT swallowed by the read path's unknown-command envelope", async () => {
+  const store = await seeded();
+  await seedArc(store);
+  await seedBlockerArc(store);
+  const env = await run(["arc", "gate", "dispatch-arc", "--needs", "blocker-arc", "--pg"], {
+    store,
+    writable: true,
+  });
+  // The exact failure this guards: a verb absent from the write allow-list reaches `arcCommand`,
+  // which answers `unknown arc command "gate"` — and does so at ok:false with nothing written, so
+  // only asserting the write catches it.
+  assert.doesNotMatch(env.body, /unknown arc command/);
+  assert.equal(env.ok, true);
 });

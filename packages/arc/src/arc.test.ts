@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { InMemoryStore, type Store } from "@storytree/storage-protocol";
+import { deriveArcRollup } from "./arc-rollup.js";
 import { seedDecisionRows } from "./decision.test-helpers.js";
 
 import {
@@ -2432,4 +2433,524 @@ test("arc help documents the gate verbs AND why they are not dependsOn", async (
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// The gate's READ half (ADR-0523): `arc show` renders the queue, and the rollup resolves each
+// blocker's lifecycle so a gate opens itself when its blocker closes.
+// ---------------------------------------------------------------------------
+
+test("arc show renders the queue BEFORE the intent, with the reason, and says it cannot start", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", {
+    needs: "ground-arc",
+    reason: "The wheat re-palettises the green stack.",
+  });
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "paint-arc", depsFor(store, fx));
+    assert.match(shown.body, /QUEUED — this arc cannot start until its blocker closes/);
+    assert.match(shown.body, /why: The wheat re-palettises the green stack\./);
+    // BEFORE the prose: a reader who meets the intent first has already begun planning work that is
+    // not theirs to take.
+    assert.ok(
+      shown.body.indexOf("QUEUED") < shown.body.indexOf("**The intent.**"),
+      "the hold must be rendered before the intent it would otherwise be read after",
+    );
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("an UNGATED arc gains no queue line at all — the density property the surface must preserve", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "paint-arc", depsFor(store, fx));
+    assert.doesNotMatch(shown.body, /QUEUED/);
+    assert.doesNotMatch(shown.body, /Queue —/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("a gate OPENS ITSELF when its blocker closes — nobody has to go and release it", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  // Close the blocker the way the lifecycle actually moves, by flipping its stored flag.
+  const blocker = (await store.getDoc("ground-arc"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({ id: "ground-arc", kind: "arc", doc: { ...blocker, lifecycle: "closed" } });
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "paint-arc", depsFor(store, fx));
+    // The edge is STILL AUTHORED — the record of why the queue existed survives the release, which
+    // is the whole reason the reason is stored beside it.
+    assert.match(shown.body, /every blocker has closed; this arc is startable/);
+    assert.match(shown.body, /CLOSED — this gate no longer holds/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("a gate whose blocker CANNOT be resolved reads as a permanent wait, never as satisfied", () => {
+  // The falsified-absence guard: "I could not find the blocker" must never render as "it closed",
+  // because that starts exactly the work the queue exists to hold.
+  const rollup = deriveArcRollup({
+    arc: {
+      id: "paint-arc",
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id: "paint-arc",
+        title: "Paint",
+        description: "d",
+        intent: "i",
+        endState: "e",
+        gatedBy: ["asset:vanished-arc"],
+      },
+    } as never,
+    incrementDocs: [],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    // No `arcDocs` at all — the caller had no arc corpus in hand.
+  });
+  assert.equal(rollup.gates.length, 1);
+  assert.equal(rollup.gates[0]?.shut, true, "an unresolvable blocker is SHUT");
+  assert.equal(rollup.gates[0]?.blockerMissing, true);
+  assert.equal(rollup.gates[0]?.title, "vanished-arc", "it falls back to the id rather than inventing a title");
+});
+
+test("deriveArcRollup returns an EMPTY gate list for an arc that was never gated", () => {
+  const rollup = deriveArcRollup({
+    arc: {
+      id: "plain-arc",
+      kind: "arc",
+      doc: { kind: "arc", id: "plain-arc", title: "Plain", description: "d", intent: "i", endState: "e" },
+    } as never,
+    incrementDocs: [],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+  });
+  assert.deepEqual(rollup.gates, []);
+});
+
+// ---------------------------------------------------------------------------
+// The gate verbs' EXACT envelopes and their unhappy paths (ADR-0523).
+//
+// An envelope here is a contract, not decoration: the `body` is what a session reads instead of
+// re-deriving the situation, and `next:` is the route it takes afterwards. Both are asserted
+// literally, because a message that silently emptied would still be an `ok:false` envelope and no
+// looser assertion could tell the difference.
+// ---------------------------------------------------------------------------
+
+/** A store whose `patchDoc` DELETES the row first — the retired-underfoot race, as a seam. */
+function storeRetiringUnderfoot(inner: InMemoryStore): Store {
+  return {
+    ...inner,
+    getDoc: (id: string) => inner.getDoc(id),
+    queryDocs: (filter?: { kind?: string }) => inner.queryDocs(filter),
+    upsertDoc: (i: Parameters<Store["upsertDoc"]>[0]) => inner.upsertDoc(i),
+    deleteDoc: (id: string, o?: Parameters<Store["deleteDoc"]>[1]) => inner.deleteDoc(id, o),
+    appendEvent: (e: Parameters<Store["appendEvent"]>[0]) => inner.appendEvent(e),
+    readEvents: (f?: Parameters<Store["readEvents"]>[0]) => inner.readEvents(f),
+    patchDoc: async (input: Parameters<Store["patchDoc"]>[0]) => {
+      await inner.deleteDoc(input.id);
+      return inner.patchDoc(input);
+    },
+  } as Store;
+}
+
+test("arc gate's refusals carry their exact body AND their next: route", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const missingBoth = await arcGate(writeDeps(store), undefined, {});
+  assert.equal(
+    missingBoth.body,
+    "arc gate needs both arcs: storytree arc gate <id> --needs <other-id> [--reason <text|@file>] --pg\n  <id> is the arc that CANNOT START; --needs names the one that must close first.",
+  );
+  assert.deepEqual(missingBoth.next, ["storytree arc list --pg"]);
+
+  const self = await arcGate(writeDeps(store), "paint-arc", { needs: "paint-arc" });
+  assert.equal(
+    self.body,
+    'an arc cannot gate itself — "paint-arc" would wait on its own closure and could never start.',
+  );
+  assert.deepEqual(self.next, ["storytree arc show paint-arc --pg"]);
+});
+
+test("arc gate's cycle refusal routes the reader at BOTH arcs in the ring", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "ground-arc", { needs: "paint-arc" });
+  const res = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  // Both, because releasing EITHER edge breaks the ring and the caller may not own the one they hit.
+  assert.deepEqual(res.next, ["storytree arc show paint-arc --pg", "storytree arc show ground-arc --pg"]);
+  assert.match(res.body, /Release one edge first: storytree arc ungate <id> --needs <other-id> --pg/);
+});
+
+test("arc gate's success envelope names both arcs and routes on, with and without a reason", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const bare = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(
+    bare.body,
+    'gated: "paint-arc" cannot start until "ground-arc" closes.\n  no --reason recorded — a session six weeks from now reads that field instead of re-deriving why the queue exists.',
+  );
+  assert.deepEqual(bare.next, ["storytree arc show paint-arc --pg", "storytree arc list --pg"]);
+
+  // Re-gating the SAME edge WITH a reason says what actually changed, rather than re-reporting a
+  // gate it did not create.
+  const withReason = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc", reason: "r" });
+  assert.equal(withReason.body, 'reason recorded: "paint-arc" cannot start until "ground-arc" closes.');
+
+  // And re-gating with NO reason, on an edge that already exists, says neither "gated" nor
+  // "reason recorded".
+  const again = await arcGate(writeDeps(store), "third-arc", { needs: "ground-arc" });
+  assert.match(again.body, /^gated: /);
+  const twice = await arcGate(writeDeps(store), "third-arc", { needs: "ground-arc" });
+  assert.match(twice.body, /^already gated: /);
+});
+
+test("arc gate on a MISSING gated arc refuses before it touches the blocker", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const res = await arcGate(writeDeps(store), "no-such-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /no arc "no-such-arc"/);
+  assert.deepEqual(res.next, ["storytree arc list --pg"]);
+});
+
+test("arc gate reports an INVALID resulting doc rather than writing it", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  // An arc whose stored lifecycle is not one of the three: the merged doc fails validation inside
+  // the write, which is exactly where it must fail — validating our own stale copy would prove
+  // nothing about what lands.
+  await store.upsertDoc({
+    id: "broken-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "broken-arc",
+      title: "Broken",
+      description: "d",
+      intent: "i",
+      endState: "e",
+      lifecycle: "not-a-lifecycle",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  const res = await arcGate(writeDeps(store), "broken-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /^gate would make "broken-arc" invalid:/);
+  assert.deepEqual(res.next, ["storytree arc show broken-arc --pg"]);
+  // Nothing landed.
+  const got = (await store.getDoc("broken-arc"))?.doc as Record<string, unknown>;
+  assert.equal(got["gatedBy"], undefined);
+});
+
+test("arc ungate reports an INVALID resulting doc rather than writing it", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  const doc = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({ id: "paint-arc", kind: "arc", doc: { ...doc, lifecycle: "not-a-lifecycle" } });
+  const res = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(res.ok, false);
+  assert.match(res.body, /^ungate would make "paint-arc" invalid:/);
+  assert.deepEqual(res.next, ["storytree arc show paint-arc --pg"]);
+});
+
+test("both gate verbs report a row RETIRED underfoot, and write nothing", async () => {
+  const inner = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(inner), "paint-arc", { needs: "ground-arc" });
+  const racing = { ...writeDeps(inner), store: storeRetiringUnderfoot(inner) };
+
+  const gate = await arcGate(racing, "third-arc", { needs: "ground-arc" });
+  assert.equal(gate.ok, false);
+  assert.equal(gate.body, 'arc "third-arc" was retired while this gate was being prepared — nothing was written.');
+
+  const ungate = await arcUngate(racing, "paint-arc", {});
+  assert.equal(ungate.ok, false);
+  assert.equal(
+    ungate.body,
+    'arc "paint-arc" was retired while this ungate was being prepared — nothing was written.',
+  );
+});
+
+test("arc ungate's refusals carry their exact body AND their next: route", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const noId = await arcUngate(writeDeps(store), undefined, {});
+  assert.equal(
+    noId.body,
+    "arc ungate needs an id: storytree arc ungate <id> [--needs <other-id>] --pg\n  without --needs it releases EVERY gate on the arc.",
+  );
+  assert.deepEqual(noId.next, ["storytree arc list --pg"]);
+
+  const notGated = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(notGated.body, '"paint-arc" is not gated — nothing to release.');
+  assert.deepEqual(notGated.next, ["storytree arc show paint-arc --pg"]);
+
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  const wrongEdge = await arcUngate(writeDeps(store), "paint-arc", { needs: "third-arc" });
+  assert.equal(wrongEdge.body, '"paint-arc" is not gated behind "third-arc". It waits on: ground-arc.');
+  assert.deepEqual(wrongEdge.next, ["storytree arc show paint-arc --pg"]);
+});
+
+test("arc ungate's success envelope distinguishes fully-released from still-held, and routes on", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  await arcGate(writeDeps(store), "paint-arc", { needs: "third-arc" });
+
+  const one = await arcUngate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(one.body, 'released: "paint-arc" no longer waits on ground-arc. Still gated behind: third-arc.');
+  assert.deepEqual(one.next, ["storytree arc show paint-arc --pg", "storytree arc list --pg"]);
+
+  const rest = await arcUngate(writeDeps(store), "paint-arc", {});
+  // With no --needs the message names EVERY edge it dropped, not just a count.
+  assert.equal(rest.body, 'released: "paint-arc" no longer waits on third-arc. It is startable.');
+});
+
+test("arc ungate WITHOUT --needs names every edge it released", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  await arcGate(writeDeps(store), "paint-arc", { needs: "third-arc" });
+  const all = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(all.body, 'released: "paint-arc" no longer waits on ground-arc, third-arc. It is startable.');
+});
+
+test("the queue render pluralises, and names EVERY blocker with its own state", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc", reason: "stack first" });
+  await arcGate(writeDeps(store), "paint-arc", { needs: "third-arc" });
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "paint-arc", depsFor(store, fx));
+    assert.match(shown.body, /QUEUED — this arc cannot start until all 2 blockers close/);
+    assert.match(shown.body, /- \*\*ground-arc\*\* \(`ground-arc`\) — still open/);
+    assert.match(shown.body, /- \*\*third-arc\*\* \(`third-arc`\) — still open/);
+    // A reason is rendered only for the edge that HAS one — an absent reason prints no empty line.
+    assert.match(shown.body, /why: stack first/);
+    assert.equal(shown.body.match(/ {6}why: /g)?.length, 1);
+    assert.match(shown.body, /release one with: storytree arc ungate paint-arc --needs <blocker-id> --pg/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("the queue render states an UNRESOLVED blocker as a permanent wait, in full", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  await store.deleteDoc("ground-arc");
+  const fx = diskFixture();
+  try {
+    const shown = await arcCommand("show", "paint-arc", depsFor(store, fx));
+    assert.match(
+      shown.body,
+      /UNRESOLVED — no such arc, so this is a permanent wait until the gate is corrected or released/,
+    );
+    // Still QUEUED: an unresolvable blocker must never read as a gate that opened.
+    assert.match(shown.body, /QUEUED — this arc cannot start until its blocker closes/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("a MALFORMED gatedBy / gateReasons never throws — it reads as no gate and no reason", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const base = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  // Not an array, entries not strings, reasons an ARRAY rather than a map, a non-string reason.
+  await store.upsertDoc({
+    id: "paint-arc",
+    kind: "arc",
+    doc: { ...base, gatedBy: ["asset:ground-arc", 7, null], gateReasons: ["not", "a", "map"] },
+  });
+  const res = await arcUngate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, true, "the non-string entries are ignored rather than throwing");
+
+  await store.upsertDoc({ id: "paint-arc", kind: "arc", doc: { ...base, gatedBy: "not-an-array" } });
+  const notArray = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(notArray.ok, false);
+  assert.match(notArray.body, /is not gated/);
+
+  await store.upsertDoc({
+    id: "paint-arc",
+    kind: "arc",
+    doc: { ...base, gatedBy: ["asset:ground-arc"], gateReasons: { "asset:ground-arc": 42 } },
+  });
+  // The READER drops a non-string reason, but the WRITE re-validates the whole merged doc, so a
+  // stored reason that is not a string is REFUSED rather than silently repaired. That is the right
+  // way round: a verb that quietly rewrote a neighbouring field it was never asked to touch would
+  // be the more dangerous behaviour.
+  const badReason = await arcGate(writeDeps(store), "paint-arc", { needs: "third-arc" });
+  assert.equal(badReason.ok, false);
+  assert.match(badReason.body, /gate would make "paint-arc" invalid:/);
+  const got = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  assert.deepEqual(got["gatedBy"], ["asset:ground-arc"], "nothing landed");
+});
+
+test("the cycle walk reads edges from OTHER arcs' stored gatedBy, prefix-stripped", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const ground = (await store.getDoc("ground-arc"))?.doc as Record<string, unknown>;
+  // Authored WITHOUT the asset: prefix — the walk must still see it, or a hand-authored edge would
+  // silently escape the cycle guard.
+  await store.upsertDoc({ id: "ground-arc", kind: "arc", doc: { ...ground, gatedBy: ["paint-arc"] } });
+  const res = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /paint-arc . ground-arc . paint-arc/);
+});
+
+test("an arc doc that is not an object at all does not break the cycle walk", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await store.upsertDoc({ id: "odd-arc", kind: "arc", doc: "not an object" as never });
+  const res = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, true);
+});
+
+test("arc help carries the gate block in full — syntax, direction, cycle refusal and the reason", async () => {
+  const fx = diskFixture();
+  try {
+    const help = (await arcCommand("help", undefined, depsFor(new InMemoryStore(), fx))).body;
+    // The whole block, line by line. Help text is the surface a caller reads INSTEAD of the source,
+    // so a line that silently emptied would leave them with a verb and no semantics.
+    for (const line of [
+      "queue an arc behind its blocker (ADR-0523):",
+      "  storytree arc gate <id> --needs <other-id> [--reason <text|@file>] --pg",
+      "        <id> CANNOT START until <other-id> closes. The edge lives on the GATED arc, so a",
+      "        blocker names none of the arcs queued behind it and this touches exactly one row.",
+      "        A gate that would close a CYCLE is REFUSED at write time, naming the ring — every arc",
+      "        in a loop waits on the next forever and no arc's page could show why.",
+      "        --reason is not decoration: it renders in the arc panel and is what a session six",
+      "        weeks from now reads instead of re-deriving why the queue exists.",
+      "  storytree arc ungate <id> [--needs <other-id>] --pg",
+      "        Release one gate, or (without --needs) every gate on the arc.",
+      "        ⚠ THIS IS NOT `dependsOn`, which an arc also carries. `dependsOn` means STANDS ON —",
+      "        knowledge support, what the tech-tree ranks depth by. A gate means CANNOT START — a",
+      "        schedule. They draw the same picture, which is the reason to keep them apart rather",
+      "        than a reason to merge them: 88 non-test modules read `dependsOn` and would have begun",
+      "        reading a schedule as knowledge depth, undetectably from the view.",
+    ]) {
+      assert.ok(help.includes(line), `arc help is missing: ${line}`);
+    }
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("the rollup resolves a blocker's TITLE, and falls back to the id when it has none", () => {
+  const blocker = {
+    id: "ground-arc",
+    kind: "arc",
+    doc: { kind: "arc", id: "ground-arc", title: "The ground stack", description: "d", intent: "i", endState: "e" },
+  };
+  const titleless = {
+    id: "bare-arc",
+    kind: "arc",
+    doc: { kind: "arc", id: "bare-arc", title: "", description: "d", intent: "i", endState: "e" },
+  };
+  const rollup = deriveArcRollup({
+    arc: {
+      id: "paint-arc",
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id: "paint-arc",
+        title: "Paint",
+        description: "d",
+        intent: "i",
+        endState: "e",
+        gatedBy: ["asset:ground-arc", "asset:bare-arc"],
+        gateReasons: { "asset:ground-arc": "the palette moves" },
+      },
+    } as never,
+    incrementDocs: [],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    arcDocs: [blocker, titleless] as never,
+  });
+  assert.equal(rollup.gates[0]?.title, "The ground stack");
+  assert.equal(rollup.gates[0]?.reason, "the palette moves");
+  assert.equal(rollup.gates[0]?.blockerMissing, false);
+  // An empty title falls back to the id — never to an empty string, which would render a nameless row.
+  assert.equal(rollup.gates[1]?.title, "bare-arc");
+  // No reason recorded means the key is ABSENT, not an empty string.
+  assert.ok(!("reason" in (rollup.gates[1] ?? {})));
+});
+
+test("the rollup reads a CLOSED blocker as an open gate, and an open one as shut", () => {
+  const mk = (id: string, lifecycle: string) => ({
+    id,
+    kind: "arc",
+    doc: { kind: "arc", id, title: id, description: "d", intent: "i", endState: "e", lifecycle },
+  });
+  const rollup = deriveArcRollup({
+    arc: {
+      id: "paint-arc",
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id: "paint-arc",
+        title: "Paint",
+        description: "d",
+        intent: "i",
+        endState: "e",
+        gatedBy: ["asset:done-arc", "asset:live-arc"],
+      },
+    } as never,
+    incrementDocs: [],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    arcDocs: [mk("done-arc", "closed"), mk("live-arc", "active")] as never,
+  });
+  assert.equal(rollup.gates[0]?.shut, false, "a CLOSED blocker releases its gate");
+  assert.equal(rollup.gates[1]?.shut, true, "an ACTIVE blocker still holds it");
+});
+
+test("the rollup ignores a malformed gatedBy / gateReasons rather than throwing", () => {
+  const rollup = deriveArcRollup({
+    arc: {
+      id: "paint-arc",
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id: "paint-arc",
+        title: "Paint",
+        description: "d",
+        intent: "i",
+        endState: "e",
+        gatedBy: "not-an-array",
+        gateReasons: ["not", "a", "map"],
+      },
+    } as never,
+    incrementDocs: [],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+  });
+  assert.deepEqual(rollup.gates, []);
+
+  const mixed = deriveArcRollup({
+    arc: {
+      id: "paint-arc",
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id: "paint-arc",
+        title: "Paint",
+        description: "d",
+        intent: "i",
+        endState: "e",
+        // A bare id with no `asset:` prefix, plus entries that are not strings at all.
+        gatedBy: ["ground-arc", 7, null],
+        gateReasons: { "ground-arc": "" },
+      },
+    } as never,
+    incrementDocs: [],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+  });
+  assert.equal(mixed.gates.length, 1, "non-string entries are dropped");
+  assert.equal(mixed.gates[0]?.id, "ground-arc", "a bare id resolves without the prefix");
+  // An EMPTY reason string is treated as no reason — a blank line under a gate says nothing.
+  assert.ok(!("reason" in (mixed.gates[0] ?? {})));
 });

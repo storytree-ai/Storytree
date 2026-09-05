@@ -346,8 +346,15 @@ export const KIND_SPECS = {
       lead: false,
       heading: "Diagram",
       required: false,
+      // PREFER MERMAID, do not merely permit it (ADR-0523's arc, increment 03). The field has always
+      // accepted both, and this placeholder used to offer them as equals — but the studio renders a
+      // fenced mermaid block as an SVG (ADR-0096) and renders typed ASCII as a monospace box, so the
+      // same field buys materially better output for the same effort. Stating the preference is the
+      // whole intervention: there is deliberately NO gate rung scoring a diagram's presence, because
+      // every proxy a rung could read (non-empty, a length band) is producible without the judgment
+      // it stands for, and a pure value/policy choice legitimately has none.
       placeholder:
-        "_A picture when the subject is a structure, flow, or state machine — a ```mermaid fenced block (rendered as an SVG in the studio, ADR-0096) or an ASCII box/flow diagram in a fenced code block. Omit for a pure value/policy choice._",
+        "_A picture when the subject is a structure, flow, or state machine. PREFER a ```mermaid fenced block — the studio renders it as an SVG (ADR-0096), where typed ASCII renders as a monospace box. Fall back to an ASCII box/flow diagram in a fenced code block only when mermaid cannot express the shape. Omit for a pure value/policy choice._",
     },
     {
       field: "options",
