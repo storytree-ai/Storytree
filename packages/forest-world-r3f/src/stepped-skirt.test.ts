@@ -23,6 +23,7 @@ import {
   type P2,
   type P3,
 } from './cell-ground-geometry.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { SHADE_LEVELS, lambertOfNormal, parseHex } from './shade-ladder.js';
 import {
   SKIRT_INSET_IN,
@@ -338,11 +339,13 @@ test('the ledges are CONTINUOUS — each hangs from the one above, so the cliff 
   for (const ledge of ledges) {
     const here = insetPoint(a, outward, ledge.inset);
     // every ledge is measured from the RING, never from its predecessor: an accumulating inset
-    // would walk the base ~1.2 units inboard instead of leaving it 0.16 proud.
+    // would walk the base ~1.2 units inboard instead of leaving it 0.16 proud (both on the tuned
+    // island; the insets are `× LAND_SCALE`, `land-per-capability.ts`, so both scale with it).
     assert.ok(Math.abs(here.x - (a.x - ledge.inset)) < 1e-12);
     prev = here;
   }
-  assert.ok(Math.abs(prev.x) > 0.15, 'the base course did not end up proud of the ring');
+  // The floor scales with the insets it bounds — the same fraction of the base course as before.
+  assert.ok(Math.abs(prev.x) > 0.15 * LAND_SCALE, 'the base course did not end up proud of the ring');
 });
 
 test('the ROCK reaches the RIM and nothing else — a buried seam keeps its status colour', () => {
@@ -397,14 +400,17 @@ test('⚠ EVERY LEDGE HANGS BELOW THE GROUND, at exactly the fraction of depth i
   for (let i = 1; i < stepped.positions.length; i += 3) ys.add(stepped.positions[i]!);
   const above = [...ys].filter((y) => y > 0);
   assert.deepEqual(above, [], `the cliff rose ABOVE the ground plane at y=${above.join(', ')}`);
+  // `Math.fround` on each expectation because the positions are a Float32Array and the depth is
+  // `3 * LAND_SCALE` (`land-per-capability.ts`), so `depth * drop` is no longer float32-exact. The
+  // 1e-12 bound is unchanged: it is the same double the builder stored, read back exactly.
   for (const ledge of skirtLedges()) {
-    const expected = -CELL_GROUND_DEPTH * ledge.drop;
+    const expected = Math.fround(-CELL_GROUND_DEPTH * ledge.drop);
     assert.ok(
       [...ys].some((y) => Math.abs(y - expected) < 1e-12),
       `no vertex sits at ledge ${ledge.row}'s height ${expected}`,
     );
   }
-  assert.equal(Math.min(...ys), -CELL_GROUND_DEPTH, 'the cliff does not bottom out at the depth');
+  assert.equal(Math.min(...ys), Math.fround(-CELL_GROUND_DEPTH), 'the cliff does not bottom out at the depth');
 });
 
 test('NO_SKIRT marks NO edge as rim, which is why its colour can never be delivered', () => {

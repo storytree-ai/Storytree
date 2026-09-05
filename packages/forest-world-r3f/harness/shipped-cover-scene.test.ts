@@ -50,7 +50,7 @@ test('every arm stands on the SHIPPED casting arm’s ground, from the canopy mo
   assert.ok(!/shoreRelief\(/.test(page), 'the shore fall is the builder’s');
   assert.ok(!/buildAtlasOcclusion\(/.test(page), 'the occlusion field is the builder’s');
   assert.ok(!/dressGroves\(|grove-history|grove-dressing/.test(page), 'no grove reaches this page (ADR-0518)');
-  assert.ok(/coverDensity: COVER_DENSITY_RUNGS\[0\]!/.test(page), 'the count is held at the recipe’s own, so only size moves here');
+  assert.ok(/coverDensity: COVER_RECIPE_DENSITY,/.test(page), 'the count is held at the recipe’s own, so only size moves here');
   assert.ok(/buildGroundMaterial\(build\.field, SHIPPED_GRASS, build\.shore\(\), SHIPPED_SAND_MIX, extras\)/.test(page));
   assert.ok(/configureExactColour\(renderer\)/.test(page) && /calibrateLights\(renderer\)/.test(page));
 });

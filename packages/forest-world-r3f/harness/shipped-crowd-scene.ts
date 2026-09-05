@@ -71,6 +71,7 @@ import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
 import { frameWorld } from '../src/camera-framing.js';
 import { buildGroundOcclusion } from '../src/contact-shade.js';
 import { groundBounds } from '../src/ground-casters.js';
+import { LAND_SCALE } from '../src/land-per-capability.js';
 import { LAND_RELIEF_AMPLITUDE, landRelief } from '../src/land-relief.js';
 import { occlusionGres, shadowCoverage, type ShadowCaster } from '../src/land-shadow.js';
 import type { InstanceDescriptor } from '../src/world-to-3d.js';
@@ -87,6 +88,7 @@ import {
   linearColourOf,
   litLadderOf,
   drawnParcels,
+  drawnTrueParcels,
   shippedCasters,
   shippedParcels,
 } from './shipped-land-scene.js';
@@ -126,6 +128,17 @@ export interface CrowdSize {
   mix: 'mono' | 'real';
   /** The caption under this scene's pictures. */
   what: string;
+  /**
+   * HOW THE FRAME IS SIZED — which island `crowdLayout` reproduces the real map's land share
+   * from. Omitted is `'drawn'`: the island AS THE 2D DRAWING LAYS IT, because the real map's
+   * spacing is the drawing's and the mapper sizes each island in place (ADR-0517 D1, and the
+   * land-per-capability ratio after it), so the layout holds still however the island moves.
+   * `'compact'` sizes the frame from the island AS SHIPPED instead — the layout compacted with the
+   * islands — which is NOT what any shipped surface does: it is the instrument's picture of the
+   * OTHER answer to the layout question, rendered for the owner's decision and standing on no
+   * `CROWD_SIZES` entry.
+   */
+  layout?: 'drawn' | 'compact';
 }
 
 /** The status the single-island evidence was taken on, and therefore the one the mono crowd wears.
@@ -195,17 +208,23 @@ export function crowdSize(id: CrowdSizeId): CrowdSize {
  * centroid — possibly open water — and a difference in land coverage would be read as a
  * difference in the ladder's cost.
  */
-export function crowdIslands(size: CrowdSize): readonly CrowdIsland[] {
+export function crowdIslands(size: CrowdSize, island: readonly InstanceDescriptor[] = shippedParcels()): readonly CrowdIsland[] {
   if (size.islands === 1) {
     return [{ index: 0, status: MONO_STATUS as CrowdIsland['status'], offset: { x: 0, z: 0 }, needle: false }];
   }
   // ⚠ THE FRAME IS SIZED FROM THE ISLAND AS DRAWN, THE SLACK FROM THE ISLAND AS SHIPPED. Since
   // ADR-0517 D1 the mapper unprojects each island in place and the layout holds still, so the
   // real map's spacing is still the 2D drawing's — the ribbon's — while the island that stands
-  // in each slot is 2.9x deeper. `crowd-layout.ts`'s option doc carries the reasoning.
-  const drawn = islandExtentOf(drawnParcels());
-  const extent = shippedIslandExtent();
-  const layout = crowdLayout({ islandW: drawn.w, islandScreenH: drawn.screenH, islandTrueScreenH: extent.screenH });
+  // in each slot is 2.9x deeper; and since the land-per-capability ratio the island in each slot
+  // is smaller than the drawing's too. `crowd-layout.ts`'s option doc carries the reasoning.
+  // `island` is the island that STANDS in each slot (the shipped fixture unless a page passes a
+  // ladder rung's); a `'compact'` layout sizes the frame AND the slack from it instead of from the
+  // drawing. Held still, the slack is bounded by the drawing unprojected at the drawing's own size
+  // (`drawnTrueParcels`) — the largest island a slot ever has to hold — so the scatter is the same
+  // forest whichever rung stands in it, and a difference between two rungs is never the jitter's.
+  const drawn = size.layout === 'compact' ? islandExtentOf(island) : islandExtentOf(drawnParcels());
+  const slack = size.layout === 'compact' ? islandExtentOf(island) : islandExtentOf(drawnTrueParcels());
+  const layout = crowdLayout({ islandW: drawn.w, islandScreenH: drawn.screenH, islandTrueScreenH: slack.screenH });
   // The island closest to the forest's own centroid, which becomes the origin for every scene.
   let anchor = layout.islands[0];
   if (!anchor) throw new Error('shipped-crowd-scene: crowdLayout returned no islands');
@@ -239,10 +258,6 @@ export interface ShippedIslandExtent {
   w: number;
   /** Its on-screen height in ground units — already foreshortened by the camera. */
   screenH: number;
-}
-
-function shippedIslandExtent(): ShippedIslandExtent {
-  return islandExtentOf(shippedParcels());
 }
 
 /** A cell set's on-screen extent through the shipped camera, in ground units of the screen plane. */
@@ -318,10 +333,9 @@ export function orientedCamera(centre: { x: number; z: number }, pxPerUnit: numb
  * island (`src/world-to-3d.ts`). The shipped fixture confirms it — 164 cells across 11 parcels,
  * all one status.
  */
-export function crowdCells(size: CrowdSize): InstanceDescriptor[] {
-  const base = shippedParcels();
+export function crowdCells(size: CrowdSize, base: readonly InstanceDescriptor[] = shippedParcels()): InstanceDescriptor[] {
   const out: InstanceDescriptor[] = [];
-  for (const island of crowdIslands(size)) {
+  for (const island of crowdIslands(size, base)) {
     for (const cell of base) {
       // ⚠ THE RING IS ATTACHED IN A SEPARATE STATEMENT rather than through a conditional spread.
       // Under `exactOptionalPropertyTypes` an absent `points` and a `points: undefined` are
@@ -392,9 +406,9 @@ export function crowdIslandId(index: number): string {
  * CLAIM (which story signed which criterion), and the transform is here because every descriptor
  * has one.
  */
-export function crowdBlooms(size: CrowdSize): InstanceDescriptor[] {
+export function crowdBlooms(size: CrowdSize, base: readonly InstanceDescriptor[] = shippedParcels()): InstanceDescriptor[] {
   const out: InstanceDescriptor[] = [];
-  for (const island of crowdIslands(size)) {
+  for (const island of crowdIslands(size, base)) {
     for (const criterion of islandCriteria({ status: island.status })) {
       if (criterion.state !== 'proven') continue;
       out.push({
@@ -412,8 +426,8 @@ export function crowdBlooms(size: CrowdSize): InstanceDescriptor[] {
 
 /** The crowd as ONE descriptor stream — its ground and its signatures together, which is the shape
  *  `worldTo3D` hands `ForestWorldCanvas` for a multi-island world. */
-export function crowdDescriptors(size: CrowdSize): InstanceDescriptor[] {
-  return [...crowdCells(size), ...crowdBlooms(size)];
+export function crowdDescriptors(size: CrowdSize, base: readonly InstanceDescriptor[] = shippedParcels()): InstanceDescriptor[] {
+  return [...crowdCells(size, base), ...crowdBlooms(size, base)];
 }
 
 /**
@@ -463,7 +477,7 @@ export const CROWD_LANDING_BEARINGS: readonly number[] = [-160, 25];
 
 /** How far offshore each synthetic strip starts, in ground units — well outside `DOCK_REACH`, so
  *  only the landward end docks and the seaward end is a trail's ordinary far end. */
-export const CROWD_STRIP_OFFSHORE = 40;
+export const CROWD_STRIP_OFFSHORE = 40 * LAND_SCALE;
 
 /**
  * THE RIM VERTEX NEAREST A BEARING from the island's centroid — the recipe's `coast_at`, in the
@@ -500,9 +514,9 @@ export function coastAt(rim: IslandRim, angle: number): CoastPoint {
  * a usage, `hidden: false`, an `edges` list and a `segment` id, so anything reading a strip the
  * way `worldTo3D` emits one reads these the same way.
  */
-export function crowdStrips(size: CrowdSize): InstanceDescriptor[] {
+export function crowdStrips(size: CrowdSize, base: readonly InstanceDescriptor[] = shippedParcels()): InstanceDescriptor[] {
   const out: InstanceDescriptor[] = [];
-  for (const rim of islandRims(clipToCoast(crowdCells(size), SHIPPED_COAST))) {
+  for (const rim of islandRims(clipToCoast(crowdCells(size, base), SHIPPED_COAST))) {
     for (const degrees of CROWD_LANDING_BEARINGS) {
       const landing = coastAt(rim, (degrees * Math.PI) / 180);
       const dx = landing.x - rim.centroid.x;
@@ -522,7 +536,7 @@ export function crowdStrips(size: CrowdSize): InstanceDescriptor[] {
           { x: mid.x, y: 0, z: mid.z },
           { x: landing.x, y: 0, z: landing.z },
         ],
-        width: 3,
+        width: 3 * LAND_SCALE,
         usage: 1,
         hidden: false,
         edges: [],

@@ -30,6 +30,7 @@ import { COVER_DENSITY, COVER_DENSITY_RUNGS, COVER_SIZE, COVER_SIZE_RUNGS } from
 import {
   DRESSING_BEACH,
   DRESSING_WEAR_CEILING,
+  RECIPE_ISLAND_AREA,
   beachClear,
   crossingIsRight,
   crossingX,
@@ -40,7 +41,7 @@ import {
   straddles,
 } from './dressing-ground.js';
 import { dressMapFromKit, dressMapWithCover, signedCriteriaByIsland } from './map-dressing.js';
-import { KIT_FOOTPRINTS_2026_08_29, isDressingRole } from './kit-vocabulary.js';
+import { KIT_FOOTPRINTS_2026_08_29, isDressingRole, type KitPlacement } from './kit-vocabulary.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
 import { WEAR_FALLOFF, wearOf } from './land-wear.js';
 import { shoreField } from './shore-fall.js';
@@ -87,7 +88,7 @@ function groundSanity(): void {
   assert.equal(pathClear(100) && !pathClear(0), true, 'ground-sanity: pathClear');
   const ex = dressingExclusion([SANITY_RIM], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
   assert.equal(ex.clear(100, 20), true, 'ground-sanity: the exclusion refuses clear ground');
-  assert.equal(ex.clear(5, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
+  assert.equal(ex.clear(DRESSING_BEACH / 2, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
 }
 
 // ---------------------------------------------------------------------------
@@ -505,13 +506,33 @@ const spanOf = (map: readonly Descriptor3D[], story: string) => {
   return { min: Math.min(...xs), max: Math.max(...xs) };
 };
 
-const dressCovered = (descriptors: readonly Descriptor3D[], over: { coverSize?: number; coverDensity?: number } = {}) => {
+const dressCovered = (
+  descriptors: readonly Descriptor3D[],
+  over: { coverSize?: number; coverDensity?: number; recipeIslandArea?: number } = {},
+) => {
   // ANNOTATED then guarded — `exactOptionalPropertyTypes` refuses an explicit `undefined`.
   const opts: Parameters<typeof dressMapWithCover>[1] = { relief: LAND_RELIEF_AMPLITUDE, footprint: FOOT };
   if (over.coverSize !== undefined) opts.coverSize = over.coverSize;
   if (over.coverDensity !== undefined) opts.coverDensity = over.coverDensity;
+  if (over.recipeIslandArea !== undefined) opts.recipeIslandArea = over.recipeIslandArea;
   return dressMapWithCover(descriptors, opts);
 };
+
+test('⚠ `recipeIslandArea` reaches the cover layer and nothing else: the default is the shipped basis, a halved basis doubles the cover, and no tree or bloom moves', () => {
+  groundSanity();
+  const map = twoStoryMap();
+  const shipped = dressCovered(map);
+  const explicit = dressCovered(map, { recipeIslandArea: RECIPE_ISLAND_AREA });
+  const halved = dressCovered(map, { recipeIslandArea: RECIPE_ISLAND_AREA / 2 });
+  assert.deepEqual(explicit, shipped, 'the default IS `RECIPE_ISLAND_AREA`');
+  const coverOf = (ps: readonly KitPlacement[]) => ps.filter((p) => isDressingRole(p.role)).length;
+  assert.ok(coverOf(halved) > coverOf(shipped) * 1.9, `${coverOf(halved)} against ${coverOf(shipped)}`);
+  assert.deepEqual(
+    halved.filter((p) => !isDressingRole(p.role)),
+    shipped.filter((p) => !isDressingRole(p.role)),
+    'everything that reports stands exactly where it stood',
+  );
+});
 
 const isTree = (p: { role: string }): boolean => p.role === 'tree' || p.role === 'deadTree';
 

@@ -35,6 +35,7 @@
 // stated cost). Where this lands visibly short the gap is reported against the approved render
 // rather than argued away.
 
+import { LAND_SCALE } from './land-per-capability.js';
 import { grainOctave, linearToSrgb255 } from './land-grain.js';
 import { parseHex, type Rgb255 } from './shade-ladder.js';
 
@@ -59,6 +60,10 @@ import { parseHex, type Rgb255 } from './shade-ladder.js';
  * declined to reproduce it. The fields below are isotropic on the long axis.
  */
 export const CYCLES_ISLAND_SPAN = 233.8;
+
+/** The SHIPPED island's span in the same role — the recipe's lattices are island-relative, so the
+ *  ground-unit lattice each noise resolves to follows the island's size (`land-per-capability.ts`). */
+export const SHIPPED_ISLAND_SPAN = CYCLES_ISLAND_SPAN * LAND_SCALE;
 
 /** One Cycles `ShaderNodeTexNoise` as this module reads it: `_noise(nt, scale, detail, roughness)`
  *  at `build_land.py:655-660`, where `roughness` defaults to 0.5. */
@@ -169,7 +174,7 @@ export const GRASS_STATUS_GATE: readonly string[] = ['healthy'];
 
 /** The lattice spacing one Cycles noise delivers, in ground units. */
 export function grassLattice(noise: CyclesNoise): number {
-  return CYCLES_ISLAND_SPAN / noise.scale;
+  return SHIPPED_ISLAND_SPAN / noise.scale;
 }
 
 /** ONE OCTAVE'S CONTRIBUTION: its amplitude and its lattice frequency — the same shape

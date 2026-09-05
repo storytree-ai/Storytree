@@ -46,7 +46,7 @@
 // the tree that reports a capability and never the other way about.
 
 import { COVER_DENSITY, COVER_SIZE, dressCover } from './cover-dressing.js';
-import { islandExclusion } from './dressing-ground.js';
+import { RECIPE_ISLAND_AREA, islandExclusion } from './dressing-ground.js';
 import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary.js';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells.js';
 import type { Descriptor3D } from './world-to-3d.js';
@@ -69,6 +69,11 @@ export interface MapDressingOptions {
    *  moved 194,440 — and the count is laddered now (ADR-0518 D2) at the settled size, because with
    *  the grove gone the cover is what carries the island. Each page varies exactly one. */
   coverSize?: number;
+  /** The recipe island's area the cover counts are stated per (`cover-dressing.ts`'s
+   *  `recipeIslandArea`). Omitted is the shipped `RECIPE_ISLAND_AREA`. An INSTRUMENT'S option, for
+   *  a comparison page's control arm standing the map at a PREVIOUS island size (the
+   *  land-per-capability page's `today`, 2026-09-05); {@link dressMapFromKit} ignores it. */
+  recipeIslandArea?: number;
 }
 
 // ⚠ THERE IS NO `seed` HERE, AND ITS ABSENCE IS DELIBERATE. `dressIslandFromKit` carries its own
@@ -78,10 +83,12 @@ export interface MapDressingOptions {
 // API AND an untestable branch — `check:mutation-diff` reads `opts.seed !== undefined ? {…, seed} :
 // {…}` as unkillable, because passing `seed: undefined` and omitting it behave identically.
 //
-// ⚠ AND NO `recipeIslandArea`. It was threaded through both layers for ONE caller — the footprint
-// page's control arm, reproducing the map in the squashed basis it shipped in before ADR-0517 —
-// and that page is retired with its question. An option with no caller is a default `??` nothing
-// can flip.
+// ⚠ `recipeIslandArea` IS BACK, AND FOR THE SAME REASON IT LEFT. It was threaded through both
+// layers for ONE caller — the footprint page's control arm, reproducing the map in the squashed
+// basis it shipped in before ADR-0517 — and went with that page, because an option with no caller
+// is a default `??` nothing can flip. The land-per-capability ratio (2026-09-05) moved the basis
+// again, so the page that ladders it stands its control at the previous basis through this option;
+// `map-dressing.test.ts` flips the default, so the `??` is killable.
 
 /**
  * HOW MANY UAT CRITERIA EACH STORY HAS SIGNED, read off the map's own descriptors.
@@ -194,6 +201,7 @@ function dressMap(
         exclusion: islandExclusion(descriptors, island),
         density: opts.coverDensity ?? COVER_DENSITY,
         size: opts.coverSize ?? COVER_SIZE,
+        recipeIslandArea: opts.recipeIslandArea ?? RECIPE_ISLAND_AREA,
       }),
     );
   }

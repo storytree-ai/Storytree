@@ -30,7 +30,8 @@
 //
 // ⚠⚠ THE TERRAIN TERM DID NOT CROSS, AND THAT IS A MEASUREMENT RATHER THAN A TRIM. A height
 // field self-shadows only where it is STEEPER than the light. The authored light climbs 1.438
-// units per ground unit; the shipped relief's steepest slope at its amplitude of 2.2 is 0.455.
+// units per ground unit; the shipped relief's steepest slope at its amplitude (2.2 × LAND_SCALE,
+// the wavelengths scaled with it) is 0.455.
 // So the terrain term is IDENTICALLY ZERO on the land as it ships — not small, zero — and
 // crossing an O(samples x steps) march to add nothing would be payload wearing the clothes of
 // rigour. {@link terrainSelfShadows} is what says so, {@link assertTerrainDoesNotSelfShadow} is
@@ -185,7 +186,12 @@ export function maxTerrainSlope(relief: number, span = 200, step = 0.5): number 
  * 40 — which makes the fence a multiply. `land-shadow.test.ts` holds BOTH halves: that this number
  * is what the sampler returns at amplitude 1, and that the linearity it rests on is real.
  */
-export const PEAK_SLOPE_PER_UNIT_AMPLITUDE = 0.20665386809763267;
+// ⚠ RE-DERIVED 2026-09-05 with the land-per-capability ratio (`land-per-capability.ts`): the
+// relief's wavelengths shrank by LAND_SCALE with the island, so the slope per unit of amplitude
+// grew — 0.2067 on the tuned island, 0.5481 on the shipped one (the sampler's own answer at
+// amplitude 1). The SHIPPED amplitude shrank by the same factor, so the shipped peak slope is
+// unchanged at 0.455 and the finding below stands; only the per-unit number moved.
+export const PEAK_SLOPE_PER_UNIT_AMPLITUDE = 0.5481413856707605;
 
 /**
  * CAN THE LAND SHADOW ITSELF AT ALL? A height field self-shadows only where it is STEEPER than
@@ -193,9 +199,10 @@ export const PEAK_SLOPE_PER_UNIT_AMPLITUDE = 0.20665386809763267;
  *
  * IT IS FALSE AT THE SHIPPED AMPLITUDE, AND THAT IS THE FINDING THIS MODULE RESTS ON. The
  * authored light comes in at 55.2 degrees; the relief's steepest slope at the shipped amplitude
- * of 2.2 is 24.4. Peak slope is linear in amplitude, so the amplitude it would take to reach the
- * light is about 7.0 — more than three times what ships. On this land, at any amplitude this arc
- * will accept, THE SHADOW IS THE CANOPY.
+ * (2.2 on the tuned island, 2.2 × LAND_SCALE ≈ 0.83 on the shipped one — the slope is the same
+ * 24.4°, because the wavelengths shrank with the amplitude) is 24.4. Peak slope is linear in
+ * amplitude, so the amplitude it would take to reach the light is about 2.6 — more than three
+ * times what ships. On this land, at any amplitude this arc will accept, THE SHADOW IS THE CANOPY.
  */
 export function terrainSelfShadows(relief: number): boolean {
   // Stryker disable next-line EqualityOperator: EQUIVALENT. `>` and `>=` differ only where the

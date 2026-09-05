@@ -19,7 +19,8 @@ import {
   triangulateRing,
   type P2,
 } from './cell-ground-geometry.js';
-import { COAST_OUTSET, isSimpleRing, nearestOnSegment, vertexKey } from './coast-clip.js';
+import { COAST_OUTSET, GROUND_COAST_OUTSET, isSimpleRing, nearestOnSegment, vertexKey } from './coast-clip.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { SHORE_ARM_WIDTH, type ShoreArm, type ShoreFieldReader } from './shore-fall.js';
 import {
   RING_ARMS,
@@ -143,8 +144,12 @@ test('⚠ EVERY INSET IS DERIVED FROM THE BEACH, so a wider beach moves its ring
   // The failure this forecloses is silent and total: a hand-written 3.5 left behind by a change to
   // `COAST_OUTSET` would put the ring OUTSIDE the band, where the falloff is already 1 and the
   // extra vertices buy nothing at all while still costing their triangles.
-  assert.deepEqual([...SHORE_ARM_INSETS.ring], [COAST_OUTSET / 2]);
-  assert.deepEqual([...SHORE_ARM_INSETS['ring-pair']], [COAST_OUTSET / 3, (COAST_OUTSET * 2) / 3]);
+  // The beach the GROUND draws is `GROUND_COAST_OUTSET` = COAST_OUTSET × LAND_SCALE
+  // (`land-per-capability.ts`), so the insets derive from THAT — held both as the import and as
+  // the scaled literal, so neither a dropped LAND_SCALE nor a re-typed 7 can pass.
+  assert.deepEqual([...SHORE_ARM_INSETS.ring], [GROUND_COAST_OUTSET / 2]);
+  assert.deepEqual([...SHORE_ARM_INSETS['ring-pair']], [GROUND_COAST_OUTSET / 3, (GROUND_COAST_OUTSET * 2) / 3]);
+  assert.equal(GROUND_COAST_OUTSET, COAST_OUTSET * LAND_SCALE);
   for (const arm of RING_ARMS) {
     for (const inset of SHORE_ARM_INSETS[arm]) {
       assert.ok(inset > 0, `${arm} has a ring at or seaward of the waterline`);

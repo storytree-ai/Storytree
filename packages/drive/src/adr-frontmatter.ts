@@ -1,6 +1,8 @@
 import { parse } from "yaml";
 import { z } from "zod";
 
+import type { DecisionAuthority } from "@storytree/library";
+
 /**
  * ADR frontmatter (ADR-0037 §1): the queryable summary of a decision record's state.
  *
@@ -108,6 +110,25 @@ export interface AdrMeta {
    * the state the whole ADR-0419 D3 drain is measured against.
    */
   dependsOn?: readonly string[];
+  /**
+   * ADR-0519's AUTHORITY STAMP — whose call this decision was, as stored on the row.
+   *
+   * OPTIONAL, and absence carries TWO meanings that must not be flattened into one. A row may
+   * genuinely carry no stamp — the state of every decision authored before 2026-09-05, and of the
+   * ~211 that ADR-0519 D5's backfill deliberately leaves alone — OR the reader may simply be one
+   * that cannot see it. {@link parseAdrFrontmatter} is the second kind and always will be: the
+   * stamp is deliberately NOT a frontmatter key (ADR-0519 D2 keeps it out of the hand-editable
+   * document, which is the whole mechanism protecting the owner's words from a prose correction),
+   * so an fs-parsed meta is a BLIND reader and a store-loaded one is a SIGHTED reader.
+   *
+   * Exactly the shape {@link AdrMeta.dependsOn} above already has, and for a closely related
+   * reason — but note the asymmetry, because it matters to anyone counting: `dependsOn` is blind
+   * here because the frontmatter parser does not READ a key that exists, whereas `authority` is
+   * blind because there is no key to read. So a coverage figure over this field must be taken from
+   * a store-loaded population and never from an fs scan, which would report 0% and be describing
+   * the reader rather than the log.
+   */
+  authority?: DecisionAuthority;
 }
 
 /**

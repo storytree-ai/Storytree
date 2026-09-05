@@ -11,6 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   CELL_GROUND_DEPTH,
   cellGroundGeometry,
@@ -231,11 +232,19 @@ test('every wall faces OUT OF the parcel, including on a non-convex ring', () =>
   }
 });
 
+test('CELL_GROUND_DEPTH is the tuned 3 units × LAND_SCALE — the prism thins with the island', () => {
+  assert.equal(CELL_GROUND_DEPTH, 3 * LAND_SCALE);
+  assert.ok(CELL_GROUND_DEPTH > 1 && CELL_GROUND_DEPTH < 3);
+});
+
 test('walls fall exactly CELL_GROUND_DEPTH below the ground plane, and the top sits at y=0', () => {
   const geo = cellGroundGeometry({ cells: [cellOf(SQUARE_CCW)], resolve: resolveWhite });
   const ys = new Set<number>();
   for (let i = 0; i < geo.positions.length; i += 3) ys.add(geo.positions[i + 1]!);
-  assert.deepEqual([...ys].sort((a, b) => a - b), [-CELL_GROUND_DEPTH, 0]);
+  // `Math.fround` because the buffer is a Float32Array and the depth is `3 * LAND_SCALE`
+  // (`land-per-capability.ts`) — no longer a float32-exact integer. The claim is unchanged: the
+  // walls sit at exactly the depth the buffer can hold, and nothing else.
+  assert.deepEqual([...ys].sort((a, b) => a - b), [Math.fround(-CELL_GROUND_DEPTH), 0]);
 });
 
 test('per-parcel colour survives the merge — every vertex of a parcel wears its own status', () => {
@@ -885,14 +894,17 @@ test('NO TOP FACE CAN EVER FACE DOWN — what stands in for the derived normal',
 });
 
 test('the underside FOLLOWS the relief — the slab keeps its thickness everywhere', () => {
-  // ⚠ NOT COSMETIC. The shipped field reaches ±4.22 units and the prism is 3 deep, so a bottom
+  // ⚠ NOT COSMETIC. The shipped field reaches ±4.22 units and the prism is 3 deep — both on the
+  // tuned island; the shipped one scales both by LAND_SCALE, so the ratio holds — so a bottom
   // pinned at `-depth` would sit ABOVE the top face wherever the land dips: every wall there
   // inside out and the parcel gone from above — the exact defect this substrate was added to
   // fix, reintroduced by the treatment meant to improve it.
   const dip: GroundRelief = { height: () => -9, normal: () => ({ x: 0, y: 1, z: 0 }) };
   const geo = cellGroundGeometry({ cells: [cellOf(SQUARE_CCW)], resolve: resolveWhite, relief: dip });
   const ys = [...new Set(vertexHeights(geo.positions).map((y) => Math.round(y * 1e4) / 1e4))];
-  assert.deepEqual(ys.sort((a, b) => a - b), [-9 - CELL_GROUND_DEPTH, -9]);
+  // The expectation is rounded exactly as the buffer's heights are: the depth is `3 * LAND_SCALE`
+  // (`land-per-capability.ts`), so `-9 - depth` is no longer a four-decimal number.
+  assert.deepEqual(ys.sort((a, b) => a - b), [Math.round((-9 - CELL_GROUND_DEPTH) * 1e4) / 1e4, -9]);
 });
 
 test('a shared boundary vertex gets ONE height — the seam cannot tear open', () => {
