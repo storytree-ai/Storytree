@@ -3,8 +3,8 @@
 //
 //   bare        the shipped ground alone — nothing bought and nothing casting (CONTROL)
 //   capability  + one pine per capability, one bloom per signature — NOW casting
-//   groves-x1   + the healthy island's grove at the RECIPE's own stand count (`src/grove-dressing.ts`)
-//   groves-x2   + the grove at twice the recipe's stands — the SHIPPED pick
+//   groves-x1   + the healthy island's grove at the RECIPE's own stand count (`src/grove-dressing.ts`) — the SHIPPED pick since ADR-0517
+//   groves-x2   + the grove at twice the recipe's stands — the pick the map stood on the squashed footprint until 2026-09-05
 //   groves-x3   + the grove at three times the recipe's stands — the boldest rung rendered
 //
 // The last three are a DENSITY LADDER, not three ideas: the owner scales back along rungs already

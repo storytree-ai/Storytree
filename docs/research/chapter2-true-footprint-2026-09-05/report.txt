@@ -1,0 +1,61 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+shipped elevation (read off the crowd camera, which reads frameWorld): 50° · control elevation (history): 45°
+shipped density rung (GROVE_DENSITY): x1 → the shipped arm is true-x1 · control rung (history): x2, proportioned against the basis it shipped in (8424.6; today's RECIPE_ISLAND_AREA is 24631.8 — the same thirteen hexes in the true-footprint basis)
+the drawing's projection: ground depth × sin(20°) = × 0.3420; the true footprint is × 2.9238 — the control is the true island re-projected, checked exactly
+
+THE ARMS
+  before   the map AS IT SHIPPED UNTIL 2026-09-05 — the 2D drawing’s squashed footprint (234 × ~46 units) from the 45° camera, the grove at rung x2 — BEFORE (CONTROL)
+  true-x1  the island’s TRUE footprint (234 × ~135 units, the recipe’s own) from the owner-signed 50°, the grove at the RECIPE’S OWN stand count (13 stands per recipe-island of area) — THE SHIPPED PICK
+  true-x2  the island’s TRUE footprint (234 × ~135 units, the recipe’s own) from the owner-signed 50°, the grove at 2× the recipe’s stands
+  true-x3  the island’s TRUE footprint (234 × ~135 units, the recipe’s own) from the owner-signed 50°, the grove at 3× the recipe’s stands
+
+THE REFERENCE — the approved Cycles render, through this page’s own readers
+  land-combined-1948px.png: 1948×1280, island box 1936×1144 px (w/h 1.692) · colour families 36 · largest 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution and framing, and all SEVEN layers. Its box includes the props.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm      elev rung  cap.trees  grove pines  pines/cap  blooms  cover  props   island w×d      px/unit  ground on screen (px)   w/h   pine px  land%  tris      fam  largest  MICRO  moved>20 vs before  vs leaner rung
+before     45   x2         11           77        7.0      10    216    314    233.8×46.2      8.000    1980×377              5.26     102  14.4%    167480   50    4.8%   3.66                   0               —
+true-x1    50   x1         11           61        5.5      10    216    298    233.8×135.1     8.000    1984×933              2.13      93  35.8%    152082   47    7.0%   2.21             1231383               —
+true-x2    50   x2         11          133       12.1      10    216    370    233.8×135.1     8.000    1984×933              2.13      93  35.8%    224544   52    6.1%   2.57             1229901          130229
+true-x3    50   x3         11          203       18.5      10    216    440    233.8×135.1     8.000    1984×933              2.13      93  35.8%    296928   49    5.0%   2.89             1228786          110124
+
+── one @ fit (each arm at its own fit) ─────────────────────────────────
+arm      elev rung  cap.trees  grove pines  pines/cap  blooms  cover  props   island w×d      px/unit  ground on screen (px)   w/h   pine px  land%  tris      fam  largest  MICRO  moved>20 vs before  vs leaner rung
+before     45   x2         11           77        7.0      10    216    314    233.8×46.2      7.800    1931×367              5.26      99  13.6%    167480   50    4.8%   3.68                   0               —
+true-x1    50   x1         11           61        5.5      10    216    298    233.8×135.1     7.785    1931×908              2.13      90  33.9%    152082   48    7.0%   2.22             1165489               —
+true-x2    50   x2         11          133       12.1      10    216    370    233.8×135.1     7.785    1931×908              2.13      90  33.9%    224544   52    6.1%   2.58             1163805          123366
+true-x3    50   x3         11          203       18.5      10    216    440    233.8×135.1     7.785    1931×908              2.13      90  33.9%    296928   49    5.0%   2.92             1162960          104263
+
+── forest @ 8 px/unit ─────────────────────────────────
+arm      elev rung  cap.trees  grove pines  pines/cap  blooms  cover  props   island w×d      px/unit  ground on screen (px)   w/h   pine px  land%  tris      fam  largest  MICRO  moved>20 vs before  vs leaner rung
+before     45   x2        374         1664        4.4     210   4536   6784    233.8×46.2      8.000   18860×20161            0.94     102  14.5%   3762088   48    4.6%   3.69                   0               —
+true-x1    50   x1        374         1476        3.9     210   4536   6596    233.8×135.1     8.000   18866×22366            0.84      93  35.9%   3569544   47    6.9%   2.25             1234741               —
+true-x2    50   x2        374         2946        7.9     210   4536   8066    233.8×135.1     8.000   18866×22366            0.84      93  35.9%   5082198   52    6.0%   2.61             1238926          129558
+true-x3    50   x3        374         4464       11.9     210   4536   9584    233.8×135.1     8.000   18866×22366            0.84      93  35.9%   6634762   49    5.0%   2.95             1237027          108148
+  before   35 islands, 21 green · 374 capability trees · 1664 grove pines (4.4 per capability; per green island 11.0 trees, 79 pines) · 4536 ground cover
+  true-x1  35 islands, 21 green · 374 capability trees · 1476 grove pines (3.9 per capability; per green island 11.0 trees, 70 pines) · 4536 ground cover
+  true-x2  35 islands, 21 green · 374 capability trees · 2946 grove pines (7.9 per capability; per green island 11.0 trees, 140 pines) · 4536 ground cover
+  true-x3  35 islands, 21 green · 374 capability trees · 4464 grove pines (11.9 per capability; per green island 11.0 trees, 213 pines) · 4536 ground cover
+
+── forest @ fit (each arm at its own fit) ─────────────────────────────────
+arm      elev rung  cap.trees  grove pines  pines/cap  blooms  cover  props   island w×d      px/unit  ground on screen (px)   w/h   pine px  land%  tris      fam  largest  MICRO  moved>20 vs before  vs leaner rung
+before     45   x2        374         1664        4.4     210   4536   6784    233.8×46.2      0.572    1348×1441             0.94       7   2.5%   3762088   48    7.9%  12.66                   0               —
+true-x1    50   x1        374         1476        3.9     210   4536   6596    233.8×135.1     0.518    1221×1447             0.84       6   5.3%   3569544   50    9.1%   9.54              207462               —
+true-x2    50   x2        374         2946        7.9     210   4536   8066    233.8×135.1     0.518    1221×1447             0.84       6   5.3%   5082198   47    9.1%  10.80              207066            9011
+true-x3    50   x3        374         4464       11.9     210   4536   9584    233.8×135.1     0.518    1221×1447             0.84       6   5.3%   6634762   47    9.1%  11.91              206912            8451
+  before   35 islands, 21 green · 374 capability trees · 1664 grove pines (4.4 per capability; per green island 11.0 trees, 79 pines) · 4536 ground cover
+  true-x1  35 islands, 21 green · 374 capability trees · 1476 grove pines (3.9 per capability; per green island 11.0 trees, 70 pines) · 4536 ground cover
+  true-x2  35 islands, 21 green · 374 capability trees · 2946 grove pines (7.9 per capability; per green island 11.0 trees, 140 pines) · 4536 ground cover
+  true-x3  35 islands, 21 green · 374 capability trees · 4464 grove pines (11.9 per capability; per green island 11.0 trees, 213 pines) · 4536 ground cover
+
+THE OWNER’S QUESTION, IN NUMBERS — one island at the read zoom:
+  before    11 capability trees ·   77 grove pines ·   7.0 pines per capability · island 234×46 · on screen w/h 5.26   ← BEFORE
+  true-x1   11 capability trees ·   61 grove pines ·   5.5 pines per capability · island 234×135 · on screen w/h 2.13   ← SHIPPED
+  true-x2   11 capability trees ·  133 grove pines ·  12.1 pines per capability · island 234×135 · on screen w/h 2.13
+  true-x3   11 capability trees ·  203 grove pines ·  18.5 pines per capability · island 234×135 · on screen w/h 2.13
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet. Frame cost is shipped-footprint-cost.mjs’s and REPORTS (ADR-0517 D4).

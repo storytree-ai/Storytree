@@ -40,7 +40,7 @@
 // around the capability's tree and a bush around both, never the other way about.
 
 import { COVER_SIZE, dressCover } from './cover-dressing.js';
-import { GROVE_DENSITY, dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
+import { GROVE_DENSITY, RECIPE_ISLAND_AREA, dressGroves, islandExclusion, type GroveExclusion } from './grove-dressing.js';
 import { capabilityFactsFrom, dressIslandFromKit, type KitPlacement, type RoleFootprints } from './kit-vocabulary.js';
 import { cellsByIsland, parcelCellsFrom, type LayoutCell } from './parcel-cells.js';
 import type { Descriptor3D } from './world-to-3d.js';
@@ -54,6 +54,12 @@ export interface MapDressingOptions {
    *  pick (`GROVE_DENSITY`); the canopy comparison page's ladder arms are what pass it, and
    *  {@link dressMapFromKit} — which grows no grove at all — ignores it. */
   density?: number;
+  /** The ground the recipe's counts — the grove's stands AND the cover's — are proportioned
+   *  against, in this basis. Omitted is `RECIPE_ISLAND_AREA`, and the canvas never passes it: its
+   *  one caller is the footprint page's control arm, reproducing the map as it stood before
+   *  ADR-0517 re-based the constant from the squashed 8,424.6 to the true 24,631.8. Threaded to
+   *  both layers so a "before" picture cannot carry yesterday's grove over today's cover. */
+  recipeIslandArea?: number;
   // ⚠ THERE IS NO `coverDensity` HERE, AND ITS ABSENCE IS THE SAME RULE AS `seed`'s ABOVE. The
   // cover's COUNT is the recipe's own and is not laddered — the ladder is `coverSize` — so a
   // pass-through for it would have no caller, and `opts.coverDensity ?? COVER_DENSITY` is then an
@@ -227,6 +233,7 @@ function dressMap(
         relief: opts.relief,
         exclusion,
         density: opts.density ?? GROVE_DENSITY,
+        recipeIslandArea: opts.recipeIslandArea ?? RECIPE_ISLAND_AREA,
       }),
     );
     if (!layers.cover) continue;
@@ -237,6 +244,7 @@ function dressMap(
         relief: opts.relief,
         exclusion,
         size: opts.coverSize ?? COVER_SIZE,
+        recipeIslandArea: opts.recipeIslandArea ?? RECIPE_ISLAND_AREA,
       }),
     );
   }

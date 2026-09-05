@@ -18,6 +18,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { SHIPPED_COAST, clipToCoast } from '../src/coast-clip.js';
+import { GROVE_BEACH } from '../src/grove-dressing.js';
 import {
   AUTHORED_SHORE_WIDTH,
   SHIPPED_SHORE,
@@ -294,11 +295,16 @@ test('⚠ THE ISLAND’S LOWEST GROUND IS ITS SWELL, NOT ITS WATERLINE — the d
       `${arm} deepened the island's floor to ${planOf(arm).minHeight} — the fall only ever pulls toward the waterline`,
     );
   }
-  // And which arms reach the trough at all is the void again, from the other end: the two bands
-  // inside it leave the floor untouched to the last bit, and only `shelf` is wide enough to lift it.
-  assert.equal(planOf('authored').minHeight, control.minHeight);
-  assert.equal(planOf('beach').minHeight, control.minHeight);
-  assert.ok(planOf('shelf').minHeight > control.minHeight);
+  // ⚠ CORRECTED IN PLACE 2026-09-05 (ADR-0517 D1). On the squashed ribbon the trough sat deep in
+  // the interior, so the two narrow bands left the floor untouched and only `shelf` reached it. On
+  // the true footprint the swell's trough (-4.106) sits ON THE RIM ITSELF — measured: distance 0
+  // to the coast — so EVERY band lifts it toward the waterline and the island's floor becomes the
+  // interior's own trough (-4.096), which no band reaches. The claim that survives is the one
+  // that mattered: the fall only ever pulls toward the waterline.
+  for (const arm of ['authored', 'beach', 'shelf'] as const) {
+    assert.ok(planOf(arm).minHeight > control.minHeight, `${arm} left the rim trough where it was`);
+    assert.ok(planOf(arm).minHeight < 0, `${arm} lifted the floor above the waterline`);
+  }
 });
 
 test('⚠⚠ THE SHIPPED ARM LOWERS NO GROUND A PROP STANDS ON — and `shelf` does', () => {
@@ -307,18 +313,33 @@ test('⚠⚠ THE SHIPPED ARM LOWERS NO GROUND A PROP STANDS ON — and `shelf` d
   // deliberate scoping, inherited here. That only stays honest while the band stops at the
   // pre-coast boundary, and `COAST_OUTSET` is exactly where that boundary now is.
   //
-  // The tell is the island's HIGHEST ground: the peak of the swell is deep in the interior, so an
-  // arm that lowers it has reached ground that existed before the coast — and props stand there.
+  // ⚠ THE TELL CHANGED WITH THE FOOTPRINT (ADR-0517 D1, corrected in place 2026-09-05). It used
+  // to be the island's HIGHEST ground: on the squashed ribbon the swell's peak sat deep in the
+  // interior, so an arm that lowered it had reached ground props stand on. On the true footprint
+  // the peak (4.016) sits ON THE RIM — distance 0 to the coast, measured — so every band lowers it
+  // by construction and the height says nothing about reach. The reach is therefore read
+  // DIRECTLY, as the plan counts it: the vertices an arm moved at all, compared on the SAME vertex
+  // set (the three WIDTH arms share one mesh; the shipped ring arm inserts vertices of its own, so
+  // its count is against a different denominator — the plan's own warning). The shipped band is
+  // the beach's width on a finer mesh; `shelf` is the wider one and reaches further.
   const control = planOf(REFERENCE_ARM);
-  assert.equal(
-    planOf(SHIPPED_SHORE).maxHeight,
-    control.maxHeight,
-    'the shipped band reached inland of the pre-coast boundary — it is now moving ground under props',
-  );
+  assert.equal(control.movedVertices, 0);
+  assert.equal(SHORE_ARM_WIDTH[SHIPPED_SHORE], SHORE_ARM_WIDTH.beach, 'the shipped ring is the beach’s own width');
+  assert.ok(planOf('beach').movedVertices >= planOf('authored').movedVertices);
   assert.ok(
-    planOf('shelf').maxHeight < control.maxHeight,
-    'shelf no longer reaches inland — the contrast this arm exists to show has gone',
+    planOf('beach').movedVertices < planOf('shelf').movedVertices,
+    'shelf no longer reaches further inland than the shipped width — the contrast this arm exists to show has gone',
   );
+  // And what props stand on: the grove and the cover keep `GROVE_BEACH` (the sand band, 9 units)
+  // off the coast, and the shipped band is narrower than that, so no grove pine or ground-cover
+  // prop stands on ground the band moves. (A capability's tree is placed by its parcel and may
+  // stand nearer the coast; that was true on the ribbon as well.)
+  assert.ok(SHORE_ARM_WIDTH[SHIPPED_SHORE] < GROVE_BEACH, 'the shipped band reaches under the grove');
+  // The interior peak — the highest ground once the rim is pulled down — is the same under every
+  // band: none of them reaches it. (On the ribbon `shelf` did; on the true footprint it does not.)
+  for (const arm of ['authored', 'beach', 'shelf'] as const) {
+    assert.equal(planOf(arm).maxHeight, planOf(SHIPPED_SHORE).maxHeight, `${arm} reached the interior peak`);
+  }
 });
 
 test('⚠ THE FALL REACHES THE DELIVERED COLOUR — it flips shade rungs, it is not only geometry', () => {

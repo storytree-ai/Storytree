@@ -80,13 +80,26 @@ export const RECIPE_STANDS = 13;
  * THE GROUND THOSE THIRTEEN STANDS WERE SCATTERED OVER, in this map's placement units.
  *
  * The shipped fixture island (`harness/island-fixture.ts`) IS the recipe's own thirteen-hex
- * footprint, and its parcel rings sum to 8,424.6 square units in the basis `parcelCellsFrom`
- * delivers — `ground-casters.ts` cites the same 8,425 for the same land. So an island of that area
- * grows the recipe's thirteen stands and every other island grows in proportion to its own area,
- * measured in the same basis. Every island on one map shares one projection, so proportional in
- * this basis is proportional in the real one.
+ * footprint, and its parcel rings sum to 24,631.8 square units in the basis `parcelCellsFrom`
+ * delivers. So an island of that area grows the recipe's thirteen stands and every other island
+ * grows in proportion to its own area, measured in the same basis. Every island on one map shares
+ * one projection, so proportional in this basis is proportional in the real one.
+ *
+ * ⚠⚠ IT WAS 8,424.6 UNTIL 2026-09-05, AND THE CHANGE IS THE BASIS'S, NOT THE RULE'S. That figure
+ * was the same island's rings in the basis the mapper delivered THEN — the 2D drawing's
+ * isometrically squashed footprint laid straight onto the ground plane, 233.8 × 46.2 units.
+ * ADR-0517 D1 restored the island's true footprint (`true-footprint.ts`: every z stretched by
+ * `1 / sin 20°` = 2.9238 about the island's centre), so the SAME thirteen hexes now measure
+ * 8,424.6 × 2.9238 = 24,631.8 in the basis this constant is defined in. A constant that stayed
+ * at 8,424.6 would not have been "the ground the recipe's thirteen stands were scattered over" any
+ * more; it would have been that ground's projected shadow, and every island would have grown
+ * 2.92× the recipe's density under a rule still claiming to transcribe the recipe — which is
+ * exactly the tripling the increment feared. The density RULE (thirteen stands per recipe island,
+ * times the rung) is untouched; the denominator was re-derived in the numerator's basis.
+ * `grove-dressing.test.ts` holds the constant to the fixture's own measured area, and
+ * `harness/shipped-canopy-scene.test.ts` reads the fixture through the shipped mapper to check it.
  */
-export const RECIPE_ISLAND_AREA = 8424.6;
+export const RECIPE_ISLAND_AREA = 24631.8;
 
 /** The recipe island's depth over its width — `build_land.py:88`, `ASPECT = 233.8 / 135.1`, the
  *  real island's ground footprint. What a circular stand was authored on. */
@@ -158,8 +171,24 @@ export const STAND_CANDIDATES = 96;
  */
 export const GROVE_DENSITY_RUNGS = [1, 2, 3] as const;
 
-/** The rung the shipped map stands. */
-export const GROVE_DENSITY = 2;
+/**
+ * The rung the shipped map stands.
+ *
+ * ⚠⚠ x1 SINCE 2026-09-05 (ADR-0517; `restore-the-true-footprint-and-ladder-the-grove-density`),
+ * x2 from 2026-09-03 until then — and the change is a LOOK made on a re-rendered ladder, not a
+ * scale-back of the same picture. The paragraph above records why x2 was picked: on the SQUASHED
+ * island a stand was a 7 × 2 ellipse that physically could not hold the recipe's 4–8 pines, so the
+ * recipe's own thirteen stands delivered 42 pines and only doubling them reached the recipe's
+ * 52–104 band. Restoring the true footprint made the island the recipe's own shape, a stand is
+ * round again, and the recipe's own thirteen stands now deliver 61 pines on the fixture island —
+ * INSIDE the band, with the clearings that "groves with bare ground between them" means — where
+ * x2 delivers 133 and x3 203, past it. Judged on `docs/research/chapter2-true-footprint-2026-09-05/
+ * sheet-8px.png` beside the reference; the owner scales up along rungs already rendered. It also
+ * answers the question he asked the same day ("why so many trees when no island has that many
+ * capabilities"): the fixture island's eleven capability trees now stand among 61 dressing pines
+ * (5.5 per capability) against the 81 (7.4) the map stood before.
+ */
+export const GROVE_DENSITY = 1;
 
 // ---------------------------------------------------------------- the island's own numbers
 
@@ -205,9 +234,13 @@ export function cellsArea(cells: readonly LayoutCell[]): number {
  * a hex island's box exceeds its area by a further 20-40% — about 2x of headroom in total, so the
  * island's parcels would have to overlap each other by more than 100% to reach it.
  */
-export function groveStandCount(cells: readonly LayoutCell[], density: number = GROVE_DENSITY): number {
-  const stands = Math.round((RECIPE_STANDS * density * cellsArea(cells)) / RECIPE_ISLAND_AREA);
-  const ceiling = standCeiling(cells);
+export function groveStandCount(
+  cells: readonly LayoutCell[],
+  density: number = GROVE_DENSITY,
+  recipeIslandArea: number = RECIPE_ISLAND_AREA,
+): number {
+  const stands = Math.round((RECIPE_STANDS * density * cellsArea(cells)) / recipeIslandArea);
+  const ceiling = standCeiling(cells, recipeIslandArea);
   if (!Number.isFinite(stands) || stands > ceiling) {
     throw new Error(
       `grove-dressing: ${stands} stands asked for on an island whose own bounding box could ask ` +
@@ -229,11 +262,11 @@ export function groveStandCount(cells: readonly LayoutCell[], density: number = 
  * And it is computed from `Math.min`/`Math.max` over the same points, so the area arithmetic the
  * guard exists to catch cannot corrupt the ceiling with it.
  */
-export function standCeiling(cells: readonly LayoutCell[]): number {
+export function standCeiling(cells: readonly LayoutCell[], recipeIslandArea: number = RECIPE_ISLAND_AREA): number {
   const box = cellsBounds(cells);
   const boundingArea = (box.maxX - box.minX) * (box.maxZ - box.minZ);
   const boldest = Math.max(...GROVE_DENSITY_RUNGS);
-  return Math.round((RECIPE_STANDS * boldest * boundingArea) / RECIPE_ISLAND_AREA);
+  return Math.round((RECIPE_STANDS * boldest * boundingArea) / recipeIslandArea);
 }
 
 /** The island's extent along each axis of the placement basis. Infinite-and-inverted over no
@@ -281,9 +314,11 @@ export interface GroveSigma {
 
 /**
  * THE RECIPE'S STAND, IN THIS BASIS: σx as authored, σz scaled by how much more squashed this
- * island is than the one the recipe was authored on. On the shipped fixture (46.2 deep over 233.8
- * wide) that is 3.0 x 0.342 = 1.03 — a stand drawn round here would be a stand three times too
- * deep on the island.
+ * island is than the one the recipe was authored on. Since ADR-0517 D1 restored the true
+ * footprint, the shipped fixture (135.1 deep over 233.8 wide, the recipe's own aspect) gets the
+ * recipe's own 3.0; on the squashed island the map drew until 2026-09-05 (46.2 deep) it was
+ * 3.0 × 0.342 = 1.03, and a stand drawn round there would have been three times too deep. The
+ * scaling stays because an island's parcels are not obliged to be the recipe's shape.
  */
 export function groveSigma(cells: readonly LayoutCell[]): GroveSigma {
   return { x: GROVE_SIGMA_X, z: (GROVE_SIGMA_Z * cellsAspect(cells)) / RECIPE_ISLAND_ASPECT };
@@ -549,6 +584,11 @@ export interface GroveDressingOptions {
   /** Which rung of {@link GROVE_DENSITY_RUNGS} this island grows at. Omitted is {@link
    *  GROVE_DENSITY}, the shipped pick — the comparison page's ladder arms are what pass it. */
   density?: number;
+  /** The ground the recipe's thirteen stands are proportioned against, in this basis. Omitted is
+   *  {@link RECIPE_ISLAND_AREA}. ⚠ ONE CALLER: a comparison page reproducing the map as it stood
+   *  BEFORE ADR-0517 re-based the constant (8,424.6 in the squashed basis) — the control arm of
+   *  `harness/shipped-footprint-scene.ts`. It is not a density knob and the canvas never passes it. */
+  recipeIslandArea?: number;
 }
 
 /**
@@ -575,7 +615,7 @@ export function dressGroves(opts: GroveDressingOptions): KitPlacement[] {
     // touching its clearance, to the last bit of a double, is one input in a continuum.
     worstClearance(p, radius, occupied, groveNeed) >= 0;
 
-  for (const _stand of indices(groveStandCount(parcels, opts.density ?? GROVE_DENSITY))) {
+  for (const _stand of indices(groveStandCount(parcels, opts.density ?? GROVE_DENSITY, opts.recipeIslandArea ?? RECIPE_ISLAND_AREA))) {
     const centre = standCentre(parcels, Math.floor(rand() * 0x7fffffff), radius, occupied, opts.exclusion);
     if (centre === null) continue;
     for (const _member of indices(memberCount(rand))) {

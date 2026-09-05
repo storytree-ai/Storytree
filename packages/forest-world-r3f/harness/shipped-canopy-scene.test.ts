@@ -135,8 +135,10 @@ test('the arms differ in EXACTLY the dressing: nothing, the vocabulary, the voca
   assert.equal(census['tree'], 11);
   assert.equal(census['bloom'], 10);
   const groves = groved.filter(isGrovePlacement);
+  // The recipe's 13 stands × 4–8 = 52–104 pines; on the true footprint (ADR-0517) rung 1 lands
+  // inside that band — 61 measured 2026-09-05 — where on the squashed ribbon it delivered 42.
   assert.ok(
-    groves.length >= 40 && groves.length <= 100,
+    groves.length >= 40 && groves.length <= 104,
     `${groves.length} grove pines on the fixture island — outside the recipe’s 13 stands x 4–8, minus exclusions`,
   );
   for (const g of groves) assert.ok(g.scale < 1 && g.assembly !== 'pine-dead' && g.tint === null);

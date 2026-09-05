@@ -118,7 +118,7 @@ function island(states: readonly string[], cols = 4): LayoutCell[] {
   return states.flatMap((status, row) => parcel(`cap-${row}`, status, row, cols));
 }
 
-/** Four healthy parcels, four cells each: 136 x 104 units, 14,144 sq units — 22 stands. */
+/** Four healthy parcels, four cells each: 136 x 104 units, 14,144 sq units — 7 stands at rung 1. */
 const HEALTHY = island(['healthy', 'healthy', 'healthy', 'healthy']);
 
 const ALLOW: GroveExclusion = { clear: () => true };
@@ -179,7 +179,7 @@ test('the constants are the recipe’s own — build_land.py’s scatter(), fore
   assert.equal(GROVE_WEAR_CEILING, 0.3, ':1046 wear < 0.30');
   assert.equal(GROVE_MEMBER_TRIES, 30, ':1063 range(30)');
   assert.equal(RECIPE_ISLAND_ASPECT, 135.1 / 233.8, ':88 ASPECT');
-  assert.equal(RECIPE_ISLAND_AREA, 8424.6, 'the fixture island’s own parcel area');
+  assert.equal(RECIPE_ISLAND_AREA, 24631.8, 'the fixture island’s own parcel area, in the true-footprint basis');
   // The scale is BELOW one at its top — the one departure from the recipe's uniform(0.70, 1.30),
   // and the reason: the capability's own pine at scale 1 must stay the tallest on its parcel.
   assert.equal(GROVE_SCALE_MIN, 0.55);
@@ -212,15 +212,15 @@ test('an island’s area is its cells’ areas summed', () => {
 });
 
 test('the stand count is the recipe’s thirteen, in proportion to area', () => {
-  // A single cell of EXACTLY the recipe island's area — 100 wide, 84.246 deep.
+  // A single cell of EXACTLY the recipe island's area — 100 wide, 246.318 deep.
   const recipeSized: LayoutCell = {
-    points: [{ x: 0, z: 0 }, { x: 100, z: 0 }, { x: 100, z: 84.246 }, { x: 0, z: 84.246 }],
+    points: [{ x: 0, z: 0 }, { x: 100, z: 0 }, { x: 100, z: 246.318 }, { x: 0, z: 246.318 }],
     parcel: 'a',
     island: 'r',
     status: 'healthy',
     cellId: 'r',
   };
-  assert.equal(cellsArea([recipeSized]), RECIPE_ISLAND_AREA);
+  assert.ok(Math.abs(cellsArea([recipeSized]) - RECIPE_ISLAND_AREA) < 1e-9);
   // ⚠ AT RUNG 1 THE COUNT IS THE RECIPE'S OWN — that is what makes this a transcription rather
   // than a number someone liked, and the density argument is what the ladder varies.
   assert.equal(groveStandCount([recipeSized], 1), RECIPE_STANDS);
@@ -228,8 +228,8 @@ test('the stand count is the recipe’s thirteen, in proportion to area', () => 
   const half = { ...recipeSized, points: recipeSized.points.map((p) => ({ x: p.x / 2, z: p.z })) };
   assert.equal(groveStandCount([half], 1), 7, 'half the island rounds 6.5 up to 7');
   assert.equal(groveStandCount([], 1), 0);
-  assert.equal(groveStandCount(HEALTHY, 1), Math.round((13 * 14144) / 8424.6));
-  assert.equal(groveStandCount(HEALTHY, 1), 22);
+  assert.equal(groveStandCount(HEALTHY, 1), Math.round((13 * 14144) / 24631.8));
+  assert.equal(groveStandCount(HEALTHY, 1), 7);
 });
 
 // ⚠⚠ THE DENSITY RUNG IS THE ONE TUNED NUMBER HERE, and this is what holds it honest: the ladder

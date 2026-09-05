@@ -13,14 +13,16 @@
 // where it is `z`. Converting ad hoc downstream is how a placement ends up rotated ninety degrees
 // from the land it is standing on, and the picture looks merely odd rather than wrong.
 //
-// ⚠⚠ AND THE SHIPPED BASIS IS NOT THE HARNESS'S — do not assume one conversion serves both.
-// `harness/island-descriptors.ts`'s `groundCellsFrom` UNPROJECTS the scene's isometric drawing back
-// to ground coordinates before handing cells on. `worldTo3D` does not: it maps the drawing's
-// `(x, y)` straight to `(x, 0, z)`, so the shipped island is the PROJECTED shape used as a ground
-// plane — 234 units wide and 46 deep, measurably squashed. That is the shipped canvas's own
-// long-standing basis and this module does not change it; what matters here is that a prop placed
-// off these rings and lifted by `landRelief.height` sits on the ground the canvas actually draws,
-// because both read the same numbers.
+// ⚠⚠ THE SHIPPED BASIS IS THE ISLAND'S TRUE FOOTPRINT SINCE 2026-09-05 (ADR-0517 D1). Until then
+// `worldTo3D` mapped the drawing's `(x, y)` straight to `(x, 0, z)`, so the shipped island was the
+// PROJECTED shape used as a ground plane — 234 units wide and 46 deep, measurably squashed — and
+// this header warned that the harness's `groundCellsFrom` (which unprojects) and the shipped path
+// (which did not) were two different bases. The mapper now unprojects per island itself
+// (`true-footprint.ts`), so the two agree on the island's shape; they still differ by where the
+// island sits (the harness unprojects about the drawing's origin, the mapper about each island's
+// own centre, holding the layout still). What matters here is unchanged: a prop placed off these
+// rings and lifted by `landRelief.height` sits on the ground the canvas actually draws, because
+// both read the same numbers.
 
 import type { Descriptor3D } from './world-to-3d.js';
 

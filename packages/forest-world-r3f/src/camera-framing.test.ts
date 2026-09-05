@@ -15,10 +15,13 @@ import test from 'node:test';
 
 import {
   FRAME_HALF_HEIGHT_PER_BACK,
+  SHIPPED_ELEVATION_DEG,
   frameWorld,
   orthographicZoomFor,
+  shippedElevationDeg,
   type CameraFraming,
 } from './camera-framing.js';
+import { RENDER_ELEV_DEG } from './kit-vocabulary.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 
 /** A point-like instance at a ground position — `frameWorld` reads only `transform`, so the family
@@ -62,12 +65,23 @@ test('the constant is the retired camera\'s, derived rather than remembered', ()
   assert.ok(FRAME_HALF_HEIGHT_PER_BACK > 0.5 && FRAME_HALF_HEIGHT_PER_BACK < 0.7);
 });
 
-test('the eye keeps the 45-degree view DIRECTION — only the projection changed', () => {
+test('⚠ the eye looks down at the owner-signed 50° — the constant every approved render was taken at (ADR-0517 D2)', () => {
   const f = frameWorld(island(111));
   const [tx, , tz] = f.target;
   const [px, py, pz] = f.position;
-  assert.equal(px, tx, 'the eye stays on the target\'s x');
-  assert.ok(Math.abs(py - (pz - tz)) < 1e-9, 'up and along by the same amount is a 45 degree elevation');
+  assert.equal(px, tx, 'the eye stays on the target\'s x — azimuth fixed at +z');
+  assert.ok(pz > tz, 'the eye sits on the +z side');
+  // Read back off the output, never off the constant it was built from: `tan(elev) = up / along`.
+  const elev = (Math.atan2(py, pz - tz) * 180) / Math.PI;
+  assert.ok(Math.abs(elev - 50) < 1e-9, `the eye looks down at ${elev}°`);
+  assert.ok(Math.abs(shippedElevationDeg() - 50) < 1e-9);
+  assert.equal(SHIPPED_ELEVATION_DEG, RENDER_ELEV_DEG, 'the shipped elevation IS the signed constant, by import');
+  // ⚠ NON-VACUITY against the 45° this canvas looked down at until 2026-09-05: up and along are
+  // no longer equal, which is what the old test asserted.
+  assert.ok(Math.abs(py - (pz - tz)) > 1, 'a 45° eye would have up === along');
+  // And the eye keeps the retired camera's DISTANCE (`back · √2`), so the clip range still holds.
+  const back = Math.max(260, 111 * 2.6);
+  assert.ok(Math.abs(Math.hypot(py, pz - tz) - back * Math.SQRT2) < 1e-9, 'the eye distance is back·√2');
 });
 
 test('an empty world still frames as much as it always did', () => {
@@ -174,5 +188,11 @@ test('the empty world\'s CAMERA POSITION is pinned too, not just its target', ()
   // ⚠ `position` was the one field the empty-world test never looked at, so replacing the whole
   // triple with `[]` went unnoticed — and an empty position is a camera at the origin looking at
   // itself.
-  assert.deepEqual(frameWorld([]).position, [0, 260, 260]);
+  const [x, y, z] = frameWorld([]).position;
+  assert.equal(x, 0);
+  // `260 · √2` away at 50°, derived here rather than read back off the module.
+  const dist = 260 * Math.SQRT2;
+  assert.ok(Math.abs(y - dist * Math.sin((50 * Math.PI) / 180)) < 1e-9, `y ${y}`);
+  assert.ok(Math.abs(z - dist * Math.cos((50 * Math.PI) / 180)) < 1e-9, `z ${z}`);
+  assert.ok(y > z, 'above 45° the eye is higher than it is far');
 });

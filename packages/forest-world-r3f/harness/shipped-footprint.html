@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the true footprint at 50°, with the grove density laddered — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The island&rsquo;s true footprint at the signed 50&deg;, with the grove density laddered beside it</h1>
+      <p>
+        The owner picked both arms of the camera ladder &mdash; the island&rsquo;s <strong>true
+        footprint</strong> (the hex cluster unprojected, 234 &times; 135 units instead of the drawing&rsquo;s
+        squashed 234 &times; 46) and the owner-signed <strong>50&deg;</strong> every approved render was
+        taken at (ADR-0517) &mdash; and in the same breath asked why an island carries about a hundred
+        trees when no story has that many capabilities. The grove scatters by <em>area</em>, and the
+        footprint fix triples it, so the two are judged here in one picture: the new shape at each
+        density rung, with the two numbers that answer his question printed under every arm.
+      </p>
+      <p class="numbers">
+        before     the map AS IT SHIPPED until 2026-09-05: the squashed footprint from 45°, the grove at rung x2 (CONTROL)
+        true-x1    the TRUE footprint from 50°, the grove at the RECIPE's own stand count (13 stands per recipe-island of area)
+        true-x2    the true footprint at TWICE the recipe's stands
+        true-x3    the true footprint at THREE TIMES — the boldest rung rendered
+      </p>
+      <p>
+        <strong>What the numbers under each picture are.</strong> Capability trees (one per capability
+        &mdash; the tree that <em>means</em> something) and grove pines (dressing), with the ratio
+        between them; then the island on screen, the delivered pine height, the colour-family census
+        against the reference, and pixels moved past 20/255 against <code>before</code> (ADR-0490 D6).
+        Every arm is built by the shipped composition root; the three true arms share one ground mesh
+        and differ only in what stands on it. Frame cost is taken from this page by
+        <code>shipped-footprint-cost.mjs</code> on the RTX 2060 and <em>reports</em> &mdash; it does not
+        gate the change (ADR-0517 D4).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedFootprint } from './shipped-footprint-scene.ts';
+      try {
+        await mountShippedFootprint(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

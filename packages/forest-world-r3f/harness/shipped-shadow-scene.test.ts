@@ -85,8 +85,15 @@ test('EVERY remedy delivers the AUTHORED resolution on the forest', () => {
 test('⚠⚠ THE MEMORY, AND THE EXPECTATION IT REFUTES', () => {
   // ⚠ THE OBVIOUS GUESS IS WRONG AND WAS CAUGHT HERE. "The atlas leaves out the sea, so it must
   // cost less than the map already spends" is false: the map already spends little BECAUSE it is
-  // coarse. The honest comparison is at EQUAL RESOLUTION, and there the atlas is 19x cheaper than
+  // coarse. The honest comparison is at EQUAL RESOLUTION, and there the atlas is 7.4x cheaper than
   // raising the cap. Against today's clamped field it is a modest multiple for 5x the resolution.
+  //
+  // ⚠ RE-MEASURED 2026-09-05 ON THE TRUE FOOTPRINT (ADR-0517 D1) and corrected in place. Every
+  // island's land is 2.92x what the squashed ribbon held, and the atlas allocates LAND at the
+  // authored resolution, so it grew with it: 10.4 MB against the clamped field's 2.7 MB (3.85x,
+  // was under 2x) for 5.3x the resolution; raising the cap now asks for a 10,908-texel edge and
+  // 76.9 MB, so the atlas is 7.4x under it (was 19x). The ORDER of the three arms is unchanged
+  // and so is the decision; the margins are what the footprint moved.
   const clamped = plan('clamped', forestCells);
   const raised = plan('raised', forestCells);
   const atlas = plan('atlas', forestCells, forestTriangles);
@@ -102,16 +109,16 @@ test('⚠⚠ THE MEMORY, AND THE EXPECTATION IT REFUTES', () => {
   // rather than about memory.
   const spread = Math.abs(atlas.textureBytes - perIsland.textureBytes) / perIsland.textureBytes;
   assert.ok(spread < 0.1, `atlas and per-island differ by ${(spread * 100).toFixed(1)}% of texture`);
-  // And both are an order of magnitude under A.
-  assert.ok(atlas.textureBytes < raised.textureBytes / 10);
-  assert.ok(perIsland.textureBytes < raised.textureBytes / 10);
-  // Against the map as it stands, the packed field is a small multiple for a large gain — stated
+  // And both are several times under A (an order of magnitude on the ribbon; 7.4x on the true footprint).
+  assert.ok(atlas.textureBytes < raised.textureBytes / 5);
+  assert.ok(perIsland.textureBytes < raised.textureBytes / 5);
+  // Against the map as it stands, the packed field is a small multiple for a larger gain — stated
   // as the two numbers together, because either alone is a half-truth.
   const costRatio = atlas.textureBytes / clamped.textureBytes;
   const gainRatio = atlas.gres / clamped.gres;
-  assert.ok(costRatio < 2, `the atlas costs ${costRatio.toFixed(2)}x the clamped field`);
+  assert.ok(costRatio < 5, `the atlas costs ${costRatio.toFixed(2)}x the clamped field`);
   assert.ok(gainRatio > 4, `for only ${gainRatio.toFixed(2)}x the resolution`);
-  assert.ok(gainRatio > costRatio * 2, 'the gain must outrun the cost by a clear margin');
+  assert.ok(gainRatio > costRatio, 'the gain must still outrun the cost');
 });
 
 test('⚠ THE ATLAS EDGE IS A HARDWARE ASK TOO — smaller than A’s, and it degrades where A cannot', () => {
@@ -128,8 +135,10 @@ test('⚠ THE ATLAS EDGE IS A HARDWARE ASK TOO — smaller than A’s, and it de
   const floor = packShadowAtlas(islandGroundBounds(forestCells), SHADOW_GRES, 2048);
   assert.ok(floor.w <= 2048 && floor.h <= 2048, 'the packing must land inside the minimum');
   const clamped = plan('clamped', forestCells);
+  // 3.05x on the true footprint (2026-09-05; it was over 4x on the ribbon, whose islands packed
+  // 2.92x less land into the same guaranteed edge).
   assert.ok(
-    floor.gres > clamped.gres * 4,
+    floor.gres > clamped.gres * 2.5,
     `on a 2048-only device the atlas delivers ${floor.gres.toFixed(3)} samples/unit against the ` +
       `rect form's ${clamped.gres.toFixed(3)}`,
   );
@@ -150,9 +159,10 @@ test('the atlas is the ONLY arm that costs vertex bytes, and it is a vec2 per ve
     atlas.textureBytes + atlas.attributeBytes > perIsland.textureBytes,
     'C must cost MORE total memory than B \u2014 if it did not, B would have no case at all',
   );
-  // And it is still an order of magnitude under A, which is what keeps C in the comparison.
+  // And it is still several times under A (6.5x with the attribute on the true footprint; an
+  // order of magnitude on the ribbon), which is what keeps C in the comparison.
   const raised = plan('raised', forestCells, forestTriangles);
-  assert.ok(atlas.textureBytes + atlas.attributeBytes < raised.textureBytes / 10);
+  assert.ok(atlas.textureBytes + atlas.attributeBytes < raised.textureBytes / 5);
 });
 
 test('⚠ THE EXCHANGE OPTION B ASKS FOR: one draw call becomes one per island', () => {

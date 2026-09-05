@@ -140,16 +140,16 @@ export const CONTROL_ARM: CanopyArm = 'bare';
  * WHICH DENSITY RUNG EACH ARM GROWS AT — `null` for an arm that grows no grove at all, so the two
  * kinds of arm are told apart by this table rather than by parsing a name.
  *
- * ⚠ THE SHIPPED RUNG IS READ FROM THE CONSTANT, NEVER RESTATED. `groves-x2` is the arm the map
- * actually stands, so its entry IS `GROVE_DENSITY`; `canopy-arms-agree` in
+ * ⚠ THE SHIPPED RUNG IS READ FROM THE CONSTANT, NEVER RESTATED. `groves-x1` is the arm the map
+ * actually stands (since ADR-0517 restored the true footprint; x2 before), so its entry IS `GROVE_DENSITY`; `canopy-arms-agree` in
  * `shipped-canopy-scene.test.ts` holds the name, the pointer and the constant to each other, which
  * is what stops a scale-back from leaving an arm labelled x2 drawing x1.
  */
 export const CANOPY_ARM_DENSITY = {
   bare: null,
   capability: null,
-  'groves-x1': 1,
-  'groves-x2': GROVE_DENSITY,
+  'groves-x1': GROVE_DENSITY,
+  'groves-x2': 2,
   'groves-x3': 3,
 } satisfies Record<CanopyArm, number | null>;
 
@@ -158,7 +158,7 @@ export const GROVE_ARMS: readonly CanopyArm[] = CANOPY_ARMS.filter((a) => CANOPY
 
 /** The rung the shipped canvas stands, as an arm — what every "does the map read right" question
  *  is asked of, and what the driver's grove refusals are asked of. */
-export const SHIPPED_GROVE_ARM: CanopyArm = 'groves-x2';
+export const SHIPPED_GROVE_ARM: CanopyArm = 'groves-x1';
 
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
@@ -168,8 +168,8 @@ export const CANOPY_ARM_CAPTION = {
     'the shipped ground + today’s vocabulary: one pine per capability, one bloom per signature — NOW casting their shadows',
   'groves-x1':
     '+ the healthy island’s grove at the RECIPE’S OWN stand count: 13 stands per recipe-island of area, 4–8 live ' +
-    'pines each at 0.55–0.80 of the capability’s height, clear of the beach and the path',
-  'groves-x2': '+ the grove at TWICE the recipe’s stands — the SHIPPED pick',
+    'pines each at 0.55–0.80 of the capability’s height, clear of the beach and the path — the SHIPPED pick since the true footprint (ADR-0517)',
+  'groves-x2': '+ the grove at TWICE the recipe’s stands — the pick the map stood until 2026-09-05, on the squashed footprint',
   'groves-x3': '+ the grove at THREE TIMES the recipe’s stands — the boldest rung rendered',
 } satisfies Record<CanopyArm, string>;
 

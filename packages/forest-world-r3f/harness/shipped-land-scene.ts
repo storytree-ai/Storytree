@@ -38,6 +38,8 @@
 
 import * as THREE from 'three';
 
+import { PLAN_VIEW_ELEVATION_DEG } from '@storytree/forest-world';
+
 import {
   cellGroundGeometry,
   FLAT_GROUND,
@@ -343,6 +345,19 @@ export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
 
 export function shippedParcels(): InstanceDescriptor[] {
   return worldTo3D(islandScene()).filter(
+    (d): d is InstanceDescriptor => d.kind === 'cell-ground',
+  );
+}
+
+/**
+ * THE SAME ISLAND AS THE 2D DRAWING LAYS IT — the projected ribbon (233.8 × 46.2) the canvas drew
+ * as its ground plane until 2026-09-05. The mapper is told the drawing is already true (plan view),
+ * so the per-island footprint restoration (ADR-0517 D1) is the identity. Two readers: the crowd
+ * layout sizes its frame from this, because the real map's spacing is the drawing's; and a
+ * comparison page's "before this landing" arm stands on it.
+ */
+export function drawnParcels(): InstanceDescriptor[] {
+  return worldTo3D(islandScene(), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
 }
@@ -727,8 +742,8 @@ export function buildLandScene(
   scene.add(sun);
 
   // ⚠ THE VIEW DIRECTION IS THE SHIPPED ONE; THE FRAME IS THE ISLAND'S OWN, AND THE SPLIT IS
-  // DELIBERATE. `frameWorld` supplies the 45°-elevation direction the map looks from, and that is
-  // what has to be the product's. Its FRAMING is a different matter: the shipped rule backs off
+  // DELIBERATE. `frameWorld` supplies the elevation the map looks from (the owner-signed 50°
+  // since ADR-0517 D2; 45° before it), and that is what has to be the product's. Its FRAMING is a different matter: the shipped rule backs off
   // `max(260, spread * 2.6)`, which on this island — 234 units wide and 46 deep — reserves a frame
   // the land occupies a few percent of. Framed that way both comparison pictures would be a green
   // smear in a black field, and whether that rule wastes a third of the screen is its OWN open

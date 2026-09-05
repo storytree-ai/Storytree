@@ -194,9 +194,9 @@ export const coverEligible = groveEligible;
  * sit below an honest share however large the island; a hex island's box exceeds its area by a
  * further 20–40%, so a real island has roughly 1.5x of headroom to the refusal.
  */
-export function coverAreaShare(cells: readonly LayoutCell[]): number {
-  const share = cellsArea(cells) / RECIPE_ISLAND_AREA;
-  const ceiling = boxShare(cells);
+export function coverAreaShare(cells: readonly LayoutCell[], recipeIslandArea: number = RECIPE_ISLAND_AREA): number {
+  const share = cellsArea(cells) / recipeIslandArea;
+  const ceiling = boxShare(cells, recipeIslandArea);
   if (!Number.isFinite(share) || share > ceiling) {
     throw new Error(
       `cover-dressing: an island asking for ${share} recipe-islands of ground cover, on a bounding ` +
@@ -210,9 +210,9 @@ export function coverAreaShare(cells: readonly LayoutCell[]): number {
 /** The island's BOUNDING BOX as a multiple of the recipe's island — the ceiling above, computed
  *  from `Math.min`/`Math.max` over the same points so the shoelace arithmetic the guard exists to
  *  catch cannot corrupt the ceiling with it. */
-export function boxShare(cells: readonly LayoutCell[]): number {
+export function boxShare(cells: readonly LayoutCell[], recipeIslandArea: number = RECIPE_ISLAND_AREA): number {
   const box = cellsBounds(cells);
-  return ((box.maxX - box.minX) * (box.maxZ - box.minZ)) / RECIPE_ISLAND_AREA;
+  return ((box.maxX - box.minX) * (box.maxZ - box.minZ)) / recipeIslandArea;
 }
 
 /** How many of this role this island wears: the recipe's count, in proportion to area, times the
@@ -221,6 +221,7 @@ export function coverCount(
   role: KitRole,
   cells: readonly LayoutCell[],
   density: number = COVER_DENSITY,
+  recipeIslandArea: number = RECIPE_ISLAND_AREA,
 ): number {
   const recipe = COVER_RECIPE_COUNTS[role as keyof typeof COVER_RECIPE_COUNTS];
   if (recipe === undefined) {
@@ -229,7 +230,7 @@ export function coverCount(
         `three dressing roles only (${COVER_ROLES.join(', ')})`,
     );
   }
-  return Math.round(recipe * density * coverAreaShare(cells));
+  return Math.round(recipe * density * coverAreaShare(cells, recipeIslandArea));
 }
 
 // ---------------------------------------------------------------- the draws
@@ -300,6 +301,10 @@ export interface CoverDressingOptions {
    *  island's grove was placed against, so the two layers cannot come to disagree about where the
    *  beach and the path are. */
   exclusion: GroveExclusion;
+  /** The ground the recipe's counts are proportioned against, in this basis. Omitted is
+   *  `RECIPE_ISLAND_AREA`; ONE caller passes it — the footprint page's control arm, reproducing the
+   *  map as it stood before ADR-0517 re-based the constant. Not a density knob. */
+  recipeIslandArea?: number;
   /** How many of the recipe's counts this island wears. Omitted is {@link COVER_DENSITY}. */
   density?: number;
   /** Which rung of {@link COVER_SIZE_RUNGS} this island's props are drawn at. Omitted is
@@ -330,7 +335,7 @@ export function dressCover(opts: CoverDressingOptions): KitPlacement[] {
   const out: KitPlacement[] = [];
 
   for (const role of COVER_ROLES) {
-    for (const _prop of indices(coverCount(role, parcels, density))) {
+    for (const _prop of indices(coverCount(role, parcels, density, opts.recipeIslandArea ?? RECIPE_ISLAND_AREA))) {
       const at = coverPoint(parcels, rand, opts.exclusion);
       if (at === null) continue;
       const scale = coverScale(role, rand, size);

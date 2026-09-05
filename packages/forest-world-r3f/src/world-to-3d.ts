@@ -73,6 +73,22 @@
 // longer draws. An emitted-but-undrawn `InstanceDescriptor` would have been exactly that
 // second list, since an instance descriptor IS the claim "something stands here".
 //
+// ⚠⚠ THE GROUND IS THE ISLAND'S TRUE FOOTPRINT, NOT THE DRAWING'S (ADR-0517 D1, 2026-09-05).
+// The semantic scene is a 2D drawing projected at the declared land camera (20°), so every
+// ground depth on the page is `× sin 20°` = 0.342 of the real one. Until 2026-09-05 this mapper
+// laid that drawing straight onto the ground plane and the shipped island was 233.8 × 46.2 units
+// where the recipe's own hex cluster is 233.8 × 135.1 — squashed once by the drawing and again
+// by the 3D camera, which the owner read as "the camera is too low" (PR #1820 measured the two
+// causes apart: five degrees of elevation buy 7.5%, the footprint 129%). So after the walk the
+// whole stream goes through `restoreTrueFootprint`: every ground z stretched by `1 / sin(elev)`
+// ABOUT ITS OWN ISLAND'S CENTRE, x untouched, the layout held still. `worldTo3D`'s second
+// argument names the elevation the SCENE was projected at (the scene input's own
+// `cameraElevationDeg` seam, ADR-0367 D1) — a scene built at plan view is already true and
+// passes through unchanged. It is done HERE, at the mapper, for the same reason the placeholder
+// tree was retired here: every downstream reader — the canvas, the casters, the dressing, every
+// comparison page — reaches the ground through this function, so one stretch moves all of them
+// and leaves no second list to keep in step (`comparison-baseline-moves-under-the-page`).
+//
 // ⚠ `cell-ground` IS DELIBERATELY THE SAME FIDELITY the retired classic prism was — a
 // flat prism wearing the parcel's folded status colour. It is the representation the
 // mapper always intended to draw, arriving in the shape the product now emits it. It is
@@ -81,14 +97,25 @@
 // Adoption stays a separate, deliberate event (ADR-0380 D6 / ADR-0406 D2) with the
 // ADR-0418 D4 replacement check as its precondition — do not graft the treatment in here.
 
-import { trailFillWidth, type Pt, type SceneG, type SceneNode, type ScenePath } from '@storytree/forest-world';
+import {
+  LAND_CAMERA_ELEVATION_DEG,
+  trailFillWidth,
+  type Pt,
+  type SceneG,
+  type SceneNode,
+  type ScenePath,
+} from '@storytree/forest-world';
+
+import { restoreTrueFootprint } from './true-footprint.js';
 
 // ---------------------------------------------------------------------------
 // Descriptor types — the provability-firewall output contract
 // ---------------------------------------------------------------------------
 
 /** A 3D world-space position. Coordinate convention: SVG x → 3D x (east),
- *  SVG y → 3D z (depth/south), 3D y is up. */
+ *  SVG y → 3D z (depth/south), 3D y is up — with the drawing's isometric foreshortening UNDONE
+ *  along z, per island (ADR-0517 D1; `true-footprint.ts`), so a ground z is a TRUE ground
+ *  distance and not the page's squashed one. */
 export interface Transform3D {
   x: number;
   y: number;
@@ -577,6 +604,11 @@ function walkNode(
  * extruded-hex substrate was retired (`retire-the-old-land-path`), and the shipped map draws
  * the relaxed mesh only.
  *
+ * Every descriptor's ground z is the island's TRUE depth, not the drawing's: the walk maps the
+ * drawing's (x, y) to (x, 0, z) and the stream is then unprojected per island by
+ * `restoreTrueFootprint` (ADR-0517 D1) — see the header. Pass `cameraElevationDeg` when the scene
+ * was built at an elevation other than the declared land camera.
+ *
  * Every family that belongs to exactly one island carries that island's id
  * (`InstanceDescriptor.island`), taken only from a `ground` / `territory` group. It is
  * what lets a consumer holding the WHOLE map's descriptors keep one story's claims on one story's
@@ -595,8 +627,18 @@ function walkNode(
  * nobody flips. The result is otherwise deterministic: the same scene graph always
  * produces a byte-identical descriptor array (or the same refusal).
  */
-export function worldTo3D(scene: SceneG): Descriptor3D[] {
+export function worldTo3D(scene: SceneG, opts: WorldTo3DOptions = {}): Descriptor3D[] {
   const out: Descriptor3D[] = [];
   walkNode(scene, out, { x: 0, y: 0 });
-  return out;
+  return restoreTrueFootprint(out, opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG);
+}
+
+/** What the mapper needs to know about the scene beyond the scene itself. */
+export interface WorldTo3DOptions {
+  /** The camera elevation the SCENE was projected at, in degrees — the scene input's own
+   *  `cameraElevationDeg` (ADR-0367 D1). Omitted is the declared land camera
+   *  (`LAND_CAMERA_ELEVATION_DEG`, 20°), which every shipped 2D surface draws at. The ground's
+   *  true footprint is restored by undoing exactly this projection; a scene built at plan view
+   *  (`PLAN_VIEW_ELEVATION_DEG`, 90°) is already true and is left alone. */
+  cameraElevationDeg?: number;
 }

@@ -38,7 +38,7 @@ import {
   type CoastPlan,
 } from './shipped-coast-scene.js';
 import { crowdCells, crowdSize } from './shipped-crowd-scene.js';
-import { shippedParcels } from './shipped-land-scene.js';
+import { drawnParcels, shippedParcels } from './shipped-land-scene.js';
 
 /**
  * The island the studio actually ships, as the mapper emits it — built LAZILY.
@@ -52,6 +52,14 @@ let island: InstanceDescriptor[] | null = null;
 function shippedIsland(): InstanceDescriptor[] {
   island ??= shippedParcels();
   return island;
+}
+
+/** The same island as the 2D map DRAWS it — the projected ribbon the 3D ground plane was until
+ *  ADR-0517 D1. The fold cap's premise lives here: see `THE PREMISE` below. */
+let drawn: InstanceDescriptor[] | null = null;
+function drawnIsland(): InstanceDescriptor[] {
+  drawn ??= drawnParcels();
+  return drawn;
 }
 
 /**
@@ -100,10 +108,16 @@ function forestCells(): InstanceDescriptor[] {
 /** The shipped island and a copy of it 600 units east, wearing its own story id — enough to ask
  *  every "does one island's coast reach another's" question at 1/17th the cost of the forest. */
 let pair: InstanceDescriptor[] | null = null;
-function twoIslands(): InstanceDescriptor[] {
-  pair ??= [
-    ...shippedIsland(),
-    ...shippedIsland().map((c) => {
+function twoIslands(base: InstanceDescriptor[] = shippedIsland()): InstanceDescriptor[] {
+  if (base !== shippedIsland()) return pairOf(base);
+  pair ??= pairOf(base);
+  return pair;
+}
+
+function pairOf(base: InstanceDescriptor[]): InstanceDescriptor[] {
+  return [
+    ...base,
+    ...base.map((c) => {
       const moved: InstanceDescriptor = {
         ...c,
         island: 'story-east',
@@ -114,7 +128,6 @@ function twoIslands(): InstanceDescriptor[] {
       return moved;
     }),
   ];
-  return pair;
 }
 
 function ringsOf(cells: readonly InstanceDescriptor[]): CoastPoint[][] {
@@ -132,16 +145,27 @@ test('the shipped island ends in ONE rim loop of 52 vertices', () => {
   assert.equal(loops[0]!.length, 52);
 });
 
-test('⚠ THE PREMISE: the coast this map already draws SELF-INTERSECTS', () => {
+test('⚠ THE PREMISE: the coast the 2D map draws SELF-INTERSECTS — and on the true footprint it no longer does', () => {
   // `coast.ts` says the offset "can never self-intersect" because only the outset MAGNITUDE is
-  // perturbed, along the normal. On the island the studio ships, it crosses itself twice. The 2D
-  // panel draws that loop as an SVG fill and the nonzero rule hides it; a triangulated ground
+  // perturbed, along the normal. On the island AS THE 2D MAP DRAWS IT — the projected ribbon,
+  // 234 × 46, which was also the 3D ground plane until 2026-09-05 — it crosses itself twice. The
+  // 2D panel draws that loop as an SVG fill and the nonzero rule hides it; a triangulated ground
   // cannot, which is the whole reason `coastDisplacement` carries a fold cap.
+  const drawnRim = rimLoops(ringsOf(drawnIsland()))[0]!;
+  assert.equal(isSimpleRing(drawnRim), true, 'the raw hex silhouette should be simple');
+  const drawnCurve = coastCurve(drawnRim, 'context-traversal-capture');
+  assert.equal(isSimpleRing(drawnCurve.outset), false, 'the drawn outset coast should fold — the cap exists for this');
+  assert.equal(isSimpleRing(drawnCurve.smooth), false);
+  // ⚠ SINCE ADR-0517 D1 THE 3D GROUND IS THE TRUE FOOTPRINT (234 × 135), and on it the SAME
+  // offset does not fold: the ribbon folded because its concave notches were three times tighter
+  // in z than the outset wave. Measured 2026-09-05, corrected in place. The cap stays — it is a
+  // guard on a rule that CAN fold, held by the drawn island above — and the shipped island simply
+  // never trips it (`the fold cap binds …` below).
   const rim = rimLoops(ringsOf(shippedIsland()))[0]!;
-  assert.equal(isSimpleRing(rim), true, 'the raw hex silhouette should be simple');
+  assert.equal(isSimpleRing(rim), true);
   const curve = coastCurve(rim, 'context-traversal-capture');
-  assert.equal(isSimpleRing(curve.outset), false, 'the outset coast should fold — the cap exists for this');
-  assert.equal(isSimpleRing(curve.smooth), false);
+  assert.equal(isSimpleRing(curve.outset), true, 'the true footprint’s outset coast is simple');
+  assert.equal(isSimpleRing(curve.smooth), true);
 });
 
 test('the control is the map with no coast at all', () => {
@@ -165,16 +189,22 @@ test('⚠⚠ NO PARCEL FOLDS, on any arm, on the island OR the forest', () => {
   }
 });
 
-test('the fold cap binds on a handful of rim vertices, and says so', () => {
+test('the fold cap binds on a handful of rim vertices of the DRAWN island, and on none of the true footprint’s', () => {
   // Pinned rather than bounded: the cap is a visible notch in the shore, so a change that made it
-  // bind on twice as many vertices is a change to the picture and has to be looked at.
-  assert.deepEqual(coastCapping(shippedIsland(), 'outset'), { rim: 52, bound: 4, least: 0.7 });
-  assert.deepEqual(coastCapping(shippedIsland(), 'project'), { rim: 52, bound: 2, least: 0.9 });
-  assert.deepEqual(coastCapping(shippedIsland(), 'subdivide'), { rim: 52, bound: 3, least: 0.6 });
+  // bind on twice as many vertices is a change to the picture and has to be looked at. The drawn
+  // ribbon is where it binds; on the shipped true footprint (ADR-0517 D1) every rim vertex keeps
+  // its full outset — `least: 1` — measured 2026-09-05.
+  assert.deepEqual(coastCapping(drawnIsland(), 'outset'), { rim: 52, bound: 4, least: 0.7 });
+  assert.deepEqual(coastCapping(drawnIsland(), 'project'), { rim: 52, bound: 2, least: 0.9 });
+  assert.deepEqual(coastCapping(drawnIsland(), 'subdivide'), { rim: 52, bound: 3, least: 0.6 });
+  for (const arm of ['outset', 'project', 'subdivide'] as const) {
+    assert.deepEqual(coastCapping(shippedIsland(), arm), { rim: 52, bound: 0, least: 1 }, `${arm} on the true footprint`);
+  }
 });
 
 test('EVERY island is capped, not just the first', () => {
-  const cap = coastCapping(twoIslands(), 'outset');
+  // On the drawn ribbon, where the cap binds — see above.
+  const cap = coastCapping(twoIslands(drawnIsland()), 'outset');
   assert.equal(cap.rim, 52 * 2, 'both islands should report a rim');
   assert.ok(cap.bound > 0, 'the cap should bind somewhere');
   // And each island is capped on its OWN terms. Counting is not enough to say so — two different
