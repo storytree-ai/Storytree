@@ -18,6 +18,7 @@ import {
   LAND_AREA_PER_CAPABILITY,
   LAND_AREA_PER_CAPABILITY_RUNGS,
   LAND_SCALE,
+  MAX_LAND_FACTOR,
   TUNED_FIXTURE,
   TUNED_LAND_AREA_PER_CAPABILITY,
   islandLand,
@@ -51,7 +52,7 @@ function cell(island: string, parcel: string | undefined, cx: number, cz: number
 const asInstance = (d: Descriptor3D): d is InstanceDescriptor => d.kind !== 'skipped';
 
 /** The x/z extent of a set of descriptors' rings. */
-function extent(ds: readonly InstanceDescriptor[]): { w: number; d: number } {
+function extent(ds: readonly InstanceDescriptor[]) {
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
@@ -126,6 +127,21 @@ test('islandLand counts DISTINCT parcels per island and sums the rings’ areas;
   assert.deepEqual(land.get('b'), { island: 'b', capabilities: 1, area: 100 });
   const none = cell('c', undefined, 0, 0);
   assert.deepEqual(islandLand([none]).get('c'), { island: 'c', capabilities: 0, area: 400 });
+  // ⚠ ONLY CELLS COUNT. A ribbon with a ring's worth of points and a stray `parcel` on island `a`
+  // adds neither land nor a capability — the island's size is a reading of its ground alone.
+  const ribbon: InstanceDescriptor = {
+    kind: 'trail-strip',
+    transform: { x: 0, y: 0, z: 0 },
+    group: 'g',
+    island: 'a',
+    parcel: 'a/not-a-parcel',
+    points: cell('a', 'a/p9', 100, 100, 40).points!,
+  };
+  assert.deepEqual(islandLand([...stream, ribbon]).get('a'), { island: 'a', capabilities: 2, area: 1600 });
+  // A cell that lost its ring still names its capability and adds no land.
+  const ringless = { ...cell('d', 'd/p', 0, 0) };
+  delete ringless.points;
+  assert.deepEqual(islandLand([ringless]).get('d'), { island: 'd', capabilities: 1, area: 0 });
   assert.equal(islandLand([]).size, 0);
   const noIsland = { ...cell('x', 'x/p', 0, 0) };
   delete noIsland.island;
@@ -144,6 +160,12 @@ test('landRatioFactor: √(capabilities × ratio / area), so the scaled area is 
   for (const bad of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
     assert.throws(() => landRatioFactor(land, bad), /positive finite number/);
   }
+  // ⚠ A FACTOR PAST 100× EITHER WAY IS REFUSED AS ARITHMETIC, not drawn: the same 1600-unit²
+  // island asked for 10,000,000 per capability, or for 0.01, is not a size.
+  assert.ok(Math.abs(landRatioFactor(land, 1600 * 99 * 99 / 4) - 99) < 1e-9, 'ninety-nine times is still a size');
+  assert.throws(() => landRatioFactor(land, 1600 * 101 * 101 / 4), /past 100× either way/);
+  assert.throws(() => landRatioFactor(land, 1600 / (4 * 101 * 101)), /past 100× either way/);
+  assert.equal(MAX_LAND_FACTOR, 100);
 });
 
 test('⚠⚠ sizeIslandsByCapability: every island’s area becomes capabilities × ratio, isotropically, about its OWN centre — the centres (the layout) do not move', () => {
@@ -181,10 +203,10 @@ test('⚠ a ratio equal to an island’s own density leaves it byte-identical; t
   const a = [cell('a', 'a/p1', 0, 0), cell('a', 'a/p2', 20, 0)];
   const same = sizeIslandsByCapability(a, 400);
   assert.deepEqual(same, a);
-  const byDefault = sizeIslandsByCapability(a);
   const explicit = sizeIslandsByCapability(a, LAND_AREA_PER_CAPABILITY);
-  assert.deepEqual(byDefault, explicit);
-  assert.ok(Math.abs(islandLand(byDefault).get('a')!.area - 2 * LAND_AREA_PER_CAPABILITY) < 1e-9);
+  assert.ok(Math.abs(islandLand(explicit).get('a')!.area - 2 * LAND_AREA_PER_CAPABILITY) < 1e-9);
+  // There is NO default ratio here — the one caller that means the shipped one says so (`worldTo3D`),
+  // and `world-to-3d.test.ts` holds that its default IS the shipped constant.
   const mixed = [cell('bare', undefined, 0, 0), cell('b', 'b/p', 300, 0)];
   const out = sizeIslandsByCapability(mixed, 100);
   assert.deepEqual(out[0], mixed[0], 'no capability, no reading, no change');
@@ -193,27 +215,37 @@ test('⚠ a ratio equal to an island’s own density leaves it byte-identical; t
 });
 
 test('⚠ the whole stream follows the island: a bloom scales about its own island, a ribbon between two islands lands on both scaled coasts, and a cave keeps its bearing under the isotropic scale', () => {
-  const a = cell('a', 'a/p', 0, 0, 40); // area 1600, 1 cap → at 400: factor 0.5
-  const b = cell('b', 'b/p', 200, 0, 40); // same
-  const bloom: InstanceDescriptor = { kind: 'uat-bloom', transform: { x: 10, y: 0, z: 10 }, group: 'g', island: 'a' };
-  const cave: InstanceDescriptor = { kind: 'cave-arch', transform: { x: 20, y: 0, z: 0 }, group: 'g', island: 'a', bearing: 0.7 };
+  // Island a at (50, 30): one cell of 1600 units² → at 400 its factor is 0.5. Island b at (250, 30):
+  // one cell of 400 units² → at 400 its factor is 1 (already at the ratio). Nothing sits at the
+  // origin, so a shift computed against the wrong centre — or added where it should be subtracted —
+  // is a number a test can see.
+  const a = cell('a', 'a/p', 50, 30, 40);
+  const b = cell('b', 'b/p', 250, 30, 20);
+  const bloom: InstanceDescriptor = { kind: 'uat-bloom', transform: { x: 60, y: 0, z: 40 }, group: 'g', island: 'a' };
+  const cave: InstanceDescriptor = { kind: 'cave-arch', transform: { x: 70, y: 0, z: 30 }, group: 'g', island: 'a', bearing: 0.7 };
   const strip: InstanceDescriptor = {
     kind: 'trail-strip',
-    transform: { x: 100, y: 0, z: 0 },
+    transform: { x: 155, y: 0, z: 30 },
     group: 'g',
     points: [
-      { x: 20, y: 0, z: 0 },
-      { x: 100, y: 0, z: 0 },
-      { x: 180, y: 0, z: 0 },
+      { x: 70, y: 0, z: 30 },
+      { x: 155, y: 0, z: 30 },
+      { x: 240, y: 0, z: 30 },
     ],
   };
   const out = sizeIslandsByCapability([a, b, bloom, cave, strip], 400).filter(asInstance);
   const [, , bloomOut, caveOut, stripOut] = out as [InstanceDescriptor, InstanceDescriptor, InstanceDescriptor, InstanceDescriptor, InstanceDescriptor];
-  assert.deepEqual(bloomOut.transform, { x: 5, y: 0, z: 5 });
-  assert.deepEqual(caveOut.transform, { x: 10, y: 0, z: 0 });
+  assert.deepEqual(bloomOut.transform, { x: 55, y: 0, z: 35 });
+  assert.deepEqual(caveOut.transform, { x: 60, y: 0, z: 30 });
   assert.ok(Math.abs((caveOut.bearing as number) - 0.7) < 1e-12, 'isotropic: the rim normal does not turn');
-  // a's coast at x = 20 is now at 10; b's coast at x = 180 is now at 190. The ribbon's ends land on them.
-  assert.ok(Math.abs(stripOut.points![0]!.x - 10) < 1e-9);
-  assert.ok(Math.abs(stripOut.points![2]!.x - 190) < 1e-9);
-  assert.ok(Math.abs(stripOut.points![1]!.x - 100) < 1e-9, 'the midpoint blends the two ends’ equal-and-opposite shifts to nothing');
+  // a's coast at x = 70 is now at 60 (20 from a's centre, halved); b's coast at x = 240 stays (factor 1).
+  // The ribbon's first end shifts by −10, its last by 0, and the midpoint blends the two islands'
+  // displacements OF ITSELF by arc length: ½·(155 − 50)·(−½) + ½·(155 − 250)·0 = −26.25.
+  assert.ok(Math.abs(stripOut.points![0]!.x - 60) < 1e-9);
+  assert.ok(Math.abs(stripOut.points![2]!.x - 240) < 1e-9);
+  assert.ok(Math.abs(stripOut.points![1]!.x - 128.75) < 1e-9, `the midpoint: ${stripOut.points![1]!.x}`);
+  assert.ok(stripOut.points!.every((q) => q.z === 30), 'nothing moved along z');
+  // The ribbon's transform moves by the MEAN of its points' shifts: (−10 − 26.25 + 0) / 3.
+  assert.ok(Math.abs(stripOut.transform.x - (155 - 36.25 / 3)) < 1e-9, `${stripOut.transform.x}`);
+  assert.equal(stripOut.transform.z, 30);
 });

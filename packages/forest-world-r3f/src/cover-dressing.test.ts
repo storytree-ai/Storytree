@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  COVER_COUNT_CAP,
   COVER_DENSITY,
   COVER_DENSITY_RUNGS,
   COVER_RECIPE_DENSITY,
@@ -453,6 +454,23 @@ test('⚠ the recipe-area option really reaches the count — a control at a PRE
   assert.equal(explicit, shipped, 'the default IS the shipped basis');
   assert.ok(halved >= 2 * shipped - COVER_ROLES.length && halved <= 2 * shipped + COVER_ROLES.length, `${halved} against twice ${shipped} (rounding per role)`);
   assert.ok(halved > shipped, 'the option reached the scatter');
+});
+
+test('⚠ a runaway COUNT is refused past an absolute cap — an inverted recipe basis cannot hang the tab', () => {
+  groundSanity();
+  // The healthy fixture at rung 1 wears a few hundred; asked for a million times that it refuses
+  // in a microsecond, naming the role and the basis, rather than materialising the count.
+  assert.throws(() => coverOn(HEALTHY, { density: 1e6 }), /past 20000 — the recipe basis has inverted/);
+  assert.throws(
+    () => coverCount('bush', HEALTHY, 1, RECIPE_ISLAND_AREA / 1e6),
+    (e: unknown) => e instanceof Error && /^cover-dressing: \d+ bush on one island/.test(e.message),
+  );
+  assert.equal(COVER_COUNT_CAP, 20_000);
+  // And the cap is generous for what the map draws: the densest rendered rung on the test island
+  // is the recipe's arithmetic, an order of magnitude under it.
+  const top = Math.max(...COVER_DENSITY_RUNGS);
+  assert.equal(coverCount('tuft', HEALTHY, top), Math.round(120 * top * coverAreaShare(HEALTHY)));
+  assert.ok(coverCount('tuft', HEALTHY, top) < COVER_COUNT_CAP / 5, `${coverCount('tuft', HEALTHY, top)}`);
 });
 
 test('a runaway area is REFUSED rather than materialised — the count is an array, not a loop bound', () => {

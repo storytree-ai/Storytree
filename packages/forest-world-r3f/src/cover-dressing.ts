@@ -261,8 +261,22 @@ export function coverCount(
         `three dressing roles only (${COVER_ROLES.join(', ')})`,
     );
   }
-  return Math.round(recipe * density * coverAreaShare(cells, recipeIslandArea));
+  const count = Math.round(recipe * density * coverAreaShare(cells, recipeIslandArea));
+  // ⚠ REFUSED PAST AN ABSOLUTE CAP, for the same reason `coverAreaShare` refuses a runaway share:
+  // the count is materialised, so an inverted recipe basis (the recipe island divided where it
+  // should multiply) would hang the tab rather than draw a wrong picture — and the mutation rung
+  // scores a hang as UNPROVEN, credited to nobody. The densest island this map draws wears a few
+  // hundred of a role; a count past this is arithmetic, not an island.
+  if (count > COVER_COUNT_CAP) {
+    throw new Error(
+      `cover-dressing: ${count} ${role} on one island (${density}× the recipe's ${recipe} over ${coverAreaShare(cells, recipeIslandArea)} recipe-islands) is past ${COVER_COUNT_CAP} — the recipe basis has inverted`,
+    );
+  }
+  return count;
 }
+
+/** The most of one role an island may wear — see the refusal in {@link coverCount}. */
+export const COVER_COUNT_CAP = 20_000;
 
 // ---------------------------------------------------------------- the draws
 

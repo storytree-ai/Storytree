@@ -1351,7 +1351,7 @@ test('⚠⚠ by default the mapper sizes each island to capabilities × LAND_ARE
     kind: 'ground',
     children: [
       { ...parcelledGround([{ id: 'cap-a', cells: 2 }, { id: 'cap-b', cells: 1 }, { id: 'cap-c', cells: 1 }], 'healthy'), id: 'isle-a' },
-      { ...parcelledGround([{ kind: 'cell', cells: 2 } as { kind: SceneKind; cells: number }], 'healthy'), id: 'isle-b' },
+      { ...parcelledGround([{ kind: 'cell', cells: 2 }], 'healthy'), id: 'isle-b' },
     ],
   };
   const asDrawn = worldTo3D(twoIslands, { landAreaPerCapability: null }).filter(asInstance);

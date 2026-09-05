@@ -11,6 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   CELL_GROUND_DEPTH,
   cellGroundGeometry,
@@ -229,6 +230,11 @@ test('every wall faces OUT OF the parcel, including on a non-convex ring', () =>
     }
     assert.equal(walls, ring.length * 2, `${label}: two wall triangles per ring edge`);
   }
+});
+
+test('CELL_GROUND_DEPTH is the tuned 3 units × LAND_SCALE — the prism thins with the island', () => {
+  assert.equal(CELL_GROUND_DEPTH, 3 * LAND_SCALE);
+  assert.ok(CELL_GROUND_DEPTH > 1 && CELL_GROUND_DEPTH < 3);
 });
 
 test('walls fall exactly CELL_GROUND_DEPTH below the ground plane, and the top sits at y=0', () => {

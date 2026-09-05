@@ -17,6 +17,8 @@ import {
   islandCentres,
   nearestCentre,
   restoreTrueFootprint,
+  scaleAboutIslands,
+  scaledBearing,
   stretchAboutIslands,
   stretchedBearing,
 } from './true-footprint.js';
@@ -297,4 +299,72 @@ test('restoreTrueFootprint at the land camera IS the stretch by 1/sin 20°; at p
   const b = stretchAboutIslands(ds, 1 / groundFlattening(LAND_CAMERA_ELEVATION_DEG));
   assert.deepEqual(a, b);
   assert.deepEqual(restoreTrueFootprint(ds, PLAN_VIEW_ELEVATION_DEG), ds);
+});
+
+// ---------------------------------------------------------------- the general scale
+
+test('⚠ scaleAboutIslands REFUSES a scale that is not a positive finite pair, naming the island and the pair; zero is refused, not only negatives', () => {
+  const isle = square('a', 0, 0);
+  for (const bad of [
+    { x: 0, z: 1 },
+    { x: 1, z: 0 },
+    { x: -1, z: 1 },
+    { x: 1, z: -0.5 },
+    { x: Number.NaN, z: 1 },
+    { x: 1, z: Number.POSITIVE_INFINITY },
+  ]) {
+    assert.throws(
+      () => scaleAboutIslands([isle], () => bad),
+      (e: unknown) => e instanceof Error && e.message === `true-footprint: island "a" was given a scale of (${bad.x}, ${bad.z}); both must be positive finite numbers`,
+      `(${bad.x}, ${bad.z}) was accepted`,
+    );
+  }
+  // And a positive pair on each axis is applied on each axis, about the island's centre.
+  const [out] = scaleAboutIslands([square('a', 10, 20)], () => ({ x: 2, z: 0.5 })) as [InstanceDescriptor];
+  const e = depthOf([out]);
+  assert.ok(Math.abs(e.w - 40) < 1e-9 && Math.abs(e.d - 10) < 1e-9, `${e.w} × ${e.d}`);
+  assert.deepEqual(out.transform, { x: 10, y: 0, z: 20 });
+  assert.deepEqual(scaleAboutIslands([], () => ({ x: 2, z: 2 })), []);
+});
+
+test('⚠ a wisp EQUIDISTANT from two islands follows the FIRST — the tie rule nearestCentre already holds', () => {
+  const a = square('a', 0, 0);
+  const b = square('b', 100, 0);
+  const wisp: InstanceDescriptor = { kind: 'wisp-sprite', transform: { x: 50, y: 0, z: 0 }, group: 'g' };
+  // a scales by 2 about (0, 0) — the wisp at 50 goes to 100; b by 0.5 about (100, 0) — it would go to 75.
+  const out = scaleAboutIslands([a, b, wisp], (id) => (id === 'a' ? { x: 2, z: 2 } : { x: 0.5, z: 0.5 }));
+  assert.deepEqual(out[2]!.transform, { x: 100, y: 0, z: 0 });
+  // Listed the other way round, b is first and wins the tie.
+  const swapped = scaleAboutIslands([b, a, wisp], (id) => (id === 'a' ? { x: 2, z: 2 } : { x: 0.5, z: 0.5 }));
+  assert.deepEqual(swapped[2]!.transform, { x: 75, y: 0, z: 0 });
+});
+
+test('⚠ a ribbon under an x-scale: each end follows its own island along x, the points between blend, and the transform moves by the mean shift', () => {
+  const a = square('a', 0, 0); // scaled ×3 about (0, 0)
+  const b = square('b', 200, 0); // held
+  const strip: InstanceDescriptor = {
+    kind: 'trail-strip',
+    transform: { x: 105, y: 0, z: 7 },
+    group: 'g',
+    points: [
+      { x: 10, y: 0, z: 7 },
+      { x: 105, y: 0, z: 7 },
+      { x: 200, y: 0, z: 7 },
+    ],
+  };
+  const out = scaleAboutIslands([a, b, strip], (id) => (id === 'a' ? { x: 3, z: 1 } : { x: 1, z: 1 }));
+  const s = out[2]!;
+  // First end: attached to a, (10 − 0) × (3 − 1) = +20. Last end: attached to b, 0. The middle
+  // point blends the two islands' displacements OF ITSELF by arc length: ½·(105 − 0)·2 + ½·0 = +105.
+  assert.deepEqual(s.points!.map((p) => p.x), [30, 210, 200]);
+  assert.ok(s.points!.every((p) => p.z === 7));
+  // The transform moves by the MEAN of the points' shifts: (20 + 105 + 0) / 3.
+  assert.ok(Math.abs(s.transform.x - (105 + 125 / 3)) < 1e-9, `${s.transform.x}`);
+  assert.equal(s.transform.z, 7);
+});
+
+test('scaledBearing: the rim normal turns with an anisotropic scale and not with an isotropic one; the z-stretch is the special case', () => {
+  assert.ok(Math.abs(scaledBearing(0.7, { x: 2, z: 2 }) - 0.7) < 1e-12);
+  assert.ok(Math.abs(scaledBearing(0.7, { x: 1, z: 3 }) - stretchedBearing(0.7, 3)) < 1e-12);
+  assert.ok(Math.abs(scaledBearing(0.7, { x: 3, z: 1 }) - Math.atan2(Math.sin(0.7), Math.cos(0.7) / 3)) < 1e-12);
 });

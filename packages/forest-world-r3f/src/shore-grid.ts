@@ -141,7 +141,10 @@ export function buildSegmentGrid(edges: readonly CoastEdge[], width: number): Ed
   // the forest's extent held still: the sand's cell went from 7 to 2.6 units over the same
   // 2,290 × 3,545 forest, 1.17 M buckets against the cap's 262,144. Each step widens the cell
   // by a quarter; the forest's shore grid settles four steps up (cell ≈ 6.4 units).
-  for (let step = 0; nx * nz > MAX_GRID_BUCKETS && step < COARSEN_STEPS; step += 1) {
+  // Counter-free, like every loop in this module: `indices` bounds the steps and the cap is the
+  // one condition, so there is no index for the mutation rung to attribute.
+  for (const _step of indices(COARSEN_STEPS)) {
+    if (nx * nz <= MAX_GRID_BUCKETS) break;
     cell *= COARSEN_FACTOR;
     nx = Math.max(1, cellIndex(maxX, minX, cell) + 1);
     nz = Math.max(1, cellIndex(maxZ, minZ, cell) + 1);

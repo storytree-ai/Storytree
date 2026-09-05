@@ -426,6 +426,9 @@ test('⚠⚠ a grid that would need more than MAX_GRID_BUCKETS COARSENS its cell
   assert.equal(coarse.cell, COARSEN_FACTOR, 'one quarter step is enough for one column over');
   assert.ok(edgeGridFarField(coarse.cell, 1));
   assert.ok(coarse.nx * coarse.nz <= MAX_GRID_BUCKETS, `${coarse.nx} x ${coarse.nz}`);
+  // The dimensions are re-derived from the coarsened cell: floor(extent / cell) + 1 on each axis.
+  assert.equal(coarse.nx, Math.floor(512.5 / COARSEN_FACTOR) + 1);
+  assert.equal(coarse.nz, Math.floor(511.5 / COARSEN_FACTOR) + 1);
   // The coarsened grid still answers: a point beside the chord's middle sees the edge. (A diagonal
   // chord's bounding box is the whole grid, so its edge is bucketed everywhere — the far-field
   // emptiness is held on the short-edge fixtures above, not here.)
@@ -451,9 +454,14 @@ test('⚠ the refusal survives for what coarsening cannot reach: an extent the b
   // mutation rung scores as unproven rather than killed. 1.25^64 ≈ 1.6 million, so a chord of
   // 2^18 × 2 million units at cell 1 is still over the cap after every step and refuses in a
   // microsecond; a healthy map never gets within six orders of magnitude of it.
-  const impossible: CoastEdge[] = [{ ax: 0, az: 0, bx: 2 ** 18 * 2e6, bz: 2 ** 18 * 2e6 }];
+  // A non-zero origin, so the extent in the message is a difference and not a sum.
+  const impossible: CoastEdge[] = [{ ax: 10, az: 20, bx: 10 + 2 ** 18 * 2e6, bz: 20 + 2 ** 18 * 2e6 }];
   assert.throws(
     () => buildSegmentGrid(impossible, 1),
-    (e: unknown) => e instanceof Error && /exceeds 262144 after 64 coarsening steps — the cell arithmetic has inverted/.test(e.message),
+    (e: unknown) =>
+      e instanceof Error &&
+      e.message.startsWith('shore-grid: a ') &&
+      e.message.includes(` over a ${(2 ** 18 * 2e6).toFixed(1)} x ${(2 ** 18 * 2e6).toFixed(1)} extent at cell ${COARSEN_FACTOR ** 64}`) &&
+      e.message.endsWith('exceeds 262144 after 64 coarsening steps — the cell arithmetic has inverted'),
   );
 });

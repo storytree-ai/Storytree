@@ -177,16 +177,18 @@ export function scaleAboutIslands<T extends Descriptor3D>(
 
 /** The id of the island whose centre is nearest a ground point. The caller holds `centres.size > 0`. */
 function nearestIsland(centres: ReadonlyMap<string, IslandCentre>, x: number, z: number): string {
-  let best = '';
+  // The first island is the running best, so a tie keeps the FIRST — the same rule `nearestCentre`
+  // holds — and there is no placeholder to return by mistake.
+  let best: string | undefined;
   let bestDist = Infinity;
   for (const [id, c] of centres) {
     const dist = Math.hypot(x - c.x, z - c.z);
-    if (dist < bestDist) {
+    if (best === undefined || dist < bestDist) {
       bestDist = dist;
       best = id;
     }
   }
-  return best;
+  return best as string;
 }
 
 /** A ribbon's displacement: each end attached to its nearest island, the points between blending
@@ -212,7 +214,7 @@ function scaleSpan(
     lengths.push(lengths[i - 1]! + Math.hypot(q.x - p.x, q.z - p.z));
   }
   const total = lengths[lengths.length - 1]!;
-  const shift = (p: Transform3D, i: number): { dx: number; dz: number } => {
+  const shift = (p: Transform3D, i: number) => {
     const t = total > 0 ? lengths[i]! / total : 0;
     return {
       dx: (1 - t) * (p.x - a.x) * (sa.x - 1) + t * (p.x - b.x) * (sb.x - 1),

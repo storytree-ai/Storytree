@@ -104,13 +104,15 @@ export const LAND_AREA_PER_CAPABILITY = 318;
  */
 export const LAND_SCALE = Math.sqrt(LAND_AREA_PER_CAPABILITY / TUNED_LAND_AREA_PER_CAPABILITY);
 
-/** A ground ring's area by the shoelace, absolute, in units². Fewer than three points is zero. */
+/** A ground ring's area by the shoelace, absolute, in units² — fewer than three points sum to
+ *  zero on their own, so there is no guard to mutate. */
 export function ringArea(points: readonly Transform3D[]): number {
-  if (points.length < 3) return 0;
   let twice = 0;
   for (let i = 0; i < points.length; i += 1) {
     const p = points[i]!;
     const q = points[(i + 1) % points.length]!;
+    // Stryker disable next-line AssignmentOperator: EQUIVALENT — the winding's sign is discarded
+    // by the `abs` below, so accumulating the negative sum delivers the same area.
     twice += p.x * q.z - q.x * p.z;
   }
   return Math.abs(twice) / 2;
@@ -157,8 +159,22 @@ export function landRatioFactor(land: IslandLand, areaPerCapability: number): nu
     throw new Error(`land-per-capability: the ratio must be a positive finite number of units² per capability, got ${areaPerCapability}`);
   }
   if (land.capabilities === 0 || land.area === 0) return 1;
-  return Math.sqrt((land.capabilities * areaPerCapability) / land.area);
+  const factor = Math.sqrt((land.capabilities * areaPerCapability) / land.area);
+  // ⚠ REFUSED, NOT DRAWN. No island on this map is a hundred times too small or too large for its
+  // capabilities — the drawing's own ratio is within a factor of three of any rung — so a factor
+  // past this is an arithmetic fault (a ratio multiplied where it should divide), and the honest
+  // answer is a refusal in a microsecond rather than a shore field over a continent that never
+  // finishes building. The mutation rung scored exactly that inversion as a TIMEOUT for want of it.
+  if (factor > MAX_LAND_FACTOR || factor < 1 / MAX_LAND_FACTOR) {
+    throw new Error(
+      `land-per-capability: island "${land.island}" would scale by ${factor} (${land.capabilities} capabilities × ${areaPerCapability} over ${land.area} units²) — past ${MAX_LAND_FACTOR}× either way, which is an arithmetic fault and not a size`,
+    );
+  }
+  return factor;
 }
+
+/** The most an island may scale by, edge to edge, either way — see the refusal in {@link landRatioFactor}. */
+export const MAX_LAND_FACTOR = 100;
 
 /**
  * SIZE EVERY ISLAND FROM THE RATIO: each island scaled isotropically about its own centre by
@@ -168,7 +184,9 @@ export function landRatioFactor(land: IslandLand, areaPerCapability: number): nu
  */
 export function sizeIslandsByCapability<T extends Descriptor3D>(
   descriptors: readonly T[],
-  areaPerCapability: number = LAND_AREA_PER_CAPABILITY,
+  /** REQUIRED rather than defaulted: the one caller that means "the shipped ratio" says so
+   *  (`worldTo3D`), so a caller that forgot the ratio is a refusal and not a silent default. */
+  areaPerCapability: number,
 ): T[] {
   const land = islandLand(descriptors);
   return scaleAboutIslands(descriptors, (island: string, _centre: IslandCentre): IslandScale => {

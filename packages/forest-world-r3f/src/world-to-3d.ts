@@ -634,8 +634,9 @@ export function worldTo3D(scene: SceneG, opts: WorldTo3DOptions = {}): Descripto
   const out: Descriptor3D[] = [];
   walkNode(scene, out, { x: 0, y: 0 });
   const restored = restoreTrueFootprint(out, opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG);
-  const ratio = opts.landAreaPerCapability === undefined ? LAND_AREA_PER_CAPABILITY : opts.landAreaPerCapability;
-  return ratio === null ? restored : sizeIslandsByCapability(restored, ratio);
+  const ratio = opts.landAreaPerCapability;
+  if (ratio === null) return restored;
+  return sizeIslandsByCapability(restored, ratio === undefined ? LAND_AREA_PER_CAPABILITY : ratio);
 }
 
 /** What the mapper needs to know about the scene beyond the scene itself. */
