@@ -2041,3 +2041,36 @@ export function stringFieldsForKind(kind: string): ReadonlySet<string> | null {
       .map(([name]) => name),
   );
 }
+
+/**
+ * The BOOLEAN-typed top-level fields of a structured Knowledge kind (an ADR's `loadBearing`), read
+ * straight from that kind's schema shape like its three neighbours above. Drift-proof, never a
+ * hand-maintained list. Null for a non-Knowledge kind — and for an ABSENT one, which is the one way
+ * this differs from those three: they take a `string` and make every caller write the same
+ * `kind !== undefined ? f(kind) : null` guard, but a caller reads the kind off a STORED DOC and a
+ * rendered LibraryAsset carries none. "No kind" and "not a kind" are the same answer, so the lookup
+ * is total over the input the caller actually holds and the guard is left unwritten rather than
+ * written and unable to fail (ADR-0478's kill → reshape → marker ladder, at the reshape rung).
+ *
+ * Its reason for existing is {@link arrayFieldsForKind}'s, in a different type: a `--set` value is
+ * ALWAYS a string, so `--set loadBearing=true` stores the four characters and the strict schema
+ * refuses them with `loadBearing: Expected boolean, received string`. The field was therefore
+ * UNWRITABLE from the field-scoped surface — and the only other route, a whole-doc `--json`/`--file`
+ * replace, means hand-reconstructing the entire document (`authority` object and prose `body`
+ * included) to flip one flag, which is exactly the corruption-prone edit ADR-0352 made `--set`
+ * field-scoped to avoid. The measured case (2026-09-06, `adr-0526`): a librarian pass judged an
+ * EXISTING decision belonged in the calibrate-to-these set and had no way to say so, because
+ * `adr new --load-bearing` is a CREATION-time flag and a decision is tagged long after it is written.
+ *
+ * Knowing which fields are boolean-declared lets the write surface coerce `true`/`false` on the same
+ * validated path, and refuse any other literal with the accepted values named.
+ */
+export function booleanFieldsForKind(kind: string | undefined): ReadonlySet<string> | null {
+  const schema = Knowledge.optionsMap.get(kind as KnowledgeKind);
+  if (schema === undefined) return null;
+  return new Set(
+    Object.entries(schema.shape)
+      .filter(([, field]) => unwrapSchema(field as z.ZodTypeAny) instanceof z.ZodBoolean)
+      .map(([name]) => name),
+  );
+}

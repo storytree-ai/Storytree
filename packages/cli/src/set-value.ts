@@ -84,3 +84,42 @@ export function typeMismatchRefusal(input: {
     "an edit — and a whole-doc replace (--json / --file) is the surface that would carry it.",
   ].join("\n");
 }
+
+/**
+ * PURE: coerce a `--set <field>=<value>` value headed at a BOOLEAN-declared field into a real
+ * boolean, or return a REFUSAL STRING naming what is accepted.
+ *
+ * The sibling of the caller's JSON-array path, and it exists for the same reason in a different
+ * type: a `--set` value is always a string, so `--set loadBearing=true` stores the four characters
+ * `true` and the strict schema throws `loadBearing: Expected boolean, received string`. That message
+ * names the mismatch and not the remedy, and there IS no remedy from this surface — the field was
+ * simply unwritable on an existing row, leaving only a whole-doc `--json`/`--file` replace, which
+ * means hand-reconstructing the entire document to flip one flag (ADR-0352 made `--set`
+ * field-scoped precisely to avoid that). Measured 2026-09-06 against `adr-0526`: a librarian pass
+ * judged an already-written decision belonged in the calibrate-to-these set and could not say so,
+ * because `adr new --load-bearing` is a CREATION-time flag.
+ *
+ * Lenient on the two literals a caller actually types, case- and space-insensitively, and STRICT on
+ * everything else. Deliberately NOT truthiness: `1`, `yes`, `on` and a non-empty string are all
+ * plausible to a shell-shaped reader and all silently ambiguous, and `--set loadBearing=false` under
+ * a truthiness rule would set the flag TRUE — the one failure mode that must not be reachable, since
+ * the value would validate and persist at exit 0 with only the render to reveal it. An EMPTY value
+ * is refused here rather than treated as a clear: unlike `arcRef`, a defaulted boolean's "absent" is
+ * indistinguishable from `false` to every reader, so `=false` says the same thing unambiguously.
+ */
+export function booleanFromSetValue(field: string, value: string): boolean | string {
+  const wanted = value.trim().toLowerCase();
+  if (wanted === "true") return true;
+  if (wanted === "false") return false;
+  return [
+    `"${field}" is a BOOLEAN field — pass true or false, and nothing else.`,
+    `got: ${value.trim() === "" ? "(empty)" : `"${value.trim()}"`}`,
+    "",
+    `  storytree library artifact edit <id> --set ${field}=true --pg`,
+    `  storytree library artifact edit <id> --set ${field}=false --pg`,
+    "",
+    "Only those two literals are read (case-insensitively). A truthy-looking value — 1, yes, on — is",
+    "refused rather than guessed at, because the guess that matters is the wrong one: under a",
+    "truthiness rule the string \"false\" is TRUE, and it would validate and persist at exit 0.",
+  ].join("\n");
+}
