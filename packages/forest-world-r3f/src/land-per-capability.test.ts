@@ -163,6 +163,9 @@ test('landRatioFactor: √(capabilities × ratio / area), so the scaled area is 
   // ⚠ A FACTOR PAST 100× EITHER WAY IS REFUSED AS ARITHMETIC, not drawn: the same 1600-unit²
   // island asked for 10,000,000 per capability, or for 0.01, is not a size.
   assert.ok(Math.abs(landRatioFactor(land, 1600 * 99 * 99 / 4) - 99) < 1e-9, 'ninety-nine times is still a size');
+  // The cap is inclusive: EXACTLY a hundred times, either way, is still a size.
+  assert.equal(landRatioFactor(land, (1600 * 100 * 100) / 4), 100);
+  assert.equal(landRatioFactor(land, 1600 / (4 * 100 * 100)), 0.01);
   assert.throws(() => landRatioFactor(land, 1600 * 101 * 101 / 4), /past 100× either way/);
   assert.throws(() => landRatioFactor(land, 1600 / (4 * 101 * 101)), /past 100× either way/);
   assert.equal(MAX_LAND_FACTOR, 100);

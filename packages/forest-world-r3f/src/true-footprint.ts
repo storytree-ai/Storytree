@@ -177,13 +177,14 @@ export function scaleAboutIslands<T extends Descriptor3D>(
 
 /** The id of the island whose centre is nearest a ground point. The caller holds `centres.size > 0`. */
 function nearestIsland(centres: ReadonlyMap<string, IslandCentre>, x: number, z: number): string {
-  // The first island is the running best, so a tie keeps the FIRST — the same rule `nearestCentre`
-  // holds — and there is no placeholder to return by mistake.
+  // Every finite distance beats the initial Infinity, so the first island is the running best and
+  // a tie keeps the FIRST — the same rule `nearestCentre` holds — with no placeholder id to return
+  // by mistake.
   let best: string | undefined;
   let bestDist = Infinity;
   for (const [id, c] of centres) {
     const dist = Math.hypot(x - c.x, z - c.z);
-    if (best === undefined || dist < bestDist) {
+    if (dist < bestDist) {
       bestDist = dist;
       best = id;
     }

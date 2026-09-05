@@ -352,14 +352,16 @@ test('⚠ a ribbon under an x-scale: each end follows its own island along x, th
       { x: 200, y: 0, z: 7 },
     ],
   };
-  const out = scaleAboutIslands([a, b, strip], (id) => (id === 'a' ? { x: 3, z: 1 } : { x: 1, z: 1 }));
+  // a scales ×3 about (0, 0); b scales ×0.5 about (200, 0) — BOTH ends move, in opposite senses.
+  const out = scaleAboutIslands([a, b, strip], (id) => (id === 'a' ? { x: 3, z: 1 } : { x: 0.5, z: 1 }));
   const s = out[2]!;
-  // First end: attached to a, (10 − 0) × (3 − 1) = +20. Last end: attached to b, 0. The middle
-  // point blends the two islands' displacements OF ITSELF by arc length: ½·(105 − 0)·2 + ½·0 = +105.
-  assert.deepEqual(s.points!.map((p) => p.x), [30, 210, 200]);
+  // First end, attached to a: (10 − 0) × (3 − 1) = +20 → 30. Last end, attached to b:
+  // (200 − 200) × (0.5 − 1) = 0 → 200. The middle point blends the two islands' displacements OF
+  // ITSELF by arc length: ½·(105 − 0)·2 + ½·(105 − 200)·(−½) = 105 + 23.75 = +128.75 → 233.75.
+  assert.deepEqual(s.points!.map((p) => p.x), [30, 233.75, 200]);
   assert.ok(s.points!.every((p) => p.z === 7));
-  // The transform moves by the MEAN of the points' shifts: (20 + 105 + 0) / 3.
-  assert.ok(Math.abs(s.transform.x - (105 + 125 / 3)) < 1e-9, `${s.transform.x}`);
+  // The transform moves by the MEAN of the points' shifts: (20 + 128.75 + 0) / 3.
+  assert.ok(Math.abs(s.transform.x - (105 + 148.75 / 3)) < 1e-9, `${s.transform.x}`);
   assert.equal(s.transform.z, 7);
 });
 

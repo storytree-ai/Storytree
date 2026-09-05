@@ -458,13 +458,22 @@ test('⚠ the recipe-area option really reaches the count — a control at a PRE
 
 test('⚠ a runaway COUNT is refused past an absolute cap — an inverted recipe basis cannot hang the tab', () => {
   groundSanity();
-  // The healthy fixture at rung 1 wears a few hundred; asked for a million times that it refuses
-  // in a microsecond, naming the role and the basis, rather than materialising the count.
-  assert.throws(() => coverOn(HEALTHY, { density: 1e6 }), /past 20000 — the recipe basis has inverted/);
+  // The healthy fixture at rung 1 wears a few hundred; asked for a million times that the COUNT
+  // refuses in a microsecond, naming the role and the basis, rather than materialising anything.
+  assert.throws(() => coverCount('bush', HEALTHY, 1e6), /past 20000 — the recipe basis has inverted/);
   assert.throws(
     () => coverCount('bush', HEALTHY, 1, RECIPE_ISLAND_AREA / 1e6),
     (e: unknown) => e instanceof Error && /^cover-dressing: \d+ bush on one island/.test(e.message),
   );
+  // And the refusal reaches the scatter through `dressCover` — at a count a materialised carpet
+  // could still finish, so a guard that has gone quiet is a failure here and not a hang.
+  const share = coverAreaShare(HEALTHY);
+  const justOver = (COVER_COUNT_CAP + 1) / (70 * share);
+  assert.throws(() => coverOn(HEALTHY, { density: justOver }), /past 20000/);
+  // The cap is INCLUSIVE: exactly the cap is a count, one more is a refusal.
+  const cellsArea = share * RECIPE_ISLAND_AREA;
+  assert.equal(coverCount('bush', HEALTHY, COVER_COUNT_CAP / 70, cellsArea), COVER_COUNT_CAP);
+  assert.throws(() => coverCount('bush', HEALTHY, (COVER_COUNT_CAP + 1) / 70, cellsArea), /past 20000/);
   assert.equal(COVER_COUNT_CAP, 20_000);
   // And the cap is generous for what the map draws: the densest rendered rung on the test island
   // is the recipe's arithmetic, an order of magnitude under it.
