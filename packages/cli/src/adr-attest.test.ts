@@ -389,6 +389,43 @@ test("adr attest: a row that cannot re-validate is REPORTED and not written", as
   assert.equal(await authorityOf(store, 100), undefined);
 });
 
+test("adr attest: an unknown key ALREADY on the row is charged as schema skew, not as this write's typo", async () => {
+  // The `storedKeys` argument handed to `explainDocValidationError`. Without it, a field another
+  // session landed ahead of the schema reads as "field(s) this kind does not have" — a diagnosis
+  // that sends the reader to strip another branch's work out of the live store. The fixture needs an
+  // unknown key that was ALREADY stored, because that is the only input the two behaviours differ on.
+  const store = new InMemoryStore();
+  const id = idOf(100);
+  await store.upsertDoc({
+    id,
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id,
+      title: "Ahead of this checkout",
+      description: "ADR-0100 - Ahead of this checkout",
+      body: "# ADR-0100: Ahead of this checkout",
+      number: 100,
+      status: "accepted",
+      supersedes: [],
+      loadBearing: false,
+      createdAt: "2026-06-26T00:00:00.000Z",
+      updatedAt: "2026-06-26T00:00:00.000Z",
+      // A field a later schema will know and this checkout does not.
+      fieldFromTheFuture: 1,
+    },
+  });
+  const env = await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /SCHEMA SKEW/);
+  assert.match(env.body, /fieldFromTheFuture/);
+  assert.doesNotMatch(
+    env.body,
+    /field\(s\) this kind does not have/,
+    "charging a stored field to this write tells the reader to delete another session's work",
+  );
+});
+
 test("adr attest: the WRITE is attributed to the session, and falls back when no actor was wired", async () => {
   // `deps.actor ?? defaultCliActor()` on the upsert. The store records the actor on its event, which
   // is the only place this is observable — and getting it wrong would misattribute every stamp in

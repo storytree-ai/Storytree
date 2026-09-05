@@ -174,21 +174,28 @@ test("adr list --basis: the header names the cut, and composes it with the other
 
 test("adr --help carries the attest block and the --basis filter, verbatim", () => {
   const body = adrHelp().body;
-  assert.ok(
-    body.includes(
-      [
+  const helpLines = body.split("\n");
+  /**
+   * Assert a block appears verbatim AND that the line after it is exactly `blankAfter`.
+   *
+   * The trailing blank matters and a substring cannot hold it: appending `""` to the needle only
+   * adds a trailing newline, which still matches when the blank line has been replaced by other
+   * text. Checking the NEXT line by position brackets it without coupling the assertion to whatever
+   * unrelated block happens to follow.
+   */
+  const blockAt = (block: readonly string[]): void => {
+    const at = helpLines.indexOf(block[0] ?? "");
+    assert.notEqual(at, -1, `help is missing: ${JSON.stringify(block[0])}`);
+    assert.deepEqual(helpLines.slice(at, at + block.length), block);
+    assert.equal(helpLines[at + block.length], "", "the block must be followed by a blank line");
+  };
+  blockAt([
         "  storytree adr attest                               how much of the log declares WHOSE CALL it was",
         "  storytree adr attest <n>                           one record's authority stamp + the owner's words",
         "  storytree adr attest <n> --basis <b> [--owner-said <text|@file>] --pg      stamp it",
         "  storytree adr attest --backfill [--pg]             ADR-0519 D5's mechanical pass (a DRY RUN without --pg)",
-        "",
-      ].join("\n"),
-    ),
-    "the attest command block must appear verbatim",
-  );
-  assert.ok(
-    body.includes(
-      [
+  ]);
+  blockAt([
         "`attest` (ADR-0519) records WHOSE CALL a decision was, as a fact rather than as prose. The four",
         "bases are owner-directed | owner-ratified | agent-derived | agent-flipped, and an OWNER basis",
         "cannot validate without his verbatim words — so the cheap path and the honest path are the same",
@@ -203,11 +210,7 @@ test("adr --help carries the attest block and the --basis filter, verbatim", () 
         "  `ownerSaid` at all — those words were never captured, and rebuilding them from an agent's",
         "  summary would forge the evidence the field exists to make trustworthy. The rows it leaves",
         "  alone are an HONEST ABSENCE, not a hole: do not widen the classifier to reach them.",
-        "",
-      ].join("\n"),
-    ),
-    "the attest explanation must appear verbatim",
-  );
+  ]);
   assert.ok(
     body.includes(
       [
