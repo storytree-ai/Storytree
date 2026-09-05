@@ -16,7 +16,8 @@
 //   • the events this increment defers are named on the surface rather than silently omitted.
 
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
@@ -970,7 +971,7 @@ describe('the legend and the stylesheet say the same thing', () => {
   // DASHED. It survived review because nothing is ever followed in practice, so the state that
   // disagreed was the only state anyone ever saw — the picture looked like a texture and nobody
   // could tell it was lying. The pair is pinned here rather than left to a reader's eye.
-  const css = readFileSync(resolve(process.cwd(), 'src', 'index.css'), 'utf8');
+  const css = readFileSync(resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'src', 'index.css'), 'utf8');
 
   function ruleBody(selector: string): string | null {
     const at = css.indexOf(`${selector} {`);

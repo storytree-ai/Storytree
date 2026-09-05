@@ -1,0 +1,137 @@
+{
+  "generatedAt": "2026-09-05T22:24:25.521Z",
+  "studio": {
+    "url": "http://127.0.0.1:5391",
+    "head": "d65d7487610ab390062e62205c94b659fefd9f6b",
+    "branch": "claude/forest-spacing"
+  },
+  "shippedRatio": 0,
+  "rungs": [
+    0.5,
+    0.35,
+    0.2,
+    0.1,
+    0
+  ],
+  "control": "today",
+  "arms": [
+    {
+      "id": "today",
+      "spacing": {
+        "legacy": {
+          "rankGap": 40,
+          "islandGap": 60,
+          "rankSwing": 140
+        }
+      },
+      "file": "today.json",
+      "islands": 35,
+      "world": {
+        "width": 2318,
+        "height": 3736
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 103,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1007325
+    },
+    {
+      "id": "spacing-0.5",
+      "spacing": {
+        "ratio": 0.5
+      },
+      "file": "spacing-0.5.json",
+      "islands": 35,
+      "world": {
+        "width": 2342,
+        "height": 4000
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 102,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1012155
+    },
+    {
+      "id": "spacing-0.35",
+      "spacing": {
+        "ratio": 0.35
+      },
+      "file": "spacing-0.35.json",
+      "islands": 35,
+      "world": {
+        "width": 2155,
+        "height": 3792
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 106,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1010547
+    },
+    {
+      "id": "spacing-0.2",
+      "spacing": {
+        "ratio": 0.2
+      },
+      "file": "spacing-0.2.json",
+      "islands": 35,
+      "world": {
+        "width": 2108,
+        "height": 3543
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 103,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1012052
+    },
+    {
+      "id": "spacing-0.1",
+      "spacing": {
+        "ratio": 0.1
+      },
+      "file": "spacing-0.1.json",
+      "islands": 35,
+      "world": {
+        "width": 2014,
+        "height": 3418
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 104,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1004815
+    },
+    {
+      "id": "spacing-0",
+      "spacing": {
+        "ratio": 0
+      },
+      "file": "spacing-0.json",
+      "islands": 35,
+      "world": {
+        "width": 1968,
+        "height": 3265
+      },
+      "trails": {
+        "edges": 90,
+        "segments": 105,
+        "caves": 0,
+        "dropped": []
+      },
+      "bytes": 1006682
+    }
+  ]
+}

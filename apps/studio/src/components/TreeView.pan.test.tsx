@@ -7,7 +7,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { useState } from 'react';
 import { AppDataContext, type AppData } from '../lib/appData';
 import type { TreeStory } from '../types';
@@ -413,7 +414,7 @@ describe('TreeView drag pan', () => {
 
     // The standalone memo probe above establishes React's runtime boundary. Keep its actual TreeView
     // caller honest too: a fresh inline callback here would defeat that boundary on every camera pan.
-    const source = readFileSync(resolve(process.cwd(), 'src', 'components', 'TreeView.tsx'), 'utf8');
+    const source = readFileSync(resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'src', 'components', 'TreeView.tsx'), 'utf8');
     expect(source).toMatch(/export const StudioWorldChrome = memo\(/);
     expect(source).toMatch(/const onStampClickStable = useCallback/);
     expect(source).toMatch(/<StudioWorldChrome[\s\S]*?onStampClick=\{onStampClickStable\}/);

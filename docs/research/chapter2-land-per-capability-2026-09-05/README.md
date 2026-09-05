@@ -64,6 +64,15 @@ increment asked for it and it is the boldest rung, not because it is a second ap
 
 ## The forest fitted — the view the map opens on (`sheet-forest-fit.png`)
 
+> ⚠ **STALE AS A LAYOUT REFERENCE since 2026-09-06 (ADR-0521 landed).** The forest pictures in this
+> section stand on the SYNTHETIC crowd (`crowdLayout`, a grid of copies of the fixture island
+> calibrated to a land share read off the public map's PNG) with the 2D layout's spacing as it stood
+> before ADR-0521 — the three absolute gaps this landing retired. The real map's layout is now
+> derived from island size and every island has moved; the real forest, at every rung, is
+> `docs/research/chapter2-forest-spacing-2026-09-06/`. Everything on this page about the ISLAND —
+> its size, its ground, its trees, its cover — is untouched and stays valid: the ground material and
+> the land-per-capability ratio did not move.
+
 ⚠⚠ **This is increment (c), measured rather than assumed, and it is the OWNER'S question.** The
 mapper sizes each island in place, so the 2D layout's spacing does not move — **the layout HOLDS
 STILL** in this codebase — and shrinking every island 2.6× edge to edge inside a fixed layout makes
