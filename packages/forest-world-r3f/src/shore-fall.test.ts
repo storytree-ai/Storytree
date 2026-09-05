@@ -9,6 +9,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { GROUND_COAST_OUTSET } from './coast-clip.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { landGradient, landHeight, landHeightRange } from './land-relief.js';
 import {
   AUTHORED_SHORE_WIDTH,
@@ -290,10 +292,13 @@ test('every arm is declared, control first, and the widths are the authored ones
   );
   assert.equal(SHORE_ARM_WIDTH.none, 0);
   assert.equal(SHORE_ARM_WIDTH.authored, AUTHORED_SHORE_WIDTH);
-  assert.equal(AUTHORED_SHORE_WIDTH, 3.1, "the reference generator's own BEACH");
-  assert.equal(SHORE_DIP, 0.62, "the reference generator's own beach dip");
-  assert.equal(SHORE_ARM_WIDTH.beach, 7, 'COAST_OUTSET — the beach this map actually draws');
-  assert.equal(SHORE_ARM_WIDTH.shelf, 16.5, 'the mean parcel diameter');
+  // × LAND_SCALE (`land-per-capability.ts`): each literal is the width judged on the TUNED island,
+  // and the shipped island is LAND_SCALE of it edge to edge — the band stays the same fraction.
+  assert.equal(AUTHORED_SHORE_WIDTH, 3.1 * LAND_SCALE, "the reference generator's own BEACH");
+  assert.equal(SHORE_DIP, 0.62 * LAND_SCALE, "the reference generator's own beach dip");
+  assert.equal(SHORE_ARM_WIDTH.beach, 7 * LAND_SCALE, 'COAST_OUTSET — the beach this map actually draws');
+  assert.equal(SHORE_ARM_WIDTH.beach, GROUND_COAST_OUTSET, 'and it is the GROUND outset by import');
+  assert.equal(SHORE_ARM_WIDTH.shelf, 16.5 * LAND_SCALE, 'the mean parcel diameter');
   assert.ok(SHORE_ARMS.includes(SHIPPED_SHORE));
 });
 
@@ -305,11 +310,12 @@ test('⚠ THE RING ARMS MOVE THE MESH AND NOT THE BAND — their width is `beach
   assert.equal(SHORE_ARM_WIDTH.ring, SHORE_ARM_WIDTH.beach);
   assert.equal(SHORE_ARM_WIDTH['ring-pair'], SHORE_ARM_WIDTH.beach);
   // And the falloff they deliver is `beach`'s own, to the last bit — the only difference between
-  // these arms is WHERE the mesh samples it.
+  // these arms is WHERE the mesh samples it. The probe is 3 TUNED units in, × LAND_SCALE so it
+  // stays INSIDE the (scaled) band — inland of it every arm is `landHeight` and the claim is empty.
   for (const arm of ['ring', 'ring-pair'] as const) {
     assert.equal(
-      shoreRelief([square()], arm).height(3, 50),
-      shoreRelief([square()], 'beach').height(3, 50),
+      shoreRelief([square()], arm).height(3 * LAND_SCALE, 50),
+      shoreRelief([square()], 'beach').height(3 * LAND_SCALE, 50),
       `${arm} changed the falloff as well as the mesh`,
     );
   }
@@ -318,9 +324,11 @@ test('⚠ THE RING ARMS MOVE THE MESH AND NOT THE BAND — their width is `beach
 test('⚠ THE ARMS ARE THREE DIFFERENT LANDS, and the authored width leaves our own beach standing', () => {
   // The finding this increment puts to a picture: the reference's band is 3.1 units and the beach
   // the coast clip draws is 7, so `authored` has already reached full height less than half way
-  // across it, while `beach` is still rising.
-  const at = (arm: 'authored' | 'beach' | 'shelf') => shoreRelief([square()], arm).height(5, 50);
-  assert.equal(at('authored'), landHeight(5, 50), 'authored is already inland at 5 units');
+  // across it, while `beach` is still rising. The probe is 5 TUNED units from the west side,
+  // × LAND_SCALE — the same fraction of the (scaled) bands, so it is the same claim.
+  const probe = 5 * LAND_SCALE;
+  const at = (arm: 'authored' | 'beach' | 'shelf') => shoreRelief([square()], arm).height(probe, 50);
+  assert.equal(at('authored'), landHeight(probe, 50), 'authored is already inland at 5 units');
   assert.ok(at('beach') < at('authored'), 'beach is still climbing at 5 units');
   assert.ok(at('shelf') < at('beach'), 'shelf is climbing more slowly still');
 });

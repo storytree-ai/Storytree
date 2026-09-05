@@ -1,0 +1,111 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+elevation (read off the crowd camera, which reads frameWorld): 50° on every arm
+shipped ratio (LAND_AREA_PER_CAPABILITY): 318 units² per capability → the shipped arm is land-318 · LAND_SCALE 0.3769 against the tuned 2238.4 · cover rung x0.5 at size 4.5 · control (history): cover x3 per recipe island of 24622.0 units²
+
+THE ARMS
+  today      the map AS IT SHIPPED after PR #1825 — the island at the size the hex layout gave it (≈ 2238 units² per capability on the fixture), one tree per capability, the ground cover at rung x3 — TODAY (CONTROL)
+  land-318   every island sized to 318 units² of land per capability (the density of the picture the owner called nicer; the approved render agrees in the true basis), one tree per capability, the cover at rung x0.5 — THE SHIPPED PICK
+  land-200   every island sized to 200 units² of land per capability, one tree per capability, the cover at rung x0.5
+  land-108   every island sized to 108 units² of land per capability (the recipe read through the squashed basis — the boldest rung), one tree per capability, the cover at rung x0.5
+  cover-x1   the shipped land (318 units² per capability), the ground cover at rung x1 of the recipe's count on the recipe island as this map now draws it
+  cover-x2   the shipped land (318 units² per capability), the ground cover at rung x2 of the recipe's count on the recipe island as this map now draws it
+  cover-x3   the shipped land (318 units² per capability), the ground cover at rung x3 of the recipe's count on the recipe island as this map now draws it
+
+THE REFERENCE — the approved Cycles render, through this page’s own readers
+  land-combined-1948px.png: 1948×1280, island box 1936×1144 px (w/h 1.692) · colour families 36 · largest 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution and framing, and its pines are the recipe’s stands, not one per capability.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm        units²/cap  caps  land units²  TREES  blooms  cover  bushes  tufts  flowers   px/unit  island (units)  on screen (px)   pine px  land% frame  land% box  tris      fam  largest  MICRO  moved>20 vs today  vs neighbour
+today            2239    11        24632     11      10    648     210    360       78     8.000         234×135        1913×855       93      31.83%      78.5%    217240   42    7.2%   4.77                  0             —
+land-318          318    11         3498     11      10    108      35     60       13     8.000           88×51         748×352       93       5.26%      70.5%     54514   55    4.9%   4.25            1178226       1178226
+land-200          200    11         2200     11      10     68      22     38        8     8.000           70×40         602×289       93       3.56%      68.4%     42582   51    5.7%   4.55            1224268        142010
+land-108          108    11         1188     11      10     36      12     20        4     8.000           51×30         454×225       93       2.21%      68.5%     32886   41    5.7%   4.50            1255426        104659
+cover-x1          318    11         3498     11      10    216      70    120       26     8.000           88×51         748×352       93       5.26%      70.5%     87212   58    4.5%   6.09            1189046         39045
+cover-x2          318    11         3498     11      10    432     140    240       52     8.000           88×51         748×352       93       5.26%      70.5%    152128   60    4.8%   8.48            1207076         30634
+cover-x3          318    11         3498     11      10    648     210    360       78     8.000           88×51         748×352       93       5.26%      70.5%    216922   55    5.6%   9.32            1217439         66376
+
+── forest @ 8 px/unit ─────────────────────────────────
+arm        units²/cap  caps  land units²  TREES  blooms  cover  bushes  tufts  flowers   px/unit  island (units)  on screen (px)   pine px  land% frame  land% box  tris      fam  largest  MICRO  moved>20 vs today  vs neighbour
+today            2239    11        24632    374     210  13608    4410   7560     1638     8.000         234×135     18318×21733       93      31.89%      78.5%   4785284   42    7.3%   4.59                  0             —
+land-318          318    11         3498    374     210   2268     735   1260      273     8.000           88×51     17153×21230       93       5.28%      69.8%   1373728   52    5.3%   4.75            1184209       1184209
+land-200          200    11         2200    374     210   1428     462    798      168     8.000           70×40     17007×21167       93       3.57%      68.2%   1119770   52    5.6%   4.65            1227858        143174
+land-108          108    11         1188    374     210    756     252    420       84     8.000           51×30     16859×21103       93       2.21%      67.6%    917066   43    5.7%   4.64            1257712        104022
+cover-x1          318    11         3498    374     210   4536    1470   2520      546     8.000           88×51     17153×21230       93       5.28%      69.8%   2057150   57    5.1%   6.32            1195479         37552
+cover-x2          318    11         3498    374     210   9072    2940   5040     1092     8.000           88×51     17153×21230       93       5.29%      69.8%   3421490   59    5.4%   8.13            1211136         30045
+cover-x3          318    11         3498    374     210  13608    4410   7560     1638     8.000           88×51     17153×21230       93       5.29%      69.9%   4786284   53    5.8%   8.97            1219148         65326
+  today      2239 units² of land per capability (24632 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 648 cover · forest 2285×3542 units · total land 862114 units²
+  land-318   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 2268 ground cover (735 bushes, 1260 tufts, 273 flower patches) · per green island 11.0 trees, 108 cover · forest 2139×3458 units · total land 122430 units²
+  land-200   200 units² of land per capability (2200 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 1428 ground cover (462 bushes, 798 tufts, 168 flower patches) · per green island 11.0 trees, 68 cover · forest 2121×3447 units · total land 77000 units²
+  land-108   108 units² of land per capability (1188 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 756 ground cover (252 bushes, 420 tufts, 84 flower patches) · per green island 11.0 trees, 36 cover · forest 2102×3436 units · total land 41580 units²
+  cover-x1   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 4536 ground cover (1470 bushes, 2520 tufts, 546 flower patches) · per green island 11.0 trees, 216 cover · forest 2139×3458 units · total land 122430 units²
+  cover-x2   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 9072 ground cover (2940 bushes, 5040 tufts, 1092 flower patches) · per green island 11.0 trees, 432 cover · forest 2139×3458 units · total land 122430 units²
+  cover-x3   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 648 cover · forest 2139×3458 units · total land 122430 units²
+
+── one @ fit (each arm at its own fit) ─────────────────────────────────
+arm        units²/cap  caps  land units²  TREES  blooms  cover  bushes  tufts  flowers   px/unit  island (units)  on screen (px)   pine px  land% frame  land% box  tris      fam  largest  MICRO  moved>20 vs today  vs neighbour
+today            2239    11        24632     11      10    648     210    360       78     8.013         234×135        1916×856       93      31.94%      78.6%    217240   42    7.2%   4.78                  0             —
+land-318          318    11         3498     11      10    108      35     60       13    12.819           88×51        1198×564      148      13.50%      70.0%     54514   55    4.8%   4.05            1069885       1069885
+land-200          200    11         2200     11      10     68      22     38        8    13.677           70×40        1029×494      158      10.40%      68.3%     42582   51    5.6%   4.37            1150182        340741
+land-108          108    11         1188     11      10     36      12     20        4    14.674           51×30         832×412      170       7.43%      67.7%     32886   44    5.6%   4.30            1223824        291132
+cover-x1          318    11         3498     11      10    216      70    120       26    12.819           88×51        1198×564      148      13.50%      70.0%     87212   58    4.3%   6.07            1092105        111559
+cover-x2          318    11         3498     11      10    432     140    240       52    12.819           88×51        1198×564      148      13.50%      70.0%    152128   62    4.3%   8.70            1136150         85548
+cover-x3          318    11         3498     11      10    648     210    360       78    12.819           88×51        1198×564      148      13.50%      70.0%    216922   56    5.1%   9.64            1159621        185945
+
+── forest @ fit (each arm at its own fit) ─────────────────────────────────
+arm        units²/cap  caps  land units²  TREES  blooms  cover  bushes  tufts  flowers   px/unit  island (units)  on screen (px)   pine px  land% frame  land% box  tris      fam  largest  MICRO  moved>20 vs today  vs neighbour
+today            2239    11        24632    374     210  13608    4410   7560     1638     0.532         234×135       1218×1445        6       4.92%      11.5%   4785284   46    9.0%   8.84                  0             —
+land-318          318    11         3498    374     210   2268     735   1260      273     0.543           88×51       1165×1442        6       0.83%       2.0%   1373728   47   10.4%  14.15             183696        183696
+land-200          200    11         2200    374     210   1428     462    798      168     0.545           70×40       1158×1441        6       0.56%       1.4%   1119770   47   13.4%  16.09             191413         21165
+land-108          108    11         1188    374     210    756     252    420       84     0.546           51×30       1151×1441        6       0.34%       0.8%    917066   48   16.2%  18.84             196678         15975
+cover-x1          318    11         3498    374     210   4536    1470   2520      546     0.543           88×51       1165×1442        6       0.83%       2.0%   2057150   47   10.4%  14.59             183921           819
+cover-x2          318    11         3498    374     210   9072    2940   5040     1092     0.543           88×51       1165×1442        6       0.83%       2.0%   3421490   47   10.4%  15.37             184462           716
+cover-x3          318    11         3498    374     210  13608    4410   7560     1638     0.543           88×51       1165×1442        6       0.84%       2.0%   4786284   47   10.4%  16.02             184918          1903
+  today      2239 units² of land per capability (24632 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 648 cover · forest 2285×3542 units · total land 862114 units²
+  land-318   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 2268 ground cover (735 bushes, 1260 tufts, 273 flower patches) · per green island 11.0 trees, 108 cover · forest 2139×3458 units · total land 122430 units²
+  land-200   200 units² of land per capability (2200 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 1428 ground cover (462 bushes, 798 tufts, 168 flower patches) · per green island 11.0 trees, 68 cover · forest 2121×3447 units · total land 77000 units²
+  land-108   108 units² of land per capability (1188 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 756 ground cover (252 bushes, 420 tufts, 84 flower patches) · per green island 11.0 trees, 36 cover · forest 2102×3436 units · total land 41580 units²
+  cover-x1   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 4536 ground cover (1470 bushes, 2520 tufts, 546 flower patches) · per green island 11.0 trees, 216 cover · forest 2139×3458 units · total land 122430 units²
+  cover-x2   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 9072 ground cover (2940 bushes, 5040 tufts, 1092 flower patches) · per green island 11.0 trees, 432 cover · forest 2139×3458 units · total land 122430 units²
+  cover-x3   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 648 cover · forest 2139×3458 units · total land 122430 units²
+
+── forest-compact @ fit (each arm at its own fit) ─────────────────────────────────
+arm        units²/cap  caps  land units²  TREES  blooms  cover  bushes  tufts  flowers   px/unit  island (units)  on screen (px)   pine px  land% frame  land% box  tris      fam  largest  MICRO  moved>20 vs today  vs neighbour
+today            2239    11        24632    374     210  13608    4410   7560     1638     0.320         234×135       1223×1445        4       1.78%       4.1%   4785284   47    8.9%   9.59                  0             —
+land-318          318    11         3498    374     210   2268     735   1260      273     0.812           88×51       1194×1410        9       1.88%       4.6%   1373728   51    9.8%  12.11              79759         79759
+land-200          200    11         2200    374     210   1428     462    798      168     1.003           70×40       1183×1396       12       1.93%       4.8%   1119770   52   12.0%  11.69              98599         58384
+land-108          108    11         1188    374     210    756     252    420       84     1.337           51×30       1162×1372       15       2.11%       5.4%    917066   49   13.3%  10.96             125874         78850
+cover-x1          318    11         3498    374     210   4536    1470   2520      546     0.812           88×51       1194×1410        9       1.88%       4.6%   2057150   51    9.8%  12.82              80565          3580
+cover-x2          318    11         3498    374     210   9072    2940   5040     1092     0.812           88×51       1194×1410        9       1.88%       4.6%   3421490   54    9.8%  13.89              81992          3048
+cover-x3          318    11         3498    374     210  13608    4410   7560     1638     0.812           88×51       1194×1410        9       1.88%       4.6%   4786284   53    9.8%  14.39              83195          8551
+  today      2239 units² of land per capability (24632 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 648 cover · forest 3821×5896 units · total land 862114 units²
+  land-318   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 2268 ground cover (735 bushes, 1260 tufts, 273 flower patches) · per green island 11.0 trees, 108 cover · forest 1465×2259 units · total land 122430 units²
+  land-200   200 units² of land per capability (2200 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 1428 ground cover (462 bushes, 798 tufts, 168 flower patches) · per green island 11.0 trees, 68 cover · forest 1174×1810 units · total land 77000 units²
+  land-108   108 units² of land per capability (1188 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 756 ground cover (252 bushes, 420 tufts, 84 flower patches) · per green island 11.0 trees, 36 cover · forest 864×1332 units · total land 41580 units²
+  cover-x1   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 4536 ground cover (1470 bushes, 2520 tufts, 546 flower patches) · per green island 11.0 trees, 216 cover · forest 1465×2259 units · total land 122430 units²
+  cover-x2   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 9072 ground cover (2940 bushes, 5040 tufts, 1092 flower patches) · per green island 11.0 trees, 432 cover · forest 1465×2259 units · total land 122430 units²
+  cover-x3   318 units² of land per capability (3498 units² over 11) on the centre island · 35 islands, 21 green · 374 trees (one per capability) · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 648 cover · forest 1465×2259 units · total land 122430 units²
+
+THE OWNER’S QUESTION, IN NUMBERS — one island at the read zoom:
+  today       2239 units² per capability · island 234×135 units (1913×855 px) ·  11 trees on 11 capabilities ·  648 ground cover   ← TODAY (before this landing)
+  land-318     318 units² per capability · island 88×51 units (748×352 px) ·  11 trees on 11 capabilities ·  108 ground cover   ← SHIPPED
+  land-200     200 units² per capability · island 70×40 units (602×289 px) ·  11 trees on 11 capabilities ·   68 ground cover
+  land-108     108 units² per capability · island 51×30 units (454×225 px) ·  11 trees on 11 capabilities ·   36 ground cover
+  cover-x1     318 units² per capability · island 88×51 units (748×352 px) ·  11 trees on 11 capabilities ·  216 ground cover
+  cover-x2     318 units² per capability · island 88×51 units (748×352 px) ·  11 trees on 11 capabilities ·  432 ground cover
+  cover-x3     318 units² per capability · island 88×51 units (748×352 px) ·  11 trees on 11 capabilities ·  648 ground cover
+
+THE LAYOUT QUESTION, IN NUMBERS — the forest fitted, layout held still (what ships) against compacted (the other answer):
+  today      held still: land 4.92% of the frame, island 1218px wide at 0.532 px/unit, pine 6.2 px · compacted: land 1.78%, island 1223px wide at 0.320 px/unit, pine 3.7 px
+  land-318   held still: land 0.83% of the frame, island 1165px wide at 0.543 px/unit, pine 6.3 px · compacted: land 1.88%, island 1194px wide at 0.812 px/unit, pine 9.4 px
+  land-200   held still: land 0.56% of the frame, island 1158px wide at 0.545 px/unit, pine 6.3 px · compacted: land 1.93%, island 1183px wide at 1.003 px/unit, pine 11.6 px
+  land-108   held still: land 0.34% of the frame, island 1151px wide at 0.546 px/unit, pine 6.3 px · compacted: land 2.11%, island 1162px wide at 1.337 px/unit, pine 15.5 px
+  cover-x1   held still: land 0.83% of the frame, island 1165px wide at 0.543 px/unit, pine 6.3 px · compacted: land 1.88%, island 1194px wide at 0.812 px/unit, pine 9.4 px
+  cover-x2   held still: land 0.83% of the frame, island 1165px wide at 0.543 px/unit, pine 6.3 px · compacted: land 1.88%, island 1194px wide at 0.812 px/unit, pine 9.4 px
+  cover-x3   held still: land 0.84% of the frame, island 1165px wide at 0.543 px/unit, pine 6.3 px · compacted: land 1.88%, island 1194px wide at 0.812 px/unit, pine 9.4 px
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet. Frame cost is shipped-land-ratio-cost.mjs’s and REPORTS (ADR-0517 D4).
+ladders: land 318 / 200 / 108 units² per capability · cover x0.5 / x1 / x2 / x3

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import type { CoastPoint } from './coast-clip.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { WEAR_FALLOFF } from './land-wear.js';
 import { polylineEdges, wearField } from './trail-wear.js';
 
@@ -44,7 +45,8 @@ function wanderingPath(): CoastPoint[] {
 test('the default width IS the wear falloff, so the cap carries everything wearOf can read', () => {
   const field = wearField([wanderingPath()]);
   assert.equal(field.width, WEAR_FALLOFF);
-  assert.equal(WEAR_FALLOFF, 3.0);
+  // The authored 3.0, times LAND_SCALE (`land-per-capability.ts`): the same fraction of the island.
+  assert.equal(WEAR_FALLOFF, 3.0 * LAND_SCALE);
   assert.equal(field.segments, 47, 'a 48-point polyline is 47 open segments');
 });
 

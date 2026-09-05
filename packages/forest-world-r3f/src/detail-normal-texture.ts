@@ -27,12 +27,15 @@ import {
   TextureLoader,
 } from 'three';
 
+import { LAND_SCALE } from './land-per-capability.js';
 import { DETAIL_NORMAL_PNG_BASE64 } from './detail-normal.js';
 import { applyRawColourConvention } from './texture-convention.js';
 
 /** Ground units one repeat of the tile covers: the plane's UV is `xy / 6.0` and the recipe's
  *  Mapping scale is 2.5, so 6.0 / 2.5. */
-export const DETAIL_TILE_UNITS = 2.4;
+// ⚠ × LAND_SCALE (`land-per-capability.ts`): the literal is the value judged on the TUNED island;
+// the shipped island is LAND_SCALE of it edge to edge, and this stays the same fraction of it.
+export const DETAIL_TILE_UNITS = 2.4 * LAND_SCALE;
 
 /** The recipe's NormalMap strength (:958-961) — provenance only; the shipped strength is an
  *  option chosen from a rendered ladder. */

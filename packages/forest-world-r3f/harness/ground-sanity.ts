@@ -68,5 +68,5 @@ export function groundSanity(): void {
   assert.equal(pathClear(100) && !pathClear(0), true, 'ground-sanity: pathClear');
   const ex = dressingExclusion([RIM], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
   assert.equal(ex.clear(100, 20), true, 'ground-sanity: the exclusion refuses clear ground');
-  assert.equal(ex.clear(5, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
+  assert.equal(ex.clear(DRESSING_BEACH / 2, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
 }

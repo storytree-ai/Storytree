@@ -8,6 +8,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { LAND_SCALE } from '../src/land-per-capability.js';
 import { createBandedMaterial } from './banded-material.js';
 import { grainFeaturePeriod } from './land-grain.js';
 import { STATUS_TOKENS } from './palette-band.js';
@@ -104,7 +105,12 @@ test('the delivered feature is 2.6x the lattice, not the lattice', () => {
   assert.equal(f.across, base, 'an isotropic terrain at lattice 1 delivers the base grain');
   assert.equal(f.along, base, 'and delivers it equally in both directions');
   // NON-VACUITY: the ratio really is not 1 for the base grain, so `base` is not a lattice.
-  assert.ok(base > 5, `grainFeaturePeriod is ${base}; if this is 2.5 someone passed the lattice`);
+  // × LAND_SCALE: the lattice is 2.5 ground units on the TUNED island and follows the island
+  // (`GRAIN_LATTICE = 2.5 * LAND_SCALE`), so the bar the delivered feature must clear scales with it.
+  assert.ok(
+    base > 5 * LAND_SCALE,
+    `grainFeaturePeriod is ${base}; if this is ${2.5 * LAND_SCALE} someone passed the lattice`,
+  );
 });
 
 test('an anisotropic terrain is longer ALONG its bearing than across it', () => {

@@ -50,7 +50,7 @@ import * as THREE from 'three';
 
 import { GROUND_ATLAS_ATTRIBUTE, GROUND_STATUS_ATTRIBUTE } from '../src/banded-ground-material.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
-import { COVER_DENSITY_RUNGS, COVER_SIZE, COVER_SIZE_RUNGS } from '../src/cover-dressing.js';
+import { COVER_RECIPE_DENSITY, COVER_SIZE, COVER_SIZE_RUNGS } from '../src/cover-dressing.js';
 import { configureExactColour } from '../src/exact-colour.js';
 import {
   SHIPPED_GRASS,
@@ -188,7 +188,7 @@ const placementMemo = new Map<string, KitPlacement[]>();
  * disagree about what stands); a `cover-*` arm is what the canvas stands NOW (`dressMapWithCover`)
  * at that arm's size rung.
  *
- * ⚠ EVERY COVER ARM HOLDS THE COUNT AT THE RECIPE'S OWN (rung 1 of `COVER_DENSITY_RUNGS`), so
+ * ⚠ EVERY COVER ARM HOLDS THE COUNT AT THE RECIPE'S OWN (`COVER_RECIPE_DENSITY`, rung 1), so
  * exactly one thing moves along THIS ladder — size. It is passed explicitly rather than left to
  * the default, because the default is the shipped COUNT pick, which the one-tree-per-capability
  * page ladders and a later scale-back would silently change under this page.
@@ -208,7 +208,7 @@ export function coverArmPlacements(arm: CoverArm, size: CrowdSize): KitPlacement
       : dressMapWithCover(armDescriptors(size), {
           relief: LAND_RELIEF_AMPLITUDE,
           footprint: CANOPY_FOOTPRINT,
-          coverDensity: COVER_DENSITY_RUNGS[0]!,
+          coverDensity: COVER_RECIPE_DENSITY,
           coverSize,
         });
   placementMemo.set(key, built);
