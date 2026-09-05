@@ -56,6 +56,8 @@ import type {
   UatCriterionSummary,
   WorkStatus,
 } from '../src/types';
+// The canonical rendered-category list, imported rather than restated — see ASSET_CATEGORIES below.
+import { ASSET_CATEGORIES as RENDERED_ASSET_CATEGORIES } from '../src/types';
 import {
   AssetConflictError,
   type LibraryBackend,
@@ -99,23 +101,26 @@ import {
   type ReviewFeedSuggestionStore,
 } from './reviewFeedApi';
 
-const ASSET_CATEGORIES: AssetCategory[] = [
-  'definition',
-  'principle',
-  'pattern',
-  'guardrail',
-  'techstack',
-  'process',
-  'agent',
-  // `proposal` was here until ADR-0298 retired the kind — deferred work is now an entry on the arc
-  // that owns it (`Arc.proposals`), so it renders inside the arc rather than as a category.
-  'template',
-  'adr',
-  'open-question',
-  'friction',
-  'arc',
-  'increment',
-];
+/**
+ * Categories that RENDER but may not be WRITTEN through this door. `proposal` is the only member:
+ * ADR-0298 retired the kind (deferred work is an `increment` on its arc), so historical rows must
+ * still render while nothing new may be created.
+ */
+const NOT_WRITABLE: readonly AssetCategory[] = ['proposal'];
+
+/**
+ * The write allowlist, DERIVED from the one canonical category list rather than restated here.
+ *
+ * It used to be a second hand-maintained array, and that duplication is a landed defect with a name:
+ * `friction-studio-kind-blind` (2026-07-06) — a kind added to the schema but not to this array is
+ * invisible in the UI and 400s on write, with `pnpm gate` green throughout. Typing it
+ * `AssetCategory[]` made every MEMBER valid and said nothing about the array being COMPLETE, which is
+ * the half that bit. It recurred verbatim for `resteer` (ADR-0515, 2026-09-05); deriving it is what
+ * stops there being a third time.
+ */
+const ASSET_CATEGORIES: readonly AssetCategory[] = RENDERED_ASSET_CATEGORIES.filter(
+  (category) => !NOT_WRITABLE.includes(category),
+);
 
 export interface Paths {
   repoRoot: string;

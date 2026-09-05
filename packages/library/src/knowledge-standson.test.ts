@@ -46,6 +46,12 @@ function minimalDoc(kind: KnowledgeKind) {
     doc["arcRef"] = "asset:standson-arc";
     doc["parked"] = "2026-08-14T00:00:00.000Z";
   }
+  // ADR-0515: a `resteer` requires its defect/taste `disposition` and whose judgement it was. This
+  // fixture is `taste`, so it correctly carries no `mode`.
+  if (kind === "resteer") {
+    doc["disposition"] = "taste";
+    doc["dispositionBy"] = "owner";
+  }
   if (kind === "adr") {
     // The `adr` kind carries two REQUIRED fields outside its KIND_SPECS table (ADR-0403 dec 1):
     // its `number` — a decision's identity — and its `status`. No decision has ever lacked either,
@@ -90,7 +96,9 @@ test("library-standson-admitted-on-dag-kinds: the kinds outside the DAG stay edg
   // sat here until ADR-0468: ADR-0363 D1 had excluded it from the DAG for a reason entirely about
   // DEPTH and enforced that at the schema, which made ADR-0464 D4's backfill of the tier impossible.
   // The depth exclusion survives, one assertion down, in `DAG_EXCLUDED_KINDS`.
-  assert.deepEqual([...EDGE_FREE_KINDS].sort(), ["friction", "open-question"]);
+  // `resteer` joined the tier with ADR-0515: one observed owner intervention is a LOG ROW, the same
+  // transient-signal shape as its `friction` sibling, and it authors no `dependsOn`.
+  assert.deepEqual([...EDGE_FREE_KINDS].sort(), ["friction", "open-question", "resteer"]);
 
   for (const kind of KINDS.filter((k) => EDGE_FREE_KINDS.has(k))) {
     assert.equal(

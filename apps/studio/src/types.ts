@@ -108,6 +108,10 @@ export type AssetCategory =
   | 'adr' // "a decision record"
   | 'open-question' // "an unresolved decision to settle"
   | 'friction' // "what fought a session, with evidence"
+  | 'resteer' // "one intervention by the owner" (ADR-0515)
+  // Absent until 2026-09-05, when `types.kind-parity.test.ts` found it on its first run: a real
+  // kind (ADR-0209 D5/D6) whose rows the studio could render nowhere and refused to write.
+  | 'uat-criterion' // "one UAT acceptance criterion, in detail"
   | 'arc' // "a multi-story initiative tracked to a close" (displayed "Epic", ADR-0183 D1)
   | 'increment'; // "one unit of arc work, from parked proposal through to closed" (ADR-0305 D1)
 
@@ -411,6 +415,8 @@ export const ASSET_CATEGORIES: AssetCategory[] = [
   'adr',
   'open-question',
   'friction',
+  'resteer',
+  'uat-criterion',
   'arc',
   'increment',
 ];
@@ -429,6 +435,8 @@ export const ASSET_CATEGORY_GLOSS = {
   adr: 'a decision record',
   'open-question': 'an unresolved decision to settle',
   friction: 'what fought a session, with evidence',
+  resteer: 'one intervention by the owner, and whether it was a defect or taste',
+  'uat-criterion': 'one UAT acceptance criterion — the action, and what counts as success',
   arc: 'a multi-story initiative tracked to a close',
   increment: 'one unit of arc work, from parked proposal through to closed',
 } satisfies Record<AssetCategory, string>;

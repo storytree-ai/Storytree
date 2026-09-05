@@ -273,6 +273,7 @@ const SEARCH_PROBES = {
   "adr list": ["adr", "list"],
   "arc list": ["arc", "list"],
   "friction list": ["friction", "list"],
+  "resteer list": ["resteer", "list"],
 } satisfies Record<string, readonly string[]>;
 
 test("every SEARCH-classified verb has a probe, and every probe carries its result ids out", async () => {

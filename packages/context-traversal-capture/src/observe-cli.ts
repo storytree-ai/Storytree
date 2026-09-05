@@ -162,6 +162,7 @@ const ADR_SURFACE = "adr";
 const QUESTION_SURFACE = "open-question";
 const INCREMENT_SURFACE = "increment";
 const FRICTION_SURFACE = "friction";
+const RESTEER_SURFACE = "resteer";
 
 // ---------------------------------------------------------------------------
 // The read-verb table
@@ -403,6 +404,11 @@ export const CLI_READ_VERBS = {
   "friction migrate": silent("write — files staged items live"),
   "friction reinforce": silent("write — bumps an item"),
   "friction route": silent("write — records an adjudication route"),
+
+  // --- resteer (ADR-0515) ---------------------------------------------------
+  // The friction tier's sibling: what the OWNER redirected, filed by the same retro step.
+  "resteer list": search({ operation: "resteer_list", surfaceId: RESTEER_SURFACE }),
+  "resteer new": silent("write — records one observed owner intervention"),
   // `satisfies`, not an annotation: the annotation threw away the literal key set it had just
   // written, and that set IS what `cli-read-verbs.test.ts` compares against the dispatch
   // (anti-slop `no-known-value-widening`). String-keyed lookups go through {@link verbSpecFor}.
