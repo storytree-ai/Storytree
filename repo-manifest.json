@@ -639,6 +639,7 @@
       "packages/context-traversal-transcript/src/correlate-transcripts.ts": "transcript-session-correlation",
       "packages/context-traversal-transcript/src/context-windows.ts": "context-traversal-transcript",
       "packages/context-traversal-transcript/src/context-marks.ts": "context-traversal-transcript",
+      "packages/context-traversal-transcript/src/context-composition.ts": "context-traversal-transcript",
       "packages/context-traversal-transcript/src/ingest-occupancy.ts": "transcript-occupancy-ingest",
       "packages/context-traversal-transcript/src/transcript-occupancy.ts": "transcript-occupancy-extraction",
       "packages/context-traversal-transcript/src/decision-reads.ts": "transcript-decision-read-extraction",

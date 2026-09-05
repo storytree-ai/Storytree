@@ -451,3 +451,27 @@ test("a window whose every reading is synthetic is unobserved, not an empty wind
   assert.equal(read.syntheticObservations, 1);
   assert.match(read.note, /not an empty window/);
 });
+
+test("the session's own reading carries the transcript file it was folded from — the one the composition must read", () => {
+  const root = freshRoot();
+  const older = writeWindow(root, "proj", "11111111-1111-4111-8111-111111111111", [
+    { requestId: "a", cwd: "/x/.claude/worktrees/ctx-comp", windowId: "11111111-1111-4111-8111-111111111111", at: "2026-09-05T01:00:00Z", tokens: 10_000, model: "m" },
+  ]);
+  const newer = writeWindow(root, "proj", "22222222-2222-4222-8222-222222222222", [
+    { requestId: "b", cwd: "/x/.claude/worktrees/ctx-comp", windowId: "22222222-2222-4222-8222-222222222222", at: "2026-09-05T02:00:00Z", tokens: 20_000, model: "m" },
+  ]);
+
+  const latest = readOwnContextWindow({ sessionId: "ctx-comp", root });
+  assert.equal(latest.window?.windowId, "22222222-2222-4222-8222-222222222222");
+  assert.equal(latest.window?.file, newer);
+  assert.equal(latest.window?.residentTokens, 20_000);
+
+  const named = readOwnContextWindow({ sessionId: "ctx-comp", root, harnessWindowId: "11111111-1111-4111-8111-111111111111" });
+  assert.equal(named.selectedBy, "harness-window-id");
+  assert.equal(named.window?.file, older);
+  assert.equal(named.window?.residentTokens, 10_000);
+
+  const absent = readOwnContextWindow({ sessionId: "somebody-else", root });
+  assert.equal(absent.window, null);
+});
+

@@ -13,15 +13,21 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { OwnWindowArgs, OwnWindowRead, WindowOccupancy } from "@storytree/context-traversal-transcript";
+import type {
+  OwnWindowArgs,
+  OwnWindowOccupancy,
+  OwnWindowRead,
+  WindowComposition,
+} from "@storytree/context-traversal-transcript";
 
 import { contextCommand, contextHelp, type ContextDeps } from "./context.js";
 
 const NOW = Date.parse("2026-08-26T12:00:00Z");
 
-function occupancy(overrides: Partial<WindowOccupancy> = {}): WindowOccupancy {
+function occupancy(overrides: Partial<OwnWindowOccupancy> = {}): OwnWindowOccupancy {
   return {
     windowId: "a2e1e82e-b05c-432d-84e6-19440160bf5f",
+    file: "/tmp/projects/slug/a2e1e82e-b05c-432d-84e6-19440160bf5f.jsonl",
     residentTokens: 225_013,
     peakTokens: 225_013,
     observationCount: 54,
@@ -46,11 +52,42 @@ function reading(overrides: Partial<OwnWindowRead> = {}): OwnWindowRead {
   };
 }
 
+/** A composition shaped like the ones measured on this machine: tool output dominant, guidance unlabelled. */
+function composition(overrides: Partial<WindowComposition> = {}): WindowComposition {
+  return {
+    file: "/tmp/projects/slug/a2e1e82e-b05c-432d-84e6-19440160bf5f.jsonl",
+    windowId: "a2e1e82e-b05c-432d-84e6-19440160bf5f",
+    slices: [
+      { category: "tool-output", bytes: 612_000, records: 140 },
+      { category: "tool-calls", bytes: 180_000, records: 140 },
+      { category: "harness-reminder", bytes: 90_000, records: 300 },
+      { category: "assistant-text", bytes: 60_000, records: 20 },
+      { category: "human-prompt", bytes: 8_000, records: 1 },
+    ],
+    accountedBytes: 950_000,
+    unclassifiedLabels: [],
+    bookkeeping: { bytes: 4_000, records: 6, kinds: ["last-prompt", "queue-operation"] },
+    sidechainLinesExcluded: 0,
+    unparseableLines: 0,
+    nonRecordLines: 0,
+    residual: {
+      firstRequestResidentTokens: 106_000,
+      visibleBytesBeforeFirstRequest: 50_089,
+      visibleTokensEstimate: 13_182,
+      residualTokens: 92_818,
+      charsPerToken: 3.8,
+    },
+    residualAbsence: null,
+    ...overrides,
+  };
+}
+
 function deps(overrides: Partial<ContextDeps> = {}): ContextDeps {
   return {
     sessionId: () => "angry-hopper-092898",
     env: {},
     read: () => reading(),
+    composition: () => composition(),
     now: () => NOW,
     ...overrides,
   };
@@ -180,6 +217,13 @@ test("help names the marks and says it enforces nothing", () => {
   const env = contextHelp();
 
   assert.equal(env.ok, true);
+  assert.match(env.body, /resident tokens, peak, its band — and what\n\s+it is made of, by the harness's own labels, with a remedy\n/);
+  assert.match(env.body, /The `made of:` block splits the window's INTAKE by the labels the harness itself puts on each\n/);
+  assert.match(env.body, /record \(ADR-0516 D3 — labels and lengths, never content\), in bytes \(ADR-0330 D1's unit\)\. The\n/);
+  assert.match(env.body, /`unseen:` line is the harness's own preamble — system prompt and tool definitions — which no\n/);
+  assert.match(env.body, /transcript records and which can only be shown as what was resident at the first request minus\n/);
+  assert.match(env.body, /what the transcript accounts for \(D4\)\. It is reported as an unknown quantity, never omitted and\n/);
+  assert.match(env.body, /never zero\. The `remedy:` line names the one lever the dominant class leaves this session\.\n\nOffline and read-only/);
   assert.match(env.body, /~700k/);
   assert.match(env.body, /850k/);
   assert.match(env.body, /never enforces/i);
@@ -206,4 +250,255 @@ test("every surface that states a mark also says what the mark asks for", () => 
   // left these two numbers behind would mislead exactly the session with the least to go on.
   assert.match(absent.body, /no new increment past ~700k/i);
   assert.match(absent.body, /hand over at 850k/i);
+});
+
+test("the reading says what the window is MADE OF, largest first, in bytes, from the same file the fullness came from", () => {
+  const files: string[] = [];
+  const env = contextCommand(
+    deps({
+      composition: (file) => {
+        files.push(file);
+        return composition();
+      },
+    }),
+  );
+
+  assert.deepEqual(files, ["/tmp/projects/slug/a2e1e82e-b05c-432d-84e6-19440160bf5f.jsonl"], "read from the selected file, never re-selected");
+  assert.match(env.body, /made of:/);
+  const toolOutput = env.body.indexOf("tool output");
+  const toolCalls = env.body.indexOf("tool calls the session authored");
+  const reminders = env.body.indexOf("harness reminders");
+  assert.ok(toolOutput > 0 && toolOutput < toolCalls && toolCalls < reminders, "largest first");
+  // One row pinned byte-for-byte: label padded to the longest label, bytes right-aligned in 12,
+  // share right-aligned in 6, then the record count. The longest label here is
+  // "tool calls the session authored" (31 characters).
+  assert.ok(
+    env.body.includes("\n    tool output                      " + "     612,000 B   64.4%  140 records\n"),
+    env.body,
+  );
+  assert.ok(env.body.includes("       8,000 B    0.8%  1 record\n"), "singular for one record");
+  assert.ok(!/1 records/.test(env.body));
+  assert.ok(
+    env.body.includes("\n              6 bookkeeping record(s) set aside (last-prompt, queue-operation)\n"),
+    env.body,
+  );
+  assert.ok(!/helper-window/.test(env.body), "no exclusion line when nothing was excluded");
+  assert.ok(!/unparseable/.test(env.body));
+  assert.ok(!/non-record/.test(env.body));
+  assert.match(env.body, /unit\) — its intake over its life, not what is resident after a compaction\n/);
+  // The block ends on the remedy and is followed by exactly one blank line before the standing text.
+  assert.match(env.body, /remedy:[^\n]+\n\nThis is YOUR window/);
+});
+
+test("what was set aside is listed on one line, each part only when it bit", () => {
+  const env = contextCommand(
+    deps({
+      composition: () =>
+        composition({
+          sidechainLinesExcluded: 2,
+          unparseableLines: 3,
+          nonRecordLines: 4,
+          bookkeeping: { bytes: 10, records: 1, kinds: ["pr-link"] },
+        }),
+    }),
+  );
+  assert.ok(
+    env.body.includes(
+      "\n              2 helper-window line(s) excluded (ADR-0413 D2) · 1 bookkeeping record(s) set aside (pr-link) · 3 unparseable line(s) · 4 non-record line(s)\n",
+    ),
+    env.body,
+  );
+
+  const none = contextCommand(
+    deps({ composition: () => composition({ bookkeeping: { bytes: 0, records: 0, kinds: [] } }) }),
+  );
+  assert.ok(!/set aside/.test(none.body));
+  // Nothing set aside means NO line at all — the last row is followed directly by the guidance note.
+  assert.ok(
+    none.body.includes("  1 record\n              project guidance (CLAUDE.md / MEMORY.md) is not labelled"),
+    none.body,
+  );
+});
+
+test("the dominant-class threshold is a boundary at exactly 40%, on all three arms", () => {
+  const at = (slices: WindowComposition["slices"], accountedBytes: number) =>
+    contextCommand(deps({ composition: () => composition({ slices, accountedBytes }) })).body;
+
+  // tool output: 400,000 of 1,000,000 fires; 399,999 does not.
+  assert.match(at([{ category: "human-prompt", bytes: 600_000, records: 1 }, { category: "tool-output", bytes: 400_000, records: 1 }], 1_000_000), /no single class dominates/);
+  assert.match(
+    at([{ category: "tool-output", bytes: 400_000, records: 1 }, { category: "human-prompt", bytes: 300_000, records: 1 }, { category: "assistant-text", bytes: 300_000, records: 1 }], 1_000_000),
+    /remedy:\s+tool output is 40\.0%/,
+  );
+  assert.match(
+    at([{ category: "tool-output", bytes: 399_999, records: 1 }, { category: "human-prompt", bytes: 300_001, records: 1 }, { category: "assistant-text", bytes: 300_000, records: 1 }], 1_000_000),
+    /no single class dominates \(largest: tool output at 40\.0%\)/,
+  );
+  // tool calls, same boundary.
+  assert.match(
+    at([{ category: "tool-calls", bytes: 400_000, records: 1 }, { category: "human-prompt", bytes: 300_000, records: 1 }, { category: "assistant-text", bytes: 300_000, records: 1 }], 1_000_000),
+    /the session's own tool-call payloads are 40\.0%/,
+  );
+  assert.match(
+    at([{ category: "tool-calls", bytes: 399_999, records: 1 }, { category: "human-prompt", bytes: 300_001, records: 1 }, { category: "assistant-text", bytes: 300_000, records: 1 }], 1_000_000),
+    /no single class dominates/,
+  );
+  // mandatory: summed across its categories, 400,000 fires; 399,999 does not.
+  assert.match(
+    at([{ category: "human-prompt", bytes: 350_000, records: 1 }, { category: "harness-reminder", bytes: 250_000, records: 1 }, { category: "hook-injection", bytes: 150_000, records: 1 }, { category: "assistant-text", bytes: 250_000, records: 1 }], 1_000_000),
+    /mandatory context is 40\.0%/,
+  );
+  assert.match(
+    at([{ category: "human-prompt", bytes: 350_001, records: 1 }, { category: "harness-reminder", bytes: 250_000, records: 1 }, { category: "hook-injection", bytes: 149_999, records: 1 }, { category: "assistant-text", bytes: 250_000, records: 1 }], 1_000_000),
+    /no single class dominates \(largest: the human's own words at 35\.0%\)/,
+  );
+});
+
+test("the harness floor is reported as an UNSEEN quantity with its arithmetic — never omitted, and never zero when it cannot be read", () => {
+  const sized = contextCommand(deps());
+  assert.match(sized.body, /unseen:\s+≈92,818 tokens were resident at the first request that no transcript line\n/);
+  assert.match(sized.body, /\n\s+accounts for — the harness's system prompt, tool definitions, and anything it injected\n/);
+  assert.match(sized.body, /106,000 resident − ≈13,182 for 50,089 visible bytes at 3\.8 chars\/token/);
+  assert.match(sized.body, /Not this session's to trim \(ADR-0330 D1\)/);
+
+  const unread = contextCommand(
+    deps({ composition: () => composition({ residual: null, residualAbsence: "no-readable-request" }) }),
+  );
+  assert.match(unread.body, /unseen:\s+UNKNOWN/);
+  assert.match(unread.body, /It is not zero/);
+  assert.ok(!/≈0 tokens/.test(unread.body));
+});
+
+test("project guidance the harness did not label is said to travel inside the unseen slice, and the note goes away once it is labelled", () => {
+  const unlabelled = contextCommand(deps());
+  assert.match(unlabelled.body, /project guidance \(CLAUDE\.md \/ MEMORY\.md\) is not labelled by this harness/);
+
+  const labelled = contextCommand(
+    deps({
+      composition: () =>
+        composition({
+          slices: [
+            { category: "tool-output", bytes: 500_000, records: 100 },
+            { category: "project-guidance", bytes: 70_000, records: 1 },
+          ],
+          accountedBytes: 570_000,
+        }),
+    }),
+  );
+  assert.ok(!/not labelled by this harness/.test(labelled.body));
+  // The guidance row is followed by the set-aside line and then straight by `unseen:` — no note, no
+  // stray line in between.
+  assert.ok(
+    labelled.body.includes(
+      "project guidance (CLAUDE.md, when labelled)        70,000 B   12.3%  1 record\n" +
+        "              6 bookkeeping record(s) set aside (last-prompt, queue-operation)\n" +
+        "  unseen:",
+    ),
+    labelled.body,
+  );
+});
+
+test("the remedy names the lever the dominant class leaves the session, and hands back none for mandatory context", () => {
+  const toolOutput = contextCommand(deps());
+  assert.match(
+    toolOutput.body,
+    /remedy:\s+tool output is 64\.4% of what entered — page long outputs \(`\| head`, `--out <file>`\) and hand exploration to a digest subagent whose window is its own \(`storytree library artifact delegate-exploration-to-digest-subagents`\)\n/,
+  );
+
+  const toolCalls = contextCommand(
+    deps({
+      composition: () =>
+        composition({
+          slices: [
+            { category: "tool-calls", bytes: 500_000, records: 40 },
+            { category: "tool-output", bytes: 300_000, records: 40 },
+          ],
+          accountedBytes: 800_000,
+        }),
+    }),
+  );
+  assert.match(toolCalls.body, /remedy:\s+the session's own tool-call payloads are 62\.5%/);
+  assert.match(toolCalls.body, /edit it in place/);
+
+  const mandatory = contextCommand(
+    deps({
+      composition: () =>
+        composition({
+          slices: [
+            { category: "harness-catalogue", bytes: 300_000, records: 3 },
+            { category: "tool-output", bytes: 250_000, records: 10 },
+            { category: "harness-reminder", bytes: 200_000, records: 400 },
+          ],
+          accountedBytes: 750_000,
+        }),
+    }),
+  );
+  assert.match(
+    mandatory.body,
+    /remedy:\s+mandatory context is 66\.7% — none of it is this session's to trim; the repo-owned part is budgeted by ADR-0330 D1 and `storytree doctor` reports it\n/,
+  );
+  assert.ok(!/delegate-exploration/.test(mandatory.body));
+
+  const spread = contextCommand(
+    deps({
+      composition: () =>
+        composition({
+          slices: [
+            { category: "tool-output", bytes: 300_000, records: 10 },
+            { category: "assistant-text", bytes: 290_000, records: 10 },
+            { category: "human-prompt", bytes: 280_000, records: 10 },
+          ],
+          accountedBytes: 870_000,
+        }),
+    }),
+  );
+  assert.match(spread.body, /remedy:\s+no single class dominates \(largest: tool output at 34\.5%\)/);
+
+  const empty = contextCommand(deps({ composition: () => composition({ slices: [], accountedBytes: 0 }) }));
+  assert.match(empty.body, /remedy:\s+nothing entered this window yet/);
+});
+
+test("an unclassified slice carries the labels that fell through, so the remedy is a table row", () => {
+  const env = contextCommand(
+    deps({
+      composition: () =>
+        composition({
+          slices: [
+            { category: "tool-output", bytes: 500_000, records: 100 },
+            { category: "unclassified", bytes: 40_000, records: 4 },
+          ],
+          accountedBytes: 540_000,
+          unclassifiedLabels: ["attachment:brand_new", "block:document"],
+        }),
+    }),
+  );
+  assert.match(env.body, /unclassified\s+40,000 B\s+7\.4%\s+4 records  \(attachment:brand_new, block:document\)\n/);
+  assert.match(env.body, /tool output\s+500,000 B\s+92\.6%\s+100 records\n/, "labels ride only on the unclassified row");
+});
+
+test("an unreadable composition says so under the fullness rather than blanking either", () => {
+  const env = contextCommand(
+    deps({
+      composition: () =>
+        composition({ slices: [], accountedBytes: 0, residual: null, residualAbsence: "unreadable-file" }),
+    }),
+  );
+  assert.match(env.body, /resident:\s+225,013 tokens/);
+  assert.match(env.body, /made of:\s+UNREADABLE — the transcript this reading came from could not be re-read for its\n\s+composition\. The fullness above stands; what fills it is not known\.\n\nThis is YOUR window/);
+  assert.ok(!/remedy:/.test(env.body));
+});
+
+test("an ABSENCE renders no composition at all — there is no file to fold, and nothing is read", () => {
+  let called = 0;
+  const env = contextCommand(
+    deps({
+      read: () => reading({ window: null, band: null, absence: "no-correlated-window", selectedBy: null }),
+      composition: () => {
+        called++;
+        return composition();
+      },
+    }),
+  );
+  assert.equal(called, 0);
+  assert.ok(!/made of:/.test(env.body));
 });
