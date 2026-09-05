@@ -3298,8 +3298,12 @@ test("an unknown key ALREADY IN THE STORE is charged to its author, not to this 
   assert.equal(res.ok, false);
   // The stored-key list is what lets the message say "already in the store" rather than telling the
   // caller to remove a field they never wrote. Dropping it inverts the diagnosis.
+  // SCHEMA SKEW is the diagnosis only the stored-key list can reach. Without it the same key is
+  // charged to THIS write as "a field this kind does not have", whose remedy is to strip it — which
+  // would persist the stripped doc and destroy a sibling session's landed work.
+  assert.match(res.body, /SCHEMA SKEW/);
   assert.match(res.body, /someFutureField/);
-  assert.doesNotMatch(res.body, /remove it from this write/);
+  assert.doesNotMatch(res.body, /field\(s\) this kind does not have/);
 });
 
 test("arc help's gate block renders with its exact blank-line spacing", async () => {
@@ -3323,6 +3327,61 @@ test("arc help's gate block renders with its exact blank-line spacing", async ()
       ),
       "the gate block is closed by a blank line before the increment verbs",
     );
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+test("an invalid UNGATE is explained as an arc too, and charges a stored key to its author", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  const doc = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+
+  // (a) The explanation is computed from the doc the write WOULD have landed, so it knows the kind.
+  await store.upsertDoc({ id: "paint-arc", kind: "arc", doc: { ...doc, lifecycle: "not-a-lifecycle" } });
+  const bad = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(bad.ok, false);
+  assert.match(bad.body, /arc artifact/);
+  assert.doesNotMatch(bad.body, /carries neither a `kind`/);
+
+  // (b) And an unknown key ALREADY in the store is skew, not something this write introduced.
+  await store.upsertDoc({
+    id: "paint-arc",
+    kind: "arc",
+    doc: { ...doc, someFutureField: "landed by a sibling" },
+  });
+  const skewed = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(skewed.ok, false);
+  assert.match(skewed.body, /SCHEMA SKEW/);
+  assert.match(skewed.body, /someFutureField/);
+  assert.doesNotMatch(skewed.body, /field\(s\) this kind does not have/);
+});
+
+test("arc show resolves a gate against ARCS ONLY — a blocker id naming another kind stays unresolved", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  // An increment whose id is what the gate names. If the rollup's blocker lookup stopped filtering
+  // by kind, this row would resolve and the gate would render with a NON-ARC's title — reading as a
+  // real, findable blocker rather than the broken reference it is.
+  await store.upsertDoc({
+    id: "impostor-inc",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "impostor-inc",
+      arcRef: "asset:ground-arc",
+      title: "An increment wearing a blocker's name",
+      description: "d",
+      objective: "o",
+      body: "b",
+    },
+  });
+  const doc = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({ id: "paint-arc", kind: "arc", doc: { ...doc, gatedBy: ["asset:impostor-inc"] } });
+  const fx = diskFixture();
+  try {
+    const body = (await arcCommand("show", "paint-arc", depsFor(store, fx))).body;
+    assert.match(body, /UNRESOLVED — no such arc/);
+    assert.doesNotMatch(body, /An increment wearing a blocker's name/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
