@@ -98,21 +98,27 @@ test("the store loader projects the stamp, and the filter sees it end to end", a
   const store = new InMemoryStore();
   const seed = async (n: number, authority?: DecisionAuthority): Promise<void> => {
     const id = `adr-${String(n).padStart(4, "0")}`;
-    const doc: Record<string, unknown> = {
-      kind: "adr",
+    // The stamp is spread in rather than assigned through an open-dictionary binding, so the literal
+    // keeps its inferred type (`anti-slop/no-known-value-widening`) and a typo in a key still fails.
+    const stamp = authority === undefined ? {} : { authority };
+    await store.upsertDoc({
       id,
-      title: `Decision ${String(n)}`,
-      description: `ADR-${String(n).padStart(4, "0")} — Decision ${String(n)}`,
-      body: `# ADR-${String(n).padStart(4, "0")}: Decision ${String(n)}\n`,
-      number: n,
-      status: "accepted",
-      supersedes: [],
-      loadBearing: false,
-      createdAt: "2026-06-26T00:00:00.000Z",
-      updatedAt: "2026-06-26T00:00:00.000Z",
-    };
-    if (authority !== undefined) doc["authority"] = authority;
-    await store.upsertDoc({ id, kind: "adr", doc });
+      kind: "adr",
+      doc: {
+        kind: "adr",
+        id,
+        title: `Decision ${String(n)}`,
+        description: `ADR-${String(n).padStart(4, "0")} — Decision ${String(n)}`,
+        body: `# ADR-${String(n).padStart(4, "0")}: Decision ${String(n)}\n`,
+        number: n,
+        status: "accepted",
+        supersedes: [],
+        loadBearing: false,
+        createdAt: "2026-06-26T00:00:00.000Z",
+        updatedAt: "2026-06-26T00:00:00.000Z",
+        ...stamp,
+      },
+    });
   };
   await seed(100, QUOTED);
   await seed(500);
