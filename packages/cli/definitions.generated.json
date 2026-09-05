@@ -195,7 +195,7 @@
     "kind": "definition",
     "id": "mast-failure-frame",
     "title": "MAST failure frame",
-    "oneLine": "The ADOPTED (never invented) vocabulary for classifying one agent failure or one owner re-steer: MAST's 14 modes in three categories, plus exactly one escape hatch, `no-mast-home`, whose use is a finding rather than a cop-out."
+    "oneLine": "The ADOPTED (never invented) vocabulary for classifying one agent failure or one owner re-steer: MAST's 14 modes in three categories, plus the four measured storytree extension modes in their own category, plus exactly one escape hatch, `no-mast-home`, whose use is a finding rather than a cop-out."
   },
   {
     "kind": "definition",
