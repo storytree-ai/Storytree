@@ -553,3 +553,111 @@ test("statusSectionOf: a Status section that runs to the END of the body is retu
   // The `next === null` arm — the shape the old single-regex form needed a trailing lookahead for.
   assert.match(statusSectionOf("# T\n\n## Status\n\naccepted, and nothing follows."), /nothing follows/);
 });
+
+// ─── the fill-only fence holds on a stamp this CLI cannot READ (ADR-0525 D2) ───────────────────
+
+test("a MALFORMED stamp is refused too — the fence turns on PRESENCE, not on parse success", async () => {
+  // Measured against this verb before `AuthorityRow.stamped` existed: the fence read `row.authority`,
+  // which is `safeParse`d, so a stamp that does not satisfy today's schema came back `undefined`, the
+  // row read as UNSTAMPED, and the verb OVERWROTE it — at `ok: true`, printing `stamped adr-0600`.
+  // The module's own documented fence ("an existing stamp is refused outright") was false for
+  // exactly the rows most likely to matter: schema skew, and anything a future version wrote.
+  const store = new InMemoryStore();
+  const malformed = { basis: "who-knows", scribed: "someone-else", note: "from another version" };
+  await seed(store, 600, "accepted", { authority: malformed });
+
+  const env = await adrAuthority("600", { basis: "agent-derived" }, depsFor(store));
+  assert.equal(env.ok, false);
+  assert.ok(env.body.includes("ALREADY stamped and was not overwritten"), "the fill-only fence fired");
+  // Said plainly rather than rendered as a stamp: `describeAuthority` would read "unstamped" here,
+  // which is the very confusion that let the overwrite through.
+  assert.ok(env.body.includes("a value this CLI cannot read"), "and says why it cannot show it");
+  assert.deepEqual(await authorityOf(store, 600), malformed, "the stored value is untouched");
+
+  // THE OTHER ARM of the same line: a READABLE stamp is described rather than called unreadable.
+  // Without this the ternary collapses to the unreadable branch for every stamp and no test notices
+  // — the refusal still fires, and only its explanation becomes a lie.
+  const readable = new InMemoryStore();
+  await seed(readable, 604, "accepted", {
+    authority: { basis: "agent-flipped", scribedBy: "cli@someone-else", at: "2026-09-05" },
+  });
+  const described = await adrAuthority("604", { basis: "agent-derived" }, depsFor(readable));
+  assert.equal(described.ok, false);
+  assert.ok(described.body.includes("agent-flipped"), "a readable stamp is DESCRIBED");
+  assert.ok(described.body.includes("scribed by cli@someone-else"), "with who wrote it");
+  assert.ok(!described.body.includes("cannot read"), "and is never called unreadable");
+});
+
+test("`safeParse` is still what the READ side uses — the two directions are not collapsed", async () => {
+  // The other half of the same distinction: on a read, a shape nothing has checked must present as
+  // undeclared. Reusing key-presence here would make the coverage index and the health rung trust a
+  // stamp neither had validated — which is the reason `authorityOf` was written with `safeParse`.
+  const store = new InMemoryStore();
+  await seed(store, 601, "accepted", { authority: { basis: "who-knows" } });
+  const env = await adrAuthority("601", {}, depsFor(store));
+  assert.equal(env.ok, true, env.body);
+  assert.ok(env.body.includes("unstamped"), "an unreadable stamp READS as undeclared");
+});
+
+// ─── the write is field-scoped, so a concurrent prose correction survives (ADR-0525 D3) ────────
+
+test("a sibling's PROSE correction is not clobbered by a stamp write", async () => {
+  // `row.bag` is read at the top of the verb, outside any transaction. Upserting it back writes a
+  // snapshot that may already be stale, and ADR-0352 measured what that costs: 7,058 characters of a
+  // live agent artifact silently reverted, both writers reporting success. `patchDoc` merges only the
+  // named fields inside the store's own transaction, so the two writes compose.
+  const store = new InMemoryStore();
+  await seed(store, 602, "accepted");
+  const CORRECTION = "# ADR-0602\n\n## Status\n\nA SIBLING'S CORRECTION\n";
+
+  // A store that lets one prose patch land in the window between the verb's READ and its WRITE.
+  let raced = false;
+  const racing = Object.create(store) as InMemoryStore;
+  Object.assign(racing, {
+    queryDocs: async (filter?: { kind?: string }) => {
+      const docs = await store.queryDocs(filter);
+      if (!raced) {
+        raced = true;
+        await store.patchDoc({ id: idOf(602), fields: { body: CORRECTION } });
+      }
+      return docs;
+    },
+    getDoc: (id: string) => store.getDoc(id),
+    patchDoc: (input: Parameters<InMemoryStore["patchDoc"]>[0]) => store.patchDoc(input),
+    upsertDoc: (input: Parameters<InMemoryStore["upsertDoc"]>[0]) => store.upsertDoc(input),
+    deleteDoc: (id: string) => store.deleteDoc(id),
+    readEvents: (filter?: { id?: string }) => store.readEvents(filter),
+    appendEvent: (e: Parameters<InMemoryStore["appendEvent"]>[0]) => store.appendEvent(e),
+  });
+
+  const env = await adrAuthority("602", { basis: "agent-derived" }, depsFor(racing));
+  assert.equal(env.ok, true, env.body);
+  const doc = (await store.getDoc(idOf(602)))?.doc as Record<string, unknown>;
+  // BOTH writes survive — that is the whole property. A whole-doc upsert keeps the stamp and loses
+  // the prose, which looks identical in any assertion that only checks the stamp landed.
+  assert.equal(doc["body"], CORRECTION, "the sibling's correction survived");
+  assert.equal((doc["authority"] as Record<string, unknown>)["basis"], "agent-derived", "and the stamp landed");
+});
+
+test("a decision retired between the read and the write is reported, not silently skipped", async () => {
+  // `patchDoc` never creates: it answers `null` for an id that is gone. Left unhandled that reads as
+  // a successful stamp on a row that no longer exists.
+  const store = new InMemoryStore();
+  await seed(store, 603, "accepted");
+  const racing = Object.create(store) as InMemoryStore;
+  Object.assign(racing, {
+    queryDocs: (filter?: { kind?: string }) => store.queryDocs(filter),
+    getDoc: (id: string) => store.getDoc(id),
+    upsertDoc: (input: Parameters<InMemoryStore["upsertDoc"]>[0]) => store.upsertDoc(input),
+    deleteDoc: (id: string) => store.deleteDoc(id),
+    readEvents: (filter?: { id?: string }) => store.readEvents(filter),
+    appendEvent: (e: Parameters<InMemoryStore["appendEvent"]>[0]) => store.appendEvent(e),
+    patchDoc: async () => null,
+  });
+  const env = await adrAuthority("603", { basis: "agent-derived" }, depsFor(racing));
+  assert.equal(env.ok, false);
+  assert.ok(env.body.includes("retired while this stamp was being prepared"), "it says what happened");
+  // `next:` is part of the envelope and no body assertion reaches it — a refusal that points nowhere
+  // leaves the caller with a fact and no move.
+  assert.deepEqual(env.next, ["storytree adr list --current"]);
+});

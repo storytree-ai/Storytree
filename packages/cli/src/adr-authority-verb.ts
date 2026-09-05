@@ -166,6 +166,22 @@ interface AuthorityRow {
   readonly number: number;
   readonly bag: Record<string, unknown>;
   readonly authority: DecisionAuthority | undefined;
+  /**
+   * Whether the row carries an `authority` KEY AT ALL — deliberately NOT the same question as
+   * {@link authority} being defined, and the two must never be collapsed (ADR-0525 D2).
+   *
+   * ⚠ THE FILL-ONLY FENCE TURNS ON THIS ONE, and reusing {@link authority} for it silently defeated
+   * the fence: a stamp that does not satisfy today's schema parses to `undefined`, so the row read
+   * as UNSTAMPED and the verb OVERWROTE it, at `ok: true`, reporting `stamped adr-NNNN`. Measured on
+   * the landed verb before this field existed.
+   *
+   * The two directions are opposite and both are fail-closed FOR THEIR OWN SIDE. On the READ side —
+   * the coverage index, `adr list --basis`, `check:adr-health` — a shape nothing has checked must
+   * read as undeclared, which is what `safeParse` gives. On the WRITE side, an unreadable value is
+   * still SOMEBODY'S record of who decided, and quietly replacing it is exactly the rewrite
+   * ADR-0424 D6 forbids. One helper cannot serve both, so the row carries both answers.
+   */
+  readonly stamped: boolean;
   /** The row's stored `body`, UNNARROWED — {@link classifyFromProse} takes `unknown` and answers
    * `null` for a non-string, so projecting an arbitrary `""` here would be a fallback no input
    * could distinguish from the real thing. */
@@ -210,6 +226,8 @@ function authorityRowsOf(docs: readonly StoredDoc[]): AuthorityRow[] {
       number: raw,
       bag,
       authority: authorityOf(bag),
+      // PRESENCE, never parse success — see the field's docstring for why the two cannot be one.
+      stamped: "authority" in bag,
       body: bag["body"],
     });
   }
@@ -332,12 +350,14 @@ async function authorityWrite(row: AuthorityRow, opts: AdrAuthorityOpts, deps: A
   }
   // FENCE 2. Refused BEFORE the write gate, so a caller without `--pg` still learns the stamp exists
   // rather than being told to re-run with a flag that would then be refused for a different reason.
-  if (row.authority !== undefined) {
+  if (row.stamped) {
     return {
       ok: false,
       body: [
         `${label(row.number)} is ALREADY stamped and was not overwritten:`,
-        `  ${describeAuthority(row.authority)}`,
+        // `row.authority` is undefined when the stored value does not satisfy today's schema, and
+        // that case must still REFUSE — so the line says what it can rather than reading as unstamped.
+        `  ${row.authority === undefined ? "a value this CLI cannot read (schema skew, or a shape from another version)" : describeAuthority(row.authority)}`,
         "",
         "This verb FILLS AN ABSENCE and can do nothing else. There is no --force and no --restamp:",
         "a stamp is EVIDENCE (ADR-0424 D6), and evidence a later pass can rewrite is not evidence.",
@@ -400,9 +420,34 @@ async function writeStamp(
   deps: AdrAuthorityDeps,
 ): Promise<{ ok: true } | { ok: false; envelope: Envelope }> {
   const updated = { ...row.bag, authority, updatedAt: new Date().toISOString() };
-  let doc: ReturnType<typeof upcastAndValidate>;
   try {
-    doc = upcastAndValidate(updated);
+    // FIELD-SCOPED, never a whole-document upsert (ADR-0525 D3). `row.bag` was read at the top of
+    // the verb, OUTSIDE any transaction, so upserting it back writes a snapshot that may already be
+    // stale — and a sibling correcting this decision's PROSE in that window is silently reverted,
+    // reported as `ok: true`. That is ADR-0352's measured clobber (7,058 characters of a live agent
+    // artifact, both writers reporting success), and the backfill widens the window to the whole
+    // pass rather than one write.
+    //
+    // `patchDoc` merges only the named fields inside the store's own transaction under `FOR UPDATE`,
+    // so the two writes compose instead of racing. `validate` is the write boundary's own validator:
+    // `PgLibraryStore` runs it regardless, but `InMemoryStore` runs ONLY what the caller passes, so
+    // omitting it would leave every test here green over a merge Postgres would refuse.
+    const saved = await deps.store.patchDoc({
+      id: row.id,
+      fields: { authority, updatedAt: updated["updatedAt"] },
+      actor: deps.actor ?? defaultCliActor(),
+      validate: (merged) => upcastAndValidate(merged),
+    });
+    if (saved === null) {
+      return {
+        ok: false,
+        envelope: {
+          ok: false,
+          body: `${row.id} was NOT written — it was retired while this stamp was being prepared.`,
+          next: ["storytree adr list --current"],
+        },
+      };
+    }
   } catch (e) {
     return {
       ok: false,
@@ -417,7 +462,6 @@ async function writeStamp(
       },
     };
   }
-  await deps.store.upsertDoc({ id: row.id, kind: "adr", doc, actor: deps.actor ?? defaultCliActor() });
   return { ok: true };
 }
 
