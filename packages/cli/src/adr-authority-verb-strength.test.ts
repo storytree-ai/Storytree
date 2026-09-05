@@ -172,3 +172,28 @@ test("adr authority <n>: the follow-up offered depends on whether the record is 
     "storytree adr authority",
   ]);
 });
+
+test("describeAuthority's THIRD state: an agent basis reads as declared-with-no-quote", async () => {
+  // The two owner states are pinned by the render goldens; this is the one neither reaches. Without
+  // it, the whole ternary collapses to "everything is transcribed" undetected — which would print
+  // the backfill's discount over stamps that never claimed the owner at all.
+  const store = new InMemoryStore();
+  await seed(store, 300, { authority: { basis: "agent-derived", scribedBy: "cli@x", at: "2026-09-05" } });
+  const env = await adrAuthority("300", {}, depsFor(store));
+  assert.equal(env.ok, true);
+  assert.equal(env.body, "ADR-0300 \u2014 agent-derived (declared, no quote) \u00b7 scribed by cli@x on 2026-09-05");
+});
+
+test("a stamp with NO owner words renders without the quote block at all", async () => {
+  // The `[]` arm of the spread. The `stamped` golden carries owner words, so it pins only the other
+  // side — and an arm that contributes nothing is exactly the one a reader cannot see is broken.
+  const store = new InMemoryStore();
+  await seed(store, 300);
+  const env = await adrAuthority("300", { basis: "agent-derived" }, depsFor(store));
+  assert.equal(env.ok, true, env.body);
+  assert.equal(
+    env.body,
+    "stamped adr-0300:\n  agent-derived (declared, no quote) \u00b7 scribed by cli@claude/test on 2026-09-05",
+  );
+  assert.deepEqual(env.next, ["storytree library artifact adr-0300", "storytree adr authority"]);
+});

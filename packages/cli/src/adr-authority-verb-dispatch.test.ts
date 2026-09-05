@@ -197,3 +197,19 @@ test("adr --help carries the authority block verbatim, blank line and all", () =
     "  alone are an HONEST ABSENCE, not a hole: do not widen the classifier to reach them.",
   ]);
 });
+
+test("argv: --transcribed-from-prose is NOT set when it was not passed", async () => {
+  // The guard's other side. Set unconditionally, every write would carry the marker — and paired
+  // with `--owner-said` the schema refuses the combination outright, so a quoted owner directive
+  // could never be recorded again. The absence has to be asserted, not assumed.
+  const store = new InMemoryStore();
+  await seed(store, 100);
+  const env = await run(
+    ["adr", "authority", "100", "--basis", "owner-directed", "--owner-said", "his exact words", "--pg"],
+    argvDeps(store),
+  );
+  assert.equal(env.ok, true, env.body);
+  const stamp = await authorityOf(store, 100);
+  assert.equal(stamp?.["ownerSaid"], "his exact words");
+  assert.equal(stamp?.["transcribedFromProse"], undefined);
+});
