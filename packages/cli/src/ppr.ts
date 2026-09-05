@@ -41,8 +41,8 @@
  *
  * The same discipline the co-read census had to adopt: "63.5% of authored edges were co-read" means
  * nothing without the 4.8% density that makes chance predict 29.4 rather than 390. A recall@k figure
- * is likewise unreadable alone — with a pool of 463 decisions, recall@20 of 0.05 is not a finding
- * until it is set against the 0.043 a uniformly random ranking would score. {@link chanceRecallAtK}
+ * is likewise unreadable alone — against a pool of 517 candidate decisions, a recall@20 of 0.05 is
+ * not a finding until it is set beside the 0.039 a uniformly random ranking would score. {@link chanceRecallAtK}
  * is exact rather than simulated, so it cannot disagree with itself between runs.
  *
  * ## ⚠ WHAT THIS MODULE MAY NOT CONCLUDE
@@ -117,7 +117,7 @@ export const DEFAULT_ALPHA = 0.85;
  * thousand times short of {@link DEFAULT_TOLERANCE} — and the function returned `converged: false`
  * with a ranking that looked entirely reasonable. Measured on the two-node closed form, which agreed
  * to 4e-8 rather than to the 1e-12 it reaches once the loop is allowed to finish. 500 clears 1e-10
- * at every alpha this probe uses (0.85 needs ~142), and at 463 nodes the whole walk is microseconds.
+ * at every alpha this probe uses (0.85 needs ~142), and at ~500 nodes the whole walk is microseconds.
  *
  * The `converged` flag is still returned rather than thrown on, because the honest place to refuse is
  * the caller that would publish the number — {@link import("./probe-ppr.js")} treats it as fatal.
@@ -222,6 +222,10 @@ export function personalizedPageRank(
   }
 
   const n = graph.nodes.length;
+  // Stryker disable next-line ObjectLiteral,ArrowFunction: EQUIVALENT — every read of this array
+  // goes through a `?? 0`, so an undefined-filled or SHORT array yields the same arithmetic: the
+  // seed slot is written explicitly below, and the returned vector's length comes from `next`, which
+  // is rebuilt at full length on the first pass. "Returns exactly one score per node" pins that.
   const restart: number[] = Array.from({ length: n }, () => 0);
   const share = 1 / distinctSeeds.length;
   for (const seed of distinctSeeds) {
@@ -240,9 +244,16 @@ export function personalizedPageRank(
   let converged = false;
 
   for (; iterations < maxIterations; iterations += 1) {
+    // Stryker disable next-line ObjectLiteral,ArrowFunction: EQUIVALENT — as for `restart` above;
+    // the second loop writes every slot 0..n-1 unconditionally, so a short or undefined-filled start
+    // is overwritten before anything reads it.
     const next: number[] = Array.from({ length: n }, () => 0);
     let dangling = 0;
 
+    // Stryker disable next-line all: NON-TERMINATING or EQUIVALENT — `i -= 1` never returns (a
+    // timeout credits no test, the `balancedArgs` precedent), and `i <= n` reads `scores[n]`
+    // (undefined -> 0) and `neighbours[n]` (undefined -> []), taking the empty-adjacency branch and
+    // adding 0 to `dangling`. What this loop DOES is pinned by the closed-form and conservation tests.
     for (let i = 0; i < n; i += 1) {
       const mass = scores[i] ?? 0;
       // Stryker disable next-line ArrayDeclaration: EQUIVALENT — `i` ranges over `graph.nodes`
@@ -257,6 +268,8 @@ export function personalizedPageRank(
     }
 
     let delta = 0;
+    // Stryker disable next-line all: NON-TERMINATING or EQUIVALENT — as above; `i <= n` appends one
+    // zero-valued slot, which "returns exactly one score per node" catches.
     for (let i = 0; i < n; i += 1) {
       const e = restart[i] ?? 0;
       const value = alpha * ((next[i] ?? 0) + dangling * e) + (1 - alpha) * e;
@@ -265,6 +278,9 @@ export function personalizedPageRank(
     }
 
     scores = next;
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — `<` and `<=` differ only when the L1
+    // residual lands EXACTLY on 1e-10, which no float trajectory here reaches; a test asserting it
+    // would be asserting the arithmetic of one platform.
     if (delta < tolerance) {
       converged = true;
       iterations += 1;
@@ -283,16 +299,30 @@ export function personalizedPageRank(
  * would spend the top of every ranking on them. Ties break by decision number so a run is
  * reproducible; ordering by insertion would make the result depend on the adjacency build.
  */
+/** One scored row inside {@link rankFromScores} — named so its comparator can be, too. */
+interface Ranked {
+  readonly node: number;
+  readonly score: number;
+}
+
 export function rankFromScores(
   graph: PprGraph,
   scores: readonly number[],
   exclude: readonly number[],
 ): readonly number[] {
   const excluded = new Set(exclude);
+  // Named rather than inlined into the chain so a Stryker directive can address it: a comment inside
+  // a method chain attaches to the whole statement, so `next-line` there targets the wrong line.
+  // Stryker disable next-line ArithmeticOperator: EQUIVALENT — `graph.nodes` is ASCENDING by
+  // construction, so tied entries reach this comparator already in order, and any tie-break that
+  // consistently sorts `a` after `b` reproduces that order. The explicit `a.node - b.node` is a
+  // guard for a future change to that invariant; no test can distinguish it while the invariant
+  // holds, which is exactly what makes the mutant equivalent rather than uncaught.
+  const byScoreThenNode = (a: Ranked, b: Ranked): number => b.score - a.score || a.node - b.node;
   const ranked = graph.nodes
     .map((node, index) => ({ node, score: scores[index] ?? 0 }))
     .filter((entry) => !excluded.has(entry.node) && entry.score > 0)
-    .sort((a, b) => b.score - a.score || a.node - b.node);
+    .sort(byScoreThenNode);
   return ranked.map((entry) => entry.node);
 }
 
@@ -446,6 +476,10 @@ export function buildRetrievalCases(
     // branch was dead code that no test could reach and every mutation of which survived by
     // construction; folding it in here puts it on the same reachable path as the real case — a
     // window that read one decision and therefore offers nothing to predict.
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — `byWindow` never holds an empty
+    // array, so the first disjunct is unreachable; it is present because `noUncheckedIndexedAccess`
+    // types `numbers[0]` as possibly undefined. The second disjunct carries the reachable case and
+    // is exercised by "drops a window that read one decision".
     if (seed === undefined || gold.length === 0) {
       windowsWithoutGold += 1;
       continue;
@@ -470,6 +504,9 @@ export function buildRetrievalCases(
  */
 function hashWindowId(windowId: string): number {
   let hash = 0x811c9dc5;
+  // Stryker disable next-line all: NON-TERMINATING or EQUIVALENT — `i -= 1` never returns. The
+  // hash's exact output is pinned by "partitions a fixed population to an exact, reproducible size",
+  // which is the contract that matters: a changed hash silently repartitions every window.
   for (let i = 0; i < windowId.length; i += 1) {
     hash ^= windowId.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193) >>> 0;
@@ -501,6 +538,9 @@ export function splitWindowsByHash(
   const train: RetrievalCase[] = [];
   const test: RetrievalCase[] = [];
   for (const entry of cases) {
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — `<` and `<=` differ only for a hash
+    // landing exactly on the cutoff, one value in 2^32; the partition SIZE is pinned exactly by
+    // "partitions a fixed population to an exact, reproducible size".
     if (hashWindowId(entry.windowId) < cutoff) test.push(entry);
     else train.push(entry);
   }
@@ -528,12 +568,23 @@ export function hopDistances(
   const start = graph.indexOf.get(seed);
   const distances = new Map<number, number>();
   for (const target of targets) distances.set(target, Number.POSITIVE_INFINITY);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — without the early return the walk
+  // starts from an undefined index whose adjacency is empty, so the frontier drains immediately and
+  // every target is still reported unreachable. The guard buys a skipped traversal, not an answer.
   if (start === undefined) return distances;
 
+  // Stryker disable next-line ObjectLiteral,ArrowFunction: EQUIVALENT — this array is local and its
+  // length never leaves the function; every read goes through `?? -1`, so an empty or
+  // undefined-filled start is indistinguishable from a -1-filled one.
   const depth: number[] = Array.from({ length: graph.nodes.length }, () => -1);
   depth[start] = 0;
   let frontier = [start];
+  // Stryker disable next-line all: NON-TERMINATING or EQUIVALENT — `>= 0` never terminates on an
+  // empty frontier. What the walk DOES — real distances to four hops, the unreachable case, the
+  // shortest of two routes — is pinned by the `hopDistances` tests.
   while (frontier.length > 0) {
+    // Stryker disable next-line ArrayDeclaration: NON-TERMINATING — a placeholder element re-seeds
+    // the frontier on every pass, so it never drains and the walk does not return.
     const next: number[] = [];
     for (const index of frontier) {
       // Stryker disable next-line LogicalOperator: EQUIVALENT — every index in the frontier was
@@ -541,8 +592,9 @@ export function hopDistances(
       const here = depth[index] ?? 0;
       // Stryker disable next-line ArrayDeclaration: EQUIVALENT — one adjacency row per node.
       for (const neighbour of graph.neighbours[index] ?? []) {
-        // Stryker disable next-line UnaryOperator: EQUIVALENT — `depth` is initialised to -1 at
-        // every slot, so the `?? -1` fallback cannot fire; the sentinel itself is asserted by
+        // Stryker disable next-line all: NON-TERMINATING or EQUIVALENT — forcing this false
+        // re-queues already-visited nodes and the walk never drains; the `?? -1` fallback cannot
+        // fire because `depth` is -1 at every slot. The sentinel's real behaviour is asserted by
         // "hopDistances counts real distance along a chain and stops at the break".
         if ((depth[neighbour] ?? -1) !== -1) continue;
         depth[neighbour] = here + 1;
@@ -554,6 +606,9 @@ export function hopDistances(
 
   for (const target of targets) {
     const index = graph.indexOf.get(target);
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — without the guard the lookup
+    // below reads an undefined slot, falls back to -1, fails `found >= 0` and sets nothing, so the
+    // target is still reported unreachable. Pinned by "reports a target the graph does not hold".
     if (index === undefined) continue;
     // Stryker disable next-line UnaryOperator: EQUIVALENT — `index` came from `indexOf`, so the
     // slot exists and the fallback is unreachable.

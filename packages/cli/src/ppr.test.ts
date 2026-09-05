@@ -513,3 +513,74 @@ test("buildRetrievalCases returns gold ASCENDING regardless of read order", () =
   );
   assert.deepEqual(reading.cases[0]?.gold, [200, 300, 400]);
 });
+
+test("personalizedPageRank returns exactly one score per node", () => {
+  // Pins the vector's SHAPE, not just its contents: an off-by-one in either loop bound writes a
+  // slot past the end, and every score assertion still passes because the extra entry is zero.
+  const graph = buildPprGraph([1, 2, 3, 4, 5], [edge(1, 2), edge(2, 3)]);
+  const result = personalizedPageRank(graph, [1]);
+  assert.equal(result.scores.length, graph.nodes.length);
+  assert.equal(result.scores.length, 5);
+});
+
+/**
+ * ⚠ SCORE ORDER AND NODE ORDER DELIBERATELY DISAGREE.
+ *
+ * The comparator is `b.score - a.score || a.node - b.node`. With the two orders AGREEING, a mutant
+ * that drops the score term entirely — `&&` instead of `||`, which evaluates to the tie-breaker
+ * whenever the scores differ — produces the identical ranking and survives. Here the best-scoring
+ * node carries the LARGEST number, so ranking by node instead of by score inverts the answer.
+ */
+test("rankFromScores orders by SCORE, not by decision number", () => {
+  const graph = buildPprGraph([10, 20, 30], []);
+  assert.deepEqual(rankFromScores(graph, [0.1, 0.2, 0.7], []), [30, 20, 10]);
+});
+
+test("rankFromScores breaks a genuine tie by ASCENDING decision number", () => {
+  const graph = buildPprGraph([10, 20, 30], []);
+  // 20 and 30 tie; 10 outscores both. Ascending-by-node is the documented tie rule.
+  assert.deepEqual(rankFromScores(graph, [0.5, 0.25, 0.25], []), [10, 20, 30]);
+});
+
+test("pairedDifference computes the interval from the SPREAD, not from the mean alone", () => {
+  // n = 4 on purpose: at n = 2 the `/(n-1)` divisor is 1, so a `*` mutant is arithmetically
+  // invisible. differences [1,0,1,0] -> mean 0.5, variance 1/3, standard error sqrt(1/12).
+  const paired = pairedDifference([1, 0, 1, 0], [0, 0, 0, 0]);
+  assert.equal(paired.n, 4);
+  assertClose(paired.meanDifference, 0.5, "mean difference");
+  assertClose(paired.standardError, Math.sqrt(1 / 12), "standard error");
+  assertClose(paired.ci95[0], 0.5 - 1.96 * Math.sqrt(1 / 12), "interval floor");
+  assertClose(paired.ci95[1], 0.5 + 1.96 * Math.sqrt(1 / 12), "interval ceiling");
+  assert.equal(paired.separates, false, "this interval straddles zero");
+});
+
+test("pairedDifference separates a consistently WORSE arm, interval entirely below zero", () => {
+  const paired = pairedDifference([0.1, 0.1, 0.1, 0.1], [0.9, 0.9, 0.9, 0.9]);
+  assertClose(paired.meanDifference, -0.8, "a consistent deficit");
+  assert.ok(paired.ci95[1] < 0, "the whole interval sits below zero");
+  assert.equal(paired.separates, true, "separation must be detected in the losing direction too");
+});
+
+test("pairedDifference accepts the smallest honest sample of two", () => {
+  const paired = pairedDifference([0.1, 0.3], [0.2, 0.2]);
+  assert.equal(paired.n, 2);
+});
+
+/**
+ * Pins the split EXACTLY, not merely as roughly balanced.
+ *
+ * The partition has to be reproducible across code changes, or a published figure cannot be
+ * re-derived from a later checkout — and any change to the hash silently repartitions every window
+ * while leaving the halves looking just as balanced as before.
+ */
+test("splitWindowsByHash partitions a fixed population to an exact, reproducible size", () => {
+  const cases = Array.from({ length: 200 }, (_, index) => ({
+    windowId: `window-${index}`,
+    seed: 1,
+    gold: [2],
+  }));
+  const third = splitWindowsByHash(cases, 0.3);
+  assert.equal(third.test.length, 50);
+  assert.equal(third.train.length, 150);
+  assert.equal(splitWindowsByHash(cases, 0.5).test.length, 110);
+});
