@@ -105,9 +105,13 @@ export function stretchAboutIslands<T extends Descriptor3D>(descriptors: readonl
     throw new Error(`true-footprint: a stretch factor must be a positive finite number, got ${factor}`);
   }
   const centres = islandCentres(descriptors);
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — at a factor of exactly 1 the map
+  // below is the identity too; the early return only saves the work, and no input can tell them apart.
   if (centres.size === 0 || factor === 1) return [...descriptors];
   const about = (cz: number, z: number): number => cz + (z - cz) * factor;
   const ownCentre = (d: InstanceDescriptor, at: Transform3D): IslandCentre => {
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — `Map.get(undefined)` is
+    // `undefined` too; the guard is for the type, not for the value.
     const own = d.island === undefined ? undefined : centres.get(d.island);
     if (own !== undefined) return own;
     // `centres.size > 0` above, so the nearest centre exists.

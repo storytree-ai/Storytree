@@ -536,6 +536,7 @@
       "packages/forest-world-r3f/src/cell-ground-geometry.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/coast-clip.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/camera-framing.ts": "r3f-world-spike",
+      "packages/forest-world-r3f/src/true-footprint.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/land-relief.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shore-fall.ts": "r3f-world-spike",
       "packages/forest-world-r3f/src/shore-ring.ts": "r3f-world-spike",

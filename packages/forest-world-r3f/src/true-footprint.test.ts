@@ -152,35 +152,122 @@ test('⚠ a cave’s bearing turns with the stretched rim — n′ ∝ (s·cos b
 });
 
 test('⚠⚠ a ribbon between two islands lands on BOTH stretched coasts and has no step between them', () => {
-  const ds: InstanceDescriptor[] = [square('a', 0, 0), square('b', 0, 100)];
-  // A strip from a's south coast (z = 10) to b's north coast (z = 90), five points.
-  const pts = [10, 30, 50, 70, 90].map((z) => ({ x: 0, y: 0, z }));
-  const strip: InstanceDescriptor = { kind: 'trail-strip', transform: { x: 0, y: 0, z: 50 }, group: 'trail-strip', points: pts };
+  // ⚠ AWAY FROM z = 0 AND WITH x VARYING, NON-UNIFORMLY. Islands on z = 0 make `p.z - c.z` and
+  // `p.z + c.z` the same number, and points on one x make the arc length blind to its x term —
+  // both survived `check:mutation-diff` before this fixture moved.
+  const ds: InstanceDescriptor[] = [square('a', 0, 40), square('b', 0, 140)];
+  // A strip from a's south coast (z = 50) to b's north coast (z = 130), five points, wandering in x.
+  const raw = [
+    { x: 0, z: 50 },
+    { x: 12, z: 70 },
+    { x: 12, z: 90 },
+    { x: -5, z: 110 },
+    { x: 0, z: 130 },
+  ];
+  const pts = raw.map((p) => ({ x: p.x, y: 0, z: p.z }));
+  const strip: InstanceDescriptor = { kind: 'trail-strip', transform: { x: 0, y: 0, z: 90 }, group: 'trail-strip', points: pts };
   const s = 3;
   const out = stretchAboutIslands([...ds, strip], s);
   const moved = out[2]!;
-  // a's coast moved to 10·3 = 30; b's coast to 100 - 10·3 = 70.
-  assert.ok(Math.abs(moved.points![0]!.z - 30) < 1e-9, 'the first end sits on a’s stretched coast');
-  assert.ok(Math.abs(moved.points![4]!.z - 70) < 1e-9, 'the last end sits on b’s stretched coast');
+  // a's coast moved to 40 + 10·3 = 70; b's coast to 140 - 10·3 = 110.
+  assert.ok(Math.abs(moved.points![0]!.z - 70) < 1e-9, 'the first end sits on a’s stretched coast');
+  assert.ok(Math.abs(moved.points![4]!.z - 110) < 1e-9, 'the last end sits on b’s stretched coast');
+  // Every interior point is DERIVED here from the definition — arc-length blend of the two
+  // islands' displacements — never read back off the module.
+  const lengths = [0];
+  for (let i = 1; i < raw.length; i += 1) {
+    lengths.push(lengths[i - 1]! + Math.hypot(raw[i]!.x - raw[i - 1]!.x, raw[i]!.z - raw[i - 1]!.z));
+  }
+  const total = lengths[4]!;
+  for (const [i, p] of raw.entries()) {
+    const t = lengths[i]! / total;
+    const want = p.z + (1 - t) * (p.z - 40) * (s - 1) + t * (p.z - 140) * (s - 1);
+    assert.ok(Math.abs(moved.points![i]!.z - want) < 1e-9, `point ${i}: ${moved.points![i]!.z} against ${want}`);
+    assert.equal(moved.points![i]!.x, p.x, 'x never moves');
+  }
   // Monotone in between: no fold, no jump.
   for (let i = 1; i < 5; i += 1) assert.ok(moved.points![i]!.z > moved.points![i - 1]!.z, `point ${i} steps back`);
-  // ⚠ NON-VACUITY against the per-point-nearest-island rule: that rule would put point 3 (z=70,
-  // nearer b) at 100 + (70-100)·3 = 10, BEHIND point 1 — a fold in the ribbon.
+  // ⚠ NON-VACUITY against the per-point-nearest-island rule: that rule would put point 3 (z=110,
+  // nearer b) at 140 + (110-140)·3 = 50, BEHIND point 1 — a fold in the ribbon.
   assert.ok(moved.points![3]!.z > moved.points![1]!.z);
   // The anchor moved by the mean of the points' shifts.
   const meanShift = moved.points!.reduce((acc, p, i) => acc + (p.z - pts[i]!.z), 0) / 5;
-  assert.ok(Math.abs(moved.transform.z - (50 + meanShift)) < 1e-9);
+  assert.ok(Math.abs(moved.transform.z - (90 + meanShift)) < 1e-9);
   assert.equal(moved.transform.x, 0);
+  // A ghost strip is a ribbon too.
+  const ghost: InstanceDescriptor = { ...strip, kind: 'trail-ghost-strip', group: 'trail-ghost-strip' };
+  const g = stretchAboutIslands([...ds, ghost], s)[2]!;
+  assert.deepEqual(g.points, moved.points);
+  // A ribbon of ONE point (or coincident points) has no arc length to blend along: it is placed
+  // about the island nearest it and stays finite.
+  const dot: InstanceDescriptor = {
+    kind: 'trail-strip',
+    transform: { x: 0, y: 0, z: 56 },
+    group: 'trail-strip',
+    points: [{ x: 0, y: 0, z: 56 }, { x: 0, y: 0, z: 56 }],
+  };
+  const d1 = stretchAboutIslands([...ds, dot], s)[2]!;
+  assert.deepEqual(d1.points!.map((p) => p.z), [88, 88]);
+  assert.equal(d1.transform.z, 88);
+  // A strip with NO points, or an empty list, is a point-like thing: nearest island, no blend.
+  const bare: InstanceDescriptor = { kind: 'trail-strip', transform: { x: 0, y: 0, z: 56 }, group: 'trail-strip' };
+  assert.equal(stretchAboutIslands([...ds, bare], s)[2]!.transform.z, 88);
+  assert.equal(stretchAboutIslands([...ds, { ...bare, points: [] }], s)[2]!.transform.z, 88);
   // A ribbon whose both ends are nearest the SAME island stretches about that island exactly.
   const dock: InstanceDescriptor = {
     kind: 'trail-strip',
-    transform: { x: 0, y: 0, z: -14 },
+    transform: { x: 0, y: 0, z: 26 },
     group: 'trail-strip',
-    points: [{ x: 0, y: 0, z: -18 }, { x: 0, y: 0, z: -14 }, { x: 0, y: 0, z: -10 }],
+    points: [{ x: 0, y: 0, z: 22 }, { x: 0, y: 0, z: 26 }, { x: 0, y: 0, z: 30 }],
   };
   const d2 = stretchAboutIslands([...ds, dock], s)[2]!;
-  assert.deepEqual(d2.points!.map((p) => p.z), [-54, -42, -30]);
-  assert.ok(Math.abs(d2.transform.z - -42) < 1e-9);
+  assert.deepEqual(d2.points!.map((p) => p.z), [-14, -2, 10]);
+  assert.ok(Math.abs(d2.transform.z - -2) < 1e-9);
+});
+
+test('⚠ islandCentres reads CELLS ONLY, and only cells with vertices; nearestCentre keeps the first of two equidistant centres', () => {
+  // A bloom carrying an island id AND points is not ground and contributes to no centre.
+  const impostor: InstanceDescriptor = {
+    kind: 'uat-bloom',
+    transform: { x: 500, y: 0, z: 500 },
+    group: 'uat-bloom',
+    island: 'a',
+    points: [{ x: 500, y: 0, z: 500 }],
+  };
+  assert.deepEqual(islandCentres([square('a', 0, 0), impostor]).get('a'), { x: 0, z: 0 });
+  // A cell with an island id and NO ring contributes nothing — the island is absent, not at NaN.
+  const { points: _ring, ...ringless } = square('r', 5, 5);
+  void _ring;
+  assert.equal(islandCentres([ringless]).size, 0);
+  assert.equal(islandCentres([{ ...ringless, points: [] }]).size, 0);
+  // Two centres at the same distance: the first inserted wins, deterministically.
+  const c = islandCentres([square('a', -10, 0), square('b', 10, 0)]);
+  assert.deepEqual(nearestCentre(c, 0, 0), { x: -10, z: 0 });
+});
+
+test('⚠ a descriptor that NAMES its island stretches about it even when another island is nearer; an unknown island id falls back to the nearest', () => {
+  // ⚠ b sits at a DIFFERENT z from a, or "about a" and "about b" would be the same number and
+  // the own-island branch could be deleted unnoticed (`check:mutation-diff`, 2026-09-05).
+  const ds: InstanceDescriptor[] = [
+    square('a', 0, 0),
+    square('b', 100, 30),
+    // A bloom of island a standing right beside b.
+    { kind: 'uat-bloom', transform: { x: 95, y: 0, z: 34 }, group: 'uat-bloom', material: 'healthy', island: 'a' },
+    // A cave claiming an island the stream does not carry.
+    { kind: 'cave-arch', transform: { x: 95, y: 0, z: 34 }, group: 'cave-arch', material: 'healthy', island: 'ghost', bearing: 0 },
+    // A wisp names no island at all.
+    { kind: 'wisp-sprite', transform: { x: 95, y: 0, z: 34 }, group: 'wisp-sprite' },
+  ];
+  const out = stretchAboutIslands(ds, 3);
+  assert.ok(Math.abs(out[2]!.transform.z - 34 * 3) < 1e-9, 'the bloom stretched about a (its own, z 0), not b (the nearest, z 30)');
+  assert.ok(Math.abs(out[3]!.transform.z - (30 + 4 * 3)) < 1e-9, 'the cave fell back to the nearest island — b');
+  assert.ok(Math.abs(out[4]!.transform.z - (30 + 4 * 3)) < 1e-9, 'the wisp follows the nearest island — b');
+  // And a big island beside a tiny one: the big ring's corners are nearer the tiny island than
+  // their own centre, and still stretch about their own — a ring is never blended like a ribbon.
+  const big = square('big', 0, 0, 100);
+  const tiny = square('tiny', 60, 0, 4);
+  const [bigOut] = stretchAboutIslands([big, tiny], 3);
+  assert.deepEqual(bigOut!.points!.map((p) => p.z), [-150, -150, 150, 150]);
 });
 
 test('a stream with no islands, or a stretch of 1, comes back unchanged; a bad factor refuses; skips pass through', () => {

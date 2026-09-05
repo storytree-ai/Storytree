@@ -101,8 +101,19 @@ function eyeOffset(back: number): EyeOffset {
 /** The elevation the eye actually looks down at, read back off {@link frameWorld}'s own output —
  *  never a transcription of the constant it was built from. */
 export function shippedElevationDeg(): number {
-  const frame = frameWorld([]);
+  // ⚠ READ OFF A WORLD AWAY FROM THE ORIGIN. Framing an empty world targets (0, 0, 0), where
+  // `position - target` and `position + target` are the same number and a reader that got the
+  // subtraction wrong would still report the right angle — `check:mutation-diff` found exactly
+  // that. One stand-in instance off-origin makes the target non-zero, so the arithmetic is real.
+  // Stryker disable next-line StringLiteral: EQUIVALENT — `frameWorld` reads only `transform`; the
+  // family and group of the probe are not consulted, so any string here is the same probe.
+  const probe: InstanceDescriptor = { kind: 'wisp-sprite', transform: { x: 37, y: 0, z: 91 }, group: 'wisp-sprite' };
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — an empty world targets the origin and
+  // still reports the same angle; the probe exists so the x/z subtractions below are non-trivial.
+  const frame = frameWorld([probe]);
   const dx = frame.position[0] - frame.target[0];
+  // Stryker disable next-line ArithmeticOperator: EQUIVALENT — the target's y is always 0 (the
+  // ground plane), so adding and subtracting it are the same number.
   const dy = frame.position[1] - frame.target[1];
   const dz = frame.position[2] - frame.target[2];
   return (Math.atan2(dy, Math.hypot(dx, dz)) * 180) / Math.PI;
