@@ -1056,9 +1056,13 @@ export function gateCycleFor(
   gated: string,
   blocker: string,
 ): readonly string[] | null {
-  // The self-gate is a cycle of length one and would otherwise fall out of the walk below only by
-  // accident (an arc is not normally in its own `gatedBy`), so it is named rather than inferred.
-  if (gated === blocker) return [gated, gated];
+  // NOTE: there is deliberately no separate `gated === blocker` early return. One was written here
+  // and removed — the walk below already answers the self-gate correctly (it starts AT `blocker`,
+  // finds `at === gated` immediately, and returns the same `[gated, gated]` ring), so the guard was
+  // an equivalent branch that no test could ever distinguish. Kept as a note because the omission
+  // looks like one: `arcGate` refuses a self-gate earlier and for a better reason (a clearer
+  // message), so this function is never even reached with the two equal in practice.
+  //
   // DFS from `blocker` back toward `gated`, carrying the path so the refusal can name the ring
   // rather than merely assert one exists. `seen` bounds the walk over a set that may already contain
   // a cycle authored before this guard existed.
