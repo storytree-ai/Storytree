@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the camera's elevation, and the ground's footprint — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The camera&rsquo;s elevation, and the ground&rsquo;s footprint &mdash; one ladder, two causes</h1>
+      <p>
+        The owner reads the map&rsquo;s camera as too low. Two facts start this page: the shipped view
+        is a <strong>45&deg;</strong> elevation, while every render he approved was taken at the
+        owner-signed <strong>50&deg;</strong>; and the shipped ground plane is the 2D map&rsquo;s
+        <em>already-foreshortened</em> shape, so the island is 234 units wide and about 46 deep where
+        the hex cluster the recipe renders is 234 &times; 135 &mdash; squashed once by the drawing and
+        again by the 3D camera. A higher camera over a squashed plane makes a thin ribbon thinner from
+        above, not rounder. This page separates the two so he can see which he is reacting to.
+      </p>
+      <p class="numbers">
+        map-45    TODAY (CONTROL): the drawing's projected footprint, the shipped 45° camera
+        map-50    the same ground, the owner-signed 50° every approved render was taken at
+        map-55    the same ground, 55°
+        map-60    the same ground, 60°
+        true-45   the island's TRUE footprint — the hex cluster unprojected — at the shipped 45°
+        true-50   the true footprint at the signed 50°: the approved render's own geometry
+        true-55   the true footprint at 55°
+        true-60   the true footprint at 60°
+      </p>
+      <p>
+        <strong>What the numbers under each picture are.</strong> The island&rsquo;s on-screen size in
+        pixels and its width-to-height ratio (the one number that tells the two causes apart: five
+        degrees moves it by <code>sin 50&deg; / sin 45&deg;</code>, about 8%; the footprint moves it by
+        <code>1 / sin 20&deg;</code>, about 2.9&times;); how tall a grove pine stands on screen (an upright
+        foreshortens by <code>cos</code>, so a higher camera costs the trees); the land&rsquo;s share of
+        the frame; the colour-family census and MICRO against the reference; and pixels moved by more
+        than 20/255 against today (ADR-0490 D6 &mdash; here it says only how different the picture is,
+        never which is better). Every arm is built by the shipped composition root; within a footprint
+        the four elevations share one ground build and one placement list, and the driver refuses a
+        run where they do not. <strong>Nothing here is decided</strong> &mdash; the elevation is an
+        owner look, recorded as an ADR.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedCamera } from './shipped-camera-scene.ts';
+      try {
+        await mountShippedCamera(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

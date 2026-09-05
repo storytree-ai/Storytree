@@ -23,8 +23,10 @@
 //     labelled where it appears, exactly like the foreign-status capability.
 
 import {
+  LAND_CAMERA_ELEVATION_DEG,
   buildRelaxedCells,
   buildScene,
+  groundFlattening,
   hexCenter,
   type Axial,
   type RelaxedCell,
@@ -121,6 +123,19 @@ export interface IslandOptions {
   /** Draw the UAT flowers at all. `false` is the pre-flowers control the 2026-08-19 island was,
    *  which is what makes "what did the flowers add" answerable rather than remembered. */
   flowers?: boolean;
+  /**
+   * The camera the fixture's ground is PROJECTED at, in degrees of elevation. Omitted is the
+   * declared land camera (`LAND_CAMERA_ELEVATION_DEG`, 20°) — what every shipped 2D surface
+   * draws, and therefore what `worldTo3D` receives.
+   *
+   * ⚠ IT EXISTS FOR ONE ARM. The shipped 3D ground is the 2D drawing's already-foreshortened
+   * shape used as a ground plane (`parcel-cells.ts`: 234 wide, 46 deep), so the island is squashed
+   * once by the drawing and again by the 3D camera. `PLAN_VIEW_ELEVATION_DEG` (90°) hands the
+   * mapper the UNPROJECTED outline — the hex cluster's true footprint — which is the
+   * `shipped-camera-scene` page's footprint arm. A labelled deviation, never a default: the
+   * shipped canvas keeps its own long-standing basis until an owner-signed decision moves it.
+   */
+  cameraElevationDeg?: number;
 }
 
 /**
@@ -196,18 +211,23 @@ export function islandCriteria(opts: IslandOptions = {}): Array<{ id: string; st
 }
 
 export function islandScene(opts: IslandOptions = {}): SceneG {
-  const centres = ISLAND_TILES.map((h) => hexCenter(h));
+  // The camera every ground coordinate below is projected at — threaded to EVERY consumer that
+  // takes one (the hex centres, the relaxed cells, the territory's screen radius and the scene),
+  // so a plan-view island is unprojected everywhere rather than in the one place a reader checks.
+  const elevation = opts.cameraElevationDeg === undefined ? {} : { elevationDeg: opts.cameraElevationDeg };
+  const elevationDeg = opts.cameraElevationDeg ?? LAND_CAMERA_ELEVATION_DEG;
+  const centres = ISLAND_TILES.map((h) => hexCenter(h, elevation));
   const cx = centres.reduce((s, c) => s + c.x, 0) / centres.length;
   const cy = centres.reduce((s, c) => s + c.y, 0) / centres.length;
   const drawTiles = ISLAND_TILES.map((h) => ({ h, owner: 0 }));
   // 'mesh' is the shipped studio substrate — the relaxed decomposition the parcels ride on.
-  const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()], 'mesh');
+  const relaxed: RelaxedCell[] = buildRelaxedCells(drawTiles, [new Set<string>()], 'mesh', {}, elevation);
 
   const parcels: SceneParcelInput[] = islandCapabilities(opts).map((cap, i) => ({
     ...cap,
     // Seeds spread over the tiles so the Voronoi sub-partition gives every capability a
     // real parcel rather than slivers.
-    seed: hexCenter(ISLAND_TILES[i % ISLAND_TILES.length]!),
+    seed: hexCenter(ISLAND_TILES[i % ISLAND_TILES.length]!, elevation),
   }));
 
   const territory: SceneTerritoryInput = {
@@ -216,7 +236,7 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     caps: parcels.length,
     centroid: { x: cx, y: cy },
     groundRadius: 70,
-    screenRadius: 70 * Math.sin((20 * Math.PI) / 180),
+    screenRadius: 70 * groundFlattening(elevationDeg),
     treeSpot: { x: cx, y: cy - 6 },
     labelY: cy + 46,
     coastPaths: [],
@@ -258,5 +278,9 @@ export function islandScene(opts: IslandOptions = {}): SceneG {
     // procedural central tree — which is the tree this experiment grows as a solid.
     vegetation: {} satisfies SceneVegetationInput,
   };
+  // Only stated when a caller asked for one, so the default island's input is byte-for-byte what
+  // it was (an absent key and a `LAND_CAMERA_ELEVATION_DEG` key are the same scene, but
+  // `exactOptionalPropertyTypes` and a snapshot reader both tell them apart).
+  if (opts.cameraElevationDeg !== undefined) input.cameraElevationDeg = opts.cameraElevationDeg;
   return buildScene(input);
 }

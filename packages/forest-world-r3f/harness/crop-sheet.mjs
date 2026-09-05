@@ -34,6 +34,11 @@ const h = Number(opt('h', '100'));
 const scale = Number(opt('scale', '3'));
 const cols = Number(opt('cols', '1'));
 const title = opt('title', '');
+// `--smooth 1` resamples with the browser's filter instead of nearest-neighbour. The default stays
+// pixelated because the sheet's original job is to show DELIVERED pixels at a band 18 px tall; a
+// crop of a whole island scaled DOWN (scale < 1) is the other job, and nearest-neighbour there
+// drops pixels and speckles every crown (`shipped-camera` sheets, 2026-09-05).
+const smooth = opt('smooth', '0') === '1';
 
 const items = args.map((a) => {
   const eq = a.indexOf('=');
@@ -62,7 +67,7 @@ const html = `<!doctype html><html><head><meta charset="utf-8"><style>
   #sheet { display: inline-grid; grid-template-columns: repeat(${cols}, ${cw}px); gap: 14px 18px; padding: 16px; }
   h1 { font-size: 16px; font-weight: 600; margin: 16px 16px 0; }
   figure { margin: 0; }
-  canvas { display: block; image-rendering: pixelated; border: 1px solid #3a3f46; }
+  canvas { display: block; image-rendering: ${smooth ? 'auto' : 'pixelated'}; border: 1px solid #3a3f46; }
   figcaption { margin-top: 5px; white-space: pre-wrap; }
 </style></head><body>${title ? `<h1>${title}</h1>` : ''}<div id="sheet">${cells}</div></body></html>`;
 
@@ -70,19 +75,21 @@ const browser = await chromium.launch();
 const page = await browser.newPage({ deviceScaleFactor: 1 });
 await page.setContent(html, { waitUntil: 'load' });
 await page.evaluate(
-  async ({ x, y, w, h, scale }) => {
+  async ({ x, y, w, h, scale, smooth }) => {
     for (const canvas of document.querySelectorAll('canvas')) {
       const img = new Image();
       img.src = canvas.dataset.src;
       await img.decode();
       const ctx = canvas.getContext('2d');
-      // Nearest-neighbour on purpose: the point of the sheet is to see the delivered pixels, not a
-      // resampled impression of them.
-      ctx.imageSmoothingEnabled = false;
+      // Nearest-neighbour by default, on purpose: the point of the sheet is to see the delivered
+      // pixels, not a resampled impression of them. `--smooth 1` is for a whole-island crop scaled
+      // DOWN, where dropping pixels is the distortion.
+      ctx.imageSmoothingEnabled = smooth;
+      if (smooth) ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, x, y, w, h, 0, 0, w * scale, h * scale);
     }
   },
-  { x, y, w, h, scale },
+  { x, y, w, h, scale, smooth },
 );
 const el = await page.$('body');
 const box = await el.boundingBox();
