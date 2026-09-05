@@ -216,7 +216,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 }
 
 function bytesOf(value: unknown): number {
-  return Buffer.byteLength(JSON.stringify(value) ?? "", "utf8");
+  return Buffer.byteLength(JSON.stringify(value) ?? "");
 }
 
 /** A running tally per category, plus the labels that fell through the table. */
@@ -343,12 +343,13 @@ export function readWindowComposition(file: string): WindowComposition {
   for (const line of raw.split(/\r?\n/)) {
     if (line.trim() === "") continue;
 
+    // A line that is not JSON and a line that is JSON but not a record (`null`, `[1,2]`, `7`) are
+    // the same defect to this fold — nothing to classify — so they share one count and one path.
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
     } catch {
-      unparseableLines++;
-      continue;
+      parsed = undefined;
     }
     if (!isPlainObject(parsed)) {
       unparseableLines++;

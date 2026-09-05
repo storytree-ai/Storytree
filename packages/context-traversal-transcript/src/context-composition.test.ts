@@ -107,15 +107,48 @@ test("every declared attachment type lands in its category, measured in the byte
   );
 });
 
+test("every declared attachment type maps to its category — the table, pinned row by row", () => {
+  const table: readonly (readonly [string, CompositionCategory])[] = [
+    ["nested_memory", "project-guidance"],
+    ["skill_listing", "harness-catalogue"],
+    ["agent_listing_delta", "harness-catalogue"],
+    ["deferred_tools_delta", "harness-catalogue"],
+    ["mcp_instructions_delta", "harness-catalogue"],
+    ["command_permissions", "harness-catalogue"],
+    ["hook_success", "hook-injection"],
+    ["hook_additional_context", "hook-injection"],
+    ["hook_non_blocking_error", "hook-injection"],
+    ["total_tokens_reminder", "harness-reminder"],
+    ["batching_reminder_sent", "harness-reminder"],
+    ["silent_turn_reminder", "harness-reminder"],
+    ["date_change", "harness-reminder"],
+    ["auto_mode", "harness-reminder"],
+    ["edited_text_file", "file-change-notice"],
+    ["queued_command", "human-prompt"],
+  ];
+  for (const [type, category] of table) {
+    const file = writeTranscript([attachment({ type, payload: "p" })]);
+    const composition = readWindowComposition(file);
+    assert.deepEqual(
+      composition.slices,
+      [{ category, bytes: bytesOf({ type, payload: "p" }), records: 1 }],
+      `${type} → ${category}`,
+    );
+    assert.deepEqual(composition.unclassifiedLabels, [], type);
+  }
+});
+
 test("message blocks split by their own type: tool output, tool calls, prose, thinking, the human's words", () => {
   const prompt = "Please build the thing.";
   const toolUse = { type: "tool_use", id: "t1", name: "Bash", input: { command: "ls -la" } };
   const result = { type: "tool_result", tool_use_id: "t1", content: "total 0\n".repeat(40) };
   const prose = { type: "text", text: "Done." };
   const thinking = { type: "thinking", thinking: "…" };
+  const redacted = { type: "redacted_thinking", data: "opaque" };
   const file = writeTranscript([
     user(prompt),
     assistant("m1", [thinking], 100),
+    assistant("m1", [redacted], 100),
     assistant("m1", [toolUse], 100),
     user([result], { toolUseResult: { stdout: "DUPLICATE STRUCTURED COPY — must not be counted" } }),
     assistant("m2", [prose], 200),
@@ -125,7 +158,11 @@ test("message blocks split by their own type: tool output, tool calls, prose, th
   assert.equal(slice(file, "tool-calls")?.bytes, bytesOf(toolUse));
   assert.equal(slice(file, "tool-output")?.bytes, bytesOf(result));
   assert.equal(slice(file, "assistant-text")?.bytes, bytesOf(prose));
-  assert.equal(slice(file, "assistant-thinking")?.bytes, bytesOf(thinking));
+  assert.deepEqual(slice(file, "assistant-thinking"), {
+    category: "assistant-thinking",
+    bytes: bytesOf(thinking) + bytesOf(redacted),
+    records: 2,
+  });
   assert.equal(readWindowComposition(file).slices[0]?.category, "tool-output", "largest first");
 });
 
@@ -158,31 +195,71 @@ test("two categories of equal size order by name, so a render is stable across r
 test("an attachment or block type the table does not know is reported under its own name, never distributed and never dropped", () => {
   const novel = { type: "brand_new_injection", payload: "x".repeat(500) };
   const oddBlock = { type: "document", source: { data: "y".repeat(300) } };
-  const file = writeTranscript([attachment(novel), user([oddBlock]), attachment({ noType: true }), line({ type: "attachment" })]);
+  const file = writeTranscript([
+    attachment(novel),
+    user([oddBlock]),
+    attachment({ noType: true }),
+    line({ type: "attachment" }),
+    line({ type: "attachment", attachment: null }),
+    user(["a bare string where a block should be", { type: 5 }]),
+  ]);
 
   const composition = readWindowComposition(file);
   const unclassified = composition.slices.find((s) => s.category === "unclassified");
-  // Four records: the novel type, the odd block, the untyped attachment, and an attachment line
-  // carrying no attachment at all — which weighs nothing and still counts as a record.
-  assert.equal(unclassified?.records, 4);
-  assert.equal(unclassified?.bytes, bytesOf(novel) + bytesOf(oddBlock) + bytesOf({ noType: true }));
-  assert.deepEqual(composition.unclassifiedLabels, ["attachment:<untyped>", "attachment:brand_new_injection", "block:document"]);
+  // Seven records: the novel type, the odd block, the untyped attachment, an attachment line
+  // carrying no attachment at all (weighs nothing, still a record), a `null` attachment, a bare
+  // string in a content array, and a block whose `type` is not a string.
+  assert.equal(unclassified?.records, 7);
+  assert.equal(
+    unclassified?.bytes,
+    bytesOf(novel) + bytesOf(oddBlock) + bytesOf({ noType: true }) + bytesOf(null) + bytesOf("a bare string where a block should be") + bytesOf({ type: 5 }),
+  );
+  assert.deepEqual(composition.unclassifiedLabels, [
+    "attachment:<untyped>",
+    "attachment:brand_new_injection",
+    "block:<untyped>",
+    "block:document",
+  ]);
   // Nothing leaked into a named category.
   assert.equal(composition.slices.length, 1);
+});
+
+test("a message line with no message, or a message whose content is not text or blocks, classifies nothing and throws nothing", () => {
+  const file = writeTranscript([
+    line({ type: "user" }),
+    line({ type: "assistant", message: { id: "m", model: "x", usage: { input_tokens: 1 } } }),
+    line({ type: "user", message: { content: 42 } }),
+    user("counted"),
+  ]);
+  const composition = readWindowComposition(file);
+  assert.deepEqual(composition.slices, [{ category: "human-prompt", bytes: bytesOf("counted"), records: 1 }]);
+  assert.equal(composition.unparseableLines, 0);
 });
 
 test("the harness's bookkeeping records are set aside, counted and named — not in the composition", () => {
   const enqueue = { type: "queue-operation", operation: "enqueue", content: "the prompt, logged" };
   const lastPrompt = { type: "last-prompt", lastPrompt: "the prompt, logged again" };
-  const file = writeTranscript([line(enqueue), line(lastPrompt), line({ type: "atis-latch", atis: "" }), user("the prompt")]);
+  const file = writeTranscript([
+    line(enqueue),
+    line(lastPrompt),
+    line({ type: "atis-latch", atis: "" }),
+    line({ type: 7 }),
+    line({ untyped: true }),
+    user("the prompt"),
+  ]);
 
   const composition = readWindowComposition(file);
-  assert.equal(composition.bookkeeping.records, 3);
-  assert.deepEqual(composition.bookkeeping.kinds, ["atis-latch", "last-prompt", "queue-operation"]);
+  assert.equal(composition.bookkeeping.records, 5);
+  // A record whose `type` is missing or not a string is bookkeeping under one shared name.
+  assert.deepEqual(composition.bookkeeping.kinds, ["<untyped>", "atis-latch", "last-prompt", "queue-operation"]);
   // The whole line, wrapper and all — bookkeeping is measured as the record, since no part of it is content.
   assert.equal(
     composition.bookkeeping.bytes,
-    Buffer.byteLength(line(enqueue), "utf8") + Buffer.byteLength(line(lastPrompt), "utf8") + Buffer.byteLength(line({ type: "atis-latch", atis: "" }), "utf8"),
+    Buffer.byteLength(line(enqueue), "utf8") +
+      Buffer.byteLength(line(lastPrompt), "utf8") +
+      Buffer.byteLength(line({ type: "atis-latch", atis: "" }), "utf8") +
+      Buffer.byteLength(line({ type: 7 }), "utf8") +
+      Buffer.byteLength(line({ untyped: true }), "utf8"),
   );
   assert.equal(composition.accountedBytes, Buffer.byteLength(JSON.stringify("the prompt"), "utf8"));
 });
@@ -226,6 +303,21 @@ test("the residual is the first counted request's resident tokens minus what the
   assert.equal(CHARS_PER_TOKEN, 3.8, "ADR-0330 D1's calibration");
   // The later tool output is in the composition and NOT in the residual's visible half.
   assert.ok((slice(file, "tool-output")?.bytes ?? 0) > 60_000);
+});
+
+test("only the first counted request's OWN line closes the visible half — a user line naming that id does not", () => {
+  const before = { type: "tool_result", tool_use_id: "t0", content: "b".repeat(1_000) };
+  const file = writeTranscript([
+    user("go"),
+    // A user-role line whose message carries the same id: a request is an assistant line, so this
+    // must still be counted as visible rather than closing the half early.
+    line({ type: "user", message: { id: "first", content: [before] } }),
+    assistant("first", [{ type: "text", text: "hi" }], 50_000),
+  ]);
+  assert.equal(
+    readWindowComposition(file).residual?.visibleBytesBeforeFirstRequest,
+    bytesOf("go") + bytesOf(before),
+  );
 });
 
 test("a <synthetic> opener is not the request the residual is read from", () => {
@@ -288,10 +380,15 @@ test("an unreadable file is an empty composition with its own absence, and never
 test("a line that is not JSON is counted as unparseable and the rest of the file is still read", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-composition-"));
   const file = path.join(dir, `${WINDOW}.jsonl`);
-  fs.writeFileSync(file, [user("ok"), '{"type":"assistant","message":{"id":"cut', "[1,2]", user("still read")].join("\n") + "\n", "utf8");
+  fs.writeFileSync(
+    file,
+    [user("ok"), '{"type":"assistant","message":{"id":"cut', "[1,2]", "null", "   ", "", user("still read")].join("\n") + "\n",
+    "utf8",
+  );
 
   const composition = readWindowComposition(file);
-  assert.equal(composition.unparseableLines, 2);
+  // Three: the truncated line, the array, and `null`. Whitespace-only and empty lines are skipped, not counted.
+  assert.equal(composition.unparseableLines, 3);
   assert.equal(composition.slices.find((s) => s.category === "human-prompt")?.records, 2);
 });
 
@@ -312,8 +409,11 @@ test("every category has a plain-language label, and the mandatory set names onl
   ];
   for (const category of all) assert.ok(categoryLabel(category).length > 0, category);
   assert.ok(categoryLabel("assistant-thinking").includes("not all of it stays resident"), "the thinking caveat is on its label");
-  for (const category of MANDATORY_CATEGORIES) assert.ok(all.includes(category));
-  for (const elective of ["tool-output", "tool-calls", "human-prompt", "assistant-text"] as const) {
-    assert.ok(!MANDATORY_CATEGORIES.includes(elective), `${elective} is the session's own doing`);
-  }
+  assert.deepEqual(MANDATORY_CATEGORIES, [
+    "project-guidance",
+    "harness-catalogue",
+    "hook-injection",
+    "harness-reminder",
+    "file-change-notice",
+  ]);
 });

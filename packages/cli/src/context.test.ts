@@ -216,6 +216,13 @@ test("help names the marks and says it enforces nothing", () => {
   const env = contextHelp();
 
   assert.equal(env.ok, true);
+  assert.match(env.body, /resident tokens, peak, its band — and what\n\s+it is made of, by the harness's own labels, with a remedy\n/);
+  assert.match(env.body, /The `made of:` block splits the window's INTAKE by the labels the harness itself puts on each\n/);
+  assert.match(env.body, /record \(ADR-0516 D3 — labels and lengths, never content\), in bytes \(ADR-0330 D1's unit\)\. The\n/);
+  assert.match(env.body, /`unseen:` line is the harness's own preamble — system prompt and tool definitions — which no\n/);
+  assert.match(env.body, /transcript records and which can only be shown as what was resident at the first request minus\n/);
+  assert.match(env.body, /what the transcript accounts for \(D4\)\. It is reported as an unknown quantity, never omitted and\n/);
+  assert.match(env.body, /never zero\. The `remedy:` line names the one lever the dominant class leaves this session\.\n\nOffline and read-only/);
   assert.match(env.body, /~700k/);
   assert.match(env.body, /850k/);
   assert.match(env.body, /never enforces/i);
@@ -276,6 +283,9 @@ test("the reading says what the window is MADE OF, largest first, in bytes, from
   );
   assert.ok(!/helper-window/.test(env.body), "no exclusion line when nothing was excluded");
   assert.ok(!/unparseable/.test(env.body));
+  assert.match(env.body, /unit\) — its intake over its life, not what is resident after a compaction\n/);
+  // The block ends on the remedy and is followed by exactly one blank line before the standing text.
+  assert.match(env.body, /remedy:[^\n]+\n\nThis is YOUR window/);
 });
 
 test("what was set aside is listed on one line, each part only when it bit", () => {
@@ -300,7 +310,11 @@ test("what was set aside is listed on one line, each part only when it bit", () 
     deps({ composition: () => composition({ bookkeeping: { bytes: 0, records: 0, kinds: [] } }) }),
   );
   assert.ok(!/set aside/.test(none.body));
-  assert.ok(!/excluded/.test(none.body.split("made of:")[1]?.split("unseen:")[0] ?? "x"));
+  // Nothing set aside means NO line at all — the last row is followed directly by the guidance note.
+  assert.ok(
+    none.body.includes("  1 record\n              project guidance (CLAUDE.md / MEMORY.md) is not labelled"),
+    none.body,
+  );
 });
 
 test("the dominant-class threshold is a boundary at exactly 40%, on all three arms", () => {
@@ -339,7 +353,8 @@ test("the dominant-class threshold is a boundary at exactly 40%, on all three ar
 
 test("the harness floor is reported as an UNSEEN quantity with its arithmetic — never omitted, and never zero when it cannot be read", () => {
   const sized = contextCommand(deps());
-  assert.match(sized.body, /unseen:\s+≈92,818 tokens were resident at the first request/);
+  assert.match(sized.body, /unseen:\s+≈92,818 tokens were resident at the first request that no transcript line\n/);
+  assert.match(sized.body, /\n\s+accounts for — the harness's system prompt, tool definitions, and anything it injected\n/);
   assert.match(sized.body, /106,000 resident − ≈13,182 for 50,089 visible bytes at 3\.8 chars\/token/);
   assert.match(sized.body, /Not this session's to trim \(ADR-0330 D1\)/);
 
@@ -368,13 +383,24 @@ test("project guidance the harness did not label is said to travel inside the un
     }),
   );
   assert.ok(!/not labelled by this harness/.test(labelled.body));
-  assert.match(labelled.body, /project guidance \(CLAUDE\.md, when labelled\)\s+70,000 B/);
+  // The guidance row is followed by the set-aside line and then straight by `unseen:` — no note, no
+  // stray line in between.
+  assert.ok(
+    labelled.body.includes(
+      "project guidance (CLAUDE.md, when labelled)        70,000 B   12.3%  1 record\n" +
+        "              6 bookkeeping record(s) set aside (last-prompt, queue-operation)\n" +
+        "  unseen:",
+    ),
+    labelled.body,
+  );
 });
 
 test("the remedy names the lever the dominant class leaves the session, and hands back none for mandatory context", () => {
   const toolOutput = contextCommand(deps());
-  assert.match(toolOutput.body, /remedy:\s+tool output is 64\.4% of what entered/);
-  assert.match(toolOutput.body, /delegate-exploration-to-digest-subagents/);
+  assert.match(
+    toolOutput.body,
+    /remedy:\s+tool output is 64\.4% of what entered — page long outputs \(`\| head`, `--out <file>`\) and hand exploration to a digest subagent whose window is its own \(`storytree library artifact delegate-exploration-to-digest-subagents`\)\n/,
+  );
 
   const toolCalls = contextCommand(
     deps({
@@ -404,8 +430,10 @@ test("the remedy names the lever the dominant class leaves the session, and hand
         }),
     }),
   );
-  assert.match(mandatory.body, /remedy:\s+mandatory context is 66\.7%/);
-  assert.match(mandatory.body, /none of it is this session's to trim/);
+  assert.match(
+    mandatory.body,
+    /remedy:\s+mandatory context is 66\.7% — none of it is this session's to trim; the repo-owned part is budgeted by ADR-0330 D1 and `storytree doctor` reports it\n/,
+  );
   assert.ok(!/delegate-exploration/.test(mandatory.body));
 
   const spread = contextCommand(
@@ -453,7 +481,7 @@ test("an unreadable composition says so under the fullness rather than blanking 
     }),
   );
   assert.match(env.body, /resident:\s+225,013 tokens/);
-  assert.match(env.body, /made of:\s+UNREADABLE/);
+  assert.match(env.body, /made of:\s+UNREADABLE — the transcript this reading came from could not be re-read for its\n\s+composition\. The fullness above stands; what fills it is not known\.\n\nThis is YOUR window/);
   assert.ok(!/remedy:/.test(env.body));
 });
 

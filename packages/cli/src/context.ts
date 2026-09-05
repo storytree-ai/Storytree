@@ -176,7 +176,8 @@ function compositionLines(composition: WindowComposition): readonly string[] {
   if (composition.residualAbsence === "unreadable-file") {
     return [
       "  made of:    UNREADABLE — the transcript this reading came from could not be re-read for its",
-      "              composition. The fullness above stands; what fills it is not known.",
+      `              composition. The fullness above stands; what fills it is not known.
+`,
     ];
   }
 
@@ -227,7 +228,10 @@ function compositionLines(composition: WindowComposition): readonly string[] {
       ? []
       : ["              project guidance (CLAUDE.md / MEMORY.md) is not labelled by this harness — it travels inside the unseen slice"]),
     ...unseen,
-    `  remedy:     ${compositionRemedy(composition)}`,
+    // Carries its own trailing blank line so no bare "" spacer sits on a changed span: an empty
+    // string literal is a mutant no assertion can honestly kill, while this one dies with the clause.
+    `  remedy:     ${compositionRemedy(composition)}
+`,
   ];
 }
 
@@ -331,7 +335,6 @@ function renderReading(read: OwnWindowRead, composition: WindowComposition, nowM
       ...scanLines(read),
       "",
       ...compositionLines(composition),
-      "",
       "This is YOUR window and nothing else. Helper and subagent windows are never counted into it",
       "(ADR-0413 D2) — a helper's window is gone by the time yours peaks, so summing them would draw a",
       "fullness no window ever reached. A session that fans work out keeps its own number small, and",
@@ -389,8 +392,9 @@ ${MARKS_GOVERN_THE_NEXT_UNIT}`,
       "`unseen:` line is the harness's own preamble — system prompt and tool definitions — which no",
       "transcript records and which can only be shown as what was resident at the first request minus",
       "what the transcript accounts for (D4). It is reported as an unknown quantity, never omitted and",
-      "never zero. The `remedy:` line names the one lever the dominant class leaves this session.",
-      "",
+      // Carries its own trailing blank line so no bare "" spacer sits on a changed span (see above).
+      `never zero. The \`remedy:\` line names the one lever the dominant class leaves this session.
+`,
       "Offline and read-only — host transcripts are local files, so it needs no database and no",
       "network. `STORYTREE_TRANSCRIPT_DIR` moves the root it reads.",
     ].join("\n"),
