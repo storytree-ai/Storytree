@@ -3766,3 +3766,44 @@ test("question new on a CLOSED arc REOPENS it and says so (ADR-0526 D4's mirror)
     "active",
   );
 });
+
+test("settling a question on an arc with OPEN WORK prints no lifecycle line at all", async () => {
+  // The case where the note is genuinely null on a HOMED question: nothing flipped, and the arc is
+  // active because of its work rather than because of any question. A guard that spliced the note in
+  // regardless would emit a literal "null" into the settlement record.
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-with-work");
+  const res = await questionSettle(writeDeps(store), "oq-with-work", { answer: "decided" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /null/);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+  assert.doesNotMatch(res.body, /auto-closed/);
+  // The answer runs straight into the arc line, with exactly one blank between them.
+  const l = res.body.split(String.fromCharCode(10));
+  const answerAt = l.indexOf("decided");
+  assert.ok(answerAt > 0, "the answer is on its own line");
+  assert.equal(l[answerAt + 1], "");
+  assert.match(l[answerAt + 2] ?? "", /^drained-arc no longer counts this question as waiting/);
+});
+
+test("question new on a CLOSED arc separates its reopen note from the header and the title", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await questionNew(writeDeps(store), undefined, {
+    arc: "drained-arc",
+    title: "Which way now",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+  });
+  assert.equal(res.ok, true);
+  const l = res.body.split(String.fromCharCode(10));
+  assert.match(l[0] ?? "", /^raised question .* on arc drained-arc$/);
+  // A blank line BEFORE the note, so it reads as its own statement rather than as a run-on of the
+  // header — and another after it, before the question's own title block.
+  assert.equal(l[1], "");
+  assert.match(l[2] ?? "", /reopened/);
+  assert.equal(l[3], "");
+  assert.match(l[4] ?? "", /^# Which way now$/);
+});
