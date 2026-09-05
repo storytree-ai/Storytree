@@ -175,8 +175,10 @@ export interface WindowComposition {
   };
   /** Helper-window lines excluded (ADR-0413 D2). Reported, never silently dropped. */
   readonly sidechainLinesExcluded: number;
-  /** Lines that were not JSON. Reported, never silently dropped. */
+  /** Lines that were not JSON at all. Reported, never silently dropped. */
   readonly unparseableLines: number;
+  /** Lines that were JSON but not a record (`null`, an array, a number). Reported, never dropped. */
+  readonly nonRecordLines: number;
   /** The harness floor, or `null` exactly when {@link residualAbsence} is set. */
   readonly residual: ResidualEstimate | null;
   readonly residualAbsence: ResidualAbsence | null;
@@ -316,6 +318,7 @@ export function readWindowComposition(file: string): WindowComposition {
       bookkeeping: { bytes: 0, records: 0, kinds: [] },
       sidechainLinesExcluded: 0,
       unparseableLines: 0,
+      nonRecordLines: 0,
       residual: null,
       residualAbsence: "unreadable-file",
     };
@@ -333,6 +336,7 @@ export function readWindowComposition(file: string): WindowComposition {
   const bookkeepingKinds = new Set<string>();
   let sidechainLinesExcluded = 0;
   let unparseableLines = 0;
+  let nonRecordLines = 0;
   // The residual's visible half: the composition total as it stood when the first counted request's
   // line was reached. Tracked as "the total at the last line before it closed" so that a window whose
   // first request is never reached (nothing to close it) reports everything it saw — the honest
@@ -343,16 +347,18 @@ export function readWindowComposition(file: string): WindowComposition {
   for (const line of raw.split(/\r?\n/)) {
     if (line.trim() === "") continue;
 
-    // A line that is not JSON and a line that is JSON but not a record (`null`, `[1,2]`, `7`) are
-    // the same defect to this fold — nothing to classify — so they share one count and one path.
+    // Two different defects, counted apart: a line that is not JSON, and a line that is JSON but not
+    // a record (`null`, `[1,2]`, `7`). Neither has anything to classify; a reader repairing a
+    // transcript wants to know which it is looking at.
     let parsed: unknown;
     try {
       parsed = JSON.parse(line);
     } catch {
-      parsed = undefined;
+      unparseableLines++;
+      continue;
     }
     if (!isPlainObject(parsed)) {
-      unparseableLines++;
+      nonRecordLines++;
       continue;
     }
 
@@ -414,6 +420,7 @@ export function readWindowComposition(file: string): WindowComposition {
     },
     sidechainLinesExcluded,
     unparseableLines,
+    nonRecordLines,
     residual,
     residualAbsence,
   };

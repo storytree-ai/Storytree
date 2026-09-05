@@ -201,6 +201,7 @@ function compositionLines(composition: WindowComposition): readonly string[] {
     );
   }
   if (composition.unparseableLines > 0) setAside.push(`${groupDigits(composition.unparseableLines)} unparseable line(s)`);
+  if (composition.nonRecordLines > 0) setAside.push(`${groupDigits(composition.nonRecordLines)} non-record line(s)`);
 
   const guidanceLabelled = composition.slices.some((slice) => slice.category === "project-guidance");
 

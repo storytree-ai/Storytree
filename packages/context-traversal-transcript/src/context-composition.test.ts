@@ -234,6 +234,7 @@ test("a message line with no message, or a message whose content is not text or 
   const composition = readWindowComposition(file);
   assert.deepEqual(composition.slices, [{ category: "human-prompt", bytes: bytesOf("counted"), records: 1 }]);
   assert.equal(composition.unparseableLines, 0);
+  assert.equal(composition.nonRecordLines, 0);
 });
 
 test("the harness's bookkeeping records are set aside, counted and named — not in the composition", () => {
@@ -372,12 +373,13 @@ test("an unreadable file is an empty composition with its own absence, and never
     bookkeeping: { bytes: 0, records: 0, kinds: [] },
     sidechainLinesExcluded: 0,
     unparseableLines: 0,
+    nonRecordLines: 0,
     residual: null,
     residualAbsence: "unreadable-file",
   });
 });
 
-test("a line that is not JSON is counted as unparseable and the rest of the file is still read", () => {
+test("a line that is not JSON and a line that is JSON but no record are counted apart, and the rest of the file is still read", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "storytree-composition-"));
   const file = path.join(dir, `${WINDOW}.jsonl`);
   fs.writeFileSync(
@@ -387,8 +389,10 @@ test("a line that is not JSON is counted as unparseable and the rest of the file
   );
 
   const composition = readWindowComposition(file);
-  // Three: the truncated line, the array, and `null`. Whitespace-only and empty lines are skipped, not counted.
-  assert.equal(composition.unparseableLines, 3);
+  // The truncated line is not JSON; the array and `null` are JSON that is not a record. Counted
+  // apart. Whitespace-only and empty lines are skipped, not counted.
+  assert.equal(composition.unparseableLines, 1);
+  assert.equal(composition.nonRecordLines, 2);
   assert.equal(composition.slices.find((s) => s.category === "human-prompt")?.records, 2);
 });
 

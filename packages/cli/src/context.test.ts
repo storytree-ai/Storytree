@@ -69,6 +69,7 @@ function composition(overrides: Partial<WindowComposition> = {}): WindowComposit
     bookkeeping: { bytes: 4_000, records: 6, kinds: ["last-prompt", "queue-operation"] },
     sidechainLinesExcluded: 0,
     unparseableLines: 0,
+    nonRecordLines: 0,
     residual: {
       firstRequestResidentTokens: 106_000,
       visibleBytesBeforeFirstRequest: 50_089,
@@ -283,6 +284,7 @@ test("the reading says what the window is MADE OF, largest first, in bytes, from
   );
   assert.ok(!/helper-window/.test(env.body), "no exclusion line when nothing was excluded");
   assert.ok(!/unparseable/.test(env.body));
+  assert.ok(!/non-record/.test(env.body));
   assert.match(env.body, /unit\) — its intake over its life, not what is resident after a compaction\n/);
   // The block ends on the remedy and is followed by exactly one blank line before the standing text.
   assert.match(env.body, /remedy:[^\n]+\n\nThis is YOUR window/);
@@ -295,13 +297,14 @@ test("what was set aside is listed on one line, each part only when it bit", () 
         composition({
           sidechainLinesExcluded: 2,
           unparseableLines: 3,
+          nonRecordLines: 4,
           bookkeeping: { bytes: 10, records: 1, kinds: ["pr-link"] },
         }),
     }),
   );
   assert.ok(
     env.body.includes(
-      "\n              2 helper-window line(s) excluded (ADR-0413 D2) · 1 bookkeeping record(s) set aside (pr-link) · 3 unparseable line(s)\n",
+      "\n              2 helper-window line(s) excluded (ADR-0413 D2) · 1 bookkeeping record(s) set aside (pr-link) · 3 unparseable line(s) · 4 non-record line(s)\n",
     ),
     env.body,
   );
