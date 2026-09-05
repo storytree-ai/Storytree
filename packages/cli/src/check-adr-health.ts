@@ -10,6 +10,7 @@ import {
   adrGateFailures,
   adrHealth,
   loadStoryDecisions,
+  type DecisionAuthorityView,
   type DecisionBodyView,
   type GuardrailView,
 } from "./adr-health.js";
@@ -136,6 +137,16 @@ async function main(): Promise<number> {
       }
     }
 
+    // WHOSE CALL each decision was, for `authority-declared`. Read off the SAME `adrs` the other
+    // rungs judge — `loadTitledAdrMetasFromStore` already validated the stamp on projection, so
+    // `declared` means "satisfies `DecisionAuthority`" rather than "has an `authority` key", and no
+    // second store pass is needed. Deriving it here rather than widening `AdrMeta` keeps the stamp
+    // out of the frontmatter shape ADR-0519 D2 fences it from.
+    const decisionAuthorities: DecisionAuthorityView[] = adrs.map((a) => ({
+      number: a.number,
+      declared: a.authority !== undefined,
+    }));
+
     const results = adrHealth({
       adrs,
       parseErrors,
@@ -144,6 +155,7 @@ async function main(): Promise<number> {
       stories,
       guardrails,
       decisionBodies,
+      decisionAuthorities,
       pathExists: (rel) => existsSync(path.join(root, rel)),
     });
 
