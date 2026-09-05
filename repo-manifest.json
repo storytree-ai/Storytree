@@ -156,6 +156,8 @@
       "packages/cli/src/probe-decision-baseline.ts": "cli",
       "packages/cli/src/co-read-edges.ts": "cli",
       "packages/cli/src/probe-co-read-edges.ts": "cli",
+      "packages/cli/src/ppr.ts": "cli",
+      "packages/cli/src/probe-ppr.ts": "cli",
       "packages/cli/src/probe-decision-gather.ts": "cli",
       "packages/cli/src/decision-control-set.ts": "cli",
       "packages/cli/src/probe-decision-control-set.ts": "cli",
