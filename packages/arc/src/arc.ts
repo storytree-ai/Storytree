@@ -984,6 +984,250 @@ export async function arcEdit(
 }
 
 // ---------------------------------------------------------------------------
+// The GATE verbs (ADR-0523) — an arc-to-arc schedule edge.
+//
+// `A.gatedBy = ["asset:B"]` reads *A cannot start until B closes*. The edge lives on the GATED arc
+// and points at its blocker (ADR-0183 D3's containment direction, `arcRef`'s precedent), so a
+// blocker names none of the arcs queued behind it and authoring a gate touches exactly one row.
+//
+// ⚠ THIS IS NOT `dependsOn`, and the separation is the decision rather than a naming preference. An
+// arc already carries `dependsOn`, so a gate could have shipped with no schema change at all —
+// which is the trap ADR-0523 refuses. `dependsOn` means *stands on* (knowledge support, what the
+// tech-tree ranks depth by); a gate means *cannot start* (a schedule). 88 non-test modules read
+// `dependsOn`, and every one would have begun reading a schedule as knowledge depth with no error
+// and no way to tell from the view.
+// ---------------------------------------------------------------------------
+
+/** PURE: an arc id as the `asset:<id>` ref `gatedBy` stores. */
+export function gateRefOf(arcId: string): string {
+  return `${ASSET_REF_PREFIX}${arcId}`;
+}
+
+/** PURE: the bare arc id behind an `asset:<id>` ref, or the input unchanged when it carries no prefix. */
+export function gateIdOf(ref: string): string {
+  return ref.startsWith(ASSET_REF_PREFIX) ? ref.slice(ASSET_REF_PREFIX.length) : ref;
+}
+
+/**
+ * PURE: the cycle the edge `gated → blocker` would close, as the id path, or `null` when it closes
+ * none.
+ *
+ * ADR-0523 D4 puts this at WRITE time and inside the increment that ships the verbs, not in a later
+ * hardening pass. A gate that closes a loop deadlocks both arcs PERMANENTLY and neither arc's page
+ * can show why — the surface would render two arcs each waiting on the other with no cause visible
+ * on either. Refusing costs one walk of an edge set that is small by construction.
+ *
+ * Because `gatedBy` is deliberately outside the knowledge DAG (D3), `check:library-dag-acyclic`
+ * never sees these edges — this walk is the ONLY acyclicity guard, which is why it is not optional.
+ *
+ * The walk runs FORWARD from the proposed blocker: `gated` cannot start until `blocker` closes, so a
+ * cycle exists exactly when `blocker` already transitively waits on `gated`. The returned path reads
+ * in gated-waits-on order and is closed (first id === last id) so a caller can print it as a ring.
+ *
+ * `edges` maps an arc id to the ids it is gated by — already unwrapped from `asset:` refs. An id
+ * absent from the map is an arc with no gates, which is most of them.
+ */
+export function gateCycleFor(
+  edges: ReadonlyMap<string, readonly string[]>,
+  gated: string,
+  blocker: string,
+): readonly string[] | null {
+  // The self-gate is a cycle of length one and would otherwise fall out of the walk below only by
+  // accident (an arc is not normally in its own `gatedBy`), so it is named rather than inferred.
+  if (gated === blocker) return [gated, gated];
+  // DFS from `blocker` back toward `gated`, carrying the path so the refusal can name the ring
+  // rather than merely assert one exists. `seen` bounds the walk over a set that may already contain
+  // a cycle authored before this guard existed.
+  const seen = new Set<string>();
+  const walk = (at: string, path: readonly string[]): readonly string[] | null => {
+    if (at === gated) return [...path, gated];
+    if (seen.has(at)) return null;
+    seen.add(at);
+    for (const next of edges.get(at) ?? []) {
+      const found = walk(next, [...path, at]);
+      if (found) return found;
+    }
+    return null;
+  };
+  return walk(blocker, [gated]);
+}
+
+/** Reads every arc's `gatedBy` as a bare-id adjacency map — the input {@link gateCycleFor} walks. */
+async function gateEdgesOf(deps: ArcWriteDeps): Promise<Map<string, readonly string[]>> {
+  const rows = await deps.store.queryDocs({ kind: "arc" });
+  const edges = new Map<string, readonly string[]>();
+  for (const row of rows) {
+    const doc = typeof row.doc === "object" && row.doc !== null ? (row.doc as Record<string, unknown>) : {};
+    const refs = doc["gatedBy"];
+    if (!Array.isArray(refs)) continue;
+    const ids = refs.filter((r): r is string => typeof r === "string").map(gateIdOf);
+    if (ids.length > 0) edges.set(row.id, ids);
+  }
+  return edges;
+}
+
+/** PURE: the `gatedBy` refs on a loaded arc doc, or `[]` when it carries none. */
+function gatedByOf(doc: Record<string, unknown>): readonly string[] {
+  const refs = doc["gatedBy"];
+  return Array.isArray(refs) ? refs.filter((r): r is string => typeof r === "string") : [];
+}
+
+/** PURE: the `gateReasons` map on a loaded arc doc, or `{}` when it carries none. */
+function gateReasonsOf(doc: Record<string, unknown>): Readonly<Record<string, string>> {
+  const stored = doc["gateReasons"];
+  if (typeof stored !== "object" || stored === null || Array.isArray(stored)) return {};
+  const out: Record<string, string> = {};
+  for (const [k, v] of Object.entries(stored as Record<string, unknown>)) if (typeof v === "string") out[k] = v;
+  return out;
+}
+
+/**
+ * `storytree arc gate <id> --needs <other-id> [--reason <text|@file>] --pg` — queue an arc behind
+ * its blocker (ADR-0523 D5).
+ *
+ * FIELD-SCOPED like every other arc mutation (ADR-0352): it names `gatedBy`, `gateReasons` and the
+ * stamp, so a sibling session's concurrent edit to this arc's narrative survives it.
+ */
+export async function arcGate(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  opts: { needs?: string | undefined; reason?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("gate");
+  if (id === undefined || opts.needs === undefined) {
+    return {
+      ok: false,
+      body: "arc gate needs both arcs: storytree arc gate <id> --needs <other-id> [--reason <text|@file>] --pg\n  <id> is the arc that CANNOT START; --needs names the one that must close first.",
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const needs = gateIdOf(opts.needs);
+  if (needs === id) {
+    return {
+      ok: false,
+      body: `an arc cannot gate itself — "${id}" would wait on its own closure and could never start.`,
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const found = await loadArcForWrite(deps, id);
+  if ("error" in found) return found.error;
+  // The BLOCKER must exist too. A gate on a typo'd id is a permanent wait on nothing — the arc reads
+  // as queued forever and no closure will ever release it, which is worse than a refusal here.
+  const blocker = await loadArcForWrite(deps, needs);
+  if ("error" in blocker) return blocker.error;
+
+  const current = gatedByOf(found.doc);
+  const ref = gateRefOf(needs);
+  const already = current.some((r) => gateIdOf(r) === needs);
+
+  // ADR-0523 D4 — walk BEFORE writing, and name the ring rather than merely refusing.
+  const cycle = gateCycleFor(await gateEdgesOf(deps), id, needs);
+  if (cycle) {
+    return {
+      ok: false,
+      body: `REFUSED: gating "${id}" behind "${needs}" would close a cycle —\n  ${cycle.join(" → ")}\nEvery arc in that ring would wait on the next forever, and no arc's page could show why. Release one edge first: storytree arc ungate <id> --needs <other-id> --pg`,
+      next: [`storytree arc show ${id} --pg`, `storytree arc show ${needs} --pg`],
+    };
+  }
+
+  const reasons = { ...gateReasonsOf(found.doc) };
+  if (opts.reason !== undefined) reasons[ref] = oneLine(opts.reason);
+  const fields: Record<string, unknown> = {
+    gatedBy: already ? [...current] : [...current, ref],
+    updatedAt: deps.now,
+  };
+  if (Object.keys(reasons).length > 0) fields["gateReasons"] = reasons;
+  const base = Object.assign({ ...found.doc }, fields);
+
+  const written = await patchFields(deps, id, "arc", fields);
+  if ("invalid" in written) {
+    return {
+      ok: false,
+      body: `gate would make "${id}" invalid:\n${explainDocValidationError(base, written.invalid, { storedKeys: found.storedKeys })}`,
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  if ("retired" in written) return retiredUnderfoot("arc", id, "this gate was being prepared");
+  const verb = already ? (opts.reason === undefined ? "already gated" : "reason recorded") : "gated";
+  return {
+    ok: true,
+    body: `${verb}: "${id}" cannot start until "${needs}" closes.${opts.reason === undefined ? "\n  no --reason recorded — a session six weeks from now reads that field instead of re-deriving why the queue exists." : ""}`,
+    next: [`storytree arc show ${id} --pg`, `storytree arc list --pg`],
+  };
+}
+
+/**
+ * `storytree arc ungate <id> [--needs <other-id>] --pg` — release a queue edge (ADR-0523 D5).
+ *
+ * With `--needs`, drops exactly that edge; without it, drops every gate on the arc. The reason is
+ * dropped with the edge it explains — a reason outliving its gate is a lie about a wait that ended.
+ */
+export async function arcUngate(
+  deps: ArcWriteDeps,
+  id: string | undefined,
+  opts: { needs?: string | undefined },
+): Promise<Envelope> {
+  if (!deps.writable) return arcNotWritable("ungate");
+  if (id === undefined) {
+    return {
+      ok: false,
+      body: "arc ungate needs an id: storytree arc ungate <id> [--needs <other-id>] --pg\n  without --needs it releases EVERY gate on the arc.",
+      next: ["storytree arc list --pg"],
+    };
+  }
+  const found = await loadArcForWrite(deps, id);
+  if ("error" in found) return found.error;
+  const current = gatedByOf(found.doc);
+  if (current.length === 0) {
+    return {
+      ok: false,
+      body: `"${id}" is not gated — nothing to release.`,
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const needs = opts.needs === undefined ? undefined : gateIdOf(opts.needs);
+  if (needs !== undefined && !current.some((r) => gateIdOf(r) === needs)) {
+    return {
+      ok: false,
+      body: `"${id}" is not gated behind "${needs}". It waits on: ${current.map(gateIdOf).join(", ")}.`,
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  const kept = needs === undefined ? [] : current.filter((r) => gateIdOf(r) !== needs);
+  const reasons = gateReasonsOf(found.doc);
+  const keptReasons: Record<string, string> = {};
+  for (const ref of kept) {
+    const reason = reasons[ref];
+    if (reason !== undefined) keptReasons[ref] = reason;
+  }
+  // An EMPTY `gatedBy` is written as absent rather than `[]`: absent is what every arc that was
+  // never gated carries, so a released arc reads identically to one that never queued. The same
+  // holds for `gateReasons` — an empty map would be a record of a wait that is over.
+  const fields: Record<string, unknown> = {
+    gatedBy: kept.length > 0 ? kept : undefined,
+    gateReasons: Object.keys(keptReasons).length > 0 ? keptReasons : undefined,
+    updatedAt: deps.now,
+  };
+  const base = Object.assign({ ...found.doc }, fields);
+
+  const written = await patchFields(deps, id, "arc", fields);
+  if ("invalid" in written) {
+    return {
+      ok: false,
+      body: `ungate would make "${id}" invalid:\n${explainDocValidationError(base, written.invalid, { storedKeys: found.storedKeys })}`,
+      next: [`storytree arc show ${id} --pg`],
+    };
+  }
+  if ("retired" in written) return retiredUnderfoot("arc", id, "this ungate was being prepared");
+  const released = needs === undefined ? current.map(gateIdOf).join(", ") : needs;
+  return {
+    ok: true,
+    body: `released: "${id}" no longer waits on ${released}.${kept.length > 0 ? ` Still gated behind: ${kept.map(gateIdOf).join(", ")}.` : " It is startable."}`,
+    next: [`storytree arc show ${id} --pg`, `storytree arc list --pg`],
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The INCREMENT verbs (ADR-0305 D1).
 //
 // Three verbs replace four, and the collapse is the decision. `arc increment add` (the landing log),
@@ -2359,6 +2603,23 @@ export function arcHelp(): Envelope {
       "        unless you pass one; `--description` overrides the one-liner derived from the intent. No",
       "        number to reserve — an arc id is a slug, so this is cheaper than `adr new`, not dearer.",
       "  storytree arc edit <id> [--intent <text|@file>] [--end-state <text|@file>] --pg",
+      "",
+      "queue an arc behind its blocker (ADR-0523):",
+      "  storytree arc gate <id> --needs <other-id> [--reason <text|@file>] --pg",
+      "        <id> CANNOT START until <other-id> closes. The edge lives on the GATED arc, so a",
+      "        blocker names none of the arcs queued behind it and this touches exactly one row.",
+      "        A gate that would close a CYCLE is REFUSED at write time, naming the ring — every arc",
+      "        in a loop waits on the next forever and no arc's page could show why.",
+      "        --reason is not decoration: it renders in the arc panel and is what a session six",
+      "        weeks from now reads instead of re-deriving why the queue exists.",
+      "  storytree arc ungate <id> [--needs <other-id>] --pg",
+      "        Release one gate, or (without --needs) every gate on the arc.",
+      "",
+      "        ⚠ THIS IS NOT `dependsOn`, which an arc also carries. `dependsOn` means STANDS ON —",
+      "        knowledge support, what the tech-tree ranks depth by. A gate means CANNOT START — a",
+      "        schedule. They draw the same picture, which is the reason to keep them apart rather",
+      "        than a reason to merge them: 88 non-test modules read `dependsOn` and would have begun",
+      "        reading a schedule as knowledge depth, undetectably from the view.",
       "",
       "the increment verbs:",
       "  storytree arc increment add <arc-id> --outcome <text|@file> [--pr <ref>] [--date] [--id <slug>]",

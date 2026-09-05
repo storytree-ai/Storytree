@@ -15,6 +15,9 @@ import {
   arcCommand,
   arcDescriptionFrom,
   arcEdit,
+  arcGate,
+  arcUngate,
+  gateCycleFor,
   arcIdFromTitle,
   arcIncrementAdd,
   arcNew,
@@ -2221,6 +2224,211 @@ test("arc show --no-log on an arc with no landings says so, rather than summaris
     assert.match(brief.body, /## Increment log {2}\(0 closed\)/);
     assert.match(brief.body, /\(no landings yet\)/);
     assert.doesNotMatch(brief.body, /last landing/);
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// The GATE verbs (ADR-0523) — the arc-to-arc SCHEDULE edge, deliberately not `dependsOn`.
+//
+// `A.gatedBy = ["asset:B"]` reads *A cannot start until B closes*. These pin four things the
+// decision turns on: the edge direction (it lives on the GATED arc), the write-time cycle refusal
+// (D4 — a loop deadlocks both arcs permanently and neither page can show why), the reason travelling
+// WITH its edge, and a released arc reading identically to one that never queued.
+// ---------------------------------------------------------------------------
+
+/** Seeds three ungated arcs — the shape every gate test starts from. */
+async function gateArcs(store: InMemoryStore): Promise<InMemoryStore> {
+  for (const id of ["ground-arc", "paint-arc", "third-arc"]) {
+    await store.upsertDoc({
+      id,
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id,
+        title: id,
+        description: "d",
+        intent: "i",
+        endState: "e",
+        createdAt: "2026-09-01",
+        updatedAt: "2026-09-01",
+      },
+    });
+  }
+  return store;
+}
+
+test("gateCycleFor: a legal edge closes no cycle, and every ring shape is caught", () => {
+  // No edges at all — the ordinary case, and the one that must stay cheap.
+  assert.equal(gateCycleFor(new Map(), "paint-arc", "ground-arc"), null);
+  // A chain that does NOT close: paint waits on ground, ground waits on third.
+  const chain = new Map([["ground-arc", ["third-arc"]]]);
+  assert.equal(gateCycleFor(chain, "paint-arc", "ground-arc"), null);
+  // The SELF gate — a ring of one. Named rather than inferred, because an arc is not normally in
+  // its own `gatedBy` and the walk would otherwise catch it only by accident.
+  assert.deepEqual(gateCycleFor(new Map(), "solo-arc", "solo-arc"), ["solo-arc", "solo-arc"]);
+  // The 2-cycle: ground already waits on paint, so gating paint behind ground closes the ring.
+  const two = new Map([["ground-arc", ["paint-arc"]]]);
+  assert.deepEqual(gateCycleFor(two, "paint-arc", "ground-arc"), ["paint-arc", "ground-arc", "paint-arc"]);
+  // The 3-cycle — transitive, which is the case a naive "is the blocker already gated by me?" check
+  // misses entirely.
+  const three = new Map([
+    ["ground-arc", ["third-arc"]],
+    ["third-arc", ["paint-arc"]],
+  ]);
+  assert.deepEqual(gateCycleFor(three, "paint-arc", "ground-arc"), [
+    "paint-arc",
+    "ground-arc",
+    "third-arc",
+    "paint-arc",
+  ]);
+});
+
+test("gateCycleFor terminates over an edge set that ALREADY contains a cycle", () => {
+  // A ring authored before this guard existed must not hang the walk for an unrelated query.
+  const preexisting = new Map([
+    ["a-arc", ["b-arc"]],
+    ["b-arc", ["a-arc"]],
+  ]);
+  assert.equal(gateCycleFor(preexisting, "paint-arc", "a-arc"), null);
+});
+
+test("arc gate records the edge on the GATED arc, with its reason, and names the direction", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const res = await arcGate(writeDeps(store), "paint-arc", {
+    needs: "ground-arc",
+    reason: "The wheat re-palettises the green stack, so it cannot exist before the stack does.",
+  });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /cannot start until "ground-arc" closes/);
+
+  const gated = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  assert.deepEqual(gated["gatedBy"], ["asset:ground-arc"]);
+  assert.deepEqual(gated["gateReasons"], {
+    "asset:ground-arc": "The wheat re-palettises the green stack, so it cannot exist before the stack does.",
+  });
+  // THE DIRECTION IS THE DECISION (ADR-0183 D3's containment rule): the BLOCKER is untouched, so a
+  // gate is one row's write and a blocker never enumerates its queue.
+  const blocker = (await store.getDoc("ground-arc"))?.doc as Record<string, unknown>;
+  assert.equal(blocker["gatedBy"], undefined);
+  assert.equal(blocker["gateReasons"], undefined);
+});
+
+test("arc gate REFUSES a cycle at write time and names the ring it would close", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "ground-arc", { needs: "paint-arc" });
+  const res = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, false);
+  assert.match(res.body, /REFUSED/);
+  // Naming the ring is the point — a bare refusal leaves the caller to re-derive which edge to drop.
+  assert.match(res.body, /paint-arc . ground-arc . paint-arc/);
+  // AND NOTHING WAS WRITTEN. A refusal that half-applied would be worse than the cycle.
+  const gated = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  assert.equal(gated["gatedBy"], undefined);
+});
+
+test("arc gate refuses a self-gate and a gate on an arc that does not exist", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const self = await arcGate(writeDeps(store), "paint-arc", { needs: "paint-arc" });
+  assert.equal(self.ok, false);
+  assert.match(self.body, /cannot gate itself/);
+  // A gate on a typo'd BLOCKER is a permanent wait on nothing: the arc reads queued forever and no
+  // closure will ever release it. Refusing here is strictly better than storing it.
+  const ghost = await arcGate(writeDeps(store), "paint-arc", { needs: "no-such-arc" });
+  assert.equal(ghost.ok, false);
+  assert.match(ghost.body, /no arc "no-such-arc"/);
+  assert.equal(((await store.getDoc("paint-arc"))?.doc as Record<string, unknown>)["gatedBy"], undefined);
+});
+
+test("arc gate without --reason still gates, and SAYS the reason is missing", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const res = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /no --reason recorded/);
+  const gated = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  assert.deepEqual(gated["gatedBy"], ["asset:ground-arc"]);
+  // An absent reason is silence, never an invalid edge — no empty map is stored.
+  assert.equal(gated["gateReasons"], undefined);
+});
+
+test("arc gate is idempotent on the edge and can add a reason to one already recorded", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  const again = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc", reason: "why" });
+  assert.equal(again.ok, true);
+  const gated = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  assert.deepEqual(gated["gatedBy"], ["asset:ground-arc"], "the edge is not duplicated");
+  assert.deepEqual(gated["gateReasons"], { "asset:ground-arc": "why" });
+});
+
+test("arc ungate releases one edge and leaves the others, dropping only that edge's reason", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc", reason: "stack first" });
+  await arcGate(writeDeps(store), "paint-arc", { needs: "third-arc", reason: "third first" });
+  const res = await arcUngate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, true);
+  assert.match(res.body, /Still gated behind: third-arc/);
+  const gated = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  assert.deepEqual(gated["gatedBy"], ["asset:third-arc"]);
+  // The reason is dropped WITH the edge it explains — a reason outliving its gate is a lie about a
+  // wait that ended.
+  assert.deepEqual(gated["gateReasons"], { "asset:third-arc": "third first" });
+});
+
+test("a fully ungated arc reads IDENTICALLY to one that was never gated — absent, not []", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc", reason: "r" });
+  const res = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(res.ok, true);
+  assert.match(res.body, /It is startable/);
+  const gated = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  // An empty `[]` would be a distinguishable third state meaning nothing — every reader would then
+  // owe it a branch. Absent is what an arc that never queued carries.
+  assert.ok(!("gatedBy" in gated), "the key is REMOVED, not set to an empty array");
+  assert.ok(!("gateReasons" in gated), "the reason map goes with the last edge");
+});
+
+test("arc ungate is honest about an arc that is not gated, and about an edge it does not hold", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const none = await arcUngate(writeDeps(store), "paint-arc", {});
+  assert.equal(none.ok, false);
+  assert.match(none.body, /is not gated/);
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  const wrong = await arcUngate(writeDeps(store), "paint-arc", { needs: "third-arc" });
+  assert.equal(wrong.ok, false);
+  // It names what the arc DOES wait on, so the caller does not have to go and look.
+  assert.match(wrong.body, /It waits on: ground-arc/);
+});
+
+test("both gate verbs refuse offline — arcs are live-canonical", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const gate = await arcGate(writeDeps(store, false, false), "paint-arc", { needs: "ground-arc" });
+  assert.equal(gate.ok, false);
+  assert.match(gate.body, /--pg/);
+  const ungate = await arcUngate(writeDeps(store, false, false), "paint-arc", {});
+  assert.equal(ungate.ok, false);
+  assert.match(ungate.body, /--pg/);
+});
+
+test("arc gate needs BOTH arcs named, and says which is which", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  const noNeeds = await arcGate(writeDeps(store), "paint-arc", {});
+  assert.equal(noNeeds.ok, false);
+  // The edge direction is the one thing a caller can get backwards, so the refusal spells it out.
+  assert.match(noNeeds.body, /CANNOT START/);
+  assert.match(noNeeds.body, /must close first/);
+});
+
+test("arc help documents the gate verbs AND why they are not dependsOn", async () => {
+  const fx = diskFixture();
+  try {
+    const help = await arcCommand("help", undefined, depsFor(new InMemoryStore(), fx));
+    assert.match(help.body, /storytree arc gate <id> --needs <other-id>/);
+    assert.match(help.body, /storytree arc ungate <id>/);
+    // The separation is the decision (ADR-0523), so the help carries the reason rather than only the
+    // syntax — a caller reaching for `dependsOn` is exactly who reads this.
+    assert.match(help.body, /NOT `dependsOn`/);
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }

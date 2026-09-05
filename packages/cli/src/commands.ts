@@ -77,6 +77,8 @@ import {
   arcHelp,
   arcNew,
   arcEdit,
+  arcGate,
+  arcUngate,
   arcIncrementAdd,
   arcClose,
   arcReconcile,
@@ -2950,6 +2952,11 @@ export const CLI_OPTIONS = {
   bound: { type: "string" },
   change: { type: "string", multiple: true },
   reason: { type: "string" },
+  // `storytree arc gate <id> --needs <other-id>` (ADR-0523 D5): the arc that must CLOSE first. Named
+  // `--needs` rather than `--on`/`--after` because the sentence it completes is the semantics —
+  // "<id> needs <other> [to close first]" — and the edge direction is the one thing a caller can get
+  // backwards. Shared by `arc ungate`, where it selects which edge to release.
+  needs: { type: "string" },
   "superseded-by": { type: "string" },
   // `storytree library repoint <from> --to <to> --confirm <token>` (ADR-0498 D4): the token names
   // the edit set the dry run printed, so a confirmation cannot carry across a corpus that moved.
@@ -3956,6 +3963,8 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     if (
       sub === "new" ||
       sub === "edit" ||
+      sub === "gate" ||
+      sub === "ungate" ||
       sub === "increment" ||
       sub === "close" ||
       sub === "reopen" ||
@@ -4058,6 +4067,20 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
         if (resolved.intent !== undefined) arcEditOpts.intent = resolved.intent;
         if (resolved.endState !== undefined) arcEditOpts.endState = resolved.endState;
         return arcEdit(writeDeps, third, arcEditOpts);
+      }
+      // The GATE writes (ADR-0523 D5) — the arc-to-arc schedule edge. `--reason` is already a
+      // PROSE_FLAG, so it arrives `@path`-expanded from the boundary above; `--needs` is a plain id
+      // and is read straight off `values`.
+      if (sub === "gate") {
+        const arcGateOpts: Parameters<typeof arcGate>[2] = {};
+        if (values.needs !== undefined) arcGateOpts.needs = values.needs;
+        if (values.reason !== undefined) arcGateOpts.reason = values.reason;
+        return arcGate(writeDeps, third, arcGateOpts);
+      }
+      if (sub === "ungate") {
+        const arcUngateOpts: Parameters<typeof arcUngate>[2] = {};
+        if (values.needs !== undefined) arcUngateOpts.needs = values.needs;
+        return arcUngate(writeDeps, third, arcUngateOpts);
       }
       // The CLOSING write (ADR-0239 D2) shares every flag with `increment add`, and since the fold it
       // delegates to it: `close` is `increment add` followed by the `lifecycle: closed` flip.

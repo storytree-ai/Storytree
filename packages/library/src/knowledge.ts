@@ -1497,6 +1497,48 @@ export const Resteer = buildKindSchema("resteer").extend({
 // and an arc could be left reading `closed` while its own accepted ADR said otherwise.
 export const Arc = buildKindSchema("arc").extend({
   lifecycle: ArcLifecycle.default("active"),
+  /**
+   * The arcs that must CLOSE before this one may start (ADR-0523) — the schedule edge, and
+   * deliberately NOT {@link DependsOnRef}'s `dependsOn`.
+   *
+   * `A.gatedBy = ["asset:B"]` reads *A cannot start until B closes*. The edge lives on the GATED
+   * arc pointing at its blocker, which is ADR-0183 D3's containment direction (`arcRef`'s
+   * precedent): a blocker names none of the arcs queued behind it, and the queue is derived by
+   * query, so authoring a gate touches exactly one row.
+   *
+   * WHY NOT `dependsOn`, which an `arc` already carries. An arc is absent from
+   * {@link EDGE_FREE_KINDS} and {@link DAG_EXCLUDED_KINDS}, so a gate COULD have shipped here with
+   * no schema change at all — and that is precisely the trap. `dependsOn` means *stands on*:
+   * knowledge support, the foundational edge the tech-tree ranks depth by. A gate means *cannot
+   * start*: a schedule. Counted when ADR-0523 was decided, **88 non-test modules read `dependsOn`**
+   * (13 in `apps/studio/src` alone, plus `check-library-dag-acyclic` and the decision-altitude
+   * instruments); every one would have begun treating a schedule as knowledge depth, with no error,
+   * no warning, and no way to tell from the view — the two graphs draw the same picture. That
+   * sameness is the argument for keeping them apart, not for merging them.
+   *
+   * NOT IN THE KNOWLEDGE DAG (ADR-0523 D3). A graph reader must opt IN to seeing a gate; acyclicity
+   * is enforced at write time by `arc gate` instead, which refuses an edge that would close a loop
+   * and names the cycle — a deadlocked pair of arcs can show nobody why.
+   *
+   * OPTIONAL, absent-by-default — the zero-migration shape `Increment.arcRef` and
+   * `OpenQuestion.arcRef` already set, so every arc authored before this field validates unchanged
+   * and reads as ungated. No `CURRENT_SCHEMA_VERSION` bump. Schema-level metadata like
+   * `lifecycle`, never a `KIND_SPECS` body section, so it does not round-trip through markdown.
+   */
+  gatedBy: z.array(AssetRef).optional(),
+  /**
+   * Why this arc is gated, keyed by the blocker's `asset:` ref (ADR-0523 D5).
+   *
+   * NOT decoration: it renders in the arc-surface panel and is what a session six weeks later reads
+   * instead of re-deriving why the queue exists. Stored beside the edge rather than in prose for
+   * the same reason the edge itself is — prose cannot be joined to the row it explains.
+   *
+   * A sibling map rather than a field on a richer edge object because `gatedBy` stays a plain
+   * `AssetRef[]`: every existing ref-list reader (and the `--cites`/`dependsOn` idiom this repo
+   * already has) keeps working on it unchanged, and a gate with no recorded reason is legal — an
+   * absent key here is silence, never an invalid edge.
+   */
+  gateReasons: z.record(z.string().min(1)).optional(),
 });
 // The `increment` kind (ADR-0183 D2/D3, folded by ADR-0305 D1) — ONE unit of arc work, from the
 // moment it is decided through to the moment it closes. It carries seven structured fields beyond its
