@@ -17,6 +17,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { CLI_READ_VERBS } from "@storytree/context-traversal-capture";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
 import { adrCommand, adrHelp, type AdrCommandDeps } from "./adr.js";
@@ -266,6 +267,29 @@ test("argv: --restamp reaches the verb", async () => {
   );
   assert.equal(env.ok, true, env.body);
   assert.equal((await authorityOf(store, 100))?.["basis"], "agent-flipped");
+});
+
+// ─── the traversal classification ─────────────────────────────────────────────────────────────
+
+test("adr attest is classified SILENT, and the recorded reason says why it cannot be observed", () => {
+  // `observe-cli.test.ts` already asserts that every dispatched verb is classified — but that file
+  // is not part of this branch's diff, so it holds the classification generically and cannot speak
+  // for THIS verb's reason. `check:mutation-diff` reports exactly that as KILLED-BY-OTHERS and reds
+  // on it: a pre-existing sweep that happens to cover a new row does not discriminate it.
+  //
+  // The reason is the substance, not decoration. `adr attest` spans an index, a read and a write,
+  // and argv cannot separate them — so recording it as a READ would enter writes into the traversal
+  // record as reads. Classifying it silent is a deliberate loss of signal, and the text is where
+  // that trade is stated.
+  const spec = CLI_READ_VERBS["adr attest"];
+  assert.deepEqual(spec, {
+    observes: "nothing",
+    why:
+      "the `adr compose` shape exactly — a bare COVERAGE INDEX, a read of one record's authority " +
+      "stamp, and a WRITE when --basis or --backfill is given. argv alone separates them only by " +
+      "flags this table does not model, so it is unobserved rather than recorded as a read that " +
+      "might have been a write",
+  });
 });
 
 // ─── the record view's banner wiring ──────────────────────────────────────────────────────────
