@@ -77,7 +77,7 @@ import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { kitMeshes, loadKit, roleFootprints } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
-import { dressMapWithGroves } from '../src/map-dressing.js';
+import { dressMapWithCover } from '../src/map-dressing.js';
 
 /**
  * THE SIX ARMS — a LADDER WITH ONE FORK, in which every arm differs from the one it names in
@@ -329,14 +329,16 @@ export function setLandKit(kit: LoadedKit): void {
  * that belongs to one, and `dressMapFromKit` spends the signatures per island. This fixture is a
  * healthy story with ten signed criteria, so it now stands ten flowers it previously did not.
  *
- * ⚠ AND SINCE 2026-09-03 IT STANDS THE GROVE TOO — `dressMapWithGroves`, the function the canvas
- * calls, because this fixture is a healthy island and the canvas forests those. A page that kept
- * calling the vocabulary-only dressing would picture the map as it stood before the grove.
+ * ⚠ AND IT STANDS THE GROUND COVER TOO — `dressMapWithCover`, the function the canvas calls,
+ * because this fixture is a healthy island and the canvas dresses those. A page that kept calling
+ * the vocabulary-only dressing would picture the map as it stood before the cover. (From
+ * 2026-09-03 to 2026-09-05 this called `dressMapWithGroves`; ADR-0518 retired the grove, and the
+ * canvas's own entry point is what this reads now.)
  */
 export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
   return kitMeshes(
     kit,
-    dressMapWithGroves(worldTo3D(islandScene()), {
+    dressMapWithCover(worldTo3D(islandScene()), {
       relief: LAND_RELIEF_AMPLITUDE,
       footprint: roleFootprints(kit),
     }),
@@ -409,7 +411,7 @@ export function shippedMapCasters(): ShadowCaster[] {
   return [
     ...shippedCasters(),
     ...placementCasters(
-      dressMapWithGroves(worldTo3D(islandScene()), {
+      dressMapWithCover(worldTo3D(islandScene()), {
         relief: LAND_RELIEF_AMPLITUDE,
         footprint: KIT_FOOTPRINTS_2026_08_29,
       }),

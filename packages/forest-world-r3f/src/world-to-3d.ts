@@ -6,7 +6,7 @@
 // 2D SVG primitives. It supplies its own 3D geometry family for each core kind:
 //   cell        → cell-ground       (extruded parcel prism, the RELAXED-MESH substrate)
 //   cell-wheat  → cell-ground       (ditto — wheat is a 2D look, not a different ground)
-//   tree        → (SKIPPED)         (the 3D map stands a grove, not one hero tree — ADR-0508)
+//   tree        → (SKIPPED)         (the 3D map stands the kit's capability trees, not one hero tree — ADR-0508)
 //   trail-fill  → trail-strip       (routed ribbon strip on the ground plane, ADR-0169 §4)
 //   trail-ghost → trail-ghost-strip (the under-island run — surfaces may skip it)
 //   cave        → cave-arch         (the forced-route portal prop at the rim bearing)
@@ -61,7 +61,9 @@
 // hand-built cone-on-a-cylinder predates the bought kit; since ADR-0475 D2 the LAND
 // carries the story's own state uniformly across the island, so the cone was a second
 // copy of a signal the ground already reports, and it was the one object on the map that
-// was not from the pack. `grove-dressing.ts` stands the grove that replaces it.
+// was not from the pack. What stands in its place is the kit vocabulary's one tree per
+// capability (`kit-vocabulary.ts`) — the grove that briefly joined them was retired by
+// ADR-0518 on 2026-09-05.
 //
 // ⚠ THE SEAM IS HERE ON PURPOSE — the mesh could equally have been dropped at the canvas.
 // It is retired at the MAPPER because every downstream reader of what stands on the map
@@ -480,8 +482,8 @@ function walkNode(
       // not a `story-tree` instance either. Until 2026-09-04 this case emitted one, and the
       // shipped canvas drew a cylinder trunk under a cone crown at every island's centre. The
       // owner retired it (ADR-0508): "under this new look the center tree will no longer be a
-      // thing, each island will be a small grove or forest". The grove that stands in its place
-      // is `grove-dressing.ts`'s, placed from the bought kit.
+      // thing, each island will be a small grove or forest". What stands in its place is the kit
+      // vocabulary's one tree per capability — the grove itself was retired by ADR-0518.
       //
       // ⚠ IT SKIPS RATHER THAN REFUSING, which is the opposite call from `case 'tile'` above and
       // the difference is what a scene carrying the kind means. A `tile` group means the caller
@@ -591,8 +593,8 @@ function walkNode(
  * - `cell` / `cell-wheat`
  *                 → `cell-ground`       (parcel prism; material = territory SceneStatus)
  * - `tree`        → SKIPPED             (the placeholder story tree is retired from the 3D map —
- *                                        ADR-0508; each island stands a grove instead, and the 2D
- *                                        maps keep drawing their own hero tree from the same node)
+ *                                        ADR-0508; each island stands its capability trees instead,
+ *                                        and the 2D maps keep drawing their own hero tree from the same node)
  * - `trail-fill`  → `trail-strip`       (ground-plane ribbon; usage/edges/segment metadata)
  * - `trail-ghost` → `trail-ghost-strip` (the under-island run — surfaces may skip it)
  * - `cave`        → `cave-arch`         (rim portal prop; bearing = rotation about Y)

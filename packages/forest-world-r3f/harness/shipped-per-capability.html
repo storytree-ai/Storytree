@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>one tree per capability, with the ground cover laddered — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>One tree per capability, with the ground cover laddered beside it</h1>
+      <p>
+        The owner looked at a dressed island and asked why it carried about a hundred trees when no
+        story has that many capabilities, then ruled: <em>&ldquo;1 tree per a capability it needs to
+        look good not like a forest&rdquo;</em> (ADR-0518). The grove of dressing pines is gone from
+        the shipped map &mdash; a tree now means exactly one capability &mdash; and what carries an
+        island that stands 3&ndash;6 trees over its true footprint is the <strong>ground cover</strong>:
+        bushes, grass tufts and small white flowers. Its <em>count</em> is laddered here at the size
+        that already ships, so each arm differs from its neighbour in one thing.
+      </p>
+      <p class="numbers">
+        today      the map AS IT SHIPPED until this landing: one tree per capability PLUS the healthy island's grove, the cover at the recipe's count (CONTROL)
+        cover-x1   ONE TREE PER CAPABILITY and nothing else tree-shaped, the cover at the RECIPE's own count — what removing the grove alone does
+        cover-x2   the same, the cover at TWICE the recipe's count
+        cover-x3   the same, at THREE TIMES
+        cover-x4   the same, at FOUR TIMES — the boldest rung rendered
+      </p>
+      <p>
+        <strong>The number under each picture is the tree count</strong>, because it is the number he
+        asked about: capability trees (one per capability) and, on <code>today</code> only, the
+        dressing pines that used to stand beside them. Then the cover by role, the island on screen,
+        the colour-family census against the reference, and pixels moved past 20/255 against
+        <code>today</code> (ADR-0490 D6). Every ladder arm is the shipped composition root; the four
+        share one ground mesh and one occlusion field and differ only in how much cover stands on it.
+        Frame cost is taken from this page by <code>shipped-per-capability-cost.mjs</code> on the
+        RTX 2060 and <em>reports</em> &mdash; it does not gate the change (ADR-0517 D4).
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedPerCapability } from './shipped-per-capability-scene.ts';
+      try {
+        await mountShippedPerCapability(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

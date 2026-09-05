@@ -35,10 +35,10 @@ import { FIT_ZOOM } from './shipped-crowd-scene.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const source = (rel: string): string => readFileSync(join(HERE, rel), 'utf8');
 
-test('every arm stands on the SHIPPED grove arm’s ground, from the canopy page’s own builder, and builds no scene of its own', () => {
+test('every arm stands on the SHIPPED casting arm’s ground, from the canopy module’s own builder, and builds no scene of its own', () => {
   const page = source('shipped-detail-scene.ts');
-  assert.ok(/canopyGroundBuild\(SHIPPED_GROVE_ARM, size\)/.test(page), 'the ground is the shipped grove arm’s');
-  assert.ok(/armPlacements\(SHIPPED_GROVE_ARM, size\)/.test(page), 'the placements are the shipped grove arm’s');
+  assert.ok(/canopyGroundBuild\(SHIPPED_CANOPY_ARM, size\)/.test(page), 'the ground is the shipped casting arm’s');
+  assert.ok(/armPlacements\(SHIPPED_CANOPY_ARM, size\)/.test(page), 'the placements are the shipped casting arm’s');
   assert.ok(!/const input: CellGroundGeometryInput/.test(page), 'no geometry input of its own');
   assert.ok(!/clipToCoast\(/.test(page), 'the coast clip is the builder’s');
   assert.ok(!/shoreRelief\(/.test(page), 'the shore fall is the builder’s');

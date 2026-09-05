@@ -273,7 +273,7 @@ test('prepareKitMaterial installs the shipped fraction on every kit material', (
   assert.equal(propLightingOf(bark)?.fraction, KIT_PROP_INDIRECT_FRACTION);
 });
 
-test('⚠ a tinted clone is re-installed at the BASE’s fraction — the state crown is lit like the grove', () => {
+test('⚠ a tinted clone is re-installed at the BASE’s fraction — the state crown is lit like an untinted one', () => {
   const leaf = new THREE.MeshStandardMaterial({ name: 'Pine_Branches' });
   const bark = new THREE.MeshStandardMaterial({ name: 'Pine_Trunks' });
   prepareKitMaterial(leaf);
@@ -320,7 +320,7 @@ test('the meshes a dressing merges wear materials that ALL carry the patch', () 
   const tint = tintedStates()[0]!;
   const meshes = kitMeshes(kit, [
     { role: 'tree', assembly: 'pine-a', capId: 'a', tint, at: { x: 0, z: 0 }, y: 0, yaw: 0, scale: 1 },
-    { role: 'tree', assembly: 'pine-a', capId: 'grove', tint: null, at: { x: 20, z: 0 }, y: 0, yaw: 0, scale: 0.7 },
+    { role: 'tree', assembly: 'pine-a', capId: 'b', tint: null, at: { x: 20, z: 0 }, y: 0, yaw: 0, scale: 1 },
   ]);
   assert.equal(meshes.length, 3, 'bark, green leaves, tinted leaves');
   for (const m of meshes) {

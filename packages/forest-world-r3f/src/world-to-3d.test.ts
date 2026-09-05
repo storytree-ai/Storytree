@@ -296,8 +296,8 @@ test('worldTo3D REFUSES a classic-substrate (tile) scene — the old land path i
 test('worldTo3D SKIPS the story tree — the island keeps its parcels and its blooms, and stands no cone', () => {
   // ⚠⚠ THE RETIREMENT, PROVED AT THE SEAM IT WAS MADE AT (ADR-0508). Until 2026-09-04 this test
   // read "one story-tree descriptor per territory" and the shipped canvas drew a cylinder trunk
-  // under a cone crown at every island's centre. The owner retired it — each island is a grove now
-  // — and the mapper is where it went, because every downstream reader of what stands on the map
+  // under a cone crown at every island's centre. The owner retired it — each island stands its
+  // kit trees now — and the mapper is where it went, because every downstream reader of what stands on the map
   // (the canvas, `groundCasters`, and through `shippedCasters()` every comparison page) reaches it
   // through this function.
   const uatCriteria = [{ id: 'sig-1', state: 'proven' as const }];

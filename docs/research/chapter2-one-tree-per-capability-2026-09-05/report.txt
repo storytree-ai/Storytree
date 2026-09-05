@@ -1,0 +1,68 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+elevation (read off the crowd camera, which reads frameWorld): 50° on every arm
+shipped cover count rung (COVER_DENSITY): x3 at size 4.5 → the shipped arm is cover-x3 · control (history): grove rung x1, cover x1
+
+THE ARMS
+  today     the map AS IT SHIPPED UNTIL 2026-09-05 — the true footprint from 50°, one tree per capability PLUS the healthy island’s grove of dressing pines at rung x1, the ground cover at the recipe’s own count (x1) — TODAY (CONTROL)
+  cover-x1  ONE TREE PER CAPABILITY and nothing else tree-shaped (ADR-0518), the ground cover at the RECIPE’S OWN count (70 bushes, 120 tufts, 26 flower patches per recipe-island of area), at the shipped size rung 4.5
+  cover-x2  ONE TREE PER CAPABILITY and nothing else tree-shaped (ADR-0518), the ground cover at 2× the recipe’s count, at the shipped size rung 4.5
+  cover-x3  ONE TREE PER CAPABILITY and nothing else tree-shaped (ADR-0518), the ground cover at 3× the recipe’s count, at the shipped size rung 4.5 — THE SHIPPED PICK
+  cover-x4  ONE TREE PER CAPABILITY and nothing else tree-shaped (ADR-0518), the ground cover at 4× the recipe’s count, at the shipped size rung 4.5
+
+THE REFERENCE — the approved Cycles render, through this page’s own readers
+  land-combined-1948px.png: 1948×1280, island box 1936×1144 px (w/h 1.692) · colour families 36 · largest 5.2% · MICRO 2.54 · STRUCT 30.05
+  ⚠ measured, never differenced: another resolution and framing, and its pines are the recipe’s stands, not one per capability.
+
+── one @ 8 px/unit ─────────────────────────────────
+arm        rung  TREES  dressing pines  blooms  cover  bushes  tufts  flowers  props   px/unit  ground on screen (px)  pine px  land%  tris      fam  largest  MICRO  moved>20 vs today  vs leaner rung
+today      x1      11              61      10    216      70    120       26    298     8.000    1984×933                93  35.8%    152082   47    7.0%   2.21                  0               —
+cover-x1   x1      11               0      10    216      70    120       26    237     8.000    1984×933                93  35.7%     87212   45    7.9%   1.88             118797               —
+cover-x2   x2      11               0      10    432     140    240       52    453     8.000    1984×933                93  35.7%    152128   46    7.4%   2.72             172509           62106
+cover-x3   x3      11               0      10    648     210    360       78    669     8.000    1984×933                93  35.7%    216922   48    7.1%   3.44             218930           60380
+cover-x4   x4      11               0      10    864     280    480      104    885     8.000    1984×933                93  35.7%    281796   49    6.8%   4.12             250956           55674
+
+── one @ fit (each arm at its own fit) ─────────────────────────────────
+arm        rung  TREES  dressing pines  blooms  cover  bushes  tufts  flowers  props   px/unit  ground on screen (px)  pine px  land%  tris      fam  largest  MICRO  moved>20 vs today  vs leaner rung
+today      x1      11              61      10    216      70    120       26    298     7.785    1931×908                90  33.9%    152082   48    7.0%   2.22                  0               —
+cover-x1   x1      11               0      10    216      70    120       26    237     7.785    1931×908                90  33.8%     87212   45    7.9%   1.89             112443               —
+cover-x2   x2      11               0      10    432     140    240       52    453     7.785    1931×908                90  33.8%    152128   46    7.4%   2.72             162764           58223
+cover-x3   x3      11               0      10    648     210    360       78    669     7.785    1931×908                90  33.8%    216922   48    7.1%   3.44             206411           56666
+cover-x4   x4      11               0      10    864     280    480      104    885     7.785    1931×908                90  33.8%    281796   49    6.8%   4.10             236610           52308
+
+── forest @ 8 px/unit ─────────────────────────────────
+arm        rung  TREES  dressing pines  blooms  cover  bushes  tufts  flowers  props   px/unit  ground on screen (px)  pine px  land%  tris      fam  largest  MICRO  moved>20 vs today  vs leaner rung
+today      x1     374            1476     210   4536    1470   2520      546   6596     8.000   18866×22366              93  35.9%   3569544   47    6.9%   2.25                  0               —
+cover-x1   x1     374               0     210   4536    1470   2520      546   5120     8.000   18866×22366              93  35.9%   2057150   44    8.1%   1.93             129550               —
+cover-x2   x2     374               0     210   9072    2940   5040     1092   9656     8.000   18866×22366              93  35.9%   3421490   44    7.7%   2.66             181835           61505
+cover-x3   x3     374               0     210  13608    4410   7560     1638  14192     8.000   18866×22366              93  35.9%   4786284   46    7.4%   3.38             222194           59267
+cover-x4   x4     374               0     210  18144    5880  10080     2184  18728     8.000   18866×22366              93  35.9%   6149976   46    7.1%   4.00             252969           54450
+  today     35 islands, 21 green · 374 trees (one per capability) · 1476 dressing pines (3.9 per capability) · 4536 ground cover (1470 bushes, 2520 tufts, 546 flower patches) · per green island 11.0 trees, 70 dressing pines, 216 cover
+  cover-x1  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 4536 ground cover (1470 bushes, 2520 tufts, 546 flower patches) · per green island 11.0 trees, 0 dressing pines, 216 cover
+  cover-x2  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 9072 ground cover (2940 bushes, 5040 tufts, 1092 flower patches) · per green island 11.0 trees, 0 dressing pines, 432 cover
+  cover-x3  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 0 dressing pines, 648 cover
+  cover-x4  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 18144 ground cover (5880 bushes, 10080 tufts, 2184 flower patches) · per green island 11.0 trees, 0 dressing pines, 864 cover
+
+── forest @ fit (each arm at its own fit) ─────────────────────────────────
+arm        rung  TREES  dressing pines  blooms  cover  bushes  tufts  flowers  props   px/unit  ground on screen (px)  pine px  land%  tris      fam  largest  MICRO  moved>20 vs today  vs leaner rung
+today      x1     374            1476     210   4536    1470   2520      546   6596     0.518    1221×1447                6   5.3%   3569544   50    9.1%   9.54                  0               —
+cover-x1   x1     374               0     210   4536    1470   2520      546   5120     0.518    1221×1447                6   5.3%   2057150   51    9.1%   8.25               9211               —
+cover-x2   x2     374               0     210   9072    2940   5040     1092   9656     0.518    1221×1447                6   5.3%   3421490   51    9.1%   8.44               9814             720
+cover-x3   x3     374               0     210  13608    4410   7560     1638  14192     0.518    1221×1447                6   5.3%   4786284   51    9.1%   8.61              10384             684
+cover-x4   x4     374               0     210  18144    5880  10080     2184  18728     0.518    1221×1447                6   5.3%   6149976   51    9.1%   8.80              10988             752
+  today     35 islands, 21 green · 374 trees (one per capability) · 1476 dressing pines (3.9 per capability) · 4536 ground cover (1470 bushes, 2520 tufts, 546 flower patches) · per green island 11.0 trees, 70 dressing pines, 216 cover
+  cover-x1  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 4536 ground cover (1470 bushes, 2520 tufts, 546 flower patches) · per green island 11.0 trees, 0 dressing pines, 216 cover
+  cover-x2  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 9072 ground cover (2940 bushes, 5040 tufts, 1092 flower patches) · per green island 11.0 trees, 0 dressing pines, 432 cover
+  cover-x3  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 13608 ground cover (4410 bushes, 7560 tufts, 1638 flower patches) · per green island 11.0 trees, 0 dressing pines, 648 cover
+  cover-x4  35 islands, 21 green · 374 trees (one per capability) · no dressing pines · 18144 ground cover (5880 bushes, 10080 tufts, 2184 flower patches) · per green island 11.0 trees, 0 dressing pines, 864 cover
+
+THE OWNER’S QUESTION, IN NUMBERS — one island at the read zoom:
+  today      11 trees (one per capability) ·  61 dressing pines ·  216 ground cover · island 234×135   ← TODAY (before this landing)
+  cover-x1   11 trees (one per capability) ·   0 dressing pines ·  216 ground cover · island 234×135
+  cover-x2   11 trees (one per capability) ·   0 dressing pines ·  432 ground cover · island 234×135
+  cover-x3   11 trees (one per capability) ·   0 dressing pines ·  648 ground cover · island 234×135   ← SHIPPED
+  cover-x4   11 trees (one per capability) ·   0 dressing pines ·  864 ground cover · island 234×135
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet. Frame cost is shipped-per-capability-cost.mjs’s and REPORTS (ADR-0517 D4).

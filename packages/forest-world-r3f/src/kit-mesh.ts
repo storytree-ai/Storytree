@@ -537,7 +537,7 @@ export function tintedMaterial(
   clone.color.setRGB(gain.r, gain.g, gain.b);
   // ⚠ `Material.clone()` copies neither `onBeforeCompile` nor the program cache key, so the
   // prop-lighting patch has to be re-installed at the BASE's fraction — or a capability's tinted
-  // crown would be lit flat beside a grove pine lit sculpted, and the tint is the state.
+  // crown would be lit flat beside an untinted pine lit sculpted, and the tint is the state.
   installPropLighting(clone, propLightingOf(base)?.fraction ?? KIT_PROP_INDIRECT_FRACTION);
   clone.needsUpdate = true;
   cache.set(key, clone);
@@ -545,8 +545,8 @@ export function tintedMaterial(
 }
 
 /** What one placement's geometry is multiplied by to stand at its role's size — and then by the
- *  placement's OWN scale, which is 1 for everything that reports something and below 1 for a
- *  grove pine (`KitPlacement.scale`). */
+ *  placement's OWN scale, which is 1 for everything that reports something and the size rung's
+ *  spread for ground cover (`KitPlacement.scale`). */
 export function placementScale(kit: LoadedKit, placement: KitPlacement): number {
   const assembly = kit.assemblies.get(placement.assembly);
   if (!assembly) throw new Error(`kit-mesh: no assembly ${placement.assembly}`);

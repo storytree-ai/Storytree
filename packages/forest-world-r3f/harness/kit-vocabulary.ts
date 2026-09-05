@@ -30,8 +30,6 @@ import { layoutCells } from './prop-layout.js';
 
 export {
   FOOTPRINT_TOLERANCE,
-  GROVE_CAP_ID,
-  GROVE_CLEARANCE,
   KIT_ASSEMBLIES,
   KIT_FOOTPRINTS_2026_08_29,
   KIT_HEIGHTS_2026_08_29,
@@ -53,7 +51,6 @@ export {
   dressingOverlaps,
   footprintDriftOf,
   heightDriftOf,
-  isGrovePlacement,
   kitObjectNames,
   pairClearance,
   stateForm,

@@ -1,6 +1,6 @@
 // cover-dressing.test.ts — the ground-cover pass, proved where it lives.
 //
-// ⚠ IN `src/` FOR THE MUTATION RUNG'S SAKE, like `grove-dressing.test.ts` and
+// ⚠ IN `src/` FOR THE MUTATION RUNG'S SAKE, like `dressing-ground.test.ts` and
 // `kit-vocabulary.test.ts`: `check:mutation-diff` mutates a project's `src/` only, and a `src/`
 // module proved from `harness/` buys it nothing.
 //
@@ -17,6 +17,7 @@ import test from 'node:test';
 
 import {
   COVER_DENSITY,
+  COVER_DENSITY_RUNGS,
   COVER_RECIPE_COUNTS,
   COVER_ROLES,
   COVER_SIZE,
@@ -34,14 +35,12 @@ import {
   type CoverDressingOptions,
 } from './cover-dressing.js';
 import {
-  GROVE_DENSITY,
   RECIPE_ISLAND_AREA,
   cellAt,
   cellsArea,
-  dressGroves,
-  groveEligible,
-  type GroveExclusion,
-} from './grove-dressing.js';
+  dressingEligible,
+  type DressingExclusion,
+} from './dressing-ground.js';
 import { islandSeed } from './island-path.js';
 import {
   COVER_CAP_ID,
@@ -69,7 +68,7 @@ import type { LayoutCell } from './parcel-cells.js';
 const FOOT = KIT_FOOTPRINTS_2026_08_29;
 
 // ---------------------------------------------------------------------------
-// a built island — the same hostile shape the grove's own suite uses
+// a built island — the same hostile shape `dressing-ground.test.ts` uses
 // ---------------------------------------------------------------------------
 //
 // ⚠ FOUR DIFFERENT EDGE NUMBERS AND AN ORIGIN NOWHERE NEAR ZERO, for the reason that fixture
@@ -107,14 +106,14 @@ function island(states: readonly string[], cols = 4): LayoutCell[] {
 /** Four healthy parcels, four cells each: 136 x 104 units, 14,144 sq units. */
 const HEALTHY = island(['healthy', 'healthy', 'healthy', 'healthy']);
 
-const ALLOW: GroveExclusion = { clear: () => true };
-const REFUSE: GroveExclusion = { clear: () => false };
+const ALLOW: DressingExclusion = { clear: () => true };
+const REFUSE: DressingExclusion = { clear: () => false };
 
 function coverOn(
   cells: readonly LayoutCell[] = HEALTHY,
   over: {
     island?: string;
-    exclusion?: GroveExclusion;
+    exclusion?: DressingExclusion;
     relief?: number;
     density?: number;
     size?: number;
@@ -167,18 +166,31 @@ test('the shipped rung is one of the rendered rungs, and the ladder is what a sc
   // pick must be one of the rungs he was shown. A pick outside the ladder is a number nobody has
   // seen a picture of.
   assert.ok(COVER_SIZE_RUNGS.includes(COVER_SIZE as (typeof COVER_SIZE_RUNGS)[number]));
-  // ⚠⚠ AND THE LADDER IS ON SIZE, NOT ON COUNT — which is a MEASURED choice rather than a taste.
-  // The literal port of `build_land.py`'s counts AND sizes was rendered on 2026-09-03 and was
-  // invisible: doubling the COUNT moved 743 px past 20/255 on an island where the canopy moved
-  // 194,440, because every prop was about eight delivered pixels of dark green on dark-green
-  // ground. The cause is that this map's island is 2.49x the recipe's and its pines 4.50x the
-  // recipe's, so the counts crossed scaled and the sizes crossed literal. Count therefore stays at
-  // the recipe's own ({@link COVER_DENSITY} = 1) and SIZE is what the owner scales back along.
-  assert.equal(COVER_DENSITY, 1, 'the count is the recipe’s own — the ladder is on size');
+  // ⚠⚠ SIZE WAS LADDERED FIRST, AND THAT WAS A MEASURED CHOICE RATHER THAN A TASTE. The literal
+  // port of `build_land.py`'s counts AND sizes was rendered on 2026-09-03 and was invisible:
+  // doubling the COUNT moved 743 px past 20/255 on an island where the canopy moved 194,440,
+  // because every prop was about eight delivered pixels of dark green on dark-green ground. The
+  // cause is that this map's island is 2.49x the recipe's and its pines 4.50x the recipe's, so the
+  // counts crossed scaled and the sizes crossed literal. The size rung settled at 4.5; the COUNT is
+  // laddered on top of it now (ADR-0518 D2, the test below), one knob per page.
+  assert.equal(COVER_SIZE, 4.5, 'the settled size rung — the count ladder is rendered at this size');
   assert.equal(COVER_SIZE_RUNGS[0], 1, 'rung 1 must be the literal port, so the sheet shows why it is not shipped');
-  // ⚠ AND IT IS ITS OWN KNOB, NOT THE GROVE'S. Two layers, two looks: sharing one constant would
-  // mean a scale-back on either could only be bought by scaling back the other.
-  assert.ok(typeof GROVE_DENSITY === 'number' && (COVER_SIZE as number) !== GROVE_DENSITY);
+});
+
+test('⚠⚠ THE COUNT LADDER (ADR-0518 D2): the shipped rung is a rendered rung, rung 1 is the recipe, and the ladder rises', () => {
+  // With the grove gone the cover is what carries the island, and the owner scales it along rungs
+  // he has been shown (ADR-0503 D1). The shipped pick must therefore be ON the ladder, and rung 1
+  // must still be `build_land.py`'s own scatter so the sheet's bottom rung is the literal recipe.
+  assert.ok(COVER_DENSITY_RUNGS.includes(COVER_DENSITY as (typeof COVER_DENSITY_RUNGS)[number]));
+  assert.equal(COVER_DENSITY_RUNGS[0], 1, 'rung 1 must be the recipe’s own count');
+  for (const [i, rung] of COVER_DENSITY_RUNGS.entries()) {
+    if (i > 0) assert.ok(rung > COVER_DENSITY_RUNGS[i - 1]!, 'the ladder must rise');
+  }
+  // ⚠ THE PICK IS BOLD ON PURPOSE (ADR-0503 / ADR-0518 D2): above the recipe's own count, because
+  // the recipe's count was proportioned to an island that also stood 52–104 pines.
+  assert.ok(COVER_DENSITY > 1, 'the shipped count is the recipe’s — the cover has not been scaled up');
+  // And the two knobs are two constants: a scale-back on either is bought without the other.
+  assert.notEqual(COVER_DENSITY, COVER_SIZE);
 });
 
 test('THE SIZE RUNG REALLY REACHES THE PROP — a bolder rung stands the same props, wider', () => {
@@ -210,7 +222,7 @@ test('THE SIZE RUNG REALLY REACHES THE PROP — a bolder rung stands the same pr
 
 test('an island of the RECIPE’S OWN area wears the recipe’s own counts at rung 1', () => {
   // ⚠ THE ANCHOR THE WHOLE SCALING RESTS ON, asserted rather than assumed: the proportion is to
-  // `RECIPE_ISLAND_AREA` — the same number the grove is proportioned against, by import — so an
+  // `RECIPE_ISLAND_AREA` — the ground the recipe scattered over, in this basis, by import — so an
   // island of exactly that area asks for exactly what `build_land.py` sprinkled.
   const recipeIsland = [
     {
@@ -236,10 +248,9 @@ test('an island of the RECIPE’S OWN area wears the recipe’s own counts at ru
 test('the count scales with AREA and with the rung, and rounds rather than truncating', () => {
   const share = coverAreaShare(HEALTHY);
   assert.equal(share, cellsArea(HEALTHY) / RECIPE_ISLAND_AREA);
-  // ⚠ THE DENSITY IS AN ARGUMENT AND IS NOT LADDERED (the ladder is on size), so the multiples
-  // exercised here are written down rather than imported: they exist to prove the arithmetic
-  // scales, not to describe an arm anybody renders.
-  for (const rung of [1, 2, 3]) {
+  // ⚠ THE DECLARED RUNGS AND ONE OFF THE LADDER: the arithmetic has to scale for any multiple,
+  // not only for the arms somebody renders.
+  for (const rung of [...COVER_DENSITY_RUNGS, 7]) {
     for (const role of COVER_ROLES) {
       assert.equal(
         coverCount(role, HEALTHY, rung),
@@ -420,10 +431,10 @@ test('an island bounding nothing wears nothing, rather than dividing by zero', (
 
 test('⚠ ONLY A WHOLLY HEALTHY ISLAND WEARS COVER — the arc’s standing gate, by IMPORT', () => {
   // ADR-0492 D1 scopes every added layer on this arc to islands whose every cell is `healthy`.
-  // ⚠ THE SAME FUNCTION AS THE GROVE'S, asserted as identity rather than as agreement: two copies
-  // of one gate are two gates that agree today, and the day they diverge one layer grows on an
-  // island the other refuses and the map reports a state through its scenery.
-  assert.equal(coverEligible, groveEligible);
+  // ⚠ THE ARC'S ONE GATE, asserted as identity rather than as agreement: two copies of one gate
+  // are two gates that agree today, and the day they diverge one layer grows on an island the
+  // other refuses and the map reports a state through its scenery.
+  assert.equal(coverEligible, dressingEligible);
   assert.equal(coverEligible(HEALTHY), true);
   for (const other of ['unknown', 'mapped', 'proposed', 'building', 'unhealthy', 'retired']) {
     assert.deepEqual(coverOn(island([other])), [], `${other} wore ground cover`);
@@ -441,7 +452,7 @@ test('nothing stands where the exclusion refuses — the beach band and the worn
   assert.deepEqual(coverOn(HEALTHY, { exclusion: REFUSE }), []);
   // ⚠ AND IT IS CONSULTED PER POINT, not once per island: an exclusion that admits half the island
   // must stand a positive number of props and put every one of them on the admitted half.
-  const half: GroveExclusion = { clear: (x) => x < ORIGIN_X + 2 * CELL_W };
+  const half: DressingExclusion = { clear: (x) => x < ORIGIN_X + 2 * CELL_W };
   const placed = coverOn(HEALTHY, { exclusion: half });
   assert.ok(placed.length > 0, 'a half-open island stood nothing');
   for (const p of placed) assert.ok(p.at.x < ORIGIN_X + 2 * CELL_W, `a prop stood at x=${p.at.x}`);
@@ -452,7 +463,7 @@ test('a prop the exclusion never admits is DROPPED, and the rest still stand', (
   // for the reason it is dishonest for a capability's tree: ground cover reports no unit of work.
   // ⚠ A NARROW STRIP rather than a total refusal, so the drop is PARTIAL — a total refusal is
   // already covered above and cannot tell "drops the prop" from "drops the island".
-  const strip: GroveExclusion = { clear: (x, z) => x < ORIGIN_X + 1 && z < ORIGIN_Z + 1 };
+  const strip: DressingExclusion = { clear: (x, z) => x < ORIGIN_X + 1 && z < ORIGIN_Z + 1 };
   const placed = coverOn(HEALTHY, { exclusion: strip });
   assert.ok(placed.length < coverOn(HEALTHY).length, 'the strip dropped nothing');
   assert.doesNotThrow(() => coverOn(HEALTHY, { exclusion: strip }));
@@ -460,7 +471,7 @@ test('a prop the exclusion never admits is DROPPED, and the rest still stand', (
 
 test('coverPoint gives a prop up after the recipe’s own number of tries', () => {
   let asked = 0;
-  const counting: GroveExclusion = {
+  const counting: DressingExclusion = {
     clear: () => {
       asked += 1;
       return false;
@@ -605,12 +616,12 @@ test('two builds of one island are the same carpet, and two islands are two carp
   );
 });
 
-test('⚠ THE COVER’S SEED IS NOT THE GROVE’S, so the first bush is not wherever the first stand went', () => {
-  // ⚠⚠ THE FAILURE THIS FORBIDS IS INVISIBLE IN A PICTURE OF ONE ISLAND and systematic across all
-  // of them: seeded on the bare island id, the cover's stream would open on exactly the draws the
-  // grove opened on, so the first bush would land under the first stand's centre on every island
-  // of the map, forever. The seeds are asserted to DIFFER at the source rather than the pictures
-  // asserted to differ, because two pictures differ for many reasons.
+test('⚠ THE COVER’S SEED IS ITS OWN KEY, not the bare island seed', () => {
+  // The key was chosen when the retired grove consumed the bare island seed, so the cover's stream
+  // did not open on the draws the grove opened on (the first bush under the first stand's centre,
+  // on every island, forever). The grove is gone; the key stays, because moving it would
+  // re-scatter every carpet on the map for no reason a picture could show. Asserted at the source
+  // rather than through pictures, because two pictures differ for many reasons.
   assert.notEqual(islandSeed('built|cover'), islandSeed('built'));
   const rand = propStream(islandSeed('built'));
   const first = rand();
@@ -629,15 +640,7 @@ test('⚠⚠ ADDING THE COVER CANNOT MOVE A SINGLE THING THAT REPORTS', () => {
     relief: 0,
     footprint: FOOT,
   });
-  const groves = dressGroves({
-    island: 'built',
-    cells: HEALTHY,
-    standing,
-    footprint: FOOT,
-    relief: 0,
-    exclusion: ALLOW,
-  });
-  for (const rung of [1, 2, 3]) {
+  for (const rung of COVER_DENSITY_RUNGS) {
     const cover = coverOn(HEALTHY, { density: rung });
     assert.ok(cover.length > 0, `rung ${rung} stood nothing`);
     // Nothing in the cover pass takes the standing list at all, so this is a structural fact
@@ -646,18 +649,14 @@ test('⚠⚠ ADDING THE COVER CANNOT MOVE A SINGLE THING THAT REPORTS', () => {
       dressIslandFromKit({ cells: HEALTHY, facts: capabilityFactsFrom(HEALTHY), blooms: 3, relief: 0, footprint: FOOT }),
       standing,
     );
-    assert.deepEqual(
-      dressGroves({ island: 'built', cells: HEALTHY, standing, footprint: FOOT, relief: 0, exclusion: ALLOW }),
-      groves,
-    );
   }
 });
 
 test('⚠ THE DETECTOR DOES NOT REPORT A BUSH AT A PINE’S FOOT — a carpet cannot overlap', () => {
   // The recipe imposes NO clearance on ground cover (`build_land.py:1082-1090` tests `inside` and
   // `wear` and nothing else), and `clearanceFactor` states the same from the detector's side. So
-  // the whole dressed island — capability trees, blooms, grove and cover together — reports zero
-  // overlaps, and it does so with the cover deliberately dense.
+  // the whole dressed island — capability trees, blooms and cover together — reports zero
+  // overlaps, and it does so with the cover at the BOLDEST rung the ladder declares.
   const standing = dressIslandFromKit({
     cells: HEALTHY,
     facts: capabilityFactsFrom(HEALTHY),
@@ -665,15 +664,7 @@ test('⚠ THE DETECTOR DOES NOT REPORT A BUSH AT A PINE’S FOOT — a carpet ca
     relief: 0,
     footprint: FOOT,
   });
-  const groves = dressGroves({
-    island: 'built',
-    cells: HEALTHY,
-    standing,
-    footprint: FOOT,
-    relief: 0,
-    exclusion: ALLOW,
-  });
-  const all = [...standing, ...groves, ...coverOn(HEALTHY, { density: 3 })];
+  const all = [...standing, ...coverOn(HEALTHY, { density: Math.max(...COVER_DENSITY_RUNGS) })];
   assert.deepEqual(dressingOverlaps(all, FOOT), [], 'the detector reported the ground cover as defects');
   // ⚠ AND IT IS STILL A DETECTOR THAT CAN FIRE. Two capability pines stacked on one point is the
   // control: an arithmetic that had stopped measuring anything would report this as clean too.

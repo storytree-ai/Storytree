@@ -2,7 +2,7 @@
 // and the one route from the SHIPPED descriptor stream into it.
 //
 // ⚠⚠ WHY THIS EXISTS AS ITS OWN MODULE. `harness/prop-layout.ts` has owned `GPoint` and
-// `LayoutCell` since the procedural dressing, and it is 1,100 lines of scatter, grove, meander and
+// `LayoutCell` since the procedural dressing, and it is 1,100 lines of scatter, stand, meander and
 // loop machinery that the shipped map has no use for. When the bought kit crossed on 2026-08-30 it
 // needed the two TYPES and a way to reach them from `worldTo3D`'s output — not the machinery. So
 // the shapes crossed and the machinery stayed, and `harness/prop-layout.ts` re-exports them, which

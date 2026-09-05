@@ -18,7 +18,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { SHIPPED_COAST, clipToCoast } from '../src/coast-clip.js';
-import { GROVE_BEACH } from '../src/grove-dressing.js';
+import { DRESSING_BEACH } from '../src/dressing-ground.js';
 import {
   AUTHORED_SHORE_WIDTH,
   SHIPPED_SHORE,
@@ -330,11 +330,11 @@ test('⚠⚠ THE SHIPPED ARM LOWERS NO GROUND A PROP STANDS ON — and `shelf` d
     planOf('beach').movedVertices < planOf('shelf').movedVertices,
     'shelf no longer reaches further inland than the shipped width — the contrast this arm exists to show has gone',
   );
-  // And what props stand on: the grove and the cover keep `GROVE_BEACH` (the sand band, 9 units)
-  // off the coast, and the shipped band is narrower than that, so no grove pine or ground-cover
-  // prop stands on ground the band moves. (A capability's tree is placed by its parcel and may
-  // stand nearer the coast; that was true on the ribbon as well.)
-  assert.ok(SHORE_ARM_WIDTH[SHIPPED_SHORE] < GROVE_BEACH, 'the shipped band reaches under the grove');
+  // And what props stand on: the ground cover keeps `DRESSING_BEACH` (the sand band, 9 units) off
+  // the coast, and the shipped band is narrower than that, so no ground-cover prop stands on ground
+  // the band moves. (A capability's tree is placed by its parcel and may stand nearer the coast;
+  // that was true on the ribbon as well.)
+  assert.ok(SHORE_ARM_WIDTH[SHIPPED_SHORE] < DRESSING_BEACH, 'the shipped band reaches under the cover');
   // The interior peak — the highest ground once the rim is pulled down — is the same under every
   // band: none of them reaches it. (On the ribbon `shelf` did; on the true footprint it does not.)
   for (const arm of ['authored', 'beach', 'shelf'] as const) {

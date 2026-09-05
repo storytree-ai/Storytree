@@ -86,7 +86,7 @@ import type { InstanceDescriptor } from '../src/world-to-3d.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { CROWD_VIEWPORT } from './crowd-layout.js';
-import { SHIPPED_GROVE_ARM, armCasters } from './shipped-canopy-scene.js';
+import { SHIPPED_CANOPY_ARM, armCasters } from './shipped-canopy-scene.js';
 import {
   CROWD_ZOOMS,
   FIT_ZOOM,
@@ -185,11 +185,10 @@ export const SHADOW_PICTURE_ZOOMS: readonly CrowdZoom[] = [...SHADOW_ZOOMS, FIT_
  *
  *  ⚠ IT WAS DERIVED FROM THE PLACEHOLDER STORY TREE — its crown radius of 7 doubled, plus the
  *  pool's own spread — and that tree is retired (ADR-0508). The number is KEPT rather than
- *  re-derived from the grove, and deliberately: a grove pine stands at 0.55–0.80 of a capability
- *  tree's height and pools SMALLER than 24 units, so re-deriving would LOWER the bar this constant
- *  sets. Its only use is the assertion that the close zoom makes a pool hundreds of pixels wide,
- *  and holding that bar at the larger, retired object keeps the check strictly harder to pass than
- *  the objects now on the page require. */
+ *  re-derived from the kit's pines, and deliberately: a bought pine's crown pools no wider than
+ *  24 units, so re-deriving would at best hold the bar this constant sets. Its only use is the
+ *  assertion that the close zoom makes a pool hundreds of pixels wide, and holding that bar at the
+ *  retired object keeps the check no easier to pass than the objects now on the page require. */
 export const POOL_GROUND_WIDTH = 24;
 
 /**
@@ -353,7 +352,7 @@ export function buildShadowScene(arm: ShadowArm, size: CrowdSize, zoom: CrowdZoo
   // two allocations of an all-lit field — a comparison that cannot fail, reported as a result.
   // `armCasters` is the union `ForestWorldCanvas` itself hands its ground (the descriptor stream's
   // casters PLUS one per kit placement), so what this page allocates over is what the map draws.
-  const casters = armCasters(SHIPPED_GROVE_ARM, size);
+  const casters = armCasters(SHIPPED_CANOPY_ARM, size);
   const bounds = groundBounds(cells);
   if (bounds === null) throw new Error('shipped-shadow-scene: the crowd bounds nothing');
 

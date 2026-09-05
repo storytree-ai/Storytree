@@ -299,9 +299,9 @@ test('THE CENSUS: the shipped map draws ten signatures and skips 1,079 more', ()
   //
   // ⚠⚠ AND THE TREE HAS NOW GONE THE OTHER WAY (ADR-0508) — it crossed from the DRAWN column to
   // the SKIPPED one, so the census total is unchanged and its split moved by one. The map's own
-  // descriptor stream now stands NOTHING: what darkens this island is the grove, and a grove is a
-  // kit PLACEMENT that reaches the ground through `placementCasters` rather than through this
-  // stream. Read the caster assertion at the bottom with that in mind — `[]` here is the whole
+  // descriptor stream now stands NOTHING: what darkens this island is the kit's trees and blooms,
+  // and those are PLACEMENTS that reach the ground through `placementCasters` rather than through
+  // this stream. Read the caster assertion at the bottom with that in mind — `[]` here is the whole
   // story only for descriptors, and `ForestWorldCanvas` unions this list with the placements.
   //
   // ⚠ THE CENSUS MOVED BY TEN ON 2026-08-31 and the TOTAL is what holds it honest. The mapper now
@@ -347,7 +347,7 @@ test('THE CENSUS: the shipped map draws ten signatures and skips 1,079 more', ()
   );
 });
 
-test('THE LADDER ARMS SHADE THE MAP’S OWN CASTERS — the grove’s, now that the tree’s are gone', () => {
+test('THE LADDER ARMS SHADE THE MAP’S OWN CASTERS — the kit’s, now that the story tree’s are gone', () => {
   // ⚠⚠ THE FAILURE THIS FORBIDS, and it was live for about an hour on 2026-09-04. This page built
   // its occlusion field from `shippedCasters()` alone. That was already an under-report — the kit
   // began casting on 2026-09-03 and this page never unioned the placements in — and when ADR-0508
@@ -361,7 +361,7 @@ test('THE LADDER ARMS SHADE THE MAP’S OWN CASTERS — the grove’s, now that 
   const stream = shippedCasters();
   const map = shippedMapCasters();
   assert.deepEqual(stream, [], 'the descriptor stream stands nothing since ADR-0508');
-  assert.ok(map.length > 0, 'but the ISLAND stands a grove, and the ladder arms must shade it');
+  assert.ok(map.length > 0, 'but the ISLAND stands its capability trees, and the ladder arms must shade them');
 
   // ⚠ AND IT IS THE UNION, not a replacement: `shippedMapCasters` opens with the stream's own
   // casters, so a `cave-arch` on this island would still darken the ground under it. With the

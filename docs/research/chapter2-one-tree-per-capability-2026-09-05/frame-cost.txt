@@ -1,0 +1,29 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+plan: 10 configurations (5 arms × 2 pictures) x 5 interleaved repeats x 20 frames per GPU query, 2 independent runs
+
+⚠ THIS REPORTS AND DOES NOT GATE (ADR-0517 D4): the owner ruled the look ships first and is scaled down later if it proves too expensive. A better number here is a side effect of removing the grove, not the reason for it (ADR-0518).
+
+ONE TREE PER CAPABILITY — FRAME COST on the GPU's own clock, forest @ fit
+arm             calls       tris   ms/frame   spread   vs today    % of a 60Hz frame
+today               7    3569544     1.7509   0.0361          —     10.5%   ← TODAY (before this landing)
+cover-x1            7    2057150     1.2442   0.0257    -0.5066      7.5%
+cover-x2            7    3421490     1.7121   0.0338    -0.0388     10.3%
+cover-x3            7    4786284     2.1869   0.0400    +0.4361     13.1%   ← SHIPPED
+cover-x4            7    6149976     2.6574   0.0178    +0.9066     15.9%
+
+ONE TREE PER CAPABILITY — FRAME COST on the GPU's own clock, one @ 8
+arm             calls       tris   ms/frame   spread   vs today    % of a 60Hz frame
+today               4     152082     1.7850   0.0050          —     10.7%   ← TODAY (before this landing)
+cover-x1            4      87212     1.7954   0.0019    +0.0104     10.8%
+cover-x2            4     152128     1.8109   0.0395    +0.0259     10.9%
+cover-x3            4     216922     1.8457   0.0340    +0.0607     11.1%   ← SHIPPED
+cover-x4            4     281796     1.8722   0.0173    +0.0872     11.2%
+
+DID IT REPRODUCE?
+  Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped.
+
+WHAT IT MEANS FOR THE BUDGET (16.67 ms at 60 Hz):
+  the SHIPPED picture (cover-x3) draws the whole 35-island map, one tree per capability and covered, in 2.1869 ms — 13.1% of a frame.
+  against the map as it shipped until this landing (today) that is +0.4361 ms (2.6% of a frame; 1.25x).
+  ⚠ THIS IS THE GPU’S DRAW COST FOR THIS SCENE AND NOTHING ELSE. It is not the site’s frame time: the shipped canvas also runs React, controls and the compositor, none of which are on this page.

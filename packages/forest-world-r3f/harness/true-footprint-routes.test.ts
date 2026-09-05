@@ -10,7 +10,7 @@ import test from 'node:test';
 
 import { PLAN_VIEW_ELEVATION_DEG, groundFlattening } from '@storytree/forest-world';
 
-import { RECIPE_ISLAND_AREA, cellsArea } from '../src/grove-dressing.js';
+import { RECIPE_ISLAND_AREA, cellsArea } from '../src/dressing-ground.js';
 import { parcelCellsFrom } from '../src/parcel-cells.js';
 import { islandCentres } from '../src/true-footprint.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from '../src/world-to-3d.js';

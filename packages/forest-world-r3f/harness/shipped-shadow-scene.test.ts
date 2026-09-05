@@ -34,7 +34,7 @@ import {
   type ShadowArm,
 } from './shipped-shadow-scene.js';
 import { crowdCasters, crowdCells, crowdSize } from './shipped-crowd-scene.js';
-import { SHIPPED_GROVE_ARM, armCasters } from './shipped-canopy-scene.js';
+import { SHIPPED_CANOPY_ARM, armCasters } from './shipped-canopy-scene.js';
 import { linearColourOf } from './shipped-land-scene.js';
 
 const FOREST = crowdSize('forest');
@@ -226,7 +226,7 @@ test('castersWithin gives every caster to exactly one island — none lost, none
   // tree having been the only thing an island's descriptor stream stood. Asking this of
   // `crowdCasters` would leave every assertion below quantified over nothing: `counts.size === 0`
   // and a `for` loop that never runs is a green test of an empty set.
-  const casters = armCasters(SHIPPED_GROVE_ARM, FOREST);
+  const casters = armCasters(SHIPPED_CANOPY_ARM, FOREST);
   assert.ok(casters.length > 0, 'the forest must stand something, or there is no shadow at all');
   assert.equal(crowdCasters(FOREST).length, 0, 'and none of it comes from the descriptor stream any more');
   const counts = new Map<number, number>();

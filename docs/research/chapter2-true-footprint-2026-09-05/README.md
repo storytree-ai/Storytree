@@ -1,5 +1,13 @@
 # The true footprint at the signed 50°, with the grove density laddered beside it (2026-09-05)
 
+> ⚠⚠ **THE GROVE HALF OF THIS SHEET IS OVERTAKEN (ADR-0518, the same day).** The footprint and the
+> elevation landed exactly as recorded below. The grove did not: the owner read the dressing pines as
+> capabilities — *"1 tree per a capability it needs to look good not like a forest"* — and the role
+> was retired outright rather than tuned, so there is no `GROVE_DENSITY`, no `src/grove-dressing.ts`,
+> and no rung to scale along. Every arm below shows a grove the map no longer stands. The picture of
+> what ships now, with the ground cover laddered in its place, is
+> `docs/research/chapter2-one-tree-per-capability-2026-09-05/`.
+
 The increment: `restore-the-true-footprint-and-ladder-the-grove-density` on `land-ground-stack-arc`,
 implementing **ADR-0517**. The owner picked both arms of PR #1820's camera ladder — the island's
 true footprint and the owner-signed 50° — and in the same breath asked *"i'm not sure why we placed
