@@ -360,3 +360,68 @@ test("adr attest: an empty decision log is refused, never reported as full cover
   assert.equal(env.ok, false);
   assert.match(env.body, /no decisions in the store/);
 });
+
+// ─── the write's own failure arm ──────────────────────────────────────────────────────────────
+
+test("adr attest: a row that cannot re-validate is REPORTED and not written", async () => {
+  // `writeStamp` spreads the stored row and re-validates the whole thing, so a row that was already
+  // malformed fails on the way back in. It must say so — a stamp reported as written onto a row the
+  // store rejected is the one outcome worse than refusing.
+  const store = new InMemoryStore();
+  const id = idOf(100);
+  await store.upsertDoc({
+    id,
+    kind: "adr",
+    // No `description`: the `adr` schema requires it, and nothing here supplies one.
+    doc: { kind: "adr", id, title: "Broken", body: "# ADR-0100: Broken\n", number: 100, status: "accepted" },
+  });
+  const env = await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  assert.equal(env.ok, false);
+  assert.match(env.body, /was NOT written/);
+  assert.match(env.body, /does not satisfy the `adr` schema/);
+  assert.equal(await authorityOf(store, 100), undefined);
+});
+
+test("adr attest --backfill: a row that cannot re-validate is counted as a FAILURE, not a stamp", async () => {
+  // The apply loop's failure arm. A partial pass is REPORTED rather than rolled back or retried, so
+  // the count must distinguish what landed from what was attempted — a loop that swallowed this
+  // would report a coverage it had not achieved.
+  const store = new InMemoryStore();
+  const good = idOf(100);
+  await store.upsertDoc({
+    id: good,
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id: good,
+      title: "Fine",
+      description: "ADR-0100 — Fine",
+      body: `# ADR-0100: Fine\n\n## Status\n\naccepted — ${STOCK}\n`,
+      number: 100,
+      status: "accepted",
+      supersedes: [],
+      loadBearing: false,
+      createdAt: "2026-06-26T00:00:00.000Z",
+      updatedAt: "2026-06-26T00:00:00.000Z",
+    },
+  });
+  const bad = idOf(200);
+  await store.upsertDoc({
+    id: bad,
+    kind: "adr",
+    doc: {
+      kind: "adr",
+      id: bad,
+      title: "Broken",
+      body: `# ADR-0200: Broken\n\n## Status\n\naccepted — ${STOCK}\n`,
+      number: 200,
+      status: "accepted",
+    },
+  });
+  const env = await adrAttest(undefined, { backfill: true }, depsFor(store));
+  assert.equal(env.ok, false, "a pass with any failure is not ok");
+  assert.match(env.body, /stamped 1 of 2 classifiable decisions/);
+  assert.match(env.body, /1 row\(s\) FAILED/);
+  assert.match(env.body, /adr-0200/);
+  assert.notEqual(await authorityOf(store, 100), undefined, "the healthy row still landed");
+});
