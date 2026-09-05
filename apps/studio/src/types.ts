@@ -1428,6 +1428,19 @@ export interface ArcRollupSummaryIncrement {
 }
 
 /**
+ * One gate as the LANE LIST sees it — the wire mirror of `ArcRollupSummaryGate`
+ * (`packages/arc/src/arc-rollup.ts`, ADR-0523). Narrowed to a blocker id and whether it is still
+ * shut: the blocker's title and the authored reason are prose the lane strip never draws (the same
+ * discipline `ArcRollupSummary` states about its own fields), so they stay off this row — a queue's
+ * reason is not shipped by this surface at all yet, and neither is `blockerMissing`: either way
+ * `shut` reads `true` and the arc nests exactly the same, so nothing downstream needs the distinction.
+ */
+export interface ArcRollupSummaryGate {
+  id: string;
+  shut: boolean;
+}
+
+/**
  * One arc as the LANE LIST sees it — the wire mirror of `ArcRollupSummary`, and what
  * `GET /api/arcs` now serves.
  *
@@ -1456,6 +1469,14 @@ export interface ArcRollupSummary {
    * prose, which is authored to be cold-answerable) arrive with the briefing panel's per-id read.
    */
   openQuestions: number;
+  /**
+   * The arcs THIS one is queued behind (ADR-0523) — empty for almost every arc, which is the
+   * property the surface must preserve: an ungated arc costs no caret, no indent and no width.
+   * `lib/arcSurface.ts` reads this to build the caret, the count and the nested-arc tree (see
+   * `ArcLane.queued`); the blocker's reason and title stay on `ArcRollupSummaryGate`'s per-id
+   * future, not this row.
+   */
+  gates: ArcRollupSummaryGate[];
   /** Every increment, forward-looking entries FIRST (the server's status-rank order). */
   increments: ArcRollupSummaryIncrement[];
 }

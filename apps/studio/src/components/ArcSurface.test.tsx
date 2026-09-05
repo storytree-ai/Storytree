@@ -140,7 +140,13 @@ function questionAsset(id: string, fields: Partial<Record<string, string>> = {})
  * fixture is registered below so `readArc` can serve the second width from the same declaration —
  * a test that widened one and not the other would be measuring a state the server cannot produce.
  */
-function arc(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
+function arc(
+  over: Partial<ArcRollup> & { id: string; gates?: ArcRollupSummary['gates'] },
+): ArcRollupSummary {
+  // `gates` (ADR-0523) is a SUMMARY-only field — `ArcRollup` (the panel's own whole-rollup read)
+  // carries no such property — so it comes off `over` before the rollup is built, matching how
+  // production never widens the full rollup for this.
+  const { gates, ...rollupOver } = over;
   const rollup: ArcRollup = {
     title: `The ${over.id}`,
     description: '',
@@ -155,11 +161,11 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
     citedStories: [],
     questions: [],
     waiting: false,
-    ...over,
+    ...rollupOver,
   };
   ROLLUPS.set(rollup.id, rollup);
   // The SAME narrowing the server's `summariseArcRollup` performs (packages/arc/src/arc-rollup.ts):
-  // identity, lifecycle, the question COUNT, and one lane-shaped row per increment.
+  // identity, lifecycle, the question COUNT, the gate list, and one lane-shaped row per increment.
   //
   // The count is OPEN questions, which is what the server counts since ADR-0434 D3 — counting the
   // whole array here would let a fixture carrying a settled question light a lane the server would
@@ -171,6 +177,8 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
     lifecycle: rollup.lifecycle,
     waiting: openQuestions.length > 0,
     openQuestions: openQuestions.length,
+    // ADR-0523 — empty by default, matching the server's own "ungated arc costs nothing" property.
+    gates: gates ?? [],
     increments: rollup.increments.map((inc) => {
       const row: ArcRollupSummary['increments'][number] = {
         id: inc.id,
@@ -339,6 +347,18 @@ describe('ArcSurface — the briefing panel is where the owner acts (ADR-0314 D3
     await settle();
     expect(within(screen.getByTestId('arc-briefing')).getByText('The other-arc')).not.toBeNull();
   });
+
+  it('marks the SELECTED lane aria-pressed, and only that one', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[WAITING_ARC, arc({ id: 'other-arc', increments: [landed('c', '2026-08-05')] })]} now={NOW} />);
+    await settle();
+    // Opens by default on the waiting arc (D3's posture); clicking the other one moves the mark.
+    expect(screen.getByTestId('arc-lane:waiting-arc').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('arc-lane:other-arc').getAttribute('aria-pressed')).toBe('false');
+    fireEvent.click(screen.getByTestId('arc-lane:other-arc'));
+    await settle();
+    expect(screen.getByTestId('arc-lane:other-arc').getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByTestId('arc-lane:waiting-arc').getAttribute('aria-pressed')).toBe('false');
+  });
 });
 
 // An answered question used to VANISH off this panel, because the only way to end one was to delete
@@ -482,8 +502,8 @@ describe('ArcSurface — an open question’s markdown is stripped in its own fu
   });
 });
 
-describe('ArcSurface — `blocked` is named and left UNLIT (ADR-0314 D4)', () => {
-  it('lights waiting / running / quiet, and never blocked', async () => {
+describe('ArcSurface — `blocked` lights from a gate, and only a gate (ADR-0314 D4, ADR-0523)', () => {
+  it('none of the mock round’s rejected shapes light blocked — waiting / quiet only, with no gate', async () => {
     render(
       <ArcSurface
         readArc={readArc}
@@ -505,12 +525,215 @@ describe('ArcSurface — `blocked` is named and left UNLIT (ADR-0314 D4)', () =>
     expect(screen.getByTestId('arc-surface').querySelectorAll('[data-arc-state="blocked"]')).toHaveLength(0);
   });
 
-  it('says WHY blocked is unlit, rather than letting its absence read as "nothing is blocked"', async () => {
+  it('says WHICH half of blocked remains undecided, rather than letting silence read as "nothing is blocked"', async () => {
     render(<ArcSurface readArc={readArc} arcs={[arc({ id: 'a', increments: [landed('c', '2026-08-05')] })]} now={NOW} />);
     await settle();
     const note = screen.getByTestId('arc-blocked-note');
-    expect(note.textContent).toContain('blocked is not lit');
-    expect(note.textContent).toMatch(/ADR-0306\/0308/);
+    expect(note.textContent).toContain('blocked lights only from an authored arc-to-arc gate');
+    expect(note.textContent).toContain('not derivable');
+  });
+
+  it('a SHUT gate lights the lane `blocked`, and its open increments draw GATED bars', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({
+            id: 'gated-arc',
+            gates: [{ id: 'blocker', shut: true }],
+            increments: [landed('c', '2026-08-01'), parked('p', '2026-08-05')],
+          }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    // The gated arc is nested under its blocker's disclosure, not at the top level.
+    expect(screen.queryByTestId('arc-lane:gated-arc')).toBeNull();
+    fireEvent.click(screen.getByTestId('arc-lane-caret:blocker'));
+    const nested = screen.getByTestId('arc-lane:gated-arc');
+    expect(nested.getAttribute('data-arc-state')).toBe('blocked');
+    // The landed increment stays landed; the open one draws gated, not the ordinary grey queued.
+    expect(nested.querySelectorAll('[data-bar-tone="landed"]')).toHaveLength(1);
+    expect(nested.querySelectorAll('[data-bar-tone="gated"]')).toHaveLength(1);
+    expect(nested.querySelectorAll('[data-bar-tone="queued"]')).toHaveLength(0);
+  });
+});
+
+describe('ArcSurface — a gate nests a queued arc under its blocker (ADR-0523, inc-05)', () => {
+  it('an ungated arc renders NO caret at all — the density property the surface must preserve', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[arc({ id: 'plain' })]} now={NOW} />);
+    await settle();
+    expect(screen.queryByTestId('arc-lane-caret:plain')).toBeNull();
+  });
+
+  it('a gating arc renders a caret carrying the right count', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'queued-1', gates: [{ id: 'blocker', shut: true }] }),
+          arc({ id: 'queued-2', gates: [{ id: 'blocker', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    const caret = screen.getByTestId('arc-lane-caret:blocker');
+    expect(caret.textContent).toContain('2');
+    expect(caret.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('a queued arc does NOT appear at the top level until its caret is opened', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'blocker' }), arc({ id: 'queued', gates: [{ id: 'blocker', shut: true }] })]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    expect(screen.queryByTestId('arc-lane:queued')).toBeNull();
+    fireEvent.click(screen.getByTestId('arc-lane-caret:blocker'));
+    expect(screen.getByTestId('arc-lane:queued')).not.toBeNull();
+  });
+
+  it('a queued arc carrying an OPEN QUESTION appears at the top level anyway (ADR-0314 D3)', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'queued-and-waiting', gates: [{ id: 'blocker', shut: true }], questions: [question('q')] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    // Reachable at the top WITHOUT expanding anything — a gate must never bury a question.
+    const row = screen.getByTestId('arc-lane:queued-and-waiting');
+    expect(row.getAttribute('data-arc-state')).toBe('waiting');
+    // The blocker itself carries no caret: with its one dependent promoted, it has nothing to nest.
+    expect(screen.queryByTestId('arc-lane-caret:blocker')).toBeNull();
+  });
+
+  it('a gate whose blocker has closed no longer nests its arc — it renders at the top level plainly', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'blocker' }), arc({ id: 'released', gates: [{ id: 'blocker', shut: false }] })]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    expect(screen.getByTestId('arc-lane:released')).not.toBeNull();
+    expect(screen.queryByTestId('arc-lane-caret:blocker')).toBeNull();
+  });
+
+  it('wraps the caret and the lane button in one row, keyed by id — even with no caret at all', async () => {
+    render(<ArcSurface readArc={readArc} arcs={[arc({ id: 'plain' })]} now={NOW} />);
+    await settle();
+    const row = screen.getByTestId('arc-lane-row:plain');
+    expect(within(row).getByTestId('arc-lane:plain')).not.toBeNull();
+    expect(within(row).queryByTestId('arc-lane-caret:plain')).toBeNull();
+  });
+
+  it('the queued wrapper appears ONLY while expanded, and holds exactly the queued rows', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'blocker' }), arc({ id: 'queued', gates: [{ id: 'blocker', shut: true }] })]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    expect(screen.queryByTestId('arc-lane-queued:blocker')).toBeNull();
+    fireEvent.click(screen.getByTestId('arc-lane-caret:blocker'));
+    const wrapper = screen.getByTestId('arc-lane-queued:blocker');
+    expect(within(wrapper).getByTestId('arc-lane:queued')).not.toBeNull();
+    // Collapsing again removes the wrapper — it is not merely hidden.
+    fireEvent.click(screen.getByTestId('arc-lane-caret:blocker'));
+    expect(screen.queryByTestId('arc-lane-queued:blocker')).toBeNull();
+  });
+
+  it('the caret’s label and glyph name the count and toggle Show/Hide with expanded state (golden)', async () => {
+    // ONE assertion pinning the caret's whole rendered text and its aria wiring through BOTH states
+    // — kills the string-literal mutant class on the label template and the glyph swap at once,
+    // rather than probing each piece separately.
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[arc({ id: 'blocker' }), arc({ id: 'queued', gates: [{ id: 'blocker', shut: true }] })]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    const caret = screen.getByTestId('arc-lane-caret:blocker');
+    expect(caret.getAttribute('aria-expanded')).toBe('false');
+    expect(caret.getAttribute('aria-label')).toBe('Show 1 arc queued behind The blocker');
+    expect(caret.textContent).toBe('▸ 1');
+    fireEvent.click(caret);
+    expect(caret.getAttribute('aria-expanded')).toBe('true');
+    expect(caret.getAttribute('aria-label')).toBe('Hide 1 arc queued behind The blocker');
+    expect(caret.textContent).toBe('▾ 1');
+  });
+
+  it('the caret’s label pluralises "arcs" for more than one queued', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'q1', gates: [{ id: 'blocker', shut: true }] }),
+          arc({ id: 'q2', gates: [{ id: 'blocker', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    expect(screen.getByTestId('arc-lane-caret:blocker').getAttribute('aria-label')).toBe(
+      'Show 2 arcs queued behind The blocker',
+    );
+  });
+
+  it('nests an arc under ITS OWN blocker only — a shut gate on a DIFFERENT arc does not borrow it', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker-a' }),
+          arc({ id: 'blocker-b' }),
+          arc({ id: 'queued', gates: [{ id: 'blocker-a', shut: true }] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    expect(screen.getByTestId('arc-lane-caret:blocker-a')).not.toBeNull();
+    expect(screen.queryByTestId('arc-lane-caret:blocker-b')).toBeNull();
+  });
+
+  it('clicking the caret does not select the blocker lane — the two are independent controls', async () => {
+    render(
+      <ArcSurface
+        readArc={readArc}
+        arcs={[
+          arc({ id: 'blocker' }),
+          arc({ id: 'queued', gates: [{ id: 'blocker', shut: true }] }),
+          arc({ id: 'other', increments: [landed('c', '2026-08-05')] }),
+        ]}
+        now={NOW}
+      />,
+    );
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-lane:other'));
+    await settle();
+    fireEvent.click(screen.getByTestId('arc-lane-caret:blocker'));
+    // The caret opened the queue without moving the panel's selection off `other`.
+    expect(within(screen.getByTestId('arc-briefing')).getByText('The other')).not.toBeNull();
+    expect(screen.getByTestId('arc-lane:queued')).not.toBeNull();
   });
 });
 

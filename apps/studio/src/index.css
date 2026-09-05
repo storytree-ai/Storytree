@@ -6154,7 +6154,46 @@ button.legend-tile:hover {
   border-color: var(--lp-moss);
   color: var(--lp-ink);
 }
-/* one lane per arc: a button so the panel is reachable by keyboard, laid out as name + track. */
+/* one ROW per arc — the lane button plus its optional caret and, expanded, its nested queue
+   (ADR-0523 / inc-05). The row itself owns the bottom rule now (it used to sit on `.arc-lane`
+   directly), because the caret and the lane share ONE visual line and must not draw two. */
+.arc-lane-row {
+  border-bottom: 1px solid var(--lp-border);
+}
+.arc-lane-line {
+  display: flex;
+  align-items: stretch;
+}
+/* the disclosure: rendered ONLY when an arc gates at least one other (ArcLane.queued.length > 0),
+   so the density property holds — an ungated arc (most of them) costs no caret at all, not even a
+   hidden one, because React never mounts it. A sibling BUTTON, not one nested inside `.arc-lane` —
+   `<button>` inside `<button>` is invalid HTML — so it stays independently reachable by keyboard. */
+.arc-lane-caret {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  border: none;
+  background: transparent;
+  color: var(--lp-ink-soft);
+  font: inherit;
+  font-size: 0.72em;
+  font-weight: 600;
+  padding: 0 4px 0 12px;
+  cursor: pointer;
+}
+.arc-lane-caret:hover {
+  color: var(--lp-ink);
+}
+/* the nested queue: one shared left rule reads as a single spine down every arc queued behind this
+   one, rather than a fresh box per level — depth (a queued arc that itself gates another) is just
+   another `.arc-lane-row` indented one step further. */
+.arc-lane-queued {
+  border-left: 2px solid var(--lp-border);
+  margin-left: 26px;
+}
+/* the lane itself: a button so the panel is reachable by keyboard, laid out as name + track. Fills
+   the row beside its caret rather than the row's own full width now that the two are siblings. */
 .arc-lane {
   display: grid;
   /* the name column is the primary scan target and real arc titles run to ~84 chars, so it takes
@@ -6162,9 +6201,9 @@ button.legend-tile:hover {
   grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
   align-items: center;
   gap: 10px;
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   border: none;
-  border-bottom: 1px solid var(--lp-border);
   border-left: 3px solid transparent;
   background: transparent;
   color: inherit;
@@ -6192,8 +6231,7 @@ button.legend-tile:hover {
   white-space: nowrap;
   font-size: 0.92em;
 }
-/* the state chip (ADR-0314 D4). `blocked` has NO rule here on purpose: nothing derives it, so
-   nothing may render it — see BLOCKED_IS_DERIVABLE in lib/arcSurface.ts. */
+/* the state chip (ADR-0314 D4). */
 .arc-state-chip {
   flex: 0 0 auto;
   border-radius: 999px;
@@ -6206,6 +6244,15 @@ button.legend-tile:hover {
 .arc-state-waiting {
   background: var(--lp-clay);
   color: #fffdf4;
+}
+/* ADR-0523 / inc-05: an authored gate is still SHUT — a definite external fact, not a busy signal,
+   so it is outlined rather than FILLED clay: `waiting` already claims solid clay as this palette's
+   one call-to-action, and the two must look different at a glance since `waiting` outranks
+   `blocked` precisely so a reader never has to tell them apart by more than that. */
+.arc-state-blocked {
+  background: color-mix(in srgb, var(--lp-clay) 12%, transparent);
+  border: 1px solid var(--lp-clay);
+  color: var(--lp-clay);
 }
 /* ADR-0351 D2: the ONE lane state backed by the live claim ledger rather than by dates. Filled
    rather than tinted, because it is the only one asserting something is happening RIGHT NOW. */
@@ -6255,6 +6302,13 @@ button.legend-tile:hover {
 }
 .arc-bar-queued {
   background: color-mix(in srgb, var(--lp-border) 80%, var(--lp-ink-soft) 20%);
+}
+/* ADR-0523 / inc-05: not-yet-landed work behind a SHUT gate — grey means not done yet, this means
+   not startable at all. Clay-tinted rather than plain grey, tying it to the same "stuck" visual
+   language as `.arc-state-blocked` without reusing `.arc-bar-queued`'s own reading (one extra bar
+   tone, never a re-purposed one). */
+.arc-bar-gated {
+  background: color-mix(in srgb, var(--lp-clay) 35%, var(--lp-border) 65%);
 }
 .arc-lane-counts {
   margin-left: 8px;
