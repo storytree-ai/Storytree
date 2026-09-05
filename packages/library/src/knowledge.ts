@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { ComposedStatements } from "./composed-statement.js";
+import { DecisionAuthority } from "./decision-authority.js";
 import { DecisionSources } from "./decision-sources.js";
 import { Markdown } from "./schema.js";
 
@@ -1061,6 +1062,19 @@ export type ResteerDispositionBy = z.infer<typeof ResteerDispositionBy>;
  * mode to cover something it does not describe is what would make a later distribution meaningless.
  * The measured share of `no-mast-home` on our own corpus, and the modes never once reached, are in
  * `docs/research/mast-agreement-2026-09-05.md`.
+ *
+ * THE STORYTREE EXTENSION — four modes, DERIVED and never invented (ADR-0515 D5; promoted by
+ * `follow-the-research-arc-promote-extension`). On the 2026-09-05 reading 40% of a representative
+ * friction sample had no MAST home, because MAST classifies AGENT failures and ours are dominated by
+ * tool, environment, missing-capability and data-model defects. The four ids below were derived from
+ * the annotators' own stated reasons on those 17 unhoused items and measured in their own right
+ * (kappa 0.828, `no-extension-home` used zero times) BEFORE they entered this enum, and the whole
+ * 19-label frame was then re-measured by two independent annotators on the same deterministic sample
+ * (`docs/research/mast-agreement-extended-2026-09-05.md`). They sit in their own category,
+ * `storytree-extension`, so a distribution can always be read MAST-only by folding that category
+ * back into `unhoused` — the shared vocabulary survives, and the extension is never mistaken for
+ * MAST's own. `no-mast-home` stays: it is still the answer when NEITHER MAST nor the extension
+ * describes the failure, and its share is now the extension's own gap list.
  */
 export const ResteerMode = z.enum([
   // FC1 — specification and system design
@@ -1080,16 +1094,30 @@ export const ResteerMode = z.enum([
   "premature-termination",
   "no-or-incomplete-verification",
   "incorrect-verification",
+  // The storytree extension — see above. Each is a cause that is NOT the agent's reasoning:
+  //   tool-defect          a command, verb, check or script that EXISTS behaves wrongly.
+  //   environment-defect   the machine, shell, platform or CI is the cause, not the repo's code.
+  //   missing-capability   the verb, mechanism or guard needed simply does not exist yet.
+  //   data-model-gap       a schema, record type, allowlist or surface cannot express or see something it must.
+  "tool-defect",
+  "environment-defect",
+  "missing-capability",
+  "data-model-gap",
   // The escape hatch — see above.
   "no-mast-home",
 ]);
 export type ResteerMode = z.infer<typeof ResteerMode>;
 
-/** MAST's three failure categories, plus the escape hatch's own bucket. */
+/**
+ * MAST's three failure categories, the storytree extension's own bucket, and the escape hatch's.
+ * `storytree-extension` is kept apart from MAST's three on purpose: folding it into `unhoused`
+ * recovers the MAST-only reading exactly, and nothing in it is ever presented as MAST's.
+ */
 export type MastCategory =
   | "specification-and-design"
   | "inter-agent-misalignment"
   | "verification-and-termination"
+  | "storytree-extension"
   | "unhoused";
 
 /**
@@ -1111,6 +1139,10 @@ export const MAST_CATEGORY = {
   "premature-termination": "verification-and-termination",
   "no-or-incomplete-verification": "verification-and-termination",
   "incorrect-verification": "verification-and-termination",
+  "tool-defect": "storytree-extension",
+  "environment-defect": "storytree-extension",
+  "missing-capability": "storytree-extension",
+  "data-model-gap": "storytree-extension",
   "no-mast-home": "unhoused",
 } satisfies Record<ResteerMode, MastCategory>;
 
@@ -1758,6 +1790,36 @@ export const Adr = buildKindSchema("adr").extend({
    * written by their own verb and ride the row.
    */
   sources: DecisionSources.optional(),
+  /**
+   * ADR-0519's AUTHORITY STAMP — whose call this decision was. See `decision-authority.ts` for the
+   * whole design and the measurement that forced it; what matters here is the storage shape and why
+   * it is the one chosen.
+   *
+   * OPTIONAL, never `.default()`ed (ADR-0223's optional-not-defaulted rule, ADR-0519 D6): absent
+   * means nobody ever stamped this record — the state of 100% of the log before today and of the 211
+   * rows D5's backfill deliberately leaves alone — and it must stay distinguishable from a stamp
+   * that was applied and happens to carry no owner words. Every existing decision doc validates
+   * unchanged, so there is NO `CURRENT_SCHEMA_VERSION` bump and zero migration (re-verified against
+   * migrations.ts: all nine registered migrations only DROP fields, so each no-ops on a doc without
+   * the key — the `arcRef` / `stepRefs` / `Agent.model` precedent).
+   *
+   * NOT A DECISION-DOCUMENT FRONTMATTER KEY — the same asymmetry as `composed` and `sources` above,
+   * and here it is the entire mechanism rather than a detail. A decision body is one raw prose field
+   * with a byte-identical round trip (ADR-0403 dec 9), and the owner's verbatim words inside a
+   * document an agent round-trips on every in-place correction are words an agent can quietly
+   * rewrite. So `FRONTMATTER_ORDER` in `adr-doc.ts` does not carry it (which is what makes a push
+   * REFUSE an `authority:` key rather than drop it), `renderAdrDocument` does not emit it,
+   * `AdrMeta` does not read it, and `adrPush`'s `{...row, <named fields>}` spread is what carries it
+   * across a round trip untouched. That spread reads like an oversight and is load-bearing
+   * (ADR-0424 D7's argument, applied): correcting a decision's PROSE is not evidence that anyone
+   * re-checked WHO DECIDED it, so a push must not be able to launder a rewritten quote into the
+   * record. `adr-authority.test.ts` pins every one of those.
+   *
+   * The ONE way it differs from both siblings: they are written by their own verbs AFTER creation,
+   * whereas this is set AT creation, so `scaffoldRow` is its single writer — still exactly one
+   * writer, and the row-only property is unchanged. Do not wire the other three.
+   */
+  authority: DecisionAuthority.optional(),
 });
 
 /** A knowledge unit at any kind. The discriminator is `kind` (ADR-0017). */
