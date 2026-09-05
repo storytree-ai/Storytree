@@ -24,19 +24,18 @@ import { LAND_RELIEF_AMPLITUDE, landHeight } from './land-relief.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import {
   CYLINDER_PROFILE,
-  ENVELOPE_SAMPLES_PER_SEGMENT,
   ENVELOPE_STEP,
   OCCLUSION_PAD,
   SHADOW_GRES,
   SHADOW_PENUMBRA,
   SHADOW_PENUMBRA_RUNGS,
-  SILHOUETTE_SAMPLES_PER_SEGMENT,
   envelopeOcclusion,
   envelopeWidth,
   profileHalfWidth,
   profileMaxWidth,
+  segmentEnvelope,
   silhouetteEnvelope,
-  silhouetteOcclusion,
+  type SilhouetteProfile,
   SHADOW_TEXTURE_MAX,
   assertTerrainDoesNotSelfShadow,
   buildCanopyShadowField,
@@ -664,6 +663,46 @@ const CONE = [
   [1, 0],
 ] as const;
 
+/**
+ * THE REFERENCE, BRUTE-FORCED: how occluded a sample is by a profiled caster, as the largest
+ * penumbra-ramp value over a fine grid of heights the ray passes through — the definition the
+ * source's closed form and table are held to. It lives HERE, in the test, so it carries no
+ * sampling constant the mutation rung could move by less than a fixture can see.
+ */
+function bruteOcclusion(
+  profile: SilhouetteProfile,
+  radius: number,
+  height: number,
+  yStar: number,
+  across: number,
+  perUnit: number,
+  penumbra: number,
+): number {
+  if (height <= 0) return 0;
+  let best = 0;
+  const steps = 2000;
+  for (let i = 0; i <= steps; i += 1) {
+    const y = (height * i) / steps;
+    const w = profileHalfWidth(profile, y / height) * radius;
+    const d = Math.hypot(perUnit * (yStar - y), across);
+    best = Math.max(best, (w + penumbra - d) / (2 * penumbra));
+  }
+  return Math.max(0, Math.min(1, best));
+}
+
+/** The brute-force outline: the widest `across` the ray is occluded at, over the same fine grid. */
+function bruteWidth(profile: SilhouetteProfile, radius: number, height: number, yStar: number, perUnit: number): number {
+  let best = 0;
+  const steps = 4000;
+  for (let i = 0; i <= steps; i += 1) {
+    const y = (height * i) / steps;
+    const w = profileHalfWidth(profile, y / height) * radius;
+    const sq = w * w - (perUnit * (yStar - y)) ** 2;
+    if (sq > best) best = sq;
+  }
+  return Math.sqrt(best);
+}
+
 test('profileHalfWidth interpolates between pairs, takes the WIDER side of a step, and is zero outside the form', () => {
   assert.equal(profileHalfWidth(CYLINDER_PROFILE, 0), 1);
   assert.equal(profileHalfWidth(CYLINDER_PROFILE, 0.5), 1);
@@ -683,23 +722,23 @@ test('profileHalfWidth interpolates between pairs, takes the WIDER side of a ste
   assert.equal(profileMaxWidth([]), 0);
 });
 
-test('silhouetteOcclusion on the CYLINDER profile reproduces the swept disc: 1 inside, 0.5 on the silhouette, 0 a penumbra out', () => {
+test('the brute-force reference on the CYLINDER profile reproduces the swept disc: 1 inside, 0.5 on the silhouette, 0 a penumbra out', () => {
   const per = shadowOffsetPerUnitHeight();
   const r = 3;
   const h = 10;
   const pen = 1.2;
   // Beside the axis, at a height the ray passes the axis inside the form.
-  assert.equal(silhouetteOcclusion(CYLINDER_PROFILE, r, h, 5, 0, per, pen), 1);
-  assert.equal(silhouetteOcclusion(CYLINDER_PROFILE, r, h, 5, r - pen, per, pen), 1);
-  assert.ok(Math.abs(silhouetteOcclusion(CYLINDER_PROFILE, r, h, 5, r, per, pen) - 0.5) < 1e-9);
-  assert.equal(silhouetteOcclusion(CYLINDER_PROFILE, r, h, 5, r + pen, per, pen), 0);
+  assert.equal(bruteOcclusion(CYLINDER_PROFILE, r, h, 5, 0, per, pen), 1);
+  assert.equal(bruteOcclusion(CYLINDER_PROFILE, r, h, 5, r - pen, per, pen), 1);
+  assert.ok(Math.abs(bruteOcclusion(CYLINDER_PROFILE, r, h, 5, r, per, pen) - 0.5) < 1e-9);
+  assert.equal(bruteOcclusion(CYLINDER_PROFILE, r, h, 5, r + pen, per, pen), 0);
   // A ray passing the axis ABOVE the tip is still met by the top of the cylinder where its
   // horizontal distance is inside the radius — the rounded cap the closed form cut flat.
-  assert.ok(silhouetteOcclusion(CYLINDER_PROFILE, r, h, h + 0.5 / per, 0, per, pen) > 0.5);
+  assert.ok(bruteOcclusion(CYLINDER_PROFILE, r, h, h + 0.5 / per, 0, per, pen) > 0.5);
   // But well above it, nothing.
-  assert.equal(silhouetteOcclusion(CYLINDER_PROFILE, r, h, h + (r + pen + 1) / per, 0, per, pen), 0);
+  assert.equal(bruteOcclusion(CYLINDER_PROFILE, r, h, h + (r + pen + 1) / per, 0, per, pen), 0);
   // No height, no occlusion.
-  assert.equal(silhouetteOcclusion(CYLINDER_PROFILE, r, 0, 0, 0, per, pen), 0);
+  assert.equal(bruteOcclusion(CYLINDER_PROFILE, r, 0, 0, 0, per, pen), 0);
 });
 
 test('a CONE occludes the ray at its crown and NOT beside its trunk — the shadow is thin near the foot and a point at the tip', () => {
@@ -711,25 +750,24 @@ test('a CONE occludes the ray at its crown and NOT beside its trunk — the shad
   // whose overhang does not reach out this far at the height the ray gets there — under 0.5,
   // where the cylinder has it fully shadowed. (Closer in, at 1 unit, the crown DOES overhang
   // the ray and both forms shadow it: a pine shades the ground around its own foot.)
-  assert.ok(silhouetteOcclusion(CONE, r, h, 0.1, 2.9, per, pen) < 0.5, 'the cone is as wide as the cylinder at the foot');
-  assert.ok(silhouetteOcclusion(CYLINDER_PROFILE, r, h, 0.1, 2.9, per, pen) > 0.5, 'the cylinder is not occluded inside its own radius');
-  assert.equal(silhouetteOcclusion(CONE, r, h, 1, 1, per, pen), 1, 'the crown does not overhang the foot');
+  assert.ok(bruteOcclusion(CONE, r, h, 0.1, 2.9, per, pen) < 0.5, 'the cone is as wide as the cylinder at the foot');
+  assert.ok(bruteOcclusion(CYLINDER_PROFILE, r, h, 0.1, 2.9, per, pen) > 0.5, 'the cylinder is not occluded inside its own radius');
+  assert.equal(bruteOcclusion(CONE, r, h, 1, 1, per, pen), 1, 'the crown does not overhang the foot');
   // A bare stem (no crown) IS clear beside its trunk — the overhang above is what shadowed it.
-  assert.equal(silhouetteOcclusion([[0, 0.1], [1, 0.1]], r, h, 1, 1, per, pen), 0);
+  assert.equal(bruteOcclusion([[0, 0.1], [1, 0.1]], r, h, 1, 1, per, pen), 0);
   // At the crown's widest height it is as wide as the cylinder.
-  assert.equal(silhouetteOcclusion(CONE, r, h, 2, 2.5, per, pen), 1);
+  assert.equal(bruteOcclusion(CONE, r, h, 2, 2.5, per, pen), 1);
   // Two-thirds of the way to the tip the crown is a third as wide: 2.5 out is clear.
-  assert.equal(silhouetteOcclusion(CONE, r, h, 9, 2.5, per, pen), 0);
-  assert.ok(silhouetteOcclusion(CONE, r, h, 9, 0.2, per, pen) > 0.5);
+  assert.equal(bruteOcclusion(CONE, r, h, 9, 2.5, per, pen), 0);
+  assert.ok(bruteOcclusion(CONE, r, h, 9, 0.2, per, pen) > 0.5);
   // The width narrows monotonically along the crown.
   let last = Infinity;
   for (const y of [3, 5, 7, 9]) {
     let edge = 0;
-    for (let a = 0; a <= r; a += 0.05) if (silhouetteOcclusion(CONE, r, h, y, a, per, pen) >= 0.5) edge = a;
+    for (let a = 0; a <= r; a += 0.05) if (bruteOcclusion(CONE, r, h, y, a, per, pen) >= 0.5) edge = a;
     assert.ok(edge < last, `the cone widened between heights (${edge} at ${y})`);
     last = edge;
   }
-  assert.equal(SILHOUETTE_SAMPLES_PER_SEGMENT, 6);
 });
 
 test('a profiled caster in the FIELD casts a narrower shadow than the same caster as a cylinder, and its box is the profile’s', () => {
@@ -780,7 +818,7 @@ test('the penumbra option sets the ramp’s width: wider means more in-between s
   assert.ok(Math.abs(c1 - c2) * 10000 < 60, `the silhouette moved with the penumbra (${c1} vs ${c2})`);
 });
 
-test('THE ENVELOPE agrees with the per-sample silhouette test on which side of the 0.5 contour every (height, across) falls, to a texel — on the cone and the cylinder', () => {
+test('THE ENVELOPE agrees with the brute-force reference on which side of the 0.5 contour every (height, across) falls, to a texel — on the cone and the cylinder', () => {
   const per = shadowOffsetPerUnitHeight();
   const pen = 0.6;
   for (const [name, profile] of [['cone', CONE], ['cylinder', CYLINDER_PROFILE]] as const) {
@@ -789,7 +827,7 @@ test('THE ENVELOPE agrees with the per-sample silhouette test on which side of t
     let checks = 0;
     for (let yStar = -6; yStar <= 16; yStar += 0.25) {
       for (let across = 0; across <= 4; across += 0.1) {
-        const exact = silhouetteOcclusion(profile, 3, 10, yStar, across, per, pen) >= 0.5;
+        const exact = bruteOcclusion(profile, 3, 10, yStar, across, per, pen) >= 0.5;
         const table = envelopeOcclusion(env, yStar, across, pen) >= 0.5;
         checks += 1;
         if (exact !== table) {
@@ -797,9 +835,9 @@ test('THE ENVELOPE agrees with the per-sample silhouette test on which side of t
           // the per-sample test is itself sampled (six probes a segment) and the table is
           // interpolated; anything further is a different shape.
           const near =
-            silhouetteOcclusion(profile, 3, 10, yStar, across + 0.34, per, pen) >= 0.5 !==
-            silhouetteOcclusion(profile, 3, 10, yStar, Math.max(0, across - 0.34), per, pen) >= 0.5;
-          assert.ok(near, `${name}: the envelope disagrees with the silhouette at yStar ${yStar}, across ${across}, away from the contour`);
+            bruteOcclusion(profile, 3, 10, yStar, across + 0.34, per, pen) >= 0.5 !==
+            bruteOcclusion(profile, 3, 10, yStar, Math.max(0, across - 0.34), per, pen) >= 0.5;
+          assert.ok(near, `${name}: the envelope disagrees with the reference at yStar ${yStar}, across ${across}, away from the contour`);
           disagreements += 1;
         }
       }
@@ -841,5 +879,94 @@ test('the envelope’s table: a cylinder’s outline is its radius at every heig
   assert.ok([...none.widths].every((w) => w === 0));
   const flat = silhouetteEnvelope(CYLINDER_PROFILE, 3, 0, per);
   assert.ok([...flat.widths].every((w) => w === 0));
-  assert.equal(ENVELOPE_SAMPLES_PER_SEGMENT, 24);
+});
+
+test('segmentEnvelope is EXACT: the largest w² − (perUnit·(yStar − y))² over a segment, to the last bit against a brute-force maximum, concave and convex alike', () => {
+  const per = shadowOffsetPerUnitHeight();
+  const brute = (y0: number, w0: number, y1: number, w1: number, yStar: number): number => {
+    let best = -Infinity;
+    const steps = 20000;
+    for (let i = 0; i <= steps; i += 1) {
+      const y = y0 + ((y1 - y0) * i) / steps;
+      const w = y1 === y0 ? Math.max(w0, w1) : w0 + ((w1 - w0) * (y - y0)) / (y1 - y0);
+      best = Math.max(best, w * w - (per * (yStar - y)) ** 2);
+    }
+    return best;
+  };
+  const cases: [number, number, number, number][] = [
+    [2, 3, 10, 0.12], // the cone's crown: a shallow slope, concave — the maximum is interior
+    [0, 0.3, 2, 0.3], // the trunk: flat
+    [0, 3, 10, 3], // a cylinder
+    [0, 2.36, 0.67, 2.29], // a dome's first piece: steep, convex — the maximum is at an end
+    [8, 0.2, 8, 3], // a step: both ends at one height
+    [0, 0.5, 10, 6], // slope 0.55 < the light's 0.695: concave, maximum interior for some yStar
+    [0, 0.5, 5, 6], // slope 1.1 > the light's: convex
+  ];
+  for (const [y0, w0, y1, w1] of cases) {
+    for (const yStar of [-3, 0, 1, 2.5, 4, 5, 6.3, 8, 9.9, 10, 13]) {
+      const exact = segmentEnvelope(y0, w0, y1, w1, yStar, per);
+      const b = brute(y0, w0, y1, w1, yStar);
+      // The exact maximum is never BELOW the brute one (the grid contains no point above the true
+      // maximum), and never above it by more than the grid's own resolution.
+      assert.ok(exact >= b - 1e-9, `${[y0, w0, y1, w1]} at ${yStar}: exact ${exact} below brute ${b}`);
+      assert.ok(exact - b < 1e-4, `${[y0, w0, y1, w1]} at ${yStar}: exact ${exact} above brute ${b} by ${exact - b}`);
+    }
+  }
+  // The interior stationary point really is taken: on the crown at a yStar where the brute
+  // maximum lies strictly between the ends, the ends alone under-read it.
+  const ends = Math.max(3 * 3 - (per * (6 - 2)) ** 2, 0.12 * 0.12 - (per * (6 - 10)) ** 2);
+  assert.ok(segmentEnvelope(2, 3, 10, 0.12, 6, per) > ends + 0.1, 'the stationary point was not taken');
+  // And a negative answer is a segment the ray never meets.
+  assert.ok(segmentEnvelope(0, 0.3, 2, 0.3, 30, per) < 0);
+});
+
+test('the envelope’s table matches the brute-force outline at every entry, on the cone, the cylinder and a bloom', () => {
+  const per = shadowOffsetPerUnitHeight();
+  const bloom: SilhouetteProfile = [
+    [0, 1],
+    [0.12, 1],
+    [0.12, 0.06],
+    [0.78, 0.06],
+    [0.78, 0.28],
+    [1, 0.15],
+  ];
+  for (const [name, profile, r, h] of [
+    ['cone', CONE, 3, 10],
+    ['cylinder', CYLINDER_PROFILE, 3, 10],
+    ['bloom', bloom, 2, 2.445],
+  ] as const) {
+    const env = silhouetteEnvelope(profile, r, h, per);
+    for (let i = 0; i < env.widths.length; i += 1) {
+      const yStar = env.yMin + i * env.step;
+      const b = bruteWidth(profile, r, h, yStar, per);
+      // The table is the EXACT maximum: never below the brute grid's, and above it only by what
+      // the grid missed between two of its 4,000 heights.
+      assert.ok(env.widths[i]! >= b - 1e-9, `${name} entry ${i} (yStar ${yStar.toFixed(3)}): table ${env.widths[i]} below brute ${b}`);
+      assert.ok(env.widths[i]! - b < 5e-3, `${name} entry ${i} (yStar ${yStar.toFixed(3)}): table ${env.widths[i]} vs brute ${b}`);
+    }
+    // The table's extent is the form's own overhang either side, at the declared step.
+    assert.ok(Math.abs(env.yMin + (r * profileMaxWidth(profile)) / per) < 1e-9);
+    assert.ok(Math.abs(env.step - ENVELOPE_STEP / (SHADOW_GRES * per)) < 1e-12);
+    const span = h + (2 * r * profileMaxWidth(profile)) / per;
+    assert.equal(env.widths.length, Math.ceil(span / env.step) + 1);
+  }
+});
+
+test('envelopeWidth at the table’s edges: zero before the first entry, half the second entry midway into the first cell, zero at and past the end, and a finite number everywhere', () => {
+  const per = shadowOffsetPerUnitHeight();
+  const env = silhouetteEnvelope(CYLINDER_PROFILE, 3, 10, per);
+  const n = env.widths.length;
+  assert.equal(envelopeWidth(env, env.yMin - 1e-9), 0);
+  // The first entry is zero (the overhang's start meets nothing); midway to the second it is half
+  // of the second — a read that fell to zero here would clip the shadow's tip.
+  assert.ok(env.widths[1]! > 0);
+  assert.ok(Math.abs(envelopeWidth(env, env.yMin + 0.5 * env.step) - 0.5 * env.widths[1]!) < 1e-12);
+  // Exactly on the last entry, half a step past it, and a whole step past it: finite, and zero.
+  assert.equal(envelopeWidth(env, env.yMin + (n - 1) * env.step), env.widths[n - 1]);
+  assert.equal(envelopeWidth(env, env.yMin + (n - 0.5) * env.step), env.widths[n - 1]! * 0.5);
+  assert.equal(envelopeWidth(env, env.yMin + n * env.step), 0);
+  assert.equal(envelopeWidth(env, env.yMin + (n + 0.5) * env.step), 0);
+  for (const y of [-100, env.yMin, 0, 5, 10, env.yMin + n * env.step, 100]) {
+    assert.ok(Number.isFinite(envelopeWidth(env, y)), `not finite at ${y}`);
+  }
 });

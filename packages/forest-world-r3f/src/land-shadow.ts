@@ -95,12 +95,13 @@ export const CYLINDER_PROFILE: SilhouetteProfile = [
 
 /**
  * The half-width of a profile at height fraction `t`, as a fraction of the caster's radius.
- * Outside `[0, 1]` it is zero — nothing stands below its own foot or above its own tip. At a step
- * (two pairs at one height) the WIDER of the two wins, because a ray grazing the step is occluded
- * by the wider part.
+ * Linear between pairs; at a step (two pairs at one height) the WIDER of the two wins, because a
+ * ray grazing the step is occluded by the wider part. Outside `[0, 1]`, or on an empty profile,
+ * no pair brackets `t` and the answer is zero — nothing stands below its own foot or above its
+ * own tip — without a guard saying so, because a guard the loop already satisfies is a branch no
+ * test can distinguish.
  */
 export function profileHalfWidth(profile: SilhouetteProfile, t: number): number {
-  if (t < 0 || t > 1 || profile.length === 0) return 0;
   let width = 0;
   for (const k of indices(profile.length)) {
     const [h, r] = profile[k]!;
@@ -108,75 +109,68 @@ export function profileHalfWidth(profile: SilhouetteProfile, t: number): number 
     const next = profile[k + 1];
     if (next === undefined) continue;
     const [h2, r2] = next;
+    // Stryker disable next-line EqualityOperator: EQUIVALENT — at `t === h` or `t === h2` the
+    // interpolation returns that pair's own radius, which the `h === t` branch has already taken.
     if (t > h && t < h2) width = Math.max(width, r + ((r2 - r) * (t - h)) / (h2 - h));
   }
   return width;
 }
 
-/** The widest a profile ever is, as a fraction of the radius — what sizes the stamp's box. */
+/** The widest a profile ever is, as a fraction of the radius — what sizes the outline's table. */
 export function profileMaxWidth(profile: SilhouetteProfile): number {
   let m = 0;
   for (const [, r] of profile) m = Math.max(m, r);
   return m;
 }
 
-/** How many heights the silhouette test samples per profile segment. Six, because the
- *  segments are short (a pine's crown is one) and the test is a max over a concave function of
- *  height, so a coarse sample under-reads the occlusion by at most a fraction of the penumbra. */
-export const SILHOUETTE_SAMPLES_PER_SEGMENT = 6;
-
 /**
- * HOW OCCLUDED A GROUND SAMPLE IS BY A PROFILED CASTER, 0..1, with the penumbra ramp.
+ * THE OUTLINE OF ONE PROFILE SEGMENT, SOLVED. The ray from a ground sample climbs `1 / perUnit`
+ * per ground unit and passes the caster's axis at height `yStar`; at height `y` it sits
+ * `perUnit × (yStar − y)` ground units from the axis along the shadow. Against a piece of the form
+ * whose half-width runs linearly from `w0` at `y0` to `w1` at `y1`, the widest `across` the ray
+ * is still occluded at is the square root of the largest `g(y) = w(y)² − (perUnit × (yStar − y))²`
+ * over the segment — and `g` is a quadratic in `y`: concave where the segment's slope is shallower
+ * than the light's, so its maximum sits at the stationary point clamped into the segment, and at
+ * an end otherwise. A step (`y0 === y1`) is both ends at once. The result may be negative — the
+ * ray meets nothing here — and the caller floors it.
  *
- * The ray from the sample toward the light climbs `1 / perUnit` units per ground unit and passes
- * the caster's axis at height `yStar` above the caster's foot; at every height `y` on the way it
- * sits `perUnit × (yStar − y)` ground units from the axis along the shadow and `across` beside
- * it. It is occluded where that distance falls inside the silhouette's half-width at `y`, and the
- * field's value is the softest-edged such test: the ramp `(halfWidth + penumbra − distance) / (2 ×
- * penumbra)`, maximised over the heights the ray passes through and clamped to `[0, 1]`. On a
- * cylinder this reproduces the swept disc; on a cone it tapers to the tip's point.
+ * ⚠ SOLVED RATHER THAN SAMPLED, and the reason is the mutation rung as much as exactness: a
+ * sampled maximum carries sampling constants whose mutants move the answer by less than any
+ * fixture can see, while a closed form is held to a brute-force maximum to the last bit.
  */
-export function silhouetteOcclusion(
-  profile: SilhouetteProfile,
-  radius: number,
-  height: number,
+export function segmentEnvelope(
+  y0: number,
+  w0: number,
+  y1: number,
+  w1: number,
   yStar: number,
-  across: number,
   perUnit: number,
-  penumbra: number,
 ): number {
-  if (height <= 0) return 0;
-  let best = 0;
-  const probe = (y: number): void => {
-    const w = profileHalfWidth(profile, y / height) * radius;
-    const d = Math.hypot(perUnit * (yStar - y), across);
-    best = Math.max(best, (w + penumbra - d) / (2 * penumbra));
-  };
-  for (const k of indices(profile.length - 1)) {
-    const y0 = profile[k]![0] * height;
-    const y1 = profile[k + 1]![0] * height;
-    for (const s of indices(SILHOUETTE_SAMPLES_PER_SEGMENT + 1)) {
-      probe(y0 + ((y1 - y0) * s) / SILHOUETTE_SAMPLES_PER_SEGMENT);
-    }
+  const p2 = perUnit * perUnit;
+  const g = (y: number, w: number): number => w * w - p2 * (yStar - y) * (yStar - y);
+  let best = Math.max(g(y0, w0), g(y1, w1));
+  const dy = y1 - y0;
+  if (dy <= 0) return best;
+  const slope = (w1 - w0) / dy;
+  const intercept = w0 - slope * y0;
+  if (slope * slope < p2) {
+    const ys = (intercept * slope + p2 * yStar) / (p2 - slope * slope);
+    if (ys > y0 && ys < y1) best = Math.max(best, g(ys, intercept + slope * ys));
   }
-  // The height the ray passes the axis at is where its distance is smallest — probe it too, so
-  // a thin stem between two sampled heights is never stepped over.
-  if (yStar >= 0 && yStar <= height) probe(yStar);
-  return Math.max(0, Math.min(1, best));
+  return best;
 }
 
 /**
  * A CASTER'S SILHOUETTE OUTLINE, TABULATED ONCE: for each height `yStar` a ray may pass the axis
- * at, the widest `across` it is still occluded at — `max over y of sqrt(w(y)² − (perUnit ×
- * (yStar − y))²)`, the same silhouette {@link silhouetteOcclusion} tests, solved per caster
- * rather than per sample.
+ * at, the widest `across` it is still occluded at — the largest {@link segmentEnvelope} over the
+ * profile's segments, floored at zero and rooted.
  *
- * ⚠⚠ IT EXISTS BECAUSE THE PER-SAMPLE TEST COST THE FOREST TWENTY SECONDS AT MOUNT. Measured on
- * the RTX 2060 box, 2026-09-06: the forest's ground build went from 554 ms with cylinders to
- * 21,081 ms with `silhouetteOcclusion` called at every sample of every caster's box (2,852
- * casters, ~30 probes a sample, each probe walking the profile). The outline is a function of
- * `yStar` alone, so it is tabulated at {@link ENVELOPE_STEP} of a texel's worth of height and a
- * sample then costs one interpolated read and a clamp — the cylinder stamp's cost class.
+ * ⚠⚠ IT EXISTS BECAUSE A PER-SAMPLE FORM TEST COST THE FOREST TWENTY SECONDS AT MOUNT. Measured
+ * on the RTX 2060 box, 2026-09-06: the forest's ground build went from 554 ms with cylinders to
+ * 21,081 ms with the form probed at ~30 heights for every sample of every caster's box (2,852
+ * casters). The outline is a function of `yStar` alone, so it is tabulated at {@link ENVELOPE_STEP}
+ * of a texel's worth of height and a sample then costs one interpolated read and a clamp — the
+ * cylinder stamp's cost class. `land-shadow.test.ts` holds the table to a brute-force maximum.
  */
 export interface SilhouetteEnvelope {
   /** The `yStar` of `widths[0]`. */
@@ -191,10 +185,6 @@ export interface SilhouetteEnvelope {
  *  field that samples it. */
 export const ENVELOPE_STEP = 0.25;
 
-/** Heights the outline is maximised over, per profile segment, when the table is built — once
- *  per caster, so it can afford to be fine. */
-export const ENVELOPE_SAMPLES_PER_SEGMENT = 24;
-
 export function silhouetteEnvelope(
   profile: SilhouetteProfile,
   radius: number,
@@ -202,55 +192,46 @@ export function silhouetteEnvelope(
   perUnit: number,
   gres: number = SHADOW_GRES,
 ): SilhouetteEnvelope {
+  const step = ENVELOPE_STEP / (gres * perUnit);
+  // Nothing stands at no height: a table of zeros rather than a foot-disc at `yStar = 0`, which
+  // is what the segments would deliver (every pair at `y = 0`, each its own width).
+  if (height <= 0) return { yMin: 0, step, widths: new Float64Array(2) };
   const widest = radius * profileMaxWidth(profile);
   // A ray can be met while passing the axis up to `widest / perUnit` above the tip or below the
   // foot — the form's own overhang, converted to axis height.
-  const overhang = widest / Math.max(perUnit, 1e-9);
+  const overhang = widest / perUnit;
   const yMin = -overhang;
-  const yMax = height + overhang;
-  const step = ENVELOPE_STEP / (gres * Math.max(perUnit, 1e-9));
-  const n = Math.max(2, Math.ceil((yMax - yMin) / step) + 1);
-  // The heights the outline is maximised over: every profile breakpoint and a fine sample of
-  // each segment — built once, read for every table entry.
-  const ys: number[] = [];
-  for (const k of indices(profile.length - 1)) {
-    const y0 = profile[k]![0] * height;
-    const y1 = profile[k + 1]![0] * height;
-    for (const sIdx of indices(ENVELOPE_SAMPLES_PER_SEGMENT + 1)) {
-      ys.push(y0 + ((y1 - y0) * sIdx) / ENVELOPE_SAMPLES_PER_SEGMENT);
-    }
-  }
-  const ws = ys.map((y) => profileHalfWidth(profile, height <= 0 ? -1 : y / height) * radius);
+  const n = Math.ceil((height + 2 * overhang) / step) + 1;
   const widths = new Float64Array(n);
   for (const i of indices(n)) {
     const yStar = yMin + i * step;
     let best = 0;
-    for (const k of indices(ys.length)) {
-      const along = perUnit * (yStar - ys[k]!);
-      const w = ws[k]!;
-      const sq = w * w - along * along;
-      if (sq > best * best) best = Math.sqrt(sq);
+    for (const k of indices(profile.length - 1)) {
+      const [h0, r0] = profile[k]!;
+      const [h1, r1] = profile[k + 1]!;
+      best = Math.max(best, segmentEnvelope(h0 * height, r0 * radius, h1 * height, r1 * radius, yStar, perUnit));
     }
-    widths[i] = best;
+    widths[i] = Math.sqrt(best);
   }
   return { yMin, step, widths };
 }
 
-/** The outline's half-width at `yStar`, linearly interpolated; zero outside the table. */
+/** The outline's half-width at `yStar`, linearly interpolated between entries; zero before the
+ *  table and past it, and the entry past the last is read as zero. */
 export function envelopeWidth(env: SilhouetteEnvelope, yStar: number): number {
   const f = (yStar - env.yMin) / env.step;
-  if (f < 0 || f > env.widths.length - 1) return 0;
   const i = Math.floor(f);
-  const t = f - i;
+  const n = env.widths.length;
+  if (i < 0 || i >= n) return 0;
   const a = env.widths[i]!;
-  const b = env.widths[Math.min(env.widths.length - 1, i + 1)]!;
-  return a + (b - a) * t;
+  const b = i + 1 < n ? env.widths[i + 1]! : 0;
+  return a + (b - a) * (f - i);
 }
 
 /** The field's value for a sample against a tabulated outline: the penumbra ramp centred on the
- *  outline, 0.5 exactly on it — what {@link silhouetteOcclusion} delivers, at a table read. Where
- *  the outline has NO width the ray meets nothing at all, and that is 0 rather than the ramp of a
- *  zero-width form: the penumbra widens an edge, it does not lengthen a shadow past its tip. */
+ *  outline, 0.5 exactly on it. Where the outline has NO width the ray meets nothing at all, and
+ *  that is 0 rather than the ramp of a zero-width form: the penumbra widens an edge, it does not
+ *  lengthen a shadow past its tip. */
 export function envelopeOcclusion(env: SilhouetteEnvelope, yStar: number, across: number, penumbra: number): number {
   const w = envelopeWidth(env, yStar);
   if (w <= 0) return 0;
@@ -620,10 +601,9 @@ export function buildCanopyShadowField(opts: CanopyShadowOptions): ShadowField {
     // Stryker disable next-line ArithmeticOperator
     const reach = c.height * perUnit;
     const profile = c.profile;
-    // A profile never widens past its own radius, so the box a profiled caster needs is at most
-    // the cylinder's; sized from the profile's widest ring so a thin stem stamps a thin box.
-    const widest = profile === undefined ? c.radius : c.radius * profileMaxWidth(profile);
-    const rr = widest + penumbra;
+    // A profile never widens past its own radius, so the cylinder's box holds a profiled caster
+    // too — one box rule, whatever the form.
+    const rr = c.radius + penumbra;
     // THE OUTLINE, ONCE PER CASTER — see {@link silhouetteEnvelope} for why not per sample.
     const env = profile === undefined ? null : silhouetteEnvelope(profile, c.radius, c.height, perUnit, gres);
     const tipX = c.x + dir.x * reach;

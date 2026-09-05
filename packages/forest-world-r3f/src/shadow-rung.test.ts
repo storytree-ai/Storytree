@@ -448,8 +448,18 @@ test('THE DEPTH: the deep tokens go to the deep rung, every other token keeps th
 test('a depth SHALLOWER than the derived rung is refused — the reader model already admits it, so it is not a depth', () => {
   assert.throws(
     () => shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.8, deepTokens: [HEALTHY], edge: 'hard' }),
-    /SHALLOWER than the derived rung 0.77/,
+    (e: unknown) =>
+      e instanceof Error &&
+      e.message.includes('a depth of 0.8 is SHALLOWER than the derived rung 0.77') &&
+      e.message.includes('pass the derived rung or go past it'),
   );
+  // Every token deep: the DERIVED rung is still on the ladder (its index is what the one-rung
+  // material and the remap read), even though no row lands on it.
+  const all = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [...new Set(SHIPPED_TOKENS)], edge: 'hard' });
+  assert.ok(all.levels.includes(0.77), 'the derived rung fell off the ladder');
+  assert.equal(all.rungIndex, all.levels.indexOf(0.77));
+  assert.ok(all.rungIndex >= 0);
+  assert.ok(all.tokens.every((t) => t.full === 0.55));
   assert.doesNotThrow(() => shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.77, deepTokens: [HEALTHY], edge: 'hard' }));
 });
 

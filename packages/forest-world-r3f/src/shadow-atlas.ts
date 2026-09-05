@@ -471,7 +471,10 @@ export function buildAtlasOcclusion(opts: AtlasOcclusionOptions): AtlasField {
       gres: layout.gres,
     };
     // By statement, for `exactOptionalPropertyTypes`' reason: absent means the authored width.
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — an explicit `undefined` meets
+    // the tile builder's own defaults; the statement exists for the type, not the runtime.
     if (opts.penumbra !== undefined) tileOpts.penumbra = opts.penumbra;
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT — the same, for the band.
     if (opts.contactBand !== undefined) tileOpts.contactBand = opts.contactBand;
     const field = buildGroundOcclusion(tileOpts);
     blitTile(data, layout.w, tile, field);

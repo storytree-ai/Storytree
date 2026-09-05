@@ -11,10 +11,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { buildGroundOcclusion } from './contact-shade.js';
+import { SHADOW_CONTACT_BAND, buildGroundOcclusion } from './contact-shade.js';
 import {
   OCCLUSION_PAD,
   SHADOW_GRES,
+  SHADOW_PENUMBRA,
   SHADOW_TEXTURE_MAX,
   occlusionGres,
   type GroundBounds,
@@ -653,4 +654,17 @@ test('blitTile refuses a HEIGHT mismatch as well as a width one, and says which 
     // pieces of arithmetic that have parted and needs the four numbers to see which way.
     new RegExp(`island "${tile.island}" built a ${tile.w}x${tile.h - 1} field for a ${tile.w}x${tile.h} tile`),
   );
+});
+
+test('the penumbra and the contact band reach every tile: an atlas built at another width, or at the full band, differs from the default one', () => {
+  const cells = SIX;
+  const casters = [treeOn(0), treeOn(1)];
+  const base = buildAtlasOcclusion({ cells, relief: 0, casters });
+  const wide = buildAtlasOcclusion({ cells, relief: 0, casters, penumbra: 2.4 });
+  const full = buildAtlasOcclusion({ cells, relief: 0, casters, contactBand: 'full' });
+  assert.notDeepEqual([...wide.data], [...base.data], 'the penumbra did not reach the tiles');
+  assert.notDeepEqual([...full.data], [...base.data], 'the contact band did not reach the tiles');
+  // And the default IS the authored pair: the same atlas as naming them.
+  const named = buildAtlasOcclusion({ cells, relief: 0, casters, penumbra: SHADOW_PENUMBRA, contactBand: SHADOW_CONTACT_BAND });
+  assert.deepEqual([...named.data], [...base.data]);
 });

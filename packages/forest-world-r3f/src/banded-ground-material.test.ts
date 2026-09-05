@@ -1947,6 +1947,14 @@ test('shadowOcclusionGlsl emits ONE guarded block PER ROW under a depth, and a s
   assert.ok(half.includes(`if (row == 0) { ${shadowDarkenGlsl(soft.tokens[0]!.halfDarkenable, 1)} }`));
   assert.ok(full.includes(`if (row == 2) { ${shadowDarkenGlsl(soft.tokens[2]!.darkenable, 2)} }`));
   assert.ok(half.includes(`if (row == 2) { ${shadowDarkenGlsl(soft.tokens[2]!.halfDarkenable, 5)} }`));
+  // THE INDENTATION IS PART OF THE PINNED SOURCE: every row line sits twelve spaces in and every
+  // closer eight, so the emitted shader reads as one block under the stage it belongs to.
+  const lines = src.split('\n');
+  for (const line of lines) {
+    if (line.includes('if (row ==')) assert.ok(line.startsWith('            if (row =='), `row line not indented: ${JSON.stringify(line)}`);
+    if (line.trim() === '}') assert.equal(line, '        }');
+    if (line.includes('else if')) assert.ok(line.startsWith('        else if'));
+  }
   // A HARD edge at the same depth: the per-row full stage and NO second stage.
   const hard = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [HEALTHY_TOKEN], edge: 'hard' });
   const hardSrc = shadowOcclusionGlsl(hard);

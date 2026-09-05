@@ -406,6 +406,9 @@ export function buildGroundOcclusion(opts: GroundOcclusionOptions): ShadowField 
   };
   // By statement: under `exactOptionalPropertyTypes` an absent `penumbra` and a `penumbra:
   // undefined` are different inputs, and only the first is "the authored width".
+  // Stryker disable next-line ConditionalExpression: EQUIVALENT — passing `undefined` through
+  // meets the cast builder's own `?? SHADOW_PENUMBRA` default, so the field is byte-identical; the
+  // statement exists for the type, not the runtime.
   if (opts.penumbra !== undefined) castOpts.penumbra = opts.penumbra;
   const cast = buildCanopyShadowField(castOpts);
   const contact = buildContactField({ bounds: opts.bounds, casters: opts.casters, gres, max });
