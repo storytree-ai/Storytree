@@ -2,6 +2,11 @@ import type { Store } from "@storytree/storage-protocol";
 import { kebabSlug, upcastAndValidate } from "@storytree/library";
 import { defaultCliActor, type Envelope } from "@storytree/drive";
 
+// ADR-0526 D4: the question write paths are lifecycle inputs now, so they call the SAME recompute
+// the increment writes do. One trigger, one predicate — a second copy here could disagree with the
+// increment path about the same arc, and the disagreement would be invisible from either side.
+import { recomputeArcLifecycle } from "./arc.js";
+
 /**
  * `storytree question` — the OPEN-QUESTION authoring surface: the verb an escalating session uses to
  * put a decision in front of the owner (ADR-0314 D5).
@@ -405,10 +410,15 @@ export async function questionNew(
     actor: deps.actor ?? defaultCliActor(),
   });
 
+  // ADR-0526 D4's mirror — a question authored against a CLOSED arc REOPENS it. An arc the owner has
+  // just been asked about is waiting on him whatever its increment log says, and leaving it closed
+  // would be a hole of exactly the shape this decision closes, pointing the other way.
+  const lifecycleNote = await recomputeArcLifecycle(deps, arc);
   return {
     ok: true,
     body: [
       `raised question ${saved.id} on arc ${arc}`,
+      ...(lifecycleNote === null ? [] : ["", lifecycleNote]),
       "",
       `# ${title}`,
       `**Why this matters.** ${stakes}`,
@@ -692,6 +702,10 @@ export async function questionSettle(
   }
 
   const arc = current.arcRef?.replace(/^asset:/, "") ?? "";
+  // ADR-0526 D4 — SETTLING IS A LIFECYCLE INPUT. Without this, a drained arc held open only by this
+  // question would read `active` forever once the question was answered: the exact lingering
+  // ADR-0335 exists to prevent, merely moved from the increment log to the question tier.
+  const lifecycleNote = arc === "" ? null : await recomputeArcLifecycle(deps, arc);
   return {
     ok: true,
     body: [
@@ -700,6 +714,7 @@ export async function questionSettle(
       "## The answer",
       answer,
       "",
+      ...(lifecycleNote === null ? [] : [lifecycleNote, ""]),
       arc === ""
         ? "This question is homed on no arc, so no arc's waiting state changes — which is its own"
         : `${arc} no longer counts this question as waiting on the owner. The question STAYS on the`,

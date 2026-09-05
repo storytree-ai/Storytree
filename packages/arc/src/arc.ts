@@ -1461,12 +1461,35 @@ async function incrementRowsOf(deps: ArcWriteDeps, arcId: string): Promise<ArcIn
  * since this function is not the thing the session was running. The guard reads the SAME predicate
  * the sweep does ({@link isCuratedLifecycle}). Un-parking has exactly one path: `arc reopen`.
  */
-async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise<string | null> {
+/**
+ * How many `open-question` rows stamped to this arc are still UNSETTLED — ADR-0526 D1's second
+ * lifecycle input.
+ *
+ * `settled` is the ONE recognised terminal value (ADR-0434 D3); anything else — including an absent
+ * field on a row authored before the state existed — reads as OPEN. That direction is deliberate and
+ * it is the safe one: mis-reading a settled question as open leaves an arc on the worklist a little
+ * too long, while mis-reading an open one as settled hides the owner's fork, which is the failure
+ * this whole decision exists to prevent.
+ *
+ * The same `arcRefOf` resolver `incrementRowsOf` and `arc-rollup.ts` use, so no third reading of the
+ * containment edge exists to drift.
+ */
+async function unsettledQuestionCountOf(deps: ArcWriteDeps, arcId: string): Promise<number> {
+  const rows = await deps.store.queryDocs({ kind: "open-question" });
+  return rows.filter((d) => {
+    if (arcRefOf(d) !== arcId) return false;
+    const doc = typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {};
+    return doc["lifecycle"] !== "settled";
+  }).length;
+}
+
+export async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise<string | null> {
   const mine = await incrementRowsOf(deps, arcId);
+  const unsettledQuestions = await unsettledQuestionCountOf(deps, arcId);
 
   // The SAME predicate `arc reconcile` sweeps with (`deriveArcLifecycle`, @storytree/arc) — the
   // trigger and the sweep must never be able to answer differently about one arc.
-  const desired = deriveArcLifecycle(mine);
+  const desired = deriveArcLifecycle(mine, { unsettledQuestions });
   // `null` = an empty log, which derives nothing (ADR-0335 D1's birth window). Unreachable from
   // here: every caller writes its increment before recomputing, so `mine` always holds at least one.
   if (desired === null) return null;
@@ -1479,8 +1502,20 @@ async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise
   if (typeof storedLifecycle === "string" && isCuratedLifecycle(storedLifecycle)) {
     return `arc ${arcId} stays parked — the mechanical lifecycle rule does not touch a parked arc (ADR-0374); storytree arc reopen ${arcId} --pg picks it back up.`;
   }
+  // True when the increment log alone would have closed this arc and only an unsettled question is
+  // holding it open — the ADR-0526 D1 case, and the one that needs SAYING rather than merely doing.
+  const heldOpenByQuestions = unsettledQuestions > 0 && mine.every((i) => !isForwardLooking(i.status));
+
   const current = storedLifecycle === "closed" ? "closed" : "active";
-  if (current === desired) return null;
+  if (current === desired) {
+    // Nothing to flip — but SILENCE here is the wrong answer for the session that just closed the
+    // arc's last increment. It expects the auto-close line, does not get one, and is left to infer
+    // why from an absence. Saying it turns the rule from something that happens TO a session into
+    // something it can read.
+    return heldOpenByQuestions
+      ? `arc ${arcId} did NOT auto-close — its work is drained but ${unsettledQuestions} question(s) still wait on you, so it stays on the worklist (ADR-0526). Settle them with storytree question settle <id> --answer <text|@file> --pg.`
+      : null;
+  }
 
   // FIELD-SCOPED (ADR-0352): a bookkeeping flip writes the flag and the stamp and NOTHING else. The
   // whole-doc write this replaced was the worst shape of the three here — it fires from inside every
@@ -1494,8 +1529,13 @@ async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise
   if ("retired" in written) {
     return `WARNING: ${wouldHave} but the arc was retired before the flip landed — nothing was written.`;
   }
-  return desired === "closed"
-    ? `arc ${arcId} auto-closed — no open increments remain (reopens automatically the moment new work is parked, ADR-0335).`
+  if (desired === "closed") {
+    return `arc ${arcId} auto-closed — no open increments remain and nothing waits on the owner (reopens automatically the moment new work is parked or a question is authored, ADR-0335 / ADR-0526).`;
+  }
+  // The two ways an arc comes back are worth telling apart in the message: one says work arrived,
+  // the other says the OWNER is being waited on — and only the second tells him something.
+  return heldOpenByQuestions
+    ? `arc ${arcId} reopened — its work is drained but ${unsettledQuestions} question(s) still wait on you, so it stays on the worklist (ADR-0526).`
     : `arc ${arcId} reopened — open work is back on it (ADR-0335).`;
 }
 
