@@ -377,9 +377,34 @@ test("adr attest: a row that cannot re-validate is REPORTED and not written", as
   });
   const env = await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
   assert.equal(env.ok, false);
-  assert.match(env.body, /was NOT written/);
-  assert.match(env.body, /does not satisfy the `adr` schema/);
+  // Pinned line by line rather than by one `match`: the body is an array joined with newlines, and
+  // each element is its own literal, so a probe on the first leaves the blank separator and the
+  // explainer beneath it unheld. Only the explainer's own text is left loose — it belongs to
+  // `explainDocValidationError`, which this branch does not change.
+  const bodyLines = env.body.split("\n");
+  assert.equal(bodyLines[0], "adr-0100 was NOT written \u2014 the updated row does not satisfy the `adr` schema:");
+  assert.equal(bodyLines[1], "", "the explainer is separated from the headline by a blank line");
+  assert.ok((bodyLines[2] ?? "").length > 0, "the schema's own explanation must follow");
+  assert.deepEqual(env.next, ["storytree library artifact adr-0100"]);
   assert.equal(await authorityOf(store, 100), undefined);
+});
+
+test("adr attest: the WRITE is attributed to the session, and falls back when no actor was wired", async () => {
+  // `deps.actor ?? defaultCliActor()` on the upsert. The store records the actor on its event, which
+  // is the only place this is observable — and getting it wrong would misattribute every stamp in
+  // the append-only history to the wrong session.
+  const store = new InMemoryStore();
+  await seed(store, 100, "accepted.");
+  await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  const named = await store.readEvents({ id: idOf(100) });
+  assert.equal(named.at(-1)?.actor, "cli@claude/test");
+
+  const bare = new InMemoryStore();
+  await seed(bare, 200, "accepted.");
+  await adrAttest("200", { basis: "agent-derived" }, { store: bare, writable: true, today: "2026-09-05" });
+  const fallback = await bare.readEvents({ id: idOf(200) });
+  assert.notEqual(fallback.at(-1)?.actor, undefined, "an unwired actor must still record SOMETHING");
+  assert.notEqual(fallback.at(-1)?.actor, "cli@claude/test");
 });
 
 test("adr attest --backfill: a row that cannot re-validate is counted as a FAILURE, not a stamp", async () => {

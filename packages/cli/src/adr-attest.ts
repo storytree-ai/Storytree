@@ -223,15 +223,25 @@ function authorityOf(bag: Record<string, unknown>): DecisionAuthority | undefine
   return parsed.success ? parsed.data : undefined;
 }
 
+/**
+ * A stored value that is a real, finite decision number — narrowing and runtime test in one.
+ *
+ * `Number.isFinite` alone IS the predicate: it performs no coercion, so a string, `null`, `undefined`
+ * and `NaN` are all false. Pairing it with a `typeof` check would add a branch no input could reach.
+ */
+const isFiniteNumber = (value: unknown): value is number => Number.isFinite(value);
+
 function attestRowsOf(docs: readonly StoredDoc[]): AttestRow[] {
   const rows: AttestRow[] = [];
   for (const doc of docs) {
     const bag = (typeof doc.doc === "object" && doc.doc !== null ? doc.doc : {}) as Record<string, unknown>;
-    // Both arms are reachable and neither is redundant: a non-number `number` (a `--set` wrote a
-    // string) takes the first, and a numeric NaN/Infinity takes the second. The earlier
-    // `typeof … ? … : NaN` form routed everything through one test and left the other unkillable.
+    // ONE runtime test, not two. `Number.isFinite` does NOT coerce (unlike the global `isFinite`),
+    // so it is already false for a string, for null and for undefined — which made the `typeof raw
+    // !== "number" ||` arm that used to sit here pure redundancy: no stored value could tell the two
+    // conditions apart. It was there for TypeScript's narrowing, and a type predicate buys that
+    // without a second runtime branch nothing can reach.
+    if (!isFiniteNumber(bag["number"])) continue;
     const raw = bag["number"];
-    if (typeof raw !== "number" || !Number.isFinite(raw)) continue;
     rows.push({
       id: doc.id,
       number: raw,

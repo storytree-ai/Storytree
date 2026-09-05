@@ -177,8 +177,16 @@ test("adrListingsOf does NOT put the stamp on `meta` — the one place ADR-0519 
   assert.equal(
     Object.hasOwn(only?.meta ?? {}, "authority"),
     false,
-    "a rest spread would carry it onto meta silently — it must be destructured out",
+    "a rest spread would carry it onto meta silently \u2014 it must be destructured out",
   );
+
+  // And an UNSTAMPED listing carries no such KEY, rather than the key set to undefined. ADR-0223
+  // keeps absent and present distinct, and `Object.hasOwn` is the only test that can see the
+  // difference \u2014 a `=== undefined` assertion passes on both.
+  const [bare] = adrListingsOf([
+    { number: 100, file: "adr-0100", status: "accepted", supersedes: [], loadBearing: false, title: "T" },
+  ]);
+  assert.equal(Object.hasOwn(bare ?? {}, "authority"), false);
 });
 
 // ─── the record banner ────────────────────────────────────────────────────────────────────────

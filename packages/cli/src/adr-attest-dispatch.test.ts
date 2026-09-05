@@ -181,6 +181,7 @@ test("adr --help carries the attest block and the --basis filter, verbatim", () 
         "  storytree adr attest <n>                           one record's authority stamp + the owner's words",
         "  storytree adr attest <n> --basis <b> [--owner-said <text|@file>] --pg      stamp it",
         "  storytree adr attest --backfill [--pg]             ADR-0519 D5's mechanical pass (a DRY RUN without --pg)",
+        "",
       ].join("\n"),
     ),
     "the attest command block must appear verbatim",
@@ -202,6 +203,7 @@ test("adr --help carries the attest block and the --basis filter, verbatim", () 
         "  `ownerSaid` at all — those words were never captured, and rebuilding them from an agent's",
         "  summary would forge the evidence the field exists to make trustworthy. The rows it leaves",
         "  alone are an HONEST ABSENCE, not a hole: do not widen the classifier to reach them.",
+        "",
       ].join("\n"),
     ),
     "the attest explanation must appear verbatim",
@@ -323,5 +325,10 @@ test("viewArtifact: a NON-decision artifact is never given an authority banner",
     },
   });
   const env = await viewArtifact(store, "some-principle");
-  assert.doesNotMatch(env.body, /whose call/);
+  // Asserted WHOLE. `doesNotMatch(/whose call/)` would pass on ANY other line injected here, and the
+  // branch this pins is the `: []` arm — whose whole job is to contribute nothing.
+  assert.equal(
+    env.body,
+    ["# A principle    [principle]", "id: some-principle", "", "d", "", "Body."].join("\n"),
+  );
 });
