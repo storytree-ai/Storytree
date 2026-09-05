@@ -3171,3 +3171,159 @@ test("the rollup treats a NULL gateReasons as no reasons rather than throwing", 
   assert.equal(rollup.gates.length, 1);
   assert.ok(!("reason" in (rollup.gates[0] ?? {})));
 });
+
+test("the list separators are real — every multi-edge message joins with a comma", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await store.upsertDoc({
+    id: "fourth-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "fourth-arc",
+      title: "fourth-arc",
+      description: "d",
+      intent: "i",
+      endState: "e",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  for (const n of ["ground-arc", "third-arc", "fourth-arc"]) {
+    await arcGate(writeDeps(store), "paint-arc", { needs: n });
+  }
+  // THREE edges, so both joins below have something to separate. With one edge a join produces no
+  // separator at all, and an assertion over it proves nothing about the separator.
+  const wrongEdge = await arcUngate(writeDeps(store), "paint-arc", { needs: "nope-arc" });
+  assert.equal(
+    wrongEdge.body,
+    '"paint-arc" is not gated behind "nope-arc". It waits on: ground-arc, third-arc, fourth-arc.',
+  );
+  const one = await arcUngate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(
+    one.body,
+    'released: "paint-arc" no longer waits on ground-arc. Still gated behind: third-arc, fourth-arc.',
+  );
+});
+
+test("a non-string reason on the KEPT edge is dropped, so the surviving doc validates", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  const doc = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({
+    id: "paint-arc",
+    kind: "arc",
+    doc: {
+      ...doc,
+      gatedBy: ["asset:ground-arc", "asset:third-arc"],
+      // The bad value sits on the edge that SURVIVES the ungate, so a reader that copied
+      // non-strings through would carry it into the write and the doc would be refused.
+      gateReasons: { "asset:ground-arc": "dropped with its edge", "asset:third-arc": 42 },
+    },
+  });
+  const res = await arcUngate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, true, "the unusable reason is dropped rather than carried into the write");
+  const after = (await store.getDoc("paint-arc"))?.doc as Record<string, unknown>;
+  assert.equal(after["gateReasons"], undefined, "no reason survives, so the map is removed entirely");
+});
+
+test("a NON-ARC row cannot complete a cycle, however its gatedBy is shaped", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  // Chain the fake edge so that reading it WOULD close a ring: paint → ground → decoy → paint.
+  await store.upsertDoc({
+    id: "decoy-inc",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "decoy-inc",
+      arcRef: "asset:ground-arc",
+      title: "t",
+      description: "d",
+      objective: "o",
+      body: "b",
+      gatedBy: ["asset:paint-arc"],
+    },
+  });
+  const ground = (await store.getDoc("ground-arc"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({ id: "ground-arc", kind: "arc", doc: { ...ground, gatedBy: ["asset:decoy-inc"] } });
+  const res = await arcGate(writeDeps(store), "paint-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, true, "only arcs are edges; an increment's field must not fence an arc");
+});
+
+test("an invalid write is explained AS AN ARC, from the doc it would have landed", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await store.upsertDoc({
+    id: "broken3-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "broken3-arc",
+      title: "Broken",
+      description: "d",
+      intent: "i",
+      endState: "e",
+      lifecycle: "not-a-lifecycle",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  const res = await arcGate(writeDeps(store), "broken3-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, false);
+  // The explanation is computed from the merged doc, so it knows the KIND and can check it against
+  // the arc schema. An empty stand-in loses the kind and degrades to the generic "neither a kind
+  // nor a category" fallback, which tells the caller nothing about what they actually broke.
+  assert.match(res.body, /arc artifact/);
+  assert.doesNotMatch(res.body, /carries neither a `kind`/);
+});
+
+test("an unknown key ALREADY IN THE STORE is charged to its author, not to this write", async () => {
+  const store = await gateArcs(new InMemoryStore());
+  await store.upsertDoc({
+    id: "skewed-arc",
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id: "skewed-arc",
+      title: "Skewed",
+      description: "d",
+      intent: "i",
+      endState: "e",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+      // A field this branch's schema does not know — another session's landed work, as far as this
+      // write is concerned.
+      someFutureField: "landed by a sibling",
+    },
+  });
+  const res = await arcGate(writeDeps(store), "skewed-arc", { needs: "ground-arc" });
+  assert.equal(res.ok, false);
+  // The stored-key list is what lets the message say "already in the store" rather than telling the
+  // caller to remove a field they never wrote. Dropping it inverts the diagnosis.
+  assert.match(res.body, /someFutureField/);
+  assert.doesNotMatch(res.body, /remove it from this write/);
+});
+
+test("arc help's gate block renders with its exact blank-line spacing", async () => {
+  const fx = diskFixture();
+  try {
+    const help = (await arcCommand("help", undefined, depsFor(new InMemoryStore(), fx))).body;
+    // Asserted as ONE contiguous block rather than line by line: a per-line `includes` cannot see a
+    // BLANK separator line turning into text, and the blank lines are what keep the block readable.
+    assert.ok(
+      help.includes(
+        "  storytree arc ungate <id> [--needs <other-id>] --pg\n" +
+          "        Release one gate, or (without --needs) every gate on the arc.\n" +
+          "\n" +
+          "        ⚠ THIS IS NOT `dependsOn`, which an arc also carries.",
+      ),
+      "the ungate stanza and the dependsOn warning are separated by a blank line",
+    );
+    assert.ok(
+      help.includes(
+        "        reading a schedule as knowledge depth, undetectably from the view.\n" + "\n" + "the increment verbs:",
+      ),
+      "the gate block is closed by a blank line before the increment verbs",
+    );
+  } finally {
+    rmSync(fx.root, { recursive: true, force: true });
+  }
+});

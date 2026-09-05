@@ -4073,12 +4073,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       // and is read straight off `values`.
       if (sub === "gate") {
         const arcGateOpts: Parameters<typeof arcGate>[2] = {};
+        // Stryker disable next-line ConditionalExpression: EQUIVALENT — these guards exist for
+        // `exactOptionalPropertyTypes` (the compiler refuses an explicit `undefined` on an optional
+        // prop), not for behaviour: the callee reads `opts.needs === undefined`, which answers the
+        // same for an absent key and a key holding undefined. This is the house `if (x !== undefined)`
+        // opts-building idiom every neighbouring arc verb uses.
         if (values.needs !== undefined) arcGateOpts.needs = values.needs;
+        // Stryker disable next-line ConditionalExpression: EQUIVALENT — same reason.
         if (values.reason !== undefined) arcGateOpts.reason = values.reason;
         return arcGate(writeDeps, third, arcGateOpts);
       }
       if (sub === "ungate") {
         const arcUngateOpts: Parameters<typeof arcUngate>[2] = {};
+        // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT — same reason.
         if (values.needs !== undefined) arcUngateOpts.needs = values.needs;
         return arcUngate(writeDeps, third, arcUngateOpts);
       }

@@ -831,6 +831,10 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     typeof gateReasonSource === "object" && gateReasonSource !== null && !Array.isArray(gateReasonSource)
       ? (gateReasonSource as Record<string, unknown>)
       : {};
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — the fallback stands for "the caller
+  // had no arc corpus", and any non-empty stand-in keys the map by `undefined`, which no `get` by a
+  // real blocker id can ever match. Both roads lead to every gate reading as unresolved-and-shut,
+  // which is the behaviour a test already pins.
   const arcsById = new Map((input.arcDocs ?? []).map((a) => [a.id, a]));
   const gates: ArcRollupGate[] = (Array.isArray(gateRefs) ? gateRefs : [])
     .filter((r): r is string => typeof r === "string")

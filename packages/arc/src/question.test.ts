@@ -636,4 +636,13 @@ test("question help PREFERS mermaid over typed ASCII, and carries the measured r
   ]) {
     assert.ok(help.body.includes(line), `question help is missing: ${line}`);
   }
+  // And the block's own blank separator, which a per-line `includes` cannot see turn into text.
+  assert.ok(
+    help.body.includes(
+      ["sees the absence stated on the arc panel, and the author knows the reader will.", "", "--arc is REQUIRED"].join(
+        "\n",
+      ),
+    ),
+    "the draw-it stanza is closed by a blank line before the --arc note",
+  );
 });

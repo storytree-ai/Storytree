@@ -1071,6 +1071,9 @@ export function gateCycleFor(
     if (at === gated) return [...path, gated];
     if (seen.has(at)) return null;
     seen.add(at);
+    // Stryker disable next-line ArrayDeclaration: EQUIVALENT — the fallback stands for "this node
+    // has no outgoing edges", so any non-empty stand-in walks to an id that is itself absent from
+    // `edges` and terminates one level deeper with the same answer. Only emptiness is observable.
     for (const next of edges.get(at) ?? []) {
       const found = walk(next, [...path, at]);
       if (found) return found;
@@ -1085,10 +1088,18 @@ async function gateEdgesOf(deps: ArcWriteDeps): Promise<Map<string, readonly str
   const rows = await deps.store.queryDocs({ kind: "arc" });
   const edges = new Map<string, readonly string[]>();
   for (const row of rows) {
+    // Stryker disable next-line ConditionalExpression: EQUIVALENT for the `typeof` half alone — the
+    // `!== null` half is what this guard is FOR (a null doc would throw on the index below, and a
+    // test pins it). Weakening only the `typeof` check admits primitives, whose `["gatedBy"]` is
+    // `undefined` and is skipped one line later, so nothing observable changes.
     const doc = typeof row.doc === "object" && row.doc !== null ? (row.doc as Record<string, unknown>) : {};
     const refs = doc["gatedBy"];
     if (!Array.isArray(refs)) continue;
     const ids = refs.filter((r): r is string => typeof r === "string").map(gateIdOf);
+    // Stryker disable next-line ConditionalExpression,EqualityOperator: EQUIVALENT — storing an
+    // EMPTY id list under a key is indistinguishable from omitting the key, because the only reader
+    // is `edges.get(at) ?? []` above, which yields the same empty list either way. The guard keeps
+    // the map small; it decides nothing.
     if (ids.length > 0) edges.set(row.id, ids);
   }
   return edges;
