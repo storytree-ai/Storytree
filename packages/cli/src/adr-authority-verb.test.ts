@@ -573,6 +573,19 @@ test("a MALFORMED stamp is refused too — the fence turns on PRESENCE, not on p
   // which is the very confusion that let the overwrite through.
   assert.ok(env.body.includes("a value this CLI cannot read"), "and says why it cannot show it");
   assert.deepEqual(await authorityOf(store, 600), malformed, "the stored value is untouched");
+
+  // THE OTHER ARM of the same line: a READABLE stamp is described rather than called unreadable.
+  // Without this the ternary collapses to the unreadable branch for every stamp and no test notices
+  // — the refusal still fires, and only its explanation becomes a lie.
+  const readable = new InMemoryStore();
+  await seed(readable, 604, "accepted", {
+    authority: { basis: "agent-flipped", scribedBy: "cli@someone-else", at: "2026-09-05" },
+  });
+  const described = await adrAuthority("604", { basis: "agent-derived" }, depsFor(readable));
+  assert.equal(described.ok, false);
+  assert.ok(described.body.includes("agent-flipped"), "a readable stamp is DESCRIBED");
+  assert.ok(described.body.includes("scribed by cli@someone-else"), "with who wrote it");
+  assert.ok(!described.body.includes("cannot read"), "and is never called unreadable");
 });
 
 test("`safeParse` is still what the READ side uses — the two directions are not collapsed", async () => {
@@ -644,4 +657,7 @@ test("a decision retired between the read and the write is reported, not silentl
   const env = await adrAuthority("603", { basis: "agent-derived" }, depsFor(racing));
   assert.equal(env.ok, false);
   assert.ok(env.body.includes("retired while this stamp was being prepared"), "it says what happened");
+  // `next:` is part of the envelope and no body assertion reaches it — a refusal that points nowhere
+  // leaves the caller with a fact and no move.
+  assert.deepEqual(env.next, ["storytree adr list --current"]);
 });
