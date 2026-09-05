@@ -58,6 +58,7 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 import { execFileSync } from "node:child_process";
 
 import { adrCommand, adrHelp, type AdrAllocatorLike, type AdrCommandOpts } from "./adr.js";
+import { authorityBannerFor } from "./adr-attest.js";
 import { composedBannerFor, decisionRowsOf } from "./adr-composed.js";
 import { FROZEN_ARMS_PATH, parseFrozenArms } from "./decision-composition-trial.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
@@ -632,6 +633,14 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   // and every edge stays walkable.
   const banner = stored.kind === "adr" ? composedBannerFor(stored.doc, decisionRowsOf(allDocs)) : [];
   if (banner.length > 0) lines.push(...banner);
+  // ADR-0519 D1/D3: WHOSE CALL this was, above the prose an agent wrote. It sits here — beside the
+  // composed banner and over the body — because the stamp's whole purpose is that a reader does not
+  // have to interpret the `## Status` prose below to answer the question, and the owner's verbatim
+  // words are evidence a reader must not have to run a second command to see. Like its neighbour it
+  // never announces its own absence: 206 rows carry no stamp, and a line saying so on every one of
+  // them would be noise on the commonest case rather than a finding.
+  const authorityBanner = stored.kind === "adr" ? authorityBannerFor(stored.doc) : [];
+  if (authorityBanner.length > 0) lines.push(...authorityBanner);
   lines.push(a.body);
   const byId = new Map(allDocs.map((d) => [d.id, d] as const));
   // The corpus view ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds

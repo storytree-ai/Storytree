@@ -3,7 +3,7 @@ import type { Store } from "@storytree/storage-protocol";
 
 import { defaultCliActor } from "./cli-actor.js";
 
-import { adrAttest, type AdrAttestOpts } from "./adr-attest.js";
+import { adrAttest, UNSTAMPED_FILTER, type AdrAttestOpts } from "./adr-attest.js";
 import { adrCompose, type AdrComposeOpts } from "./adr-composed.js";
 import { adrRebind, type AdrRebindDeps, type AdrRebindOpts } from "./adr-rebind.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
@@ -669,6 +669,12 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
 export interface AdrListing {
   meta: AdrMeta;
   title: string;
+  /**
+   * ADR-0519's authority stamp, carried BESIDE `meta` rather than on it — see `TitledAdrMeta`'s
+   * field docstring for why `AdrMeta` stays blind. Absent means the row declares no basis, which is
+   * a real state and never a default (ADR-0519 D6).
+   */
+  authority?: DecisionAuthority;
 }
 
 /** The `adr list` filters; absent = no filter (show everything). */
@@ -676,6 +682,11 @@ export interface AdrListFilter {
   current?: boolean;
   loadBearing?: boolean;
   status?: AdrStatus;
+  /**
+   * `--basis <b>` (ADR-0519 D1): whose call it was. One of the four bases, or
+   * {@link UNSTAMPED_FILTER} for the rows that declare nothing.
+   */
+  basis?: AuthorityBasis | typeof UNSTAMPED_FILTER;
 }
 
 // The title extractor moved to `@storytree/drive` (next to `parseAdrFrontmatter`, its natural home)
@@ -787,6 +798,14 @@ export function selectAdrListings(
       if (filter.current === true && m.status !== "accepted") return false;
       if (filter.loadBearing === true && !reach.has(m.number)) return false;
       if (filter.status !== undefined && m.status !== filter.status) return false;
+      // ADR-0519 D1's authority cut. `unstamped` selects the ABSENCE of a stamp, which is why it is
+      // a filter word and not a fifth basis: absent and present stay distinct facts (D6), and a row
+      // whose stamp failed to parse projects as absent (see the loader) rather than as a basis
+      // nothing checked.
+      if (filter.basis !== undefined) {
+        const declared = l.authority?.basis;
+        if (filter.basis === UNSTAMPED_FILTER ? declared !== undefined : declared !== filter.basis) return false;
+      }
       return true;
     });
 }
@@ -933,7 +952,15 @@ export interface LoadAdrListingsResult {
  * stays pure and testable and only the fetch is async.
  */
 export function adrListingsOf(adrs: readonly TitledAdrMeta[]): AdrListing[] {
-  return adrs.map(({ title, ...meta }) => ({ meta, title }));
+  // `authority` is destructured OUT explicitly rather than left to ride the rest spread into `meta`.
+  // The spread would compile — excess properties survive it — and would put the stamp on an object
+  // typed `AdrMeta`, which is the one place ADR-0519 D2 says it must never appear. Naming it here
+  // keeps the type honest about where the field actually lives.
+  return adrs.map(({ title, authority, ...meta }) => {
+    const listing: AdrListing = { meta, title };
+    if (authority !== undefined) listing.authority = authority;
+    return listing;
+  });
 }
 
 /**
@@ -953,12 +980,25 @@ export async function loadAdrListings(store: Store): Promise<LoadAdrListingsResu
 
 const STATUS_WORDS: ReadonlySet<string> = new Set(["proposed", "accepted", "superseded"]);
 
+/** Everything `--basis` accepts: the four bases plus the absence word. */
+const BASIS_WORDS: readonly string[] = [...AuthorityBasis.options, UNSTAMPED_FILTER];
+
 async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envelope> {
   if (opts.status !== undefined && !STATUS_WORDS.has(opts.status)) {
     return {
       ok: false,
       body: `unknown --status "${opts.status}". use one of: proposed, accepted, superseded.`,
       next: ["storytree adr list --current", "storytree adr list --load-bearing"],
+    };
+  }
+  // REFUSED rather than silently matching nothing. An unknown basis word that fell through to the
+  // filter would render "(none match)" — a confident empty answer indistinguishable from a genuine
+  // one, on a view whose whole job is to say who decided what.
+  if (opts.basis !== undefined && !BASIS_WORDS.includes(opts.basis)) {
+    return {
+      ok: false,
+      body: `unknown --basis "${opts.basis}". use one of: ${BASIS_WORDS.join(", ")}.`,
+      next: ["storytree adr list --basis owner-directed", "storytree adr attest"],
     };
   }
   if (deps.roundTrip === undefined) {
@@ -983,14 +1023,18 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
   if (opts.current === true) filter.current = true;
   if (opts.loadBearing === true) filter.loadBearing = true;
   if (opts.status !== undefined) filter.status = opts.status as AdrStatus;
+  if (opts.basis !== undefined) filter.basis = opts.basis as AuthorityBasis | typeof UNSTAMPED_FILTER;
   const rows = renderAdrList(listings, filter);
-  const cut = opts.loadBearing
+  const baseCut = opts.loadBearing
     ? "load-bearing current-state"
     : opts.current
       ? "current (accepted, not superseded)"
       : opts.status !== undefined
         ? opts.status
         : "all";
+  // The basis JOINS the label rather than replacing it: `--basis` composes with the other three
+  // filters, so a cut that named only one of two active filters would misdescribe what it shows.
+  const cut = opts.basis === undefined ? baseCut : `${baseCut} · basis ${opts.basis}`;
   const lines = [
     `storytree adr — ${rows.filter((r) => !r.startsWith(" ".repeat(12))).length} ADRs [${cut}]` +
       `   ★ = load-bearing (the curated calibrate-to-these set)`,
@@ -1028,7 +1072,11 @@ export function adrHelp(): Envelope {
     body: [
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
-      "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
+      "  storytree adr list [--current | --load-bearing | --status <s> | --basis <b>]   the searchable current-state view",
+      "     --basis <owner-directed|owner-ratified|agent-derived|agent-flipped|unstamped> (ADR-0519):",
+      "     whose call each decision was. `unstamped` selects the rows that declare NOTHING — an",
+      "     absence, which is why it is a filter word and not a fifth basis. It COMPOSES with the",
+      "     other three filters, and the header names every cut in force.",
       '  storytree adr new --title "..." [--decided --owner-said <text|@file>] [--basis <b>] [--depends-on 42,43] [--supersedes 42] [--arc <id>] --pg',
       "                                                                          reserve + scaffold",
       "  storytree adr next --pg                                                  reserve a number only",

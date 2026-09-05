@@ -1,7 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
-import { adrNumberOfArtifactId, hasDependsOnKey, readDependsOnPointers } from "@storytree/library";
+import {
+  adrNumberOfArtifactId,
+  DecisionAuthority,
+  hasDependsOnKey,
+  readDependsOnPointers,
+} from "@storytree/library";
 import { adrDescriptionOf } from "@storytree/library/adr-doc";
 import type { Store } from "@storytree/storage-protocol";
 
@@ -49,6 +54,23 @@ export function extractAdrTitle(content: string): string {
 export interface TitledAdrMeta extends AdrMeta {
   /** The `# ADR-NNNN:` heading text, falling back to the filename when the heading is missing. */
   title: string;
+  /**
+   * ADR-0519's authority stamp — WHOSE CALL this decision was. Projected by
+   * {@link loadTitledAdrMetasFromStore} alone; `undefined` means the row carries none.
+   *
+   * ⚠ IT SITS HERE AND NOT ON {@link AdrMeta}, AND THE LINE IS THE ONE ADR-0519 D2 DREW. `AdrMeta` is
+   * the FRONTMATTER shape, and D2 keeps `authority` out of every document-path writer — out of
+   * `FRONTMATTER_ORDER` (so `adr push` REFUSES an `authority:` key rather than dropping it), out of
+   * the document render, and unnamed in `adrPush`'s spread (so correcting a decision's PROSE cannot
+   * rewrite who decided it). Declaring it on `AdrMeta` would put it in reach of
+   * `parseAdrFrontmatter`, and the fence would then rest on nobody having wired it.
+   *
+   * `TitledAdrMeta` is the VIEW shape, and `title` is already a field no frontmatter carries — read
+   * off the body, exactly as this is read off the row. The fs twin {@link loadTitledAdrMetas} cannot
+   * populate it even by accident: it builds from `parseAdrFrontmatter`, which has no such field. So
+   * the stamp reaches a view only from a ROW, which is the only place it is ever stored.
+   */
+  authority?: DecisionAuthority;
 }
 
 export interface LoadTitledAdrMetasResult {
@@ -294,6 +316,12 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     // "no edges" rather than take an orientation listing down. Pointers go through VERBATIM —
     // resolving which of them name decisions is the walk's job (`decision-pointer.ts`).
     if (hasDependsOnKey(bag)) meta.dependsOn = readDependsOnPointers(bag);
+    // ADR-0519's stamp, `safeParse`d rather than cast: a row whose stamp does not satisfy today's
+    // schema projects as UNSTAMPED, which is the fail-closed direction. The alternative is a
+    // `--basis` filter and a health rung both trusting a shape neither has checked — and an
+    // unreadable stamp reading as "declared" is precisely the vacuous green ADR-0427 refuses.
+    const authority = DecisionAuthority.safeParse(bag["authority"]);
+    if (authority.success) meta.authority = authority.data;
     adrs.push(meta);
   }
   adrs.sort((a, b) => a.number - b.number);

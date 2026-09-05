@@ -125,6 +125,46 @@ export function classifyFromProse(body: string): ProseClassification | null {
   return null;
 }
 
+/**
+ * The extra word `adr list --basis` accepts beside the four bases: the rows that declare NOTHING.
+ *
+ * Deliberately not a fifth `AuthorityBasis` member — "nobody ever stamped this" is the ABSENCE of a
+ * basis, and ADR-0519 D6 keeps absent and present distinct rather than collapsing them into a value.
+ * It is a filter word only, and it exists because the 206 unstamped rows are the set a reader most
+ * often wants to name: they are what `check:adr-health`'s declared-basis rung is measured against.
+ */
+export const UNSTAMPED_FILTER = "unstamped";
+
+/**
+ * PURE: the AUTHORITY BANNER over one decision's rendered record (ADR-0519 D1/D3).
+ *
+ * The `composedBannerFor` shape and for its reason: a decision that carries a stamp leads with it,
+ * every record that carries none renders exactly as before, and the banner NEVER announces its own
+ * absence. Additive — the record's own text follows in full.
+ *
+ * ⚠ THE THREE STATES ARE KEPT APART HERE, which is the whole reason this is a banner rather than one
+ * more field on a line. `hasQuotedOwnerDirective` is called rather than re-derived, because the
+ * distinction a second reader flattens is exactly this one — and flattening it would print 289
+ * phrase-matched backfills in the same voice as a directive the owner actually gave.
+ */
+export function authorityBannerFor(doc: unknown): string[] {
+  const bag = (typeof doc === "object" && doc !== null ? doc : {}) as Record<string, unknown>;
+  const authority = authorityOf(bag);
+  if (authority === undefined) return [];
+  const lines = [`whose call: ${describeAuthority(authority)}`];
+  if (authority.ownerSaid !== undefined) {
+    // The owner's words go where a reader sees them WITHOUT asking — storing them and then hiding
+    // them behind a second command would keep the evidence and lose the point of keeping it.
+    lines.push("", "the owner's words, verbatim:", ...authority.ownerSaid.split("\n").map((l) => `  > ${l}`));
+  } else if (authority.transcribedFromProse === true) {
+    lines.push(
+      "  ⚠ read off this record's own `## Status` prose by a later pass, not captured from the owner.",
+      "    It carries an earlier agent's claim forward; it does not verify one (ADR-0519 D5).",
+    );
+  }
+  return [...lines, ""];
+}
+
 /** What the verb needs. `today` is injected for the reason `adr compose`'s is: a module that stamps its own date cannot be tested for what it stamps. */
 export interface AdrAttestDeps {
   readonly store: Store;
