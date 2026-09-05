@@ -290,3 +290,44 @@ test("an UNREADABLE store reports no description mismatches, and says so as unre
   assert.equal(res.unreadable, true);
   assert.deepEqual(res.descriptionMismatches, []);
 });
+
+// ─── ADR-0519's authority stamp ───────────────────────────────────────────────────────────────
+//
+// Same argument as `dependsOn` above, one field over: the stamp is ROW-ONLY (ADR-0519 D2 keeps it
+// out of `AdrMeta` and out of every document-path writer), so this projection is the ONLY way it
+// reaches a view. A projection that dropped it would leave `adr list --basis` and the
+// `authority-declared` health rung fully unit-tested and completely inert over real data.
+
+test("the projection carries a VALID authority stamp through to the view", async () => {
+  const store = new InMemoryStore();
+  const stamp = {
+    basis: "owner-directed",
+    scribedBy: "cli@claude/x",
+    at: "2026-09-05",
+    ownerSaid: "his exact words",
+  };
+  await seedDecision(store, 519, { authority: stamp });
+  const { adrs } = await loadTitledAdrMetasFromStore(store);
+  assert.deepEqual(adrs[0]?.authority, stamp);
+});
+
+test("a MALFORMED authority stamp projects as ABSENT, never as a basis nothing validated", async () => {
+  // Fail-closed, and the direction matters: the `authority-declared` rung reads this projection, so
+  // a stamp that satisfied nothing but rode through as present would be a vacuous green on the one
+  // rung whose whole subject is evidence.
+  const store = new InMemoryStore();
+  // `owner-directed` with neither a quote nor the transcription marker — the schema refuses it.
+  await seedDecision(store, 520, { authority: { basis: "owner-directed", scribedBy: "x", at: "d" } });
+  await seedDecision(store, 521, { authority: { basis: "not-a-basis", scribedBy: "x", at: "d" } });
+  await seedDecision(store, 522, { authority: "a string, not a stamp" });
+  const { adrs } = await loadTitledAdrMetasFromStore(store);
+  for (const a of adrs) assert.equal(a.authority, undefined, `ADR-${String(a.number)} must project as unstamped`);
+});
+
+test("a row with NO authority key projects as absent, and absence stays distinguishable", async () => {
+  const store = new InMemoryStore();
+  await seedDecision(store, 100);
+  const { adrs } = await loadTitledAdrMetasFromStore(store);
+  assert.equal(adrs[0]?.authority, undefined);
+  assert.equal(Object.hasOwn(adrs[0] ?? {}, "authority"), false, "absent must not become present-and-undefined");
+});
