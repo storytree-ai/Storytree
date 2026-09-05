@@ -6,6 +6,7 @@ import path from "node:path";
 
 import { InMemoryStore, type Store } from "@storytree/storage-protocol";
 import { deriveArcLifecycle, deriveArcRollup } from "./arc-rollup.js";
+import { questionSettle } from "./question.js";
 import { seedDecisionRows } from "./decision.test-helpers.js";
 
 import {
@@ -3443,24 +3444,28 @@ async function questionOn(
   id: string,
   settled = false,
 ): Promise<void> {
-  await store.upsertDoc({
-    id,
+  const doc: Record<string, unknown> = {
     kind: "open-question",
-    doc: {
-      kind: "open-question",
-      id,
-      title: "A question",
-      description: "d",
-      stakes: "s",
-      statement: "q",
-      context: "c",
-      options: "o",
-      arcRef: `asset:${arcId}`,
-      createdAt: "2026-09-01",
-      updatedAt: "2026-09-01",
-      ...(settled ? { lifecycle: "settled", answer: "the answer", settledAt: "2026-09-05" } : {}),
-    },
-  });
+    id,
+    title: "A question",
+    description: "d",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+    arcRef: `asset:${arcId}`,
+    createdAt: "2026-09-01",
+    updatedAt: "2026-09-01",
+  };
+  // Built in statements rather than a conditional spread: the UNSETTLED fixture must genuinely OMIT
+  // `lifecycle`, because "absent reads as open" is one of the behaviours under test, and a spread
+  // that quietly wrote `undefined` would make that case unfalsifiable.
+  if (settled) {
+    doc["lifecycle"] = "settled";
+    doc["answer"] = "the answer";
+    doc["settledAt"] = "2026-09-05";
+  }
+  await store.upsertDoc({ id, kind: "open-question", doc });
 }
 
 test("deriveArcLifecycle: a drained arc stays ACTIVE while a question waits, and closes when none does", () => {
@@ -3546,4 +3551,129 @@ test("a PARKED arc is untouched by the question input — the curated fence stil
   assert.equal(res.ok, true);
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "parked");
   assert.match(res.body, /stays parked/);
+});
+
+test("a malformed question row never breaks the lifecycle read", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  // A row whose doc is null, and one that is not an object at all. Reading `["lifecycle"]` off
+  // either would throw and take the whole increment write down with it.
+  await store.upsertDoc({ id: "oq-null", kind: "open-question", doc: null as never });
+  await store.upsertDoc({ id: "oq-string", kind: "open-question", doc: "not an object" as never });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  // Neither carries an `arcRef`, so neither is this arc's — the arc closes.
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+});
+
+test("the held-open message needs BOTH halves — a question alone does not produce it", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  // A SECOND increment that stays open, so the arc has real work AND a question. The arc is active
+  // because of the WORK; saying "your question is holding this open" here would be false.
+  await store.upsertDoc({
+    id: "drained-arc-inc-02",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "drained-arc-inc-02",
+      arcRef: "asset:drained-arc",
+      title: "t",
+      description: "d",
+      objective: "o",
+      body: "b",
+      status: "ready",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  await questionOn(store, "drained-arc", "oq-open-with-work");
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/, "open WORK is why it is active, not the question");
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+});
+
+test("nor does a drained log alone produce it — with no question the arc simply closes", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+  assert.match(res.body, /auto-closed/);
+});
+
+test("ONE still-open increment among many closed ones keeps the arc active on WORK, not on questions", async () => {
+  // `every` vs `some` on the drained test: with `some`, a single closed increment alongside an open
+  // one would read as drained and mislabel a work-active arc as question-held.
+  const store = await drainedArc(new InMemoryStore());
+  await store.upsertDoc({
+    id: "drained-arc-inc-02",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "drained-arc-inc-02",
+      arcRef: "asset:drained-arc",
+      title: "t",
+      description: "d",
+      objective: "o",
+      body: "b",
+      status: "closed",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  await questionOn(store, "drained-arc", "oq-with-mixed-log");
+  // inc-01 is still `ready`, so promoting inc-01 to active leaves real open work behind.
+  const res = await arcIncrementPromote(writeDeps(store), "drained-arc-inc-01", "active");
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+});
+
+test("settling a question on an UNHOMED row touches no arc lifecycle", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await store.upsertDoc({
+    id: "oq-unhomed",
+    kind: "open-question",
+    doc: {
+      kind: "open-question",
+      id: "oq-unhomed",
+      title: "A question",
+      description: "d",
+      stakes: "s",
+      statement: "q",
+      context: "c",
+      options: "o",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  const res = await questionSettle(writeDeps(store), "oq-unhomed", { answer: "decided" });
+  assert.equal(res.ok, true);
+  // No arc to recompute, so no lifecycle line — and the arc's own state is untouched.
+  assert.doesNotMatch(res.body, /auto-closed/);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+});
+
+test("settling the LAST question on a drained arc auto-closes it, and says so (ADR-0526 D4)", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-last");
+  // Drain the work first — the arc stays open on the question alone.
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+
+  const res = await questionSettle(writeDeps(store), "oq-last", { answer: "decided" });
+  assert.equal(res.ok, true);
+  // Without this trigger the arc would read `active` FOREVER — the exact lingering ADR-0335 removed,
+  // moved from the increment log to the question tier.
+  assert.match(res.body, /auto-closed/);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+});
+
+test("settling one of TWO questions leaves the arc open, and prints no lifecycle line", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-one");
+  await questionOn(store, "drained-arc", "oq-two");
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await questionSettle(writeDeps(store), "oq-one", { answer: "decided" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /auto-closed/);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
 });
