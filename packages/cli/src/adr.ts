@@ -3,6 +3,7 @@ import type { Store } from "@storytree/storage-protocol";
 
 import { defaultCliActor } from "./cli-actor.js";
 
+import { adrAttest, type AdrAttestOpts } from "./adr-attest.js";
 import { adrCompose, type AdrComposeOpts } from "./adr-composed.js";
 import { adrRebind, type AdrRebindDeps, type AdrRebindOpts } from "./adr-rebind.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
@@ -123,6 +124,16 @@ export interface AdrCommandOpts {
    * multi-sentence directive comes from a file rather than through the shell.
    */
   ownerSaid?: string | undefined;
+  /**
+   * `adr attest <n> --transcribed-from-prose` (ADR-0519 D5): this stamp was READ OFF the record's
+   * own `## Status` prose and no owner words were ever captured. The schema refuses it beside
+   * {@link ownerSaid} and on a non-owner basis, so it can only ever mark what it says it marks.
+   */
+  transcribedFromProse?: boolean | undefined;
+  /** `adr attest --backfill` (ADR-0519 D5): the mechanical pass. A DRY RUN unless `--pg`. */
+  backfill?: boolean | undefined;
+  /** `adr attest <n> --restamp`: the explicit escape from the never-overwrite-a-stamp fence. */
+  restamp?: boolean | undefined;
   /** `adr compose --allow-control-arm`: the explicit escape from the frozen-trial fence (D6). */
   allowControlArm?: boolean | undefined;
   /**
@@ -1048,6 +1059,26 @@ export function adrHelp(): Envelope {
       "  Anchors themselves are authored by hand against the decision's prose —",
       "  `library artifact edit adr-NNNN --set sources=@anchors.json --pg`. NEVER auto-anchor.",
       "",
+      "  storytree adr attest                               how much of the log declares WHOSE CALL it was",
+      "  storytree adr attest <n>                           one record's authority stamp + the owner's words",
+      "  storytree adr attest <n> --basis <b> [--owner-said <text|@file>] --pg      stamp it",
+      "  storytree adr attest --backfill [--pg]             ADR-0519 D5's mechanical pass (a DRY RUN without --pg)",
+      "",
+      "`attest` (ADR-0519) records WHOSE CALL a decision was, as a fact rather than as prose. The four",
+      "bases are owner-directed | owner-ratified | agent-derived | agent-flipped, and an OWNER basis",
+      "cannot validate without his verbatim words — so the cheap path and the honest path are the same",
+      "path: with nothing to quote, the basis is `agent-derived`.",
+      "  `adr new` stamps at CREATION; this is the only way to stamp a decision that ALREADY EXISTS.",
+      "  `library artifact edit --set` cannot: the stamp is an OBJECT and --set writes strings and arrays.",
+      "  `scribedBy` is never a flag — it is always the current session, because it is the one field the",
+      "  store corroborates independently (`events.library_event.actor`). A flag would forge exactly that.",
+      "  An existing stamp is NOT overwritten without --restamp: evidence a later pass can quietly",
+      "  rewrite is not evidence. --restamp is refused outright on --backfill.",
+      "  --backfill TRANSCRIBES the two exact phrases D5 names and stamps nothing else. It writes no",
+      "  `ownerSaid` at all — those words were never captured, and rebuilding them from an agent's",
+      "  summary would forge the evidence the field exists to make trustworthy. The rows it leaves",
+      "  alone are an HONEST ABSENCE, not a hole: do not widen the classifier to reach them.",
+      "",
       "  storytree adr compose                              every composed statement + what has moved beneath",
       "  storytree adr compose <n>                          one record's statement + its staleness marker",
       "  storytree adr compose <n> --statement <text|@file> [--clause <id>] --pg     compose / re-affirm",
@@ -1213,6 +1244,33 @@ export async function adrCommand(
         ? composeDepsBase
         : { ...composeDepsBase, controlArm: deps.controlArm },
     );
+  }
+  // ADR-0519 D5's stamp-after-creation verb. Store-backed like the three above and refused the same
+  // way — and it is the ONLY writer of `authority` besides `scaffoldRow`, which is why it is a verb
+  // rather than a widening of `library artifact edit`: see `adr-attest.ts`'s header.
+  if (sub === "attest") {
+    if (deps.roundTrip === undefined) {
+      return {
+        ok: false,
+        body: "adr attest needs the live store, which this invocation was not given.",
+        next: ["pnpm db:up", "storytree adr list --current"],
+      };
+    }
+    // Built in statements rather than with conditional spreads, for the reason `compose` records
+    // above: under `exactOptionalPropertyTypes` an optional field must be ABSENT, never
+    // present-and-undefined (anti-slop `no-conditional-empty-object-spread`).
+    const attestOpts: Mutable<AdrAttestOpts> = {};
+    if (opts.basis !== undefined) attestOpts.basis = opts.basis;
+    if (opts.ownerSaid !== undefined) attestOpts.ownerSaid = opts.ownerSaid;
+    if (opts.transcribedFromProse === true) attestOpts.transcribedFromProse = true;
+    if (opts.backfill === true) attestOpts.backfill = true;
+    if (opts.restamp === true) attestOpts.restamp = true;
+    return await adrAttest(opts.number, attestOpts, {
+      store: deps.roundTrip.store,
+      writable: deps.roundTrip.writable,
+      actor: deps.roundTrip.actor,
+      today: deps.today,
+    });
   }
   return {
     ok: false,

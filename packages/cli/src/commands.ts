@@ -3023,6 +3023,12 @@ export const CLI_OPTIONS = {
   // so `@path` carries a multi-sentence directive the shell would otherwise mangle).
   basis: { type: "string" },
   "owner-said": { type: "string" },
+  // `storytree adr attest <n> [--transcribed-from-prose] [--restamp]` / `adr attest --backfill`
+  // (ADR-0519 D5): the stamp-after-creation verb's three booleans. Booleans are outside the
+  // `@path` classification entirely — only string flags are split between PROSE and LITERAL.
+  "transcribed-from-prose": { type: "boolean" },
+  backfill: { type: "boolean" },
+  restamp: { type: "boolean" },
   analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
@@ -3872,6 +3878,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // mutant by construction, so the honest fix is to not write the conditional.
     adrOpts.basis = values.basis;
     adrOpts.ownerSaid = values["owner-said"];
+    // `adr attest`'s three booleans (ADR-0519 D5). GUARDED, unlike the pair above, and the asymmetry
+    // is the same rule read the other way: these are `?: boolean | undefined` and every reader tests
+    // them with `=== true`, so `false` and absent already take one branch — assigning an absent
+    // flag's `undefined` would add a present-and-undefined key `exactOptionalPropertyTypes` refuses.
+    if (values["transcribed-from-prose"] === true) adrOpts.transcribedFromProse = true;
+    if (values.backfill === true) adrOpts.backfill = true;
+    if (values.restamp === true) adrOpts.restamp = true;
     if (values["allow-control-arm"] === true) adrOpts.allowControlArm = true;
     const controlArm = frozenControlArm();
     // ONE unconditional spread over a base, chosen by a ternary — not a conditional spread of `{}`
