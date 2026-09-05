@@ -73,6 +73,10 @@ export const CLI_AREAS = [
   "desktop",
   "onboarding",
   "friction",
+  // `storytree resteer` — the owner's interventions, recorded as they happen (ADR-0515). A sibling
+  // of `friction` filed by the same retro step, kept a separate area because it carries no cap and
+  // its subject is the OWNER's redirection rather than the session's obstacle.
+  "resteer",
   // `storytree factory health` — the report-only factory-floor health instrument (ADR-0316).
   "factory",
   // `storytree session-cost` — the repeatable session-cost measurement (ADR-0323 D4). Report-only

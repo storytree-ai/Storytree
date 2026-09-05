@@ -692,6 +692,8 @@ test("SearchOperation names one word per corpus-search VERB — the set a reader
     "library_query",
     "library_related",
     "library_search",
+    // Joined 2026-09-05 with `storytree resteer list` (ADR-0515), the friction tier's sibling.
+    "resteer_list",
   ]);
   // Each one parses on a real event — a word in the enum that no `SearchEvent` accepts would be a
   // vocabulary entry nothing could ever write.

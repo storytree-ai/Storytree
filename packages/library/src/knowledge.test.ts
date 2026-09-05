@@ -47,6 +47,14 @@ function minimalDoc(kind: KnowledgeKind) {
     doc["anchor"] = { sha: "0123abc", date: "2026-07-11" };
     doc["parked"] = "2026-08-05T00:00:00.000Z";
   }
+  // A `resteer` requires TWO structured (non-KIND_SPECS) fields at capture (ADR-0515): the
+  // defect/taste `disposition` — a row carrying neither can be counted nor excluded, so it is the one
+  // shape the tier must never hold — and `dispositionBy`, which records whose judgement that was.
+  // `mode` is deliberately absent here: this fixture is `taste`, which carries no failure mode.
+  if (kind === "resteer") {
+    doc["disposition"] = "taste";
+    doc["dispositionBy"] = "owner";
+  }
   if (kind === "adr") {
     // The `adr` kind carries two REQUIRED fields outside its KIND_SPECS table (ADR-0403 dec 1):
     // its `number` — a decision's identity — and its `status`. No decision has ever lacked either,

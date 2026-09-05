@@ -139,6 +139,8 @@ const OWN_SURFACE_IDS = [
   "open-question",
   "increment",
   "friction",
+  // The friction tier's sibling — what the OWNER redirected (ADR-0515, `storytree resteer list`).
+  "resteer",
 ] as const;
 
 // ---------------------------------------------------------------------------

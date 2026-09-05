@@ -71,6 +71,12 @@ export type KnowledgeKind =
   // `proposal` was RETIRED by ADR-0298 — the deferred-work tier is an entry ON an arc
   // ({@link ArcProposal} / `Arc.proposals`), never a kind of its own. Do not re-add it.
   | "friction"
+  // The owner's re-steer, captured as its own row (ADR-0515, `follow-the-research-arc` inc 1). It
+  // is NOT a flavour of `friction`, and the separation is load-bearing twice over: friction is
+  // capped at three per branch/date and DISTILLED, which would silently destroy the count an
+  // intervention rate is built from; and friction's subject is what fought the SESSION, where a
+  // re-steer's subject is what the OWNER redirected. See {@link Resteer}.
+  | "resteer"
   | "arc"
   | "increment"
   | "uat-criterion"
@@ -496,6 +502,54 @@ export const KIND_SPECS = {
         "_The justification-gate answers behind the route — or the archive-with-reason when the route is `nothing`._",
     },
   ]),
+  // A `resteer` item is ONE observed owner intervention (ADR-0515; `follow-the-research-arc` inc 1,
+  // chartered by ADR-0513 D4). The owner's framing: "i dont think we attributing errors and bugs
+  // agents make as well as resteers by me that have nothing to do with taste".
+  //
+  // THE FIELD ORDER IS THE ARGUMENT. `doing` / `redirect` / `evidence` are the OBSERVED datum — what
+  // the session was doing, what the owner redirected it to, and the owner's own words. `selfReport`
+  // is LAST and is the weak half: HANDBOOK.md (arXiv 2607.25398) found the agent's self-report the
+  // least reliable artifact in the whole trajectory — nearly every failed run ended claiming
+  // compliance while citing the sections it had violated. ADR-0513 D4 therefore keeps the two in
+  // SEPARATE fields, because a schema that blends them destroys the only trustworthy column. Nothing
+  // scores `selfReport`; it is stored so a later reader can ask whether it tracked the truth.
+  //
+  // `disposition` / `dispositionBy` / `mode` are enum-fenced on the schema below rather than left as
+  // prose here — see {@link Resteer}.
+  resteer: specs([
+    {
+      field: "doing",
+      lead: true,
+      heading: "**What the session was doing.**",
+      required: true,
+      placeholder:
+        "_One line: the course the session was on, or about to take, when the owner intervened._",
+    },
+    {
+      field: "redirect",
+      lead: false,
+      heading: "What the owner redirected it to",
+      required: true,
+      placeholder:
+        "_One line: what he asked for instead. State the redirection, not your reading of why._",
+    },
+    {
+      field: "evidence",
+      lead: false,
+      heading: "Evidence",
+      required: true,
+      placeholder:
+        "_The owner's OWN WORDS, quoted. This is the observed datum and the reason a re-steer outranks a self-report; paraphrase it and the column stops being evidence. An evidence-free item is refused at capture, fail-closed._",
+    },
+    {
+      field: "selfReport",
+      lead: false,
+      heading: "Agent self-report (UNVALIDATED — nothing scores this)",
+      required: false,
+      placeholder:
+        "_What the agent said about it at the time, if anything. Explicitly unvalidated (ADR-0513 D4): generated text, kept beside the observed datum and never in place of it._",
+    },
+  ]),
   // An `arc` (ADR-0183 D1) is the initiative OVERLAY: a named multi-story intent tracked to a
   // closed end-state — the fourth grouping tier ADR-0002 parked, returned as an overlay, not a
   // tier: it references stories/ADRs/plans (every containment edge lives on the CHILD; the upward
@@ -672,6 +726,10 @@ export const EPHEMERAL_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>(["inc
  */
 export const EDGE_FREE_KINDS: ReadonlySet<string> = new Set<KnowledgeKind>([
   "friction",
+  // `resteer` joins its record-tier siblings: one observed owner intervention is a LOG ROW, not a
+  // node anyone reasons from, so it authors no `dependsOn`. It still carries `references`, which is
+  // where the arc / increment / ADR it arose under is cited.
+  "resteer",
   "open-question",
 ]);
 
@@ -934,7 +992,7 @@ export type FrictionRoute = z.infer<typeof FrictionRoute>;
  * the adjudicator and the staleness tripwires read, not prose). Like `stepRefs`/`branchEdges` it is
  * schema-level metadata, never a KIND_SPECS body section — it does not round-trip through markdown.
  */
-export const FrictionProvenance = z
+export const CaptureProvenance = z
   .object({
     /** The branch (session) that filed the item. */
     branch: z.string().min(1),
@@ -944,7 +1002,14 @@ export const FrictionProvenance = z
     source: z.enum(["retro", "run-analysis"]),
   })
   .strict();
-export type FrictionProvenance = z.infer<typeof FrictionProvenance>;
+export type CaptureProvenance = z.infer<typeof CaptureProvenance>;
+// SHARED with `resteer` (ADR-0515 D1): both record tiers are filed by the same retro step and want
+// the same {branch, date, source} stamp, so the shape is stated once and the kind-specific name is an
+// alias. Renaming the const rather than duplicating it keeps the cap-3 counter, the staleness
+// tripwires and the re-steer reader reading ONE shape — two near-identical provenance objects is how
+// a later reader ends up joining on the wrong one.
+export const FrictionProvenance = CaptureProvenance;
+export type FrictionProvenance = CaptureProvenance;
 
 /**
  * One reinforcement of an existing `friction` item (ADR-0168 D2): recurrence reinforces, never
@@ -953,6 +1018,102 @@ export type FrictionProvenance = z.infer<typeof FrictionProvenance>;
  * an evidence-free "me too" is exactly the slop the capture fence exists to refuse).
  * `reinforcedBy.length` is testimony the adjudicator weighs — never a threshold.
  */
+/**
+ * What ONE observed owner re-steer WAS: a defect the system should not have produced, or a matter of
+ * the owner's preference (ADR-0515 D2; ADR-0513 D4 — "Re-steers the owner marks as TASTE are excluded
+ * from any error rate by construction. He named that exclusion himself.").
+ *
+ * The exclusion is enforced at the TYPE level, not by a filter every reader must remember to write:
+ * {@link DefectResteer} narrows on this literal, and the error figures accept only that narrowed
+ * type, so a `taste` row cannot be passed to them at all. See {@link partitionResteers}.
+ */
+export const ResteerDisposition = z.enum(["defect", "taste"]);
+export type ResteerDisposition = z.infer<typeof ResteerDisposition>;
+
+/**
+ * WHO characterised the re-steer (ADR-0515 D3) — and this field exists because the obvious design
+ * has a hole in it.
+ *
+ * The owner named the taste exclusion, but he does not fill in a field: in practice the SESSION
+ * records the disposition, and a session marking its own defect as `taste` is exactly the
+ * self-serving self-report ADR-0513 D4 kept out of the primary column, re-entering through the back
+ * door. Recording the source of the judgement costs one enum and lets a reader compute the rate two
+ * ways — excluding all taste, and excluding only `owner`-marked taste. The GAP between those two
+ * figures is itself the measurement of how far agent self-characterisation drifts, so the weakness is
+ * observable instead of invisible.
+ */
+export const ResteerDispositionBy = z.enum(["owner", "agent"]);
+export type ResteerDispositionBy = z.infer<typeof ResteerDispositionBy>;
+
+/**
+ * The adopted failure frame: MAST's 14 modes, verbatim, plus ONE escape hatch (ADR-0515 D4;
+ * `follow-the-research-arc` inc 2).
+ *
+ * MAST — "Why Do Multi-Agent LLM Systems Fail?" (arXiv 2503.13657) — annotated 1,600+ execution
+ * traces across seven frameworks into these 14 modes in three categories, and six expert annotators
+ * reached Cohen's kappa 0.88 on it. It is ADOPTED rather than adapted: the ids below are MAST's own
+ * modes in MAST's own three categories, so the vocabulary survives contact with anything outside this
+ * repo. {@link MAST_CATEGORY} carries the grouping.
+ *
+ * `no-mast-home` is the escape hatch and it is a FINDING, not a cop-out. MAST is a taxonomy of AGENT
+ * failures; this repo's records include tool defects, platform defects, missing capabilities and
+ * schema gaps that no mode describes. Choosing it is how the gap list gets built — force-fitting a
+ * mode to cover something it does not describe is what would make a later distribution meaningless.
+ * The measured share of `no-mast-home` on our own corpus, and the modes never once reached, are in
+ * `docs/research/mast-agreement-2026-09-05.md`.
+ */
+export const ResteerMode = z.enum([
+  // FC1 — specification and system design
+  "disobey-task-specification",
+  "disobey-role-specification",
+  "step-repetition",
+  "loss-of-conversation-history",
+  "unaware-of-termination-conditions",
+  // FC2 — inter-agent misalignment
+  "conversation-reset",
+  "fail-to-ask-for-clarification",
+  "task-derailment",
+  "information-withholding",
+  "ignored-other-agents-input",
+  "reasoning-action-mismatch",
+  // FC3 — task verification and termination
+  "premature-termination",
+  "no-or-incomplete-verification",
+  "incorrect-verification",
+  // The escape hatch — see above.
+  "no-mast-home",
+]);
+export type ResteerMode = z.infer<typeof ResteerMode>;
+
+/** MAST's three failure categories, plus the escape hatch's own bucket. */
+export type MastCategory =
+  | "specification-and-design"
+  | "inter-agent-misalignment"
+  | "verification-and-termination"
+  | "unhoused";
+
+/**
+ * Each mode's MAST category. Total over {@link ResteerMode} by construction (`satisfies` over the
+ * literal union), so a mode added later cannot be left uncategorised — the compiler refuses.
+ */
+export const MAST_CATEGORY = {
+  "disobey-task-specification": "specification-and-design",
+  "disobey-role-specification": "specification-and-design",
+  "step-repetition": "specification-and-design",
+  "loss-of-conversation-history": "specification-and-design",
+  "unaware-of-termination-conditions": "specification-and-design",
+  "conversation-reset": "inter-agent-misalignment",
+  "fail-to-ask-for-clarification": "inter-agent-misalignment",
+  "task-derailment": "inter-agent-misalignment",
+  "information-withholding": "inter-agent-misalignment",
+  "ignored-other-agents-input": "inter-agent-misalignment",
+  "reasoning-action-mismatch": "inter-agent-misalignment",
+  "premature-termination": "verification-and-termination",
+  "no-or-incomplete-verification": "verification-and-termination",
+  "incorrect-verification": "verification-and-termination",
+  "no-mast-home": "unhoused",
+} satisfies Record<ResteerMode, MastCategory>;
+
 export const FrictionReinforcement = z
   .object({
     /** The branch (session) that re-hit the trap. */
@@ -1250,6 +1411,29 @@ export const Friction = buildKindSchema("friction").extend({
   // `CURRENT_SCHEMA_VERSION` bump and zero migration.
   dischargedBy: z.string().min(1).optional(),
 });
+// The `resteer` kind (ADR-0515) — ONE observed owner intervention. Three structured fields beyond
+// its KIND_SPECS body table, all enum-fenced so a free-prose classification can never be written:
+//
+// - `disposition` is the defect/taste fork ADR-0513 D4 requires. REQUIRED, because a re-steer with no
+//   disposition is a row no error figure can either count or exclude, and an optional field here
+//   would silently become the commonest value.
+// - `dispositionBy` records who made that call — see {@link ResteerDispositionBy} for the hole it
+//   closes.
+// - `mode` is the MAST classification. OPTIONAL, and deliberately: a `taste` re-steer is not a
+//   failure and has no failure mode, so requiring one would force every preference into a taxonomy
+//   built for defects. The defect-must-carry-a-mode invariant is {@link assertResteerInvariants} —
+//   the cross-field rule cannot live in the schema, because a `.superRefine` returns ZodEffects and
+//   `z.discriminatedUnion` admits only ZodObjects (the same reason `assertIncrementInvariants`
+//   exists).
+//
+// `provenance` is {@link CaptureProvenance}, shared with `friction`. A NEW kind touches no existing
+// doc, so there is no `CURRENT_SCHEMA_VERSION` bump and no migration.
+export const Resteer = buildKindSchema("resteer").extend({
+  disposition: ResteerDisposition,
+  dispositionBy: ResteerDispositionBy,
+  mode: ResteerMode.optional(),
+  provenance: CaptureProvenance.optional(),
+});
 // The `arc` kind carries exactly ONE structured field outside its KIND_SPECS body table:
 // `lifecycle`, the stored closure flag (ADR-0239 D1). Schema-level metadata, never a rendered body
 // section, so it does not round-trip through markdown; OPTIONAL-WITH-DEFAULT, so an arc authored
@@ -1389,6 +1573,28 @@ export const Increment = buildKindSchema("increment").extend({
  * Throws a plain `Error` (never a `ZodError`) — `explainDocValidationError` falls back to the raw
  * message for anything it cannot place, so the text below is what the author sees.
  */
+/**
+ * The ONE cross-field rule on a `resteer` (ADR-0515 D4): a `defect` carries a {@link ResteerMode}.
+ *
+ * It lives here rather than in the schema for {@link assertIncrementInvariants}'s reason — a
+ * `.superRefine` returns ZodEffects and `z.discriminatedUnion` admits only ZodObjects. `taste` is
+ * deliberately exempt: a preference is not a failure and has no failure mode, and forcing one would
+ * push every matter of taste into a taxonomy built for defects, which is precisely the force-fitting
+ * the `no-mast-home` escape hatch exists to prevent.
+ */
+export function assertResteerInvariants(doc: Resteer): void {
+  if (doc.disposition === "defect" && doc.mode === undefined) {
+    throw new Error(
+      `re-steer "${doc.id}" is disposition "defect" but carries no \`mode\`. ` +
+        "A defect with no failure mode is a row the frame cannot see: it counts toward the error " +
+        "figure while contributing nothing to the distribution, which is the shape that makes a " +
+        "later percentage unreadable. Classify it against the adopted frame — and when no MAST mode " +
+        "genuinely describes it, `no-mast-home` is the honest answer and a finding in its own right " +
+        "(ADR-0515 D4). Never stretch a mode to fit.",
+    );
+  }
+}
+
 export function assertIncrementInvariants(doc: Increment): void {
   if (doc.status === "proposal" && doc.parked === undefined) {
     throw new Error(
@@ -1565,6 +1771,7 @@ export const Knowledge = z.discriminatedUnion("kind", [
   OpenQuestion,
   Agent,
   Friction,
+  Resteer,
   Arc,
   Increment,
   UatCriterion,
@@ -1581,6 +1788,7 @@ export type Process = z.infer<typeof Process>;
 export type OpenQuestion = z.infer<typeof OpenQuestion>;
 export type Agent = z.infer<typeof Agent>;
 export type Friction = z.infer<typeof Friction>;
+export type Resteer = z.infer<typeof Resteer>;
 export type Arc = z.infer<typeof Arc>;
 export type Increment = z.infer<typeof Increment>;
 export type UatCriterion = z.infer<typeof UatCriterion>;
