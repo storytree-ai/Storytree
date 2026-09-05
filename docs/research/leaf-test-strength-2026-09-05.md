@@ -160,17 +160,46 @@ tests"*. A reading that silently disagreed with the rung beside it would be the 
 trust. Timeouts stay visible in every tally, so the lenient figure is recomputable by anyone who
 wants it.
 
-So the score for one pair is
+`CompileError` / `RuntimeError` / `Ignored` mutants are **excluded from every denominator** rather
+than scored either way — they say nothing about the test. Any figure whose denominator is zero
+reports an absence (`n/a`), never a 0%: the arc's end state requires that "we measured and they are
+weak" and "we could not measure" read differently, and a 0% that is really an absence is exactly
+that confusion.
+
+### Three figures, because one would be two different claims wearing one hat
+
+> **Finding 3 — a whole-file mutation score run with one test file reports a catastrophic near-0%
+> when the test simply does not reach the code, and that is indistinguishable from a weak test
+> unless coverage is reported beside it.**
+>
+> Measured on the pair `arc-explicit-id-fidelity`, whose spec declares
+> `packages/cli/src/cli.test.ts` against `packages/arc/src/arc.ts` — a test in **another package**
+> that exercises the CLI **out of process**:
+>
+> ```
+> 0.0% of 2553 mutant(s) killed   (killed 0 / survived 4 / timeout 0 / NoCoverage 2549)
+> ```
+>
+> Read as a mutation score that is a five-alarm result about a test. It is not a result about the
+> test at all: the test never executes 2549 of those mutants. Of the 4 it does reach it kills none —
+> which is the only honest sentence available, over a denominator of 4.
+
+So each pair reports three numbers, and the aggregate pools all three:
 
 ```
-killed / (killed + survived + timeout + noCoverage)
+score        = killed / (killed + survived + timeout + noCoverage)   the whole file
+covered      = killed / (killed + survived + timeout)                what the test executes
+reach        = (killed + survived + timeout) / all four              the instrument's range
 ```
 
-and `CompileError` / `RuntimeError` / `Ignored` mutants are **excluded from the denominator**
-rather than scored either way — they say nothing about the test. A pair that generated **no**
-mutants at all reports an absence (`n/a`), never a 0%: the arc's end state requires that
-"we measured and they are weak" and "we could not measure" read differently, and a 0% that is really
-an absence is exactly that confusion.
+**`reach` is an instrument figure, never a quality one.** A low reach says *this pair's declared
+test does not exercise this source in-process* — a fact about the declared pair. It is the same
+distinction `check:mutation-diff` draws when it refuses to score an `unproven` mutant as either a
+pass or a survivor.
+
+(Note for anyone re-taking this: `NoCoverage` statuses appear in the reports even though the
+generated config sets `coverageAnalysis: "off"`. The reading takes the statuses the report actually
+carries rather than the ones the config implies.)
 
 ### The split that stops the headline being wrong
 
@@ -205,15 +234,22 @@ instrument takes no arguments about *which* corpus it reads: it reads `events.ve
 `stories/` tree of the checkout it runs in.
 
 ```bash
-pnpm db:up                          # the population comes from the live store
-pnpm leaf-test-strength --population   # denominators only — seconds, no mutants
-pnpm leaf-test-strength --score        # the full reading — hours; writes incrementally
+pnpm db:up                                   # the population comes from the live store
+pnpm leaf-test-strength --population         # denominators only — seconds, no mutants
+pnpm leaf-test-strength --score              # the full reading — hours; writes incrementally
 pnpm leaf-test-strength --score --limit 20   # a bounded prefix, in unit-id order
+pnpm leaf-test-strength --markdown           # re-render the banked reading as the table above
 ```
 
-Both modes write `reports/leaf-test-strength.json` (gitignored) after **every** pair, so an
-interrupted run is a partial reading rather than a lost one, and re-running resumes nothing but
-costs nothing already banked.
+`--score` writes `reports/leaf-test-strength.json` (gitignored) after **every** pair, so an
+interrupted run is a partial reading rather than a lost one. `--markdown` re-renders whatever is
+banked — **the table above is that command's output, not a transcription**, so the doc's numbers
+stay checkable against the artifact instead of drifting from it.
+
+Budget, measured on this box (12 logical cores, `concurrency: 4`, sharing the machine with another
+session's gate): about **1.2–1.4 minutes per pair**, dominated by the `apps/studio` vitest pairs at
+~250 s each against ~20–40 s for a bun pair. 108 pairs is therefore a ~2–3 hour background run, not
+an inner-loop command.
 
 To point it at another engagement, three things have to be true of that work, and they are the same
 three that make it a storytree engagement at all:

@@ -804,3 +804,30 @@ test("the markdown rows are ordered strongest-first, and an unknown staleness re
   assert.ok(rows.every((r) => r.endsWith("| ? |")), "staleness the caller could not establish");
   assert.doesNotMatch(md, /Could not be run/, "no failure section when nothing failed");
 });
+
+test("a pair with no mutants sorts last and renders its absence, never a 0%", () => {
+  // Without this the `?? -1` in the sort comparator is unconstrained: every other case has a
+  // defined score on both sides, so a mutant that drops the fallback is never observed.
+  const md = renderReadingMarkdown(
+    [
+      scored({
+        pair: pair("no-mutants"),
+        tally: { killed: 0, survived: 0, timeout: 0, noCoverage: 0, excluded: 4 },
+      }),
+      scored({
+        pair: pair("weakest-real"),
+        tally: { killed: 0, survived: 7, timeout: 0, noCoverage: 0, excluded: 0 },
+      }),
+    ],
+    2,
+    [],
+  );
+  const rows = md.split("\n").filter((l) => l.startsWith("| `"));
+  assert.deepEqual(
+    rows.map((r) => r.split(" ")[1]),
+    ["`weakest-real`", "`no-mutants`"],
+    "a genuine 0% outranks an absence",
+  );
+  assert.match(rows[1] ?? "", /n\/a \(no mutants\)/);
+  assert.match(rows[0] ?? "", /\| 0\.0% \|/);
+});

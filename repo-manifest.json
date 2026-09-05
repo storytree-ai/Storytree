@@ -742,6 +742,12 @@
         ],
         "because": "`check:hierarchy-drift` — the gap between the two clocks IS its verdict. It reads the checkout's projection and the store's mirror and reports whether they still describe the same tree, so it necessarily spans both and belongs to neither camp."
       },
+      "packages/cli/src/leaf-test-strength.run.ts": {
+        "camp": "prove",
+        "reads": ["checkout"],
+        "because": "`pnpm leaf-test-strength` resolves a signed verdict's `unitId` to the file pair the leaf was scoped to author, and it must read the CHECKOUT's `stories/**` because those paths are only meaningful against the tree it is about to mutate — the files it then hands to Stryker are this checkout's files. It also reads the live store, but for `events.verdict`, which is not the work hierarchy: the hierarchy read is checkout-only, and that is what this camp names.",
+        "$note": "Not a gate rung and not a threshold — a by-hand reading for `verdict-accuracy-arc` (docs/research/leaf-test-strength-2026-09-05.md). The gap between the proof's commit and the tree now is REPORTED per pair (`testChangedSinceProof`, from git) rather than resolved, precisely because this reader sits in one camp and says so."
+      },
       "packages/cli/src/load-hierarchy.ts": {
         "camp": "bridge",
         "reads": [
