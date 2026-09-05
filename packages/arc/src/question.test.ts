@@ -600,3 +600,49 @@ test("an unknown question verb lists settle among the ways out", async () => {
   assert.equal(env.ok, false);
   assert.match(env.body, /`settle <id>`/);
 });
+
+// ---------------------------------------------------------------------------
+// A diagram is DRAWN, not typed (arc-queue-and-question-legibility-arc increment 03).
+//
+// The `diagram` field always accepted both mermaid and typed ASCII, and the guidance offered them as
+// equals — but the studio renders a mermaid fence as an SVG (ADR-0096) and typed ASCII as a
+// monospace box. Same field, same effort, materially better output, so the guidance states a
+// PREFERENCE. There is deliberately no gate rung: every proxy a check could read here is producible
+// without the judgment it stands for.
+// ---------------------------------------------------------------------------
+
+test("question help PREFERS mermaid over typed ASCII, and carries the measured reason", () => {
+  const help = questionHelp();
+  assert.match(help.body, /DRAW IT, DON'T TYPE IT/);
+  // The preference has to be stated as a preference, not as a bare mention of the word "mermaid" —
+  // the old text named mermaid and still read as an equal choice.
+  assert.match(help.body, /monospace box/);
+  assert.match(help.body, /Reach for ASCII only when mermaid cannot express the shape/);
+  // The gap is measured, not asserted — four of eight open questions carried no diagram.
+  assert.match(help.body, /FOUR carried/);
+  // And the refusal to build a rung is stated where an author would otherwise expect one.
+  assert.match(help.body, /No gate rung scores this and none will/);
+  // The whole block, line by line: help text is what an author reads INSTEAD of the source, so a
+  // line that silently emptied would leave the preference unstated while the test still passed.
+  for (const line of [
+    "DRAW IT, DON'T TYPE IT. The field accepts typed ASCII too, but the studio renders that as a",
+    "monospace box while a mermaid fence becomes an SVG — same field, same effort, materially",
+    "better output. Reach for ASCII only when mermaid cannot express the shape.",
+    "The gap is measured rather than assumed: of the 8 open questions on 2026-09-05, FOUR carried",
+    "no diagram at all, and the owner named it himself — \"i noticed we often dont have diagrams",
+    "to help reonboard me\". No gate rung scores this and none will: every proxy a check could read",
+    "here is producible without the judgment it stands for, so the mechanism is that the READER",
+    "sees the absence stated on the arc panel, and the author knows the reader will.",
+  ]) {
+    assert.ok(help.body.includes(line), `question help is missing: ${line}`);
+  }
+  // And the block's own blank separator, which a per-line `includes` cannot see turn into text.
+  assert.ok(
+    help.body.includes(
+      ["sees the absence stated on the arc panel, and the author knows the reader will.", "", "--arc is REQUIRED"].join(
+        "\n",
+      ),
+    ),
+    "the draw-it stanza is closed by a blank line before the --arc note",
+  );
+});

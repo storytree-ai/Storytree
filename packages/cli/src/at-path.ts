@@ -118,6 +118,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "file",
   "set",
   "raw",
+  // `storytree arc gate <id> --needs <other-id>` / `arc ungate <id> --needs <other-id>` (ADR-0523
+  // D5). ONE arc id naming the blocker — a canonical identity, never a durable prose record, and the
+  // gate's own `--reason` is the PROSE half of the same command. The pair splitting across the two
+  // classes is correct, the same way `--basis` / `--owner-said` do above.
+  "needs",
   // `adr new --basis <value>` (ADR-0519 D1). One enum word from a four-value set — the LITERAL
   // default's exact case. Its sibling `--owner-said` is PROSE; the pair splitting across the two
   // classes is correct rather than an oversight.

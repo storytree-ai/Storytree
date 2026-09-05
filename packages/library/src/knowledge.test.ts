@@ -844,3 +844,66 @@ test("open-question kind (ADR-0434 D1): an OPTIONAL lifecycle, so a question can
   const open = validateLibraryDoc(minimalDoc("open-question")) as { answer?: string };
   assert.equal(open.answer, undefined, "an open question carries no answer");
 });
+
+// ---------------------------------------------------------------------------
+// The arc GATE fields (ADR-0523) and the diagram PREFERENCE.
+// ---------------------------------------------------------------------------
+
+test("the arc kind carries gatedBy / gateReasons, and both are absent-by-default", () => {
+  const base = {
+    kind: "arc" as const,
+    id: "a-arc",
+    title: "A",
+    description: "d",
+    intent: "i",
+    endState: "e",
+    createdAt: "2026-09-01",
+    updatedAt: "2026-09-01",
+  };
+  // ZERO MIGRATION: an arc authored before the field validates unchanged and reads as ungated.
+  const ungated = Knowledge.safeParse(base);
+  assert.equal(ungated.success, true);
+  assert.equal(ungated.success && "gatedBy" in ungated.data, false);
+
+  const gated = Knowledge.safeParse({
+    ...base,
+    gatedBy: ["asset:b-arc"],
+    gateReasons: { "asset:b-arc": "b must land first" },
+  });
+  assert.equal(gated.success, true);
+});
+
+test("a gate entry must be an asset: ref, and a gate REASON may not be empty", () => {
+  const base = {
+    kind: "arc" as const,
+    id: "a-arc",
+    title: "A",
+    description: "d",
+    intent: "i",
+    endState: "e",
+    createdAt: "2026-09-01",
+    updatedAt: "2026-09-01",
+  };
+  // A `doc:` ADR pointer is not an arc, so it cannot gate one.
+  assert.equal(Knowledge.safeParse({ ...base, gatedBy: ["doc:whatever.md"] }).success, false);
+  assert.equal(Knowledge.safeParse({ ...base, gatedBy: ["b-arc"] }).success, false);
+  // An EMPTY reason is refused rather than stored: a key present with nothing behind it renders a
+  // blank "why:" line under the gate, which is worse than recording no reason at all.
+  assert.equal(
+    Knowledge.safeParse({ ...base, gatedBy: ["asset:b-arc"], gateReasons: { "asset:b-arc": "" } })
+      .success,
+    false,
+  );
+});
+
+test("the open-question diagram placeholder PREFERS mermaid rather than offering it as an equal", () => {
+  const spec = KIND_SPECS["open-question"].find((f) => f.field === "diagram");
+  assert.ok(spec, "the open-question kind still carries a diagram field");
+  const placeholder = spec.placeholder ?? "";
+  // The intervention is the PREFERENCE. The old text named mermaid and still read as a free choice,
+  // so asserting the word alone would not have caught the state this changed from.
+  assert.match(placeholder, /PREFER a ```mermaid fenced block/);
+  assert.match(placeholder, /typed ASCII renders as a monospace box/);
+  assert.match(placeholder, /only when mermaid cannot express the shape/);
+  assert.match(placeholder, /Omit for a pure value\/policy choice/);
+});
