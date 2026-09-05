@@ -12,6 +12,7 @@ import {
   extractPathTokens,
   loadStoryDecisions,
   ADR_GATE_CHECKS,
+  AUTHORITY_FLOOR,
   type GuardrailView,
   RETIRED_ADR_CHECKS,
   type AdrHealthInputs,
@@ -55,6 +56,10 @@ function inputs(partial: Partial<AdrHealthInputs>): AdrHealthInputs {
     // considers READ, so a rung-8 FAIL in any test below is the link it was handed, never the
     // absence of a view.
     decisionBodies: [{ number: 1, body: "no links here" }],
+    // Empty is the CLEAN default here, unlike its neighbour above, because `authority-declared` is
+    // floored at ADR-0519 and every fixture in this file numbers well below it. A test that means to
+    // exercise the rung says so by supplying both a high-numbered decision and this view.
+    decisionAuthorities: [],
     pathExists: () => true,
     ...partial,
   };
@@ -276,4 +281,98 @@ test("adr-body-links: every dead link is reported, not just the first", () => {
     }),
   );
   assert.equal(results.find((r) => r.name === "adr-body-links")?.lines.length, 3);
+});
+
+// ─── 6b authority-declared (ADR-0519 D4) ──────────────────────────────────────────────────────
+
+test("authority-declared: an accepted decision at or above the floor must declare a basis", () => {
+  const stamped = adrHealth(
+    inputs({
+      adrs: [adr(AUTHORITY_FLOOR, "accepted")],
+      decisionAuthorities: [{ number: AUTHORITY_FLOOR, declared: true }],
+    }),
+  );
+  assert.equal(levelOf(stamped, "authority-declared"), "PASS");
+
+  const bare = adrHealth(
+    inputs({
+      adrs: [adr(AUTHORITY_FLOOR, "accepted")],
+      decisionAuthorities: [{ number: AUTHORITY_FLOOR, declared: false }],
+    }),
+  );
+  assert.equal(levelOf(bare, "authority-declared"), "FAIL");
+  assert.ok(adrGateFailures(bare).some((r) => r.name === "authority-declared"), "it must GATE");
+});
+
+test("authority-declared: the floor includes the decision that created the field, and excludes what precedes it", () => {
+  // ADR-0519 D5 leaves 206 earlier rows unstamped BY DECISION, so a rung with no floor would be
+  // permanently red on records that are correct as they stand.
+  const below = adrHealth(
+    inputs({
+      adrs: [adr(AUTHORITY_FLOOR - 1, "accepted"), adr(1, "accepted")],
+      decisionAuthorities: [],
+    }),
+  );
+  assert.equal(levelOf(below, "authority-declared"), "PASS");
+
+  const atFloor = adrHealth(inputs({ adrs: [adr(AUTHORITY_FLOOR, "accepted")], decisionAuthorities: [] }));
+  assert.equal(levelOf(atFloor, "authority-declared"), "FAIL");
+});
+
+test("authority-declared: only ACCEPTED decisions are in scope", () => {
+  // A proposed decision is still being written and may not have reached the question yet; a
+  // superseded one is dead. Neither is a record anyone calibrates on.
+  for (const status of ["proposed", "superseded"] as const) {
+    const r = adrHealth(inputs({ adrs: [adr(AUTHORITY_FLOOR + 5, status)], decisionAuthorities: [] }));
+    assert.equal(levelOf(r, "authority-declared"), "PASS", `${status} must be out of scope`);
+  }
+});
+
+test("authority-declared: a MALFORMED stamp is undeclared — the view carries the fact, not the key", () => {
+  // The projection `safeParse`s, so `declared: false` is what an unparseable stamp yields. A rung
+  // that accepted it would certify a shape nothing had checked, which is the vacuous green.
+  const r = adrHealth(
+    inputs({
+      adrs: [adr(AUTHORITY_FLOOR, "accepted")],
+      decisionAuthorities: [{ number: AUTHORITY_FLOOR, declared: false }],
+    }),
+  );
+  assert.equal(levelOf(r, "authority-declared"), "FAIL");
+});
+
+test("authority-declared: an UNWIRED view fails loud rather than passing vacuously", () => {
+  // The direction that matters: a caller who forgets the input yields an empty set, so every
+  // in-scope decision reports undeclared and the rung REDS. The opposite default would be a rung
+  // reporting PASS having examined nothing.
+  const r = adrHealth(inputs({ adrs: [adr(AUTHORITY_FLOOR + 1, "accepted")], decisionAuthorities: [] }));
+  assert.equal(levelOf(r, "authority-declared"), "FAIL");
+});
+
+test("authority-declared: the FAIL names the verb and the honest weaker basis, never a stronger one", () => {
+  // Asserted WHOLE. The message is three `+`-concatenated segments, each its own literal, so a regex
+  // matching one leaves the others unheld — and for the LAST segment that is the very sentence
+  // keeping the rung's cheapest compliance the WEAKER claim (`agent-derived`). That asymmetry is what
+  // separates this rung from the presence check ADR-0427 deleted, so it is load-bearing, not prose.
+  const r = adrHealth(
+    inputs({ adrs: [adr(AUTHORITY_FLOOR, "accepted")], decisionAuthorities: [{ number: AUTHORITY_FLOOR, declared: false }] }),
+  );
+  assert.deepEqual(r.find((c) => c.name === "authority-declared")?.lines ?? [], [
+    "ADR-0519 is accepted and declares no authority basis (ADR-0519 D1). " +
+      "Stamp it: `storytree adr authority 519 --basis <b> [--owner-said <text|@file>] --pg`. " +
+      "With no directive to quote, the honest basis is `agent-derived`.",
+  ]);
+});
+
+test("authority-declared: the clean note states the FLOOR, so a green says what it covered", () => {
+  // A PASS line reading only "ok" would hide that ~206 accepted decisions are out of scope BY
+  // DECISION (ADR-0519 D5) — which is the one thing a reader of this green needs to know.
+  const r = adrHealth(
+    inputs({
+      adrs: [adr(AUTHORITY_FLOOR, "accepted")],
+      decisionAuthorities: [{ number: AUTHORITY_FLOOR, declared: true }],
+    }),
+  );
+  assert.deepEqual(r.find((c) => c.name === "authority-declared")?.lines ?? [], [
+    "every accepted decision from ADR-0519 onward declares a basis",
+  ]);
 });

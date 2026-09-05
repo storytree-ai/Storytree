@@ -375,6 +375,9 @@ export const CLI_READ_VERBS = {
   "adr compose": silent(
     "one verb spans three shapes — a bare INDEX, a read of one composed statement, and a WRITE when --statement is given. argv alone tells them apart only by a flag this table does not model, so it is unobserved rather than recorded as a read that might have been a write",
   ),
+  "adr authority": silent(
+    "the `adr compose` shape exactly — a bare COVERAGE INDEX, a read of one record's authority stamp, and a WRITE when --basis or --backfill is given. argv alone separates them only by flags this table does not model, so it is unobserved rather than recorded as a read that might have been a write",
+  ),
   "adr push": silent("write — replaces the whole decision document"),
   "adr new": silent("write — reserves a number and scaffolds the decision"),
   "adr next": silent("write — reserves a number and reads nothing"),

@@ -3,6 +3,7 @@ import type { Store } from "@storytree/storage-protocol";
 
 import { defaultCliActor } from "./cli-actor.js";
 
+import { adrAuthority, type AdrAuthorityOpts } from "./adr-authority-verb.js";
 import { adrCompose, type AdrComposeOpts } from "./adr-composed.js";
 import { adrRebind, type AdrRebindDeps, type AdrRebindOpts } from "./adr-rebind.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
@@ -132,6 +133,14 @@ export interface AdrCommandOpts {
    */
   ownerSaid?: string | undefined;
   /** `adr compose --allow-control-arm`: the explicit escape from the frozen-trial fence (D6). */
+  /**
+   * `adr authority <n> --transcribed-from-prose` (ADR-0519 D5): this stamp was READ OFF the record's
+   * own `## Status` prose and no owner words were ever captured. The schema refuses it beside
+   * {@link ownerSaid} and on a non-owner basis, so it can only ever mark what it says it marks.
+   */
+  transcribedFromProse?: boolean | undefined;
+  /** `adr authority --backfill` (ADR-0519 D5): the mechanical pass. A DRY RUN unless `--pg`. */
+  backfill?: boolean | undefined;
   allowControlArm?: boolean | undefined;
   /**
    * `adr rebind <n> --refute <key>`: the anchor to close as REFUTED, keyed by its identity exactly as
@@ -1202,6 +1211,26 @@ export function adrHelp(): Envelope {
       "  Anchors themselves are authored by hand against the decision's prose —",
       "  `library artifact edit adr-NNNN --set sources=@anchors.json --pg`. NEVER auto-anchor.",
       "",
+      "  storytree adr authority                            how much of the log declares WHOSE CALL it was",
+      "  storytree adr authority <n>                        one record's authority stamp + the owner's words",
+      "  storytree adr authority <n> --basis <b> [--owner-said <text|@file>] --pg   stamp a record that has none",
+      "  storytree adr authority --backfill [--pg]          ADR-0519 D5's mechanical pass (a DRY RUN without --pg)",
+      "",
+      "`authority` (ADR-0519) is the REPAIR ROUTE, and it FILLS AN ABSENCE — nothing more. `adr new`",
+      "stamps at CREATION, so a decision scaffolded from a checkout older than ADR-0519 carries no",
+      "stamp and, until this verb, could not be given one: `adr push` refuses an `authority:` key and",
+      "`library artifact edit --set` cannot write an object. That row was stuck.",
+      "  There is NO --force and no --restamp. An existing stamp is refused outright, which is the",
+      "  whole reason a second writer is admissible: ADR-0424 D6 says evidence a hand-edit can rewrite",
+      "  is not evidence, and a fill-only verb is not a rewrite. A stamp that is WRONG is corrected the",
+      "  way a wrong decision is — in the record's own prose, or by superseding the record.",
+      "  `scribedBy` is never a flag — always the current session, because it is the one field the",
+      "  store corroborates independently (`events.library_event.actor`). A flag would forge that.",
+      "  --backfill TRANSCRIBES the two exact phrases D5 names and stamps nothing else. It writes no",
+      "  `ownerSaid` at all — those words were never captured, and rebuilding them from an agent's",
+      "  summary would forge the evidence the field exists to make trustworthy. The rows it leaves",
+      "  alone are an HONEST ABSENCE, not a hole: do not widen the classifier to reach them.",
+      "",
       "  storytree adr compose                              every composed statement + what has moved beneath",
       "  storytree adr compose <n>                          one record's statement + its staleness marker",
       "  storytree adr compose <n> --statement <text|@file> [--clause <id>] --pg     compose / re-affirm",
@@ -1373,6 +1402,38 @@ export async function adrCommand(
         ? composeDepsBase
         : { ...composeDepsBase, controlArm: deps.controlArm },
     );
+  }
+  // ADR-0519's repair route — the ONLY way to stamp a decision that already exists. Store-backed
+  // like the three above and refused the same way. See `adr-authority-verb.ts` for why a second
+  // writer is admissible at all: it FILLS AN ABSENCE and cannot overwrite.
+  if (sub === "authority") {
+    if (deps.roundTrip === undefined) {
+      return {
+        ok: false,
+        body: "adr authority needs the live store, which this invocation was not given.",
+        next: ["pnpm db:up", "storytree adr list --current"],
+      };
+    }
+    // Built in statements rather than with conditional spreads, for the reason `compose` records
+    // above: under `exactOptionalPropertyTypes` an optional field must be ABSENT, never
+    // present-and-undefined (anti-slop `no-conditional-empty-object-spread`).
+    //
+    // The two STRING options are assigned unguarded and the two BOOLEANS are guarded, which is one
+    // rule read twice rather than an inconsistency: both string fields are declared `?: string |
+    // undefined`, so a guard could not change any answer and is an unkillable mutant; the booleans
+    // are tested with `=== true`, where assigning an absent flag's `undefined` would add a
+    // present-and-undefined key `exactOptionalPropertyTypes` refuses.
+    const authorityOpts: Mutable<AdrAuthorityOpts> = {};
+    authorityOpts.basis = opts.basis;
+    authorityOpts.ownerSaid = opts.ownerSaid;
+    if (opts.transcribedFromProse === true) authorityOpts.transcribedFromProse = true;
+    if (opts.backfill === true) authorityOpts.backfill = true;
+    return await adrAuthority(opts.number, authorityOpts, {
+      store: deps.roundTrip.store,
+      writable: deps.roundTrip.writable,
+      actor: deps.roundTrip.actor,
+      today: deps.today,
+    });
   }
   return {
     ok: false,

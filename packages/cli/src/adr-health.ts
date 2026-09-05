@@ -39,6 +39,11 @@ import type { CheckResult } from "./health.js";
  *   6 load-bearing-live    — a `load_bearing: true` ADR (ADR-0086 current-state tag) must be
  *                            `accepted`: a proposed one isn't yet current state, a superseded one is
  *                            dead, so neither may carry the calibrate-to-these tag (GATE)
+ *   6b authority-declared — every accepted decision from ADR-0519 onward declares WHOSE CALL it was
+ *                            (GATE, ADR-0519 D4). DECLARATION only, never truth — whether a stamp is
+ *                            honest is unknowable mechanically. Floored at the decision that created
+ *                            the field, permanently: D5 leaves 206 earlier rows unstamped BY
+ *                            DECISION, so the floor is the rung's scope and not an exemption.
  *   7 enforced-by-anchors  — backtick path tokens in guardrail `enforcedBy` resolve on disk
  *                            (WARN — enforcedBy stays prose; oq-artifact-code-backing → B)
  *   8 adr-body-links       — no decision body addresses anything by a markdown link that only
@@ -58,6 +63,7 @@ export const ADR_GATE_CHECKS: ReadonlySet<string> = new Set([
   "supersede-consistency",
   "story-decisions",
   "green-flip",
+  "authority-declared",
   "load-bearing-live",
   "adr-body-links",
 ]);
@@ -130,6 +136,55 @@ export interface GuardrailView {
   readonly enforcedBy: string;
 }
 
+/**
+ * Which decisions DECLARE an authority basis, for `authority-declared` (ADR-0519 D4).
+ *
+ * SEPARATE from {@link AdrMeta} for the reason {@link DecisionBodyView} is: `AdrMeta` is the
+ * FRONTMATTER shape, and ADR-0519 D2 keeps the stamp out of every document-path reader so a prose
+ * correction cannot rewrite who decided. The rung needs the fact, not the field.
+ */
+export interface DecisionAuthorityView {
+  readonly number: number;
+  /**
+   * True when the row carries a stamp that SATISFIES `DecisionAuthority` — never merely "the key is
+   * present". A malformed stamp reads as undeclared, which is the fail-closed direction: a rung that
+   * accepted an unparseable object would be certifying a shape nothing had checked.
+   */
+  readonly declared: boolean;
+}
+
+/**
+ * The floor of `authority-declared`: decisions numbered from ADR-0519 onward.
+ *
+ * ## Why the rung needs a floor at all, and why it is PERMANENT rather than temporary
+ *
+ * ADR-0519 D5 stamps only the 306 rows two exact prose phrases classify and leaves the rest
+ * UNSTAMPED **by decision** — reconstructing a basis from free-form prose would forge the evidence
+ * the field exists to make trustworthy. So 206 accepted decisions carry no stamp and never will.
+ * A rung with no floor would be permanently red on rows that are correct as they stand.
+ *
+ * ## Why the NUMBER, and not a date
+ *
+ * The increment that ordered this rung offered three floors and preferred (c) — run it as a report
+ * until the backfill lands, then flip it to a gate — on the reasoning that "a rung introduced with a
+ * date exemption tends to keep it forever". That option is UNREACHABLE, and the reason is worth
+ * stating rather than quietly substituting: the backfill can never close the gap D5 deliberately
+ * left, so the moment to flip never arrives and the rung would block nothing forever.
+ *
+ * The warning behind (c) still lands, and this floor is what answers it: it is not an exemption
+ * awaiting closure, it is the rung's actual scope. Every decision numbered from here was created by
+ * an `adr new` that stamps unconditionally, so the rung asks only about records the writer already
+ * guarantees — which is why it can be a GATE from its first day rather than a report.
+ *
+ * The NUMBER rather than `decided` because a number is what the ADR-0050 allocator reserved and is
+ * the row's primary key: it cannot move without moving the decision's identity. `decided` is an
+ * ordinary optional field a `--set` can edit, so a date floor could be walked backwards by the very
+ * record trying to escape the rung.
+ *
+ * 519 rather than 520 so that the decision which created the field is itself inside the rule.
+ */
+export const AUTHORITY_FLOOR = 519;
+
 export interface AdrHealthInputs {
   readonly adrs: AdrMeta[];
   /** Parse failures from loading the decisions dir (each line one file's error). */
@@ -158,6 +213,14 @@ export interface AdrHealthInputs {
    * its own blind-read floor besides (see rung 8).
    */
   readonly decisionBodies: DecisionBodyView[];
+  /**
+   * Which decisions declare an authority basis, for `authority-declared`. REQUIRED and never
+   * optional-and-defaulted, for the reason its two neighbours are — but here the direction is worth
+   * naming, because it is the opposite of the usual one: an unwired view yields an EMPTY set, so
+   * every in-scope decision reports undeclared and the rung goes RED. It fails loud rather than
+   * vacuously green, which is the only acceptable direction for a rung about evidence.
+   */
+  readonly decisionAuthorities: DecisionAuthorityView[];
   /** Resolve a repo-relative path (file OR directory) on disk. */
   readonly pathExists: (relpath: string) => boolean;
 }
@@ -312,6 +375,50 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
     }
   }
   results.push(result("load-bearing-live", mistagged, "every load-bearing ADR is accepted"));
+
+  // 6b authority-declared — every accepted decision at or above {@link AUTHORITY_FLOOR} declares
+  // WHOSE CALL it was (ADR-0519 D4).
+  //
+  // ⚠ IT ASKS ONLY WHETHER A BASIS IS DECLARED, NEVER WHETHER IT IS TRUE, and the distinction is
+  // what keeps it from being the presence check ADR-0427 deleted and refuses to have rebuilt. That
+  // one certified the QUALITY of a judgment through a proxy anyone could satisfy by pasting a
+  // number. This one certifies that a required field was supplied — and its CHEAPEST COMPLIANCE is
+  // to declare `agent-derived`, the WEAKER claim, because an owner basis cannot validate without the
+  // owner's words. A rung whose lazy path is the honest path cannot manufacture false confidence.
+  //
+  // If this ever drifts toward scoring the QUALITY of a stamp — how strong the basis is, whether a
+  // quote looks convincing — it has become the check ADR-0427 refuses and should be DELETED rather
+  // than fixed. There is no version of "is this stamp honest" a machine can ask.
+  //
+  // ⚠ IT IS GREEN ON EVERY ROW TODAY, AND THAT IS NOT THE SAME AS VACUOUS — the distinction matters,
+  // because a rung nothing can red is one a later session is right to delete. `adr new` stamps
+  // unconditionally, so the happy path always satisfies this. THREE reachable paths do not:
+  //   - `library artifact new --file` accepts kind `adr` with a hand-chosen id and runs no
+  //     allocator, so it can mint a decision row that never passed through `resolveAuthority`
+  //     (`scaffoldRow`'s own duplicate-id guard exists because of that same path);
+  //   - a field-scoped `library artifact edit adr-NNNN --set …` can move a row out from under its
+  //     stamp, which is exactly how `adr-description-identity` next door became reachable;
+  //   - a stamp that no longer satisfies `DecisionAuthority` — a schema change, or a hand-written
+  //     row — projects as undeclared, which is the fail-closed direction the loader chose.
+  // So this backstops the paths that BYPASS the writer, which is the only thing a health rung over a
+  // guaranteed-by-construction field can usefully do.
+  const declared = new Set(inputs.decisionAuthorities.filter((d) => d.declared).map((d) => d.number));
+  const undeclared: string[] = [];
+  for (const a of adrs) {
+    if (a.status !== "accepted" || a.number < AUTHORITY_FLOOR || declared.has(a.number)) continue;
+    undeclared.push(
+      `ADR-${pad(a.number)} is accepted and declares no authority basis (ADR-0519 D1). ` +
+        `Stamp it: \`storytree adr authority ${String(a.number)} --basis <b> [--owner-said <text|@file>] --pg\`. ` +
+        `With no directive to quote, the honest basis is \`agent-derived\`.`,
+    );
+  }
+  results.push(
+    result(
+      "authority-declared",
+      undeclared,
+      `every accepted decision from ADR-${pad(AUTHORITY_FLOOR)} onward declares a basis`,
+    ),
+  );
 
   // 7 enforced-by-anchors (WARN-class)
   const rotted: string[] = [];
