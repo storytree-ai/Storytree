@@ -62,6 +62,7 @@
     "gate": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/gate-run.ts",
     "gate:bg": "node scripts/gate-bg.mjs",
     "mutation:attribution-probe": "stryker run stryker.attribution-probe.conf.mjs && node attribution-probe/verify-attribution.mjs && node attribution-probe/verify-title-fallback.mjs",
+    "leaf-test-strength": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/leaf-test-strength.run.ts",
     "sync": "git fetch origin && git rebase origin/main",
     "db:up": "pnpm --filter @storytree/cli run db -- up",
     "db:down": "pnpm --filter @storytree/cli run db -- down",

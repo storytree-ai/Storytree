@@ -125,6 +125,11 @@ stryker.mutation-diff.*.conf.mjs
 # The narrowed vitest config the rung generates INSIDE a vitest project — it must sit beside that
 # project's own config for `./vitest.config.js` to resolve, so it cannot live under reports/.
 vitest.mutation-diff.config.ts
+# Same two shapes for the by-hand leaf-test-strength reading (`pnpm leaf-test-strength --score`,
+# verdict-accuracy-arc inc 1): one Stryker config per leaf pair, and the narrowed vitest config a
+# vitest-project pair needs beside its own vitest.config.ts.
+stryker.leaf-strength.conf.mjs
+vitest.leaf-strength.config.ts
 .stryker-tmp*/
 reports/
 
