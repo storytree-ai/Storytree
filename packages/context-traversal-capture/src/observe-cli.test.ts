@@ -270,7 +270,7 @@ test("the `adr` area observes its READS — `pull` as a visit under the canonica
   assertValid(list);
 });
 
-test("`adr attest` observes NOTHING, and the recorded reason says why it cannot be observed", () => {
+test("`adr authority` observes NOTHING, and the recorded reason says why it cannot be observed", () => {
   // The verb spans three shapes — a bare coverage INDEX, a READ of one record's stamp, and a WRITE
   // when `--basis` or `--backfill` is given — and argv alone cannot separate them, so classifying it
   // as a read would enter writes into the traversal record as reads. Silence here is a deliberate
@@ -284,7 +284,7 @@ test("`adr attest` observes NOTHING, and the recorded reason says why it cannot 
   ]) {
     assert.deepEqual(observeCliInvocation(argv, harness().deps), [], `${argv.join(" ")} must observe nothing`);
   }
-  assert.deepEqual(CLI_READ_VERBS["adr attest"], {
+  assert.deepEqual(CLI_READ_VERBS["adr authority"], {
     observes: "nothing",
     why:
       "the `adr compose` shape exactly — a bare COVERAGE INDEX, a read of one record's authority " +

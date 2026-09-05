@@ -1,266 +1,463 @@
 /**
- * THE READ SIDE of ADR-0519's authority stamp: `adr list --basis` and the record's banner.
+ * ADR-0519's READ surface — the filter, the list line, and the record block.
  *
- * A stamp nothing surfaces answers no question a session can ask, so these are the arms that make
- * the field load-bearing rather than merely stored.
+ * The stamp was stored by `every-decision-says-whose-call-it-was-arc-inc-01` and surfaced by
+ * nothing, so until this increment it answered no question a session could ask. What is proved here
+ * is mostly about HONESTY rather than plumbing: a filter over a field most of the corpus does not
+ * carry is very easy to write in a way that reads as a census, and the arms below are chosen against
+ * that specific over-read.
  *
- * ## Why the projection arm goes through the STORE loader
- *
- * The stamp is a ROW field that `AdrMeta` deliberately cannot see (ADR-0519 D2), so it reaches a
- * view only through `loadTitledAdrMetasFromStore`. A test over `selectAdrListings` alone would pass
- * on a hand-built fixture while the real listing carried no `authority` at all — the exact
- * fully-unit-tested-and-completely-inert state ADR-0419 D1's traversal sat in for months. So one arm
- * drives a real row through the loader and out to the filter.
- *
- * ## And why the THREE STATES are asserted apart
- *
- * 289 of the 291 owner-basis stamps are phrase-matched backfills carrying no captured words. A
- * render that spoke about them in the same voice as a directive the owner actually gave would
- * promote every one of them into a class none of them earned — which is the whole reason
- * `hasQuotedOwnerDirective` exists as a shared predicate rather than a truthiness test.
+ * The projection that feeds all of this — a stored row's stamp reaching `AdrMeta` — is proved in
+ * `packages/drive/src/adr-metas.test.ts`, because that is the package the loader lives in and a test
+ * here could not witness it.
  */
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { loadTitledAdrMetasFromStore } from "@storytree/drive";
-import { InMemoryStore } from "@storytree/storage-protocol";
 import type { DecisionAuthority } from "@storytree/library";
+import type { AdrMeta } from "@storytree/drive";
+import { InMemoryStore } from "@storytree/storage-protocol";
 
-import { authorityBannerFor, UNSTAMPED_FILTER } from "./adr-attest.js";
-import { adrListingsOf, selectAdrListings, type AdrListing } from "./adr.js";
+import { run } from "./commands.js";
 
-const QUOTED: DecisionAuthority = {
-  basis: "owner-directed",
-  scribedBy: "cli@claude/x",
-  at: "2026-09-05",
-  ownerSaid: "yes, do it — basis plus my verbatim words",
-};
-const TRANSCRIBED: DecisionAuthority = {
-  basis: "owner-directed",
-  scribedBy: "cli@claude/backfill",
-  at: "2026-09-05",
-  transcribedFromProse: true,
-};
-const FLIPPED: DecisionAuthority = { basis: "agent-flipped", scribedBy: "cli@claude/x", at: "2026-09-05" };
+import {
+  adrCommand,
+  authorityBlockFor,
+  authorityLine,
+  renderAdrList,
+  selectAdrListings,
+  unstampedFooter,
+  type AdrListing,
+} from "./adr.js";
 
-function listing(number: number, authority?: DecisionAuthority): AdrListing {
-  const l: AdrListing = {
-    meta: {
-      number,
-      file: `adr-${String(number).padStart(4, "0")}`,
-      status: "accepted",
-      supersedes: [],
-      loadBearing: false,
-    },
-    title: `Decision ${String(number)}`,
-  };
-  if (authority !== undefined) l.authority = authority;
-  return l;
+const OWNER_WORDS = "yes, do it — basis plus my verbatim words";
+
+function stamp(over: Partial<DecisionAuthority> = {}): DecisionAuthority {
+  return { basis: "agent-derived", scribedBy: "cli@claude/x", at: "2026-09-05", ...over } as DecisionAuthority;
 }
 
-const SAMPLE: AdrListing[] = [
-  listing(100, QUOTED),
-  listing(200, TRANSCRIBED),
-  listing(300, FLIPPED),
-  listing(400, { basis: "agent-derived", scribedBy: "cli@claude/x", at: "2026-09-05" }),
-  listing(500),
+function listing(number: number, title: string, extra?: Partial<AdrMeta>): AdrListing {
+  return {
+    meta: {
+      number,
+      file: `${String(number).padStart(4, "0")}-x.md`,
+      status: "accepted",
+      supersedes: [],
+      loadBearing: false,
+      ...extra,
+    },
+    title,
+  };
+}
+
+/** Two stamped rows, two unstamped — the real corpus's shape in miniature. */
+const CORPUS: AdrListing[] = [
+  listing(1, "An unstamped elder"),
+  listing(2, "Owner directed, quoted", {
+    authority: stamp({ basis: "owner-directed", ownerSaid: OWNER_WORDS }),
+  }),
+  listing(3, "Another unstamped elder"),
+  listing(4, "An agent flip", { authority: stamp({ basis: "agent-flipped" }) }),
 ];
 
-const numbersOf = (ls: readonly AdrListing[]): number[] => ls.map((l) => l.meta.number);
+// ─── the filter, and what it must NOT be read as ──────────────────────────────────────────────
 
-// ─── the filter ───────────────────────────────────────────────────────────────────────────────
-
-test("adr list --basis: selects exactly the rows declaring that basis", () => {
-  assert.deepEqual(numbersOf(selectAdrListings(SAMPLE, { basis: "owner-directed" })), [100, 200]);
-  assert.deepEqual(numbersOf(selectAdrListings(SAMPLE, { basis: "agent-flipped" })), [300]);
-  assert.deepEqual(numbersOf(selectAdrListings(SAMPLE, { basis: "agent-derived" })), [400]);
+test("--basis selects only rows whose stamp claims that basis", () => {
+  const owner = selectAdrListings(CORPUS, { basis: "owner-directed" });
+  assert.deepEqual(owner.map((l) => l.meta.number), [2]);
+  const flipped = selectAdrListings(CORPUS, { basis: "agent-flipped" });
+  assert.deepEqual(flipped.map((l) => l.meta.number), [4]);
+  // A basis nothing claims selects nothing — not everything, which is what a filter written as
+  // `authority?.basis !== undefined` would have done.
+  assert.deepEqual(selectAdrListings(CORPUS, { basis: "owner-ratified" }), []);
 });
 
-test("adr list --basis unstamped: selects the ABSENCE, and never a stamped row", () => {
-  assert.deepEqual(numbersOf(selectAdrListings(SAMPLE, { basis: UNSTAMPED_FILTER })), [500]);
+test("an UNSTAMPED row matches no basis at all", () => {
+  // The rows most of the log is made of. They are not "not owner-directed" — they are rows this
+  // view cannot speak for, and they must fall out of every basis cut rather than land in one.
+  for (const basis of ["owner-directed", "owner-ratified", "agent-derived", "agent-flipped"] as const) {
+    const selected = selectAdrListings(CORPUS, { basis });
+    assert.equal(selected.some((l) => l.meta.number === 1), false, `unstamped row 1 leaked into ${basis}`);
+    assert.equal(selected.some((l) => l.meta.number === 3), false, `unstamped row 3 leaked into ${basis}`);
+  }
 });
 
-test("adr list: no --basis leaves every row in view", () => {
-  assert.deepEqual(numbersOf(selectAdrListings(SAMPLE, {})), [100, 200, 300, 400, 500]);
-});
-
-test("adr list --basis COMPOSES with the other filters rather than replacing them", () => {
+test("--basis composes with the other cuts rather than replacing them", () => {
   const mixed: AdrListing[] = [
-    listing(100, QUOTED),
-    { ...listing(200, QUOTED), meta: { ...listing(200).meta, status: "superseded" } },
+    listing(10, "Accepted + owner", { authority: stamp({ basis: "owner-directed", ownerSaid: "go" }) }),
+    listing(11, "Superseded + owner", {
+      status: "superseded",
+      authority: stamp({ basis: "owner-directed", ownerSaid: "go" }),
+    }),
   ];
-  assert.deepEqual(numbersOf(selectAdrListings(mixed, { basis: "owner-directed", current: true })), [100]);
+  // `--current --basis owner-directed` must apply BOTH. A filter chain where a later clause
+  // returned early would silently widen the cut it was asked to narrow.
+  assert.deepEqual(
+    selectAdrListings(mixed, { current: true, basis: "owner-directed" }).map((l) => l.meta.number),
+    [10],
+  );
 });
 
-// ─── the projection: a stamp only ever reaches a view from a ROW ───────────────────────────────
+// ─── the footer that stops a cut reading as a census ──────────────────────────────────────────
 
-test("the store loader projects the stamp, and the filter sees it end to end", async () => {
-  const store = new InMemoryStore();
-  const seed = async (n: number, authority?: DecisionAuthority): Promise<void> => {
-    const id = `adr-${String(n).padStart(4, "0")}`;
-    // The stamp is spread in rather than assigned through an open-dictionary binding, so the literal
-    // keeps its inferred type (`anti-slop/no-known-value-widening`) and a typo in a key still fails.
-    const stamp = authority === undefined ? {} : { authority };
-    await store.upsertDoc({
-      id,
-      kind: "adr",
-      doc: {
-        kind: "adr",
-        id,
-        title: `Decision ${String(n)}`,
-        description: `ADR-${String(n).padStart(4, "0")} — Decision ${String(n)}`,
-        body: `# ADR-${String(n).padStart(4, "0")}: Decision ${String(n)}\n`,
-        number: n,
-        status: "accepted",
-        supersedes: [],
-        loadBearing: false,
-        createdAt: "2026-06-26T00:00:00.000Z",
-        updatedAt: "2026-06-26T00:00:00.000Z",
-        ...stamp,
-      },
-    });
-  };
-  await seed(100, QUOTED);
-  await seed(500);
-
-  const { adrs } = await loadTitledAdrMetasFromStore(store);
-  const listings = adrListingsOf(adrs);
-  assert.deepEqual(listings.find((l) => l.meta.number === 100)?.authority, QUOTED);
-  assert.equal(listings.find((l) => l.meta.number === 500)?.authority, undefined);
-  assert.deepEqual(numbersOf(selectAdrListings(listings, { basis: "owner-directed" })), [100]);
-  assert.deepEqual(numbersOf(selectAdrListings(listings, { basis: UNSTAMPED_FILTER })), [500]);
+test("the unstamped footer fires ONLY on a basis cut, and states the arithmetic", () => {
+  const footer = unstampedFooter(CORPUS, { basis: "owner-directed" });
+  const text = footer.join("\n");
+  assert.match(text, /2 of 4 decisions carry NO authority stamp/);
+  // The sentence is the point, not the number: without it the row count reads as "these are the
+  // decisions the owner directed" rather than "these are the ones that say so".
+  assert.match(text, /what decisions SAY about who decided them, not who decided them/);
 });
 
-test("a MALFORMED stored stamp projects as unstamped, never as a basis nothing checked", async () => {
-  // Fail-closed: a `--basis` filter and a health rung both trusting an unvalidated shape would be
-  // the vacuous green ADR-0427 refuses. `unstamped` must therefore catch it.
+test("no basis cut, no footer — an unfiltered list makes no claim to disclaim", () => {
+  assert.deepEqual(unstampedFooter(CORPUS, {}), []);
+  assert.deepEqual(unstampedFooter(CORPUS, { current: true }), []);
+});
+
+test("a fully stamped population gets no footer either", () => {
+  const allStamped = [CORPUS[1], CORPUS[3]].filter((l): l is AdrListing => l !== undefined);
+  assert.deepEqual(unstampedFooter(allStamped, { basis: "owner-directed" }), []);
+});
+
+// ─── the list line ────────────────────────────────────────────────────────────────────────────
+
+test("authorityLine renders the basis, and nothing at all when there is no stamp", () => {
+  assert.equal(authorityLine(undefined), null, "an unstamped row contributes no line");
+  assert.equal(authorityLine(stamp({ basis: "agent-derived" })), "decided by: agent-derived");
+});
+
+test("authorityLine quotes the owner, and truncates with a visible marker", () => {
+  const long = "a".repeat(200);
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: long })) ?? "";
+  assert.match(line, /decided by: owner-directed/);
+  assert.ok(line.includes("…"), "a truncated quote must SAY it was truncated");
+  // A silent truncation would let a reader quote half a sentence as the owner's own words.
+  assert.ok(line.length < 120, `the list line stays scannable, got ${String(line.length)} chars`);
+});
+
+test("authorityLine FLATTENS a multi-line quote instead of breaking the row apart", () => {
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: "do it\n\nand quickly" })) ?? "";
+  assert.equal(line.includes("\n"), false, "a list row is one line");
+  assert.match(line, /“do it and quickly”/);
+});
+
+test("authorityLine SAYS when a stamp was transcribed rather than witnessed", () => {
+  const line = authorityLine(stamp({ basis: "owner-directed", transcribedFromProse: true })) ?? "";
+  // The weaker evidence must not read like the stronger. Without this a backfilled row and a row
+  // authored with the owner in the room print identically.
+  assert.match(line, /transcribed from prose, no quote/);
+});
+
+test("the rendered list carries the stamp line and the footer together", () => {
+  const rows = renderAdrList(CORPUS, { basis: "owner-directed" });
+  const text = rows.join("\n");
+  assert.match(text, /0002/, "the matching row is shown");
+  assert.ok(text.includes(OWNER_WORDS), "the owner's words reach the rendered output");
+  assert.match(text, /carry NO authority stamp/, "and the footer rides with it");
+});
+
+// ─── the record block: the deliberate difference from the list ────────────────────────────────
+
+test("authorityBlockFor shows the owner's words WHOLE — the list truncates, the record must not", () => {
+  const long = `${"word ".repeat(60)}end`;
+  const block = authorityBlockFor({ authority: stamp({ basis: "owner-directed", ownerSaid: long }) }).join("\n");
+  assert.ok(block.includes(long), "the record carries the full quote");
+  assert.equal(block.includes("…"), false, "and never truncates it — this is where a reader came to read it");
+});
+
+test("authorityBlockFor indents a multi-line quote instead of flattening it", () => {
+  const block = authorityBlockFor({
+    authority: stamp({ basis: "owner-directed", ownerSaid: "first line\nsecond line" }),
+  });
+  // The record preserves the shape of what was said; the list flattens it. Both are deliberate and
+  // they are the reason there are two functions rather than one with a width parameter.
+  assert.ok(block.includes("    first line"), "each line indented under the label");
+  assert.ok(block.includes("    second line"));
+});
+
+test("authorityBlockFor names WHO in plain language, and names the scribe", () => {
+  const block = authorityBlockFor({
+    authority: stamp({ basis: "owner-directed", ownerSaid: "go", scribedBy: "cli@claude/x" }),
+  }).join("\n");
+  // The record surface is read by the owner too, so `owner-directed` is glossed rather than printed
+  // as a token — the identifier belongs to the filter, the sentence belongs here.
+  assert.match(block, /the owner, who directed it in conversation/);
+  assert.match(block, /scribed by: cli@claude\/x/);
+});
+
+test("authorityBlockFor warns, in the record, that a transcribed stamp evidences nothing", () => {
+  const block = authorityBlockFor({
+    authority: stamp({ basis: "owner-directed", transcribedFromProse: true }),
+  }).join("\n");
+  assert.match(block, /TRANSCRIBED from this record's own prose/);
+  assert.match(block, /repeats a claim the prose already made rather than evidencing it/);
+});
+
+test("authorityBlockFor renders NOTHING for an unstamped or malformed record", () => {
+  // The `composedBannerFor` precedent: the block never announces its own absence, which is why most
+  // of the decision log renders exactly as it did before ADR-0519.
+  assert.deepEqual(authorityBlockFor({}), []);
+  assert.deepEqual(authorityBlockFor(null), []);
+  assert.deepEqual(authorityBlockFor({ authority: null }), []);
+  // A malformed stamp is not half-rendered — an owner claim with no quote is refused by the schema,
+  // and surfacing it anyway would show "decided by the owner" with nothing behind it.
+  assert.deepEqual(authorityBlockFor({ authority: { basis: "owner-directed", scribedBy: "x", at: "y" } }), []);
+});
+
+// ─── the count the footer would otherwise have corrupted ──────────────────────────────────────
+
+test("the ADR count reports DECISIONS, not rendered lines — the footer must not inflate it", async () => {
+  // Guarding a real near-miss: the header used to count "every line the renderer did not indent as a
+  // continuation", so the three un-indented footer lines would have been counted as three extra
+  // decisions. It is computed from the selection now, and this pins that.
+  const env = await adrCommand(
+    "list",
+    { basis: "owner-directed" },
+    {
+      allocator: null,
+      branch: "claude/test",
+      actor: "tester",
+      today: "2026-09-05",
+      roundTrip: { store: await storeWith(CORPUS), writable: false, actor: "tester" },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /storytree adr — 1 ADRs \[decided by: owner-directed\]/);
+});
+
+/** The four fixture rows as store documents, so `adr list` can be driven end to end. */
+async function storeWith(listings: readonly AdrListing[]): Promise<InMemoryStore> {
   const store = new InMemoryStore();
-  const id = "adr-0600";
-  await store.upsertDoc({
-    id,
-    kind: "adr",
-    doc: {
+  for (const l of listings) {
+    const id = `adr-${String(l.meta.number).padStart(4, "0")}`;
+    const base = {
       kind: "adr",
       id,
-      title: "Broken",
-      description: "ADR-0600 — Broken",
-      body: "# ADR-0600: Broken\n",
-      number: 600,
-      status: "accepted",
+      title: l.title,
+      description: `ADR-${String(l.meta.number).padStart(4, "0")} — ${l.title}`,
+      body: `# ADR-${String(l.meta.number).padStart(4, "0")}: ${l.title}\n`,
+      number: l.meta.number,
+      status: l.meta.status,
       supersedes: [],
       loadBearing: false,
-      // `owner-directed` with no words and no transcription marker — refused by the schema.
-      authority: { basis: "owner-directed", scribedBy: "cli@x", at: "2026-09-05" },
-      createdAt: "2026-06-26T00:00:00.000Z",
-      updatedAt: "2026-06-26T00:00:00.000Z",
+      createdAt: "2026-09-05T00:00:00.000Z",
+      updatedAt: "2026-09-05T00:00:00.000Z",
+    };
+    // ONE unconditional spread over a base chosen by a ternary — not an annotated open dictionary
+    // (the anti-slop widening rule refuses that) and not a conditional spread of `{}` (a second rule
+    // refuses THAT). The unstamped arm carries no `authority` KEY at all, which is the state the
+    // fixture is modelling and the thing the projection tests distinguish.
+    const doc = l.meta.authority === undefined ? base : { ...base, authority: l.meta.authority };
+    await store.upsertDoc({ id, kind: "adr", doc });
+  }
+  return store;
+}
+
+// ─── the help documents the honesty caveat, not just the flag ─────────────────────────────────
+
+test("adr help documents --basis AND the reading it must not be given", async () => {
+  const env = await adrCommand("help", {}, { allocator: null, branch: "b", actor: "a", today: "2026-09-05" });
+  const help = env.body;
+  const carries = (needle: string): void => {
+    assert.ok(help.includes(needle), `adr help is missing: ${JSON.stringify(needle)}`);
+  };
+  carries("--basis <b>      WHO decided (ADR-0519)");
+  carries("| --basis <b>]");
+  // The caveat is the part worth documenting: a flag anyone can guess, an over-read they cannot.
+  carries("shows what decisions SAY about who decided them");
+  carries("matches NO basis");
+  carries("most of the log carries none and always will");
+  carries("mechanically classifiable and leaves the rest alone");
+  carries("prints how many are unstamped for that reason");
+});
+
+// ─── the record render, end to end ────────────────────────────────────────────────────────────
+
+/**
+ * The block is pushed into the render by `commands.ts`, and only a run through `library artifact`
+ * can witness that hop — the unit tests above prove what the block SAYS and are blind to whether
+ * anything pushes it. Same argument as the projection tests in `packages/drive`: a green suite one
+ * layer in cannot see a surface that never calls it.
+ */
+test("library artifact: a stamped decision leads with the authority block, above its body", async () => {
+  const store = await storeWith([
+    listing(2, "Owner directed, quoted", {
+      authority: stamp({ basis: "owner-directed", ownerSaid: OWNER_WORDS }),
+    }),
+  ]);
+  const env = await run(["library", "artifact", "adr-0002"], { store });
+  assert.ok(env.body.includes(OWNER_WORDS), "the owner's words reach the record surface");
+  assert.match(env.body, /Decided by: the owner, who directed it in conversation/);
+  // A cover note sits ABOVE the text it covers — a reader who reaches the end of a long decision
+  // and only then learns who decided it has already spent the reading.
+  assert.ok(
+    env.body.indexOf("Decided by:") < env.body.indexOf("# ADR-0002:"),
+    "the block precedes the decision body",
+  );
+  // ADDITIVE: the record's own text survives in full (the ADR-0428 banner precedent).
+  assert.match(env.body, /# ADR-0002: Owner directed, quoted/);
+});
+
+test("library artifact: an UNSTAMPED decision renders exactly as it did before ADR-0519", async () => {
+  const store = await storeWith([listing(1, "An unstamped elder")]);
+  const env = await run(["library", "artifact", "adr-0001"], { store });
+  assert.equal(env.body.includes("Decided by:"), false, "the block never announces its own absence");
+  assert.match(env.body, /# ADR-0001: An unstamped elder/, "and the record still renders");
+});
+
+test("library artifact: a NON-decision artifact never grows an authority block", async () => {
+  // The `stored.kind === "adr"` guard. Without it every principle, arc and increment would be asked
+  // for a stamp it has no field for — harmless-looking, and the kind of widening that turns a
+  // decision-tier concept into corpus-wide noise.
+  const store = await storeWith([]);
+  await store.upsertDoc({
+    id: "some-principle",
+    kind: "principle",
+    doc: {
+      kind: "principle",
+      id: "some-principle",
+      title: "A principle",
+      description: "d",
+      body: "b",
+      // A stamp-shaped field on a non-decision must be ignored by KIND, not by shape.
+      authority: stamp({ basis: "owner-directed", ownerSaid: "go" }),
     },
   });
-  const listings = adrListingsOf((await loadTitledAdrMetasFromStore(store)).adrs);
-  assert.equal(listings[0]?.authority, undefined);
-  assert.deepEqual(numbersOf(selectAdrListings(listings, { basis: UNSTAMPED_FILTER })), [600]);
-  assert.deepEqual(numbersOf(selectAdrListings(listings, { basis: "owner-directed" })), []);
+  const env = await run(["library", "artifact", "some-principle"], { store });
+  assert.equal(env.body.includes("Decided by:"), false, "only decisions carry the block");
 });
 
-test("adrListingsOf does NOT put the stamp on `meta` — the one place ADR-0519 D2 forbids", () => {
-  const [only] = adrListingsOf([
+// ─── the line's own mechanics ─────────────────────────────────────────────────────────────────
+
+test("an unstamped row contributes NO line to the rendered list", () => {
+  const rows = renderAdrList([listing(1, "An unstamped elder")], {});
+  assert.equal(rows.some((r) => r.includes("decided by:")), false);
+  // ...and `null` never reaches the output as a rendered value either.
+  assert.equal(rows.some((r) => r.includes("null")), false);
+});
+
+test("authorityLine separates its parts, so the basis and the quote never run together", () => {
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: "go" })) ?? "";
+  assert.equal(line, "decided by: owner-directed · “go”");
+});
+
+test("authorityLine trims a quote that arrives padded", () => {
+  // Without the trim the rendered quote opens with the shell's or the file's own whitespace, which
+  // reads as the owner having said it.
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: "   go   " })) ?? "";
+  assert.equal(line, "decided by: owner-directed · “go”");
+});
+
+test("a quote of exactly the cutoff length is NOT truncated", () => {
+  // The boundary itself: `> 72` and `>= 72` differ on precisely this input, and a quote short
+  // enough to show whole must show whole.
+  const exact = "x".repeat(72);
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: exact })) ?? "";
+  assert.ok(line.includes(exact), "72 characters fit");
+  assert.equal(line.includes("…"), false, "and are not marked as cut");
+  // One character more IS cut, so the boundary is pinned from both sides.
+  const over = authorityLine(stamp({ basis: "owner-directed", ownerSaid: "x".repeat(73) })) ?? "";
+  assert.ok(over.includes("…"), "73 characters are");
+});
+
+// ─── the block's own mechanics ────────────────────────────────────────────────────────────────
+
+test("the authority block opens with a blank line, so it never abuts what precedes it", () => {
+  const block = authorityBlockFor({ authority: stamp() });
+  assert.equal(block[0], "", "a leading spacer separates the block from the description above it");
+});
+
+test("the block names each of the four bases in plain language", () => {
+  const prose = (basis: DecisionAuthority["basis"], quoted: boolean): string =>
+    authorityBlockFor({
+      authority: quoted ? stamp({ basis, ownerSaid: "go" }) : stamp({ basis }),
+    }).join("\n");
+  // All four, because a map with one wrong entry is exactly as broken as one with four and reads
+  // fine on whichever row you happened to look at.
+  assert.match(prose("owner-directed", true), /the owner, who directed it in conversation/);
+  assert.match(prose("owner-ratified", true), /the owner, who was asked and approved it/);
+  assert.match(prose("agent-derived", false), /an agent — the owner has not weighed in/);
+  assert.match(prose("agent-flipped", false), /an agent, transcribing the accepted flip \(ADR-0084\)/);
+});
+
+test("the block labels the quote as VERBATIM, so it cannot be read as a summary", () => {
+  const block = authorityBlockFor({
+    authority: stamp({ basis: "owner-directed", ownerSaid: "go" }),
+  }).join("\n");
+  assert.match(block, /the owner's words, verbatim:/);
+});
+
+test("a stamp that was NOT transcribed carries no transcription warning", () => {
+  // The complement that makes the warning mean something: fired unconditionally it would mark every
+  // record, the ones authored with the owner in the room included, and distinguish nothing.
+  const block = authorityBlockFor({
+    authority: stamp({ basis: "owner-directed", ownerSaid: "go" }),
+  }).join("\n");
+  assert.equal(block.includes("TRANSCRIBED"), false);
+});
+
+// ─── the footer and the cut label ─────────────────────────────────────────────────────────────
+
+test("the footer opens with a blank line, so it never abuts the last decision row", () => {
+  const footer = unstampedFooter(CORPUS, { basis: "owner-directed" });
+  assert.equal(footer[0], "");
+});
+
+test("a typo'd --basis is REFUSED, not answered with a well-formed empty list", async () => {
+  const env = await adrCommand(
+    "list",
+    { basis: "owner-decided" },
     {
-      number: 100,
-      file: "adr-0100",
-      status: "accepted",
-      supersedes: [],
-      loadBearing: false,
-      title: "T",
-      authority: QUOTED,
+      allocator: null,
+      branch: "b",
+      actor: "a",
+      today: "2026-09-05",
+      roundTrip: { store: await storeWith(CORPUS), writable: false, actor: "a" },
     },
-  ]);
-  assert.deepEqual(only?.authority, QUOTED);
-  assert.equal(
-    Object.hasOwn(only?.meta ?? {}, "authority"),
-    false,
-    "a rest spread would carry it onto meta silently \u2014 it must be destructured out",
   );
-
-  // And an UNSTAMPED listing carries no such KEY, rather than the key set to undefined. ADR-0223
-  // keeps absent and present distinct, and `Object.hasOwn` is the only test that can see the
-  // difference \u2014 a `=== undefined` assertion passes on both.
-  const [bare] = adrListingsOf([
-    { number: 100, file: "adr-0100", status: "accepted", supersedes: [], loadBearing: false, title: "T" },
-  ]);
-  assert.equal(Object.hasOwn(bare ?? {}, "authority"), false);
-});
-
-// ─── the record banner ────────────────────────────────────────────────────────────────────────
-
-test("the banner shows the owner's words VERBATIM, without a second command", () => {
-  const out = authorityBannerFor({ authority: QUOTED }).join("\n");
-  assert.match(out, /owner-directed/);
-  assert.match(out, /yes, do it — basis plus my verbatim words/);
-});
-
-test("the banner marks a TRANSCRIBED stamp as transcribed, and never as a quoted directive", () => {
-  const out = authorityBannerFor({ authority: TRANSCRIBED }).join("\n");
-  assert.match(out, /transcribed from the record's own prose/);
-  assert.match(out, /does not verify one/);
-  assert.doesNotMatch(out, /verbatim/, "a backfilled row must not borrow the language of a real quote");
-});
-
-test("the banner never announces its own absence", () => {
-  // 206 rows carry no stamp; a line on each would be noise on the commonest case, and the composed
-  // banner next door sets the precedent.
-  assert.deepEqual(authorityBannerFor({}), []);
-  assert.deepEqual(authorityBannerFor(null), []);
-  assert.deepEqual(authorityBannerFor({ authority: { basis: "nonsense" } }), []);
-});
-
-test("the banner reports an agent basis plainly, with no owner language at all", () => {
-  const out = authorityBannerFor({ authority: FLIPPED }).join("\n");
-  assert.match(out, /agent-flipped/);
-  assert.doesNotMatch(out, /owner/);
-});
-
-// ─── the banner, pinned WHOLE ─────────────────────────────────────────────────────────────────
-//
-// The `match` probes above assert the DISTINCTIONS that matter; these pin every remaining literal.
-// A render is mostly string literals and `check:mutation-diff` charges one mutant each, so a probe
-// leaves every word it did not quote unheld. Deliberately brittle: changing this wording is meant
-// to fail here.
-
-test("golden banner — a quoted owner directive", () => {
-  assert.deepEqual(authorityBannerFor({ authority: QUOTED }), [
-    "whose call: owner-directed (quoted owner directive) · scribed by cli@claude/x on 2026-09-05",
-    "",
-    "the owner's words, verbatim:",
-    "  > yes, do it — basis plus my verbatim words",
-    "",
+  assert.equal(env.ok, false, "a basis that is not one of the four is a typo, not a cut");
+  assert.match(env.body, /owner-directed \| owner-ratified \| agent-derived \| agent-flipped/);
+  // The near-miss is echoed, because "owner-decided" vs "owner-directed" is exactly the mistake a
+  // reader cannot spot in their own shell history.
+  assert.match(env.body, /got "owner-decided"/);
+  // The way out is offered, not just the complaint — a refusal whose `next:` is empty leaves the
+  // caller to reconstruct a working invocation from the error text.
+  assert.deepEqual(env.next, [
+    "storytree adr list --basis owner-directed",
+    "storytree adr list --current",
   ]);
 });
 
-test("golden banner — a transcribed owner claim", () => {
-  assert.deepEqual(authorityBannerFor({ authority: TRANSCRIBED }), [
-    "whose call: owner-directed (transcribed from the record's own prose — no owner words were ever captured) · scribed by cli@claude/backfill on 2026-09-05",
-    "  ⚠ read off this record's own `## Status` prose by a later pass, not captured from the owner.",
-    "    It carries an earlier agent's claim forward; it does not verify one (ADR-0519 D5).",
-    "",
-  ]);
+test("a padded --basis is accepted — the value is trimmed before it is judged", async () => {
+  const env = await adrCommand(
+    "list",
+    { basis: "  owner-directed  " },
+    {
+      allocator: null,
+      branch: "b",
+      actor: "a",
+      today: "2026-09-05",
+      roundTrip: { store: await storeWith(CORPUS), writable: false, actor: "a" },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /1 ADRs \[decided by: owner-directed\]/);
 });
 
-test("golden banner — an agent basis, which owes no provenance note at all", () => {
-  assert.deepEqual(authorityBannerFor({ authority: FLIPPED }), [
-    "whose call: agent-flipped (declared, no quote) · scribed by cli@claude/x on 2026-09-05",
-    "",
-  ]);
-});
-
-test("golden banner — a MULTI-LINE owner directive keeps every line quoted", () => {
-  // The `.split("\n").map()` is what carries a directive of several sentences; a single-line
-  // fixture cannot tell it from a bare push of the whole string.
-  const multi = { ...QUOTED, ownerSaid: "first line\nsecond line" };
-  assert.deepEqual(authorityBannerFor({ authority: multi }), [
-    "whose call: owner-directed (quoted owner directive) · scribed by cli@claude/x on 2026-09-05",
-    "",
-    "the owner's words, verbatim:",
-    "  > first line",
-    "  > second line",
-    "",
-  ]);
+test("an unfiltered list is labelled [all], not by a basis nobody asked for", async () => {
+  const env = await adrCommand(
+    "list",
+    {},
+    {
+      allocator: null,
+      branch: "b",
+      actor: "a",
+      today: "2026-09-05",
+      roundTrip: { store: await storeWith(CORPUS), writable: false, actor: "a" },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /storytree adr — 4 ADRs \[all\]/);
+  // ...and no basis cut means no footer, so an unfiltered list makes no claim it must disclaim.
+  assert.equal(env.body.includes("carry NO authority stamp"), false);
 });

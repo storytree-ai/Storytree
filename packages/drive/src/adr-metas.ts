@@ -54,23 +54,6 @@ export function extractAdrTitle(content: string): string {
 export interface TitledAdrMeta extends AdrMeta {
   /** The `# ADR-NNNN:` heading text, falling back to the filename when the heading is missing. */
   title: string;
-  /**
-   * ADR-0519's authority stamp — WHOSE CALL this decision was. Projected by
-   * {@link loadTitledAdrMetasFromStore} alone; `undefined` means the row carries none.
-   *
-   * ⚠ IT SITS HERE AND NOT ON {@link AdrMeta}, AND THE LINE IS THE ONE ADR-0519 D2 DREW. `AdrMeta` is
-   * the FRONTMATTER shape, and D2 keeps `authority` out of every document-path writer — out of
-   * `FRONTMATTER_ORDER` (so `adr push` REFUSES an `authority:` key rather than dropping it), out of
-   * the document render, and unnamed in `adrPush`'s spread (so correcting a decision's PROSE cannot
-   * rewrite who decided it). Declaring it on `AdrMeta` would put it in reach of
-   * `parseAdrFrontmatter`, and the fence would then rest on nobody having wired it.
-   *
-   * `TitledAdrMeta` is the VIEW shape, and `title` is already a field no frontmatter carries — read
-   * off the body, exactly as this is read off the row. The fs twin {@link loadTitledAdrMetas} cannot
-   * populate it even by accident: it builds from `parseAdrFrontmatter`, which has no such field. So
-   * the stamp reaches a view only from a ROW, which is the only place it is ever stored.
-   */
-  authority?: DecisionAuthority;
 }
 
 export interface LoadTitledAdrMetasResult {
@@ -316,10 +299,21 @@ export async function loadTitledAdrMetasFromStore(store: Store): Promise<StoreAd
     // "no edges" rather than take an orientation listing down. Pointers go through VERBATIM —
     // resolving which of them name decisions is the walk's job (`decision-pointer.ts`).
     if (hasDependsOnKey(bag)) meta.dependsOn = readDependsOnPointers(bag);
-    // ADR-0519's stamp, `safeParse`d rather than cast: a row whose stamp does not satisfy today's
-    // schema projects as UNSTAMPED, which is the fail-closed direction. The alternative is a
-    // `--basis` filter and a health rung both trusting a shape neither has checked — and an
-    // unreadable stamp reading as "declared" is precisely the vacuous green ADR-0427 refuses.
+    // ADR-0519's authority stamp — projected HERE and nowhere else, for the same reason `dependsOn`
+    // above is: this is the only loader holding a row to read it off, and the frontmatter twin is
+    // blind by construction because the stamp is deliberately not a document key at all.
+    //
+    // `.safeParse` rather than a cast, and the failure is SILENT-but-absent rather than fatal: this
+    // loader runs over the LIVE corpus, so a row written by another branch's schema — or by the
+    // backfill before its shape settled — must project as "no stamp" rather than take an entire
+    // `adr list` down. That is the same defensive posture the two `dependsOn` helpers already
+    // encode, and the same fail-soft rule as the parse errors this loop collects above.
+    //
+    // ⚠ A ROW THAT FAILS TO PARSE THEREFORE READS AS UNSTAMPED, which is the one way this view can
+    // understate coverage. Accepted deliberately: the alternative — surfacing a half-validated
+    // stamp — would let a malformed `basis` reach a filter and a malformed `ownerSaid` reach a
+    // reader as though the schema had vouched for it, and an authority claim nothing validated is
+    // exactly what ADR-0519 exists to prevent.
     const authority = DecisionAuthority.safeParse(bag["authority"]);
     if (authority.success) meta.authority = authority.data;
     adrs.push(meta);

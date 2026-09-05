@@ -358,7 +358,7 @@ test("authority-declared: the FAIL names the verb and the honest weaker basis, n
   );
   assert.deepEqual(r.find((c) => c.name === "authority-declared")?.lines ?? [], [
     "ADR-0519 is accepted and declares no authority basis (ADR-0519 D1). " +
-      "Stamp it: `storytree adr attest 519 --basis <b> [--owner-said <text|@file>] --pg`. " +
+      "Stamp it: `storytree adr authority 519 --basis <b> [--owner-said <text|@file>] --pg`. " +
       "With no directive to quote, the honest basis is `agent-derived`.",
   ]);
 });

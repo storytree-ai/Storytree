@@ -291,43 +291,71 @@ test("an UNREADABLE store reports no description mismatches, and says so as unre
   assert.deepEqual(res.descriptionMismatches, []);
 });
 
-// ─── ADR-0519's authority stamp ───────────────────────────────────────────────────────────────
-//
-// Same argument as `dependsOn` above, one field over: the stamp is ROW-ONLY (ADR-0519 D2 keeps it
-// out of `AdrMeta` and out of every document-path writer), so this projection is the ONLY way it
-// reaches a view. A projection that dropped it would leave `adr list --basis` and the
-// `authority-declared` health rung fully unit-tested and completely inert over real data.
+// ---- ADR-0519's authority stamp ---------------------------------------------------------------
 
-test("the projection carries a VALID authority stamp through to the view", async () => {
+/**
+ * The stamp reaches `AdrMeta` ONLY through this loader, so this file is where it lives or dies —
+ * the same argument the header makes for `dependsOn`, and the same failure available if it is
+ * dropped: `adr list --basis` and the record banner are both built from an `AdrMeta`, so a
+ * projection that loses the field leaves every one of their unit tests green and the surfaces inert.
+ */
+const OWNER_WORDS = "yes, do it — basis plus my verbatim words";
+
+test("a decision row's authority stamp reaches AdrMeta whole, owner's words included", async () => {
   const store = new InMemoryStore();
-  const stamp = {
+  await seedDecision(store, 519, {
+    authority: {
+      basis: "owner-directed",
+      scribedBy: "cli@claude/decision-authority-stamp",
+      at: "2026-09-05",
+      ownerSaid: OWNER_WORDS,
+    },
+  });
+  const { adrs } = await loadTitledAdrMetasFromStore(store);
+  // WHOLE, not merely present: the quote is the evidence, so a projection that kept the basis and
+  // dropped `ownerSaid` would satisfy a shallower assertion while destroying the point of the field.
+  assert.deepEqual(adrs[0]?.authority, {
     basis: "owner-directed",
-    scribedBy: "cli@claude/x",
+    scribedBy: "cli@claude/decision-authority-stamp",
     at: "2026-09-05",
-    ownerSaid: "his exact words",
-  };
-  await seedDecision(store, 519, { authority: stamp });
-  const { adrs } = await loadTitledAdrMetasFromStore(store);
-  assert.deepEqual(adrs[0]?.authority, stamp);
+    ownerSaid: OWNER_WORDS,
+  });
 });
 
-test("a MALFORMED authority stamp projects as ABSENT, never as a basis nothing validated", async () => {
-  // Fail-closed, and the direction matters: the `authority-declared` rung reads this projection, so
-  // a stamp that satisfied nothing but rode through as present would be a vacuous green on the one
-  // rung whose whole subject is evidence.
-  const store = new InMemoryStore();
-  // `owner-directed` with neither a quote nor the transcription marker — the schema refuses it.
-  await seedDecision(store, 520, { authority: { basis: "owner-directed", scribedBy: "x", at: "d" } });
-  await seedDecision(store, 521, { authority: { basis: "not-a-basis", scribedBy: "x", at: "d" } });
-  await seedDecision(store, 522, { authority: "a string, not a stamp" });
-  const { adrs } = await loadTitledAdrMetasFromStore(store);
-  for (const a of adrs) assert.equal(a.authority, undefined, `ADR-${String(a.number)} must project as unstamped`);
-});
-
-test("a row with NO authority key projects as absent, and absence stays distinguishable", async () => {
+test("a decision row with NO authority key projects as absent, not as an empty stamp", async () => {
   const store = new InMemoryStore();
   await seedDecision(store, 100);
   const { adrs } = await loadTitledAdrMetasFromStore(store);
+  // ABSENT is a real state (ADR-0519 D6): most of the log is unstamped and always will be, and a
+  // defaulted `{}` here would make every one of them match a filter and inflate every count.
   assert.equal(adrs[0]?.authority, undefined);
-  assert.equal(Object.hasOwn(adrs[0] ?? {}, "authority"), false, "absent must not become present-and-undefined");
+  assert.equal("authority" in (adrs[0] ?? {}), false, "the key is absent, not present-and-undefined");
+});
+
+test("a MALFORMED authority projects as absent rather than taking the whole listing down", async () => {
+  const store = new InMemoryStore();
+  // An owner basis with no quote — refused by the schema (ADR-0519 D3). A row can hold this if it
+  // was written by another branch's schema or a half-finished backfill, and this loader runs over
+  // the LIVE corpus, so one bad row must not red `adr list` for every other decision.
+  await seedDecision(store, 101, { authority: { basis: "owner-directed", scribedBy: "x", at: "y" } });
+  await seedDecision(store, 102, {
+    authority: { basis: "agent-derived", scribedBy: "cli@ok", at: "2026-09-05" },
+  });
+  const { adrs, parseErrors } = await loadTitledAdrMetasFromStore(store);
+  assert.equal(adrs.length, 2, "both rows still listed");
+  assert.equal(adrs[0]?.authority, undefined, "the malformed stamp is dropped, not half-surfaced");
+  // ...and the healthy sibling is untouched, which is the property that makes dropping safe.
+  assert.equal(adrs[1]?.authority?.basis, "agent-derived");
+  assert.deepEqual(parseErrors, [], "a bad stamp is not a parse error — the row itself reads fine");
+});
+
+test("the frontmatter parser stays BLIND to the stamp — it is not a document key at all", () => {
+  // ADR-0519 D2's mechanism, asserted rather than assumed: the stamp is deliberately absent from the
+  // document so no `adr push` of hand-edited prose can rewrite the owner's words. If this ever
+  // starts returning a stamp, that protection is gone and the field has quietly become editable.
+  const meta = parseAdrFrontmatter(
+    "0519-a-title.md",
+    "---\nstatus: accepted\ndecided: 2026-09-05\n---\n# ADR-0519: A title\n",
+  );
+  assert.equal(meta.authority, undefined);
 });

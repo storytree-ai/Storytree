@@ -408,7 +408,7 @@ export function adrHealth(inputs: AdrHealthInputs): CheckResult[] {
     if (a.status !== "accepted" || a.number < AUTHORITY_FLOOR || declared.has(a.number)) continue;
     undeclared.push(
       `ADR-${pad(a.number)} is accepted and declares no authority basis (ADR-0519 D1). ` +
-        `Stamp it: \`storytree adr attest ${String(a.number)} --basis <b> [--owner-said <text|@file>] --pg\`. ` +
+        `Stamp it: \`storytree adr authority ${String(a.number)} --basis <b> [--owner-said <text|@file>] --pg\`. ` +
         `With no directive to quote, the honest basis is \`agent-derived\`.`,
     );
   }

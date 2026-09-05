@@ -14,7 +14,7 @@ import { defaultCliActor } from "./cli-actor.js";
 import type { Envelope } from "./envelope.js";
 
 /**
- * `storytree adr attest` — the ONLY way to stamp a decision that already exists (ADR-0519 D2/D5).
+ * `storytree adr authority` — the ONLY way to stamp a decision that already exists (ADR-0519 D2/D5).
  *
  * ## The gap this closes
  *
@@ -46,10 +46,15 @@ import type { Envelope } from "./envelope.js";
  *    independently in `events.library_event.actor`" — and that property holds ONLY while it names
  *    the writer of the stamp. A `--scribed-by` flag would let a caller fake the one corroborated
  *    field on the record, so there is none.
- * 2. **An existing stamp is not overwritten.** Re-stamping needs the explicit `--restamp`, the
- *    `--allow-control-arm` shape: evidence a later pass can quietly rewrite is not evidence, and a
- *    verb that silently upserted would put the stamp straight back inside the reach of the routine
- *    correction ADR-0519 D2 exists to keep it out of.
+ * 2. **It FILLS AN ABSENCE and can do nothing else.** An existing stamp is refused outright — there
+ *    is no `--force`, no `--restamp`, no escape at all, and that is the whole reason a second writer
+ *    is admissible. ADR-0424 D6 says evidence a hand-edit can rewrite is not evidence; a fill-only
+ *    verb is not a rewrite, so the guarantee ADR-0519 D2 bought — that no later pass can change who
+ *    is recorded as deciding — survives intact. An earlier draft of this verb carried an explicit
+ *    `--restamp` escape on the `--allow-control-arm` precedent. It was removed rather than kept:
+ *    a loud rewrite route is still a rewrite route, and the stamp's value is precisely that none
+ *    exists. A stamp that is WRONG is corrected the way a wrong decision is — in the record's own
+ *    prose, or by superseding it.
  * 3. **The backfill TRANSCRIBES; it never verifies.** {@link classifyFromProse} matches the two
  *    EXACT phrases ADR-0519 D5 names and nothing else. Widening it toward the ~200 rows that phrase
  *    their authority freely is the reconstruction D5 forbids, and an unstamped row is an honest
@@ -134,48 +139,8 @@ export function classifyFromProse(body: unknown): ProseClassification | null {
   return null;
 }
 
-/**
- * The extra word `adr list --basis` accepts beside the four bases: the rows that declare NOTHING.
- *
- * Deliberately not a fifth `AuthorityBasis` member — "nobody ever stamped this" is the ABSENCE of a
- * basis, and ADR-0519 D6 keeps absent and present distinct rather than collapsing them into a value.
- * It is a filter word only, and it exists because the 206 unstamped rows are the set a reader most
- * often wants to name: they are what `check:adr-health`'s declared-basis rung is measured against.
- */
-export const UNSTAMPED_FILTER = "unstamped";
-
-/**
- * PURE: the AUTHORITY BANNER over one decision's rendered record (ADR-0519 D1/D3).
- *
- * The `composedBannerFor` shape and for its reason: a decision that carries a stamp leads with it,
- * every record that carries none renders exactly as before, and the banner NEVER announces its own
- * absence. Additive — the record's own text follows in full.
- *
- * ⚠ THE THREE STATES ARE KEPT APART HERE, which is the whole reason this is a banner rather than one
- * more field on a line. `hasQuotedOwnerDirective` is called rather than re-derived, because the
- * distinction a second reader flattens is exactly this one — and flattening it would print 289
- * phrase-matched backfills in the same voice as a directive the owner actually gave.
- */
-export function authorityBannerFor(doc: unknown): string[] {
-  const bag = (typeof doc === "object" && doc !== null ? doc : {}) as Record<string, unknown>;
-  const authority = authorityOf(bag);
-  if (authority === undefined) return [];
-  const lines = [`whose call: ${describeAuthority(authority)}`];
-  if (authority.ownerSaid !== undefined) {
-    // The owner's words go where a reader sees them WITHOUT asking — storing them and then hiding
-    // them behind a second command would keep the evidence and lose the point of keeping it.
-    lines.push("", "the owner's words, verbatim:", ...authority.ownerSaid.split("\n").map((l) => `  > ${l}`));
-  } else if (authority.transcribedFromProse === true) {
-    lines.push(
-      "  ⚠ read off this record's own `## Status` prose by a later pass, not captured from the owner.",
-      "    It carries an earlier agent's claim forward; it does not verify one (ADR-0519 D5).",
-    );
-  }
-  return [...lines, ""];
-}
-
 /** What the verb needs. `today` is injected for the reason `adr compose`'s is: a module that stamps its own date cannot be tested for what it stamps. */
-export interface AdrAttestDeps {
+export interface AdrAuthorityDeps {
   readonly store: Store;
   /** `--pg` + a real connection. Every WRITE refuses without it; every read shape works regardless. */
   readonly writable: boolean;
@@ -184,7 +149,7 @@ export interface AdrAttestDeps {
   readonly today: string;
 }
 
-export interface AdrAttestOpts {
+export interface AdrAuthorityOpts {
   /** `--basis <b>` — supplying it makes this a WRITE. Absent, a numbered call READS the stamp. */
   readonly basis?: string | undefined;
   /** `--owner-said <text|@file>` — the owner's verbatim directive. Owed by an owner basis, refused on an agent one. */
@@ -193,12 +158,10 @@ export interface AdrAttestOpts {
   readonly transcribedFromProse?: boolean | undefined;
   /** `--backfill` — classify every unstamped row by D5's two exact phrases. A DRY RUN without `--pg`. */
   readonly backfill?: boolean | undefined;
-  /** `--restamp` — the explicit escape from fence 2. Never implied by anything else. */
-  readonly restamp?: boolean | undefined;
 }
 
 /** One decision row, narrowed to what every shape here reads. */
-interface AttestRow {
+interface AuthorityRow {
   readonly id: string;
   readonly number: number;
   readonly bag: Record<string, unknown>;
@@ -231,8 +194,8 @@ function authorityOf(bag: Record<string, unknown>): DecisionAuthority | undefine
  */
 const isFiniteNumber = (value: unknown): value is number => Number.isFinite(value);
 
-function attestRowsOf(docs: readonly StoredDoc[]): AttestRow[] {
-  const rows: AttestRow[] = [];
+function authorityRowsOf(docs: readonly StoredDoc[]): AuthorityRow[] {
+  const rows: AuthorityRow[] = [];
   for (const doc of docs) {
     const bag = (typeof doc.doc === "object" && doc.doc !== null ? doc.doc : {}) as Record<string, unknown>;
     // ONE runtime test, not two. `Number.isFinite` does NOT coerce (unlike the global `isFinite`),
@@ -265,7 +228,7 @@ export function describeAuthority(authority: DecisionAuthority | undefined): str
 }
 
 /**
- * `storytree adr attest [<n>] [--basis <b>] [--owner-said <t>] [--transcribed-from-prose] [--backfill] [--restamp] [--pg]`
+ * `storytree adr authority [<n>] [--basis <b>] [--owner-said <t>] [--transcribed-from-prose] [--backfill] [--pg]`
  *
  * FOUR SHAPES, chosen by what the caller supplied rather than by a mode flag — the `adr compose`
  * shape, for the same reason: a READ is what a caller gets by naming less.
@@ -273,14 +236,14 @@ export function describeAuthority(authority: DecisionAuthority | undefined): str
  *   - nothing            → the coverage index: how much of the log declares a basis, and of what.
  *   - `--backfill`       → D5's mechanical pass. A DRY RUN without `--pg`; applies with it.
  *   - a number           → read one record's stamp.
- *   - a number + `--basis` → stamp it.
+ *   - a number + `--basis` → stamp it, if and only if it carries none.
  */
-export async function adrAttest(
+export async function adrAuthority(
   numberArg: string | undefined,
-  opts: AdrAttestOpts,
-  deps: AdrAttestDeps,
+  opts: AdrAuthorityOpts,
+  deps: AdrAuthorityDeps,
 ): Promise<Envelope> {
-  const rows = attestRowsOf(await deps.store.queryDocs({ kind: "adr" }));
+  const rows = authorityRowsOf(await deps.store.queryDocs({ kind: "adr" }));
   if (rows.length === 0) {
     return {
       ok: false,
@@ -294,7 +257,7 @@ export async function adrAttest(
       return {
         ok: false,
         body: `--backfill stamps the whole log by ADR-0519 D5's two exact phrases; it takes no decision number (got ${JSON.stringify(numberArg)}).`,
-        next: ["storytree adr attest --backfill", `storytree adr attest ${numberArg} --basis agent-derived --pg`],
+        next: ["storytree adr authority --backfill", `storytree adr authority ${numberArg} --basis agent-derived --pg`],
       };
     }
     return await backfill(rows, opts, deps);
@@ -307,7 +270,7 @@ export async function adrAttest(
     return {
       ok: false,
       body: `expected a decision NUMBER (got ${JSON.stringify(numberArg)}).`,
-      next: ["storytree adr attest 519", "storytree adr attest"],
+      next: ["storytree adr authority 519", "storytree adr authority"],
     };
   }
   const id = adrDocId(number);
@@ -316,16 +279,16 @@ export async function adrAttest(
     return {
       ok: false,
       body: `no decision row "${id}" in the store.`,
-      next: ["storytree adr list --current", "storytree adr attest"],
+      next: ["storytree adr list --current", "storytree adr authority"],
     };
   }
 
-  if (opts.basis === undefined) return attestRead(row, opts);
-  return await attestOne(row, opts, deps);
+  if (opts.basis === undefined) return authorityRead(row, opts);
+  return await authorityWrite(row, opts, deps);
 }
 
-/** `storytree adr attest <n>` — read one record's stamp. */
-function attestRead(row: AttestRow, opts: AdrAttestOpts): Envelope {
+/** `storytree adr authority <n>` — read one record's stamp. */
+function authorityRead(row: AuthorityRow, opts: AdrAuthorityOpts): Envelope {
   const lines = [`${label(row.number)} — ${describeAuthority(row.authority)}`];
   if (row.authority?.ownerSaid !== undefined) {
     lines.push("", "The owner's words, verbatim:", ...row.authority.ownerSaid.split("\n").map((l) => `  > ${l}`));
@@ -339,7 +302,7 @@ function attestRead(row: AttestRow, opts: AdrAttestOpts): Envelope {
           "backfill leaves it alone. That is an honest absence — stamp it by hand only if you KNOW\n" +
           "whose call it was; do not read a basis out of prose the classifier declined."
         : `The backfill would read it as \`${classified.basis}\` from its own prose ` +
-          `(\`storytree adr attest --backfill\` to see the whole pass).`,
+          `(\`storytree adr authority --backfill\` to see the whole pass).`,
     );
   }
   return {
@@ -351,46 +314,47 @@ function attestRead(row: AttestRow, opts: AdrAttestOpts): Envelope {
       // conjunct could not change any answer — an equivalent mutant, and a second reader would take
       // it as evidence the branch is reachable with a basis in hand. It is not.
       row.authority === undefined
-        ? `storytree adr attest ${String(row.number)} --basis agent-derived --pg`
-        : "storytree adr attest",
+        ? `storytree adr authority ${String(row.number)} --basis agent-derived --pg`
+        : "storytree adr authority",
     ],
   };
 }
 
-/** `storytree adr attest <n> --basis <b> …` — stamp one record. */
-async function attestOne(row: AttestRow, opts: AdrAttestOpts, deps: AdrAttestDeps): Promise<Envelope> {
+/** `storytree adr authority <n> --basis <b> …` — stamp one record. */
+async function authorityWrite(row: AuthorityRow, opts: AdrAuthorityOpts, deps: AdrAuthorityDeps): Promise<Envelope> {
   const parsedBasis = AuthorityBasis.safeParse(opts.basis);
   if (!parsedBasis.success) {
     return {
       ok: false,
       body: `--basis must be one of ${AuthorityBasis.options.join(" | ")} (got ${JSON.stringify(opts.basis)}).`,
-      next: [`storytree adr attest ${String(row.number)}`],
+      next: [`storytree adr authority ${String(row.number)}`],
     };
   }
   // FENCE 2. Refused BEFORE the write gate, so a caller without `--pg` still learns the stamp exists
   // rather than being told to re-run with a flag that would then be refused for a different reason.
-  if (row.authority !== undefined && opts.restamp !== true) {
+  if (row.authority !== undefined) {
     return {
       ok: false,
       body: [
         `${label(row.number)} is ALREADY stamped and was not overwritten:`,
         `  ${describeAuthority(row.authority)}`,
         "",
-        "A stamp is EVIDENCE (ADR-0519 D2), and evidence a later pass can quietly rewrite is not",
-        "evidence. Re-stamping is therefore explicit rather than implied: --restamp.",
+        "This verb FILLS AN ABSENCE and can do nothing else. There is no --force and no --restamp:",
+        "a stamp is EVIDENCE (ADR-0424 D6), and evidence a later pass can rewrite is not evidence.",
+        "A loud rewrite route is still a rewrite route, so none exists.",
         "",
-        "If this stamp is WRONG, say so out loud — re-stamp it and record why in the decision's own",
-        "prose. If you are merely correcting the record's text, you do not need this verb at all: the",
-        "stamp is deliberately out of `adr push`'s reach, which is what it is for.",
+        "If this stamp is WRONG, correct it the way a wrong DECISION is corrected — say so in the",
+        "record's own prose, or supersede the record. If you are merely correcting the record's text,",
+        "you do not need this verb at all: the stamp is deliberately out of `adr push`'s reach.",
       ].join("\n"),
-      next: [`storytree adr attest ${String(row.number)}`, `storytree library artifact ${row.id}`],
+      next: [`storytree adr authority ${String(row.number)}`, `storytree library artifact ${row.id}`],
     };
   }
   if (!deps.writable) {
     return {
       ok: false,
-      body: "attesting writes to the shared store — run with --pg (and bring the DB up first: pnpm db:up).",
-      next: ["pnpm db:up", `storytree adr attest ${String(row.number)} --basis ${parsedBasis.data} --pg`],
+      body: "stamping writes to the shared store — run with --pg (and bring the DB up first: pnpm db:up).",
+      next: ["pnpm db:up", `storytree adr authority ${String(row.number)} --basis ${parsedBasis.data} --pg`],
     };
   }
 
@@ -410,7 +374,7 @@ async function attestOne(row: AttestRow, opts: AdrAttestOpts, deps: AdrAttestDep
     return {
       ok: false,
       body: parsed.error.issues.map((i) => i.message).join("\n"),
-      next: [`storytree adr attest ${String(row.number)}`],
+      next: [`storytree adr authority ${String(row.number)}`],
     };
   }
 
@@ -419,21 +383,21 @@ async function attestOne(row: AttestRow, opts: AdrAttestOpts, deps: AdrAttestDep
   return {
     ok: true,
     body: [
-      `${row.authority === undefined ? "stamped" : "RE-STAMPED"} ${row.id}:`,
+      `stamped ${row.id}:`,
       `  ${describeAuthority(parsed.data)}`,
       ...(parsed.data.ownerSaid === undefined
         ? []
         : ["", "The owner's words, verbatim:", ...parsed.data.ownerSaid.split("\n").map((l) => `  > ${l}`)]),
     ].join("\n"),
-    next: [`storytree library artifact ${row.id}`, "storytree adr attest"],
+    next: [`storytree library artifact ${row.id}`, "storytree adr authority"],
   };
 }
 
 /** The one write, shared by the single stamp and the backfill so both validate identically. */
 async function writeStamp(
-  row: AttestRow,
+  row: AuthorityRow,
   authority: DecisionAuthority,
-  deps: AdrAttestDeps,
+  deps: AdrAuthorityDeps,
 ): Promise<{ ok: true } | { ok: false; envelope: Envelope }> {
   const updated = { ...row.bag, authority, updatedAt: new Date().toISOString() };
   let doc: ReturnType<typeof upcastAndValidate>;
@@ -458,37 +422,24 @@ async function writeStamp(
 }
 
 /**
- * `storytree adr attest --backfill [--pg]` — ADR-0519 D5's mechanical pass.
+ * `storytree adr authority --backfill [--pg]` — ADR-0519 D5's mechanical pass.
  *
  * A DRY RUN without `--pg`, which is the useful default rather than a safety afterthought: the pass
  * is only ever worth running once, and what a reader wants first is to see WHICH rows it would touch
  * and on what evidence.
  *
- * It never touches a row that already carries a stamp, `--restamp` or not: a backfill that could
- * overwrite an authored stamp would let a bulk pass silently replace a quoted owner directive with a
- * phrase-matched transcription — the exact inversion of what D5 is for.
+ * It never touches a row that already carries a stamp — the same fill-only rule the single write
+ * keeps, and for a sharper reason here: a bulk pass that could overwrite would silently replace a
+ * quoted owner directive with a phrase match read off prose, which is the exact inversion of what
+ * D5 is for.
  */
 async function backfill(
-  rows: readonly AttestRow[],
-  opts: AdrAttestOpts,
-  deps: AdrAttestDeps,
+  rows: readonly AuthorityRow[],
+  opts: AdrAuthorityOpts,
+  deps: AdrAuthorityDeps,
 ): Promise<Envelope> {
-  if (opts.restamp === true) {
-    return {
-      ok: false,
-      body: [
-        "--restamp is refused on --backfill, and not merely unimplemented.",
-        "",
-        "A bulk pass that could overwrite would replace an AUTHORED stamp — a quoted owner directive,",
-        "given in a session where he actually spoke — with a phrase match read off prose. That is the",
-        "inversion of ADR-0519 D5, which exists to TRANSCRIBE what nobody captured, never to overwrite",
-        "what somebody did. Re-stamp records one at a time, where the choice is visible.",
-      ].join("\n"),
-      next: ["storytree adr attest --backfill"],
-    };
-  }
   const unstamped = rows.filter((r) => r.authority === undefined);
-  const planned: { row: AttestRow; authority: DecisionAuthority }[] = [];
+  const planned: { row: AuthorityRow; authority: DecisionAuthority }[] = [];
   const scribedBy = deps.actor ?? defaultCliActor();
   for (const row of unstamped) {
     const classified = classifyFromProse(row.body);
@@ -496,7 +447,7 @@ async function backfill(
     // Built directly rather than re-validated per row. Both of {@link classifyFromProse}'s outputs
     // satisfy `DecisionAuthority` BY CONSTRUCTION, so a `safeParse` guard here could never fail —
     // an unreachable branch, which is a design smell rather than a safety net. The invariant it was
-    // standing in for is held where it can actually be checked: `adr-attest.test.ts` parses each
+    // standing in for is held where it can actually be checked: `adr-authority-verb.test.ts` parses each
     // classifier output against the schema, so a classifier change that started minting refused
     // stamps reds there instead of being silently skipped over 200 rows here.
     const authority: DecisionAuthority = { basis: classified.basis, scribedBy, at: deps.today };
@@ -527,7 +478,7 @@ async function backfill(
         "",
         "Re-run with --pg to apply.",
       ].join("\n"),
-      next: ["pnpm db:up", "storytree adr attest --backfill --pg", "storytree adr attest"],
+      next: ["pnpm db:up", "storytree adr authority --backfill --pg", "storytree adr authority"],
     };
   }
 
@@ -551,19 +502,19 @@ async function backfill(
       `  ${String(leftAlone).padStart(4)}  left UNSTAMPED — an honest absence, not a hole to fill (ADR-0519 D5)`,
       ...(failures.length === 0 ? [] : ["", `⚠ ${String(failures.length)} row(s) FAILED:`, ...failures]),
     ].join("\n"),
-    next: ["storytree adr attest", "storytree adr list --current"],
+    next: ["storytree adr authority", "storytree adr list --current"],
   };
 }
 
 /**
- * `storytree adr attest` — how much of the log declares a basis.
+ * `storytree adr authority` — how much of the log declares a basis.
  *
  * ⚠ EVERY FIGURE HERE NAMES ITS DENOMINATOR, and that is a correctness requirement rather than
  * politeness. ADR-0519 D5 leaves ~41% of the log permanently unstamped by design, so a percentage
  * printed over the stamped rows alone would read as a coverage claim about the whole decision log —
  * the shape a reader cannot detect FROM the view.
  */
-function coverageIndex(rows: readonly AttestRow[]): Envelope {
+function coverageIndex(rows: readonly AuthorityRow[]): Envelope {
   const stamped = rows.filter((r) => r.authority !== undefined);
   const byBasis = new Map<string, number>();
   let quoted = 0;
@@ -579,7 +530,7 @@ function coverageIndex(rows: readonly AttestRow[]): Envelope {
   return {
     ok: true,
     body: [
-      `storytree adr attest — ${String(stamped.length)} of ${String(rows.length)} decision rows declare a basis ` +
+      `storytree adr authority — ${String(stamped.length)} of ${String(rows.length)} decision rows declare a basis ` +
         `(${pct(stamped.length, rows.length)} of the WHOLE log).`,
       "",
       ...[...byBasis].sort().map(([b, n]) => `  ${String(n).padStart(4)}  ${b}`),
@@ -595,6 +546,6 @@ function coverageIndex(rows: readonly AttestRow[]): Envelope {
       "the reason the marker exists, and flattening them would promote every backfilled row into the",
       "class of a record authored with the owner in the room.",
     ].join("\n"),
-    next: ["storytree adr attest --backfill", "storytree adr list --current", "storytree adr attest 519"],
+    next: ["storytree adr authority --backfill", "storytree adr list --current", "storytree adr authority 519"],
   };
 }

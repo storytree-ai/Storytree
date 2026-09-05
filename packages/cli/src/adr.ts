@@ -3,7 +3,7 @@ import type { Store } from "@storytree/storage-protocol";
 
 import { defaultCliActor } from "./cli-actor.js";
 
-import { adrAttest, UNSTAMPED_FILTER, type AdrAttestOpts } from "./adr-attest.js";
+import { adrAuthority, type AdrAuthorityOpts } from "./adr-authority-verb.js";
 import { adrCompose, type AdrComposeOpts } from "./adr-composed.js";
 import { adrRebind, type AdrRebindDeps, type AdrRebindOpts } from "./adr-rebind.js";
 import { adrPull, adrPush, type AdrRoundTripDeps } from "./adr-round-trip.js";
@@ -113,9 +113,17 @@ export interface AdrCommandOpts {
    */
   clause?: string | undefined;
   /**
-   * `--basis <owner-directed|owner-ratified|agent-derived|agent-flipped>` (ADR-0519 D1): WHOSE call
-   * this decision was. Absent derives from `--decided` — see {@link resolveAuthority} for the
-   * mapping and why the derived default is the WEAK one.
+   * `--basis <owner-directed|owner-ratified|agent-derived|agent-flipped>` — ONE flag, TWO verbs.
+   *
+   * On `adr new` (ADR-0519 D1) it declares WHOSE call this decision was; absent, it derives from
+   * `--decided` — see {@link resolveAuthority} for the mapping and why the derived default is the
+   * WEAK one. On `adr list` it FILTERS to decisions whose stamp claims that basis, and a row
+   * carrying no stamp matches nothing — see {@link AdrListFilter.basis} for why that reading
+   * matters and what the rendered footer has to disclose because of it.
+   *
+   * Shared deliberately rather than split into `--basis` and `--filter-basis`: it is the same
+   * vocabulary answering the same question, and a caller who learns the four values on one verb
+   * should not have to learn a second spelling on the other.
    */
   basis?: string | undefined;
   /**
@@ -124,17 +132,15 @@ export interface AdrCommandOpts {
    * multi-sentence directive comes from a file rather than through the shell.
    */
   ownerSaid?: string | undefined;
+  /** `adr compose --allow-control-arm`: the explicit escape from the frozen-trial fence (D6). */
   /**
-   * `adr attest <n> --transcribed-from-prose` (ADR-0519 D5): this stamp was READ OFF the record's
+   * `adr authority <n> --transcribed-from-prose` (ADR-0519 D5): this stamp was READ OFF the record's
    * own `## Status` prose and no owner words were ever captured. The schema refuses it beside
    * {@link ownerSaid} and on a non-owner basis, so it can only ever mark what it says it marks.
    */
   transcribedFromProse?: boolean | undefined;
-  /** `adr attest --backfill` (ADR-0519 D5): the mechanical pass. A DRY RUN unless `--pg`. */
+  /** `adr authority --backfill` (ADR-0519 D5): the mechanical pass. A DRY RUN unless `--pg`. */
   backfill?: boolean | undefined;
-  /** `adr attest <n> --restamp`: the explicit escape from the never-overwrite-a-stamp fence. */
-  restamp?: boolean | undefined;
-  /** `adr compose --allow-control-arm`: the explicit escape from the frozen-trial fence (D6). */
   allowControlArm?: boolean | undefined;
   /**
    * `adr rebind <n> --refute <key>`: the anchor to close as REFUTED, keyed by its identity exactly as
@@ -669,12 +675,6 @@ async function adrNext(deps: AdrCommandDeps): Promise<Envelope> {
 export interface AdrListing {
   meta: AdrMeta;
   title: string;
-  /**
-   * ADR-0519's authority stamp, carried BESIDE `meta` rather than on it — see `TitledAdrMeta`'s
-   * field docstring for why `AdrMeta` stays blind. Absent means the row declares no basis, which is
-   * a real state and never a default (ADR-0519 D6).
-   */
-  authority?: DecisionAuthority;
 }
 
 /** The `adr list` filters; absent = no filter (show everything). */
@@ -683,10 +683,16 @@ export interface AdrListFilter {
   loadBearing?: boolean;
   status?: AdrStatus;
   /**
-   * `--basis <b>` (ADR-0519 D1): whose call it was. One of the four bases, or
-   * {@link UNSTAMPED_FILTER} for the rows that declare nothing.
+   * ADR-0519's `--basis <b>`: show only decisions whose authority stamp claims this basis.
+   *
+   * ⚠ AN UNSTAMPED ROW MATCHES NO BASIS, and that is not the same as failing to match — it is a row
+   * this view cannot speak for. Most of the log is unstamped and always will be (ADR-0519 D5 stamps
+   * 298 of 509 and leaves 211 alone rather than guessing), so `--basis owner-directed` answers
+   * "which decisions SAY the owner directed them", never "which decisions the owner directed". The
+   * count printed under the rows says so in as many words, because a filtered list read as a
+   * complete one is exactly the over-read this field invites.
    */
-  basis?: AuthorityBasis | typeof UNSTAMPED_FILTER | undefined;
+  basis?: AuthorityBasis;
 }
 
 // The title extractor moved to `@storytree/drive` (next to `parseAdrFrontmatter`, its natural home)
@@ -798,14 +804,11 @@ export function selectAdrListings(
       if (filter.current === true && m.status !== "accepted") return false;
       if (filter.loadBearing === true && !reach.has(m.number)) return false;
       if (filter.status !== undefined && m.status !== filter.status) return false;
-      // ADR-0519 D1's authority cut. `unstamped` selects the ABSENCE of a stamp, which is why it is
-      // a filter word and not a fifth basis: absent and present stay distinct facts (D6), and a row
-      // whose stamp failed to parse projects as absent (see the loader) rather than as a basis
-      // nothing checked.
-      if (filter.basis !== undefined) {
-        const declared = l.authority?.basis;
-        if (filter.basis === UNSTAMPED_FILTER ? declared !== undefined : declared !== filter.basis) return false;
-      }
+      // An UNSTAMPED row matches no basis — `m.authority?.basis` is undefined and can never equal a
+      // declared one, so the row drops out. That is the intended reading (this cut is "decisions
+      // that SAY they were decided this way") and it is why the rendered footer states how many
+      // rows carry no stamp at all: without that number the filtered list reads as a census.
+      if (filter.basis !== undefined && m.authority?.basis !== filter.basis) return false;
       return true;
     });
 }
@@ -841,9 +844,107 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     if (dependedOn !== undefined && dependedOn.length > 0) {
       edges.push(`depended on by ${dependedOn.map(label).join(", ")}`);
     }
+    // ADR-0519's stamp, on its own line when there is one. Deliberately NOT folded into the `edges`
+    // list above: those are graph edges to other decisions, and this is a claim about THIS record.
+    const stamp = authorityLine(m.authority);
+    if (stamp !== null) rows.push(`            ${stamp}`);
     for (const e of edges) rows.push(`            ${e}`);
   }
+  rows.push(...unstampedFooter(listings, filter));
   return rows;
+}
+
+/**
+ * PURE: one line describing a decision's authority stamp, or null when it carries none.
+ *
+ * The owner's words are QUOTED and TRUNCATED here rather than shown whole — a list is a scanning
+ * surface, and a multi-sentence directive would push the rows apart until the list stopped being
+ * one. The full text is on the record (`storytree library artifact adr-NNNN`), and the trailing `…`
+ * is what says so; a silent truncation would let a reader quote a half-sentence as the owner's.
+ */
+export function authorityLine(authority: DecisionAuthority | undefined): string | null {
+  if (authority === undefined) return null;
+  const parts = [`decided by: ${authority.basis}`];
+  // TRANSCRIBED IS SAID OUT LOUD, always. It is the difference between "the owner directed this and
+  // here are his words" and "an agent's phrasing was read off the prose years later", and a reader
+  // scanning for owner-directed rows would otherwise take the two for the same evidence.
+  if (authority.transcribedFromProse === true) parts.push("transcribed from prose, no quote");
+  if (authority.ownerSaid !== undefined) {
+    const flat = authority.ownerSaid.replace(/\s+/g, " ").trim();
+    const shown = flat.length > 72 ? `${flat.slice(0, 71)}…` : flat;
+    parts.push(`“${shown}”`);
+  }
+  return parts.join(" · ");
+}
+
+/** Plain-language gloss of each basis — the record surface is read by the owner, not only by agents. */
+const BASIS_PROSE = {
+  "owner-directed": "the owner, who directed it in conversation",
+  "owner-ratified": "the owner, who was asked and approved it",
+  "agent-derived": "an agent — the owner has not weighed in",
+  "agent-flipped": "an agent, transcribing the accepted flip (ADR-0084)",
+  // `satisfies`, never an annotation: the anti-slop widening rule refuses the latter because it
+  // discards the literal's own type evidence. This way the map is still proved TOTAL over the four
+  // bases — add a fifth to the enum and this stops compiling, which is the check worth having.
+} satisfies Record<AuthorityBasis, string>;
+
+/**
+ * The authority block for ONE decision record — the full stamp, with the owner's words UNTRUNCATED.
+ *
+ * The deliberate difference from {@link authorityLine}: a list is a scanning surface and shortens
+ * the quote, this is the record and must not. Whoever comes here came to read what was actually
+ * said, and a `…` at this depth would send them to a place that does not exist.
+ *
+ * Returns `[]` for an unstamped record, so the block never announces its own absence — the
+ * `composedBannerFor` precedent one function up in the render, and the reason most of the log looks
+ * exactly as it did before ADR-0519.
+ */
+export function authorityBlockFor(doc: unknown): string[] {
+  const parsed = DecisionAuthority.safeParse((doc as Record<string, unknown> | null)?.["authority"]);
+  if (!parsed.success) return [];
+  const a = parsed.data;
+  const lines = ["", `Decided by: ${BASIS_PROSE[a.basis]}  (stamped ${a.at})`];
+  lines.push(`  scribed by: ${a.scribedBy}`);
+  if (a.transcribedFromProse === true) {
+    // SAID PLAINLY, because this is the weaker evidence and a reader skimming for "owner-directed"
+    // would otherwise take it for the stronger kind. The stamp was read off this record's own prose
+    // long after the fact; nobody captured what the owner said, and nothing here vouches that he
+    // said anything.
+    lines.push(
+      "  ⚠ TRANSCRIBED from this record's own prose — the owner's words were never captured,",
+      "    so this stamp repeats a claim the prose already made rather than evidencing it.",
+    );
+  }
+  if (a.ownerSaid !== undefined) {
+    lines.push("  the owner's words, verbatim:");
+    for (const line of a.ownerSaid.split("\n")) lines.push(`    ${line}`);
+  }
+  return lines;
+}
+
+/**
+ * The footer that stops a filtered cut from reading as a census.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE NUMBER IS THE MISLEADING PART, not the rows. Most of the decision log
+ * carries no authority stamp and always will — ADR-0519 D5 stamps the 298 rows that are
+ * mechanically classifiable and leaves 211 alone rather than guessing — so `--basis owner-directed`
+ * answers "which decisions SAY the owner directed them" and never "which decisions the owner
+ * directed". A reader who takes the row count for the second has been misled by a view that was
+ * accurate. Printed only when there is something to disclose, so an all-stamped log (which this one
+ * will never be) says nothing.
+ */
+export function unstampedFooter(
+  listings: readonly AdrListing[],
+  filter: AdrListFilter,
+): string[] {
+  if (filter.basis === undefined) return [];
+  const unstamped = listings.filter((l) => l.meta.authority === undefined).length;
+  if (unstamped === 0) return [];
+  return [
+    "",
+    `  ⚠ ${unstamped} of ${listings.length} decisions carry NO authority stamp and match no --basis.`,
+    "    This cut shows what decisions SAY about who decided them, not who decided them.",
+  ];
 }
 
 /**
@@ -952,15 +1053,7 @@ export interface LoadAdrListingsResult {
  * stays pure and testable and only the fetch is async.
  */
 export function adrListingsOf(adrs: readonly TitledAdrMeta[]): AdrListing[] {
-  // `authority` is destructured OUT explicitly rather than left to ride the rest spread into `meta`.
-  // The spread would compile — excess properties survive it — and would put the stamp on an object
-  // typed `AdrMeta`, which is the one place ADR-0519 D2 says it must never appear. Naming it here
-  // keeps the type honest about where the field actually lives.
-  return adrs.map(({ title, authority, ...meta }) => {
-    const listing: AdrListing = { meta, title };
-    if (authority !== undefined) listing.authority = authority;
-    return listing;
-  });
+  return adrs.map(({ title, ...meta }) => ({ meta, title }));
 }
 
 /**
@@ -980,25 +1073,12 @@ export async function loadAdrListings(store: Store): Promise<LoadAdrListingsResu
 
 const STATUS_WORDS: ReadonlySet<string> = new Set(["proposed", "accepted", "superseded"]);
 
-/** Everything `--basis` accepts: the four bases plus the absence word. */
-const BASIS_WORDS: readonly string[] = [...AuthorityBasis.options, UNSTAMPED_FILTER];
-
 async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envelope> {
   if (opts.status !== undefined && !STATUS_WORDS.has(opts.status)) {
     return {
       ok: false,
       body: `unknown --status "${opts.status}". use one of: proposed, accepted, superseded.`,
       next: ["storytree adr list --current", "storytree adr list --load-bearing"],
-    };
-  }
-  // REFUSED rather than silently matching nothing. An unknown basis word that fell through to the
-  // filter would render "(none match)" — a confident empty answer indistinguishable from a genuine
-  // one, on a view whose whole job is to say who decided what.
-  if (opts.basis !== undefined && !BASIS_WORDS.includes(opts.basis)) {
-    return {
-      ok: false,
-      body: `unknown --basis "${opts.basis}". use one of: ${BASIS_WORDS.join(", ")}.`,
-      next: ["storytree adr list --basis owner-directed", "storytree adr attest"],
     };
   }
   if (deps.roundTrip === undefined) {
@@ -1023,24 +1103,48 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
   if (opts.current === true) filter.current = true;
   if (opts.loadBearing === true) filter.loadBearing = true;
   if (opts.status !== undefined) filter.status = opts.status as AdrStatus;
-  // UNGUARDED, unlike its three neighbours above, and for the reason `commands.ts` records where it
-  // threads these same flags: the field admits `undefined`, so a guard has no behavioural content —
-  // present-and-undefined and absent take the identical branch in `selectAdrListings`. A conditional
-  // whose two arms cannot be told apart is an unkillable mutant by construction.
-  filter.basis = opts.basis as AuthorityBasis | typeof UNSTAMPED_FILTER | undefined;
+  // VALIDATED rather than cast, and REFUSED rather than silently empty. A typo'd basis cast straight
+  // through would match no stamp and print a perfectly well-formed empty list — "no decisions were
+  // decided that way" is what a reader takes from that, when the truth is that they misspelled the
+  // flag. On a view whose entire job is to stop an accurate output being read as a false claim, that
+  // is the one failure mode not worth having.
+  //
+  // It also removes an unkillable mutant: a bare `opts.basis !== undefined` guard on a field that
+  // already admits `undefined` has no behavioural content, so no test can tell the two arms apart
+  // (ADR-0478's ladder — reshape rather than reach for a marker).
+  if (opts.basis !== undefined) {
+    const parsed = AuthorityBasis.safeParse(opts.basis.trim());
+    if (!parsed.success) {
+      return {
+        ok: false,
+        body: `--basis must be one of ${AuthorityBasis.options.join(" | ")} (got ${JSON.stringify(opts.basis)}).`,
+        next: ["storytree adr list --basis owner-directed", "storytree adr list --current"],
+      };
+    }
+    filter.basis = parsed.data;
+  }
   const rows = renderAdrList(listings, filter);
-  const baseCut = opts.loadBearing
+  const cut = opts.loadBearing
     ? "load-bearing current-state"
     : opts.current
       ? "current (accepted, not superseded)"
       : opts.status !== undefined
         ? opts.status
-        : "all";
-  // The basis JOINS the label rather than replacing it: `--basis` composes with the other three
-  // filters, so a cut that named only one of two active filters would misdescribe what it shows.
-  const cut = opts.basis === undefined ? baseCut : `${baseCut} · basis ${opts.basis}`;
+        : // `filter.basis`, never `opts.basis`: the label must report the value that was actually
+          // APPLIED, and the raw flag still carries whatever padding the shell handed over. A header
+          // reading `[decided by:   owner-directed  ]` over rows selected by `owner-directed` is a
+          // small lie about which cut you are looking at.
+          filter.basis !== undefined
+          ? `decided by: ${filter.basis}`
+          : "all";
   const lines = [
-    `storytree adr — ${rows.filter((r) => !r.startsWith(" ".repeat(12))).length} ADRs [${cut}]` +
+    // COUNTED FROM THE SELECTION, not from the rendered rows. It used to be
+    // `rows.filter(r => !r.startsWith(" ".repeat(12)))` — an indentation heuristic that silently
+    // means "every line the renderer did not indent as a continuation", so any new un-indented line
+    // inflates the ADR count. ADR-0519's unstamped footer is exactly such a line, and would have
+    // added three. Asking the selection is the claim actually being made and cannot drift from the
+    // renderer's layout.
+    `storytree adr — ${selectAdrListings(listings, filter).length} ADRs [${cut}]` +
       `   ★ = load-bearing (the curated calibrate-to-these set)`,
   ];
   if (opts.loadBearing === true) {
@@ -1077,10 +1181,6 @@ export function adrHelp(): Envelope {
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
       "  storytree adr list [--current | --load-bearing | --status <s> | --basis <b>]   the searchable current-state view",
-      "     --basis <owner-directed|owner-ratified|agent-derived|agent-flipped|unstamped> (ADR-0519):",
-      "     whose call each decision was. `unstamped` selects the rows that declare NOTHING — an",
-      "     absence, which is why it is a filter word and not a fifth basis. It COMPOSES with the",
-      "     other three filters, and the header names every cut in force.",
       '  storytree adr new --title "..." [--decided --owner-said <text|@file>] [--basis <b>] [--depends-on 42,43] [--supersedes 42] [--arc <id>] --pg',
       "                                                                          reserve + scaffold",
       "  storytree adr next --pg                                                  reserve a number only",
@@ -1111,21 +1211,21 @@ export function adrHelp(): Envelope {
       "  Anchors themselves are authored by hand against the decision's prose —",
       "  `library artifact edit adr-NNNN --set sources=@anchors.json --pg`. NEVER auto-anchor.",
       "",
-      "  storytree adr attest                               how much of the log declares WHOSE CALL it was",
-      "  storytree adr attest <n>                           one record's authority stamp + the owner's words",
-      "  storytree adr attest <n> --basis <b> [--owner-said <text|@file>] --pg      stamp it",
-      "  storytree adr attest --backfill [--pg]             ADR-0519 D5's mechanical pass (a DRY RUN without --pg)",
+      "  storytree adr authority                            how much of the log declares WHOSE CALL it was",
+      "  storytree adr authority <n>                        one record's authority stamp + the owner's words",
+      "  storytree adr authority <n> --basis <b> [--owner-said <text|@file>] --pg   stamp a record that has none",
+      "  storytree adr authority --backfill [--pg]          ADR-0519 D5's mechanical pass (a DRY RUN without --pg)",
       "",
-      "`attest` (ADR-0519) records WHOSE CALL a decision was, as a fact rather than as prose. The four",
-      "bases are owner-directed | owner-ratified | agent-derived | agent-flipped, and an OWNER basis",
-      "cannot validate without his verbatim words — so the cheap path and the honest path are the same",
-      "path: with nothing to quote, the basis is `agent-derived`.",
-      "  `adr new` stamps at CREATION; this is the only way to stamp a decision that ALREADY EXISTS.",
-      "  `library artifact edit --set` cannot: the stamp is an OBJECT and --set writes strings and arrays.",
-      "  `scribedBy` is never a flag — it is always the current session, because it is the one field the",
-      "  store corroborates independently (`events.library_event.actor`). A flag would forge exactly that.",
-      "  An existing stamp is NOT overwritten without --restamp: evidence a later pass can quietly",
-      "  rewrite is not evidence. --restamp is refused outright on --backfill.",
+      "`authority` (ADR-0519) is the REPAIR ROUTE, and it FILLS AN ABSENCE — nothing more. `adr new`",
+      "stamps at CREATION, so a decision scaffolded from a checkout older than ADR-0519 carries no",
+      "stamp and, until this verb, could not be given one: `adr push` refuses an `authority:` key and",
+      "`library artifact edit --set` cannot write an object. That row was stuck.",
+      "  There is NO --force and no --restamp. An existing stamp is refused outright, which is the",
+      "  whole reason a second writer is admissible: ADR-0424 D6 says evidence a hand-edit can rewrite",
+      "  is not evidence, and a fill-only verb is not a rewrite. A stamp that is WRONG is corrected the",
+      "  way a wrong decision is — in the record's own prose, or by superseding the record.",
+      "  `scribedBy` is never a flag — always the current session, because it is the one field the",
+      "  store corroborates independently (`events.library_event.actor`). A flag would forge that.",
       "  --backfill TRANSCRIBES the two exact phrases D5 names and stamps nothing else. It writes no",
       "  `ownerSaid` at all — those words were never captured, and rebuilding them from an agent's",
       "  summary would forge the evidence the field exists to make trustworthy. The rows it leaves",
@@ -1203,6 +1303,12 @@ export function adrHelp(): Envelope {
       "                   almost exactly and then grow without bound, which a reader cannot detect",
       "                   FROM the view. A new decision resting on a load-bearing one must be TAGGED.",
       "  --status <s>     filter to proposed | accepted | superseded",
+      "  --basis <b>      WHO decided (ADR-0519): owner-directed | owner-ratified | agent-derived |",
+      "                   agent-flipped. ⚠ This shows what decisions SAY about who decided them,",
+      "                   never who decided them: a decision carrying no stamp matches NO basis, and",
+      "                   most of the log carries none and always will (ADR-0519 D5 stamps the 298",
+      "                   rows that are mechanically classifiable and leaves the rest alone rather",
+      "                   than guessing). The view prints how many are unstamped for that reason.",
       "",
       "new/next BOTH need --pg (bring the DB up first: pnpm db:up). There is no offline path: the",
       "number is reserved transactionally and the decision is a row, so a session that cannot reach the",
@@ -1297,33 +1403,32 @@ export async function adrCommand(
         : { ...composeDepsBase, controlArm: deps.controlArm },
     );
   }
-  // ADR-0519 D5's stamp-after-creation verb. Store-backed like the three above and refused the same
-  // way — and it is the ONLY writer of `authority` besides `scaffoldRow`, which is why it is a verb
-  // rather than a widening of `library artifact edit`: see `adr-attest.ts`'s header.
-  if (sub === "attest") {
+  // ADR-0519's repair route — the ONLY way to stamp a decision that already exists. Store-backed
+  // like the three above and refused the same way. See `adr-authority-verb.ts` for why a second
+  // writer is admissible at all: it FILLS AN ABSENCE and cannot overwrite.
+  if (sub === "authority") {
     if (deps.roundTrip === undefined) {
       return {
         ok: false,
-        body: "adr attest needs the live store, which this invocation was not given.",
+        body: "adr authority needs the live store, which this invocation was not given.",
         next: ["pnpm db:up", "storytree adr list --current"],
       };
     }
     // Built in statements rather than with conditional spreads, for the reason `compose` records
     // above: under `exactOptionalPropertyTypes` an optional field must be ABSENT, never
     // present-and-undefined (anti-slop `no-conditional-empty-object-spread`).
-    const attestOpts: Mutable<AdrAttestOpts> = {};
-    // The two STRING options are assigned unguarded and the three BOOLEANS are guarded, which is
-    // one rule read twice rather than an inconsistency: both string fields are declared
-    // `?: string | undefined`, so a guard could not change any answer (`adrAttest` reads
-    // `opts.basis === undefined` either way) and is an unkillable mutant; the booleans are tested
-    // with `=== true`, where assigning an absent flag's `undefined` would add a
+    //
+    // The two STRING options are assigned unguarded and the two BOOLEANS are guarded, which is one
+    // rule read twice rather than an inconsistency: both string fields are declared `?: string |
+    // undefined`, so a guard could not change any answer and is an unkillable mutant; the booleans
+    // are tested with `=== true`, where assigning an absent flag's `undefined` would add a
     // present-and-undefined key `exactOptionalPropertyTypes` refuses.
-    attestOpts.basis = opts.basis;
-    attestOpts.ownerSaid = opts.ownerSaid;
-    if (opts.transcribedFromProse === true) attestOpts.transcribedFromProse = true;
-    if (opts.backfill === true) attestOpts.backfill = true;
-    if (opts.restamp === true) attestOpts.restamp = true;
-    return await adrAttest(opts.number, attestOpts, {
+    const authorityOpts: Mutable<AdrAuthorityOpts> = {};
+    authorityOpts.basis = opts.basis;
+    authorityOpts.ownerSaid = opts.ownerSaid;
+    if (opts.transcribedFromProse === true) authorityOpts.transcribedFromProse = true;
+    if (opts.backfill === true) authorityOpts.backfill = true;
+    return await adrAuthority(opts.number, authorityOpts, {
       store: deps.roundTrip.store,
       writable: deps.roundTrip.writable,
       actor: deps.roundTrip.actor,

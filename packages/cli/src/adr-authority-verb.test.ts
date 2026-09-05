@@ -1,5 +1,5 @@
 /**
- * `storytree adr attest` — ADR-0519 D5's stamp-after-creation verb and its mechanical backfill.
+ * `storytree adr authority` — ADR-0519 D5's stamp-after-creation verb and its mechanical backfill.
  *
  * ## Why the arms read the STORED ROW, not the envelope
  *
@@ -10,9 +10,9 @@
  * ## And why the REFUSALS are arms rather than omissions
  *
  * Three fences are the whole reason this verb is safe to have at all: `scribedBy` is never a flag,
- * an existing stamp is never overwritten without `--restamp`, and `--restamp` is refused outright on
- * `--backfill`. Each of those is a thing the code does NOT do, which reads like an oversight in the
- * source, so each is pinned here — an unpinned deliberate absence is indistinguishable from a
+ * an existing stamp is never overwritten AT ALL (there is no escape flag — the verb fills an
+ * absence and nothing else), and the backfill honours the same rule. Each of those is a thing the
+ * code does NOT do, which reads like an oversight in the source, so each is pinned here — an unpinned deliberate absence is indistinguishable from a
  * forgotten one, and the next session to "finish the wiring" would delete the guarantee.
  */
 import test from "node:test";
@@ -21,7 +21,7 @@ import assert from "node:assert/strict";
 import { InMemoryStore } from "@storytree/storage-protocol";
 import { DecisionAuthority } from "@storytree/library";
 
-import { adrAttest, classifyFromProse, statusSectionOf, type AdrAttestDeps } from "./adr-attest.js";
+import { adrAuthority, classifyFromProse, statusSectionOf, type AdrAuthorityDeps } from "./adr-authority-verb.js";
 
 const STOCK = "decided/directed by the owner in conversation on 2026-06-29.";
 const FLIP = "flipped from proposed 2026-06-21 under ADR-0084";
@@ -56,7 +56,7 @@ async function seed(
   });
 }
 
-function depsFor(store: InMemoryStore, writable = true): AdrAttestDeps {
+function depsFor(store: InMemoryStore, writable = true): AdrAuthorityDeps {
   return { store, writable, actor: "cli@claude/test", today: "2026-09-05" };
 }
 
@@ -111,11 +111,11 @@ test("statusSectionOf: the section stops at the next heading", () => {
 
 // ─── stamping one record ──────────────────────────────────────────────────────────────────────
 
-test("adr attest <n> --basis owner-directed --owner-said: the stamp lands on the row, words verbatim", async () => {
+test("adr authority <n> --basis owner-directed --owner-said: the stamp lands on the row, words verbatim", async () => {
   const store = new InMemoryStore();
   await seed(store, 519, "accepted (2026-09-05).");
   const words = "yes, do it — basis plus my verbatim words";
-  const env = await adrAttest("519", { basis: "owner-directed", ownerSaid: words }, depsFor(store));
+  const env = await adrAuthority("519", { basis: "owner-directed", ownerSaid: words }, depsFor(store));
   assert.equal(env.ok, true);
   assert.deepEqual(await authorityOf(store, 519), {
     basis: "owner-directed",
@@ -126,44 +126,44 @@ test("adr attest <n> --basis owner-directed --owner-said: the stamp lands on the
   assert.match(env.body, /yes, do it/, "the render must show the words it stored");
 });
 
-test("adr attest: scribedBy is the CURRENT session and there is no flag that can set it", async () => {
+test("adr authority: scribedBy is the CURRENT session and there is no flag that can set it", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  await adrAuthority("100", { basis: "agent-derived" }, depsFor(store));
   assert.equal((await authorityOf(store, 100))?.["scribedBy"], "cli@claude/test");
 
   // The fence as BEHAVIOUR: `scribedBy` TRACKS `deps.actor` and nothing else, so the same opts
   // written by a different session produce a different stamp. That is what makes the field the one
   // the store can corroborate independently (`events.library_event.actor`) — a value the caller
   // could choose would forge exactly that. The complementary half, that no OPTION can reach it, is
-  // held by the type: `AdrAttestOpts` declares no such field, so it is unreachable in typed code.
+  // held by the type: `AdrAuthorityOpts` declares no such field, so it is unreachable in typed code.
   await seed(store, 101, "accepted.");
-  await adrAttest("101", { basis: "agent-derived" }, { ...depsFor(store), actor: "cli@somebody-else" });
+  await adrAuthority("101", { basis: "agent-derived" }, { ...depsFor(store), actor: "cli@somebody-else" });
   assert.equal((await authorityOf(store, 101))?.["scribedBy"], "cli@somebody-else");
 });
 
-test("adr attest: an owner basis with no quote is REFUSED, and the schema's own message is surfaced", async () => {
+test("adr authority: an owner basis with no quote is REFUSED, and the schema's own message is surfaced", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  const env = await adrAttest("100", { basis: "owner-ratified" }, depsFor(store));
+  const env = await adrAuthority("100", { basis: "owner-ratified" }, depsFor(store));
   assert.equal(env.ok, false);
   assert.match(env.body, /must quote the owner verbatim/);
   assert.match(env.body, /agent-derived/, "the refusal must name the honest alternative, never suggest inventing a quote");
   assert.equal(await authorityOf(store, 100), undefined, "nothing may be written on a refusal");
 });
 
-test("adr attest: owner words on an AGENT basis are refused", async () => {
+test("adr authority: owner words on an AGENT basis are refused", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  const env = await adrAttest("100", { basis: "agent-derived", ownerSaid: "do it" }, depsFor(store));
+  const env = await adrAuthority("100", { basis: "agent-derived", ownerSaid: "do it" }, depsFor(store));
   assert.equal(env.ok, false);
   assert.equal(await authorityOf(store, 100), undefined);
 });
 
-test("adr attest: --transcribed-from-prose lets an owner basis validate WITHOUT a quote", async () => {
+test("adr authority: --transcribed-from-prose lets an owner basis validate WITHOUT a quote", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  const env = await adrAttest("100", { basis: "owner-directed", transcribedFromProse: true }, depsFor(store));
+  const env = await adrAuthority("100", { basis: "owner-directed", transcribedFromProse: true }, depsFor(store));
   assert.equal(env.ok, true);
   assert.deepEqual(await authorityOf(store, 100), {
     basis: "owner-directed",
@@ -173,60 +173,51 @@ test("adr attest: --transcribed-from-prose lets an owner basis validate WITHOUT 
   });
 });
 
-test("adr attest: an unknown --basis is refused and names the four values", async () => {
+test("adr authority: an unknown --basis is refused and names the four values", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  const env = await adrAttest("100", { basis: "owner-said-so" }, depsFor(store));
+  const env = await adrAuthority("100", { basis: "owner-said-so" }, depsFor(store));
   assert.equal(env.ok, false);
   assert.match(env.body, /owner-directed \| owner-ratified \| agent-derived \| agent-flipped/);
 });
 
-test("adr attest: a write without --pg is refused and stores nothing", async () => {
+test("adr authority: a write without --pg is refused and stores nothing", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  const env = await adrAttest("100", { basis: "agent-derived" }, depsFor(store, false));
+  const env = await adrAuthority("100", { basis: "agent-derived" }, depsFor(store, false));
   assert.equal(env.ok, false);
   assert.match(env.body, /--pg/);
   assert.equal(await authorityOf(store, 100), undefined);
 });
 
-test("adr attest: an unknown decision number is refused rather than creating a row", async () => {
+test("adr authority: an unknown decision number is refused rather than creating a row", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  const env = await adrAttest("777", { basis: "agent-derived" }, depsFor(store));
+  const env = await adrAuthority("777", { basis: "agent-derived" }, depsFor(store));
   assert.equal(env.ok, false);
   assert.equal(await store.getDoc("adr-0777"), null);
 });
 
 // ─── fence 2: an existing stamp is not overwritten ────────────────────────────────────────────
 
-test("adr attest: an ALREADY-STAMPED record is refused, and the stored stamp is untouched", async () => {
+test("adr authority: an ALREADY-STAMPED record is refused, and the stored stamp is untouched", async () => {
   const store = new InMemoryStore();
   const existing = { basis: "owner-directed", scribedBy: "cli@earlier", at: "2026-09-01", ownerSaid: "his words" };
   await seed(store, 100, "accepted.", { authority: existing });
-  const env = await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  const env = await adrAuthority("100", { basis: "agent-derived" }, depsFor(store));
   assert.equal(env.ok, false);
-  assert.match(env.body, /--restamp/);
+  assert.match(env.body, /FILLS AN ABSENCE and can do nothing else/);
+  assert.match(env.body, /no --force and no --restamp/);
   assert.deepEqual(await authorityOf(store, 100), existing);
 });
 
-test("adr attest --restamp: the explicit escape does overwrite", async () => {
-  const store = new InMemoryStore();
-  await seed(store, 100, "accepted.", {
-    authority: { basis: "agent-derived", scribedBy: "cli@earlier", at: "2026-09-01" },
-  });
-  const env = await adrAttest("100", { basis: "agent-flipped", restamp: true }, depsFor(store));
-  assert.equal(env.ok, true);
-  assert.equal((await authorityOf(store, 100))?.["basis"], "agent-flipped");
-  assert.match(env.body, /RE-STAMPED/);
-});
 
-test("adr attest: the already-stamped refusal fires WITHOUT --pg too, so the reader learns why", async () => {
+test("adr authority: the already-stamped refusal fires WITHOUT --pg too, so the reader learns why", async () => {
   // Ordering matters: refused for the write gate first, the caller re-runs with --pg and is then
   // refused for a different reason. Reported once, with the reason that actually applies.
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.", { authority: { basis: "agent-derived", scribedBy: "x", at: "d" } });
-  const env = await adrAttest("100", { basis: "agent-flipped" }, depsFor(store, false));
+  const env = await adrAuthority("100", { basis: "agent-flipped" }, depsFor(store, false));
   assert.equal(env.ok, false);
   assert.match(env.body, /ALREADY stamped/);
 });
@@ -246,9 +237,9 @@ async function backfillCorpus(): Promise<InMemoryStore> {
   return store;
 }
 
-test("adr attest --backfill: stamps only the two exact phrases, leaving the rest alone", async () => {
+test("adr authority --backfill: stamps only the two exact phrases, leaving the rest alone", async () => {
   const store = await backfillCorpus();
-  const env = await adrAttest(undefined, { backfill: true }, depsFor(store));
+  const env = await adrAuthority(undefined, { backfill: true }, depsFor(store));
   assert.equal(env.ok, true);
   assert.deepEqual(await authorityOf(store, 100), {
     basis: "owner-directed",
@@ -265,57 +256,40 @@ test("adr attest --backfill: stamps only the two exact phrases, leaving the rest
   assert.equal(await authorityOf(store, 400), undefined, "a row claiming BOTH stays unstamped");
 });
 
-test("adr attest --backfill: NO backfilled stamp carries ownerSaid", async () => {
+test("adr authority --backfill: NO backfilled stamp carries ownerSaid", async () => {
   // ADR-0519 D5's fence, and the reason the backfill is safe to run at all: those words were never
   // captured, so any value here would be a reconstruction — forging the evidence the field exists
   // to make trustworthy.
   const store = await backfillCorpus();
-  await adrAttest(undefined, { backfill: true }, depsFor(store));
+  await adrAuthority(undefined, { backfill: true }, depsFor(store));
   for (const n of [100, 101, 200]) {
     assert.equal((await authorityOf(store, n))?.["ownerSaid"], undefined, `adr-${String(n)} must carry no quote`);
   }
 });
 
-test("adr attest --backfill: an already-stamped row is never touched, --restamp or not", async () => {
-  const store = await backfillCorpus();
-  await adrAttest(undefined, { backfill: true }, depsFor(store));
-  assert.deepEqual(await authorityOf(store, 500), {
-    basis: "owner-directed",
-    scribedBy: "cli@earlier",
-    at: "2026-09-01",
-    ownerSaid: "his words",
-  });
-});
 
-test("adr attest --backfill --restamp: refused outright — a bulk pass may not overwrite an authored stamp", async () => {
-  const store = await backfillCorpus();
-  const env = await adrAttest(undefined, { backfill: true, restamp: true }, depsFor(store));
-  assert.equal(env.ok, false);
-  assert.equal((await authorityOf(store, 500))?.["scribedBy"], "cli@earlier");
-  assert.equal(await authorityOf(store, 100), undefined, "the refused pass writes nothing at all");
-});
 
-test("adr attest --backfill without --pg is a DRY RUN that writes nothing", async () => {
+test("adr authority --backfill without --pg is a DRY RUN that writes nothing", async () => {
   const store = await backfillCorpus();
-  const env = await adrAttest(undefined, { backfill: true }, depsFor(store, false));
+  const env = await adrAuthority(undefined, { backfill: true }, depsFor(store, false));
   assert.equal(env.ok, true);
   assert.match(env.body, /DRY RUN/);
   assert.match(env.body, /owner-directed/);
   for (const n of [100, 101, 200]) assert.equal(await authorityOf(store, n), undefined);
 });
 
-test("adr attest --backfill: refuses a decision number rather than silently ignoring it", async () => {
+test("adr authority --backfill: refuses a decision number rather than silently ignoring it", async () => {
   const store = await backfillCorpus();
-  const env = await adrAttest("100", { backfill: true }, depsFor(store));
+  const env = await adrAuthority("100", { backfill: true }, depsFor(store));
   assert.equal(env.ok, false);
   assert.equal(await authorityOf(store, 100), undefined);
 });
 
-test("adr attest --backfill is idempotent: a second pass writes nothing new", async () => {
+test("adr authority --backfill is idempotent: a second pass writes nothing new", async () => {
   const store = await backfillCorpus();
-  await adrAttest(undefined, { backfill: true }, depsFor(store));
+  await adrAuthority(undefined, { backfill: true }, depsFor(store));
   const first = await authorityOf(store, 100);
-  const env = await adrAttest(undefined, { backfill: true }, { ...depsFor(store), today: "2026-12-25" });
+  const env = await adrAuthority(undefined, { backfill: true }, { ...depsFor(store), today: "2026-12-25" });
   assert.equal(env.ok, true);
   assert.deepEqual(await authorityOf(store, 100), first, "a re-run must not re-date an existing stamp");
   assert.match(env.body, /stamped 0 of 0/);
@@ -323,47 +297,47 @@ test("adr attest --backfill is idempotent: a second pass writes nothing new", as
 
 // ─── the read shapes ──────────────────────────────────────────────────────────────────────────
 
-test("adr attest <n>: reading an unstamped record says so and does NOT read a basis out of prose", async () => {
+test("adr authority <n>: reading an unstamped record says so and does NOT read a basis out of prose", async () => {
   const store = new InMemoryStore();
   await seed(store, 300, "accepted (2026-06-03). The owner liked it.");
-  const env = await adrAttest("300", {}, depsFor(store));
+  const env = await adrAuthority("300", {}, depsFor(store));
   assert.equal(env.ok, true);
   assert.match(env.body, /unstamped/);
   assert.match(env.body, /honest absence/);
   assert.equal(await authorityOf(store, 300), undefined);
 });
 
-test("adr attest <n>: a transcribed stamp is described as transcribed, never as a quoted directive", async () => {
+test("adr authority <n>: a transcribed stamp is described as transcribed, never as a quoted directive", async () => {
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.", {
     authority: { basis: "owner-directed", scribedBy: "cli@x", at: "2026-09-05", transcribedFromProse: true },
   });
-  const env = await adrAttest("100", {}, depsFor(store));
+  const env = await adrAuthority("100", {}, depsFor(store));
   assert.match(env.body, /transcribed from the record's own prose/);
   assert.doesNotMatch(env.body, /verbatim/);
 });
 
-test("adr attest: the coverage index states its DENOMINATOR on every figure", async () => {
+test("adr authority: the coverage index states its DENOMINATOR on every figure", async () => {
   // ADR-0519 D5 leaves ~41% of the log permanently unstamped by design, so a bare percentage would
   // read as a coverage claim about the whole log — the error a reader cannot detect from the view.
   const store = await backfillCorpus();
-  await adrAttest(undefined, { backfill: true }, depsFor(store));
-  const env = await adrAttest(undefined, {}, depsFor(store));
+  await adrAuthority(undefined, { backfill: true }, depsFor(store));
+  const env = await adrAuthority(undefined, {}, depsFor(store));
   assert.equal(env.ok, true);
   assert.match(env.body, /of the WHOLE log/);
   assert.match(env.body, /of owner claims/);
   assert.match(env.body, /4 of 6 decision rows declare a basis/);
 });
 
-test("adr attest: an empty decision log is refused, never reported as full coverage", async () => {
-  const env = await adrAttest(undefined, {}, depsFor(new InMemoryStore()));
+test("adr authority: an empty decision log is refused, never reported as full coverage", async () => {
+  const env = await adrAuthority(undefined, {}, depsFor(new InMemoryStore()));
   assert.equal(env.ok, false);
   assert.match(env.body, /no decisions in the store/);
 });
 
 // ─── the write's own failure arm ──────────────────────────────────────────────────────────────
 
-test("adr attest: a row that cannot re-validate is REPORTED and not written", async () => {
+test("adr authority: a row that cannot re-validate is REPORTED and not written", async () => {
   // `writeStamp` spreads the stored row and re-validates the whole thing, so a row that was already
   // malformed fails on the way back in. It must say so — a stamp reported as written onto a row the
   // store rejected is the one outcome worse than refusing.
@@ -375,7 +349,7 @@ test("adr attest: a row that cannot re-validate is REPORTED and not written", as
     // No `description`: the `adr` schema requires it, and nothing here supplies one.
     doc: { kind: "adr", id, title: "Broken", body: "# ADR-0100: Broken\n", number: 100, status: "accepted" },
   });
-  const env = await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  const env = await adrAuthority("100", { basis: "agent-derived" }, depsFor(store));
   assert.equal(env.ok, false);
   // Pinned line by line rather than by one `match`: the body is an array joined with newlines, and
   // each element is its own literal, so a probe on the first leaves the blank separator and the
@@ -389,7 +363,7 @@ test("adr attest: a row that cannot re-validate is REPORTED and not written", as
   assert.equal(await authorityOf(store, 100), undefined);
 });
 
-test("adr attest: an unknown key ALREADY on the row is charged as schema skew, not as this write's typo", async () => {
+test("adr authority: an unknown key ALREADY on the row is charged as schema skew, not as this write's typo", async () => {
   // The `storedKeys` argument handed to `explainDocValidationError`. Without it, a field another
   // session landed ahead of the schema reads as "field(s) this kind does not have" — a diagnosis
   // that sends the reader to strip another branch's work out of the live store. The fixture needs an
@@ -415,7 +389,7 @@ test("adr attest: an unknown key ALREADY on the row is charged as schema skew, n
       fieldFromTheFuture: 1,
     },
   });
-  const env = await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  const env = await adrAuthority("100", { basis: "agent-derived" }, depsFor(store));
   assert.equal(env.ok, false);
   assert.match(env.body, /SCHEMA SKEW/);
   assert.match(env.body, /fieldFromTheFuture/);
@@ -426,25 +400,25 @@ test("adr attest: an unknown key ALREADY on the row is charged as schema skew, n
   );
 });
 
-test("adr attest: the WRITE is attributed to the session, and falls back when no actor was wired", async () => {
+test("adr authority: the WRITE is attributed to the session, and falls back when no actor was wired", async () => {
   // `deps.actor ?? defaultCliActor()` on the upsert. The store records the actor on its event, which
   // is the only place this is observable — and getting it wrong would misattribute every stamp in
   // the append-only history to the wrong session.
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.");
-  await adrAttest("100", { basis: "agent-derived" }, depsFor(store));
+  await adrAuthority("100", { basis: "agent-derived" }, depsFor(store));
   const named = await store.readEvents({ id: idOf(100) });
   assert.equal(named.at(-1)?.actor, "cli@claude/test");
 
   const bare = new InMemoryStore();
   await seed(bare, 200, "accepted.");
-  await adrAttest("200", { basis: "agent-derived" }, { store: bare, writable: true, today: "2026-09-05" });
+  await adrAuthority("200", { basis: "agent-derived" }, { store: bare, writable: true, today: "2026-09-05" });
   const fallback = await bare.readEvents({ id: idOf(200) });
   assert.notEqual(fallback.at(-1)?.actor, undefined, "an unwired actor must still record SOMETHING");
   assert.notEqual(fallback.at(-1)?.actor, "cli@claude/test");
 });
 
-test("adr attest --backfill: a row that cannot re-validate is counted as a FAILURE, not a stamp", async () => {
+test("adr authority --backfill: a row that cannot re-validate is counted as a FAILURE, not a stamp", async () => {
   // The apply loop's failure arm. A partial pass is REPORTED rather than rolled back or retried, so
   // the count must distinguish what landed from what was attempted — a loop that swallowed this
   // would report a coverage it had not achieved.
@@ -480,7 +454,7 @@ test("adr attest --backfill: a row that cannot re-validate is counted as a FAILU
       status: "accepted",
     },
   });
-  const env = await adrAttest(undefined, { backfill: true }, depsFor(store));
+  const env = await adrAuthority(undefined, { backfill: true }, depsFor(store));
   assert.equal(env.ok, false, "a pass with any failure is not ok");
   assert.match(env.body, /stamped 1 of 2 classifiable decisions/);
   assert.match(env.body, /1 row\(s\) FAILED/);
@@ -490,7 +464,7 @@ test("adr attest --backfill: a row that cannot re-validate is counted as a FAILU
 
 // ─── the row projection's defensive arms ──────────────────────────────────────────────────────
 
-test("adr attest: a row whose `number` is not a number is SKIPPED, not counted", async () => {
+test("adr authority: a row whose `number` is not a number is SKIPPED, not counted", async () => {
   // Both arms of the guard are reachable and neither is redundant: a `--set` can write a string
   // into `number`, and a stored NaN/Infinity is a different failure the same guard must catch.
   const store = new InMemoryStore();
@@ -506,11 +480,11 @@ test("adr attest: a row whose `number` is not a number is SKIPPED, not counted",
       doc: { kind: "adr", id, title: "T", description: "d", body: "b", number, status: "accepted" },
     });
   }
-  const env = await adrAttest(undefined, {}, depsFor(store));
+  const env = await adrAuthority(undefined, {}, depsFor(store));
   assert.match(env.body, /0 of 1 decision rows declare a basis/, "only the well-formed row is counted");
 });
 
-test("adr attest: a row whose `body` is not a string classifies to nothing rather than throwing", async () => {
+test("adr authority: a row whose `body` is not a string classifies to nothing rather than throwing", async () => {
   const store = new InMemoryStore();
   const id = idOf(100);
   await store.upsertDoc({
@@ -518,24 +492,24 @@ test("adr attest: a row whose `body` is not a string classifies to nothing rathe
     kind: "adr",
     doc: { kind: "adr", id, title: "T", description: "d", body: 42, number: 100, status: "accepted" },
   });
-  const env = await adrAttest(undefined, { backfill: true }, depsFor(store, false));
+  const env = await adrAuthority(undefined, { backfill: true }, depsFor(store, false));
   assert.equal(env.ok, true);
   assert.match(env.body, /DRY RUN — 0 of 1 unstamped decisions are mechanically classifiable/);
 });
 
-test("adr attest: the coverage index says n/a rather than dividing by zero owner claims", async () => {
+test("adr authority: the coverage index says n/a rather than dividing by zero owner claims", async () => {
   // The whole log stamped, none of it claiming the owner. `0/0` must not render as `NaN%`.
   const store = new InMemoryStore();
   await seed(store, 100, "accepted.", {
     authority: { basis: "agent-derived", scribedBy: "cli@x", at: "2026-09-05" },
   });
-  const env = await adrAttest(undefined, {}, depsFor(store));
+  const env = await adrAuthority(undefined, {}, depsFor(store));
   assert.match(env.body, /of the 0 stamps CLAIMING the owner's authority/);
   assert.match(env.body, /\(n\/a of owner claims\)/);
   assert.doesNotMatch(env.body, /NaN/);
 });
 
-test("adr attest --backfill: the FAILURE report is ordered by decision number, not by store order", async () => {
+test("adr authority --backfill: the FAILURE report is ordered by decision number, not by store order", async () => {
   // What makes the projection's sort observable. Seeded descending; the report must read ascending.
   const store = new InMemoryStore();
   for (const n of [300, 100, 200]) {
@@ -554,7 +528,7 @@ test("adr attest --backfill: the FAILURE report is ordered by decision number, n
       },
     });
   }
-  const env = await adrAttest(undefined, { backfill: true }, depsFor(store));
+  const env = await adrAuthority(undefined, { backfill: true }, depsFor(store));
   assert.equal(env.ok, false);
   const order = [...env.body.matchAll(/adr-0(\d)00:/g)].map((m) => Number(m[1]));
   assert.deepEqual(order, [1, 2, 3], "the failures must be listed in decision-number order");

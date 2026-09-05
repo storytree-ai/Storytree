@@ -57,8 +57,13 @@ import { renderStoredDoc, renderProcessNode } from "@storytree/library/store";
 
 import { execFileSync } from "node:child_process";
 
-import { adrCommand, adrHelp, type AdrAllocatorLike, type AdrCommandOpts } from "./adr.js";
-import { authorityBannerFor } from "./adr-attest.js";
+import {
+  adrCommand,
+  adrHelp,
+  authorityBlockFor,
+  type AdrAllocatorLike,
+  type AdrCommandOpts,
+} from "./adr.js";
 import { composedBannerFor, decisionRowsOf } from "./adr-composed.js";
 import { FROZEN_ARMS_PATH, parseFrozenArms } from "./decision-composition-trial.js";
 import { expandAtPathFlags, formatAtPathRefusal, PROSE_FLAGS } from "./at-path.js";
@@ -633,17 +638,11 @@ export async function viewArtifact(store: Store, id: string): Promise<Envelope> 
   // and every edge stays walkable.
   const banner = stored.kind === "adr" ? composedBannerFor(stored.doc, decisionRowsOf(allDocs)) : [];
   if (banner.length > 0) lines.push(...banner);
-  // ADR-0519 D1/D3: WHOSE CALL this was, above the prose an agent wrote. It sits here — beside the
-  // composed banner and over the body — because the stamp's whole purpose is that a reader does not
-  // have to interpret the `## Status` prose below to answer the question, and the owner's verbatim
-  // words are evidence a reader must not have to run a second command to see. Like its neighbour it
-  // never announces its own absence: 206 rows carry no stamp, and a line saying so on every one of
-  // them would be noise on the commonest case rather than a finding.
-  // Pushed UNGUARDED: `authorityBannerFor` returns `[]` for an unstamped record and for every
-  // non-decision kind, and spreading an empty array pushes nothing. A `length > 0` guard would
-  // read as though it were preventing something and could not change any output — the banner
-  // already never announces its own absence, by returning nothing to announce.
-  lines.push(...(stored.kind === "adr" ? authorityBannerFor(stored.doc) : []));
+  // ADR-0519's authority stamp, ABOVE the body for the same reason the composed banner is: it is a
+  // cover note about the record, and whose call a decision was changes how its text should be read.
+  // A reader who reaches the end of a long decision and only then learns an agent derived it has
+  // already spent the reading. Absent stamp renders nothing at all.
+  if (stored.kind === "adr") lines.push(...authorityBlockFor(stored.doc));
   lines.push(a.body);
   const byId = new Map(allDocs.map((d) => [d.id, d] as const));
   // The corpus view ADR-0464 D2's authored-edge onward block resolves its targets' titles and kinds
@@ -3035,12 +3034,11 @@ export const CLI_OPTIONS = {
   // so `@path` carries a multi-sentence directive the shell would otherwise mangle).
   basis: { type: "string" },
   "owner-said": { type: "string" },
-  // `storytree adr attest <n> [--transcribed-from-prose] [--restamp]` / `adr attest --backfill`
-  // (ADR-0519 D5): the stamp-after-creation verb's three booleans. Booleans are outside the
-  // `@path` classification entirely — only string flags are split between PROSE and LITERAL.
+  // `storytree adr authority <n> [--transcribed-from-prose]` / `adr authority --backfill`
+  // (ADR-0519 D5): the repair verb's two booleans. Booleans are outside the `@path`
+  // classification entirely — only string flags are split between PROSE and LITERAL.
   "transcribed-from-prose": { type: "boolean" },
   backfill: { type: "boolean" },
-  restamp: { type: "boolean" },
   analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
@@ -3890,13 +3888,13 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // mutant by construction, so the honest fix is to not write the conditional.
     adrOpts.basis = values.basis;
     adrOpts.ownerSaid = values["owner-said"];
-    // `adr attest`'s three booleans (ADR-0519 D5). GUARDED, unlike the pair above, and the asymmetry
-    // is the same rule read the other way: these are `?: boolean | undefined` and every reader tests
-    // them with `=== true`, so `false` and absent already take one branch — assigning an absent
-    // flag's `undefined` would add a present-and-undefined key `exactOptionalPropertyTypes` refuses.
+    // `adr authority`'s two booleans (ADR-0519 D5). GUARDED, unlike the string pair above, and the
+    // asymmetry is the same rule read the other way: these are `?: boolean | undefined` and every
+    // reader tests them with `=== true`, so `false` and absent already take one branch — assigning
+    // an absent flag's `undefined` would add a present-and-undefined key
+    // `exactOptionalPropertyTypes` refuses.
     if (values["transcribed-from-prose"] === true) adrOpts.transcribedFromProse = true;
     if (values.backfill === true) adrOpts.backfill = true;
-    if (values.restamp === true) adrOpts.restamp = true;
     if (values["allow-control-arm"] === true) adrOpts.allowControlArm = true;
     const controlArm = frozenControlArm();
     // ONE unconditional spread over a base, chosen by a ternary — not a conditional spread of `{}`
