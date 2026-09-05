@@ -75,6 +75,18 @@ describe('studio kind parity with the Library schema', () => {
     expect([...ASSET_CATEGORIES].sort()).toEqual(Object.keys(ASSET_CATEGORY_GLOSS).sort());
   });
 
+  it('the two categories this landing added carry their own gloss text', () => {
+    // The gloss is what a member reads in the Library filter to know what a category IS. The
+    // `satisfies Record<AssetCategory, string>` above forces a gloss to EXIST; nothing forces it to
+    // say anything, so an emptied one would ship as a blank row.
+    expect(ASSET_CATEGORY_GLOSS.resteer).toBe(
+      'one intervention by the owner, and whether it was a defect or taste',
+    );
+    expect(ASSET_CATEGORY_GLOSS['uat-criterion']).toBe(
+      'one UAT acceptance criterion — the action, and what counts as success',
+    );
+  });
+
   it('the fence is not vacuous: a kind absent from the array is reported', () => {
     // The negative control. Without it, an ASSET_CATEGORIES that had drifted to `[]` — or a
     // LIBRARY_KINDS that read empty because the import moved — would pass every assertion above with

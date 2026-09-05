@@ -74,12 +74,17 @@ const STAMPED_FIELDS = ["kind", "id", "provenance", "createdAt", "updatedAt", "s
 
 /** `A Title Like This` → `a-title-like-this`, prefixed so a re-steer id is recognisable on sight. */
 export function resteerIdFromTitle(title: string): string {
+  // The two edge strips are `-` and NOT `-+`, deliberately: the replace above is greedy, so every run
+  // of non-alphanumerics has already collapsed to a SINGLE hyphen and no two adjacent ones can exist.
+  // A `+` here would be a quantifier no input could exercise — an untestable branch rather than a
+  // safety margin. The SECOND strip is still load-bearing: `.slice(0, 60)` can cut immediately after
+  // a hyphen, which the first strip ran too early to see.
   const slug = title
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
+    .replace(/^-|-$/g, "")
     .slice(0, 60)
-    .replace(/-+$/g, "");
+    .replace(/-$/g, "");
   return slug === "" ? "" : `resteer-${slug}`;
 }
 
@@ -246,9 +251,31 @@ export async function newResteer(
   if (selfReport !== "") doc.selfReport = selfReport;
   if (mode !== undefined) doc.mode = mode;
 
-  let valid: Record<string, unknown>;
+  // ONE parse, ONE refusal. `upcastAndValidate` checks the doc against the whole `LibraryDoc` union
+  // and `Resteer.parse` narrows it to this kind — the narrowing is a PARSE, never an
+  // `as unknown as Resteer` (anti-slop `no-chained-type-assertions`), because an assertion chain
+  // would let a doc that validated as some OTHER kind reach an invariant written for this one.
+  //
+  // They share a `catch` because separating them produced a branch NO INPUT COULD REACH: this
+  // function writes `kind: "resteer"` itself, so the union parse can only ever return that arm, and a
+  // standalone kind-mismatch refusal was dead code. `check:mutation-diff` surfaced it, and deleting a
+  // clause nothing can make load-bearing is the right answer — not writing a test that cannot reach it.
+  //
+  // ⚠ THE CATCH IS UNREACHABLE TODAY, AND IS KEPT ANYWAY. Every field above is a literal, a parsed
+  // enum, or a string the `missing` check already proved non-empty, so no CLI input can make this
+  // parse throw — `check:mutation-diff` reports its body uncovered and is right to. (I first assumed
+  // `--description "   "` would reach it; the common shape's `description` is a bare `z.string()`, so
+  // an empty one validates. The assumption was wrong and the test written on it is deleted.)
+  //
+  // It is kept rather than deleted because what makes it unreachable is the GUARDS, not the
+  // validator: the day a field stops being pre-checked — a new optional flag, a loosened schema — the
+  // difference is a clean refusal naming the field versus an unhandled ZodError reaching the operator
+  // as a stack trace.
+  //
+  // Stryker disable BlockStatement,ObjectLiteral,BooleanLiteral,ArrayDeclaration,StringLiteral: UNREACHABLE by construction — no CLI input reaches this catch, so no test can kill these mutants and they are not evidence of a weak suite.
+  let narrowed: Resteer;
   try {
-    valid = upcastAndValidate(doc) as Record<string, unknown>;
+    narrowed = Resteer.parse(upcastAndValidate(doc));
   } catch (e) {
     return {
       ok: false,
@@ -260,24 +287,12 @@ export async function newResteer(
       next: ["storytree resteer --help"],
     };
   }
+  // Stryker restore BlockStatement,ObjectLiteral,BooleanLiteral,ArrayDeclaration,StringLiteral
 
   // The defect-carries-a-mode invariant (ADR-0515 D4). It cannot live in the schema — see
   // `assertResteerInvariants` — so it is enforced here, at the only door that writes the tier.
-  //
-  // The narrowing is a PARSE, never an `as unknown as Resteer` (anti-slop
-  // `no-chained-type-assertions`): `upcastAndValidate` returns the whole `LibraryDoc` union, and an
-  // assertion chain would let a doc that validated as some OTHER kind reach an invariant written for
-  // this one. Re-parsing against the kind's own schema is what makes the narrowing true.
-  const narrowed = Resteer.safeParse(valid);
-  if (!narrowed.success) {
-    return {
-      ok: false,
-      body: `this is the re-steer surface — the doc validated as "${String(valid["kind"])}".`,
-      next: ["storytree resteer --help"],
-    };
-  }
   try {
-    assertResteerInvariants(narrowed.data);
+    assertResteerInvariants(narrowed);
   } catch (e) {
     return { ok: false, body: (e as Error).message, next: ["storytree resteer --help"] };
   }
@@ -285,14 +300,14 @@ export async function newResteer(
   // The evidence floor, SHARED with friction (ADR-0168 D3): present (schema) AND concrete
   // (structural). Here the intended content is narrower than the floor can check — the owner's own
   // words — so the message says so rather than leaving a paraphrase looking acceptable.
-  if (!hasConcreteEvidence(String(valid["evidence"]))) {
+  if (!hasConcreteEvidence(evidence)) {
     return {
       ok: false,
       body:
         "--evidence must be CONCRETE — quote what he actually said. A paraphrase is your account of\n" +
         "his words, which puts generated text in the one column that is supposed to hold observed\n" +
         "behaviour (ADR-0513 D4). What you filed:\n" +
-        `  evidence: ${String(valid["evidence"])}`,
+        `  evidence: ${evidence}`,
       next: ["storytree resteer --help"],
     };
   }
@@ -308,7 +323,7 @@ export async function newResteer(
   const saved = await deps.store.upsertDoc({
     id,
     kind: "resteer",
-    doc: valid,
+    doc: narrowed,
     actor: deps.actor ?? defaultCliActor(),
   });
   return {
@@ -353,6 +368,7 @@ export async function listResteer(store: Store): Promise<Envelope> {
 
   const report = resteerReport(rows);
   const { defects } = partitionResteers(rows);
+  const first = defects[0];
   // Stryker disable next-line ConditionalExpression,StringLiteral: EQUIVALENT — the `undefined` arm is
   // unreachable HERE. `defectShare` is undefined only when `total === 0`, and the empty-tier branch
   // above has already returned by then, so no input to `listResteer` can reach it. The arm is kept
@@ -406,7 +422,10 @@ export async function listResteer(store: Store): Promise<Envelope> {
     // unreadable as either "found nothing" or "never plumbed" (`cli-read-verbs.test.ts`).
     observedResultIds: rows.map((r) => r.id),
     next: [
-      defects.length > 0 ? `storytree library artifact ${defects[0]?.id} --pg` : "storytree resteer --help",
+      // Bound ONCE rather than indexed behind `defects.length > 0`: the length check and a `?.` on the
+      // same access are two guards for one question, and the second is unfalsifiable — nothing can
+      // make it fire. Narrowing a named value settles it with one.
+      first === undefined ? "storytree resteer --help" : `storytree library artifact ${first.id} --pg`,
       "storytree library artifact mast-failure-frame",
     ],
   };
@@ -428,18 +447,19 @@ export function resteerAgreement(a: readonly Annotation[], b: readonly Annotatio
       label: MAST_CATEGORY[r.label as keyof typeof MAST_CATEGORY] ?? "off-frame",
     }));
   const categoryReading = cohensKappa(cat(a), cat(b));
+  const named = (labels: readonly string[]): string => labels.join(", ");
   const fmt = (v: number | undefined): string => (v === undefined ? "undefined (see below)" : v.toFixed(3));
   return {
     ok: true,
     body: [
       `n = ${modeReading.n} items both annotators labelled.`,
       "",
-      `MODE GRAIN     (${modeReading.categories.length} labels in play)`,
+      `MODE GRAIN     (${modeReading.categories.length} labels in play: ${named(modeReading.categories)})`,
       `  observed agreement  ${fmt(modeReading.observed)}`,
       `  expected by chance  ${fmt(modeReading.expected)}`,
       `  Cohen's kappa       ${fmt(modeReading.kappa)}`,
       "",
-      `CATEGORY GRAIN (${categoryReading.categories.length} labels in play)`,
+      `CATEGORY GRAIN (${categoryReading.categories.length} labels in play: ${named(categoryReading.categories)})`,
       `  observed agreement  ${fmt(categoryReading.observed)}`,
       `  expected by chance  ${fmt(categoryReading.expected)}`,
       `  Cohen's kappa       ${fmt(categoryReading.kappa)}`,
@@ -461,7 +481,9 @@ export function resteerAgreementFromFiles(
   fileA: string | undefined,
   fileB: string | undefined,
 ): Envelope {
-  if (fileA === undefined || fileB === undefined) {
+  // ONE clause, not two. Positionals fill left to right, so `fileB` is undefined whenever fewer than
+  // two were given — a `fileA === undefined ||` in front of it can never be the reason this fires.
+  if (fileB === undefined || fileA === undefined) {
     return {
       ok: false,
       body:
@@ -476,6 +498,8 @@ export function resteerAgreementFromFiles(
   const read = (file: string): Annotation[] | string => {
     let raw: string;
     try {
+      // Stryker disable next-line StringLiteral: EQUIVALENT — the only consumer is `JSON.parse`, which
+      // accepts a Buffer and a string alike, so no encoding change is observable through this function.
       raw = readFileSync(file, "utf8");
     } catch (e) {
       return `could not read ${file}: ${(e as Error).message}`;

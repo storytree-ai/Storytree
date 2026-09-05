@@ -8,6 +8,7 @@ import { InMemoryStore } from "@storytree/storage-protocol";
 import { CLI_READ_VERBS } from "@storytree/context-traversal-capture";
 
 import { run } from "./commands.js";
+import { resteerAgreementFromFiles } from "./resteer.js";
 
 /**
  * The `storytree resteer` paths the two sibling suites do not reach.
@@ -31,7 +32,9 @@ function deps(s: InMemoryStore, writable = false) {
 }
 
 function cap(title: string, over: Record<string, string> = {}): string[] {
-  const flags: Record<string, string> = {
+  // No `Record<string, string>` annotation: it would discard the keys this literal just wrote
+  // (anti-slop `no-known-value-widening`). Inference plus the spread is what the rule asks for.
+  const flags = {
     "--title": title,
     "--doing": "d",
     "--redirect": "r",
@@ -197,7 +200,7 @@ test("resteer-list-with-no-defects-omits-the-mode-table-and-the-agent-taste-warn
     "storytree resteer --help",
     "storytree library artifact mast-failure-frame",
   ]);
-  assert.deepEqual((res as { observedResultIds?: string[] }).observedResultIds, [
+  assert.deepEqual(res.observedResultIds, [
     "resteer-t-one",
     "resteer-t-two",
   ]);
@@ -228,15 +231,19 @@ test("resteer-list-reports-rows-it-could-not-read-rather-than-dropping-them", as
       "  · TCR@k — needs the same session denominator, plus each session's completion outcome, neither of which is a field on this tier.",
   );
   // The unreadable row contributes no id either — the capture records what was actually surfaced.
-  assert.deepEqual((res as { observedResultIds?: string[] }).observedResultIds, ["resteer-d-one"]);
+  assert.deepEqual(res.observedResultIds, ["resteer-d-one"]);
 });
 
 test("resteer-list-orders-modes-by-count-descending", async () => {
+  // THE INSERTION ORDER IS THE POINT. The RARER mode is filed FIRST, so the map's own insertion order
+  // is the OPPOSITE of the sorted order — which is what makes the sort load-bearing. Filing the
+  // commoner one first (the obvious way to write this) produced a test that passed identically with
+  // the sort deleted, because the two orders coincided. `check:mutation-diff` caught exactly that.
   const s = new InMemoryStore();
+  await run(cap("Ver one", { "--disposition": "defect", "--mode": "incorrect-verification" }), deps(s, true));
   for (const t of ["a", "b", "c"]) {
     await run(cap("Rep " + t, { "--disposition": "defect", "--mode": "step-repetition" }), deps(s, true));
   }
-  await run(cap("Ver one", { "--disposition": "defect", "--mode": "incorrect-verification" }), deps(s, true));
   const table = (await run(["resteer", "list"], deps(s, false))).body;
   const modes = table.slice(table.indexOf("FAILURE MODES"));
   assert.ok(
@@ -244,6 +251,16 @@ test("resteer-list-orders-modes-by-count-descending", async () => {
     "the commoner mode must come first — an unordered table hides where the mass is",
   );
 });
+
+test("resteer-a-capture-with-no-self-report-flag-stores-no-selfReport-key", async () => {
+  // The `?? ""` fallback, with the flag genuinely ABSENT rather than blank. Its sibling test supplies
+  // "   ", which exercises the trim but never the fallback.
+  const s = new InMemoryStore();
+  assert.equal((await run(cap("No sr"), deps(s, true))).ok, true);
+  const raw = (await s.getDoc("resteer-no-sr"))?.doc as Record<string, unknown>;
+  assert.equal("selfReport" in raw, false);
+});
+
 
 test("resteer-list-shows-at-most-twenty-sessions", async () => {
   // The per-session block is a summary, not a dump: 25 branches must render 20 rows.
@@ -278,20 +295,10 @@ test("resteer-agreement-reports-an-UNDEFINED-kappa-and-an-off-frame-label", asyn
   writeFileSync(a, rows);
   writeFileSync(b, rows);
   const res = await run(["resteer", "agreement", a, b], deps(new InMemoryStore(), false));
-  assert.equal(
-    res.body,
-    "n = 2 items both annotators labelled.\n\n" +
-      "MODE GRAIN     (1 labels in play)\n" +
-      "  observed agreement  1.000\n" +
-      "  expected by chance  1.000\n" +
-      "  Cohen's kappa       undefined (see below)\n\n" +
-      "CATEGORY GRAIN (1 labels in play)\n" +
-      "  observed agreement  1.000\n" +
-      "  expected by chance  1.000\n" +
-      "  Cohen's kappa       undefined (see below)\n\n" +
-      "An `undefined` kappa means chance agreement was total (one label used for everything), so the\n" +
-      "statistic is 0/0. Read it as 'no reading', never as 0 or 1.",
-  );
+  assert.equal(res.body, "n = 2 items both annotators labelled.\n\nMODE GRAIN     (1 labels in play: not-a-mast-mode)\n  observed agreement  1.000\n  expected by chance  1.000\n  Cohen's kappa       undefined (see below)\n\nCATEGORY GRAIN (1 labels in play: off-frame)\n  observed agreement  1.000\n  expected by chance  1.000\n  Cohen's kappa       undefined (see below)\n\nAn `undefined` kappa means chance agreement was total (one label used for everything), so the\nstatistic is 0/0. Read it as 'no reading', never as 0 or 1.");
+  // The category roll-up NAMES its fallback bucket, so an off-frame label is visibly off-frame
+  // rather than silently folded in with the real ones.
+  assert.match(res.body, /CATEGORY GRAIN \(1 labels in play: off-frame\)/);
 });
 
 test("resteer-agreement-refuses-each-file-position-independently", async () => {
@@ -309,10 +316,27 @@ test("resteer-agreement-refuses-each-file-position-independently", async () => {
   const badFirst = await run(["resteer", "agreement", gone, ok], deps(new InMemoryStore(), false));
   assert.equal(badFirst.ok, false);
   assert.match(badFirst.body, /could not read .*gone\.json/);
+  // Each refusal carries its own way out; an empty `next` is a dead end an operator has to guess past.
+  assert.deepEqual(badFirst.next, ["storytree resteer --help"]);
 
   const badSecond = await run(["resteer", "agreement", ok, gone], deps(new InMemoryStore(), false));
   assert.equal(badSecond.ok, false);
   assert.match(badSecond.body, /could not read .*gone\.json/);
+  assert.deepEqual(badSecond.next, ["storytree resteer --help"]);
+});
+
+test("resteer-agreement-refuses-a-MISSING-FIRST-file, reached only by a direct call", () => {
+  // Through the CLI this clause can never fire alone: positionals fill left to right, so `fileA` is
+  // undefined only when `fileB` is too. But the function is EXPORTED, and a programmatic caller can
+  // hand it the pair in any state — so the clause is reachable, and testing it beats exempting it.
+  //
+  // Without the check the undefined path reaches `readFileSync`, which refuses with a filesystem
+  // error naming `undefined` — still a refusal, so `ok: false` alone would not discriminate. The
+  // body is what separates "you did not give me two files" from "I could not read one".
+  const res = resteerAgreementFromFiles(undefined, "some-file.json");
+  assert.equal(res.ok, false);
+  assert.match(res.body, /needs TWO annotation files/);
+  assert.doesNotMatch(res.body, /could not read/);
 });
 
 test("resteer-agreement-refuses-every-malformed-entry-shape", async () => {
@@ -341,6 +365,7 @@ test("resteer-agreement-refuses-every-malformed-entry-shape", async () => {
     const res = await run(["resteer", "agreement", bad, ok], deps(new InMemoryStore(), false));
     assert.equal(res.ok, false, "must refuse: " + content.slice(0, 40));
     assert.match(res.body, expected);
+    assert.deepEqual(res.next, ["storytree resteer --help"]);
   }
 });
 

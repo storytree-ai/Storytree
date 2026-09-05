@@ -126,6 +126,14 @@ test("resteer-empty-list-body-is-pinned", async () => {
   assert.deepEqual(res.next, ["storytree resteer --help"]);
 });
 
+test("resteer-empty-list-carries-an-EMPTY-result-id-list, not an absent one", () => {
+  // "found nothing" and "never plumbed" are different facts, and the traversal capture records them
+  // identically unless this branch supplies the empty array explicitly.
+  return run(["resteer", "list"], deps(new InMemoryStore(), false)).then((res) => {
+    assert.deepEqual(res.observedResultIds, []);
+  });
+});
+
 test("resteer-unknown-subcommand-body-is-pinned", async () => {
   const res = await run(["resteer", "bogus"], deps(new InMemoryStore(), false));
   assert.equal(res.ok, false);
@@ -156,7 +164,8 @@ test("resteer-populated-list-body-is-pinned — every figure, caveat and warning
   // shares diverge and the self-characterisation warning fires).
   const s = new InMemoryStore();
   const cap = (t: string, o: Record<string, string> = {}) => {
-    const f: Record<string, string> = {
+    // Inference, not an open dictionary (anti-slop `no-known-value-widening`).
+    const f = {
       "--title": t, "--doing": "d", "--redirect": "r", "--evidence": "\"quoted words here\"",
       "--disposition": "taste", "--by": "owner", ...o,
     };
@@ -195,6 +204,6 @@ test("resteer-agreement-reading-body-is-pinned", async () => {
   ]));
   const res = await run(["resteer", "agreement", A, B], deps(new InMemoryStore(), false));
   assert.equal(res.ok, true);
-  assert.equal(res.body, "n = 4 items both annotators labelled.\n\nMODE GRAIN     (4 labels in play)\n  observed agreement  0.750\n  expected by chance  0.313\n  Cohen's kappa       0.636\n\nCATEGORY GRAIN (3 labels in play)\n  observed agreement  1.000\n  expected by chance  0.375\n  Cohen's kappa       1.000\n\nAn `undefined` kappa means chance agreement was total (one label used for everything), so the\nstatistic is 0/0. Read it as 'no reading', never as 0 or 1.");
+  assert.equal(res.body, "n = 4 items both annotators labelled.\n\nMODE GRAIN     (4 labels in play: incorrect-verification, no-mast-home, no-or-incomplete-verification, step-repetition)\n  observed agreement  0.750\n  expected by chance  0.313\n  Cohen's kappa       0.636\n\nCATEGORY GRAIN (3 labels in play: specification-and-design, unhoused, verification-and-termination)\n  observed agreement  1.000\n  expected by chance  0.375\n  Cohen's kappa       1.000\n\nAn `undefined` kappa means chance agreement was total (one label used for everything), so the\nstatistic is 0/0. Read it as 'no reading', never as 0 or 1.");
   assert.deepEqual(res.next, ["storytree library artifact mast-failure-frame"]);
 });
