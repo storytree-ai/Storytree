@@ -238,7 +238,14 @@ function helperFilesUnder(dir: string): string[] {
   return found;
 }
 
-function isCounted(reading: OccupancyObservation): boolean {
+/**
+ * Whether a reading is a real model request rather than a harness-synthesised line.
+ *
+ * Exported for the composition fold (`context-composition.ts`), which needs the FIRST counted
+ * request's resident figure for its residual and must apply this rule rather than a second copy of
+ * it — a `<synthetic>` opener carries an all-zero usage and would otherwise read as a free floor.
+ */
+export function isCountedObservation(reading: OccupancyObservation): boolean {
   return reading.modelId !== SYNTHETIC_MODEL_ID;
 }
 
@@ -259,7 +266,7 @@ function foldWindowOccupancy(file: string, mtimeMs: number): WindowOccupancy | u
   const read = readTranscriptWindow(file);
   if (read.windowId === undefined || read.observations.length === 0) return undefined;
 
-  const counted = read.observations.filter(isCounted);
+  const counted = read.observations.filter(isCountedObservation);
   const latest = counted[counted.length - 1];
   if (latest === undefined) return undefined;
 
@@ -423,12 +430,25 @@ export interface OwnWindowScan {
   readonly correlatedWindows: number;
 }
 
+/**
+ * A session's own reading, plus the file it was folded from.
+ *
+ * The file is carried so the composition fold (`readWindowComposition`) reads THE SAME FILE this
+ * reading came from rather than re-selecting one — two selections is how a fullness and a
+ * composition come to describe different windows. It lives on this type and not on
+ * {@link WindowOccupancy} because that one is the studio meter's wire, and a local path has no
+ * business on it.
+ */
+export interface OwnWindowOccupancy extends WindowOccupancy {
+  readonly file: string;
+}
+
 export interface OwnWindowRead {
   /** The storytree session id asked about, echoed back. */
   readonly sessionId: string;
   readonly scan: OwnWindowScan;
   /** The reading, or `null`. Never a zero standing in for an absence. */
-  readonly window: WindowOccupancy | null;
+  readonly window: OwnWindowOccupancy | null;
   /** Which of ADR-0411 D3's bands {@link WindowOccupancy.residentTokens} falls in. */
   readonly band: ContextBand | null;
   /** Set exactly when {@link window} is `null`, and never otherwise. */
@@ -507,14 +527,14 @@ export function readOwnContextWindow(args: OwnWindowArgs): OwnWindowRead {
   // Correlate FIRST and fold second: correlation reads the same bytes, but a file that is not this
   // session's must not contribute a reading at all — the cheapest guarantee that this can never
   // hand back someone else's number.
-  const mine: WindowOccupancy[] = [];
+  const mine: OwnWindowOccupancy[] = [];
   let correlatedWindows = 0;
   for (const { file, mtimeMs } of candidates) {
     const { window } = correlateTranscriptFile(file, args.sessionId);
     if (window === undefined) continue;
     correlatedWindows += 1;
     const occupancy = foldWindowOccupancy(file, mtimeMs);
-    if (occupancy !== undefined) mine.push(occupancy);
+    if (occupancy !== undefined) mine.push({ ...occupancy, file });
   }
 
   const scan: OwnWindowScan = { ...baseScan, correlatedWindows };
@@ -708,7 +728,7 @@ export function readWindowOccupancySeries(args: WindowSeriesArgs): WindowSeriesR
     );
   }
 
-  const counted = read.observations.filter(isCounted);
+  const counted = read.observations.filter(isCountedObservation);
   const syntheticObservations = read.observations.length - counted.length;
 
   if (counted.length === 0) {

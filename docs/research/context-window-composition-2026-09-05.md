@@ -229,3 +229,57 @@ bytes by whether the originating `tool_use` input names a `storytree` corpus ver
 
 If a later session needs these numbers as a series rather than a snapshot, that is the arc's
 increment 1, and it should be built as a reader with tests rather than as a re-run of these scripts.
+
+---
+
+## 8. The reader exists — and what it said on a second machine (added 2026-09-05, increment 1)
+
+`readWindowComposition` (`packages/context-traversal-transcript/src/context-composition.ts`) is the
+reader §7 asked for, and `storytree context` now prints its `made of:` / `unseen:` / `remedy:` block
+under the fullness. It classifies by `attachment.type` and message block `type` only, reports in
+bytes, and reports the harness floor as `first request's resident tokens − visible pre-request
+bytes ÷ 3.8`, or as an explicit UNKNOWN when no request can be read.
+
+Run over the **Linux desktop** (the box the arc's increment 1 ran on), 53 windows ≥ 200 KB of the
+newest 60, the same day:
+
+| category | share of intake |
+|---|---:|
+| tool output | **68.1%** |
+| tool calls the session authored | 11.5% |
+| thinking (recorded in full on this harness — §1's "redacted" does not hold here) | 10.7% |
+| the human's own words | 6.3% |
+| file-change notices | 1.0% |
+| reminders + catalogues + hooks | 1.8% |
+| project guidance (`nested_memory`) | **absent — 0 of 40 transcripts carry the label** |
+
+Two things differ from the Windows measurement in §1–§3, and both are HARNESS-VERSION facts rather
+than corrections: **`CLAUDE.md` / `MEMORY.md` are not labelled attachments on this machine** — no
+`nested_memory` record exists and the first user message does not carry them — so they travel
+inside the residual, which is why the render says "not labelled by this harness — it travels inside
+the unseen slice" rather than printing a zero; and thinking is recorded whole here rather than
+redacted, so that slice bounds what was resident from ABOVE, not below. The residual on this box
+is **median 67,202 tokens (min 38,492, max 121,745, n=53)** against a first-request median of
+75,151 — smaller than §3's ≥92,819 because a `claude -p` batch session carries fewer tools than an
+interactive one.
+
+**Does it tell a session something it did not already know?** The end state asked this question and
+made the arc's continuation hang on it. Read precisely, the answer splits:
+
+- **The numbers do.** Tool output ranges **31% to 92%** across the 42 tool-active windows and the
+  authored-call share **4% to 32%** — the low-output/high-call windows are sessions writing large
+  files, the high-output ones are sessions reading, and a fullness figure cannot tell the two apart.
+  And the unseen floor is 38k–122k of "resident" that no session can reduce, which changes what the
+  resident figure means as headroom.
+- **The remedy arm nearly does not.** In **39 of the 42 tool-active windows** the dominant class was
+  tool output and the remedy line said the same thing (page long outputs, delegate exploration).
+  The tool-call remedy never fired (max share 32.4%, threshold 40%), the mandatory-context remedy
+  never fired (max 2.8%), and the other 11 windows were tool-less one-shot briefs where the human's
+  words were 93–99% and there is nothing to remedy. A line that says the same sentence on nine
+  windows in ten is a reminder, not a reading.
+
+So increment 1 is neither a null nor a vindication. The instrument is worth keeping because the
+per-window split is real and cheap; the remedy line is worth keeping only as the plain-language
+name of the dominant class. Nothing here reaches the panel question (§5, increment 2), which stays
+the owner's.
+

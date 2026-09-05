@@ -34,12 +34,16 @@
 import { deriveIdentity, IDENTITY_REFUSAL_BODY } from "@storytree/drive";
 import {
   bandGuidance,
+  categoryLabel,
   HARD_MARK_TOKENS,
+  MANDATORY_CATEGORIES,
   MARKS_GOVERN_THE_NEXT_UNIT,
   readOwnContextWindow,
+  readWindowComposition,
   SOFT_MARK_TOKENS,
   type ContextBand,
   type OwnWindowRead,
+  type WindowComposition,
 } from "@storytree/context-traversal-transcript";
 
 import type { Envelope } from "./envelope.js";
@@ -64,6 +68,8 @@ export interface ContextDeps {
   readonly sessionId: () => string | null;
   readonly env: Readonly<Record<string, string | undefined>>;
   readonly read: typeof readOwnContextWindow;
+  /** What the window is MADE OF — read from the SAME file `read` folded, never re-selected. */
+  readonly composition: typeof readWindowComposition;
   readonly now: () => number;
 }
 
@@ -72,6 +78,7 @@ export function defaultContextDeps(): ContextDeps {
     sessionId: () => deriveIdentity()?.sessionId ?? null,
     env: process.env,
     read: readOwnContextWindow,
+    composition: readWindowComposition,
     now: () => Date.now(),
   };
 }
@@ -97,6 +104,131 @@ function ageLabel(iso: string | null, nowMs: number): string {
   const hours = Math.round(minutes / 60);
   if (hours < 48) return `${hours}h ago`;
   return `${Math.round(hours / 24)}d ago`;
+}
+
+/**
+ * `61.2%` — one decimal, so two slices a few points apart still read as different. Callers pass a
+ * non-zero whole: a composition with slices has bytes by construction, and one without never
+ * reaches a share.
+ */
+function percent(part: number, whole: number): string {
+  return `${((part / whole) * 100).toFixed(1)}%`;
+}
+
+/**
+ * The share of the composition a session cannot trim — the categories that arrive whether it asks
+ * or not. What ADR-0330 D1 budgets the repo-owned part of, and what the remedy line must never
+ * send a session to "fix".
+ */
+function mandatoryBytes(composition: WindowComposition): number {
+  return composition.slices
+    .filter((slice) => MANDATORY_CATEGORIES.includes(slice.category))
+    .reduce((sum, slice) => sum + slice.bytes, 0);
+}
+
+/**
+ * A slice that is at least this share of the intake is what the window is ABOUT, and the remedy
+ * line names it. Below it no single class dominates and there is honestly nothing to trim.
+ */
+const DOMINANT_SHARE = 0.4;
+
+/**
+ * What to DO about the composition — the half that makes the reading worth having at an increment
+ * boundary (`context-window-composition-arc` increment 1: "a remedy rather than only a reading").
+ *
+ * Keyed on the dominant class, and every remedy names a lever this session actually holds. The
+ * mandatory arm deliberately hands back NO lever: that share is the harness's and the repo's, and a
+ * session told to trim it would go looking for a knob that ADR-0330 D1 says is not its to turn.
+ */
+function compositionRemedy(composition: WindowComposition): string {
+  const largest = composition.slices[0];
+  if (largest === undefined) return "nothing entered this window yet";
+  const mandatory = mandatoryBytes(composition);
+  const share = largest.bytes / composition.accountedBytes;
+
+  if (largest.category === "tool-output" && share >= DOMINANT_SHARE) {
+    return (
+      `tool output is ${percent(largest.bytes, composition.accountedBytes)} of what entered — page long outputs` +
+      " (`| head`, `--out <file>`) and hand exploration to a digest subagent whose window is its own" +
+      " (`storytree library artifact delegate-exploration-to-digest-subagents`)"
+    );
+  }
+  if (largest.category === "tool-calls" && share >= DOMINANT_SHARE) {
+    return (
+      `the session's own tool-call payloads are ${percent(largest.bytes, composition.accountedBytes)} — a large Write` +
+      " or Edit input stays resident as long as the window does; write a file once and edit it in place"
+    );
+  }
+  if (mandatory / composition.accountedBytes >= DOMINANT_SHARE) {
+    return (
+      `mandatory context is ${percent(mandatory, composition.accountedBytes)} — none of it is this session's to trim;` +
+      " the repo-owned part is budgeted by ADR-0330 D1 and `storytree doctor` reports it"
+    );
+  }
+  return (
+    `no single class dominates (largest: ${categoryLabel(largest.category)} at` +
+    ` ${percent(largest.bytes, composition.accountedBytes)}) — nothing here to trim; the band above is the reading that matters`
+  );
+}
+
+/** The `made of:` block — every slice, largest first, in the bytes the transcript recorded. */
+function compositionLines(composition: WindowComposition): readonly string[] {
+  if (composition.residualAbsence === "unreadable-file") {
+    return [
+      "  made of:    UNREADABLE — the transcript this reading came from could not be re-read for its",
+      "              composition. The fullness above stands; what fills it is not known.",
+    ];
+  }
+
+  const width = Math.max(0, ...composition.slices.map((slice) => categoryLabel(slice.category).length));
+  const rows = composition.slices.map((slice) => {
+    const label = categoryLabel(slice.category).padEnd(width);
+    const bytes = groupDigits(slice.bytes).padStart(12);
+    const share = percent(slice.bytes, composition.accountedBytes).padStart(6);
+    // An unclassified slice always has at least one label behind it — that is what put it there.
+    const labels = slice.category === "unclassified" ? `  (${composition.unclassifiedLabels.join(", ")})` : "";
+    return `    ${label}  ${bytes} B  ${share}  ${groupDigits(slice.records)} record${slice.records === 1 ? "" : "s"}${labels}`;
+  });
+
+  const setAside: string[] = [];
+  if (composition.sidechainLinesExcluded > 0) {
+    setAside.push(`${groupDigits(composition.sidechainLinesExcluded)} helper-window line(s) excluded (ADR-0413 D2)`);
+  }
+  if (composition.bookkeeping.records > 0) {
+    setAside.push(
+      `${groupDigits(composition.bookkeeping.records)} bookkeeping record(s) set aside (${composition.bookkeeping.kinds.join(", ")})`,
+    );
+  }
+  if (composition.unparseableLines > 0) setAside.push(`${groupDigits(composition.unparseableLines)} unparseable line(s)`);
+
+  const guidanceLabelled = composition.slices.some((slice) => slice.category === "project-guidance");
+
+  const residual = composition.residual;
+  const unseen =
+    residual === null
+      ? [
+          "  unseen:     UNKNOWN — no counted model request to read a resident figure from, so the harness",
+          "              floor (system prompt + tool definitions) cannot be sized here. It is not zero.",
+        ]
+      : [
+          `  unseen:     ≈${groupDigits(residual.residualTokens)} tokens were resident at the first request that no transcript line`,
+          "              accounts for — the harness's system prompt, tool definitions, and anything it injected",
+          `              without recording it. (${groupDigits(residual.firstRequestResidentTokens)} resident − ≈${groupDigits(residual.visibleTokensEstimate)}` +
+            ` for ${groupDigits(residual.visibleBytesBeforeFirstRequest)} visible bytes at ${residual.charsPerToken} chars/token.)`,
+          "              Not this session's to trim (ADR-0330 D1).",
+        ];
+
+  return [
+    "  made of:    what has ENTERED this window, in bytes as the transcript recorded them (ADR-0330 D1's",
+    "              unit) — its intake over its life, not what is resident after a compaction",
+    ...rows,
+    ...(setAside.length > 0 ? [`              ${setAside.join(" · ")}`] : []),
+    ...(guidanceLabelled
+      ? []
+      : ["              project guidance (CLAUDE.md / MEMORY.md) is not labelled by this harness — it travels inside the unseen slice"]),
+    ...unseen,
+    `  remedy:     ${compositionRemedy(composition)}`,
+  ];
 }
 
 const BAND_LABEL = {
@@ -165,7 +297,7 @@ ${MARKS_GOVERN_THE_NEXT_UNIT}`,
   };
 }
 
-function renderReading(read: OwnWindowRead, nowMs: number): Envelope {
+function renderReading(read: OwnWindowRead, composition: WindowComposition, nowMs: number): Envelope {
   const window = read.window;
   const band = read.band;
   if (window === null || band === null) return renderAbsence(read);
@@ -197,6 +329,8 @@ function renderReading(read: OwnWindowRead, nowMs: number): Envelope {
         `, last ${ageLabel(window.lastObservedAt, nowMs)}${excluded}`,
       `  identity:   ${identity}`,
       ...scanLines(read),
+      "",
+      ...compositionLines(composition),
       "",
       "This is YOUR window and nothing else. Helper and subagent windows are never counted into it",
       "(ADR-0413 D2) — a helper's window is gone by the time yours peaks, so summing them would draw a",
@@ -230,7 +364,8 @@ export function contextHelp(): Envelope {
     body: [
       "storytree context — how full is THIS session's own context window? (ADR-0411 D3/D6)",
       "",
-      "  storytree context        this session's own window: resident tokens, peak, and its band",
+      "  storytree context        this session's own window: resident tokens, peak, its band — and what",
+      "                           it is made of, by the harness's own labels, with a remedy",
       "",
       "Run it at an INCREMENT BOUNDARY, before deciding whether to take on the next one — that is",
       "what ADR-0411 D5 makes it, a scheduling read rather than an interruption. Past the soft mark",
@@ -248,6 +383,13 @@ ${MARKS_GOVERN_THE_NEXT_UNIT}`,
       "The figure is your OWN conversation window. Helper and subagent windows are never folded in",
       "(ADR-0413 D2 / ADR-0411 D4): a session that fans work out has a small number, and that is",
       "correct rather than an under-report.",
+      "",
+      "The `made of:` block splits the window's INTAKE by the labels the harness itself puts on each",
+      "record (ADR-0516 D3 — labels and lengths, never content), in bytes (ADR-0330 D1's unit). The",
+      "`unseen:` line is the harness's own preamble — system prompt and tool definitions — which no",
+      "transcript records and which can only be shown as what was resident at the first request minus",
+      "what the transcript accounts for (D4). It is reported as an unknown quantity, never omitted and",
+      "never zero. The `remedy:` line names the one lever the dominant class leaves this session.",
       "",
       "Offline and read-only — host transcripts are local files, so it needs no database and no",
       "network. `STORYTREE_TRANSCRIPT_DIR` moves the root it reads.",
@@ -287,5 +429,8 @@ export function contextCommand(deps: ContextDeps = defaultContextDeps()): Envelo
       ? deps.read({ sessionId })
       : deps.read({ sessionId, harnessWindowId });
 
-  return read.window === null ? renderAbsence(read) : renderReading(read, deps.now());
+  if (read.window === null) return renderAbsence(read);
+  // The SAME file the fullness came from — a second selection is how a fullness and a composition
+  // come to describe two different windows.
+  return renderReading(read, deps.composition(read.window.file), deps.now());
 }

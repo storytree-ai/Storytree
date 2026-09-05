@@ -45,6 +45,7 @@ export {
   type ContextWindowsWire,
   type OwnWindowAbsence,
   type OwnWindowArgs,
+  type OwnWindowOccupancy,
   type OwnWindowRead,
   type OwnWindowScan,
   type OwnWindowSelection,
@@ -55,6 +56,20 @@ export {
   type WindowSeriesRead,
   type WindowSeriesScan,
 } from "./context-windows.js";
+
+// What a window is MADE OF, beside how full it is (`context-window-composition-arc` increment 1,
+// ADR-0516 D3/D4). Labels and lengths only; the harness floor is a residual, never a zero.
+export {
+  categoryLabel,
+  CHARS_PER_TOKEN,
+  MANDATORY_CATEGORIES,
+  readWindowComposition,
+  type CompositionCategory,
+  type CompositionSlice,
+  type ResidualAbsence,
+  type ResidualEstimate,
+  type WindowComposition,
+} from "./context-composition.js";
 
 export {
   DECISION_READ_SURFACES,
