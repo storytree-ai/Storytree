@@ -169,7 +169,11 @@ export function buildPprGraph(
       continue;
     }
     seen.add(key);
+    // Stryker disable next-line OptionalChaining: EQUIVALENT — `from` and `to` came from
+    // `indexOf`, so both rows exist by construction; the `?.` is `noUncheckedIndexedAccess`
+    // satisfying the compiler, and dropping it cannot change any answer a test could observe.
     adjacency[from]?.push(to);
+    // Stryker disable next-line OptionalChaining: EQUIVALENT — as above.
     if (!directed) adjacency[to]?.push(from);
   }
 
@@ -225,6 +229,9 @@ export function personalizedPageRank(
     if (index === undefined) {
       throw new Error(`personalizedPageRank: seed ${seed} is not a node in this graph`);
     }
+    // Stryker disable next-line LogicalOperator: EQUIVALENT — `distinctSeeds` is de-duplicated, so
+    // this slot is always still 0 when it is written; `?? 0` and `&& 0` both yield 0 here and no
+    // seed list can distinguish them.
     restart[index] = (restart[index] ?? 0) + share;
   }
 
@@ -238,6 +245,8 @@ export function personalizedPageRank(
 
     for (let i = 0; i < n; i += 1) {
       const mass = scores[i] ?? 0;
+      // Stryker disable next-line ArrayDeclaration: EQUIVALENT — `i` ranges over `graph.nodes`
+      // and `neighbours` is built one entry per node, so the fallback is unreachable.
       const out = graph.neighbours[i] ?? [];
       if (out.length === 0) {
         dangling += mass;
@@ -430,15 +439,14 @@ export function buildRetrievalCases(
     a[0].localeCompare(b[0]),
   )) {
     const ordered = [...rows].sort((a, b) => a.at.localeCompare(b.at) || a.number - b.number);
-    const seed = ordered[0]?.number;
-    if (seed === undefined) {
-      windowsWithoutGold += 1;
-      continue;
-    }
-    const gold = [...new Set(ordered.map((row) => row.number))]
-      .filter((number) => number !== seed)
-      .sort((a, b) => a - b);
-    if (gold.length === 0) {
+    const numbers = ordered.map((row) => row.number);
+    const seed = numbers[0];
+    const gold = [...new Set(numbers)].filter((number) => number !== seed).sort((a, b) => a - b);
+    // ONE guard, not two. `byWindow` never holds an empty array, so a separate `seed === undefined`
+    // branch was dead code that no test could reach and every mutation of which survived by
+    // construction; folding it in here puts it on the same reachable path as the real case — a
+    // window that read one decision and therefore offers nothing to predict.
+    if (seed === undefined || gold.length === 0) {
       windowsWithoutGold += 1;
       continue;
     }
@@ -528,8 +536,14 @@ export function hopDistances(
   while (frontier.length > 0) {
     const next: number[] = [];
     for (const index of frontier) {
+      // Stryker disable next-line LogicalOperator: EQUIVALENT — every index in the frontier was
+      // written to `depth` before being queued, so the fallback is unreachable.
       const here = depth[index] ?? 0;
+      // Stryker disable next-line ArrayDeclaration: EQUIVALENT — one adjacency row per node.
       for (const neighbour of graph.neighbours[index] ?? []) {
+        // Stryker disable next-line UnaryOperator: EQUIVALENT — `depth` is initialised to -1 at
+        // every slot, so the `?? -1` fallback cannot fire; the sentinel itself is asserted by
+        // "hopDistances counts real distance along a chain and stops at the break".
         if ((depth[neighbour] ?? -1) !== -1) continue;
         depth[neighbour] = here + 1;
         next.push(neighbour);
@@ -541,6 +555,8 @@ export function hopDistances(
   for (const target of targets) {
     const index = graph.indexOf.get(target);
     if (index === undefined) continue;
+    // Stryker disable next-line UnaryOperator: EQUIVALENT — `index` came from `indexOf`, so the
+    // slot exists and the fallback is unreachable.
     const found = depth[index] ?? -1;
     if (found >= 0) distances.set(target, found);
   }

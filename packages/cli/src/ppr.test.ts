@@ -360,3 +360,156 @@ test("pairedDifference REFUSES unpaired or too-short input", () => {
   assert.throws(() => pairedDifference([0.1, 0.2], [0.1]), /same cases/);
   assert.throws(() => pairedDifference([0.1], [0.2]), /at least two paired cases/);
 });
+
+// ─── graph construction: the orderings and the canonical key ──────────────────────────────
+
+test("buildPprGraph returns nodes ASCENDING and de-duplicated", () => {
+  const graph = buildPprGraph([30, 10, 20, 10], []);
+  assert.deepEqual(graph.nodes, [10, 20, 30]);
+  assert.equal(graph.indexOf.get(10), 0);
+  assert.equal(graph.indexOf.get(30), 2);
+});
+
+test("buildPprGraph orders every adjacency list ascending", () => {
+  // Pushed highest-neighbour first; the stored list must still come back sorted, or a ranking
+  // that breaks ties by position would depend on the order edges happened to be authored in.
+  const graph = buildPprGraph([1, 2, 3, 4], [edge(1, 4), edge(1, 2), edge(1, 3)]);
+  assert.deepEqual(graph.neighbours[0], [1, 2, 3]);
+});
+
+/**
+ * ⚠ KILLS THE min/max SWAP IN THE CANONICAL KEY, which nothing else can see.
+ *
+ * The undirected key is `${min}-${max}`. Swapping the first call to `Math.max` yields `${max}-${max}`
+ * — still stable under edge reversal, so every symmetry test still passes — but it COLLIDES every
+ * pair sharing its larger endpoint. 1-3 and 2-3 both become "3-3" and one is silently dropped as a
+ * duplicate. Only a graph with two such edges can tell.
+ */
+test("buildPprGraph's canonical key keeps two edges that share their LARGER endpoint", () => {
+  const graph = buildPprGraph([1, 2, 3], [edge(1, 3), edge(2, 3)]);
+  assert.equal(graph.edgeCount, 2);
+  assert.equal(graph.duplicateEdges, 0);
+  assert.deepEqual(graph.neighbours[2], [0, 1]);
+});
+
+test("buildPprGraph's canonical key keeps two edges that share their SMALLER endpoint", () => {
+  const graph = buildPprGraph([1, 2, 3], [edge(1, 2), edge(1, 3)]);
+  assert.equal(graph.edgeCount, 2);
+  assert.equal(graph.duplicateEdges, 0);
+  assert.deepEqual(graph.neighbours[0], [1, 2]);
+});
+
+test("buildPprGraph counts dangling nodes exactly, not merely as a flag", () => {
+  const isolated = buildPprGraph([1, 2, 3], [edge(1, 2)]);
+  assert.equal(isolated.danglingNodes, 1);
+  const connected = buildPprGraph([1, 2], [edge(1, 2)]);
+  assert.equal(connected.danglingNodes, 0);
+  const empty = buildPprGraph([1, 2, 3], []);
+  assert.equal(empty.danglingNodes, 3);
+});
+
+// ─── the walk's own bookkeeping ───────────────────────────────────────────────────────────
+
+test("personalizedPageRank reports NOT converged when the iteration budget runs out", () => {
+  const graph = buildPprGraph([1, 2, 3, 4], [edge(1, 2), edge(2, 3), edge(3, 4)]);
+  const result = personalizedPageRank(graph, [1], { maxIterations: 2 });
+  assert.equal(result.converged, false, "a truncated walk must not claim convergence");
+  assert.equal(result.iterations, 2, "it should stop at exactly the budget");
+});
+
+/**
+ * Pins the iteration count at alpha 0, where the answer is known in one step: the restart vector IS
+ * the fixed point, so starting from it settles immediately. Starting from anything else — an empty
+ * initial vector, say — needs a second pass to reach the same answer, which is what this catches.
+ */
+test("personalizedPageRank starts FROM the restart vector, settling in one step at alpha 0", () => {
+  const graph = buildPprGraph([1, 2, 3], [edge(1, 2), edge(2, 3)]);
+  const result = personalizedPageRank(graph, [1], { alpha: 0 });
+  assert.equal(result.converged, true);
+  assert.equal(result.iterations, 1, "the restart vector is already the fixed point at alpha 0");
+});
+
+test("personalizedPageRank leaves every non-seed at zero when nothing may spread", () => {
+  const graph = buildPprGraph([1, 2, 3], [edge(1, 2), edge(2, 3)]);
+  const result = personalizedPageRank(graph, [1], { alpha: 0 });
+  assert.equal(result.scores[1], 0);
+  assert.equal(result.scores[2], 0);
+});
+
+test("chanceRecallAtK REFUSES a non-positive k", () => {
+  assert.throws(() => chanceRecallAtK(0, 100), /k must be positive/);
+  assert.throws(() => chanceRecallAtK(-1, 100), /k must be positive/);
+});
+
+// ─── hop distances ────────────────────────────────────────────────────────────────────────
+
+test("hopDistances reports the seed itself at distance zero", () => {
+  const graph = buildPprGraph([1, 2], [edge(1, 2)]);
+  const distances = hopDistances(graph, 1, [1, 2]);
+  assert.equal(distances.get(1), 0);
+  assert.equal(distances.get(2), 1);
+});
+
+/**
+ * A LONG chain, because a one-hop assertion cannot tell a real BFS from a sentinel bug: corrupt the
+ * unvisited marker and every reachable node reports distance 1, which is accidentally correct at one
+ * hop and wrong everywhere beyond it.
+ */
+test("hopDistances counts real distance along a chain and stops at the break", () => {
+  const graph = buildPprGraph(
+    [1, 2, 3, 4, 5, 9],
+    [edge(1, 2), edge(2, 3), edge(3, 4), edge(4, 5)],
+  );
+  const distances = hopDistances(graph, 1, [2, 3, 4, 5, 9]);
+  assert.equal(distances.get(2), 1);
+  assert.equal(distances.get(3), 2);
+  assert.equal(distances.get(4), 3);
+  assert.equal(distances.get(5), 4);
+  assert.equal(distances.get(9), Number.POSITIVE_INFINITY);
+});
+
+test("hopDistances reports a target the graph does not hold as unreachable", () => {
+  const graph = buildPprGraph([1, 2], [edge(1, 2)]);
+  const distances = hopDistances(graph, 1, [2, 404]);
+  assert.equal(distances.get(2), 1);
+  assert.equal(distances.get(404), Number.POSITIVE_INFINITY);
+});
+
+test("hopDistances takes the SHORTEST route when two exist", () => {
+  // 1-2-3 and the direct 1-3: the direct edge must win.
+  const graph = buildPprGraph([1, 2, 3], [edge(1, 2), edge(2, 3), edge(1, 3)]);
+  assert.equal(hopDistances(graph, 1, [3]).get(3), 1);
+});
+
+// ─── case construction ────────────────────────────────────────────────────────────────────
+
+test("buildRetrievalCases emits cases in a deterministic window order and counts the windows", () => {
+  const reading = buildRetrievalCases(
+    [
+      read("w2", "adr-0100", "2026-09-01T10:00:00Z"),
+      read("w2", "adr-0200", "2026-09-01T10:01:00Z"),
+      read("w1", "adr-0300", "2026-09-01T10:02:00Z"),
+      read("w1", "adr-0400", "2026-09-01T10:03:00Z"),
+    ],
+    numeric,
+  );
+  assert.deepEqual(
+    reading.cases.map((entry) => entry.windowId),
+    ["w1", "w2"],
+  );
+  assert.equal(reading.windowsSeen, 2);
+  assert.equal(reading.windowsWithoutGold, 0);
+});
+
+test("buildRetrievalCases returns gold ASCENDING regardless of read order", () => {
+  const reading = buildRetrievalCases(
+    [
+      read("w1", "adr-0100", "2026-09-01T10:00:00Z"),
+      read("w1", "adr-0400", "2026-09-01T10:01:00Z"),
+      read("w1", "adr-0200", "2026-09-01T10:02:00Z"),
+      read("w1", "adr-0300", "2026-09-01T10:03:00Z"),
+    ],
+    numeric,
+  );
+  assert.deepEqual(reading.cases[0]?.gold, [200, 300, 400]);
+});
