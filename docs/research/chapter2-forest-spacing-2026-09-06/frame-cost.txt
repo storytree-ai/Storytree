@@ -1,0 +1,31 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+plan: 12 configurations (6 arms × 2 pictures) x 5 interleaved repeats x 20 frames per GPU query, 2 independent runs
+
+⚠ THIS REPORTS AND DOES NOT GATE (ADR-0517 D4 / ADR-0520 D6): every number moves because the forest’s extent moves. It picks no rung.
+
+FOREST SPACING — FRAME COST on the GPU's own clock, forest @ fit
+arm             calls       tris   ms/frame   spread   vs today    % of a 60Hz frame
+today               5     720540     0.3446   0.0380          —      2.1%   ← TODAY (before this landing)
+spacing-0.5         5     720278     0.3346   0.0384    -0.0100      2.0%
+spacing-0.35        5     720262     0.3395   0.0421    -0.0051      2.0%
+spacing-0.2         5     724652     0.3570   0.0378    +0.0125      2.1%
+spacing-0.1         5     718366     0.3535   0.0297    +0.0089      2.1%
+spacing-0           5     720432     0.3743   0.0402    +0.0298      2.2%   ← SHIPPED
+
+FOREST SPACING — FRAME COST on the GPU's own clock, one @ 8
+arm             calls       tris   ms/frame   spread   vs today    % of a 60Hz frame
+today               5     720540     0.4124   0.0229          —      2.5%   ← TODAY (before this landing)
+spacing-0.5         5     720278     0.4082   0.0317    -0.0041      2.4%
+spacing-0.35        5     720262     0.4107   0.0203    -0.0016      2.5%
+spacing-0.2         5     724652     0.4207   0.0082    +0.0083      2.5%
+spacing-0.1         5     718366     0.4019   0.0179    -0.0105      2.4%
+spacing-0           5     720432     0.4085   0.0055    -0.0039      2.5%   ← SHIPPED
+
+DID IT REPRODUCE?
+  Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped.
+
+WHAT IT MEANS FOR THE BUDGET (16.67 ms at 60 Hz):
+  the SHIPPED picture (spacing-0) draws the whole real map, fitted, in 0.3743 ms — 2.2% of a frame.
+  against the layout as it stood (today) that is +0.0298 ms (1.09x).
+  ⚠ THIS IS THE GPU’S DRAW COST FOR THIS SCENE AND NOTHING ELSE — not the site’s frame time.

@@ -1,0 +1,50 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+light probe: a lit white face delivered 0.3176 at the authored intensities; scale 3.1481 onto the ladder's 1; floor 0.8
+elevation (read off the camera): 50° on every arm · land 318 units² per capability on every island of every arm
+scenes: exported 2026-09-05T22:24:25.521Z from the studio at d65d7487610ab390062e62205c94b659fefd9f6b (claude/forest-spacing) · shipped spacing ratio 0 → the shipped arm is spacing-0
+
+THE ARMS
+  today         gaps 40 / 60 / swing 140 units, absolute — TODAY (CONTROL) · 2D world 2318×3736 · trails 90 routed / 0 dropped
+  spacing-0.5   every gap 0.5 × the mean radius of the two islands it separates · 2D world 2342×4000 · trails 90 routed / 0 dropped
+  spacing-0.35  every gap 0.35 × the mean radius of the two islands it separates · 2D world 2155×3792 · trails 90 routed / 0 dropped
+  spacing-0.2   every gap 0.2 × the mean radius of the two islands it separates · 2D world 2108×3543 · trails 90 routed / 0 dropped
+  spacing-0.1   every gap 0.1 × the mean radius of the two islands it separates · 2D world 2014×3418 · trails 90 routed / 0 dropped
+  spacing-0     every gap 0 × the mean radius of the two islands it separates   ← SHIPPED · 2D world 1968×3265 · trails 90 routed / 0 dropped
+
+── forest @ fit (each arm at its own fit) ─────────────────────────────────
+arm            ratio  islands  centres span (units)  ground extent (units)  nearest pair (units, water)     px/unit  land% frame  land% box  island px  pine px   TREES  cover   tris     fam  MICRO  moved>20 vs today  vs neighbour
+today              —       35             1887×3484              1930×3557        218, 173 arc↔binding-stal    0.570       0.67%       1.6%         34      6.6    203   1091   720540   50  13.43                  0             —   ← TODAY
+spacing-0.5      0.5       35             1864×3745              1924×3820        180, 121 arc↔binding-stal    0.532       0.58%       1.5%         36      6.2    203   1091   720278   48  13.96              39749         39749
+spacing-0.35    0.35       35             1756×3537              1804×3598         121, 51 feedback-graduat    0.564       0.66%       1.7%         38      6.5    203   1091   720262   53  13.46              43242         36712
+spacing-0.2      0.2       35             1634×3288              1693×3363        151, 110 terminal-repo-pi    0.602       0.76%       1.9%         41      7.0    203   1091   724652   50  13.27              43091         38713
+spacing-0.1      0.1       35             1550×3150              1613×3211        152, 111 terminal-repo-pi    0.629       0.82%       2.1%         37      7.3    203   1091   718366   50  13.05              46885         38327
+spacing-0          0       35             1487×3008              1548×3071         144, 65 feedback-graduat    0.657       0.89%       2.3%         33      7.6    203   1091   720432   51  12.98              47641         41338   ← SHIPPED
+
+── one @ 8 px/unit ─────────────────────────────────
+arm            ratio  islands  centres span (units)  ground extent (units)  nearest pair (units, water)     px/unit  land% frame  land% box  island px  pine px   TREES  cover   tris     fam  MICRO  moved>20 vs today  vs neighbour
+today              —       35             1887×3484              1930×3557        218, 173 arc↔binding-stal    8.000       3.54%      52.5%        473     92.6    203   1091   720540   55   4.69                  0             —   ← TODAY
+spacing-0.5      0.5       35             1864×3745              1924×3820        180, 121 arc↔binding-stal    8.000       3.51%      62.2%        541     92.6    203   1091   720278   56   4.92             158323        158323
+spacing-0.35    0.35       35             1756×3537              1804×3598         121, 51 feedback-graduat    8.000       3.54%      63.5%        541     92.6    203   1091   720262   51   4.57             152214        123019
+spacing-0.2      0.2       35             1634×3288              1693×3363        151, 110 terminal-repo-pi    8.000       3.72%      52.3%        540     92.6    203   1091   724652   56   4.81             132441        151872
+spacing-0.1      0.1       35             1550×3150              1613×3211        152, 111 terminal-repo-pi    8.000       3.43%      58.1%        473     92.6    203   1091   718366   57   4.91             143460        137988
+spacing-0          0       35             1487×3008              1548×3071         144, 65 feedback-graduat    8.000       3.52%      63.8%        406     92.6    203   1091   720432   54   4.73             131182        132288   ← SHIPPED
+
+THE READ ISLAND (context-traversal-capture) — unaffected on every arm:
+  today         7 capabilities · 2226.0 units² (318.0 per capability) · 59×78 units · moved>20 vs today 0 (its ring re-grows from a moved seed and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  spacing-0.5   7 capabilities · 2226.0 units² (318.0 per capability) · 68×49 units · moved>20 vs today 158,323 (its ring re-grows from a moved seed and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  spacing-0.35  7 capabilities · 2226.0 units² (318.0 per capability) · 68×49 units · moved>20 vs today 152,214 (its ring re-grows from a moved seed and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  spacing-0.2   7 capabilities · 2226.0 units² (318.0 per capability) · 68×63 units · moved>20 vs today 132,441 (its ring re-grows from a moved seed and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  spacing-0.1   7 capabilities · 2226.0 units² (318.0 per capability) · 59×63 units · moved>20 vs today 143,460 (its ring re-grows from a moved seed and the ground noise is world-anchored, so pixels move; its LAND cannot)
+  spacing-0     7 capabilities · 2226.0 units² (318.0 per capability) · 51×63 units · moved>20 vs today 131,182 (its ring re-grows from a moved seed and the ground noise is world-anchored, so pixels move; its LAND cannot)
+
+THE LAYOUT QUESTION, IN NUMBERS — the whole real forest, fitted:
+  today         land 0.67% of the frame (1.6% of its own box) · centres span 1887×3484 units (100% of today's area) · nearest pair 173 units of water · island 34 px wide · pine 6.6 px   ← TODAY (before this landing)
+  spacing-0.5   land 0.58% of the frame (1.5% of its own box) · centres span 1864×3745 units (106% of today's area) · nearest pair 121 units of water · island 36 px wide · pine 6.2 px
+  spacing-0.35  land 0.66% of the frame (1.7% of its own box) · centres span 1756×3537 units (95% of today's area) · nearest pair 51 units of water · island 38 px wide · pine 6.5 px
+  spacing-0.2   land 0.76% of the frame (1.9% of its own box) · centres span 1634×3288 units (82% of today's area) · nearest pair 110 units of water · island 41 px wide · pine 7.0 px
+  spacing-0.1   land 0.82% of the frame (2.1% of its own box) · centres span 1550×3150 units (74% of today's area) · nearest pair 111 units of water · island 37 px wide · pine 7.3 px
+  spacing-0     land 0.89% of the frame (2.3% of its own box) · centres span 1487×3008 units (68% of today's area) · nearest pair 65 units of water · island 33 px wide · pine 7.6 px   ← SHIPPED
+
+⚠ EVERY FIGURE ABOVE IS RE-MEASURED ON THIS RUN. Nothing is inherited from an increment row,
+  an arc intent or an earlier evidence sheet. Frame cost is shipped-spacing-cost.mjs’s and REPORTS (ADR-0517 D4).

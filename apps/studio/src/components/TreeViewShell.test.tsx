@@ -13,7 +13,15 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { act, render, cleanup } from '@testing-library/react';
 import { readdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// The studio package root, anchored on THIS FILE rather than on `process.cwd()`. Under `pnpm test`
+// the two agree (the cwd is `apps/studio`); under `check:mutation-diff` they do not — Stryker runs
+// vitest from a SANDBOX copy of the repo root, so a cwd-relative `src/components/…` read hits
+// ENOENT and fails the dry run before a single mutant is tried. Measured 2026-09-06: the first
+// branch whose mutated studio files were witnessed by this suite could reach no verdict at all.
+const STUDIO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 import {
   CHAPTER2_ROUND3_TREE_CANDIDATES,
   chapter2Round3TreeCandidate,
@@ -106,7 +114,7 @@ async function renderTree(options: RenderTreeOptions = {}): Promise<HTMLElement>
 describe('TreeView shell — full-bleed map, no session counter (owner feedback 2026-07-13)', () => {
   it('asa-treeview-mounts-one-shared-world-view', () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'components', 'TreeView.tsx'),
+      resolve(STUDIO_ROOT, 'src', 'components', 'TreeView.tsx'),
       'utf8',
     );
 
@@ -148,7 +156,7 @@ describe('TreeView shell — full-bleed map, no session counter (owner feedback 
 // so Studio's INTEGRATION with that vocabulary is pinned independently at this seam too.
 // ---------------------------------------------------------------------------------------------
 
-const APP_SURFACE_SRC = resolve(process.cwd(), '..', '..', 'packages', 'app-surface', 'src');
+const APP_SURFACE_SRC = resolve(STUDIO_ROOT, '..', '..', 'packages', 'app-surface', 'src');
 
 function stripKeyframeBlocks(source: string): string {
   return source.replace(/@keyframes\s+[\w-]+\s*\{[\s\S]*?\n\}\n*/g, '');
@@ -551,7 +559,10 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
         '[data-organic-technique="pose-to-pose"][data-island-technique="connected-accretion"]',
       );
       expect(section).toBeTruthy();
-      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      // 50 -> 52 on 2026-09-06 (ADR-0521): the fixture's two islands are seeded by the ratio-derived
+      // spacing now, so the second island's seed moved and its territory grew a different tile set.
+      // What is NOT allowed to move is asserted alongside — one connected adjacency wave per ring.
+      expect(section?.getAttribute('data-svg-island-accretion-cells')).toBe('52');
       expect(section?.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
       // 50 cells over 8 connected waves. The counts have moved twice before — from 52 /
       // `1,4,8,13,13,9,4` when `islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out`
@@ -567,7 +578,14 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
       // connected adjacency wave per ring. The wave shape is still a rise and a taper, now peaking
       // later (1,4,6,6,8,11 then 10,4). The shift is caught here loudly rather than silently, which
       // is what this assertion is for.
-      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,6,6,8,11,10,4');
+      //
+      // And once more on 2026-09-06 (ADR-0521): the ratio-derived spacing re-seeded the fixture's
+      // second island, its territory grew a different tile set (50 -> 52 cells, asserted above), and
+      // the adjacency partition followed the tiles — `1,4,7,11,13,10,6` at the shipped rung 0 (it read
+      // `1,4,5,6,8,9,8,8,3` at rung 0.1 while the pick was being laddered: the partition is a function
+      // of where the seed lands), still one connected wave per ring, still a rise and a taper. Caught
+      // here loudly, as this assertion is for.
+      expect(section?.getAttribute('data-svg-island-accretion-waves')).toBe('1,4,7,11,13,10,6');
       const legend = flagged.querySelector('[data-island-accretion-legend="true"]');
       expect(legend).toBeTruthy();
       for (const term of [
@@ -717,7 +735,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
   // TOGETHER — a parcel-only rendered check alone is not sufficient proof of real composition.
   it('sgsd-composed-through-real-studio-world-pipeline: the fixture is folded through buildWorld -> buildRelaxedCells -> worldToScene -> buildScene, never a demo-only hand-authored SceneInput/COAST/empty geometry', async () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      resolve(STUDIO_ROOT, 'src', 'components', 'SemanticGrowthDemo.tsx'),
       'utf8',
     );
 
@@ -800,7 +818,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
   // `land`) must carry no invented lane at all.
   it('sgsd-primary-selection-reuses-drawn-route-lanes: the primary\'s real trail route reaches the shared renderer as a lit, drawing lane once its identity narrates, and no frame invents one', async () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      resolve(STUDIO_ROOT, 'src', 'components', 'SemanticGrowthDemo.tsx'),
       'utf8',
     );
 
@@ -865,7 +883,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
   // nothing to show for it. Hence: every reference must RESOLVE, not merely be present.
   it('the primary\'s arrival draws its real trail on, exactly once, from the arriving island', async () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      resolve(STUDIO_ROOT, 'src', 'components', 'SemanticGrowthDemo.tsx'),
       'utf8',
     );
 
@@ -958,7 +976,7 @@ describe('semantic-growth studio demo (`?semanticGrowth=demo`) — asa: sgsd-cle
   // `real-ms22cssp` omitted (adding it alone, with no D/E CSS audit, is equally invalid).
   it('sgsd-companion-witness-territory: a fixed companion territory survives every frame (real story-tree + garden-flora, never claim/proof) while only the primary narrates the six-state walk, over both Vector and a Storybook sprite sheet', async () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'),
+      resolve(STUDIO_ROOT, 'src', 'components', 'SemanticGrowthDemo.tsx'),
       'utf8',
     );
 
@@ -1504,8 +1522,9 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
       expect(section.getAttribute('data-organic-technique')).toBe('pose-to-pose');
       expect(section.getAttribute('data-island-technique')).toBe('connected-accretion');
       // Same fixture/golden as the organic-island-accretion gate above — see its comment for why
-      // 52 -> 50 (islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out's spacing cut).
-      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('50');
+      // 52 -> 50 (islands-sit-too-far-apart-and-the-resting-zoom-is-too-far-out's spacing cut) and
+      // then 50 -> 52 (ADR-0521, the ratio-derived spacing re-seeded the fixture's second island).
+      expect(section.getAttribute('data-svg-island-accretion-cells')).toBe('52');
       expect(section.getAttribute('data-svg-island-accretion-duration-ms')).toBe('1600');
 
       // The picker names every candidate, with the incumbent pressed by default.
@@ -1933,7 +1952,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
   it('no PixelLab client, hostname, credential or runtime model call reaches the consumer, and the lab has no permanent navigation entry', async () => {
     // ---- A. SOURCE audit over the files that actually compose the lab consumer. --------------
     const labSources: [string, string][] = [
-      ['SemanticGrowthDemo.tsx', readFileSync(resolve(process.cwd(), 'src', 'components', 'SemanticGrowthDemo.tsx'), 'utf8')],
+      ['SemanticGrowthDemo.tsx', readFileSync(resolve(STUDIO_ROOT, 'src', 'components', 'SemanticGrowthDemo.tsx'), 'utf8')],
       ...(
         [
           'chapter2-round3-tree-candidates.ts',
@@ -1967,7 +1986,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
 
     // The Studio gate adds only a URL reader — no fetch, no import of a vendor module.
     const treeViewSource = readFileSync(
-      resolve(process.cwd(), 'src', 'components', 'TreeView.tsx'),
+      resolve(STUDIO_ROOT, 'src', 'components', 'TreeView.tsx'),
       'utf8',
     );
     expect(treeViewSource).toMatch(
@@ -1995,8 +2014,8 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
 
     // ---- B. DEPENDENCY audit — nothing vendor-shaped is even installable at this seam. -------
     const vendorish = /pixellab|openai|anthropic|replicate|stability|midjourney/i;
-    for (const manifest of ['package.json', resolve('..', '..', 'packages', 'app-surface', 'package.json')]) {
-      const pkg = JSON.parse(readFileSync(resolve(process.cwd(), manifest), 'utf8')) as {
+    for (const manifest of ['package.json', resolve(STUDIO_ROOT, '..', '..', 'packages', 'app-surface', 'package.json')]) {
+      const pkg = JSON.parse(readFileSync(resolve(STUDIO_ROOT, manifest), 'utf8')) as {
         dependencies?: Record<string, string>;
         devDependencies?: Record<string, string>;
       };
@@ -2009,7 +2028,7 @@ describe('Chapter 2 round-3 comparison lab (`?organicGrowth=r3-lab`)', () => {
     }
 
     // ---- C. NO PERMANENT NAVIGATION ENTRY — the query is the only way in. -------------------
-    const studioSrc = resolve(process.cwd(), 'src');
+    const studioSrc = resolve(STUDIO_ROOT, 'src');
     const mentions = (readdirSync(studioSrc, { recursive: true, encoding: 'utf8' }) as string[])
       .map((entry) => entry.replace(/\\/g, '/'))
       .filter((entry) => /\.(?:ts|tsx)$/.test(entry))
