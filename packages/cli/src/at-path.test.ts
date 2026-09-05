@@ -215,3 +215,15 @@ test("run(): the refusal fires for a flag whose verb NEVER expanded @path itself
   assert.equal(env.ok, false, env.body);
   assert.match(env.body, /--reason "@\/definitely\/not\/here\.txt" could not be read/);
 });
+
+test("`arc gate`'s two flags split across the prose/literal line — --needs literal, --reason prose", () => {
+  // ADR-0523 D5. Named rather than left to the generic exhaustiveness sweep above, because that
+  // sweep only asks that a flag be classified SOMEHOW — it stays green if `--needs` drifts into
+  // PROSE, where `--needs @notes.md` would read a file where an ARC ID belongs and then gate the arc
+  // behind whatever that file's first line happened to say.
+  assert.equal(LITERAL_FLAGS.has("needs"), true, "--needs names an arc, taken verbatim");
+  assert.equal(PROSE_FLAGS.has("needs"), false, "--needs is an identity, never a durable record");
+  // Its sibling on the same command goes the other way, and the pair splitting is correct.
+  assert.equal(PROSE_FLAGS.has("reason"), true, "--reason is the durable why, and must be @path-expandable");
+  assert.equal(LITERAL_FLAGS.has("reason"), false, "--reason must not be taken verbatim");
+});
