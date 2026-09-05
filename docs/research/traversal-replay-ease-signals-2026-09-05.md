@@ -16,12 +16,16 @@ The owner's reading — *"its not really useful at telling me how easy it was fo
 they needed other than seeing how many hops it did"* — is generous to the panel. The vertical is not
 hops at all.
 
-Two different depths exist in the code, named apart on purpose
-(`apps/studio/src/components/TraversalSpine.tsx:158-160`):
+Two different depths exist in the code, named apart on purpose. The authority is the axis resolution
+at `apps/studio/src/components/TraversalSpine.tsx:251-260` and the rendered caption at `:394`
+(`'depth ↓ corpus distance'`):
 
-> NOTE THE TWO DEPTHS ARE DIFFERENT QUANTITIES. The indentation this picture already draws is
-> SESSION-traversal depth from `parentVisitId`. This is KNOWLEDGE depth: how far the artifact that
-> was read sits from the actual work.
+> It cannot be resolved in `buildTraversalSpine` instead, which is where the old `parentVisitId`
+> depth was: that reading came out of the trace alone, and this one needs the CORPUS.
+
+⚠ The prop JSDoc at `:158-163` still asserted the *opposite* — that the drawn indentation is session
+depth — which was true before ADR-0482 and false since. Corrected in this landing; if you are reading
+an older checkout, do not trust that comment.
 
 - **Session-traversal depth** (`apps/studio/src/lib/traversalDepth.ts:42`) resolves *only* from the
   recorded `parentVisitId` chain and refuses to infer a parent from order, time or the node graph.
@@ -157,8 +161,11 @@ historical population was already the accepted signal, not a renderer bug (ADR-0
   clean record-only variant makes 89 knowledge artifacts deeper for record-keeping reasons, i.e. the
   axis manufacturing its own headline. Do not re-propose it; see
   `unmeasured-row-is-three-bands-and-record-edges-are-refused`.
-- The panel's look is stamped (owner, 2026-08-30). A change to the picture is its own decision
-  (ADR-0511) — that is the route, not a way around.
+- The panel's look is stamped (owner, 2026-08-30). A change to the picture is its own decision —
+  that is the route, not a way around. ⚠ The governing decision is **ADR-0354 D5** (a landing that
+  moves the drawn picture does not carry a standing signature over it), generalised in ADR-0482's
+  Consequences. `replay-answers-retrieval-ease-arc`'s intent text cites ADR-0511 for this; that is a
+  misciting — ADR-0511 is about the fifth `record` reading state and the refused edge widenings.
 - There is no vertical space: rows floor at 11px (`TraversalSpine.tsx:686`) and a deep trace fills the
   320px dock (`BottomDock.tsx:38`). Any proposal needing a row must say what it removes.
 - ADR-0524 puts a horizontal composition bar across the top and removes the vertical occupancy track.
