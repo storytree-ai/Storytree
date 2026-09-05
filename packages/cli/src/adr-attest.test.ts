@@ -425,3 +425,95 @@ test("adr attest --backfill: a row that cannot re-validate is counted as a FAILU
   assert.match(env.body, /adr-0200/);
   assert.notEqual(await authorityOf(store, 100), undefined, "the healthy row still landed");
 });
+
+// ─── the row projection's defensive arms ──────────────────────────────────────────────────────
+
+test("adr attest: a row whose `number` is not a number is SKIPPED, not counted", async () => {
+  // Both arms of the guard are reachable and neither is redundant: a `--set` can write a string
+  // into `number`, and a stored NaN/Infinity is a different failure the same guard must catch.
+  const store = new InMemoryStore();
+  await seed(store, 100, "accepted.");
+  for (const [id, number] of [
+    ["adr-0200", "200"],
+    ["adr-0300", Number.NaN],
+    ["adr-0400", Number.POSITIVE_INFINITY],
+  ] as const) {
+    await store.upsertDoc({
+      id,
+      kind: "adr",
+      doc: { kind: "adr", id, title: "T", description: "d", body: "b", number, status: "accepted" },
+    });
+  }
+  const env = await adrAttest(undefined, {}, depsFor(store));
+  assert.match(env.body, /0 of 1 decision rows declare a basis/, "only the well-formed row is counted");
+});
+
+test("adr attest: a row whose `body` is not a string classifies to nothing rather than throwing", async () => {
+  const store = new InMemoryStore();
+  const id = idOf(100);
+  await store.upsertDoc({
+    id,
+    kind: "adr",
+    doc: { kind: "adr", id, title: "T", description: "d", body: 42, number: 100, status: "accepted" },
+  });
+  const env = await adrAttest(undefined, { backfill: true }, depsFor(store, false));
+  assert.equal(env.ok, true);
+  assert.match(env.body, /DRY RUN — 0 of 1 unstamped decisions are mechanically classifiable/);
+});
+
+test("adr attest: the coverage index says n/a rather than dividing by zero owner claims", async () => {
+  // The whole log stamped, none of it claiming the owner. `0/0` must not render as `NaN%`.
+  const store = new InMemoryStore();
+  await seed(store, 100, "accepted.", {
+    authority: { basis: "agent-derived", scribedBy: "cli@x", at: "2026-09-05" },
+  });
+  const env = await adrAttest(undefined, {}, depsFor(store));
+  assert.match(env.body, /of the 0 stamps CLAIMING the owner's authority/);
+  assert.match(env.body, /\(n\/a of owner claims\)/);
+  assert.doesNotMatch(env.body, /NaN/);
+});
+
+test("adr attest --backfill: the FAILURE report is ordered by decision number, not by store order", async () => {
+  // What makes the projection's sort observable. Seeded descending; the report must read ascending.
+  const store = new InMemoryStore();
+  for (const n of [300, 100, 200]) {
+    const id = idOf(n);
+    await store.upsertDoc({
+      id,
+      kind: "adr",
+      // No `description`, so each fails to re-validate on the way back in.
+      doc: {
+        kind: "adr",
+        id,
+        title: "Broken",
+        body: `# ADR-${String(n).padStart(4, "0")}: Broken\n\n## Status\n\naccepted — ${STOCK}\n`,
+        number: n,
+        status: "accepted",
+      },
+    });
+  }
+  const env = await adrAttest(undefined, { backfill: true }, depsFor(store));
+  assert.equal(env.ok, false);
+  const order = [...env.body.matchAll(/adr-0(\d)00:/g)].map((m) => Number(m[1]));
+  assert.deepEqual(order, [1, 2, 3], "the failures must be listed in decision-number order");
+});
+
+test("statusSectionOf: the heading tolerates extra spacing, and an INLINE `## ` never ends the section", () => {
+  // The two regexes' remaining pieces, each pinned by an input that tells the mutant apart:
+  // `[ \t]+` (a two-space heading) and the `^` anchor on the terminator (a mid-line `## `).
+  assert.match(statusSectionOf("# T\n\n##  Status\n\naccepted.\n"), /accepted\./);
+  assert.match(statusSectionOf("# T\n\n##\tStatus\n\naccepted.\n"), /accepted\./);
+  const inline = "# T\n\n## Status\n\naccepted, see the ## Context section below.\n\n## Context\n\nlater.\n";
+  assert.match(statusSectionOf(inline), /see the ## Context section below/);
+  assert.doesNotMatch(statusSectionOf(inline), /later\./);
+});
+
+test("statusSectionOf: a body with no Status section at all yields nothing", () => {
+  assert.equal(statusSectionOf("# T\n\n## Decision\n\nSomething.\n"), "");
+  assert.equal(statusSectionOf(""), "");
+});
+
+test("statusSectionOf: a Status section that runs to the END of the body is returned whole", () => {
+  // The `next === null` arm — the shape the old single-regex form needed a trailing lookahead for.
+  assert.match(statusSectionOf("# T\n\n## Status\n\naccepted, and nothing follows."), /nothing follows/);
+});

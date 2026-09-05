@@ -87,8 +87,16 @@ const AGENT_FLIP_PHRASE = /flipped from proposed[\s\S]{0,80}?under ADR-0084/i;
  */
 export function statusSectionOf(body: string): string {
   const stripped = body.replace(/```[\s\S]*?```/g, "");
-  const m = /^##[ \t]+Status\b([\s\S]*?)(?=^##[ \t]|$(?![\s\S]))/m.exec(stripped);
-  return m?.[1] ?? "";
+  // TWO simple regexes rather than one with a trailing lookahead. The single-regex form ended
+  // `(?=^##[ \t]|$(?![\s\S]))`, and its `$` was dead: under `/m` the alternative `(?![\s\S])`
+  // already means end-of-INPUT, so no input could tell the two apart. That is an equivalent mutant,
+  // which is a design smell rather than an instrument defect — the branch was not doing work. Split
+  // in two, every piece here is discriminable by a fixture, which is what makes it checkable at all.
+  const heading = /^##[ \t]+Status\b/m.exec(stripped);
+  if (heading === null) return "";
+  const after = stripped.slice(heading.index + heading[0].length);
+  const next = /^##[ \t]/m.exec(after);
+  return next === null ? after : after.slice(0, next.index);
 }
 
 /** What a mechanically-classifiable row yields: the stamp minus the two fields only a writer knows. */
@@ -194,7 +202,6 @@ interface AttestRow {
   readonly number: number;
   readonly bag: Record<string, unknown>;
   readonly authority: DecisionAuthority | undefined;
-  readonly status: string;
   readonly body: string;
 }
 
@@ -206,7 +213,8 @@ interface AttestRow {
  * both trusting a shape neither has checked.
  */
 function authorityOf(bag: Record<string, unknown>): DecisionAuthority | undefined {
-  if (bag["authority"] === undefined) return undefined;
+  // No `=== undefined` pre-check: `safeParse(undefined)` already fails, so the guard could not
+  // change any answer — an equivalent mutant, and one more branch to read for nothing.
   const parsed = DecisionAuthority.safeParse(bag["authority"]);
   return parsed.success ? parsed.data : undefined;
 }
@@ -215,14 +223,16 @@ function attestRowsOf(docs: readonly StoredDoc[]): AttestRow[] {
   const rows: AttestRow[] = [];
   for (const doc of docs) {
     const bag = (typeof doc.doc === "object" && doc.doc !== null ? doc.doc : {}) as Record<string, unknown>;
-    const number = typeof bag["number"] === "number" ? bag["number"] : Number.NaN;
-    if (!Number.isFinite(number)) continue;
+    // Both arms are reachable and neither is redundant: a non-number `number` (a `--set` wrote a
+    // string) takes the first, and a numeric NaN/Infinity takes the second. The earlier
+    // `typeof … ? … : NaN` form routed everything through one test and left the other unkillable.
+    const raw = bag["number"];
+    if (typeof raw !== "number" || !Number.isFinite(raw)) continue;
     rows.push({
       id: doc.id,
-      number,
+      number: raw,
       bag,
       authority: authorityOf(bag),
-      status: typeof bag["status"] === "string" ? bag["status"] : "",
       body: typeof bag["body"] === "string" ? bag["body"] : "",
     });
   }

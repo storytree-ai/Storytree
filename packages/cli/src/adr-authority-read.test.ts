@@ -209,3 +209,50 @@ test("the banner reports an agent basis plainly, with no owner language at all",
   assert.match(out, /agent-flipped/);
   assert.doesNotMatch(out, /owner/);
 });
+
+// ─── the banner, pinned WHOLE ─────────────────────────────────────────────────────────────────
+//
+// The `match` probes above assert the DISTINCTIONS that matter; these pin every remaining literal.
+// A render is mostly string literals and `check:mutation-diff` charges one mutant each, so a probe
+// leaves every word it did not quote unheld. Deliberately brittle: changing this wording is meant
+// to fail here.
+
+test("golden banner — a quoted owner directive", () => {
+  assert.deepEqual(authorityBannerFor({ authority: QUOTED }), [
+    "whose call: owner-directed (quoted owner directive) · scribed by cli@claude/x on 2026-09-05",
+    "",
+    "the owner's words, verbatim:",
+    "  > yes, do it — basis plus my verbatim words",
+    "",
+  ]);
+});
+
+test("golden banner — a transcribed owner claim", () => {
+  assert.deepEqual(authorityBannerFor({ authority: TRANSCRIBED }), [
+    "whose call: owner-directed (transcribed from the record's own prose — no owner words were ever captured) · scribed by cli@claude/backfill on 2026-09-05",
+    "  ⚠ read off this record's own `## Status` prose by a later pass, not captured from the owner.",
+    "    It carries an earlier agent's claim forward; it does not verify one (ADR-0519 D5).",
+    "",
+  ]);
+});
+
+test("golden banner — an agent basis, which owes no provenance note at all", () => {
+  assert.deepEqual(authorityBannerFor({ authority: FLIPPED }), [
+    "whose call: agent-flipped (declared, no quote) · scribed by cli@claude/x on 2026-09-05",
+    "",
+  ]);
+});
+
+test("golden banner — a MULTI-LINE owner directive keeps every line quoted", () => {
+  // The `.split("\n").map()` is what carries a directive of several sentences; a single-line
+  // fixture cannot tell it from a bare push of the whole string.
+  const multi = { ...QUOTED, ownerSaid: "first line\nsecond line" };
+  assert.deepEqual(authorityBannerFor({ authority: multi }), [
+    "whose call: owner-directed (quoted owner directive) · scribed by cli@claude/x on 2026-09-05",
+    "",
+    "the owner's words, verbatim:",
+    "  > first line",
+    "  > second line",
+    "",
+  ]);
+});
