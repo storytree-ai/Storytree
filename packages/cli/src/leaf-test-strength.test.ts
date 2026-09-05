@@ -206,9 +206,11 @@ test("the rendered population names the missing anchor only when the count reall
   assert.match(none, /carrying a boundHash: {4}0/);
   assert.match(none, /ADR-0016's span anchor is stamped on NONE/);
 
+  // The non-zero arm is pinned as a WHOLE LINE, not swept: `doesNotMatch(/stamped on NONE/)` passes
+  // over an empty-string arm mutated to any other text, which is the survivor a sweep let through.
   const some = renderPopulation(resolvePopulation([verdict({ boundHash: "fnv1:aaa" })], found));
-  assert.match(some, /carrying a boundHash: {4}1/);
-  assert.doesNotMatch(some, /stamped on NONE/);
+  const anchorLine = some.split("\n").find((l) => l.includes("carrying a boundHash"));
+  assert.equal(anchorLine, "  carrying a boundHash:    1", "no note at all when one is stamped");
 });
 
 test("the rendered population prints every reason line, including the zeroes", () => {
@@ -805,7 +807,17 @@ test("the markdown rows are ordered strongest-first, and an unknown staleness re
   const rows = md.split("\n").filter((l) => l.startsWith("| `"));
   assert.deepEqual(rows.map((r) => r.split(" ")[1]), ["`strong`", "`weak`"]);
   assert.ok(rows.every((r) => r.endsWith("| ? |")), "staleness the caller could not establish");
-  assert.doesNotMatch(md, /Could not be run/, "no failure section when nothing failed");
+  // PINNED WHOLE, not swept: with no failures the table must END at its last pair row. A
+  // `doesNotMatch(/Could not be run/)` passes over an empty branch mutated to emit any OTHER junk
+  // line, which is exactly the `[] -> ["Stryker was here"]` survivor a sweep here let through.
+  assert.equal(
+    md.split("\n").slice(-2).join("\n"),
+    [
+      "| `strong` | net-new | 10 | 90.0% | 90.0% | 100.0% | 9/1/0/0 | ? |",
+      "| `weak` | net-new | 10 | 10.0% | 10.0% | 100.0% | 1/9/0/0 | ? |",
+    ].join("\n"),
+    "nothing follows the last pair row when nothing failed",
+  );
 });
 
 test("a pair with no mutants sorts last and renders its absence, never a 0%", () => {
@@ -854,19 +866,21 @@ test("--units selects only the named pairs and reports names that matched nothin
 });
 
 test("merging a re-run keeps every banked pair and replaces only the re-run ones", () => {
+  // INSERTION ORDER IS DELIBERATELY NOT SORTED ORDER (`zulu`, `mike`, then `alpha`): a merge that
+  // returned map order would pass on an already-sorted fixture and reorder a real reading.
   const banked = [
-    scored({ pair: pair("a"), tally: { killed: 1, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
-    scored({ pair: pair("b"), tally: { killed: 2, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
+    scored({ pair: pair("zulu"), tally: { killed: 1, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
+    scored({ pair: pair("mike"), tally: { killed: 2, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
   ];
   const fresh = [
-    scored({ pair: pair("b"), tally: { killed: 5, survived: 5, timeout: 0, noCoverage: 0, excluded: 0 } }),
-    scored({ pair: pair("c"), tally: { killed: 3, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
+    scored({ pair: pair("mike"), tally: { killed: 5, survived: 5, timeout: 0, noCoverage: 0, excluded: 0 } }),
+    scored({ pair: pair("alpha"), tally: { killed: 3, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
   ];
   const merged = mergeScored(banked, fresh);
-  assert.deepEqual(merged.map((s) => s.pair.unitId), ["a", "b", "c"]);
-  assert.equal(merged[0]?.tally.killed, 1, "an untouched banked pair survives the merge");
+  assert.deepEqual(merged.map((s) => s.pair.unitId), ["alpha", "mike", "zulu"], "sorted, not map order");
+  assert.equal(merged[0]?.tally.killed, 3);
   assert.equal(merged[1]?.tally.killed, 5, "the re-run wins on a pair it re-scored");
-  assert.equal(merged[2]?.tally.killed, 3);
+  assert.equal(merged[2]?.tally.killed, 1, "an untouched banked pair survives the merge");
 });
 
 test("merging nothing onto a banked reading changes nothing — the --population case", () => {
@@ -879,14 +893,20 @@ test("merging nothing onto a banked reading changes nothing — the --population
   ]);
 });
 
-test("a unit that now SCORES drops out of the could-not-be-run list", () => {
+test("a unit that now SCORES drops out of the could-not-be-run list, and the rest come back sorted", () => {
   const merged = mergeFailed(
     [
+      { unitId: "zulu", error: "old reason" },
       { unitId: "fixed", error: "old reason" },
-      { unitId: "still-broken", error: "old reason" },
+      { unitId: "mike", error: "old reason" },
     ],
-    [{ unitId: "still-broken", error: "a better reason" }],
+    [{ unitId: "alpha", error: "a better reason" }],
     new Set(["fixed"]),
   );
-  assert.deepEqual(merged, [{ unitId: "still-broken", error: "a better reason" }]);
+  assert.deepEqual(
+    merged.map((f) => f.unitId),
+    ["alpha", "mike", "zulu"],
+    "sorted, not map order — the fixture's insertion order is deliberately not sorted",
+  );
+  assert.equal(merged[0]?.error, "a better reason");
 });

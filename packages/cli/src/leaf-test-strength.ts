@@ -612,8 +612,13 @@ export function renderReadingMarkdown(
     `| ${label} | ${a.pairs} | ${scorePair(a.totals).denominator} | ${pct(a.pooledScore)} | ` +
     `${pct(a.pooledCoveredScore)} | ${pct(a.pooledReach)} |`;
 
+  // A sentinel `?? -1` would carry a `-1` -> `+1` mutant that silently moves every ABSENCE to the
+  // top of the table — the one row a reader must not mistake for the strongest. Ranking through a
+  // named function puts the absence rule in one place where a test can bind it.
+  const rank = (s: PairScore): number =>
+    s.score === undefined ? Number.NEGATIVE_INFINITY : s.score;
   const pairRows = [...scored]
-    .sort((a, b) => (b.score ?? -1) - (a.score ?? -1))
+    .sort((a, b) => rank(b) - rank(a))
     .map((s) => {
       const stale =
         s.testChangedSinceProof === undefined ? "?" : s.testChangedSinceProof ? "edited" : "same";
