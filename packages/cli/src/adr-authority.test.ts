@@ -335,25 +335,45 @@ test("the two flags sit on OPPOSITE sides of the @path split, and that pairing i
 
 // ─── the help text is the discoverability surface, so it is asserted ──────────────────────────
 
+/**
+ * Assert the help carries a phrase WITHOUT dumping the help text on failure.
+ *
+ * ⚠ DELIBERATELY NOT `assert.match(help, /…/)`, and this is an instrument fix rather than a style
+ * preference. `adr help` is ~5KB, and both `match` and `equal` embed the whole haystack in the
+ * failure message. Under the mutation rung that failure IS the kill signal, and the runner truncates
+ * a test process's output at 600 chars — so a 5KB assertion message pushed the structured test-id
+ * event out of the captured window and the kill came back unattributed. The result was six mutants
+ * scored UNPROVEN ("killed, but the report named no test") in CI while passing locally, where the
+ * run is fast enough and uncontended. `ok` + a short message keeps the payload to one line, which
+ * is what makes these kills attributable.
+ */
+function assertHelpCarries(help: string, needle: string): void {
+  assert.ok(help.includes(needle), `adr help is missing: ${JSON.stringify(needle)}`);
+}
+
 test("adr help documents both flags, what they mean, and the rule that binds them", async () => {
   const env = await adrCommand("help", {}, depsFor(null));
   const help = env.body;
   // The synopsis: someone scanning for the invocation must see the pair, and that --basis exists.
-  assert.match(help, /--decided --owner-said <text\|@file>/, "the synopsis shows the pair");
-  assert.match(help, /\[--basis <b>\]/, "the synopsis shows --basis");
+  assertHelpCarries(help, "--decided --owner-said <text|@file>");
+  assertHelpCarries(help, "[--basis <b>]");
   // The --basis entry: all four values, and that the default claims the least.
-  assert.match(help, /WHOSE call this was \(ADR-0519\)/);
-  assert.match(help, /owner-directed \| owner-ratified \| agent-derived \|/);
-  assert.match(help, /agent-flipped\. Omit and it derives from --decided/);
-  assert.match(help, /the default claims the LEAST, on purpose/);
-  // The --owner-said entry, anchored to its own line — the synopsis carries the same flag spelling,
-  // so an unanchored match would pass with this entry deleted entirely.
-  assert.match(help, /^ {2}--owner-said <text\|@file>$/m, "--owner-said has its own entry");
-  assert.match(help, /VERBATIM directive — his words, never your paraphrase/);
-  assert.match(help, /either owner basis and refused on an agent one/);
+  assertHelpCarries(help, "WHOSE call this was (ADR-0519)");
+  assertHelpCarries(help, "owner-directed | owner-ratified | agent-derived |");
+  assertHelpCarries(help, "agent-flipped. Omit and it derives from --decided");
+  assertHelpCarries(help, "the default claims the LEAST, on purpose");
+  // The --owner-said entry, matched as a WHOLE LINE — the synopsis carries the same flag spelling,
+  // so a substring test would pass with this entry deleted entirely. A line-array membership test
+  // does the anchoring a `/…/m` regex would, and still prints nothing but the needle on failure.
+  assert.ok(
+    help.split("\n").includes("  --owner-said <text|@file>"),
+    "adr help has no standalone --owner-said entry line",
+  );
+  assertHelpCarries(help, "VERBATIM directive — his words, never your paraphrase");
+  assertHelpCarries(help, "either owner basis and refused on an agent one");
   // The two facts a reader most needs and would otherwise have to discover by being refused.
-  assert.match(help, /honest basis is agent-derived/);
-  assert.match(help, /`adr push` of an edited body cannot rewrite it/);
+  assertHelpCarries(help, "honest basis is agent-derived");
+  assertHelpCarries(help, "`adr push` of an edited body cannot rewrite it");
 });
 
 // ─── the pure resolver and the shared predicates ──────────────────────────────────────────────
