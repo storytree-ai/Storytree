@@ -26,8 +26,12 @@ export interface CoastEdge {
 }
 
 export interface EdgeGrid {
-  /** The cell size, in ground units — equal to the query width by construction. */
+  /** The cell size, in ground units — the query width, coarsened (never refined) where the
+   *  extent would otherwise exceed {@link MAX_GRID_BUCKETS}; see {@link buildSegmentGrid}. */
   readonly cell: number;
+  /** The grid's own dimensions in cells, so a reader can hold the bucket count to the cap. */
+  readonly nx: number;
+  readonly nz: number;
   /** Every edge, in the order the buckets index. */
   readonly edges: readonly CoastEdge[];
   /**
@@ -99,10 +103,16 @@ export function ringEdges(rings: readonly (readonly CoastPoint[])[]): CoastEdge[
   return edges;
 }
 
-/** The most buckets a grid may hold — 2^18, a hundred times the whole forest's coast grid at the
- *  sand's width and two hundred times an island's wear grid at the path's. See the refusal in
- *  {@link buildSegmentGrid}. */
+/** The most buckets a grid may hold — 2^18: the whole forest's coast grid at the sand's width
+ *  reaches it in four coarsening steps, an island's wear grid at the path's sits two orders
+ *  under it. See the coarsening and the refusal in {@link buildSegmentGrid}. */
 export const MAX_GRID_BUCKETS = 1 << 18;
+
+/** How much wider each coarsening step makes the cell, and how many steps are tried before the
+ *  count is taken to be an arithmetic inversion rather than a large extent. Sixty-four quarter
+ *  steps span a factor of a million — no extent this package draws needs more than three. */
+export const COARSEN_FACTOR = 1.25;
+export const COARSEN_STEPS = 64;
 
 /**
  * Build the index over an ARBITRARY set of edges — the body {@link buildEdgeGrid} always had,
@@ -119,21 +129,37 @@ export function buildSegmentGrid(edges: readonly CoastEdge[], width: number): Ed
   // nothing — which is exactly what the guard returned. `check:mutation-diff` reported it as a
   // survivor twice, which is what dead code looks like from outside. `shore-grid.test.ts` asserts
   // the empty case still answers, so the behaviour is pinned without the branch.
-  const cell = width > 0 ? width : 1;
+  let cell = width > 0 ? width : 1;
   const { minX, minZ, maxX, maxZ } = edgeBounds(edges);
-  const nx = Math.max(1, cellIndex(maxX, minX, cell) + 1);
-  const nz = Math.max(1, cellIndex(maxZ, minZ, cell) + 1);
-  // ⚠ REFUSED BEFORE ALLOCATING, NOT AFTER. The cell is the query width, so an island's grid is a
-  // few hundred buckets and the whole forest's a few tens of thousands; a count past this cap
-  // means the cell arithmetic has inverted (an index that MULTIPLIES by the cell instead of
-  // dividing turns 120 buckets into a million) and the honest answer is a refusal in a
-  // microsecond rather than a quarter-million empty arrays and a walk that never finishes.
-  // Measured: the mutation rung scored exactly that inversion as a TIMEOUT for want of this line.
+  let nx = Math.max(1, cellIndex(maxX, minX, cell) + 1);
+  let nz = Math.max(1, cellIndex(maxZ, minZ, cell) + 1);
+  // ⚠ COARSENED TO FIT THE CAP, NEVER REFINED. The cell starts at the query width and a LARGER
+  // cell keeps the far-field proof ({@link edgeGridFarField}: `cell >= width`) while bucketing more
+  // edges per cell than the walk strictly needs — so an extent the width cannot tile within the
+  // cap is tiled by a coarser cell rather than refused. This became necessary the day the
+  // land-per-capability ratio (`land-per-capability.ts`) shrank every band by LAND_SCALE while
+  // the forest's extent held still: the sand's cell went from 7 to 2.6 units over the same
+  // 2,290 × 3,545 forest, 1.17 M buckets against the cap's 262,144. Each step widens the cell
+  // by a quarter; the forest's shore grid settles four steps up (cell ≈ 6.4 units).
+  // Counter-free, like every loop in this module: `indices` bounds the steps and the cap is the
+  // one condition, so there is no index for the mutation rung to attribute.
+  for (const _step of indices(COARSEN_STEPS)) {
+    if (nx * nz <= MAX_GRID_BUCKETS) break;
+    cell *= COARSEN_FACTOR;
+    nx = Math.max(1, cellIndex(maxX, minX, cell) + 1);
+    nz = Math.max(1, cellIndex(maxZ, minZ, cell) + 1);
+  }
+  // ⚠ REFUSED BEFORE ALLOCATING, NOT AFTER. A count still past the cap after the coarsening
+  // bound means the cell arithmetic has inverted (an index that MULTIPLIES by the cell instead of
+  // dividing grows with every coarsening step rather than shrinking) and the honest answer is a
+  // refusal in a microsecond rather than a quarter-million empty arrays and a walk that never
+  // finishes. Measured: the mutation rung scored exactly that inversion as a TIMEOUT for want of
+  // this line.
   if (nx * nz > MAX_GRID_BUCKETS) {
     throw new Error(
       `shore-grid: a ${nx} x ${nz} cell grid (${nx * nz} buckets) over a ${(maxX - minX).toFixed(1)} x ` +
-        `${(maxZ - minZ).toFixed(1)} extent at cell ${cell} exceeds ${MAX_GRID_BUCKETS} — the cell ` +
-        'arithmetic has inverted, or the extent is not one island’s',
+        `${(maxZ - minZ).toFixed(1)} extent at cell ${cell} exceeds ${MAX_GRID_BUCKETS} after ${COARSEN_STEPS} ` +
+        'coarsening steps — the cell arithmetic has inverted',
     );
   }
   const buckets: number[][] = Array.from({ length: nx * nz }, emptyBucket);
@@ -201,6 +227,8 @@ export function buildSegmentGrid(edges: readonly CoastEdge[], width: number): Ed
 
   return {
     cell,
+    nx,
+    nz,
     edges,
     candidates: collect,
   };

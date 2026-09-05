@@ -29,6 +29,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { LAND_AREA_PER_CAPABILITY, islandLand } from './land-per-capability.js';
+import { islandCentres } from './true-footprint.js';
 
 import {
   PLAN_VIEW_ELEVATION_DEG,
@@ -1334,4 +1336,48 @@ test('⚠⚠ by default the mapper restores the island’s true footprint: the d
   const after = depth(shipped.filter((d) => d.kind === 'cell-ground'));
   assert.ok(Math.abs(after - before * stretch) < 1e-6, `${before} → ${after}`);
   assert.ok(after > before * 2.9);
+});
+
+/* ---------------------------------------------------------------------------
+   THE LAND-PER-CAPABILITY RATIO — the mapper's SECOND in-place resize (`land-per-capability.ts`).
+   By default every island is sized to `capabilities × LAND_AREA_PER_CAPABILITY`; a number is a
+   ladder rung; `null` is the instrument's "as the drawing gave it". The arithmetic itself is
+   `land-per-capability.test.ts`'s — what is pinned here is the mapper's default and its option. */
+
+test('⚠⚠ by default the mapper sizes each island to capabilities × LAND_AREA_PER_CAPABILITY; a rung is honoured; `null` leaves the drawing’s size; an island with no parcels stays as drawn; the centre holds still', () => {
+  // Two islands: one partitioned into three capability parcels, one with bare cells and no parcel.
+  const twoIslands: SceneG = {
+    el: 'g',
+    kind: 'ground',
+    children: [
+      { ...parcelledGround([{ id: 'cap-a', cells: 2 }, { id: 'cap-b', cells: 1 }, { id: 'cap-c', cells: 1 }], 'healthy'), id: 'isle-a' },
+      { ...parcelledGround([{ kind: 'cell', cells: 2 }], 'healthy'), id: 'isle-b' },
+    ],
+  };
+  const asDrawn = worldTo3D(twoIslands, { landAreaPerCapability: null }).filter(asInstance);
+  const shipped = worldTo3D(twoIslands).filter(asInstance);
+  const explicit = worldTo3D(twoIslands, { landAreaPerCapability: LAND_AREA_PER_CAPABILITY }).filter(asInstance);
+  const rung = worldTo3D(twoIslands, { landAreaPerCapability: 100 }).filter(asInstance);
+  assert.deepEqual(shipped, explicit, 'the default IS the shipped constant');
+  assert.equal(asDrawn.length, shipped.length);
+  const drawnLand = islandLand(asDrawn);
+  const a = drawnLand.get('isle-a')!;
+  assert.equal(a.capabilities, 3);
+  assert.ok(a.area > 0 && Math.abs(a.area - 3 * LAND_AREA_PER_CAPABILITY) > 1, 'the drawing is NOT already at the ratio — the option is not a no-op');
+  assert.ok(Math.abs(islandLand(shipped).get('isle-a')!.area - 3 * LAND_AREA_PER_CAPABILITY) < 1e-6);
+  assert.ok(Math.abs(islandLand(rung).get('isle-a')!.area - 3 * 100) < 1e-6);
+  // The bare island has no capability to read a size off, so it is exactly the drawing's.
+  const bDrawn = asDrawn.filter((d) => d.island === 'isle-b');
+  const bShipped = shipped.filter((d) => d.island === 'isle-b');
+  assert.ok(bDrawn.length > 0);
+  assert.deepEqual(bShipped, bDrawn);
+  // The centres hold still: the layout is the drawing's.
+  const cDrawn = islandCentres(asDrawn);
+  const cShipped = islandCentres(shipped);
+  for (const [id, c] of cDrawn) {
+    assert.ok(Math.abs(c.x - cShipped.get(id)!.x) < 1e-9 && Math.abs(c.z - cShipped.get(id)!.z) < 1e-9, `${id}'s centre moved`);
+  }
+  // The ratio composes with the footprint restoration: a plan-view scene is sized too.
+  const plan = worldTo3D(twoIslands, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }).filter(asInstance);
+  assert.ok(Math.abs(islandLand(plan).get('isle-a')!.area - 3 * LAND_AREA_PER_CAPABILITY) < 1e-6);
 });

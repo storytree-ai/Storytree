@@ -19,6 +19,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { LAND_SCALE } from './land-per-capability.js';
 import { LAND_RELIEF_AMPLITUDE, landHeight } from './land-relief.js';
 import { LIGHT_DIRECTION } from './shade-ladder.js';
 import {
@@ -110,8 +111,10 @@ test('THE FINDING: at the SHIPPED amplitude the land cannot shadow itself AT ALL
 
 test('NON-VACUITY: a steep enough land DOES self-shadow, and the fence then fires', () => {
   // Without this, the finding above is equally satisfied by a predicate that always returns false
-  // and an assertion that never throws. Peak slope is linear in amplitude (~0.207 per unit), so
-  // the amplitude that reaches the light is about 7 — more than three times what ships.
+  // and an assertion that never throws. Peak slope is linear in amplitude — ~0.548 per unit now
+  // that the wavenumbers are `TUNED / LAND_SCALE` (`land-per-capability.ts`; it was ~0.207 on the
+  // tuned island) — so the amplitude that reaches the light is about 2.6, more than three times the
+  // shipped `2.2 * LAND_SCALE`. The ratio is what held: amplitude × wavenumber is invariant.
   assert.equal(terrainSelfShadows(12), true);
   assert.throws(() => assertTerrainDoesNotSelfShadow(12), /shadows itself/);
   assert.ok(maxTerrainSlope(4.4) > maxTerrainSlope(2.2), 'peak slope must grow with amplitude');
@@ -328,13 +331,25 @@ test('GOLDEN: the authored light’s two derivations, to full precision', () => 
 });
 
 test('GOLDEN: the terrain cast bound and the sampled peak slope', () => {
+  // The cast bound is the weight sum × amplitude × the light — no wavenumber in it — so it does not
+  // move with the island at an explicit amplitude.
   assert.ok(Math.abs(maxTerrainCast(2.2) - 5.873293897096049) < 1e-12, `${maxTerrainCast(2.2)}`);
-  assert.ok(Math.abs(maxTerrainSlope(2.2) - 0.4546385098147919) < 1e-12, `${maxTerrainSlope(2.2)}`);
+  // ⚠ THE SAMPLED SLOPES ARE THE TUNED-ISLAND GOLDENS, HELD THROUGH LAND_SCALE. The wavenumbers are
+  // `TUNED / LAND_SCALE` and the shipped amplitude `2.2 * LAND_SCALE` (`land-per-capability.ts`),
+  // so the field is the tuned one LAND_SCALE smaller in every direction and its SLOPE at the
+  // corresponding point is unchanged. Asking the sampler for the tuned amplitude on the tuned
+  // patch, both scaled by LAND_SCALE, visits exactly the tuned sweep's points and returns exactly
+  // its numbers — the same goldens, not regenerated ones.
+  const T = LAND_SCALE;
+  assert.ok(
+    Math.abs(maxTerrainSlope(2.2 * T, 200 * T, 0.5 * T) - 0.4546385098147919) < 1e-12,
+    `${maxTerrainSlope(2.2 * T, 200 * T, 0.5 * T)}`,
+  );
   // ⚠ THE SWEEP'S OWN PARAMETERS MATTER, and a fixed-patch sampler that ignored them would pass
   // every property above. A patch nine units wide sees a fraction of one wavelength; a coarser
   // step misses the crest it lands between.
-  assert.ok(Math.abs(maxTerrainSlope(2.2, 9) - 0.2717702818871019) < 1e-12);
-  assert.ok(Math.abs(maxTerrainSlope(2.2, 200, 3) - 0.45284160144482843) < 1e-12);
+  assert.ok(Math.abs(maxTerrainSlope(2.2 * T, 9 * T, 0.5 * T) - 0.2717702818871019) < 1e-12);
+  assert.ok(Math.abs(maxTerrainSlope(2.2 * T, 200 * T, 3 * T) - 0.45284160144482843) < 1e-12);
 });
 
 test('GOLDEN: the grid over an asymmetric rect', () => {
@@ -377,11 +392,20 @@ test('GOLDEN: the relief moves it, and by exactly this much', () => {
   // ⚠ THE PAIR IS THE POINT. The flat golden alone is satisfied by a builder that ignores its
   // relief argument; the relieved one alone is satisfied by one that ignores the caster. Together
   // they say the ground the shadow lands on is part of the answer.
+  //
+  // ⚠ REGENERATED 2026-09-05 BECAUSE THE RELIEF TERM MOVED WITH LAND_SCALE (`land-per-capability.ts`:
+  // the wavenumbers are now `TUNED / LAND_SCALE`), and for that reason ONLY. The caster sits at
+  // fixed texels and the amplitude here is an explicit 2.2, so the ground under the shadow is a
+  // different land — the same waves, LAND_SCALE shorter — and the ray leaves the cylinder at
+  // different samples. Confirmed by diff before regenerating: a copy of the stamp with the relief
+  // term pluggable reproduces the OLD signature (nonZero 362, sum 58006, first 1653) with the
+  // tuned relief `h(LAND_SCALE·p)` and THIS one with the shipped relief; the flat golden above is
+  // untouched, so every non-relief term (grid, box, direction, penumbra) is provably the same.
   assert.deepEqual(
     fieldSignature(
       buildCanopyShadowField({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER] }),
     ),
-    { w: 114, h: 66, gres: 3, minX: -15, minZ: -9, nonZero: 362, sum: 58006, max: 255, first: 1653, last: 4614 },
+    { w: 114, h: 66, gres: 3, minX: -15, minZ: -9, nonZero: 384, sum: 61042, max: 255, first: 1202, last: 4614 },
   );
 });
 
@@ -426,7 +450,8 @@ test('the fence NAMES the two numbers it compared, so the failure is readable', 
     (err: unknown) => {
       const message = err instanceof Error ? err.message : String(err);
       assert.match(message, /amplitude 12/);
-      assert.match(message, /2\.480/, 'the peak slope at that amplitude');
+      // 12 × PEAK_SLOPE_PER_UNIT_AMPLITUDE (0.5481 since the relief's wavelengths followed LAND_SCALE).
+      assert.match(message, /6\.578/, 'the peak slope at that amplitude');
       assert.match(message, /1\.438/, "the authored light's own slope");
       assert.match(message, /harness\/land-shadow\.ts/, 'where the missing term lives');
       return true;
@@ -456,10 +481,16 @@ test('GOLDEN: the sweep’s own BOUNDARY row is sampled, not stopped one short o
   // span 47 the steepest gradient in the patch lies exactly on `z = +span/2`, so `z <= span/2`
   // and `z < span/2` give different answers — which is the only way to tell a sampler that
   // covers its stated patch from one that covers all but the edge of it.
-  assert.ok(Math.abs(maxTerrainSlope(2.2, 47, 1) - 0.3959299914294673) < 1e-12,
-    `${maxTerrainSlope(2.2, 47, 1)}`);
+  //
+  // ⚠ HELD THROUGH LAND_SCALE like the sampler goldens above: the patch, its step and the
+  // amplitude all scale by LAND_SCALE, so the sweep visits the tuned island's own points (the
+  // ratio `span / step`, which sizes the axis, is unchanged) and the boundary row is the SAME
+  // row, carrying the same peak.
+  const T = LAND_SCALE;
+  assert.ok(Math.abs(maxTerrainSlope(2.2 * T, 47 * T, 1 * T) - 0.3959299914294673) < 1e-12,
+    `${maxTerrainSlope(2.2 * T, 47 * T, 1 * T)}`);
   // And it really is the boundary that carries it: one step narrower and the peak is gone.
-  assert.ok(maxTerrainSlope(2.2, 46, 1) < 0.3959299914294673);
+  assert.ok(maxTerrainSlope(2.2 * T, 46 * T, 1 * T) < 0.3959299914294673);
 });
 
 test('THE BOX, asserted directly — because a delivered field cannot see it', () => {
@@ -545,6 +576,12 @@ test('THE LINEAR LAW the fence rests on — both halves, because either alone is
   // ⚠ THE FENCE IS A MULTIPLY RATHER THAN A 160,801-POINT SWEEP, because it runs on every field
   // build and a canvas that re-derived a constant before drawing would be a real defect hiding
   // inside a correctness check. That is only honest if BOTH of these hold.
+  //
+  // ⚠ AND THE LITERAL MUST BE RE-DERIVED WHENEVER THE WAVENUMBERS MOVE — it is `maxTerrainSlope(1)`
+  // over the sampler's OWN default patch in whatever ground units the land is in, and it is not a
+  // number this test can scale for the source: the wavenumbers went to `TUNED / LAND_SCALE` on
+  // 2026-09-05 (`land-per-capability.ts`), so the per-unit slope rose by ~1 / LAND_SCALE, and the
+  // default 200-unit patch now spans 2.65× more wavelengths than it did. This half is what says so.
   //
   // (a) the constant IS what the sampler returns at amplitude 1 —
   assert.equal(maxTerrainSlope(1), PEAK_SLOPE_PER_UNIT_AMPLITUDE);

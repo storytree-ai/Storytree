@@ -12,10 +12,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   COAST_MODES,
   COAST_OUTSET,
   COAST_SCALE_LADDER,
+  GROUND_COAST_OUTSET,
   SHIPPED_COAST,
   isSimpleRing,
   applyDisplacement,
@@ -143,11 +145,21 @@ test('the outset pushes every rim vertex OUTWARD, by about the authored beach', 
   }
   // `jitteredOutset` modulates COAST_OUTSET by ±(0.7 wave + wobble) * 0.5, so the widest it can
   // ever reach is COAST_OUTSET * 1.5 — the cap the 2D map's own comment relies on to keep a coast
-  // inside the inter-island gap.
+  // inside the inter-island gap — and the narrowest is COAST_OUTSET * 0.5.
+  // × LAND_SCALE (`land-per-capability.ts`): the GROUND outsets by the 2D outset scaled, so the
+  // whole envelope is [0.5, 1.5] × GROUND_COAST_OUTSET. BOTH bounds bind: an UNSCALED outset
+  // (max ≈ 10.2 on this rim) breaks the upper one, a twice-scaled outset breaks the lower one.
   const widths = curve.outset.map((p, i) =>
     Math.hypot(p.x - rim[i]!.x, p.z - rim[i]!.z),
   );
-  for (const w of widths) assert.ok(w > 0 && w <= COAST_OUTSET * 1.5, `beach ${w} out of range`);
+  assert.equal(GROUND_COAST_OUTSET, COAST_OUTSET * LAND_SCALE);
+  for (const w of widths) {
+    assert.ok(w > 0 && w <= GROUND_COAST_OUTSET * 1.5, `beach ${w} out of range`);
+    assert.ok(w >= GROUND_COAST_OUTSET * 0.5, `beach ${w} under the jitter's floor`);
+  }
+  // And the jitter really modulates about the ground outset — some vertex wider, some narrower.
+  assert.ok(Math.max(...widths) > GROUND_COAST_OUTSET, 'no vertex reached past the nominal beach');
+  assert.ok(Math.min(...widths) < GROUND_COAST_OUTSET, 'no vertex fell short of the nominal beach');
 });
 
 test('coastArcs partitions the curve EXACTLY once — no point used twice, none left out', () => {
@@ -523,7 +535,8 @@ test('a THREE-vertex island still gets a coast', () => {
 
 test('the cap leaves a HONEST coast alone, and every scale it reports is a rung', () => {
   // ⚠ THE BLOCK DOES NOT FOLD, AND THAT IS THE ASSERTION RATHER THAN A LIMITATION OF THE FIXTURE.
-  // Its parcels are 10 units across against a beach of at most 10.5, and a convex island offset
+  // Its parcels are 10 units across against a beach of at most 10.5 in TUNED units (× LAND_SCALE
+  // on the ground: at most ~3.96, against the same 10 — a convex coast folds at NO beach), and a convex island offset
   // along its own vertex bisectors stays simple however wide the beach is — a fold needs a rim that
   // TURNS sharply beside a parcel too shallow to absorb the turn. So the cap must bind NOWHERE
   // here: a cap that fired on an honest coast would be spending beach nothing asked it to spend.
@@ -551,6 +564,10 @@ test('the cap leaves a HONEST coast alone, and every scale it reports is a rung'
  * fold needs a rim that TURNS sharply beside a parcel too SHALLOW to absorb the turn. Long thin
  * parcels arranged in a cross give both — the arms are 4 units deep against a beach reaching 10.5,
  * and the rim turns twice at every armpit.
+ *
+ * × LAND_SCALE (`land-per-capability.ts`): those are TUNED-island units. The ground's beach is the
+ * 2D outset × LAND_SCALE, so the fixture is scaled with it — the same cross against the same
+ * beach, in ground units — and the fold it was searched for is the same fold.
  */
 const FOLDING: CoastPoint[][] = [
   [1, 0],
@@ -561,10 +578,10 @@ const FOLDING: CoastPoint[][] = [
   [1, 3],
   [1, 4],
 ].map(([cx, cy]) => [
-  { x: cx! * 24, z: cy! * 4 },
-  { x: (cx! + 1) * 24, z: cy! * 4 },
-  { x: (cx! + 1) * 24, z: (cy! + 1) * 4 },
-  { x: cx! * 24, z: (cy! + 1) * 4 },
+  { x: cx! * 24 * LAND_SCALE, z: cy! * 4 * LAND_SCALE },
+  { x: (cx! + 1) * 24 * LAND_SCALE, z: cy! * 4 * LAND_SCALE },
+  { x: (cx! + 1) * 24 * LAND_SCALE, z: (cy! + 1) * 4 * LAND_SCALE },
+  { x: cx! * 24 * LAND_SCALE, z: (cy! + 1) * 4 * LAND_SCALE },
 ]);
 
 test('⚠⚠ THE FOLD CAP RUNS — it binds, it binds ONLY where it must, and nothing folds after', () => {

@@ -42,6 +42,13 @@
 // is INVARIANT under the stretch and `stretchAboutIslands(·, 1/s)` is its exact inverse. That is
 // what lets a comparison page recover the pre-2026-09-05 drawing as a "before" arm from the same
 // stream, and what `true-footprint.test.ts` holds.
+//
+// ⚠ THE STRETCH IS ONE CASE OF A PER-ISLAND AFFINE SCALE. `scaleAboutIslands` is the general
+// operation — any (x, z) factor pair per island, about that island's own centre, with the same
+// per-family rules — and the true-footprint stretch is `{ x: 1, z: 1 / sin θ }` for every island.
+// `land-per-capability.ts` (the island's SIZE from a declared land-per-capability ratio) is the
+// second caller, an ISOTROPIC factor that differs per island, and it reuses this rather than
+// carrying a second copy of the ribbon and bearing rules.
 
 import { LAND_CAMERA_ELEVATION_DEG, groundFlattening } from '@storytree/forest-world';
 
@@ -89,7 +96,20 @@ export function nearestCentre(centres: ReadonlyMap<string, IslandCentre>, x: num
 /** The cave bearing after the plane is stretched by `factor` along z: the rim normal
  *  `(cos b, sin b)` becomes `(factor·cos b, sin b)`, renormalised by `atan2`. Identity at 1. */
 export function stretchedBearing(bearing: number, factor: number): number {
-  return Math.atan2(Math.sin(bearing), factor * Math.cos(bearing));
+  return scaledBearing(bearing, { x: 1, z: factor });
+}
+
+/** A per-island scale: the factor applied along x and along z about the island's centre. */
+export interface IslandScale {
+  x: number;
+  z: number;
+}
+
+/** The cave bearing after the plane is scaled by `(sx, sz)`: the rim's TANGENT scales with the
+ *  plane, so its NORMAL `(cos b, sin b)` becomes `(cos b / sx, sin b / sz)`, renormalised by
+ *  `atan2`. Identity under any isotropic scale, and the z-stretch case above at `sx = 1`. */
+export function scaledBearing(bearing: number, scale: IslandScale): number {
+  return Math.atan2(Math.sin(bearing) / scale.z, Math.cos(bearing) / scale.x);
 }
 
 /** The families whose points are a ribbon between two islands rather than one island's own. */
@@ -104,44 +124,90 @@ export function stretchAboutIslands<T extends Descriptor3D>(descriptors: readonl
   if (!Number.isFinite(factor) || factor <= 0) {
     throw new Error(`true-footprint: a stretch factor must be a positive finite number, got ${factor}`);
   }
-  const centres = islandCentres(descriptors);
   // Stryker disable next-line ConditionalExpression: EQUIVALENT — at a factor of exactly 1 the map
   // below is the identity too; the early return only saves the work, and no input can tell them apart.
-  if (centres.size === 0 || factor === 1) return [...descriptors];
-  const about = (cz: number, z: number): number => cz + (z - cz) * factor;
-  const ownCentre = (d: InstanceDescriptor, at: Transform3D): IslandCentre => {
+  if (factor === 1) return [...descriptors];
+  const scale: IslandScale = { x: 1, z: factor };
+  return scaleAboutIslands(descriptors, () => scale);
+}
+
+/**
+ * THE GENERAL OPERATION: scale every descriptor about its island's centre by that island's own
+ * `(x, z)` factors, y untouched. `scaleFor` is asked once per island centre and may answer a
+ * different pair per island — which is what a per-island SIZE needs and a global stretch does not.
+ * The per-family rules are the header's: a descriptor naming its island scales about it, a wisp
+ * follows the nearest island, a ribbon between two islands attaches each end to its nearest island
+ * and blends between them, and a cave's bearing turns with its rim. A stream with no islands is
+ * returned as-is; skipped descriptors pass through untouched.
+ */
+export function scaleAboutIslands<T extends Descriptor3D>(
+  descriptors: readonly T[],
+  scaleFor: (island: string, centre: IslandCentre) => IslandScale,
+): T[] {
+  const centres = islandCentres(descriptors);
+  if (centres.size === 0) return [...descriptors];
+  const scales = new Map<string, IslandScale>();
+  for (const [id, c] of centres) {
+    const s = scaleFor(id, c);
+    if (!Number.isFinite(s.x) || s.x <= 0 || !Number.isFinite(s.z) || s.z <= 0) {
+      throw new Error(`true-footprint: island "${id}" was given a scale of (${s.x}, ${s.z}); both must be positive finite numbers`);
+    }
+    scales.set(id, s);
+  }
+  const ownIsland = (d: InstanceDescriptor, at: Transform3D): [IslandCentre, IslandScale] => {
     // Stryker disable next-line ConditionalExpression: EQUIVALENT — `Map.get(undefined)` is
     // `undefined` too; the guard is for the type, not for the value.
     const own = d.island === undefined ? undefined : centres.get(d.island);
-    if (own !== undefined) return own;
-    // `centres.size > 0` above, so the nearest centre exists.
-    return nearestCentre(centres, at.x, at.z) as IslandCentre;
+    const id = own !== undefined ? (d.island as string) : nearestIsland(centres, at.x, at.z);
+    return [centres.get(id) as IslandCentre, scales.get(id) as IslandScale];
   };
   return descriptors.map((d): T => {
     if (d.kind === 'skipped') return d;
     if (SPANNING.has(d.kind) && d.points !== undefined && d.points.length > 0) {
-      return { ...d, ...stretchSpan(d, d.points, centres, factor) };
+      return { ...d, ...scaleSpan(d, d.points, centres, scales) };
     }
-    const c = ownCentre(d, d.transform);
-    const moved: InstanceDescriptor = { ...d, transform: { ...d.transform, z: about(c.z, d.transform.z) } };
-    if (d.points !== undefined) moved.points = d.points.map((p) => ({ ...p, z: about(c.z, p.z) }));
-    if (d.bearing !== undefined) moved.bearing = stretchedBearing(d.bearing, factor);
+    const [c, s] = ownIsland(d, d.transform);
+    const about = (p: Transform3D): Transform3D => ({ ...p, x: c.x + (p.x - c.x) * s.x, z: c.z + (p.z - c.z) * s.z });
+    const moved: InstanceDescriptor = { ...d, transform: about(d.transform) };
+    if (d.points !== undefined) moved.points = d.points.map(about);
+    if (d.bearing !== undefined) moved.bearing = scaledBearing(d.bearing, s);
     return moved as T;
   });
 }
 
+/** The id of the island whose centre is nearest a ground point. The caller holds `centres.size > 0`. */
+function nearestIsland(centres: ReadonlyMap<string, IslandCentre>, x: number, z: number): string {
+  // Every finite distance beats the initial Infinity, so the first island is the running best and
+  // a tie keeps the FIRST — the same rule `nearestCentre` holds — with no placeholder id to return
+  // by mistake.
+  let best: string | undefined;
+  let bestDist = Infinity;
+  for (const [id, c] of centres) {
+    const dist = Math.hypot(x - c.x, z - c.z);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = id;
+    }
+  }
+  return best as string;
+}
+
 /** A ribbon's displacement: each end attached to its nearest island, the points between blending
  *  the two islands' displacements by arc-length fraction. Returns the new transform and points. */
-function stretchSpan(
+function scaleSpan(
   d: InstanceDescriptor,
   points: readonly Transform3D[],
   centres: ReadonlyMap<string, IslandCentre>,
-  factor: number,
+  scales: ReadonlyMap<string, IslandScale>,
 ): Pick<InstanceDescriptor, 'transform' | 'points'> {
   const first = points[0]!;
   const last = points[points.length - 1]!;
-  const a = nearestCentre(centres, first.x, first.z) as IslandCentre;
-  const b = nearestCentre(centres, last.x, last.z) as IslandCentre;
+  const aId = nearestIsland(centres, first.x, first.z);
+  const bId = nearestIsland(centres, last.x, last.z);
+  const a = centres.get(aId) as IslandCentre;
+  const b = centres.get(bId) as IslandCentre;
+  const sa = scales.get(aId) as IslandScale;
+  const sb = scales.get(bId) as IslandScale;
   const lengths: number[] = [0];
   for (let i = 1; i < points.length; i += 1) {
     const p = points[i - 1]!;
@@ -149,15 +215,18 @@ function stretchSpan(
     lengths.push(lengths[i - 1]! + Math.hypot(q.x - p.x, q.z - p.z));
   }
   const total = lengths[lengths.length - 1]!;
-  const shift = (p: Transform3D, i: number): number => {
+  const shift = (p: Transform3D, i: number) => {
     const t = total > 0 ? lengths[i]! / total : 0;
-    const dz = factor - 1;
-    return (1 - t) * (p.z - a.z) * dz + t * (p.z - b.z) * dz;
+    return {
+      dx: (1 - t) * (p.x - a.x) * (sa.x - 1) + t * (p.x - b.x) * (sb.x - 1),
+      dz: (1 - t) * (p.z - a.z) * (sa.z - 1) + t * (p.z - b.z) * (sb.z - 1),
+    };
   };
   const shifts = points.map(shift);
-  const moved = points.map((p, i) => ({ ...p, z: p.z + shifts[i]! }));
-  const mean = shifts.reduce((s, v) => s + v, 0) / shifts.length;
-  return { transform: { ...d.transform, z: d.transform.z + mean }, points: moved };
+  const moved = points.map((p, i) => ({ ...p, x: p.x + shifts[i]!.dx, z: p.z + shifts[i]!.dz }));
+  const meanX = shifts.reduce((s, v) => s + v.dx, 0) / shifts.length;
+  const meanZ = shifts.reduce((s, v) => s + v.dz, 0) / shifts.length;
+  return { transform: { ...d.transform, x: d.transform.x + meanX, z: d.transform.z + meanZ }, points: moved };
 }
 
 /**

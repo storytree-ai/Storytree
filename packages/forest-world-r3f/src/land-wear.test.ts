@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { linearToSrgb255 } from './land-grain.js';
 import { grassNoiseField, grassScalar } from './land-grass.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import { SAND_RAMP } from './land-sand.js';
 import { indices } from './land-shadow.js';
 import {
@@ -46,7 +47,8 @@ function pyFunction(script: string, name: string): string {
 // `build_land.py`'s `mat_attribute()` and `build_land_grid()` by hand.
 
 test('the wear constants are the authored ones', () => {
-  assert.equal(WEAR_FALLOFF, 3.0);
+  // The authored 3.0, times LAND_SCALE (`land-per-capability.ts`): the same fraction of the island.
+  assert.equal(WEAR_FALLOFF, 3.0 * LAND_SCALE);
   assert.deepEqual({ ...WEAR_BREAK }, { scale: 9, detail: 5, roughness: 0.5 });
   assert.deepEqual([...WEAR_RAMP], [0.24, 0.55]);
   assert.deepEqual(DIRT_RAMP, [
@@ -111,8 +113,9 @@ test('the wear SCALAR is the one actually in build_land.py`s build_land_grid()',
 test('the break noise is coarser than the sand`s edge and the grain', () => {
   // At ~26 ground units it turns over about nine times across the island: gaps in a track, not
   // texture on it. Hand-computed: 233.8 / 9.
-  assert.ok(Math.abs(wearBreakLattice() - 25.98) < 0.01, `lattice was ${wearBreakLattice()}`);
-  assert.ok(wearBreakLattice() > 10, 'a break noise this fine textures the path instead of breaking it');
+  // 25.98 on the tuned island; the lattice follows the island (× LAND_SCALE, `land-per-capability.ts`).
+  assert.ok(Math.abs(wearBreakLattice() - 25.98 * LAND_SCALE) < 0.01, `lattice was ${wearBreakLattice()}`);
+  assert.ok(wearBreakLattice() > 10 * LAND_SCALE, 'a break noise this fine textures the path instead of breaking it');
 });
 
 // ---------------------------------------------------------------- the wear scalar
@@ -120,9 +123,11 @@ test('the break noise is coarser than the sand`s edge and the grain', () => {
 test('wearOf is 1 on the centreline, 0 at the falloff, and EXACTLY 0.5 halfway', () => {
   assert.equal(wearOf(0), 1);
   assert.equal(wearOf(WEAR_FALLOFF), 0);
-  assert.equal(wearOf(3), 0);
-  // w = 0.5 -> 0.25 * (3 - 1) = 0.5, exactly, in binary floating point.
-  assert.equal(wearOf(1.5), 0.5);
+  // Distances in the authored basis, scaled by LAND_SCALE with the falloff.
+  assert.equal(wearOf(3 * LAND_SCALE), 0);
+  // w = 0.5 -> 0.25 * (3 - 1) = 0.5, exactly, in binary floating point: 3 * LAND_SCALE is
+  // exactly twice 1.5 * LAND_SCALE, so the quotient is exactly one half.
+  assert.equal(wearOf(1.5 * LAND_SCALE), 0.5);
   // The falloff is a parameter: the same shape at another width.
   assert.equal(wearOf(2, 4), 0.5);
   assert.equal(wearOf(0, 4), 1);
@@ -131,16 +136,20 @@ test('wearOf is 1 on the centreline, 0 at the falloff, and EXACTLY 0.5 halfway',
 
 test('wearOf is a SMOOTHSTEP — above the line near the path, below it near the edge, symmetric', () => {
   // Hand-computed Hermite values: w = 0.75 -> 0.5625 * 1.5 = 0.84375; w = 0.25 -> 0.0625 * 2.5.
-  assert.equal(wearOf(0.75), 0.84375);
-  assert.equal(wearOf(2.25), 0.15625);
+  // Distances in the authored basis, scaled by LAND_SCALE with the falloff. The far sample is
+  // spelled as three quarters OF the scaled falloff (`3 * LAND_SCALE * 0.75`) rather than as
+  // `2.25 * LAND_SCALE`, because the latter's quotient against `3 * LAND_SCALE` rounds one ulp off
+  // 0.75 and the exact-equality claim is the point.
+  assert.equal(wearOf(0.75 * LAND_SCALE), 0.84375);
+  assert.equal(wearOf(3 * LAND_SCALE * 0.75), 0.15625);
   // A linear falloff would give 0.75 and 0.25; the smoothstep sits above the line on the near
   // side and below it on the far side, which is what removes the hard shoulder.
-  assert.ok(wearOf(0.75) > 0.75);
-  assert.ok(wearOf(2.25) < 0.25);
+  assert.ok(wearOf(0.75 * LAND_SCALE) > 0.75);
+  assert.ok(wearOf(3 * LAND_SCALE * 0.75) < 0.25);
   // 3w² - 2w³ is symmetric about the midpoint: wear(d) + wear(falloff - d) = 1.
   for (const i of indices(31)) {
-    const d = i * 0.1;
-    assert.ok(Math.abs(wearOf(d) + wearOf(3 - d) - 1) < 1e-12, `asymmetric at ${d}`);
+    const d = i * 0.1 * LAND_SCALE;
+    assert.ok(Math.abs(wearOf(d) + wearOf(3 * LAND_SCALE - d) - 1) < 1e-12, `asymmetric at ${d}`);
   }
 });
 
@@ -200,9 +209,10 @@ test('the factor scales with the wear rather than shifting with it', () => {
     wearFactor(0.7, x, z),
   ];
   // Two points whose break noise sits near 0.56 and 0.61, so wears of 0.6 and 0.7 put the
-  // product inside the 0.24..0.55 ramp at both.
-  const a = pairAt(37.5, 12.25);
-  const b = pairAt(50, 50);
+  // product inside the 0.24..0.55 ramp at both. They are tuned-island points scaled by
+  // LAND_SCALE: the break noise's lattice scaled with the island, so the noise there is unchanged.
+  const a = pairAt(37.5 * LAND_SCALE, 12.25 * LAND_SCALE);
+  const b = pairAt(50 * LAND_SCALE, 50 * LAND_SCALE);
   for (const [label, pair] of [['a', a], ['b', b]] as const) {
     assert.ok(
       pair[0] > 0 && pair[1] < 1,
@@ -212,11 +222,11 @@ test('the factor scales with the wear rather than shifting with it', () => {
   const slopeA = a[1] - a[0];
   const slopeB = b[1] - b[0];
   assert.ok(
-    Math.abs(slopeA - 0.1 * grassNoiseField(WEAR_BREAK, 37.5, 12.25) / 0.31) < 1e-12,
+    Math.abs(slopeA - 0.1 * grassNoiseField(WEAR_BREAK, 37.5 * LAND_SCALE, 12.25 * LAND_SCALE) / 0.31) < 1e-12,
     `slope at a is ${slopeA}`,
   );
   assert.ok(
-    Math.abs(slopeB - 0.1 * grassNoiseField(WEAR_BREAK, 50, 50) / 0.31) < 1e-12,
+    Math.abs(slopeB - 0.1 * grassNoiseField(WEAR_BREAK, 50 * LAND_SCALE, 50 * LAND_SCALE) / 0.31) < 1e-12,
     `slope at b is ${slopeB}`,
   );
   assert.ok(Math.abs(slopeA - slopeB) > 1e-6, 'the two slopes agree — the noise is being ADDED');
@@ -344,21 +354,24 @@ test('wearGlsl is held to an EXACT GOLDEN — the only assertion that sees a bla
   // ⚠⚠ A CONTAINMENT SWEEP CANNOT SEE A BLANKED LITERAL — `check:mutation-diff` proved it on the
   // sand and grass emitters. Written out rather than rebuilt from the constants, so it is the
   // text a reader checks by eye against build_land.py:894-911 and :494-495.
+  // ⚠ LAND_SCALE moved exactly six numerals here and nothing else (diffed against the pre-scale
+  // golden): the break noise's header spacing (25.98 -> 9.79, the recipe's 233.8 / 9 over the
+  // SHIPPED span) and its five octave frequencies, which are that spacing's reciprocal doubled.
   assert.equal(
     wearGlsl(),
     [
       '// GENERATED from land-wear.ts — do not hand-edit these constants.',
       '// Layer 3 of the approved ground: build_land.py:894-911, mat_attribute();',
       '// the wear scalar is build_land.py:494-495, build_land_grid().',
-      '// st_wearBreak: Cycles scale 9 -> 25.98 ground units,',
+      '// st_wearBreak: Cycles scale 9 -> 9.79 ground units,',
       '// 5 octaves, roughness 0.5.',
       'float st_wearBreak(vec2 p) {',
       '  float s = 0.0;',
-      '  s += 1.000000 * st_grainOctave(p * 0.038494);',
-      '  s += 0.500000 * st_grainOctave(p * 0.076989);',
-      '  s += 0.250000 * st_grainOctave(p * 0.153978);',
-      '  s += 0.125000 * st_grainOctave(p * 0.307956);',
-      '  s += 0.062500 * st_grainOctave(p * 0.615911);',
+      '  s += 1.000000 * st_grainOctave(p * 0.102129);',
+      '  s += 0.500000 * st_grainOctave(p * 0.204258);',
+      '  s += 0.250000 * st_grainOctave(p * 0.408516);',
+      '  s += 0.125000 * st_grainOctave(p * 0.817033);',
+      '  s += 0.062500 * st_grainOctave(p * 1.634066);',
       '  return s / 1.937500;',
       '}',
       '',

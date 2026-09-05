@@ -6,11 +6,13 @@ import { fileURLToPath } from 'node:url';
 
 import { AUTHORED_SHORE_WIDTH } from './shore-fall.js';
 import { grassScalar } from './land-grass.js';
+import { LAND_SCALE } from './land-per-capability.js';
 import {
   SAND_BAND_RAMP,
   SAND_BEACH_WIDTH,
   SAND_DIVISOR,
   SAND_EDGE,
+  SAND_EDGE_AMPLITUDE,
   SAND_OCTAVES,
   SAND_RAMP,
   sandBandFactor,
@@ -55,8 +57,9 @@ test('the divisor READS the already-transcribed beach width rather than respelli
   // One number, one transcription. A second copy could drift from the shore FALL that shapes the
   // land the sand sits on, and the drift would read as a sand band that has slipped off its beach.
   assert.equal(SAND_BEACH_WIDTH, AUTHORED_SHORE_WIDTH);
-  assert.equal(SAND_DIVISOR, AUTHORED_SHORE_WIDTH + 0.9);
-  assert.equal(SAND_DIVISOR, 4);
+  // The recipe's `BEACH + 0.9`, both terms times LAND_SCALE (`land-per-capability.ts`): 4 * LAND_SCALE.
+  assert.equal(SAND_DIVISOR, AUTHORED_SHORE_WIDTH + 0.9 * LAND_SCALE);
+  assert.equal(SAND_DIVISOR, 4 * LAND_SCALE);
 });
 
 test('the edge noise is the script`s own, and its lattice is a slow break rather than texture', () => {
@@ -66,7 +69,8 @@ test('the edge noise is the script`s own, and its lattice is a slow break rather
   // ring". At ~31 ground units it turns over about seven times around an island: slow enough to
   // read as an irregular coast. A lattice near the grain's ~2.5 would read as sand TEXTURE and
   // leave the sand LINE a clean ring, which is the failure the noise exists to prevent.
-  assert.ok(Math.abs(sandEdgeLattice() - 31.17) < 0.05, `lattice was ${sandEdgeLattice()}`);
+  // 31.17 on the tuned island; the lattice follows the island (× LAND_SCALE, `land-per-capability.ts`).
+  assert.ok(Math.abs(sandEdgeLattice() - 31.17 * LAND_SCALE) < 0.05, `lattice was ${sandEdgeLattice()}`);
   assert.ok(sandEdgeLattice() > 10, 'an edge noise this fine breaks grains, not the sand LINE');
 });
 
@@ -118,10 +122,14 @@ test('⚠ the edge noise DISPLACES the distance, it does not scale it', () => {
   // exactly `d / SAND_DIVISOR`. Under a multiply it would move by `d * noise / SAND_DIVISOR`,
   // which varies from point to point. Two points with different noise values must therefore show
   // the SAME factor difference across the ramp's linear interior.
+  // Tuned-island points scaled by LAND_SCALE (the edge noise's lattice scaled with the island, so
+  // the noise at each is unchanged: ~0.26 and ~0.56), distances in the same basis, and the noise
+  // DISPLACEMENT scaled with them (`SAND_EDGE_AMPLITUDE`) — so the tuned pair 1.4/1.5 is the same
+  // pair, and both points sit exactly where they sat inside the ramp.
   const inRamp = (x: number, z: number): number[] =>
-    [1.4, 1.5].map((d) => sandBandFactor(d, x, z));
-  const a = inRamp(11.3, 5.7);
-  const b = inRamp(203.9, 88.2);
+    [1.4 * LAND_SCALE, 1.5 * LAND_SCALE].map((d) => sandBandFactor(d, x, z));
+  const a = inRamp(11.3 * LAND_SCALE, 5.7 * LAND_SCALE);
+  const b = inRamp(203.9 * LAND_SCALE, 88.2 * LAND_SCALE);
   const da = a[1]! - a[0]!;
   const db = b[1]! - b[0]!;
   // ⚠ THE PRECONDITION IS ASSERTED, NOT USED AS A GUARD. Both pairs have to sit strictly inside
@@ -135,9 +143,10 @@ test('⚠ the edge noise DISPLACES the distance, it does not scale it', () => {
     );
   }
   assert.ok(Math.abs(da - db) < 1e-9, `slopes differ: ${da} vs ${db} — the noise is scaling`);
-  // And the slope is the ramp's own: 0.1 units over a 4.0 divisor across a 0.36-wide ramp. A
-  // multiply would make this vary with the noise at each point instead.
-  const expected = 0.1 / SAND_DIVISOR / (SAND_BAND_RAMP[1] - SAND_BAND_RAMP[0]);
+  // And the slope is the ramp's own: 0.1 tuned units (times LAND_SCALE) over the scaled 4.0
+  // divisor across a 0.36-wide ramp. A multiply would make this vary with the noise at each point
+  // instead.
+  const expected = (0.1 * LAND_SCALE) / SAND_DIVISOR / (SAND_BAND_RAMP[1] - SAND_BAND_RAMP[0]);
   assert.ok(Math.abs(da - expected) < 1e-9, `slope ${da} vs ${expected}`);
 });
 
@@ -192,7 +201,7 @@ test('sandGlsl emits the band and the ramp EXACTLY, with its constants written i
   // ⚠ THE DIVISOR IS A UNIFORM, NOT WRITTEN IN — it is the one constant on this layer the owner
   // moves, and a page comparing beach widths must vary a number rather than compile a shader per
   // width. Asserting the uniform NAME here is what stops it silently reverting to a literal.
-  assert.ok(glsl.includes('float t = (shore + st_sandEdge(p)) / width;'));
+  assert.ok(glsl.includes(`float t = (shore + ${SAND_EDGE_AMPLITUDE.toFixed(6)} * st_sandEdge(p)) / width;`));
   // ⚠⚠ AND THE WIDTH IS A PARAMETER RATHER THAN A UNIFORM THIS BLOCK READS. The source is spliced
   // ABOVE the shader's uniform declarations, so a `uSandWidth` in here is used before it is
   // declared and the material FAILS TO COMPILE — which a containment test cannot see, because the
@@ -235,21 +244,24 @@ test('sandGlsl is held to an EXACT GOLDEN — the only assertion that sees a bla
   // `SAND_RAMP` and `SAND_DIVISOR` would be the emitter's own arithmetic restated, and would pass
   // for any mutant that changed both sides together. This is the text a reader can check by eye
   // against `build_land.py:869-893`.
+  // ⚠ LAND_SCALE moved exactly seven numerals here and nothing else (diffed against the pre-scale
+  // golden): the edge noise's header spacing (31.17 -> 11.75, the recipe's 233.8 / 7.5 over the
+  // SHIPPED span) and its six octave frequencies, which are that spacing's reciprocal doubled.
   assert.equal(
     sandGlsl(),
     [
       '// GENERATED from land-sand.ts — do not hand-edit these constants.',
       '// Layer 2 of the approved ground: build_land.py:869-893, mat_attribute().',
-      '// st_sandEdge: Cycles scale 7.5 -> 31.17 ground units,',
+      '// st_sandEdge: Cycles scale 7.5 -> 11.75 ground units,',
       '// 6 octaves, roughness 0.5.',
       'float st_sandEdge(vec2 p) {',
       '  float s = 0.0;',
-      '  s += 1.000000 * st_grainOctave(p * 0.032079);',
-      '  s += 0.500000 * st_grainOctave(p * 0.064157);',
-      '  s += 0.250000 * st_grainOctave(p * 0.128315);',
-      '  s += 0.125000 * st_grainOctave(p * 0.256630);',
-      '  s += 0.062500 * st_grainOctave(p * 0.513259);',
-      '  s += 0.031250 * st_grainOctave(p * 1.026518);',
+      '  s += 1.000000 * st_grainOctave(p * 0.085108);',
+      '  s += 0.500000 * st_grainOctave(p * 0.170215);',
+      '  s += 0.250000 * st_grainOctave(p * 0.340430);',
+      '  s += 0.125000 * st_grainOctave(p * 0.680861);',
+      '  s += 0.062500 * st_grainOctave(p * 1.361721);',
+      '  s += 0.031250 * st_grainOctave(p * 2.723443);',
       '  return s / 1.968750;',
       '}',
       '',
@@ -265,7 +277,7 @@ test('sandGlsl is held to an EXACT GOLDEN — the only assertion that sees a bla
       '// The MULTIPLY_ADD at build_land.py:872-876 pins its multiplier to 1.0, so the edge noise',
       '// DISPLACES the distance rather than scaling it.',
       'float st_sandBand(vec2 p, float shore, float width) {',
-      '  float t = (shore + st_sandEdge(p)) / width;',
+      `  float t = (shore + ${SAND_EDGE_AMPLITUDE.toFixed(6)} * st_sandEdge(p)) / width;`,
       '  return clamp((t - 0.340000) / 0.360000, 0.0, 1.0);',
       '}',
       '',
