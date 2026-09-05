@@ -57,6 +57,23 @@ test("`traversal origin`'s three flags are LITERAL — an enum word and two cano
   }
 });
 
+test("`resteer new`'s six flags are classified on the right side of the prose/literal line", () => {
+  // ADR-0515. Named rather than left to the generic exhaustiveness sweep above, because that sweep
+  // only asks that a flag be classified SOMEHOW — it stays green if a PROSE flag drifts into LITERAL,
+  // which is precisely the mistake made here first: `--doing`/`--redirect`/`--self-report` were
+  // added to LITERAL_FLAGS, where `--doing @notes.md` would have stored the literal path string
+  // instead of the file. That is the `graduate-park-reason-ignores-at-path` defect, one tier over.
+  for (const flag of ["doing", "redirect", "self-report"]) {
+    assert.equal(PROSE_FLAGS.has(flag), true, `${flag} is a durable prose record and must be @path-expandable`);
+    assert.equal(LITERAL_FLAGS.has(flag), false, `${flag} must not be literal`);
+  }
+  // The other three are closed enum words the schema fences, so a leading `@` could only be a typo.
+  for (const flag of ["disposition", "by", "mode"]) {
+    assert.equal(LITERAL_FLAGS.has(flag), true, `${flag} is an enum word, taken verbatim`);
+    assert.equal(PROSE_FLAGS.has(flag), false, `${flag} must never read a file`);
+  }
+});
+
 test("no flag is classified BOTH prose and literal", () => {
   const both = [...PROSE_FLAGS].filter((f) => LITERAL_FLAGS.has(f));
   assert.deepEqual(both, [], "a flag is expanded or it is not — never both");

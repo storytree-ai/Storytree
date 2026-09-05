@@ -101,6 +101,8 @@ export const SearchOperation = z.enum([
   "arc_list",
   /** `storytree friction list` — the friction worklist. */
   "friction_list",
+  /** `storytree resteer list` — the owner's recorded interventions (ADR-0515). */
+  "resteer_list",
 ]);
 export type SearchOperation = z.infer<typeof SearchOperation>;
 

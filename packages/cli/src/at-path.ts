@@ -46,6 +46,12 @@ import { readFile } from "node:fs/promises";
  * what makes a literal `@C:/…` in the field a corrupt record rather than an odd-looking string.
  */
 export const PROSE_FLAGS: ReadonlySet<string> = new Set([
+  // `resteer new` (ADR-0515) — the prose half of one recorded owner intervention. The owner's quoted
+  // words and the agent's self-report are exactly the multi-line values a shell mangles, which is the
+  // trap `@path` exists for. (`evidence` is already here, shared with `friction`.)
+  "doing",
+  "redirect",
+  "self-report",
   // arc new / edit / increment add / close — the narrative fields (ADR-0183).
   "intent",
   "end-state",
@@ -194,6 +200,11 @@ export const LITERAL_FLAGS: ReadonlySet<string> = new Set([
   "route",
   "discharged-by",
   "friction",
+  // `resteer new` (ADR-0515) — the enum-valued half. Each is a closed word the schema fences, so a
+  // leading `@` could only ever be a typo, never a file to read.
+  "disposition",
+  "by",
+  "mode",
   // `arc increment new|add --cites` (ADR-0306 D2) — typed POINTERS (`story:` / `capability:` /
   // `asset:`), not prose. The schema's own regex refuses anything that is not `<scheme>:<id>`, so a
   // value starting with `@` could never validate and there is nothing a file read could supply.
