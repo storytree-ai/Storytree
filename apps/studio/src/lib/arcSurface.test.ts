@@ -691,6 +691,58 @@ describe('arcLanes — nesting a queued arc under its blocker (ADR-0523, inc-05)
     expect(a?.queued.map((q) => q.arc.id)).toEqual(['queued']);
     expect(b?.queued).toEqual([]);
   });
+
+  it('nests under a blocker it names EVEN WHILE gated by another — `some`, not `every`, over its gates', () => {
+    // An arc with TWO gates, only one of which points at the parent being asked about. `.some` finds
+    // the match and nests it there regardless of the other entry; `.every` would demand every gate
+    // name this parent and wrongly drop it, since a resolved gate to a DIFFERENT blocker is present.
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker-a' }),
+        lane({
+          id: 'multi-gated',
+          gates: [
+            { id: 'blocker-a', shut: true },
+            { id: 'blocker-c', shut: false },
+          ],
+        }),
+      ],
+      NOW,
+    );
+    expect(lanes.find((l) => l.arc.id === 'blocker-a')?.queued.map((q) => q.arc.id)).toEqual(['multi-gated']);
+  });
+
+  it('a CYCLE in the wire data (past write-time refusal) terminates rather than recursing forever', () => {
+    // Genuine production data can never contain a `gatedBy` cycle — `storytree arc gate` refuses one
+    // at write time (ADR-0523 D4) — but this derivation has no write path of its own to trust, and a
+    // tree walk with no bound is one bad row (or one write path that bypassed the refusal) away from
+    // hanging the tab. `root` gates `a`; `a` and `b` gate EACH OTHER, so walking root -> a -> b meets
+    // `a` again on the way back down.
+    const lanes = arcLanes(
+      [
+        lane({ id: 'root' }),
+        lane({
+          id: 'a',
+          gates: [
+            { id: 'root', shut: true },
+            { id: 'b', shut: true },
+          ],
+        }),
+        lane({ id: 'b', gates: [{ id: 'a', shut: true }] }),
+      ],
+      NOW,
+    );
+    expect(lanes.map((l) => l.arc.id)).toEqual(['root']);
+    const underRoot = lanes[0]?.queued;
+    expect(underRoot?.map((l) => l.arc.id)).toEqual(['a']);
+    const underA = underRoot?.[0]?.queued;
+    expect(underA?.map((l) => l.arc.id)).toEqual(['b']);
+    // The SECOND visit to `a` — met again while walking `b`'s own children — renders with NO further
+    // children rather than recursing back into `b` a second time.
+    const underB = underA?.[0]?.queued;
+    expect(underB?.map((l) => l.arc.id)).toEqual(['a']);
+    expect(underB?.[0]?.queued).toEqual([]);
+  });
 });
 
 describe('defaultLaneId — the panel opens where the owner is needed', () => {

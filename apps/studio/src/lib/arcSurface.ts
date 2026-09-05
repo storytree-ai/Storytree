@@ -484,14 +484,22 @@ export function arcLanes(
   const isNested = (arc: ArcRollupSummary): boolean =>
     coreById.get(arc.id)!.state !== 'waiting' && arc.gates.some((g) => g.shut && inScope.has(g.id));
 
-  const buildLane = (arc: ArcRollupSummary): ArcLane => {
+  // `ancestors` bounds the recursion the same way `gateCycleFor`'s own DFS does
+  // (`packages/arc/src/arc.ts`) — write-time cycle refusal (ADR-0523 D4) means production data never
+  // needs this, but a tree walk with no bound of its own is one bad row (or one write path that
+  // bypassed the refusal) away from recursing forever, and this function has no server round-trip to
+  // time it out. An ancestor met again renders with no further children rather than hanging the tab.
+  const buildLane = (arc: ArcRollupSummary, ancestors: ReadonlySet<string> = new Set()): ArcLane => {
+    const core = coreById.get(arc.id)!;
+    if (ancestors.has(arc.id)) return { ...core, queued: [] };
+    const path = new Set(ancestors).add(arc.id);
     const children = scoped.filter(
       (other) => isNested(other) && other.gates.some((g) => g.id === arc.id && g.shut),
     );
-    return { ...coreById.get(arc.id)!, queued: sortLanes(children.map(buildLane)) };
+    return { ...core, queued: sortLanes(children.map((child) => buildLane(child, path))) };
   };
 
-  return sortLanes(scoped.filter((arc) => !isNested(arc)).map(buildLane));
+  return sortLanes(scoped.filter((arc) => !isNested(arc)).map((arc) => buildLane(arc)));
 }
 
 /**

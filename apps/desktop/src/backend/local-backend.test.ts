@@ -802,6 +802,7 @@ test("local-backend: GET /api/arcs serves the SUMMARY projection, not the whole 
       // property away from returning, and nothing else would notice.
       const [arc] = body.arcs;
       assert.deepEqual(Object.keys(arc!).sort(), [
+        "gates",
         "id",
         "increments",
         "lifecycle",
