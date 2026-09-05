@@ -867,3 +867,37 @@ describe('parseOptionCards — the parsing edges the happy path cannot reach', (
     expect(cards[0]?.againstText).toBe('slow, and AGAINST: fiddly');
   });
 });
+
+describe('parseOptionCards — the whitespace and sentinel edges', () => {
+  it('leading and trailing blank lines produce no empty cards', () => {
+    // The split yields empty strings at both ends. Without the filter each becomes a card with an
+    // empty summary — a blank option box in the owner's face, between the real ones.
+    const cards = parseOptionCards('\n\nOption A. FOR: a AGAINST: b\n\n');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.summary).toBe('Option A.');
+  });
+
+  it('a marker-less paragraph is TRIMMED, not carried with its surrounding whitespace', () => {
+    // The marker-less path returns the paragraph as the summary verbatim, so if paragraphs were not
+    // trimmed on the way in, this card alone would keep its indentation while every parsed card
+    // lost it — the one shape where the per-paragraph trim is observable.
+    const cards = parseOptionCards('Option A. FOR: a AGAINST: b\n\n   Option B in plain prose.   ');
+    expect(cards[1]?.summary).toBe('Option B in plain prose.');
+  });
+
+  it('finds a FOR: marker wherever it sits, including one character in', () => {
+    // `forIdx === -1` is the ABSENT test. Comparing against any other position instead would drop
+    // the pair for options whose marker happens to land at that index — silently, and only for them.
+    const cards = parseOptionCards('A FOR: cheap AGAINST: slow');
+    expect(cards[0]).toEqual({ summary: 'A', forText: 'cheap', againstText: 'slow' });
+    const oneIn = parseOptionCards('AFOR: cheap AGAINST: slow');
+    expect(oneIn[0]).toEqual({ summary: 'A', forText: 'cheap', againstText: 'slow' });
+  });
+
+  it('an AGAINST: with no FOR: at all is not a pair', () => {
+    const cards = parseOptionCards('Option A, described without a FOR half. AGAINST: it is slow.');
+    expect(cards[0]?.forText).toBe('');
+    expect(cards[0]?.againstText).toBe('');
+    expect(cards[0]?.summary).toBe('Option A, described without a FOR half. AGAINST: it is slow.');
+  });
+});

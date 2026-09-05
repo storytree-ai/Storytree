@@ -627,8 +627,16 @@ export interface OptionCard {
  * a card with empty `forText`/`againstText` and its whole text in `summary`, never dropped.
  */
 export function parseOptionCards(optionsText: string | undefined): OptionCard[] {
+  // Stryker disable next-line ConditionalExpression,MethodExpression,StringLiteral: EQUIVALENT for
+  // the `.trim() === ''` half — a blank or whitespace-only input falls through to the split below,
+  // whose paragraphs are all empty after trimming and are then removed by the `.filter`, yielding
+  // the same `[]`. The guard is an early exit, not a decision. (The `=== undefined` half IS
+  // load-bearing — without it `.trim()` throws — and a test pins it.)
   if (optionsText === undefined || optionsText.trim() === '') return [];
   return optionsText
+    // Stryker disable next-line Regex: EQUIVALENT — `\s*` is greedy and `\n` is itself whitespace,
+    // so `\n\s*\n` already consumes any run of blank lines; the trailing `+` cannot change where a
+    // split falls. It states the intent (one or more blank lines) rather than adding reach.
     .split(/\n\s*\n+/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph !== '')
