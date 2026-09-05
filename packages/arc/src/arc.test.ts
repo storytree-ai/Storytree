@@ -3670,8 +3670,13 @@ test("settling a question on an UNHOMED row touches no arc lifecycle", async () 
   });
   const res = await questionSettle(writeDeps(store), "oq-unhomed", { answer: "decided" });
   assert.equal(res.ok, true);
-  // No arc to recompute, so no lifecycle line — and the arc's own state is untouched.
+  // No arc to recompute, so no lifecycle line — and the arc's own state is untouched. Asserted as
+  // the EXACT tail, because a guard that spliced the note in regardless would emit a literal "null"
+  // that no /auto-closed/ probe would notice.
   assert.doesNotMatch(res.body, /auto-closed/);
+  assert.doesNotMatch(res.body, /null/);
+  assert.match(res.body, /homed on no arc, so no arc's waiting state changes/);
+  assert.doesNotMatch(res.body, /no longer counts this question as waiting/);
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
 });
 
@@ -3698,6 +3703,9 @@ test("settling one of TWO questions leaves the arc open, and prints no lifecycle
   const res = await questionSettle(writeDeps(store), "oq-one", { answer: "decided" });
   assert.equal(res.ok, true);
   assert.doesNotMatch(res.body, /auto-closed/);
+  assert.doesNotMatch(res.body, /null/);
+  // The HOMED wording, so the arc-vs-no-arc fork is pinned in both directions.
+  assert.match(res.body, /drained-arc no longer counts this question as waiting/);
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
 });
 
@@ -3725,7 +3733,14 @@ test("question new on an ACTIVE arc prints no lifecycle line — nothing changed
     options: "o",
   });
   assert.equal(res.ok, true);
-  assert.doesNotMatch(res.body, /reopened/);
+  // The exact first two lines: nothing flipped, so the header runs straight into the question body.
+  // A guard that always spliced the note in would put a blank line and a literal "null" here, which
+  // a loose /reopened/ probe cannot see.
+  const lines = res.body.split(String.fromCharCode(10));
+  assert.match(lines[0] ?? "", /^raised question .* on arc drained-arc$/);
+  assert.equal(lines[1], "");
+  assert.match(lines[2] ?? "", /^# Which way$/);
+  assert.doesNotMatch(res.body, /null/);
 });
 
 test("question new on a CLOSED arc REOPENS it and says so (ADR-0526 D4's mirror)", async () => {
