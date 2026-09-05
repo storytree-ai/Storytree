@@ -619,3 +619,18 @@ test("declares terminal-cli-dispatch coverage: exactly the emitted vocabulary su
   // exhaustive: every declared feature is accounted for exactly once, no silent gaps
   assert.equal(parsed.supported.length + parsed.omitted.length, CoverageFeature.options.length);
 });
+
+test("resteer's two verbs are classified, and the read carries its own operation word (ADR-0515)", () => {
+  // The trace store GROUPS BY `operation`, so an empty or borrowed word silently re-buckets this
+  // verb's whole history into another verb's. `surfaceId` is what a reader joins on to find the tier.
+  const read = CLI_READ_VERBS["resteer list"];
+  assert.equal(read?.observes, "search");
+  assert.equal((read as { operation?: string }).operation, "resteer_list");
+  assert.equal((read as { surfaceId?: string }).surfaceId, "resteer");
+
+  // Its capture sibling observes NOTHING — filing a re-steer is a write, never a corpus read — and
+  // the reason is recorded rather than left as a bare enum value.
+  const write = CLI_READ_VERBS["resteer new"];
+  assert.equal(write?.observes, "nothing");
+  assert.equal((write as { why?: string }).why, "write — records one observed owner intervention");
+});

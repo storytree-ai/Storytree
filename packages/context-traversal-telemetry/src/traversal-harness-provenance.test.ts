@@ -46,6 +46,8 @@ const OWN_SURFACE_IDS = [
   "open-question",
   "increment",
   "friction",
+  // Joined 2026-09-05 with `storytree resteer list` (ADR-0515).
+  "resteer",
 ] as const;
 
 // ---------------------------------------------------------------------------

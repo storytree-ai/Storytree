@@ -63,6 +63,10 @@ export * from "./repo-root.js";
 // (re-exported here AND via the `/knowledge`, `/knowledge-render`, `/sources` subpaths the studio
 // browser imports directly so it never pulls a node:-laden root barrel).
 export * from "./knowledge.js";
+// ADR-0515 (`follow-the-research-arc` inc 1/2): the `resteer` tier's pure compute — the typed
+// partition that makes the taste exclusion structural rather than a filter each reader must
+// remember, and the Cohen's kappa the adopted MAST frame was validated with. Pure, browser-safe.
+export * from "./resteer-report.js";
 // ADR-0223: the authored `dependsOn` dependency DAG — the pure cycle detector (`directional-dag-arc`
 // increment 1) and the corpus-wide acyclicity judge the `check:library-dag-acyclic` rung is a thin
 // store read around. Pure, browser-safe: no zod, no store, no node: — it reads `dependsOn` and

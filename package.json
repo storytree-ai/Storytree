@@ -43,6 +43,7 @@
     "probe:combined-dag": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-combined-dag.ts",
     "probe:decision-reads": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-reads.ts",
     "probe:amends-reach": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-amends-reach.ts",
+    "probe:co-read-edges": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-co-read-edges.ts",
     "probe:decision-baseline": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-baseline.ts",
     "probe:decision-altitude": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-altitude.ts",
     "probe:decision-control-set": "pnpm -C packages/cli exec node --import ../../scripts/tsx-cache-off.mjs --import tsx src/probe-decision-control-set.ts",
