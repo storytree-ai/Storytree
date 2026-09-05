@@ -359,6 +359,11 @@ export const CLI_READ_VERBS = {
   "arc close": silent("write — flips lifecycle"),
   "arc reopen": silent("write — flips lifecycle"),
   "arc park": silent("write — parks an increment"),
+  // ADR-0523 D5. Both write the arc-to-arc SCHEDULE edge (`gatedBy`), so neither observes a corpus
+  // read — `arc gate` walks the existing gates before writing, but that walk is a cycle guard, not a
+  // traversal a reader learned anything from.
+  "arc gate": silent("write — queues an arc behind its blocker"),
+  "arc ungate": silent("write — releases a queue edge"),
   "arc proposal": silent("write — the retired proposal surface's residue"),
   "arc reconcile": silent("write — recomputes lifecycle from the increment log"),
   "arc increment": silent("write — new / add / close on the increment log"),

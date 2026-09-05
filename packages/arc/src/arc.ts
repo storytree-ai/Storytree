@@ -1111,13 +1111,43 @@ function gatedByOf(doc: Record<string, unknown>): readonly string[] {
   return Array.isArray(refs) ? refs.filter((r): r is string => typeof r === "string") : [];
 }
 
+/**
+ * Why each gate exists, keyed by the blocker's `asset:` ref — the shape `gateReasons` stores.
+ *
+ * An INTERFACE with an index signature rather than an inline `Record<string, unknown>`, for the
+ * reason {@link ArcNarrativePatch} records: the anti-slop `no-known-value-widening` rule reads an
+ * open dictionary as discarded type evidence, and it is right to. The keys are genuinely open (one
+ * per blocker) but the VALUES are known — every one is a string — so naming the contract states
+ * something strictly narrower than the dictionary did.
+ */
+interface GateReasonMap {
+  [blockerRef: string]: string;
+}
+
 /** PURE: the `gateReasons` map on a loaded arc doc, or `{}` when it carries none. */
-function gateReasonsOf(doc: Record<string, unknown>): Readonly<Record<string, string>> {
+function gateReasonsOf(doc: Record<string, unknown>): Readonly<GateReasonMap> {
   const stored = doc["gateReasons"];
   if (typeof stored !== "object" || stored === null || Array.isArray(stored)) return {};
-  const out: Record<string, string> = {};
+  const out: GateReasonMap = {};
   for (const [k, v] of Object.entries(stored as Record<string, unknown>)) if (typeof v === "string") out[k] = v;
   return out;
+}
+
+/**
+ * What a gate write lands: the edge list, optionally the reasons, and the stamp.
+ *
+ * Named for the same reason {@link ArcNarrativePatch} is — this patch carries exactly three keys,
+ * all known at authoring time, so naming them makes a typo'd key a compile error where the
+ * dictionary made it a silently-dropped field.
+ *
+ * `gatedBy` and `gateReasons` are `| undefined` because `ungate` expresses "unset this" by passing
+ * `undefined` — the store's patch merge DELETES a key whose value is undefined, which is how a fully
+ * released arc comes to read identically to one that was never gated.
+ */
+interface ArcGatePatch {
+  updatedAt: string;
+  gatedBy?: readonly string[] | undefined;
+  gateReasons?: Readonly<GateReasonMap> | undefined;
 }
 
 /**
@@ -1169,16 +1199,19 @@ export async function arcGate(
     };
   }
 
-  const reasons = { ...gateReasonsOf(found.doc) };
+  const reasons: GateReasonMap = { ...gateReasonsOf(found.doc) };
   if (opts.reason !== undefined) reasons[ref] = oneLine(opts.reason);
-  const fields: Record<string, unknown> = {
+  const fields: ArcGatePatch = {
     gatedBy: already ? [...current] : [...current, ref],
     updatedAt: deps.now,
   };
-  if (Object.keys(reasons).length > 0) fields["gateReasons"] = reasons;
+  if (Object.keys(reasons).length > 0) fields.gateReasons = reasons;
   const base = Object.assign({ ...found.doc }, fields);
 
-  const written = await patchFields(deps, id, "arc", fields);
+  // Spread at the boundary: `patchFields` takes a genuinely OPEN patch bag (its callers name
+  // different field sets), and a named interface has no implicit index signature — the same
+  // conversion `arcEdit` makes, and for the same reason.
+  const written = await patchFields(deps, id, "arc", { ...fields });
   if ("invalid" in written) {
     return {
       ok: false,
@@ -1234,7 +1267,7 @@ export async function arcUngate(
   }
   const kept = needs === undefined ? [] : current.filter((r) => gateIdOf(r) !== needs);
   const reasons = gateReasonsOf(found.doc);
-  const keptReasons: Record<string, string> = {};
+  const keptReasons: GateReasonMap = {};
   for (const ref of kept) {
     const reason = reasons[ref];
     if (reason !== undefined) keptReasons[ref] = reason;
@@ -1242,14 +1275,14 @@ export async function arcUngate(
   // An EMPTY `gatedBy` is written as absent rather than `[]`: absent is what every arc that was
   // never gated carries, so a released arc reads identically to one that never queued. The same
   // holds for `gateReasons` — an empty map would be a record of a wait that is over.
-  const fields: Record<string, unknown> = {
+  const fields: ArcGatePatch = {
     gatedBy: kept.length > 0 ? kept : undefined,
     gateReasons: Object.keys(keptReasons).length > 0 ? keptReasons : undefined,
     updatedAt: deps.now,
   };
   const base = Object.assign({ ...found.doc }, fields);
 
-  const written = await patchFields(deps, id, "arc", fields);
+  const written = await patchFields(deps, id, "arc", { ...fields });
   if ("invalid" in written) {
     return {
       ok: false,
