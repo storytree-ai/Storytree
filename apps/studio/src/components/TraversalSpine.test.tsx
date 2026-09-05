@@ -41,6 +41,22 @@ import {
 
 afterEach(cleanup);
 
+/**
+ * The shipped stylesheet, resolved from THIS FILE and never from `process.cwd()`.
+ *
+ * ⚠ THE CWD FORM LOOKS IDENTICAL AND IS NOT. `check:mutation-diff` runs these tests inside a Stryker
+ * SANDBOX, where the working directory is `.stryker-tmp/sandbox-<id>` — so a `resolve(process.cwd(),
+ * 'src', 'index.css')` read that passes every local run answers `ENOENT` there and reds the whole
+ * rung with "There were failed tests in the initial test run", naming the tests rather than the path.
+ * One helper, used by every stylesheet assertion below, so there is no second spelling to get wrong.
+ */
+function readStylesheet(): string {
+  return readFileSync(
+    resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'src', 'index.css'),
+    'utf8',
+  );
+}
+
 const SESSION = 'kind-hamilton-e938be';
 const T0 = Date.parse('2026-08-11T08:00:00.000Z');
 const MIN = 60_000;
@@ -369,7 +385,7 @@ describe('the composition bar replaces the vertical occupancy bar (ADR-0524)', (
     expect(document.querySelector('.traversal-occupancy')).toBeNull();
     expect(screen.queryByTestId('traversal-occupancy')).toBeNull();
     expect(screen.queryByTestId('traversal-occupancy-readout')).toBeNull();
-    const css = readFileSync(resolve(process.cwd(), 'src', 'index.css'), 'utf8');
+    const css = readStylesheet();
     expect(css).not.toContain('.traversal-occupancy');
     // And the legend no longer keys a bar the picture does not draw.
     expect(screen.getByTestId('traversal-legend').textContent ?? '').not.toContain('resident context');
@@ -401,7 +417,7 @@ describe('the composition bar replaces the vertical occupancy bar (ADR-0524)', (
     expect((knowledge as HTMLElement).style.flexGrow).toBe('20000');
     expect((floor as HTMLElement).style.flexGrow).toBe('97000');
     expect(knowledge.getAttribute('data-tokens')).toBe('20000');
-    const css = readFileSync(resolve(process.cwd(), 'src', 'index.css'), 'utf8');
+    const css = readStylesheet();
     const rule = css.slice(
       css.indexOf('.traversal-composition-segment {'),
       css.indexOf('}', css.indexOf('.traversal-composition-segment {')),
@@ -875,7 +891,7 @@ describe('the legend and the stylesheet say the same thing', () => {
   // DASHED. It survived review because nothing is ever followed in practice, so the state that
   // disagreed was the only state anyone ever saw — the picture looked like a texture and nobody
   // could tell it was lying. The pair is pinned here rather than left to a reader's eye.
-  const css = readFileSync(resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..', '..'), 'src', 'index.css'), 'utf8');
+  const css = readStylesheet();
 
   function ruleBody(selector: string): string | null {
     const at = css.indexOf(`${selector} {`);
