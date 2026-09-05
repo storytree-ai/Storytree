@@ -798,6 +798,7 @@ function lifecycleRollup(
     lifecycle,
     intent: "",
     endState: "",
+    gates: [],
     increments: statuses.map((status, n) => ({
       id: `${id}-inc-${n}`,
       title: `${id} inc ${n}`,

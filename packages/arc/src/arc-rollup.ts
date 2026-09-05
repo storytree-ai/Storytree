@@ -159,6 +159,28 @@ export interface ArcRollupQuestion {
  * says outright that a session which "invents a `blocked` predicate to close the gap" has exceeded
  * the decision. A later increment adds it once the owner defines it.
  */
+/**
+ * ONE arc-to-arc gate as the surfaces read it (ADR-0523): the blocker, why the queue exists, and
+ * whether it has closed.
+ *
+ * `open` is derived from the BLOCKER's own lifecycle rather than stored, so a gate opens itself the
+ * moment its blocker closes and nobody has to go and release it. A blocker that cannot be found is
+ * reported `blockerMissing`, never silently treated as closed — an unresolvable gate is a permanent
+ * wait, and reading it as satisfied would start work the queue exists to hold.
+ */
+export interface ArcRollupGate {
+  /** The blocking arc's id (bare, no `asset:` prefix). */
+  id: string;
+  /** The blocker's title when it resolves, else its id — surfaces render this. */
+  title: string;
+  /** Why this queue exists, as recorded beside the edge; absent when the author recorded none. */
+  reason?: string;
+  /** True while the blocker is still open — i.e. this gate is SHUT and the arc cannot start. */
+  shut: boolean;
+  /** The blocker resolved to no arc at all: a permanent wait, and never a satisfied gate. */
+  blockerMissing: boolean;
+}
+
 export interface ArcRollup {
   id: string;
   title: string;
@@ -186,6 +208,18 @@ export interface ArcRollup {
    * reader who saw the two merged would read unbuilt intentions as things that happened.
    */
   increments: ArcRollupIncrement[];
+  /**
+   * The arcs this one is QUEUED BEHIND (ADR-0523) — read off `gatedBy`, each with the reason
+   * recorded beside the edge and whether the blocker has actually closed yet.
+   *
+   * ⚠ NOT `dependsOn`, which an arc also carries and which means *stands on* (knowledge support).
+   * This is a SCHEDULE: the arc cannot START until each of these closes. The two are separate
+   * fields precisely because they draw the same picture — see ADR-0523.
+   *
+   * Empty for almost every arc, which is the property the surface is required to preserve: an
+   * ungated arc costs no caret, no indent and no width.
+   */
+  gates: ArcRollupGate[];
   adrs: ArcRollupAdr[];
   /**
    * Story directory names carrying this arc's frontmatter stamp (ADR-0183 D3) — a DISK SCAN of the
@@ -653,6 +687,15 @@ export interface ArcRollupInput {
   incrementDocs: readonly StoredDoc[];
   /** EVERY open-question doc — filtered here by `arcRef` (ADR-0267 D4). */
   questionDocs: readonly StoredDoc[];
+  /**
+   * EVERY arc doc — what resolves this arc's `gatedBy` refs (ADR-0523) into blocker titles and,
+   * critically, into whether each blocker has CLOSED.
+   *
+   * OPTIONAL for the same reason `workUnits` is: a caller with no arc corpus in hand must not have
+   * its gates reported as satisfied. When omitted, gates still render from the refs alone and each
+   * is treated as SHUT with the blocker unresolved — an unknown blocker is a wait, never a release.
+   */
+  arcDocs?: readonly StoredDoc[] | undefined;
   /** Every parsed ADR — filtered here by the frontmatter `arc:` stamp. */
   adrs: readonly TitledAdrMeta[];
   /** Every story stamp from {@link storyArcStamps} — filtered here by arc. */
@@ -780,6 +823,38 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
 
+  // THE GATES (ADR-0523) — this arc's queue, resolved against the arc corpus when the caller has
+  // one. Order is the authored order: a gate list is a set of holds, not a ranking.
+  const gateRefs = doc["gatedBy"];
+  const gateReasonSource = doc["gateReasons"];
+  const gateReasons: Record<string, unknown> =
+    typeof gateReasonSource === "object" && gateReasonSource !== null && !Array.isArray(gateReasonSource)
+      ? (gateReasonSource as Record<string, unknown>)
+      : {};
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — the fallback stands for "the caller
+  // had no arc corpus", and any non-empty stand-in keys the map by `undefined`, which no `get` by a
+  // real blocker id can ever match. Both roads lead to every gate reading as unresolved-and-shut,
+  // which is the behaviour a test already pins.
+  const arcsById = new Map((input.arcDocs ?? []).map((a) => [a.id, a]));
+  const gates: ArcRollupGate[] = (Array.isArray(gateRefs) ? gateRefs : [])
+    .filter((r): r is string => typeof r === "string")
+    .map((ref) => {
+      const blockerId = ref.startsWith("asset:") ? ref.slice("asset:".length) : ref;
+      const blocker = arcsById.get(blockerId);
+      const reason = gateReasons[ref];
+      // An UNRESOLVED blocker is shut, never open. Reading "I could not find it" as "it closed"
+      // would start work the queue exists to hold — the same falsified-absence error `workUnits`
+      // above is written to avoid.
+      const gate: ArcRollupGate = {
+        id: blockerId,
+        title: blocker ? str(blocker.doc as Record<string, unknown>, "title") || blockerId : blockerId,
+        shut: blocker === undefined || arcLifecycleOf(blocker) !== "closed",
+        blockerMissing: blocker === undefined,
+      };
+      if (typeof reason === "string" && reason.length > 0) gate.reason = reason;
+      return gate;
+    });
+
   return {
     id,
     title: str(doc, "title"),
@@ -788,6 +863,7 @@ export function deriveArcRollup(input: ArcRollupInput): ArcRollup {
     intent: str(doc, "intent"),
     endState: str(doc, "endState"),
     increments,
+    gates,
     adrs,
     stories,
     citedStories,
@@ -825,6 +901,11 @@ async function loadChildren(deps: ArcRollupDeps): Promise<Omit<ArcRollupInput, "
   return {
     incrementDocs,
     questionDocs,
+    // EVERY arc, loaded once alongside the other child sets — a gate (ADR-0523) resolves against the
+    // arc corpus, and the blocker's LIFECYCLE is what decides whether the gate still holds. Loaded
+    // here rather than per-arc for the same reason the story scan is: a multi-arc rollup must not
+    // re-query per arc.
+    arcDocs: await deps.store.queryDocs({ kind: "arc" }),
     adrs: decisions.adrs,
     storyStamps: storyArcStamps(deps.storiesDir),
     // Scanned ONCE per load alongside the stamps, and for the same reason: a multi-arc rollup must

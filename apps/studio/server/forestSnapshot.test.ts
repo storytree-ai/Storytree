@@ -140,6 +140,7 @@ function rollup(id: string, over: Partial<ArcRollup> = {}): ArcRollup {
     intent: 'PROSE-intent — the strategy layer, which does not ship',
     endState: 'PROSE-endState — where this arc is trying to get to',
     increments: [],
+    gates: [],
     adrs: [],
     stories: [],
     citedStories: [],
