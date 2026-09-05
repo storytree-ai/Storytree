@@ -112,9 +112,17 @@ export interface AdrCommandOpts {
    */
   clause?: string | undefined;
   /**
-   * `--basis <owner-directed|owner-ratified|agent-derived|agent-flipped>` (ADR-0519 D1): WHOSE call
-   * this decision was. Absent derives from `--decided` — see {@link resolveAuthority} for the
-   * mapping and why the derived default is the WEAK one.
+   * `--basis <owner-directed|owner-ratified|agent-derived|agent-flipped>` — ONE flag, TWO verbs.
+   *
+   * On `adr new` (ADR-0519 D1) it declares WHOSE call this decision was; absent, it derives from
+   * `--decided` — see {@link resolveAuthority} for the mapping and why the derived default is the
+   * WEAK one. On `adr list` it FILTERS to decisions whose stamp claims that basis, and a row
+   * carrying no stamp matches nothing — see {@link AdrListFilter.basis} for why that reading
+   * matters and what the rendered footer has to disclose because of it.
+   *
+   * Shared deliberately rather than split into `--basis` and `--filter-basis`: it is the same
+   * vocabulary answering the same question, and a caller who learns the four values on one verb
+   * should not have to learn a second spelling on the other.
    */
   basis?: string | undefined;
   /**
@@ -665,6 +673,17 @@ export interface AdrListFilter {
   current?: boolean;
   loadBearing?: boolean;
   status?: AdrStatus;
+  /**
+   * ADR-0519's `--basis <b>`: show only decisions whose authority stamp claims this basis.
+   *
+   * ⚠ AN UNSTAMPED ROW MATCHES NO BASIS, and that is not the same as failing to match — it is a row
+   * this view cannot speak for. Most of the log is unstamped and always will be (ADR-0519 D5 stamps
+   * 298 of 509 and leaves 211 alone rather than guessing), so `--basis owner-directed` answers
+   * "which decisions SAY the owner directed them", never "which decisions the owner directed". The
+   * count printed under the rows says so in as many words, because a filtered list read as a
+   * complete one is exactly the over-read this field invites.
+   */
+  basis?: AuthorityBasis;
 }
 
 // The title extractor moved to `@storytree/drive` (next to `parseAdrFrontmatter`, its natural home)
@@ -776,6 +795,11 @@ export function selectAdrListings(
       if (filter.current === true && m.status !== "accepted") return false;
       if (filter.loadBearing === true && !reach.has(m.number)) return false;
       if (filter.status !== undefined && m.status !== filter.status) return false;
+      // An UNSTAMPED row matches no basis — `m.authority?.basis` is undefined and can never equal a
+      // declared one, so the row drops out. That is the intended reading (this cut is "decisions
+      // that SAY they were decided this way") and it is why the rendered footer states how many
+      // rows carry no stamp at all: without that number the filtered list reads as a census.
+      if (filter.basis !== undefined && m.authority?.basis !== filter.basis) return false;
       return true;
     });
 }
@@ -811,9 +835,104 @@ export function renderAdrList(listings: readonly AdrListing[], filter: AdrListFi
     if (dependedOn !== undefined && dependedOn.length > 0) {
       edges.push(`depended on by ${dependedOn.map(label).join(", ")}`);
     }
+    // ADR-0519's stamp, on its own line when there is one. Deliberately NOT folded into the `edges`
+    // list above: those are graph edges to other decisions, and this is a claim about THIS record.
+    const stamp = authorityLine(m.authority);
+    if (stamp !== null) rows.push(`            ${stamp}`);
     for (const e of edges) rows.push(`            ${e}`);
   }
+  rows.push(...unstampedFooter(listings, filter));
   return rows;
+}
+
+/**
+ * PURE: one line describing a decision's authority stamp, or null when it carries none.
+ *
+ * The owner's words are QUOTED and TRUNCATED here rather than shown whole — a list is a scanning
+ * surface, and a multi-sentence directive would push the rows apart until the list stopped being
+ * one. The full text is on the record (`storytree library artifact adr-NNNN`), and the trailing `…`
+ * is what says so; a silent truncation would let a reader quote a half-sentence as the owner's.
+ */
+export function authorityLine(authority: DecisionAuthority | undefined): string | null {
+  if (authority === undefined) return null;
+  const parts = [`decided by: ${authority.basis}`];
+  // TRANSCRIBED IS SAID OUT LOUD, always. It is the difference between "the owner directed this and
+  // here are his words" and "an agent's phrasing was read off the prose years later", and a reader
+  // scanning for owner-directed rows would otherwise take the two for the same evidence.
+  if (authority.transcribedFromProse === true) parts.push("transcribed from prose, no quote");
+  if (authority.ownerSaid !== undefined) {
+    const flat = authority.ownerSaid.replace(/\s+/g, " ").trim();
+    const shown = flat.length > 72 ? `${flat.slice(0, 71)}…` : flat;
+    parts.push(`“${shown}”`);
+  }
+  return parts.join(" · ");
+}
+
+/** Plain-language gloss of each basis — the record surface is read by the owner, not only by agents. */
+const BASIS_PROSE: Record<AuthorityBasis, string> = {
+  "owner-directed": "the owner, who directed it in conversation",
+  "owner-ratified": "the owner, who was asked and approved it",
+  "agent-derived": "an agent — the owner has not weighed in",
+  "agent-flipped": "an agent, transcribing the accepted flip (ADR-0084)",
+};
+
+/**
+ * The authority block for ONE decision record — the full stamp, with the owner's words UNTRUNCATED.
+ *
+ * The deliberate difference from {@link authorityLine}: a list is a scanning surface and shortens
+ * the quote, this is the record and must not. Whoever comes here came to read what was actually
+ * said, and a `…` at this depth would send them to a place that does not exist.
+ *
+ * Returns `[]` for an unstamped record, so the block never announces its own absence — the
+ * `composedBannerFor` precedent one function up in the render, and the reason most of the log looks
+ * exactly as it did before ADR-0519.
+ */
+export function authorityBlockFor(doc: unknown): string[] {
+  const parsed = DecisionAuthority.safeParse((doc as Record<string, unknown> | null)?.["authority"]);
+  if (!parsed.success) return [];
+  const a = parsed.data;
+  const lines = ["", `Decided by: ${BASIS_PROSE[a.basis]}  (stamped ${a.at})`];
+  lines.push(`  scribed by: ${a.scribedBy}`);
+  if (a.transcribedFromProse === true) {
+    // SAID PLAINLY, because this is the weaker evidence and a reader skimming for "owner-directed"
+    // would otherwise take it for the stronger kind. The stamp was read off this record's own prose
+    // long after the fact; nobody captured what the owner said, and nothing here vouches that he
+    // said anything.
+    lines.push(
+      "  ⚠ TRANSCRIBED from this record's own prose — the owner's words were never captured,",
+      "    so this stamp repeats a claim the prose already made rather than evidencing it.",
+    );
+  }
+  if (a.ownerSaid !== undefined) {
+    lines.push("  the owner's words, verbatim:");
+    for (const line of a.ownerSaid.split("\n")) lines.push(`    ${line}`);
+  }
+  return lines;
+}
+
+/**
+ * The footer that stops a filtered cut from reading as a census.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE NUMBER IS THE MISLEADING PART, not the rows. Most of the decision log
+ * carries no authority stamp and always will — ADR-0519 D5 stamps the 298 rows that are
+ * mechanically classifiable and leaves 211 alone rather than guessing — so `--basis owner-directed`
+ * answers "which decisions SAY the owner directed them" and never "which decisions the owner
+ * directed". A reader who takes the row count for the second has been misled by a view that was
+ * accurate. Printed only when there is something to disclose, so an all-stamped log (which this one
+ * will never be) says nothing.
+ */
+export function unstampedFooter(
+  listings: readonly AdrListing[],
+  filter: AdrListFilter,
+): string[] {
+  if (filter.basis === undefined) return [];
+  const unstamped = listings.filter((l) => l.meta.authority === undefined).length;
+  if (unstamped === 0) return [];
+  return [
+    "",
+    `  ⚠ ${unstamped} of ${listings.length} decisions carry NO authority stamp and match no --basis.`,
+    "    This cut shows what decisions SAY about who decided them, not who decided them.",
+  ];
 }
 
 /**
@@ -972,6 +1091,7 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
   if (opts.current === true) filter.current = true;
   if (opts.loadBearing === true) filter.loadBearing = true;
   if (opts.status !== undefined) filter.status = opts.status as AdrStatus;
+  if (opts.basis !== undefined) filter.basis = opts.basis as AuthorityBasis;
   const rows = renderAdrList(listings, filter);
   const cut = opts.loadBearing
     ? "load-bearing current-state"
@@ -979,9 +1099,17 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
       ? "current (accepted, not superseded)"
       : opts.status !== undefined
         ? opts.status
-        : "all";
+        : opts.basis !== undefined
+          ? `decided by: ${opts.basis}`
+          : "all";
   const lines = [
-    `storytree adr — ${rows.filter((r) => !r.startsWith(" ".repeat(12))).length} ADRs [${cut}]` +
+    // COUNTED FROM THE SELECTION, not from the rendered rows. It used to be
+    // `rows.filter(r => !r.startsWith(" ".repeat(12)))` — an indentation heuristic that silently
+    // means "every line the renderer did not indent as a continuation", so any new un-indented line
+    // inflates the ADR count. ADR-0519's unstamped footer is exactly such a line, and would have
+    // added three. Asking the selection is the claim actually being made and cannot drift from the
+    // renderer's layout.
+    `storytree adr — ${selectAdrListings(listings, filter).length} ADRs [${cut}]` +
       `   ★ = load-bearing (the curated calibrate-to-these set)`,
   ];
   if (opts.loadBearing === true) {
@@ -1017,7 +1145,7 @@ export function adrHelp(): Envelope {
     body: [
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
-      "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
+      "  storytree adr list [--current | --load-bearing | --status <s> | --basis <b>]   the searchable current-state view",
       '  storytree adr new --title "..." [--decided --owner-said <text|@file>] [--basis <b>] [--depends-on 42,43] [--supersedes 42] [--arc <id>] --pg',
       "                                                                          reserve + scaffold",
       "  storytree adr next --pg                                                  reserve a number only",
@@ -1120,6 +1248,12 @@ export function adrHelp(): Envelope {
       "                   almost exactly and then grow without bound, which a reader cannot detect",
       "                   FROM the view. A new decision resting on a load-bearing one must be TAGGED.",
       "  --status <s>     filter to proposed | accepted | superseded",
+      "  --basis <b>      WHO decided (ADR-0519): owner-directed | owner-ratified | agent-derived |",
+      "                   agent-flipped. ⚠ This shows what decisions SAY about who decided them,",
+      "                   never who decided them: a decision carrying no stamp matches NO basis, and",
+      "                   most of the log carries none and always will (ADR-0519 D5 stamps the 298",
+      "                   rows that are mechanically classifiable and leaves the rest alone rather",
+      "                   than guessing). The view prints how many are unstamped for that reason.",
       "",
       "new/next BOTH need --pg (bring the DB up first: pnpm db:up). There is no offline path: the",
       "number is reserved transactionally and the decision is a row, so a session that cannot reach the",
