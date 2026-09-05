@@ -7,7 +7,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { useEffect, useRef, useState } from 'react';
 
@@ -231,7 +232,7 @@ describe('App forest route retention', () => {
 
     // jsdom does not resolve Vite's stylesheet, so bind the dimension-stable layer guarantee to the
     // actual rules. The Electron companion compares the real terminal body bounds before/while parked.
-    const css = readFileSync(resolve(process.cwd(), 'src', 'index.css'), 'utf8');
+    const css = readFileSync(resolve(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'src', 'index.css'), 'utf8');
     expect(css).toMatch(/\.app-stage\s*\{[\s\S]*?position:\s*relative;[\s\S]*?flex:\s*1\s+1\s+auto;/);
     expect(css).toMatch(/\.tree-route\s*\{[\s\S]*?position:\s*absolute;[\s\S]*?inset:\s*0;[\s\S]*?display:\s*flex;/);
     expect(css).toMatch(/\.tree-route\[data-parked='true'\]\s*\{[\s\S]*?visibility:\s*hidden;[\s\S]*?pointer-events:\s*none;/);

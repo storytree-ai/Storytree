@@ -8,7 +8,8 @@
 // is owner-attested.
 
 import { describe, it, expect } from 'vitest';
-import { buildWorld } from './TreeView.js';
+import { buildWorld, parseSpacingTuning } from './TreeView.js';
+import { ISLAND_SPACING_RATIO, ISLAND_SPACING_RUNGS } from '../lib/islandSpacing.js';
 import type { TreeStory } from '../types';
 
 const cap = (id: string) => ({
@@ -165,5 +166,86 @@ describe('buildWorld — the coast belongs to an island (ADR-0286)', () => {
     const bare = world.empties.map((h) => ({ q: h.q, r: h.r }));
     // A hex is still a hex at the same axial coordinate; `owner` rides alongside.
     expect(new Set(bare.map((h) => `${h.q},${h.r}`)).size).toBe(bare.length);
+  });
+});
+
+// ── ADR-0521: the spacing is a FRACTION OF ISLAND SIZE, not three constants ──
+//
+// The three absolute gaps (40 / 60 / 140) are retired; every gap is `gapBetween` over the two
+// islands' estimated radii and a lone island's swing is the offset a same-row neighbour would have
+// had. These pin the RULE at the packer — that the layout MOVES with the ratio, that the legacy
+// triple stands the old map and ignores the ratio, and that the dial's grammar reads what a URL
+// says — never a rung's look, which is the owner's off the rendered ladder.
+describe('buildWorld — ADR-0521: the gaps derive from island size', () => {
+  const caps = (id: string, n: number) => Array.from({ length: n }, (_, i) => cap(`${id}-${i}`));
+  const story = (id: string, n: number, dependsOn: string[] = []): TreeStory => ({
+    id,
+    title: id,
+    outcome: '',
+    status: 'mapped',
+    proofMode: 'UAT',
+    uatWitness: 'machine',
+    dependsOn,
+    consumedBy: [],
+    capabilities: caps(id, n),
+  });
+  /** Two independent big islands on the foundation row, and one lone island above them. */
+  const fixture = (): TreeStory[] => [story('left', 11), story('right', 11), story('lone', 11, ['left', 'right'])];
+  const centroid = (stories: TreeStory[], id: string, ratio: number) => {
+    const w = buildWorld(stories, { spacing: { ratio } });
+    const t = w.territories.find((x) => x.story.id === id);
+    if (!t) throw new Error(`no territory ${id}`);
+    return t.centroid;
+  };
+
+  it('same-row neighbours sit FURTHER apart at a larger ratio — the in-row gap is a fraction of their radii', () => {
+    const near = Math.abs(centroid(fixture(), 'left', 0).x - centroid(fixture(), 'right', 0).x);
+    const far = Math.abs(centroid(fixture(), 'left', 0.6).x - centroid(fixture(), 'right', 0.6).x);
+    expect(far).toBeGreaterThan(near);
+    // 0.6 × the mean radius of two 13-tile islands is ≈ 79 ground units before the lattice snaps
+    // the seeds; the snapped distance must still have moved by at least one hex step (≈ 47).
+    expect(far - near).toBeGreaterThan(40);
+  });
+
+  it('adjacent ranks sit FURTHER apart at a larger ratio — the row gap is the same fraction', () => {
+    const rows = (ratio: number) =>
+      Math.abs(centroid(fixture(), 'lone', ratio).y - (centroid(fixture(), 'left', ratio).y + centroid(fixture(), 'right', ratio).y) / 2);
+    expect(rows(0.6)).toBeGreaterThan(rows(0));
+  });
+
+  it('the legacy triple stands the pre-ADR-0521 map and IGNORES the ratio — a control arm cannot be one of its own rungs', () => {
+    const legacy = { rankGap: 40, islandGap: 60, rankSwing: 140 };
+    const a = buildWorld(fixture(), { spacing: { ratio: 0, legacy } });
+    const b = buildWorld(fixture(), { spacing: { ratio: 0.6, legacy } });
+    expect(a.territories.map((t) => t.centroid)).toEqual(b.territories.map((t) => t.centroid));
+    expect(a.width).toBe(b.width);
+    // and it is a different layout from the ratio path at a ratio that is not it
+    const c = buildWorld(fixture(), { spacing: { ratio: 0 } });
+    expect(c.territories.map((t) => t.centroid)).not.toEqual(a.territories.map((t) => t.centroid));
+  });
+
+  it('a bare call lays out at the shipped ratio, not at the retired constants', () => {
+    const bare = buildWorld(fixture());
+    const shipped = buildWorld(fixture(), { spacing: { ratio: ISLAND_SPACING_RATIO } });
+    expect(bare.territories.map((t) => t.centroid)).toEqual(shipped.territories.map((t) => t.centroid));
+  });
+
+  it('every trail still routes when the whole forest moves — no edge is dropped at any rung', () => {
+    for (const ratio of ISLAND_SPACING_RUNGS) {
+      const w = buildWorld(fixture(), { spacing: { ratio } });
+      expect(w.trails.dropped).toEqual([]);
+      expect(w.trails.edges.map((e) => `${e.from}->${e.to}`).sort()).toEqual(['left->lone', 'right->lone']);
+    }
+  });
+
+  it('parseSpacingTuning: ?spacing= is the ratio; all three legacy keys together are the control, one or two are nothing', () => {
+    expect(parseSpacingTuning(new URLSearchParams('?spacing=0.2'))).toEqual({ ratio: 0.2 });
+    expect(parseSpacingTuning(new URLSearchParams('?rankGap=40&islandGap=60&rankSwing=140'))).toEqual({
+      legacy: { rankGap: 40, islandGap: 60, rankSwing: 140 },
+    });
+    expect(parseSpacingTuning(new URLSearchParams('?rankGap=40&islandGap=60'))).toEqual({});
+    expect(parseSpacingTuning(new URLSearchParams('?spacing=-1'))).toEqual({});
+    expect(parseSpacingTuning(new URLSearchParams('?spacing=abc'))).toEqual({});
+    expect(parseSpacingTuning(new URLSearchParams(''))).toEqual({});
   });
 });
