@@ -705,6 +705,10 @@ export async function questionSettle(
   // ADR-0526 D4 — SETTLING IS A LIFECYCLE INPUT. Without this, a drained arc held open only by this
   // question would read `active` forever once the question was answered: the exact lingering
   // ADR-0335 exists to prevent, merely moved from the increment log to the question tier.
+  // Stryker disable next-line ConditionalExpression,StringLiteral: EQUIVALENT — an unhomed question
+  // has no arc id to recompute, and `recomputeArcLifecycle(deps, "")` finds no increments, derives
+  // `null` from the empty log, and returns null anyway. The guard saves a wasted store query and
+  // says at the call site that "no arc" is a real case; it decides nothing observable.
   const lifecycleNote = arc === "" ? null : await recomputeArcLifecycle(deps, arc);
   return {
     ok: true,

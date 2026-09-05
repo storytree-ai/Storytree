@@ -3693,6 +3693,12 @@ test("settling the LAST question on a drained arc auto-closes it, and says so (A
   // moved from the increment log to the question tier.
   assert.match(res.body, /auto-closed/);
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+  // The note sits on its own line with a blank AFTER it, so it does not run into the arc sentence.
+  const l = res.body.split(String.fromCharCode(10));
+  const noteAt = l.findIndex((line) => /auto-closed/.test(line));
+  assert.ok(noteAt > 0);
+  assert.equal(l[noteAt + 1], "");
+  assert.match(l[noteAt + 2] ?? "", /^drained-arc no longer counts this question as waiting/);
 });
 
 test("settling one of TWO questions leaves the arc open, and prints no lifecycle line", async () => {
