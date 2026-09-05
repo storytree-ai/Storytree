@@ -1,9 +1,11 @@
 /**
  * THE ARC SURFACE (ADR-0267 D1 + ADR-0314) — the map's primary top-drawer lens.
  *
- * What it answers, for an owner arriving cold: for any live arc, what it is about, where it is up
- * to, what comes next, and which questions are waiting on them — from this surface alone, without
- * asking an agent to reconstruct the context.
+ * What it answers, for an owner arriving cold: for any live arc, what it is about, and which
+ * questions are waiting on them — from this surface alone, without asking an agent to reconstruct
+ * the context. What comes next and where an arc is up to are answered by the LANE bars (D2) rather
+ * than by the panel's own prose since `arc-queue-and-question-legibility-arc` inc-01 — see the
+ * `ArcBriefingPanel` doc comment below for that cut and why the increment tier itself is unaffected.
  *
  * THE LAYOUT IS DECIDED, NOT PROPOSED (ADR-0314, owner-picked 2026-08-05 — mock option B, modified).
  * Do not re-mock it and do not re-render to "check" it; the pick is made.
@@ -18,7 +20,9 @@
  *        with click-through into the actual Library artifact holding the question, so they can reach
  *        the briefing, diagrams and mocks needed to answer it. `#/asset/<id>` already routes, so this
  *        is deep-linking rather than a new surface. It composes option C's reading room into option
- *        B's index, which the mock round said the four options were for.
+ *        B's index, which the mock round said the four options were for. CUT to description + open
+ *        questions by inc-01 (owner: "description of arc and then open questions, dont see any more
+ *        needed here") — the proposals list and the increment work-list are gone from the panel.
  *   D4 — `waiting` and `blocked` stay separate: answerable versus stuck. `blocked` is NOT lit here,
  *        because neither of its two sources is derivable yet — the refusal, and why substituting one
  *        of the mock round's rejected predicates is forbidden, lives in `BLOCKED_IS_DERIVABLE`.
@@ -57,17 +61,20 @@ import {
   arcLanes,
   briefingLead,
   defaultLaneId,
-  landedSummary,
+  parseOptionCards,
+  questionFields,
+  questionRowStats,
+  questionWordBudget,
+  wordCount,
   BLOCKED_UNAVAILABLE_NOTE,
-  LANDED_STATUS,
-  PROPOSAL_STATUS,
   type ArcLane,
   type ArcLaneScope,
 } from '../lib/arcSurface';
 import type {
   ArcRollup,
-  ArcRollupIncrement,
+  ArcRollupQuestion,
   ArcRollupSummary,
+  GuidanceAsset,
   SessionClaimGroup,
 } from '../types';
 import {
@@ -112,6 +119,18 @@ export interface ArcSurfaceProps {
    * the selected id, not on this identity.
    */
   readArc: (id: string) => Promise<ArcRollup>;
+  /**
+   * The Library corpus — `useAppData().assets` at the mount site, ALREADY loaded for the Library
+   * lens whether or not this drawer is open (`apps/studio/src/components/TreeView.tsx`). A question's
+   * full authoring fields (`statement` / `context` / `options` / `analogy` / `diagram` /
+   * `recommendation`, `arc-queue-and-question-legibility-arc` inc-01/inc-02) live on a structured
+   * Knowledge doc's `fields` here, NOT on {@link ArcRollupQuestion} — that shape carries only
+   * `stakes`/`description`, and widening it would be exactly the panel-data-source widening ADR-0314
+   * forbids (the arc/lane join is a sibling lane's territory, not this one's). Reading `assets`
+   * instead costs no new fetch: it is a second, independent consumer of a read the studio already
+   * pays for. Defaults to `[]` so every existing caller keeps validating with no migration.
+   */
+  assets?: readonly GuidanceAsset[];
 }
 
 export function ArcSurface({
@@ -120,6 +139,7 @@ export function ArcSurface({
   claims = null,
   onOpen,
   readArc,
+  assets = [],
 }: ArcSurfaceProps): React.JSX.Element {
   // ADR-0335: closed arcs are drawn one flag away, not only "one click away in the Library" — the
   // studio surface had no equivalent of the CLI's `arc list --closed` until this scope toggle.
@@ -221,7 +241,7 @@ export function ArcSurface({
             ))
           )}
         </div>
-        <ArcBriefingPanel lane={selected} detail={detail} onOpen={onOpen} />
+        <ArcBriefingPanel lane={selected} detail={detail} onOpen={onOpen} assets={assets} />
       </div>
     </div>
   );
@@ -308,29 +328,41 @@ function openOnClick(
 }
 
 /**
- * The briefing panel (D3) — the space the deleted axis returned, and where the owner acts.
+ * The briefing panel (D3, cut down by `arc-queue-and-question-legibility-arc` inc-01) — the space
+ * the deleted axis returned, and where the owner acts.
  *
- * It defaults to the selected arc's briefing and leads with what is WAITING when anything is. Each
- * question links straight into its Library artifact, so the owner reaches the full briefing the
- * escalating session authored (ADR-0314 D5) rather than a one-line summary they then have to go
- * looking for. Read-only: there is no reply box here by decision (ADR-0267 D6 / ADR-0314 D9), and
- * answering happens by the owner prompting an agent harness.
+ * CUT TO TWO THINGS (inc-01), owner-directed: "description of arc and then open questions, dont see
+ * any more needed here". The proposals-to-review list and the increment work-list (what's queued /
+ * where it's up to) are GONE from this panel — not pruned from the corpus: an agent picking up the
+ * arc still reads those rows through the increment tier itself
+ * (`storytree library artifact <increment-id> --pg`), which this panel never touches. Read-only:
+ * there is no reply box here by decision (ADR-0267 D6 / ADR-0314 D9), and answering happens by the
+ * owner prompting an agent harness.
  *
- * A QUESTION LEAVES THE WAITING BLOCK BY BEING ANSWERED, NOT BY DISAPPEARING (ADR-0434 D3). Once it
- * is settled it moves one section down, under the answer that ended it — so this panel is where the
- * settlement becomes visible, on the same surface the question was asked from. Both blocks live in
+ * A QUESTION LEAVES THE OPEN LIST BY BEING ANSWERED, NOT BY DISAPPEARING (ADR-0434 D3). Once it is
+ * settled it moves to its own quiet block, under the answer that ended it. Both blocks live in
  * `arcBriefing`; neither is derived here.
  *
+ * A QUESTION OPENS WITH THE QUESTION (inc-02): the flat list's "Open" button expands one question in
+ * place — statement first and largest, then stakes, the diagram or an explicit "none stored" line,
+ * options as FOR/AGAINST cards, the recommendation marked non-binding, and `analogy`/`context`
+ * behind folds that state their own word cost — and the rest of the panel folds away while it is
+ * open. `OpenQuestionDetail` owns that reading; nothing here is deleted from the stored document,
+ * only reordered.
+ *
  * IT READS ITS OWN ARC. The lane list carries only what a lane DRAWS, so everything below this
- * panel's header — the questions and their `stakes`, the arc's `intent`, every increment's outcome —
- * arrives on a per-selection `GET /api/arcs/<id>` (`useArcRollup`). That gives the panel three
- * states the lane strip does not have, and each renders as a different fact rather than collapsing
- * into a plausible-looking empty briefing: still reading, did not answer, and here it is.
+ * panel's header — the questions and their `stakes`, the arc's `intent` — arrives on a per-selection
+ * `GET /api/arcs/<id>` (`useArcRollup`). That gives the panel three states the lane strip does not
+ * have, and each renders as a different fact rather than collapsing into a plausible-looking empty
+ * briefing: still reading, did not answer, and here it is. A question's OWN authoring fields
+ * (`statement`/`context`/`options`/`analogy`/`diagram`/`recommendation`) do NOT arrive here — see
+ * `assets` below and the comment on {@link ArcSurfaceProps.assets}.
  */
 function ArcBriefingPanel({
   lane,
   detail,
   onOpen,
+  assets,
 }: {
   lane: ArcLane | null;
   /**
@@ -340,7 +372,15 @@ function ArcBriefingPanel({
    */
   detail: ArcRollupState;
   onOpen?: ((selection: SearchResult) => void) | undefined;
+  /** The Library corpus — see {@link ArcSurfaceProps.assets}. */
+  assets: readonly GuidanceAsset[];
 }): React.JSX.Element {
+  // WHICH QUESTION (IF ANY) IS EXPANDED — a PURE derivation against `briefing.waiting` below, the
+  // same `picked`/`selectedId` idiom `ArcSurface` uses for its own lane pick: switching arcs (or a
+  // question settling elsewhere) drops a stale id on its own, with no effect needed to notice and
+  // clear it. Declared before every early return below — hooks cannot follow a conditional one.
+  const [openedId, setOpenedId] = useState<string | null>(null);
+
   if (lane === null) {
     return (
       <aside className="arc-briefing" data-testid="arc-briefing" aria-label="arc briefing">
@@ -352,7 +392,7 @@ function ArcBriefingPanel({
   // THE HEADER RENDERS FROM THE LANE, THE BODY FROM THE DETAIL. The lane summary already carries the
   // arc's identity, so the title and the deep-link are up the moment the owner clicks and do not
   // flicker through a placeholder while the rollup arrives. Everything the panel exists to show —
-  // the questions, the intent, the increments — is prose that lives only on the per-id read.
+  // the questions, the intent — is prose that lives only on the per-id read.
   const summary: ArcRollupSummary = lane.arc;
   const header = (
     <header className="arc-briefing-header">
@@ -415,84 +455,66 @@ function ArcBriefingPanel({
 
   const briefing = arcBriefing(detail);
   const { arc } = briefing;
+  const openedQuestion = briefing.waiting.find((q) => q.id === openedId) ?? null;
 
   return (
     <aside className="arc-briefing" data-testid="arc-briefing" aria-label="arc briefing">
       {header}
 
-      {/* WAITING FIRST — the half that makes this a place to act rather than another index.
-          TWO GROUPS since ADR-0359 D2: authored questions (answerable right now) and parked
-          PROPOSALS (a read, then a direction). They are labelled separately rather than merged,
-          because the owner does different things with them and the second is not answerable in
-          the sense the first is. Questions lead. */}
-      <section className="arc-briefing-waiting" aria-label="waiting on you">
-        <h5>Waiting on you</h5>
-        {briefing.waiting.length === 0 && briefing.proposals.length === 0 ? (
+      {/* THE DESCRIPTION RENDERS FIRST, ALWAYS (inc-01) — the owner's own words closing the design
+          conversation. Same lead/clamp treatment `arc.intent` always had; only its position moved,
+          from third block to first. */}
+      <section className="arc-briefing-about" aria-label="what this arc is about">
+        <h5>What it is about</h5>
+        <p className="arc-briefing-intent">{briefingLead(arc.intent || arc.description)}</p>
+      </section>
+
+      {/* OPEN QUESTIONS — the second and LAST section (inc-01). A flat list, NOT nested under a
+          "waiting for you" heading that also held a "Proposals to review" subsection — that nesting
+          is exactly what the owner asked to remove ("I never read the proposals so we should drop
+          that part of the surface"). Each row carries its reading cost (word count over the seven
+          authoring fields + a "no diagram" flag) and a button that expands it in place (inc-02). */}
+      <section className="arc-briefing-questions" aria-label="open questions">
+        <h5>Open questions</h5>
+        {briefing.waiting.length === 0 ? (
           <p className="muted small" data-testid="arc-briefing-nothing-waiting">
             Nothing is waiting on you here.
           </p>
-        ) : null}
-        {briefing.waiting.length > 0 && (
+        ) : openedQuestion === null ? (
           <ul className="arc-question-list" data-testid="arc-briefing-questions">
             {briefing.waiting.map((q) => (
-              <li key={q.id} className="arc-question" data-testid={`arc-question:${q.id}`}>
-                {/* Stakes lead — what breaks while this stays unsettled (ADR-0314 D5's briefing
-                    shape). The link reaches the artifact carrying the rest: the options, the
-                    analogy, the diagrams, the non-binding recommendation. */}
-                <a
-                  className="arc-question-title"
-                  href={assetHref(q.id)}
-                  onClick={openOnClick(onOpen, { id: q.id, title: q.title || q.id, category: 'open-question', source: 'asset' })}
-                >
-                  {q.title || q.id}
-                </a>
-                {/* STRIPPED AND CLAMPED, for the reason `.arc-briefing-intent` already is: these
-                    are markdown in the store, the panel renders TEXT, and a `stakes` authored to
-                    ADR-0314 D5's cold-answerable bar runs to hundreds of words. Unclamped, one loud
-                    question filled the drawer and pushed "What it is about" off the panel — the raw
-                    `**` and backticks showing through as literal characters on the way. The full
-                    prose is one click away through the link above (D3's click-through), which is
-                    what makes the clamp a fold rather than a loss. */}
-                {q.stakes && (
-                  <p className="arc-question-stakes arc-briefing-clamp">{briefingLead(q.stakes)}</p>
-                )}
-                {q.description && <p className="muted small">{briefingLead(q.description)}</p>}
-              </li>
+              <QuestionRow
+                key={q.id}
+                question={q}
+                fields={questionFields(assets, q.id)}
+                onOpen={onOpen}
+                onExpand={() => setOpenedId(q.id)}
+              />
             ))}
           </ul>
-        )}
-        {briefing.proposals.length > 0 && (
-          <>
-            <h6 className="arc-briefing-subhead">Proposals to review</h6>
-            <ul className="arc-increment-list arc-proposal-list" data-testid="arc-briefing-proposals">
-              {briefing.proposals.map((inc) => (
-                <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
-              ))}
-            </ul>
-          </>
+        ) : (
+          /* THE BACKGROUND FOLDS AWAY (inc-02): opening a question replaces the flat list with its
+             own full reading, statement first — never a second surface, never a navigation away. */
+          <OpenQuestionDetail
+            question={openedQuestion}
+            fields={questionFields(assets, openedQuestion.id)}
+            onBack={() => setOpenedId(null)}
+          />
         )}
       </section>
 
       {/* `blocked` is named and left UNLIT rather than omitted — an owner who was told the surface
           distinguishes blocked must be able to see that it currently cannot, instead of reading its
-          absence as "nothing is blocked" (ADR-0314 D4). */}
+          absence as "nothing is blocked" (ADR-0314 D4, untouched by this arc). */}
       <p className="arc-briefing-blocked-note muted small" data-testid="arc-blocked-note">
         {BLOCKED_UNAVAILABLE_NOTE}
       </p>
 
-      {/* SETTLED — an answered question MOVES here, it does not vanish (ADR-0434 D3).
-          Before the lifecycle existed, clearing a question off this panel meant DELETING it, which
-          took the answer with it: the arc then showed no trace of the question OR its settlement,
-          and the owner's own surface was where that loss was least visible. `arcBriefing.settled`
-          has carried the rows since inc-01 and nothing read it, so the panel still showed an
-          answered question DISAPPEARING — the same invisibility the CLI half had already removed.
-          IT SITS DIRECTLY UNDER THE WAITING BLOCK because the point is the MOVE: a question the
-          owner just answered is legible as having moved one section down, where the same rows in an
-          archive at the foot of the panel would read as gone. Quieter and clamped harder than an
-          open question (see the CSS) — this is archaeology, not something to act on.
-          ABSENT WHEN EMPTY, never an empty heading: an arc that has settled nothing owes the reader
-          no section, which is what `storytree arc show` does, and the two surfaces must not
-          disagree about it. */}
+      {/* SETTLED — an answered question MOVES here, it does not vanish (ADR-0434 D3). Neither
+          increment of this arc named the settled block for removal — only "the proposals section"
+          and "the open-work list" (the INCREMENT listings below, now gone) — and dropping it would
+          silently regress the exact invisibility ADR-0434 exists to prevent, so it stays unchanged.
+          ABSENT WHEN EMPTY, never an empty heading, matching `storytree arc show`. */}
       {briefing.settled.length > 0 && (
         <section className="arc-briefing-settled" aria-label="settled questions">
           <h5>Settled</h5>
@@ -529,117 +551,161 @@ function ArcBriefingPanel({
           </ul>
         </section>
       )}
-
-      <section className="arc-briefing-about" aria-label="what this arc is about">
-        <h5>What it is about</h5>
-        <p className="arc-briefing-intent">{briefingLead(arc.intent || arc.description)}</p>
-      </section>
-
-      {/* WHAT COMES NEXT is now DECIDED work only — `ready` and `active`. Proposals moved up into
-          "Waiting on you" (ADR-0359 D3) rather than being listed twice. When everything queued is a
-          proposal this block is empty, and it must not say "nothing queued" — there IS queued work,
-          it is sitting above asking for a look. */}
-      <section className="arc-briefing-next" aria-label="what comes next">
-        <h5>What comes next</h5>
-        {briefing.next.length === 0 ? (
-          <p className="muted small">
-            {briefing.proposals.length > 0
-              ? 'Nothing dispatched — everything queued is waiting on your review above.'
-              : 'Nothing queued.'}
-          </p>
-        ) : (
-          <ul className="arc-increment-list">
-            {briefing.next.map((inc) => (
-              <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* WHERE IT IS UP TO — FOLDED, NOT DELETED (ADR-0359 D1). This block rendered one row per
-          closed increment, which is 57 rows on `verification-integrity-arc` and put the two blocks
-          the owner actually reads at the top of a long scroll. It is the least perishable of the
-          four and was drawn at the same volume as the most perishable. So: a one-line summary, and
-          the full list one click away behind a closed-by-default disclosure. Deleting it outright
-          would make ADR-0267's "where is it up to" unanswerable from the surface that exists to
-          answer it, which is why this is a fold. `DetailDisclosure` is REUSED rather than
-          re-implemented — it already owns the open-state-lives-with-the-disclosure behaviour. */}
-      <section className="arc-briefing-landed" aria-label="where it is up to">
-        <h5>Where it is up to</h5>
-        {briefing.landed.length === 0 ? (
-          <p className="muted small">Nothing has landed yet.</p>
-        ) : (
-          <DetailDisclosure label={landedSummary(arc)} className="arc-landed-disclosure">
-            <ul className="arc-increment-list">
-              {briefing.landed.map((inc) => (
-                <IncrementRow key={inc.id} increment={inc} onOpen={onOpen} />
-              ))}
-            </ul>
-          </DetailDisclosure>
-        )}
-      </section>
     </aside>
   );
 }
 
 /**
- * One increment row — the same rendering everywhere it appears, so a reader compares like with like.
- *
- * A FORWARD-LOOKING ROW CARRIES AN EXPLICIT REVIEW ACTION (ADR-0359). The title has always been a
- * link, but nothing on the surface SAID a queued increment could be opened and read: the owner could
- * see that an arc had queued work and could not reliably reach the proposal itself. The action is a
- * plain `<a href>`, so it is keyboard-reachable, copyable and middle-clickable with no handler of
- * ours — a plain left-click is intercepted into the same in-place overlay a question opens.
- *
- * A LANDED ROW GETS NO ACTION, and its label never says "proposal": there is nothing to review on
- * something that has already landed, and inheriting the word would misdescribe it.
+ * One OPEN question row (inc-01): the same read-only deep-link title every other row on this surface
+ * uses, its reading cost (word count over the seven authoring fields + a "no diagram" flag, computed
+ * off the Library corpus — see {@link ArcSurfaceProps.assets}), and a button that expands it into
+ * its own full reading (`OpenQuestionDetail`, inc-02) — so the owner can see which questions are
+ * cheap to answer before opening one.
  */
-function IncrementRow({
-  increment,
+function QuestionRow({
+  question,
+  fields,
   onOpen,
+  onExpand,
 }: {
-  increment: ArcRollupIncrement;
+  question: ArcRollupQuestion;
+  fields: Record<string, string>;
   onOpen?: ((selection: SearchResult) => void) | undefined;
+  onExpand: () => void;
 }): React.JSX.Element {
-  const landedOn = increment.outcome?.date;
-  const pr = increment.outcome?.pr;
-  const queued = increment.status !== LANDED_STATUS;
-  const selection: SearchResult = {
-    id: increment.id,
-    title: increment.title || increment.id,
-    category: 'increment',
-    source: 'asset',
-  };
+  const stats = questionRowStats(fields);
   return (
-    <li
-      className="arc-increment"
-      data-increment-status={increment.status}
-      data-testid={`arc-increment:${increment.id}`}
-    >
+    <li className="arc-question" data-testid={`arc-question:${question.id}`}>
       <a
-        className="arc-increment-title"
-        href={assetHref(increment.id)}
-        onClick={openOnClick(onOpen, selection)}
+        className="arc-question-title"
+        href={assetHref(question.id)}
+        onClick={openOnClick(onOpen, {
+          id: question.id,
+          title: question.title || question.id,
+          category: 'open-question',
+          source: 'asset',
+        })}
       >
-        {increment.title || increment.id}
+        {question.title || question.id}
       </a>
-      <span className="muted small">
-        {' '}
-        · {increment.status}
-        {landedOn ? ` · ${landedOn}` : ''}
-        {pr ? ` · ${pr}` : ''}
-        {increment.parked ? ` · parked ${increment.parked.slice(0, 10)}` : ''}
+      <span className="arc-question-meta muted small" data-testid={`arc-question-meta:${question.id}`}>
+        {stats.wordTotal} words
+        {stats.noDiagram && (
+          <span data-testid={`arc-question-no-diagram:${question.id}`}> · no diagram</span>
+        )}
       </span>
-      {queued && (
-        <a
-          className="arc-increment-review"
-          data-testid={`arc-increment-review:${increment.id}`}
-          href={assetHref(increment.id)}
-          onClick={openOnClick(onOpen, selection)}
-        >
-          {increment.status === PROPOSAL_STATUS ? 'Review proposal ↗' : 'Review ↗'}
-        </a>
-      )}
+      <button
+        type="button"
+        className="arc-question-open-btn"
+        data-testid={`arc-question-open:${question.id}`}
+        onClick={onExpand}
+      >
+        Open ↗
+      </button>
     </li>
+  );
+}
+
+/**
+ * A question's OWN full reading (inc-02, `arc-queue-and-question-legibility-arc`): the statement
+ * first and largest, one stakes band, the diagram or an explicit "none stored" line, options as a
+ * scannable FOR/AGAINST comparison, the recommendation marked non-binding, and `analogy`/`context`
+ * behind folds that state their own word cost — closing with the word-budget readout (stored / above
+ * the fold / folded). NOTHING IS DELETED from the stored document; only the reading order changes.
+ *
+ * READ-ONLY (ADR-0267 D6 / ADR-0314 D9): no option carries an action of its own. A question is
+ * settled by the session that records the decision (`storytree question settle <id> --answer …
+ * --pg`), never from this panel.
+ */
+function OpenQuestionDetail({
+  question,
+  fields,
+  onBack,
+}: {
+  question: ArcRollupQuestion;
+  fields: Record<string, string>;
+  onBack: () => void;
+}): React.JSX.Element {
+  const budget = questionWordBudget(fields);
+  const statement = fields['statement'] || question.title || question.id;
+  const stakes = fields['stakes'] || question.stakes;
+  const diagram = fields['diagram'] ?? '';
+  const options = parseOptionCards(fields['options']);
+  const recommendation = fields['recommendation'] ?? '';
+  const analogy = fields['analogy'] ?? '';
+  const context = fields['context'] ?? '';
+
+  return (
+    <div className="arc-question-detail" data-testid={`arc-question-detail:${question.id}`}>
+      <button type="button" className="arc-question-back" onClick={onBack}>
+        ← back to questions
+      </button>
+
+      {/* STATEMENT FIRST AND LARGEST — the question itself, before any of its own archaeology. */}
+      <p className="arc-question-detail-statement" data-testid="arc-question-detail-statement">
+        {briefingLead(statement)}
+      </p>
+
+      {/* ONE STAKES BAND — what breaks while this sits unanswered. */}
+      {stakes && (
+        <p className="arc-question-detail-stakes" data-testid="arc-question-detail-stakes">
+          {briefingLead(stakes)}
+        </p>
+      )}
+
+      {/* THE DIAGRAM, OR AN EXPLICIT LINE SAYING NONE IS STORED — never a silent omission; a missing
+          picture is a fact about the question, not an empty div. */}
+      <div className="arc-question-detail-diagram" data-testid="arc-question-detail-diagram">
+        {diagram.trim() === '' ? (
+          <p className="muted small" data-testid="arc-question-detail-no-diagram">
+            No diagram stored for this question.
+          </p>
+        ) : (
+          <pre>{diagram}</pre>
+        )}
+      </div>
+
+      {/* OPTIONS AS A SCANNABLE COMPARISON — one card per option with its FOR and its AGAINST split
+          out, parsed from the inline `FOR:`/`AGAINST:` convention every live row already writes. */}
+      {options.length > 0 && (
+        <ul className="arc-question-detail-options" data-testid="arc-question-detail-options">
+          {options.map((option, index) => (
+            <li key={index} className="arc-option-card">
+              <p className="arc-option-summary">{briefingLead(option.summary)}</p>
+              {option.forText && <p className="arc-option-for">FOR: {briefingLead(option.forText)}</p>}
+              {option.againstText && (
+                <p className="arc-option-against">AGAINST: {briefingLead(option.againstText)}</p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {/* THE RECOMMENDATION, VISIBLY MARKED NON-BINDING. */}
+      {recommendation && (
+        <p
+          className="arc-question-detail-recommendation"
+          data-testid="arc-question-detail-recommendation"
+        >
+          <strong>Recommendation (non-binding):</strong> {briefingLead(recommendation)}
+        </p>
+      )}
+
+      {/* ANALOGY, THEN CONTEXT — behind folds that STATE their word cost, so the reader can see what
+          they are choosing not to read. Nothing is deleted from the stored document; only the
+          reading order changes. `DetailDisclosure` is reused, not re-implemented. */}
+      <DetailDisclosure label={`Analogy (${wordCount(analogy)} words)`} className="arc-question-fold">
+        <p>{briefingLead(analogy)}</p>
+      </DetailDisclosure>
+      <DetailDisclosure label={`Context (${wordCount(context)} words)`} className="arc-question-fold">
+        <p>{briefingLead(context)}</p>
+      </DetailDisclosure>
+
+      {/* THE WORD-BUDGET READOUT — a small honesty instrument: a question bloated above the fold is
+          visible as a number, not a feeling. */}
+      <p className="muted small arc-question-word-budget" data-testid="arc-question-word-budget">
+        {budget.total} words stored · {budget.aboveFold} above the fold · {budget.folded} folded
+      </p>
+    </div>
   );
 }

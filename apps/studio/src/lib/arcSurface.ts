@@ -27,6 +27,7 @@ import type {
   ArcRollupQuestion,
   ArcRollupSummary,
   ArcRollupSummaryIncrement,
+  GuidanceAsset,
   SessionClaimGroup,
 } from '../types';
 
@@ -535,4 +536,130 @@ export function arcBriefing(rollup: ArcRollup): ArcBriefing {
     ),
     landed,
   };
+}
+
+// ---------- inc-01/inc-02 (arc-queue-and-question-legibility-arc): the question's OWN reading ----------
+//
+// A question's full authoring fields — `statement` / `context` / `options` / `analogy` / `diagram` /
+// `recommendation` — do NOT arrive on {@link ArcRollupQuestion}. That shape carries only `stakes` and
+// `description` (the fields `arc-rollup.ts`'s per-arc join has ever read), and widening it is
+// EXACTLY what the increment's own warning forbids: "the panel's data source does not change and
+// must not widen" is about that join (`ArcRollupSummary` / `ArcRollup`, measured at 1,364,425 bytes
+// over 76 arcs re-polled every 30 s) — packages/arc is a sibling lane's territory this increment too.
+//
+// The fields exist somewhere else already, at zero extra network cost: `open-question` is a
+// structured Knowledge kind (KIND_SPECS), so every one of its authoring fields already rides the
+// wire on `GuidanceAsset.fields` (`packages/library/src/store/render-doc.ts`'s `extractFields`) —
+// the SAME already-loaded Library corpus `useAppData().assets` hands to the Library lens on every
+// mount, arc drawer open or not. Reading it here is not "fetching more"; it is a second, independent
+// consumer of a read the studio pays for regardless. `ArcSurfaceProps.assets` carries it in, exactly
+// the way `claims` does — the surface still holds no fetch of its own.
+
+/**
+ * The seven authoring fields a question's reading cost is measured over — the arc's own methodology
+ * (`arc-queue-and-question-legibility-arc`, measured 2026-09-05 over all 40 live open-question rows:
+ * median 1,761 words, `statement` a median 6% of that, `context` the largest single field at 29%).
+ * `answer` is deliberately excluded: it exists only once a question is SETTLED, and reading it is a
+ * different job (the archaeology of how it got there) from what an open question costs to read.
+ */
+export const QUESTION_WORD_BUDGET_FIELDS = [
+  'stakes',
+  'statement',
+  'context',
+  'options',
+  'analogy',
+  'diagram',
+  'recommendation',
+] as const;
+
+/** The two fields inc-02 puts behind a fold, in fold order: analogy, then context. */
+const FOLDED_QUESTION_FIELDS = ['analogy', 'context'] as const;
+
+/** PURE: whitespace-separated tokens — the same crude count the arc's own corpus sweep used. */
+export function wordCount(text: string | undefined): number {
+  if (text === undefined) return 0;
+  const trimmed = text.trim();
+  return trimmed === '' ? 0 : trimmed.split(/\s+/).length;
+}
+
+/**
+ * A question's per-kind structured fields, read off the Library corpus the studio ALREADY loads
+ * (`ArcSurfaceProps.assets`) — never a new fetch. `{}` when the corpus has not answered yet or holds
+ * no structured asset for this id, so every reader below degrades to "nothing measured" rather than
+ * throwing — the same absent-is-empty posture {@link ArcRollupQuestion}'s own optional fields take.
+ */
+export function questionFields(
+  assets: readonly GuidanceAsset[],
+  questionId: string,
+): Record<string, string> {
+  return assets.find((a) => a.id === questionId)?.fields ?? {};
+}
+
+/** The row-level facts the inc-01 flat list needs, computed from one question's structured fields. */
+export interface QuestionRowStats {
+  /** Summed over {@link QUESTION_WORD_BUDGET_FIELDS} — how much reading this question stores. */
+  wordTotal: number;
+  /** True when the `diagram` field is absent or blank — the row's "no diagram" flag. */
+  noDiagram: boolean;
+}
+
+export function questionRowStats(fields: Record<string, string>): QuestionRowStats {
+  const wordTotal = QUESTION_WORD_BUDGET_FIELDS.reduce((sum, f) => sum + wordCount(fields[f]), 0);
+  return { wordTotal, noDiagram: wordCount(fields['diagram']) === 0 };
+}
+
+/** One parsed option card — the authoring convention's inline `FOR:`/`AGAINST:` pair, split out. */
+export interface OptionCard {
+  /** Everything before the first `FOR:` marker — the option's own label and description, trimmed. */
+  summary: string;
+  /** Empty when the paragraph carries no `FOR:` marker. */
+  forText: string;
+  /** Empty when the paragraph carries no `AGAINST:` marker (or it precedes `FOR:`). */
+  againstText: string;
+}
+
+/**
+ * Split the `options` field into one card per option (paragraphs, blank-line separated), each parsed
+ * on the existing authoring convention — `storytree question new`'s own placeholder asks for "the
+ * candidate answers, each with its trade-off (name both sides — A vs B)", and every live row already
+ * writes it as inline `FOR: … AGAINST: …`. A paragraph carrying neither marker is not a parse
+ * failure (a question predating the convention, or one that phrases it differently): it survives as
+ * a card with empty `forText`/`againstText` and its whole text in `summary`, never dropped.
+ */
+export function parseOptionCards(optionsText: string | undefined): OptionCard[] {
+  if (optionsText === undefined || optionsText.trim() === '') return [];
+  return optionsText
+    .split(/\n\s*\n+/)
+    .map((paragraph) => paragraph.trim())
+    .filter((paragraph) => paragraph !== '')
+    .map((paragraph): OptionCard => {
+      const forIdx = paragraph.indexOf('FOR:');
+      const againstIdx = forIdx === -1 ? -1 : paragraph.indexOf('AGAINST:', forIdx);
+      if (forIdx === -1 || againstIdx === -1) {
+        return { summary: paragraph, forText: '', againstText: '' };
+      }
+      return {
+        summary: paragraph.slice(0, forIdx).trim(),
+        forText: paragraph.slice(forIdx + 'FOR:'.length, againstIdx).trim(),
+        againstText: paragraph.slice(againstIdx + 'AGAINST:'.length).trim(),
+      };
+    });
+}
+
+/**
+ * The word-budget readout inc-02 asks for: what is stored, what renders without expanding anything,
+ * and what sits behind a fold. `aboveFold` is defined as `total - folded` rather than as its own
+ * independent sum — so the three numbers are ALWAYS arithmetically consistent by construction, and a
+ * reader never has to wonder where a fourth, uncounted bucket of words went.
+ */
+export interface WordBudget {
+  total: number;
+  aboveFold: number;
+  folded: number;
+}
+
+export function questionWordBudget(fields: Record<string, string>): WordBudget {
+  const total = QUESTION_WORD_BUDGET_FIELDS.reduce((sum, f) => sum + wordCount(fields[f]), 0);
+  const folded = FOLDED_QUESTION_FIELDS.reduce((sum, f) => sum + wordCount(fields[f]), 0);
+  return { total, aboveFold: total - folded, folded };
 }
