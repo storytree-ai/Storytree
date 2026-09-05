@@ -148,16 +148,20 @@ export function segmentEnvelope(
 ): number {
   const p2 = perUnit * perUnit;
   const g = (y: number, w: number): number => w * w - p2 * (yStar - y) * (yStar - y);
-  let best = Math.max(g(y0, w0), g(y1, w1));
-  const dy = y1 - y0;
-  if (dy <= 0) return best;
-  const slope = (w1 - w0) / dy;
+  const ends = Math.max(g(y0, w0), g(y1, w1));
+  // THE STATIONARY POINT, taken only when it lies strictly inside the segment — and no guard
+  // before it, because every case a guard would name already loses to the ends: a convex
+  // segment's stationary point is its MINIMUM and never wins the max; a step (`y1 === y0`) has an
+  // infinite or undefined slope, so `ys` is not a number inside any bracket; a segment parallel
+  // to the light divides by zero and lands outside likewise. A guard here was three equivalent
+  // mutants on the rung, each a branch no fixture can separate from the arithmetic.
+  const slope = (w1 - w0) / (y1 - y0);
   const intercept = w0 - slope * y0;
-  if (slope * slope < p2) {
-    const ys = (intercept * slope + p2 * yStar) / (p2 - slope * slope);
-    if (ys > y0 && ys < y1) best = Math.max(best, g(ys, intercept + slope * ys));
-  }
-  return best;
+  const ys = (intercept * slope + p2 * yStar) / (p2 - slope * slope);
+  // Stryker disable next-line EqualityOperator: EQUIVALENT — at `ys === y0` or `ys === y1` the
+  // stationary point IS an end, already in `ends`.
+  if (ys > y0 && ys < y1) return Math.max(ends, g(ys, intercept + slope * ys));
+  return ends;
 }
 
 /**

@@ -1955,6 +1955,10 @@ test('shadowOcclusionGlsl emits ONE guarded block PER ROW under a depth, and a s
     if (line.trim() === '}') assert.equal(line, '        }');
     if (line.includes('else if')) assert.ok(line.startsWith('        else if'));
   }
+  // Two stages, two closers, each on its own line at eight spaces — and no empty line where a
+  // closer should be.
+  assert.equal(lines.filter((l) => l === '        }').length, 2, 'a stage lost its closer');
+  assert.ok(!lines.includes(''), 'an empty line where a closer should be');
   // A HARD edge at the same depth: the per-row full stage and NO second stage.
   const hard = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [HEALTHY_TOKEN], edge: 'hard' });
   const hardSrc = shadowOcclusionGlsl(hard);
