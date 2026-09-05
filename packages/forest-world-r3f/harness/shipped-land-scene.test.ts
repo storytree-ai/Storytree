@@ -37,6 +37,7 @@ import {
   shippedMapCasters,
   shippedParcels,
 } from './shipped-land-scene.js';
+import { groundSanity } from './ground-sanity.js';
 import { SHIPPED_GROUND_COLOUR } from './shipped-baseline.js';
 import { buildGroundOcclusion } from '../src/contact-shade.js';
 import { groundShadowTexture } from '../src/banded-ground-material.js';
@@ -56,6 +57,7 @@ const TINY_OCCLUSION = {
 };
 
 test('the ladder is a LADDER WITH ONE FORK — every arm adds one thing to a NAMED predecessor', () => {
+  groundSanity();
   assert.deepEqual(
     [...LAND_ARMS],
     [
@@ -106,6 +108,7 @@ test('the ladder is a LADDER WITH ONE FORK — every arm adds one thing to a NAM
 });
 
 test('the three banded arms are ONE material with ONE option changed', () => {
+  groundSanity();
   // The property that replaced the old arithmetic proof. All three ask
   // `createBandedGroundMaterial` for the same six ramp rows, so their PALETTES are the same object
   // by construction and the only thing that can differ between them is the grain.
@@ -125,6 +128,7 @@ test('the three banded arms are ONE material with ONE option changed', () => {
 });
 
 test('the arm that SHIPS keeps the closure and the arm that does not is the only exemption', () => {
+  groundSanity();
   // ⚠ THIS IS THE FENCE, ASKED OF THE SOURCE. The palette closure is the property a picture can
   // only ever SAMPLE — a capture proves the pixels it photographed were authored entries, never
   // that no reachable pixel is off. The source carries the stronger claim: if the only expression
@@ -198,6 +202,7 @@ test('the arm that SHIPS keeps the closure and the arm that does not is the only
 });
 
 test('the arms draw a MULTI-STATUS material, which is what retired the single-status refusal', () => {
+  groundSanity();
   // ⚠ THE OLD LADDER COULD NOT SAY THIS. Its ceiling arm wore `harness/banded-material.ts`, which
   // takes ONE token per material, so the page had to refuse a mixed island rather than paint every
   // parcel the same state — a picture that would lie about the map's whole job (ADR-0392 D5 /
@@ -213,6 +218,7 @@ test('the arms draw a MULTI-STATUS material, which is what retired the single-st
 });
 
 test('THE ADOPTED LADDER MOVED NOTHING DERIVED — same reference rung, same shadow rung, same margin', () => {
+  groundSanity();
   // ⚠⚠ THE NUMBERS THE OWNER'S FORK TURNED ON, pinned so none can drift into prose — and now
   // asked of the ladder the map WEARS rather than of a candidate. The whole reason 0.025 is the
   // spacing is that it leaves flat ground on 0.90, exactly where the four-rung ladder left it;
@@ -259,6 +265,7 @@ test('THE ADOPTED LADDER MOVED NOTHING DERIVED — same reference rung, same sha
 });
 
 test('every parcel of the fixture resolves to a token the shipped canvas actually holds', () => {
+  groundSanity();
   // The arms are only the product's land while the colours are the product's colours. A parcel
   // whose status fell through to a default nobody authored would be a picture of a map that does
   // not exist.
@@ -269,6 +276,7 @@ test('every parcel of the fixture resolves to a token the shipped canvas actuall
 });
 
 test('the ramp ROWS and the ramp TOKENS agree, status for status', () => {
+  groundSanity();
   // ⚠ THE WORST FAILURE THIS SURFACE CAN HAVE, asked of the comparison page's own copy of the
   // tables. If the row a parcel is given does not index the token that parcel should wear, every
   // arm below `relief` paints each parcel with a DIFFERENT status's colour — wrong, plausible,
@@ -291,6 +299,7 @@ test('the ramp ROWS and the ramp TOKENS agree, status for status', () => {
 });
 
 test('THE CENSUS: the shipped map draws ten signatures and skips 1,079 more', () => {
+  groundSanity();
   // ⚠ THIS WAS THE INCREMENT'S FINDING, and it bounded what a shadow could do here.
   // `contact-shade.ts` was ranked FIRST of ten mechanisms separating the owner's references from
   // our island — but it was ranked on the EXPERIMENT island, which stands 155 props. This map drew
@@ -348,6 +357,7 @@ test('THE CENSUS: the shipped map draws ten signatures and skips 1,079 more', ()
 });
 
 test('THE LADDER ARMS SHADE THE MAP’S OWN CASTERS — the kit’s, now that the story tree’s are gone', () => {
+  groundSanity();
   // ⚠⚠ THE FAILURE THIS FORBIDS, and it was live for about an hour on 2026-09-04. This page built
   // its occlusion field from `shippedCasters()` alone. That was already an under-report — the kit
   // began casting on 2026-09-03 and this page never unioned the placements in — and when ADR-0508

@@ -35,10 +35,18 @@ import {
   type CoverDressingOptions,
 } from './cover-dressing.js';
 import {
+  DRESSING_BEACH,
   RECIPE_ISLAND_AREA,
+  beachClear,
   cellAt,
   cellsArea,
+  crossingIsRight,
+  crossingX,
   dressingEligible,
+  dressingExclusion,
+  insideRing,
+  pathClear,
+  straddles,
   type DressingExclusion,
 } from './dressing-ground.js';
 import { islandSeed } from './island-path.js';
@@ -63,9 +71,50 @@ import {
 } from './kit-vocabulary.js';
 import { indices } from './land-shadow.js';
 import { landHeight } from './land-relief.js';
-import type { LayoutCell } from './parcel-cells.js';
+import type { GPoint, LayoutCell } from './parcel-cells.js';
+import type { InstanceDescriptor } from './world-to-3d.js';
 
 const FOOT = KIT_FOOTPRINTS_2026_08_29;
+
+// ---------------------------------------------------------------------------
+// FAIL FAST BEFORE THE EXPENSIVE CALL (`mutation-rung-scores-a-hang-as-unproven` §3, 2026-09-05).
+// A mutant that makes the ray cast or the exclusion refuse every point does not fail an assertion
+// in the cover's sampler — it makes every prop burn its 400 tries and the scatter grind past the
+// mutation rung's per-mutant budget, scored UNPROVEN. So every test that scatters cover opens with
+// these microsecond probes; under such a mutant it fails HERE and the grind never starts. The
+// hostile fixtures that separate the ray cast from its plausible variants are
+// `dressing-ground.test.ts`'s; these are only the cheapest probes each hot-loop mutant fails.
+// (Inlined rather than imported from `harness/ground-sanity.ts`: `src/` never imports the harness.)
+// ---------------------------------------------------------------------------
+
+const SANITY_SQUARE: readonly GPoint[] = [{ x: 10, z: 10 }, { x: 20, z: 10 }, { x: 20, z: 20 }, { x: 10, z: 20 }];
+const SANITY_RIM: InstanceDescriptor = {
+  kind: 'cell-ground',
+  transform: { x: 100, y: 0, z: 50 },
+  group: 'cell-ground',
+  material: 'healthy',
+  island: 'sanity',
+  parcel: 'sanity-cap',
+  points: [
+    { x: 0, y: 0, z: 0 },
+    { x: 200, y: 0, z: 0 },
+    { x: 200, y: 0, z: 100 },
+    { x: 0, y: 0, z: 100 },
+  ],
+};
+
+function groundSanity(): void {
+  assert.equal(insideRing(SANITY_SQUARE, { x: 15, z: 15 }), true, 'ground-sanity: the ray cast refuses the middle of a square');
+  assert.equal(insideRing(SANITY_SQUARE, { x: 25, z: 15 }), false, 'ground-sanity: the ray cast admits a point outside');
+  assert.equal(straddles({ x: 0, z: 8 }, { x: 10, z: 2 }, 5), true, 'ground-sanity: straddles');
+  assert.equal(crossingX({ x: 100, z: -2 }, { x: 107, z: 5 }, 0), 102, 'ground-sanity: crossingX');
+  assert.equal(crossingIsRight(1, 2) && !crossingIsRight(3, 2), true, 'ground-sanity: crossingIsRight');
+  assert.equal(beachClear(DRESSING_BEACH) && !beachClear(0), true, 'ground-sanity: beachClear');
+  assert.equal(pathClear(100) && !pathClear(0), true, 'ground-sanity: pathClear');
+  const ex = dressingExclusion([SANITY_RIM], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
+  assert.equal(ex.clear(100, 20), true, 'ground-sanity: the exclusion refuses clear ground');
+  assert.equal(ex.clear(5, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
+}
 
 // ---------------------------------------------------------------------------
 // a built island — the same hostile shape `dressing-ground.test.ts` uses
@@ -144,12 +193,14 @@ function scripted(values: readonly number[]): () => number {
 // ---------------------------------------------------------------------------
 
 test('the counts and the tries are the recipe’s, transcribed and not tuned', () => {
+  groundSanity();
   // `build_land.py:1036`, `forest: under=70, grass=120, flower=26`; `:1052`, `range(400)`.
   assert.deepEqual(COVER_RECIPE_COUNTS, { bush: 70, tuft: 120, flowerPatch: 26 });
   assert.equal(COVER_TRIES, 400);
 });
 
 test('the placement order is the recipe’s scatter order, and it covers the vocabulary exactly', () => {
+  groundSanity();
   // ⚠ TWO CLAIMS AND THEY ARE DIFFERENT. The ORDER is the recipe's (`:1087-1089`, undergrowth then
   // grass then flowers) and is stated in this module; the SET must be the vocabulary's dressing
   // roles, or a role added to one and not the other is a role that silently never grows — the
@@ -162,6 +213,7 @@ test('the placement order is the recipe’s scatter order, and it covers the voc
 });
 
 test('the shipped rung is one of the rendered rungs, and the ladder is what a scale-back moves along', () => {
+  groundSanity();
   // ⚠ THE POINT OF THE LADDER (ADR-0503 D1): the owner answers a sheet with a RUNG, so the shipped
   // pick must be one of the rungs he was shown. A pick outside the ladder is a number nobody has
   // seen a picture of.
@@ -178,6 +230,7 @@ test('the shipped rung is one of the rendered rungs, and the ladder is what a sc
 });
 
 test('⚠⚠ THE COUNT LADDER (ADR-0518 D2): the shipped rung is a rendered rung, rung 1 is the recipe, and the ladder rises', () => {
+  groundSanity();
   // With the grove gone the cover is what carries the island, and the owner scales it along rungs
   // he has been shown (ADR-0503 D1). The shipped pick must therefore be ON the ladder, and rung 1
   // must still be `build_land.py`'s own scatter so the sheet's bottom rung is the literal recipe.
@@ -194,6 +247,7 @@ test('⚠⚠ THE COUNT LADDER (ADR-0518 D2): the shipped rung is a rendered rung
 });
 
 test('THE SIZE RUNG REALLY REACHES THE PROP — a bolder rung stands the same props, wider', () => {
+  groundSanity();
   // ⚠ THE CLAIM THE INVISIBILITY FINDING TURNS ON: the rung has to arrive at the placement's own
   // `scale`, or the sheet renders five identical arms and the owner is asked to pick between them.
   // Asserted as a per-prop ratio rather than as a mean, because a mean is satisfied by a rung that
@@ -221,6 +275,7 @@ test('THE SIZE RUNG REALLY REACHES THE PROP — a bolder rung stands the same pr
 // ---------------------------------------------------------------------------
 
 test('an island of the RECIPE’S OWN area wears the recipe’s own counts at rung 1', () => {
+  groundSanity();
   // ⚠ THE ANCHOR THE WHOLE SCALING RESTS ON, asserted rather than assumed: the proportion is to
   // `RECIPE_ISLAND_AREA` — the ground the recipe scattered over, in this basis, by import — so an
   // island of exactly that area asks for exactly what `build_land.py` sprinkled.
@@ -246,6 +301,7 @@ test('an island of the RECIPE’S OWN area wears the recipe’s own counts at ru
 });
 
 test('the count scales with AREA and with the rung, and rounds rather than truncating', () => {
+  groundSanity();
   const share = coverAreaShare(HEALTHY);
   assert.equal(share, cellsArea(HEALTHY) / RECIPE_ISLAND_AREA);
   // ⚠ THE DECLARED RUNGS AND ONE OFF THE LADDER: the arithmetic has to scale for any multiple,
@@ -281,6 +337,7 @@ test('the count scales with AREA and with the rung, and rounds rather than trunc
 });
 
 test('coverCount REFUSES a role the recipe declares no count for, rather than standing zero of it', () => {
+  groundSanity();
   // ⚠ THE DIRECTION OF THE FAILURE IS THE POINT. Reading a missing count as 0 would make a role
   // added to the vocabulary and forgotten here grow NOTHING, silently, on every island forever —
   // a picture with a hole in it and no message anywhere. The refusal names the role and the three
@@ -308,6 +365,7 @@ test('coverCount REFUSES a role the recipe declares no count for, rather than st
 });
 
 test('⚠ coverPoint SKIPS a degenerate cell and a point outside every parcel, and keeps trying', () => {
+  groundSanity();
   // Two refusals inside one loop, and each has to be exercised on its own or a mutant that deletes
   // either passes on the other's fixture.
   //
@@ -369,6 +427,7 @@ test('⚠ coverPoint SKIPS a degenerate cell and a point outside every parcel, a
 });
 
 test('the density argument really reaches the scatter — a bolder rung stands more', () => {
+  groundSanity();
   const one = coverOn(HEALTHY, { density: 1 }).length;
   const three = coverOn(HEALTHY, { density: 3 }).length;
   assert.ok(three > one, `rung 3 stood ${three} against rung 1's ${one}`);
@@ -378,6 +437,7 @@ test('the density argument really reaches the scatter — a bolder rung stands m
 });
 
 test('a runaway area is REFUSED rather than materialised — the count is an array, not a loop bound', () => {
+  groundSanity();
   // ⚠⚠ THE GUARD'S REAL SUBJECT is a hang, not a wrong picture: `indices(n)` materialises the
   // count, so a corrupted area produces a wedged tab with no message — and `check:mutation-diff`
   // scores a hang as UNPROVEN, credited to nobody. The condition is geometrically unreachable from
@@ -421,6 +481,7 @@ test('a runaway area is REFUSED rather than materialised — the count is an arr
 });
 
 test('an island bounding nothing wears nothing, rather than dividing by zero', () => {
+  groundSanity();
   assert.equal(coverAreaShare([]), 0);
   assert.deepEqual(coverOn([]), []);
 });
@@ -430,6 +491,7 @@ test('an island bounding nothing wears nothing, rather than dividing by zero', (
 // ---------------------------------------------------------------------------
 
 test('⚠ ONLY A WHOLLY HEALTHY ISLAND WEARS COVER — the arc’s standing gate, by IMPORT', () => {
+  groundSanity();
   // ADR-0492 D1 scopes every added layer on this arc to islands whose every cell is `healthy`.
   // ⚠ THE ARC'S ONE GATE, asserted as identity rather than as agreement: two copies of one gate
   // are two gates that agree today, and the day they diverge one layer grows on an island the
@@ -449,6 +511,7 @@ test('⚠ ONLY A WHOLLY HEALTHY ISLAND WEARS COVER — the arc’s standing gate
 });
 
 test('nothing stands where the exclusion refuses — the beach band and the worn path', () => {
+  groundSanity();
   assert.deepEqual(coverOn(HEALTHY, { exclusion: REFUSE }), []);
   // ⚠ AND IT IS CONSULTED PER POINT, not once per island: an exclusion that admits half the island
   // must stand a positive number of props and put every one of them on the admitted half.
@@ -459,6 +522,7 @@ test('nothing stands where the exclusion refuses — the beach band and the worn
 });
 
 test('a prop the exclusion never admits is DROPPED, and the rest still stand', () => {
+  groundSanity();
   // The recipe's own answer (`rand_point` returns `None`, `sprinkle` skips) and it is honest here
   // for the reason it is dishonest for a capability's tree: ground cover reports no unit of work.
   // ⚠ A NARROW STRIP rather than a total refusal, so the drop is PARTIAL — a total refusal is
@@ -470,6 +534,7 @@ test('a prop the exclusion never admits is DROPPED, and the rest still stand', (
 });
 
 test('coverPoint gives a prop up after the recipe’s own number of tries', () => {
+  groundSanity();
   let asked = 0;
   const counting: DressingExclusion = {
     clear: () => {
@@ -487,6 +552,7 @@ test('coverPoint gives a prop up after the recipe’s own number of tries', () =
 // ---------------------------------------------------------------------------
 
 test('a prop’s scale is its role’s own renormalised recipe range, and the ends are reachable', () => {
+  groundSanity();
   for (const role of COVER_ROLES) {
     const range = COVER_SCALE[role as 'bush'];
     // ⚠ AT RUNG 1, which is `build_land.py` transcribed — the range is a property of the RECIPE,
@@ -513,6 +579,7 @@ test('a prop’s scale is its role’s own renormalised recipe range, and the en
 });
 
 test('a prop’s yaw is a full turn, and its assembly is chosen from its role’s own shapes', () => {
+  groundSanity();
   assert.equal(coverYaw(scripted([0])), 0);
   assert.equal(coverYaw(scripted([0.25])), Math.PI / 2);
   assert.ok(coverYaw(scripted([0.999999])) < Math.PI * 2);
@@ -529,6 +596,7 @@ test('a prop’s yaw is a full turn, and its assembly is chosen from its role’
 });
 
 test('EVERY SHAPE THE VOCABULARY OFFERS IS ACTUALLY REACHED on one island', () => {
+  groundSanity();
   // ⚠ THE END-TO-END VERSION OF THE ABOVE, and it catches what the unit assertions cannot: a
   // scatter that drew its assembly from a stream position that never varies would satisfy every
   // arithmetic test above and still stand one shape per role on a real island.
@@ -544,6 +612,7 @@ test('EVERY SHAPE THE VOCABULARY OFFERS IS ACTUALLY REACHED on one island', () =
 // ---------------------------------------------------------------------------
 
 test('⚠⚠ NOTHING GROUND COVER STANDS REPORTS ANYTHING', () => {
+  groundSanity();
   const placed = coverOn(HEALTHY);
   assert.ok(placed.length > 0, 'the fixture stood nothing to check');
   for (const p of placed) {
@@ -569,6 +638,7 @@ test('⚠⚠ NOTHING GROUND COVER STANDS REPORTS ANYTHING', () => {
 });
 
 test('⚠⚠ THE CRITERION MARKER KEEPS ITS COLOUR AND ITS SIZE — measured on what is actually placed', () => {
+  groundSanity();
   // The table-level claim lives in `kit-vocabulary.test.ts`; this is the same claim asked of the
   // props a real island actually stands, which is what a reader of a picture would check.
   const placed = coverOn(HEALTHY, { density: 3 });
@@ -587,6 +657,7 @@ test('⚠⚠ THE CRITERION MARKER KEEPS ITS COLOUR AND ITS SIZE — measured on 
 });
 
 test('cover sits ON the land, at the relief the ground is built at', () => {
+  groundSanity();
   const flat = coverOn(HEALTHY, { relief: 0 });
   // ⚠ `===` RATHER THAN `assert.equal`, and the reason is signed zero: at relief 0 the height
   // field returns `-0` wherever its wave sum is negative-zero, and `assert.equal` distinguishes
@@ -606,6 +677,7 @@ test('cover sits ON the land, at the relief the ground is built at', () => {
 // ---------------------------------------------------------------------------
 
 test('two builds of one island are the same carpet, and two islands are two carpets', () => {
+  groundSanity();
   assert.deepEqual(coverOn(HEALTHY), coverOn(HEALTHY));
   const other = coverOn(HEALTHY, { island: 'elsewhere' });
   assert.equal(other.length, coverOn(HEALTHY).length, 'the fixture changed size, not only seed');
@@ -617,6 +689,7 @@ test('two builds of one island are the same carpet, and two islands are two carp
 });
 
 test('⚠ THE COVER’S SEED IS ITS OWN KEY, not the bare island seed', () => {
+  groundSanity();
   // The key was chosen when the retired grove consumed the bare island seed, so the cover's stream
   // did not open on the draws the grove opened on (the first bush under the first stand's centre,
   // on every island, forever). The grove is gone; the key stays, because moving it would
@@ -630,6 +703,7 @@ test('⚠ THE COVER’S SEED IS ITS OWN KEY, not the bare island seed', () => {
 });
 
 test('⚠⚠ ADDING THE COVER CANNOT MOVE A SINGLE THING THAT REPORTS', () => {
+  groundSanity();
   // THE LOAD-BEARING PROPERTY OF THE WHOLE LAYER, and the reason the cover keeps no occupancy and
   // is placed LAST. If a bush could push a capability's pine, then scaling the cover rung — an
   // owner's LOOK decision, made off a picture — would silently re-place every signal on the map.
@@ -653,6 +727,7 @@ test('⚠⚠ ADDING THE COVER CANNOT MOVE A SINGLE THING THAT REPORTS', () => {
 });
 
 test('⚠ THE DETECTOR DOES NOT REPORT A BUSH AT A PINE’S FOOT — a carpet cannot overlap', () => {
+  groundSanity();
   // The recipe imposes NO clearance on ground cover (`build_land.py:1082-1090` tests `inside` and
   // `wear` and nothing else), and `clearanceFactor` states the same from the detector's side. So
   // the whole dressed island — capability trees, blooms and cover together — reports zero

@@ -37,6 +37,7 @@ import {
   offIslandCount,
 } from './shipped-canopy-scene.js';
 import { crowdCasters, crowdCells, crowdIslandId, crowdIslands, crowdSize } from './shipped-crowd-scene.js';
+import { groundSanity } from './ground-sanity.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const source = (rel: string): string => readFileSync(join(HERE, rel), 'utf8');
@@ -46,6 +47,7 @@ const FOREST = crowdSize('forest');
 // ---------------------------------------------------------------- the control arm is the map
 
 test('the builder builds its ground with the SHIPPED builder, handed THIS arm’s casters, and constructs no scene of its own', () => {
+  groundSanity();
   const page = source('shipped-canopy-scene.ts');
   assert.ok(
     /shippedGroundBuild\(crowdCells\(size\), armCasters\(arm, size\), crowdStrips\(size\)\)/.test(page),
@@ -67,6 +69,7 @@ test('the builder builds its ground with the SHIPPED builder, handed THIS arm’
 // ---------------------------------------------------------------- the arms
 
 test('two arms, control first, every one captioned; the shipped arm is the one that casts', () => {
+  groundSanity();
   assert.deepEqual(CANOPY_ARMS, ['bare', 'capability']);
   assert.equal(CONTROL_ARM, 'bare');
   assert.equal(SHIPPED_CANOPY_ARM, 'capability');
@@ -76,6 +79,7 @@ test('two arms, control first, every one captioned; the shipped arm is the one t
 });
 
 test('⚠⚠ the arms differ in EXACTLY the dressing: nothing, then the vocabulary — one tree per capability and nothing else tree-shaped', () => {
+  groundSanity();
   assert.deepEqual(armPlacements('bare', ONE), []);
   const capability = armPlacements('capability', ONE);
   assert.ok(capability.length > 0, 'the capability arm stands nothing');
@@ -94,6 +98,7 @@ test('⚠⚠ the arms differ in EXACTLY the dressing: nothing, then the vocabula
 });
 
 test('the casters are the crowd’s own plus one per placement — and the control casts NOTHING', () => {
+  groundSanity();
   // ⚠⚠ THE CONTROL'S ONE CASTER WAS THE PLACEHOLDER STORY TREE, AND IT IS GONE (ADR-0508). This
   // read `crowdCasters(ONE).length === 1` — "the map before this increment: one caster on the
   // island" — because `crowdCasters` is `groundCasters(worldTo3D(islandScene()))` replicated per
@@ -116,6 +121,7 @@ test('the casters are the crowd’s own plus one per placement — and the contr
 });
 
 test('no placement stands off the island on any arm — and the count CAN fire', () => {
+  groundSanity();
   for (const arm of CANOPY_ARMS) assert.equal(canopyPlan(arm, ONE).offIsland, 0, `${arm} stands something in the sea`);
   const cells = parcelCellsFrom(crowdCells(ONE));
   const sea: KitPlacement = {
@@ -134,6 +140,7 @@ test('no placement stands off the island on any arm — and the count CAN fire',
 });
 
 test('the ground’s triangles do not move between arms — the casters change the FIELD, never the mesh', () => {
+  groundSanity();
   const plans = CANOPY_ARMS.map((arm) => canopyPlan(arm, ONE));
   assert.ok(plans[0]!.groundTriangles > 0);
   for (const p of plans) assert.equal(p.groundTriangles, plans[0]!.groundTriangles);
@@ -148,6 +155,7 @@ test('the ground’s triangles do not move between arms — the casters change t
 });
 
 test('the plan reads the same list the arm stands, by kind', () => {
+  groundSanity();
   const plan = canopyPlan(SHIPPED_CANOPY_ARM, ONE);
   const placements = armPlacements(SHIPPED_CANOPY_ARM, ONE);
   assert.equal(plan.placements, placements.length);
@@ -160,6 +168,7 @@ test('the plan reads the same list the arm stands, by kind', () => {
 });
 
 test('on the forest, every island stands its own capabilities’ trees and no island stands more than it has', () => {
+  groundSanity();
   const trees = armPlacements(SHIPPED_CANOPY_ARM, FOREST).filter((p) => p.role === 'tree' || p.role === 'deadTree');
   const anchors = crowdIslands(FOREST).map((i) => ({ id: crowdIslandId(i.index), status: i.status, x: i.offset.x, z: i.offset.z }));
   const perIsland = new Map<string, number>();

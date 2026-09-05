@@ -20,6 +20,7 @@ import { RENDER_ELEV_DEG, isDressingRole } from '../src/kit-vocabulary.js';
 import { dressMapWithCover } from '../src/map-dressing.js';
 import { LAND_RELIEF_AMPLITUDE } from '../src/land-relief.js';
 import { KIT_FOOTPRINTS_2026_08_29 } from '../src/kit-vocabulary.js';
+import { groundSanity } from './ground-sanity.js';
 import { isGroveHistoryPlacement } from './grove-history.js';
 import { armDescriptors } from './shipped-canopy-scene.js';
 import { crowdSize, orientedCamera } from './shipped-crowd-scene.js';
@@ -59,6 +60,7 @@ const source = (rel: string): string => readFileSync(join(HERE, rel), 'utf8');
 const ONE = crowdSize('one');
 
 test('⚠⚠ every arm is judged from the signed 50° — read off frameWorld through the crowd camera, never typed here', () => {
+  groundSanity();
   assert.deepEqual(cameraAgreement(), []);
   assert.equal(SHIPPED_ELEVATION_DEG, RENDER_ELEV_DEG);
   assert.equal(RENDER_ELEV_DEG, 50);
@@ -70,6 +72,7 @@ test('⚠⚠ every arm is judged from the signed 50° — read off frameWorld th
 });
 
 test('the arms: the control first, then one tree per capability up the declared count ladder; the shipped arm is the shipped rung', () => {
+  groundSanity();
   assert.deepEqual([...DENSITY_LADDER], [...COVER_DENSITY_RUNGS]);
   assert.deepEqual(
     PER_CAPABILITY_ARMS.map((a) => a.id),
@@ -103,6 +106,7 @@ test('the arms: the control first, then one tree per capability up the declared 
 });
 
 test('⚠⚠ THE TREE COUNT IS THE CAPABILITY COUNT on every ladder arm, and nothing else tree-shaped stands (ADR-0518 D1/D4)', () => {
+  groundSanity();
   const stream = armDescriptors(ONE);
   const counts = LADDER_ARMS.map((arm) => dressingCounts(armPlacements(arm, ONE), stream));
   // The fixture island: eleven capabilities, ten signed criteria, one green island.
@@ -142,6 +146,7 @@ test('⚠⚠ THE TREE COUNT IS THE CAPABILITY COUNT on every ladder arm, and not
 });
 
 test('⚠⚠ the control is TODAY’S map: the same vocabulary, the same cover count as rung 1, PLUS the retired grove', () => {
+  groundSanity();
   const stream = armDescriptors(ONE);
   const before = dressingCounts(armPlacements(CONTROL_ARM, ONE), stream);
   const bottom = dressingCounts(armPlacements(LADDER_ARMS[0]!, ONE), stream);
@@ -169,6 +174,7 @@ test('⚠⚠ the control is TODAY’S map: the same vocabulary, the same cover c
 });
 
 test('⚠ the ladder arms share ONE ground build and one caster set; the control’s ground is its own, because the grove cast', () => {
+  groundSanity();
   const bottom = armGroundBuild(LADDER_ARMS[0]!, ONE);
   for (const arm of LADDER_ARMS) {
     assert.equal(armGroundBuild(arm, ONE), bottom, `${arm} built its own ground`);
@@ -181,6 +187,7 @@ test('⚠ the ladder arms share ONE ground build and one caster set; the control
 });
 
 test('screenExtent foreshortens ground depth by sin(elevation) and leaves width alone; the fit binds on the tighter side', () => {
+  groundSanity();
   const pts: number[] = [];
   for (const x of [-100, 100]) for (const z of [-50, 50]) pts.push(x, 0, z);
   const ext = screenExtent(pts, orientedCamera({ x: 0, z: 0 }, 1));
@@ -195,6 +202,7 @@ test('screenExtent foreshortens ground depth by sin(elevation) and leaves width 
 });
 
 test('a pine stands 18 units and its delivered height is cos(50°) of that; the island depths are the true footprint’s', () => {
+  groundSanity();
   assert.ok(Math.abs(deliveredPineHeightPx(8) - 18 * Math.cos((50 * Math.PI) / 180) * 8) < 1e-9);
   const cells = armDescriptors(ONE).filter((d) => d.kind === 'cell-ground');
   const depth = groundDepth(cells);
@@ -204,6 +212,7 @@ test('a pine stands 18 units and its delivered height is cos(50°) of that; the 
 });
 
 test('landBox finds the delivered island against a byte background, and the reference against alpha', () => {
+  groundSanity();
   const w = 6;
   const h = 4;
   const bg: readonly [number, number, number] = [16, 20, 24];
@@ -233,6 +242,7 @@ test('landBox finds the delivered island against a byte background, and the refe
 });
 
 test('⚠ every ladder arm is built by the shipped composition root; the control alone reaches the harness’s history', () => {
+  groundSanity();
   const page = source('shipped-per-capability-scene.ts');
   assert.ok(/shippedGroundBuild\(/.test(page), 'the ground is the builder’s');
   assert.ok(

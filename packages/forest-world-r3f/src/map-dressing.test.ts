@@ -27,16 +27,68 @@ import {
 import { SHIPPED_COAST, clipToCoast } from './coast-clip.js';
 import { islandPaths, islandRims } from './island-path.js';
 import { COVER_DENSITY, COVER_DENSITY_RUNGS, COVER_SIZE, COVER_SIZE_RUNGS } from './cover-dressing.js';
-import { DRESSING_BEACH, DRESSING_WEAR_CEILING, islandExclusion } from './dressing-ground.js';
+import {
+  DRESSING_BEACH,
+  DRESSING_WEAR_CEILING,
+  beachClear,
+  crossingIsRight,
+  crossingX,
+  dressingExclusion,
+  insideRing,
+  islandExclusion,
+  pathClear,
+  straddles,
+} from './dressing-ground.js';
 import { dressMapFromKit, dressMapWithCover, signedCriteriaByIsland } from './map-dressing.js';
 import { KIT_FOOTPRINTS_2026_08_29, isDressingRole } from './kit-vocabulary.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
 import { WEAR_FALLOFF, wearOf } from './land-wear.js';
 import { shoreField } from './shore-fall.js';
 import { wearField } from './trail-wear.js';
+import type { GPoint } from './parcel-cells.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from './world-to-3d.js';
 
 const FOOT = KIT_FOOTPRINTS_2026_08_29;
+
+// ---------------------------------------------------------------------------
+// FAIL FAST BEFORE THE EXPENSIVE CALL (`mutation-rung-scores-a-hang-as-unproven` §3, 2026-09-05).
+// A mutant that makes the ray cast or the exclusion refuse every point does not fail an assertion
+// in the cover's sampler — it makes every prop burn its 400 tries and the scatter grind past the
+// mutation rung's per-mutant budget, scored UNPROVEN. So every test that scatters cover opens with
+// these microsecond probes; under such a mutant it fails HERE and the grind never starts. The
+// hostile fixtures that separate the ray cast from its plausible variants are
+// `dressing-ground.test.ts`'s; these are only the cheapest probes each hot-loop mutant fails.
+// (Inlined rather than imported from `harness/ground-sanity.ts`: `src/` never imports the harness.)
+// ---------------------------------------------------------------------------
+
+const SANITY_SQUARE: readonly GPoint[] = [{ x: 10, z: 10 }, { x: 20, z: 10 }, { x: 20, z: 20 }, { x: 10, z: 20 }];
+const SANITY_RIM: InstanceDescriptor = {
+  kind: 'cell-ground',
+  transform: { x: 100, y: 0, z: 50 },
+  group: 'cell-ground',
+  material: 'healthy',
+  island: 'sanity',
+  parcel: 'sanity-cap',
+  points: [
+    { x: 0, y: 0, z: 0 },
+    { x: 200, y: 0, z: 0 },
+    { x: 200, y: 0, z: 100 },
+    { x: 0, y: 0, z: 100 },
+  ],
+};
+
+function groundSanity(): void {
+  assert.equal(insideRing(SANITY_SQUARE, { x: 15, z: 15 }), true, 'ground-sanity: the ray cast refuses the middle of a square');
+  assert.equal(insideRing(SANITY_SQUARE, { x: 25, z: 15 }), false, 'ground-sanity: the ray cast admits a point outside');
+  assert.equal(straddles({ x: 0, z: 8 }, { x: 10, z: 2 }, 5), true, 'ground-sanity: straddles');
+  assert.equal(crossingX({ x: 100, z: -2 }, { x: 107, z: 5 }, 0), 102, 'ground-sanity: crossingX');
+  assert.equal(crossingIsRight(1, 2) && !crossingIsRight(3, 2), true, 'ground-sanity: crossingIsRight');
+  assert.equal(beachClear(DRESSING_BEACH) && !beachClear(0), true, 'ground-sanity: beachClear');
+  assert.equal(pathClear(100) && !pathClear(0), true, 'ground-sanity: pathClear');
+  const ex = dressingExclusion([SANITY_RIM], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
+  assert.equal(ex.clear(100, 20), true, 'ground-sanity: the exclusion refuses clear ground');
+  assert.equal(ex.clear(5, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
+}
 
 // ---------------------------------------------------------------------------
 // a TWO-STORY map — the smallest fixture that can catch the defect
@@ -175,6 +227,7 @@ const assertSignatures = (map: readonly Descriptor3D[], want: Record<string, num
 // ---------------------------------------------------------------------------
 
 test('NON-VACUITY: the fixture really is two islands, with cells and signatures on each', () => {
+  groundSanity();
   // ⚠ A fixture that quietly produced ONE island — or no ground — would let every attribution
   // assertion below pass while proving nothing, which is exactly the shape the whole-map dressing
   // survived for a month.
@@ -197,6 +250,7 @@ test('NON-VACUITY: the fixture really is two islands, with cells and signatures 
 // ---------------------------------------------------------------------------
 
 test('each story signs its OWN criteria — the count is per island, and the two differ', () => {
+  groundSanity();
   const signed = signedCriteriaByIsland(twoStoryMap({ total: 6, signed: 4 }, { total: 5, signed: 2 }));
   assert.equal(signed.get(STORY_A), 4, 'atlas signed four of its six');
   assert.equal(signed.get(STORY_B), 2, 'beacon signed two of its five');
@@ -204,6 +258,7 @@ test('each story signs its OWN criteria — the count is per island, and the two
 });
 
 test('an UNSIGNED criterion is not counted — the map may not invent a signature', () => {
+  groundSanity();
   // ADR-0392 D5 / ADR-0398 D7: a unit reads as the state it holds and as no other. The scene
   // carries all eleven criteria either way; only the four PROVEN ones are signatures.
   const none = signedCriteriaByIsland(twoStoryMap({ total: 6, signed: 0 }, { total: 5, signed: 0 }));
@@ -214,6 +269,7 @@ test('an UNSIGNED criterion is not counted — the map may not invent a signatur
 });
 
 test('⚠⚠ EVERY BLOOM STANDS ON THE ISLAND OF THE STORY THAT SIGNED IT', () => {
+  groundSanity();
   // ⚠⚠ THE ASSERTION THIS MODULE EXISTS FOR. Nothing in a rendered frame says which story a
   // flower belongs to, so this is asked of the geometry: a bloom placed for atlas must land inside
   // atlas's own ground, and atlas's ground and beacon's do not overlap.
@@ -242,6 +298,7 @@ test('⚠⚠ EVERY BLOOM STANDS ON THE ISLAND OF THE STORY THAT SIGNED IT', () =
 });
 
 test('a story that signed NOTHING grows nothing, even beside one that signed everything', () => {
+  groundSanity();
   // ⚠ THE FAILURE THAT MOTIVATED THE UNIT, stated as a test: under the whole-map dressing, six
   // signatures held by atlas were scattered over every cell on the map, so beacon — which had
   // signed nothing — grew flowers. The picture asserted a signature nobody gave.
@@ -259,6 +316,7 @@ test('a story that signed NOTHING grows nothing, even beside one that signed eve
 });
 
 test('the map still grows ONE object per capability, on the capability’s own parcel', () => {
+  groundSanity();
   // Per-island dressing must not cost the ADR-0475 vocabulary anything: three capabilities across
   // two islands are still three trees, each carrying its own capId.
   const map = twoStoryMap();
@@ -273,6 +331,7 @@ test('the map still grows ONE object per capability, on the capability’s own p
 // ---------------------------------------------------------------------------
 
 test('a bloom the substrate could not attribute is DROPPED, never spread', () => {
+  groundSanity();
   // A signature with no island is one that could be drawn anywhere; refusing to count it means
   // such a story grows nothing, never that every story grows its neighbour's.
   const orphan: Descriptor3D[] = [
@@ -284,6 +343,7 @@ test('a bloom the substrate could not attribute is DROPPED, never spread', () =>
 });
 
 test('the same criterion twice is ONE signature; unstamped markers are counted individually', () => {
+  groundSanity();
   // ⚠⚠ THE SHAPE OF THIS FIXTURE IS ARITHMETIC, NOT TASTE — 4 named of which 2 are distinct, and
   // 2 unnamed, so the honest answer is 4. Every nearby fixture is satisfied by a reader that has
   // the two branches CONFUSED, and `check:mutation-diff` found each of them in turn:
@@ -306,6 +366,7 @@ test('the same criterion twice is ONE signature; unstamped markers are counted i
 });
 
 test('cells the substrate cannot attribute still grow their capabilities’ trees, and no blooms', () => {
+  groundSanity();
   // The classic extruded-hex substrate and hand-built fragments carry no island group. Dropping
   // those cells would shrink the map; growing a per-STORY claim on them would attribute it to a
   // story that does not exist. So: trees yes, blooms no.
@@ -336,6 +397,7 @@ test('cells the substrate cannot attribute still grow their capabilities’ tree
 });
 
 test('an island is dressed against its OWN occupancy — it looks the same alone as in a crowd', () => {
+  groundSanity();
   // ⚠ A PROPERTY THE WHOLE-MAP CALL DID NOT HAVE. One `dressIslandFromKit` over every cell shares
   // one occupancy list, so adding a second island could move the FIRST island's props. Per-island
   // calls make an island's dressing a function of that island alone — which is what lets a
@@ -361,11 +423,13 @@ test('an island is dressed against its OWN occupancy — it looks the same alone
 });
 
 test('the dressing is deterministic — the same map dresses identically twice', () => {
+  groundSanity();
   assertSignatures(twoStoryMap(), { [STORY_A]: 4, [STORY_B]: 2 });
   assert.deepEqual(dress(twoStoryMap()), dress(twoStoryMap()));
 });
 
 test('GROUND IS NOT A SIGNATURE — a map of nothing but cells signs nothing', () => {
+  groundSanity();
   // ⚠ The filter's own claim, stated with no bloom in the stream at all: a `cell-ground` carries an
   // island and no criterion, so a reader that let ground through would report one signature per
   // cell — a story asserted to hold 164 signed criteria because its land has 164 parcels.
@@ -452,6 +516,7 @@ const dressCovered = (descriptors: readonly Descriptor3D[], over: { coverSize?: 
 const isTree = (p: { role: string }): boolean => p.role === 'tree' || p.role === 'deadTree';
 
 test('⚠⚠ ONE TREE PER CAPABILITY AND NOTHING ELSE TREE-SHAPED (ADR-0518 D1) — on the whole map, both layers', () => {
+  groundSanity();
   // The fixture: atlas holds three capabilities, beacon two — five trees, each wearing the capId
   // of the capability that put it there, at scale 1, on its own island. On BOTH entry points: the
   // cover layer may add bushes, tufts and flowers, and may not add a tree.
@@ -474,6 +539,7 @@ test('⚠⚠ ONE TREE PER CAPABILITY AND NOTHING ELSE TREE-SHAPED (ADR-0518 D1) 
 });
 
 test('⚠⚠ THE TWO ENTRY POINTS ARE STRICTLY NESTED — cover is the vocabulary plus cover, and the vocabulary is untouched', () => {
+  groundSanity();
   // The claim the canvas rests on: standing the top layer cannot MOVE anything the layer below
   // placed. If it could, a scale-back on the cover — an owner's LOOK decision, made off a picture
   // — would silently re-place every signal on the map, invisibly in any picture of one arm.
@@ -487,6 +553,7 @@ test('⚠⚠ THE TWO ENTRY POINTS ARE STRICTLY NESTED — cover is the vocabular
 });
 
 test('the ground cover grows on the HEALTHY island only — unknown, unhealthy, mapped, building, proposed wear nothing', () => {
+  groundSanity();
   const map = bigMap('healthy', 'proposed');
   const cover = dressCovered(map).filter((p) => isDressingRole(p.role));
   const a = spanOf(map, STORY_A);
@@ -512,6 +579,7 @@ test('the ground cover grows on the HEALTHY island only — unknown, unhealthy, 
 });
 
 test('⚠⚠ THE COVER KEEPS OFF THE BEACH AND THE PATH, judged by the ground’s OWN distance fields', () => {
+  groundSanity();
   const map = bigMap('healthy', 'proposed');
   // A trail strip arriving from the east and ending ON the healthy island's clipped rim — its
   // easternmost rim vertex — so the connector docks it there and wears a path to the centroid.
@@ -568,6 +636,7 @@ test('⚠⚠ THE COVER KEEPS OFF THE BEACH AND THE PATH, judged by the ground’
 });
 
 test('⚠ THE COUNT RUNG REACHES THE MAP (ADR-0518 D2) — a denser rung stands more cover and moves nothing that reports', () => {
+  groundSanity();
   // The seam the one-tree-per-capability page's whole ladder rides on: `dressMapWithCover` could
   // accept `coverDensity` and drop it on the floor, and every arm of the sheet would render the
   // shipped rung under four different captions.
@@ -591,6 +660,7 @@ test('⚠ THE COUNT RUNG REACHES THE MAP (ADR-0518 D2) — a denser rung stands 
 });
 
 test('⚠ THE SIZE RUNG REACHES THE MAP — a bolder rung stands the same cover, wider, and moves nothing else', () => {
+  groundSanity();
   // The seam this asserts is the one the comparison page's whole ladder rides on. `dressMapWithCover`
   // could accept `coverSize` and drop it on the floor, and every arm of the sheet would render the
   // shipped rung under five different captions — a page that looks like a ladder and is five copies
@@ -616,6 +686,7 @@ test('⚠ THE SIZE RUNG REACHES THE MAP — a bolder rung stands the same cover,
 });
 
 test('the covered dressing is deterministic — the same map dresses identically twice', () => {
+  groundSanity();
   const map = bigMap('healthy', 'healthy');
   assert.deepEqual(dressCovered(map), dressCovered(map));
 });
