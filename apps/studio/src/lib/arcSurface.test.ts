@@ -800,3 +800,70 @@ describe('questionWordBudget — total / above the fold / folded, always arithme
     expect(questionWordBudget({})).toEqual({ total: 0, aboveFold: 0, folded: 0 });
   });
 });
+
+
+describe('parseOptionCards — the parsing edges the happy path cannot reach', () => {
+  it('splits on BLANK LINES, one card per option, and trims each', () => {
+    const cards = parseOptionCards('  Option A. FOR: cheap AGAINST: slow  \n\n\n  Option B. FOR: fast AGAINST: dear ');
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toEqual({ summary: 'Option A.', forText: 'cheap', againstText: 'slow' });
+    expect(cards[1]).toEqual({ summary: 'Option B.', forText: 'fast', againstText: 'dear' });
+  });
+
+  it('a SINGLE newline does not start a new card — options run to several lines', () => {
+    // The separator is a BLANK line. Splitting on any newline would shred a multi-line option into
+    // one card per line, each losing the FOR:/AGAINST: pair that spans them.
+    const cards = parseOptionCards('Option A,\nwhich continues on this line.\nFOR: cheap\nAGAINST: slow');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]?.summary).toBe('Option A,\nwhich continues on this line.');
+    expect(cards[0]?.forText).toBe('cheap');
+    expect(cards[0]?.againstText).toBe('slow');
+  });
+
+  it('a blank line carrying WHITESPACE still separates two cards', () => {
+    const cards = parseOptionCards('Option A. FOR: a AGAINST: b\n   \t  \nOption B. FOR: c AGAINST: d');
+    expect(cards).toHaveLength(2);
+    expect(cards[1]?.summary).toBe('Option B.');
+  });
+
+  it('EMPTY input yields no cards, and so does whitespace-only input', () => {
+    expect(parseOptionCards(undefined)).toEqual([]);
+    expect(parseOptionCards('')).toEqual([]);
+    expect(parseOptionCards('   \n\n  \t ')).toEqual([]);
+  });
+
+  it('a paragraph with NEITHER marker survives whole — it is not a parse failure', () => {
+    // A question predating the convention, or one that phrases the trade-off differently. Dropping
+    // it would silently delete an option from the owner's view, which is the one outcome a read
+    // surface must never produce.
+    const cards = parseOptionCards('Option C, described in prose with no markers at all.');
+    expect(cards).toEqual([{ summary: 'Option C, described in prose with no markers at all.', forText: '', againstText: '' }]);
+  });
+
+  it('a paragraph with FOR: but no AGAINST: survives whole, rather than half-parsed', () => {
+    const cards = parseOptionCards('Option D. FOR: it is cheap');
+    expect(cards[0]).toEqual({ summary: 'Option D. FOR: it is cheap', forText: '', againstText: '' });
+  });
+
+  it('AGAINST: BEFORE FOR: is not a pair — the paragraph survives whole', () => {
+    // `indexOf('AGAINST:', forIdx)` searches only AFTER the FOR: marker, so a reversed pair reads as
+    // no pair at all rather than slicing a negative range and inventing two empty halves.
+    const cards = parseOptionCards('Option E. AGAINST: slow FOR: cheap');
+    expect(cards[0]?.summary).toBe('Option E. AGAINST: slow FOR: cheap');
+    expect(cards[0]?.forText).toBe('');
+    expect(cards[0]?.againstText).toBe('');
+  });
+
+  it('a marker at position ZERO is still a marker — the summary is simply empty', () => {
+    // `forIdx === -1` is the absent test, NOT falsiness: a `FOR:` at index 0 is real, and a check
+    // that treated 0 as absent would drop the pair on exactly the shortest, most-marked-up option.
+    const cards = parseOptionCards('FOR: cheap AGAINST: slow');
+    expect(cards[0]).toEqual({ summary: '', forText: 'cheap', againstText: 'slow' });
+  });
+
+  it('only the FIRST FOR: and the AGAINST: after it are markers — later ones stay in the text', () => {
+    const cards = parseOptionCards('Option F. FOR: cheap AGAINST: slow, and AGAINST: fiddly');
+    expect(cards[0]?.forText).toBe('cheap');
+    expect(cards[0]?.againstText).toBe('slow, and AGAINST: fiddly');
+  });
+});
