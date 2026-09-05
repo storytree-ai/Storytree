@@ -111,6 +111,18 @@ export interface AdrCommandOpts {
    * the shape does not have to change on the day clause identity is minted.
    */
   clause?: string | undefined;
+  /**
+   * `--basis <owner-directed|owner-ratified|agent-derived|agent-flipped>` (ADR-0519 D1): WHOSE call
+   * this decision was. Absent derives from `--decided` — see {@link resolveAuthority} for the
+   * mapping and why the derived default is the WEAK one.
+   */
+  basis?: string | undefined;
+  /**
+   * `--owner-said <text|@file>` (ADR-0519 D3): the owner's VERBATIM directive, his words and never a
+   * paraphrase. Required by an owner basis and refused on an agent one — a PROSE flag, so a
+   * multi-sentence directive comes from a file rather than through the shell.
+   */
+  ownerSaid?: string | undefined;
   /** `adr compose --allow-control-arm`: the explicit escape from the frozen-trial fence (D6). */
   allowControlArm?: boolean | undefined;
   /**
@@ -134,6 +146,9 @@ export interface AdrCommandOpts {
 import {
   adrDocId,
   ASSET_REF_PREFIX,
+  AuthorityBasis,
+  DecisionAuthority,
+  isOwnerBasis,
   kebabSlug,
   parseDecisionPointer,
   type AdrDraft,
@@ -367,6 +382,67 @@ export function scaffold(
 }
 
 /**
+ * PURE: turn the two authority flags into the stamp `scaffoldRow` stores, or into a refusal.
+ *
+ * ⚠ THIS RUNS BEFORE THE ALLOCATOR, and that placement is the point rather than a tidiness
+ * preference. Reservation is transactional and does NOT roll back, so a malformed `--basis` caught
+ * after `allocate` would burn a decision number to report a typo — the failure `adr new` must not
+ * have, and the reason `--arc` and `--decided-date` are already checked up front.
+ *
+ * ## The derived default is the WEAK one, deliberately
+ *
+ * With no `--basis`, the stamp derives from `--decided`: present means the caller is invoking
+ * ADR-0110's owner-directed path, so `owner-directed`; absent means `agent-derived`. So the value a
+ * session gets by typing nothing is the one that CLAIMS nothing — and since an owner basis cannot
+ * validate without the owner's words (ADR-0519 D3), the cheap path and the honest path are the same
+ * path. That asymmetry is what ADR-0519 D4 rests on, and it is what keeps the health rung from
+ * being the presence checker ADR-0427 refuses to have rebuilt.
+ */
+export function resolveAuthority(input: {
+  basis?: string | undefined;
+  ownerSaid?: string | undefined;
+  decided: boolean;
+  scribedBy: string;
+  at: string;
+}): { ok: true; authority: DecisionAuthority } | { ok: false; reason: string } {
+  const raw = input.basis?.trim() ?? "";
+  const derived = input.decided ? "owner-directed" : "agent-derived";
+  const candidate = raw === "" ? derived : raw;
+  const parsedBasis = AuthorityBasis.safeParse(candidate);
+  if (!parsedBasis.success) {
+    return {
+      ok: false,
+      reason:
+        `--basis must be one of ${AuthorityBasis.options.join(" | ")} (got ${JSON.stringify(candidate)}).`,
+    };
+  }
+  const basis = parsedBasis.data;
+  // `--decided` WRITES OWNER PROSE INTO THE DOCUMENT ("decided/directed by the owner in conversation
+  // on <date>"), so pairing it with an agent basis would ship a record whose prose and whose stamp
+  // disagree about who decided — the precise drift the stamp exists to end, manufactured at the
+  // moment of authoring. Refuse it and name both exits rather than silently trusting one side.
+  if (input.decided && !isOwnerBasis(basis)) {
+    return {
+      ok: false,
+      reason:
+        `--decided scaffolds the ADR-0110 owner-directed prose, which contradicts --basis ${basis}.\n` +
+        `Drop --decided to author a '${basis}' decision (edit its status afterwards if it is ready ` +
+        `to be born accepted under ADR-0084), or drop --basis if the owner did direct this.`,
+    };
+  }
+  const ownerSaid = input.ownerSaid?.trim() ?? "";
+  const draft: DecisionAuthority = { basis, scribedBy: input.scribedBy, at: input.at };
+  if (ownerSaid !== "") draft.ownerSaid = ownerSaid;
+  const parsed = DecisionAuthority.safeParse(draft);
+  if (!parsed.success) {
+    // The schema's own messages carry the rules (D3's "quote him or use agent-derived", D5's
+    // backfill fence), so surface them rather than restating them here and letting the two drift.
+    return { ok: false, reason: parsed.error.issues.map((i) => i.message).join("\n") };
+  }
+  return { ok: true, authority: parsed.data };
+}
+
+/**
  * The highest decision number the STORE holds — the allocator's `localMax` input.
  *
  * `null` when the log could not be READ, which is NOT the same as "the log holds nothing" and must
@@ -433,6 +509,22 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
     return { ok: false, body: `could not derive a slug from "${title}" — use letters/numbers.`, next: [] };
   }
   if (!deps.allocator) return needsPg("new");
+  // ADR-0519's stamp is resolved BEFORE the allocator, alongside the other number-burning guards: a
+  // bad `--basis` or an unquoted owner claim must refuse while the refusal is still free.
+  const authority = resolveAuthority({
+    basis: opts.basis,
+    ownerSaid: opts.ownerSaid,
+    decided: opts.decided === true,
+    scribedBy: deps.actor,
+    at: deps.today,
+  });
+  if (!authority.ok) {
+    return {
+      ok: false,
+      body: authority.reason,
+      next: ['storytree adr new --title "..." --decided --owner-said "<his words>" --pg'],
+    };
+  }
   const localMax = await storeMaxAdrNumber(deps);
   if (localMax === null) return unreadableLog("new");
   const edges: AdrScaffoldEdges = {
@@ -464,7 +556,7 @@ async function adrNew(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Envel
   // scaffolded `docs/decisions/NNNN-slug.md` AND the row, because `adr list` read rows while the
   // files were still canonical for other readers; there is no second source left to keep in step.
   const id = adrDocId(n);
-  const rowWrite = await scaffoldRow(n, scaffolded, deps);
+  const rowWrite = await scaffoldRow(n, scaffolded, deps, authority.authority);
   if (rowWrite.failed) {
     return {
       ok: false,
@@ -743,6 +835,7 @@ async function scaffoldRow(
   n: number,
   scaffolded: string,
   deps: AdrCommandDeps,
+  authority: DecisionAuthority,
 ): Promise<{ failed: false } | { failed: true; reason: string }> {
   if (deps.roundTrip === undefined || !deps.roundTrip.writable) {
     return { failed: true, reason: "this invocation is read-only (no --pg)" };
@@ -780,6 +873,13 @@ async function scaffoldRow(
     // distinct from "authored, and rests on nothing" (ADR-0223) — and the guarded assignment
     // preserves that distinction exactly as the conditional spread did.
     if (fields.dependsOn !== undefined) draft.dependsOn = [...fields.dependsOn];
+    // ADR-0519's authority stamp. It comes from the CLI FLAGS, never from `fields` — the parsed
+    // document — and that is the whole mechanism rather than an implementation detail: the stamp
+    // never enters the document text, so no later `adr push` of a hand-edited body can rewrite it,
+    // and `FRONTMATTER_ORDER`'s omission makes such a document REFUSE rather than drop the key. This
+    // is therefore the ONE writer, unlike the four a document field owes. See the field docstring in
+    // `knowledge.ts` and `decision-authority.ts` for why.
+    draft.authority = authority;
     const doc = upcastAndValidate(draft);
     // REFUSE rather than upsert over an occupied id. `newArtifact` (the generic verb) has always
     // done this; `adr new` used to get it from `existsSync(file)`, and that guard went with the
@@ -918,7 +1018,7 @@ export function adrHelp(): Envelope {
       "storytree adr — search the decision log + allocate ADR numbers without collisions (ADR-0050/0086).",
       "",
       "  storytree adr list [--current | --load-bearing | --status <s>]   the searchable current-state view",
-      '  storytree adr new --title "..." [--decided] [--depends-on 42,43] [--supersedes 42] [--arc <id>] --pg',
+      '  storytree adr new --title "..." [--decided --owner-said <text|@file>] [--basis <b>] [--depends-on 42,43] [--supersedes 42] [--arc <id>] --pg',
       "                                                                          reserve + scaffold",
       "  storytree adr next --pg                                                  reserve a number only",
       "",
@@ -999,6 +1099,14 @@ export function adrHelp(): Envelope {
       "  --arc <id>  the ADR-0183 D3 provenance stamp: the Library `arc` this decision was produced under.",
       "              Immutable once scaffolded; the arc's ADR view derives from these child stamps",
       "              (storytree arc show <id>). Omit for arc-less work.",
+      "  --basis <b> WHOSE call this was (ADR-0519): owner-directed | owner-ratified | agent-derived |",
+      "              agent-flipped. Omit and it derives from --decided (owner-directed with it,",
+      "              agent-derived without) — the default claims the LEAST, on purpose.",
+      "  --owner-said <text|@file>",
+      "              the owner's VERBATIM directive — his words, never your paraphrase. REQUIRED by",
+      "              either owner basis and refused on an agent one: if there is nothing to quote, the",
+      "              honest basis is agent-derived. The stamp never enters the decision DOCUMENT, so a",
+      "              later `adr push` of an edited body cannot rewrite it.",
       "",
       "`list` is read-only and reads the LIVE STORE (ADR-0403 dec 1 — decisions are rows now; the",
       "offline read this used to advertise is the named accepted cost, so bring the DB up):",

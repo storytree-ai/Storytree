@@ -113,6 +113,12 @@ export * from "./composed-statement.js";
 // compute needs no adapter.
 // Pure, browser-safe — hashing a span needs a checkout and therefore happens nowhere near here.
 export * from "./decision-sources.js";
+// ADR-0519: the AUTHORITY STAMP — whose call a decision was, as a queryable fact instead of prose an
+// agent wrote. Same row-only storage class as the two above and for ADR-0424 D6's reason (evidence a
+// hand-edit can rewrite is not evidence), so it is absent from the document surface on purpose. The
+// owner's VERBATIM words ride here, and an owner basis cannot validate without them. Pure,
+// browser-safe.
+export * from "./decision-authority.js";
 // ADR-0427 (2026-08-23) RETIRED the two `amends` annotation modules that were exported here — the
 // presence judge (`amends-annotation.js`, ADR-0419 D4) and the drain worklist that consumed it
 // (`amends-drain.js`, ADR-0419 D3). The judge asked only whether a target's body mentioned its
