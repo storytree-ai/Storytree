@@ -370,10 +370,13 @@ export function statusesFromReport(report: MutationReportShape): string[] {
  * caller rather than skipped, because a typo'd unit id that quietly selected nothing would look
  * exactly like a unit that scored nothing.
  */
-export function selectUnits(
-  pairs: readonly LeafPair[],
-  wanted: readonly string[],
-): { readonly selected: readonly LeafPair[]; readonly unmatched: readonly string[] } {
+export interface UnitSelection {
+  readonly selected: readonly LeafPair[];
+  /** Names the caller asked for that no pair carries — surfaced, never silently skipped. */
+  readonly unmatched: readonly string[];
+}
+
+export function selectUnits(pairs: readonly LeafPair[], wanted: readonly string[]): UnitSelection {
   if (wanted.length === 0) return { selected: pairs, unmatched: [] };
   const have = new Set(pairs.map((p) => p.unitId));
   return {

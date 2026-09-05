@@ -276,8 +276,14 @@ function parseUnits(argv: readonly string[]): string[] {
   return out;
 }
 
+/** What a previous run banked — the two lists a subset re-run merges onto. */
+interface BankedReading {
+  readonly scored: readonly PairScore[];
+  readonly failed: readonly { readonly unitId: string; readonly error: string }[];
+}
+
 /** Whatever a previous run banked, or an empty reading. Never throws over a missing/odd file. */
-function readBanked(): { scored: readonly PairScore[]; failed: readonly { unitId: string; error: string }[] } {
+function readBanked(): BankedReading {
   try {
     const banked = JSON.parse(
       readFileSync(path.join(OUT_DIR, "leaf-test-strength.json"), "utf8"),
