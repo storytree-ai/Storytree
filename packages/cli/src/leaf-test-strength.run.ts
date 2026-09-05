@@ -17,6 +17,7 @@
  * Two modes:
  *   --population           resolve and report the population only. Needs the live store, no Stryker.
  *   --score [--limit N]    additionally mutate each pair. Minutes per pair; see the doc it feeds.
+ *   --score --units a,b    re-score only these units, MERGING into whatever is already banked.
  *   --markdown             re-render the banked artifact as the research doc's table. Offline.
  */
 import { execFileSync, spawnSync } from "node:child_process";
@@ -31,12 +32,15 @@ import { runnerFor } from "./mutation-diff.js";
 import {
   coveredScorePair,
   lookupFromResolved,
+  mergeFailed,
+  mergeScored,
   pct,
   reach,
   renderPopulation,
   renderReadingMarkdown,
   resolvePopulation,
   scorePair,
+  selectUnits,
   statusesFromReport,
   strykerConfigBody,
   tallyMutants,
@@ -240,11 +244,48 @@ function scoreOne(pair: LeafPair, concurrency: number): { tally: ReturnType<type
     maxBuffer: 64 * 1024 * 1024,
   });
   if (!existsSync(reportPath)) {
-    const tail = `${run.stdout ?? ""}${run.stderr ?? ""}`.trim().split("\n").slice(-6).join(" | ");
-    return { error: `stryker produced no report (exit ${String(run.status)}): ${tail}` };
+    // STRYKER'S OWN DIAGNOSIS IS IN THE FIRST ERROR LINE IT LOGS, NOT THE LAST. The tail is a node
+    // stack trace naming only Stryker's own dist files, so a tail-only capture reported "no report"
+    // for four pairs whose real cause ("No tests were found") had been printed and then buried
+    // sixty lines above it. ANSI codes are stripped first: every one of those lines is coloured,
+    // and a pattern that does not account for that matches the useful line and returns it wrapped
+    // in escape sequences, or misses it entirely.
+    const plain = `${run.stdout ?? ""}\n${run.stderr ?? ""}`.replace(/\[[0-9;]*m/g, "");
+    const named = plain
+      .split("\n")
+      .map((l) => l.trim())
+      .find((l) => /No tests were (found|executed)|ERROR |ConfigError|Error:/.test(l));
+    const tail = plain.trim().split("\n").slice(-3).join(" | ");
+    const why = (named ?? tail).trim().slice(0, 240);
+    return { error: `stryker produced no report (exit ${String(run.status)}): ${why}` };
   }
   const report = JSON.parse(readFileSync(reportPath, "utf8")) as MutationReportShape;
   return { tally: tallyMutants(statusesFromReport(report)) };
+}
+
+/** `--units a,b,c` (repeatable, comma-separated) — the unit ids to score, empty meaning all. */
+function parseUnits(argv: readonly string[]): string[] {
+  const out: string[] = [];
+  argv.forEach((arg, i) => {
+    if (arg !== "--units") return;
+    for (const part of (argv[i + 1] ?? "").split(",")) {
+      const id = part.trim();
+      if (id !== "") out.push(id);
+    }
+  });
+  return out;
+}
+
+/** Whatever a previous run banked, or an empty reading. Never throws over a missing/odd file. */
+function readBanked(): { scored: readonly PairScore[]; failed: readonly { unitId: string; error: string }[] } {
+  try {
+    const banked = JSON.parse(
+      readFileSync(path.join(OUT_DIR, "leaf-test-strength.json"), "utf8"),
+    ) as Partial<ReadingArtifact>;
+    return { scored: banked.scored ?? [], failed: [...(banked.failed ?? [])] };
+  } catch {
+    return { scored: [], failed: [] };
+  }
 }
 
 function parseLimit(argv: readonly string[]): number {
@@ -280,6 +321,7 @@ async function main(): Promise<number> {
   const wantScore = argv.includes("--score");
   const storiesDir = path.join(repoRoot, "stories");
 
+  const banked = readBanked();
   const verdicts = await readVerdicts();
   const population = resolvePopulation(verdicts, diskLookup(storiesDir));
   process.stdout.write(`\n${renderPopulation(population)}\n\n`);
@@ -313,8 +355,11 @@ async function main(): Promise<number> {
       proofsPerUnit: population.proofsPerUnit,
     },
     pairs: withStatus.map((p) => ({ ...p.pair, testChangedSinceProof: p.testChangedSinceProof })),
-    scored: [],
-    failed: [],
+    // SEEDED FROM WHAT IS ALREADY BANKED, not from empty. `--population` re-writes this file, and a
+    // `--population` after a completed `--score` must not silently delete the reading it cost hours
+    // to take; a subset `--score` merges onto these below.
+    scored: banked.scored,
+    failed: banked.failed,
   };
 
   if (!wantScore) {
@@ -324,8 +369,19 @@ async function main(): Promise<number> {
     return 0;
   }
 
+  const wanted = parseUnits(argv);
+  const chosen = selectUnits(onDisk.map((p) => p.pair), wanted);
+  if (chosen.unmatched.length > 0) {
+    // A typo'd unit id that silently selected nothing would read exactly like a unit that scored
+    // nothing. Refuse instead of running a population the caller did not mean.
+    process.stderr.write(`--units named ${chosen.unmatched.length} id(s) not in the population: ${chosen.unmatched.join(", ")}
+`);
+    return 1;
+  }
+  const chosenIds = new Set(chosen.selected.map((p) => p.unitId));
   const limit = parseLimit(argv);
-  const targets = onDisk.slice(0, limit === Number.POSITIVE_INFINITY ? onDisk.length : limit);
+  const eligible = onDisk.filter((p) => chosenIds.has(p.pair.unitId));
+  const targets = eligible.slice(0, limit === Number.POSITIVE_INFINITY ? eligible.length : limit);
   const scored: PairScore[] = [];
   const failed: { unitId: string; error: string }[] = [];
   let index = 0;
@@ -338,33 +394,39 @@ async function main(): Promise<number> {
     if ("error" in outcome) {
       failed.push({ unitId: t.pair.unitId, error: outcome.error });
       process.stdout.write(`      SKIPPED after ${seconds}s — ${outcome.error}\n`);
-      continue;
+    } else {
+      const { score, denominator } = scorePair(outcome.tally);
+      scored.push({
+        pair: t.pair,
+        tally: outcome.tally,
+        score,
+        denominator,
+        testChangedSinceProof: t.testChangedSinceProof,
+      });
+      process.stdout.write(
+        `      ${pct(score)} of ${denominator} mutant(s) killed in ${seconds}s ` +
+          `[covered ${pct(coveredScorePair(outcome.tally).score)}, reach ${pct(reach(outcome.tally))}] ` +
+          `(k${outcome.tally.killed} s${outcome.tally.survived} t${outcome.tally.timeout} ` +
+          `n${outcome.tally.noCoverage} x${outcome.tally.excluded})\n`,
+      );
     }
-    const { score, denominator } = scorePair(outcome.tally);
-    scored.push({
-      pair: t.pair,
-      tally: outcome.tally,
-      score,
-      denominator,
-      testChangedSinceProof: t.testChangedSinceProof,
-    });
-    process.stdout.write(
-      `      ${pct(score)} of ${denominator} mutant(s) killed in ${seconds}s ` +
-        `[covered ${pct(coveredScorePair(outcome.tally).score)}, reach ${pct(reach(outcome.tally))}] ` +
-        `(k${outcome.tally.killed} s${outcome.tally.survived} t${outcome.tally.timeout} ` +
-        `n${outcome.tally.noCoverage} x${outcome.tally.excluded})\n`,
-    );
-    artifact.scored = scored;
-    artifact.failed = failed;
+    // AFTER EVERY PAIR, INCLUDING A FAILED ONE. Writing only after a success meant a run in which
+    // every pair failed recorded NOTHING — so a re-run of exactly the failures, which is the run
+    // most likely to fail throughout, could not update the reasons it was launched to improve.
+    // MERGE, never replace: a subset re-run must not discard the hours the rest already cost.
+    artifact.scored = mergeScored(banked.scored, scored);
+    artifact.failed = mergeFailed(banked.failed, failed, new Set(scored.map((s) => s.pair.unitId)));
     mkdirSync(OUT_DIR, { recursive: true });
     writeFileSync(path.join(OUT_DIR, "leaf-test-strength.json"), `${JSON.stringify(artifact, null, 2)}\n`, "utf8");
   }
 
   // ONE renderer for the finished reading, shared with `--markdown`, so the summary a run prints
   // and the table the research doc carries can never disagree.
-  process.stdout.write(`
-${renderReadingMarkdown(scored, population.pairs.length, failed)}
-`);
+  process.stdout.write(
+    `
+${renderReadingMarkdown(artifact.scored, population.pairs.length, artifact.failed)}
+`,
+  );
   return 0;
 }
 

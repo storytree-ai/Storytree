@@ -223,7 +223,177 @@ not about what the spine actually observed.)
 
 ## The reading
 
-<!-- READING -->
+### What it says
+
+> **Finding 4 — on files the leaf authored ENTIRELY, its tests kill 72.1% of seeded faults across
+> the whole file, and 79.9% of the faults they actually reach, over 58 pairs and 6,197 mutants.**
+>
+> That is the clean reading, and it is the one to quote. It says a signed green in this repo is
+> backed by a test that constrains behaviour rather than merely executing it — not perfectly, and
+> the survivors are worth a look, but this is not a corpus of tests that pass whatever the code
+> does. Reach of 90.3% says the leaf's test genuinely exercises the file the leaf wrote.
+>
+> **The edits-existing subset reads 27.9% / 53.5% at 52.0% reach, and that is a LOWER BOUND, not a
+> second finding.** Those 41 pairs carry 17,064 of the 23,261 mutants — nearly three times the
+> net-new subset — because whole-file mutation over a file the leaf only partly wrote counts every
+> pre-existing line against a test that was never asked to cover it. Pooling the two subsets gives
+> **39.7%**, a number that is true of neither and should not be quoted as "the leaf's tests score
+> 40%".
+
+The per-pair rows below are the evidence, ordered strongest first. `k/s/t/n` is
+killed / survived / timeout / no-coverage.
+
+**99 of 108 pairs scored** (9 could not be run — listed below).
+
+| subset | pairs | mutants | score (whole file) | score (covered only) | reach |
+|---|---:|---:|---:|---:|---:|
+| **all scored** | 99 | 23261 | 39.7% | 63.7% | 62.2% |
+| net-new | 58 | 6197 | 72.1% | 79.9% | 90.3% |
+| edits-existing *(lower bound)* | 41 | 17064 | 27.9% | 53.5% | 52.0% |
+
+Mean of per-pair whole-file scores: **60.1%** over 96 pair(s) that generated any mutant.
+
+| unit | shape | mutants | score | covered | reach | k/s/t/n | test file since proof |
+|---|---|---:|---:|---:|---:|---|---|
+| `colour-by-subagent` | net-new | 13 | 100.0% | 100.0% | 100.0% | 13/0/0/0 | edited |
+| `gate-ci-parity` | net-new | 167 | 100.0% | 100.0% | 100.0% | 167/0/0/0 | edited |
+| `green-gate` | net-new | 170 | 100.0% | 100.0% | 100.0% | 170/0/0/0 | edited |
+| `take-claim-at-spawn` | net-new | 8 | 100.0% | 100.0% | 100.0% | 8/0/0/0 | edited |
+| `uat-machine-gate-resolution` | edits | 60 | 100.0% | 100.0% | 100.0% | 60/0/0/0 | edited |
+| `terminal-boundary-observations` | net-new | 312 | 98.4% | 98.4% | 100.0% | 307/3/2/0 | edited |
+| `leaf-slice-spawn-observations` | net-new | 73 | 95.9% | 95.9% | 100.0% | 70/3/0/0 | edited |
+| `render-claim-as-wisp` | net-new | 23 | 95.7% | 95.7% | 100.0% | 22/1/0/0 | edited |
+| `witnessable-verdict` | net-new | 69 | 95.7% | 95.7% | 100.0% | 66/3/0/0 | same |
+| `transcript-occupancy-ingest` | net-new | 45 | 95.6% | 95.6% | 100.0% | 43/2/0/0 | edited |
+| `library-selection-card` | net-new | 22 | 95.5% | 95.5% | 100.0% | 21/1/0/0 | edited |
+| `criterion-detail-hash-anchor` | net-new | 15 | 93.3% | 93.3% | 100.0% | 14/1/0/0 | same |
+| `deploy-health-signal` | net-new | 75 | 93.3% | 95.9% | 97.3% | 70/3/0/2 | edited |
+| `review-refresh-feed` | net-new | 15 | 93.3% | 100.0% | 93.3% | 14/0/0/1 | edited |
+| `decision-point-playback` | net-new | 194 | 92.8% | 92.8% | 100.0% | 180/14/0/0 | edited |
+| `graduation-park-lease` | net-new | 91 | 90.1% | 90.1% | 100.0% | 82/8/1/0 | same |
+| `agent-ref-descent` | net-new | 111 | 90.1% | 91.7% | 98.2% | 100/9/0/2 | edited |
+| `story-author-detail-authority` | net-new | 10 | 90.0% | 90.0% | 100.0% | 9/1/0/0 | edited |
+| `library-dive-body` | net-new | 19 | 89.5% | 89.5% | 100.0% | 17/2/0/0 | edited |
+| `library-lifecycle-shelf` | edits | 102 | 88.2% | 90.0% | 98.0% | 90/10/0/2 | edited |
+| `build-spawn-capture` | net-new | 47 | 87.2% | 87.2% | 100.0% | 41/6/0/0 | edited |
+| `r3f-world-spike` | net-new | 252 | 86.9% | 88.0% | 98.8% | 219/29/1/3 | edited |
+| `builder-role` | edits | 129 | 86.8% | 87.5% | 99.2% | 112/14/2/1 | edited |
+| `node-resolve-report` | net-new | 62 | 85.5% | 86.9% | 98.4% | 53/8/0/1 | edited |
+| `revisit-link-metadata` | net-new | 39 | 84.6% | 91.7% | 92.3% | 33/3/0/3 | same |
+| `dogfood-probe-mrfuze9m` | net-new | 17 | 82.4% | 82.4% | 100.0% | 14/3/0/0 | same |
+| `multi-adapter-replay` | net-new | 107 | 82.2% | 85.4% | 96.3% | 88/15/0/4 | edited |
+| `pty-session-manager` | edits | 166 | 81.9% | 85.5% | 95.8% | 136/21/2/7 | edited |
+| `act2-beat-director` | net-new | 194 | 81.4% | 82.7% | 98.5% | 158/33/0/3 | edited |
+| `collapsed-suggestion-view` | net-new | 49 | 79.6% | 84.8% | 93.9% | 39/7/0/3 | edited |
+| `transcript-occupancy-extraction` | net-new | 132 | 79.5% | 82.0% | 97.0% | 105/23/0/4 | edited |
+| `web-experience-sync` | edits | 164 | 79.3% | 79.8% | 99.4% | 130/33/0/1 | edited |
+| `experience-rollout-guardrails` | net-new | 441 | 77.6% | 90.7% | 85.5% | 342/32/3/64 | edited |
+| `ambient-integration` | net-new | 128 | 77.3% | 79.2% | 97.7% | 99/26/0/3 | edited |
+| `repo-picker-panel` | net-new | 35 | 77.1% | 77.1% | 100.0% | 27/8/0/0 | edited |
+| `map-boot-independence` | edits | 260 | 75.4% | 92.5% | 81.5% | 196/16/0/48 | edited |
+| `desktop-launch-preconditions` | net-new | 28 | 75.0% | 75.0% | 100.0% | 21/7/0/0 | edited |
+| `backend-chat-reset-route` | net-new | 19 | 73.7% | 73.7% | 100.0% | 14/4/1/0 | same |
+| `traversal-event-vocabulary` | net-new | 81 | 72.8% | 78.7% | 92.6% | 59/16/0/6 | edited |
+| `brokered-local-uat-signing` | net-new | 119 | 72.3% | 74.8% | 96.6% | 86/29/0/4 | edited |
+| `transcript-session-correlation` | net-new | 173 | 71.1% | 78.3% | 90.8% | 123/33/1/16 | edited |
+| `noticeboard-cli` | net-new | 543 | 71.1% | 74.5% | 95.4% | 386/132/0/25 | edited |
+| `traversal-session-query` | net-new | 261 | 70.1% | 76.9% | 91.2% | 183/55/0/23 | edited |
+| `hosted-story-landlord-rule` | edits | 759 | 69.8% | 72.8% | 95.9% | 530/196/2/31 | edited |
+| `packages-forward-refusal` | edits | 759 | 69.8% | 72.8% | 95.9% | 530/196/2/31 | edited |
+| `cloud-sql-admin-rest` | net-new | 72 | 69.4% | 69.4% | 100.0% | 50/22/0/0 | edited |
+| `criterion-detail-pointer` | net-new | 90 | 68.9% | 73.8% | 93.3% | 62/22/0/6 | edited |
+| `repo-selection` | net-new | 47 | 68.1% | 78.0% | 87.2% | 32/9/0/6 | same |
+| `orientation-runner-telemetry` | net-new | 96 | 66.7% | 69.6% | 95.8% | 64/28/0/4 | edited |
+| `terminal-repo-gate` | edits | 49 | 65.3% | 65.3% | 100.0% | 32/17/0/0 | edited |
+| `hud-chrome` | edits | 67 | 64.2% | 70.5% | 91.0% | 43/18/0/6 | edited |
+| `multi-session-tabs` | edits | 593 | 63.7% | 65.9% | 96.8% | 378/190/6/19 | edited |
+| `seed-opens-new-tab` | edits | 593 | 63.7% | 65.9% | 96.8% | 378/190/6/19 | edited |
+| `terminal-dock-panel` | edits | 593 | 63.7% | 65.9% | 96.8% | 378/190/6/19 | edited |
+| `local-backend-boot` | net-new | 315 | 62.9% | 69.7% | 90.2% | 198/51/35/31 | edited |
+| `accept-reject-suggestion-api` | net-new | 76 | 61.8% | 70.1% | 88.2% | 47/13/7/9 | edited |
+| `member-suggest-write-policy` | edits | 147 | 61.2% | 79.6% | 76.9% | 90/23/0/34 | edited |
+| `shared-forest-connection` | edits | 143 | 59.4% | 63.0% | 94.4% | 85/49/1/8 | edited |
+| `traversal-trace-sink` | net-new | 188 | 59.0% | 70.3% | 84.0% | 111/47/0/30 | edited |
+| `boot-read-routes` | net-new | 190 | 58.4% | 61.3% | 95.3% | 111/64/6/9 | edited |
+| `library-retire-standalone-page` | edits | 115 | 58.3% | 72.8% | 80.0% | 67/25/0/23 | edited |
+| `inline-comment-thread` | net-new | 45 | 55.6% | 55.6% | 100.0% | 25/20/0/0 | edited |
+| `uat-detail-kind` | edits | 20 | 55.0% | 55.0% | 100.0% | 11/9/0/0 | edited |
+| `write-broker` | net-new | 62 | 54.8% | 58.6% | 93.5% | 34/14/10/4 | ? |
+| `library-typed-edges` | edits | 304 | 52.6% | 59.0% | 89.1% | 160/111/0/33 | edited |
+| `library-top-drawer` | edits | 72 | 51.4% | 52.1% | 98.6% | 37/34/0/1 | edited |
+| `chat-panel` | net-new | 314 | 49.0% | 63.1% | 77.7% | 154/90/0/70 | ? |
+| `uat-bound-command-adoption` | edits | 358 | 43.6% | 67.8% | 64.2% | 156/74/0/128 | edited |
+| `library-dag-canvas` | edits | 102 | 43.1% | 45.4% | 95.1% | 44/53/0/5 | edited |
+| `library-overview` | net-new | 65 | 43.1% | 51.9% | 83.1% | 28/26/0/11 | edited |
+| `library-open-overlay` | net-new | 12 | 41.7% | 100.0% | 41.7% | 5/0/0/7 | edited |
+| `uat-machine-proof-binding` | edits | 432 | 40.5% | 57.2% | 70.8% | 175/131/0/126 | edited |
+| `review-mode-toggle` | net-new | 24 | 37.5% | 37.5% | 100.0% | 9/15/0/0 | edited |
+| `chat-sse-mount` | net-new | 106 | 34.9% | 38.1% | 91.5% | 37/22/38/9 | edited |
+| `boundhash-on-verdict` | edits | 49 | 34.7% | 77.3% | 44.9% | 17/5/0/27 | edited |
+| `suggestion-edit-store` | net-new | 103 | 31.1% | 82.1% | 37.9% | 32/7/0/64 | edited |
+| `block-position-comment-anchor` | edits | 136 | 28.7% | 65.0% | 44.1% | 39/21/0/76 | edited |
+| `library-process-flow` | edits | 282 | 20.6% | 38.2% | 53.9% | 58/94/0/130 | edited |
+| `leaf-tool-surface` | edits | 216 | 19.4% | 27.8% | 69.9% | 42/109/0/65 | same |
+| `drift-reads-store` | edits | 146 | 19.2% | 49.1% | 39.0% | 28/29/0/89 | edited |
+| `verified-attribution` | edits | 169 | 18.3% | 54.4% | 33.7% | 31/26/0/112 | edited |
+| `map-payload-cache` | edits | 260 | 18.1% | 26.7% | 67.7% | 47/129/0/84 | edited |
+| `owned-turn-loop` | edits | 41 | 17.1% | 35.0% | 48.8% | 7/12/1/21 | same |
+| `leaf-slices-observer-activation` | edits | 1059 | 13.6% | 24.3% | 55.9% | 144/370/78/467 | edited |
+| `library-open-trigger` | edits | 65 | 12.3% | 16.7% | 73.8% | 8/40/0/17 | edited |
+| `change-event-store` | edits | 124 | 11.3% | 87.5% | 12.9% | 14/2/0/108 | edited |
+| `map-server-memo` | edits | 1608 | 10.1% | 39.3% | 25.8% | 163/246/6/1193 | edited |
+| `model-runtime-seam` | edits | 31 | 9.7% | 30.0% | 32.3% | 3/7/0/21 | same |
+| `library-lifecycle-wire` | edits | 304 | 9.5% | 18.1% | 52.6% | 29/131/0/144 | edited |
+| `library-drawer-shell` | net-new | 72 | 8.3% | 100.0% | 8.3% | 6/0/0/66 | edited |
+| `library-permanent-lens` | edits | 72 | 8.3% | 12.8% | 65.3% | 6/41/0/25 | edited |
+| `compositor-pan-transform` | edits | 3860 | 7.8% | 20.8% | 37.4% | 300/1129/13/2418 | edited |
+| `library-finder` | net-new | 102 | 2.0% | 3.8% | 52.0% | 2/51/0/49 | edited |
+| `arc-explicit-id-fidelity` | edits | 2553 | 0.0% | 0.0% | 0.2% | 0/4/0/2549 | edited |
+| `library-category-shelf` | edits | 102 | 0.0% | 0.0% | 3.9% | 0/4/0/98 | edited |
+| `terminal-capture-activation` | net-new | 59 | 0.0% | 0.0% | 1.7% | 0/1/0/58 | edited |
+| `tree-view` | net-new | 0 | n/a (no mutants) | n/a (no mutants) | n/a (no mutants) | 0/0/0/0 | edited |
+| `uat-criterion-detail` | edits | 0 | n/a (no mutants) | n/a (no mutants) | n/a (no mutants) | 0/0/0/0 | edited |
+| `verdict-glyphs` | net-new | 0 | n/a (no mutants) | n/a (no mutants) | n/a (no mutants) | 0/0/0/0 | edited |
+
+**Could not be run:**
+
+- `act2-regrow-camera-zoom-out` — stryker produced no report (exit 1): 18:56:02 (11692) INFO DryRunExecutor No tests were found
+- `change-store-pg` — packages/orchestrator declares a test script Stryker cannot drive: node --import ../../scripts/tsx-cache-off.mjs --import tsx --test "src/**/*.test.ts"
+- `claim-store-work-time` — stryker produced no report (exit 1): 18:56:13 (32544) INFO DryRunExecutor No tests were found
+- `gate-emits-change` — packages/orchestrator declares a test script Stryker cannot drive: node --import ../../scripts/tsx-cache-off.mjs --import tsx --test "src/**/*.test.ts"
+- `live-author-accounting-override` — packages/orchestrator declares a test script Stryker cannot drive: node --import ../../scripts/tsx-cache-off.mjs --import tsx --test "src/**/*.test.ts"
+- `semantic-growth-replay-view` — stryker produced no report (exit 1): 18:56:16 (29440) ERROR Stryker Unexpected error occurred while running Stryker Error: Unable to parse C:\code\storytree\.claude\worktrees\friendly-brattain-1a6904\packages\app-surface\src\semantic-growth.css. No parser registered for .css!
+- `semantic-growth-studio-demo` — stryker produced no report (exit 1): 18:56:30 (6000) ERROR DryRunExecutor One or more tests failed in the initial test run:
+- `source-drift` — packages/orchestrator declares a test script Stryker cannot drive: node --import ../../scripts/tsx-cache-off.mjs --import tsx --test "src/**/*.test.ts"
+- `verdict-line` — packages/orchestrator declares a test script Stryker cannot drive: node --import ../../scripts/tsx-cache-off.mjs --import tsx --test "src/**/*.test.ts"
+
+### Reading the nine that could not be run
+
+They are two clean classes, and neither is a statement about a test:
+
+- **Five pairs in `packages/orchestrator`** (`change-store-pg`, `gate-emits-change`,
+  `live-author-accounting-override`, `source-drift`, `verdict-line`). That package's `test` script
+  is `node --import tsx --test`, which is neither `bun test` nor `vitest run`, so Stryker has no
+  runner for it. This is the SAME limit `check:mutation-diff` carries — the runner choice here is
+  its own `runnerFor`, deliberately, so the two cannot drift apart. Closing it means a Stryker
+  runner for `node:test`, which is its own piece of work and is not chartered here.
+- **Four pairs where Stryker could not complete**, each for its own reason, all now named in the
+  artifact rather than reported as a bare failure:
+  - `act2-regrow-camera-zoom-out` — `No tests were found`. Its declared test file is
+    `worldCamera.act2Bottom.node.ts`, and `apps/studio`'s vitest `include` is
+    `src/**/*.test.{ts,tsx}`. The spine ran it directly (`node --import tsx --test`), so the file is
+    a real proof; it is simply not part of the studio's standing suite.
+  - `claim-store-work-time` — `No tests were found`, for a different reason: its declared test is
+    `claim-store-release-by-branch.live.test.ts`, which registers nothing without a live database.
+  - `semantic-growth-replay-view` — `No parser registered for .css!`. Its declared `real.sourceFile`
+    is `packages/app-surface/src/semantic-growth.css`. Stryker mutates code, not stylesheets.
+  - `semantic-growth-studio-demo` — `One or more tests failed in the initial test run`. Its declared
+    test (`TreeViewShell.test.tsx`) does not pass inside the sandbox against unmutated source, so no
+    mutant can be scored against it.
+
+⚠ **None of these nine is evidence of a weak test, and none should be folded into a percentage.**
+They are the instrument reporting its own range, which is the same discipline
+`check:mutation-diff` applies when it refuses to score a mutant it could not witness.
 
 ---
 

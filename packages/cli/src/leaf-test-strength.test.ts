@@ -13,12 +13,15 @@ import {
   hasBoundHash,
   hasObservedRed,
   lookupFromResolved,
+  mergeFailed,
+  mergeScored,
   pct,
   reach,
   renderPopulation,
   renderReadingMarkdown,
   resolvePopulation,
   scorePair,
+  selectUnits,
   splitByAuthoringShape,
   statusesFromReport,
   strykerConfigBody,
@@ -830,4 +833,60 @@ test("a pair with no mutants sorts last and renders its absence, never a 0%", ()
   );
   assert.match(rows[1] ?? "", /n\/a \(no mutants\)/);
   assert.match(rows[0] ?? "", /\| 0\.0% \|/);
+});
+
+// ---------------------------------------------------------------------------------------------
+// Subset re-runs — selecting units, and merging onto what a previous run banked
+// ---------------------------------------------------------------------------------------------
+
+test("an empty --units filter means EVERYTHING, not nothing", () => {
+  const pairs = [pair("a"), pair("b")];
+  const got = selectUnits(pairs, []);
+  assert.deepEqual(got.selected.map((p) => p.unitId), ["a", "b"]);
+  assert.deepEqual(got.unmatched, []);
+});
+
+test("--units selects only the named pairs and reports names that matched nothing", () => {
+  const pairs = [pair("a"), pair("b"), pair("c")];
+  const got = selectUnits(pairs, ["b", "typo"]);
+  assert.deepEqual(got.selected.map((p) => p.unitId), ["b"]);
+  assert.deepEqual(got.unmatched, ["typo"], "a typo must surface, not silently select nothing");
+});
+
+test("merging a re-run keeps every banked pair and replaces only the re-run ones", () => {
+  const banked = [
+    scored({ pair: pair("a"), tally: { killed: 1, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
+    scored({ pair: pair("b"), tally: { killed: 2, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
+  ];
+  const fresh = [
+    scored({ pair: pair("b"), tally: { killed: 5, survived: 5, timeout: 0, noCoverage: 0, excluded: 0 } }),
+    scored({ pair: pair("c"), tally: { killed: 3, survived: 0, timeout: 0, noCoverage: 0, excluded: 0 } }),
+  ];
+  const merged = mergeScored(banked, fresh);
+  assert.deepEqual(merged.map((s) => s.pair.unitId), ["a", "b", "c"]);
+  assert.equal(merged[0]?.tally.killed, 1, "an untouched banked pair survives the merge");
+  assert.equal(merged[1]?.tally.killed, 5, "the re-run wins on a pair it re-scored");
+  assert.equal(merged[2]?.tally.killed, 3);
+});
+
+test("merging nothing onto a banked reading changes nothing — the --population case", () => {
+  const banked = [
+    scored({ pair: pair("a"), tally: { killed: 4, survived: 1, timeout: 0, noCoverage: 0, excluded: 0 } }),
+  ];
+  assert.deepEqual(mergeScored(banked, []), banked);
+  assert.deepEqual(mergeFailed([{ unitId: "x", error: "e" }], [], new Set()), [
+    { unitId: "x", error: "e" },
+  ]);
+});
+
+test("a unit that now SCORES drops out of the could-not-be-run list", () => {
+  const merged = mergeFailed(
+    [
+      { unitId: "fixed", error: "old reason" },
+      { unitId: "still-broken", error: "old reason" },
+    ],
+    [{ unitId: "still-broken", error: "a better reason" }],
+    new Set(["fixed"]),
+  );
+  assert.deepEqual(merged, [{ unitId: "still-broken", error: "a better reason" }]);
 });

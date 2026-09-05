@@ -361,6 +361,55 @@ export function statusesFromReport(report: MutationReportShape): string[] {
   return out;
 }
 
+/**
+ * Narrow a population to named units — `--units a,b,c`, the way a failed subset gets re-run without
+ * re-spending the hours the rest already cost.
+ *
+ * An EMPTY filter means "everything", not "nothing": the flag's absence must not silently score an
+ * empty population and report a clean run over it. A name that matches no pair is returned to the
+ * caller rather than skipped, because a typo'd unit id that quietly selected nothing would look
+ * exactly like a unit that scored nothing.
+ */
+export function selectUnits(
+  pairs: readonly LeafPair[],
+  wanted: readonly string[],
+): { readonly selected: readonly LeafPair[]; readonly unmatched: readonly string[] } {
+  if (wanted.length === 0) return { selected: pairs, unmatched: [] };
+  const have = new Set(pairs.map((p) => p.unitId));
+  return {
+    selected: pairs.filter((p) => wanted.includes(p.unitId)),
+    unmatched: wanted.filter((w) => !have.has(w)),
+  };
+}
+
+/**
+ * Fold a re-run's results into what was already banked — keyed by unit id, newest wins.
+ *
+ * WITHOUT THIS, RE-RUNNING NINE FAILURES WOULD DISCARD NINETY-NINE HOURS-OLD SCORES. The artifact is
+ * written after every pair precisely so an interrupted run is a partial reading rather than a lost
+ * one; a subset run that overwrote the file would undo that guarantee at the moment it matters most.
+ */
+export function mergeScored(
+  banked: readonly PairScore[],
+  fresh: readonly PairScore[],
+): readonly PairScore[] {
+  const byUnit = new Map(banked.map((s) => [s.pair.unitId, s]));
+  for (const s of fresh) byUnit.set(s.pair.unitId, s);
+  return [...byUnit.values()].sort((a, b) => a.pair.unitId.localeCompare(b.pair.unitId));
+}
+
+/** The same fold for the could-not-be-run list — a unit that now SCORES drops out of it. */
+export function mergeFailed(
+  banked: readonly { readonly unitId: string; readonly error: string }[],
+  fresh: readonly { readonly unitId: string; readonly error: string }[],
+  nowScored: ReadonlySet<string>,
+): readonly { readonly unitId: string; readonly error: string }[] {
+  const byUnit = new Map(banked.map((f) => [f.unitId, f]));
+  for (const f of fresh) byUnit.set(f.unitId, f);
+  for (const id of nowScored) byUnit.delete(id);
+  return [...byUnit.values()].sort((a, b) => a.unitId.localeCompare(b.unitId));
+}
+
 /** Per-status mutant counts for ONE scored pair. */
 export interface MutantTally {
   readonly killed: number;
