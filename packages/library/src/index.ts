@@ -63,6 +63,10 @@ export * from "./repo-root.js";
 // (re-exported here AND via the `/knowledge`, `/knowledge-render`, `/sources` subpaths the studio
 // browser imports directly so it never pulls a node:-laden root barrel).
 export * from "./knowledge.js";
+// ADR-0515 (`follow-the-research-arc` inc 1/2): the `resteer` tier's pure compute — the typed
+// partition that makes the taste exclusion structural rather than a filter each reader must
+// remember, and the Cohen's kappa the adopted MAST frame was validated with. Pure, browser-safe.
+export * from "./resteer-report.js";
 // ADR-0223: the authored `dependsOn` dependency DAG — the pure cycle detector (`directional-dag-arc`
 // increment 1) and the corpus-wide acyclicity judge the `check:library-dag-acyclic` rung is a thin
 // store read around. Pure, browser-safe: no zod, no store, no node: — it reads `dependsOn` and
@@ -109,6 +113,12 @@ export * from "./composed-statement.js";
 // compute needs no adapter.
 // Pure, browser-safe — hashing a span needs a checkout and therefore happens nowhere near here.
 export * from "./decision-sources.js";
+// ADR-0519: the AUTHORITY STAMP — whose call a decision was, as a queryable fact instead of prose an
+// agent wrote. Same row-only storage class as the two above and for ADR-0424 D6's reason (evidence a
+// hand-edit can rewrite is not evidence), so it is absent from the document surface on purpose. The
+// owner's VERBATIM words ride here, and an owner basis cannot validate without them. Pure,
+// browser-safe.
+export * from "./decision-authority.js";
 // ADR-0427 (2026-08-23) RETIRED the two `amends` annotation modules that were exported here — the
 // presence judge (`amends-annotation.js`, ADR-0419 D4) and the drain worklist that consumed it
 // (`amends-drain.js`, ADR-0419 D3). The judge asked only whether a target's body mentioned its

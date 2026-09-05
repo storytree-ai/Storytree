@@ -174,6 +174,15 @@ import {
   frictionHelp,
   type FrictionContext,
 } from "./friction.js";
+// ADR-0515 — the re-steer capture surface (`follow-the-research-arc` inc 1/2).
+import {
+  newResteer,
+  listResteer,
+  resteerAgreementFromFiles,
+  resteerHelp,
+  type NewResteerOpts,
+  type ResteerContext,
+} from "./resteer.js";
 // ADR-0316 — the report-only factory-floor health instrument (`factory-floor-health-arc`).
 import { factoryHealth, factoryHelp, type FactoryHealthOpts } from "./factory.js";
 import type { DecisionDiscoveryOutcome } from "./decision-discovery-gather.js";
@@ -1780,6 +1789,7 @@ async function topHelp(store: Store): Promise<Envelope> {
       "the rest:",
       "  library          explore + curate the Library (the knowledge tier)",
       "  friction         file what fought you → the Library (ADR-0168) — new | migrate | reinforce | route | list",
+      "  resteer          record what the OWNER redirected (ADR-0515) — new | list",
       "  factory health   is the factory getting better? recurrence-since-route · distinct bottlenecks · coupling churn (ADR-0316, report-only)",
       "  noticeboard      the claim ledger (ADR-0200/0033) — view | declare | done | claim | upgrade | downgrade | release | claims",
       "  members          the studio member directory (ADR-0043) — list | add | role | remove | history  (--pg)",
@@ -2961,6 +2971,16 @@ export const CLI_OPTIONS = {
   step: { type: "string" },
   "agent-type": { type: "string" },
   evidence: { type: "string" },
+  // `storytree resteer new` (ADR-0515) — one observed owner intervention. `--doing`/`--redirect`
+  // are the OBSERVED pair; `--self-report` is the explicitly unvalidated half kept beside it
+  // (ADR-0513 D4), never blended into it. `--disposition`/`--by` are the defect/taste fork and whose
+  // judgement it was; `--mode` is the MAST classification.
+  doing: { type: "string" },
+  redirect: { type: "string" },
+  "self-report": { type: "string" },
+  disposition: { type: "string" },
+  by: { type: "string" },
+  mode: { type: "string" },
   route: { type: "string" },
   // `storytree friction route --discharged-by <ref>` — the delivery stamp (remedy landed).
   "discharged-by": { type: "string" },
@@ -2998,6 +3018,11 @@ export const CLI_OPTIONS = {
   statement: { type: "string" },
   context: { type: "string" },
   options: { type: "string" },
+  // `storytree adr new --basis <b> --owner-said <text|@file>` (ADR-0519 D1/D3): the authority stamp.
+  // `--basis` is one enum word (LITERAL); `--owner-said` is the owner's verbatim directive (PROSE,
+  // so `@path` carries a multi-sentence directive the shell would otherwise mangle).
+  basis: { type: "string" },
+  "owner-said": { type: "string" },
   analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
@@ -3834,6 +3859,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // `@path` carries a statement too long for a shell argument with no new classification.
     if (values.statement !== undefined) adrOpts.statement = values.statement;
     if (values.clause !== undefined) adrOpts.clause = values.clause;
+    // ADR-0519's authority stamp. Threaded as a PAIR for the same reason `--refute`/`--reason` above
+    // are: `resolveAuthority` refuses an owner basis that carries no quote, and dropping either here
+    // would turn that loud refusal into a silent ignore — which for `--owner-said` means the owner's
+    // words are accepted on the command line and never stored.
+    // UNGUARDED, unlike its neighbours, and that is a reshape rather than an oversight (ADR-0478's
+    // ladder: kill, then reshape, and only then a marker). Both fields are declared `?: string |
+    // undefined`, so assigning an absent flag's `undefined` is legal here where it is not for the
+    // props typed without it — which means an `x !== undefined` guard would have NO behavioural
+    // content: `resolveAuthority` reads `basis?.trim() ?? ""`, so present-and-undefined and absent
+    // take the same branch. A conditional whose two arms cannot be told apart is an unkillable
+    // mutant by construction, so the honest fix is to not write the conditional.
+    adrOpts.basis = values.basis;
+    adrOpts.ownerSaid = values["owner-said"];
     if (values["allow-control-arm"] === true) adrOpts.allowControlArm = true;
     const controlArm = frozenControlArm();
     // ONE unconditional spread over a base, chosen by a ternary — not a conditional spread of `{}`
@@ -4481,6 +4519,44 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
       ok: false,
       body: `unknown friction command "${sub}". try: new | migrate | reinforce | route | list`,
       next: ["storytree friction --help", "storytree friction list"],
+    };
+  }
+
+  if (area === "resteer") {
+    // The re-steer capture surface (ADR-0515). Filed by the SAME retro step as `friction` and sharing
+    // its provenance stamp, branch/clock seams and evidence floor — but with no cap-3 (the count is
+    // the datum) and no offline inbox (see `resteer.ts`'s header). `list` is a read.
+    if (sub === undefined || help) return resteerHelp();
+    const ctx: ResteerContext = {
+      branch: deps.friction?.branch ?? currentBranch(),
+      now: deps.friction?.now ?? new Date().toISOString(),
+    };
+    if (sub === "new") {
+      // The prose flags arrive already `@path`-expanded from the boundary at the top of `run`, which
+      // is what lets a quoted multi-line owner message survive the pnpm forwarder intact.
+      const newOpts: NewResteerOpts = {
+        title: values.title,
+        doing: values.doing,
+        redirect: values.redirect,
+        evidence: values.evidence,
+        selfReport: values["self-report"],
+        disposition: values.disposition,
+        by: values.by,
+        mode: values.mode,
+        description: values.description,
+      };
+      return newResteer(deps, newOpts, ctx);
+    }
+    if (sub === "list") return listResteer(deps.store);
+    // `agreement <fileA> <fileB>` — the frame-validation instrument (ADR-0515 D6). A VERB rather than
+    // the one-shot script the first measurement could have been, because a reliability figure nobody
+    // can re-derive ages silently; `docs/research/mast-agreement-2026-09-05.md` names this command as
+    // the way to reproduce it.
+    if (sub === "agreement") return resteerAgreementFromFiles(third, fourth);
+    return {
+      ok: false,
+      body: `unknown resteer command "${sub}". try: new | list | agreement`,
+      next: ["storytree resteer --help", "storytree resteer list --pg"],
     };
   }
 
