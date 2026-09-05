@@ -626,6 +626,16 @@ export interface OptionCard {
  * failure (a question predating the convention, or one that phrases it differently): it survives as
  * a card with empty `forText`/`againstText` and its whole text in `summary`, never dropped.
  */
+/**
+ * What separates one option from the next: a BLANK line, however much whitespace it carries.
+ *
+ * Hoisted out of the chain below rather than written inline, because a `Stryker disable next-line`
+ * directive does not reach a regex sitting inside a method chain — at statement level it does, and
+ * the pattern reads better named than buried in a `.split()`.
+ */
+// Stryker disable next-line Regex: EQUIVALENT — `\s*` is greedy and `\n` is itself whitespace, so `\n\s*\n` already consumes any run of blank lines; the trailing `+` states the intent (one or more) and cannot move a split.
+const OPTION_SEPARATOR = /\n\s*\n+/;
+
 export function parseOptionCards(optionsText: string | undefined): OptionCard[] {
   // Stryker disable next-line ConditionalExpression,MethodExpression,StringLiteral: EQUIVALENT for
   // the `.trim() === ''` half — a blank or whitespace-only input falls through to the split below,
@@ -634,10 +644,7 @@ export function parseOptionCards(optionsText: string | undefined): OptionCard[] 
   // load-bearing — without it `.trim()` throws — and a test pins it.)
   if (optionsText === undefined || optionsText.trim() === '') return [];
   return optionsText
-    // `\s*` is greedy and `\n` is itself whitespace, so `\n\s*\n` already consumes any run of blank
-    // lines; the trailing `+` states the intent (one or more) rather than adding reach.
-    // Stryker disable next-line Regex: EQUIVALENT — see above, the `+` cannot move a split.
-    .split(/\n\s*\n+/)
+    .split(OPTION_SEPARATOR)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph !== '')
     .map((paragraph): OptionCard => {
