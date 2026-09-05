@@ -6,7 +6,7 @@ import path from "node:path";
 
 import { InMemoryStore, type Store } from "@storytree/storage-protocol";
 import { deriveArcLifecycle, deriveArcRollup } from "./arc-rollup.js";
-import { questionSettle } from "./question.js";
+import { questionNew, questionSettle } from "./question.js";
 import { seedDecisionRows } from "./decision.test-helpers.js";
 
 import {
@@ -3437,6 +3437,29 @@ async function drainedArc(store: InMemoryStore, id = "drained-arc"): Promise<InM
   return store;
 }
 
+/**
+ * The open-question fixture's shape. A named interface rather than an open dictionary: every key is
+ * known at authoring time, so naming them makes a typo a compile error where the dictionary made it
+ * a silently-ignored field — and the three settlement keys are OPTIONAL precisely because the
+ * unsettled fixture must genuinely omit them.
+ */
+interface QuestionFixtureDoc {
+  kind: string;
+  id: string;
+  title: string;
+  description: string;
+  stakes: string;
+  statement: string;
+  context: string;
+  options: string;
+  arcRef: string;
+  createdAt: string;
+  updatedAt: string;
+  lifecycle?: string;
+  answer?: string;
+  settledAt?: string;
+}
+
 /** Seeds one open-question stamped to `arcId`. `settled` writes the terminal lifecycle. */
 async function questionOn(
   store: InMemoryStore,
@@ -3444,7 +3467,7 @@ async function questionOn(
   id: string,
   settled = false,
 ): Promise<void> {
-  const doc: Record<string, unknown> = {
+  const doc: QuestionFixtureDoc = {
     kind: "open-question",
     id,
     title: "A question",
@@ -3461,9 +3484,9 @@ async function questionOn(
   // `lifecycle`, because "absent reads as open" is one of the behaviours under test, and a spread
   // that quietly wrote `undefined` would make that case unfalsifiable.
   if (settled) {
-    doc["lifecycle"] = "settled";
-    doc["answer"] = "the answer";
-    doc["settledAt"] = "2026-09-05";
+    doc.lifecycle = "settled";
+    doc.answer = "the answer";
+    doc.settledAt = "2026-09-05";
   }
   await store.upsertDoc({ id, kind: "open-question", doc });
 }
@@ -3676,4 +3699,55 @@ test("settling one of TWO questions leaves the arc open, and prints no lifecycle
   assert.equal(res.ok, true);
   assert.doesNotMatch(res.body, /auto-closed/);
   assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+});
+
+test("recording a landing on an ALREADY-closed arc with no questions says nothing about questions", async () => {
+  // The `current === desired` branch with `heldOpenByQuestions` false. A guard that ignored the
+  // question COUNT would print "did NOT auto-close — 0 question(s) still wait on you" here, which is
+  // both false and alarming.
+  const store = await drainedArc(new InMemoryStore());
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+  const res = await arcIncrementAdd(writeDeps(store), "drained-arc", { outcome: "another landing." });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+  assert.doesNotMatch(res.body, /question\(s\) still wait/);
+});
+
+test("question new on an ACTIVE arc prints no lifecycle line — nothing changed", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  const res = await questionNew(writeDeps(store), undefined, {
+    arc: "drained-arc",
+    title: "Which way",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+  });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /reopened/);
+});
+
+test("question new on a CLOSED arc REOPENS it and says so (ADR-0526 D4's mirror)", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+
+  const res = await questionNew(writeDeps(store), undefined, {
+    arc: "drained-arc",
+    title: "Which way now",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+  });
+  assert.equal(res.ok, true);
+  // An arc the owner has just been asked about is waiting on him whatever its increment log says.
+  // Leaving it closed would be the same hole this decision closes, pointing the other way.
+  assert.match(res.body, /reopened/);
+  assert.match(res.body, /still wait on you/);
+  assert.equal(
+    ((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"],
+    "active",
+  );
 });

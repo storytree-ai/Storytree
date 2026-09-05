@@ -25,6 +25,7 @@ import { defaultCliActor, type Envelope } from "@storytree/drive";
 import {
   arcIsClosed,
   arcRefOf,
+  bagOf,
   deriveArcLifecycle,
   isCuratedLifecycle,
   isForwardLooking,
@@ -1476,11 +1477,11 @@ async function incrementRowsOf(deps: ArcWriteDeps, arcId: string): Promise<ArcIn
  */
 async function unsettledQuestionCountOf(deps: ArcWriteDeps, arcId: string): Promise<number> {
   const rows = await deps.store.queryDocs({ kind: "open-question" });
-  return rows.filter((d) => {
-    if (arcRefOf(d) !== arcId) return false;
-    const doc = typeof d.doc === "object" && d.doc !== null ? (d.doc as Record<string, unknown>) : {};
-    return doc["lifecycle"] !== "settled";
-  }).length;
+  // `bagOf` rather than a hand-rolled object guard: it is the ONE reading of "is this stored doc a
+  // bag", shared with `arcRefOf` right above it, so the two cannot answer differently about the same
+  // row. (A second copy here was also unfalsifiable — `arcRefOf` has already proved the doc is a bag
+  // by the time a row survives the filter, so no input could reach the guard's false branch.)
+  return rows.filter((d) => arcRefOf(d) === arcId && bagOf(d)["lifecycle"] !== "settled").length;
 }
 
 export async function recomputeArcLifecycle(deps: ArcWriteDeps, arcId: string): Promise<string | null> {

@@ -378,7 +378,7 @@ function numOpt(doc: Record<string, unknown>, key: string): number | undefined {
 }
 
 /** The body of a stored doc as an untyped bag (never throws on a malformed row). */
-function bagOf(stored: StoredDoc): Record<string, unknown> {
+export function bagOf(stored: StoredDoc): Record<string, unknown> {
   return typeof stored.doc === "object" && stored.doc !== null
     ? (stored.doc as Record<string, unknown>)
     : {};
