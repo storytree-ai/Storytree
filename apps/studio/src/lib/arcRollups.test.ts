@@ -46,6 +46,7 @@ const arc = (id: string): ArcRollupSummary => ({
   lifecycle: 'active',
   waiting: false,
   openQuestions: 0,
+  gates: [],
   increments: [],
 });
 

@@ -470,6 +470,7 @@ test("summariseArcRollup carries exactly the lane's fields — the narrative pro
     // what makes an ADDITION red too. Checking only that the prose is gone would let the next
     // "while we're here" field ride the list unnoticed, which is how the payload got here.
     assert.deepEqual(Object.keys(summary).sort(), [
+      "gates",
       "id",
       "increments",
       "lifecycle",
@@ -495,6 +496,9 @@ test("summariseArcRollup carries exactly the lane's fields — the narrative pro
     assert.equal(summary.lifecycle, "active");
     assert.equal(summary.waiting, true);
     assert.equal(summary.openQuestions, rollup.questions.length);
+    // A childless, GATE-less arc summarises `gates` to an empty list, never a missing key — the lane
+    // strip's caret reads `.length` off this and must not have to tell absent from empty.
+    assert.deepEqual(summary.gates, []);
 
     // THE ROLLUP ITSELF IS UNTOUCHED — the projection reads, it does not narrow in place. A caller
     // that summarised for the list and then served `rollup` for the per-id read must get the whole
@@ -568,6 +572,64 @@ test("the landing DATE rides as `landedOn`; the rest of `outcome` does not, and 
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
+});
+
+test("summariseArcRollup narrows each gate to id + shut — the blocker's title, reason and blockerMissing stay off the wire", () => {
+  const rollup = deriveArcRollup({
+    arc: {
+      id: "gated-arc",
+      kind: "arc",
+      doc: {
+        kind: "arc",
+        id: "gated-arc",
+        title: "Gated",
+        gatedBy: ["asset:blocker-arc", "asset:ghost-arc", "asset:closed-blocker"],
+        gateReasons: { "asset:blocker-arc": "a reason nobody on a lane reads" },
+      },
+      createdAt: "",
+      updatedAt: "",
+    },
+    incrementDocs: [],
+    questionDocs: [],
+    adrs: [],
+    storyStamps: [],
+    // THREE shapes, so the mapping's `shut` VALUE is proven, not merely its presence: an ordinary
+    // shut gate, a `blockerMissing` one (still `shut: true` per ArcRollupGate's own derivation), and
+    // a RESOLVED one whose blocker has actually closed (`shut: false`) — a narrowing that hardcoded
+    // `true` regardless of the source would pass on the first two and fail only on this third.
+    arcDocs: [
+      {
+        id: "blocker-arc",
+        kind: "arc",
+        doc: { kind: "arc", id: "blocker-arc", title: "The blocker nobody on a lane reads" },
+        createdAt: "",
+        updatedAt: "",
+      },
+      {
+        id: "closed-blocker",
+        kind: "arc",
+        doc: { kind: "arc", id: "closed-blocker", title: "Already done", lifecycle: "closed" },
+        createdAt: "",
+        updatedAt: "",
+      },
+    ],
+  });
+  assert.equal(rollup.gates.length, 3, "the source rollup must carry all three gates for this to narrow");
+  assert.equal(rollup.gates[1]?.blockerMissing, true, "the ghost gate must be unresolved for this to prove anything");
+  assert.equal(rollup.gates[2]?.shut, false, "the closed blocker's gate must already read open for this to prove anything");
+
+  const summary = summariseArcRollup(rollup);
+  assert.deepEqual(summary.gates, [
+    { id: "blocker-arc", shut: true },
+    { id: "ghost-arc", shut: true },
+    { id: "closed-blocker", shut: false },
+  ]);
+  for (const gate of summary.gates) {
+    assert.deepEqual(Object.keys(gate).sort(), ["id", "shut"]);
+  }
+  const wire = JSON.stringify(summary);
+  assert.ok(!wire.includes("a reason nobody on a lane reads"), "the gate's reason must not ride the list");
+  assert.ok(!wire.includes("The blocker nobody on a lane reads"), "the blocker's title must not ride the list either");
 });
 
 test("loadArcRollupSummaries is loadArcRollups narrowed — same arcs, same order, one projection", async () => {

@@ -18,6 +18,7 @@ import {
   arcState,
   briefingLead,
   defaultLaneId,
+  isGated,
   laneBars,
   laneCounts,
   landedSummary,
@@ -104,8 +105,14 @@ function arc(over: Partial<ArcRollup> & { id: string }): ArcRollup {
  * cannot import either (the frontend rides the wire with locally-declared mirrors), so it declares
  * the shape it expects and those two prove the shape is what arrives.
  */
-function lane(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
-  const rollup = arc(over);
+function lane(
+  over: Partial<ArcRollup> & { id: string; gates?: ArcRollupSummary['gates'] },
+): ArcRollupSummary {
+  // `gates` (ADR-0523) is a SUMMARY-only field — the full `ArcRollup` fixture type above carries no
+  // such property — so it is pulled off `over` before building the rollup rather than spread into
+  // it, matching how the production wire never widens the full rollup for this.
+  const { gates, ...rollupOver } = over;
+  const rollup = arc(rollupOver);
   // OPEN questions only — the narrowing `summariseArcRollup` performs since ADR-0434 D3. Counting
   // the whole array here would let a settled question light a lane the server leaves quiet, which
   // is a state the wire cannot produce and would make the fence below vacuous.
@@ -116,6 +123,8 @@ function lane(over: Partial<ArcRollup> & { id: string }): ArcRollupSummary {
     lifecycle: rollup.lifecycle,
     waiting: openQuestions.length > 0,
     openQuestions: openQuestions.length,
+    // ADR-0523 — empty by default, matching the server's own "ungated arc costs nothing" property.
+    gates: gates ?? [],
     increments: rollup.increments.map((inc) => {
       const row: ArcRollupSummary['increments'][number] = {
         id: inc.id,
@@ -175,6 +184,25 @@ describe('laneBars — bars are UNITS, green landed / grey queued (ADR-0314 D2)'
     const rollup = lane({ id: 'a', increments: [increment({ id: 'weird', status: '?' })] });
     expect(laneBars(rollup)[0]?.tone).toBe('queued');
   });
+
+  it('draws GATED, not queued, for not-yet-landed work when `gated` is passed (ADR-0523)', () => {
+    const rollup = lane({
+      id: 'a',
+      increments: [parked('p1', '2026-08-01'), landed('c1', '2026-07-01')],
+    });
+    const bars = laneBars(rollup, true);
+    expect(bars.map((b) => b.tone)).toEqual(['landed', 'gated']);
+  });
+
+  it('a LANDED increment stays landed even when the arc is gated — finished work is not waiting', () => {
+    const rollup = lane({ id: 'a', increments: [landed('c1', '2026-07-01')] });
+    expect(laneBars(rollup, true).map((b) => b.tone)).toEqual(['landed']);
+  });
+
+  it('defaults to `queued`, unchanged, when `gated` is omitted', () => {
+    const rollup = lane({ id: 'a', increments: [parked('p1', '2026-08-01')] });
+    expect(laneBars(rollup).map((b) => b.tone)).toEqual(['queued']);
+  });
 });
 
 describe('laneCounts — counts, never a ratio (ADR-0314 D2)', () => {
@@ -228,7 +256,7 @@ describe('lastActivityAt — landings AND parkings both count as activity', () =
   });
 });
 
-describe('arcState — waiting / claimed / quiet, and NEVER blocked (ADR-0314 D4, ADR-0374 D4)', () => {
+describe('arcState — waiting / blocked / claimed / quiet (ADR-0314 D4, ADR-0374 D4, ADR-0523)', () => {
   it('an arc with an authored open question is `waiting` — answerable right now', () => {
     const rollup = lane({ id: 'a', questions: [question('q1')], increments: [landed('c1', '2026-01-01')] });
     // `waiting` outranks everything below it: an arc the owner can unblock by replying is exactly
@@ -384,8 +412,12 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
     expect(arcState(rollup, NOW)).toBe('closed');
   });
 
-  it('NO input produces `blocked` — the refusal is declared, and holds across every shape', () => {
-    expect(BLOCKED_IS_DERIVABLE).toBe(false);
+  it('NONE of the mock round’s rejected shapes produce `blocked` — only a shut gate does (ADR-0523)', () => {
+    // `BLOCKED_IS_DERIVABLE` FLIPPED to true this increment (a gate is now one of its two named
+    // sources) — but the three REJECTED substitutes (B1 undecided ADR, B2 never-started, B3
+    // gone-quiet) are exactly as rejected as before: none of them became a source, so a shape
+    // carrying one of THEM and no gate must still read something other than `blocked`.
+    expect(BLOCKED_IS_DERIVABLE).toBe(true);
     const shapes: ArcRollupSummary[] = [
       lane({ id: 'empty' }),
       lane({ id: 'questions', questions: [question('q')] }),
@@ -397,6 +429,48 @@ describe('arcClaimants — three real join paths, unioned, asserted positively o
     ];
     const seen: ArcSurfaceState[] = shapes.map((s) => arcState(s, NOW));
     expect(seen).not.toContain('blocked');
+  });
+
+  it('a SHUT gate lights `blocked` — the one source ADR-0523 actually supplies', () => {
+    const rollup = lane({ id: 'gated', gates: [{ id: 'blocker', shut: true }], increments: [landed('c', '2026-08-01')] });
+    expect(arcState(rollup, NOW)).toBe('blocked');
+  });
+
+  it('a RESOLVED gate (shut: false) no longer reads `blocked` — nobody has to run `arc ungate` first', () => {
+    const rollup = lane({ id: 'released', gates: [{ id: 'blocker', shut: false }], increments: [landed('c', '2026-08-01')] });
+    expect(arcState(rollup, NOW)).toBe('quiet');
+  });
+
+  it('`waiting` still outranks `blocked` — a gate must never bury a question (ADR-0314 D3)', () => {
+    const rollup = lane({
+      id: 'both',
+      gates: [{ id: 'blocker', shut: true }],
+      questions: [question('q')],
+    });
+    expect(arcState(rollup, NOW)).toBe('waiting');
+  });
+
+  it('`blocked` outranks `claimed` — an external fact about the gate outranks a busy signal', () => {
+    const rollup = lane({ id: 'gated-and-held', gates: [{ id: 'blocker', shut: true }] });
+    expect(arcState(rollup, NOW, [claimGroup('s1', 'gated-and-held')])).toBe('blocked');
+  });
+});
+
+describe('isGated — reads the arc’s OWN gates, independent of reachability (ADR-0523)', () => {
+  it('is false with no gates at all — the common case, and the property the wire preserves', () => {
+    expect(isGated(lane({ id: 'a' }))).toBe(false);
+  });
+
+  it('is true with at least one SHUT gate', () => {
+    expect(isGated(lane({ id: 'a', gates: [{ id: 'b', shut: true }] }))).toBe(true);
+  });
+
+  it('is false when every gate has resolved (shut: false)', () => {
+    expect(isGated(lane({ id: 'a', gates: [{ id: 'b', shut: false }] }))).toBe(false);
+  });
+
+  it('is true when ANY of several gates is still shut', () => {
+    expect(isGated(lane({ id: 'a', gates: [{ id: 'b', shut: false }, { id: 'c', shut: true }] }))).toBe(true);
   });
 });
 
@@ -479,6 +553,143 @@ describe('arcLanes — active arcs only, waiting first (ADR-0239 D3 / ADR-0314 D
       expect(drawn.slice().sort()).toEqual(['done-one', 'live-one', 'shelved-one']);
       expect(new Set(drawn).size).toBe(all.length);
     });
+  });
+});
+
+describe('arcLanes — nesting a queued arc under its blocker (ADR-0523, inc-05)', () => {
+  it('an UNGATED arc carries no queued children — the density property the wire must preserve', () => {
+    const lanes = arcLanes([lane({ id: 'a' }), lane({ id: 'b' })], NOW);
+    expect(lanes.every((l) => l.queued.length === 0)).toBe(true);
+  });
+
+  it('a gating arc carries the RIGHT COUNT of arcs queued behind it', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'queued-1', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'queued-2', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'unrelated' }),
+      ],
+      NOW,
+    );
+    const blocker = lanes.find((l) => l.arc.id === 'blocker');
+    expect(blocker?.queued.map((q) => q.arc.id).sort()).toEqual(['queued-1', 'queued-2']);
+  });
+
+  it('a queued arc does NOT appear at the top level — reachable only through its blocker', () => {
+    const lanes = arcLanes(
+      [lane({ id: 'blocker' }), lane({ id: 'queued', gates: [{ id: 'blocker', shut: true }] })],
+      NOW,
+    );
+    expect(lanes.map((l) => l.arc.id)).toEqual(['blocker']);
+  });
+
+  it('a queued arc carrying an OPEN QUESTION appears at the top level anyway (ADR-0314 D3)', () => {
+    // The one exception, and the reason the tree cannot be allowed to bury a question: a gate is a
+    // schedule, not a licence to hide the one thing this surface exists to surface.
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({ id: 'queued-and-waiting', gates: [{ id: 'blocker', shut: true }], questions: [question('q')] }),
+      ],
+      NOW,
+    );
+    expect(lanes.map((l) => l.arc.id).sort()).toEqual(['blocker', 'queued-and-waiting']);
+    // …and it is state `waiting`, not `blocked` — arcState's own precedence, read as reachability.
+    const promoted = lanes.find((l) => l.arc.id === 'queued-and-waiting');
+    expect(promoted?.state).toBe('waiting');
+    // It must not ALSO be nested under its blocker — reachable at the top or through one
+    // disclosure, never both.
+    const blocker = lanes.find((l) => l.arc.id === 'blocker');
+    expect(blocker?.queued).toEqual([]);
+  });
+
+  it('a gate whose blocker has closed (shut: false) no longer nests its arc', () => {
+    // Nobody has to run `arc ungate` for the promotion to take effect here — the DATA already says
+    // the gate is resolved, and the tree reads that directly.
+    const lanes = arcLanes(
+      [lane({ id: 'blocker' }), lane({ id: 'released', gates: [{ id: 'blocker', shut: false }] })],
+      NOW,
+    );
+    expect(lanes.map((l) => l.arc.id).sort()).toEqual(['blocker', 'released']);
+    expect(lanes.find((l) => l.arc.id === 'blocker')?.queued).toEqual([]);
+  });
+
+  it('an open increment behind a shut gate draws GATED bars, not merely grey ones', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker' }),
+        lane({
+          id: 'gated-arc',
+          gates: [{ id: 'blocker', shut: true }],
+          increments: [parked('p1', '2026-08-01')],
+        }),
+      ],
+      NOW,
+    );
+    const gated = lanes.find((l) => l.arc.id === 'blocker')?.queued.find((q) => q.arc.id === 'gated-arc');
+    expect(gated?.bars.map((b) => b.tone)).toEqual(['gated']);
+    expect(gated?.state).toBe('blocked');
+  });
+
+  it('DEPTH IS PERMITTED — a queued arc that itself gates another keeps its own caret', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'root' }),
+        lane({ id: 'middle', gates: [{ id: 'root', shut: true }] }),
+        lane({ id: 'grandchild', gates: [{ id: 'middle', shut: true }] }),
+      ],
+      NOW,
+    );
+    expect(lanes.map((l) => l.arc.id)).toEqual(['root']);
+    const middle = lanes[0]?.queued.find((q) => q.arc.id === 'middle');
+    expect(middle?.queued.map((q) => q.arc.id)).toEqual(['grandchild']);
+  });
+
+  it('nesting resolves only WITHIN the current scope — a blocker outside scope never orphans its arc', () => {
+    // A `parked` blocker has no visible row under the `active` scope this call draws, so the
+    // dependent falls back to an ordinary top-level lane rather than becoming unreachable — and
+    // still reads `blocked`, since its OWN gate is genuinely still shut.
+    const lanes = arcLanes(
+      [lane({ id: 'blocker', lifecycle: 'parked' }), lane({ id: 'dependent', gates: [{ id: 'blocker', shut: true }] })],
+      NOW,
+      'active',
+    );
+    expect(lanes.map((l) => l.arc.id)).toEqual(['dependent']);
+    expect(lanes[0]?.state).toBe('blocked');
+  });
+
+  it('STATE_RANK places `blocked` between `waiting` and `claimed`', () => {
+    // The one way to get a `blocked` arc INTO a top-level sort next to the other states: an
+    // out-of-scope blocker (see the test above) promotes it without releasing the gate.
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker', lifecycle: 'parked' }),
+        lane({ id: 'blocked-one', gates: [{ id: 'blocker', shut: true }] }),
+        lane({ id: 'claimed-one', increments: [landed('c', '2026-08-05')] }),
+        lane({ id: 'quiet-one', increments: [landed('c', '2026-08-05')] }),
+        lane({ id: 'waiting-one', questions: [question('q')] }),
+      ],
+      NOW,
+      'active',
+      [claimGroup('s1', 'claimed-one')],
+    );
+    expect(lanes.map((l) => l.arc.id)).toEqual(['waiting-one', 'blocked-one', 'claimed-one', 'quiet-one']);
+  });
+
+  it('nests an arc under ITS OWN blocker only — a shut gate on a DIFFERENT arc does not borrow it', () => {
+    const lanes = arcLanes(
+      [
+        lane({ id: 'blocker-a' }),
+        lane({ id: 'blocker-b' }),
+        lane({ id: 'queued', gates: [{ id: 'blocker-a', shut: true }] }),
+      ],
+      NOW,
+    );
+    const a = lanes.find((l) => l.arc.id === 'blocker-a');
+    const b = lanes.find((l) => l.arc.id === 'blocker-b');
+    expect(a?.queued.map((q) => q.arc.id)).toEqual(['queued']);
+    expect(b?.queued).toEqual([]);
   });
 });
 

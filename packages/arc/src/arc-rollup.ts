@@ -275,6 +275,22 @@ export interface ArcRollupSummaryIncrement {
 }
 
 /**
+ * ONE GATE AS THE LANE STRIP SEES IT (ADR-0523) — the cheap projection {@link summariseArcRollup}
+ * ships instead of the whole {@link ArcRollupGate}: a blocker id and whether it is still shut.
+ *
+ * `title` and `reason` are DELIBERATELY dropped, the same measured discipline
+ * {@link ArcRollupSummary}'s own doc comment states about `intent`/`endState`/outcome prose: they
+ * are text the lane strip never draws, so they stay off the wire and the per-id route stays their
+ * only source. `blockerMissing` is dropped too — nothing downstream of a lane needs to tell a
+ * "no such arc" wait from an ordinary shut one, because either way `shut` is `true` and the arc
+ * nests exactly the same (see {@link ArcRollupGate.shut}'s own derivation for why).
+ */
+export interface ArcRollupSummaryGate {
+  id: string;
+  shut: boolean;
+}
+
+/**
  * ONE ARC AS THE LANE LIST SEES IT — the LIST projection of {@link ArcRollup} (`GET /api/arcs`).
  *
  * WHY THE LIST IS NARROWER THAN THE ROLLUP. `GET /api/arcs` is the heaviest read the app makes and
@@ -304,6 +320,12 @@ export interface ArcRollupSummaryIncrement {
  * wire 76 times for nobody); and the `questions` ARRAY, replaced by
  * {@link ArcRollupSummary.openQuestions}, because a lane reads only whether the count is above zero
  * while a question's `stakes` is authored to be cold-answerable and runs to hundreds of words.
+ *
+ * `gates` IS THE ONE EXCEPTION (ADR-0523, `arc-queue-and-question-legibility-arc` inc-05): unlike
+ * `adrs`/`stories`, a lane genuinely needs to know about an arc's gates to draw its caret and nest
+ * a queued arc under its blocker — see {@link ArcRollupSummaryGate}. What stays off the list is only
+ * the PROSE half of a gate (the blocker's title, the authored reason): a blocker id plus whether it
+ * is still shut is all `apps/studio/src/lib/arcSurface.ts` reads to build the tree.
  */
 export interface ArcRollupSummary {
   id: string;
@@ -320,6 +342,15 @@ export interface ArcRollupSummary {
    * reading one projection of one join rather than re-deriving a state from a list it was handed.
    */
   openQuestions: number;
+  /**
+   * The arcs THIS one is queued behind (ADR-0523), narrowed to {@link ArcRollupSummaryGate} — see
+   * that type for what is dropped and why, and the doc comment above for why `gates` is the one
+   * exception to this projection's usual "prose stays off the list" rule.
+   *
+   * Empty for almost every arc — the property {@link ArcRollup.gates}'s own doc names, preserved
+   * here rather than re-earned on the wire: an ungated arc costs no caret, no indent and no width.
+   */
+  gates: ArcRollupSummaryGate[];
   /** Every increment, in the rollup's own status-rank order — narrowed to the lane's fields. */
   increments: ArcRollupSummaryIncrement[];
 }
@@ -342,6 +373,9 @@ export function summariseArcRollup(rollup: ArcRollup): ArcRollupSummary {
     // ADR-0434 D3 — OPEN ones, matching both this field's name and `waiting` beside it. Counting the
     // whole array here would put a lane strip reading `waiting: false, openQuestions: 3` on the wire.
     openQuestions: rollup.questions.filter((q) => q.lifecycle === "open").length,
+    // ADR-0523 — id + shut only; the blocker's title and the authored reason stay off the list (see
+    // ArcRollupSummaryGate's own doc for why).
+    gates: rollup.gates.map((g) => ({ id: g.id, shut: g.shut })),
     increments: rollup.increments.map((inc) => {
       const row: ArcRollupSummaryIncrement = {
         id: inc.id,

@@ -23,9 +23,12 @@
  *        B's index, which the mock round said the four options were for. CUT to description + open
  *        questions by inc-01 (owner: "description of arc and then open questions, dont see any more
  *        needed here") — the proposals list and the increment work-list are gone from the panel.
- *   D4 — `waiting` and `blocked` stay separate: answerable versus stuck. `blocked` is NOT lit here,
- *        because neither of its two sources is derivable yet — the refusal, and why substituting one
- *        of the mock round's rejected predicates is forbidden, lives in `BLOCKED_IS_DERIVABLE`.
+ *   D4 — `waiting` and `blocked` stay separate: answerable versus stuck. `blocked` now LIGHTS from
+ *        an authored arc-to-arc gate (ADR-0523, `arc-queue-and-question-legibility-arc` inc-05) — one
+ *        of its two named sources, not both; the half that remains undecided, and why substituting
+ *        one of the mock round's rejected predicates for it is still forbidden, lives in
+ *        `BLOCKED_IS_DERIVABLE` / `BLOCKED_UNAVAILABLE_NOTE`. The same gate is what NESTS a queued
+ *        arc under its blocker's disclosure and pulls it off the top-level list — see `ArcLaneRow`.
  *   D7 — the factory-floor health reading NO LONGER LIVES HERE (ADR-0349 amends D7's placement, and
  *        D7's requirement is unchanged and better served). It was a persistent band above the lanes,
  *        which put a reading whose whole point was to reach the owner "without the owner going
@@ -232,12 +235,7 @@ export function ArcSurface({
             <p className="muted small arc-lanes-note">{emptyLabel}</p>
           ) : (
             lanes.map((lane) => (
-              <ArcLaneRow
-                key={lane.arc.id}
-                lane={lane}
-                selected={lane.arc.id === selectedId}
-                onSelect={() => setPicked(lane.arc.id)}
-              />
+              <ArcLaneRow key={lane.arc.id} lane={lane} selectedId={selectedId} onSelect={setPicked} />
             ))
           )}
         </div>
@@ -248,63 +246,100 @@ export function ArcSurface({
 }
 
 /**
- * One lane: the arc's name and state on the left, its unit bars on the right. A button rather than
- * a div so the lane is reachable by keyboard — the panel is where the owner acts, and it must not
- * need a mouse to get there.
+ * One lane, and — RECURSIVELY — every arc queued behind it (ADR-0523 / inc-05). The arc's name and
+ * state sit on the left, its unit bars on the right, and a disclosure CARET sits beside the row
+ * ONLY when {@link ArcLane.queued} is non-empty — the property the wire is required to preserve: an
+ * ungated arc (most of them) costs no caret, no indent and no width.
+ *
+ * THE CARET IS A SIBLING BUTTON, NOT A NESTED ONE. `<button>` inside `<button>` is invalid HTML, so
+ * expanding the queue and selecting the arc are two buttons side by side under one wrapping row
+ * rather than one control nested in the other — both stay independently reachable by keyboard,
+ * which is why the lane was a `<button>` in the first place.
  */
 function ArcLaneRow({
   lane,
-  selected,
+  selectedId,
   onSelect,
 }: {
   lane: ArcLane;
-  selected: boolean;
-  onSelect: () => void;
+  selectedId: string | null;
+  onSelect: (id: string) => void;
 }): React.JSX.Element {
-  const { arc, bars, counts, state, claimants } = lane;
+  const { arc, bars, counts, state, claimants, queued } = lane;
+  const [expanded, setExpanded] = useState(false);
+  const hasQueue = queued.length > 0;
+  const selected = arc.id === selectedId;
   // Named sessions, deduped — one session claiming three of an arc's units is one session on it, not
   // three. Shown as the chip's tooltip so `claimed` says WHO without widening the lane (ADR-0351 D2).
   const sessions = [...new Set(claimants.map((c) => c.sessionId))];
   return (
-    <button
-      type="button"
-      className={`arc-lane${selected ? ' on' : ''}`}
-      data-testid={`arc-lane:${arc.id}`}
-      data-arc-state={state}
-      aria-pressed={selected}
-      onClick={onSelect}
-    >
-      <span className="arc-lane-name">
-        <span
-          className={`arc-state-chip arc-state-${state}`}
-          {...(sessions.length > 0
-            ? { title: `held by ${sessions.join(', ')} — ${claimants.map((c) => c.unitId).join(', ')}` }
-            : {})}
+    <div className="arc-lane-row" data-testid={`arc-lane-row:${arc.id}`}>
+      <div className="arc-lane-line">
+        {hasQueue && (
+          <button
+            type="button"
+            className="arc-lane-caret"
+            data-testid={`arc-lane-caret:${arc.id}`}
+            aria-expanded={expanded}
+            aria-label={`${expanded ? 'Hide' : 'Show'} ${queued.length} arc${queued.length === 1 ? '' : 's'} queued behind ${arc.title || arc.id}`}
+            onClick={() => setExpanded((was) => !was)}
+          >
+            <span aria-hidden="true">{expanded ? '▾' : '▸'}</span> {queued.length}
+          </button>
+        )}
+        <button
+          type="button"
+          className={`arc-lane${selected ? ' on' : ''}`}
+          data-testid={`arc-lane:${arc.id}`}
+          data-arc-state={state}
+          aria-pressed={selected}
+          onClick={() => onSelect(arc.id)}
         >
-          {state}
-        </span>
-        {/* Real arc titles run past the column, so the ellipsis needs a hover fallback — the panel
-            shows the full title, but a reader scanning the list should not have to click to read one. */}
-        <span className="arc-lane-title" title={arc.title || arc.id}>
-          {arc.title || arc.id}
-        </span>
-      </span>
-      <span className="arc-lane-track" aria-label={`${counts.landed} landed, ${counts.queued} queued`}>
-        {bars.map((bar) => (
-          <span
-            key={bar.id}
-            className={`arc-bar arc-bar-${bar.tone}`}
-            data-bar-tone={bar.tone}
-            title={`${bar.title || bar.id} — ${bar.status}`}
-          />
-        ))}
-        {/* Counts, never a ratio (ADR-0314 D2): an arc has no denominator, so the surface says how
-            many units it KNOWS about and never asserts that this is all of them. */}
-        <span className="arc-lane-counts muted small">
-          {counts.landed} landed · {counts.queued} queued
-        </span>
-      </span>
-    </button>
+          <span className="arc-lane-name">
+            <span
+              className={`arc-state-chip arc-state-${state}`}
+              {...(sessions.length > 0
+                ? { title: `held by ${sessions.join(', ')} — ${claimants.map((c) => c.unitId).join(', ')}` }
+                : {})}
+            >
+              {state}
+            </span>
+            {/* Real arc titles run past the column, so the ellipsis needs a hover fallback — the
+                panel shows the full title, but a reader scanning the list should not have to click
+                to read one. */}
+            <span className="arc-lane-title" title={arc.title || arc.id}>
+              {arc.title || arc.id}
+            </span>
+          </span>
+          <span className="arc-lane-track" aria-label={`${counts.landed} landed, ${counts.queued} queued`}>
+            {bars.map((bar) => (
+              <span
+                key={bar.id}
+                className={`arc-bar arc-bar-${bar.tone}`}
+                data-bar-tone={bar.tone}
+                title={`${bar.title || bar.id} — ${bar.status}`}
+              />
+            ))}
+            {/* Counts, never a ratio (ADR-0314 D2): an arc has no denominator, so the surface says
+                how many units it KNOWS about and never asserts that this is all of them. */}
+            <span className="arc-lane-counts muted small">
+              {counts.landed} landed · {counts.queued} queued
+            </span>
+          </span>
+        </button>
+      </div>
+      {/* THE QUEUE, collapsed by default — a caret only where there is something behind it, and the
+          disclosure only opens the WIDTH+INDENT cost when the owner asks for it. Each nested row is
+          a full ArcLaneRow, recursively, so a queued arc that itself gates others keeps its own
+          caret (depth is permitted). */}
+      {expanded && hasQueue && (
+        <div className="arc-lane-queued" data-testid={`arc-lane-queued:${arc.id}`}>
+          {queued.map((child) => (
+            <ArcLaneRow key={child.arc.id} lane={child} selectedId={selectedId} onSelect={onSelect} />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -226,6 +226,7 @@ describe('/api/arcs', () => {
     };
     const [arc] = arcs;
     expect(Object.keys(arc!).sort()).toEqual([
+      'gates',
       'id',
       'increments',
       'lifecycle',
