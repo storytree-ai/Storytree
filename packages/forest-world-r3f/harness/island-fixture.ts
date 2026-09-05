@@ -128,12 +128,11 @@ export interface IslandOptions {
    * declared land camera (`LAND_CAMERA_ELEVATION_DEG`, 20°) — what every shipped 2D surface
    * draws, and therefore what `worldTo3D` receives.
    *
-   * ⚠ IT EXISTS FOR ONE ARM. The shipped 3D ground is the 2D drawing's already-foreshortened
-   * shape used as a ground plane (`parcel-cells.ts`: 234 wide, 46 deep), so the island is squashed
-   * once by the drawing and again by the 3D camera. `PLAN_VIEW_ELEVATION_DEG` (90°) hands the
-   * mapper the UNPROJECTED outline — the hex cluster's true footprint — which is the
-   * `shipped-camera-scene` page's footprint arm. A labelled deviation, never a default: the
-   * shipped canvas keeps its own long-standing basis until an owner-signed decision moves it.
+   * ⚠ IT EXISTS FOR ONE CHECK. `PLAN_VIEW_ELEVATION_DEG` (90°) builds the scene from the
+   * UNPROJECTED outline — the hex cluster's true footprint — which is an independent route to
+   * the footprint the shipped mapper now restores itself (`true-footprint.ts`, ADR-0517 D1); the
+   * two agreeing is what `true-footprint.test.ts` holds. Hand the SAME elevation to `worldTo3D`
+   * (`{ cameraElevationDeg }`) or the mapper will unproject an already-true drawing a second time.
    */
   cameraElevationDeg?: number;
 }

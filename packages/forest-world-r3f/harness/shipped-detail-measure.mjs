@@ -129,7 +129,7 @@ for (const row of result.rows) {
         `control's ${control.groundTriangles} — the arms do not share a ground, so no difference here is the trees'.`,
     );
   }
-  if (row.placements !== control.placements || row.groves !== control.groves) {
+  if (row.placements !== control.placements) {
     fail(`${row.arm} at ${row.size}/${row.zoom} stands ${row.placements} objects against the control's ${control.placements}`);
   }
   if (row.arm === MASK_ARM) {

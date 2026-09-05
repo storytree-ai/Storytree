@@ -556,12 +556,13 @@ test('THE KIT CASTS: one placement, made before the ground, read by the casters 
     !/useMemo\(\(\) => groundCasters\(descriptors\), \[descriptors\]\)/.test(src),
     'groundCasters(descriptors) alone is no longer the whole caster list',
   );
-  // ⚠ THE CANVAS STANDS THE TOP LAYER, and each of the three entry points is a strictly smaller
-  // map. `dressMapFromKit` is the vocabulary alone and `dressMapWithGroves` stops before the
-  // ground cover; either one on this line would be the shipped map quietly reverting a landing
-  // while every other assertion here still passed.
-  assert.ok(!/dressMapFromKit\(/.test(src), 'the canvas must stand the groved AND covered dressing');
-  assert.ok(!/dressMapWithGroves\(/.test(src), 'the canvas must stand the ground cover too');
+  // ⚠ THE CANVAS STANDS THE TOP LAYER, and the other entry point is a strictly smaller map.
+  // `dressMapFromKit` is the vocabulary alone; on this line it would be the shipped map quietly
+  // reverting the ground cover while every other assertion here still passed. (A third entry
+  // point, `dressMapWithGroves`, sat between them until ADR-0518 retired the grove; the canvas
+  // must not reach a grove by any name.)
+  assert.ok(!/dressMapFromKit\(/.test(src), 'the canvas must stand the covered dressing');
+  assert.ok(!/dressMapWithGroves\(|dressGroves|grove-history|grove-dressing/.test(src), 'the canvas must stand no grove (ADR-0518)');
   // KitProps computes NO placement of its own — it draws what it is handed.
   const kitProps = src.slice(...regionOf(src, 'function KitProps(', 'function TrailStrip('));
   assert.ok(!/dressMap|dressIsland/.test(kitProps), 'KitProps must not dress the map a second time');

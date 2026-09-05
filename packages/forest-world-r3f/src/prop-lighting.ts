@@ -25,8 +25,8 @@
 //
 // ⚠ IT IS A PROPERTY OF THE MATERIAL, NOT OF THE LIGHTS. `three` copies neither `onBeforeCompile`
 // nor a program cache key on `Material.clone()`, so a tinted clone of a leaf material must be
-// re-installed (`kit-mesh.ts` does) or the capability's pine would be lit differently from the
-// grove's — the one thing a state-carrying crown may never be.
+// re-installed (`kit-mesh.ts` does) or a tinted capability's pine would be lit differently from
+// an untinted one beside it — the one thing a state-carrying crown may never be.
 //
 // ⚠ THE SEAM IS `#include <lights_fragment_end>`: by then three has accumulated the ambient
 // irradiance into `reflectedLight.indirectDiffuse` and every direct light into `directDiffuse`

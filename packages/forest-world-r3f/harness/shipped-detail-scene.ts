@@ -10,7 +10,7 @@
 // as a ladder for the owner under ADR-0503 D3.
 //
 // ⚠ EVERY ARM STANDS ON THE SAME GROUND, BUILT BY THE CANOPY PAGE'S OWN MEMOISED BUILDER for the
-// SHIPPED grove arm — `canopyGroundBuild(SHIPPED_GROVE_ARM, size)` — with the grove's casters in
+// SHIPPED casting arm — `canopyGroundBuild(SHIPPED_CANOPY_ARM, size)` — with the vocabulary's casters in
 // the field. So the ground and every shadow on it are byte-identical across arms, including the
 // `bare` arm that stands nothing: the only pixels that differ between `bare` and any other arm are
 // the PROPS' own, which is what makes `bare` an honest mask for "where the trees are" and the
@@ -34,7 +34,6 @@ import {
   buildGroundMaterial,
   type GroundLayerExtras,
 } from '../src/ForestWorldCanvas.js';
-import { isGrovePlacement } from '../src/kit-vocabulary.js';
 import {
   calibrateLights,
   intensitiesFor,
@@ -52,7 +51,7 @@ import {
 } from './frame-cost-scene.js';
 import { KIT_ASSET_URL, kitMeshes, loadKit, setKitPropLighting, type LoadedKit } from './kit-scene.js';
 import { SHIPPED_LIGHTING } from './shipped-baseline.js';
-import { SHIPPED_GROVE_ARM, armPlacements, canopyGroundBuild } from './shipped-canopy-scene.js';
+import { SHIPPED_CANOPY_ARM, armPlacements, canopyGroundBuild } from './shipped-canopy-scene.js';
 import {
   FIT_ZOOM,
   crowdPxPerUnit,
@@ -134,7 +133,7 @@ export const DRESSED_ARMS: readonly DetailArm[] = DETAIL_ARMS.filter((a) => DETA
 export const SHIPPED_DETAIL_ARM: DetailArm = 'crown-30';
 
 export const DETAIL_ARM_CAPTION = {
-  bare: 'the shipped ground with the grove’s SHADOWS in its field and nothing standing on it — the prop MASK (every pixel that differs from this is a tree, a trunk or a flower)',
+  bare: 'the shipped ground with the vocabulary’s SHADOWS in its field and nothing standing on it — the prop MASK (every pixel that differs from this is a tree, a trunk or a flower)',
   'texture-128':
     'TODAY: the kit at 128 texels (the rung committed until this landing), crowns lit at the ladder floor — an unlit face at 80% of a lit one (CONTROL)',
   'texture-native': 'ADR-0508 D1 alone: the kit at its NATIVE 2048-texel maps, lighting unchanged (unlit face at 80%)',
@@ -244,13 +243,12 @@ export interface DetailScene {
   pxPerUnit: number;
   groundTriangles: number;
   placements: number;
-  groves: number;
   meshes: number;
 }
 
 /**
- * ONE ARM'S SCENE: the shipped grove arm's ground (its builder, its casters) and, when a kit is
- * handed in, the same grove placements stood from that kit — so two arms differ in the kit and in
+ * ONE ARM'S SCENE: the shipped casting arm's ground (its builder, its casters) and, when a kit is
+ * handed in, the same vocabulary placements stood from that kit — so two arms differ in the kit and in
  * nothing else.
  */
 export function buildDetailScene(
@@ -259,7 +257,7 @@ export function buildDetailScene(
   size: CrowdSize,
   zoom: CrowdZoom,
 ): DetailScene {
-  const build = canopyGroundBuild(SHIPPED_GROVE_ARM, size);
+  const build = canopyGroundBuild(SHIPPED_CANOPY_ARM, size);
   const geo = cellGroundGeometry(build.input);
   if (geo.triangles === 0) throw new Error('shipped-detail-scene: the crowd drew no ground');
   const geometry = new THREE.BufferGeometry();
@@ -276,7 +274,7 @@ export function buildDetailScene(
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(SHIPPED_LIGHTING.background);
   scene.add(new THREE.Mesh(geometry, material));
-  const placements = armPlacements(SHIPPED_GROVE_ARM, size);
+  const placements = armPlacements(SHIPPED_CANOPY_ARM, size);
   let meshes = 0;
   if (kit !== null) {
     for (const mesh of kitMeshes(kit, placements)) {
@@ -298,7 +296,6 @@ export function buildDetailScene(
     pxPerUnit,
     groundTriangles: geo.triangles,
     placements: placements.length,
-    groves: placements.filter(isGrovePlacement).length,
     meshes,
   };
 }
@@ -310,7 +307,6 @@ export interface DetailReading {
   triangles: number;
   groundTriangles: number;
   placements: number;
-  groves: number;
   meshes: number;
   stats: ImageStats;
   land: number;
@@ -436,7 +432,6 @@ export async function createDetailRunner(): Promise<DetailRunner> {
         triangles,
         groundTriangles: s.groundTriangles,
         placements: s.placements,
-        groves: s.groves,
         meshes: s.meshes,
         stats: imageStats(buf, s.width, s.height, bg),
         land: census.land,

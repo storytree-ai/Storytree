@@ -31,6 +31,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  PLAN_VIEW_ELEVATION_DEG,
   buildRelaxedCells,
   buildScene,
   routeTrails,
@@ -171,7 +172,11 @@ test('r3f-semantic-layer-maps-faithfully: kind → mesh family, position → tra
       territories: [mkTerritory({ wisps: [{ runId: 'r1', title: 'building unit-a' }] })],
     }),
   );
-  const descs = worldTo3D(scene);
+  // ⚠ THE WALK'S OWN POSITIONS: the mapper is told the drawing is already true (plan view), so
+  // the per-island footprint restoration (ADR-0517 D1, `true-footprint.test.ts`) is the identity
+  // and every transform below is the World geometry's exactly. The default — the drawing
+  // unprojected — is pinned at the end of this file.
+  const descs = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
 
   // kind family → typed descriptor branch, transforms derived from the World geometry: each
   // cell-ground sits at ITS OWN parcel ring's centroid — the relaxed-mesh ground, the one
@@ -291,8 +296,8 @@ test('worldTo3D REFUSES a classic-substrate (tile) scene — the old land path i
 test('worldTo3D SKIPS the story tree — the island keeps its parcels and its blooms, and stands no cone', () => {
   // ⚠⚠ THE RETIREMENT, PROVED AT THE SEAM IT WAS MADE AT (ADR-0508). Until 2026-09-04 this test
   // read "one story-tree descriptor per territory" and the shipped canvas drew a cylinder trunk
-  // under a cone crown at every island's centre. The owner retired it — each island is a grove now
-  // — and the mapper is where it went, because every downstream reader of what stands on the map
+  // under a cone crown at every island's centre. The owner retired it — each island stands its
+  // kit trees now — and the mapper is where it went, because every downstream reader of what stands on the map
   // (the canvas, `groundCasters`, and through `shippedCasters()` every comparison page) reaches it
   // through this function.
   const uatCriteria = [{ id: 'sig-1', state: 'proven' as const }];
@@ -363,7 +368,8 @@ test('worldTo3D filters under-island runs into trail-ghost-strip — never a tra
 
 test('worldTo3D maps cave portals to cave-arch descriptors — rim placement, bearing, mouth width', () => {
   assert.ok(CAVE_TRAILS.caves.length > 0, 'the walled-in fixture forces cave portals');
-  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })));
+  // The walk's own placement — the footprint restoration switched off as above.
+  const descs = worldTo3D(buildScene(mkInput({ trails: CAVE_TRAILS })), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG });
   const arches = descs.filter((d): d is InstanceDescriptor => d.kind === 'cave-arch');
   assert.equal(arches.length, CAVE_TRAILS.caves.length, 'one cave-arch per portal');
   // match by island + edge set (portal order is preserved by buildScene)
@@ -1278,4 +1284,54 @@ test('a cave portal with NO status ANYWHERE above it falls back to `unknown`', (
   const arches = worldTo3D(scene).filter(asInstance).filter((d) => d.kind === 'cave-arch');
   assert.equal(arches.length, 1);
   assert.equal(arches[0]!.material, 'unknown', 'the portal fell back to something other than unknown');
+});
+
+/* ── ⚠⚠ THE DEFAULT IS THE TRUE FOOTPRINT (ADR-0517 D1) ───────────────────────────────────────
+   Every test above that pins a position asks the mapper for the DRAWING (plan view). What ships
+   is the drawing unprojected per island, and this is the one place that holds the default is not
+   the drawing — the arithmetic itself is `true-footprint.test.ts`'s. */
+
+test('⚠⚠ by default the mapper restores the island’s true footprint: the drawing’s z stretched by 1/sin 20° about the island’s centre', () => {
+  const scene = buildScene(mkInput());
+  const drawn = worldTo3D(scene, { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }).filter(asInstance);
+  const shipped = worldTo3D(scene).filter(asInstance);
+  assert.equal(drawn.length, shipped.length);
+  const cells = drawn.filter((d) => d.kind === 'cell-ground');
+  assert.ok(cells.length > 0);
+  // The island's centre — the mean of its ring vertices — is invariant, and a ring's z is
+  // stretched by exactly the drawing's projection about it. Derived from the drawing here, never
+  // read back off the module.
+  let sz = 0;
+  let n = 0;
+  for (const c of cells) for (const p of c.points ?? []) {
+    sz += p.z;
+    n += 1;
+  }
+  const cz = sz / n;
+  const stretch = 1 / Math.sin((20 * Math.PI) / 180);
+  for (const [i, d] of shipped.entries()) {
+    const b = drawn[i]!;
+    assert.equal(d.kind, b.kind);
+    assert.equal(d.transform.x, b.transform.x, 'x never moves');
+    if (d.kind === 'cell-ground') {
+      assert.ok(Math.abs(d.transform.z - cz - (b.transform.z - cz) * stretch) < 1e-9, 'a cell stretches about its island');
+      for (const [j, p] of (d.points ?? []).entries()) {
+        assert.ok(Math.abs(p.z - cz - (b.points![j]!.z - cz) * stretch) < 1e-9);
+      }
+    }
+  }
+  // Not vacuous: the island got deeper.
+  const depth = (ds: InstanceDescriptor[]) => {
+    let lo = Infinity;
+    let hi = -Infinity;
+    for (const c of ds) for (const p of c.points ?? []) {
+      lo = Math.min(lo, p.z);
+      hi = Math.max(hi, p.z);
+    }
+    return hi - lo;
+  };
+  const before = depth(cells);
+  const after = depth(shipped.filter((d) => d.kind === 'cell-ground'));
+  assert.ok(Math.abs(after - before * stretch) < 1e-6, `${before} → ${after}`);
+  assert.ok(after > before * 2.9);
 });

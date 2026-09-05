@@ -96,7 +96,7 @@ test('THE 2026-08-30 CASTERS: the story tree pooled 9.7 units, its trunk alone 2
   //
   // ⚠ THESE ARE NO LONGER THE SHIPPED CASTERS, and the test is kept as an exercise of
   // `contactReach` rather than renamed away. The story tree was retired on 2026-09-04 (ADR-0508)
-  // and the shipped map's casters are the grove's placements; the arithmetic below is about the
+  // and the shipped map's casters are the kit placements'; the arithmetic below is about the
   // FUNCTION, and its two inputs — a 7x19 crown and a 1.6x8 trunk — are a case worth holding to a
   // published figure whether or not anything currently on the map has those dimensions.
   assert.ok(Math.abs(contactReach(7, 19) - 9.74) < 0.02, `crown reach: ${contactReach(7, 19)}`);

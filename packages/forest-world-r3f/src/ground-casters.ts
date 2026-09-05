@@ -20,10 +20,12 @@
 // Every placement now contributes a caster ({@link placementCaster}) from the SAME placement list
 // `KitProps` draws, computed once in the canvas before the ground is built, so the shadow and the
 // object it belongs to cannot be two lists that agree today. The placeholder tree was then retired
-// outright (ADR-0508) — each island stands a grove now — and its caster went with it in the same
+// outright (ADR-0508) — each island stood a grove, until ADR-0518 — and its caster went with it in the same
 // landing, because a shadow with nothing casting it is the misreport this module exists to
 // prevent. The dark pool at every island's CENTRE in every frame on this arc up to that date was
-// the placeholder's; there is no longer anything at an island's centre that casts one.
+// the placeholder's; there is no longer anything at an island's centre that casts one. (The
+// grove that took the tree's place was itself retired on 2026-09-05, ADR-0518 — what casts on an
+// island now is exactly its capability trees and its blooms.)
 //
 // ⚠ WHAT STILL CASTS FROM THE DESCRIPTOR STREAM IS THE CAVE PORTAL, AND {@link groundCasters}
 // KEEPING ONE CASE IS NOT A FUNCTION WAITING TO BE INLINED. It is the one place that answers
@@ -95,7 +97,7 @@ export function groundCasters(descriptors: readonly Descriptor3D[]): ShadowCaste
  * kit by `footprintDriftOf` / `heightDriftOf` where the kit is loaded. A caster read off the asset
  * would arrive after the field was already stamped.
  *
- * ⚠ THE SCALE REACHES BOTH DIMENSIONS. A grove pine at 0.6 of the role's height is 0.6 of its
+ * ⚠ THE SCALE REACHES BOTH DIMENSIONS. A placement at 0.6 of the role's height is 0.6 of its
  * width too — the kit scales uniformly — so a caster that shrank the height and kept the footprint
  * would throw a shadow wider than the crown that casts it, which is the mismatch that reads as a
  * rendering bug rather than as art.

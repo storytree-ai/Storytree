@@ -1,0 +1,1255 @@
+{
+  "id": {
+    "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+    "vendor": "Google Inc. (NVIDIA Corporation)",
+    "software": false,
+    "timerQuery": true
+  },
+  "plan": {
+    "configs": [
+      {
+        "arm": "before",
+        "size": "forest",
+        "zoom": "fit"
+      },
+      {
+        "arm": "true-x1",
+        "size": "forest",
+        "zoom": "fit"
+      },
+      {
+        "arm": "true-x2",
+        "size": "forest",
+        "zoom": "fit"
+      },
+      {
+        "arm": "true-x3",
+        "size": "forest",
+        "zoom": "fit"
+      },
+      {
+        "arm": "before",
+        "size": "one",
+        "zoom": 8
+      },
+      {
+        "arm": "true-x1",
+        "size": "one",
+        "zoom": 8
+      },
+      {
+        "arm": "true-x2",
+        "size": "one",
+        "zoom": 8
+      },
+      {
+        "arm": "true-x3",
+        "size": "one",
+        "zoom": 8
+      }
+    ],
+    "repeats": 5,
+    "batch": 20,
+    "runs": 2
+  },
+  "runs": [
+    {
+      "id": {
+        "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+        "vendor": "Google Inc. (NVIDIA Corporation)",
+        "software": false,
+        "timerQuery": true
+      },
+      "samples": [
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6778255999999998,
+          "gpuBatchNs": 33556512,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.8077776,
+          "gpuBatchNs": 36155552,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.2768464,
+          "gpuBatchNs": 45536928,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.785584,
+          "gpuBatchNs": 55711680,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8407664,
+          "gpuBatchNs": 16815328,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7839104,
+          "gpuBatchNs": 35678208,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7853439999999998,
+          "gpuBatchNs": 35706880,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7744959999999999,
+          "gpuBatchNs": 35489920,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6185408,
+          "gpuBatchNs": 32370816,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7430527999999998,
+          "gpuBatchNs": 34861056,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.2493472,
+          "gpuBatchNs": 44986944,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.766368,
+          "gpuBatchNs": 55327360,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8404016000000001,
+          "gpuBatchNs": 16808032,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7852352,
+          "gpuBatchNs": 35704704,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7848336,
+          "gpuBatchNs": 35696672,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7751487999999997,
+          "gpuBatchNs": 35502976,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6188736,
+          "gpuBatchNs": 32377472,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7435392,
+          "gpuBatchNs": 34870784,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.3252736,
+          "gpuBatchNs": 46505472,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.8739552,
+          "gpuBatchNs": 57479104,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8495104,
+          "gpuBatchNs": 16990208,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.8066768,
+          "gpuBatchNs": 36133536,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.792696,
+          "gpuBatchNs": 35853920,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7745920000000002,
+          "gpuBatchNs": 35491840,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6183295999999998,
+          "gpuBatchNs": 32366592,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7439792,
+          "gpuBatchNs": 34879584,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.2490752,
+          "gpuBatchNs": 44981504,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.7644127999999997,
+          "gpuBatchNs": 55288256,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8400368,
+          "gpuBatchNs": 16800736,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7845248000000002,
+          "gpuBatchNs": 35690496,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7841504000000001,
+          "gpuBatchNs": 35683008,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7751872,
+          "gpuBatchNs": 35503744,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6188863999999998,
+          "gpuBatchNs": 32377728,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7431552,
+          "gpuBatchNs": 34863104,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.250416,
+          "gpuBatchNs": 45008320,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.7660063999999998,
+          "gpuBatchNs": 55320128,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8408832,
+          "gpuBatchNs": 16817664,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7843471999999998,
+          "gpuBatchNs": 35686944,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7844799999999998,
+          "gpuBatchNs": 35689600,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.77408,
+          "gpuBatchNs": 35481600,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        }
+      ]
+    },
+    {
+      "id": {
+        "renderer": "ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)",
+        "vendor": "Google Inc. (NVIDIA Corporation)",
+        "software": false,
+        "timerQuery": true
+      },
+      "samples": [
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6195616000000002,
+          "gpuBatchNs": 32391232,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7431376,
+          "gpuBatchNs": 34862752,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.2496256,
+          "gpuBatchNs": 44992512,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.765824,
+          "gpuBatchNs": 55316480,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8408496,
+          "gpuBatchNs": 16816992,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7849343999999998,
+          "gpuBatchNs": 35698688,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7851392000000001,
+          "gpuBatchNs": 35702784,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.774296,
+          "gpuBatchNs": 35485920,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6188928,
+          "gpuBatchNs": 32377856,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7446895999999998,
+          "gpuBatchNs": 34893792,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.2479872,
+          "gpuBatchNs": 44959744,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.764896,
+          "gpuBatchNs": 55297920,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8412767999999999,
+          "gpuBatchNs": 16825536,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7848016000000002,
+          "gpuBatchNs": 35696032,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7849856,
+          "gpuBatchNs": 35699712,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7745088,
+          "gpuBatchNs": 35490176,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6195936,
+          "gpuBatchNs": 32391872,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.743984,
+          "gpuBatchNs": 34879680,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.2478912,
+          "gpuBatchNs": 44957824,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.7671552,
+          "gpuBatchNs": 55343104,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8415904,
+          "gpuBatchNs": 16831808,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7847376000000001,
+          "gpuBatchNs": 35694752,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7834800000000002,
+          "gpuBatchNs": 35669600,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7747968,
+          "gpuBatchNs": 35495936,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6190031999999999,
+          "gpuBatchNs": 32380064,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7410896,
+          "gpuBatchNs": 34821792,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.2487424000000003,
+          "gpuBatchNs": 44974848,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.7663888,
+          "gpuBatchNs": 55327776,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.8403968,
+          "gpuBatchNs": 16807936,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7852544000000001,
+          "gpuBatchNs": 35705088,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7841984,
+          "gpuBatchNs": 35683968,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7741712,
+          "gpuBatchNs": 35483424,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.6196544,
+          "gpuBatchNs": 32393088,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3762088,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 1.7438672,
+          "gpuBatchNs": 34877344,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 3569544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.248488,
+          "gpuBatchNs": 44969760,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 5082198,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "forest",
+          "zoom": "fit",
+          "batch": 20,
+          "gpuMsPerFrame": 2.7669504,
+          "gpuBatchNs": 55339008,
+          "disjoint": false,
+          "drawCalls": 7,
+          "triangles": 6634762,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "before",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 0.840192,
+          "gpuBatchNs": 16803840,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 167480,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x1",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7841584000000001,
+          "gpuBatchNs": 35683168,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 152082,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x2",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7856448,
+          "gpuBatchNs": 35712896,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 224544,
+          "timerQueryAvailable": true,
+          "hidden": false
+        },
+        {
+          "arm": "true-x3",
+          "size": "one",
+          "zoom": 8,
+          "batch": 20,
+          "gpuMsPerFrame": 1.7744336,
+          "gpuBatchNs": 35488672,
+          "disjoint": false,
+          "drawCalls": 4,
+          "triangles": 296928,
+          "timerQueryAvailable": true,
+          "hidden": false
+        }
+      ]
+    }
+  ],
+  "agreement": {
+    "status": "AGREED",
+    "runs": 2,
+    "rows": [
+      {
+        "key": "before|forest|fit",
+        "medians": [
+          1.6188736,
+          1.6195616000000002
+        ],
+        "spreads": [
+          0.05949599999999999,
+          0.0007615999999999179
+        ],
+        "gapMs": 0.000688000000000244,
+        "gapPct": 0.04249868550578897,
+        "toleranceMs": 0.05949599999999999,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "true-x1|forest|fit",
+        "medians": [
+          1.7435392,
+          1.7438672
+        ],
+        "spreads": [
+          0.06472480000000025,
+          0.0035999999999998256
+        ],
+        "gapMs": 0.00032799999999988394,
+        "gapPct": 0.018812310041545606,
+        "toleranceMs": 0.06472480000000025,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "true-x2|forest|fit",
+        "medians": [
+          2.250416,
+          2.248488
+        ],
+        "spreads": [
+          0.0761984,
+          0.0017343999999996917
+        ],
+        "gapMs": 0.0019279999999999298,
+        "gapPct": 0.08574651054397131,
+        "toleranceMs": 0.0761984,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "true-x3|forest|fit",
+        "medians": [
+          2.766368,
+          2.7663888
+        ],
+        "spreads": [
+          0.10954240000000048,
+          0.0022592000000001278
+        ],
+        "gapMs": 0.00002080000000015403,
+        "gapPct": 0.0007518883966324809,
+        "toleranceMs": 0.10954240000000048,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "before|one|8",
+        "medians": [
+          0.8407664,
+          0.8408496
+        ],
+        "spreads": [
+          0.009473599999999971,
+          0.0013983999999999108
+        ],
+        "gapMs": 0.00008319999999994998,
+        "gapPct": 0.009895733226250475,
+        "toleranceMs": 0.009473599999999971,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "true-x1|one|8",
+        "medians": [
+          1.7845248000000002,
+          1.7848016000000002
+        ],
+        "spreads": [
+          0.022766400000000075,
+          0.0010959999999999859
+        ],
+        "gapMs": 0.00027679999999996596,
+        "gapPct": 0.015511132151257632,
+        "toleranceMs": 0.022766400000000075,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "true-x2|one|8",
+        "medians": [
+          1.7848336,
+          1.7849856
+        ],
+        "spreads": [
+          0.008545599999999931,
+          0.0021647999999998557
+        ],
+        "gapMs": 0.00015199999999992997,
+        "gapPct": 0.008516200053603314,
+        "toleranceMs": 0.008545599999999931,
+        "agreed": true,
+        "identical": false
+      },
+      {
+        "key": "true-x3|one|8",
+        "medians": [
+          1.7745920000000002,
+          1.7744336
+        ],
+        "spreads": [
+          0.0011071999999998638,
+          0.0006256000000000039
+        ],
+        "gapMs": 0.000158400000000114,
+        "gapPct": 0.008926792188792752,
+        "toleranceMs": 0.0011071999999998638,
+        "agreed": true,
+        "identical": false
+      }
+    ],
+    "droppedKeys": [],
+    "dropped": [],
+    "suspectIdentical": false,
+    "prose": "Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped."
+  }
+}

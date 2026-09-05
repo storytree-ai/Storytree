@@ -1,11 +1,11 @@
 // shipped-cover-scene.ts — THE GROUND COVER on the shipped map: the recipe's bushes, grass tufts
 // and flower patches, at three sizes, each an arm over the SAME dressed ground.
 //
-//   bare       the shipped ground with the grove's SHADOWS in its field and nothing standing —
+//   bare       the shipped ground with the vocabulary's SHADOWS in its field and nothing standing —
 //              the prop MASK, and the denominator for "how much of this island is objects"
-//   canopy     what the map stands TODAY: the vocabulary plus each healthy island's grove
-//              (`dressMapWithGroves` at the shipped rung) — the CONTROL every pixel figure is
-//              read against
+//   canopy     the vocabulary alone: one tree per capability, one bloom per signature
+//              (`dressMapFromKit`) — the CONTROL every pixel figure is read against. ⚠ It stood
+//              each healthy island's grove too until ADR-0518 retired the role (2026-09-05).
 //   cover-1    + the ground cover at `build_land.py` TRANSCRIBED — the literal port, kept as an
 //              arm precisely because it is the one that does not work
 //   cover-2.5  + the cover at the ISLAND's own linear scale (234 / 93.8)
@@ -22,8 +22,8 @@
 // scaled and the ground cover crossed literal (`a-faithful-port-under-a-rule-the-source-lacks-
 // under-delivers`, exactly). Standing MORE eight-pixel flecks was never going to answer it.
 //
-// ⚠ EVERY ARM STANDS ON THE SAME GROUND, built by the canopy page's own memoised builder for the
-// SHIPPED grove arm — `canopyGroundBuild(SHIPPED_GROVE_ARM, size)`. That is exact rather than
+// ⚠ EVERY ARM STANDS ON THE SAME GROUND, built by the canopy module's own memoised builder for the
+// SHIPPED casting arm — `canopyGroundBuild(SHIPPED_CANOPY_ARM, size)`. That is exact rather than
 // approximate here, because GROUND COVER CASTS NOTHING (`placementCasters` drops the dressing
 // roles): a cover arm's caster list IS the canopy arm's, so its occlusion field is the same field
 // and its ground is the same bytes. The only pixels that differ between any two arms are the
@@ -50,7 +50,7 @@ import * as THREE from 'three';
 
 import { GROUND_ATLAS_ATTRIBUTE, GROUND_STATUS_ATTRIBUTE } from '../src/banded-ground-material.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
-import { COVER_SIZE, COVER_SIZE_RUNGS } from '../src/cover-dressing.js';
+import { COVER_DENSITY_RUNGS, COVER_SIZE, COVER_SIZE_RUNGS } from '../src/cover-dressing.js';
 import { configureExactColour } from '../src/exact-colour.js';
 import {
   SHIPPED_GRASS,
@@ -59,9 +59,8 @@ import {
   buildGroundMaterial,
   type GroundLayerExtras,
 } from '../src/ForestWorldCanvas.js';
-import { GROVE_DENSITY } from '../src/grove-dressing.js';
 import { LAND_RELIEF_AMPLITUDE } from '../src/land-relief.js';
-import { isDressingRole, isGrovePlacement, type KitPlacement, type KitRole } from '../src/kit-vocabulary.js';
+import { isDressingRole, type KitPlacement, type KitRole } from '../src/kit-vocabulary.js';
 import {
   calibrateLights,
   intensitiesFor,
@@ -85,7 +84,7 @@ import { SHIPPED_LIGHTING } from './shipped-baseline.js';
 import {
   CANOPY_FOOTPRINT,
   CANOPY_HEIGHTS,
-  SHIPPED_GROVE_ARM,
+  SHIPPED_CANOPY_ARM,
   armCasters,
   armDescriptors,
   armPlacements,
@@ -162,9 +161,9 @@ export const SHIPPED_COVER_ARM: CoverArm = 'cover-4.5';
 /** What each arm IS, as the caption under its own picture — beside the arm rather than in the
  *  HTML, so an arm cannot be added without a reader being told what it is. */
 export const COVER_ARM_CAPTION = {
-  bare: 'the shipped ground with the grove’s SHADOWS in its field and nothing standing on it — the prop MASK (every pixel that differs from this is an object)',
+  bare: 'the shipped ground with the vocabulary’s SHADOWS in its field and nothing standing on it — the prop MASK (every pixel that differs from this is an object)',
   canopy:
-    'TODAY: the vocabulary + each healthy island’s grove at the shipped rung, and no ground cover at all (CONTROL)',
+    'the vocabulary alone: one tree per capability, one bloom per signature, and no ground cover at all (CONTROL)',
   'cover-1':
     '+ the recipe’s ground cover at `build_land.py` TRANSCRIBED — 70 bushes, 120 grass tufts and 26 flower patches per recipe-island of area, at the recipe’s own literal widths',
   'cover-2.5':
@@ -184,14 +183,15 @@ export const COVER_PICTURE_ZOOMS: readonly CrowdZoom[] = [...COVER_ZOOMS, FIT_ZO
 const placementMemo = new Map<string, KitPlacement[]>();
 
 /**
- * WHAT EACH ARM STANDS. `bare` stands nothing; `canopy` is what the canvas stood before this
- * landing (the canopy page's own `armPlacements` at the shipped grove arm, imported rather than
- * re-derived so the two pages cannot come to disagree about what "today" is); a `cover-*` arm is
- * what the canvas stands NOW (`dressMapWithCover`) at that arm's size rung.
+ * WHAT EACH ARM STANDS. `bare` stands nothing; `canopy` is the vocabulary (the canopy module's own
+ * `armPlacements` at its casting arm, imported rather than re-derived so the two cannot come to
+ * disagree about what stands); a `cover-*` arm is what the canvas stands NOW (`dressMapWithCover`)
+ * at that arm's size rung.
  *
- * ⚠ EVERY COVER ARM HOLDS THE GROVE AT THE SHIPPED RUNG, so exactly one thing moves along the
- * ladder. `GROVE_DENSITY` is passed explicitly rather than left to the default, because the
- * default is what a later scale-back on the OTHER layer would silently change under this page.
+ * ⚠ EVERY COVER ARM HOLDS THE COUNT AT THE RECIPE'S OWN (rung 1 of `COVER_DENSITY_RUNGS`), so
+ * exactly one thing moves along THIS ladder — size. It is passed explicitly rather than left to
+ * the default, because the default is the shipped COUNT pick, which the one-tree-per-capability
+ * page ladders and a later scale-back would silently change under this page.
  *
  * ⚠ MEMOISED PER ARM AND SIZE, and it is a `check:mutation-diff` requirement as much as a cost
  * one: the forest's dressing is 35 islands' worth of placement, and a suite that rebuilt it per
@@ -204,11 +204,11 @@ export function coverArmPlacements(arm: CoverArm, size: CrowdSize): KitPlacement
   const coverSize = COVER_ARM_SIZE[arm];
   const built =
     coverSize === null
-      ? armPlacements(arm === MASK_ARM ? 'bare' : SHIPPED_GROVE_ARM, size)
+      ? armPlacements(arm === MASK_ARM ? 'bare' : SHIPPED_CANOPY_ARM, size)
       : dressMapWithCover(armDescriptors(size), {
           relief: LAND_RELIEF_AMPLITUDE,
           footprint: CANOPY_FOOTPRINT,
-          density: GROVE_DENSITY,
+          coverDensity: COVER_DENSITY_RUNGS[0]!,
           coverSize,
         });
   placementMemo.set(key, built);
@@ -237,7 +237,6 @@ export function coverArmCasters(arm: CoverArm, size: CrowdSize): ShadowCaster[] 
  *  quote, read off the placement list rather than recomputed from the recipe. */
 export interface CoverCensus {
   objects: number;
-  groves: number;
   cover: number;
   byRole: Record<string, number>;
 }
@@ -252,7 +251,6 @@ export function coverCensus(placements: readonly KitPlacement[]): CoverCensus {
   }
   return {
     objects: placements.length,
-    groves: placements.filter(isGrovePlacement).length,
     cover,
     byRole,
   };
@@ -327,7 +325,7 @@ export interface CoverScene {
 }
 
 /**
- * ONE ARM'S SCENE: the shipped grove arm's ground (its builder, its casters) and, when a kit is
+ * ONE ARM'S SCENE: the shipped casting arm's ground (its builder, its casters) and, when a kit is
  * handed in, this arm's placements stood from it — so two arms differ in what stands and in
  * nothing else.
  */
@@ -338,7 +336,7 @@ export function buildCoverScene(
   size: CrowdSize,
   zoom: CrowdZoom,
 ): CoverScene {
-  const build = canopyGroundBuild(SHIPPED_GROVE_ARM, size);
+  const build = canopyGroundBuild(SHIPPED_CANOPY_ARM, size);
   const geo = cellGroundGeometry(build.input);
   if (geo.triangles === 0) throw new Error('shipped-cover-scene: the crowd drew no ground');
   const geometry = new THREE.BufferGeometry();
@@ -377,7 +375,7 @@ export function buildCoverScene(
     pxPerUnit,
     groundTriangles: geo.triangles,
     census: coverCensus(placements),
-    groundCasters: armCasters(SHIPPED_GROVE_ARM, size).length,
+    groundCasters: armCasters(SHIPPED_CANOPY_ARM, size).length,
     ownCasters: coverArmCasters(arm, size).length,
     widestCover: widestCoverWidth(placements, CANOPY_FOOTPRINT),
     widestFlower: widestFlowerPatchWidth(placements, CANOPY_FOOTPRINT),
@@ -453,7 +451,7 @@ export function leanerArm(arm: CoverArm): CoverArm | null {
  * beside the run it broke.
  */
 export function casterAgreement(size: CrowdSize): string[] {
-  const want = armCasters(SHIPPED_GROVE_ARM, size).length;
+  const want = armCasters(SHIPPED_CANOPY_ARM, size).length;
   const out: string[] = [];
   for (const arm of DRESSED_ARMS) {
     const got = coverArmCasters(arm, size).length;

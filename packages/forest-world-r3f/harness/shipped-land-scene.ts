@@ -38,6 +38,8 @@
 
 import * as THREE from 'three';
 
+import { PLAN_VIEW_ELEVATION_DEG } from '@storytree/forest-world';
+
 import {
   cellGroundGeometry,
   FLAT_GROUND,
@@ -75,7 +77,7 @@ import { SHIPPED_GROUND_COLOUR, SHIPPED_LIGHTING } from './shipped-baseline.js';
 import { readIdentity, type RendererIdentity } from './frame-cost-scene.js';
 import { kitMeshes, loadKit, roleFootprints } from './kit-scene.js';
 import type { LoadedKit } from './kit-scene.js';
-import { dressMapWithGroves } from '../src/map-dressing.js';
+import { dressMapWithCover } from '../src/map-dressing.js';
 
 /**
  * THE SIX ARMS — a LADDER WITH ONE FORK, in which every arm differs from the one it names in
@@ -327,14 +329,16 @@ export function setLandKit(kit: LoadedKit): void {
  * that belongs to one, and `dressMapFromKit` spends the signatures per island. This fixture is a
  * healthy story with ten signed criteria, so it now stands ten flowers it previously did not.
  *
- * ⚠ AND SINCE 2026-09-03 IT STANDS THE GROVE TOO — `dressMapWithGroves`, the function the canvas
- * calls, because this fixture is a healthy island and the canvas forests those. A page that kept
- * calling the vocabulary-only dressing would picture the map as it stood before the grove.
+ * ⚠ AND IT STANDS THE GROUND COVER TOO — `dressMapWithCover`, the function the canvas calls,
+ * because this fixture is a healthy island and the canvas dresses those. A page that kept calling
+ * the vocabulary-only dressing would picture the map as it stood before the cover. (From
+ * 2026-09-03 to 2026-09-05 this called `dressMapWithGroves`; ADR-0518 retired the grove, and the
+ * canvas's own entry point is what this reads now.)
  */
 export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
   return kitMeshes(
     kit,
-    dressMapWithGroves(worldTo3D(islandScene()), {
+    dressMapWithCover(worldTo3D(islandScene()), {
       relief: LAND_RELIEF_AMPLITUDE,
       footprint: roleFootprints(kit),
     }),
@@ -343,6 +347,19 @@ export function shippedProps(kit: LoadedKit): THREE.Mesh[] {
 
 export function shippedParcels(): InstanceDescriptor[] {
   return worldTo3D(islandScene()).filter(
+    (d): d is InstanceDescriptor => d.kind === 'cell-ground',
+  );
+}
+
+/**
+ * THE SAME ISLAND AS THE 2D DRAWING LAYS IT — the projected ribbon (233.8 × 46.2) the canvas drew
+ * as its ground plane until 2026-09-05. The mapper is told the drawing is already true (plan view),
+ * so the per-island footprint restoration (ADR-0517 D1) is the identity. Two readers: the crowd
+ * layout sizes its frame from this, because the real map's spacing is the drawing's; and a
+ * comparison page's "before this landing" arm stands on it.
+ */
+export function drawnParcels(): InstanceDescriptor[] {
+  return worldTo3D(islandScene(), { cameraElevationDeg: PLAN_VIEW_ELEVATION_DEG }).filter(
     (d): d is InstanceDescriptor => d.kind === 'cell-ground',
   );
 }
@@ -394,7 +411,7 @@ export function shippedMapCasters(): ShadowCaster[] {
   return [
     ...shippedCasters(),
     ...placementCasters(
-      dressMapWithGroves(worldTo3D(islandScene()), {
+      dressMapWithCover(worldTo3D(islandScene()), {
         relief: LAND_RELIEF_AMPLITUDE,
         footprint: KIT_FOOTPRINTS_2026_08_29,
       }),
@@ -727,8 +744,8 @@ export function buildLandScene(
   scene.add(sun);
 
   // ⚠ THE VIEW DIRECTION IS THE SHIPPED ONE; THE FRAME IS THE ISLAND'S OWN, AND THE SPLIT IS
-  // DELIBERATE. `frameWorld` supplies the 45°-elevation direction the map looks from, and that is
-  // what has to be the product's. Its FRAMING is a different matter: the shipped rule backs off
+  // DELIBERATE. `frameWorld` supplies the elevation the map looks from (the owner-signed 50°
+  // since ADR-0517 D2; 45° before it), and that is what has to be the product's. Its FRAMING is a different matter: the shipped rule backs off
   // `max(260, spread * 2.6)`, which on this island — 234 units wide and 46 deep — reserves a frame
   // the land occupies a few percent of. Framed that way both comparison pictures would be a green
   // smear in a black field, and whether that rule wastes a third of the screen is its OWN open

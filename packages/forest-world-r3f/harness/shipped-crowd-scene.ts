@@ -86,6 +86,7 @@ import {
   groundRowOf,
   linearColourOf,
   litLadderOf,
+  drawnParcels,
   shippedCasters,
   shippedParcels,
 } from './shipped-land-scene.js';
@@ -198,8 +199,13 @@ export function crowdIslands(size: CrowdSize): readonly CrowdIsland[] {
   if (size.islands === 1) {
     return [{ index: 0, status: MONO_STATUS as CrowdIsland['status'], offset: { x: 0, z: 0 }, needle: false }];
   }
+  // ⚠ THE FRAME IS SIZED FROM THE ISLAND AS DRAWN, THE SLACK FROM THE ISLAND AS SHIPPED. Since
+  // ADR-0517 D1 the mapper unprojects each island in place and the layout holds still, so the
+  // real map's spacing is still the 2D drawing's — the ribbon's — while the island that stands
+  // in each slot is 2.9x deeper. `crowd-layout.ts`'s option doc carries the reasoning.
+  const drawn = islandExtentOf(drawnParcels());
   const extent = shippedIslandExtent();
-  const layout = crowdLayout({ islandW: extent.w, islandScreenH: extent.screenH });
+  const layout = crowdLayout({ islandW: drawn.w, islandScreenH: drawn.screenH, islandTrueScreenH: extent.screenH });
   // The island closest to the forest's own centroid, which becomes the origin for every scene.
   let anchor = layout.islands[0];
   if (!anchor) throw new Error('shipped-crowd-scene: crowdLayout returned no islands');
@@ -236,7 +242,11 @@ export interface ShippedIslandExtent {
 }
 
 function shippedIslandExtent(): ShippedIslandExtent {
-  const cells = shippedParcels();
+  return islandExtentOf(shippedParcels());
+}
+
+/** A cell set's on-screen extent through the shipped camera, in ground units of the screen plane. */
+function islandExtentOf(cells: readonly InstanceDescriptor[]): ShippedIslandExtent {
   const geo = cellGroundGeometry({ cells, resolve: linearColourOf, relief: landRelief });
   const camera = orientedCamera({ x: 0, z: 0 }, 1);
   const v = new THREE.Vector3();

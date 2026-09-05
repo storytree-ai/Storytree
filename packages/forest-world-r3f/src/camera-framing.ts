@@ -26,12 +26,13 @@
 // converted: `InstanceDescriptor` carries no island identity, so there is nothing here to pin a
 // composition to.
 //
-// ⚠ WHAT THIS RULE ACTUALLY FRAMES — 2.154x the vertical room a flat world can occupy, and the
-// margin is NOT headroom. `spread` is a max over GROUND |x| and |z|, but the eye looks down at 45°,
-// so a ground span of z delivers only `sin(45°)` of SCREEN height. `back * FRAME_HALF_HEIGHT_PER_BACK`
-// is `spread * 1.5230` — the retired perspective camera's own margin, carried forward on purpose —
-// and dividing that by `sin(45°)` gives 2.1539. That figure is re-derived here from this file's own
-// two constants and needs no instrument.
+// ⚠ WHAT THIS RULE ACTUALLY FRAMES — about 2x the vertical room a flat world can occupy, and the
+// margin is NOT headroom. `spread` is a max over GROUND |x| and |z|, but the eye looks down at
+// `SHIPPED_ELEVATION_DEG`, so a ground span of z delivers only `sin(elev)` of SCREEN height.
+// `back * FRAME_HALF_HEIGHT_PER_BACK` is `spread * 1.5230` — the retired perspective camera's own
+// margin, carried forward on purpose — and dividing that by `sin(50°)` gives 1.988 (it was 2.1539
+// at the 45° this canvas looked down at until 2026-09-05). That figure is re-derived here from
+// this file's own constants and needs no instrument.
 //
 // ⚠ AND IT IS DELIBERATELY LEFT THAT WAY — do not "fix" it with a `sin(elev)` factor. The repair
 // was proposed, costed at ~1.3x more delivered detail, and declined: nothing a visitor sees is
@@ -59,7 +60,64 @@
 // objects were said to need a factor of 1.09 against the 2.15 reserved. Anyone re-opening this
 // re-measures those two; the decision above rests on the 2.154 that this file can re-derive.
 
+import { RENDER_ELEV_DEG } from './kit-vocabulary.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
+
+/**
+ * THE ELEVATION THE SHIPPED CANVAS LOOKS DOWN AT — the owner-signed 50° every approved render was
+ * taken at (`build_land.py`'s `RENDER_ELEV_DEG`, mirrored as `kit-vocabulary.ts`'s constant), by
+ * import rather than by a second `50` (ADR-0517 D2).
+ *
+ * ⚠ IT WAS 45° UNTIL 2026-09-05, and the five degrees were taken WITH the footprint fix and never
+ * instead of it: PR #1820's ladder measured the elevation alone as worth 7.5% of the island's
+ * on-screen height against the footprint's 129%. Moving it is what makes every instrument that
+ * already read `RENDER_ELEV_DEG` — the crowd layout's `ELEV_RAD`, `deliveredHeightPx`, the
+ * object floor the prop sizes were chosen against — report against the camera that actually
+ * ships, where before they reported against one five degrees higher than the canvas looked from
+ * (ADR-0517 D3). `shippedElevationDeg()` READS the angle back off {@link frameWorld} so a test can
+ * hold that the eye and this constant agree.
+ */
+export const SHIPPED_ELEVATION_DEG: number = RENDER_ELEV_DEG;
+
+/** How far the eye sits from the target per unit of `back`: the retired perspective camera sat
+ *  `back` up and `back` along +z, i.e. `back · √2` away, and the orthographic eye keeps that
+ *  distance so the same `near`/`far` range still contains the world. */
+const EYE_DISTANCE_PER_BACK = Math.SQRT2;
+
+/** The eye's offset from the target: `y` up and `z` along +z. */
+interface EyeOffset {
+  y: number;
+  z: number;
+}
+
+/** The eye's offset from the target for a given `back`: `EYE_DISTANCE_PER_BACK · back` away,
+ *  along +z, raised to {@link SHIPPED_ELEVATION_DEG}. */
+function eyeOffset(back: number): EyeOffset {
+  const elev = (SHIPPED_ELEVATION_DEG * Math.PI) / 180;
+  const dist = back * EYE_DISTANCE_PER_BACK;
+  return { y: dist * Math.sin(elev), z: dist * Math.cos(elev) };
+}
+
+/** The elevation the eye actually looks down at, read back off {@link frameWorld}'s own output —
+ *  never a transcription of the constant it was built from. */
+export function shippedElevationDeg(): number {
+  // ⚠ READ OFF A WORLD AWAY FROM THE ORIGIN. Framing an empty world targets (0, 0, 0), where
+  // `position - target` and `position + target` are the same number and a reader that got the
+  // subtraction wrong would still report the right angle — `check:mutation-diff` found exactly
+  // that. One stand-in instance off-origin makes the target non-zero, so the arithmetic is real.
+  // Stryker disable next-line StringLiteral: EQUIVALENT — `frameWorld` reads only `transform`; the
+  // family and group of the probe are not consulted, so any string here is the same probe.
+  const probe: InstanceDescriptor = { kind: 'wisp-sprite', transform: { x: 37, y: 0, z: 91 }, group: 'wisp-sprite' };
+  // Stryker disable next-line ArrayDeclaration: EQUIVALENT — an empty world targets the origin and
+  // still reports the same angle; the probe exists so the x/z subtractions below are non-trivial.
+  const frame = frameWorld([probe]);
+  const dx = frame.position[0] - frame.target[0];
+  // Stryker disable next-line ArithmeticOperator: EQUIVALENT — the target's y is always 0 (the
+  // ground plane), so adding and subtracting it are the same number.
+  const dy = frame.position[1] - frame.target[1];
+  const dz = frame.position[2] - frame.target[2];
+  return (Math.atan2(dy, Math.hypot(dx, dz)) * 180) / Math.PI;
+}
 
 /** Where the camera sits and what it looks at — a `[x, y, z]` pair the drei `MapControls` reads.
  *  Named rather than written inline on {@link frameWorld}'s return, because
@@ -91,11 +149,12 @@ export const FRAME_HALF_HEIGHT_PER_BACK = Math.SQRT2 * Math.tan(Math.PI / 8);
 const EMPTY_WORLD_HALF_HEIGHT = 260 * FRAME_HALF_HEIGHT_PER_BACK;
 
 /** Frame the whole world on load: the instance centroid is the MapControls target, the camera
- *  keeps the same 45°-elevation view DIRECTION it always had, and the framed half-height grows
- *  with the world's spread. */
+ *  looks down at {@link SHIPPED_ELEVATION_DEG} from the +z side (azimuth fixed — ADR-0380 D6
+ *  fence 4, no viewer rotation), and the framed half-height grows with the world's spread. */
 export function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
   if (instances.length === 0) {
-    return { target: [0, 0, 0], position: [0, 260, 260], halfHeight: EMPTY_WORLD_HALF_HEIGHT };
+    const eye = eyeOffset(260);
+    return { target: [0, 0, 0], position: [0, eye.y, eye.z], halfHeight: EMPTY_WORLD_HALF_HEIGHT };
   }
   let sx = 0;
   let sz = 0;
@@ -110,9 +169,10 @@ export function frameWorld(instances: InstanceDescriptor[]): CameraFraming {
     spread = Math.max(spread, Math.abs(i.transform.x - cx), Math.abs(i.transform.z - cz));
   }
   const back = Math.max(260, spread * 2.6);
+  const eye = eyeOffset(back);
   return {
     target: [cx, 0, cz],
-    position: [cx, back, cz + back],
+    position: [cx, eye.y, cz + eye.z],
     halfHeight: back * FRAME_HALF_HEIGHT_PER_BACK,
   };
 }

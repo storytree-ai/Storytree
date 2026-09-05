@@ -11,54 +11,62 @@
 // canopy increment left open (MICRO 1.81 against the approved render's 2.54, 43 colour families
 // against 36) is located HERE, in the cover, and this module is what closes it.
 //
+// ⚠⚠ AND SINCE ADR-0518 IT IS THE WHOLE LOOK. The grove pines that stood beside the cover until
+// 2026-09-05 are retired — the owner read them as capabilities, and ruled *"1 tree per a
+// capability it needs to look good not like a forest"* — so an island now stands one tree per
+// capability (3–6 for most stories) over a footprint ADR-0517 tripled, and what carries the island
+// between those trees is THIS layer. ADR-0518 D2 names it the instrument and expects it scaled UP,
+// which is why the count now has a ladder of its own ({@link COVER_DENSITY_RUNGS}) beside the size
+// ladder that already shipped. The sparseness is the constraint, not the goal.
+//
 // ⚠⚠ AND WHAT IT IS NOT: NOTHING HERE REPORTS ANYTHING. Every prop this module stands wears a
 // `dressing` role (`KIT_ROLE_CLASS`), and a dressing role has no route from any capability's state
 // — `stateForm` cannot reach one, which `kit-vocabulary.test.ts` asserts over every state the
-// vocabulary and the store can produce. So the map's claim is untouched by everything below: the
-// tallest tree on a parcel is still the one carrying that parcel's state, a bare trunk is still
-// `unhealthy` alone, and the tall red criterion marker is still the only red flower on the map and
-// the only flower at its size (the asset carries no other red flower, and the widest patch this can
-// ever draw is 1.23 ground units against the marker's 4).
+// vocabulary and the store can produce. So the map's claim is untouched by everything below: every
+// tree on a parcel is a capability's own (ADR-0518 D1 — no dressing role shares the tree's form at
+// any scale), a bare trunk is still `unhealthy` alone, and the tall red criterion marker is still
+// the only red flower on the map and the only flower at its size (the asset carries no other red
+// flower, and the widest patch this can ever draw is 1.23 ground units against the marker's 4).
 //
-// ⚠ IT GROWS ON GREEN ISLANDS AND NOWHERE ELSE — the same gate the grove keeps, by IMPORT rather
-// than by a second copy of it (ADR-0492 D1 is the arc's standing rule: an added layer is scoped to
-// islands whose every cell is `healthy`, so that what it adds is still a reading rather than a
-// decoration). `unknown` grows nothing, and a mixed island fails CLOSED.
+// ⚠ IT GROWS ON GREEN ISLANDS AND NOWHERE ELSE — the gate every dressing layer on this arc keeps,
+// by IMPORT from `dressing-ground.ts` (ADR-0492 D1 is the arc's standing rule: an added layer is
+// scoped to islands whose every cell is `healthy`, so that what it adds is still a reading rather
+// than a decoration). `unknown` grows nothing, and a mixed island fails CLOSED.
 //
-// ⚠ THE EXCLUSIONS ARE THE GROVE'S, ALSO BY IMPORT. Nothing stands on the beach band the sand layer
-// draws or on the worn path the wear layer paints, through the SAME `shoreField` and `wearField`
-// the ground samples per fragment. The recipe insets its cover from the coast by less than its
-// stands (`margin` 0.6–1.0 against 3.0), but our beach is the SHIPPED sand band at 9 units and grass
-// growing over drawn sand is a defect the recipe never had to consider, so the row's own rule —
-// "never on the beach band or the worn path" — is what binds.
+// ⚠ THE EXCLUSIONS ARE THE GROUND'S, ALSO BY IMPORT. Nothing stands on the beach band the sand
+// layer draws or on the worn path the wear layer paints, through the SAME `shoreField` and
+// `wearField` the ground samples per fragment. The recipe insets its cover from the coast by less
+// than its stands (`margin` 0.6–1.0 against 3.0), but our beach is the SHIPPED sand band at 9 units
+// and grass growing over drawn sand is a defect the recipe never had to consider, so the row's own
+// rule — "never on the beach band or the worn path" — is what binds.
 //
 // ⚠⚠ GROUND COVER CASTS NO SHADOW, AND THAT IS A DECISION RATHER THAN AN OVERSIGHT
 // (`ground-casters.ts`'s `placementCasters` is where it is enforced, with the same reason). Two
-// halves. (a) COST: at the shipped rung a fixture island carries 432 cover props against its 81
-// grove pines, so casting from them would multiply the map's kit casters by about six — 15,000 on
-// a thirty-five-island forest, each one stamping a box into the occlusion grid. (b) THE LADDER: the
-// ground material has exactly ONE occlusion rung and therefore THRESHOLDS the field, so a
-// sub-unit contact pool does not arrive as the soft ambient darkening the approved Cycles render
-// shows — it arrives as a hard dot at full rung strength, 2 px across at the overview. A carpet of
-// 432 hard dots per island is not the shadow the reference has. It is named as a gap rather than
-// silently skipped, and it is one authored rung away from being reconsidered.
+// halves. (a) COST: at the shipped rungs a fixture island carries hundreds of cover props against
+// its handful of trees, so casting from them would multiply the map's kit casters many times over —
+// tens of thousands on a thirty-five-island forest, each one stamping a box into the occlusion
+// grid. (b) THE LADDER: the ground material has exactly ONE occlusion rung and therefore THRESHOLDS
+// the field, so a sub-unit contact pool does not arrive as the soft ambient darkening the approved
+// Cycles render shows — it arrives as a hard dot at full rung strength, 2 px across at the
+// overview. A carpet of hard dots per island is not the shadow the reference has. It is named as a
+// gap rather than silently skipped, and it is one authored rung away from being reconsidered.
 //
 // ⚠ DETERMINISTIC, AND SEEDED PER ISLAND ON ITS OWN KEY. `Math.random` is forbidden on this surface
-// (ADR-0380 D6 fence 2). The seed is `islandSeed(`${island}|cover`)` rather than `islandSeed(island)`
-// so the cover's draws are not the grove's draws re-read: an island seeded once and consumed twice
-// would put the first bush wherever the first stand went, on every island, forever.
+// (ADR-0380 D6 fence 2). The seed is `islandSeed(`${island}|cover`)` rather than `islandSeed(island)`:
+// the key was chosen when the grove consumed the bare island seed, so the cover's draws were not
+// the grove's re-read (an island seeded once and consumed twice would have put the first bush
+// wherever the first stand went, on every island, forever). The grove is gone; the key stays,
+// because changing it would re-scatter every carpet on the map for no reason a picture could show.
 
 import {
-  // ⚠ THE RECIPE'S ISLAND AREA IS THE GROVE'S, by import: the two layers are proportioned against
-  // ONE island rather than two numbers that agree today.
   RECIPE_ISLAND_AREA,
   cellAt,
   cellsArea,
   cellsBounds,
-  groveEligible,
-  type GroveExclusion,
+  dressingEligible,
+  type DressingExclusion,
   type Stream,
-} from './grove-dressing.js';
+} from './dressing-ground.js';
 import { islandSeed } from './island-path.js';
 import {
   COVER_CAP_ID,
@@ -94,14 +102,15 @@ export const COVER_RECIPE_COUNTS = {
 export const COVER_ROLES: readonly KitRole[] = ['bush', 'tuft', 'flowerPatch'];
 
 /**
- * ⚠⚠ THE LADDER, AND IT IS ON SIZE RATHER THAN ON COUNT — a multiple of the recipe's own delivered
- * prop width, applied to every ground-cover placement's scale.
+ * ⚠⚠ THE SIZE LADDER — a multiple of the recipe's own delivered prop width, applied to every
+ * ground-cover placement's scale. Rendered and picked on 2026-09-04; the constant it settled is
+ * {@link COVER_SIZE}.
  *
- * ⚠⚠ WHY SIZE AND NOT COUNT, MEASURED RATHER THAN CHOSEN. The recipe's counts and sizes were both
- * ported literally first, and the result was INVISIBLE: on the shipped map at 8 px/unit, against
- * the canopy that already ships, doubling the COUNT moved 743 px past ADR-0490 D6's 20/255 bar and
- * tripling it moved 1,130 — on an island where the canopy itself moved 194,440. The eye agreed with
- * the number: at rung 1 the props are dark-green flecks about 8 px across on dark-green ground.
+ * ⚠⚠ WHY SIZE HAD TO BE LADDERED FIRST, MEASURED RATHER THAN CHOSEN. The recipe's counts and sizes
+ * were both ported literally first, and the result was INVISIBLE: on the shipped map at 8 px/unit,
+ * doubling the COUNT moved 743 px past ADR-0490 D6's 20/255 bar and tripling it moved 1,130 — on
+ * an island where the canopy itself moved 194,440. The eye agreed with the number: at rung 1 the
+ * props are dark-green flecks about 8 px across on dark-green ground.
  *
  * THE CAUSE IS A SCALE MISMATCH THE PORT INHERITED, and it is worth writing down because the same
  * trap is waiting for every other transcription off `build_land.py`. The recipe's island is
@@ -121,11 +130,6 @@ export const COVER_ROLES: readonly KitRole[] = ['bush', 'tuft', 'flowerPatch'];
  *   4.5   the TREES' own scale (18 / 4.004 = 4.50) — the same proportion to the pines as the
  *         approved render has, which is the ratio a viewer actually reads
  *
- * ADR-0503 D1 is the standing direction — apply the layers boldly, judge by the LOOK, ship a pick,
- * and let the owner scale back along rungs already rendered. So every rung is on the comparison
- * page and the shipped pick is a pointer at one of them: a scale-back is {@link COVER_SIZE} and the
- * page's `SHIPPED_COVER_ARM`, two constants, and no re-measurement.
- *
  * ⚠ THE BOLDEST RUNG IS WHAT THE CRITERION MARKER'S DISTINCTNESS IS DERIVED AGAINST — see
  * `KIT_ROLE_SIZE.flowerPatch`, whose width is computed BACKWARDS from `4.5` so that no rung of this
  * ladder can put a ground-cover flower at half the marker's width. Adding a bolder rung therefore
@@ -134,16 +138,15 @@ export const COVER_ROLES: readonly KitRole[] = ['bush', 'tuft', 'flowerPatch'];
 export const COVER_SIZE_RUNGS = [1, 2.5, 4.5] as const;
 
 /**
- * THE RUNG THE SHIPPED MAP WEARS — the boldest rendered, per ADR-0503 D1/D3.
+ * THE SIZE RUNG THE SHIPPED MAP WEARS — the boldest rendered, per ADR-0503 D1/D3.
  *
  * ⚠ THE LADDER, MEASURED ON THE RTX 2060 2026-09-04 (`docs/research/chapter2-ground-cover-2026-09-04/`),
- * one island at 8 px/unit, the SAME 216 props at each rung, against the canopy that ships today:
+ * one island at 8 px/unit, the SAME 216 props at each rung, against the canopy that shipped then:
  *
  *   rung  widest cover prop  px moved >20/255 vs today  prop px  MICRO   ms/frame (fitted forest)
  *   1     1.38 units                              558  166,361   2.65   1.6199
  *   2.5   3.45 units                            6,780  175,233   2.95   1.6319
  *   4.5   6.20 units                           25,620  200,132   3.78   1.6342   ← ships
- *   (today: the canopy alone — 0 moved, 165,364 prop px, MICRO 2.61, 1.1623 ms; approved 2.54)
  *
  * Rung 1 IS `build_land.py` transcribed, and it is the arm that shows why the literal port is not
  * shipped: 558 pixels on an island where the canopy moved 194,440. What it proved is not that the
@@ -152,51 +155,65 @@ export const COVER_SIZE_RUNGS = [1, 2.5, 4.5] as const;
  *
  * ⚠ A SCALE-BACK IS FREE ON THE FRAME AND COSTS ONLY THE LOOK. The three rungs draw IDENTICAL
  * geometry and differ only in each prop's scale, so their frame times sit inside the runs' own
- * spread (0.01–0.17 ms). `cover-2.5` is the rung whose widest bush (34% of a pine's footprint)
- * matches the approved render's own proportion; 4.5 (61%) is bolder, which is what D1 asks for.
- * Moving the pick is THIS constant and `SHIPPED_COVER_ARM` in `harness/shipped-cover-scene.ts`,
- * two constants, and no re-measurement.
+ * spread. `cover-2.5` is the rung whose widest bush (34% of a pine's footprint) matches the
+ * approved render's own proportion; 4.5 (61%) is bolder, which is what D1 asks for. Moving the pick
+ * is THIS constant and `SHIPPED_COVER_ARM` in `harness/shipped-cover-scene.ts`, two constants, and
+ * no re-measurement.
  */
 export const COVER_SIZE = 4.5;
 
 /**
- * HOW MANY of the recipe's props an island wears, as a multiple — the SECOND knob, held at the
- * recipe's own counts and deliberately NOT laddered.
+ * ⚠⚠ THE COUNT LADDER — how many of the recipe's props an island wears, as a multiple of the
+ * recipe's own counts scaled to the island's area. The SECOND knob, and the one ADR-0518 D2 asks
+ * to be scaled UP now that nothing tree-shaped stands beside the cover.
  *
- * ⚠ ONE LADDER AT A TIME, and this is the one that is not it. Size and count both raise the
- * fraction of the island under cover, so laddering both would give the owner a grid to read rather
- * than a row, and the arms would no longer differ in exactly one thing. Count is fixed at the
- * recipe's own (`COVER_RECIPE_COUNTS`, scaled to the island's area) so that every rung of the size
- * ladder is `build_land.py`'s own scatter at a different scale — which is the comparison this row
- * actually owes.
+ * ⚠ WHY THE COUNT WAS NOT LADDERED BEFORE, AND WHY IT IS NOW. On 2026-09-04 the size ladder was
+ * rendered with the count held at the recipe's own, because laddering both at once hands the owner
+ * a grid to read rather than a row, and the row that increment owed was `build_land.py`'s own
+ * scatter at a different scale. The size is settled ({@link COVER_SIZE}); this ladder moves the
+ * count at that size, so every rung differs from its neighbour in exactly one thing again.
+ *
+ * ⚠ THE RUNGS ARE MULTIPLES OF THE RECIPE, so rung 1 is still `build_land.py`'s scatter and every
+ * rung above it is that scatter repeated — the same three roles in the same proportion, denser.
+ * Rung 1 on the fixture island is 216 props (70 / 120 / 26 over ~1.0 recipe-islands of ground).
  */
-export const COVER_DENSITY = 1;
+export const COVER_DENSITY_RUNGS = [1, 2, 3, 4] as const;
+
+/**
+ * THE COUNT RUNG THE SHIPPED MAP WEARS — picked on the LOOK, on the sheet the one-tree-per-
+ * capability page rendered on the RTX 2060 2026-09-05
+ * (`docs/research/chapter2-one-tree-per-capability-2026-09-05/`), under ADR-0503's standing
+ * be-bold direction and ADR-0518 D2. Moving the pick is THIS constant and `SHIPPED_ARM` in
+ * `harness/shipped-per-capability-scene.ts`, two constants, and no re-measurement; every rung of
+ * {@link COVER_DENSITY_RUNGS} is on that sheet.
+ */
+export const COVER_DENSITY = 3;
 
 /** How many points a prop is offered before it is given up — the recipe's own `for _ in range(400)`
  *  (`build_land.py:1052`). Dropping a prop is the recipe's answer and is honest here for the reason
  *  it is dishonest for a capability's tree: ground cover reports no unit of work. */
 export const COVER_TRIES = 400;
 
-/** May this island wear ground cover? THE GROVE'S GATE, by import: ADR-0492 D1 scopes every added
- *  layer on this arc to islands whose every cell is `healthy`, and two copies of one gate are two
- *  gates that agree today. A mixed island fails closed, and `unknown` wears nothing. */
-export const coverEligible = groveEligible;
+/** May this island wear ground cover? THE ARC'S GATE, by import: ADR-0492 D1 scopes every added
+ *  layer to islands whose every cell is `healthy`. A mixed island fails closed, and `unknown` wears
+ *  nothing. */
+export const coverEligible = dressingEligible;
 
 // ---------------------------------------------------------------- how many
 
 /**
  * THIS ISLAND'S GROUND AS A MULTIPLE OF THE RECIPE'S — the one number all three counts scale by.
  *
- * ⚠⚠ AND IT REFUSES A RUNAWAY, for the reason `groveStandCount` does: `indices(n)` MATERIALISES the
- * count, so a corrupted area does not produce a wrong picture, it produces a hung tab with no
- * message — and `check:mutation-diff` scores a hang as UNPROVEN, credited to nobody. The ceiling is
- * read off the island's BOUNDING BOX, which a simple ring's area can never exceed, so it can never
- * sit below an honest share however large the island; a hex island's box exceeds its area by a
- * further 20–40%, so a real island has roughly 1.5x of headroom to the refusal.
+ * ⚠⚠ AND IT REFUSES A RUNAWAY: `indices(n)` MATERIALISES the count, so a corrupted area does not
+ * produce a wrong picture, it produces a hung tab with no message — and `check:mutation-diff`
+ * scores a hang as UNPROVEN, credited to nobody. The ceiling is read off the island's BOUNDING BOX,
+ * which a simple ring's area can never exceed, so it can never sit below an honest share however
+ * large the island; a hex island's box exceeds its area by a further 20–40%, so a real island has
+ * roughly 1.5x of headroom to the refusal.
  */
-export function coverAreaShare(cells: readonly LayoutCell[]): number {
-  const share = cellsArea(cells) / RECIPE_ISLAND_AREA;
-  const ceiling = boxShare(cells);
+export function coverAreaShare(cells: readonly LayoutCell[], recipeIslandArea: number = RECIPE_ISLAND_AREA): number {
+  const share = cellsArea(cells) / recipeIslandArea;
+  const ceiling = boxShare(cells, recipeIslandArea);
   if (!Number.isFinite(share) || share > ceiling) {
     throw new Error(
       `cover-dressing: an island asking for ${share} recipe-islands of ground cover, on a bounding ` +
@@ -210,9 +227,9 @@ export function coverAreaShare(cells: readonly LayoutCell[]): number {
 /** The island's BOUNDING BOX as a multiple of the recipe's island — the ceiling above, computed
  *  from `Math.min`/`Math.max` over the same points so the shoelace arithmetic the guard exists to
  *  catch cannot corrupt the ceiling with it. */
-export function boxShare(cells: readonly LayoutCell[]): number {
+export function boxShare(cells: readonly LayoutCell[], recipeIslandArea: number = RECIPE_ISLAND_AREA): number {
   const box = cellsBounds(cells);
-  return ((box.maxX - box.minX) * (box.maxZ - box.minZ)) / RECIPE_ISLAND_AREA;
+  return ((box.maxX - box.minX) * (box.maxZ - box.minZ)) / recipeIslandArea;
 }
 
 /** How many of this role this island wears: the recipe's count, in proportion to area, times the
@@ -221,6 +238,7 @@ export function coverCount(
   role: KitRole,
   cells: readonly LayoutCell[],
   density: number = COVER_DENSITY,
+  recipeIslandArea: number = RECIPE_ISLAND_AREA,
 ): number {
   const recipe = COVER_RECIPE_COUNTS[role as keyof typeof COVER_RECIPE_COUNTS];
   if (recipe === undefined) {
@@ -229,7 +247,7 @@ export function coverCount(
         `three dressing roles only (${COVER_ROLES.join(', ')})`,
     );
   }
-  return Math.round(recipe * density * coverAreaShare(cells));
+  return Math.round(recipe * density * coverAreaShare(cells, recipeIslandArea));
 }
 
 // ---------------------------------------------------------------- the draws
@@ -238,10 +256,10 @@ export function coverCount(
  * One prop's scale: uniform over its role's own renormalised recipe range ({@link COVER_SCALE}),
  * times the size rung.
  *
- * ⚠ THE RUNG MULTIPLIES THE PLACEMENT'S SCALE RATHER THAN THE ROLE'S DECLARED WIDTH, which is the
- * same seam a grove pine at 0.55–0.80 already rides. That keeps `KIT_ROLE_SIZE` and the two frozen
- * tables describing the ROLE — what the vocabulary asks the asset for — while the rung stays a
- * per-placement look the comparison page can vary without re-freezing anything.
+ * ⚠ THE RUNG MULTIPLIES THE PLACEMENT'S SCALE RATHER THAN THE ROLE'S DECLARED WIDTH. That keeps
+ * `KIT_ROLE_SIZE` and the two frozen tables describing the ROLE — what the vocabulary asks the
+ * asset for — while the rung stays a per-placement look the comparison page can vary without
+ * re-freezing anything.
  */
 export function coverScale(role: KitRole, rand: Stream, size: number = COVER_SIZE): number {
   const range = COVER_SCALE[role as keyof typeof COVER_SCALE];
@@ -275,7 +293,7 @@ export function coverAssembly(role: KitRole, rand: Stream): KitAssembly {
 export function coverPoint(
   parcels: readonly LayoutCell[],
   rand: Stream,
-  exclusion: GroveExclusion,
+  exclusion: DressingExclusion,
 ): GPoint | null {
   for (const _try of indices(COVER_TRIES)) {
     const p = samplePoint(parcels, rand);
@@ -296,11 +314,11 @@ export interface CoverDressingOptions {
   cells: readonly LayoutCell[];
   /** The relief amplitude the ground is built at, so cover sits ON the land. */
   relief: number;
-  /** Where cover may not stand — `islandExclusion` on the shipped path, the SAME object the
-   *  island's grove was placed against, so the two layers cannot come to disagree about where the
-   *  beach and the path are. */
-  exclusion: GroveExclusion;
-  /** How many of the recipe's counts this island wears. Omitted is {@link COVER_DENSITY}. */
+  /** Where cover may not stand — `islandExclusion` on the shipped path: the clipped coast's beach
+   *  band and the trail docks' worn paths, the same fields the ground samples. */
+  exclusion: DressingExclusion;
+  /** Which rung of {@link COVER_DENSITY_RUNGS} this island's count is drawn at. Omitted is
+   *  {@link COVER_DENSITY}, the shipped pick — the comparison page's ladder arms are what pass it. */
   density?: number;
   /** Which rung of {@link COVER_SIZE_RUNGS} this island's props are drawn at. Omitted is
    *  {@link COVER_SIZE}, the shipped pick — the comparison page's ladder arms are what pass it. */
@@ -317,9 +335,9 @@ export interface CoverDressingOptions {
  * identical and two islands of one shape different. Re-seeding per role would make the three
  * carpets three views of one sequence.
  *
- * ⚠ NO `standing` ARGUMENT, unlike the grove's. Cover keeps no clearance from anything, so what
- * already stands on the island cannot change where a bush goes — and taking the list in order to
- * ignore it would look like rigour and be the opposite.
+ * ⚠ NO `standing` ARGUMENT. Cover keeps no clearance from anything, so what already stands on the
+ * island cannot change where a bush goes — and taking the list in order to ignore it would look
+ * like rigour and be the opposite.
  */
 export function dressCover(opts: CoverDressingOptions): KitPlacement[] {
   if (!coverEligible(opts.cells)) return [];

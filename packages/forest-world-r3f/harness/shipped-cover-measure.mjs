@@ -151,12 +151,6 @@ for (const row of result.rows) {
         'longer the ground under the control and no pixel figure on the page is the cover’s alone.',
     );
   }
-  if (row.arm !== MASK_ARM && row.census.groves !== control.census.groves) {
-    fail(
-      `${row.arm} at ${row.size}/${row.zoom} grows ${row.census.groves} grove pines against the control's ` +
-        `${control.census.groves} — more than the cover moves along this ladder.`,
-    );
-  }
   // ⚠ THE BOUND IS ON THE FLOWER PATCH ALONE, flower against flower. A bush at the boldest rung is
   // wider than the marker and is not confusable with it; refusing on ANY cover prop scales the
   // whole layer back to protect a claim nobody made (measured: this refusal fired on a 3.4-unit

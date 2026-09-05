@@ -456,7 +456,7 @@ export interface KitPlacement {
   /** Which assembly stands here — one or more kit objects, placed as a unit. */
   assembly: KitAssembly;
   /** The capability whose state put it here, `story` for a whole-island signal, or
-   *  {@link GROVE_CAP_ID} for a member of a healthy island's grove (`grove-dressing.ts`). */
+   *  {@link COVER_CAP_ID} for ground cover, which belongs to no unit of work (`cover-dressing.ts`). */
   capId: string;
   /** The status whose leaf tint this placement's crown wears, or `null` for an untinted form. */
   tint: string | null;
@@ -467,8 +467,13 @@ export interface KitPlacement {
   yaw: number;
   /**
    * A UNIFORM scale on top of the role's own size — 1 for every object the vocabulary stands for a
-   * capability or a signature, below 1 for a grove pine (`grove-dressing.ts` draws uniform(0.55,
-   * 0.80)), so the capability's own object stays the tallest thing on its parcel.
+   * capability or a signature; the ground cover's size rung times its per-prop spread for a
+   * dressing prop (`cover-dressing.ts`).
+   *
+   * ⚠⚠ NO `tree` PLACEMENT STANDS BELOW 1 ANY MORE. The grove pines that did (0.55–0.80 of the
+   * role, so the capability's own tree stayed tallest on its parcel) were retired outright by
+   * ADR-0518: the owner read them as capabilities, and a tree on the map now means exactly one
+   * capability. `kit-vocabulary.test.ts` holds that no dressing role shares the tree role's form.
    *
    * ⚠ IT REACHES THREE PLACES AND MUST REACH ALL OF THEM: the drawn geometry (`placementScale` in
    * `kit-mesh.ts`), the delivered extent the object floor is read against (`placementExtent`), and
@@ -706,24 +711,18 @@ export function propRadius(footprint: RoleFootprints, role: KitRole): number {
 }
 
 /**
- * THE `capId` A GROVE MEMBER WEARS — a pine that belongs to no capability and to no story
- * signature, but to the healthy island's own forest (`grove-dressing.ts`). It is the one `capId`
- * that names no unit of work, which is what lets every reader tell a grove pine from the
- * capability's own without a fourth role: same `tree`, same two assemblies, same untinted green.
- */
-export const GROVE_CAP_ID = 'grove';
-
-export function isGrovePlacement(p: KitPlacement): boolean {
-  return p.capId === GROVE_CAP_ID;
-}
-
-/**
- * THE `capId` A GROUND-COVER PROP WEARS (`cover-dressing.ts`).
+ * THE `capId` A GROUND-COVER PROP WEARS (`cover-dressing.ts`) — the one `capId` on the map that
+ * names no unit of work.
  *
  * ⚠ IT IS NOT WHAT TELLS COVER APART — {@link isDressingRole} over the placement's ROLE is, and
  * that is a property of the vocabulary rather than of a string. This exists so that a reader of a
- * placement list, a census row or a debug dump sees the same shape the grove uses instead of an
- * empty field, and so that no ground-cover prop can ever collide with a real capability's id.
+ * placement list, a census row or a debug dump sees a named owner instead of an empty field, and
+ * so that no ground-cover prop can ever collide with a real capability's id.
+ *
+ * ⚠ THERE IS NO `grove` `capId` ANY MORE. Until 2026-09-05 a healthy island's grove pines wore
+ * `'grove'` on the `tree` role, and every reader told them from a capability's own pine by that
+ * string alone. ADR-0518 retired the role: a `tree` placement IS a capability's now, with nothing
+ * a reader has to check.
  */
 export const COVER_CAP_ID = 'cover';
 
@@ -733,28 +732,15 @@ export function isCoverPlacement(p: KitPlacement): boolean {
 }
 
 /**
- * HOW MUCH CLOSER TWO GROVE MEMBERS MAY STAND THAN THEIR FOOTPRINTS ALLOW — a fraction of the
- * clearance {@link pairClearance} would otherwise ask for.
+ * The factor the full clearance is multiplied by for a pair: ZERO when either is ground cover, 1
+ * for every other pair. A named function rather than a ternary at each call site, because copies
+ * of one rule are rules that agree today.
  *
- * ⚠⚠ THIS IS THE ONE DECLARED RELAXATION OF THE OCCUPANCY RULE, AND IT IS DECLARED HERE SO THE
- * DETECTOR CAN SEE IT. A stand whose crowns touch is what a grove IS (`build_land.py:1064`
- * spreads a stand's members at σ 3.6 x 3.0 around one centre, well inside a canopy's width), so a
- * grove placed at the full footprint would be thirteen evenly spaced rows of trees rather than
- * thirteen clumps. Every OTHER pair keeps the full clearance: a grove member against the
- * capability's own pine, against a dead trunk, against a bloom — because those are the objects
- * that REPORT something, and a grove pine standing inside one is the defect the owner reported
- * once already ("the rocks are appearing where the trees are"), wearing a different species.
- *
- * ⚠ THE DETECTOR READS THIS NUMBER TOO. `dressingOverlaps` measures every pair against
- * {@link pairClearance}, so a grove member 0.44 of a footprint from another is an overlap it names
- * and 0.46 is not — the relaxation is a rule it applies rather than a case it is blind to.
- */
-export const GROVE_CLEARANCE = 0.45;
-
-/**
- * The factor the full clearance is multiplied by for a pair: ZERO when either is ground cover,
- * {@link GROVE_CLEARANCE} between two grove members, 1 for every other pair. A named function
- * rather than a ternary at each call site, because copies of one rule are rules that agree today.
+ * ⚠ THERE USED TO BE A THIRD ANSWER — 0.45 between two grove members, the one declared relaxation
+ * that let a stand's crowns touch — and it went with the grove (ADR-0518). Every pair of objects
+ * that REPORT something keeps the full sum, which is what keeps each capability's object readable:
+ * an object standing inside another's clearance is the defect the owner reported once already
+ * ("the rocks are appearing where the trees are").
  *
  * ⚠⚠ ZERO FOR A `dressing` ROLE, AND THAT IS THE RECIPE'S OWN RULE RATHER THAN A RELAXATION WE
  * INVENTED. `build_land.py`'s `sprinkle` (`:1082-1090`) tests a ground-cover point for `inside` and
@@ -770,18 +756,17 @@ export const GROVE_CLEARANCE = 0.45;
  * prop.
  */
 export function clearanceFactor(a: KitPlacement, b: KitPlacement): number {
-  if (isDressingRole(a.role) || isDressingRole(b.role)) return 0;
-  return isGrovePlacement(a) && isGrovePlacement(b) ? GROVE_CLEARANCE : 1;
+  return isDressingRole(a.role) || isDressingRole(b.role) ? 0 : 1;
 }
 
 /**
  * THE CENTRE-TO-CENTRE DISTANCE TWO PLACEMENTS MUST KEEP — the sum of their role radii, relaxed
  * by {@link clearanceFactor}.
  *
- * ⚠ THE ROLE'S FULL FOOTPRINT, NEVER THE SCALED ONE. A grove pine at 0.6 of the role's height is
- * narrower than the footprint says, and using its delivered width would let it stand closer to
- * the capability's pine than a full-size neighbour may — which is exactly the clearance that
- * keeps the capability's object readable. The scale reaches the geometry and the shadow
+ * ⚠ THE ROLE'S FULL FOOTPRINT, NEVER THE SCALED ONE. A placement drawn below the role's size is
+ * narrower than the footprint says, and using its delivered width would let it stand closer to a
+ * capability's pine than a full-size neighbour may — which is exactly the clearance that keeps
+ * the capability's object readable. The scale reaches the geometry and the shadow
  * (`KitPlacement.scale`); the occupancy is the role's.
  */
 export function pairClearance(a: KitPlacement, b: KitPlacement, footprint: RoleFootprints): number {
@@ -820,8 +805,10 @@ export function bestCandidate<O extends Occupancy>(
   radius: number,
   occupied: readonly O[],
   /** What a candidate of `radius` must keep from one occupant — the sum of the two radii unless
-   *  the caller declares otherwise. The grove pass passes `groveNeed`, which relaxes the sum
-   *  between two grove members and nowhere else; see {@link pairClearance}. */
+   *  the caller declares otherwise. Every caller in `src/` takes the default: the one declared
+   *  relaxation (the grove's `groveNeed`, between two grove members and nowhere else) went with
+   *  the grove under ADR-0518, and survives only in `harness/grove-history.ts`, a comparison
+   *  page's control arm; see {@link pairClearance}. */
   need: (radius: number, o: O) => number = sumOfRadii,
 ): GPoint | null {
   let best: GPoint | null = null;
@@ -845,9 +832,9 @@ export function sumOfRadii(radius: number, o: Occupancy): number {
 /**
  * THE WORST CLEARANCE A POINT HAS AGAINST EVERYTHING STANDING — `distance − need`, minimised over
  * the occupants; `Infinity` when nothing stands yet. Negative means the point is inside something's
- * clearance. The search above maximises it; the grove pass ({@link ../grove-dressing}) reads it
- * directly to accept or reject one gaussian sample, so the two callers keep props apart by ONE
- * arithmetic rather than two that agree today.
+ * clearance. The search above maximises it; a caller placing by rejection (the retired grove pass,
+ * now `harness/grove-history.ts`) reads it directly to accept or reject one sample, so the two
+ * keep props apart by ONE arithmetic rather than two that agree today.
  */
 export function worstClearance<O extends Occupancy>(
   p: GPoint,
@@ -930,7 +917,8 @@ export function dressIslandFromKit(opts: KitDressingOptions): KitPlacement[] {
     occupied.push({ x: at.x, z: at.z, radius });
     // ⚠ `scale: 1` BY STATEMENT. Everything this function stands REPORTS something — a
     // capability's state, a story's signature — and stands at its role's full size; the only
-    // placements below 1 are the grove's, which are placed by `grove-dressing.ts` after this.
+    // placements not at 1 are the ground cover's (`cover-dressing.ts`), which report nothing and
+    // are placed after this.
     out.push({ role, assembly, capId, tint, at, y: heightAt(at.x, at.z), yaw, scale: 1 });
   };
 
@@ -989,12 +977,11 @@ export interface PropOverlap {
  * `kit-vocabulary.test.ts` runs it over a deliberately naive placement too, so a detector that
  * could never fire would be caught.
  *
- * ⚠ IT MEASURES AGAINST {@link pairClearance}, WHICH IS THE PLACEMENT'S OWN RULE. Two grove
- * members may stand at `GROVE_CLEARANCE` of their footprints and every other pair keeps the full
- * sum, so the relaxation is something this detector APPLIES and names — a grove member inside a
- * capability's pine is still an overlap, and two grove members closer than the relaxed clearance
- * are too. A detector that knew only the full rule would report every stand as thirty defects,
- * and one that knew only the relaxed rule would miss the defect the owner reported.
+ * ⚠ IT MEASURES AGAINST {@link pairClearance}, WHICH IS THE PLACEMENT'S OWN RULE. Every pair of
+ * objects that report something keeps the full sum, and ground cover keeps none
+ * ({@link clearanceFactor}), so the cover's exemption is something this detector APPLIES and names
+ * rather than a case it is blind to — a bush at a pine's foot is not a defect, and two capability
+ * pines inside each other's footprint still are.
  */
 export function dressingOverlaps(
   placements: readonly KitPlacement[],
@@ -1030,10 +1017,10 @@ export interface DressingCensus {
 export function dressingCensus(placements: readonly KitPlacement[]): DressingCensus {
   const out: DressingCensus = {};
   for (const p of placements) {
-    // ⚠ A GROVE MEMBER IS COUNTED UNDER ITS OWN KEY, never under `tree`: it wears the same role
-    // and the same untinted needles as a healthy capability's pine, and a census that folded the
-    // two together would report a forested island as an island of sixty capabilities.
-    const key = isGrovePlacement(p) ? GROVE_CAP_ID : p.tint ? `${p.role}:${p.tint}` : p.role;
+    // ⚠ `tree` COUNTS CAPABILITIES, and since ADR-0518 that needs no qualifier: nothing else on the
+    // map wears the role. (The grove's members used to be counted under their own key so a
+    // forested island did not read as an island of sixty capabilities; that key went with them.)
+    const key = p.tint ? `${p.role}:${p.tint}` : p.role;
     out[key] = (out[key] ?? 0) + 1;
   }
   return out;

@@ -175,14 +175,15 @@ test('a placement casts a cylinder of its role’s half-footprint and height, at
 });
 
 test('the placement’s scale reaches BOTH the radius and the height of its caster', () => {
-  // ⚠ The kit scales uniformly, so a grove pine at 0.6 is 0.6 as wide as it is tall. A caster
-  // that scaled one and not the other would throw a shadow the wrong size for its crown.
+  // ⚠ The kit scales uniformly, so a placement at 0.6 is 0.6 as wide as it is tall. A caster
+  // that scaled one and not the other would throw a shadow the wrong size for its crown. (No
+  // shipped `tree` stands below 1 since ADR-0518; the arithmetic still has to hold for any scale.)
   const half = placementCaster(placed('tree', 0, 0, 0.5), FOOT, HEIGHTS);
   assert.equal(half.radius, FOOT.tree / 4);
   assert.equal(half.height, HEIGHTS.tree / 2);
-  const grove = placementCaster(placed('tree', 0, 0, 0.6), FOOT, HEIGHTS);
-  assert.ok(Math.abs(grove.radius - (FOOT.tree / 2) * 0.6) < 1e-12);
-  assert.ok(Math.abs(grove.height - 18 * 0.6) < 1e-12);
+  const scaled = placementCaster(placed('tree', 0, 0, 0.6), FOOT, HEIGHTS);
+  assert.ok(Math.abs(scaled.radius - (FOOT.tree / 2) * 0.6) < 1e-12);
+  assert.ok(Math.abs(scaled.height - 18 * 0.6) < 1e-12);
 });
 
 test('every SCENE placement casts, in placement order, and none is dropped', () => {

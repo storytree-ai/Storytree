@@ -23,8 +23,9 @@
 //
 // ⚠ AND THE PROPS DID COME, WHICH IS WHY THE PARAGRAPH ABOVE IS PAST TENSE. The bought kit landed
 // (ADR-0475) and its placements began casting on 2026-09-03; the placeholder tree was retired the
-// day after (ADR-0508). So the shipped island now stands a GROVE — many small pools rather than
-// one large one, which is the populated-island case the ranking was measured on. The inversion
+// day after (ADR-0508). So the shipped island now stands its capability trees and blooms — several
+// pools rather than one large one, which is the populated-island case the ranking was measured
+// on (a grove of dressing pines stood beside them for two days, until ADR-0518). The inversion
 // this block records is history; do not read it as a live claim that this module delivers little.
 //
 // WHY IT IS ITS OWN MODULE RATHER THAN A THIRD TERM IN `land-shadow.ts`. That file computes "how

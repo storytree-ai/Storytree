@@ -1,0 +1,27 @@
+renderer: Google Inc. (NVIDIA Corporation) — ANGLE (NVIDIA Corporation, NVIDIA GeForce RTX 2060/PCIe/SSE2, OpenGL 4.5.0)
+software=false
+plan: 8 configurations (4 arms × 2 pictures) x 5 interleaved repeats x 20 frames per GPU query, 2 independent runs
+
+⚠ THIS REPORTS AND DOES NOT GATE (ADR-0517 D4): the owner ruled the look ships first and is scaled down later if it proves too expensive.
+
+THE TRUE FOOTPRINT — FRAME COST on the GPU's own clock, forest @ fit
+arm             calls       tris   ms/frame   spread   vs before   % of a 60Hz frame
+before              7    3762088     1.6192   0.0301          —      9.7%
+true-x1             7    3569544     1.7437   0.0342    +0.1245     10.5%   ← SHIPPED
+true-x2             7    5082198     2.2495   0.0390    +0.6302     13.5%
+true-x3             7    6634762     2.7664   0.0559    +1.1472     16.6%
+
+THE TRUE FOOTPRINT — FRAME COST on the GPU's own clock, one @ 8
+arm             calls       tris   ms/frame   spread   vs before   % of a 60Hz frame
+before              4     167480     0.8408   0.0054          —      5.0%
+true-x1             4     152082     1.7847   0.0119    +0.9439     10.7%   ← SHIPPED
+true-x2             4     224544     1.7849   0.0054    +0.9441     10.7%
+true-x3             4     296928     1.7745   0.0009    +0.9337     10.6%
+
+DID IT REPRODUCE?
+  Every row reproduced across 2 runs, within the noise the runs themselves measured. Nothing was dropped.
+
+WHAT IT MEANS FOR THE BUDGET (16.67 ms at 60 Hz):
+  the SHIPPED picture (true-x1) draws the whole 35-island map, true footprint, dressed and covered, in 1.7437 ms — 10.5% of a frame.
+  against the map as it shipped until this landing (before) that is +0.1245 ms (0.7% of a frame; 1.08x).
+  ⚠ THIS IS THE GPU’S DRAW COST FOR THIS SCENE AND NOTHING ELSE. It is not the site’s frame time: the shipped canvas also runs React, controls and the compositor, none of which are on this page.

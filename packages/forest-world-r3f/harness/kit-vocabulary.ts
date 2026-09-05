@@ -30,8 +30,6 @@ import { layoutCells } from './prop-layout.js';
 
 export {
   FOOTPRINT_TOLERANCE,
-  GROVE_CAP_ID,
-  GROVE_CLEARANCE,
   KIT_ASSEMBLIES,
   KIT_FOOTPRINTS_2026_08_29,
   KIT_HEIGHTS_2026_08_29,
@@ -53,7 +51,6 @@ export {
   dressingOverlaps,
   footprintDriftOf,
   heightDriftOf,
-  isGrovePlacement,
   kitObjectNames,
   pairClearance,
   stateForm,
@@ -97,11 +94,11 @@ export interface KitDressingOptions {
  * DRESS THE HARNESS ISLAND. A thin adapter over the crossed placement: it converts the scene's
  * ground cells into the placement basis and counts the fixture's signed criteria, then delegates.
  *
- * ⚠ IT UNPROJECTS AND THE SHIPPED PATH DOES NOT, and that difference is real rather than an
- * oversight. `groundCellsFrom` takes the scene's isometric drawing back to ground coordinates;
- * `worldTo3D` maps the drawing straight onto the ground plane. Both are internally consistent —
- * a prop is placed in the same space its island's ground is built in on each surface — and
- * `src/parcel-cells.ts`'s header carries the full note.
+ * ⚠ IT UNPROJECTS, AND SINCE 2026-09-05 SO DOES THE SHIPPED PATH (ADR-0517 D1). `groundCellsFrom`
+ * takes the scene's isometric drawing back to ground coordinates about the drawing's origin;
+ * `worldTo3D` now restores the same true footprint about each island's own centre. Both are
+ * internally consistent — a prop is placed in the same space its island's ground is built in on
+ * each surface — and `src/parcel-cells.ts`'s header carries the full note.
  */
 export function dressIslandFromKit(opts: KitDressingOptions): KitPlacement[] {
   const blooms =

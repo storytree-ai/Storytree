@@ -153,8 +153,19 @@ export const CROWD_VIEWPORT = { w: 2560, h: 1600, dpr: 2 } as const;
 export interface CrowdLayoutOptions {
   /** The island's own on-screen width in ground units, measured off a composed island. */
   islandW: number;
-  /** The island's own on-screen HEIGHT in ground units — already foreshortened by the camera. */
+  /** The island's own on-screen HEIGHT in ground units — already foreshortened by the camera.
+   *
+   *  ⚠ THE DRAWN ISLAND'S, since ADR-0517 D1. The real map's spacing is the 2D drawing's, where
+   *  every island is the projected ribbon; the 3D map unprojects each island IN PLACE and holds
+   *  that layout still. So the frame this layout reproduces the real map's density in is sized
+   *  from the island as DRAWN (`drawnParcels()`), exactly as the real map's own is — sizing it
+   *  from the unprojected island would spread the crowd 1.7x wider than the map it models. */
   islandScreenH: number;
+  /** The island's on-screen height AS DRAWN IN 3D — the unprojected footprint, taller than
+   *  `islandScreenH` by up to `1 / sin 20°`. Used only to bound the jitter, so two unprojected
+   *  neighbours cannot be jittered into each other by slack computed from the drawn ribbon.
+   *  Omitted ⇒ `islandScreenH`. */
+  islandTrueScreenH?: number;
   /** How many islands. Defaults to the real forest's 35. */
   count?: number;
   /** The land share of the frame to reproduce. Defaults to the real map's measured 2.85%. */
@@ -231,7 +242,7 @@ export function crowdLayout(opts: CrowdLayoutOptions): CrowdLayout {
   // How far a cell may jitter without letting two islands overlap: whatever room the cell has
   // left over once the island is in it.
   const slackX = Math.max(0, cellW - opts.islandW) / 2;
-  const slackZ = Math.max(0, cellH - opts.islandScreenH) / 2;
+  const slackZ = Math.max(0, cellH - Math.max(opts.islandScreenH, opts.islandTrueScreenH ?? 0)) / 2;
 
   // ⚠⚠ THE STATUSES ARE SCATTERED OVER THE GRID, NOT LAID DOWN IN ORDER — and taking them in
   // order was measurably wrong. `CROWD_POPULATION` lists 21 healthy and then the rest, so filling

@@ -21,8 +21,6 @@ import { COVER_SIZE_RUNGS } from './cover-dressing.js';
 import { decodeKitAsset } from './kit-asset.js';
 import {
   FOOTPRINT_TOLERANCE,
-  GROVE_CAP_ID,
-  GROVE_CLEARANCE,
   KIT_ASSEMBLIES,
   KIT_FOOTPRINTS_2026_08_29,
   KIT_HEIGHTS_2026_08_29,
@@ -53,7 +51,6 @@ import {
   dressingOverlaps,
   footprintDriftOf,
   heightDriftOf,
-  isGrovePlacement,
   kitObjectNames,
   pairClearance,
   propRadius,
@@ -65,7 +62,7 @@ import {
   tintedStates,
   worstClearance,
 } from './kit-vocabulary.js';
-import type { CapabilityFacts, KitPlacement, KitRole } from './kit-vocabulary.js';
+import type { CapabilityFacts, KitAssembly, KitPlacement, KitRole } from './kit-vocabulary.js';
 import { LEAF_TINT_TOKEN } from './leaf-tint.js';
 import { landHeight } from './land-relief.js';
 import { cellsByParcel } from './parcel-cells.js';
@@ -1100,7 +1097,8 @@ test('the object floor is read against the size’s OWN axis, at its own thresho
 });
 
 // ---------------------------------------------------------------------------
-// the grove's declared relaxation, the frozen heights and the drift checks (2026-09-03)
+// the occupancy rule, the frozen heights and the drift checks (2026-09-03; the grove's
+// relaxation retired 2026-09-05, ADR-0518)
 // ---------------------------------------------------------------------------
 
 /** A placement away from the origin on both axes, so a sign error cannot cancel. */
@@ -1115,61 +1113,92 @@ const stood = (role: KitRole, capId: string, x: number, scale = 1): KitPlacement
   scale,
 });
 
-test('a grove member is named by its capId alone, and the relaxation reaches a grove PAIR only', () => {
-  assert.equal(GROVE_CAP_ID, 'grove');
-  assert.equal(isGrovePlacement(stood('tree', GROVE_CAP_ID, 0)), true);
-  assert.equal(isGrovePlacement(stood('tree', 'cap-0', 0)), false);
-  assert.equal(isGrovePlacement(stood('bloom', 'story', 0)), false);
-  assert.equal(clearanceFactor(stood('tree', GROVE_CAP_ID, 0), stood('tree', GROVE_CAP_ID, 5)), GROVE_CLEARANCE);
-  assert.equal(clearanceFactor(stood('tree', GROVE_CAP_ID, 0), stood('tree', 'cap-0', 5)), 1);
-  assert.equal(clearanceFactor(stood('tree', 'cap-0', 0), stood('tree', GROVE_CAP_ID, 5)), 1, 'either order');
-  assert.equal(clearanceFactor(stood('tree', 'cap-0', 0), stood('tree', 'cap-1', 5)), 1);
-  assert.equal(clearanceFactor(stood('bloom', 'story', 0), stood('tree', GROVE_CAP_ID, 5)), 1);
-  assert.equal(GROVE_CLEARANCE, 0.45);
-  assert.ok(GROVE_CLEARANCE > 0 && GROVE_CLEARANCE < 1, 'a relaxation, not a widening and not a licence to stack');
+test('⚠⚠ NO DRESSING ROLE SHARES THE TREE ROLE’S FORM AT ANY SCALE (ADR-0518 D3) — a property of the tables', () => {
+  // ADR-0507 D5's reading guarantee used to be a SCALE BAND: grove pines at 0.55–0.80 of the tree
+  // role kept the capability's own tree tallest on its parcel. It held in the geometry and failed
+  // against the owner, who read the grove as capabilities. With the grove gone the guarantee
+  // reduces to a fact about the vocabulary, held here where a picture cannot hide it:
+  // (a) no dressing role is served by an assembly that serves a tree role;
+  const treeAssemblies = new Set<string>([...KIT_ROLE_ASSEMBLIES.tree, ...KIT_ROLE_ASSEMBLIES.deadTree]);
+  for (const role of DRESSING_ROLES) {
+    for (const assembly of KIT_ROLE_ASSEMBLIES[role]) {
+      assert.ok(!treeAssemblies.has(assembly), `${role} is drawn as ${assembly}, a tree assembly`);
+    }
+  }
+  // (b) no kit object a dressing role draws is a pine part at all — the kit names its trees;
+  const dressingObjects = DRESSING_ROLES.flatMap((r) => KIT_ROLE_ASSEMBLIES[r]).flatMap((a) => [...KIT_ASSEMBLIES[a]]);
+  const treeObjects = new Set<string>([...treeAssemblies].flatMap((a) => [...KIT_ASSEMBLIES[a as KitAssembly]]));
+  for (const name of dressingObjects) {
+    assert.ok(!treeObjects.has(name), `${name} is a tree object drawn as dressing`);
+    assert.doesNotMatch(name, /pine|tree|trunk/i, `${name} is tree-shaped by the kit's own name`);
+  }
+  // (c) the SIGNAL table says so in prose the reader sees: the tree entry is the one-per-capability
+  //     claim with no qualifier, and no dressing entry mentions a pine or a tree.
+  assert.match(KIT_ROLE_SIGNAL.tree, /one tree per capability/);
+  for (const role of DRESSING_ROLES) assert.doesNotMatch(KIT_ROLE_SIGNAL[role], /pine|\btree\b/i, `${role}'s prose admits a tree`);
+  // (d) and NOTHING in the vocabulary can stand a `tree` role below its size: the placement's
+  //     scale is 1 by statement in `dressIslandFromKit`, and the only other placer is the cover,
+  //     which places dressing roles only (`cover-dressing.test.ts`). NON-VACUITY for (a)–(b): the
+  //     tree roles DO have assemblies and objects, so the disjointness is between two non-empty sets.
+  assert.ok(treeAssemblies.size >= 2 && treeObjects.size >= 3 && dressingObjects.length >= 3);
 });
 
-test('pairClearance is the two role radii summed, relaxed for two grove members, and NEVER scaled', () => {
+test('clearanceFactor is ZERO for any pair that includes ground cover, and 1 for every pair that reports', () => {
+  // ⚠ THERE IS NO THIRD ANSWER. The grove's 0.45 between two of its own members went with the
+  // grove (ADR-0518); every pair of objects that report something keeps the full sum, whatever
+  // their capIds, so an object standing inside another's clearance is always the defect.
+  assert.equal(clearanceFactor(stood('tree', 'cap-0', 0), stood('tree', 'cap-1', 5)), 1);
+  assert.equal(clearanceFactor(stood('tree', 'cap-0', 0), stood('tree', 'cap-0', 5)), 1, 'the same capId relaxes nothing');
+  assert.equal(clearanceFactor(stood('tree', 'grove', 0), stood('tree', 'grove', 5)), 1, 'a capId named grove is just a capId now');
+  assert.equal(clearanceFactor(stood('bloom', 'story', 0), stood('tree', 'cap-0', 5)), 1);
+  assert.equal(clearanceFactor(stood('deadTree', 'cap-0', 0), stood('bloom', 'story', 5)), 1);
+  for (const role of DRESSING_ROLES) {
+    assert.equal(clearanceFactor(stood(role, 'cover', 0), stood('tree', 'cap-0', 5)), 0, `${role} keeps a clearance from a tree`);
+    assert.equal(clearanceFactor(stood('tree', 'cap-0', 0), stood(role, 'cover', 5)), 0, 'either order');
+    assert.equal(clearanceFactor(stood(role, 'cover', 0), stood(role, 'cover', 5)), 0);
+  }
+});
+
+test('pairClearance is the two role radii summed, NEVER relaxed between objects that report, and NEVER scaled', () => {
   assert.equal(pairClearance(stood('tree', 'cap-0', 0), stood('tree', 'cap-1', 0), FOOT), FOOT.tree);
   assert.equal(pairClearance(stood('tree', 'cap-0', 0), stood('bloom', 'story', 0), FOOT), FOOT.tree / 2 + FOOT.bloom / 2);
   assert.equal(pairClearance(stood('deadTree', 'cap-0', 0), stood('bloom', 'story', 0), FOOT), FOOT.deadTree / 2 + FOOT.bloom / 2);
-  assert.ok(
-    Math.abs(pairClearance(stood('tree', GROVE_CAP_ID, 0), stood('tree', GROVE_CAP_ID, 0), FOOT) - FOOT.tree * GROVE_CLEARANCE) < 1e-12,
-  );
-  assert.equal(pairClearance(stood('tree', GROVE_CAP_ID, 0), stood('tree', 'cap-0', 0), FOOT), FOOT.tree);
-  assert.equal(pairClearance(stood('tree', GROVE_CAP_ID, 0), stood('bloom', 'story', 0), FOOT), FOOT.tree / 2 + FOOT.bloom / 2);
-  // ⚠ The scale does not enter: a grove pine at 0.55 keeps the ROLE's clearance from the
-  // capability's own, which is what keeps that pine readable.
-  assert.equal(pairClearance(stood('tree', GROVE_CAP_ID, 0, 0.55), stood('tree', 'cap-0', 0), FOOT), FOOT.tree);
+  // ⚠ The scale does not enter: a pine drawn at half its height keeps the ROLE's clearance from a
+  // full-size neighbour, which is what keeps that neighbour readable.
   assert.equal(pairClearance(stood('tree', 'cap-0', 0, 0.5), stood('tree', 'cap-1', 0, 0.5), FOOT), FOOT.tree);
+  assert.equal(pairClearance(stood('tree', 'cap-0', 0, 0.55), stood('tree', 'cap-1', 0), FOOT), FOOT.tree);
+  assert.equal(pairClearance(stood('bush', 'cover', 0), stood('tree', 'cap-0', 0), FOOT), 0);
 });
 
-test('THE DETECTOR APPLIES THE RELAXATION: two grove pines may touch crowns, and it still fires inside it', () => {
-  const g = (x: number): KitPlacement => stood('tree', GROVE_CAP_ID, x);
-  assert.deepEqual(dressingOverlaps([g(0), g(FOOT.tree * 0.5)], FOOT), []);
-  assert.deepEqual(dressingOverlaps([g(0), g(FOOT.tree * 0.46)], FOOT), []);
-  const inside = dressingOverlaps([g(0), g(FOOT.tree * 0.44)], FOOT);
-  assert.equal(inside.length, 1, 'two grove pines inside the relaxed clearance went undetected');
-  assert.ok(Math.abs(inside[0]!.gap - (FOOT.tree * 0.44 - FOOT.tree * GROVE_CLEARANCE)) < 1e-9);
-  assert.equal(inside[0]!.a, `tree:${GROVE_CAP_ID}`);
-  assert.equal(inside[0]!.b, `tree:${GROVE_CAP_ID}`);
-  // ⚠ And a grove pine inside a CAPABILITY's pine is still an overlap at the FULL footprint —
-  // the defect the owner reported, wearing a different species.
-  assert.equal(dressingOverlaps([stood('tree', 'cap-0', 0), g(FOOT.tree * 0.9)], FOOT).length, 1);
-  assert.equal(dressingOverlaps([stood('tree', 'cap-0', 0), g(FOOT.tree * 1.01)], FOOT).length, 0);
+test('THE DETECTOR FIRES BETWEEN ANY TWO OBJECTS THAT REPORT, inside the full footprint, and never on cover', () => {
+  const t = (capId: string, x: number): KitPlacement => stood('tree', capId, x);
+  assert.deepEqual(dressingOverlaps([t('cap-0', 0), t('cap-1', FOOT.tree * 1.01)], FOOT), []);
+  const inside = dressingOverlaps([t('cap-0', 0), t('cap-1', FOOT.tree * 0.9)], FOOT);
+  assert.equal(inside.length, 1, 'two capability pines inside each other’s footprint went undetected');
+  assert.ok(Math.abs(inside[0]!.gap - (FOOT.tree * 0.9 - FOOT.tree)) < 1e-9);
+  assert.equal(inside[0]!.a, 'tree:cap-0');
+  assert.equal(inside[0]!.b, 'tree:cap-1');
+  // ⚠ And two pines that would have been grove members under the retired rule — same capId, at
+  // 0.5 of a footprint — are an overlap now: there is no relaxed clearance left to apply.
+  assert.equal(dressingOverlaps([t('grove', 0), t('grove', FOOT.tree * 0.5)], FOOT).length, 1);
   const bloomNeed = FOOT.tree / 2 + FOOT.bloom / 2;
-  assert.equal(dressingOverlaps([stood('bloom', 'story', 0), g(bloomNeed * 0.9)], FOOT).length, 1);
-  assert.equal(dressingOverlaps([stood('bloom', 'story', 0), g(bloomNeed * 1.01)], FOOT).length, 0);
+  assert.equal(dressingOverlaps([stood('bloom', 'story', 0), t('cap-0', bloomNeed * 0.9)], FOOT).length, 1);
+  assert.equal(dressingOverlaps([stood('bloom', 'story', 0), t('cap-0', bloomNeed * 1.01)], FOOT).length, 0);
+  // Cover at a pine's foot is not a defect — the recipe's own rule, applied by the detector.
+  assert.deepEqual(dressingOverlaps([t('cap-0', 0), stood('bush', 'cover', 0), stood('tuft', 'cover', 1)], FOOT), []);
 });
 
-test('the census counts a grove under its own key, never as a capability’s tree', () => {
+test('the census counts every tree as a capability’s — there is no separate key for anything tree-shaped', () => {
   const census = dressingCensus([
     stood('tree', 'cap-0', 0),
-    stood('tree', GROVE_CAP_ID, 20, 0.6),
-    stood('tree', GROVE_CAP_ID, 40, 0.7),
+    stood('tree', 'cap-1', 20),
+    stood('tree', 'cap-2', 40),
     stood('bloom', 'story', 60),
+    stood('bush', 'cover', 80),
   ]);
-  assert.deepEqual(census, { tree: 1, [GROVE_CAP_ID]: 2, bloom: 1 });
+  assert.deepEqual(census, { tree: 3, bloom: 1, bush: 1 });
+  // A tinted tree is counted under its tint — the state it reports.
+  assert.deepEqual(dressingCensus([{ ...stood('tree', 'cap-0', 0), tint: 'mapped' }]), { 'tree:mapped': 1 });
 });
 
 test('the frozen HEIGHTS: the height-sized roles are their declared sizes, the bloom is measured', () => {
@@ -1245,7 +1274,7 @@ test('the search takes a declared need, and its default is the two radii summed'
   assert.deepEqual(bestCandidate(candidates, 1, occupied, tenfold), { x: 10, z: 0 });
 });
 
-test('every object the vocabulary stands is at scale 1 — only a grove is ever smaller', () => {
+test('every object the vocabulary stands is at scale 1 — nothing that reports is ever drawn smaller', () => {
   const placements = dress(island(['healthy', 'mapped', 'unhealthy', 'proposed']), { blooms: 3 });
   assert.ok(placements.length >= 7);
   for (const p of placements) assert.equal(p.scale, 1, `${p.role}:${p.capId} is at scale ${p.scale}`);

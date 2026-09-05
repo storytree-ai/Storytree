@@ -10,7 +10,7 @@
 // ground, a ground ribbon-line for a trail segment, a dark rim disc for a cave
 // portal, an emissive sprite-ball for a wisp — coloured by the folded status
 // variant. (A cone-on-trunk stood for the story tree until ADR-0508 retired it;
-// each island stands a grove from the bought kit instead.)
+// each island stands the bought kit's one tree per capability instead — ADR-0518.)
 //
 // THE PROJECTION IS ORTHOGRAPHIC AND THE VIEW DOES NOT ROTATE (ADR-0380 D6 fence 4). This
 // canvas shipped for months as a PerspectiveCamera under a rotate-capable orbit control, which
@@ -945,8 +945,9 @@ function KitProps({ placements }: { placements: readonly KitPlacement[] }) {
 // kit, and the one object on this map that was not from the pack. The owner: "under this new look
 // the center tree will no longer be a thing, each island will be a small grove or forest". Since
 // ADR-0475 D2 the LAND carries the story's own state uniformly across the island, so the crown was
-// a second copy of a signal the ground already reports; `KitProps` below stands the grove that
-// replaces it, and the trunk/crown constants and the caster derived from them went in the same
+// a second copy of a signal the ground already reports; `KitProps` below stands the kit's trees
+// in its place (one per capability and nothing else tree-shaped since ADR-0518 — the grove that
+// briefly joined them was retired), and the trunk/crown constants and the caster derived from them went in the same
 // landing. There is nothing to mount here and nothing behind a flag: `world-to-3d.ts` no longer
 // emits the `story-tree` family, so the descriptor this component read does not arrive.
 //
@@ -1110,10 +1111,10 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // read twice below: once as casters (the ground darkens under every placement) and once by
   // `KitProps` (which draws exactly these). Computing it in either consumer alone is how a tree
   // and its shadow become two lists that agree today. `dressMapWithCover` is the shipped
-  // dressing entire: one object per capability, one bloom per signature, a grove on every healthy
-  // island (`grove-dressing.ts`) and that island's GROUND COVER on top (`cover-dressing.ts`) —
-  // the whole descriptor stream, because the signatures, the island ids and the trail docks that
-  // both the grove and the cover keep off the path are all IN it.
+  // dressing entire: one tree per capability — and NOTHING else tree-shaped, ADR-0518 — one bloom
+  // per signature, and every healthy island's GROUND COVER on top (`cover-dressing.ts`) — the
+  // whole descriptor stream, because the signatures, the island ids and the trail docks the cover
+  // keeps off the path are all IN it.
   //
   // ⚠ THE CASTER READER BELOW SEES A LIST IT DOES NOT CAST EVERY MEMBER OF, and that is stated
   // rather than left to be discovered: `placementCasters` drops the `dressing` roles, which is

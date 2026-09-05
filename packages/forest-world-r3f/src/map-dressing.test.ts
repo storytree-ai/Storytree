@@ -25,18 +25,70 @@ import {
 } from '@storytree/forest-world';
 
 import { SHIPPED_COAST, clipToCoast } from './coast-clip.js';
-import { GROVE_BEACH, GROVE_WEAR_CEILING, islandExclusion } from './grove-dressing.js';
 import { islandPaths, islandRims } from './island-path.js';
-import { COVER_SIZE, COVER_SIZE_RUNGS } from './cover-dressing.js';
-import { dressMapFromKit, dressMapWithCover, dressMapWithGroves, signedCriteriaByIsland } from './map-dressing.js';
-import { KIT_FOOTPRINTS_2026_08_29, isDressingRole, isGrovePlacement } from './kit-vocabulary.js';
+import { COVER_DENSITY, COVER_DENSITY_RUNGS, COVER_SIZE, COVER_SIZE_RUNGS } from './cover-dressing.js';
+import {
+  DRESSING_BEACH,
+  DRESSING_WEAR_CEILING,
+  beachClear,
+  crossingIsRight,
+  crossingX,
+  dressingExclusion,
+  insideRing,
+  islandExclusion,
+  pathClear,
+  straddles,
+} from './dressing-ground.js';
+import { dressMapFromKit, dressMapWithCover, signedCriteriaByIsland } from './map-dressing.js';
+import { KIT_FOOTPRINTS_2026_08_29, isDressingRole } from './kit-vocabulary.js';
 import { LAND_RELIEF_AMPLITUDE } from './land-relief.js';
 import { WEAR_FALLOFF, wearOf } from './land-wear.js';
 import { shoreField } from './shore-fall.js';
 import { wearField } from './trail-wear.js';
+import type { GPoint } from './parcel-cells.js';
 import { worldTo3D, type Descriptor3D, type InstanceDescriptor } from './world-to-3d.js';
 
 const FOOT = KIT_FOOTPRINTS_2026_08_29;
+
+// ---------------------------------------------------------------------------
+// FAIL FAST BEFORE THE EXPENSIVE CALL (`mutation-rung-scores-a-hang-as-unproven` §3, 2026-09-05).
+// A mutant that makes the ray cast or the exclusion refuse every point does not fail an assertion
+// in the cover's sampler — it makes every prop burn its 400 tries and the scatter grind past the
+// mutation rung's per-mutant budget, scored UNPROVEN. So every test that scatters cover opens with
+// these microsecond probes; under such a mutant it fails HERE and the grind never starts. The
+// hostile fixtures that separate the ray cast from its plausible variants are
+// `dressing-ground.test.ts`'s; these are only the cheapest probes each hot-loop mutant fails.
+// (Inlined rather than imported from `harness/ground-sanity.ts`: `src/` never imports the harness.)
+// ---------------------------------------------------------------------------
+
+const SANITY_SQUARE: readonly GPoint[] = [{ x: 10, z: 10 }, { x: 20, z: 10 }, { x: 20, z: 20 }, { x: 10, z: 20 }];
+const SANITY_RIM: InstanceDescriptor = {
+  kind: 'cell-ground',
+  transform: { x: 100, y: 0, z: 50 },
+  group: 'cell-ground',
+  material: 'healthy',
+  island: 'sanity',
+  parcel: 'sanity-cap',
+  points: [
+    { x: 0, y: 0, z: 0 },
+    { x: 200, y: 0, z: 0 },
+    { x: 200, y: 0, z: 100 },
+    { x: 0, y: 0, z: 100 },
+  ],
+};
+
+function groundSanity(): void {
+  assert.equal(insideRing(SANITY_SQUARE, { x: 15, z: 15 }), true, 'ground-sanity: the ray cast refuses the middle of a square');
+  assert.equal(insideRing(SANITY_SQUARE, { x: 25, z: 15 }), false, 'ground-sanity: the ray cast admits a point outside');
+  assert.equal(straddles({ x: 0, z: 8 }, { x: 10, z: 2 }, 5), true, 'ground-sanity: straddles');
+  assert.equal(crossingX({ x: 100, z: -2 }, { x: 107, z: 5 }, 0), 102, 'ground-sanity: crossingX');
+  assert.equal(crossingIsRight(1, 2) && !crossingIsRight(3, 2), true, 'ground-sanity: crossingIsRight');
+  assert.equal(beachClear(DRESSING_BEACH) && !beachClear(0), true, 'ground-sanity: beachClear');
+  assert.equal(pathClear(100) && !pathClear(0), true, 'ground-sanity: pathClear');
+  const ex = dressingExclusion([SANITY_RIM], [[{ x: 20, z: 50 }, { x: 180, z: 50 }]]);
+  assert.equal(ex.clear(100, 20), true, 'ground-sanity: the exclusion refuses clear ground');
+  assert.equal(ex.clear(5, 50) || ex.clear(100, 50), false, 'ground-sanity: the exclusion admits the beach or the path');
+}
 
 // ---------------------------------------------------------------------------
 // a TWO-STORY map — the smallest fixture that can catch the defect
@@ -175,6 +227,7 @@ const assertSignatures = (map: readonly Descriptor3D[], want: Record<string, num
 // ---------------------------------------------------------------------------
 
 test('NON-VACUITY: the fixture really is two islands, with cells and signatures on each', () => {
+  groundSanity();
   // ⚠ A fixture that quietly produced ONE island — or no ground — would let every attribution
   // assertion below pass while proving nothing, which is exactly the shape the whole-map dressing
   // survived for a month.
@@ -197,6 +250,7 @@ test('NON-VACUITY: the fixture really is two islands, with cells and signatures 
 // ---------------------------------------------------------------------------
 
 test('each story signs its OWN criteria — the count is per island, and the two differ', () => {
+  groundSanity();
   const signed = signedCriteriaByIsland(twoStoryMap({ total: 6, signed: 4 }, { total: 5, signed: 2 }));
   assert.equal(signed.get(STORY_A), 4, 'atlas signed four of its six');
   assert.equal(signed.get(STORY_B), 2, 'beacon signed two of its five');
@@ -204,6 +258,7 @@ test('each story signs its OWN criteria — the count is per island, and the two
 });
 
 test('an UNSIGNED criterion is not counted — the map may not invent a signature', () => {
+  groundSanity();
   // ADR-0392 D5 / ADR-0398 D7: a unit reads as the state it holds and as no other. The scene
   // carries all eleven criteria either way; only the four PROVEN ones are signatures.
   const none = signedCriteriaByIsland(twoStoryMap({ total: 6, signed: 0 }, { total: 5, signed: 0 }));
@@ -214,6 +269,7 @@ test('an UNSIGNED criterion is not counted — the map may not invent a signatur
 });
 
 test('⚠⚠ EVERY BLOOM STANDS ON THE ISLAND OF THE STORY THAT SIGNED IT', () => {
+  groundSanity();
   // ⚠⚠ THE ASSERTION THIS MODULE EXISTS FOR. Nothing in a rendered frame says which story a
   // flower belongs to, so this is asked of the geometry: a bloom placed for atlas must land inside
   // atlas's own ground, and atlas's ground and beacon's do not overlap.
@@ -242,6 +298,7 @@ test('⚠⚠ EVERY BLOOM STANDS ON THE ISLAND OF THE STORY THAT SIGNED IT', () =
 });
 
 test('a story that signed NOTHING grows nothing, even beside one that signed everything', () => {
+  groundSanity();
   // ⚠ THE FAILURE THAT MOTIVATED THE UNIT, stated as a test: under the whole-map dressing, six
   // signatures held by atlas were scattered over every cell on the map, so beacon — which had
   // signed nothing — grew flowers. The picture asserted a signature nobody gave.
@@ -259,6 +316,7 @@ test('a story that signed NOTHING grows nothing, even beside one that signed eve
 });
 
 test('the map still grows ONE object per capability, on the capability’s own parcel', () => {
+  groundSanity();
   // Per-island dressing must not cost the ADR-0475 vocabulary anything: three capabilities across
   // two islands are still three trees, each carrying its own capId.
   const map = twoStoryMap();
@@ -273,6 +331,7 @@ test('the map still grows ONE object per capability, on the capability’s own p
 // ---------------------------------------------------------------------------
 
 test('a bloom the substrate could not attribute is DROPPED, never spread', () => {
+  groundSanity();
   // A signature with no island is one that could be drawn anywhere; refusing to count it means
   // such a story grows nothing, never that every story grows its neighbour's.
   const orphan: Descriptor3D[] = [
@@ -284,6 +343,7 @@ test('a bloom the substrate could not attribute is DROPPED, never spread', () =>
 });
 
 test('the same criterion twice is ONE signature; unstamped markers are counted individually', () => {
+  groundSanity();
   // ⚠⚠ THE SHAPE OF THIS FIXTURE IS ARITHMETIC, NOT TASTE — 4 named of which 2 are distinct, and
   // 2 unnamed, so the honest answer is 4. Every nearby fixture is satisfied by a reader that has
   // the two branches CONFUSED, and `check:mutation-diff` found each of them in turn:
@@ -306,6 +366,7 @@ test('the same criterion twice is ONE signature; unstamped markers are counted i
 });
 
 test('cells the substrate cannot attribute still grow their capabilities’ trees, and no blooms', () => {
+  groundSanity();
   // The classic extruded-hex substrate and hand-built fragments carry no island group. Dropping
   // those cells would shrink the map; growing a per-STORY claim on them would attribute it to a
   // story that does not exist. So: trees yes, blooms no.
@@ -336,6 +397,7 @@ test('cells the substrate cannot attribute still grow their capabilities’ tree
 });
 
 test('an island is dressed against its OWN occupancy — it looks the same alone as in a crowd', () => {
+  groundSanity();
   // ⚠ A PROPERTY THE WHOLE-MAP CALL DID NOT HAVE. One `dressIslandFromKit` over every cell shares
   // one occupancy list, so adding a second island could move the FIRST island's props. Per-island
   // calls make an island's dressing a function of that island alone — which is what lets a
@@ -361,11 +423,13 @@ test('an island is dressed against its OWN occupancy — it looks the same alone
 });
 
 test('the dressing is deterministic — the same map dresses identically twice', () => {
+  groundSanity();
   assertSignatures(twoStoryMap(), { [STORY_A]: 4, [STORY_B]: 2 });
   assert.deepEqual(dress(twoStoryMap()), dress(twoStoryMap()));
 });
 
 test('GROUND IS NOT A SIGNATURE — a map of nothing but cells signs nothing', () => {
+  groundSanity();
   // ⚠ The filter's own claim, stated with no bloom in the stream at all: a `cell-ground` carries an
   // island and no criterion, so a reader that let ground through would report one signature per
   // cell — a story asserted to hold 164 signed criteria because its land has 164 parcels.
@@ -379,13 +443,18 @@ test('GROUND IS NOT A SIGNATURE — a map of nothing but cells signs nothing', (
 });
 
 // ---------------------------------------------------------------------------
-// THE GROVES (2026-09-03) — grown on the healthy island, and only there
+// THE GROUND COVER — the second layer, and the one the CANVAS actually stands
 // ---------------------------------------------------------------------------
 //
 // ⚠ A BIGGER FIXTURE FOR THIS HALF: seven hexes per island rather than three, so the island holds
-// stands worth counting once the beach band and the capability trees have taken their clearance.
-// The two islands are far apart in x, as above, and their STATUSES are the fixture's parameter —
-// which is the whole question here.
+// a carpet worth counting once the beach band has taken its share. The two islands are far apart
+// in x, as above, and their STATUSES are the fixture's parameter — which is the whole question.
+//
+// ⚠⚠ THIS HALF USED TO BE THE GROVE'S (2026-09-03 → 2026-09-05). `dressMapWithGroves` stood
+// thirteen stands of dressing pines per recipe-island on every healthy island, and ADR-0518
+// retired the role: a tree on the map means exactly one capability now. The tests below hold that
+// as a property of the whole map's placement list — no `tree` stands that a capability did not put
+// there — and the beach-and-path test the grove carried now binds the cover.
 
 const RING_A = [
   { q: 0, r: 0 },
@@ -428,9 +497,6 @@ function bigMap(aStatus: SceneStatus = 'healthy', bStatus: SceneStatus = 'health
   return built;
 }
 
-const dressGroved = (descriptors: readonly Descriptor3D[]) =>
-  dressMapWithGroves(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: FOOT });
-
 const groundOf = (map: readonly Descriptor3D[], story: string): InstanceDescriptor[] =>
   map.filter((d): d is InstanceDescriptor => d.kind === 'cell-ground' && d.island === story);
 
@@ -439,43 +505,81 @@ const spanOf = (map: readonly Descriptor3D[], story: string) => {
   return { min: Math.min(...xs), max: Math.max(...xs) };
 };
 
-test('the vocabulary-only dressing grows no grove; the shipped dressing grows one on the healthy island ONLY', () => {
+const dressCovered = (descriptors: readonly Descriptor3D[], over: { coverSize?: number; coverDensity?: number } = {}) => {
+  // ANNOTATED then guarded — `exactOptionalPropertyTypes` refuses an explicit `undefined`.
+  const opts: Parameters<typeof dressMapWithCover>[1] = { relief: LAND_RELIEF_AMPLITUDE, footprint: FOOT };
+  if (over.coverSize !== undefined) opts.coverSize = over.coverSize;
+  if (over.coverDensity !== undefined) opts.coverDensity = over.coverDensity;
+  return dressMapWithCover(descriptors, opts);
+};
+
+const isTree = (p: { role: string }): boolean => p.role === 'tree' || p.role === 'deadTree';
+
+test('⚠⚠ ONE TREE PER CAPABILITY AND NOTHING ELSE TREE-SHAPED (ADR-0518 D1) — on the whole map, both layers', () => {
+  groundSanity();
+  // The fixture: atlas holds three capabilities, beacon two — five trees, each wearing the capId
+  // of the capability that put it there, at scale 1, on its own island. On BOTH entry points: the
+  // cover layer may add bushes, tufts and flowers, and may not add a tree.
+  const map = bigMap('healthy', 'healthy');
+  for (const placements of [dress(map), dressCovered(map)]) {
+    const trees = placements.filter(isTree);
+    assert.equal(trees.length, 5, 'five capabilities, five trees');
+    assert.deepEqual(
+      trees.map((t) => t.capId).sort(),
+      ['atlas-parse', 'atlas-sign', 'atlas-store', 'beacon-ack', 'beacon-emit'],
+    );
+    for (const t of trees) assert.equal(t.scale, 1, `a tree at scale ${t.scale} — nothing tree-shaped stands below the role`);
+    // Every other placement is a bloom or a dressing role — there is no third thing.
+    for (const p of placements) {
+      assert.ok(isTree(p) || p.role === 'bloom' || isDressingRole(p.role), `${p.role} is neither signal nor declared dressing`);
+    }
+  }
+  // NON-VACUITY: the covered map DID add something, and none of it is a tree.
+  assert.ok(dressCovered(map).length > dress(map).length, 'the cover layer stood nothing');
+});
+
+test('⚠⚠ THE TWO ENTRY POINTS ARE STRICTLY NESTED — cover is the vocabulary plus cover, and the vocabulary is untouched', () => {
+  groundSanity();
+  // The claim the canvas rests on: standing the top layer cannot MOVE anything the layer below
+  // placed. If it could, a scale-back on the cover — an owner's LOOK decision, made off a picture
+  // — would silently re-place every signal on the map, invisibly in any picture of one arm.
   const map = bigMap('healthy', 'proposed');
-  assert.equal(dress(map).filter(isGrovePlacement).length, 0, 'dressMapFromKit grew a grove');
-  const groved = dressGroved(map);
-  const groves = groved.filter(isGrovePlacement);
-  assert.ok(groves.length > 0, 'the healthy island grew no grove');
+  const vocabulary = dress(map);
+  const covered = dressCovered(map);
+  assert.deepEqual(covered.filter((p) => !isDressingRole(p.role)), vocabulary, 'the cover moved what stands under it');
+  const cover = covered.filter((p) => isDressingRole(p.role));
+  assert.ok(cover.length > 0, 'the healthy island wears no ground cover at all');
+  assert.equal(vocabulary.filter((p) => isDressingRole(p.role)).length, 0, 'dressMapFromKit grew ground cover');
+});
+
+test('the ground cover grows on the HEALTHY island only — unknown, unhealthy, mapped, building, proposed wear nothing', () => {
+  groundSanity();
+  const map = bigMap('healthy', 'proposed');
+  const cover = dressCovered(map).filter((p) => isDressingRole(p.role));
   const a = spanOf(map, STORY_A);
   const b = spanOf(map, STORY_B);
   assert.ok(a.max < b.min, 'the fixture keeps the two islands disjoint in x');
-  for (const g of groves) assert.ok(g.at.x >= a.min && g.at.x <= a.max, `a grove pine off the healthy island at x=${g.at.x}`);
-  assert.equal(groves.filter((g) => g.at.x >= b.min).length, 0, 'the proposed island wears a grove');
-  // ⚠ AND THE VOCABULARY IS UNTOUCHED BY IT: the non-grove placements are `dressMapFromKit`'s own,
-  // in order — the grove is placed AFTER each island's objects and moves none of them.
-  assert.deepEqual(groved.filter((p) => !isGrovePlacement(p)), dress(map));
-});
-
-test('no story that is not healthy grows a grove — unknown, unhealthy, mapped, building, proposed', () => {
+  for (const c of cover) assert.ok(c.at.x >= a.min && c.at.x <= a.max, `a cover prop off the healthy island at x=${c.at.x}`);
+  assert.equal(cover.filter((c) => c.at.x >= b.min).length, 0, 'the proposed island wears ground cover');
   for (const status of ['unknown', 'unhealthy', 'mapped', 'building', 'proposed'] as const) {
-    assert.equal(dressGroved(bigMap(status, status)).filter(isGrovePlacement).length, 0, `${status} grew a grove`);
+    assert.equal(dressCovered(bigMap(status, status)).filter((p) => isDressingRole(p.role)).length, 0, `${status} grew ground cover`);
   }
-  // NON-VACUITY: both healthy, both grow — and two islands of one shape are not one grove twice,
+  // NON-VACUITY: both healthy, both wear — and two islands of one shape are not one carpet twice,
   // because the seed is the island's id.
-  const map = bigMap('healthy', 'healthy');
-  const both = dressGroved(map).filter(isGrovePlacement);
-  const a = spanOf(map, STORY_A);
-  const b = spanOf(map, STORY_B);
-  const inA = both.filter((g) => g.at.x <= a.max);
-  const inB = both.filter((g) => g.at.x >= b.min);
+  const both = bigMap('healthy', 'healthy');
+  const carpets = dressCovered(both).filter((p) => isDressingRole(p.role));
+  const inA = carpets.filter((c) => c.at.x <= spanOf(both, STORY_A).max);
+  const inB = carpets.filter((c) => c.at.x >= spanOf(both, STORY_B).min);
   assert.ok(inA.length > 0 && inB.length > 0, `${inA.length} on atlas, ${inB.length} on beacon`);
-  assert.equal(inA.length + inB.length, both.length, 'a grove pine in the sea between them');
+  assert.equal(inA.length + inB.length, carpets.length, 'a cover prop in the sea between them');
   assert.notDeepEqual(
-    inA.map((g) => Number((g.at.x - a.min).toFixed(3))),
-    inB.map((g) => Number((g.at.x - b.min).toFixed(3))),
+    inA.map((c) => Number((c.at.x - spanOf(both, STORY_A).min).toFixed(3))),
+    inB.map((c) => Number((c.at.x - spanOf(both, STORY_B).min).toFixed(3))),
   );
 });
 
-test('⚠⚠ THE GROVE KEEPS OFF THE BEACH AND THE PATH, judged by the ground’s OWN distance fields', () => {
+test('⚠⚠ THE COVER KEEPS OFF THE BEACH AND THE PATH, judged by the ground’s OWN distance fields', () => {
+  groundSanity();
   const map = bigMap('healthy', 'proposed');
   // A trail strip arriving from the east and ending ON the healthy island's clipped rim — its
   // easternmost rim vertex — so the connector docks it there and wears a path to the centroid.
@@ -504,82 +608,66 @@ test('⚠⚠ THE GROVE KEEPS OFF THE BEACH AND THE PATH, judged by the ground’
   const paths = [...islandPaths(clippedA, [strip]).values()].flat();
   assert.ok(paths.length === 1 && paths[0]!.length > 2, 'the strip docked nowhere — the fixture proves nothing');
 
-  const groves = dressGroved(withStrip).filter(isGrovePlacement);
-  assert.ok(groves.length > 0);
+  const cover = dressCovered(withStrip).filter((p) => isDressingRole(p.role));
+  assert.ok(cover.length > 0);
   const wear = wearField(paths, WEAR_FALLOFF);
-  const shore = shoreField(clippedA, GROVE_BEACH);
-  for (const g of groves) {
-    assert.ok(wearOf(wear.sample(g.at.x, g.at.z).distance) < GROVE_WEAR_CEILING, `a grove pine on the path at ${g.at.x}, ${g.at.z}`);
-    assert.ok(shore.sample(g.at.x, g.at.z).distance >= GROVE_BEACH, `a grove pine on the beach at ${g.at.x}, ${g.at.z}`);
+  const shore = shoreField(clippedA, DRESSING_BEACH);
+  for (const c of cover) {
+    assert.ok(wearOf(wear.sample(c.at.x, c.at.z).distance) < DRESSING_WEAR_CEILING, `a cover prop on the path at ${c.at.x}, ${c.at.z}`);
+    assert.ok(shore.sample(c.at.x, c.at.z).distance >= DRESSING_BEACH, `a cover prop on the beach at ${c.at.x}, ${c.at.z}`);
   }
   // ⚠ NON-VACUITY: the exclusion the dressing honoured CAN refuse — a point on the path, the
   // landing itself (which sits on the coast), the centroid the one-dock path ends at — and every
-  // grove pine passes it.
+  // cover prop passes it.
   const ex = islandExclusion(withStrip, STORY_A);
   const onPath = paths[0]![Math.floor(paths[0]!.length / 2)]!;
   assert.equal(ex.clear(onPath.x, onPath.z), false, 'the path’s middle is clear — the path never reached the exclusion');
   assert.equal(ex.clear(landing.x, landing.z), false, 'the coast is clear — the beach never reached the exclusion');
   assert.equal(ex.clear(rim.centroid.x, rim.centroid.z), false, 'the one-dock path ends at the centroid');
-  for (const g of groves) assert.equal(ex.clear(g.at.x, g.at.z), true);
+  for (const c of cover) assert.equal(ex.clear(c.at.x, c.at.z), true);
   // And WITHOUT the strip the centroid is clear, which is what shows the refusal came from the dock.
   assert.equal(islandExclusion(map, STORY_A).clear(rim.centroid.x, rim.centroid.z), true);
+  // ⚠ AND THE PATH REACHES THE PICTURE: the cover re-samples a refused point (the recipe's own
+  // `range(400)`), so the count holds and the CARPET moves — the same island without the strip
+  // stands its props elsewhere.
+  const without = dressCovered(map).filter((p) => isDressingRole(p.role));
+  assert.equal(cover.length, without.length, 'a refused point is re-sampled, never dropped, on an island this size');
+  assert.notDeepEqual(cover.map((c) => c.at), without.map((c) => c.at), 'the path moved no prop — the exclusion never reached the scatter');
 });
 
-test('the groved dressing is deterministic — the same map dresses identically twice', () => {
-  assert.deepEqual(dressGroved(bigMap('healthy', 'proposed')), dressGroved(bigMap('healthy', 'proposed')));
-});
-
-// ---------------------------------------------------------------------------
-// THE GROUND COVER — the third layer, and the one the CANVAS actually stands
-// ---------------------------------------------------------------------------
-
-const dressCovered = (descriptors: readonly Descriptor3D[], coverSize?: number) => {
-  // ANNOTATED then guarded — `exactOptionalPropertyTypes` refuses an explicit `undefined`.
-  const opts: Parameters<typeof dressMapWithCover>[1] = { relief: LAND_RELIEF_AMPLITUDE, footprint: FOOT };
-  if (coverSize !== undefined) opts.coverSize = coverSize;
-  return dressMapWithCover(descriptors, opts);
-};
-
-test('⚠⚠ THE THREE ENTRY POINTS ARE STRICTLY NESTED — cover is groves plus cover, and groves are untouched', () => {
-  // The claim the canvas rests on: standing the top layer cannot MOVE anything the layer below
-  // placed. If it could, the grove would be re-placed around the cover and a scale-back on the
-  // cover would silently redraw the trees — which is the failure the layered order exists to
-  // prevent, and it is invisible in any picture of one arm.
-  const map = bigMap('healthy', 'proposed');
-  const groved = dressGroved(map);
-  const covered = dressCovered(map);
-  assert.deepEqual(covered.filter((p) => !isDressingRole(p.role)), groved, 'the cover moved what stands under it');
-  const cover = covered.filter((p) => isDressingRole(p.role));
-  assert.ok(cover.length > 0, 'the healthy island wears no ground cover at all');
-  assert.equal(groved.filter((p) => isDressingRole(p.role)).length, 0, 'dressMapWithGroves grew ground cover');
-  assert.equal(dress(map).filter((p) => isDressingRole(p.role)).length, 0, 'dressMapFromKit grew ground cover');
-});
-
-test('the ground cover grows on the HEALTHY island only, by the same gate the grove keeps', () => {
-  const map = bigMap('healthy', 'proposed');
-  const cover = dressCovered(map).filter((p) => isDressingRole(p.role));
-  const a = spanOf(map, STORY_A);
-  const b = spanOf(map, STORY_B);
-  assert.ok(a.max < b.min, 'the fixture keeps the two islands disjoint in x');
-  for (const c of cover) assert.ok(c.at.x >= a.min && c.at.x <= a.max, `a cover prop off the healthy island at x=${c.at.x}`);
-  assert.equal(cover.filter((c) => c.at.x >= b.min).length, 0, 'the proposed island wears ground cover');
-  for (const status of ['unknown', 'unhealthy', 'mapped', 'building', 'proposed'] as const) {
-    assert.equal(
-      dressCovered(bigMap(status, status)).filter((p) => isDressingRole(p.role)).length,
-      0,
-      `${status} grew ground cover`,
+test('⚠ THE COUNT RUNG REACHES THE MAP (ADR-0518 D2) — a denser rung stands more cover and moves nothing that reports', () => {
+  groundSanity();
+  // The seam the one-tree-per-capability page's whole ladder rides on: `dressMapWithCover` could
+  // accept `coverDensity` and drop it on the floor, and every arm of the sheet would render the
+  // shipped rung under four different captions.
+  const map = bigMap('healthy', 'healthy');
+  const counts = COVER_DENSITY_RUNGS.map((rung) => dressCovered(map, { coverDensity: rung }).filter((p) => isDressingRole(p.role)).length);
+  for (const [i, n] of counts.entries()) {
+    if (i > 0) assert.ok(n > counts[i - 1]!, `rung ${COVER_DENSITY_RUNGS[i]} stands ${n} against rung ${COVER_DENSITY_RUNGS[i - 1]}'s ${counts[i - 1]}`);
+  }
+  // Roughly proportional: the recipe's scatter repeated, minus the props the exclusion drops.
+  assert.ok(counts[1]! > counts[0]! * 1.7 && counts[1]! < counts[0]! * 2.3, `rung 2 is ${counts[1]} against rung 1's ${counts[0]}`);
+  for (const rung of COVER_DENSITY_RUNGS) {
+    assert.deepEqual(
+      dressCovered(map, { coverDensity: rung }).filter((p) => !isDressingRole(p.role)),
+      dress(map),
+      `rung ${rung} moved the vocabulary`,
     );
   }
+  // And the OMITTED rung is the shipped pick: the canvas passes no `coverDensity`.
+  assert.deepEqual(dressCovered(map), dressCovered(map, { coverDensity: COVER_DENSITY }));
+  assert.notDeepEqual(dressCovered(map), dressCovered(map, { coverDensity: COVER_DENSITY + 1 }));
 });
 
 test('⚠ THE SIZE RUNG REACHES THE MAP — a bolder rung stands the same cover, wider, and moves nothing else', () => {
+  groundSanity();
   // The seam this asserts is the one the comparison page's whole ladder rides on. `dressMapWithCover`
   // could accept `coverSize` and drop it on the floor, and every arm of the sheet would render the
   // shipped rung under five different captions — a page that looks like a ladder and is five copies
   // of one picture. Asserted per prop rather than as a mean.
   const map = bigMap('healthy', 'healthy');
-  const lean = dressCovered(map, 1).filter((p) => isDressingRole(p.role));
-  const bold = dressCovered(map, COVER_SIZE).filter((p) => isDressingRole(p.role));
+  const lean = dressCovered(map, { coverSize: 1 }).filter((p) => isDressingRole(p.role));
+  const bold = dressCovered(map, { coverSize: COVER_SIZE }).filter((p) => isDressingRole(p.role));
   assert.ok(lean.length > 0 && lean.length === bold.length, 'the rung changed WHAT stands');
   for (const [i, p] of lean.entries()) {
     const b = bold[i]!;
@@ -589,15 +677,16 @@ test('⚠ THE SIZE RUNG REACHES THE MAP — a bolder rung stands the same cover,
   }
   // The scene roles are untouched by the cover's rung — a bolder carpet must not move a tree.
   assert.deepEqual(
-    dressCovered(map, 1).filter((p) => !isDressingRole(p.role)),
-    dressCovered(map, COVER_SIZE).filter((p) => !isDressingRole(p.role)),
+    dressCovered(map, { coverSize: 1 }).filter((p) => !isDressingRole(p.role)),
+    dressCovered(map, { coverSize: COVER_SIZE }).filter((p) => !isDressingRole(p.role)),
   );
   // And the OMITTED rung is the shipped pick, never rung 1: the canvas passes no `coverSize`.
-  assert.deepEqual(dressCovered(map), dressCovered(map, COVER_SIZE));
-  for (const rung of COVER_SIZE_RUNGS) assert.ok(dressCovered(map, rung).length === dressCovered(map).length);
+  assert.deepEqual(dressCovered(map), dressCovered(map, { coverSize: COVER_SIZE }));
+  for (const rung of COVER_SIZE_RUNGS) assert.ok(dressCovered(map, { coverSize: rung }).length === dressCovered(map).length);
 });
 
 test('the covered dressing is deterministic — the same map dresses identically twice', () => {
+  groundSanity();
   const map = bigMap('healthy', 'healthy');
   assert.deepEqual(dressCovered(map), dressCovered(map));
 });

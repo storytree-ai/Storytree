@@ -42,14 +42,15 @@ const placed = (role: KitPlacement['role'], scale: number): KitPlacement => ({
   scale,
 });
 
-test('every arm stands on the SHIPPED grove arm’s ground, from the canopy page’s own builder, and builds no scene of its own', () => {
+test('every arm stands on the SHIPPED casting arm’s ground, from the canopy module’s own builder, and builds no scene of its own', () => {
   const page = source('shipped-cover-scene.ts');
-  assert.ok(/canopyGroundBuild\(SHIPPED_GROVE_ARM, size\)/.test(page), 'the ground is the shipped grove arm’s');
+  assert.ok(/canopyGroundBuild\(SHIPPED_CANOPY_ARM, size\)/.test(page), 'the ground is the shipped casting arm’s');
   assert.ok(!/const input: CellGroundGeometryInput/.test(page), 'no geometry input of its own');
   assert.ok(!/clipToCoast\(/.test(page), 'the coast clip is the builder’s');
   assert.ok(!/shoreRelief\(/.test(page), 'the shore fall is the builder’s');
   assert.ok(!/buildAtlasOcclusion\(/.test(page), 'the occlusion field is the builder’s');
-  assert.ok(!/dressGroves\(/.test(page), 'the grove is placed by map-dressing, never re-derived here');
+  assert.ok(!/dressGroves\(|grove-history|grove-dressing/.test(page), 'no grove reaches this page (ADR-0518)');
+  assert.ok(/coverDensity: COVER_DENSITY_RUNGS\[0\]!/.test(page), 'the count is held at the recipe’s own, so only size moves here');
   assert.ok(/buildGroundMaterial\(build\.field, SHIPPED_GRASS, build\.shore\(\), SHIPPED_SAND_MIX, extras\)/.test(page));
   assert.ok(/configureExactColour\(renderer\)/.test(page) && /calibrateLights\(renderer\)/.test(page));
 });
@@ -105,10 +106,10 @@ test('both sizes, the read zoom and the fitted view', () => {
   assert.deepEqual([...COVER_PICTURE_ZOOMS], [8, FIT_ZOOM]);
 });
 
-test('the census counts only DRESSING roles as cover, and keeps the grove’s count separate', () => {
+test('the census counts only DRESSING roles as cover', () => {
   const list: KitPlacement[] = [
     { ...placed('tree', 1), capId: 'cap-a', assembly: 'pine-a' },
-    { ...placed('tree', 0.6), capId: 'grove', assembly: 'pine-b' },
+    { ...placed('tree', 1), capId: 'cap-b', assembly: 'pine-b' },
     { ...placed('bloom', 1), capId: 'cap-a', assembly: 'flower' },
     placed('bush', 1),
     placed('bush', 1),
@@ -116,11 +117,10 @@ test('the census counts only DRESSING roles as cover, and keeps the grove’s co
   ];
   const c = coverCensus(list);
   assert.equal(c.objects, 6);
-  assert.equal(c.groves, 1, 'the grove count must not swallow the cover');
   assert.equal(c.cover, 3);
   assert.deepEqual(c.byRole, { bush: 2, tuft: 1 });
   // ⚠ AN EMPTY LIST REPORTS ZEROS RATHER THAN NOTHING — the mask arm goes through here.
-  assert.deepEqual(coverCensus([]), { objects: 0, groves: 0, cover: 0, byRole: {} });
+  assert.deepEqual(coverCensus([]), { objects: 0, cover: 0, byRole: {} });
 });
 
 test('⚠⚠ THE TWO WIDTH READINGS ARE DIFFERENT QUESTIONS, and the marker’s bound is on the FLOWER one', () => {
