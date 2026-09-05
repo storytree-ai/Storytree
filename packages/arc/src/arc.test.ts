@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { InMemoryStore, type Store } from "@storytree/storage-protocol";
-import { deriveArcRollup } from "./arc-rollup.js";
+import { deriveArcLifecycle, deriveArcRollup } from "./arc-rollup.js";
+import { questionNew, questionSettle } from "./question.js";
 import { seedDecisionRows } from "./decision.test-helpers.js";
 
 import {
@@ -3385,4 +3386,430 @@ test("arc show resolves a gate against ARCS ONLY — a blocker id naming another
   } finally {
     rmSync(fx.root, { recursive: true, force: true });
   }
+});
+
+// ---------------------------------------------------------------------------
+// An arc waiting on an unsettled question does not auto-close (ADR-0526).
+//
+// The failure this fences is SILENT and points the wrong way: a drained arc auto-closed, left the
+// default worklist, and took the owner's fork with it — while its question still read `open` and the
+// `waiting` flag that exists to name who is waiting was never consulted for a closed arc. Observed
+// twice in five days (`website-refresh-arc`, `replay-answers-retrieval-ease-arc`), both caught only
+// because a passing session happened to recognise the shape.
+// ---------------------------------------------------------------------------
+
+/**
+ * Seeds one arc plus its LAST still-open increment — the shape the rule turns on, one write before
+ * the arc drains. The tests close it through the real verb so the write-time trigger actually runs;
+ * seeding it already-closed would only prove `arcIncrementClose` refuses a second closure.
+ */
+async function drainedArc(store: InMemoryStore, id = "drained-arc"): Promise<InMemoryStore> {
+  await store.upsertDoc({
+    id,
+    kind: "arc",
+    doc: {
+      kind: "arc",
+      id,
+      title: id,
+      description: "d",
+      intent: "i",
+      endState: "e",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  await store.upsertDoc({
+    id: `${id}-inc-01`,
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: `${id}-inc-01`,
+      arcRef: `asset:${id}`,
+      title: "t",
+      description: "d",
+      objective: "o",
+      body: "b",
+      status: "ready",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  return store;
+}
+
+/**
+ * The open-question fixture's shape. A named interface rather than an open dictionary: every key is
+ * known at authoring time, so naming them makes a typo a compile error where the dictionary made it
+ * a silently-ignored field — and the three settlement keys are OPTIONAL precisely because the
+ * unsettled fixture must genuinely omit them.
+ */
+interface QuestionFixtureDoc {
+  kind: string;
+  id: string;
+  title: string;
+  description: string;
+  stakes: string;
+  statement: string;
+  context: string;
+  options: string;
+  arcRef: string;
+  createdAt: string;
+  updatedAt: string;
+  lifecycle?: string;
+  answer?: string;
+  settledAt?: string;
+}
+
+/** Seeds one open-question stamped to `arcId`. `settled` writes the terminal lifecycle. */
+async function questionOn(
+  store: InMemoryStore,
+  arcId: string,
+  id: string,
+  settled = false,
+): Promise<void> {
+  const doc: QuestionFixtureDoc = {
+    kind: "open-question",
+    id,
+    title: "A question",
+    description: "d",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+    arcRef: `asset:${arcId}`,
+    createdAt: "2026-09-01",
+    updatedAt: "2026-09-01",
+  };
+  // Built in statements rather than a conditional spread: the UNSETTLED fixture must genuinely OMIT
+  // `lifecycle`, because "absent reads as open" is one of the behaviours under test, and a spread
+  // that quietly wrote `undefined` would make that case unfalsifiable.
+  if (settled) {
+    doc.lifecycle = "settled";
+    doc.answer = "the answer";
+    doc.settledAt = "2026-09-05";
+  }
+  await store.upsertDoc({ id, kind: "open-question", doc });
+}
+
+test("deriveArcLifecycle: a drained arc stays ACTIVE while a question waits, and closes when none does", () => {
+  const drained = [{ status: "closed" }];
+  // The rule as it stood: no second input, so a drained arc always closed.
+  assert.equal(deriveArcLifecycle(drained), "closed");
+  assert.equal(deriveArcLifecycle(drained, { unsettledQuestions: 0 }), "closed");
+  // ADR-0526 D1 — the new input, and the whole point of the decision.
+  assert.equal(deriveArcLifecycle(drained, { unsettledQuestions: 1 }), "active");
+  assert.equal(deriveArcLifecycle(drained, { unsettledQuestions: 4 }), "active");
+});
+
+test("deriveArcLifecycle: an unsettled question does NOT change the answer for an arc with open work", () => {
+  // Open work already derives `active`; the question input must not be able to flip that to anything
+  // else, and it must not be consulted at all before the increment log has had its say.
+  const working = [{ status: "closed" }, { status: "ready" }];
+  assert.equal(deriveArcLifecycle(working), "active");
+  assert.equal(deriveArcLifecycle(working, { unsettledQuestions: 3 }), "active");
+});
+
+test("deriveArcLifecycle: an EMPTY log still derives nothing, question or no question", () => {
+  // ADR-0335 D1's birth window. A question stamped to an arc that has not been given its first
+  // increment yet must not manufacture a lifecycle where the log has no signal at all.
+  assert.equal(deriveArcLifecycle([]), null);
+  assert.equal(deriveArcLifecycle([], { unsettledQuestions: 2 }), null);
+});
+
+test("closing the LAST increment does not auto-close an arc whose question is unsettled", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-still-open");
+  // Re-close the increment through the verb so the real write-time trigger runs.
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  const arc = (await store.getDoc("drained-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"] ?? "active", "active", "the arc stays on the worklist");
+  // And it SAYS why, in the words the owner would need — not merely by omitting the auto-close line.
+  assert.match(res.body, /did NOT auto-close/);
+  assert.match(res.body, /1 question\(s\) still wait on you/);
+});
+
+test("the same closure DOES auto-close the arc once the question is settled", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-answered", true);
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  const arc = (await store.getDoc("drained-arc"))?.doc as Record<string, unknown>;
+  assert.equal(arc["lifecycle"], "closed");
+  assert.match(res.body, /auto-closed/);
+});
+
+test("a question on ANOTHER arc never holds this one open", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await drainedArc(store, "other-arc");
+  await questionOn(store, "other-arc", "oq-elsewhere");
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+});
+
+test("a question with NO lifecycle field reads as OPEN — the safe direction", async () => {
+  // A row authored before the state existed carries no `lifecycle`. Reading that as settled would
+  // hide the owner's fork, which is the failure this decision exists to prevent; reading it as open
+  // only leaves an arc on the worklist slightly too long.
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-legacy");
+  const legacy = (await store.getDoc("oq-legacy"))?.doc as Record<string, unknown>;
+  assert.equal(legacy["lifecycle"], undefined, "the fixture really does omit the field");
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(
+    ((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active",
+    "active",
+  );
+});
+
+test("a PARKED arc is untouched by the question input — the curated fence still outranks it", async () => {
+  // ADR-0526 D5 / ADR-0374 D2: parking is the owner's call and the mechanical rule yields to it,
+  // whether or not a question waits.
+  const store = await drainedArc(new InMemoryStore());
+  const arc = (await store.getDoc("drained-arc"))?.doc as Record<string, unknown>;
+  await store.upsertDoc({ id: "drained-arc", kind: "arc", doc: { ...arc, lifecycle: "parked" } });
+  await questionOn(store, "drained-arc", "oq-open-on-parked");
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "parked");
+  assert.match(res.body, /stays parked/);
+});
+
+test("a malformed question row never breaks the lifecycle read", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  // A row whose doc is null, and one that is not an object at all. Reading `["lifecycle"]` off
+  // either would throw and take the whole increment write down with it.
+  await store.upsertDoc({ id: "oq-null", kind: "open-question", doc: null as never });
+  await store.upsertDoc({ id: "oq-string", kind: "open-question", doc: "not an object" as never });
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  // Neither carries an `arcRef`, so neither is this arc's — the arc closes.
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+});
+
+test("the held-open message needs BOTH halves — a question alone does not produce it", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  // A SECOND increment that stays open, so the arc has real work AND a question. The arc is active
+  // because of the WORK; saying "your question is holding this open" here would be false.
+  await store.upsertDoc({
+    id: "drained-arc-inc-02",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "drained-arc-inc-02",
+      arcRef: "asset:drained-arc",
+      title: "t",
+      description: "d",
+      objective: "o",
+      body: "b",
+      status: "ready",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  await questionOn(store, "drained-arc", "oq-open-with-work");
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/, "open WORK is why it is active, not the question");
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+});
+
+test("nor does a drained log alone produce it — with no question the arc simply closes", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  const res = await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+  assert.match(res.body, /auto-closed/);
+});
+
+test("ONE still-open increment among many closed ones keeps the arc active on WORK, not on questions", async () => {
+  // `every` vs `some` on the drained test: with `some`, a single closed increment alongside an open
+  // one would read as drained and mislabel a work-active arc as question-held.
+  const store = await drainedArc(new InMemoryStore());
+  await store.upsertDoc({
+    id: "drained-arc-inc-02",
+    kind: "increment",
+    doc: {
+      kind: "increment",
+      id: "drained-arc-inc-02",
+      arcRef: "asset:drained-arc",
+      title: "t",
+      description: "d",
+      objective: "o",
+      body: "b",
+      status: "closed",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  await questionOn(store, "drained-arc", "oq-with-mixed-log");
+  // inc-01 is still `ready`, so promoting inc-01 to active leaves real open work behind.
+  const res = await arcIncrementPromote(writeDeps(store), "drained-arc-inc-01", "active");
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+});
+
+test("settling a question on an UNHOMED row touches no arc lifecycle", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await store.upsertDoc({
+    id: "oq-unhomed",
+    kind: "open-question",
+    doc: {
+      kind: "open-question",
+      id: "oq-unhomed",
+      title: "A question",
+      description: "d",
+      stakes: "s",
+      statement: "q",
+      context: "c",
+      options: "o",
+      createdAt: "2026-09-01",
+      updatedAt: "2026-09-01",
+    },
+  });
+  const res = await questionSettle(writeDeps(store), "oq-unhomed", { answer: "decided" });
+  assert.equal(res.ok, true);
+  // No arc to recompute, so no lifecycle line — and the arc's own state is untouched. Asserted as
+  // the EXACT tail, because a guard that spliced the note in regardless would emit a literal "null"
+  // that no /auto-closed/ probe would notice.
+  assert.doesNotMatch(res.body, /auto-closed/);
+  assert.doesNotMatch(res.body, /null/);
+  assert.match(res.body, /homed on no arc, so no arc's waiting state changes/);
+  assert.doesNotMatch(res.body, /no longer counts this question as waiting/);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+});
+
+test("settling the LAST question on a drained arc auto-closes it, and says so (ADR-0526 D4)", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-last");
+  // Drain the work first — the arc stays open on the question alone.
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+
+  const res = await questionSettle(writeDeps(store), "oq-last", { answer: "decided" });
+  assert.equal(res.ok, true);
+  // Without this trigger the arc would read `active` FOREVER — the exact lingering ADR-0335 removed,
+  // moved from the increment log to the question tier.
+  assert.match(res.body, /auto-closed/);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+  // The note sits on its own line with a blank AFTER it, so it does not run into the arc sentence.
+  const l = res.body.split(String.fromCharCode(10));
+  const noteAt = l.findIndex((line) => /auto-closed/.test(line));
+  assert.ok(noteAt > 0);
+  assert.equal(l[noteAt + 1], "");
+  assert.match(l[noteAt + 2] ?? "", /^drained-arc no longer counts this question as waiting/);
+});
+
+test("settling one of TWO questions leaves the arc open, and prints no lifecycle line", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-one");
+  await questionOn(store, "drained-arc", "oq-two");
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await questionSettle(writeDeps(store), "oq-one", { answer: "decided" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /auto-closed/);
+  assert.doesNotMatch(res.body, /null/);
+  // The HOMED wording, so the arc-vs-no-arc fork is pinned in both directions.
+  assert.match(res.body, /drained-arc no longer counts this question as waiting/);
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"] ?? "active", "active");
+});
+
+test("recording a landing on an ALREADY-closed arc with no questions says nothing about questions", async () => {
+  // The `current === desired` branch with `heldOpenByQuestions` false. A guard that ignored the
+  // question COUNT would print "did NOT auto-close — 0 question(s) still wait on you" here, which is
+  // both false and alarming.
+  const store = await drainedArc(new InMemoryStore());
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+  const res = await arcIncrementAdd(writeDeps(store), "drained-arc", { outcome: "another landing." });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+  assert.doesNotMatch(res.body, /question\(s\) still wait/);
+});
+
+test("question new on an ACTIVE arc prints no lifecycle line — nothing changed", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  const res = await questionNew(writeDeps(store), undefined, {
+    arc: "drained-arc",
+    title: "Which way",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+  });
+  assert.equal(res.ok, true);
+  // The exact first two lines: nothing flipped, so the header runs straight into the question body.
+  // A guard that always spliced the note in would put a blank line and a literal "null" here, which
+  // a loose /reopened/ probe cannot see.
+  const lines = res.body.split(String.fromCharCode(10));
+  assert.match(lines[0] ?? "", /^raised question .* on arc drained-arc$/);
+  assert.equal(lines[1], "");
+  assert.match(lines[2] ?? "", /^# Which way$/);
+  assert.doesNotMatch(res.body, /null/);
+});
+
+test("question new on a CLOSED arc REOPENS it and says so (ADR-0526 D4's mirror)", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  assert.equal(((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"], "closed");
+
+  const res = await questionNew(writeDeps(store), undefined, {
+    arc: "drained-arc",
+    title: "Which way now",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+  });
+  assert.equal(res.ok, true);
+  // An arc the owner has just been asked about is waiting on him whatever its increment log says.
+  // Leaving it closed would be the same hole this decision closes, pointing the other way.
+  assert.match(res.body, /reopened/);
+  assert.match(res.body, /still wait on you/);
+  assert.equal(
+    ((await store.getDoc("drained-arc"))?.doc as Record<string, unknown>)["lifecycle"],
+    "active",
+  );
+});
+
+test("settling a question on an arc with OPEN WORK prints no lifecycle line at all", async () => {
+  // The case where the note is genuinely null on a HOMED question: nothing flipped, and the arc is
+  // active because of its work rather than because of any question. A guard that spliced the note in
+  // regardless would emit a literal "null" into the settlement record.
+  const store = await drainedArc(new InMemoryStore());
+  await questionOn(store, "drained-arc", "oq-with-work");
+  const res = await questionSettle(writeDeps(store), "oq-with-work", { answer: "decided" });
+  assert.equal(res.ok, true);
+  assert.doesNotMatch(res.body, /null/);
+  assert.doesNotMatch(res.body, /did NOT auto-close/);
+  assert.doesNotMatch(res.body, /auto-closed/);
+  // The answer runs straight into the arc line, with exactly one blank between them.
+  const l = res.body.split(String.fromCharCode(10));
+  const answerAt = l.indexOf("decided");
+  assert.ok(answerAt > 0, "the answer is on its own line");
+  assert.equal(l[answerAt + 1], "");
+  assert.match(l[answerAt + 2] ?? "", /^drained-arc no longer counts this question as waiting/);
+});
+
+test("question new on a CLOSED arc separates its reopen note from the header and the title", async () => {
+  const store = await drainedArc(new InMemoryStore());
+  await arcIncrementClose(writeDeps(store), "drained-arc-inc-01", { note: "landed" });
+  const res = await questionNew(writeDeps(store), undefined, {
+    arc: "drained-arc",
+    title: "Which way now",
+    stakes: "s",
+    statement: "q",
+    context: "c",
+    options: "o",
+  });
+  assert.equal(res.ok, true);
+  const l = res.body.split(String.fromCharCode(10));
+  assert.match(l[0] ?? "", /^raised question .* on arc drained-arc$/);
+  // A blank line BEFORE the note, so it reads as its own statement rather than as a run-on of the
+  // header — and another after it, before the question's own title block.
+  assert.equal(l[1], "");
+  assert.match(l[2] ?? "", /reopened/);
+  assert.equal(l[3], "");
+  assert.match(l[4] ?? "", /^# Which way now$/);
 });

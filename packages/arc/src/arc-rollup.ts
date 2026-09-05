@@ -378,7 +378,7 @@ function numOpt(doc: Record<string, unknown>, key: string): number | undefined {
 }
 
 /** The body of a stored doc as an untyped bag (never throws on a malformed row). */
-function bagOf(stored: StoredDoc): Record<string, unknown> {
+export function bagOf(stored: StoredDoc): Record<string, unknown> {
   return typeof stored.doc === "object" && stored.doc !== null
     ? (stored.doc as Record<string, unknown>)
     : {};
@@ -441,9 +441,25 @@ export function isForwardLooking(status: string): boolean {
  */
 export function deriveArcLifecycle(
   increments: readonly { readonly status: string }[],
+  opts: { readonly unsettledQuestions?: number } = {},
 ): "active" | "closed" | null {
   if (increments.length === 0) return null;
-  return increments.some((i) => isForwardLooking(i.status)) ? "active" : "closed";
+  if (increments.some((i) => isForwardLooking(i.status))) return "active";
+  // ADR-0526 D1 — the SECOND input. A drained arc that still waits on the owner stays ACTIVE, and
+  // the reason is that closing it hides the fork: a closed arc leaves the default worklist and is
+  // never consulted for `waiting`, so the arc reads `closed` while its question reads `open` and no
+  // view reconciles the two. Measured twice in five days (`website-refresh-arc`,
+  // `replay-answers-retrieval-ease-arc`), both caught only by a passing session's attention.
+  //
+  // ACTIVE rather than `parked` (D2): parked means the OWNER decided not to do this work for now
+  // (ADR-0374 D1). An arc waiting on an answer is not shelved — nobody decided anything, it is
+  // blocked on an input he owes — and routing it to `parked` would make that state mean two things.
+  //
+  // This does NOT reintroduce the lingering ADR-0335 removed (D3): the input is
+  // `question.lifecycle === "open"`, which has its own first-class closing verb (`question settle`,
+  // ADR-0434 D3). Nobody has to remember to flip a lifecycle; they have to settle the question they
+  // answered, which is already standing discipline.
+  return (opts.unsettledQuestions ?? 0) > 0 ? "active" : "closed";
 }
 
 /**
