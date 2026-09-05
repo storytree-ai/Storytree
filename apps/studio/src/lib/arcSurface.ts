@@ -634,15 +634,22 @@ export function parseOptionCards(optionsText: string | undefined): OptionCard[] 
   // load-bearing — without it `.trim()` throws — and a test pins it.)
   if (optionsText === undefined || optionsText.trim() === '') return [];
   return optionsText
-    // Stryker disable next-line Regex: EQUIVALENT — `\s*` is greedy and `\n` is itself whitespace,
-    // so `\n\s*\n` already consumes any run of blank lines; the trailing `+` cannot change where a
-    // split falls. It states the intent (one or more blank lines) rather than adding reach.
+    // `\s*` is greedy and `\n` is itself whitespace, so `\n\s*\n` already consumes any run of blank
+    // lines; the trailing `+` states the intent (one or more) rather than adding reach.
+    // Stryker disable next-line Regex: EQUIVALENT — see above, the `+` cannot move a split.
     .split(/\n\s*\n+/)
     .map((paragraph) => paragraph.trim())
     .filter((paragraph) => paragraph !== '')
     .map((paragraph): OptionCard => {
       const forIdx = paragraph.indexOf('FOR:');
-      const againstIdx = forIdx === -1 ? -1 : paragraph.indexOf('AGAINST:', forIdx);
+      // AGAINST: counts only where it FOLLOWS FOR:, which searching from `forIdx` gives us. When
+      // there is no FOR: at all, `forIdx` is -1 and this searches the whole paragraph — harmless,
+      // because the guard below rejects the paragraph on `forIdx` regardless of what was found.
+      //
+      // That guard used to be duplicated here as `forIdx === -1 ? -1 : …`, which made BOTH checks
+      // unfalsifiable: the ternary forced `againstIdx` to -1 exactly when the guard was already
+      // going to reject, so neither could be observed failing. One check, once.
+      const againstIdx = paragraph.indexOf('AGAINST:', forIdx);
       if (forIdx === -1 || againstIdx === -1) {
         return { summary: paragraph, forText: '', againstText: '' };
       }
