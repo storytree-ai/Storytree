@@ -270,6 +270,30 @@ test("the `adr` area observes its READS — `pull` as a visit under the canonica
   assertValid(list);
 });
 
+test("`adr attest` observes NOTHING, and the recorded reason says why it cannot be observed", () => {
+  // The verb spans three shapes — a bare coverage INDEX, a READ of one record's stamp, and a WRITE
+  // when `--basis` or `--backfill` is given — and argv alone cannot separate them, so classifying it
+  // as a read would enter writes into the traversal record as reads. Silence here is a deliberate
+  // loss of signal rather than an oversight, and the `why` text is where that trade is stated: it is
+  // what a later session reads before "fixing" the gap by minting a read event.
+  for (const argv of [
+    ["adr", "attest"],
+    ["adr", "attest", "519"],
+    ["adr", "attest", "519", "--basis", "owner-directed", "--pg"],
+    ["adr", "attest", "--backfill", "--pg"],
+  ]) {
+    assert.deepEqual(observeCliInvocation(argv, harness().deps), [], `${argv.join(" ")} must observe nothing`);
+  }
+  assert.deepEqual(CLI_READ_VERBS["adr attest"], {
+    observes: "nothing",
+    why:
+      "the `adr compose` shape exactly — a bare COVERAGE INDEX, a read of one record's authority " +
+      "stamp, and a WRITE when --basis or --backfill is given. argv alone separates them only by " +
+      "flags this table does not model, so it is unobserved rather than recorded as a read that " +
+      "might have been a write",
+  });
+});
+
 test("`adr pull` accepts the already-canonical id too, and refuses a token that names no decision", () => {
   for (const token of ["adr-0419", "419", "0419"]) {
     const events = observeCliInvocation(["adr", "pull", token], harness().deps);
