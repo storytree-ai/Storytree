@@ -51,7 +51,7 @@ import * as THREE from 'three';
 import { GROUND_ATLAS_ATTRIBUTE, GROUND_STATUS_ATTRIBUTE } from '../src/banded-ground-material.js';
 import { SHIPPED_ELEVATION_DEG, shippedElevationDeg } from '../src/camera-framing.js';
 import { cellGroundGeometry } from '../src/cell-ground-geometry.js';
-import { COVER_DENSITY, COVER_SIZE } from '../src/cover-dressing.js';
+import { COVER_DENSITY, COVER_DENSITY_RUNGS, COVER_SIZE } from '../src/cover-dressing.js';
 import { RECIPE_ISLAND_AREA, cellsArea, dressingEligible } from '../src/dressing-ground.js';
 import { configureExactColour } from '../src/exact-colour.js';
 import {
@@ -154,11 +154,11 @@ export const LAND_LADDER: readonly number[] = [...LAND_AREA_PER_CAPABILITY_RUNGS
 
 /**
  * THE COVER'S COUNT RE-LADDERED ON THE CORRECTLY-SIZED ISLAND (increment (e)). PR #1825 shipped x3
- * to fill an island seven times too large; the rungs here bracket it downward on the shipped
- * island — the shipped rung is whichever `COVER_DENSITY` names, and it is rendered as the
- * `land-<shipped>` arm rather than twice.
+ * to fill an island seven times too large; the declared ladder (`COVER_DENSITY_RUNGS`, by import)
+ * brackets it downward on the shipped island — the shipped rung is whichever `COVER_DENSITY`
+ * names, and it is rendered as the `land-<shipped>` arm rather than twice.
  */
-export const COVER_LADDER: readonly number[] = [0.5, 1, 2, 3];
+export const COVER_LADDER: readonly number[] = [...COVER_DENSITY_RUNGS];
 
 /** Every arm: the control first, the land ladder from the most land per capability down, then the
  *  cover rungs at the shipped land (the shipped cover rung being the land arm itself). */

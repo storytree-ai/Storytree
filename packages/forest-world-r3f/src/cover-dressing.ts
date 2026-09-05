@@ -174,20 +174,34 @@ export const COVER_SIZE = 4.5;
  * count at that size, so every rung differs from its neighbour in exactly one thing again.
  *
  * ⚠ THE RUNGS ARE MULTIPLES OF THE RECIPE, so rung 1 is still `build_land.py`'s scatter and every
- * rung above it is that scatter repeated — the same three roles in the same proportion, denser.
- * Rung 1 on the fixture island is 216 props (70 / 120 / 26 over ~1.0 recipe-islands of ground).
+ * rung above it is that scatter repeated — the same three roles in the same proportion, denser —
+ * and the rung below it is the scatter thinned. Rung 1 on the fixture island is 216 props (70 /
+ * 120 / 26 over exactly 1.0 recipe-islands of ground, the recipe island being the fixture at the
+ * shipped ratio). The ladder gained its half rung and lost x4 on 2026-09-05, when the
+ * land-per-capability ratio shrank the island under the same cover.
  */
-export const COVER_DENSITY_RUNGS = [1, 2, 3, 4] as const;
+export const COVER_DENSITY_RUNGS = [0.5, 1, 2, 3] as const;
+
+/** The rung that IS `build_land.py`'s own scatter — 70 / 120 / 26 per recipe island of ground. Named
+ *  so a page that holds the count at the recipe's own reads it by name rather than by position on a
+ *  ladder that now reaches below it. */
+export const COVER_RECIPE_DENSITY = 1;
 
 /**
- * THE COUNT RUNG THE SHIPPED MAP WEARS — picked on the LOOK, on the sheet the one-tree-per-
- * capability page rendered on the RTX 2060 2026-09-05
- * (`docs/research/chapter2-one-tree-per-capability-2026-09-05/`), under ADR-0503's standing
- * be-bold direction and ADR-0518 D2. Moving the pick is THIS constant and `SHIPPED_ARM` in
- * `harness/shipped-per-capability-scene.ts`, two constants, and no re-measurement; every rung of
- * {@link COVER_DENSITY_RUNGS} is on that sheet.
+ * THE COUNT RUNG THE SHIPPED MAP WEARS — picked on the LOOK, on the sheet the land-ratio page
+ * rendered on the RTX 2060 2026-09-05 (`docs/research/chapter2-land-per-capability-2026-09-05/`),
+ * under ADR-0489 D3's outcome test and ADR-0518 D2.
+ *
+ * ⚠ RE-JUDGED ON THE CORRECTLY-SIZED ISLAND, AND IT WENT DOWN — from the x3 PR #1825 shipped to
+ * x0.5. That x3 filled an island seven times too large for its trees (`land-per-capability.ts`);
+ * the recipe's own count on the recipe island as this map now draws it (216 props on 88 × 51
+ * units, at a prop size 4.5× the recipe's relative to the island) carpets the ground so the
+ * story's state stops reading through it, and x3 buries it outright. Half the recipe's count
+ * dresses the island evenly while the ground colour — what the land is FOR (ADR-0475 D2) — still
+ * reads, which is the outcome test. x1 is the next rung up if the owner wants it bolder; every
+ * rung of {@link COVER_DENSITY_RUNGS} is on that sheet, and a scale-up is this constant alone.
  */
-export const COVER_DENSITY = 3;
+export const COVER_DENSITY = 0.5;
 
 /** How many points a prop is offered before it is given up — the recipe's own `for _ in range(400)`
  *  (`build_land.py:1052`). Dropping a prop is the recipe's answer and is honest here for the reason

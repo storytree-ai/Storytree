@@ -4,6 +4,8 @@ import test from 'node:test';
 import type { CoastPoint } from './coast-clip.js';
 import {
   buildEdgeGrid,
+  COARSEN_FACTOR,
+  COARSEN_STEPS,
   MAX_GRID_BUCKETS,
   buildSegmentGrid,
   cellIndex,
@@ -412,28 +414,46 @@ test('spanOf is INCLUSIVE at both ends, and empty when the range inverts', () =>
 
 // ---------------------------------------------------------------- the bucket cap
 
-test('a grid that would need more than MAX_GRID_BUCKETS is REFUSED before it allocates', () => {
-  // ⚠ JUST OVER THE CAP, NOT ABSURDLY OVER IT. A 20,000-unit chord would want four hundred million
-  // buckets, and a refusal that had been deleted would then HANG the test instead of failing it —
-  // which the mutation rung scores as unproven rather than killed. One column over the cap
-  // allocates in a millisecond when the refusal is missing, so the assertion is what fails.
-  // A non-zero origin, so the extent in the message is a difference and not a sum.
+test('⚠⚠ a grid that would need more than MAX_GRID_BUCKETS COARSENS its cell to fit — the far-field proof holds, the walk still finds the coast, and the cell is never refined', () => {
+  // ⚠ JUST OVER THE CAP, NOT ABSURDLY OVER IT: one column over. A non-zero origin, so the extent
+  // is a difference and not a sum. Before the land-per-capability ratio this REFUSED; since the
+  // bands shrank by LAND_SCALE under a forest whose extent did not, the honest answer is a coarser
+  // cell (`edgeGridFarField` holds for any cell >= width), and the refusal is kept for the case
+  // coarsening cannot reach — an inverted index.
   const over: CoastEdge[] = [{ ax: 10, az: 20, bx: 522.5, bz: 531.5 }];
-  assert.throws(
-    () => buildSegmentGrid(over, 1),
-    (e: unknown) =>
-      e instanceof Error &&
-      e.message ===
-        'shore-grid: a 513 x 512 cell grid (262656 buckets) over a 512.5 x 511.5 extent at cell 1 ' +
-          'exceeds 262144 — the cell arithmetic has inverted, or the extent is not one island’s',
-  );
-  // EXACTLY the cap is allowed — the refusal is strict, so a grid of 512 x 512 = 262144 builds
-  // (one column narrower than the refused one, same rows).
+  const coarse = buildSegmentGrid(over, 1);
+  assert.ok(coarse.cell > 1, `the cell coarsened: ${coarse.cell}`);
+  assert.equal(coarse.cell, COARSEN_FACTOR, 'one quarter step is enough for one column over');
+  assert.ok(edgeGridFarField(coarse.cell, 1));
+  assert.ok(coarse.nx * coarse.nz <= MAX_GRID_BUCKETS, `${coarse.nx} x ${coarse.nz}`);
+  // The coarsened grid still answers: a point beside the chord's middle sees the edge. (A diagonal
+  // chord's bounding box is the whole grid, so its edge is bucketed everywhere — the far-field
+  // emptiness is held on the short-edge fixtures above, not here.)
+  assert.deepEqual([...coarse.candidates(266, 276)], [0]);
+  // EXACTLY the cap needs no coarsening — the cap is strict, so 512 x 512 = 262144 builds as is.
   const exact: CoastEdge[] = [{ ax: 10, az: 20, bx: 521.5, bz: 531.5 }];
-  assert.doesNotThrow(() => buildSegmentGrid(exact, 1));
-  // And the cap is generous for what the map actually builds: an island-sized extent at the
-  // path's 3-unit cell is a few thousand buckets, two orders under it.
+  assert.equal(buildSegmentGrid(exact, 1).cell, 1);
+  // The forest's own case: the sand's cell (2.64 units since LAND_SCALE) over a 2,290 x 3,545
+  // extent wants 1.17 M buckets and settles four quarter-steps up, under the cap, cell ≈ 6.44.
+  const forest: CoastEdge[] = [{ ax: 0, az: 0, bx: 2289.7, bz: 3545.4 }];
+  const settled = buildSegmentGrid(forest, 2.6384359697243656);
+  assert.ok(Math.abs(settled.cell - 2.6384359697243656 * COARSEN_FACTOR ** 4) < 1e-9, `${settled.cell}`);
+  assert.ok(settled.nx * settled.nz <= MAX_GRID_BUCKETS && settled.nx * settled.nz > MAX_GRID_BUCKETS / COARSEN_FACTOR ** 2, `${settled.nx * settled.nz}`);
+  // An island-sized extent at the path's 3-unit cell is a few thousand buckets, two orders under it.
   const island: CoastEdge[] = [{ ax: 0, az: 0, bx: 234, bz: 46 }];
-  assert.doesNotThrow(() => buildSegmentGrid(island, 3));
+  assert.equal(buildSegmentGrid(island, 3).cell, 3);
   assert.equal(MAX_GRID_BUCKETS, 262144);
+  assert.equal(COARSEN_STEPS, 64);
+});
+
+test('⚠ the refusal survives for what coarsening cannot reach: an extent the bound cannot tile is refused before it allocates, naming the steps', () => {
+  // ⚠ A refusal that had been deleted would HANG the test instead of failing it — which the
+  // mutation rung scores as unproven rather than killed. 1.25^64 ≈ 1.6 million, so a chord of
+  // 2^18 × 2 million units at cell 1 is still over the cap after every step and refuses in a
+  // microsecond; a healthy map never gets within six orders of magnitude of it.
+  const impossible: CoastEdge[] = [{ ax: 0, az: 0, bx: 2 ** 18 * 2e6, bz: 2 ** 18 * 2e6 }];
+  assert.throws(
+    () => buildSegmentGrid(impossible, 1),
+    (e: unknown) => e instanceof Error && /exceeds 262144 after 64 coarsening steps — the cell arithmetic has inverted/.test(e.message),
+  );
 });

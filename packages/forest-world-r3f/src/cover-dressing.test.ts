@@ -18,6 +18,7 @@ import test from 'node:test';
 import {
   COVER_DENSITY,
   COVER_DENSITY_RUNGS,
+  COVER_RECIPE_DENSITY,
   COVER_RECIPE_COUNTS,
   COVER_ROLES,
   COVER_SIZE,
@@ -237,13 +238,18 @@ test('⚠⚠ THE COUNT LADDER (ADR-0518 D2): the shipped rung is a rendered rung
   // he has been shown (ADR-0503 D1). The shipped pick must therefore be ON the ladder, and rung 1
   // must still be `build_land.py`'s own scatter so the sheet's bottom rung is the literal recipe.
   assert.ok(COVER_DENSITY_RUNGS.includes(COVER_DENSITY as (typeof COVER_DENSITY_RUNGS)[number]));
-  assert.equal(COVER_DENSITY_RUNGS[0], 1, 'rung 1 must be the recipe’s own count');
+  assert.ok(COVER_DENSITY_RUNGS.includes(COVER_RECIPE_DENSITY as (typeof COVER_DENSITY_RUNGS)[number]), 'the recipe’s own count is a rung');
+  assert.equal(COVER_RECIPE_DENSITY, 1, 'rung 1 IS the recipe’s own count');
+  assert.deepEqual([...COVER_DENSITY_RUNGS], [0.5, 1, 2, 3]);
   for (const [i, rung] of COVER_DENSITY_RUNGS.entries()) {
     if (i > 0) assert.ok(rung > COVER_DENSITY_RUNGS[i - 1]!, 'the ladder must rise');
   }
-  // ⚠ THE PICK IS BOLD ON PURPOSE (ADR-0503 / ADR-0518 D2): above the recipe's own count, because
-  // the recipe's count was proportioned to an island that also stood 52–104 pines.
-  assert.ok(COVER_DENSITY > 1, 'the shipped count is the recipe’s — the cover has not been scaled up');
+  // ⚠ THE PICK IS BELOW THE RECIPE'S COUNT SINCE THE LAND-PER-CAPABILITY RATIO (2026-09-05): the
+  // island shrank seven-fold in area under props 4.5× the recipe's relative size, so the recipe's
+  // own count carpets the ground and the story's state stops reading (ADR-0489 D3's outcome test).
+  // It was x3 on the oversized island; the re-judgement is on the land-ratio sheet.
+  assert.equal(COVER_DENSITY, 0.5);
+  assert.ok(COVER_DENSITY < COVER_RECIPE_DENSITY, 'the shipped count is thinned from the recipe’s on the correctly-sized island');
   // And the two knobs are two constants: a scale-back on either is bought without the other.
   assert.notEqual(COVER_DENSITY, COVER_SIZE);
 });
