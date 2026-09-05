@@ -18,6 +18,8 @@ import type { DecisionAuthority } from "@storytree/library";
 import type { AdrMeta } from "@storytree/drive";
 import { InMemoryStore } from "@storytree/storage-protocol";
 
+import { run } from "./commands.js";
+
 import {
   adrCommand,
   authorityBlockFor,
@@ -228,7 +230,7 @@ async function storeWith(listings: readonly AdrListing[]): Promise<InMemoryStore
   const store = new InMemoryStore();
   for (const l of listings) {
     const id = `adr-${String(l.meta.number).padStart(4, "0")}`;
-    const doc: Record<string, unknown> = {
+    const base = {
       kind: "adr",
       id,
       title: l.title,
@@ -241,7 +243,11 @@ async function storeWith(listings: readonly AdrListing[]): Promise<InMemoryStore
       createdAt: "2026-09-05T00:00:00.000Z",
       updatedAt: "2026-09-05T00:00:00.000Z",
     };
-    if (l.meta.authority !== undefined) doc["authority"] = l.meta.authority;
+    // ONE unconditional spread over a base chosen by a ternary — not an annotated open dictionary
+    // (the anti-slop widening rule refuses that) and not a conditional spread of `{}` (a second rule
+    // refuses THAT). The unstamped arm carries no `authority` KEY at all, which is the state the
+    // fixture is modelling and the thing the projection tests distinguish.
+    const doc = l.meta.authority === undefined ? base : { ...base, authority: l.meta.authority };
     await store.upsertDoc({ id, kind: "adr", doc });
   }
   return store;
@@ -260,4 +266,198 @@ test("adr help documents --basis AND the reading it must not be given", async ()
   // The caveat is the part worth documenting: a flag anyone can guess, an over-read they cannot.
   carries("shows what decisions SAY about who decided them");
   carries("matches NO basis");
+  carries("most of the log carries none and always will");
+  carries("mechanically classifiable and leaves the rest alone");
+  carries("prints how many are unstamped for that reason");
+});
+
+// ─── the record render, end to end ────────────────────────────────────────────────────────────
+
+/**
+ * The block is pushed into the render by `commands.ts`, and only a run through `library artifact`
+ * can witness that hop — the unit tests above prove what the block SAYS and are blind to whether
+ * anything pushes it. Same argument as the projection tests in `packages/drive`: a green suite one
+ * layer in cannot see a surface that never calls it.
+ */
+test("library artifact: a stamped decision leads with the authority block, above its body", async () => {
+  const store = await storeWith([
+    listing(2, "Owner directed, quoted", {
+      authority: stamp({ basis: "owner-directed", ownerSaid: OWNER_WORDS }),
+    }),
+  ]);
+  const env = await run(["library", "artifact", "adr-0002"], { store });
+  assert.ok(env.body.includes(OWNER_WORDS), "the owner's words reach the record surface");
+  assert.match(env.body, /Decided by: the owner, who directed it in conversation/);
+  // A cover note sits ABOVE the text it covers — a reader who reaches the end of a long decision
+  // and only then learns who decided it has already spent the reading.
+  assert.ok(
+    env.body.indexOf("Decided by:") < env.body.indexOf("# ADR-0002:"),
+    "the block precedes the decision body",
+  );
+  // ADDITIVE: the record's own text survives in full (the ADR-0428 banner precedent).
+  assert.match(env.body, /# ADR-0002: Owner directed, quoted/);
+});
+
+test("library artifact: an UNSTAMPED decision renders exactly as it did before ADR-0519", async () => {
+  const store = await storeWith([listing(1, "An unstamped elder")]);
+  const env = await run(["library", "artifact", "adr-0001"], { store });
+  assert.equal(env.body.includes("Decided by:"), false, "the block never announces its own absence");
+  assert.match(env.body, /# ADR-0001: An unstamped elder/, "and the record still renders");
+});
+
+test("library artifact: a NON-decision artifact never grows an authority block", async () => {
+  // The `stored.kind === "adr"` guard. Without it every principle, arc and increment would be asked
+  // for a stamp it has no field for — harmless-looking, and the kind of widening that turns a
+  // decision-tier concept into corpus-wide noise.
+  const store = await storeWith([]);
+  await store.upsertDoc({
+    id: "some-principle",
+    kind: "principle",
+    doc: {
+      kind: "principle",
+      id: "some-principle",
+      title: "A principle",
+      description: "d",
+      body: "b",
+      // A stamp-shaped field on a non-decision must be ignored by KIND, not by shape.
+      authority: stamp({ basis: "owner-directed", ownerSaid: "go" }),
+    },
+  });
+  const env = await run(["library", "artifact", "some-principle"], { store });
+  assert.equal(env.body.includes("Decided by:"), false, "only decisions carry the block");
+});
+
+// ─── the line's own mechanics ─────────────────────────────────────────────────────────────────
+
+test("an unstamped row contributes NO line to the rendered list", () => {
+  const rows = renderAdrList([listing(1, "An unstamped elder")], {});
+  assert.equal(rows.some((r) => r.includes("decided by:")), false);
+  // ...and `null` never reaches the output as a rendered value either.
+  assert.equal(rows.some((r) => r.includes("null")), false);
+});
+
+test("authorityLine separates its parts, so the basis and the quote never run together", () => {
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: "go" })) ?? "";
+  assert.equal(line, "decided by: owner-directed · “go”");
+});
+
+test("authorityLine trims a quote that arrives padded", () => {
+  // Without the trim the rendered quote opens with the shell's or the file's own whitespace, which
+  // reads as the owner having said it.
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: "   go   " })) ?? "";
+  assert.equal(line, "decided by: owner-directed · “go”");
+});
+
+test("a quote of exactly the cutoff length is NOT truncated", () => {
+  // The boundary itself: `> 72` and `>= 72` differ on precisely this input, and a quote short
+  // enough to show whole must show whole.
+  const exact = "x".repeat(72);
+  const line = authorityLine(stamp({ basis: "owner-directed", ownerSaid: exact })) ?? "";
+  assert.ok(line.includes(exact), "72 characters fit");
+  assert.equal(line.includes("…"), false, "and are not marked as cut");
+  // One character more IS cut, so the boundary is pinned from both sides.
+  const over = authorityLine(stamp({ basis: "owner-directed", ownerSaid: "x".repeat(73) })) ?? "";
+  assert.ok(over.includes("…"), "73 characters are");
+});
+
+// ─── the block's own mechanics ────────────────────────────────────────────────────────────────
+
+test("the authority block opens with a blank line, so it never abuts what precedes it", () => {
+  const block = authorityBlockFor({ authority: stamp() });
+  assert.equal(block[0], "", "a leading spacer separates the block from the description above it");
+});
+
+test("the block names each of the four bases in plain language", () => {
+  const prose = (basis: DecisionAuthority["basis"], quoted: boolean): string =>
+    authorityBlockFor({
+      authority: quoted ? stamp({ basis, ownerSaid: "go" }) : stamp({ basis }),
+    }).join("\n");
+  // All four, because a map with one wrong entry is exactly as broken as one with four and reads
+  // fine on whichever row you happened to look at.
+  assert.match(prose("owner-directed", true), /the owner, who directed it in conversation/);
+  assert.match(prose("owner-ratified", true), /the owner, who was asked and approved it/);
+  assert.match(prose("agent-derived", false), /an agent — the owner has not weighed in/);
+  assert.match(prose("agent-flipped", false), /an agent, transcribing the accepted flip \(ADR-0084\)/);
+});
+
+test("the block labels the quote as VERBATIM, so it cannot be read as a summary", () => {
+  const block = authorityBlockFor({
+    authority: stamp({ basis: "owner-directed", ownerSaid: "go" }),
+  }).join("\n");
+  assert.match(block, /the owner's words, verbatim:/);
+});
+
+test("a stamp that was NOT transcribed carries no transcription warning", () => {
+  // The complement that makes the warning mean something: fired unconditionally it would mark every
+  // record, the ones authored with the owner in the room included, and distinguish nothing.
+  const block = authorityBlockFor({
+    authority: stamp({ basis: "owner-directed", ownerSaid: "go" }),
+  }).join("\n");
+  assert.equal(block.includes("TRANSCRIBED"), false);
+});
+
+// ─── the footer and the cut label ─────────────────────────────────────────────────────────────
+
+test("the footer opens with a blank line, so it never abuts the last decision row", () => {
+  const footer = unstampedFooter(CORPUS, { basis: "owner-directed" });
+  assert.equal(footer[0], "");
+});
+
+test("a typo'd --basis is REFUSED, not answered with a well-formed empty list", async () => {
+  const env = await adrCommand(
+    "list",
+    { basis: "owner-decided" },
+    {
+      allocator: null,
+      branch: "b",
+      actor: "a",
+      today: "2026-09-05",
+      roundTrip: { store: await storeWith(CORPUS), writable: false, actor: "a" },
+    },
+  );
+  assert.equal(env.ok, false, "a basis that is not one of the four is a typo, not a cut");
+  assert.match(env.body, /owner-directed \| owner-ratified \| agent-derived \| agent-flipped/);
+  // The near-miss is echoed, because "owner-decided" vs "owner-directed" is exactly the mistake a
+  // reader cannot spot in their own shell history.
+  assert.match(env.body, /got "owner-decided"/);
+  // The way out is offered, not just the complaint — a refusal whose `next:` is empty leaves the
+  // caller to reconstruct a working invocation from the error text.
+  assert.deepEqual(env.next, [
+    "storytree adr list --basis owner-directed",
+    "storytree adr list --current",
+  ]);
+});
+
+test("a padded --basis is accepted — the value is trimmed before it is judged", async () => {
+  const env = await adrCommand(
+    "list",
+    { basis: "  owner-directed  " },
+    {
+      allocator: null,
+      branch: "b",
+      actor: "a",
+      today: "2026-09-05",
+      roundTrip: { store: await storeWith(CORPUS), writable: false, actor: "a" },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /1 ADRs \[decided by: owner-directed\]/);
+});
+
+test("an unfiltered list is labelled [all], not by a basis nobody asked for", async () => {
+  const env = await adrCommand(
+    "list",
+    {},
+    {
+      allocator: null,
+      branch: "b",
+      actor: "a",
+      today: "2026-09-05",
+      roundTrip: { store: await storeWith(CORPUS), writable: false, actor: "a" },
+    },
+  );
+  assert.equal(env.ok, true, env.body);
+  assert.match(env.body, /storytree adr — 4 ADRs \[all\]/);
+  // ...and no basis cut means no footer, so an unfiltered list makes no claim it must disclaim.
+  assert.equal(env.body.includes("carry NO authority stamp"), false);
 });

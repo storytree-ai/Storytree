@@ -869,12 +869,15 @@ export function authorityLine(authority: DecisionAuthority | undefined): string 
 }
 
 /** Plain-language gloss of each basis — the record surface is read by the owner, not only by agents. */
-const BASIS_PROSE: Record<AuthorityBasis, string> = {
+const BASIS_PROSE = {
   "owner-directed": "the owner, who directed it in conversation",
   "owner-ratified": "the owner, who was asked and approved it",
   "agent-derived": "an agent — the owner has not weighed in",
   "agent-flipped": "an agent, transcribing the accepted flip (ADR-0084)",
-};
+  // `satisfies`, never an annotation: the anti-slop widening rule refuses the latter because it
+  // discards the literal's own type evidence. This way the map is still proved TOTAL over the four
+  // bases — add a fifth to the enum and this stops compiling, which is the check worth having.
+} satisfies Record<AuthorityBasis, string>;
 
 /**
  * The authority block for ONE decision record — the full stamp, with the owner's words UNTRUNCATED.
@@ -1091,7 +1094,26 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
   if (opts.current === true) filter.current = true;
   if (opts.loadBearing === true) filter.loadBearing = true;
   if (opts.status !== undefined) filter.status = opts.status as AdrStatus;
-  if (opts.basis !== undefined) filter.basis = opts.basis as AuthorityBasis;
+  // VALIDATED rather than cast, and REFUSED rather than silently empty. A typo'd basis cast straight
+  // through would match no stamp and print a perfectly well-formed empty list — "no decisions were
+  // decided that way" is what a reader takes from that, when the truth is that they misspelled the
+  // flag. On a view whose entire job is to stop an accurate output being read as a false claim, that
+  // is the one failure mode not worth having.
+  //
+  // It also removes an unkillable mutant: a bare `opts.basis !== undefined` guard on a field that
+  // already admits `undefined` has no behavioural content, so no test can tell the two arms apart
+  // (ADR-0478's ladder — reshape rather than reach for a marker).
+  if (opts.basis !== undefined) {
+    const parsed = AuthorityBasis.safeParse(opts.basis.trim());
+    if (!parsed.success) {
+      return {
+        ok: false,
+        body: `--basis must be one of ${AuthorityBasis.options.join(" | ")} (got ${JSON.stringify(opts.basis)}).`,
+        next: ["storytree adr list --basis owner-directed", "storytree adr list --current"],
+      };
+    }
+    filter.basis = parsed.data;
+  }
   const rows = renderAdrList(listings, filter);
   const cut = opts.loadBearing
     ? "load-bearing current-state"
@@ -1099,8 +1121,12 @@ async function adrList(opts: AdrCommandOpts, deps: AdrCommandDeps): Promise<Enve
       ? "current (accepted, not superseded)"
       : opts.status !== undefined
         ? opts.status
-        : opts.basis !== undefined
-          ? `decided by: ${opts.basis}`
+        : // `filter.basis`, never `opts.basis`: the label must report the value that was actually
+          // APPLIED, and the raw flag still carries whatever padding the shell handed over. A header
+          // reading `[decided by:   owner-directed  ]` over rows selected by `owner-directed` is a
+          // small lie about which cut you are looking at.
+          filter.basis !== undefined
+          ? `decided by: ${filter.basis}`
           : "all";
   const lines = [
     // COUNTED FROM THE SELECTION, not from the rendered rows. It used to be
