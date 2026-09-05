@@ -342,11 +342,15 @@ export function armPlacements(arm: string, pic: LandRatioPicture): KitPlacement[
 }
 
 /** What darkens an arm's ground — the descriptor stream's casters UNIONED with one per placement,
- *  the same union the canvas hands its ground. Ground cover contributes none. */
+ *  the same union the canvas hands its ground. Ground cover contributes none HERE (`coverCasts:
+ *  false`, stated as history): this page picked the island's SIZE and the cover's COUNT on
+ *  2026-09-05, on a field the cover did not darken, and its one-build-per-ratio structure and its
+ *  committed numbers rest on that. The cover began casting the next day (`COVER_CASTS`); the page
+ *  that shows the map as it now ships is `shipped-cast-shadow-scene.ts`. */
 export function armCasters(arm: string, pic: LandRatioPicture): ShadowCaster[] {
   return [
     ...groundCasters(armDescriptors(arm, pic)),
-    ...placementCasters(armPlacements(arm, pic), KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29),
+    ...placementCasters(armPlacements(arm, pic), KIT_FOOTPRINTS_2026_08_29, KIT_HEIGHTS_2026_08_29, false),
   ];
 }
 

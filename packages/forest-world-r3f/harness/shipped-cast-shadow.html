@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>the cast shadow: shape, edge, depth — chapter2 (dev-only)</title>
+    <style>
+      :root { color-scheme: dark; }
+      html, body { margin: 0; background: #2b3138; color: #cfd8dc; font: 14px/1.55 system-ui, sans-serif; }
+      main { max-width: 2000px; margin: 0 auto; padding: 28px 24px 60px; }
+      h1 { font-size: 23px; margin: 0 0 10px; color: #eceff1; }
+      h2 { font-size: 15px; margin: 32px 0 10px; color: #b7e08a; border-top: 1px solid #3b434c; padding-top: 16px; }
+      p { max-width: 84ch; color: #b0bec5; }
+      p.numbers { font: 12px/1.7 ui-monospace, Menlo, monospace; color: #cfd8dc; background: #232930;
+        border: 1px solid #3b434c; border-radius: 8px; padding: 10px 14px; max-width: 110ch; white-space: pre-wrap; }
+      code { color: #d7c07a; }
+      .row { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+      figure { margin: 0; }
+      figcaption { margin-top: 6px; font-size: 12px; color: #90a4ae; letter-spacing: .04em; max-width: 62ch; }
+      img { display: block; border: 1px solid #3b434c; background: #21262c; max-width: 100%; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>The cast shadow: shape, edge, depth</h1>
+      <p>
+        Every object on the map stamped the same soft grey capsule &mdash; the swept disc of a
+        cylinder its size, one darkness, thresholded at the material's single shadow rung. The
+        render the owner stamped casts the object's own tapering silhouette under a 3&deg; sun, with
+        visibly more depth. Three levers, each a ladder here, all inside the analytic ground field:
+        no shadow map, no second pass, one draw call, one mount-time stamp.
+      </p>
+      <p class="numbers">
+        today        cylinders, cover casts nothing, hard edge, one derived rung (0.77) — the map after #1829 (CONTROL)
+        shape-cone   SHAPE: each role's own silhouette (a pine's cone, a bloom's thread) — cover still casts nothing
+        shape-cover  SHAPE: the silhouettes AND the ground cover casting its low domes
+        edge-&lt;p&gt;     EDGE: the field's penumbra rendered through a soft rung, p ground units wide (0.6 / 1.2 / 2.4)
+        depth-&lt;d&gt;    DEPTH: the green islands' full-shadow rung at d (0.65 / 0.55 / 0.45); every other token keeps 0.77
+        shipped      what ships — one rung of each ladder, read off the source
+      </p>
+      <p>
+        One island at 8 px/unit is the island as it is read; the fitted forest (control and shipped
+        only) is the view the map opens on. Under each arm: casters (scene + cover), the mount-time
+        stamp in ms, the field's occupancy past the full and soft thresholds, the darkest grass as a
+        share of the brightest (the same instrument run over the reference), colour families, and
+        pixels moved past 20/255 against <code>today</code> (ADR-0490 D6). The reader model's
+        margin per token per depth rung is in the driver's report &mdash; printed, not a fence.
+      </p>
+      <div id="root"></div>
+    </main>
+    <script type="module">
+      import { mountShippedCastShadow } from './shipped-cast-shadow-scene.ts';
+      try {
+        await mountShippedCastShadow(document.getElementById('root'));
+      } catch (e) {
+        document.body.insertAdjacentHTML('beforeend', `<pre style="color:#e57373">${e && e.stack ? e.stack : e}</pre>`);
+      }
+    </script>
+  </body>
+</html>

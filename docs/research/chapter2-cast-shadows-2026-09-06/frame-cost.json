@@ -1,0 +1,26 @@
+[
+  {
+    "arm": "today",
+    "picture": "one",
+    "batch": 60,
+    "gpuMsPerFrame": 2.2343216,
+    "gpuBatchNs": 134059296,
+    "disjoint": false,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "timerQueryAvailable": true,
+    "hidden": false
+  },
+  {
+    "arm": "shipped",
+    "picture": "one",
+    "batch": 60,
+    "gpuMsPerFrame": 0.34311413333333335,
+    "gpuBatchNs": 20586848,
+    "disjoint": false,
+    "drawCalls": 4,
+    "triangles": 54514,
+    "timerQueryAvailable": true,
+    "hidden": false
+  }
+]

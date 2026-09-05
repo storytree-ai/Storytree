@@ -66,7 +66,7 @@ import { wearGlsl } from './land-wear.js';
 import { type ShadowField } from './land-shadow.js';
 import { atlasScale, type AtlasField } from './shadow-atlas.js';
 import { LIGHT_DIRECTION, SHADE_LEVELS, bandGlsl, deliveredForLevel } from './shade-ladder.js';
-import { shadowLadderFor } from './shadow-rung.js';
+import { shadowLadderFor, type ShadowDepthOptions, type ShadowLadder } from './shadow-rung.js';
 
 /** The attribute a merged ground buffer carries its parcel's RAMP ROW in — the name the shader
  *  declares and the name `ForestWorldCanvas` attaches `CellGroundGeometry.statuses` under. It is
@@ -377,6 +377,11 @@ export interface BandedGroundMaterialOptions {
    *  `CellGroundGeometryInput.atlasOrigin` draws every island through the atlas's top-left tile.
    *  That is the one failure mode of this form that looks like art rather than like a bug. */
   shadowAtlas?: GroundShadowAtlas;
+  /** HOW DEEP AND HOW SOFT the shadow is drawn (`shadow-rung.ts`'s `SHADOW_DEPTH` /
+   *  `SHADOW_EDGE`): the deep tokens' full rung, and whether the field's penumbra reaches the
+   *  picture through a halfway rung. Absent, every token wears the one derived rung with a hard
+   *  edge — the material as it was until 2026-09-06. Ignored without an occlusion field. */
+  shadowDepth?: ShadowDepthOptions;
   /** THE LIT LADDER this material quantises its lighting scalar onto. Absent means the authored
    *  `SHADE_LEVELS`, and the shipped canvas passes nothing — so the source it emits is
    *  byte-identical to the one every measured figure about the banded ground was taken against.
@@ -603,6 +608,42 @@ export function shadowDarkenGlsl(darkenable: readonly number[], rungIndex: numbe
   ).join('\n            ');
 }
 
+/** One row's guard around its own darken lines. Named for the reason {@link litRemapLine} is. */
+function rowDarkenBlock(row: number, lines: string): string {
+  return `if (row == ${row}) { ${lines} }`;
+}
+
+/**
+ * GLSL sending an occluded fragment to ITS OWN TOKEN'S shadow rung — the full rung past 0.5, the
+ * soft rung between 0.25 and 0.5 under a soft edge — with `occ` the field's sample and `row` the
+ * fragment's ramp row already read.
+ *
+ * ⚠ IT COLLAPSES TO THE ONE-RUNG FORM WHEN THE LADDER IS THE ONE-RUNG LADDER — hard edge, every
+ * token on the derived rung — so a material built without `shadowDepth` emits the exact source
+ * every committed figure about the shadowed ground was taken against. The per-row form is emitted
+ * only when a token's rung differs from another's or a soft rung exists, because a per-row chain
+ * on a six-row palette is thirty comparisons a fragment that needs none of them would still pay.
+ */
+export function shadowOcclusionGlsl(ladder: ShadowLadder): string {
+  const oneRung = ladder.edge === 'hard' && ladder.tokens.every((t) => t.fullIndex === ladder.rungIndex);
+  if (oneRung) {
+    return [
+      'if (occ > 0.5) {',
+      `            ${shadowDarkenGlsl(ladder.darkenable, ladder.rungIndex)}`,
+      '        }',
+    ].join('\n');
+  }
+  const full = ladder.tokens.map((t, row) => rowDarkenBlock(row, shadowDarkenGlsl(t.darkenable, t.fullIndex)));
+  const out = ['if (occ > 0.5) {', ...full.map((l) => `            ${l}`), '        }'];
+  if (ladder.edge === 'soft') {
+    const half = ladder.tokens.map((t, row) =>
+      rowDarkenBlock(row, shadowDarkenGlsl(t.halfDarkenable, t.halfIndex ?? t.fullIndex)),
+    );
+    out.push('        else if (occ > 0.25) {', ...half.map((l) => `            ${l}`), '        }');
+  }
+  return out.join('\n');
+}
+
 /**
  * The banded ground material: `colour = ramp[statusRow * nLevels + bandIndex(lambert)]`.
  *
@@ -633,7 +674,7 @@ export function createBandedGroundMaterial(opts: BandedGroundMaterialOptions): S
     );
   }
   const occluded = opts.shadow !== undefined || opts.shadowAtlas !== undefined;
-  const ladder = occluded ? shadowLadderFor(opts.tokens, lit) : null;
+  const ladder = occluded ? shadowLadderFor(opts.tokens, lit, opts.shadowDepth) : null;
   const ramp = groundRamp(opts.tokens, ladder === null ? lit : ladder.levels);
   if (ramp.length === 0) {
     // A material with an empty ramp compiles to `uRamp[0]` on a zero-length uniform array, which
@@ -1101,12 +1142,12 @@ ${
         int rung = st_bandIndex(lambert);
         int lvl = 0;
         ${litRemapGlsl(ladder.litIndex)}
-        if (texture2D(uShadowTex, shUv).r > 0.5) {
-            ${shadowDarkenGlsl(ladder.darkenable, ladder.rungIndex)}
-        }
         // +0.5 then truncate, rather than a bare cast: an interpolated float that arrives as
         // 1.9999998 for row 2 would otherwise select row 1 and report a foreign status.
-        int idx = int(vStatus + 0.5) * ${ladder.levels.length} + lvl;`;
+        int row = int(vStatus + 0.5);
+        float occ = texture2D(uShadowTex, shUv).r;
+        ${shadowOcclusionGlsl(ladder)}
+        int idx = row * ${ladder.levels.length} + lvl;`;
 
   // THE LEVEL STAGE — the fragment's lighting rung as a scalar every colour layer multiplies its
   // colour by before its mix (see `levelSelectGlsl`). Keyed on the GRASS alone rather than on

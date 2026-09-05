@@ -49,12 +49,213 @@ import { LIGHT_DIRECTION } from './shade-ladder.js';
  *  shadow's edge — which reads as a defect in the shadow rather than in the sampling. */
 export const SHADOW_GRES = 3;
 
-/** The soft edge, in ground units. `blender_tree.py:1948` gives the tree's shadow sun
- *  `angle = 26 deg` — *"soft edge: a hard contact rim is CG"* — and this is that decision carried
- *  across. It survives into the picture only as WHERE the edge falls, because the material has
- *  exactly one shadow rung and therefore thresholds this scalar; a penumbra needs rungs to be
- *  drawn in and there are none to spare. */
-export const SHADOW_PENUMBRA = 1.2;
+/**
+ * THE SOFT EDGE, in ground units — the width of the field's ramp from fully lit to fully occluded,
+ * centred on the caster's true silhouette (0.5 exactly ON the silhouette).
+ *
+ * ⚠ ITS HISTORY IS THE WRONG SUN. Until 2026-09-06 it carried `blender_tree.py:1948`'s
+ * `angle = 26 deg` — *"soft edge: a hard contact rim is CG"* — a decision made for an EARLIER
+ * picture. The render the owner stamped (`build_land.py:1141-1147`) lights the land with a
+ * `angle = 3°` sun, whose penumbra at the tip of an 18-unit pine is `18 × tan 3°` ≈ 0.94 ground
+ * units and zero at its foot — a near-hard edge. The material renders the ramp through ONE
+ * intermediate rung (`shadow-rung.ts`'s `SHADOW_EDGE`), so what reaches the picture is a band
+ * `penumbra / 2` wide outside the silhouette.
+ *
+ * THE PICK: 0.6, from the ladder {@link SHADOW_PENUMBRA_RUNGS} rendered on the RTX 2060
+ * (`docs/research/chapter2-cast-shadows-2026-09-06/crop-edge.png`). 0.15 and 0.6 both read as the
+ * reference's crisp edge; 1.2 (the old value) wears a visible halo and 2.4 is mush. 0.6 over 0.15
+ * because a band 0.3 units wide is one texel at `SHADOW_GRES`, which is what hides the field's own
+ * staircase along a diagonal edge; the 3° sun's own penumbra is 0.5–0.9 units at the tip of a
+ * pine. A scale-back is one edit to a rung already on the sheet.
+ */
+export const SHADOW_PENUMBRA = 0.6;
+
+/** The penumbra ladder the owner was shown, in ground units. 0.15 is HARD in the picture — its
+ *  soft band is 0.075 units, under a quarter of a texel at `SHADOW_GRES` — so the ladder runs
+ *  from the 3° sun's own edge to a width twice the old 26° carry-over. */
+export const SHADOW_PENUMBRA_RUNGS: readonly number[] = [0.15, 0.6, 1.2, 2.4];
+
+/**
+ * A CASTER'S SILHOUETTE, as a profile of revolution: `[heightFraction, radiusFraction]` pairs,
+ * ascending in height, each radius a fraction of the caster's `radius` at that fraction of its
+ * `height`. Linear between pairs; two pairs at the SAME height are a step (a crown starting
+ * abruptly above a trunk). Absent, a caster is the upright cylinder it always was.
+ *
+ * WHY A PROFILE RATHER THAN A `kind`. The stamp needs exactly one thing from a form — the
+ * half-width at a height — and a table of pairs answers it for a pine, a bloom, a bush and a
+ * cylinder through one function, which is one code path to prove rather than four.
+ */
+export type SilhouetteProfile = readonly (readonly [height: number, radius: number])[];
+
+/** The profile every caster wore until 2026-09-06 — full radius from foot to tip. */
+export const CYLINDER_PROFILE: SilhouetteProfile = [
+  [0, 1],
+  [1, 1],
+];
+
+/**
+ * The half-width of a profile at height fraction `t`, as a fraction of the caster's radius.
+ * Outside `[0, 1]` it is zero — nothing stands below its own foot or above its own tip. At a step
+ * (two pairs at one height) the WIDER of the two wins, because a ray grazing the step is occluded
+ * by the wider part.
+ */
+export function profileHalfWidth(profile: SilhouetteProfile, t: number): number {
+  if (t < 0 || t > 1 || profile.length === 0) return 0;
+  let width = 0;
+  for (const k of indices(profile.length)) {
+    const [h, r] = profile[k]!;
+    if (h === t) width = Math.max(width, r);
+    const next = profile[k + 1];
+    if (next === undefined) continue;
+    const [h2, r2] = next;
+    if (t > h && t < h2) width = Math.max(width, r + ((r2 - r) * (t - h)) / (h2 - h));
+  }
+  return width;
+}
+
+/** The widest a profile ever is, as a fraction of the radius — what sizes the stamp's box. */
+export function profileMaxWidth(profile: SilhouetteProfile): number {
+  let m = 0;
+  for (const [, r] of profile) m = Math.max(m, r);
+  return m;
+}
+
+/** How many heights the silhouette test samples per profile segment. Six, because the
+ *  segments are short (a pine's crown is one) and the test is a max over a concave function of
+ *  height, so a coarse sample under-reads the occlusion by at most a fraction of the penumbra. */
+export const SILHOUETTE_SAMPLES_PER_SEGMENT = 6;
+
+/**
+ * HOW OCCLUDED A GROUND SAMPLE IS BY A PROFILED CASTER, 0..1, with the penumbra ramp.
+ *
+ * The ray from the sample toward the light climbs `1 / perUnit` units per ground unit and passes
+ * the caster's axis at height `yStar` above the caster's foot; at every height `y` on the way it
+ * sits `perUnit × (yStar − y)` ground units from the axis along the shadow and `across` beside
+ * it. It is occluded where that distance falls inside the silhouette's half-width at `y`, and the
+ * field's value is the softest-edged such test: the ramp `(halfWidth + penumbra − distance) / (2 ×
+ * penumbra)`, maximised over the heights the ray passes through and clamped to `[0, 1]`. On a
+ * cylinder this reproduces the swept disc; on a cone it tapers to the tip's point.
+ */
+export function silhouetteOcclusion(
+  profile: SilhouetteProfile,
+  radius: number,
+  height: number,
+  yStar: number,
+  across: number,
+  perUnit: number,
+  penumbra: number,
+): number {
+  if (height <= 0) return 0;
+  let best = 0;
+  const probe = (y: number): void => {
+    const w = profileHalfWidth(profile, y / height) * radius;
+    const d = Math.hypot(perUnit * (yStar - y), across);
+    best = Math.max(best, (w + penumbra - d) / (2 * penumbra));
+  };
+  for (const k of indices(profile.length - 1)) {
+    const y0 = profile[k]![0] * height;
+    const y1 = profile[k + 1]![0] * height;
+    for (const s of indices(SILHOUETTE_SAMPLES_PER_SEGMENT + 1)) {
+      probe(y0 + ((y1 - y0) * s) / SILHOUETTE_SAMPLES_PER_SEGMENT);
+    }
+  }
+  // The height the ray passes the axis at is where its distance is smallest — probe it too, so
+  // a thin stem between two sampled heights is never stepped over.
+  if (yStar >= 0 && yStar <= height) probe(yStar);
+  return Math.max(0, Math.min(1, best));
+}
+
+/**
+ * A CASTER'S SILHOUETTE OUTLINE, TABULATED ONCE: for each height `yStar` a ray may pass the axis
+ * at, the widest `across` it is still occluded at — `max over y of sqrt(w(y)² − (perUnit ×
+ * (yStar − y))²)`, the same silhouette {@link silhouetteOcclusion} tests, solved per caster
+ * rather than per sample.
+ *
+ * ⚠⚠ IT EXISTS BECAUSE THE PER-SAMPLE TEST COST THE FOREST TWENTY SECONDS AT MOUNT. Measured on
+ * the RTX 2060 box, 2026-09-06: the forest's ground build went from 554 ms with cylinders to
+ * 21,081 ms with `silhouetteOcclusion` called at every sample of every caster's box (2,852
+ * casters, ~30 probes a sample, each probe walking the profile). The outline is a function of
+ * `yStar` alone, so it is tabulated at {@link ENVELOPE_STEP} of a texel's worth of height and a
+ * sample then costs one interpolated read and a clamp — the cylinder stamp's cost class.
+ */
+export interface SilhouetteEnvelope {
+  /** The `yStar` of `widths[0]`. */
+  yMin: number;
+  /** Height between entries. */
+  step: number;
+  /** The occluded half-width at each `yStar`, in ground units; 0 where nothing is met. */
+  widths: Float64Array;
+}
+
+/** Entries per texel-worth of height along the shadow: four, so the outline is finer than the
+ *  field that samples it. */
+export const ENVELOPE_STEP = 0.25;
+
+/** Heights the outline is maximised over, per profile segment, when the table is built — once
+ *  per caster, so it can afford to be fine. */
+export const ENVELOPE_SAMPLES_PER_SEGMENT = 24;
+
+export function silhouetteEnvelope(
+  profile: SilhouetteProfile,
+  radius: number,
+  height: number,
+  perUnit: number,
+  gres: number = SHADOW_GRES,
+): SilhouetteEnvelope {
+  const widest = radius * profileMaxWidth(profile);
+  // A ray can be met while passing the axis up to `widest / perUnit` above the tip or below the
+  // foot — the form's own overhang, converted to axis height.
+  const overhang = widest / Math.max(perUnit, 1e-9);
+  const yMin = -overhang;
+  const yMax = height + overhang;
+  const step = ENVELOPE_STEP / (gres * Math.max(perUnit, 1e-9));
+  const n = Math.max(2, Math.ceil((yMax - yMin) / step) + 1);
+  // The heights the outline is maximised over: every profile breakpoint and a fine sample of
+  // each segment — built once, read for every table entry.
+  const ys: number[] = [];
+  for (const k of indices(profile.length - 1)) {
+    const y0 = profile[k]![0] * height;
+    const y1 = profile[k + 1]![0] * height;
+    for (const sIdx of indices(ENVELOPE_SAMPLES_PER_SEGMENT + 1)) {
+      ys.push(y0 + ((y1 - y0) * sIdx) / ENVELOPE_SAMPLES_PER_SEGMENT);
+    }
+  }
+  const ws = ys.map((y) => profileHalfWidth(profile, height <= 0 ? -1 : y / height) * radius);
+  const widths = new Float64Array(n);
+  for (const i of indices(n)) {
+    const yStar = yMin + i * step;
+    let best = 0;
+    for (const k of indices(ys.length)) {
+      const along = perUnit * (yStar - ys[k]!);
+      const w = ws[k]!;
+      const sq = w * w - along * along;
+      if (sq > best * best) best = Math.sqrt(sq);
+    }
+    widths[i] = best;
+  }
+  return { yMin, step, widths };
+}
+
+/** The outline's half-width at `yStar`, linearly interpolated; zero outside the table. */
+export function envelopeWidth(env: SilhouetteEnvelope, yStar: number): number {
+  const f = (yStar - env.yMin) / env.step;
+  if (f < 0 || f > env.widths.length - 1) return 0;
+  const i = Math.floor(f);
+  const t = f - i;
+  const a = env.widths[i]!;
+  const b = env.widths[Math.min(env.widths.length - 1, i + 1)]!;
+  return a + (b - a) * t;
+}
+
+/** The field's value for a sample against a tabulated outline: the penumbra ramp centred on the
+ *  outline, 0.5 exactly on it — what {@link silhouetteOcclusion} delivers, at a table read. Where
+ *  the outline has NO width the ray meets nothing at all, and that is 0 rather than the ramp of a
+ *  zero-width form: the penumbra widens an edge, it does not lengthen a shadow past its tip. */
+export function envelopeOcclusion(env: SilhouetteEnvelope, yStar: number, across: number, penumbra: number): number {
+  const w = envelopeWidth(env, yStar);
+  if (w <= 0) return 0;
+  return Math.max(0, Math.min(1, (w + penumbra - across) / (2 * penumbra)));
+}
 
 /** The largest texture edge the occlusion field may be uploaded at.
  *
@@ -71,16 +272,24 @@ export const SHADOW_TEXTURE_MAX = 2048;
  *  cut both off at the coast; two units is past the reach of either at this island's scale. */
 export const OCCLUSION_PAD = 2;
 
-/** A caster: an upright cylinder standing on the land. The tall things on the shipped map are
- *  story trees and cave arches, so this is what one of those becomes. */
+/** A caster: something standing on the land — an upright cylinder unless it carries a
+ *  {@link SilhouetteProfile}, in which case its cast shadow is that profile's projection (a pine's
+ *  cone, a bloom's stem, a bush's dome). The radius and height bound the profile. */
 export interface ShadowCaster {
   /** Ground position (3D x, z). */
   x: number;
   z: number;
-  /** Horizontal radius. */
+  /** Horizontal radius — the profile's `1.0`. */
   radius: number;
-  /** Height above the land at its own foot. */
+  /** Height above the land at its own foot — the profile's `1.0`. */
   height: number;
+  /** The form the shadow takes. Absent means the cylinder every caster was until 2026-09-06,
+   *  stamped by the closed-form swept disc rather than the sampled silhouette. */
+  profile?: SilhouetteProfile;
+  /** Does this caster darken the ground it MEETS (`contact-shade.ts`'s pool) as well as the
+   *  ground it shades? Absent means yes. `false` is the ground cover's (`ground-casters.ts`'s
+   *  `COVER_POOLS`): a knee-high dome casts its sun shadow and no ambient halo. */
+  pool?: boolean;
 }
 
 export interface GroundBounds {
@@ -379,6 +588,9 @@ export interface CanopyShadowOptions {
   /** The texture-edge budget this field is allocated under. Defaults to
    *  {@link SHADOW_TEXTURE_MAX}; supplied only by the comparison that costs raising it. */
   max?: number;
+  /** The soft edge's width, in ground units. Defaults to {@link SHADOW_PENUMBRA}; supplied by the
+   *  ladder that rendered the rungs. */
+  penumbra?: number;
 }
 
 /**
@@ -396,17 +608,24 @@ export function buildCanopyShadowField(opts: CanopyShadowOptions): ShadowField {
   const data = field.data;
   const dir = shadowDirection();
   const perUnit = shadowOffsetPerUnitHeight();
+  const penumbra = opts.penumbra ?? SHADOW_PENUMBRA;
 
   for (const c of opts.casters) {
     const baseY = landHeight(c.x, c.z, opts.relief);
     // ⚠ `reach` SIZES THE RASTERISATION BOX AND NOTHING ELSE — every sample inside it is still
-    // tested against the caster's own cylinder below, so a box that is too WIDE delivers exactly
+    // tested against the caster's own form below, so a box that is too WIDE delivers exactly
     // the same field and merely costs time. That makes the arithmetic here unobservable in the
     // widening direction; what a test CAN see is a box too NARROW or in the wrong place, which is
     // what the edge-caster fixture in `land-shadow.test.ts` is for.
     // Stryker disable next-line ArithmeticOperator
     const reach = c.height * perUnit;
-    const rr = c.radius + SHADOW_PENUMBRA;
+    const profile = c.profile;
+    // A profile never widens past its own radius, so the box a profiled caster needs is at most
+    // the cylinder's; sized from the profile's widest ring so a thin stem stamps a thin box.
+    const widest = profile === undefined ? c.radius : c.radius * profileMaxWidth(profile);
+    const rr = widest + penumbra;
+    // THE OUTLINE, ONCE PER CASTER — see {@link silhouetteEnvelope} for why not per sample.
+    const env = profile === undefined ? null : silhouetteEnvelope(profile, c.radius, c.height, perUnit, gres);
     const tipX = c.x + dir.x * reach;
     const tipZ = c.z + dir.z * reach;
     const box = stampBox(
@@ -432,20 +651,30 @@ export function buildCanopyShadowField(opts: CanopyShadowOptions): ShadowField {
         // which is 0, and a 0 never wins the `Math.max` write below.
         if (across > rr) continue;
         // The ray from this sample toward the light reaches the caster's AXIS at this height
-        // above the caster's foot. Occluded iff that is inside the cylinder.
+        // above the caster's foot. Occluded iff that is inside the form.
         const rayAboveFoot = landHeight(gx, gz, opts.relief) - baseY + along / perUnit;
-        // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero) — a ray passing
-        // exactly through the cylinder's foot or exactly through its tip is one double in a
-        // continuum, and the sample either side of it is tested.
-        if (rayAboveFoot < 0 || rayAboveFoot > c.height) continue;
-        // EQUIVALENT, annotated on the condition's own line below. `<=` vs `<` is measure zero;
-        // and taking the RAMP branch unconditionally delivers the same byte in the core, because
-        // `(rr - across) / (2 * PENUMBRA)` exceeds 1 there and is clamped.
-        const soft =
-          // Stryker disable next-line EqualityOperator,ConditionalExpression
-          across <= c.radius - SHADOW_PENUMBRA
-            ? 1
-            : Math.max(0, Math.min(1, (rr - across) / (2 * SHADOW_PENUMBRA)));
+        let soft: number;
+        if (env !== null) {
+          // THE SILHOUETTE: the ray is tested against the form at every height it passes
+          // through, not only where it meets the axis — a pine's crown occludes a ray that
+          // passes the axis above the tip — through the caster's tabulated outline. The axis
+          // height may fall outside `[0, height]` here and still be occluded; the table is 0
+          // where nothing is met.
+          soft = envelopeOcclusion(env, rayAboveFoot, across, penumbra);
+        } else {
+          // THE CYLINDER, exactly as it was stamped until 2026-09-06 — byte for byte, so the
+          // control arm of every comparison on this arc is still the map as it shipped.
+          // Stryker disable next-line EqualityOperator: EQUIVALENT (measure zero) — a ray passing
+          // exactly through the cylinder's foot or exactly through its tip is one double in a
+          // continuum, and the sample either side of it is tested.
+          if (rayAboveFoot < 0 || rayAboveFoot > c.height) continue;
+          // EQUIVALENT, annotated on the condition's own line below. `<=` vs `<` is measure zero;
+          // and taking the RAMP branch unconditionally delivers the same byte in the core, because
+          // `(rr - across) / (2 * penumbra)` exceeds 1 there and is clamped.
+          soft =
+            // Stryker disable next-line EqualityOperator,ConditionalExpression
+            across <= c.radius - penumbra ? 1 : Math.max(0, Math.min(1, (rr - across) / (2 * penumbra)));
+        }
         const v = Math.round(soft * 255);
         // `Math.max` rather than a compare-and-assign, for the reason `buildContactField` gives.
         data[j * w + i] = Math.max(v, data[j * w + i]!);

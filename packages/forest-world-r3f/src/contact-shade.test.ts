@@ -17,6 +17,11 @@ import {
   CONTACT_SPREAD,
   buildContactField,
   buildGroundOcclusion,
+  packContactSoft,
+  CONTACT_SOFT_FLOOR,
+  CONTACT_SOFT_MAX_BYTE,
+  CONTACT_SOFT_SCALE,
+  SHADOW_CONTACT_BAND,
   contactCoverage,
   contactReach,
   mergeOcclusion,
@@ -26,6 +31,7 @@ import {
 import {
   buildCanopyShadowField,
   emptyField,
+  indices,
   occlusionGrid,
   sampleShadowField,
   shadowCoverage,
@@ -189,7 +195,9 @@ test('spread widens the pool without lifting the whole field toward the threshol
 test('THE ONE FIELD: buildGroundOcclusion is exactly the merge of the two terms', () => {
   smallGrid(BOUNDS);
   const casters: ShadowCaster[] = [{ x: 0, z: 0, radius: 7, height: 19 }];
-  const merged = buildGroundOcclusion({ bounds: BOUNDS, relief: 2.2, casters });
+  // ⚠ `contactBand: 'full'` names the field as it stood until 2026-09-06 — this test is about the
+  // MERGE, and the shipped default re-packs the contact term first (held by the band tests below).
+  const merged = buildGroundOcclusion({ bounds: BOUNDS, relief: 2.2, casters, contactBand: 'full' });
   const expected = mergeOcclusion(
     buildCanopyShadowField({ bounds: BOUNDS, relief: 2.2, casters }),
     buildContactField({ bounds: BOUNDS, casters }),
@@ -303,7 +311,9 @@ test('GOLDEN: the merged field is the union, and neither term alone', () => {
   // with the CONTACT golden above, which reads no relief and is byte-identical to before. Confirmed
   // by diff: a stamp with the relief term pluggable reproduces the OLD union (476 / 84714 / 1653)
   // with the tuned relief `h(LAND_SCALE·p)` and this one with the shipped relief.
-  const merged = fieldSignature(buildGroundOcclusion({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER] }));
+  // ⚠ `contactBand: 'full'`: the golden is the union as it was stamped until 2026-09-06; the shipped
+  // default packs the contact term into the soft band, which the band tests below hold.
+  const merged = fieldSignature(buildGroundOcclusion({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER], contactBand: 'full', penumbra: 1.2 }));
   assert.deepEqual(merged, {
     w: 114,
     h: 66,
@@ -320,7 +330,7 @@ test('GOLDEN: the merged field is the union, and neither term alone', () => {
   // a union of two differently-placed stamps looks like and what neither alone could be.
   assert.equal(
     merged.first,
-    fieldSignature(buildCanopyShadowField({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER] })).first,
+    fieldSignature(buildCanopyShadowField({ bounds: GOLD_BOUNDS, relief: 2.2, casters: [GOLD_CASTER], penumbra: 1.2 })).first,
   );
   assert.equal(
     merged.last,
@@ -440,7 +450,8 @@ test('GOLDEN: the CAST field with casters on the first and last texel', () => {
   // the relief term pluggable reproduces the OLD signature (629 / 117894) with the tuned relief
   // `h(LAND_SCALE·p)` and this one with the shipped relief. `first` and `last` did not move — the
   // clamps this fixture exists for are untouched.
-  const f = buildCanopyShadowField({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS });
+  // ⚠ `penumbra: 1.2`: the golden was stamped at the width the field wore until 2026-09-06.
+  const f = buildCanopyShadowField({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS, penumbra: 1.2 });
   assert.deepEqual(fieldSignature(f), {
     w: 135, h: 99, gres: 3, minX: 98, minZ: 58,
     nonZero: 563, sum: 108872, max: 255, first: 4, last: 13364,
@@ -463,7 +474,7 @@ test('GOLDEN: the CONTACT field on the same edge fixture', () => {
 test('GOLDEN: and the merged field, which is what the material receives', () => {
   smallGrid(EDGE_BOUNDS);
   assert.deepEqual(
-    fieldSignature(buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS })),
+    fieldSignature(buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS, contactBand: 'full', penumbra: 1.2 })),
     // ⚠ nonZero / sum REGENERATED 2026-09-05: the CAST half moved with LAND_SCALE (see the cast
     // golden above — 629 → 563 texels); the CONTACT half reads no relief and is unchanged. The old
     // union (1048 / 219068) is reproduced by the same pluggable-relief diff with the tuned relief.
@@ -481,8 +492,10 @@ test('no stamp WRAPS onto a neighbouring row — the failure a clamp exists to p
   // side of the island, where it reads as a rendering artefact rather than as an index bug. Every
   // written sample must lie within its own caster's reach of that caster — checked in GROUND
   // coordinates, so a wrapped write lands nowhere near either of them.
-  const f = buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS });
-  const far = 3 + SHADOW_PENUMBRA + 12 * shadowOffsetPerUnitHeight() + 1;
+  // ⚠ `penumbra: 1.2` and the full band: the written-sample count (997) was taken on the field as
+  // it stood until 2026-09-06; the wrap check itself holds at any width.
+  const f = buildGroundOcclusion({ bounds: EDGE_BOUNDS, relief: 2.2, casters: EDGE_CASTERS, penumbra: 1.2, contactBand: 'full' });
+  const far = 3 + 1.2 + 12 * shadowOffsetPerUnitHeight() + 1;
   let written = 0;
   for (let p = 0; p < f.data.length; p += 1) {
     if (f.data[p] === 0) continue;
@@ -560,4 +573,73 @@ test('⚠ THE TEXTURE BUDGET REACHES BOTH TERMS, or the merge would refuse', () 
   const contact = buildContactField({ bounds: wide, casters, max: 512 });
   assert.equal(contact.w, merged.w);
   assert.ok(!sameGrid(contact, authored));
+});
+
+// ---------------------------------------------------------------------------
+// the contact band (2026-09-06) — the pool lands on the soft rung, the sun shadow on the full one
+// ---------------------------------------------------------------------------
+
+test('packContactSoft maps a pool’s [0.5, 1] into (0.25, 0.5] sample for sample and leaves zero alone', () => {
+  const grid = occlusionGrid({ minX: 0, maxX: 2, minZ: 0, maxZ: 2 });
+  const field = emptyField(grid);
+  field.data[0] = 255;
+  field.data[1] = 128;
+  field.data[2] = 0;
+  const packed = packContactSoft(field);
+  // ⚠ 127, not round(0.5 × 255) = 128: 128 / 255 is 0.502, past the material's full threshold.
+  assert.equal(packed.data[0], CONTACT_SOFT_MAX_BYTE);
+  assert.equal(CONTACT_SOFT_MAX_BYTE, 127);
+  assert.equal(packed.data[1], Math.round((CONTACT_SOFT_FLOOR + (CONTACT_SOFT_SCALE * 128) / 255) * 255));
+  assert.equal(packed.data[2], 0);
+  assert.ok(packed.data[0]! / 255 <= 0.5 && packed.data[0]! / 255 > 0.25);
+  assert.ok(packed.data[1]! / 255 > 0.25 && packed.data[1]! / 255 < 0.5);
+  assert.deepEqual([packed.w, packed.h, packed.gres, packed.minX, packed.minZ], [field.w, field.h, field.gres, field.minX, field.minZ]);
+  assert.equal(CONTACT_SOFT_FLOOR, 0.25);
+  assert.equal(CONTACT_SOFT_SCALE, 0.25);
+  assert.equal(SHADOW_CONTACT_BAND, 'soft');
+});
+
+test('buildGroundOcclusion: by default the contact pool never reaches the full threshold and the cast shadow does; `full` is the field as it was', () => {
+  const bounds = { minX: -20, maxX: 20, minZ: -20, maxZ: 20 };
+  const caster = { x: 0, z: 0, radius: 2, height: 6 };
+  const soft = buildGroundOcclusion({ bounds, relief: 0, casters: [caster] });
+  const full = buildGroundOcclusion({ bounds, relief: 0, casters: [caster], contactBand: 'full' });
+  const cast = buildCanopyShadowField({ bounds, relief: 0, casters: [caster] });
+  // Under the default band, every sample past 0.5 is the CAST term's own — the pool contributed
+  // nothing past it.
+  for (const p of indices(soft.data.length)) {
+    if (soft.data[p]! / 255 > 0.5) assert.ok(cast.data[p]! / 255 > 0.5, `sample ${p} is past the full threshold with no cast shadow`);
+  }
+  // But the pool IS there, in the soft band: on the lit side of the caster (toward the light,
+  // where the cast term is zero) the field reads between 0.25 and 0.5.
+  const dir = shadowDirection();
+  const litX = -dir.x * (caster.radius + 0.5);
+  const litZ = -dir.z * (caster.radius + 0.5);
+  const s = sampleShadowField(soft, litX, litZ);
+  assert.ok(s > 0.25 && s <= 0.5, `the pool on the lit side reads ${s}, not in the soft band`);
+  // `full` puts the same sample past the full threshold — today's field.
+  assert.ok(sampleShadowField(full, litX, litZ) > 0.5);
+  // And the two agree wherever the cast term rules (the core of the shadow).
+  const coreX = dir.x * 2;
+  const coreZ = dir.z * 2;
+  assert.equal(sampleShadowField(soft, coreX, coreZ), 1);
+  assert.equal(sampleShadowField(full, coreX, coreZ), 1);
+  assert.ok(shadowCoverage(full) > shadowCoverage(soft), 'the full band is not wider than the soft one');
+});
+
+test('a caster with `pool: false` stamps NO contact pool and still casts its sun shadow', () => {
+  const bounds = { minX: -20, maxX: 20, minZ: -20, maxZ: 20 };
+  const caster = { x: 0, z: 0, radius: 2, height: 6 };
+  const pooled = buildContactField({ bounds, casters: [caster] });
+  const unpooled = buildContactField({ bounds, casters: [{ ...caster, pool: false }] });
+  assert.ok(contactCoverage(pooled) > 0);
+  assert.equal(contactCoverage(unpooled), 0, 'an unpooled caster stamped a pool');
+  assert.ok([...unpooled.data].every((v) => v === 0));
+  // An explicit `pool: true` is the default.
+  assert.deepEqual(buildContactField({ bounds, casters: [{ ...caster, pool: true }] }).data, pooled.data);
+  // The cast term ignores the flag: the same shadow either way.
+  const cast = buildCanopyShadowField({ bounds, relief: 0, casters: [caster] });
+  const castUnpooled = buildCanopyShadowField({ bounds, relief: 0, casters: [{ ...caster, pool: false }] });
+  assert.deepEqual(castUnpooled.data, cast.data);
+  assert.ok(shadowCoverage(cast) > 0);
 });

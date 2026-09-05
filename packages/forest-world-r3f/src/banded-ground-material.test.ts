@@ -24,6 +24,7 @@ import {
   grassGateGlsl,
   rampSelectGlsl,
   shadowDarkenGlsl,
+  shadowOcclusionGlsl,
 } from './banded-ground-material.js';
 import { buildGroundOcclusion } from './contact-shade.js';
 import { atlasScale, buildAtlasOcclusion } from './shadow-atlas.js';
@@ -552,7 +553,8 @@ test('NON-VACUITY: a shadowed material really does fill every one of those sites
   const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
   assert.ok(m.fragmentShader.includes('uniform sampler2D uShadowTex;'));
   assert.ok(m.fragmentShader.includes('uniform vec4 uShadowRect;'));
-  assert.ok(m.fragmentShader.includes('texture2D(uShadowTex, shUv).r > 0.5'));
+  assert.ok(m.fragmentShader.includes('float occ = texture2D(uShadowTex, shUv).r;'));
+  assert.ok(m.fragmentShader.includes('if (occ > 0.5) {'));
   // The uniforms carry the REAL texture rather than a placeholder shaped like one.
   const shadow = testShadow();
   const wired = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow });
@@ -614,7 +616,7 @@ test('THE FRAGMENT SELECTS — the shadow adds no arithmetic to a delivered colo
 test('THE STRIDE MOVES WITH THE LADDER — a shadowed row is ten entries wide', () => {
   const m = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
   assert.ok(
-    m.fragmentShader.includes('int idx = int(vStatus + 0.5) * 10 + lvl;'),
+    m.fragmentShader.includes('int row = int(vStatus + 0.5);') && m.fragmentShader.includes('int idx = row * 10 + lvl;'),
     'the shadowed stride must be the shadow ladder’s length, not ST_N_LEVELS',
   );
   // ⚠ A stride left at 9 would select the NEXT ROW's colours for every status past the first —
@@ -1908,4 +1910,73 @@ test('the wear stage composites straight after LAYER 1 when there is no sand —
   assert.ok(!/st_sand|st_wear|uShoreTex|shUv/.test(rocky.fragmentShader), 'rock needs no atlas coordinate');
   assert.equal(rocky.uniforms['uRockLo']?.value, ROCK_SLOPE_RAMP[0]);
   assert.equal(rocky.uniforms['uRockHi']?.value, ROCK_SLOPE_RAMP[1]);
+});
+
+// ---------------------------------------------------------------------------
+// depth and edge (2026-09-06) — the per-token occlusion stage
+// ---------------------------------------------------------------------------
+
+const HEALTHY_TOKEN = '#8cb85e';
+
+test('shadowOcclusionGlsl COLLAPSES to the one-rung form on the derived ladder — pinned as source', () => {
+  const ladder = shadowLadderFor(SHIPPED_TOKENS);
+  assert.equal(
+    shadowOcclusionGlsl(ladder),
+    'if (occ > 0.5) {\n            ' + shadowDarkenGlsl(ladder.darkenable, ladder.rungIndex) + '\n        }',
+  );
+  assert.ok(!shadowOcclusionGlsl(ladder).includes('row =='), 'a per-row chain on a one-rung ladder');
+  assert.ok(!shadowOcclusionGlsl(ladder).includes('occ > 0.25'));
+});
+
+test('shadowOcclusionGlsl emits ONE guarded block PER ROW under a depth, and a second stage between 0.25 and 0.5 under a soft edge — pinned as source', () => {
+  const soft = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [HEALTHY_TOKEN], edge: 'soft' });
+  const src = shadowOcclusionGlsl(soft);
+  const rows = SHIPPED_TOKENS.length;
+  // Every row appears in BOTH stages, in row order, guarded by its own index.
+  for (let row = 0; row < rows; row += 1) {
+    const guard = `if (row == ${row}) { `;
+    assert.equal(src.split(guard).length - 1, 2, `row ${row} is not guarded exactly twice`);
+  }
+  assert.ok(src.startsWith('if (occ > 0.5) {'));
+  assert.ok(src.includes('\n        else if (occ > 0.25) {'));
+  // The healthy row goes to the DEEP index (0) in the full stage and to its half (1) in the soft
+  // stage; a yellow row to the derived rung (2) and its half (5). Read the lines back out.
+  const full = src.slice(0, src.indexOf('else if'));
+  const half = src.slice(src.indexOf('else if'));
+  assert.ok(full.includes(`if (row == 0) { ${shadowDarkenGlsl(soft.tokens[0]!.darkenable, 0)} }`));
+  assert.ok(half.includes(`if (row == 0) { ${shadowDarkenGlsl(soft.tokens[0]!.halfDarkenable, 1)} }`));
+  assert.ok(full.includes(`if (row == 2) { ${shadowDarkenGlsl(soft.tokens[2]!.darkenable, 2)} }`));
+  assert.ok(half.includes(`if (row == 2) { ${shadowDarkenGlsl(soft.tokens[2]!.halfDarkenable, 5)} }`));
+  // A HARD edge at the same depth: the per-row full stage and NO second stage.
+  const hard = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [HEALTHY_TOKEN], edge: 'hard' });
+  const hardSrc = shadowOcclusionGlsl(hard);
+  assert.ok(hardSrc.includes('if (row == 0) {'));
+  assert.ok(!hardSrc.includes('occ > 0.25'));
+  // A soft edge with NO deep token is still per-row (the halves exist), still two stages.
+  const softOnly = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.77, deepTokens: [], edge: 'soft' });
+  assert.ok(shadowOcclusionGlsl(softOnly).includes('occ > 0.25'));
+});
+
+test('a material built WITH shadowDepth wears the longer ladder: the stride is the levels’ length and the source carries both stages', () => {
+  const m = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    shadow: testShadow(),
+    shadowDepth: { deep: 0.55, deepTokens: [HEALTHY_TOKEN], edge: 'soft' },
+  });
+  // 9 lit + 0.77 + 0.55 + 0.835 + 0.725 = 13.
+  assert.ok(m.fragmentShader.includes('int idx = row * 13 + lvl;'), 'the stride is not the depth ladder’s length');
+  assert.ok(m.fragmentShader.includes('else if (occ > 0.25) {'));
+  assert.equal((m.uniforms['uRamp']!.value as unknown[]).length, SHIPPED_TOKENS.length * 13);
+  // And WITHOUT it the material is the one-rung one — same tokens, stride 10, no second stage.
+  const plain = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS, shadow: testShadow() });
+  assert.ok(plain.fragmentShader.includes('int idx = row * 10 + lvl;'));
+  assert.ok(!plain.fragmentShader.includes('occ > 0.25'));
+  // A depth handed to an UNSHADOWED material is ignored rather than refused — there is no field
+  // to read, and the source is the unshadowed one byte for byte.
+  const unshadowed = createBandedGroundMaterial({ tokens: SHIPPED_TOKENS });
+  const ignored = createBandedGroundMaterial({
+    tokens: SHIPPED_TOKENS,
+    shadowDepth: { deep: 0.55, deepTokens: [HEALTHY_TOKEN], edge: 'soft' },
+  });
+  assert.equal(ignored.fragmentShader, unshadowed.fragmentShader);
 });

@@ -37,7 +37,7 @@
 // If the pad were ever reduced below one texel this file would need its own gutter — which is why
 // {@link tileMargin} exists to say what the margin currently is rather than leaving it implied.
 
-import { buildGroundOcclusion } from './contact-shade.js';
+import { buildGroundOcclusion, type ContactBand, type GroundOcclusionOptions } from './contact-shade.js';
 import type { InstanceDescriptor } from './world-to-3d.js';
 import {
   OCCLUSION_PAD,
@@ -438,6 +438,10 @@ export interface AtlasOcclusionOptions {
   casters: readonly ShadowCaster[];
   gres?: number;
   max?: number;
+  /** The cast term's soft-edge width, handed to every tile's builder unchanged. */
+  penumbra?: number;
+  /** Which rung the contact term lands on, handed to every tile's builder unchanged. */
+  contactBand?: ContactBand;
 }
 
 /**
@@ -460,12 +464,16 @@ export function buildAtlasOcclusion(opts: AtlasOcclusionOptions): AtlasField {
   const data = new Uint8Array(layout.w * layout.h);
 
   for (const tile of layout.tiles) {
-    const field = buildGroundOcclusion({
+    const tileOpts: GroundOcclusionOptions = {
       bounds: tile.bounds,
       relief: opts.relief,
       casters: opts.casters.filter((c) => casterWithin(tile.bounds, c)),
       gres: layout.gres,
-    });
+    };
+    // By statement, for `exactOptionalPropertyTypes`' reason: absent means the authored width.
+    if (opts.penumbra !== undefined) tileOpts.penumbra = opts.penumbra;
+    if (opts.contactBand !== undefined) tileOpts.contactBand = opts.contactBand;
+    const field = buildGroundOcclusion(tileOpts);
     blitTile(data, layout.w, tile, field);
   }
 

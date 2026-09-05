@@ -412,7 +412,7 @@ test('the shipped ground WEARS THE BANDED LADDER — also unconditionally, also 
   );
   assert.match(
     src,
-    /buildGroundOcclusionField\(clipped, casters\)/,
+    /buildGroundOcclusionField\(clipped, casters, penumbra, contactBand\)/,
     'and that field is built from this scene’s own CLIPPED cells and casters',
   );
   // ⚠ AND THE SMOOTH MATERIAL IS GONE FROM THE CELL GROUND RATHER THAN LEFT BESIDE IT. Two land
@@ -514,7 +514,7 @@ test('the shipped ground WEARS THE OCCLUSION FIELD — unconditionally, item 6 a
   // of its pixels moved — precisely when the map became the real map. Same fence as before: no
   // prop, no default-off. Costing of all three remedies:
   // `docs/research/chapter2-shipped-shadow-2026-08-31/`.
-  assert.match(src, /buildAtlasOcclusion\(\{ cells, relief: LAND_RELIEF_AMPLITUDE, casters \}\)/);
+  assert.match(src, /buildAtlasOcclusion\(\{ cells, relief: LAND_RELIEF_AMPLITUDE, casters, penumbra, contactBand \}\)/);
   assert.match(src, /groundAtlasTexture\(/, 'the field must be uploaded, not merely computed');
   assert.match(src, /if \(shadow !== null\) opts\.shadowAtlas = shadow;/);
   // ⚠⚠ AND THE MESH MUST CARRY THE TILE CORNER, or every island reads the atlas's top-left tile
