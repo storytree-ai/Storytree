@@ -3018,6 +3018,11 @@ export const CLI_OPTIONS = {
   statement: { type: "string" },
   context: { type: "string" },
   options: { type: "string" },
+  // `storytree adr new --basis <b> --owner-said <text|@file>` (ADR-0519 D1/D3): the authority stamp.
+  // `--basis` is one enum word (LITERAL); `--owner-said` is the owner's verbatim directive (PROSE,
+  // so `@path` carries a multi-sentence directive the shell would otherwise mangle).
+  basis: { type: "string" },
+  "owner-said": { type: "string" },
   analogy: { type: "string" },
   diagram: { type: "string" },
   recommendation: { type: "string" },
@@ -3854,6 +3859,19 @@ export async function run(argv: readonly string[], deps: RunDeps): Promise<Envel
     // `@path` carries a statement too long for a shell argument with no new classification.
     if (values.statement !== undefined) adrOpts.statement = values.statement;
     if (values.clause !== undefined) adrOpts.clause = values.clause;
+    // ADR-0519's authority stamp. Threaded as a PAIR for the same reason `--refute`/`--reason` above
+    // are: `resolveAuthority` refuses an owner basis that carries no quote, and dropping either here
+    // would turn that loud refusal into a silent ignore — which for `--owner-said` means the owner's
+    // words are accepted on the command line and never stored.
+    // UNGUARDED, unlike its neighbours, and that is a reshape rather than an oversight (ADR-0478's
+    // ladder: kill, then reshape, and only then a marker). Both fields are declared `?: string |
+    // undefined`, so assigning an absent flag's `undefined` is legal here where it is not for the
+    // props typed without it — which means an `x !== undefined` guard would have NO behavioural
+    // content: `resolveAuthority` reads `basis?.trim() ?? ""`, so present-and-undefined and absent
+    // take the same branch. A conditional whose two arms cannot be told apart is an unkillable
+    // mutant by construction, so the honest fix is to not write the conditional.
+    adrOpts.basis = values.basis;
+    adrOpts.ownerSaid = values["owner-said"];
     if (values["allow-control-arm"] === true) adrOpts.allowControlArm = true;
     const controlArm = frozenControlArm();
     // ONE unconditional spread over a base, chosen by a ternary — not a conditional spread of `{}`

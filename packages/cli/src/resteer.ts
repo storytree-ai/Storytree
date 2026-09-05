@@ -212,7 +212,7 @@ export async function newResteer(
       return {
         ok: false,
         body:
-          `unknown --mode "${opts.mode}". The frame is MAST (arXiv 2503.13657) — 14 modes plus one escape hatch:\n` +
+          `unknown --mode "${opts.mode}". The frame is MAST (arXiv 2503.13657) — 14 modes, the four storytree extension modes, plus one escape hatch:\n` +
           ResteerMode.options.map((m) => `  ${m}  (${MAST_CATEGORY[m]})`).join("\n") +
           "\nWhen none genuinely describes it, `no-mast-home` is the honest answer and a finding in its\nown right. Never stretch a mode to fit.",
         next: ["storytree resteer --help", "storytree library artifact mast-failure-frame"],

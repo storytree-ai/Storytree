@@ -523,7 +523,7 @@ test("adr new --decided: owner-directed scaffold is born accepted with today's d
   const store = new InMemoryStore();
   const env = await adrCommand(
     "new",
-    { title: "Collapse the ratification ask", decided: true },
+    { title: "Collapse the ratification ask", decided: true, ownerSaid: "collapse the second ask" },
     depsFor(allocator, store), // depsFor injects today = 2026-06-26
   );
   assert.equal(env.ok, true);
@@ -756,12 +756,18 @@ async function adrNewThroughRun(
 ): Promise<{ env: Awaited<ReturnType<typeof run>>; decided: string; body: string }> {
   const { allocator } = fakeAllocator(number);
   const store = new InMemoryStore();
-  const env = await run(["adr", "new", "--title", "A decided thing", "--decided", ...extraArgv], {
-    store,
-    adr: allocator,
-    writable: true,
-    now: () => now,
-  });
+  // `--owner-said` rides along because ADR-0519 D3 made it REQUIRED beside `--decided`: an owner
+  // basis cannot validate without the owner's words. These tests are about the date, so the quote is
+  // fixed scaffolding — `adr-authority.test.ts` is where the requirement itself is proved.
+  const env = await run(
+    ["adr", "new", "--title", "A decided thing", "--decided", "--owner-said", "do the thing", ...extraArgv],
+    {
+      store,
+      adr: allocator,
+      writable: true,
+      now: () => now,
+    },
+  );
   // The ROW is the only copy now (ADR-0403 dec 1), so the pair this test exists for — the typed
   // `decided` field and the `## Status` prose — is read from one document rather than one file.
   const row = (await store.getDoc(`adr-${String(number).padStart(4, "0")}`))?.doc as

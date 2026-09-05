@@ -344,6 +344,7 @@
       "packages/library/src/decision-support-seam.ts": "library",
       "packages/library/src/composed-statement.ts": "library",
       "packages/library/src/decision-sources.ts": "library",
+      "packages/library/src/decision-authority.ts": "library",
       "packages/library/src/search.ts": "library",
       "packages/library/src/search-prose.ts": "library",
       "packages/library/src/combined-dag.ts": "library",
