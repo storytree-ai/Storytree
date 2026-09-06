@@ -15,6 +15,7 @@ import {
   buildScene,
   type SceneGardenHero,
   type SceneInput,
+  type SceneG,
   type SceneNode,
   type SceneStatus,
   type SceneVegHeroTrees,
@@ -556,26 +557,29 @@ describe('code varies the ONE shared track per island (ADR-0292 D3)', () => {
 
 describe('the rooting fork itself — a transform-less object is MEASURED, not placed at the origin', () => {
   /** A vegetation child with real geometry and NO transform of its own. */
-  const mkBareFlora = (): SceneNode => ({
-    el: 'g',
-    kind: 'flora',
-    children: [
-      { el: 'circle', cx: 40, cy: 60, r: 4 },
-      { el: 'circle', cx: 48, cy: 66, r: 4 },
-    ],
-  } as unknown as SceneNode);
+  const mkBareFlora = (transform?: string): SceneG => {
+    const node: SceneG = {
+      el: 'g',
+      kind: 'flora',
+      children: [
+        { el: 'circle', cx: 40, cy: 60, r: 4 },
+        { el: 'circle', cx: 48, cy: 66, r: 4 },
+      ],
+    };
+    if (transform !== undefined) node.transform = transform;
+    return node;
+  };
 
   const planOf = (child: SceneNode): IslandVegetationPlan =>
-    deriveIslandVegetationPlan({ el: 'g', children: [child] } as unknown as SceneNode, {
+    deriveIslandVegetationPlan({ el: 'g', children: [child] }, {
       storyId: 'lib',
       caps: 2,
       radius: 60,
-      status: 'healthy' as SceneStatus,
+      status: 'healthy',
     })!;
 
   it('roots a transform-less object at its own ground contact — the absent transform is not read as translate(0 0)', () => {
-    const plan = planOf(mkBareFlora());
-    const obj = plan.objects.find((o) => o.role === 'plant');
+    const obj = planOf(mkBareFlora()).objects.find((o) => o.role === 'plant');
     expect(obj).toBeDefined();
     // MEASURED, because there is no placement to read.
     expect(obj!.rootMode).toBe('measured');
@@ -589,8 +593,7 @@ describe('the rooting fork itself — a transform-less object is MEASURED, not p
   });
 
   it('still roots an object that HAS a placement transform in that placement', () => {
-    const placed = { ...(mkBareFlora() as Record<string, unknown>), transform: 'translate(12 34)' } as unknown as SceneNode;
-    const obj = planOf(placed).objects.find((o) => o.role === 'plant')!;
+    const obj = planOf(mkBareFlora('translate(12 34)')).objects.find((o) => o.role === 'plant')!;
     expect(obj.rootMode).toBe('placement');
     expect(obj.anchor).toEqual({ x: 12, y: 34 });
   });

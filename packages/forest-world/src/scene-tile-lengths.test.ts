@@ -36,7 +36,7 @@ import type { RelaxedCell } from './substrate.js';
 type Parcels = NonNullable<SceneTerritoryInput['parcels']>;
 
 function children(n: SceneNode): SceneNode[] {
-  return (n as { children?: SceneNode[] }).children ?? [];
+  return n.el === 'g' ? n.children : [];
 }
 function allByKind(n: SceneNode, kind: string): SceneNode[] {
   const out: SceneNode[] = [];
@@ -67,11 +67,11 @@ function floraScene(parcels: Parcels, over: Partial<Parameters<typeof shippedInp
   );
 }
 
-/** A parcel-flora item's PIVOT — the point it scales about, which is the spot it was planted on. */
-function pivotOf(item: SceneNode): { x: number; y: number } {
-  const m = /^translate\((-?[\d.]+) (-?[\d.]+)\) scale\(/.exec(item.transform ?? '');
+/** The y of a parcel-flora item's PIVOT — the spot it was planted on, which it scales about. */
+function pivotY(item: SceneNode): number {
+  const m = /^translate\(-?[\d.]+ (-?[\d.]+)\) scale\(/.exec(item.transform ?? '');
   assert.ok(m, `a parcel-flora item scales about its pivot: ${item.transform ?? '(none)'}`);
-  return { x: Number(m[1]), y: Number(m[2]) };
+  return Number(m[1]);
 }
 
 /** Meadow's tiers are told apart by the marks they draw: a shrub is ellipses alone. */
@@ -88,7 +88,7 @@ test('ADR-0528: a meadow shrub sorts ONE TILE UNIT behind its own spot — the r
   // The island's drawables are painted back to front by their sort key, and a shrub's key is its
   // spot plus one tile unit. Read the emitted order back as keys under that rule: it must be
   // non-decreasing, which is the only thing a painter's order can assert.
-  const keyed = (nudge: number): number[] => items.map((it) => pivotOf(it).y + (isShrub(it) ? nudge : 0));
+  const keyed = (nudge: number): number[] => items.map((it) => pivotY(it) + (isShrub(it) ? nudge : 0));
   const nonDecreasing = (ks: number[]): boolean => ks.every((k, i) => i === 0 || k >= ks[i - 1]! - 1e-9);
 
   assert.ok(nonDecreasing(keyed(tileUnits(1))), 'the painted order IS the order of spot + one tile unit for a shrub');

@@ -16,7 +16,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildScene, type SceneG, type SceneNode, type SceneTerritoryInput } from './scene.js';
+import { buildScene, type SceneG, type SceneNode, type ScenePath, type SceneTerritoryInput } from './scene.js';
 import { shippedInput, shippedTerritory } from './scene-fixture.js';
 import type { RelaxedCell } from './substrate.js';
 
@@ -49,7 +49,14 @@ function scene(parcels: Parcels, cells: RelaxedCell[]): SceneG {
 }
 
 function children(n: SceneNode): SceneNode[] {
-  return (n as { children?: SceneNode[] }).children ?? [];
+  return n.el === 'g' ? n.children : [];
+}
+
+/** A ground cell is drawn as a path; its `d` is the only handle on WHICH cell it is. */
+const isPath = (n: SceneNode): n is ScenePath => n.el === 'path';
+function pathOf(n: SceneNode): string {
+  assert.ok(isPath(n), `expected a drawn cell, got <${n.el}>`);
+  return n.d;
 }
 function allByKind(n: SceneNode, kind: string): SceneNode[] {
   const out: SceneNode[] = [];
@@ -66,7 +73,7 @@ function allByKind(n: SceneNode, kind: string): SceneNode[] {
 function parcelCells(s: SceneG): Map<string, string[]> {
   const out = new Map<string, string[]>();
   for (const p of allByKind(s, 'parcel')) {
-    out.set(p.id ?? '', children(p).map((c) => c.d ?? ''));
+    out.set(p.id ?? '', children(p).map(pathOf));
   }
   return out;
 }
@@ -141,8 +148,7 @@ const LAND_CELL_PATH = (() => {
     const hit = memo.get(key);
     if (hit !== undefined) return hit;
     const one = scene([parcelAt('solo', poly[0]!.x, poly[0]!.y)], [{ owner: 0, poly: [...poly], variant: 0, wheat: false }]);
-    const cell = children(allByKind(one, 'parcel')[0]!)[0]!;
-    const d = cell.d ?? '';
+    const d = pathOf(children(allByKind(one, 'parcel')[0]!)[0]!);
     assert.ok(d.length > 0, 'a parcel cell draws a path');
     memo.set(key, d);
     return d;
