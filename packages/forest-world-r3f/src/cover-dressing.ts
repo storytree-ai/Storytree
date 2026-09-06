@@ -40,16 +40,16 @@
 // and grass growing over drawn sand is a defect the recipe never had to consider, so the row's own
 // rule — "never on the beach band or the worn path" — is what binds.
 //
-// ⚠⚠ GROUND COVER CASTS NO SHADOW, AND THAT IS A DECISION RATHER THAN AN OVERSIGHT
-// (`ground-casters.ts`'s `placementCasters` is where it is enforced, with the same reason). Two
-// halves. (a) COST: at the shipped rungs a fixture island carries hundreds of cover props against
-// its handful of trees, so casting from them would multiply the map's kit casters many times over —
-// tens of thousands on a thirty-five-island forest, each one stamping a box into the occlusion
-// grid. (b) THE LADDER: the ground material has exactly ONE occlusion rung and therefore THRESHOLDS
-// the field, so a sub-unit contact pool does not arrive as the soft ambient darkening the approved
-// Cycles render shows — it arrives as a hard dot at full rung strength, 2 px across at the
-// overview. A carpet of hard dots per island is not the shadow the reference has. It is named as a
-// gap rather than silently skipped, and it is one authored rung away from being reconsidered.
+// ⚠⚠ GROUND COVER CASTS ITS SHADOW, SINCE 2026-09-06 — a decision REVERSED, and the reversal is
+// recorded where it is enforced: `ground-casters.ts`'s `COVER_CASTS`. The refusal that stood from
+// 2026-09-04 rested on two halves, and both moved under it. (a) COST was measured on a 234-unit
+// island carrying a grove; ADR-0518 retired the grove and ADR-0520 shrank the island, so the cover
+// is ~100 low domes per island rather than ~650 beside sixty pines, and the whole map's stamp is
+// measured in `docs/research/chapter2-cast-shadows-2026-09-06/report.txt`. (b) THE LADDER had one
+// occlusion rung and thresholded the field into hard dots; the material now renders a soft rung as
+// well as a full one (`shadow-rung.ts`'s `SHADOW_EDGE`), so a bush's dome arrives as the small
+// soft-edged pool the approved render puts under every bush. Every cover role casts its own form
+// (`ROLE_SILHOUETTE`, a low dome), never the cylinder a tree used to.
 //
 // ⚠ DETERMINISTIC, AND SEEDED PER ISLAND ON ITS OWN KEY. `Math.random` is forbidden on this surface
 // (ADR-0380 D6 fence 2). The seed is `islandSeed(`${island}|cover`)` rather than `islandSeed(island)`:

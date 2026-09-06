@@ -227,9 +227,14 @@ export function coverArmPlacements(arm: CoverArm, size: CrowdSize): KitPlacement
  * would be measuring two things at once.
  */
 export function coverArmCasters(arm: CoverArm, size: CrowdSize): ShadowCaster[] {
+  // ⚠ `coverCasts: false` IS HISTORY, STATED. This page measured the cover's SIZE and COUNT
+  // (picked 2026-09-04/05) on a field the cover did not darken; the cover began casting on
+  // 2026-09-06 (`COVER_CASTS`, `ground-casters.ts`). Holding the page at the pre-shadow field keeps
+  // its one-ground-build structure and its committed numbers honest about what they measured — it
+  // is no longer a picture of what ships, and `shipped-cast-shadow-scene.ts` is.
   return [
     ...crowdCasters(size),
-    ...placementCasters(coverArmPlacements(arm, size), CANOPY_FOOTPRINT, CANOPY_HEIGHTS),
+    ...placementCasters(coverArmPlacements(arm, size), CANOPY_FOOTPRINT, CANOPY_HEIGHTS, false),
   ];
 }
 

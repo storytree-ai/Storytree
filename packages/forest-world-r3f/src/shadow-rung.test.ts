@@ -27,6 +27,11 @@ import {
   toHex,
 } from './shade-ladder.js';
 import {
+  SHADOW_DEPTH,
+  SHADOW_DEPTH_RUNGS,
+  SHADOW_EDGE,
+  halfRungFor,
+  readMarginAt,
   W_LUMA,
   colourDistance2,
   deepestAdmissibleRung,
@@ -374,4 +379,102 @@ test('the derived rung is re-asked against the LIT LADDER it is given, remap and
     readerReferences(tokens, moved)[0]!.colour.g,
     readerReferences(tokens)[0]!.colour.g,
   );
+});
+
+// ---------------------------------------------------------------------------
+// depth and edge (2026-09-06)
+// ---------------------------------------------------------------------------
+
+const HEALTHY = '#8cb85e';
+
+test('without depth options the ladder is the one-rung, hard-edged ladder it always was, on every token', () => {
+  const l = shadowLadderFor(SHIPPED_TOKENS);
+  assert.equal(l.edge, 'hard');
+  assert.equal(l.levels.length, SHADE_LEVELS.length + 1);
+  assert.equal(l.tokens.length, SHIPPED_TOKENS.length);
+  for (const t of l.tokens) {
+    assert.equal(t.full, l.rung);
+    assert.equal(t.fullIndex, l.rungIndex);
+    assert.equal(t.half, null);
+    assert.equal(t.halfIndex, null);
+    assert.deepEqual(t.darkenable, l.darkenable);
+    assert.deepEqual(t.halfDarkenable, []);
+  }
+  assert.deepEqual(l.tokens.map((t) => t.token), SHIPPED_TOKENS);
+});
+
+test('halfRungFor is halfway between flat ground (0.90) and the full rung, on the sweep’s grid', () => {
+  assert.equal(halfRungFor(0.77), 0.835);
+  assert.equal(halfRungFor(0.55), 0.725);
+  assert.equal(halfRungFor(0.9), 0.9);
+});
+
+test('THE DEPTH: the deep tokens go to the deep rung, every other token keeps the derived one, and a soft edge adds a halfway rung per full rung', () => {
+  const l = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [HEALTHY], edge: 'soft' });
+  assert.equal(l.rung, 0.77, 'the derived rung moved');
+  assert.equal(l.edge, 'soft');
+  // 9 lit + 0.77 + 0.55 + 0.835 + 0.725.
+  assert.deepEqual(l.levels, [0.55, 0.725, 0.77, 0.8, 0.825, 0.835, 0.85, 0.875, 0.9, 0.925, 0.95, 0.975, 1]);
+  assert.equal(l.rungIndex, 2);
+  assert.deepEqual(l.litIndex, [3, 4, 6, 7, 8, 9, 10, 11, 12]);
+  const healthy = l.tokens[0]!;
+  assert.equal(healthy.token, HEALTHY);
+  assert.equal(healthy.full, 0.55);
+  assert.equal(healthy.fullIndex, 0);
+  assert.equal(healthy.half, 0.725);
+  assert.equal(healthy.halfIndex, 1);
+  // Every lit rung is lighter than 0.55 and than 0.725, so all nine darken.
+  assert.deepEqual(healthy.darkenable, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  assert.deepEqual(healthy.halfDarkenable, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+  for (const t of l.tokens.slice(1)) {
+    assert.equal(t.full, 0.77, `${t.token} left the derived rung`);
+    assert.equal(t.fullIndex, 2);
+    assert.equal(t.half, 0.835);
+    assert.equal(t.halfIndex, 5);
+    assert.deepEqual(t.darkenable, [0, 1, 2, 3, 4, 5, 6, 7, 8]);
+    // 0.835 sits between 0.825 and 0.85: the two darkest lit rungs are already darker than it.
+    assert.deepEqual(t.halfDarkenable, [2, 3, 4, 5, 6, 7, 8]);
+  }
+  // A hard edge at the same depth: no halfway rungs, so 9 + 2 levels.
+  const hard = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [HEALTHY], edge: 'hard' });
+  assert.equal(hard.levels.length, 11);
+  assert.equal(hard.tokens[0]!.half, null);
+  // The derived rung as the depth is the derived ladder plus the halves only.
+  const same = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.77, deepTokens: [HEALTHY], edge: 'soft' });
+  assert.equal(same.levels.length, 11);
+  assert.equal(same.tokens[0]!.fullIndex, same.rungIndex);
+});
+
+test('a depth SHALLOWER than the derived rung is refused — the reader model already admits it, so it is not a depth', () => {
+  assert.throws(
+    () => shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.8, deepTokens: [HEALTHY], edge: 'hard' }),
+    (e: unknown) =>
+      e instanceof Error &&
+      e.message.includes('a depth of 0.8 is SHALLOWER than the derived rung 0.77') &&
+      e.message.includes('pass the derived rung or go past it'),
+  );
+  // Every token deep: the DERIVED rung is still on the ladder (its index is what the one-rung
+  // material and the remap read), even though no row lands on it.
+  const all = shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.55, deepTokens: [...new Set(SHIPPED_TOKENS)], edge: 'hard' });
+  assert.ok(all.levels.includes(0.77), 'the derived rung fell off the ladder');
+  assert.equal(all.rungIndex, all.levels.indexOf(0.77));
+  assert.ok(all.rungIndex >= 0);
+  assert.ok(all.tokens.every((t) => t.full === 0.55));
+  assert.doesNotThrow(() => shadowLadderFor(SHIPPED_TOKENS, SHADE_LEVELS, { deep: 0.77, deepTokens: [HEALTHY], edge: 'hard' }));
+});
+
+test('THE INSTRUMENT, NOT THE FENCE: the reader’s margin on a shadowed healthy pixel is positive at the derived rung and NEGATIVE at the shipped depth — printed, and the depth ships anyway', () => {
+  assert.ok(readMarginAt(HEALTHY, 0.77, SHIPPED_TOKENS) > 0, 'the derived rung does not read as its own token');
+  assert.ok(readMarginAt(HEALTHY, 0.9, SHIPPED_TOKENS) > readMarginAt(HEALTHY, 0.77, SHIPPED_TOKENS));
+  // Past about 0.70 the model reads a dark healthy pixel as nearer `unhealthy`'s swatch: the
+  // number is negative and is REPORTED. ADR-0489 D3 / ADR-0503 D1 make the look the fence.
+  assert.ok(readMarginAt(HEALTHY, 0.55, SHIPPED_TOKENS) < 0, 'the margin at 0.55 is not negative — the finding this constant is argued against has moved');
+  assert.ok(readMarginAt(HEALTHY, 0.45, SHIPPED_TOKENS) < readMarginAt(HEALTHY, 0.55, SHIPPED_TOKENS));
+  // The yellow keeps the derived rung, where its margin is positive (that is what `deepest
+  // AdmissibleRung` derived), so the deploy-gate islands never wear a negative margin.
+  assert.ok(readMarginAt('#d8c069', 0.77, SHIPPED_TOKENS) > 0);
+  // The picks and the ladder, as shipped.
+  assert.ok(SHADOW_DEPTH_RUNGS.includes(SHADOW_DEPTH), 'the shipped depth is not a rung the owner was shown');
+  assert.deepEqual([...SHADOW_DEPTH_RUNGS], [0.65, 0.55, 0.45]);
+  assert.ok(SHADOW_EDGE === 'soft' || SHADOW_EDGE === 'hard');
 });

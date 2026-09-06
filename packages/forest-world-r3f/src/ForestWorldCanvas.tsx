@@ -57,7 +57,9 @@ import {
   type AtlasField,
 } from './shadow-atlas.js';
 import { groundBounds, groundCasters, placementCasters } from './ground-casters.js';
-import type { ShadowCaster } from './land-shadow.js';
+import { SHADOW_PENUMBRA, type ShadowCaster } from './land-shadow.js';
+import { SHADOW_CONTACT_BAND, type ContactBand } from './contact-shade.js';
+import { SHADOW_DEPTH, SHADOW_EDGE, type ShadowDepthOptions } from './shadow-rung.js';
 import { kitMeshes, loadEmbeddedKit, roleFootprints, roleHeights, type LoadedKit } from './kit-mesh.js';
 import {
   KIT_FOOTPRINTS_2026_08_29,
@@ -237,7 +239,7 @@ const linearColourOf = (material: string | undefined): LinearRgb =>
  *  rim's azimuths, more than half the cliff is piled on the ladder's DARKEST rung, where a rung
  *  cannot move it and only a token can. `src/stepped-skirt.ts` carries the measurement and the
  *  selection rule; `docs/research/chapter2-skirt-tonal-range-2026-09-01/` carries the pictures. */
-const GROUND_TOKENS: readonly string[] = [
+export const GROUND_TOKENS: readonly string[] = [
   ...GROUND_COLOUR.values(),
   SKIRT_ROCK_LIT,
   SKIRT_ROCK_SHADED,
@@ -268,6 +270,21 @@ const groundRowOf = (material: string | undefined): number =>
  *  be exactly that second ordering, and it would fail the way this file warns about twice
  *  already: by dressing a different status's parcels and looking entirely correct. */
 export const GRASS_GATE_ROWS: readonly number[] = GRASS_STATUS_GATE.map(groundRowOf);
+
+/**
+ * HOW DEEP AND HOW SOFT THE SHIPPED SHADOW IS DRAWN — `shadow-rung.ts`'s picks, gated to the
+ * SAME tokens layer 1 dresses ({@link GRASS_STATUS_GATE}, resolved through the same colour table
+ * the rows are built from). The green islands wear `SHADOW_DEPTH`; every other token — the 14
+ * yellow islands above all, ADR-0492 D3's deploy gate — keeps the derived rung it wore before, so
+ * no parcel is darkened past what the reader model admits except where the owner's look test is
+ * the fence (ADR-0503). The edge applies to every token: a soft rung is SHALLOWER than the
+ * derived one, so it is admissible wherever the derived rung is.
+ */
+export const SHIPPED_SHADOW_DEPTH: ShadowDepthOptions = {
+  deep: SHADOW_DEPTH,
+  deepTokens: GRASS_STATUS_GATE.map((status) => GROUND_COLOUR.get(status) ?? GROUND_COLOUR.get(UNKNOWN_STATUS)!),
+  edge: SHADOW_EDGE,
+};
 
 /**
  * HOW MUCH GRASS THE SHIPPED GROUND WEARS — the delivered strength of layer 1, chosen from a
@@ -464,10 +481,18 @@ export function buildGroundMaterial(
   sandMix: number = SHIPPED_SAND_MIX,
   /** LAYERS 3, 4 AND 6 — see {@link GroundLayerExtras}; the canvas passes the shipped set. */
   extras: GroundLayerExtras = {},
+  /** THE SHADOW'S DEPTH AND EDGE — {@link SHIPPED_SHADOW_DEPTH} unless a COMPARISON arm asks
+   *  otherwise; `null` is the one-rung, hard-edged material the map wore until 2026-09-06, which
+   *  is what a ladder's control arm needs. The canvas never passes it. */
+  shadowDepth: ShadowDepthOptions | null = SHIPPED_SHADOW_DEPTH,
 ) {
   const opts: BandedGroundMaterialOptions = { tokens: GROUND_TOKENS, grain: 'normal' };
   const shadow = field === null ? null : groundAtlasTexture(field);
   if (shadow !== null) opts.shadowAtlas = shadow;
+  // By statement, and only where there is a field to read: a depth without an occlusion field is
+  // a setting the material would ignore, and an explicit `undefined` is a different input under
+  // `exactOptionalPropertyTypes`.
+  if (shadow !== null && shadowDepth !== null) opts.shadowDepth = shadowDepth;
   // ⚠ BY STATEMENT, and absent means ABSENT: under `exactOptionalPropertyTypes` a `grass:
   // undefined` is a different input from no key at all, and only the second leaves the emitted
   // shader byte-identical to the one every measured figure about this ground was taken against.
@@ -565,9 +590,11 @@ function shippedSkirt(cells: readonly InstanceDescriptor[]): GroundSkirt {
 function buildGroundOcclusionField(
   cells: readonly InstanceDescriptor[],
   casters: readonly ShadowCaster[],
+  penumbra: number,
+  contactBand: ContactBand,
 ): AtlasField | null {
   if (groundBounds(cells) === null) return null;
-  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters });
+  return buildAtlasOcclusion({ cells, relief: LAND_RELIEF_AMPLITUDE, casters, penumbra, contactBand });
 }
 
 /**
@@ -638,6 +665,12 @@ export function shippedGroundBuild(
   /** The visible `trail-strip` descriptors, whose ends dock on the islands (layer 3's connector).
    *  DEFAULTED so every caller that predates the layer is unchanged and wears no path. */
   strips: readonly InstanceDescriptor[] = [],
+  /** The cast shadow's soft-edge width — `SHADOW_PENUMBRA` unless a COMPARISON arm asks
+   *  otherwise; the canvas never passes it. */
+  penumbra: number = SHADOW_PENUMBRA,
+  /** Which rung the contact pools land on — `SHADOW_CONTACT_BAND` unless a COMPARISON arm's
+   *  control asks for the field as it was; the canvas never passes it. */
+  contactBand: ContactBand = SHADOW_CONTACT_BAND,
 ): ShippedGroundBuild {
   // ⚠⚠ THE COAST IS CLIPPED FIRST, AND EVERYTHING DOWNSTREAM READS THE CLIPPED PARCELS.
   // The occlusion atlas is packed over the ground's own bounds, so packing it over the PRE-clip
@@ -654,7 +687,7 @@ export function shippedGroundBuild(
   // than by two calls happening to pack the same way. They disagree silently: every island would
   // read some other island's corner of the atlas, and the map would wear a perfectly ordinary
   // set of shadows belonging to the wrong land.
-  const field = buildGroundOcclusionField(clipped, casters);
+  const field = buildGroundOcclusionField(clipped, casters, penumbra, contactBand);
   const input: CellGroundGeometryInput = {
     cells: clipped,
     resolve: linearColourOf,
@@ -1116,9 +1149,9 @@ export function ForestWorldCanvas({ descriptors, showTrails = false }: ForestWor
   // whole descriptor stream, because the signatures, the island ids and the trail docks the cover
   // keeps off the path are all IN it.
   //
-  // ⚠ THE CASTER READER BELOW SEES A LIST IT DOES NOT CAST EVERY MEMBER OF, and that is stated
-  // rather than left to be discovered: `placementCasters` drops the `dressing` roles, which is
-  // where the "ground cover casts nothing" decision is enforced and argued.
+  // ⚠ THE CASTER READER BELOW CASTS FROM EVERY MEMBER OF THIS LIST, cover included, since
+  // 2026-09-06 — `placementCasters` and `COVER_CASTS` in `ground-casters.ts` are where that
+  // reversal is enforced and argued, and each role casts its own silhouette (`ROLE_SILHOUETTE`).
   const placements = useMemo(
     () => dressMapWithCover(descriptors, { relief: LAND_RELIEF_AMPLITUDE, footprint: KIT_FOOTPRINTS_2026_08_29 }),
     [descriptors],

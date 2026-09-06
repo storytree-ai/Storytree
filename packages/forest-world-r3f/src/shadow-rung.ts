@@ -206,21 +206,116 @@ export function probeCount(start: number, floor: number, step: number): number {
   return Math.ceil((start - floor) / step) + 1;
 }
 
+// ---------------------------------------------------------------- depth and edge (2026-09-06)
+
+/**
+ * HOW THE EDGE OF A SHADOW IS DRAWN. `hard`: the field is thresholded at 0.5 and a fragment is
+ * either fully shadowed or not — the one mechanism the material had until 2026-09-06. `soft`: a
+ * fragment whose occlusion sits between 0.25 and 0.5 lands on an intermediate rung halfway
+ * between flat ground and the full shadow, so the field's penumbra ramp (`SHADOW_PENUMBRA`)
+ * reaches the picture as a band `penumbra / 2` wide outside the silhouette.
+ *
+ * THE PICK: `soft`, always — the contact pools live in the soft band (`contact-shade.ts`'s
+ * `SHADOW_CONTACT_BAND`), so a hard edge would drop them; how WIDE the sun shadow's own soft band
+ * is belongs to `SHADOW_PENUMBRA`, laddered on the RTX 2060
+ * (`docs/research/chapter2-cast-shadows-2026-09-06/`). `hard` survives as the control arm's
+ * one-rung material — the map as it was until 2026-09-06.
+ */
+export type ShadowEdge = 'hard' | 'soft';
+export const SHADOW_EDGE: ShadowEdge = 'soft';
+
+/**
+ * HOW DEEP A SHADOW GOES ON THE GREEN ISLANDS — the ladder level a fully shadowed `healthy`
+ * fragment lands on, where every other token keeps the DERIVED rung (`deepestAdmissibleRung`,
+ * 0.77 on the shipped palette; the 14 yellow islands are ADR-0492 D3's deploy gate and draw the
+ * shadow they drew).
+ *
+ * ⚠⚠ THIS IS BELOW THE READER MODEL'S CEILING, AND THAT IS THE DECISION, NOT AN OVERSIGHT. The
+ * derived rung is the deepest level at which the per-pixel reader still reads every token's
+ * shadowed swatch as its own token; past it the model reports a dark `healthy` pixel as nearer
+ * `unhealthy`'s swatch. ADR-0489 D3/D4 and ADR-0503 D1 demoted that model from fence to
+ * instrument for the colour layers, and this applies the same demotion to the shadow: the
+ * margin is PRINTED per token per rung ({@link readMarginAt}, the driver's report), negative
+ * where it is negative, and the depth is judged by the look (ADR-0489 D3) on the green islands —
+ * a shadow is a shape attached to the tree that casts it, which is not what a flat `unhealthy`
+ * parcel looks like, and the stamped render's shadows are far deeper than one rung.
+ *
+ * THE LADDER: the derived 0.77 (today), then 0.65 / 0.55 / 0.45 — rendered beside the reference
+ * on the RTX 2060 (`docs/research/chapter2-cast-shadows-2026-09-06/`). The reference's own
+ * shadowed grass sits at about 0.5–0.6 of its lit grass by luma (measured off the stamped render
+ * in the same report), so the ladder brackets it. The pick is this constant; a scale-back is one
+ * edit to a rung already on the sheet.
+ */
+export const SHADOW_DEPTH = 0.55;
+
+/** The depth ladder the owner was shown, beyond the derived rung. */
+export const SHADOW_DEPTH_RUNGS: readonly number[] = [0.65, 0.55, 0.45];
+
+/** What a material is told about depth and edge. Absent, it wears the one derived rung with a
+ *  hard edge on every token — the material as it was until 2026-09-06. */
+export interface ShadowDepthOptions {
+  /** The full-shadow level the {@link deepTokens} land on. Must not be SHALLOWER than the derived
+   *  rung — that would be a rung the reader model already admits, wearing a depth's name. */
+  deep: number;
+  /** The tokens that go to {@link deep}; every other token keeps the derived rung. */
+  deepTokens: readonly string[];
+  edge: ShadowEdge;
+}
+
+/** The two rungs one token may be sent to, and which lit rungs each may darken. */
+export interface TokenRungs {
+  token: string;
+  /** The full-shadow level and its index in {@link ShadowLadder.levels}. */
+  full: number;
+  fullIndex: number;
+  /** The soft-edge level and its index — `null` under a hard edge. */
+  half: number | null;
+  halfIndex: number | null;
+  /** `SHADE_LEVELS` indices LIGHTER than {@link full} / {@link half}: the ones a shadow may send
+   *  there. A fragment already darker keeps its own level. */
+  darkenable: readonly number[];
+  halfDarkenable: readonly number[];
+}
+
 /** Everything the material needs to wear a shadow, derived from its own token list. */
 export interface ShadowLadder {
-  /** The derived level a shadowed fragment lands on. */
+  /** The derived level a shadowed fragment lands on — the ceiling the reader model admits. */
   rung: number;
-  /** `SHADE_LEVELS` plus that rung, ascending — the levels each ramp ROW is built over. */
+  /** `SHADE_LEVELS` plus every shadow rung, ascending — the levels each ramp ROW is built over. */
   levels: readonly number[];
-  /** Where the shadow rung sits in {@link levels}. */
+  /** Where the derived shadow rung sits in {@link levels}. */
   rungIndex: number;
   /** For each `SHADE_LEVELS` index, its index in {@link levels} — the remap a fragment's LIT
    *  rung goes through now that the ladder has grown an entry. */
   litIndex: readonly number[];
-  /** The `SHADE_LEVELS` indices a shadow may darken: those LIGHTER than the shadow rung. A
+  /** The `SHADE_LEVELS` indices a shadow at the derived rung may darken: those LIGHTER than it. A
    *  fragment already darker keeps its own level — a shadow that BRIGHTENED it would be a shadow
    *  lighting something up. */
   darkenable: readonly number[];
+  /** Per token, in the material's row order: where a full and a soft shadow send it. */
+  tokens: readonly TokenRungs[];
+  edge: ShadowEdge;
+}
+
+/** The soft-edge level for a full-shadow level: halfway between flat ground and it, on the
+ *  0.0001 grid the sweep uses. */
+export function halfRungFor(full: number, ladder: readonly number[] = SHADE_LEVELS): number {
+  return Math.round(((flatGroundLevel(ladder) + full) / 2) * 10000) / 10000;
+}
+
+/**
+ * THE READER MODEL AS AN INSTRUMENT: how much closer `token` delivered at `level` sits to its own
+ * reference than to the nearest foreign one — positive reads honestly, negative is the reader
+ * saying the shadowed pixel is nearer another token's swatch. Printed per token per depth rung;
+ * it fences nothing (ADR-0503 D1 / ADR-0506, applied to the shadow by `SHADOW_DEPTH`).
+ */
+export function readMarginAt(
+  token: string,
+  level: number,
+  tokens: readonly string[],
+  ladder: readonly number[] = SHADE_LEVELS,
+): number {
+  return readMargin(deliveredForLevel(token, level), token, readerReferences(tokens, ladder));
 }
 
 /**
@@ -235,10 +330,15 @@ export interface ShadowLadder {
  * return a level that sits BETWEEN two authored rungs, so the ladder is built by SORTING and the
  * lit-rung remap is read back out of it. Assuming the shadow rung is index 0 would paint the
  * wrong colour for every fragment on this map the day the palette moves.
+ *
+ * ⚠ WITH `depth`, THE DEEP TOKENS GO PAST THE CEILING ON PURPOSE (`SHADOW_DEPTH`) and every
+ * other token keeps the derived rung; a soft edge adds one halfway rung per distinct full rung.
+ * Without it the ladder is exactly the one-rung, hard-edged one the material wore before.
  */
 export function shadowLadderFor(
   tokens: readonly string[],
   lit: readonly number[] = SHADE_LEVELS,
+  depth?: ShadowDepthOptions,
 ): ShadowLadder {
   const rung = deepestAdmissibleRung(tokens, 0.01, 0.3, lit);
   if (rung === null) {
@@ -249,10 +349,38 @@ export function shadowLadderFor(
         'shallower shadow and not a wider palette.',
     );
   }
-  const levels = [...lit, rung].sort((a, b) => a - b);
+  if (depth !== undefined && depth.deep > rung) {
+    throw new Error(
+      `shadow-rung: a depth of ${depth.deep} is SHALLOWER than the derived rung ${rung} — the ` +
+        'reader model already admits it, so it is not a depth; pass the derived rung or go past it.',
+    );
+  }
+  const edge: ShadowEdge = depth?.edge ?? 'hard';
+  const fullOf = (token: string): number =>
+    depth !== undefined && depth.deepTokens.includes(token) ? depth.deep : rung;
+  const extra = new Set<number>([rung]);
+  for (const token of tokens) {
+    const full = fullOf(token);
+    extra.add(full);
+    if (edge === 'soft') extra.add(halfRungFor(full, lit));
+  }
+  const levels = [...new Set([...lit, ...extra])].sort((a, b) => a - b);
   const rungIndex = levels.indexOf(rung);
   const litIndex = lit.map((level) => levels.indexOf(level));
-  return { rung, levels, rungIndex, litIndex, darkenable: rungsDarkenedBy(rung, lit) };
+  const perToken: TokenRungs[] = tokens.map((token) => {
+    const full = fullOf(token);
+    const half = edge === 'soft' ? halfRungFor(full, lit) : null;
+    return {
+      token,
+      full,
+      fullIndex: levels.indexOf(full),
+      half,
+      halfIndex: half === null ? null : levels.indexOf(half),
+      darkenable: rungsDarkenedBy(full, lit),
+      halfDarkenable: half === null ? [] : rungsDarkenedBy(half, lit),
+    };
+  });
+  return { rung, levels, rungIndex, litIndex, darkenable: rungsDarkenedBy(rung, lit), tokens: perToken, edge };
 }
 
 /**

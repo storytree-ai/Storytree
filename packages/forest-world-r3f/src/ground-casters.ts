@@ -33,14 +33,109 @@
 // trails — are decisions with reasons, held below and by this module's own tests.
 
 import type { Descriptor3D, InstanceDescriptor } from './world-to-3d.js';
-import type { GroundBounds, ShadowCaster } from './land-shadow.js';
+import type { GroundBounds, ShadowCaster, SilhouetteProfile } from './land-shadow.js';
 import {
   isDressingRole,
   propRadius,
   type KitPlacement,
+  type KitRole,
   type RoleFootprints,
   type RoleHeights,
 } from './kit-vocabulary.js';
+
+/**
+ * THE SILHOUETTE EACH ROLE CASTS — `[heightFraction, radiusFraction]` profiles of revolution
+ * (`land-shadow.ts`'s `SilhouetteProfile`), one per role, so a placement's shadow is the
+ * projection of the object's own form rather than of a cylinder its size.
+ *
+ * ⚠⚠ WHY THIS EXISTS (2026-09-06, `the-trees-cast-the-shadows-the-reference-casts`). Until then
+ * every caster was an upright cylinder, so a pine cast the swept disc of its crown's full width
+ * from foot to tip — a uniform capsule about as wide as the crown and 0.7× its height long — and
+ * a bloom, whose footprint is its leaf rosette, cast a pool wider than its stem. The render the
+ * owner stamped (`docs/research/chapter2-land-idiom-2026-08-27/land-combined-1948px.png`) casts
+ * the pine's CONE, widest low and tapering to a point away from the trunk; a bush casts a low
+ * dome; a flower casts a thread with a head. These are those forms.
+ *
+ * ⚠ THE NUMBERS ARE EYE-READ OFF THE KIT'S OWN OBJECTS, NOT MEASURED BY A RULE, and the reason a
+ * rule was not written is that the profile is judged in the picture: the half-width of a pine's
+ * foliage is a cloud of leaf cards, not a curve, and any fit to it is a choice. What holds them is
+ * the shape ladder on `shipped-cast-shadow-scene.ts` (`docs/research/chapter2-cast-shadows-
+ * 2026-09-06/`) and the owner's look; a re-exported kit whose form moved re-opens the ladder, not
+ * a drift check.
+ *
+ *   tree         a bare trunk (8% of the crown's width) to 12% of the height, then the crown:
+ *                widest at a quarter height, tapering to a point at the tip
+ *   deadTree     the same trunk, a sparser crown
+ *   bloom        the leaf rosette at the foot (the footprint IS the leaves, 4 units), a thread
+ *                of a stem, a small head — the over-wide pool goes with the cylinder
+ *   bush / tuft / flowerPatch   a low dome: full width at the foot, rounding to the top
+ */
+export const ROLE_SILHOUETTE = {
+  tree: [
+    [0, 0.08],
+    [0.12, 0.08],
+    [0.12, 0.85],
+    [0.25, 1],
+    [1, 0.04],
+  ],
+  deadTree: [
+    [0, 0.08],
+    [0.15, 0.08],
+    [0.15, 0.7],
+    [0.35, 1],
+    [1, 0.04],
+  ],
+  bloom: [
+    [0, 1],
+    [0.12, 1],
+    [0.12, 0.06],
+    [0.78, 0.06],
+    [0.78, 0.28],
+    [1, 0.15],
+  ],
+  bush: DOME_PROFILE(),
+  tuft: DOME_PROFILE(),
+  flowerPatch: DOME_PROFILE(),
+} as const satisfies Readonly<Record<KitRole, SilhouetteProfile>>;
+
+/** A low dome — the quarter-circle `sqrt(1 − t²)`, sampled at five heights. A function rather
+ *  than a shared literal so the three cover roles cannot alias one array a caller could mutate. */
+export function DOME_PROFILE(): SilhouetteProfile {
+  return [0, 0.25, 0.5, 0.75, 1].map((t) => [t, Math.sqrt(1 - t * t)] as const);
+}
+
+/**
+ * DOES THE GROUND COVER CAST? YES, since 2026-09-06 — a decision reversed, with both halves of the
+ * reason it was refused re-measured.
+ *
+ * The refusal (`cover-dressing.ts`'s header, 2026-09-04) rested on two things: (a) COST — the cover
+ * outnumbered every other caster many times over on a 234-unit island carrying a grove; (b) THE
+ * LADDER — with ONE occlusion rung the material thresholds the field, so a prop a ground unit wide
+ * arrived as a hard dot at full rung strength. Both moved. ADR-0518 retired the grove and ADR-0520
+ * shrank the island, so the cover is ~100 low domes per island rather than ~650 beside sixty pines,
+ * and the whole map's stamp is measured on the RTX 2060 in
+ * `docs/research/chapter2-cast-shadows-2026-09-06/report.txt` (the mount-time figure is there, not
+ * here — a number typed here would be inherited by the next reader). And the material now renders
+ * the field through a soft rung as well as a full one (`SHADOW_EDGE`), so a bush's dome arrives
+ * as the small soft-edged pool the approved render puts under every bush.
+ *
+ * ⚠ A BOOLEAN RATHER THAN A DELETED BRANCH so the refusal stays one edit away and every comparison
+ * page can render the control it needs (`placementCasters(…, false)`).
+ */
+export const COVER_CASTS = true;
+
+/**
+ * DOES THE GROUND COVER POOL — darken the ground it meets, beyond the shadow it casts? NO, and
+ * that is a picture decision made on the RTX 2060 the same day the cover began casting. With the
+ * pool on, every bush sat in a dim halo three quarters of a unit wide at the soft rung
+ * (`contactReach` on a 2.4-unit-radius, 2.7-unit-high dome is 3.1 — the sky-occlusion model
+ * doubles its product so a tall prop's foot reads fully dark, and a knee-high dome inherits that
+ * doubling). The approved render's bushes cast a tight shadow on the down-light side and nothing
+ * else. So a cover placement's caster carries `pool: false`: its dome still casts, its foot disc
+ * is still under it, and the halo goes. Trees and blooms keep their pools — a pine's foot IS dark
+ * in the reference, on every side.
+ */
+export const COVER_POOLS = false;
 
 /** The cave portal's mouth half-width — `CaveArch`'s own `hw`, which is the 2D prop's rule. */
 export function caveMouthHalfWidth(cave: InstanceDescriptor): number {
@@ -112,6 +207,11 @@ export function placementCaster(
     z: placement.at.z,
     radius: propRadius(footprint, placement.role) * placement.scale,
     height: heights[placement.role] * placement.scale,
+    // THE FORM, from the role — so the shadow is the object's own silhouette rather than a
+    // cylinder its size ({@link ROLE_SILHOUETTE}).
+    profile: ROLE_SILHOUETTE[placement.role],
+    // THE POOL, from the role class — the cover casts and does not pool ({@link COVER_POOLS}).
+    pool: isDressingRole(placement.role) ? COVER_POOLS : true,
   };
 }
 
@@ -120,28 +220,24 @@ export function placementCaster(
  * {@link groundCasters} and hands to the ground. One caster per placement that STANDS: a placement
  * without a caster is an object that floats, which is the defect this function was written to fix.
  *
- * ⚠⚠ EXCEPT GROUND COVER, WHICH CASTS NOTHING — a decision, stated here because this is the line
- * that enforces it, and argued at length in `cover-dressing.ts`'s header. Two halves, both
- * measured rather than asserted. (a) COST: cover outnumbers everything else on a healthy island by
- * about five to one at the shipped rung, so casting from it multiplies the map's kit casters by
- * roughly six, each one stamping its own box into the occlusion grid. (b) THE LADDER: the ground
- * material has ONE occlusion rung and thresholds the field, so a prop about a ground unit wide does
- * not contribute the soft ambient darkening the approved Cycles render shows — it contributes a
- * hard dot at full rung strength, and a carpet of those is not a shadow.
+ * ⚠⚠ GROUND COVER CASTS TOO, SINCE 2026-09-06 — {@link COVER_CASTS} carries the reversal and its
+ * reasons; `coverCasts: false` is the field as it stood before, which every comparison page's
+ * control arm needs and which this parameter exists to make one edit away.
  *
  * ⚠ IT IS A ROLE-CLASS TEST, NEVER A SIZE ONE. A threshold on the footprint would silently drop the
- * bloom's caster the day someone narrowed the criterion marker, and would silently start casting
- * from ground cover the day someone made a rung bolder. What may not cast is `dressing`, which is
- * a declared property of the vocabulary.
+ * bloom's caster the day someone narrowed the criterion marker, and would silently start or stop
+ * casting from ground cover the day someone resized it. What the flag governs is `dressing`, which
+ * is a declared property of the vocabulary.
  */
 export function placementCasters(
   placements: readonly KitPlacement[],
   footprint: RoleFootprints,
   heights: RoleHeights,
+  coverCasts: boolean = COVER_CASTS,
 ): ShadowCaster[] {
   const out: ShadowCaster[] = [];
   for (const placement of placements) {
-    if (isDressingRole(placement.role)) continue;
+    if (!coverCasts && isDressingRole(placement.role)) continue;
     out.push(placementCaster(placement, footprint, heights));
   }
   return out;
